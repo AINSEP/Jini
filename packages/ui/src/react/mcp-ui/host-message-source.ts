@@ -14,21 +14,37 @@
  * Doing this in a `useEffect` instead loses every message posted between mount-commit and effect-run
  * — a window that a lazy import, a Suspense boundary, or one expensive sibling render makes real.
  *
- * The `typeof window` guard is for SSR: importing this module during a server render must not throw.
+ * The missing-`window` guard in `forwardWindowMessages` is for SSR: importing this module during a server render must not throw.
  * Nothing subscribes there, and the module has no other side effect.
  */
 import {
   createEarlyMessageBuffer,
   type BufferedWindowMessage,
+  type EarlyMessageBuffer,
 } from '../../features/mcp-ui/early-message-buffer.js';
+
+/** The slice of `window` the listener needs. */
+export interface MessageEventTarget {
+  addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+}
+
+/**
+ * Forwards every `message` event on `scope.window` into `into`. A scope without a `window` (a
+ * server render) is a no-op — that is the SSR guard, and taking the global scope as a parameter
+ * lets both the browser and the server path be exercised from one test environment.
+ */
+export function forwardWindowMessages(scope: { readonly window?: MessageEventTarget }, into: EarlyMessageBuffer): void {
+  const target = scope.window;
+  if (!target) return;
+  target.addEventListener('message', (event: MessageEvent) => {
+    into.push({ data: event.data, origin: event.origin, source: event.source });
+  });
+}
 
 const buffer = createEarlyMessageBuffer();
 
-if (typeof window !== 'undefined') {
-  window.addEventListener('message', (event: MessageEvent) => {
-    buffer.push({ data: event.data, origin: event.origin, source: event.source });
-  });
-}
+// Module scope, on purpose — see the header: this runs at first import, before any Host mounts.
+forwardWindowMessages(globalThis as { readonly window?: MessageEventTarget }, buffer);
 
 /** How a Host receives raw window messages. Injectable so a test can drive one without a real `postMessage`. */
 export type ViewMessageSource = (handler: (message: BufferedWindowMessage) => void) => () => void;

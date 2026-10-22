@@ -59,6 +59,8 @@ import type { SurfaceTokenName } from './tokens.js';
 
 export interface SurfaceOutcomeSpec {
   readonly title: string;
+  /** Resource framing carried through host outcome projections; ignored by HTML rendering. */
+  readonly preferredFrameSize?: readonly [string, string];
   readonly description?: string;
   /** The facts of what actually happened — same shape as a confirmation's own `details`, but
    *  reporting the RESULT (e.g. the real URL, the real status) rather than what was proposed. */
@@ -93,6 +95,33 @@ const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-outcome', appVersi
 const DEFAULT_OPEN_LINK_LABEL = 'Open site';
 const OPEN_LINK_ACTION_ID = 'open-link';
 
+/** The status region's `data-state` for an outcome state. @complexity O(1). */
+function statusStateOf(state: SurfaceOutcomeSpec['state']): 'done' | 'partial' | 'failed' {
+  if (state === 'success') return 'done';
+  return state === 'partial' ? 'partial' : 'failed';
+}
+
+/** The open-link button, or nothing without a link. @complexity O(n) in the label length. */
+function renderOpenLinkActions(spec: SurfaceOutcomeSpec): string {
+  if (spec.openLinkUrl === undefined) return '';
+  return renderActions([{ id: OPEN_LINK_ACTION_ID, label: spec.openLinkLabel ?? DEFAULT_OPEN_LINK_LABEL, variant: spec.state === 'success' ? 'primary' : 'neutral' }]);
+}
+
+/** The inline script: wires the open-link button, or nothing at all. @complexity O(n) in the URL length. */
+function outcomeScript(openLinkUrl: string | undefined): string {
+  // No prelude at all when there is nothing to wire up — a pure-display result needs no bridge
+  // calls and no `[data-mcpui-action]` scan.
+  if (openLinkUrl === undefined) return '(function () { "use strict"; }());';
+  return `(function () {
+  "use strict";
+${SURFACE_SCRIPT_PRELUDE}
+  var OPEN_URL = ${escapeJsValue(openLinkUrl)};
+  for (var i = 0; i < actionButtons.length; i++) {
+    actionButtons[i].addEventListener("click", function () { api.openLink(OPEN_URL); });
+  }
+}());`;
+}
+
 /**
  * Renders the outcome document as a complete, self-contained HTML document.
  *
@@ -101,44 +130,25 @@ const OPEN_LINK_ACTION_ID = 'open-link';
  * @complexity O(n) in the rendered length.
  */
 export function renderOutcomeDocument(spec: SurfaceOutcomeSpec): string {
-  const statusState = spec.state === 'success' ? 'done' : spec.state === 'partial' ? 'partial' : 'failed';
   // Rendered directly into the status region rather than left for the script to set — this document
   // has nothing further to wait on (unlike a confirmation, which starts idle and only reaches "done"
   // after a click), so the true outcome should be visible from the FIRST paint, not a moment after
   // the script runs.
-  const statusHtml = `<p class="mcpui-status" id="${SURFACE_STATUS_ELEMENT_ID}" role="status" aria-live="polite" data-state="${statusState}">${escapeHtml(spec.message)}</p>`;
-
-  const hasOpenLink = spec.openLinkUrl !== undefined;
-  const actionsHtml = hasOpenLink
-    ? renderActions([{ id: OPEN_LINK_ACTION_ID, label: spec.openLinkLabel ?? DEFAULT_OPEN_LINK_LABEL, variant: spec.state === 'success' ? 'primary' : 'neutral' }])
-    : '';
+  const statusHtml = `<p class="mcpui-status" id="${SURFACE_STATUS_ELEMENT_ID}" role="status" aria-live="polite" data-state="${statusStateOf(spec.state)}">${escapeHtml(spec.message)}</p>`;
 
   const bodyHtml = [
     renderSurfaceHeader(spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description }),
-    renderDetailList(spec.details ?? []),
+    renderDetailList(spec.details ?? [], { layout: 'outcome' }),
     statusHtml,
-    actionsHtml,
+    renderOpenLinkActions(spec),
   ]
     .filter((fragment) => fragment !== '')
     .join('\n');
 
-  const script = hasOpenLink
-    ? `(function () {
-  "use strict";
-${SURFACE_SCRIPT_PRELUDE}
-  var OPEN_URL = ${escapeJsValue(spec.openLinkUrl)};
-  for (var i = 0; i < actionButtons.length; i++) {
-    actionButtons[i].addEventListener("click", function () { api.openLink(OPEN_URL); });
-  }
-}());`
-    // No prelude at all when there is nothing to wire up — a pure-display result needs no bridge
-    // calls and no `[data-mcpui-action]` scan.
-    : '(function () { "use strict"; }());';
-
   return renderSurfaceDocument({
     title: spec.title,
     bodyHtml,
-    script,
+    script: outcomeScript(spec.openLinkUrl),
     app: spec.app ?? DEFAULT_APP,
     ...(spec.lang === undefined ? {} : { lang: spec.lang }),
     ...(spec.tokens === undefined ? {} : { tokens: spec.tokens }),

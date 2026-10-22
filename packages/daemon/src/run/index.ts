@@ -7,7 +7,7 @@
  * daemon's run capability barrel. Product telemetry (runtime-type / usage /
  * timing analytics), the vendor-specific failure classifier, artifact
  * filesystem snapshotting, and MCP tool-bundle resolution are deliberately
- * out of scope here — see `source-map.md`.
+ * out of scope here — see `archived provenance ledger`.
  */
 
 // core — result derivation, failure taxonomy, and retry policy

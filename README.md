@@ -7,6 +7,7 @@ code under `packages/` must remain free of product-specific behavior and identit
 
 ## Repository map
 
+- [CAPABILITIES.md](CAPABILITIES.md) — package capabilities and entry points to reuse before writing new code.
 - `packages/` — publishable `@jini-ai/*` engine packages.
 - [`examples/`](examples/README.md) — the public starting point for runnable browser and
   desktop hosts, disposable sample projects, and the release/neutrality proof.

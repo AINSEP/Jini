@@ -9,8 +9,9 @@
  * runtime-probed sibling.
  *
  * Ported from OD's `apps/daemon/src/runtimes/types.ts`. Product-neutral
- * as found — see `source-map.md` for the full provenance table.
+ * as found — see `archived provenance ledger` for the full provenance table.
  */
+import type { AgentModelDiscoveryPort, ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from './model-discovery-types.js';
 import type { ExecFileOptions } from 'node:child_process';
 import type { AgentDiagnostic } from '@jini-ai/protocol';
 
@@ -19,6 +20,8 @@ export type RuntimeEnv = NodeJS.ProcessEnv | Record<string, string>;
 export type RuntimeModelOption = {
   id: string;
   label: string;
+  identityKind?: ModelIdentityKind;
+  resolvedId?: string;
   /**
    * The reasoning-effort levels THIS model supports, when the runtime's own catalog reports them
    * per model rather than per agent.
@@ -78,6 +81,17 @@ export type RuntimeReasoningInModelId = {
 };
 
 export type RuntimeBuildOptions = {
+  /** Host-verified per-run overrides; false dimensions must be enforced or launch refused. */
+  nativeCapabilities?: Partial<import('./native-tool-policy.js').NativeCapabilities>;
+  /** Explicit host grant for shell/direct edits. false must be enforced or launch refused.
+   * Does not lift environment, MCP, path, approval or sandbox security controls. */
+  nativeToolAccess?: boolean;
+  /** Explicit trusted-host grant for hand-run CLI configuration and capabilities. */
+  cliParity?: boolean;
+  /** Explicit host/run policy; environment defaults belong to native composition. */
+  codexDisablePlugins?: boolean;
+  /** Host-scoped capability flags; absent retains the published compatibility cache. */
+  capabilities?: RuntimeCapabilityMap;
   model?: string | null;
   reasoning?: string | null;
   // Every def that has one auto-approves its CLI's own permission prompts by default
@@ -120,6 +134,28 @@ export type RuntimeBuildOptions = {
    * `undefined`/empty means no restriction, same as today.
    */
   allowedTools?: readonly string[];
+  /**
+   * Which of the CLI's own settings layers to load — today `claude`'s `--setting-sources`
+   * (`user`, `project`, `local`). An EMPTY list loads none: no settings-file hooks, no plugins the
+   * operator enabled for themselves, no personal model/effort defaults. For a host that embeds the
+   * CLI as a product assistant, so the operator's personal setup (e.g. SessionStart hooks that
+   * inject their own instructions) never reaches the product's runs. Unlike staging a separate
+   * `CLAUDE_CONFIG_DIR`, this keeps the CLI's Keychain login. `undefined` = the CLI's default (all).
+   */
+  settingSources?: readonly string[];
+  /**
+   * Extra settings for this run — today `claude`'s `--settings <file-or-json>`, which the CLI applies
+   * on top of (and independently of) {@link settingSources}. Lets a host that loads no settings layers
+   * still hand the run the few it wants, e.g. one PreToolUse hook. `undefined`/empty = no flag.
+   */
+  settings?: string;
+  /**
+   * Browser integration for this run — today `claude`'s `--chrome` (true) / `--no-chrome` (false),
+   * "Enable/Disable Claude in Chrome integration" in Claude Code 2.1.307's `-p --help`. A mechanism
+   * only: the host decides. Probe-gated like `--effort`, so a CLI without the flag gets neither.
+   * `undefined` = no flag, byte-identical to before; defs without `supportsChromeIntegration` ignore it.
+   */
+  chromeIntegration?: boolean;
 };
 
 export type RuntimeContext = {
@@ -178,9 +214,9 @@ export type RuntimeListModels = {
   // `?? 5000` fallback in `detection.ts#fetchModels` was dead code for every
   // real caller. Making the field mandatory removes that branch instead of
   // padding a test around data that never occurs (see
-  // `detection.ts`'s 2026-07-22 source-map.md entry).
+  // `detection.ts`'s 2026-07-22 archived provenance ledger entry).
   timeoutMs: number;
-  parse: (stdout: string) => RuntimeModelOption[] | null;
+  parse: (requiredArgs: { stdout: string }) => RuntimeModelOption[] | null;
 };
 
 export type RuntimePromptBudgetError = {
@@ -229,7 +265,7 @@ export type RuntimeStdoutPolicy =
        * nothing better to fall back on than the unsanitized text, so a
        * throwing sanitizer is the leak it was added to prevent.
        */
-      readonly sanitize?: (fullText: string) => string;
+      readonly sanitize?: (requiredArgs: { fullText: string }) => string;
     };
 
 /**
@@ -315,12 +351,25 @@ export type RuntimeLock = {
   readonly acquire: (context: RuntimeLockAcquireContext) => Promise<RuntimeLockHold>;
 };
 
-export type RuntimeAgentDef = {
+// Static host definitions predate native model discovery; both ports remain opt-in.
+export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
+  /** This adapter enforces nativeToolAccess and emits normalized shell/edit tool_use events.
+   * A host requesting the policy must fail closed when this capability is absent. */
+  supportsNativeToolAccess?: boolean;
+  /** The CLI ships a native subagent tool (e.g. Claude Code's Task/Agent) a run can delegate to.
+   * Declarative only: hosts read it through `runtimeSupportsSubagents`, never by model name.
+   * Absent = no native subagents. */
+  supportsSubagents?: boolean;
+  /** `buildArgs` honors `RuntimeBuildOptions.chromeIntegration` (today Claude Code's
+   * `--chrome`/`--no-chrome`). Read through `runtimeSupportsChromeIntegration`; absent = unsupported. */
+  supportsChromeIntegration?: boolean;
   id: string;
   name: string;
   bin: string;
   versionArgs: string[];
   fallbackModels: RuntimeModelOption[];
+  /** False when the native CLI exposes only routing modes and cannot pin a concrete ID. */
+  supportsConcreteModelSelection?: boolean;
   /**
    * `YYYY-MM-DD` — when this def's hardcoded `fallbackModels` list was last checked against the
    * vendor's own current list.
@@ -335,13 +384,12 @@ export type RuntimeAgentDef = {
    */
   fallbackModelsAssertedAt?: string;
   buildArgs: (
-    prompt: string,
-    imagePaths: string[],
-    extraAllowedDirs?: string[],
-    options?: RuntimeBuildOptions,
-    runtimeContext?: RuntimeContext,
+    requiredArgs: { prompt: string; imagePaths: string[] },
+    optionalArgs?: { extraAllowedDirs?: string[]; options?: RuntimeBuildOptions; runtimeContext?: RuntimeContext },
   ) => string[];
   streamFormat: string;
+  /** Reported money spans a session or one run; absent preserves per-run adapter behavior. */
+  usageCostBasis?: 'session' | 'run';
   fallbackBins?: string[];
   versionProbeTimeoutMs?: number;
   helpArgs?: string[];
@@ -363,8 +411,8 @@ export type RuntimeAgentDef = {
   env?: Record<string, string>;
   listModels?: RuntimeListModels;
   fetchModels?: (
-    resolvedBin: string,
-    env: RuntimeEnv,
+    requiredArgs: { resolvedBin: string; env: RuntimeEnv },
+    optionalArgs?: { acpModelProbe?: AcpModelProbe },
   ) => Promise<RuntimeModelOption[] | null>;
   reasoningOptions?: RuntimeReasoningOption[];
   /**
@@ -383,7 +431,7 @@ export type RuntimeAgentDef = {
    *
    * Stripped from `DetectedAgent` alongside the other closures — see `detection.ts#stripFns`.
    */
-  deriveReasoningOptions?: (models: readonly RuntimeModelOption[]) => RuntimeReasoningOption[] | null;
+  deriveReasoningOptions?: (requiredArgs: { models: readonly RuntimeModelOption[] }) => RuntimeReasoningOption[] | null;
   /**
    * See {@link RuntimeReasoningInModelId}. Mutually exclusive with
    * `reasoningOptions` in practice: a def declaring both would tell a picker
@@ -657,6 +705,8 @@ export type RuntimeAgentDef = {
 
 export type DetectedAgent = Omit<
   RuntimeAgentDef,
+  | 'discoverModels'
+  | 'resolveDefaultModel'
   | 'buildArgs'
   | 'listModels'
   | 'fetchModels'
@@ -695,6 +745,8 @@ export type DetectedAgent = Omit<
 > & {
   models: RuntimeModelOption[];
   modelsSource: RuntimeModelSource;
+  modelCatalog?: ModelCatalogSnapshot;
+  defaultModelResolution?: DefaultModelResolution;
   available: boolean;
   authStatus?: 'ok' | 'missing' | 'unknown';
   authMessage?: string;
@@ -718,3 +770,23 @@ export type {
   AgentDiagnosticSeverity,
   AgentFixIntent,
 } from '@jini-ai/protocol';
+
+export interface AcpModelProbeRequest {
+  bin: string;
+  args: string[];
+  cwd?: string;
+  env?: RuntimeEnv;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  clientName?: string;
+  clientVersion?: string;
+  defaultModelOption?: RuntimeModelOption;
+}
+
+export interface AcpModelProbe {
+  detectModels(requiredArgs: Pick<AcpModelProbeRequest, 'bin' | 'args'>,
+    optionalArgs?: Omit<AcpModelProbeRequest, 'bin' | 'args'>): Promise<RuntimeModelOption[]>;
+  /** Optional metadata capability preserves a native current selection without guessing from order. */
+  detectMetadata?(requiredArgs: Pick<AcpModelProbeRequest, 'bin' | 'args'>,
+    optionalArgs?: Omit<AcpModelProbeRequest, 'bin' | 'args'>): Promise<{ models: RuntimeModelOption[]; currentModelId: string | null }>;
+}

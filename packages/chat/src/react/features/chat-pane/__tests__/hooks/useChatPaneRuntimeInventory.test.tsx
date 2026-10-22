@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { StrictMode, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +13,12 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+const RETRY_20_40 = [20, 40];
+
+function sleep(ms: number): Promise<void> {
+  return act(() => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+}
+
 function runtimeAccess(
   overrides: Partial<ChatPaneRuntimeAccess> = {},
 ): ChatPaneRuntimeAccess {
@@ -24,7 +30,17 @@ function runtimeAccess(
   };
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  delete (document as { visibilityState?: DocumentVisibilityState }).visibilityState;
+});
+
+/** Overrides jsdom's `document.visibilityState` (an own property shadowing the prototype getter,
+ *  removed again in `afterEach`); `dispatch` also fires `visibilitychange`. */
+function setVisibility(state: DocumentVisibilityState, dispatch = true): void {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+  if (dispatch) document.dispatchEvent(new Event('visibilitychange'));
+}
 
 describe('useChatPaneRuntimeInventory', () => {
   it('loads inventory, polls health, and exposes explicit rescan state', async () => {
@@ -71,7 +87,7 @@ describe('useChatPaneRuntimeInventory', () => {
   it('ignores a stale capability response after switching to injected agents', async () => {
     const first = deferred<readonly ChatPaneAgent[]>();
     const access = runtimeAccess({ listAgents: vi.fn(() => first.promise) });
-    const staticAgents: ChatPaneAgent[] = [{ id: 'gemini', name: 'Gemini' }];
+    const staticAgents: ChatPaneAgent[] = [{ id: 'antigravity', name: 'Antigravity' }];
     const { result, rerender } = renderHook(
       ({ currentAccess }: { currentAccess: ChatPaneRuntimeAccess | undefined }) =>
         useChatPaneRuntimeInventory({
@@ -128,6 +144,191 @@ describe('useChatPaneRuntimeInventory', () => {
     expect(result.current.agents).toEqual([]);
     expect(result.current.daemonOnline).toBe(false);
     expect(result.current.runtimeInventoryError?.message).toBe('inventory unavailable');
+    expect(result.current.connectingAgents).toBe(true);
+  });
+
+  // 2026-09-28: a failed first load used to be final for the life of the pane — the daemon
+  // restarting under an open chat left it on "No usable CLI is selected" until a hard reload.
+  // Real timers with millisecond delays: React 19's async `act` stalls under vitest fake timers.
+  it('retries a failed initial load with backoff and reports connecting until an answer arrives', async () => {
+    const listAgents = vi
+      .fn<ChatPaneRuntimeAccess['listAgents']>()
+      .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+      .mockRejectedValueOnce(new Error('GET /api/agents answered 502'))
+      .mockResolvedValueOnce([{ id: 'claude', name: 'Claude' }]);
+    const access = runtimeAccess({ listAgents });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({
+      access,
+      pollIntervalMs: 60_000,
+      retryDelaysMs: RETRY_20_40,
+    }));
+
+    await act(async () => {});
+    expect(listAgents).toHaveBeenCalledTimes(1);
+    expect(result.current.connectingAgents).toBe(true);
+    expect(result.current.agents).toEqual([]);
+
+    await waitFor(() => expect(listAgents).toHaveBeenCalledTimes(2));
+    expect(result.current.connectingAgents).toBe(true);
+
+    await waitFor(() => expect(result.current.agents).toEqual([{ id: 'claude', name: 'Claude' }]));
+    expect(listAgents).toHaveBeenCalledTimes(3);
+    expect(result.current.connectingAgents).toBe(false);
+    expect(result.current.runtimeInventoryError).toBeNull();
+
+    await sleep(100);
+    expect(listAgents).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps retrying at the last backoff step while the daemon stays unreachable', async () => {
+    const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>(async () => {
+      throw new Error('GET /api/agents answered 500');
+    });
+    const access = runtimeAccess({ listAgents });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({
+      access,
+      pollIntervalMs: 60_000,
+      retryDelaysMs: [5, 10],
+    }));
+
+    await waitFor(() => expect(listAgents.mock.calls.length).toBeGreaterThanOrEqual(4));
+    expect(result.current.connectingAgents).toBe(true);
+  });
+
+  it('refetches the inventory as soon as the daemon comes back online', async () => {
+    const listAgents = vi
+      .fn<ChatPaneRuntimeAccess['listAgents']>()
+      .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+      .mockResolvedValueOnce([{ id: 'claude', name: 'Claude' }]);
+    let online = false;
+    const access = runtimeAccess({ listAgents, daemonOnline: vi.fn(async () => online) });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({
+      access,
+      pollIntervalMs: 10,
+      retryDelaysMs: [60_000],
+    }));
+
+    await act(async () => {});
+    expect(result.current.daemonOnline).toBe(false);
+    expect(listAgents).toHaveBeenCalledTimes(1);
+
+    online = true;
+    await waitFor(() => expect(result.current.agents).toEqual([{ id: 'claude', name: 'Claude' }]));
+    expect(result.current.daemonOnline).toBe(true);
+    expect(listAgents).toHaveBeenCalledTimes(2);
+    expect(result.current.connectingAgents).toBe(false);
+  });
+
+  it('does not refetch on the first online report, only on an offline-to-online transition', async () => {
+    const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>(async () => {
+      throw new Error('GET /api/agents answered 500');
+    });
+    const daemonOnline = vi.fn(async () => true);
+    const access = runtimeAccess({ listAgents, daemonOnline });
+    renderHook(() => useChatPaneRuntimeInventory({
+      access,
+      pollIntervalMs: 10,
+      retryDelaysMs: [60_000],
+    }));
+
+    await waitFor(() => expect(daemonOnline.mock.calls.length).toBeGreaterThanOrEqual(4));
+    expect(listAgents).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches on window focus and on the tab becoming visible while no answer has arrived', async () => {
+    const listAgents = vi
+      .fn<ChatPaneRuntimeAccess['listAgents']>()
+      .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+      .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+      .mockResolvedValue([{ id: 'claude', name: 'Claude' }]);
+    const access = runtimeAccess({ listAgents });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({
+      access,
+      retryDelaysMs: [60_000],
+    }));
+    await act(async () => {});
+    expect(listAgents).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(listAgents).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(listAgents).toHaveBeenCalledTimes(3);
+    expect(result.current.agents).toEqual([{ id: 'claude', name: 'Claude' }]);
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(listAgents).toHaveBeenCalledTimes(3);
+  });
+
+  it('polls health only while the tab is visible, checking once when it is shown again', async () => {
+    vi.useFakeTimers();
+    const access = runtimeAccess();
+    const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, pollIntervalMs: 100 }));
+    await act(async () => {});
+    expect(access.daemonOnline).toHaveBeenCalledTimes(1);
+
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(2);
+
+    await act(async () => setVisibility('hidden'));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(2);
+
+    await act(async () => setVisibility('visible'));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(3);
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(4);
+
+    unmount();
+    await act(async () => setVisibility('visible'));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(4);
+  });
+
+  it('starts no health interval when mounted in a hidden tab, but still checks once', async () => {
+    vi.useFakeTimers();
+    setVisibility('hidden', false);
+    const access = runtimeAccess();
+    renderHook(() => useChatPaneRuntimeInventory({ access, pollIntervalMs: 100 }));
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips a health tick while the previous status call is still in flight', async () => {
+    vi.useFakeTimers();
+    const pending = deferred<boolean>();
+    const daemonOnline = vi.fn<ChatPaneRuntimeAccess['daemonOnline']>().mockReturnValueOnce(pending.promise).mockResolvedValue(true);
+    const access = runtimeAccess({ daemonOnline });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({ access, pollIntervalMs: 100 }));
+    await act(async () => {});
+
+    await act(async () => vi.advanceTimersByTime(300));
+    expect(daemonOnline).toHaveBeenCalledTimes(1);
+
+    await act(async () => pending.resolve(true));
+    expect(result.current.daemonOnline).toBe(true);
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(daemonOnline).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats a resolved empty list as a finished answer, not something to retry', async () => {
+    const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>(async () => []);
+    const access = runtimeAccess({ listAgents });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({
+      access,
+      retryDelaysMs: [5],
+    }));
+    await act(async () => {});
+    await sleep(50);
+    expect(listAgents).toHaveBeenCalledTimes(1);
+    expect(result.current.connectingAgents).toBe(false);
   });
 
   it('starts scanningAgents true synchronously when access is supplied at mount', async () => {
@@ -158,4 +359,145 @@ describe('useChatPaneRuntimeInventory', () => {
     expect(result.current.agents[0]?.id).toBe('static');
     expect(result.current.daemonOnline).toBe(false);
   });
+});
+
+it('shows cached models immediately and refreshes while the host probe is pending', async () => {
+  vi.useFakeTimers();
+  let calls = 0;
+  const access: ChatPaneRuntimeAccess = {
+    daemonOnline: async () => true,
+    rescanAgents: async () => [],
+    listAgents: async () => {
+      calls++;
+      return [{ id: 'claude', name: 'Claude', discoveryPending: calls === 1,
+        models: [{ id: calls === 1 ? 'previous-v1' : 'exact-model-v2', label: calls === 1 ? 'previous-v1' : 'exact-model-v2' }] }];
+    },
+  };
+  const { result, unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [20] }));
+  await act(async () => {});
+  expect(result.current.agents[0]?.models?.[0]?.id).toBe('previous-v1');
+  expect(result.current.scanningAgents).toBe(false);
+  await act(async () => vi.advanceTimersByTime(20));
+  expect(result.current.agents[0]?.models?.[0]?.id).toBe('exact-model-v2');
+  expect(calls).toBe(2);
+  await act(async () => vi.advanceTimersByTime(100));
+  expect(calls).toBe(2);
+  unmount();
+});
+
+it('backs off through the finite host sweep window and then stops across focus and health ticks', async () => {
+  vi.useFakeTimers();
+  const pending: ChatPaneAgent[] = [{ id: 'codex', name: 'Codex', discoveryPending: true }];
+  const listAgents = vi.fn(async () => pending);
+  const access = runtimeAccess({ listAgents });
+  const { result, unmount } = renderHook(() => useChatPaneRuntimeInventory({ access }));
+  await act(async () => {});
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  for (const [step, delay] of [1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000, 120_000, 240_000, 420_000].entries()) {
+    const calls = step + 2;
+    await act(async () => vi.advanceTimersByTime(delay - 1));
+    expect(listAgents).toHaveBeenCalledTimes(calls - 1);
+    await act(async () => vi.advanceTimersByTime(1));
+    expect(listAgents).toHaveBeenCalledTimes(calls);
+  }
+  await act(async () => vi.advanceTimersByTime(60_000));
+  await act(async () => { window.dispatchEvent(new Event('focus')); });
+  expect(listAgents).toHaveBeenCalledTimes(11);
+  expect(result.current.agents).toEqual(pending);
+  expect(result.current.scanningAgents).toBe(false);
+  unmount();
+});
+
+it('stops pending retries when a slow response outlives the discovery deadline', async () => {
+  vi.useFakeTimers();
+  const pending: ChatPaneAgent[] = [{ id: 'codex', name: 'Codex', discoveryPending: true }];
+  const slow = deferred<readonly ChatPaneAgent[]>();
+  const listAgents = vi.fn().mockResolvedValueOnce(pending).mockResolvedValueOnce(pending)
+    .mockResolvedValueOnce(pending).mockResolvedValueOnce(pending).mockReturnValueOnce(slow.promise).mockResolvedValue(pending);
+  const access = runtimeAccess({ listAgents });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access }));
+  await act(async () => {});
+  for (const delay of [1_000, 2_000, 4_000, 8_000]) {
+    await act(async () => vi.advanceTimersByTime(delay));
+  }
+  expect(listAgents).toHaveBeenCalledTimes(5);
+  await act(async () => vi.advanceTimersByTime(15 * 60_000));
+  await act(async () => slow.resolve(pending));
+  await act(async () => vi.advanceTimersByTime(60_000));
+  expect(listAgents).toHaveBeenCalledTimes(5);
+  unmount();
+});
+
+it('waits for the host cache refresh deadline when it is later than the pending backoff step', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>()
+    .mockResolvedValueOnce([{ id: 'codex', name: 'Codex', discoveryPending: true }])
+    .mockResolvedValue([{ id: 'codex', name: 'Codex' }]);
+  const access = runtimeAccess({ listAgents, getAgentsRefreshAt: () => Date.now() + 500 });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [20] }));
+  await act(async () => {});
+  await act(async () => vi.advanceTimersByTime(499));
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  await act(async () => vi.advanceTimersByTime(1));
+  expect(listAgents).toHaveBeenCalledTimes(2);
+  unmount();
+});
+
+it('schedules no pending retry when the host cache refresh deadline falls past the discovery window', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn(async (): Promise<readonly ChatPaneAgent[]> => [
+    { id: 'codex', name: 'Codex', discoveryPending: true },
+  ]);
+  const access = runtimeAccess({ listAgents, getAgentsRefreshAt: () => Date.now() + 16 * 60_000 });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [20] }));
+  await act(async () => {});
+  await act(async () => vi.advanceTimersByTime(20 * 60_000));
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  unmount();
+});
+
+it('schedules no pending-discovery retry when retryDelaysMs is empty', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn(async (): Promise<readonly ChatPaneAgent[]> => [
+    { id: 'codex', name: 'Codex', discoveryPending: true },
+  ]);
+  const access = runtimeAccess({ listAgents });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [] }));
+  await act(async () => {});
+  await act(async () => vi.advanceTimersByTime(20 * 60_000));
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  unmount();
+});
+
+it('retries a failed load after 0ms when retryDelaysMs is empty, so an unreachable host is retried in a tight loop (reported, not fixed)', async () => {
+  vi.useFakeTimers();
+  const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>()
+    .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+    .mockResolvedValue([{ id: 'codex', name: 'Codex' }]);
+  const access = runtimeAccess({ listAgents });
+  const { result, unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, retryDelaysMs: [] }));
+  await act(async () => {});
+  expect(result.current.connectingAgents).toBe(true);
+  await act(async () => vi.advanceTimersByTime(0));
+  expect(listAgents).toHaveBeenCalledTimes(2);
+  expect(result.current.agents).toEqual([{ id: 'codex', name: 'Codex' }]);
+  unmount();
+});
+
+it('ignores a window focus while the tab is hidden', async () => {
+  const listAgents = vi.fn<ChatPaneRuntimeAccess['listAgents']>().mockRejectedValue(new Error('GET /api/agents answered 500'));
+  const daemonOnline = vi.fn(async () => true);
+  const access = runtimeAccess({ listAgents, daemonOnline });
+  const { unmount } = renderHook(() => useChatPaneRuntimeInventory({
+    access,
+    retryDelaysMs: [60_000],
+  }));
+  await act(async () => {});
+  setVisibility('hidden', false);
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+  expect(listAgents).toHaveBeenCalledTimes(1);
+  expect(daemonOnline).toHaveBeenCalledTimes(1);
+  unmount();
 });

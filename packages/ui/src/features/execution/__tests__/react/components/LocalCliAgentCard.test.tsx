@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -9,6 +11,7 @@ import type {
   LocalCliConfig,
 } from '../../../types.js';
 import { LocalCliAgentCard } from '../../../react/components/LocalCliAgentCard.js';
+import { LocalCliAgentList } from '../../../react/components/LocalCliAgentList.js';
 
 function agent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
   return { id: 'claude', label: 'Claude Code', installed: true, ...overrides };
@@ -39,7 +42,103 @@ function renderCard(props: Partial<Parameters<typeof LocalCliAgentCard>[0]> = {}
   return merged;
 }
 
+describe('LocalCliAgentCard — settings inside its own column', () => {
+  it('keeps two cards as the only grid children and expands settings inside the selected card', () => {
+    render(
+      <LocalCliAgentList
+        agents={[
+          agent({ models: [{ id: 'm1', label: 'Model One' }] }),
+          agent({ id: 'codex', label: 'Codex CLI' }),
+        ]}
+        config={{ agentId: 'claude' }}
+        scan={{ status: 'idle' }}
+        onSelect={vi.fn()}
+        onModelChange={vi.fn()}
+        onReasoningChange={vi.fn()}
+        onEnvChange={vi.fn()}
+        cliEnvFields={CLI_ENV_FIELDS}
+        agentTest={IDLE_TEST}
+      />,
+    );
+    const selected = screen.getByTestId('jini-agent-card-claude');
+    const neighbour = screen.getByTestId('jini-agent-card-codex');
+    expect(selected.parentElement).toHaveClass('jini-agent-grid');
+    expect(Array.from(selected.parentElement!.children)).toEqual([selected, neighbour]);
+    expect(selected).toContainElement(screen.getByTestId('jini-agent-settings-claude'));
+    expect(neighbour.querySelector('.jini-agent-settings')).toBeNull();
+    expect(selected).toHaveClass('is-selected');
+
+    // jsdom has no grid layout: pair the real DOM containment with the shipped CSS contract.
+    const css = readFileSync(resolve('src/features/settings/dialog/styles/settings-dialog.css'), 'utf8');
+    expect(css.match(/\.jini-agent-card\.is-selected\s*\{([^}]*)\}/)?.[1]).toMatch(/grid-column:\s*span 1\s*;/);
+    expect(css.match(/\.jini-agent-grid\s*\{([^}]*)\}/)?.[1]).toMatch(/align-items:\s*start\s*;/);
+    expect(css.match(/\.jini-agent-settings\s*\{([^}]*)\}/)?.[1]).toMatch(/border-top:\s*1px solid var\(--jini-border\)/);
+    expect(css.match(/\.jini-agent-card\.is-selected \.jini-agent-card-tagline:not\(:empty\)::before\s*\{([^}]*)\}/)?.[1]).toContain("content: '·\\00a0'");
+    expect(css).not.toMatch(/grid-auto-flow:\s*row dense/);
+  });
+
+  it.each([
+    ['fallback', 'Built-in list', 'Showing built-in defaults. Click Rescan to pull live models from the CLI.'],
+    ['live', 'Live from CLI', "Model list comes from this CLI. Default uses the CLI's own config."],
+  ] as const)('stacks the %s model label, badge, select, visible helper, effort and Advanced disclosure', (modelsSource, badge, hint) => {
+    renderCard({
+      agent: agent({
+        models: [{ id: 'm1', label: 'Model One' }],
+        modelsSource,
+        reasoningOptions: [{ id: 'high', label: 'High' }],
+      }),
+    });
+    const settings = screen.getByTestId('jini-agent-settings-claude');
+    const model = screen.getByTestId('jini-agent-model-claude');
+    const helper = within(settings).getByText(hint);
+    const effort = screen.getByTestId('jini-agent-reasoning-claude');
+    const advanced = screen.getByTestId('jini-agent-cli-env-claude');
+    const modelLabel = settings.querySelector('.jini-agent-settings-label');
+    expect(modelLabel).toContainElement(within(settings).getByText('Model'));
+    expect(modelLabel).toContainElement(within(settings).getByText(badge));
+    expect(helper).toBeVisible();
+    expect(model.compareDocumentPosition(helper) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(helper.compareDocumentPosition(effort) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(effort.compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(advanced).not.toHaveAttribute('open');
+
+    const css = readFileSync(resolve('src/features/settings/dialog/styles/settings-dialog.css'), 'utf8');
+    expect(css.match(/\.jini-agent-settings-field\s*\{([^}]*)\}/)?.[1]).toMatch(/flex-direction:\s*column/);
+    expect(css.match(/\.jini-agent-settings \.jini-searchable-select,[^{]*\{([^}]*)\}/)?.[1]).toMatch(/width:\s*100%/);
+  });
+
+  it('puts Test in the header as a sibling of selection and keeps its action independent', async () => {
+    const props = renderCard({ onTest: vi.fn() });
+    const selected = screen.getByTestId('jini-agent-card-claude');
+    const test = screen.getByRole('button', { name: 'Test' });
+    expect(selected.querySelector('.jini-agent-card-main')).toContainElement(test);
+    expect(test.parentElement).toBe(screen.getByTestId('jini-agent-select-claude').parentElement);
+    expect(screen.getByTestId('jini-agent-settings-claude')).not.toContainElement(test);
+    await userEvent.click(test);
+    expect(props.onTest).toHaveBeenCalledWith(props.agent);
+    expect(props.onSelect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['claude', true, 'Testing…'],
+    ['codex', false, 'Test'],
+  ] as const)('keeps header Test loading state scoped to the tested CLI %s', (agentId, disabled, label) => {
+    renderCard({ onTest: vi.fn(), agentTest: { status: 'testing', agentId } });
+    const test = screen.getByTestId('jini-agent-test-claude');
+    expect(test).toHaveTextContent(label);
+    expect((test as HTMLButtonElement).disabled).toBe(disabled);
+  });
+});
+
 describe('LocalCliAgentCard — diagnostics', () => {
+  it('keeps the CLI name and tagline in the selection button without announcing the decorative separator', async () => {
+    const props = renderCard({ selected: false, config: { agentId: null } });
+    const select = screen.getByRole('button', { name: /Claude Code/ });
+    expect(select).toHaveTextContent('Anthropic official CLI');
+    expect(select).not.toHaveAccessibleName(/·/);
+    await userEvent.click(select);
+    expect(props.onSelect).toHaveBeenCalledWith('claude');
+  });
   it('renders a diagnostic row on an installed card', () => {
     renderCard({
       agent: agent({

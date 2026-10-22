@@ -10,22 +10,22 @@
  * validation, which left three real gaps:
  *
  * 1. `required` and `queryable` were never type-checked anywhere in the codebase, so
- *    `queryable: "yes"` counted as queryable (`write-service.ts`'s `countQueryableFields` filters
- *    on truthiness) and `required: "maybe"` was persisted verbatim into the stored record and its
- *    revision `stateJson`. That is a data-integrity gap, not merely a sloppy contract.
+ * `queryable: "yes"` counted as queryable (`write-service.ts`'s `countQueryableFields` filters
+ * on truthiness) and `required: "maybe"` was persisted verbatim into the stored record and its
+ * revision `stateJson`. That is a data-integrity gap, not merely a sloppy contract.
  * 2. A non-object element (`fields: [null]`) made the field-name grammar guard throw a bare
- *    `TypeError` on `field.name` instead of returning a typed rejection — a 500 on the HTTP path
- *    and an opaque `'failed'` tool execution on the agent path.
+ * `TypeError` on `field.name` instead of returning a typed rejection — a 500 on the HTTP path
+ * and an opaque `'failed'` tool execution on the agent path.
  * 3. A misspelled key (`queryible: true`) was silently dropped rather than reported, so a caller
- *    got a field that was quietly non-queryable with no indication why.
+ * got a field that was quietly non-queryable with no indication why.
  *
  * Division of responsibility (deliberate, and the reason this module is narrow):
  * this module owns STRUCTURE only — array-ness, element object-ness, the four keys and their
  * types. It does NOT own the domain rules. The field-name grammar gate, the reserved-key check and
- * the queryable-field cap stay solely in `write-service.ts`'s CIC U-002-B1 guard chain, whose
+ * the queryable-field cap stay solely in `write-service.ts`'s guard chain, whose
  * fixed order (`key grammar -> reserved-key -> field-name grammar -> field-kind -> queryable-cap`)
  * and stop-at-first-failure behavior are pinned by
- * `__tests__/unit/write-service.register.unit.test.ts` (AC-38). Duplicating any of those here
+ * `__tests__/unit/write-service.register.unit.test.ts`. Duplicating any of those here
  * would either reorder that chain for boundary callers or create a second source of truth for a
  * rule that must have exactly one definition.
  *
@@ -38,9 +38,11 @@
  * Architectural role:
  * `features/content-types` domain logic. Pure — no I/O, no clock, no repo. Depends only on this
  * package's own `types.ts` and `errors.ts`.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 import { InvalidFieldKindError, InvalidFieldShapeError } from "./errors.js";
-import { isContentTypeFieldKind, type ContentTypeFieldDef, type Result } from "./types.js";
+import { type Result } from "@jini-ai/core/primitives";
+import { isContentTypeFieldKind, type ContentTypeFieldDef } from "./types.js";
 
 /**
  * The complete, closed key set of a `ContentTypeFieldDef`. Any other key is rejected rather than
@@ -81,7 +83,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * verified array or the first structural violation found.
  *
  * Stops at the first violation rather than collecting all of them, matching the
- * stop-at-first-failure convention CIC U-002-B1 already establishes for the domain guard chain
+ * stop-at-first-failure convention already establishes for the domain guard chain
  * this function feeds.
  *
  * @param value - The untrusted `fields` payload: a parsed JSON body's property, or an agent tool's
@@ -94,11 +96,13 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * @complexity O(f·k) time with f = element count (bounded by {@link MAX_FIELD_DEFS}) and k = 4
  * fixed keys, so effectively O(f); O(f) space for the returned array.
  * @example
- * const parsed = parseContentTypeFieldDefs([{ name: "servings", kind: "integer", required: false, queryable: true }]);
+ * const parsed = parseContentTypeFieldDefs({ value: [{ name: "servings", kind: "integer", required: false, queryable: true }] });
  * if (!parsed.ok) return { ok: false, error: parsed.error };
  * @overallScore 100
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
-export function parseContentTypeFieldDefs(value: unknown): Result<ContentTypeFieldDef[], Error> {
+export function parseContentTypeFieldDefs(requiredArgs: { value: unknown }, optionalArgs: Record<string, never> = {}): Result<ContentTypeFieldDef[], Error> {
+  const { value } = requiredArgs;
   if (!Array.isArray(value)) {
     return { ok: false, error: new InvalidFieldShapeError({ path: "fields", expected: "an array", received: describeType(value) }) };
   }
@@ -154,9 +158,10 @@ function parseOneFieldDef(element: unknown, at: string): Result<ContentTypeField
   if (typeof element.kind !== "string") {
     return { ok: false, error: new InvalidFieldShapeError({ path: `${at}.kind`, expected: "a string", received: describeType(element.kind) }) };
   }
-  if (!isContentTypeFieldKind(element.kind)) {
-    return { ok: false, error: new InvalidFieldKindError(`field '${element.name}' has kind '${element.kind}', not one of the closed field-kind enum`) };
+  const kind = { value: element.kind };
+  if (!isContentTypeFieldKind(kind)) {
+    return { ok: false, error: new InvalidFieldKindError({ message: `field '${element.name}' has kind '${element.kind}', not one of the closed field-kind enum` }) };
   }
 
-  return { ok: true, value: { name: element.name, kind: element.kind, required: element.required, queryable: element.queryable } };
+  return { ok: true, value: { name: element.name, kind: kind.value, required: element.required, queryable: element.queryable } };
 }

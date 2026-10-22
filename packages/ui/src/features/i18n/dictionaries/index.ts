@@ -4,11 +4,10 @@
  * translation.
  *
  * This is a SEPARATE i18n system from any Jini-consuming host's own
- * dictionaries (e.g. a host product's `apps/admin/src/lib/i18n-common.ts` +
- * `apps/admin/src/lib/dictionary-translator.ts` + one `*-i18n.ts` file per
+ * dictionaries (shared host translations, the host's translator and one dictionary per
  * admin feature) -- deliberately so, since this package is meant to be
  * reusable across hosts and a host's own product copy has no reason to ship
- * inside it (see that repo's i18n-common.ts for the fuller reasoning). They
+ * inside it (host copy belongs to the host). They
  * share the same underlying shape/convention (`Record<locale, Record<key,
  * string>>`, translated-value-else-raw-key fallback) by design, so adding a
  * language to one is a close parallel to adding it to the other, but they are

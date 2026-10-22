@@ -1,35 +1,65 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/cursor-agent.ts` (import path adjusted only). See `source-map.md`. */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
-import type { RuntimeAgentDef } from '../types.js';
-import type { RuntimeModelOption } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeModelOption } from '../types.js';
 
-export function parseCursorAgentModels(stdout: string): RuntimeModelOption[] | null {
+/** One `<id>` or `<id> - <label>` listing line; header lines and non-id lines yield null. */
+function parseCursorAgentModelLine(line: string): RuntimeModelOption | null {
+  if (/^(available models|models)$/i.test(line)) return null;
+  const match = line.match(/^([A-Za-z0-9][A-Za-z0-9._/:@-]*)(?:\s+-\s+(.+))?$/);
+  if (!match) return null;
+  // The id group is mandatory and non-empty whenever the pattern matched.
+  const id = match[1] as string;
+  return { id, label: match[2]?.trim() || id };
+}
+
+export function parseCursorAgentModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0 && !line.startsWith('#'));
-  if (lines.length === 0) return null;
 
   const out = [DEFAULT_MODEL_OPTION];
   const seen = new Set<string>([DEFAULT_MODEL_OPTION.id]);
   for (const line of lines) {
-    if (/^(available models|models)$/i.test(line)) continue;
-
-    const match = line.match(/^([A-Za-z0-9][A-Za-z0-9._/:@-]*)(?:\s+-\s+(.+))?$/);
-    if (!match) continue;
-    const id = match[1];
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-
-    const label = match[2]?.trim() || id;
-    out.push({ id, label });
+    const model = parseCursorAgentModelLine(line);
+    if (!model || seen.has(model.id)) continue;
+    seen.add(model.id);
+    out.push(model);
   }
 
   return out.length > 1 ? out : null;
 }
 
+// `cursor-agent models` prints account-bound model ids per line. When
+// the user isn't authed it prints "No models available for this
+// account." — that's not a model list, so we detect it and fall back.
+function parseCursorAgentListing({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
+  const trimmed = String(stdout || '').trim();
+  if (!trimmed || /no models available/i.test(trimmed)) return null;
+  return parseCursorAgentModels({ stdout: trimmed });
+}
+
+/** Approval flags: `--force` always, `--trust` only when this build's `--help` probe saw it. */
+function bypassArgs(options: RuntimeBuildOptions): string[] {
+  // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default
+  // (unchanged behavior) unless a caller explicitly opts into a restricted
+  // run. Both flags below are auto-approval, so both are gated on it —
+  // `--force` bypasses the per-action prompt and `--trust` pre-grants the
+  // workspace trust that same prompt would otherwise ask for, so omitting
+  // only one of them would still hand the run most of what it asked to
+  // withhold.
+  if (options.permissionMode === 'restricted') return [];
+  const caps = (options.capabilities ?? agentCapabilities.get('cursor-agent')) || {};
+  // `--trust` grants workspace trust in headless runs, but only newer
+  // cursor-agent builds accept it; older ones exit 1 with "unknown option"
+  // (issue #4461). Pass it only when the `--help` probe saw it.
+  return caps.trust ? ['--force', '--trust'] : ['--force'];
+}
+
 export const cursorAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('cursor-agent', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => cursorAgentDef.fallbackModels, args: ['models'], parse: parseCursorAgentListing }),
     id: 'cursor-agent',
     name: 'Cursor Agent',
     bin: 'cursor-agent',
@@ -44,17 +74,11 @@ export const cursorAgentDef = {
       // execution (issue #4461). Gate on the probe like claude/codebuddy do.
       '--trust': 'trust',
     },
-    // `cursor-agent models` prints account-bound model ids per line. When
-    // the user isn't authed it prints "No models available for this
-    // account." — that's not a model list, so we detect it and fall back.
+    // See `parseCursorAgentListing` for the unauthenticated "No models available" fallback.
     listModels: {
       args: ['models'],
       timeoutMs: 5000,
-      parse: (stdout) => {
-        const trimmed = String(stdout || '').trim();
-        if (!trimmed || /no models available/i.test(trimmed)) return null;
-        return parseCursorAgentModels(trimmed);
-      },
+      parse: parseCursorAgentListing,
     },
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
@@ -67,46 +91,15 @@ export const cursorAgentDef = {
     // Passing it makes the CLI treat the dash as the literal user prompt,
     // which then surfaces as "your message only contains '-'". Keep stdin
     // piped for prompt delivery, but do not append a fake prompt arg.
-    buildArgs: (
-      _prompt,
-      _imagePaths,
-      _extra,
-      options = {},
-      runtimeContext = {},
-    ) => {
-      const caps = agentCapabilities.get('cursor-agent') || {};
-      const args = [];
-      args.push(
-        '--print',
-        '--output-format',
-        'stream-json',
-        '--stream-partial-output',
-      );
-      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default
-      // (unchanged behavior) unless a caller explicitly opts into a restricted
-      // run. Both flags below are auto-approval, so both are gated on it —
-      // `--force` bypasses the per-action prompt and `--trust` pre-grants the
-      // workspace trust that same prompt would otherwise ask for, so omitting
-      // only one of them would still hand the run most of what it asked to
-      // withhold.
-      const bypassPermissions = options.permissionMode !== 'restricted';
-      if (bypassPermissions) {
-        args.push('--force');
-      }
-      // `--trust` grants workspace trust in headless runs, but only newer
-      // cursor-agent builds accept it; older ones exit 1 with "unknown option"
-      // (issue #4461). Pass it only when the `--help` probe saw it.
-      if (bypassPermissions && caps.trust) {
-        args.push('--trust');
-      }
-      if (runtimeContext.cwd) {
-        args.push('--workspace', runtimeContext.cwd);
-      }
-      if (options.model && options.model !== 'default') {
-        args.push('--model', options.model);
-      }
-      return args;
-    },
+    buildArgs: (_requiredArgs, { options = {}, runtimeContext = {} } = {}) => [
+      '--print',
+      '--output-format',
+      'stream-json',
+      '--stream-partial-output',
+      ...bypassArgs(options),
+      ...(runtimeContext.cwd ? ['--workspace', runtimeContext.cwd] : []),
+      ...(options.model && options.model !== 'default' ? ['--model', options.model] : []),
+    ],
     promptViaStdin: true,
     streamFormat: 'json-event-stream',
     eventParser: 'cursor-agent',

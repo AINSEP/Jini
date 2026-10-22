@@ -1,0 +1,262 @@
+[
+  {
+    "name": "appendMessageAgentEvent",
+    "runtime": true
+  },
+  {
+    "name": "appendMessageStatusEvent",
+    "runtime": true
+  },
+  {
+    "name": "CHAT_HISTORY_DDL",
+    "runtime": true
+  },
+  {
+    "name": "ChatSessionMode",
+    "runtime": false
+  },
+  {
+    "name": "clearAgentSession",
+    "runtime": true
+  },
+  {
+    "name": "closeDatabase",
+    "runtime": true
+  },
+  {
+    "name": "createChatHistoryMaintenance",
+    "runtime": true
+  },
+  {
+    "name": "createChatHistoryStore",
+    "runtime": true
+  },
+  {
+    "name": "createSqliteEventLog",
+    "runtime": true
+  },
+  {
+    "name": "DaemonDbStatusReport",
+    "runtime": false
+  },
+  {
+    "name": "DaemonDbTableInfo",
+    "runtime": false
+  },
+  {
+    "name": "DbIntegrityIssue",
+    "runtime": false
+  },
+  {
+    "name": "DbIntegrityIssueKind",
+    "runtime": false
+  },
+  {
+    "name": "DbIntegrityReport",
+    "runtime": false
+  },
+  {
+    "name": "DbRow",
+    "runtime": false
+  },
+  {
+    "name": "DEFAULT_MAX_ENTRIES_PER_RUN",
+    "runtime": true
+  },
+  {
+    "name": "deleteConversation",
+    "runtime": true
+  },
+  {
+    "name": "deleteMessage",
+    "runtime": true
+  },
+  {
+    "name": "deleteProject",
+    "runtime": true
+  },
+  {
+    "name": "ensureChatHistoryTables",
+    "runtime": true
+  },
+  {
+    "name": "ensureToolCatalogTables",
+    "runtime": true
+  },
+  {
+    "name": "getAgentSession",
+    "runtime": true
+  },
+  {
+    "name": "getAgentSessionRecord",
+    "runtime": true
+  },
+  {
+    "name": "getConversation",
+    "runtime": true
+  },
+  {
+    "name": "getMessageTelemetryFinalizationState",
+    "runtime": true
+  },
+  {
+    "name": "getProject",
+    "runtime": true
+  },
+  {
+    "name": "getToolCatalogEntry",
+    "runtime": true
+  },
+  {
+    "name": "insertConversation",
+    "runtime": true
+  },
+  {
+    "name": "insertProject",
+    "runtime": true
+  },
+  {
+    "name": "inspectSqliteDatabase",
+    "runtime": true
+  },
+  {
+    "name": "JsonObject",
+    "runtime": false
+  },
+  {
+    "name": "latestCompletedAssistantMessageId",
+    "runtime": true
+  },
+  {
+    "name": "listConversations",
+    "runtime": true
+  },
+  {
+    "name": "listConversationsAwaitingInput",
+    "runtime": true
+  },
+  {
+    "name": "listFirstConversationRunStatuses",
+    "runtime": true
+  },
+  {
+    "name": "listLatestConversationRunStatuses",
+    "runtime": true
+  },
+  {
+    "name": "listLatestProjectRunStatuses",
+    "runtime": true
+  },
+  {
+    "name": "listLatestRunStatuses",
+    "runtime": true
+  },
+  {
+    "name": "listMessages",
+    "runtime": true
+  },
+  {
+    "name": "listProjects",
+    "runtime": true
+  },
+  {
+    "name": "listProjectsAwaitingInput",
+    "runtime": true
+  },
+  {
+    "name": "migrate",
+    "runtime": true
+  },
+  {
+    "name": "normalizeConversationSessionMode",
+    "runtime": true
+  },
+  {
+    "name": "openDatabase",
+    "runtime": true
+  },
+  {
+    "name": "parseJsonOrUndef",
+    "runtime": true
+  },
+  {
+    "name": "reseedToolCatalog",
+    "runtime": true
+  },
+  {
+    "name": "resolveSqliteBackendConfig",
+    "runtime": true
+  },
+  {
+    "name": "row",
+    "runtime": true
+  },
+  {
+    "name": "rows",
+    "runtime": true
+  },
+  {
+    "name": "searchToolCatalog",
+    "runtime": true
+  },
+  {
+    "name": "SqliteBackendConfig",
+    "runtime": false
+  },
+  {
+    "name": "SqliteBackendConfigError",
+    "runtime": true
+  },
+  {
+    "name": "SqliteBackendKind",
+    "runtime": false
+  },
+  {
+    "name": "SqliteDb",
+    "runtime": false
+  },
+  {
+    "name": "SqliteEventLog",
+    "runtime": false
+  },
+  {
+    "name": "SqliteEventLogOptions",
+    "runtime": false
+  },
+  {
+    "name": "ToolCatalogEntry",
+    "runtime": false
+  },
+  {
+    "name": "ToolCatalogSearchHit",
+    "runtime": false
+  },
+  {
+    "name": "updateAgentSessionStableHash",
+    "runtime": true
+  },
+  {
+    "name": "updateConversation",
+    "runtime": true
+  },
+  {
+    "name": "updateProject",
+    "runtime": true
+  },
+  {
+    "name": "upsertAgentSession",
+    "runtime": true
+  },
+  {
+    "name": "upsertMessage",
+    "runtime": true
+  },
+  {
+    "name": "VerifyDbOptions",
+    "runtime": false
+  },
+  {
+    "name": "verifySqliteIntegrity",
+    "runtime": true
+  }
+]

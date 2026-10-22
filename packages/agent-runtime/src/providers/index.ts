@@ -2,7 +2,7 @@
  * @module providers
  *
  * Generic LLM-provider integration material ported from OD's
- * `apps/daemon/src/integrations/` (13 files). See `source-map.md` for the
+ * `apps/daemon/src/integrations/` (13 files). See `archived provenance ledger` for the
  * full per-file provenance and the MIXED-classification split: OD's own
  * AMR/vela provider adapter (`vela*.ts`, 4 files) is a specific provider's
  * own daemon-coupled implementation, not generic material, and was left
@@ -15,7 +15,7 @@
  * `chat.ts` (this task did not have direct access to that file for the
  * 2026-07-21 pass; the 2026-07-22 pass did read the real OD source for
  * Azure's api-version default — see `azure-chat.ts`'s header) — see each
- * module's own header and `source-map.md`'s dated sections for the full
+ * module's own header and `archived provenance ledger`'s dated sections for the full
  * rationale.
  */
 export * from './types.js';
@@ -37,3 +37,4 @@ export * from './oauth-provider.js';
 export * from './oauth-callback-server.js';
 export * from './oauth-tokens.js';
 export * from './oauth-credentials.js';
+export * from './tool-turn.js';

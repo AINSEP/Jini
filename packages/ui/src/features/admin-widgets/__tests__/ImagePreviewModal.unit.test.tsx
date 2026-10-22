@@ -1,0 +1,118 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+import { ImagePreviewModal } from "../components/ImagePreviewModal.js";
+import type { LightboxController } from "../components/Lightbox/Lightbox.hooks.js";
+
+/**
+ * @file `ImagePreviewModal` — the click-to-expand lightbox for a theme card's screenshot thumbnail.
+ * Same native-`<dialog>` shape `Pages.unit.test.tsx`'s `ConfirmDialog` assertions already exercise
+ * (`dialog.hasAttribute("open")`), applied to this component's own three close paths: the close
+ * button, a backdrop click, and Escape (the dialog's native `cancel` event).
+ */
+
+describe("open/closed state", () => {
+  it("has no open attribute when open is false", () => {
+    render(<ImagePreviewModal open={false} src="/theme-assets/basic/screenshots/index.png" alt="Basic theme preview" onClose={vi.fn()} />);
+    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    expect(dialog.hasAttribute("open")).toBe(false);
+  });
+
+  it("has the open attribute when open is true", () => {
+    render(<ImagePreviewModal open={true} src="/theme-assets/basic/screenshots/index.png" alt="Basic theme preview" onClose={vi.fn()} />);
+    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    expect(dialog.hasAttribute("open")).toBe(true);
+  });
+
+  it("opens the rendered dialog with showModal when the native API is available", () => {
+    const showModal = vi.fn(function (this: HTMLDialogElement) { this.setAttribute("open", ""); });
+    // jsdom lacks this native API; spy on the actual rendered receiver as well as the call.
+    const original = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: showModal });
+    try {
+      render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} />);
+      const dialog = screen.getByRole("dialog");
+      expect(showModal).toHaveBeenCalledTimes(1);
+      expect(showModal.mock.contexts[0]).toBe(dialog);
+      expect(dialog).toHaveAttribute("open");
+    } finally {
+      if (original) Object.defineProperty(HTMLDialogElement.prototype, "showModal", original);
+      else delete (HTMLDialogElement.prototype as Partial<HTMLDialogElement>).showModal;
+    }
+  });
+});
+
+describe("image content", () => {
+  it("renders the image at the given src with the given alt text", () => {
+    render(<ImagePreviewModal open={true} src="/theme-assets/basic/screenshots/index.png" alt="Basic theme preview" onClose={vi.fn()} />);
+    const img = screen.getByAltText("Basic theme preview");
+    expect(img).toHaveAttribute("src", "/theme-assets/basic/screenshots/index.png");
+  });
+});
+
+describe("closing", () => {
+  it("tags the close button for agents only when an agent handle is given, using the caller's close label", () => {
+    const { unmount } = render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} agentHandle="theme-preview" closeLabel="Cerrar" />);
+    const close = screen.getByRole("button", { name: "Cerrar" });
+    expect(close).toHaveAttribute("data-agent-element", "theme-preview");
+    expect(close).toHaveAttribute("data-agent-label", "Cerrar");
+    unmount();
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Close preview" })).not.toHaveAttribute("data-agent-element");
+  });
+
+  it("calls onClose when the close button is clicked", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={onClose} />);
+    await user.click(screen.getByRole("button", { name: "Close preview" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onClose when the backdrop (the dialog element itself, not a child) is clicked", () => {
+    const onClose = vi.fn();
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={onClose} />);
+    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    fireEvent.click(dialog);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onClose when a click lands on a child (the image), not the dialog's own backdrop area", () => {
+    const onClose = vi.fn();
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={onClose} />);
+    fireEvent.click(screen.getByAltText("x"));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("calls onClose on the dialog's native cancel event (Escape) and prevents the browser's own close", () => {
+    const onClose = vi.fn();
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={onClose} />);
+    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    const cancelEvent = new Event("cancel", { cancelable: true });
+    fireEvent(dialog, cancelEvent);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(cancelEvent.defaultPrevented).toBe(true);
+  });
+});
+
+describe("ImagePreviewModal modal-hook injection", () => {
+  it("renders purely off an injected fake, proving the lightbox hook is not hardcoded", () => {
+    // The real hook only dismisses on the dialog/stage itself; a fake whose click handler calls
+    // onClose unconditionally proves this render used the fake when the image click dismisses.
+    const onClose = vi.fn();
+    function useFakeLightbox(): LightboxController {
+      const ref = { current: null };
+      return {
+        dialogRef: ref, closeRef: ref, prevRef: ref, nextRef: ref,
+        navigable: false, hasPrev: false, hasNext: false, counter: "",
+        previous: () => {}, next: () => {},
+        handleCancel: () => {}, handleClick: () => onClose(),
+      };
+    }
+
+    render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={vi.fn()} useModal={useFakeLightbox} />);
+    fireEvent.click(screen.getByAltText("x"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

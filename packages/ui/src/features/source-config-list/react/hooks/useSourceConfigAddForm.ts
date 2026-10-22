@@ -36,7 +36,7 @@ export interface SourceConfigAddFormController {
  * `PluginsView.tsx`'s `SourcesPanel`/`ConnectorsBrowser.tsx`'s "add
  * immediately on submit" shape rather than `McpClientSection.tsx`'s
  * draft-rows-with-a-separate-bulk-Save-button pattern — see
- * `packages/ui/source-map.md` for why that behavior was not ported.
+ * `packages/ui/archived provenance ledger` for why that behavior was not ported.
  */
 export function useSourceConfigAddForm<TSource extends SourceConfigItem>(
   params: UseSourceConfigAddFormParams<TSource>,

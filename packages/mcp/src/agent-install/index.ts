@@ -6,3 +6,4 @@
  * apply/remove primitives. Pure planning logic; no sibling MCP imports.
  */
 export * from './install.js';
+export { CHROME_DEVTOOLS_MCP_PRESET } from './chrome-devtools.js';

@@ -12,7 +12,7 @@ import {
 
 // PAGE_CAPABILITIES alone already has multiple entries, which is all "projects a whole manifest
 // in order" below needs — this package ships no product-specific manifest of its own to combine
-// it with (chat-core's CHAT_CAPABILITIES stays in chat-core; see source-map.md's "What moves").
+// it with (chat-core's CHAT_CAPABILITIES stays in chat-core; see archived provenance ledger's "What moves").
 const ALL = PAGE_CAPABILITIES;
 const HIGHLIGHT = PAGE_CAPABILITIES.find((c) => c.id === 'page.highlight')!;
 const FIND_ELEMENTS = PAGE_CAPABILITIES.find((c) => c.id === 'page.find_elements')!;
@@ -20,7 +20,7 @@ const FIND_ELEMENTS = PAGE_CAPABILITIES.find((c) => c.id === 'page.find_elements
 describe('webmcp projection', () => {
   it('maps a capability onto the registerTool shape and dispatches by id', async () => {
     const execute = vi.fn(async () => ({ ok: true }));
-    const tool = toWebMcpTool(HIGHLIGHT, execute);
+    const tool = toWebMcpTool({ capability: HIGHLIGHT, execute });
 
     expect(tool.name).toBe('page.highlight');
     expect(tool.description).toBe(HIGHLIGHT.description);
@@ -28,7 +28,7 @@ describe('webmcp projection', () => {
     expect(tool.inputSchema).toBe(HIGHLIGHT.inputSchema);
 
     await tool.execute({ handle: 'task-water-plants' });
-    expect(execute).toHaveBeenCalledWith('page.highlight', { handle: 'task-water-plants' });
+    expect(execute).toHaveBeenCalledWith({ id: 'page.highlight', args: { handle: 'task-water-plants' } });
   });
 
   // Uses page.find_elements rather than page.highlight (used above): every field on that
@@ -39,12 +39,12 @@ describe('webmcp projection', () => {
   // thing if it kept using HIGHLIGHT.
   it('substitutes an empty object when a caller passes nothing', async () => {
     const execute = vi.fn(async () => null);
-    await toWebMcpTool(FIND_ELEMENTS, execute).execute(undefined as unknown as Record<string, unknown>);
-    expect(execute).toHaveBeenCalledWith('page.find_elements', {});
+    await toWebMcpTool({ capability: FIND_ELEMENTS, execute }).execute(undefined as unknown as Record<string, unknown>);
+    expect(execute).toHaveBeenCalledWith({ id: 'page.find_elements', args: {} });
   });
 
   it('projects a whole manifest in order', () => {
-    const tools = toWebMcpTools(ALL, async () => null);
+    const tools = toWebMcpTools({ capabilities: ALL, execute: async () => null });
     expect(tools.map((t) => t.name)).toEqual(ALL.map((c) => c.id));
   });
 });
@@ -61,14 +61,14 @@ describe('confirmation gate', () => {
 
   it('refuses a confirmation-required capability when no handler is supplied', async () => {
     const execute = vi.fn();
-    const [tool] = toWebMcpTools([confirming], execute);
+    const [tool] = toWebMcpTools({ capabilities: [confirming], execute });
     await expect(tool!.execute({})).rejects.toThrow(WebMcpConfirmationRequiredError);
     expect(execute).not.toHaveBeenCalled();
   });
 
   it('refuses when the handler declines, and does not run the capability', async () => {
     const execute = vi.fn();
-    const tool = toWebMcpTool(confirming, execute, { requestUserInteraction: async () => false });
+    const tool = toWebMcpTool({ capability: confirming, execute }, { requestUserInteraction: async () => false });
     await expect(tool.execute({})).rejects.toThrow(/declined/);
     expect(execute).not.toHaveBeenCalled();
   });
@@ -76,7 +76,7 @@ describe('confirmation gate', () => {
   it('runs once the handler approves, and shows it the capability and args', async () => {
     const execute = vi.fn(async () => 'done');
     const seen: unknown[] = [];
-    const tool = toWebMcpTool(confirming, execute, {
+    const tool = toWebMcpTool({ capability: confirming, execute }, {
       requestUserInteraction: async (interaction) => {
         seen.push(interaction);
         return true;
@@ -84,14 +84,14 @@ describe('confirmation gate', () => {
     });
     await expect(tool.execute({ force: true })).resolves.toBe('done');
     expect(seen).toEqual([{ capability: confirming, args: { force: true } }]);
-    expect(execute).toHaveBeenCalledWith('page.delete_everything', { force: true });
+    expect(execute).toHaveBeenCalledWith({ id: 'page.delete_everything', args: { force: true } });
   });
 
   it('leaves capabilities that do not require confirmation untouched', async () => {
     const { requiresConfirmation: _unused, ...withoutFlag } = confirming;
     const plain: CapabilityDef = { ...withoutFlag, id: 'page.read' };
     const execute = vi.fn(async () => 'ok');
-    const tool = toWebMcpTool(plain, execute);
+    const tool = toWebMcpTool({ capability: plain, execute });
     await expect(tool.execute({})).resolves.toBe('ok');
   });
 });
@@ -110,7 +110,7 @@ describe('tool name validation (spec §4.2: 1-128 chars, ASCII alnum + "_-.")', 
     ['emoji-🙂', false],
     ['has"quote', false],
   ])('isValidWebMcpToolName(%j) === %p', (name, expected) => {
-    expect(isValidWebMcpToolName(name)).toBe(expected);
+    expect(isValidWebMcpToolName({ name })).toBe(expected);
   });
 
   function capabilityWithId(id: string): CapabilityDef {
@@ -124,11 +124,11 @@ describe('tool name validation (spec §4.2: 1-128 chars, ASCII alnum + "_-.")', 
   }
 
   it('throws InvalidWebMcpToolNameError synchronously for an empty capability id', () => {
-    expect(() => toWebMcpTool(capabilityWithId(''), async () => null)).toThrow(InvalidWebMcpToolNameError);
+    expect(() => toWebMcpTool({ capability: capabilityWithId(''), execute: async () => null })).toThrow(InvalidWebMcpToolNameError);
   });
 
   it('throws for a capability id over 128 characters', () => {
-    expect(() => toWebMcpTool(capabilityWithId('x'.repeat(200)), async () => null)).toThrow(
+    expect(() => toWebMcpTool({ capability: capabilityWithId('x'.repeat(200)), execute: async () => null })).toThrow(
       InvalidWebMcpToolNameError,
     );
   });
@@ -136,7 +136,7 @@ describe('tool name validation (spec §4.2: 1-128 chars, ASCII alnum + "_-.")', 
   it('throws for a capability id containing a character outside the allowed set', () => {
     let error: unknown;
     try {
-      toWebMcpTool(capabilityWithId('page:highlight'), async () => null);
+      toWebMcpTool({ capability: capabilityWithId('page:highlight'), execute: async () => null });
     } catch (caught) {
       error = caught;
     }
@@ -152,7 +152,7 @@ describe('tool name validation (spec §4.2: 1-128 chars, ASCII alnum + "_-.")', 
     // `@mcp-b/webmcp-polyfill` for its OWN validation errors (see this session's report).
     let threw = false;
     try {
-      toWebMcpTool(capabilityWithId('bad name'), async () => null);
+      toWebMcpTool({ capability: capabilityWithId('bad name'), execute: async () => null });
     } catch {
       threw = true;
     }
@@ -161,64 +161,64 @@ describe('tool name validation (spec §4.2: 1-128 chars, ASCII alnum + "_-.")', 
 
   it('toWebMcpTools throws on the first invalid id in a batch, before returning anything', () => {
     const capabilities = [capabilityWithId('fine'), capabilityWithId('also fine? no')];
-    expect(() => toWebMcpTools(capabilities, async () => null)).toThrow(InvalidWebMcpToolNameError);
+    expect(() => toWebMcpTools({ capabilities, execute: async () => null })).toThrow(InvalidWebMcpToolNameError);
   });
 });
 
 describe('title and annotations', () => {
   it('defaults annotations.readOnlyHint from a read-risk capability', () => {
-    const tool = toWebMcpTool(FIND_ELEMENTS, async () => null);
+    const tool = toWebMcpTool({ capability: FIND_ELEMENTS, execute: async () => null });
     expect(FIND_ELEMENTS.risk).toBe('read');
     expect(tool.annotations).toEqual({ readOnlyHint: true });
   });
 
   it('defaults annotations.readOnlyHint to false for a write-risk capability', () => {
     const CLICK = PAGE_CAPABILITIES.find((c) => c.id === 'page.click')!;
-    const tool = toWebMcpTool(CLICK, async () => null);
+    const tool = toWebMcpTool({ capability: CLICK, execute: async () => null });
     expect(CLICK.risk).toBe('write');
     expect(tool.annotations).toEqual({ readOnlyHint: false });
   });
 
   it('lets the caller override readOnlyHint and add untrustedContentHint', () => {
-    const tool = toWebMcpTool(FIND_ELEMENTS, async () => null, {
+    const tool = toWebMcpTool({ capability: FIND_ELEMENTS, execute: async () => null }, {
       annotations: { readOnlyHint: true, untrustedContentHint: true },
     });
     expect(tool.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: true });
   });
 
   it('omits title when none is supplied', () => {
-    const tool = toWebMcpTool(FIND_ELEMENTS, async () => null);
+    const tool = toWebMcpTool({ capability: FIND_ELEMENTS, execute: async () => null });
     expect(tool.title).toBeUndefined();
     expect('title' in tool).toBe(false);
   });
 
   it('attaches title when supplied via options', () => {
-    const tool = toWebMcpTool(FIND_ELEMENTS, async () => null, { title: 'Find elements' });
+    const tool = toWebMcpTool({ capability: FIND_ELEMENTS, execute: async () => null }, { title: 'Find elements' });
     expect(tool.title).toBe('Find elements');
   });
 });
 
 describe('registerOptions (signal/exposedTo — the SECOND argument to the real registerTool)', () => {
   it('omits registerOptions when neither signal nor exposedTo is supplied', () => {
-    const tool = toWebMcpTool(FIND_ELEMENTS, async () => null);
+    const tool = toWebMcpTool({ capability: FIND_ELEMENTS, execute: async () => null });
     expect(tool.registerOptions).toBeUndefined();
     expect('registerOptions' in tool).toBe(false);
   });
 
   it('bundles a supplied signal into registerOptions', () => {
     const controller = new AbortController();
-    const tool = toWebMcpTool(FIND_ELEMENTS, async () => null, { signal: controller.signal });
+    const tool = toWebMcpTool({ capability: FIND_ELEMENTS, execute: async () => null }, { signal: controller.signal });
     expect(tool.registerOptions).toEqual({ signal: controller.signal });
   });
 
   it('bundles a supplied exposedTo into registerOptions', () => {
-    const tool = toWebMcpTool(FIND_ELEMENTS, async () => null, { exposedTo: ['https://example.com'] });
+    const tool = toWebMcpTool({ capability: FIND_ELEMENTS, execute: async () => null }, { exposedTo: ['https://example.com'] });
     expect(tool.registerOptions).toEqual({ exposedTo: ['https://example.com'] });
   });
 
   it('bundles both when both are supplied, and shares one registerOptions across a whole toWebMcpTools batch', () => {
     const controller = new AbortController();
-    const tools = toWebMcpTools([FIND_ELEMENTS, HIGHLIGHT], async () => null, {
+    const tools = toWebMcpTools({ capabilities: [FIND_ELEMENTS, HIGHLIGHT], execute: async () => null }, {
       signal: controller.signal,
       exposedTo: ['https://example.com'],
     });
@@ -231,7 +231,7 @@ describe('registerOptions (signal/exposedTo — the SECOND argument to the real 
 describe('schema-on-error discipline (matches page-executor.ts for page.*)', () => {
   it('refuses a call missing a required field, embedding the schema so the caller can self-correct', async () => {
     const execute = vi.fn();
-    const tool = toWebMcpTool(HIGHLIGHT, execute);
+    const tool = toWebMcpTool({ capability: HIGHLIGHT, execute });
     await expect(tool.execute({})).rejects.toThrow(
       `page.highlight: "handle" is required. Expected input: ${JSON.stringify(HIGHLIGHT.inputSchema)}`,
     );
@@ -240,14 +240,14 @@ describe('schema-on-error discipline (matches page-executor.ts for page.*)', () 
 
   it('refuses a call whose field has the wrong type', async () => {
     const execute = vi.fn();
-    const tool = toWebMcpTool(HIGHLIGHT, execute);
+    const tool = toWebMcpTool({ capability: HIGHLIGHT, execute });
     await expect(tool.execute({ handle: 42 })).rejects.toThrow(/"handle" must be a string/);
     expect(execute).not.toHaveBeenCalled();
   });
 
   it('refuses an unknown argument when the schema declares additionalProperties: false', async () => {
     const execute = vi.fn();
-    const tool = toWebMcpTool(HIGHLIGHT, execute);
+    const tool = toWebMcpTool({ capability: HIGHLIGHT, execute });
     await expect(tool.execute({ handle: 'x', bogus: true })).rejects.toThrow(/unknown argument: bogus/);
     expect(execute).not.toHaveBeenCalled();
   });
@@ -268,7 +268,7 @@ describe('schema-on-error discipline (matches page-executor.ts for page.*)', () 
     };
     const requestUserInteraction = vi.fn(async () => true);
     const execute = vi.fn();
-    const tool = toWebMcpTool(requiresConfirmation, execute, { requestUserInteraction });
+    const tool = toWebMcpTool({ capability: requiresConfirmation, execute }, { requestUserInteraction });
     // Missing `text` — a schema failure, not a confirmation decision.
     await expect(tool.execute({ element: 'x' })).rejects.toThrow(/"text" is required/);
     expect(requestUserInteraction).not.toHaveBeenCalled();
@@ -291,9 +291,9 @@ describe('schema-on-error discipline (matches page-executor.ts for page.*)', () 
     };
     const requestUserInteraction = vi.fn(async () => true);
     const execute = vi.fn(async () => ({ filled: true }));
-    const tool = toWebMcpTool(requiresConfirmation, execute, { requestUserInteraction });
+    const tool = toWebMcpTool({ capability: requiresConfirmation, execute }, { requestUserInteraction });
     await expect(tool.execute({ element: 'x', text: 'hello' })).resolves.toEqual({ filled: true });
     expect(requestUserInteraction).toHaveBeenCalledTimes(1);
-    expect(execute).toHaveBeenCalledWith('page.fill', { element: 'x', text: 'hello' });
+    expect(execute).toHaveBeenCalledWith({ id: 'page.fill', args: { element: 'x', text: 'hello' } });
   });
 });

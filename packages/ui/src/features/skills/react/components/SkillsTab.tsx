@@ -3,9 +3,11 @@ import type { SkillsPort } from '../../ports.js';
 import { humanizeSkillCategory } from '../../rules.js';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
-import { useSkillsTab } from '../hooks/useSkillsTab.js';
+import { useSkillsTab, type SkillFilterRow, type UseSkillsTabResult } from '../hooks/useSkillsTab.js';
 import { SkillDraftForm, type SkillDraftFormLabels } from './SkillDraftForm.js';
+import { resolveLabels } from './SkillDraftForm.labels.js';
 import { SkillRow, type SkillRowLabels } from './SkillRow.js';
+import { DEFAULT_SKILLS_TAB_LABELS, type ResolvedSkillsTabLabels } from './SkillsTab.labels.js';
 
 export interface SkillsTabLabels extends SkillDraftFormLabels, SkillRowLabels {
   searchPlaceholder?: string;
@@ -47,204 +49,228 @@ export interface SkillsTabProps {
  */
 export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels, agentHandle }: SkillsTabProps) {
   const t = useT();
-  const {
-    loading,
-    loadError,
-    filters,
-    setSearch,
-    setSourceFilter,
-    setModeFilter,
-    setCategoryFilter,
-    filteredSkills,
-    sourceOptions,
-    modeOptions,
-    categoryOptions,
-    expandedId,
-    toggleExpanded,
-    bodyById,
-    bodyLoadingId,
-    filesById,
-    filesLoadingId,
-    editingId,
-    creating,
-    draft,
-    setDraft,
-    draftError,
-    draftSaving,
-    startCreate,
-    requestEdit,
-    confirmBuiltInEditId,
-    confirmBuiltInEdit,
-    cancelBuiltInEdit,
-    cancelDraft,
-    submitDraft,
-    confirmDeleteId,
-    armDelete,
-    cancelDelete,
-    commitDelete,
-  } = useSkillsTab({ port, locale });
-
-  const searchPlaceholder = labels?.searchPlaceholder ?? t('Search skills…');
-  const newSkillLabel = labels?.newSkillLabel ?? t('New skill');
-  const sourceFilterLabel = labels?.sourceFilterLabel ?? t('Source');
-  const modeFilterLabel = labels?.modeFilterLabel ?? t('Type');
-  const categoryFilterLabel = labels?.categoryFilterLabel ?? t('Category');
-  const allLabel = labels?.allLabel ?? t('All');
-  const noResultsLabel = labels?.noResultsLabel ?? t('No skills match these filters.');
-  const loadErrorLabel = labels?.loadErrorLabel ?? t('Could not load skills: {error}', { error: loadError ?? '' });
-  const rowHandles = agentHandle
-    ? buildAgentListHandles(agentSubHandle(agentHandle, 'skill'), filteredSkills.map((skill) => skill.id))
-    : undefined;
+  const tab = useSkillsTab({ port, locale });
+  const l = resolveLabels({ defaults: DEFAULT_SKILLS_TAB_LABELS, t }, { labels });
+  const loadErrorLabel = labels?.loadErrorLabel ?? t('Could not load skills: {error}', { error: tab.loadError ?? '' });
 
   return (
     <section className="jini-settings-section jini-settings-skills">
-      <div className="jini-skills-toolbar">
-        <div className="jini-skills-toolbar-top">
-          <input
-            type="search"
-            className="jini-skills-search"
-            placeholder={searchPlaceholder}
-            value={filters.search}
-            onChange={(event) => setSearch(event.target.value)}
-            aria-label={searchPlaceholder}
-            {...agentHandleProps(agentHandle, { action: 'search', role: 'field', label: searchPlaceholder })}
-          />
-          <button
-            type="button"
-            className="jini-button jini-button-primary"
-            onClick={startCreate}
-            data-testid="skills-new"
-            {...agentHandleProps(agentHandle, { action: 'new', role: 'button', label: newSkillLabel })}
-          >
-            <Icon name="plus" size={13} />
-            <span>{newSkillLabel}</span>
-          </button>
-        </div>
+      <SkillsTabToolbar tab={tab} labels={l} agentHandle={agentHandle} />
 
-        <div className="jini-skills-filter-selects">
-          <label className="jini-skills-filter-select">
-            <span>{sourceFilterLabel}</span>
-            <select
-              value={filters.source}
-              onChange={(event) => setSourceFilter(event.target.value as typeof filters.source)}
-              {...agentHandleProps(agentHandle, { action: 'filter-source', role: 'field', label: sourceFilterLabel })}
-            >
-              <option value="all">
-                {allLabel} ({sourceOptions.all})
-              </option>
-              {sourceOptions.options.map(([value, count]) => (
-                <option key={value} value={value}>
-                  {value} ({count})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="jini-skills-filter-select">
-            <span>{modeFilterLabel}</span>
-            <select
-              value={filters.mode}
-              onChange={(event) => setModeFilter(event.target.value)}
-              {...agentHandleProps(agentHandle, { action: 'filter-mode', role: 'field', label: modeFilterLabel })}
-            >
-              <option value="all">
-                {allLabel} ({modeOptions.all})
-              </option>
-              {modeOptions.options.map(([value, count]) => (
-                <option key={value} value={value}>
-                  {value} ({count})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {categoryOptions ? (
-            <label className="jini-skills-filter-select" data-testid="skills-category-filters">
-              <span>{categoryFilterLabel}</span>
-              <select
-                value={filters.category}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-                {...agentHandleProps(agentHandle, { action: 'filter-category', role: 'field', label: categoryFilterLabel })}
-              >
-                <option value="all">
-                  {allLabel} ({categoryOptions.all})
-                </option>
-                {categoryOptions.options.map(([value, count]) => (
-                  <option key={value} value={value}>
-                    {humanizeSkillCategory(value)} ({count})
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </div>
-      </div>
-
-      {loadError ? (
+      {tab.loadError ? (
         <div className="jini-empty-card jini-empty-card-error">
           <strong>{loadErrorLabel}</strong>
         </div>
       ) : null}
 
-      {creating ? (
+      {tab.creating ? (
         <SkillDraftForm
-          heading={newSkillLabel}
-          draft={draft}
-          onDraftChange={setDraft}
-          error={draftError}
-          saving={draftSaving}
+          heading={l.newSkillLabel}
+          draft={tab.draft}
+          onDraftChange={tab.setDraft}
+          error={tab.draftError}
+          saving={tab.draftSaving}
           isEdit={false}
-          onCancel={cancelDraft}
-          onSubmit={submitDraft}
+          onCancel={tab.cancelDraft}
+          onSubmit={tab.submitDraft}
           labels={labels}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'create-form') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'create-form' }) } : {})}
         />
       ) : null}
 
-      {!loading && filteredSkills.length === 0 ? (
+      {!tab.loading && tab.filteredSkills.length === 0 ? (
         <div className="jini-empty-card">
-          <strong>{noResultsLabel}</strong>
+          <strong>{l.noResultsLabel}</strong>
         </div>
       ) : (
-        <div className="jini-skills-rows" data-testid="skills-list">
-          {filteredSkills.map((skill, index) => {
-            const isExpanded = expandedId === skill.id;
-            const isEditing = editingId === skill.id;
-            return (
-              <SkillRow
-                key={skill.id}
-                {...(rowHandles?.[index] ? { agentHandle: rowHandles[index] } : {})}
-                skill={skill}
-                locale={locale}
-                enabled={!disabledSkillIds.has(skill.id)}
-                expanded={isExpanded}
-                editing={isEditing}
-                body={bodyById[skill.id]}
-                bodyLoading={bodyLoadingId === skill.id}
-                files={filesById[skill.id] ?? null}
-                filesLoading={filesLoadingId === skill.id}
-                confirmDelete={confirmDeleteId === skill.id}
-                confirmBuiltInEdit={confirmBuiltInEditId === skill.id}
-                draft={isEditing ? draft : null}
-                draftError={isEditing ? draftError : null}
-                draftSaving={isEditing && draftSaving}
-                onDraftChange={setDraft}
-                onToggleExpanded={() => toggleExpanded(skill.id)}
-                onToggleEnabled={(enabled) => onToggleEnabled(skill.id, enabled)}
-                onStartEdit={() => requestEdit(skill)}
-                onConfirmBuiltInEdit={confirmBuiltInEdit}
-                onCancelBuiltInEdit={cancelBuiltInEdit}
-                onArmDelete={() => armDelete(skill.id)}
-                onCancelDelete={cancelDelete}
-                onCommitDelete={() => commitDelete(skill.id)}
-                onCancelEdit={cancelDraft}
-                onSubmitEdit={submitDraft}
-                labels={labels}
-              />
-            );
-          })}
-        </div>
+        <SkillsTabRows
+          tab={tab}
+          disabledSkillIds={disabledSkillIds}
+          onToggleEnabled={onToggleEnabled}
+          locale={locale}
+          labels={labels}
+          agentHandle={agentHandle}
+        />
       )}
     </section>
+  );
+}
+
+/** Search box, "New skill" button, and the source/mode/(category) selects. */
+function SkillsTabToolbar({
+  tab,
+  labels: l,
+  agentHandle,
+}: {
+  tab: UseSkillsTabResult;
+  labels: ResolvedSkillsTabLabels;
+  agentHandle: string | undefined;
+}) {
+  const { filters, categoryOptions } = tab;
+  return (
+    <div className="jini-skills-toolbar">
+      <div className="jini-skills-toolbar-top">
+        <input
+          type="search"
+          className="jini-skills-search"
+          placeholder={l.searchPlaceholder}
+          value={filters.search}
+          onChange={(event) => tab.setSearch(event.target.value)}
+          aria-label={l.searchPlaceholder}
+          {...agentHandleProps({}, { base: agentHandle, action: 'search', role: 'field', label: l.searchPlaceholder })}
+        />
+        <button
+          type="button"
+          className="jini-button jini-button-primary"
+          onClick={tab.startCreate}
+          data-testid="skills-new"
+          {...agentHandleProps({}, { base: agentHandle, action: 'new', role: 'button', label: l.newSkillLabel })}
+        >
+          <Icon name="plus" size={13} />
+          <span>{l.newSkillLabel}</span>
+        </button>
+      </div>
+
+      <div className="jini-skills-filter-selects">
+        <SkillFilterSelect
+          label={l.sourceFilterLabel}
+          allLabel={l.allLabel}
+          value={filters.source}
+          row={tab.sourceOptions}
+          onChange={(value) => tab.setSourceFilter(value as typeof filters.source)}
+          action="filter-source"
+          agentHandle={agentHandle}
+        />
+        <SkillFilterSelect
+          label={l.modeFilterLabel}
+          allLabel={l.allLabel}
+          value={filters.mode}
+          row={tab.modeOptions}
+          onChange={tab.setModeFilter}
+          action="filter-mode"
+          agentHandle={agentHandle}
+        />
+        {categoryOptions ? (
+          <SkillFilterSelect
+            label={l.categoryFilterLabel}
+            allLabel={l.allLabel}
+            value={filters.category}
+            row={categoryOptions}
+            onChange={tab.setCategoryFilter}
+            action="filter-category"
+            agentHandle={agentHandle}
+            formatValue={humanizeSkillCategory}
+            testId="skills-category-filters"
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const identity = (value: string): string => value;
+
+/** One labelled filter `<select>`: an "All (n)" option then one per value. */
+function SkillFilterSelect({
+  label,
+  allLabel,
+  value,
+  row,
+  onChange,
+  action,
+  agentHandle,
+  formatValue = identity,
+  testId,
+}: {
+  label: string;
+  allLabel: string;
+  value: string;
+  row: SkillFilterRow;
+  onChange: (value: string) => void;
+  action: string;
+  agentHandle: string | undefined;
+  /** Category slugs are shown humanized; source/mode values are shown raw. */
+  formatValue?: (value: string) => string;
+  testId?: string;
+}) {
+  return (
+    <label className="jini-skills-filter-select" data-testid={testId}>
+      <span>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        {...agentHandleProps({}, { base: agentHandle, action, role: 'field', label })}
+      >
+        <option value="all">
+          {allLabel} ({row.all})
+        </option>
+        {row.options.map(([optionValue, count]) => (
+          <option key={optionValue} value={optionValue}>
+            {formatValue(optionValue)} ({count})
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/** One `SkillRow` per filtered skill, each with its own derived agent handle. */
+function SkillsTabRows({
+  tab,
+  disabledSkillIds,
+  onToggleEnabled,
+  locale,
+  labels,
+  agentHandle,
+}: {
+  tab: UseSkillsTabResult;
+  disabledSkillIds: ReadonlySet<string>;
+  onToggleEnabled: SkillsTabProps['onToggleEnabled'];
+  locale: string;
+  labels: SkillsTabLabels | undefined;
+  agentHandle: string | undefined;
+}) {
+  const { filteredSkills, draft, draftError, draftSaving } = tab;
+  const rowHandles = agentHandle
+    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'skill' }), ids: filteredSkills.map((skill) => skill.id) })
+    : undefined;
+  return (
+    <div className="jini-skills-rows" data-testid="skills-list">
+      {filteredSkills.map((skill, index) => {
+        const isEditing = tab.editingId === skill.id;
+        return (
+          <SkillRow
+            key={skill.id}
+            {...(rowHandles?.[index] ? { agentHandle: rowHandles[index] } : {})}
+            skill={skill}
+            locale={locale}
+            enabled={!disabledSkillIds.has(skill.id)}
+            expanded={tab.expandedId === skill.id}
+            editing={isEditing}
+            body={tab.bodyById[skill.id]}
+            bodyLoading={tab.bodyLoadingId === skill.id}
+            files={tab.filesById[skill.id] ?? null}
+            filesLoading={tab.filesLoadingId === skill.id}
+            confirmDelete={tab.confirmDeleteId === skill.id}
+            confirmBuiltInEdit={tab.confirmBuiltInEditId === skill.id}
+            draft={isEditing ? draft : null}
+            draftError={isEditing ? draftError : null}
+            draftSaving={isEditing && draftSaving}
+            onDraftChange={tab.setDraft}
+            onToggleExpanded={() => tab.toggleExpanded(skill.id)}
+            onToggleEnabled={(enabled) => onToggleEnabled(skill.id, enabled)}
+            onStartEdit={() => tab.requestEdit(skill)}
+            onConfirmBuiltInEdit={tab.confirmBuiltInEdit}
+            onCancelBuiltInEdit={tab.cancelBuiltInEdit}
+            onArmDelete={() => tab.armDelete(skill.id)}
+            onCancelDelete={tab.cancelDelete}
+            onCommitDelete={() => tab.commitDelete(skill.id)}
+            onCancelEdit={tab.cancelDraft}
+            onSubmitEdit={tab.submitDraft}
+            labels={labels}
+          />
+        );
+      })}
+    </div>
   );
 }

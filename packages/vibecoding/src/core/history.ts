@@ -96,7 +96,10 @@ export interface EditHistory {
    * step for a user to click past. Committing also clears the redo stack, which is the standard
    * rule: once you branch off the redo path, the abandoned future is no longer reachable.
    */
-  transaction<T>(work: (recording: EditTarget) => Promise<T>, label?: string): Promise<T>;
+  transaction<T>(
+    requiredArgs: { readonly work: (recording: EditTarget) => Promise<T> },
+    optionalArgs?: { readonly label?: string }
+  ): Promise<T>;
 
   /** Whether `undo` would do anything. */
   canUndo(): boolean;
@@ -127,7 +130,7 @@ export interface EditHistory {
    *
    * @returns the entry recorded, or `null` when the snapshot already matches current content.
    */
-  restore(snapshot: Snapshot): Promise<HistoryEntry | null>;
+  restore(args: { readonly snapshot: Snapshot }): Promise<HistoryEntry | null>;
 
   /** Undoable entries, oldest first. For rendering a history UI; do not mutate. */
   entries(): readonly HistoryEntry[];
@@ -142,7 +145,7 @@ async function readCurrent(
   id: PartId
 ): Promise<{ readonly content: string; readonly existed: boolean }> {
   try {
-    return { content: await target.readPart(id), existed: true };
+    return { content: await target.readPart({ id }), existed: true };
   } catch {
     return { content: "", existed: false };
   }
@@ -151,13 +154,13 @@ async function readCurrent(
 /**
  * Create an undo/redo stack over one target.
  *
- * @param target - the host's artifact port; used directly for reads and for replaying changes.
+ * @param requiredArgs - the host's artifact port; used for reads and replaying changes.
  * @param options - see `EditHistoryOptions`.
  * @returns a history whose `transaction` wrapper is the only thing callers need to adopt.
  * @complexity 4
  */
 export function createEditHistory(
-  target: EditTarget,
+  { target }: { readonly target: EditTarget },
   options: EditHistoryOptions = {}
 ): EditHistory {
   const limit = options.limit ?? 50;
@@ -177,12 +180,15 @@ export function createEditHistory(
    */
   async function replay(changes: readonly PartChange[], side: "before" | "after"): Promise<void> {
     for (const change of changes) {
-      await target.replacePart(change.id, side === "before" ? change.before : change.after);
+      await target.replacePart({ id: change.id, content: side === "before" ? change.before : change.after });
     }
   }
 
   return {
-    async transaction<T>(work: (recording: EditTarget) => Promise<T>, label?: string): Promise<T> {
+    async transaction<T>(
+      { work }: { readonly work: (recording: EditTarget) => Promise<T> },
+      { label }: { readonly label?: string } = {}
+    ): Promise<T> {
       if (transactionOpen) {
         throw new Error(
           "a transaction is already open — overlapping transactions would interleave their changes into one another's entries"
@@ -193,13 +199,13 @@ export function createEditHistory(
       const changes: PartChange[] = [];
       const recording: EditTarget = {
         listParts: () => target.listParts(),
-        readPart: (id) => target.readPart(id),
+        readPart: (args) => target.readPart(args),
         snapshot: () => target.snapshot(),
-        restore: (snapshot) => target.restore(snapshot),
+        restore: (args) => target.restore(args),
         validate: (candidate) => target.validate(candidate),
-        async replacePart(id: PartId, content: string): Promise<void> {
+        async replacePart({ id, content }: { readonly id: PartId; readonly content: string }): Promise<void> {
           const current = await readCurrent(target, id);
-          await target.replacePart(id, content);
+          await target.replacePart({ id, content });
           // A write that changed nothing is not a step a person can meaningfully undo.
           if (current.existed && current.content === content) return;
           changes.push({
@@ -250,7 +256,7 @@ export function createEditHistory(
       return entry;
     },
 
-    async restore(snapshot: Snapshot): Promise<HistoryEntry | null> {
+    async restore({ snapshot }: { readonly snapshot: Snapshot }): Promise<HistoryEntry | null> {
       const changes: PartChange[] = [];
       for (const [id, after] of Object.entries(snapshot.parts)) {
         const current = await readCurrent(target, id);

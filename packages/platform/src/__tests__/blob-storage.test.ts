@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { promises as fsp } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +22,32 @@ describe('LocalBlobStorage', () => {
     const meta = await store.writeFile('ns1', 'a/b/c.txt', Buffer.from('hello'));
     expect(meta).toEqual({ path: 'a/b/c.txt', size: 5, mtimeMs: expect.any(Number) });
     expect((await store.readFile('ns1', 'a/b/c.txt')).toString()).toBe('hello');
+  });
+
+  it.each(['..', '', '.', 'a/b', 'a\\b', 'a\0b', 'x..y'])('rejects namespace %j for every operation', async (namespace) => {
+    await expect(store.listFiles(namespace)).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.writeFile(namespace, 'f.txt', Buffer.from('x'))).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.readFile(namespace, 'f.txt')).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.deleteFile(namespace, 'f.txt')).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.statFile(namespace, 'f.txt')).rejects.toMatchObject({ code: 'TRAVERSAL' });
+  });
+
+  it('keeps the rest of the listing when a subdirectory vanishes during the walk', async () => {
+    await store.writeFile('ns1', 'a.txt', Buffer.from('a'));
+    await store.writeFile('ns1', 'sub/b.txt', Buffer.from('b'));
+    const readdir = fsp.readdir.bind(fsp);
+    const spy = vi.spyOn(fsp, 'readdir');
+    spy.mockImplementation((async (...args: Parameters<typeof fsp.readdir>) => {
+      if (String(args[0]) === join(dir, 'ns1', 'sub')) {
+        throw Object.assign(new Error('directory vanished'), { code: 'ENOENT' });
+      }
+      return readdir(...args);
+    }) as typeof fsp.readdir);
+    try {
+      expect((await store.listFiles('ns1')).map(file => file.path)).toEqual(['a.txt']);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('throws NOT_FOUND reading a missing file', async () => {
@@ -280,6 +307,13 @@ describe('S3BlobStorage — deleteFile', () => {
 });
 
 describe('S3BlobStorage — statFile', () => {
+  it('uses the current clock for a malformed last-modified header', async () => {
+    const before = Date.now();
+    const fetchFn = vi.fn().mockResolvedValue(mockResponse({ ok: true, status: 200, headers: { 'last-modified': 'not a date' } }));
+    const meta = await new S3BlobStorage(s3Options({}, fetchFn)).statFile('ns1', 'f.txt');
+    expect(meta?.mtimeMs).toBeGreaterThanOrEqual(before);
+    expect(meta?.mtimeMs).toBeLessThanOrEqual(Date.now());
+  });
   it('returns metadata from content-length and last-modified headers', async () => {
     const fetchFn = vi
       .fn()
@@ -321,6 +355,28 @@ describe('S3BlobStorage — statFile', () => {
 });
 
 describe('S3BlobStorage — listFiles', () => {
+  it.each(['', '/tenant a/'])('isolates ns1 from ns10 with bucket prefix %j', async (prefix) => {
+    const base = prefix ? 'tenant a/' : '';
+    const fetchFn = vi.fn().mockResolvedValue(mockResponse({
+      ok: true, status: 200,
+      body: `<ListBucketResult><Contents><Key>${base}ns1/a.txt</Key><Size>1</Size></Contents>` +
+        `<Contents><Key>${base}ns10/secret.txt</Key><Size>2</Size></Contents>` +
+        `<Contents><Key>${base}ns1/</Key><Size>0</Size></Contents></ListBucketResult>`,
+    }));
+    const files = await new S3BlobStorage(s3Options({ prefix }, fetchFn)).listFiles('ns1');
+    expect(files.map(file => file.path)).toEqual(['a.txt']);
+    expect(new URL(fetchFn.mock.calls[0]![0]).searchParams.get('prefix')).toBe(`${base}ns1/`);
+  });
+
+  it('uses a finite clock fallback for malformed listing timestamps too', async () => {
+    const before = Date.now();
+    const fetchFn = vi.fn().mockResolvedValue(mockResponse({ ok: true, status: 200,
+      body: '<ListBucketResult><Contents><Key>ns1/a.txt</Key><LastModified>invalid</LastModified><Size>1</Size></Contents></ListBucketResult>',
+    }));
+    const [file] = await new S3BlobStorage(s3Options({}, fetchFn)).listFiles('ns1');
+    expect(file?.mtimeMs).toBeGreaterThanOrEqual(before);
+    expect(file?.mtimeMs).toBeLessThanOrEqual(Date.now());
+  });
   function listBucketXml(entries: Array<{ key: string; size: number; lastModified: string }>, opts: { truncated?: boolean; nextToken?: string } = {}) {
     const contents = entries
       .map((e) => `<Contents><Key>${e.key}</Key><LastModified>${e.lastModified}</LastModified><Size>${e.size}</Size></Contents>`)
@@ -419,6 +475,27 @@ describe('S3BlobStorage — listFiles', () => {
 });
 
 describe('S3BlobStorage — keyFor / prefix option', () => {
+  it.each(['.', 'a\0b'])('rejects namespace %j before any S3 request', async (namespace) => {
+    const fetchFn = vi.fn();
+    const store = new S3BlobStorage(s3Options({}, fetchFn));
+    expect(() => store.keyFor(namespace, 'f.txt')).toThrow(StorageError);
+    await expect(store.listFiles(namespace)).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.readFile(namespace, 'f.txt')).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.writeFile(namespace, 'f.txt', Buffer.from('x'))).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.deleteFile(namespace, 'f.txt')).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.statFile(namespace, 'f.txt')).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it.each(['', '/', '\\', '///', '\\\\', 'a\0b', '.', 'a/./b'])('rejects unsafe or empty key %j before S3 I/O', async (relpath) => {
+    const fetchFn = vi.fn();
+    const store = new S3BlobStorage(s3Options({}, fetchFn));
+    await expect(store.readFile('ns1', relpath)).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.writeFile('ns1', relpath, Buffer.from('x'))).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.deleteFile('ns1', relpath)).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    await expect(store.statFile('ns1', relpath)).rejects.toMatchObject({ code: 'TRAVERSAL' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
   it.each([
     ['contains a slash', 'a/b'],
     ['contains a backslash', 'a\\b'],
@@ -439,8 +516,9 @@ describe('S3BlobStorage — keyFor / prefix option', () => {
     expect(store.keyFor('ns1', 'f.txt')).toBe('tenant-a/ns1/f.txt');
   });
 
-  it('keyFor with an empty relpath returns just the namespace-scoped prefix', () => {
+  it('keyFor permits an empty relpath only when explicitly building a listing prefix', () => {
     const store = new S3BlobStorage(s3Options());
-    expect(store.keyFor('ns1', '')).toBe('ns1');
+    expect(() => store.keyFor('ns1', '')).toThrow(/empty relpath/);
+    expect(store.keyFor('ns1', '', { allowPrefix: true })).toBe('ns1');
   });
 });

@@ -33,7 +33,7 @@
  * renderer covers:
  * ATX headings (`#`…`###`), fenced code blocks, ordered/unordered lists,
  * blockquotes, a horizontal rule, paragraphs, and inline `` `code` ``/
- * `**bold**`/`*italic*`/bare autolinks — including inside table cells, via
+ * `**bold**`/`*italic*`/`[label](url)` links/bare autolinks — including inside table cells, via
  * the same `renderInline` pass every other block uses. TODO(follow-up): port
  * the code-comment directive syntax once a host needs it.
  */
@@ -52,7 +52,7 @@ type Block =
   | { kind: 'p'; text: string }
   | { kind: 'h'; level: 1 | 2 | 3; text: string }
   | { kind: 'ul'; items: string[] }
-  | { kind: 'ol'; items: string[] }
+  | { kind: 'ol'; start: number; items: string[] }
   | { kind: 'bq'; text: string }
   | { kind: 'code'; lang: string | null; body: string }
   | { kind: 'table'; aligns: TableAlign[]; headers: string[]; rows: string[][] }
@@ -69,42 +69,38 @@ export function Markdown({ children }: MarkdownProps) {
   );
 }
 
-// GFM pipe-table cell split, ported verbatim (logic-for-logic) from OD's
-// `runtime/markdown.tsx`. Walks char-by-char rather than a naive `split('|')`
+// GFM pipe-table cell split, ported logic-for-logic from OD's
+// `runtime/markdown.tsx`. Tokenizes rather than a naive `split('|')`
 // so it can honor three cell-content rules without placeholder substitution:
 // `\|` is a literal pipe inside a cell, a `|` inside a backtick code span is
 // cell content rather than a column boundary, and a single optional leading
 // `|` plus an unescaped trailing `|` are row terminators, not empty cells.
+// Always returns at least one cell (an empty row yields `['']`).
+const TABLE_ROW_LEAD = /^ *\|?/;
+const TABLE_CELL_TOKEN = /\\\||`|\||[^`|\\]+|\\/g;
+
 function splitTableCells(line: string): string[] {
   const cells: string[] = [];
   let cur = '';
   let inCode = false;
-  let i = 0;
-  while (i < line.length && line[i] === ' ') i++;
-  if (line[i] === '|') i++;
-  for (; i < line.length; i++) {
-    const ch = line[i]!;
-    if (ch === '\\' && line[i + 1] === '|') {
-      cur += '|';
-      i++;
-      continue;
-    }
-    if (ch === '`') {
-      inCode = !inCode;
-      cur += ch;
-      continue;
-    }
-    if (ch === '|' && !inCode) {
+  for (const token of line.replace(TABLE_ROW_LEAD, '').match(TABLE_CELL_TOKEN) ?? []) {
+    if (token === '|' && !inCode) {
       cells.push(cur.trim());
       cur = '';
       continue;
     }
-    cur += ch;
+    if (token === '`') inCode = !inCode;
+    cur += token === '\\|' ? '|' : token;
   }
   const tail = cur.trim();
   if (cells.length === 0 || tail !== '') cells.push(tail);
   return cells;
 }
+
+const TABLE_ALIGN_CELL = /^:?-{1,}:?$/;
+// Every cell `TABLE_ALIGN_CELL` accepts starts and ends with `:` or `-`, so its
+// first + last character is always exactly one of these four keys.
+const COLUMN_ALIGN = { '::': 'center', '-:': 'right', ':-': 'left', '--': null } as const;
 
 // Recognizes a GFM alignment row (`| --- | :---: | ---: |`) and returns the
 // per-column alignment, or `null` if `line` isn't one — used both to detect
@@ -112,24 +108,16 @@ function splitTableCells(line: string): string[] {
 function parseTableAlignRow(line: string): TableAlign[] | null {
   if (!line.includes('|')) return null;
   const cells = splitTableCells(line);
-  if (cells.length === 0) return null;
-  const aligns: TableAlign[] = [];
-  for (const cell of cells) {
-    if (!/^:?-{1,}:?$/.test(cell)) return null;
-    const left = cell.startsWith(':');
-    const right = cell.endsWith(':');
-    aligns.push(left && right ? 'center' : right ? 'right' : left ? 'left' : null);
-  }
-  return aligns;
+  if (!cells.every((cell) => TABLE_ALIGN_CELL.test(cell))) return null;
+  return cells.map((cell) => COLUMN_ALIGN[`${cell[0]}${cell.at(-1)}` as keyof typeof COLUMN_ALIGN]);
 }
 
 // A table starts at `i` when `lines[i]` is a pipe-bearing header row
 // immediately followed by a valid alignment row at `lines[i + 1]`.
 function isTableStartAt(lines: string[], i: number): boolean {
-  const header = lines[i];
   const sep = lines[i + 1];
-  if (header === undefined || sep === undefined) return false;
-  if (!header.includes('|')) return false;
+  if (sep === undefined) return false;
+  if (!lines[i]!.includes('|')) return false;
   return parseTableAlignRow(sep) !== null;
 }
 
@@ -141,115 +129,173 @@ function collectTableRows(lines: string[], start: number): { rows: string[][]; n
   const rows: string[][] = [];
   let i = start;
   while (i < lines.length) {
-    const row = lines[i];
-    if (row === undefined || row.trim() === '' || !row.includes('|')) break;
+    const row = lines[i]!;
+    if (row.trim() === '' || !row.includes('|')) break;
     rows.push(splitTableCells(row));
     i++;
   }
   return { rows, next: i };
 }
 
+const ORDERED_ITEM = /^\s*\d+[.)]\s+/;
+const FENCE = /^```/;
+const HEADING = /^(#{1,3})\s+(.*)$/;
+const RULE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
+const QUOTE_LINE = /^>\s?/;
+const BULLET_ITEM = /^\s*[-*]\s+/;
+
+// Every `lines[i]` access in the block parsers below is guarded by an
+// `i < lines.length` check (either `parseBlocks`' own loop condition or an
+// inner `while`'s left-hand operand, short-circuited before the index is
+// read) — `lines` is a `string[]` from `String.prototype.split`, which never
+// contains `undefined` entries, so the index is always in range and always a
+// string. The `?? ''`/non-null-assertion sites below are TS-only fallbacks
+// for `noUncheckedIndexedAccess`-style indexing with no real runtime path;
+// using `!` documents that instead of instrumenting an unreachable branch
+// (same convention as `ToolCard.tsx`'s `baseName` comment).
+type ParsedBlock = { block: Block; next: number };
+type BlockParser = (lines: string[], i: number) => ParsedBlock | null;
+
+function parseFence(lines: string[], i: number): ParsedBlock | null {
+  const line = lines[i]!;
+  if (!FENCE.test(line)) return null;
+  const lang = line.slice(3).trim() || null;
+  const body: string[] = [];
+  let j = i + 1;
+  while (j < lines.length && !FENCE.test(lines[j]!)) {
+    body.push(lines[j]!);
+    j += 1;
+  }
+  // `j + 1` skips the closing fence (or end of input if unterminated).
+  return { block: { kind: 'code', lang, body: body.join('\n') }, next: j + 1 };
+}
+
+function parseHeading(lines: string[], i: number): ParsedBlock | null {
+  const heading = HEADING.exec(lines[i]!);
+  if (!heading) return null;
+  // Both capture groups are mandatory (non-optional) in this pattern, so
+  // whenever `heading` itself is truthy, `heading[1]`/`heading[2]` are
+  // always matched strings (never `undefined`) — same dead-fallback
+  // reasoning as the `lines[i]` accesses above.
+  return { block: { kind: 'h', level: heading[1]!.length as 1 | 2 | 3, text: heading[2]! }, next: i + 1 };
+}
+
+function parseRule(lines: string[], i: number): ParsedBlock | null {
+  return RULE.test(lines[i]!) ? { block: { kind: 'hr' }, next: i + 1 } : null;
+}
+
+// Collects the run of consecutive lines matching `marker`, each with that
+// marker stripped — the shared shape of blockquotes and bullet lists.
+function collectMarked(lines: string[], start: number, marker: RegExp): { items: string[]; next: number } {
+  const items: string[] = [];
+  let i = start;
+  while (i < lines.length && marker.test(lines[i]!)) {
+    items.push(lines[i]!.replace(marker, ''));
+    i += 1;
+  }
+  return { items, next: i };
+}
+
+function parseQuote(lines: string[], i: number): ParsedBlock | null {
+  if (!QUOTE_LINE.test(lines[i]!)) return null;
+  const { items, next } = collectMarked(lines, i, QUOTE_LINE);
+  return { block: { kind: 'bq', text: items.join('\n') }, next };
+}
+
+function parseBulletList(lines: string[], i: number): ParsedBlock | null {
+  if (!BULLET_ITEM.test(lines[i]!)) return null;
+  const { items, next } = collectMarked(lines, i, BULLET_ITEM);
+  return { block: { kind: 'ul', items }, next };
+}
+
+function parseTable(lines: string[], i: number): ParsedBlock | null {
+  if (!isTableStartAt(lines, i)) return null;
+  const aligns = parseTableAlignRow(lines[i + 1]!)!;
+  const headers = splitTableCells(lines[i]!);
+  const { rows, next } = collectTableRows(lines, i + 2);
+  return { block: { kind: 'table', aligns, headers, rows }, next };
+}
+
+function parseOrderedList(lines: string[], i: number): ParsedBlock | null {
+  const line = lines[i]!;
+  if (!ORDERED_ITEM.test(line)) return null;
+  const start = Number(/\d+/.exec(line)![0]);
+  const items: string[] = [];
+  let j = i;
+  while (j < lines.length && ORDERED_ITEM.test(lines[j]!)) {
+    items.push(lines[j]!.replace(ORDERED_ITEM, ''));
+    j = nextLooseListLine(lines, j + 1);
+  }
+  return { block: { kind: 'ol', start, items }, next: j };
+}
+
+// Tried in this order at each non-blank line; the first match wins, and a
+// line none of them claims starts a paragraph.
+const BLOCK_PARSERS: readonly BlockParser[] = [
+  parseFence,
+  parseHeading,
+  parseRule,
+  parseQuote,
+  parseBulletList,
+  parseTable,
+  parseOrderedList,
+];
+
+function parseParagraph(lines: string[], i: number): ParsedBlock {
+  const paragraph: string[] = [];
+  let j = i;
+  while (j < lines.length && lines[j]!.trim() !== '' && !isBlockStart(lines, j)) {
+    paragraph.push(lines[j]!);
+    j += 1;
+  }
+  return { block: { kind: 'p', text: paragraph.join('\n') }, next: j };
+}
+
+function parseBlockAt(lines: string[], i: number): ParsedBlock {
+  for (const parse of BLOCK_PARSERS) {
+    const parsed = parse(lines, i);
+    if (parsed) return parsed;
+  }
+  return parseParagraph(lines, i);
+}
+
 function parseBlocks(input: string): Block[] {
   const lines = input.split(/\r?\n/);
   const blocks: Block[] = [];
   let i = 0;
-  // Every `lines[i]` access below is guarded by an `i < lines.length` check
-  // (either this loop's own condition or an inner `while`'s left-hand
-  // operand, short-circuited before the index is read) — `lines` is a
-  // `string[]` from `String.prototype.split`, which never contains
-  // `undefined` entries, so the index is always in range and always a
-  // string. The `?? ''`/non-null-assertion sites below are TS-only
-  // fallbacks for `noUncheckedIndexedAccess`-style indexing with no real
-  // runtime path; using `!` documents that instead of instrumenting an
-  // unreachable branch (same convention as `ToolCard.tsx`'s `baseName`
-  // comment).
   while (i < lines.length) {
-    const line = lines[i]!;
-    if (line.trim() === '') {
+    if (lines[i]!.trim() === '') {
       i += 1;
       continue;
     }
-    if (/^```/.test(line)) {
-      const lang = line.slice(3).trim() || null;
-      const body: string[] = [];
-      i += 1;
-      while (i < lines.length && !/^```/.test(lines[i]!)) {
-        body.push(lines[i]!);
-        i += 1;
-      }
-      i += 1; // skip closing fence (or end of input if unterminated)
-      blocks.push({ kind: 'code', lang, body: body.join('\n') });
-      continue;
-    }
-    const heading = /^(#{1,3})\s+(.*)$/.exec(line);
-    if (heading) {
-      // Both capture groups are mandatory (non-optional) in this pattern, so
-      // whenever `heading` itself is truthy, `heading[1]`/`heading[2]` are
-      // always matched strings (never `undefined`) — same dead-fallback
-      // reasoning as the `lines[i]` accesses above.
-      blocks.push({ kind: 'h', level: heading[1]!.length as 1 | 2 | 3, text: heading[2]! });
-      i += 1;
-      continue;
-    }
-    if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
-      blocks.push({ kind: 'hr' });
-      i += 1;
-      continue;
-    }
-    if (/^>\s?/.test(line)) {
-      const quoted: string[] = [];
-      while (i < lines.length && /^>\s?/.test(lines[i]!)) {
-        quoted.push(lines[i]!.replace(/^>\s?/, ''));
-        i += 1;
-      }
-      blocks.push({ kind: 'bq', text: quoted.join('\n') });
-      continue;
-    }
-    if (/^\s*[-*]\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i]!)) {
-        items.push(lines[i]!.replace(/^\s*[-*]\s+/, ''));
-        i += 1;
-      }
-      blocks.push({ kind: 'ul', items });
-      continue;
-    }
-    if (isTableStartAt(lines, i)) {
-      const aligns = parseTableAlignRow(lines[i + 1]!)!;
-      const headers = splitTableCells(line);
-      const { rows, next } = collectTableRows(lines, i + 2);
-      blocks.push({ kind: 'table', aligns, headers, rows });
-      i = next;
-      continue;
-    }
-    if (/^\s*\d+[.)]\s+/.test(line)) {
-      const items: string[] = [];
-      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i]!)) {
-        items.push(lines[i]!.replace(/^\s*\d+[.)]\s+/, ''));
-        i += 1;
-      }
-      blocks.push({ kind: 'ol', items });
-      continue;
-    }
-    const paragraph: string[] = [];
-    while (i < lines.length && lines[i]!.trim() !== '' && !isBlockStart(lines, i)) {
-      paragraph.push(lines[i]!);
-      i += 1;
-    }
-    blocks.push({ kind: 'p', text: paragraph.join('\n') });
+    const { block, next } = parseBlockAt(lines, i);
+    blocks.push(block);
+    i = next;
   }
   return blocks;
+}
+
+/**
+ * A "loose" numbered list puts a blank line between items ("1. a\n\n2. b").
+ * Skip those blank lines when the next non-blank line is another numbered
+ * item, so the items stay in ONE `<ol>` (numbered 1..n) instead of n lists
+ * that each show "1.". Otherwise return `i` unchanged and the list ends.
+ */
+function nextLooseListLine(lines: string[], i: number): number {
+  let j = i;
+  while (j < lines.length && lines[j]!.trim() === '') j += 1;
+  return j > i && j < lines.length && ORDERED_ITEM.test(lines[j]!) ? j : i;
 }
 
 function isBlockStart(lines: string[], i: number): boolean {
   const line = lines[i]!;
   return (
-    /^```/.test(line)
+    FENCE.test(line)
     || /^(#{1,3})\s+/.test(line)
-    || /^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)
-    || /^>\s?/.test(line)
-    || /^\s*[-*]\s+/.test(line)
-    || /^\s*\d+[.)]\s+/.test(line)
+    || RULE.test(line)
+    || QUOTE_LINE.test(line)
+    || BULLET_ITEM.test(line)
+    || ORDERED_ITEM.test(line)
     || isTableStartAt(lines, i)
   );
 }
@@ -272,7 +318,7 @@ function renderBlock(block: Block): ReactNode {
       );
     case 'ol':
       return (
-        <ol>
+        <ol start={block.start === 1 ? undefined : block.start}>
           {block.items.map((item, i) => (
             <li key={i}>{renderInline(item)}</li>
           ))}
@@ -396,8 +442,9 @@ function useTableOverflow(): { wrapRef: RefObject<HTMLDivElement | null>; isOver
   const [isOverflowing, setIsOverflowing] = useState(false);
 
   useEffect(() => {
-    const el = wrapRef.current;
-    if (!el || typeof ResizeObserver !== 'function') return;
+    // The wrap div renders unconditionally, so its ref is attached by the time this effect runs.
+    const el = wrapRef.current!;
+    if (typeof ResizeObserver !== 'function') return;
     const check = () => setIsOverflowing(el.scrollWidth > el.clientWidth + TABLE_OVERFLOW_SLACK_PX);
     const observer = new ResizeObserver(check);
     observer.observe(el);
@@ -442,8 +489,8 @@ function TableBlock(props: TableBlockProps): ReactNode {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
+    // The `<dialog>` renders unconditionally, so its ref is attached by the time this effect runs.
+    const dialog = dialogRef.current!;
     if (expanded) openTableDialog(dialog);
     else closeTableDialog(dialog);
   }, [expanded]);
@@ -478,25 +525,60 @@ function TableBlock(props: TableBlockProps): ReactNode {
   );
 }
 
-// Inline pass: `code`, **bold**, *italic*/_italic_, bare http(s) autolinks.
+// Inline pass: `code`, [label](url) links, **bold**, *italic*/_italic_, bare http(s) autolinks.
 // Processes left-to-right with a single regex alternation so spans never
 // nest incorrectly across kinds.
-const INLINE_RE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*]+\*|_[^_]+_)|(https?:\/\/[^\s)]+)/g;
+//
+// `_italic_` follows CommonMark's word-boundary rule: an `_` with a letter,
+// digit or `_` on its outer side never opens or closes emphasis, and an `_`
+// between two word characters inside the span is content. The plain
+// `_[^_]+_` this replaced matched intraword, so a tool-result name like
+// `ANALYTICS_ROOT_KEY_SEED` rendered as `ANALYTICS<em>ROOT</em>KEY_SEED`.
+// `*` stays permissive — CommonMark allows intraword `*` emphasis.
+const UNDERSCORE_EM = String.raw`(?<![\p{L}\p{N}_])_(?![\s_])(?:[^_]|_(?=[\p{L}\p{N}]))+?(?<!\s)_(?![\p{L}\p{N}_])`;
+// `[label](url)`: the URL may hold one level of balanced parentheses (`Foo_(bar)`), and the whole
+// link may itself sit inside parentheses (`([edit](/admin/pages/x))`) — the outer `)` is left as text.
+const MD_LINK = String.raw`\[[^\]\n]+\]\((?:[^()\s]|\([^()\s]*\))+\)`;
+const MD_LINK_PARTS = /^\[([^\]\n]+)\]\((.+)\)$/u;
+const INLINE_RE = new RegExp(String.raw`(\x60[^\x60]+\x60)|(${MD_LINK})|(\*\*[^*]+\*\*)|(\*[^*]+\*|${UNDERSCORE_EM})|(https?:\/\/[^\s)]+)`, 'gu');
+
+// Only these targets become anchors; anything else (`javascript:`, `data:`, protocol-relative
+// `//host`) stays literal text, since the text is untrusted model output.
+const SAFE_LINK_HREF = /^(?:https?:\/\/|mailto:|\/(?!\/)|#)/iu;
+// Every link opens in a new tab — an in-app path too, so following one never navigates the tab the
+// chat lives in (owner 2026-10-08). Only a `#` same-document anchor stays in place. ChatPane's
+// click guard (`useChatPaneNewTabLinks`) covers links this renderer does not draw.
+const NEW_TAB = { target: '_blank', rel: 'noopener noreferrer' } as const;
+
+function renderMarkdownLink(source: string, key: number): ReactNode {
+  // `MD_LINK` already matched `source`, so these two groups always capture.
+  const [, label, href] = MD_LINK_PARTS.exec(source)!;
+  if (!SAFE_LINK_HREF.test(href!)) return source;
+  return (
+    <a key={key} href={href} {...(href!.startsWith('#') ? {} : NEW_TAB)}>
+      {renderInline(label!)}
+    </a>
+  );
+}
 
 function renderInline(text: string): ReactNode {
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let key = 0;
-  let match: RegExpExecArray | null = INLINE_RE.exec(text);
+  // A fresh copy per call, not the shared `g` regex: a link label recurses into this function
+  // mid-loop, and a shared `lastIndex` would be reset under the outer scan.
+  const inlineRe = new RegExp(INLINE_RE);
+  let match: RegExpExecArray | null = inlineRe.exec(text);
   while (match !== null) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    const [whole, code, bold, italic, link] = match;
+    const [whole, code, mdLink, bold, italic, link] = match;
     if (code) nodes.push(<code key={key++}>{code.slice(1, -1)}</code>);
+    else if (mdLink) nodes.push(renderMarkdownLink(mdLink, key++));
     else if (bold) nodes.push(<strong key={key++}>{bold.slice(2, -2)}</strong>);
     else if (italic) nodes.push(<em key={key++}>{italic.slice(1, -1)}</em>);
     else if (link)
       nodes.push(
-        <a key={key++} href={link} target="_blank" rel="noreferrer">
+        <a key={key++} href={link} {...NEW_TAB}>
           {link}
         </a>,
       );
@@ -504,7 +586,7 @@ function renderInline(text: string): ReactNode {
     // defined (if possibly empty) full-match string at index 0, so this
     // fallback is unreachable (same dead-fallback reasoning as above).
     lastIndex = match.index + whole!.length;
-    match = INLINE_RE.exec(text);
+    match = inlineRe.exec(text);
   }
   if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
   return nodes;

@@ -1,3 +1,4 @@
+import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @file Core port contracts for the CMS runtime.
  *
@@ -21,14 +22,7 @@
  * Core/domain code depends on interfaces from this file only, never on concrete
  * infrastructure SDKs or framework-specific implementations.
  */
-export type UUID = string;
-export type ISODateTime = string;
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
-export interface JsonObject {
-  [key: string]: JsonValue;
-}
-export type JsonArray = JsonValue[];
+import type { UUID, ISODateTime } from "@jini-ai/core/primitives";
 
 /**
  * Immutable domain event emitted by synchronous command handlers and delivered
@@ -75,14 +69,14 @@ export interface EventBusPort {
   /** Publish a single event to subscribers. */
   publish<TPayload>(event: DomainEvent<TPayload>): Promise<void>;
   /** Publish multiple events in order. */
-  publishBatch<TPayload>(events: Array<DomainEvent<TPayload>>): Promise<void>;
+  publishBatch<TPayload>(required: { events: Array<DomainEvent<TPayload>> }, optional?: Record<string, never>): Promise<void>;
   /**
    * Subscribe a handler to an event name.
    * Returns an async unsubscriber function.
    */
   subscribe<TPayload>(
-    eventName: string,
-    handler: (event: DomainEvent<TPayload>) => Promise<void>
+    required: { eventName: string; handler: (event: DomainEvent<TPayload>) => Promise<void> },
+    optional?: Record<string, never>
   ): Promise<() => Promise<void>>;
   /**
    * Subscribe a handler to every event published on this bus, regardless of name. Additive to
@@ -90,7 +84,7 @@ export interface EventBusPort {
    * The Integrations fan-out (`registerWebhookFanout`) is the first real consumer: it narrows
    * by topic itself rather than requiring a fixed list of event names up front.
    */
-  subscribeAll(handler: (event: DomainEvent) => Promise<void>): Promise<() => Promise<void>>;
+  subscribeAll(required: { handler: (event: DomainEvent) => Promise<void> }, optional?: Record<string, never>): Promise<() => Promise<void>>;
 }
 
 /**
@@ -127,9 +121,9 @@ export interface OutboxPort {
   /** Append an event for later delivery. */
   enqueue(event: DomainEvent): Promise<void>;
   /** Claim pending rows for processing. */
-  claimPending(batchSize: number, nowIso: ISODateTime): Promise<OutboxRecord[]>;
+  claimPending(required: { batchSize: number; nowIso: ISODateTime }, optional?: Record<string, never>): Promise<OutboxRecord[]>;
   /** Mark a row as delivered. */
-  markDelivered(id: UUID): Promise<void>;
+  markDelivered(required: { id: UUID }, optional?: Record<string, never>): Promise<void>;
   /**
    * Mark a row as failed and set its next retry time.
    *
@@ -142,21 +136,43 @@ export interface OutboxPort {
    * permanently excluded from retry regardless of `nextAttemptAt`.
    */
   markFailed(
-    id: UUID,
-    error: string,
-    nextAttemptAt: ISODateTime,
-    nextStatus: Extract<OutboxRecord["status"], "pending" | "failed">
+    required: {
+      id: UUID;
+      error: string;
+      nextAttemptAt: ISODateTime;
+      nextStatus: Extract<OutboxRecord["status"], "pending" | "failed">;
+    },
+    optional?: Record<string, never>
   ): Promise<void>;
 }
 
-/** Clock abstraction to make time deterministic in tests. */
-export interface ClockPort {
-  /** Current wall-clock time as ISO string. */
-  nowIso(): ISODateTime;
-}
+/** Clock and ID generator contracts are owned by the shared kernel primitives. */
 
-/** ID generator abstraction to keep ID strategy swappable and testable. */
-export interface IdGeneratorPort {
-  /** Create a new globally unique ID. */
-  newId(): UUID;
+/**
+ * Opens/commits/rolls back one transaction around `fn` — the same shape and contract as this
+ * codebase's other write chokepoints that need one (`RedirectsWriteDeps.transaction`,
+ * `SqliteSettingsRepo.transaction`).
+ *
+ * `deleteTerm`/`deleteTaxonomy` run their ENTIRE body — every guard read (`findById`,
+ * `countChildren`, `countByTerm`) AND every write (`delete`, `revisions.insert`, `outbox.enqueue`)
+ * — inside one call to this. Two failure modes this closes that a guard-then-transaction split
+ * would not:
+ *
+ * 1. **TOCTOU on the guard.** A guard read taken BEFORE the transaction opens can go stale the
+ *    instant it returns — content can be assigned to the term in the gap between the read and the
+ *    delete, and the delete would proceed having checked a now-wrong count. Putting the read
+ *    inside the same transaction as the delete is what makes the guard's answer still true at the
+ *    moment the delete actually runs.
+ * 2. **Partial cascade.** `deleteTaxonomy` deletes N member terms then the taxonomy row itself,
+ *    with no FK/CASCADE at the schema level (`db/schema.ts` — `taxonomies`/`terms`/`entry_terms`/
+ *    `taxonomy_revisions` are plain columns, no foreign keys) to undo a mid-cascade failure. A
+ *    real transaction is the only thing that can.
+ *
+ * A caller-supplied identity/no-op implementation is a valid choice for a backend that has no
+ * separate transaction primitive to offer (see `repo.memory.ts`'s `InMemoryTaxonomyRepo` for the
+ * disclosed rationale) — the port exists so `deleteTerm`/`deleteTaxonomy` never have to know which
+ * kind of backend they're running against.
+ */
+export interface TransactionalRepoPort {
+  transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T>;
 }

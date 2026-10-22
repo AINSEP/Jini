@@ -2,7 +2,7 @@
  * @module flags
  *
  * Generic `argv` → flags parsing, ported from OD's `apps/daemon/src/cli.ts`
- * `parseFlags`/`positionalArgs`/`collectCliPositionals` (see `source-map.md`).
+ * `parseFlags`/`positionalArgs`/`collectCliPositionals` (see `archived provenance ledger`).
  * Zero product nouns: callers declare which `--flag` names take a string
  * value vs. are booleans, and get back a flat map plus the leftover
  * positional tokens.
@@ -32,7 +32,7 @@ export interface ParseFlagsOptions {
  * `--flag` is accepted and a heuristic decides string-vs-boolean: if the
  * next token doesn't itself look like a flag, it's consumed as the value.
  */
-export function parseFlags(argv: readonly string[], opts: ParseFlagsOptions = {}): ParsedFlags {
+export function parseFlags({ argv }: { argv: readonly string[] }, opts: ParseFlagsOptions = {}): ParsedFlags {
   const stringFlags = opts.string ?? new Set<string>();
   const booleanFlags = opts.boolean ?? new Set<string>();
   const knownFlags = new Set<string>([...stringFlags, ...booleanFlags]);
@@ -44,38 +44,40 @@ export function parseFlags(argv: readonly string[], opts: ParseFlagsOptions = {}
     const a = argv[i]!;
     if (!a.startsWith('--')) continue;
 
-    const eq = a.indexOf('=');
-    const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
+    const { key, inlineValue } = splitFlagToken({ token: a });
     if (knownFlags.size > 0 && !knownFlags.has(key)) {
       throw new Error(`unknown flag: --${key}. Run with --help for the list of accepted flags.`);
     }
-
-    if (eq >= 0) {
-      out[key] = a.slice(eq + 1);
-      continue;
-    }
-    if (booleanFlags.has(key)) {
-      out[key] = true;
-      continue;
-    }
-    if (stringFlags.has(key)) {
-      const next = argv[i + 1];
-      if (next === undefined) {
-        throw new Error(`flag --${key} requires a value`);
-      }
-      out[key] = next;
-      i++;
-      continue;
-    }
-    const next = argv[i + 1];
-    if (next !== undefined && !next.startsWith('--')) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
+    const { value, consumesNext } = resolveFlagValue({ key, inlineValue, next: argv[i + 1] }, { stringFlags, booleanFlags });
+    out[key] = value;
+    if (consumesNext) i++;
   }
   return out;
+}
+
+/** Split a `--key` / `--key=value` token; `inlineValue` is everything after the first `=`, if any. */
+function splitFlagToken({ token }: { token: string }): { key: string; inlineValue: string | undefined } {
+  const eq = token.indexOf('=');
+  return eq >= 0 ? { key: token.slice(2, eq), inlineValue: token.slice(eq + 1) } : { key: token.slice(2), inlineValue: undefined };
+}
+
+/**
+ * Decide one flag's value, in precedence order: an inline `=value`, then a declared boolean
+ * (`true`), then a declared string flag (always takes `next`, which must exist), then the
+ * undeclared heuristic (`next` when it does not itself start with `--`, else `true`).
+ */
+function resolveFlagValue(
+  { key, inlineValue, next }: { key: string; inlineValue: string | undefined; next: string | undefined },
+  { stringFlags, booleanFlags }: { stringFlags: ReadonlySet<string>; booleanFlags: ReadonlySet<string> },
+): { value: FlagValue; consumesNext: boolean } {
+  if (inlineValue !== undefined) return { value: inlineValue, consumesNext: false };
+  if (booleanFlags.has(key)) return { value: true, consumesNext: false };
+  if (stringFlags.has(key)) {
+    if (next === undefined) throw new Error(`flag --${key} requires a value`);
+    return { value: next, consumesNext: true };
+  }
+  if (next !== undefined && !next.startsWith('--')) return { value: next, consumesNext: true };
+  return { value: true, consumesNext: false };
 }
 
 export interface PositionalArgsOptions {
@@ -95,15 +97,16 @@ export interface PositionalArgsOptions {
  * follows a known string flag (so `od run start --project p1 foo` yields
  * `['foo']`, not `['p1', 'foo']`).
  */
-export function positionalArgs(argv: readonly string[], opts: PositionalArgsOptions = {}): string[] {
+export function positionalArgs({ argv }: { argv: readonly string[] }, opts: PositionalArgsOptions = {}): string[] {
   const stringFlags = opts.string ?? new Set<string>();
+  const stopAtDoubleDash = opts.stopAtDoubleDash === true;
   const out: string[] = [];
 
   for (let i = 0; i < argv.length; i++) {
     // Loop is bounded by argv.length, so this index is always in range —
     // noUncheckedIndexedAccess types it as possibly-undefined regardless.
     const a = argv[i]!;
-    if (opts.stopAtDoubleDash === true && a === '--') {
+    if (stopAtDoubleDash && a === '--') {
       out.push(...argv.slice(i + 1));
       break;
     }
@@ -111,9 +114,8 @@ export function positionalArgs(argv: readonly string[], opts: PositionalArgsOpti
       out.push(a);
       continue;
     }
-    const eq = a.indexOf('=');
-    const key = eq >= 0 ? a.slice(2, eq) : a.slice(2);
-    if (eq < 0 && stringFlags.has(key)) i++;
+    const { key, inlineValue } = splitFlagToken({ token: a });
+    if (inlineValue === undefined && stringFlags.has(key)) i++;
   }
   return out;
 }
@@ -127,12 +129,12 @@ const NUMERIC_LITERAL_RE = /^-?\d+(\.\d+)?$/;
  * Coerce a raw `--flag <value>` string into its likely native type:
  * `'true'`/`'false'` become booleans, a numeric-looking string becomes a
  * `number`, and anything else passes through unchanged. Ported from OD's
- * `cli.ts` `coerceCliValue` (see `source-map.md`) — used wherever a CLI
+ * `cli.ts` `coerceCliValue` (see `archived provenance ledger`) — used wherever a CLI
  * accepts an untyped string flag value that application code should receive
  * as its natural type (e.g. a config `set` command, or a plugin's dynamic
  * `--input` flags forwarded as a JSON-typed payload).
  */
-export function coerceCliValue(raw: string): CoercedCliValue {
+export function coerceCliValue({ raw }: { raw: string }): CoercedCliValue {
   if (raw === 'true') return true;
   if (raw === 'false') return false;
   if (NUMERIC_LITERAL_RE.test(raw)) return Number(raw);

@@ -2,46 +2,58 @@
 import fs from "node:fs";
 import path from "node:path";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
+import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
+import { runCli, runIfMain } from "./lib/main-guard.mjs";
 
-function usage() {
-  console.log(`Usage:
+// fs / Playwright / output are ports with real defaults wired here at the CLI edge.
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error };
+
+export function usage(log = console.log) {
+  log(`Usage:
   node scripts/visual-diff.mjs --original <png> --clone <png> --out visual-diff.json [--diff visual-diff.png] [--threshold 0.08]
 
 Compares screenshots in a real browser canvas and outputs numeric visual-diff metrics.
 `);
 }
 
-function parseArgs(argv) {
-  const out = { original: "", clone: "", out: "visual-diff.json", diff: "", threshold: 0.08 };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--help" || arg === "-h") out.help = true;
-    else if (arg === "--original") out.original = argv[++i] || "";
-    else if (arg === "--clone") out.clone = argv[++i] || "";
-    else if (arg === "--out") out.out = argv[++i] || "visual-diff.json";
-    else if (arg === "--diff") out.diff = argv[++i] || "";
-    else if (arg === "--threshold") out.threshold = Number(argv[++i] || "0.08");
-    else throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return out;
+const ARG_SPEC = {
+  defaults: { original: "", clone: "", out: "visual-diff.json", diff: "", threshold: 0.08 },
+  options: {
+    ...HELP_OPTIONS,
+    "--original": { key: "original", parse: text("") },
+    "--clone": { key: "clone", parse: text("") },
+    "--out": { key: "out", parse: text("visual-diff.json") },
+    "--diff": { key: "diff", parse: text("") },
+    "--threshold": { key: "threshold", parse: num("0.08") },
+  },
+};
+
+export function parseArgs(argv) {
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-function imageDataUrl(file) {
+export function imageDataUrl(file, fsPort = fs) {
   const ext = path.extname(file).slice(1).toLowerCase() || "png";
   const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png";
-  return `data:${mime};base64,${fs.readFileSync(file).toString("base64")}`;
+  return `data:${mime};base64,${fsPort.readFileSync(file).toString("base64")}`;
 }
 
-function scoreFromDiff(diffRatio, meanAbsDiff) {
-  if (diffRatio <= 0.01 && meanAbsDiff <= 0.01) return 5;
-  if (diffRatio <= 0.04 && meanAbsDiff <= 0.025) return 4.5;
-  if (diffRatio <= 0.08 && meanAbsDiff <= 0.05) return 4;
-  if (diffRatio <= 0.16 && meanAbsDiff <= 0.08) return 3;
-  if (diffRatio <= 0.3 && meanAbsDiff <= 0.14) return 2;
-  return 1;
+// [max diff-pixel ratio, max mean abs diff, score], best band first; a diff
+// within both limits of a band earns its score, anything worse scores 1.
+const SCORE_BANDS = [
+  [0.01, 0.01, 5],
+  [0.04, 0.025, 4.5],
+  [0.08, 0.05, 4],
+  [0.16, 0.08, 3],
+  [0.3, 0.14, 2],
+];
+
+export function scoreFromDiff(diffRatio, meanAbsDiff) {
+  const band = SCORE_BANDS.find(([maxRatio, maxMean]) => diffRatio <= maxRatio && meanAbsDiff <= maxMean);
+  return band ? band[2] : 1;
 }
 
-async function compareInBrowser(page, original, clone, threshold) {
+export async function compareInBrowser(page, original, clone, threshold) {
   return page.evaluate(async ({ original, clone, threshold }) => {
     const loadImage = (src) => new Promise((resolve, reject) => {
       const image = new Image();
@@ -123,17 +135,17 @@ async function compareInBrowser(page, original, clone, threshold) {
   }, { original, clone, threshold });
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help || !args.original || !args.clone) {
-    usage();
-    process.exit(args.help ? 0 : 1);
-  }
+function writeDiffPng(file, diffDataUrl, fsPort) {
+  const base64 = diffDataUrl.replace(/^data:image\/png;base64,/, "");
+  fsPort.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  fsPort.writeFileSync(file, Buffer.from(base64, "base64"));
+}
 
-  const { chromium } = loadPlaywright();
-  const browser = await launchChromium(chromium);
+async function visualDiff(args, deps) {
+  const { chromium } = deps.loadPlaywright();
+  const browser = await deps.launchChromium(chromium);
   const page = await browser.newPage();
-  const result = await compareInBrowser(page, imageDataUrl(args.original), imageDataUrl(args.clone), args.threshold);
+  const result = await compareInBrowser(page, imageDataUrl(args.original, deps.fs), imageDataUrl(args.clone, deps.fs), args.threshold);
   await browser.close();
 
   const diffDataUrl = result.diffPngDataUrl;
@@ -145,17 +157,28 @@ try {
     diff: args.diff ? path.resolve(args.diff) : "",
   };
 
-  fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
-  fs.writeFileSync(args.out, `${JSON.stringify(result, null, 2)}\n`);
+  deps.fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
+  deps.fs.writeFileSync(args.out, `${JSON.stringify(result, null, 2)}\n`);
+  if (args.diff) writeDiffPng(args.diff, diffDataUrl, deps.fs);
 
-  if (args.diff) {
-    const base64 = diffDataUrl.replace(/^data:image\/png;base64,/, "");
-    fs.mkdirSync(path.dirname(path.resolve(args.diff)), { recursive: true });
-    fs.writeFileSync(args.diff, Buffer.from(base64, "base64"));
-  }
-
-  console.log(path.resolve(args.out));
-} catch (error) {
-  console.error(`visual-diff failed: ${error.message}`);
-  process.exit(1);
+  deps.log(path.resolve(args.out));
+  return 0;
 }
+
+/**
+ * CLI entry: compare two screenshots, write metrics JSON (+ optional diff PNG).
+ * @returns {Promise<number>} exit code (0 ok, 1 usage error or failure).
+ */
+export async function main({ argv }, deps = {}) {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  return runCli({ label: "visual-diff", body: () => {
+    const args = parseArgs(argv);
+    if (args.help || !args.original || !args.clone) {
+      usage(io.log);
+      return args.help ? 0 : 1;
+    }
+    return visualDiff(args, io);
+  }, report: io.error });
+}
+
+await runIfMain({ moduleUrl: import.meta.url, main });

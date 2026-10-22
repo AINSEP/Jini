@@ -17,10 +17,7 @@ export type PreparedPromptFile = {
   cleanup: () => Promise<void>;
 };
 
-export async function preparePromptFileForAgent(
-  def: RuntimeAgentDef | null | undefined,
-  prompt: string,
-  label: string,
+export async function preparePromptFileForAgent({ def, prompt, label }: { def: RuntimeAgentDef | null | undefined; prompt: string; label: string }
 ): Promise<PreparedPromptFile | null> {
   if (!def?.promptViaFile) return null;
 

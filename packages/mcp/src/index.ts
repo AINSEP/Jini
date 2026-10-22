@@ -1,12 +1,9 @@
 /**
  * @module @jini-ai/mcp
- * Public barrel for the MCP (Model Context Protocol) domain. External code
- * imports MCP capabilities only from here — never from a subdirectory — so the
- * internal split (`core` kernel + `client` / `agent-install` concerns) can move
- * without touching consumers.
- *
- * Re-exports are explicit and named (no `export *`) so the public surface is
- * visible here and name collisions surface at build time.
+ * Import capabilities through the public barrel or declared stable subpaths; internal source
+ * paths remain private so the core/client/install/hosting split can move without consumer churn.
+ * Explicit named exports expose the public surface and catch collisions. Core binding, hosting,
+ * daemon I/O and auth propagation are documented at their respective owners below.
  */
 
 // ── core: config schema + IO ────────────────────────────────────────────────
@@ -28,34 +25,6 @@ export type {
   McpConfig,
   AcpMcpServer,
   OpenCodeConfigBuildOptions,
-} from './core/index.js';
-
-// ── core: OAuth 2.1 / PKCE flow ─────────────────────────────────────────────
-export {
-  generateCodeVerifier,
-  deriveCodeChallenge,
-  generateState,
-  discoverProtectedResource,
-  discoverAuthServer,
-  registerClient,
-  getOrRegisterClient,
-  buildAuthorizeUrl,
-  exchangeCodeForToken,
-  refreshAccessToken,
-  PendingAuthCache,
-  beginAuth,
-} from './core/index.js';
-export type {
-  ProtectedResourceMetadata,
-  AuthorizationServerMetadata,
-  RegisteredClient,
-  OAuthTokenResponse,
-  PendingAuthState,
-  AuthorizeUrlInput,
-  ExchangeCodeInput,
-  RefreshTokenInput,
-  BeginAuthInput,
-  BeginAuthResult,
 } from './core/index.js';
 
 // ── core: token store ───────────────────────────────────────────────────────
@@ -114,6 +83,7 @@ export type {
 // ── server: the generic MCP resource surface + kernel resource defs ────────
 export {
   activeContextResource,
+  createSiteGuideResource,
   buildResourceIndex,
   handleResourceRead,
   KERNEL_RESOURCES,
@@ -137,6 +107,7 @@ export type { CreateExecuteDelegatedToolToolOptions } from './server/index.js';
 
 // ── agent-install: register an MCP server into external agents ──────────────
 export {
+  CHROME_DEVTOOLS_MCP_PRESET,
   AGENT_SLUGS,
   isAgentSlug,
   planAgentInstall,
@@ -152,3 +123,12 @@ export type {
   ManualInstallPlan,
   InstallPlan,
 } from './agent-install/index.js';
+
+// Object-argument contracts and injected ports.
+export type { McpConfigFilesystemPort } from './core/config.js';
+export type { McpTokenClockOptions, McpTokenStoreOptions } from './core/tokens.js';
+export type { BuildMcpInstallPayloadOptions } from './core/install-info.js';
+export type { McpIdleTimerPort } from './client/client.js';
+export type { McpToolServerRequiredArgs } from './server/tool-server.js';
+export type { CreateExecuteDelegatedToolToolRequiredArgs } from './server/tools/delegated-tool.js';
+export { DaemonHttpError } from './server/daemon-client.js';

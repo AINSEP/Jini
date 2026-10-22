@@ -22,7 +22,7 @@ import type { NavItemNode } from "../types.js";
 // ---------------------------------------------------------------------------
 
 function fakeClock(iso = "2026-07-10T00:00:00.000Z") {
-  return { nowIso: () => iso };
+  return { nowMs: () => Date.parse(iso)};
 }
 
 function fakeIdGen(prefix = "id") {
@@ -57,7 +57,7 @@ function item(overrides: Partial<NavItemNode> & { id: string }): NavItemNode {
 // ---------------------------------------------------------------------------
 
 test("createMenu stores a new menu at version 1", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen("menu");
   const { outbox } = fakeOutbox();
@@ -83,7 +83,7 @@ test("createMenu stores a new menu at version 1", async () => {
 });
 
 test("createMenu rejects duplicate slug in the same workspace", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -104,7 +104,7 @@ test("createMenu rejects duplicate slug in the same workspace", async () => {
 });
 
 test("updateMenuTree replaces the tree and increments version on a matching expectedVersion", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -130,7 +130,7 @@ test("updateMenuTree replaces the tree and increments version on a matching expe
 });
 
 test("updateMenuTree rejects a stale expectedVersion (OCC conflict)", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -172,7 +172,7 @@ test("updateMenuTree rejects a stale expectedVersion (OCC conflict)", async () =
 });
 
 test("updateMenuTree rejects a tree with duplicate item ids (adversarial aggregate check)", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -206,7 +206,7 @@ test("updateMenuTree rejects a tree with duplicate item ids (adversarial aggrega
 });
 
 test("updateMenuTree rejects a tree nested past the max depth", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -238,7 +238,7 @@ test("updateMenuTree rejects a tree nested past the max depth", async () => {
 });
 
 test("updateMenuTree rejects a reserved (not-yet-supported) target kind", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -270,7 +270,7 @@ test("updateMenuTree rejects a reserved (not-yet-supported) target kind", async 
 });
 
 test("updateMenuTree rejects a javascript: url target", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -338,16 +338,16 @@ const DISALLOWED_URL_TARGET_HREFS: readonly string[] = [
  *  `updateMenuTree` integration path above) — this is the function the cross-repo sync gate imports. */
 test("isAllowedHref: rejects every denylist-bypass shape, accepts every legitimate shape", () => {
   for (const href of DISALLOWED_URL_TARGET_HREFS) {
-    assert.equal(isAllowedHref(href), false, `expected isAllowedHref(${JSON.stringify(href)}) to be false`);
+    assert.equal(isAllowedHref({ rawHref: href }), false, `expected isAllowedHref(${JSON.stringify(href)}) to be false`);
   }
   for (const href of ["/quickstart", "#posts", "https://ok.example/x", "mailto:a@b.example"]) {
-    assert.equal(isAllowedHref(href), true, `expected isAllowedHref(${JSON.stringify(href)}) to be true`);
+    assert.equal(isAllowedHref({ rawHref: href }), true, `expected isAllowedHref(${JSON.stringify(href)}) to be true`);
   }
 });
 
 for (const href of DISALLOWED_URL_TARGET_HREFS) {
   test(`updateMenuTree rejects a url target href that bypassed the old denylist but fails the allowlist: ${JSON.stringify(href)}`, async () => {
-    const repo = new InMemoryMenuRepo();
+    const repo = new InMemoryMenuRepo({});
     const clock = fakeClock();
     const idGen = fakeIdGen();
     const { outbox } = fakeOutbox();
@@ -390,7 +390,7 @@ const ALLOWED_URL_TARGET_HREFS: readonly string[] = [
 
 for (const href of ALLOWED_URL_TARGET_HREFS) {
   test(`updateMenuTree accepts a legitimate url target href: ${href}`, async () => {
-    const repo = new InMemoryMenuRepo();
+    const repo = new InMemoryMenuRepo({});
     const clock = fakeClock();
     const idGen = fakeIdGen();
     const { outbox } = fakeOutbox();
@@ -415,7 +415,7 @@ for (const href of ALLOWED_URL_TARGET_HREFS) {
 }
 
 test("createMenu accepts the three non-url target kinds (entryRef, termRef, route) with no href field, unaffected by the url allowlist", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen("menu");
   const { outbox } = fakeOutbox();
@@ -441,7 +441,7 @@ test("createMenu accepts the three non-url target kinds (entryRef, termRef, rout
 });
 
 test("updateMenuTree rejects a menu item with a missing target as 400 validation, not an uncaught crash", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -477,7 +477,7 @@ test("updateMenuTree rejects a menu item with a missing target as 400 validation
 });
 
 test("updateMenuTree rejects a menu item with a null target as 400 validation, not an uncaught crash", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -507,7 +507,7 @@ test("updateMenuTree rejects a menu item with a null target as 400 validation, n
 });
 
 test("updateMenuTree rejects a url target with a missing href as 400 validation, not an uncaught crash", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -541,7 +541,7 @@ test("updateMenuTree rejects a url target with a missing href as 400 validation,
 });
 
 test("updateMenuTree rejects a null entry inside the item tree as 400 validation, not an uncaught crash", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -575,8 +575,8 @@ test("updateMenuTree rejects a null entry inside the item tree as 400 validation
 // ---------------------------------------------------------------------------
 
 test("assignLocation binds a menu to a location and writes both the menu field and the index", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -600,8 +600,8 @@ test("assignLocation binds a menu to a location and writes both the menu field a
 });
 
 test("assignLocation reassigns a location already bound elsewhere (last-writer-wins) and updates both representations", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -642,8 +642,8 @@ test("assignLocation reassigns a location already bound elsewhere (last-writer-w
 });
 
 test("assignLocation refuses a trashed menu with ENTITY_IN_TRASH and leaves it unbound", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -682,8 +682,8 @@ test("assignLocation refuses a trashed menu with ENTITY_IN_TRASH and leaves it u
 // ---------------------------------------------------------------------------
 
 test("deleteMenu soft-deletes (trash) on first call, then blocks purge while bound to a location", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -719,8 +719,8 @@ test("deleteMenu soft-deletes (trash) on first call, then blocks purge while bou
 });
 
 test("deleteMenu purges once unassigned, removing the menu row and its bindings", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -745,8 +745,8 @@ test("deleteMenu purges once unassigned, removing the menu row and its bindings"
 });
 
 test("deleteMenu force-purges past the bound-location guard", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -775,8 +775,8 @@ test("deleteMenu force-purges past the bound-location guard", async () => {
 });
 
 test("deleteMenu on an unknown id throws MenuNotFoundError", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -792,11 +792,11 @@ test("deleteMenu on an unknown id throws MenuNotFoundError", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Outbox event publication (T020-T023, C-004..C-007)
+// Outbox event publication (T020-T023,..). See docs/decisions/DR-008-navigation-event-intent.md.
 // ---------------------------------------------------------------------------
 
 test("C-004: createMenu enqueues exactly one navigation.menu.created on success; zero on a rejection", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen("menu");
   const { outbox, enqueued } = fakeOutbox();
@@ -824,7 +824,7 @@ test("C-004: createMenu enqueues exactly one navigation.menu.created on success;
 });
 
 test("C-005: updateMenuTree enqueues exactly one navigation.menu.updated on success; zero on an OCC/validation rejection", async () => {
-  const repo = new InMemoryMenuRepo();
+  const repo = new InMemoryMenuRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox, enqueued } = fakeOutbox();
@@ -883,8 +883,8 @@ test("C-005: updateMenuTree enqueues exactly one navigation.menu.updated on succ
 });
 
 test("C-006: assignLocation enqueues one 'assigned' on a fresh assign; 'assigned' + 'unassigned' on reassignment; no 'unassigned' with no prior binding", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox, enqueued } = fakeOutbox();
@@ -925,8 +925,8 @@ test("C-006: assignLocation enqueues one 'assigned' on a fresh assign; 'assigned
 });
 
 test("C-007: deleteMenu's trash step enqueues navigation.menu.updated; a purge enqueues navigation.menu.deleted; a blocked purge enqueues nothing", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox, enqueued } = fakeOutbox();
@@ -977,8 +977,8 @@ test("C-007: deleteMenu's trash step enqueues navigation.menu.updated; a purge e
 // ---------------------------------------------------------------------------
 
 test("updateMenuTree refuses a trashed menu with ENTITY_IN_TRASH and leaves it unchanged", async () => {
-  const repo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const repo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
   const idGen = fakeIdGen();
   const { outbox } = fakeOutbox();
@@ -1011,4 +1011,12 @@ test("updateMenuTree refuses a trashed menu with ENTITY_IN_TRASH and leaves it u
   const after = await repo.findById({ workspaceId: "ws-1", id: menu.id });
   assert.equal(after?.version, trashed!.version);
   assert.equal(after?.doc.items.length, 0);
+});
+
+// REGRESSION: fails if the private URL resolution base is changed away from safehref.invalid.
+test("href resolution uses the neutral private sentinel", () => {
+  assert.equal(isAllowedHref({ rawHref: "//safehref.invalid/path" }), true);
+  // PARITY: an ordinary origin-relative path is admitted; a different network origin is refused.
+  assert.equal(isAllowedHref({ rawHref: "/path" }), true);
+  assert.equal(isAllowedHref({ rawHref: "//different.invalid/path" }), false);
 });

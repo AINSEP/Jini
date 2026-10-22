@@ -9,13 +9,13 @@ import {
 } from '../testing.js';
 
 function fakeSurfaces() {
-  const { factory } = createFakeBrowserWindowFactory();
+  const { factory } = createFakeBrowserWindowFactory({});
   return {
-    app: createFakeElectronApp(),
+    app: createFakeElectronApp({}),
     createBrowserWindow: factory,
-    protocol: createFakeElectronProtocol(),
-    shell: createFakeElectronShell(),
-    dialog: createFakeElectronDialog(),
+    protocol: createFakeElectronProtocol({}),
+    shell: createFakeElectronShell({}),
+    dialog: createFakeElectronDialog({}),
   };
 }
 

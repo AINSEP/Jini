@@ -4,7 +4,7 @@
  * actionable error. OD's real implementation classifies vela/AMR-branded
  * failure text against a hardcoded, product-branded recharge URL — that
  * adapter is product-specific and must not live in this package (see
- * source-map.md for the full account of what was left behind and why).
+ * archived provenance ledger for the full account of what was left behind and why).
  * Callers inject their own `AccountFailureClassifier` through
  * `AttachAcpSessionOptions.accountFailureClassifier`; the default
  * `noopAccountFailureClassifier` always returns `null`, which reproduces the
@@ -34,7 +34,7 @@ export interface AccountFailure {
  * `null` when the text does not match a known account-failure pattern.
  */
 export interface AccountFailureClassifier {
-  classify(text: string): AccountFailure | null;
+  classify(requiredArgs: { text: string }): AccountFailure | null;
 }
 
 /**

@@ -1,0 +1,14 @@
+import { expect, it } from 'vitest';
+import { createHttpAgentPluginsApi } from '../adapters/http.js';
+import type { AgentPluginsTransportPort } from '../ports.js';
+import type { AgentPluginFiles, AgentPluginSummary } from '../models.js';
+const row: AgentPluginSummary = { pluginId: 'a/b ?', enabled: true, version: null, description: null, keywords: [], skills: [], mcpServerIds: [] };
+const listing: AgentPluginFiles = { pluginId: row.pluginId, files: [{ relativePath: 'secret.bin', sizeBytes: 10, content: null, omitted: 'binary' }], truncated: true, limits: { maxFiles: 200, maxEntries: 2000, maxFileBytes: 524288, maxTotalBytes: 4194304 } };
+it('uses real workspace routes, encoded plugin ids, envelopes and activation-only body', async () => {
+  const calls: { path: string; method: string; body?: unknown; signal?: AbortSignal }[] = [];
+  const transport: AgentPluginsTransportPort = { async request<T>(input: Parameters<AgentPluginsTransportPort['request']>[0], options?: Parameters<AgentPluginsTransportPort['request']>[1]) { calls.push({ ...input, ...(options?.signal ? { signal: options.signal } : {}) }); const response = input.path.endsWith('/files') ? listing : input.method === 'PATCH' ? { agentPlugin: { ...row, enabled: false, packageRoot: '/private/path' } } : { agentPlugins: [{ ...row, token: 'unexpected server secret' }] }; return response as T; } };
+  const api = createHttpAgentPluginsApi({ transport, workspacePath: '/api/admin/v1/workspaces/w/' }); const abort = new AbortController();
+  expect(await api.list({}, { signal: abort.signal })).toEqual([row]); expect(await api.setEnabled({ pluginId: row.pluginId, enabled: false }, { signal: abort.signal })).toEqual({ ...row, enabled: false }); expect(await api.files({ pluginId: row.pluginId }, { signal: abort.signal })).toEqual(listing);
+  expect(calls).toEqual([{ path: '/api/admin/v1/workspaces/w/agent-plugins', method: 'GET', signal: abort.signal }, { path: '/api/admin/v1/workspaces/w/agent-plugins/a%2Fb%20%3F', method: 'PATCH', body: { enabled: false }, signal: abort.signal }, { path: '/api/admin/v1/workspaces/w/agent-plugins/a%2Fb%20%3F/files', method: 'GET', signal: abort.signal }]);
+});
+it('refuses pre-aborted reads/writes before transport and preserves failures', async () => { let calls = 0; const error = Object.assign(new Error('Forbidden'), { code: 'FORBIDDEN' }); const transport: AgentPluginsTransportPort = { async request() { calls++; throw error; } }; const api = createHttpAgentPluginsApi({ transport, workspacePath: '/workspace' }); const abort = new AbortController(); abort.abort(); await expect(api.list({}, { signal: abort.signal })).rejects.toThrow(); await expect(api.setEnabled({ pluginId: 'a', enabled: false }, { signal: abort.signal })).rejects.toThrow(); await expect(api.files({ pluginId: 'a' }, { signal: abort.signal })).rejects.toThrow(); expect(calls).toBe(0); await expect(api.list({})).rejects.toBe(error); expect(calls).toBe(1); });

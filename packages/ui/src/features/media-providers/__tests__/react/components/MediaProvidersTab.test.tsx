@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
-import { DEFAULT_MEDIA_PROVIDER_CATALOG } from '../../../constants.js';
+import { identityCatalogPolicy as catalogPolicy } from '../../catalog-policy.fixture.js';
 import { createFakeMediaProvidersPort } from '../../../dependencies.js';
 import type { MediaProvidersPort } from '../../../ports.js';
 import type { MediaProviderOption } from '../../../types.js';
@@ -16,7 +16,7 @@ const CATALOG: readonly MediaProviderOption[] = [
 describe('MediaProvidersTab', () => {
   it('renders every catalog provider, configured ones first', async () => {
     const port = createFakeMediaProvidersPort({ providers: { bravo: { apiKeyConfigured: true, apiKeyTail: '9999' } } });
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('Bravo Video');
     const cards = screen.getAllByRole('textbox').length; // sanity: fields rendered
     expect(cards).toBeGreaterThan(0);
@@ -27,7 +27,7 @@ describe('MediaProvidersTab', () => {
 
   it('pinnedProviderIds renders that provider first even though it is unconfigured and the other one is configured', async () => {
     const port = createFakeMediaProvidersPort({ providers: { bravo: { apiKeyConfigured: true, apiKeyTail: '9999' } } });
-    render(<MediaProvidersTab port={port} catalog={CATALOG} pinnedProviderIds={['alpha']} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} pinnedProviderIds={['alpha']} />);
     await screen.findByText('Bravo Video');
 
     const headings = screen.getAllByText(/Alpha Images|Bravo Video/).map((el) => el.textContent);
@@ -36,48 +36,47 @@ describe('MediaProvidersTab', () => {
 
   it('a divider separates the pinned provider from the rest of the list', async () => {
     const port = createFakeMediaProvidersPort();
-    const { container } = render(<MediaProvidersTab port={port} catalog={CATALOG} pinnedProviderIds={['alpha']} />);
+    const { container } = render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} pinnedProviderIds={['alpha']} />);
     await screen.findByText('Bravo Video');
     expect(container.querySelectorAll('.jini-media-provider-divider')).toHaveLength(1);
   });
 
   it('no divider renders when pinnedProviderIds is omitted (every pre-existing caller)', async () => {
     const port = createFakeMediaProvidersPort();
-    const { container } = render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    const { container } = render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('Bravo Video');
     expect(container.querySelectorAll('.jini-media-provider-divider')).toHaveLength(0);
   });
 
   it('no divider renders when every catalog entry is pinned — nothing to separate from', async () => {
     const port = createFakeMediaProvidersPort();
-    const { container } = render(<MediaProvidersTab port={port} catalog={CATALOG} pinnedProviderIds={['alpha', 'bravo']} />);
+    const { container } = render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} pinnedProviderIds={['alpha', 'bravo']} />);
     await screen.findByText('Bravo Video');
     expect(container.querySelectorAll('.jini-media-provider-divider')).toHaveLength(0);
   });
 
-  it('falls back to DEFAULT_MEDIA_PROVIDER_CATALOG when no catalog prop is passed', async () => {
+  it('renders an explicitly empty host catalog without selecting vendors', async () => {
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} />);
-    const [firstProvider] = DEFAULT_MEDIA_PROVIDER_CATALOG;
-    if (!firstProvider) throw new Error('DEFAULT_MEDIA_PROVIDER_CATALOG is empty');
-    await screen.findByText(firstProvider.label);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={[]} />);
+    await screen.findByText('No media providers configured yet.');
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0);
   });
 
   it('shows a masked Saved badge for a marker-only entry', async () => {
     const port = createFakeMediaProvidersPort({ providers: { alpha: { apiKeyConfigured: true, apiKeyTail: '4242' } } });
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     expect(await screen.findByText('Saved (••••4242)')).toBeInTheDocument();
   });
 
   it('shows the empty-state hint when nothing is configured', async () => {
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     expect(await screen.findByText('No media providers configured yet.')).toBeInTheDocument();
   });
 
   it('typing an API key marks the row unsaved and enables Save changes', async () => {
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
 
     const saveButton = screen.getByRole('button', { name: 'Save changes' });
@@ -91,7 +90,7 @@ describe('MediaProvidersTab', () => {
   it('Save changes persists every edited provider and shows a saved notice', async () => {
     const port = createFakeMediaProvidersPort();
     const saveSpy = vi.spyOn(port, 'saveMediaProviders');
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
 
     await userEvent.type(screen.getByLabelText('Alpha Images API key'), 'sk-1');
@@ -106,7 +105,7 @@ describe('MediaProvidersTab', () => {
       fetchMediaProviders: () => Promise.resolve({}),
       saveMediaProviders: () => Promise.reject(new Error('quota exceeded')),
     };
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
 
     await userEvent.type(screen.getByLabelText('Alpha Images API key'), 'sk-1');
@@ -118,7 +117,7 @@ describe('MediaProvidersTab', () => {
 
   it('Clear removes a configured provider and disables itself once nothing is left to clear', async () => {
     const port = createFakeMediaProvidersPort({ providers: { alpha: { apiKeyConfigured: true, apiKeyTail: '1111' } } });
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('Saved (••••1111)');
 
     const clearButton = screen.getByRole('button', { name: 'Alpha Images Clear' });
@@ -131,14 +130,14 @@ describe('MediaProvidersTab', () => {
 
   it('the Clear button starts disabled for an unconfigured provider', async () => {
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
     expect(screen.getByRole('button', { name: 'Alpha Images Clear' })).toBeDisabled();
   });
 
   it('toggles the API key field between masked and revealed', async () => {
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
 
     const input = screen.getByLabelText('Alpha Images API key');
@@ -153,7 +152,7 @@ describe('MediaProvidersTab', () => {
 
   it('shows a "uses X by default" hint only while the base URL is blank', async () => {
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
 
     expect(screen.getByText('Uses https://alpha.example.com by default.')).toBeInTheDocument();
@@ -162,9 +161,18 @@ describe('MediaProvidersTab', () => {
     expect(screen.queryByText('Uses https://alpha.example.com by default.')).not.toBeInTheDocument();
   });
 
+  it('a typed base URL is never echoed back as the "by default" hint', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
+    await screen.findByText('No media providers configured yet.');
+
+    await userEvent.type(screen.getByLabelText('Alpha Images Base URL'), 'https://typed.example.com');
+    expect(screen.queryByText(/by default\./)).not.toBeInTheDocument();
+  });
+
   it('typing a model updates that provider and marks it unsaved', async () => {
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
 
     await userEvent.type(screen.getByLabelText('Bravo Video Model'), 'bravo-hq');
@@ -174,7 +182,7 @@ describe('MediaProvidersTab', () => {
 
   it('renders a Model field with a datalist only for a catalog entry that advertises models', async () => {
     const port = createFakeMediaProvidersPort();
-    const { container } = render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    const { container } = render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
 
     const bravoModelInput = screen.getByLabelText('Bravo Video Model');
@@ -191,6 +199,7 @@ describe('MediaProvidersTab', () => {
     const port = createFakeMediaProvidersPort({ unreachable: true });
     render(
       <MediaProvidersTab
+        catalogPolicy={catalogPolicy}
         port={port}
         catalog={CATALOG}
         initialProviders={{ alpha: { apiKey: 'from-local-cache' } }}
@@ -203,7 +212,7 @@ describe('MediaProvidersTab', () => {
   it('Reload re-fetches from the daemon', async () => {
     const port = createFakeMediaProvidersPort();
     const fetchSpy = vi.spyOn(port, 'fetchMediaProviders');
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
@@ -215,6 +224,7 @@ describe('MediaProvidersTab', () => {
     const port = createFakeMediaProvidersPort({ providers: { alpha: { apiKeyConfigured: true, apiKeyTail: '5678' } } });
     render(
       <MediaProvidersTab
+        catalogPolicy={catalogPolicy}
         port={port}
         catalog={CATALOG}
         labels={{
@@ -259,13 +269,29 @@ describe('MediaProvidersTab', () => {
     expect(await screen.findByText('Custom unsaved')).toBeInTheDocument();
   });
 
+  it('publishes one distinct agent sub-handle per provider card when agentHandle is given', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} agentHandle="media" />);
+    const alphaKey = await screen.findByLabelText('Alpha Images API key');
+    expect(alphaKey.getAttribute('data-agent-element')).toBe('media-alpha-api-key');
+    expect(screen.getByLabelText('Bravo Video Clear').getAttribute('data-agent-element')).toBe('media-bravo-clear');
+    expect(screen.getByRole('button', { name: 'Reload' }).getAttribute('data-agent-element')).toBe('media-reload');
+  });
+
+  it('publishes no agent handles when agentHandle is omitted', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
+    const alphaKey = await screen.findByLabelText('Alpha Images API key');
+    expect(alphaKey.getAttribute('data-agent-element')).toBeNull();
+  });
+
   it('the API-key input renders autocomplete="new-password", NOT "off"', async () => {
     // Same defect as `ByokProviderForm`'s API-key field (see that component's own
     // `credential-hygiene` suite): Chrome deliberately ignores `autoComplete="off"` on
     // credential-shaped fields, so `off` here let a saved password autofill an API-key box.
     // Asserts the RENDERED ATTRIBUTE, because the prop is not what Chrome reads.
     const port = createFakeMediaProvidersPort();
-    render(<MediaProvidersTab port={port} catalog={CATALOG} />);
+    render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />);
     const keyInput = await screen.findByLabelText('Alpha Images API key');
     expect(keyInput.getAttribute('autocomplete')).toBe('new-password');
   });
@@ -274,7 +300,7 @@ describe('MediaProvidersTab', () => {
     const port = createFakeMediaProvidersPort();
     render(
       <I18nProvider dictionaries={{ fr: { 'Media providers': 'Fournisseurs de médias' } }} initialLocale="fr">
-        <MediaProvidersTab port={port} catalog={CATALOG} />
+        <MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} />
       </I18nProvider>,
     );
     expect(await screen.findByText('Fournisseurs de médias')).toBeInTheDocument();

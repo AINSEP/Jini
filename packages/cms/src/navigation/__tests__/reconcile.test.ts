@@ -8,11 +8,12 @@ import type { NavMenuEntry } from "../types.js";
 /**
  * @file `rebuildNavLocationBindings` — the first real caller of the
  * already-implemented `NavLocationBindingRepoPort.rebuildForWorkspace`
- * (C-009, T026).
+ * (T026).
+ * See docs/decisions/DR-008-navigation-event-intent.md.
  */
 
 function fakeClock(iso = "2026-07-13T00:00:00.000Z") {
-  return { nowIso: () => iso };
+  return { nowMs: () => Date.parse(iso)};
 }
 
 function menu(overrides: Partial<NavMenuEntry> & Pick<NavMenuEntry, "id" | "slug">): NavMenuEntry {
@@ -29,8 +30,8 @@ function menu(overrides: Partial<NavMenuEntry> & Pick<NavMenuEntry, "id" | "slug
 }
 
 test("C-009: rebuild produces exactly the union of every menu's .locations field — no orphan, no missing rows", async () => {
-  const menuRepo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const menuRepo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
 
   await menuRepo.save(menu({ id: "menu-1", slug: "primary-nav", locations: ["primary"] }));
@@ -49,8 +50,8 @@ test("C-009: rebuild produces exactly the union of every menu's .locations field
 });
 
 test("C-009: rebuild drops orphan rows the current menu data no longer supports", async () => {
-  const menuRepo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const menuRepo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
 
   // A stale binding-index row with no corresponding menu.locations entry (drift).
@@ -65,8 +66,8 @@ test("C-009: rebuild drops orphan rows the current menu data no longer supports"
 });
 
 test("C-009: rebuild is idempotent — running twice on unchanged menu data produces the same index", async () => {
-  const menuRepo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const menuRepo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
 
   await menuRepo.save(menu({ id: "menu-1", slug: "primary-nav", locations: ["primary", "footer"] }));
@@ -86,8 +87,8 @@ test("C-009: rebuild is idempotent — running twice on unchanged menu data prod
 });
 
 test("C-009: rebuild only affects the requested workspace's bindings", async () => {
-  const menuRepo = new InMemoryMenuRepo();
-  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const menuRepo = new InMemoryMenuRepo({});
+  const bindingRepo = new InMemoryNavLocationBindingRepo({});
   const clock = fakeClock();
 
   await bindingRepo.upsert({ workspaceId: "ws-2", locationKey: "primary", menuId: "other-menu", boundAt: "2026-01-01T00:00:00.000Z" });

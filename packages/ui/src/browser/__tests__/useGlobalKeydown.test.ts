@@ -5,8 +5,8 @@ import { resolveGlobalKeydownTarget, useGlobalKeydown } from '../useGlobalKeydow
 
 describe('resolveGlobalKeydownTarget', () => {
   it('resolves "window" to globalThis.window and "document" to globalThis.document when present', () => {
-    expect(resolveGlobalKeydownTarget('window')).toBe(window);
-    expect(resolveGlobalKeydownTarget('document')).toBe(document);
+    expect(resolveGlobalKeydownTarget({ target: 'window' })).toBe(window);
+    expect(resolveGlobalKeydownTarget({ target: 'document' })).toBe(document);
   });
 
   it('resolves to undefined when the requested global is absent (SSR-style)', () => {
@@ -18,13 +18,13 @@ describe('resolveGlobalKeydownTarget', () => {
     // doc comment in useGlobalKeydown.ts.
     vi.stubGlobal('window', undefined);
     try {
-      expect(resolveGlobalKeydownTarget('window')).toBeUndefined();
+      expect(resolveGlobalKeydownTarget({ target: 'window' })).toBeUndefined();
     } finally {
       vi.unstubAllGlobals();
     }
     vi.stubGlobal('document', undefined);
     try {
-      expect(resolveGlobalKeydownTarget('document')).toBeUndefined();
+      expect(resolveGlobalKeydownTarget({ target: 'document' })).toBeUndefined();
     } finally {
       vi.unstubAllGlobals();
     }
@@ -34,7 +34,7 @@ describe('resolveGlobalKeydownTarget', () => {
 describe('useGlobalKeydown', () => {
   it('invokes the handler for a window keydown by default', () => {
     const handler = vi.fn();
-    renderHook(() => useGlobalKeydown(handler));
+    renderHook(() => useGlobalKeydown({ handler }));
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
     expect(handler).toHaveBeenCalledTimes(1);
@@ -45,7 +45,7 @@ describe('useGlobalKeydown', () => {
     const addSpy = vi.spyOn(window, 'addEventListener');
     const handler = vi.fn();
 
-    renderHook(() => useGlobalKeydown(handler, { enabled: false }));
+    renderHook(() => useGlobalKeydown({ handler }, { enabled: false }));
 
     expect(addSpy).not.toHaveBeenCalledWith('keydown', expect.any(Function), expect.anything());
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
@@ -55,7 +55,7 @@ describe('useGlobalKeydown', () => {
 
   it('starts reacting once enabled flips from false to true, and stops when it flips back', () => {
     const handler = vi.fn();
-    const { rerender } = renderHook(({ enabled }) => useGlobalKeydown(handler, { enabled }), {
+    const { rerender } = renderHook(({ enabled }) => useGlobalKeydown({ handler }, { enabled }), {
       initialProps: { enabled: false },
     });
 
@@ -73,7 +73,7 @@ describe('useGlobalKeydown', () => {
 
   it('listens on document instead of window when target is "document"', () => {
     const handler = vi.fn();
-    renderHook(() => useGlobalKeydown(handler, { target: 'document' }));
+    renderHook(() => useGlobalKeydown({ handler }, { target: 'document' }));
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
     expect(handler).not.toHaveBeenCalled();
@@ -88,7 +88,7 @@ describe('useGlobalKeydown', () => {
     document.body.append(child);
     child.addEventListener('keydown', () => order.push('bubble-phase-on-child'));
 
-    renderHook(() => useGlobalKeydown(() => order.push('capture-phase-hook'), { target: 'document', capture: true }));
+    renderHook(() => useGlobalKeydown({ handler: () => order.push('capture-phase-hook') }, { target: 'document', capture: true }));
 
     child.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
     expect(order).toEqual(['capture-phase-hook', 'bubble-phase-on-child']);
@@ -96,7 +96,7 @@ describe('useGlobalKeydown', () => {
 
   it('removes the listener on unmount', () => {
     const handler = vi.fn();
-    const { unmount } = renderHook(() => useGlobalKeydown(handler));
+    const { unmount } = renderHook(() => useGlobalKeydown({ handler }));
     unmount();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
@@ -106,7 +106,7 @@ describe('useGlobalKeydown', () => {
   it('always calls the latest handler without requiring the caller to memoize it', () => {
     const first = vi.fn();
     const second = vi.fn();
-    const { rerender } = renderHook(({ handler }) => useGlobalKeydown(handler), {
+    const { rerender } = renderHook(({ handler }) => useGlobalKeydown({ handler }), {
       initialProps: { handler: first },
     });
     rerender({ handler: second });

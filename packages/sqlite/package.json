@@ -1,7 +1,8 @@
 {
   "name": "@jini-ai/sqlite",
-  "version": "0.3.0",
-  "description": "better-sqlite3-backed persistence adapters for @jini-ai/daemon\u2019s ports: durable event log, backend selection, schema migration, and database inspection.",
+  "version": "0.5.2",
+  "description": "Deprecated compatibility exports for chat, daemon, registry and database concerns; server composition is imported directly from server.",
+  "deprecated": "Compatibility shim: use @jini-ai/chat/store, @jini-ai/daemon/store, @jini-ai/registry/tool-catalog/sqlite and @jini-ai/db directly. See README.md for exact subpaths.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -26,6 +27,9 @@
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -44,12 +48,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/chat": "workspace:*",
-    "@jini-ai/protocol": "workspace:*",
-    "better-sqlite3": "^13.0.0"
+    "@jini-ai/chat": "workspace:^",
+    "@jini-ai/daemon": "workspace:^",
+    "@jini-ai/db": "workspace:^",
+    "@jini-ai/registry": "workspace:^"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
     "@vitest/coverage-v8": "^2.1.9"
   }
 }

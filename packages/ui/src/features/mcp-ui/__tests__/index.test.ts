@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as mcpUi from '../index.js';
 import * as surfaces from '../surfaces/index.js';
+import { defineSecretCardTool } from '../secret-card.js';
 
 describe('@jini-ai/ui/mcp-ui/surfaces barrel', () => {
+  it('exports the same secret-card owner as the dedicated universal entry', () => {
+    expect(mcpUi.defineSecretCardTool).toBe(defineSecretCardTool);
+  });
   it('exports the protocol vocabulary re-exported from @jini-ai/agentic, not a second copy of it', () => {
     expect(mcpUi.MCP_UI_VIEW_METHODS.initialize).toBe('ui/initialize');
     expect(mcpUi.MCP_UI_VIEW_NOTIFICATIONS.initialized).toBe('ui/notifications/initialized');
@@ -10,8 +14,8 @@ describe('@jini-ai/ui/mcp-ui/surfaces barrel', () => {
     expect(mcpUi.MCP_UI_HOST_NOTIFICATIONS.toolResult).toBe('ui/notifications/tool-result');
     expect(mcpUi.JSON_RPC_ERROR_CODES.methodNotFound).toBe(-32601);
     expect(mcpUi.JINI_PAGE_ACTION_METHOD).toBe('x-jini/page-action');
-    expect(mcpUi.isJsonRpcMessage({ jsonrpc: '2.0', method: 'ping' })).toBe(true);
-    expect(mcpUi.createJsonRpcRequest(1, 'ping')).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
+    expect(mcpUi.isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ping' } })).toBe(true);
+    expect(mcpUi.createJsonRpcRequest({ id: 1, method: 'ping' })).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
   });
 
   it('states the sandbox rule as a constant, so the reason travels with the value', () => {

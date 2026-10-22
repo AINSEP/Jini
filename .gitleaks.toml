@@ -1,0 +1,18 @@
+title = "Jini — default rules with exact synthetic fixture exceptions"
+
+[extend]
+useDefault = true
+
+# Gitleaks >=8.25.0: AND is essential. Test paths alone must NEVER suppress a finding.
+# These exact source lines construct test credentials at runtime; a literal credential on
+# any other line (even in the same test file) remains scanned by every default rule.
+[[allowlists]]
+description = "Known runtime-built redaction fixtures, exact source lines only"
+condition = "AND"
+paths = ['''^packages/diagnostics/src/__tests__/secrets-only\.test\.ts$''']
+regexTarget = "line"
+regexes = [
+  '''^\s*"GitHub classic PAT \(ghp_\)": \["ghp_" \+ "a1"\.repeat\(18\), "\[REDACTED:credential\]", "a1"\.repeat\(18\)\],\s*$''',
+  '''^\s*"AWS AKIA key": \["AKIA" \+ "Q"\.repeat\(16\), "\[REDACTED:credential\]", "Q"\.repeat\(16\)\],\s*$''',
+  '''^\s*"Google AIza key": \["AIza" \+ "x"\.repeat\(35\), "\[REDACTED:credential\]", "x"\.repeat\(35\)\],\s*$''',
+]

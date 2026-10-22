@@ -5,6 +5,7 @@
  */
 import type { JsonRpcId, RpcWritable } from './types.js';
 import { asObject } from './json.js';
+import type { RuntimeBuildOptions } from '../../types.js';
 
 /**
  * Writes a JSON-RPC 2.0 request frame to `writable` as a single newline-terminated
@@ -156,19 +157,26 @@ export function formatUsage(usage: unknown): FormattedUsage | null {
 }
 /**
  * Selects the best permission-outcome `optionId` to reply with when an ACP
- * agent sends a `session/request_permission` request. Prefers
- * `approve_for_session`, then `allow_always`, then `allow_once`.
+ * agent sends a `session/request_permission` request. Bypass permits only
+ * this invocation; otherwise reject. Trusted CLI parity may accept allow_always if that is
+ * the only offered approval, matching an explicitly bypassed native CLI.
  *
  * @param options - The `params.options` array from the incoming permission request.
- * @returns The chosen `optionId` string, or `null` when no approvable option is found.
+ * @param policy - The existing run permission mode; absence is conservative.
+ * @returns An offered `optionId`, or `null` when no safe choice exists.
+ * @complexity O(n) time and O(1) space for n offered options.
  */
-export function choosePermissionOutcome(options: unknown): string | null {
+export function choosePermissionOutcome(options: unknown, policy: Pick<RuntimeBuildOptions, 'permissionMode' | 'cliParity'> = {}): string | null {
   const list = Array.isArray(options) ? options : [];
-  const approveForSession = list.find((option) => option?.optionId === 'approve_for_session');
-  if (approveForSession) return 'approve_for_session';
-  const allowAlways = list.find((option) => option?.kind === 'allow_always');
-  if (allowAlways?.optionId) return allowAlways.optionId;
-  const allowOnce = list.find((option) => option?.kind === 'allow_once');
-  if (allowOnce?.optionId) return allowOnce.optionId;
+  const kinds = policy.permissionMode === 'bypass'
+    ? policy.cliParity ? ['allow_once', 'allow_always', 'reject_once', 'reject_always'] : ['allow_once', 'reject_once', 'reject_always']
+    : ['reject_once', 'reject_always'];
+  for (const kind of kinds) {
+    const option = list.find((value) => {
+      const record = asObject(value);
+      return record?.kind === kind && typeof record.optionId === 'string' && record.optionId.length > 0;
+    });
+    if (option) return option.optionId;
+  }
   return null;
 }

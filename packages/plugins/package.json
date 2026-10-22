@@ -1,20 +1,110 @@
 {
   "name": "@jini-ai/plugins",
-  "version": "0.3.0",
-  "description": "Reserved for Jini's own host-extension plugin format (./host — manifest + setup() + hooks + activation), not yet implemented; the only working implementation of that concept today is Tovu's src/features/plugin-runtime/ (SPEC-005), which has not moved here. The third-party Agent Plugins open standard support and bundled plugins that used to live under this package's ./agent-plugins subpath moved out on 2026-08-18 to @jini-ai/agent-plugins — see that package for ui-ux-design, create-tovu-theme, or anything Agent-Plugins-spec related.",
+  "version": "0.5.1",
+  "description": "Host-independent extension glue and site-plugin runtime with injected SDK, trust, archive and storage ports.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/AINSEP/Jini.git",
     "directory": "packages/plugins"
   },
-  "private": true,
   "jini": {
     "domain": "tooling",
     "kind": "plugin-packaging",
     "runtime": "universal",
-    "entries": {}
+    "entries": {
+      "./glue": "universal",
+      "./host": "universal",
+      "./host/node": "node",
+      "./host/worker": "node",
+      "./host/sql": "node"
+    },
+    "isolation": {
+      "forbidden": {
+        "./host": [
+          "node:"
+        ]
+      }
+    }
   },
   "type": "module",
-  "sideEffects": false
+  "sideEffects": false,
+  "exports": {
+    "./glue": {
+      "types": "./dist/glue/index.d.ts",
+      "import": "./dist/glue/index.js",
+      "default": "./dist/glue/index.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "import": "./dist/host/index.js",
+      "default": "./dist/host/index.js"
+    },
+    "./host/node": {
+      "types": "./dist/host/node/index.d.ts",
+      "import": "./dist/host/node/index.js",
+      "default": "./dist/host/node/index.js"
+    },
+    "./host/worker": {
+      "types": "./dist/host/worker/index.d.ts",
+      "import": "./dist/host/worker/index.js",
+      "default": "./dist/host/worker/index.js"
+    },
+    "./host/sql": {
+      "types": "./dist/host/sql/index.d.ts",
+      "import": "./dist/host/sql/index.js",
+      "default": "./dist/host/sql/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "@jini-ai/platform": "^0.5.3",
+    "semver": "^7.6.2",
+    "kysely": "^0.29.6",
+    "@jini-ai/db": "^0.3.2"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/platform": {
+      "optional": true
+    },
+    "semver": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
+    "semver": "^7.6.2",
+    "@types/semver": "^7.5.8",
+    "kysely": "^0.29.6",
+    "@jini-ai/db": "workspace:*"
+  }
 }

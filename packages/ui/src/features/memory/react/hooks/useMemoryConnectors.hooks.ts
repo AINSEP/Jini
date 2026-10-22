@@ -55,7 +55,7 @@ import type {
   MemoryExtractionRecord,
   MemorySuggestion,
 } from '../../types.js';
-import { memoryConnectorsPort } from '../../dependencies.js';
+import { useMemoryPorts } from '../MemoryPorts.js';
 import {
   describeConnectorSuggestionOutcome,
   describeConnectorSuggestionsSaveOutcome,
@@ -634,10 +634,9 @@ export function useMemoryConnectors(
 }
 
 /**
- * Wirer: binds the real connectors transport + OAuth bridges and returns a
- * hook that still takes a host's runtime coordination. The default a host
- * injects; swap it via the component prop in tests.
+ * Reads the host-injected connector catalogue/OAuth bridges from MemoryPortsProvider
+ * (required), retaining runtime coordination. The deprecated demo catalogue is never a fallback.
  */
 export function useWiredMemoryConnectors(coord: MemoryConnectorsCoordination): MemoryConnectorsController {
-  return useMemoryConnectors(memoryConnectorsPort, coord);
+  return useMemoryConnectors(useMemoryPorts().connectors, coord);
 }

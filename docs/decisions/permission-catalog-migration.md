@@ -8,7 +8,8 @@ role/policy data may already hold the old string. The catalog therefore never de
 string outright. Instead:
 
 1. The new string(s) are registered alongside the old one (expand).
-2. `permission-migrations.ts`'s `registerPermissionMigration({ from, to, reason })` records a fan-out:
+2. `permission-migrations.ts`'s registry (`createPermissionMigrationRegistry`, one per host composition root)
+   records a fan-out via `register({ from, to, reason })`:
    for every policy holding `from`, add each missing string in `to`. This is additive-only — it never
    removes `from` from a policy.
 3. The old string stays registered, marked `DEPRECATED` in its `description`, with a comment

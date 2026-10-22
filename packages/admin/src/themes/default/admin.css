@@ -1,0 +1,51 @@
+/* Default theme values, owned by @jini-ai/admin. Load after @jini-ai/ui structural CSS.
+   The UI contract keeps its legacy fallbacks during migration; these inputs equal them. */
+:root {
+  --jini-theme-light-bg: #ffffff;
+  --jini-theme-light-surface: #f5f5f5;
+  --jini-theme-light-text: #202020;
+  --jini-theme-light-muted: #666666;
+  --jini-theme-light-border: #d9d9d9;
+  --jini-theme-light-primary: #363636;
+  --jini-theme-light-primary-ink: #ffffff;
+  --jini-theme-light-danger: #b42318;
+  --jini-theme-light-success: #18763b;
+  --jini-theme-light-warning: #845800;
+  --jini-theme-dark-bg: #171717;
+  --jini-theme-dark-surface: #242424;
+  --jini-theme-dark-text: #f0f0f0;
+  --jini-theme-dark-muted: #b3b3b3;
+  --jini-theme-dark-border: #454545;
+  --jini-theme-dark-primary: #e0e0e0;
+  --jini-theme-dark-primary-ink: #202020;
+  --jini-theme-dark-danger: #ff8b80;
+  --jini-theme-dark-success: #79d69b;
+  --jini-theme-dark-warning: #ebc36b;
+  --jini-font-body: system-ui, sans-serif;
+  --jini-font-heading: system-ui, sans-serif;
+  --jini-font-mono: ui-monospace, monospace;
+  --jini-radius: 8px;
+  --jini-density: 1;
+
+  --jini-theme-panel-backdrop: none;
+  --jini-theme-panel-texture: none;
+  --jini-theme-overlay-backdrop: blur(4px);
+  --jini-theme-control-shadow: none;
+  --jini-theme-control-shadow-hover: none;
+  --jini-theme-control-shadow-pressed: none;
+  --jini-theme-control-shadow-inset: none;
+  --jini-theme-border-width: 1px;
+}
+
+/* Match existing neutral panels, tabbed-dialog scrims and controls. Role wiring is deferred. */
+/* Re-resolve scheme defaults here without shadowing inherited host --jini-theme-* inputs. */
+:root, [data-admin-theme], [data-color-scheme] {
+  --jini-default-app-bg: var(--jini-bg);
+  --jini-default-panel-bg: var(--jini-bg-panel);
+  --jini-default-panel-border: var(--jini-border);
+  --jini-default-panel-shadow: var(--jini-shadow-sm);
+  --jini-default-overlay-bg: var(--jini-backdrop);
+  --jini-default-overlay-shadow: var(--jini-shadow-lg);
+  --jini-default-control-bg: var(--jini-bg-elevated);
+  --jini-default-control-border: var(--jini-border-strong);
+}

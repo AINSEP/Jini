@@ -29,8 +29,10 @@ export function useFolderPathDropCapture({
   composer,
   onFolderPaths,
 }: UseFolderPathDropCaptureOptions): (event: DragEvent<Element>) => void {
-  return useStableHandler((event: DragEvent<Element>) => {
-    const paths = captureFolderPathDrop({ event, port, composer });
-    if (paths.length > 0) onFolderPaths?.(paths);
+  return useStableHandler({
+    handler: (event: DragEvent<Element>) => {
+      const paths = captureFolderPathDrop({ event, port, composer });
+      if (paths.length > 0) onFolderPaths?.(paths);
+    },
   });
 }

@@ -17,9 +17,9 @@
  * incorrectly, would).
  */
 import { getAtPointer, joinPointer, parsePointerTokens } from './json-pointer.js';
-import type { Catalog } from './catalog.js';
+import type { CallableFrom, Catalog, FunctionSpec } from './catalog.js';
 import { callableFromOf, isFunctionRegistered } from './catalog.js';
-import type { DataBinding, DynamicValue, FunctionCall } from './common-types.js';
+import type { DataBinding, FunctionCall } from './common-types.js';
 
 export type ResolveSide = 'renderer' | 'agent';
 
@@ -34,7 +34,7 @@ export interface ResolveContext {
   readonly catalog: Catalog;
   /** Which side is *evaluating* this binding — the renderer resolving a component's own props (`'renderer'`), or something acting on the agent's behalf. A2UI's spec doesn't explicitly name a case where the agent-side evaluates a `Dynamic*` binding (that's a renderer-only concept — the agent only ever sends `callFunction` for direct RPC), but `callableFromOf` is checked against this side regardless, so a future agent-side evaluator (e.g. resolving `action.event.context` bindings before dispatch — which today happens on the renderer, see `interpreter.ts`'s `buildAction`) is covered by the same boundary without a second resolver. */
   readonly side: ResolveSide;
-  readonly itemScope?: ItemScope;
+  readonly itemScope?: ItemScope | undefined;
 }
 
 export type ResolveFailureReason =
@@ -85,54 +85,72 @@ function resolveBindingPath(path: string, ctx: ResolveContext): ResolveResult {
   const absolute = path.startsWith('/')
     ? path
     : ctx.itemScope
-      ? joinPointer(ctx.itemScope.basePath, String(ctx.itemScope.index), ...parsePointerTokens(`/${path}`))
+      ? joinPointer({ base: ctx.itemScope.basePath, tokens: [String(ctx.itemScope.index), ...parsePointerTokens({ pointer: `/${path}` })] })
       : null;
   if (absolute === null) {
     return { ok: false, reason: 'RELATIVE_PATH_OUTSIDE_LIST_CONTEXT', detail: `relative path "${path}" used outside a list-template item context` };
   }
-  const result = getAtPointer(ctx.dataModel, absolute);
+  const result = getAtPointer({ doc: ctx.dataModel, pointer: absolute });
   if (!result.found) {
     return { ok: false, reason: 'PATH_NOT_FOUND', detail: `no value at "${absolute}" in the current data model` };
   }
   return { ok: true, value: result.value };
 }
 
-function resolveFunctionCall(call: FunctionCall, ctx: ResolveContext): ResolveResult {
-  if (call.call === '@index') {
-    if (!ctx.itemScope) {
-      return { ok: false, reason: 'INDEX_OUTSIDE_LIST_CONTEXT', detail: '@index used outside a list-template item context' };
-    }
-    const offsetArg = call.args?.offset;
-    const offsetResult = offsetArg === undefined ? { ok: true as const, value: 0 } : resolveDynamicValue(offsetArg, ctx);
-    if (!offsetResult.ok) return offsetResult;
-    const offset = typeof offsetResult.value === 'number' ? offsetResult.value : 0;
-    return { ok: true, value: ctx.itemScope.index + offset };
+/** `@index` (the one system function, answered without the catalog): the item scope's index plus an optional, resolved `offset` arg (non-numeric counts as 0). */
+function resolveIndexCall(call: FunctionCall, ctx: ResolveContext): ResolveResult {
+  if (!ctx.itemScope) {
+    return { ok: false, reason: 'INDEX_OUTSIDE_LIST_CONTEXT', detail: '@index used outside a list-template item context' };
   }
+  const offsetArg = call.args?.offset;
+  const offsetResult = offsetArg === undefined ? { ok: true as const, value: 0 } : resolveValue(offsetArg, ctx);
+  if (!offsetResult.ok) return offsetResult;
+  const offset = typeof offsetResult.value === 'number' ? offsetResult.value : 0;
+  return { ok: true, value: ctx.itemScope.index + offset };
+}
 
-  if (!isFunctionRegistered(ctx.catalog, call.call)) {
+function isCallableFromSide(callableFrom: CallableFrom, side: ResolveSide): boolean {
+  return callableFrom === 'rendererOrAgent' || (callableFrom === 'rendererOnly' && side === 'renderer') || (callableFrom === 'agentOnly' && side === 'agent');
+}
+
+/** The catalog-side refusals, in the order they apply: not registered, then the `callableFrom` boundary, then no implementation. Returns the implementation when all three pass. */
+function lookUpCallableImpl(call: FunctionCall, ctx: ResolveContext): ResolveFailure | { readonly ok: true; readonly impl: NonNullable<FunctionSpec['impl']> } {
+  if (!isFunctionRegistered({ catalog: ctx.catalog, functionName: call.call })) {
     return { ok: false, reason: 'FUNCTION_NOT_REGISTERED', detail: `function "${call.call}" is not registered in catalog "${ctx.catalog.catalogId}"` };
   }
-  const callableFrom = callableFromOf(ctx.catalog, call.call);
-  const allowed = callableFrom === 'rendererOrAgent' || (callableFrom === 'rendererOnly' && ctx.side === 'renderer') || (callableFrom === 'agentOnly' && ctx.side === 'agent');
-  if (!allowed) {
+  const callableFrom = callableFromOf({ catalog: ctx.catalog, functionName: call.call });
+  if (!isCallableFromSide(callableFrom, ctx.side)) {
     return {
       ok: false,
       reason: 'FUNCTION_NOT_CALLABLE_FROM_SIDE',
       detail: `function "${call.call}" has callableFrom="${callableFrom}", not callable from the "${ctx.side}" side`,
     };
   }
-
-  const spec = ctx.catalog.functions.get(call.call);
-  if (!spec?.impl) {
+  const impl = ctx.catalog.functions.get(call.call)?.impl;
+  if (!impl) {
     return { ok: false, reason: 'FUNCTION_NOT_IMPLEMENTED', detail: `function "${call.call}" is registered but this renderer has no implementation for it` };
   }
+  return { ok: true, impl };
+}
 
+/** Resolves every arg value in key order, stopping at the first failure. */
+function resolveArgs(args: FunctionCall['args'], ctx: ResolveContext): ResolveFailure | { readonly ok: true; readonly value: Record<string, unknown> } {
   const resolvedArgs: Record<string, unknown> = {};
-  for (const [key, argValue] of Object.entries(call.args ?? {})) {
+  for (const [key, argValue] of Object.entries(args ?? {})) {
     const argResult = resolveArgValue(argValue, ctx);
     if (!argResult.ok) return argResult;
     resolvedArgs[key] = argResult.value;
   }
+  return { ok: true, value: resolvedArgs };
+}
+
+function resolveFunctionCall(call: FunctionCall, ctx: ResolveContext): ResolveResult {
+  if (call.call === '@index') return resolveIndexCall(call, ctx);
+
+  const lookup = lookUpCallableImpl(call, ctx);
+  if (!lookup.ok) return lookup;
+  const argsResult = resolveArgs(call.args, ctx);
+  if (!argsResult.ok) return argsResult;
   // `impl` is host-supplied code handed agent-supplied arguments, and this module validates
   // neither against the other (the catalog's per-function arg schemas are not implemented — see
   // `catalog.ts`'s module doc). An entirely ordinary implementation therefore throws the moment an
@@ -140,7 +158,7 @@ function resolveFunctionCall(call: FunctionCall, ctx: ResolveContext): ResolveRe
   // travel out through `applyAgentMessage` into the host's render, where nothing catches it. It is
   // a resolution failure like any other: reported, not propagated.
   try {
-    return { ok: true, value: spec.impl(resolvedArgs) };
+    return { ok: true, value: lookup.impl(argsResult.value) };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return { ok: false, reason: 'FUNCTION_THREW', detail: `function "${call.call}" threw while evaluating: ${detail}` };
@@ -172,12 +190,17 @@ function resolveArgValue(argValue: unknown, ctx: ResolveContext): ResolveResult 
     }
     return { ok: true, value: resolvedItems };
   }
-  return resolveDynamicValue(argValue as DynamicValue, ctx);
+  return resolveValue(argValue, ctx);
 }
 
-/** Resolves any `Dynamic*` value (`DynamicString`/`DynamicNumber`/`DynamicBoolean`/`DynamicStringList`/`DynamicValue` all share this one shape: literal | `DataBinding` | `FunctionCall`). */
-export function resolveDynamicValue(value: unknown, ctx: ResolveContext): ResolveResult {
+/** Resolves one `Dynamic*` value in an already-built context (the item scope, if any, is in `ctx`). */
+function resolveValue(value: unknown, ctx: ResolveContext): ResolveResult {
   if (isDataBinding(value)) return resolveBindingPath(value.path, ctx);
   if (isFunctionCall(value)) return resolveFunctionCall(value, ctx);
   return { ok: true, value };
+}
+
+/** Resolves any `Dynamic*` value (`DynamicString`/`DynamicNumber`/`DynamicBoolean`/`DynamicStringList`/`DynamicValue` all share this one shape: literal | `DataBinding` | `FunctionCall`). */
+export function resolveDynamicValue({ value, ctx }: { value: unknown; ctx: Omit<ResolveContext, 'itemScope'> }, { itemScope }: { itemScope?: ItemScope | undefined } = {}): ResolveResult {
+  return resolveValue(value, { ...ctx, ...(itemScope === undefined ? {} : { itemScope }) });
 }

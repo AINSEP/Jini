@@ -4,14 +4,17 @@
  * `search_tools` / `describe_tool` — the discovery half of `ai-control-plane.md` §29 /
  * `PROP-tool-catalog-discovery-2026-07-26.md` §6.1, proxying `@jini-ai/http-kit`'s
  * `GET /api/tools/search` / `GET /api/tools/:id` exactly as `run-tools.ts`'s tools proxy
- * `runs.ts` — no separate authorization mechanism, no caching, no state.
+ * `runs.ts` — no separate authorization mechanism or catalog cache.
  *
  * v0 scope: no principal scoping, no versioning, no schema narrowing. Execution is unchanged —
- * a caller still runs a discovered id through `execute_delegated_tool`
- * (`../tools/delegated-tool.js`), which is the only thing that ever reaches `ToolExecutor`.
+ * a caller runs a discovered id through the delegated gateway (`../tools/delegated-tool.js`),
+ * either with its legacy wrapper or a concrete definition published after a successful describe.
+ * Both reach the same `ToolExecutor`.
  * Finding a tool id here grants nothing (`PROP` §6.3).
  */
 import { getDaemonJson } from '../daemon-client.js';
+import { isRecord } from '../tool-arguments.js';
+import type { ToolDescriptor } from '@jini-ai/core';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 
 const READ_ANNOTATIONS = {
@@ -20,8 +23,24 @@ const READ_ANNOTATIONS = {
   openWorldHint: false,
 } as const;
 
+/** Validate the daemon's identity before publishing; discovery cannot substitute another tool.
+ * Unknown risk remains unclassified and therefore cannot claim a read-only annotation.
+ * @complexity O(1); no effects. The schema is checked by the publication boundary.
+ */
+function describedDescriptor({ id, data }: { id: string; data: unknown }): ToolDescriptor {
+  if (!isRecord(data) || data.id !== id) throw new Error('daemon returned a mismatched tool descriptor');
+  return {
+    id,
+    ...(typeof data.description === 'string' ? { description: data.description } : {}),
+    ...(typeof data.readOnly === 'boolean' ? { readOnly: data.readOnly } : {}),
+    ...(data.inputSchema === undefined ? {} : { inputSchema: data.inputSchema }),
+  };
+}
+
 interface ToolCatalogSearchResponse {
   readonly hits: ReadonlyArray<{
+    readonly readOnly?: boolean;
+    readonly sideEffects?: string;
     readonly id: string;
     readonly description: string;
     readonly source: string;
@@ -33,7 +52,7 @@ interface ToolCatalogSearchResponse {
 export const searchToolsTool: McpToolDef = {
   name: 'search_tools',
   description:
-    'Search the durable tool catalog. Returns ranked {id, description, source, score} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool. If nothing in the results fits, re-search with a higher limit or different phrasing rather than assuming the tool does not exist.',
+    'Search the durable tool catalog. Returns ranked {id, description, source, score, readOnly, sideEffects} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool. If nothing in the results fits, re-search with a higher limit or different phrasing rather than assuming the tool does not exist.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -82,11 +101,11 @@ export const searchToolsTool: McpToolDef = {
     additionalProperties: false,
   },
   annotations: { ...READ_ANNOTATIONS, title: 'Search the tool catalog' },
-  handler: async (args, ctx) => {
-    requireString(args.query, 'query');
-    const params = new URLSearchParams({ q: args.query });
+  handler: async ({ args, ctx }) => {
+    const query = requireString({ value: args.query, name: 'query' });
+    const params = new URLSearchParams({ q: query });
     if (typeof args.limit === 'number') params.set('limit', String(args.limit));
-    const data = await getDaemonJson<ToolCatalogSearchResponse>(ctx.baseUrl, `/api/tools/search?${params.toString()}`, daemonCallOptions(ctx));
+    const data = await getDaemonJson<ToolCatalogSearchResponse>({ baseUrl: ctx.baseUrl, route: `/api/tools/search?${params.toString()}` }, daemonCallOptions({ ctx }));
     return data.hits;
   },
 };
@@ -95,19 +114,24 @@ export const searchToolsTool: McpToolDef = {
 export const describeToolTool: McpToolDef = {
   name: 'describe_tool',
   description:
-    'Get the full descriptor for one tool id found via search_tools — description and input schema. Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
+    'Get the full descriptor for one tool id found via search_tools — description, input schema, readOnly and sideEffects. When dynamic publication is enabled, this also exposes that operation as a concrete tool in tools/list; call it with its own arguments. Legacy fallback: use execute_readonly_delegated_tool only when readOnly is true. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
   inputSchema: {
     type: 'object',
     properties: {
-      id: { type: 'string', description: 'Tool id returned by search_tools. Required.' },
+      id: { type: 'string', description: 'Tool id returned by search_tools. Supply id, toolId, or name.' },
+      toolId: { type: 'string', description: 'Alias of id, matching the delegated-execute wrappers.' },
+      name: { type: 'string', description: 'Alias of id.' },
     },
-    required: ['id'],
+    anyOf: [{ required: ['id'] }, { required: ['toolId'] }, { required: ['name'] }],
     additionalProperties: false,
   },
+  argumentNormalization: { aliases: { toolId: 'id', name: 'id' } },
   annotations: { ...READ_ANNOTATIONS, title: 'Describe a tool' },
-  handler: async (args, ctx) => {
-    requireString(args.id, 'id');
-    return getDaemonJson(ctx.baseUrl, `/api/tools/${encodeURIComponent(args.id)}`, daemonCallOptions(ctx));
+  handler: async ({ args, ctx }) => {
+    const id = requireString({ value: args.id, name: 'id' });
+    const data = await getDaemonJson({ baseUrl: ctx.baseUrl, route: `/api/tools/${encodeURIComponent(id)}` }, daemonCallOptions({ ctx }));
+    if (ctx.publishTool) await ctx.publishTool({ descriptor: describedDescriptor({ id, data }) });
+    return data;
   },
 };
 

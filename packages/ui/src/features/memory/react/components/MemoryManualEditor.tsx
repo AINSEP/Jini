@@ -67,8 +67,8 @@ export function MemoryManualEditor({
             alignItems: 'stretch',
             gap: 14,
             padding: 14,
-            background: 'var(--surface-subtle, rgba(0,0,0,0.02))',
-            border: '1px solid var(--border-subtle, rgba(0,0,0,0.08))',
+            background: 'var(--jini-bg-subtle)',
+            border: '1px solid var(--jini-border-soft)',
             borderRadius: 10,
           }}
         >
@@ -80,7 +80,7 @@ export function MemoryManualEditor({
                 alignItems: 'center',
                 gap: 6,
                 paddingBottom: 10,
-                borderBottom: '1px solid var(--border-subtle, rgba(0,0,0,0.06))',
+                borderBottom: '1px solid var(--jini-border-soft)',
               }}
             >
               <span
@@ -169,7 +169,7 @@ export function MemoryManualEditor({
                 rows={7}
                 style={{
                   width: '100%',
-                  fontFamily: 'monospace',
+                  fontFamily: 'var(--jini-font-mono)',
                   fontSize: 12,
                   lineHeight: 1.5,
                 }}
@@ -193,7 +193,7 @@ export function MemoryManualEditor({
               style={{
                 fontSize: 11,
                 margin: 0,
-                color: 'var(--text-muted, #888)',
+                color: 'var(--jini-text-muted)',
               }}
             >
               {t('Saved memories are available to future chats.')}

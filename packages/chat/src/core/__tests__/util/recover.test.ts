@@ -10,39 +10,39 @@ const HTML_DOC = '<!doctype html><html><head></head><body><h1>Hello there, world
 
 describe('artifacts/recover', () => {
   it('recovers a standalone HTML document reply as-is', () => {
-    expect(recoverStandaloneHtmlDocument(HTML_DOC)).toBe(HTML_DOC);
-    expect(recoverStandaloneHtmlDocument('just some prose')).toBeNull();
+    expect(recoverStandaloneHtmlDocument({ sourceText: HTML_DOC })).toBe(HTML_DOC);
+    expect(recoverStandaloneHtmlDocument({ sourceText: 'just some prose' })).toBeNull();
   });
 
   it('recoverStandaloneHtmlDocument treats null/undefined sourceText as empty (rejected, not a throw)', () => {
-    expect(recoverStandaloneHtmlDocument(null)).toBeNull();
-    expect(recoverStandaloneHtmlDocument(undefined)).toBeNull();
+    expect(recoverStandaloneHtmlDocument({ sourceText: null })).toBeNull();
+    expect(recoverStandaloneHtmlDocument({ sourceText: undefined })).toBeNull();
   });
 
   it('recoverStandaloneHtmlDocument rejects a candidate that ends in </html> but is too short to validate', () => {
-    expect(recoverStandaloneHtmlDocument('<html></html>')).toBeNull();
+    expect(recoverStandaloneHtmlDocument({ sourceText: '<html></html>' })).toBeNull();
   });
 
   it('recovers HTML from a single fenced ```html block but refuses when there are two candidates (ambiguous)', () => {
     const single = '```html\n' + HTML_DOC + '\n```';
-    expect(recoverHtmlDocumentFromMarkdownFence(single)).toBe(HTML_DOC);
+    expect(recoverHtmlDocumentFromMarkdownFence({ sourceText: single })).toBe(HTML_DOC);
 
     const doubled = single + '\n\n' + single;
-    expect(recoverHtmlDocumentFromMarkdownFence(doubled)).toBeNull();
+    expect(recoverHtmlDocumentFromMarkdownFence({ sourceText: doubled })).toBeNull();
   });
 
   it('recoverHtmlDocumentFromMarkdownFence treats null/undefined sourceText as empty, and returns null when there is no fence at all', () => {
-    expect(recoverHtmlDocumentFromMarkdownFence(null)).toBeNull();
-    expect(recoverHtmlDocumentFromMarkdownFence(undefined)).toBeNull();
-    expect(recoverHtmlDocumentFromMarkdownFence('no fence here')).toBeNull();
+    expect(recoverHtmlDocumentFromMarkdownFence({ sourceText: null })).toBeNull();
+    expect(recoverHtmlDocumentFromMarkdownFence({ sourceText: undefined })).toBeNull();
+    expect(recoverHtmlDocumentFromMarkdownFence({ sourceText: 'no fence here' })).toBeNull();
   });
 
   it('recoverHtmlDocumentFromMarkdownFence skips a fence whose body does not end in </html> and one that is too short to validate', () => {
     const notHtml = '```html\njust some prose, not a document at all really\n```';
-    expect(recoverHtmlDocumentFromMarkdownFence(notHtml)).toBeNull();
+    expect(recoverHtmlDocumentFromMarkdownFence({ sourceText: notHtml })).toBeNull();
 
     const tooShort = '```html\n<html></html>\n```';
-    expect(recoverHtmlDocumentFromMarkdownFence(tooShort)).toBeNull();
+    expect(recoverHtmlDocumentFromMarkdownFence({ sourceText: tooShort })).toBeNull();
   });
 
   it('recoverHtmlArtifactFromPrecedingDocument returns null when the artifact body already validates (no recovery needed)', () => {

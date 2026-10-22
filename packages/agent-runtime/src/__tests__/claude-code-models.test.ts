@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   CLAUDE_CODE_INITIALIZE_ARGS,
@@ -10,6 +14,7 @@ import {
   setClaudeCodeModelIoForTesting,
   type ClaudeCodeModelIo,
 } from '../claude-code-models.js';
+import { createAgentRuntimeState } from '../runtime-state.js';
 import type { RuntimeModelOption } from '../types.js';
 
 const FALLBACK: RuntimeModelOption[] = [
@@ -124,17 +129,17 @@ describe('the probe request', () => {
 });
 
 describe('loadClaudeCodeModels', () => {
-  it('unions the CLI picker catalog into the fallback without a credential', async () => {
+  it('returns only the CLI picker catalog without a credential', async () => {
     const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
     setClaudeCodeModelIoForTesting(io);
     const result = await loadClaudeCodeModels('claude', { HOME: '/home/u' }, FALLBACK);
     const ids = result!.map((m) => m.id);
-    // Fallback fully present, first, in order.
-    expect(ids.slice(0, FALLBACK.length)).toEqual(FALLBACK.map((m) => m.id));
+    // Offline hints must never reintroduce a model removed from the live catalog.
+    expect(ids).toEqual(parseClaudeInitializeModels(initializeStdout(REAL_MODELS))!.map((row) => row.id));
     expect(ids).toContain('claude-opus-5-5');
     expect(ids).toContain('claude-fable-5-1');
     expect(new Set(ids).size).toBe(ids.length);
-    // Fallback's label wins for an id present in both.
+    // The live parser's alias label is kept as-is.
     expect(result!.find((m) => m.id === 'sonnet')?.label).toBe('Sonnet (alias)');
     // The CLI answered, so the weaker cache file is never read.
     expect(io.readConfigFile).not.toHaveBeenCalled();
@@ -148,7 +153,8 @@ describe('loadClaudeCodeModels', () => {
     setClaudeCodeModelIoForTesting(io);
     const result = await loadClaudeCodeModels('openclaude', { CLAUDE_CONFIG_DIR: '/cfg' }, FALLBACK);
     expect(io.readConfigFile).toHaveBeenCalledWith('/cfg/.claude.json');
-    expect(result!.map((m) => m.id)).toEqual([...FALLBACK.map((m) => m.id), 'claude-fable-6']);
+    // Only the discovered cache row: packaged fallback is never unioned into a discovered list.
+    expect(result!.map((m) => m.id)).toEqual(['claude-fable-6']);
   });
 
   it.each([
@@ -184,5 +190,120 @@ describe('loadClaudeCodeModels', () => {
     t += 2 * 60_000;
     await loadClaudeCodeModels('claude', { HOME: '/h' }, FALLBACK, now);
     expect(io.runInitialize).toHaveBeenCalledTimes(3);
+  });
+});
+
+// Characterization pins (L174), green on the pre-refactor code.
+describe('claude-code-models characterization', () => {
+  it('parseClaudeInitializeModels skips null and primitive model entries', () => {
+    expect(parseClaudeInitializeModels(initializeStdout([null, 'sonnet', 7, { value: 'opus', displayName: 'Opus' }]))).toEqual([
+      { id: 'opus', label: 'Opus (alias)' },
+    ]);
+  });
+
+  it('resolveClaudeConfigPath falls back to os.homedir() when HOME is blank', async () => {
+    const os = await import('node:os');
+    expect(resolveClaudeConfigPath({ HOME: '   ' })).toBe(join(os.homedir(), '.claude.json'));
+    expect(resolveClaudeConfigPath({})).toBe(join(os.homedir(), '.claude.json'));
+  });
+
+  it('gives each auth credential its own cache slot, and shares a slot for identical auth', async () => {
+    const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
+    const state = createAgentRuntimeState({});
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h', ANTHROPIC_API_KEY: 'a' } }, { state, io });
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h', ANTHROPIC_API_KEY: 'a' } }, { state, io });
+    expect(io.runInitialize).toHaveBeenCalledTimes(1);
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h', ANTHROPIC_API_KEY: 'b' } }, { state, io });
+    expect(io.runInitialize).toHaveBeenCalledTimes(2);
+  });
+
+  it('never keeps a raw credential in a cache key', async () => {
+    const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
+    const state = createAgentRuntimeState({});
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h', CLAUDE_CODE_OAUTH_TOKEN: 'sk-secret-token' } }, { state, io });
+    expect([...state.claudeModels.keys()].some((key) => key.includes('sk-secret-token'))).toBe(false);
+  });
+
+  it('separates cache slots by binary', async () => {
+    const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
+    const state = createAgentRuntimeState({});
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } }, { state, io });
+    await loadClaudeCodeModels({ bin: 'openclaude', env: { HOME: '/h' } }, { state, io });
+    expect(io.runInitialize.mock.calls.map((call) => call[0])).toEqual(['claude', 'openclaude']);
+  });
+
+  it('object form honours the injected clock', async () => {
+    const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
+    const state = createAgentRuntimeState({});
+    let t = 0;
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } }, { state, io, now: () => t });
+    t = 30 * 60_000;
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } }, { state, io, now: () => t });
+    expect(io.runInitialize).toHaveBeenCalledTimes(2);
+  });
+
+  it('object form with the default state uses the I/O installed by setClaudeCodeModelIoForTesting', async () => {
+    const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
+    setClaudeCodeModelIoForTesting(io);
+    await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } });
+    expect(io.runInitialize).toHaveBeenCalledWith('claude', { HOME: '/h' });
+  });
+
+  it('setClaudeCodeModelIoForTesting clears the default-state cache', async () => {
+    const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
+    setClaudeCodeModelIoForTesting(io);
+    await loadClaudeCodeModels('claude', { HOME: '/h' }, FALLBACK);
+    setClaudeCodeModelIoForTesting(io);
+    await loadClaudeCodeModels('claude', { HOME: '/h' }, FALLBACK);
+    expect(io.runInitialize).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns null when every cache-file id is refused by sanitizeCustomModel', async () => {
+    const io = fakeIo({ readConfigFile: async () => JSON.stringify({ additionalModelOptionsCache: [{ value: 'bad id with spaces' }] }) });
+    await expect(loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } }, { state: createAgentRuntimeState({}), io })).resolves.toBeNull();
+  });
+
+  it('returns a fresh array copy on every cached hit', async () => {
+    const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
+    const state = createAgentRuntimeState({});
+    const first = await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } }, { state, io });
+    const second = await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } }, { state, io });
+    expect(second).toEqual(first);
+    expect(second).not.toBe(first);
+  });
+
+  describe('real I/O (a non-default state without injected io)', () => {
+    let dir: string;
+
+    beforeEach(() => {
+      dir = mkdtempSync(join(tmpdir(), 'agent-runtime-claude-models-'));
+    });
+
+    afterEach(() => {
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('spawns the binary with the initialize argv, writes the request to stdin and parses stdout', async () => {
+      const bin = join(dir, 'fake-claude');
+      const reply = initializeStdout([{ value: 'sonnet', displayName: 'Sonnet' }]).replace(/'/g, `'\\''`);
+      // Echo the received argv and stdin back so the probe's wire format is pinned too.
+      writeFileSync(bin, `#!/bin/sh\nstdin=$(cat)\nprintf '%s\\n' "$*" > "${dir}/argv.txt"\nprintf '%s' "$stdin" > "${dir}/stdin.txt"\nprintf '%s' '${reply}'\n`);
+      chmodSync(bin, 0o755);
+      const result = await loadClaudeCodeModels({ bin, env: { HOME: dir, PATH: process.env.PATH ?? '' } }, { state: createAgentRuntimeState({}) });
+      expect(result).toEqual([{ id: 'sonnet', label: 'Sonnet (alias)' }]);
+      expect(readFileSync(join(dir, 'argv.txt'), 'utf8').trim()).toBe(CLAUDE_CODE_INITIALIZE_ARGS.join(' '));
+      expect(readFileSync(join(dir, 'stdin.txt'), 'utf8')).toBe(CLAUDE_CODE_INITIALIZE_REQUEST.trimEnd());
+    });
+
+    it('reads <HOME>/.claude.json when the binary cannot be spawned', async () => {
+      writeFileSync(join(dir, '.claude.json'), JSON.stringify({ additionalModelOptionsCache: [{ value: 'claude-fable-6' }] }));
+      const result = await loadClaudeCodeModels({ bin: join(dir, 'missing-claude'), env: { HOME: dir } }, { state: createAgentRuntimeState({}) });
+      expect(result).toEqual([{ id: 'claude-fable-6', label: 'claude-fable-6' }]);
+    });
+
+    it('resolves null when the spawn throws synchronously and no config file exists', async () => {
+      const result = await loadClaudeCodeModels({ bin: 'bad\u0000bin', env: { HOME: dir } }, { state: createAgentRuntimeState({}) });
+      expect(result).toBeNull();
+    });
   });
 });

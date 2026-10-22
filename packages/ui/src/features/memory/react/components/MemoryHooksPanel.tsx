@@ -107,7 +107,7 @@ export function MemoryHooksPanel({
                   checked={flags[hook.key]}
                   disabled={!enabled}
                   onChange={(e) => onToggle(hook.key, e.target.checked)}
-                  {...agentHandleProps(agentHandle, { action: `hook-${hook.action}`, role: 'checkbox', label: t(hook.label) })}
+                  {...agentHandleProps({}, { base: agentHandle, ...({ action: `hook-${hook.action}`, role: 'checkbox', label: t(hook.label) }) })}
                 />
                 <span className="toggle-slider" />
               </span>

@@ -32,7 +32,7 @@ export interface VersionManagerPort<TVersion extends VersionRecord = VersionReco
    * `fileVersionPreviewOptions` (deck-sniffing, base-href resolution) is
    * shared infrastructure the eventual `@jini-ai/renderers-react` sandbox
    * core should own, which does not exist yet (see
-   * `packages/ui/source-map.md`'s `html-viewer` section). A host with a
+   * `packages/ui/archived provenance ledger`'s `html-viewer` section). A host with a
    * real sandbox core implements this by delegating to it; a host without
    * one can just return `content` unchanged for a plain, unsandboxed
    * preview. Either way this feature stays decoupled from that

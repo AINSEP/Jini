@@ -19,3 +19,4 @@ export * from './tools/delegated-tool.js';
 export * from './tools/tool-catalog-tools.js';
 export * from './tools/component-catalog-tools.js';
 export * from './resources/active-resource.js';
+export * from './resources/site-guide-resource.js';

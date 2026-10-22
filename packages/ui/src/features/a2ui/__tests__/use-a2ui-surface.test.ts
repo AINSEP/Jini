@@ -5,17 +5,22 @@ import type { A2uiInterpreter, ComponentInstance } from '../protocol.js';
 
 function makeInterpreter(initialRoot: ComponentInstance | undefined): { interpreter: A2uiInterpreter; setRoot: (r: ComponentInstance | undefined) => void; notify: () => void } {
   let root = initialRoot;
+  const dataModel = {};
   const listeners = new Set<() => void>();
   const interpreter: A2uiInterpreter = {
     applyAgentMessage: vi.fn(),
-    getSurface: vi.fn(),
+    getSurface: ({ surfaceId }) => surfaceId === 's1' ? {
+      surfaceId, catalogId: 'test', dataModel,
+      components: new Map(root ? [['root', root]] : []),
+    } : undefined,
     listSurfaceIds: vi.fn(() => []),
-    getRoot: (surfaceId) => (surfaceId === 's1' ? root : undefined),
+    getRoot: ({ surfaceId }) => (surfaceId === 's1' ? root : undefined),
     buildAction: vi.fn(),
     resolve: vi.fn(),
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+    subscribe: ({ listener }) => {
+      const notifyListener = () => listener({});
+      listeners.add(notifyListener);
+      return () => listeners.delete(notifyListener);
     },
   };
   return {
@@ -28,14 +33,14 @@ function makeInterpreter(initialRoot: ComponentInstance | undefined): { interpre
 describe('useA2uiSurfaceRoot', () => {
   it('returns undefined when the surface has no root yet', () => {
     const { interpreter } = makeInterpreter(undefined);
-    const { result } = renderHook(() => useA2uiSurfaceRoot(interpreter, 's1'));
+    const { result } = renderHook(() => useA2uiSurfaceRoot({ interpreter: interpreter, surfaceId: 's1' }));
     expect(result.current).toBeUndefined();
   });
 
   it('returns the current root component', () => {
     const rootComponent: ComponentInstance = { id: 'root', component: 'native.data-table', props: {} };
     const { interpreter } = makeInterpreter(rootComponent);
-    const { result } = renderHook(() => useA2uiSurfaceRoot(interpreter, 's1'));
+    const { result } = renderHook(() => useA2uiSurfaceRoot({ interpreter: interpreter, surfaceId: 's1' }));
     expect(result.current).toBe(rootComponent);
   });
 
@@ -43,7 +48,7 @@ describe('useA2uiSurfaceRoot', () => {
     const first: ComponentInstance = { id: 'root', component: 'native.data-table', props: {} };
     const second: ComponentInstance = { id: 'root', component: 'native.data-table', props: { rows: [] } };
     const { interpreter, setRoot, notify } = makeInterpreter(first);
-    const { result } = renderHook(() => useA2uiSurfaceRoot(interpreter, 's1'));
+    const { result } = renderHook(() => useA2uiSurfaceRoot({ interpreter: interpreter, surfaceId: 's1' }));
     expect(result.current).toBe(first);
     act(() => {
       setRoot(second);
@@ -56,7 +61,7 @@ describe('useA2uiSurfaceRoot', () => {
     const { interpreter } = makeInterpreter(undefined);
     const unsubscribe = vi.fn();
     const subscribeSpy = vi.spyOn(interpreter, 'subscribe').mockReturnValue(unsubscribe);
-    const { unmount } = renderHook(() => useA2uiSurfaceRoot(interpreter, 's1'));
+    const { unmount } = renderHook(() => useA2uiSurfaceRoot({ interpreter: interpreter, surfaceId: 's1' }));
     expect(subscribeSpy).toHaveBeenCalled();
     unmount();
     expect(unsubscribe).toHaveBeenCalled();

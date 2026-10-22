@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_AR: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "أزلت من رسالتك ما بدا كمفتاح. إن كان حقيقيًا، فاستبدله. استخدم النموذج الآمن لحفظه.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "استخدم النموذج الآمن لحفظ المفاتيح والرموز وكلمات المرور والأسرار. تُرسل إجابات الدردشة إلى المساعد.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# مهارتي\n\n1. اشرح سير العمل.\n2. صف المدخلات والمخرجات.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'لم يعمل مسار مخصص بديل، لذلك استُخدم الملف التنفيذي الذي تم اكتشافه تلقائيًا بدلاً منه.',
   'API key': 'مفتاح API',
   'About': 'حول',
   'Accent color': 'لون التمييز',
   'Account': 'الحساب',
+  'Advanced': 'متقدّم',
   'Advanced: proxy & custom paths': 'متقدم: الوكيل والمسارات المخصصة',
   'Agent check failed': 'فشل التحقق من الوكيل',
   'Agent is ready.': 'الوكيل جاهز.',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_AR: SettingsDialogDict = {
   'Copy': 'نسخ',
   'Copy to clipboard': 'نسخ إلى الحافظة',
   'Could not load live models: {message}': 'تعذّر تحميل النماذج المباشرة: {message}',
-  'No API key — connection test needs the key from this browser.': 'لا يوجد مفتاح API — يحتاج اختبار الاتصال إلى المفتاح من هذا المتصفح.',
-  'No API key — model discovery needs the key from this browser.': 'لا يوجد مفتاح API — يحتاج اكتشاف النماذج إلى المفتاح من هذا المتصفح.',
+  'No API key saved. Save one to test the connection.': 'لا يوجد مفتاح API محفوظ. احفظ مفتاحًا لاختبار الاتصال.',
+  'No API key saved. Save one to load models.': 'لا يوجد مفتاح API محفوظ. احفظ مفتاحًا لتحميل النماذج.',
   'Could not load skills: {error}': 'تعذّر تحميل المهارات: {error}',
   'Could not reach the daemon: {error}': 'تعذّر الوصول إلى الخدمة الخلفية: {error}',
   'Could not reach the server. Showing local changes only.': 'تعذّر الوصول إلى الخادم. تُعرض التغييرات المحلية فقط.',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_AR: SettingsDialogDict = {
   'Not available for this daemon.': 'غير متاح لهذه الخدمة الخلفية.',
   'Not configured': 'غير مهيّأ',
   'Not installed': 'غير مثبَّت',
+  'Show {count} not installed': 'إظهار {count} غير مثبَّتة',
+  'Hide not installed': 'إخفاء غير المثبَّتة',
+  'Show not-installed CLIs': 'إظهار واجهات CLI غير المثبَّتة',
   'Not sharing': 'لا تتم المشاركة',
   'Nothing is shared unless you opt in.': 'لا تتم مشاركة أي شيء ما لم تفعّل ذلك بنفسك.',
   'Off': 'إيقاف',

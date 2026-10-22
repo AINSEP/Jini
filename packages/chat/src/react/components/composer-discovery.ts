@@ -31,11 +31,16 @@ const SLASH_QUERY_RE = /^\/([^\s/]*)(?:(\s+)([\s\S]*))?$/;
  * still no internal whitespace or slash — so every existing no-argument caller parses identically
  * to before this extension.
  */
-export function parseComposerSlashQuery(draft: string): ComposerSlashQuery | null {
+export function parseComposerSlashQuery({ draft }: { draft: string }): ComposerSlashQuery | null {
   const match = SLASH_QUERY_RE.exec(draft);
   if (!match) return null;
+  // The `as string` casts are guaranteed by SLASH_QUERY_RE itself, not assumed: group 1 is a bare
+  // `*` capture outside any optional group, so it always participates (possibly as ''); group 3 is
+  // `*` inside the same optional group as group 2, so it participates whenever a separator does.
+  // `noUncheckedIndexedAccess` cannot see either guarantee, and the `?? ''` fallbacks that used to
+  // satisfy it were unreachable branches.
   const [, command, separator, rest] = match;
-  return { command: command ?? '', argument: separator === undefined ? null : (rest ?? '') };
+  return { command: command as string, argument: separator === undefined ? null : (rest as string) };
 }
 
 /**
@@ -70,8 +75,7 @@ function matchesFuzzyCommand(item: ComposerDiscoveryItem, normalizedCommand: str
  * typed (`argument !== null`) — see each helper's own doc for why the rule changes at that point.
  */
 export function filterComposerDiscovery(
-  groups: readonly ComposerDiscoveryGroup[],
-  query: ComposerSlashQuery,
+  { groups, query }: { groups: readonly ComposerDiscoveryGroup[]; query: ComposerSlashQuery },
 ): ComposerDiscoveryMatch[] {
   const normalizedCommand = query.command.trim().toLowerCase();
   const matchesQuery = query.argument !== null ? matchesLockedCommand : matchesFuzzyCommand;
@@ -118,10 +122,9 @@ export type ComposerSlashResolution =
  * non-blank.
  */
 export function resolveComposerSlashInvocation(
-  draft: string,
-  item: ComposerDiscoveryItem,
+  { draft, item }: { draft: string; item: ComposerDiscoveryItem },
 ): ComposerSlashResolution | null {
-  const query = parseComposerSlashQuery(draft);
+  const query = parseComposerSlashQuery({ draft });
   if (!query) return null;
   if (!item.command) return { type: 'invoke' };
 
@@ -139,12 +142,12 @@ export function resolveComposerSlashInvocation(
 }
 
 /** Replaces the complete active slash token; callers only invoke this after the parser matches. */
-export function replaceComposerSlashTrigger(draft: string, insertText: string): string {
-  return parseComposerSlashQuery(draft) === null ? draft : insertText;
+export function replaceComposerSlashTrigger({ draft, insertText }: { draft: string; insertText: string }): string {
+  return parseComposerSlashQuery({ draft }) === null ? draft : insertText;
 }
 
 /** Adds a menu-selected resource to an existing prompt without concatenating words. */
-export function appendComposerDiscovery(draft: string, insertText: string): string {
+export function appendComposerDiscovery({ draft, insertText }: { draft: string; insertText: string }): string {
   if (draft.trim() === '') return insertText;
   return `${draft.trimEnd()} ${insertText}`;
 }
@@ -156,7 +159,7 @@ export type ComposerSlashKeyAction =
   | { type: 'none' };
 
 /** Maps palette keys without owning React state; arrows are intentionally circular at the caller. */
-export function resolveComposerSlashKeyAction(key: string, shiftKey: boolean): ComposerSlashKeyAction {
+export function resolveComposerSlashKeyAction({ key, shiftKey }: { key: string; shiftKey: boolean }): ComposerSlashKeyAction {
   if (key === 'ArrowDown') return { type: 'move', offset: 1 };
   if (key === 'ArrowUp') return { type: 'move', offset: -1 };
   if ((key === 'Enter' || key === 'Tab') && !shiftKey) return { type: 'select' };
@@ -212,7 +215,7 @@ function verticalUpPosition(anchorTop: number): Pick<CSSProperties, 'position' |
  *
  * @complexity Time/space: O(1).
  */
-export function composerDiscoveryMenuPosition(composerRect: ComposerMenuAnchorRect): CSSProperties {
+export function composerDiscoveryMenuPosition({ composerRect }: { composerRect: ComposerMenuAnchorRect }): CSSProperties {
   const inset = 8;
   return {
     ...verticalUpPosition(composerRect.top),
@@ -228,7 +231,7 @@ export function composerDiscoveryMenuPosition(composerRect: ComposerMenuAnchorRe
  *
  * @complexity Time/space: O(1).
  */
-export function composerSlashMenuPosition(composerRect: ComposerMenuAnchorRect): CSSProperties {
+export function composerSlashMenuPosition({ composerRect }: { composerRect: ComposerMenuAnchorRect }): CSSProperties {
   const inset = 8;
   return {
     ...verticalUpPosition(composerRect.top),

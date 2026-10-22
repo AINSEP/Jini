@@ -1,3 +1,23 @@
+## 0.5.2 — 2026-10-08
+
+- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+
+## 0.5.1 — 2026-10-05
+
+- The `@jini-ai/db` peer range is `^0.2.0 || ^0.3.0` (registry uses only db's SQLite entry, which 0.3.0 leaves unchanged), so a host on db 0.3.0 installs without a peer conflict.
+- Internal `@jini-ai/*` runtime dependencies are caret ranges (`workspace:^`) instead of exact pins.
+
+## 0.4.0 (unpublished release candidate)
+
+## 0.5.0 — 2026-10-02
+
+### BREAKING
+
+- Kernel clock types replace package-local ports and storage integration remains isolated behind public optional-driver entries.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+- SQLite tool-catalog indexing moves to tool-catalog/sqlite, with a driver-free neutral tool-catalog entry.
+
 # @jini-ai/registry
 
 ## 0.1.2
@@ -63,3 +83,13 @@
 
 - Updated dependencies
   - @jini-ai/protocol@0.1.1
+
+## Unreleased — C2 tool catalog ownership
+
+- Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
+- Add ./tool-catalog-builder and its isolated SQLite store factory; convert public registry APIs to required/optional argument objects with injected clock, database and HTTP ports. Preserve SQL, FTS5/BM25 ranking, dry-run outcomes and canonical signing bytes. Reject invalid trust/backend modes.
+- BREAKING: replace package-local clock contracts with core Clock.nowMs().
+- BREAKING: GithubApiRegistryClient requires core HttpClientPort.send instead of the local fetch port; RegistryClockPort, RegistryHttpPort and CatalogClock are removed. Buffered body transport failures now propagate unchanged before JSON parsing; malformed JSON retains its existing error message.
+
+- Added neutral catalog types/port and isolated borrowed-handle FTS5 adapter.
+- Preserved all existing ranking, reseed, schema and descriptor assertions.

@@ -1,0 +1,1 @@
+export const securityMessagesEn = { security: 'Secrets', accessTokens: 'Access tokens', rootKey: 'Root key', denied: 'Permission denied', loading: 'Loading credentials…', remove: 'Remove credential', replace: 'Replace', save: 'Save', cancel: 'Cancel' } as const;

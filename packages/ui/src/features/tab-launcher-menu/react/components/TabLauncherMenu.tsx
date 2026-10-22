@@ -4,7 +4,7 @@ import { useT } from '../../../i18n/index.js';
 import { ALL_KIND_FILTER } from '../../constants.js';
 import { useTabLauncherMenu, type UseTabLauncherMenuOptions } from '../hooks/useTabLauncherMenu.js';
 import { TabLauncherActionRow } from './TabLauncherActionRow.js';
-import { TabLauncherResultRow } from './TabLauncherResultRow.js';
+import { TabLauncherResultRow, type TabLauncherResultRowProps } from './TabLauncherResultRow.js';
 
 export interface TabLauncherMenuProps<TActionCtx = void> extends UseTabLauncherMenuOptions<TActionCtx> {
   searchPlaceholder?: string;
@@ -12,6 +12,38 @@ export interface TabLauncherMenuProps<TActionCtx = void> extends UseTabLauncherM
   renderSearchIcon?: () => ReactNode;
   /** Custom hook override for dependency injection / testing. */
   useTabLauncherMenu?: typeof useTabLauncherMenu;
+}
+
+function renderResultSection(
+  { items, renderLabel, startIndex, selected, ...rowProps }: Pick<TabLauncherResultRowProps, 'openLabel' | 'onHover' | 'onSelect'> & {
+    items: readonly TabLauncherResultRowProps['item'][];
+    renderLabel: () => string;
+    startIndex: number;
+    selected: number;
+  },
+  { renderIcon }: Pick<TabLauncherResultRowProps, 'renderIcon'> = {},
+) {
+  if (items.length === 0) return null;
+  return (
+    <section className="jini-tab-launcher-menu__section">
+      <div className="jini-tab-launcher-menu__section-header">{renderLabel()}</div>
+      <ul className="jini-tab-launcher-menu__list">
+        {items.map((item, index) => {
+          const selectableIndex = startIndex + index;
+          return (
+            <TabLauncherResultRow
+              key={item.id}
+              item={item}
+              selectableIndex={selectableIndex}
+              selected={selectableIndex === selected}
+              renderIcon={renderIcon}
+              {...rowProps}
+            />
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
 /**
@@ -109,45 +141,25 @@ export function TabLauncherMenu<TActionCtx = void>({
           </section>
         ) : null}
 
-        {menu.fileResults.length > 0 ? (
-          <section className="jini-tab-launcher-menu__section">
-            <div className="jini-tab-launcher-menu__section-header">{t('Open file')}</div>
-            <ul className="jini-tab-launcher-menu__list">
-              {menu.fileResults.map((item, index) => (
-                <TabLauncherResultRow
-                  key={item.id}
-                  item={item}
-                  selectableIndex={index}
-                  selected={index === menu.selected}
-                  openLabel={openLabel}
-                  onHover={menu.setSelected}
-                  onSelect={menu.selectFile}
-                  renderIcon={renderIcon}
-                />
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        {renderResultSection({
+          items: menu.fileResults,
+          renderLabel: () => t('Open file'),
+          startIndex: 0,
+          selected: menu.selected,
+          openLabel,
+          onHover: menu.setSelected,
+          onSelect: menu.selectFile,
+        }, { renderIcon })}
 
-        {menu.tabResults.length > 0 ? (
-          <section className="jini-tab-launcher-menu__section">
-            <div className="jini-tab-launcher-menu__section-header">{t('Open tabs')}</div>
-            <ul className="jini-tab-launcher-menu__list">
-              {menu.tabResults.map((item, index) => (
-                <TabLauncherResultRow
-                  key={item.id}
-                  item={item}
-                  selectableIndex={menu.fileResults.length + index}
-                  selected={menu.fileResults.length + index === menu.selected}
-                  openLabel={openLabel}
-                  onHover={menu.setSelected}
-                  onSelect={menu.selectTab}
-                  renderIcon={renderIcon}
-                />
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        {renderResultSection({
+          items: menu.tabResults,
+          renderLabel: () => t('Open tabs'),
+          startIndex: menu.fileResults.length,
+          selected: menu.selected,
+          openLabel,
+          onHover: menu.setSelected,
+          onSelect: menu.selectTab,
+        }, { renderIcon })}
 
         {!hasResults ? <div className="jini-tab-launcher-menu__empty">{t('No files match')}</div> : null}
       </div>

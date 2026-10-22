@@ -13,6 +13,8 @@ import type { SkillDraft, SkillDraftError, SkillFileEntry, SkillSummary } from '
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { SkillDraftForm, type SkillDraftFormLabels } from './SkillDraftForm.js';
+import { resolveLabels } from './SkillDraftForm.labels.js';
+import { DEFAULT_SKILL_ROW_LABELS, type ResolvedSkillRowLabels } from './SkillRow.labels.js';
 
 export interface SkillRowLabels extends SkillDraftFormLabels {
   expandLabel?: string;
@@ -97,107 +99,41 @@ export function SkillRow({
   labels,
   agentHandle,
 }: SkillRowProps) {
-  const t = useT();
-  const name = localizedSkillName(skill, locale) || skill.id;
-  const description = localizedSkillDescription(skill, locale);
-  const canDelete = isDeletableSkill(skill);
+  const l = resolveLabels({ defaults: DEFAULT_SKILL_ROW_LABELS, t: useT() }, { labels });
   const builtIn = isBuiltInSkill(skill);
-
-  const expandLabel = labels?.expandLabel ?? t('Expand');
-  const collapseLabel = labels?.collapseLabel ?? t('Collapse');
-  const editLabel = labels?.editLabel ?? t('Edit');
-  const overrideCreateLabel = labels?.overrideCreateLabel ?? t('Create override');
-  const deleteLabel = labels?.deleteLabel ?? t('Delete');
-  const deleteConfirmLabel = labels?.deleteConfirmLabel ?? t('Confirm delete');
-  const cancelLabel = labels?.cancelLabel ?? t('Cancel');
-  const enableToggleLabel = labels?.enableToggleLabel ?? t('Enabled');
-  const loadingLabel = labels?.loadingLabel ?? t('Loading…');
-  const filesHeading = labels?.filesHeading ?? t('Files');
-  const noFilesLabel = labels?.noFilesLabel ?? t('No files.');
-  const bodyHeading = labels?.bodyHeading ?? t('SKILL.md');
-  const userBadge = labels?.userBadge ?? t('user');
-  const overrideWarning =
-    labels?.overrideWarning ?? t('This skill ships with the host. Editing it creates your own copy — the original is unaffected.');
+  // Built-in skills are never edited in place — "editing" one creates a
+  // user-owned override, so every edit affordance says so.
+  const editActionLabel = builtIn ? l.overrideCreateLabel : l.editLabel;
 
   return (
-    <div
-      className={`jini-skills-row${enabled ? '' : ' jini-skills-row-disabled'}${expanded ? ' jini-skills-row-expanded' : ''}`}
-      data-testid={`skill-row-${skill.id}`}
-    >
+    <div className={skillRowClassName({ enabled, expanded })} data-testid={`skill-row-${skill.id}`}>
       <div className="jini-skills-row-head">
-        <button
-          type="button"
-          className="jini-skills-row-summary-btn"
-          onClick={onToggleExpanded}
-          aria-expanded={expanded}
-          title={expanded ? collapseLabel : expandLabel}
-          {...agentHandleProps(agentHandle, { action: 'expand', role: 'button', label: name })}
-        >
-          <Icon name="puzzle" size={14} aria-hidden="true" />
-          <span className="jini-skills-row-summary">
-            <span className="jini-skills-row-summary-line">
-              <strong>{name}</strong>
-              <span className="jini-skills-row-summary-mode">{skill.mode}</span>
-              {skill.category ? (
-                <span className="jini-skills-row-summary-category" title={humanizeSkillCategory(skill.category)}>
-                  {humanizeSkillCategory(skill.category)}
-                </span>
-              ) : null}
-              {skill.source === 'user' ? <span className="jini-skills-row-summary-source">{userBadge}</span> : null}
-            </span>
-            {description ? <span className="jini-hint">{description}</span> : null}
-          </span>
-          <Icon name="chevron-down" size={14} aria-hidden="true" />
-        </button>
+        <SkillRowSummaryButton
+          skill={skill}
+          locale={locale}
+          expanded={expanded}
+          onToggleExpanded={onToggleExpanded}
+          labels={l}
+          agentHandle={agentHandle}
+        />
 
         <div className="jini-skills-row-actions">
-          {canDelete && confirmDelete ? (
-            <span className="jini-skills-delete-confirm" role="group">
-              <button
-                type="button"
-                className="jini-button jini-button-danger"
-                onClick={onCommitDelete}
-                data-testid="skills-delete-confirm"
-                {...agentHandleProps(agentHandle, { action: 'delete-confirm', role: 'button', label: deleteConfirmLabel })}
-              >
-                {deleteConfirmLabel}
-              </button>
-              <button
-                type="button"
-                className="jini-button jini-button-ghost"
-                onClick={onCancelDelete}
-                {...agentHandleProps(agentHandle, { action: 'delete-cancel', role: 'button', label: cancelLabel })}
-              >
-                {cancelLabel}
-              </button>
-            </span>
+          {isDeletableSkill(skill) && confirmDelete ? (
+            <SkillRowDeleteConfirm
+              onCommitDelete={onCommitDelete}
+              onCancelDelete={onCancelDelete}
+              labels={l}
+              agentHandle={agentHandle}
+            />
           ) : (
-            <>
-              <button
-                type="button"
-                className="jini-button jini-button-ghost"
-                onClick={onStartEdit}
-                aria-label={builtIn ? overrideCreateLabel : editLabel}
-                title={builtIn ? overrideCreateLabel : editLabel}
-                data-testid="skills-edit"
-                {...agentHandleProps(agentHandle, { action: 'edit', role: 'button', label: builtIn ? overrideCreateLabel : editLabel })}
-              >
-                <Icon name="edit" size={13} />
-              </button>
-              {canDelete ? (
-                <button
-                  type="button"
-                  className="jini-button jini-button-ghost"
-                  onClick={onArmDelete}
-                  aria-label={deleteLabel}
-                  title={deleteLabel}
-                  data-testid="skills-delete"
-                  {...agentHandleProps(agentHandle, { action: 'delete', role: 'button', label: deleteLabel })}
-                >
-                  <Icon name="close" size={13} />
-                </button>
-              ) : null}
-            </>
+            <SkillRowEditDeleteActions
+              skill={skill}
+              editActionLabel={editActionLabel}
+              onStartEdit={onStartEdit}
+              onArmDelete={onArmDelete}
+              labels={l}
+              agentHandle={agentHandle}
+            />
           )}
           {/* `toggle-switch`/`toggle-switch-sm` + a `.toggle-slider` sibling is
               OD's real switch chrome (`viewer/memory.css`), ported wholesale
@@ -207,13 +143,13 @@ export function SkillRow({
               standalone toggle rows) with no slider span at all, so the CSS
               track+thumb (`input:checked + .toggle-slider`) had no element to
               attach to and could never render regardless of styling. */}
-          <label className="toggle-switch toggle-switch-sm jini-skills-row-enable" title={enableToggleLabel}>
+          <label className="toggle-switch toggle-switch-sm jini-skills-row-enable" title={l.enableToggleLabel}>
             <input
               type="checkbox"
               checked={enabled}
               onChange={(event) => onToggleEnabled(event.target.checked)}
-              aria-label={enableToggleLabel}
-              {...agentHandleProps(agentHandle, { action: 'enabled', role: 'checkbox', label: enableToggleLabel })}
+              aria-label={l.enableToggleLabel}
+              {...agentHandleProps({}, { base: agentHandle, action: 'enabled', role: 'checkbox', label: l.enableToggleLabel })}
             />
             <span className="toggle-slider" />
           </label>
@@ -221,63 +157,21 @@ export function SkillRow({
       </div>
 
       {confirmBuiltInEdit ? (
-        <div className="jini-empty-card jini-empty-card-warning" role="alert" data-testid="skills-edit-builtin-warning">
-          <p>{overrideWarning}</p>
-          <div className="jini-skills-draft-actions">
-            <button
-              type="button"
-              className="jini-button jini-button-ghost"
-              onClick={onCancelBuiltInEdit}
-              data-testid="skills-edit-builtin-cancel"
-              {...agentHandleProps(agentHandle, { action: 'builtin-edit-cancel', role: 'button', label: cancelLabel })}
-            >
-              {cancelLabel}
-            </button>
-            <button
-              type="button"
-              className="jini-button jini-button-primary"
-              onClick={onConfirmBuiltInEdit}
-              data-testid="skills-edit-builtin-confirm"
-              {...agentHandleProps(agentHandle, { action: 'builtin-edit-confirm', role: 'button', label: overrideCreateLabel })}
-            >
-              {overrideCreateLabel}
-            </button>
-          </div>
-        </div>
+        <SkillRowBuiltInEditWarning
+          onCancelBuiltInEdit={onCancelBuiltInEdit}
+          onConfirmBuiltInEdit={onConfirmBuiltInEdit}
+          labels={l}
+          agentHandle={agentHandle}
+        />
       ) : null}
 
       {expanded && !editing ? (
-        <div className="jini-skills-row-detail">
-          <div className="jini-settings-subsection">
-            <h5>{bodyHeading}</h5>
-            {bodyLoading ? <p className="jini-hint">{loadingLabel}</p> : <pre className="jini-skills-body-preview">{body ?? ''}</pre>}
-          </div>
-          <div className="jini-settings-subsection">
-            <h5>{filesHeading}</h5>
-            {filesLoading ? (
-              <p className="jini-hint">{loadingLabel}</p>
-            ) : !files || files.length === 0 ? (
-              <p className="jini-hint">{noFilesLabel}</p>
-            ) : (
-              <ul className="jini-skills-file-tree">
-                {files.map((entry) => (
-                  <li key={entry.path} className="jini-skills-file-entry" style={{ paddingLeft: skillFileTreeIndent(entry.path) }}>
-                    <Icon name={entry.kind === 'directory' ? 'folder' : 'file'} size={12} />
-                    <span>{skillFileLeafName(entry.path)}</span>
-                    {entry.kind === 'file' && typeof entry.size === 'number' ? (
-                      <span className="jini-hint">{formatSkillFileSize(entry.size)}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
+        <SkillRowDetail body={body} bodyLoading={bodyLoading} files={files} filesLoading={filesLoading} labels={l} />
       ) : null}
 
       {editing && draft ? (
         <SkillDraftForm
-          heading={builtIn ? overrideCreateLabel : editLabel}
+          heading={editActionLabel}
           subheading={skill.id}
           draft={draft}
           onDraftChange={onDraftChange}
@@ -288,9 +182,204 @@ export function SkillRow({
           onCancel={onCancelEdit}
           onSubmit={onSubmitEdit}
           labels={labels}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'edit-form') } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'edit-form' }) } : {})}
         />
       ) : null}
     </div>
+  );
+}
+
+function skillRowClassName({ enabled, expanded }: { enabled: boolean; expanded: boolean }): string {
+  return `jini-skills-row${enabled ? '' : ' jini-skills-row-disabled'}${expanded ? ' jini-skills-row-expanded' : ''}`;
+}
+
+interface RowPartProps {
+  labels: ResolvedSkillRowLabels;
+  agentHandle: string | undefined;
+}
+
+/** The always-visible header button: name, mode/category/source badges, description. */
+function SkillRowSummaryButton({
+  skill,
+  locale,
+  expanded,
+  onToggleExpanded,
+  labels: l,
+  agentHandle,
+}: RowPartProps & Pick<SkillRowProps, 'skill' | 'locale' | 'expanded' | 'onToggleExpanded'>) {
+  const name = localizedSkillName(skill, locale) || skill.id;
+  const description = localizedSkillDescription(skill, locale);
+  return (
+    <button
+      type="button"
+      className="jini-skills-row-summary-btn"
+      onClick={onToggleExpanded}
+      aria-expanded={expanded}
+      title={expanded ? l.collapseLabel : l.expandLabel}
+      {...agentHandleProps({}, { base: agentHandle, action: 'expand', role: 'button', label: name })}
+    >
+      <Icon name="puzzle" size={14} aria-hidden="true" />
+      <span className="jini-skills-row-summary">
+        <span className="jini-skills-row-summary-line">
+          <strong>{name}</strong>
+          <span className="jini-skills-row-summary-mode">{skill.mode}</span>
+          {skill.category ? (
+            <span className="jini-skills-row-summary-category" title={humanizeSkillCategory(skill.category)}>
+              {humanizeSkillCategory(skill.category)}
+            </span>
+          ) : null}
+          {skill.source === 'user' ? <span className="jini-skills-row-summary-source">{l.userBadge}</span> : null}
+        </span>
+        {description ? <span className="jini-hint">{description}</span> : null}
+      </span>
+      <Icon name="chevron-down" size={14} aria-hidden="true" />
+    </button>
+  );
+}
+
+/** The armed-delete confirm/cancel pair that replaces the row actions. */
+function SkillRowDeleteConfirm({
+  onCommitDelete,
+  onCancelDelete,
+  labels: l,
+  agentHandle,
+}: RowPartProps & Pick<SkillRowProps, 'onCommitDelete' | 'onCancelDelete'>) {
+  return (
+    <span className="jini-skills-delete-confirm" role="group">
+      <button
+        type="button"
+        className="jini-button jini-button-danger"
+        onClick={onCommitDelete}
+        data-testid="skills-delete-confirm"
+        {...agentHandleProps({}, { base: agentHandle, action: 'delete-confirm', role: 'button', label: l.deleteConfirmLabel })}
+      >
+        {l.deleteConfirmLabel}
+      </button>
+      <button
+        type="button"
+        className="jini-button jini-button-ghost"
+        onClick={onCancelDelete}
+        {...agentHandleProps({}, { base: agentHandle, action: 'delete-cancel', role: 'button', label: l.cancelLabel })}
+      >
+        {l.cancelLabel}
+      </button>
+    </span>
+  );
+}
+
+/** Edit (or create-override) plus, for a user-owned skill only, delete. */
+function SkillRowEditDeleteActions({
+  skill,
+  editActionLabel,
+  onStartEdit,
+  onArmDelete,
+  labels: l,
+  agentHandle,
+}: RowPartProps & Pick<SkillRowProps, 'skill' | 'onStartEdit' | 'onArmDelete'> & { editActionLabel: string }) {
+  return (
+    <>
+      <button
+        type="button"
+        className="jini-button jini-button-ghost"
+        onClick={onStartEdit}
+        aria-label={editActionLabel}
+        title={editActionLabel}
+        data-testid="skills-edit"
+        {...agentHandleProps({}, { base: agentHandle, action: 'edit', role: 'button', label: editActionLabel })}
+      >
+        <Icon name="edit" size={13} />
+      </button>
+      {isDeletableSkill(skill) ? (
+        <button
+          type="button"
+          className="jini-button jini-button-ghost"
+          onClick={onArmDelete}
+          aria-label={l.deleteLabel}
+          title={l.deleteLabel}
+          data-testid="skills-delete"
+          {...agentHandleProps({}, { base: agentHandle, action: 'delete', role: 'button', label: l.deleteLabel })}
+        >
+          <Icon name="close" size={13} />
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+/** The "editing a built-in creates an override" confirmation card. */
+function SkillRowBuiltInEditWarning({
+  onCancelBuiltInEdit,
+  onConfirmBuiltInEdit,
+  labels: l,
+  agentHandle,
+}: RowPartProps & Pick<SkillRowProps, 'onCancelBuiltInEdit' | 'onConfirmBuiltInEdit'>) {
+  return (
+    <div className="jini-empty-card jini-empty-card-warning" role="alert" data-testid="skills-edit-builtin-warning">
+      <p>{l.overrideWarning}</p>
+      <div className="jini-skills-draft-actions">
+        <button
+          type="button"
+          className="jini-button jini-button-ghost"
+          onClick={onCancelBuiltInEdit}
+          data-testid="skills-edit-builtin-cancel"
+          {...agentHandleProps({}, { base: agentHandle, action: 'builtin-edit-cancel', role: 'button', label: l.cancelLabel })}
+        >
+          {l.cancelLabel}
+        </button>
+        <button
+          type="button"
+          className="jini-button jini-button-primary"
+          onClick={onConfirmBuiltInEdit}
+          data-testid="skills-edit-builtin-confirm"
+          {...agentHandleProps({}, { base: agentHandle, action: 'builtin-edit-confirm', role: 'button', label: l.overrideCreateLabel })}
+        >
+          {l.overrideCreateLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The expanded, non-editing detail: SKILL.md preview plus the file tree. */
+function SkillRowDetail({
+  body,
+  bodyLoading,
+  files,
+  filesLoading,
+  labels: l,
+}: Pick<RowPartProps, 'labels'> & Pick<SkillRowProps, 'body' | 'bodyLoading' | 'files' | 'filesLoading'>) {
+  return (
+    <div className="jini-skills-row-detail">
+      <div className="jini-settings-subsection">
+        <h5>{l.bodyHeading}</h5>
+        {bodyLoading ? <p className="jini-hint">{l.loadingLabel}</p> : <pre className="jini-skills-body-preview">{body ?? ''}</pre>}
+      </div>
+      <div className="jini-settings-subsection">
+        <h5>{l.filesHeading}</h5>
+        <SkillFileTree files={files} filesLoading={filesLoading} labels={l} />
+      </div>
+    </div>
+  );
+}
+
+function SkillFileTree({
+  files,
+  filesLoading,
+  labels: l,
+}: Pick<RowPartProps, 'labels'> & Pick<SkillRowProps, 'files' | 'filesLoading'>) {
+  if (filesLoading) return <p className="jini-hint">{l.loadingLabel}</p>;
+  if (!files || files.length === 0) return <p className="jini-hint">{l.noFilesLabel}</p>;
+  return (
+    <ul className="jini-skills-file-tree">
+      {files.map((entry) => (
+        <li key={entry.path} className="jini-skills-file-entry" style={{ paddingLeft: skillFileTreeIndent(entry.path) }}>
+          <Icon name={entry.kind === 'directory' ? 'folder' : 'file'} size={12} />
+          <span>{skillFileLeafName(entry.path)}</span>
+          {entry.kind === 'file' && typeof entry.size === 'number' ? (
+            <span className="jini-hint">{formatSkillFileSize(entry.size)}</span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }

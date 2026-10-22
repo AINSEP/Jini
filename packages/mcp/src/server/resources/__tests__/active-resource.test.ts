@@ -25,28 +25,28 @@ describe('activeContextResource', () => {
 
   it('GETs /api/active and returns the payload as formatted JSON text, unchanged, when active', async () => {
     getDaemonJson.mockResolvedValueOnce({ active: true, resourceRef: 'x', detail: null, ts: 1, ageMs: 0 });
-    const result = await activeContextResource.read(ctx);
-    expect(getDaemonJson).toHaveBeenCalledWith('http://d.example', '/api/active', { fetchImpl: ctx.fetchImpl });
+    const result = await activeContextResource.read({ ctx: ctx });
+    expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/active' }, { fetchImpl: ctx.fetchImpl });
     expect(result).toEqual({ text: JSON.stringify({ active: true, resourceRef: 'x', detail: null, ts: 1, ageMs: 0 }, null, 2) });
   });
 
   it('returns the raw payload with no added hint when the daemon reports active:false (unlike the get_active_context tool)', async () => {
     getDaemonJson.mockResolvedValueOnce({ active: false });
-    const result = await activeContextResource.read(ctx);
+    const result = await activeContextResource.read({ ctx: ctx });
     expect(result).toEqual({ text: JSON.stringify({ active: false }, null, 2) });
     expect(result.text).not.toContain('hint');
   });
 
   it('propagates a daemon-unreachable failure through handleResourceRead as a sanitized rejection, not a silently-empty resource', async () => {
     getDaemonJson.mockRejectedValueOnce(new Error('cannot reach the daemon at http://d.example. Is it running?'));
-    const resources = buildResourceIndex([activeContextResource]);
-    await expect(handleResourceRead('jini://active', resources, ctx)).rejects.toThrow('cannot reach the daemon');
+    const resources = buildResourceIndex({ resources: [activeContextResource] });
+    await expect(handleResourceRead({ uri: 'jini://active', resources, ctx })).rejects.toThrow('cannot reach the daemon');
   });
 
   it('end-to-end via handleResourceRead: wraps the read into MCP contents with the declared mimeType', async () => {
     getDaemonJson.mockResolvedValueOnce({ active: true, resourceRef: 'x' });
-    const resources = buildResourceIndex([activeContextResource]);
-    const result = await handleResourceRead('jini://active', resources, ctx);
+    const resources = buildResourceIndex({ resources: [activeContextResource] });
+    const result = await handleResourceRead({ uri: 'jini://active', resources, ctx });
     expect(result).toEqual({
       contents: [
         {

@@ -50,10 +50,7 @@ interface ComposeRunPromptInput {
  */
 export function composeRunPrompt({ history, agentId }: ComposeRunPromptInput): string {
   const visibleHistory = history.filter((message) => message.id !== 'welcome');
-  return buildTranscript(
-    visibleHistory,
-    agentId === undefined ? {} : { targetAgentId: agentId },
-  );
+  return buildTranscript({ history: visibleHistory }, agentId === undefined ? {} : { targetAgentId: agentId });
 }
 
 export function encodeRunContext(

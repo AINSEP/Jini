@@ -2,6 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { listProviderModels, type ProviderModelsInput } from '../model-catalog.js';
 import type { DnsLookupAddress } from '../connection-guard.js';
 
+// Exercise defaultDnsLookup without relying on the machine's network.
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      if (hostname !== 'api.openai.com') throw new Error(`ENOTFOUND ${hostname}`);
+      return [{ address: '8.8.8.8', family: 4 }];
+    },
+  },
+}));
+
 const noDns = async (): Promise<DnsLookupAddress[]> => [{ address: '8.8.8.8', family: 4 }];
 
 const baseInput = (overrides: Partial<ProviderModelsInput>): ProviderModelsInput => ({
@@ -20,7 +30,7 @@ describe('listProviderModels', () => {
   it('reports azure as unsupported without making any request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const result = await listProviderModels(baseInput({ protocol: 'azure' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'azure' }));
     expect(result).toMatchObject({ ok: false, kind: 'unsupported_protocol' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -28,27 +38,27 @@ describe('listProviderModels', () => {
   it('rejects an invalid base url before making any request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const result = await listProviderModels(baseInput({ baseUrl: 'not a url' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ baseUrl: 'not a url' }));
     expect(result).toMatchObject({ ok: false, kind: 'invalid_base_url' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('reports forbidden for an internal base url', async () => {
-    const result = await listProviderModels(baseInput({ baseUrl: 'http://10.0.0.5/v1' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ baseUrl: 'http://10.0.0.5/v1' }));
     expect(result).toMatchObject({ ok: false, kind: 'forbidden' });
   });
 
   it('returns the static bedrock seed without making any request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const result = await listProviderModels(baseInput({ protocol: 'bedrock' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'bedrock' }));
     expect(result.ok).toBe(true);
     expect(result.models?.length).toBeGreaterThan(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('reports unsupported_protocol for a protocol providerModelsUrl cannot handle (ollama)', async () => {
-    const result = await listProviderModels(baseInput({ protocol: 'ollama', baseUrl: 'https://ollama.example.com' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'ollama', baseUrl: 'https://ollama.example.com' }));
     expect(result).toMatchObject({ ok: false, kind: 'unsupported_protocol' });
   });
 
@@ -62,7 +72,7 @@ describe('listProviderModels', () => {
     it(`rejects an empty api key locally for ${protocol} before making any request`, async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
-      const result = await listProviderModels(baseInput({ protocol, apiKey: '' }));
+      const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol, apiKey: '' }));
       expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
       expect(result.detail).toMatch(/no api key/i);
       expect(fetchMock).not.toHaveBeenCalled();
@@ -71,7 +81,7 @@ describe('listProviderModels', () => {
     it(`rejects a whitespace-only api key locally for ${protocol}`, async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
-      const result = await listProviderModels(baseInput({ protocol, apiKey: '   ' }));
+      const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol, apiKey: '   ' }));
       expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -86,9 +96,7 @@ describe('listProviderModels', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ models: [] }) }),
     );
-    const result = await listProviderModels(
-      baseInput({ protocol: 'aihubmix', apiKey: '', baseUrl: 'https://aihubmix.com' }),
-    );
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'aihubmix', apiKey: '', baseUrl: 'https://aihubmix.com' }));
     expect(result.kind).not.toBe('auth_failed');
   });
 
@@ -109,7 +117,7 @@ describe('listProviderModels', () => {
           }),
       }),
     );
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.ok).toBe(true);
     expect(result.models).toEqual([
       { id: 'gpt-3.5-turbo', label: 'gpt-3.5-turbo' },
@@ -126,7 +134,7 @@ describe('listProviderModels', () => {
           JSON.stringify({ data: [{ id: 'gpt-4o' }, { id: '  ' }, { id: 'gpt-4o' }] }),
       }),
     );
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.models).toEqual([{ id: 'gpt-4o', label: 'gpt-4o' }]);
   });
 
@@ -138,7 +146,7 @@ describe('listProviderModels', () => {
         text: async () => JSON.stringify({ data: [{ id: 'wan-2.1-t2v' }, { id: 'wan-2.1-chat' }] }),
       }),
     );
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.models).toEqual([{ id: 'wan-2.1-chat', label: 'wan-2.1-chat' }]);
   });
 
@@ -147,7 +155,7 @@ describe('listProviderModels', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: [{ id: 'some-model-t2i' }] }) }),
     );
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'no_models' });
   });
 
@@ -156,14 +164,14 @@ describe('listProviderModels', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: [{ id: 42 }, { id: null }] }) }),
     );
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'no_models' });
   });
 
   it('sends bearer auth for openai/senseaudio', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: [{ id: 'x' }] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listProviderModels(baseInput({ protocol: 'senseaudio', baseUrl: 'https://senseaudio.example.com/v1' }));
+    await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'senseaudio', baseUrl: 'https://senseaudio.example.com/v1' }));
     const [, init] = fetchMock.mock.calls[0]!;
     expect(init.headers.authorization).toBe('Bearer sk-test');
   });
@@ -184,7 +192,7 @@ describe('listProviderModels', () => {
         }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const result = await listProviderModels(baseInput({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com' }));
     expect(result.ok).toBe(true);
     expect(result.models).toEqual([
       { id: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet' },
@@ -199,7 +207,7 @@ describe('listProviderModels', () => {
 
   it('returns no_models when the anthropic response has no data array', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({}) }));
-    const result = await listProviderModels(baseInput({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com' }));
     expect(result).toMatchObject({ ok: false, kind: 'no_models' });
   });
 
@@ -211,7 +219,7 @@ describe('listProviderModels', () => {
         text: async () => JSON.stringify({ data: [{ id: 'claude-3-5-sonnet', display_name: '   ' }] }),
       }),
     );
-    const result = await listProviderModels(baseInput({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com' }));
     expect(result.models).toEqual([{ id: 'claude-3-5-sonnet', label: 'claude-3-5-sonnet' }]);
   });
 
@@ -231,7 +239,7 @@ describe('listProviderModels', () => {
         }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const result = await listProviderModels(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', apiKey: 'gkey' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', apiKey: 'gkey' }));
     expect(result.ok).toBe(true);
     expect(result.models).toEqual([
       { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
@@ -243,7 +251,7 @@ describe('listProviderModels', () => {
 
   it('returns no_models when the google response has no models array', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({}) }));
-    const result = await listProviderModels(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com' }));
     expect(result).toMatchObject({ ok: false, kind: 'no_models' });
   });
 
@@ -259,7 +267,7 @@ describe('listProviderModels', () => {
         }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const result = await listProviderModels(baseInput({ protocol: 'aihubmix', baseUrl: 'https://aihubmix.com/v1', apiKey: '' }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'aihubmix', baseUrl: 'https://aihubmix.com/v1', apiKey: '' }));
     expect(result.models).toEqual([{ id: 'gpt-4o', label: 'GPT-4o' }]);
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(String(url)).toBe('https://aihubmix.com/api/v1/models?type=llm');
@@ -269,7 +277,7 @@ describe('listProviderModels', () => {
   it('sends aihubmix headers with attribution when apiKey is present', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: [{ model_id: 'a', model_name: 'A' }] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listProviderModels(baseInput({ protocol: 'aihubmix', baseUrl: 'https://aihubmix.com/v1', apiKey: 'k' }));
+    await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'aihubmix', baseUrl: 'https://aihubmix.com/v1', apiKey: 'k' }));
     const [, init] = fetchMock.mock.calls[0]!;
     expect(init.headers.authorization).toBe('Bearer k');
     expect(init.headers['APP-Code']).toBeDefined();
@@ -277,7 +285,7 @@ describe('listProviderModels', () => {
 
   it('returns no_models when the extracted list is empty', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: [] }) }));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'no_models' });
   });
 
@@ -290,7 +298,7 @@ describe('listProviderModels', () => {
         text: async () => JSON.stringify({ error: { message: 'bad key sk-test' } }),
       }),
     );
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.kind).toBe('auth_failed');
     expect(result.detail).not.toContain('sk-test');
   });
@@ -305,28 +313,28 @@ describe('listProviderModels', () => {
     ];
     for (const [status, kind] of statuses) {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status, text: async () => 'oops' }));
-      const result = await listProviderModels(baseInput({}));
+      const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
       expect(result.kind).toBe(kind);
     }
   });
 
   it('falls back to raw text when the error body is unparseable JSON on a failure response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'not json {{' }));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe('not json {{');
   });
 
   it('extracts a string error, an object error.message, and a top-level message field', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({ error: 'plain string error' }) }));
-    let result = await listProviderModels(baseInput({}));
+    let result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe('plain string error');
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({ message: 'top level message' }) }));
-    result = await listProviderModels(baseInput({}));
+    result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe('top level message');
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({}) }));
-    result = await listProviderModels(baseInput({}));
+    result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe('{}');
   });
 
@@ -335,7 +343,7 @@ describe('listProviderModels', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({ error: { message: 'nested message' } }) }),
     );
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe('nested message');
   });
 
@@ -344,52 +352,52 @@ describe('listProviderModels', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({ error: { code: 'x' } }) }),
     );
-    let result = await listProviderModels(baseInput({}));
+    let result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe('{"error":{"code":"x"}}');
 
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify({ error: { message: '   ' } }) }),
     );
-    result = await listProviderModels(baseInput({}));
+    result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe(JSON.stringify({ error: { message: '   ' } }));
   });
 
   it('falls back to raw text when data itself is not an object (e.g. a bare JSON string)', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => JSON.stringify('hello') }));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBe('"hello"');
   });
 
   it('falls back from an unparseable-but-whitespace-only body to the parse error text', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => '   ' }));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.detail).toBeTruthy();
   });
 
   it('reports unknown with a redacted parse error when the success body is not valid JSON', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => 'not json {{' }));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'unknown' });
   });
 
   it('treats an empty response body as {}', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => '' }));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result).toMatchObject({ ok: false, kind: 'no_models' });
   });
 
   it('classifies a network AbortError as timeout', async () => {
     const err = Object.assign(new Error('aborted'), { name: 'AbortError' });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(err));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.kind).toBe('timeout');
   });
 
   it('classifies a DNS/connect-failure cause code as invalid_base_url', async () => {
     const err = Object.assign(new Error('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(err));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.kind).toBe('invalid_base_url');
   });
 
@@ -398,18 +406,18 @@ describe('listProviderModels', () => {
     for (const code of codes) {
       const err = Object.assign(new Error('fetch failed'), { cause: { code } });
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(err));
-      const result = await listProviderModels(baseInput({}));
+      const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
       expect(result.kind).toBe('invalid_base_url');
     }
   });
 
   it('classifies an unrecognized error as unknown, including a non-Error throw', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('mystery failure')));
-    let result = await listProviderModels(baseInput({}));
+    let result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.kind).toBe('unknown');
 
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('a string throw'));
-    result = await listProviderModels(baseInput({}));
+    result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.kind).toBe('unknown');
     expect(result.detail).toContain('a string throw');
   });
@@ -417,7 +425,7 @@ describe('listProviderModels', () => {
   it('classifies an Error with a cause but no code as unknown', async () => {
     const err = Object.assign(new Error('fetch failed'), { cause: {} });
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(err));
-    const result = await listProviderModels(baseInput({}));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({}));
     expect(result.kind).toBe('unknown');
   });
 
@@ -437,7 +445,7 @@ describe('listProviderModels', () => {
       }),
     );
     const controller = new AbortController();
-    const pending = listProviderModels(baseInput({ signal: controller.signal }));
+    const pending = (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ signal: controller.signal }));
     // Wait until fetch() has actually been invoked — i.e. until
     // listProviderModels has reached its `input.signal.addEventListener(...)`
     // line — before aborting, so this exercises that listener path (not the
@@ -464,12 +472,12 @@ describe('listProviderModels', () => {
         return Promise.reject(new Error('signal was not already aborted'));
       }),
     );
-    const result = await listProviderModels(baseInput({ signal: already.signal }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ signal: already.signal }));
     expect(result.kind).toBe('timeout');
   });
 
   it('propagates a thrown error from providerModelsUrl as unsupported_protocol', async () => {
-    const result = await listProviderModels(baseInput({ protocol: 'not-a-real-protocol' as never }));
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ protocol: 'not-a-real-protocol' as never }));
     expect(result).toMatchObject({ ok: false, kind: 'unsupported_protocol' });
   });
 
@@ -477,7 +485,7 @@ describe('listProviderModels', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: [{ id: 'a' }] }) });
     vi.stubGlobal('fetch', fetchMock);
     const dispatcher = {} as never;
-    await listProviderModels(baseInput({ requestInit: { dispatcher } }));
+    await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(baseInput({ requestInit: { dispatcher } }));
     const [, init] = fetchMock.mock.calls[0]!;
     expect(init.dispatcher).toBe(dispatcher);
   });
@@ -485,7 +493,7 @@ describe('listProviderModels', () => {
   it('uses the default DNS lookup when none is supplied', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ data: [{ id: 'a' }] }) }));
     const input: ProviderModelsInput = { protocol: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'k' };
-    const result = await listProviderModels(input);
+    const result = await (({ protocol, baseUrl, apiKey, ...optionalArgs }: Parameters<typeof listProviderModels>[0] & NonNullable<Parameters<typeof listProviderModels>[1]>) => listProviderModels({ protocol, baseUrl, apiKey }, optionalArgs))(input);
     expect(result.ok).toBe(true);
   });
 });

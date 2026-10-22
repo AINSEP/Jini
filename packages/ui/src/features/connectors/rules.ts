@@ -1,11 +1,9 @@
-/**
- * Pure logic ported from OD's ConnectorsBrowser.tsx + the two small pure
- * helpers it imported from EntryView.tsx (isTrustedConnectorCallbackOrigin,
- * sortConnectorsForSearch/getConnectorSearchScore/sortConnectorsForDisplay).
- * No React, no transport, no DOM — see `packages/ui/source-map.md`.
- */
+/** Connector callback-origin validation and search/display sorting; no React, transport or DOM. */
 import type {
   Connector,
+  ConnectorAction,
+  ConnectorActionFlags,
+  ConnectorAuthorizationPending,
   ConnectorAuthorizationPendingState,
   ConnectorActionResult,
   ConnectorStatusMap,
@@ -66,28 +64,64 @@ export function pruneConnectorAuthorizationPending(
   return next;
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNonBlankString(value: unknown): value is string {
+  return typeof value === 'string' && !!value.trim();
+}
+
+function parsePendingEntry(state: unknown): ConnectorAuthorizationPending {
+  if (!isPlainRecord(state)) return {};
+  const { expiresAt, redirectUrl } = state;
+  return {
+    ...(isNonBlankString(expiresAt) ? { expiresAt } : {}),
+    ...(isNonBlankString(redirectUrl) ? { redirectUrl } : {}),
+  };
+}
+
 export function parseConnectorAuthorizationPendingState(raw: string): ConnectorAuthorizationPendingState {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const pending: ConnectorAuthorizationPendingState = {};
-    for (const [connectorId, state] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!connectorId) continue;
-      if (state && typeof state === 'object' && !Array.isArray(state)) {
-        const expiresAt = (state as Record<string, unknown>).expiresAt;
-        const redirectUrl = (state as Record<string, unknown>).redirectUrl;
-        pending[connectorId] = {
-          ...(typeof expiresAt === 'string' && expiresAt.trim() ? { expiresAt } : {}),
-          ...(typeof redirectUrl === 'string' && redirectUrl.trim() ? { redirectUrl } : {}),
-        };
-      } else {
-        pending[connectorId] = {};
-      }
-    }
-    return pending;
+    parsed = JSON.parse(raw);
   } catch {
     return {};
   }
+  if (!isPlainRecord(parsed)) return {};
+  const pending: ConnectorAuthorizationPendingState = {};
+  for (const [connectorId, state] of Object.entries(parsed)) {
+    if (!connectorId) continue;
+    pending[connectorId] = parsePendingEntry(state);
+  }
+  return pending;
+}
+
+/** Derives the connect/disconnect/authorization-pending flags a card or drawer renders its actions from. */
+export function connectorActionFlags({
+  connector,
+  pendingAction,
+  authorizationPending,
+  disabled,
+}: {
+  connector: Connector;
+  pendingAction: ConnectorAction | null;
+  authorizationPending: ConnectorAuthorizationPending | undefined;
+  disabled: boolean;
+}): ConnectorActionFlags {
+  const isConnected = connector.status === 'connected';
+  const isAuthorizationPending = !isConnected && authorizationPending !== undefined;
+  const isPending = pendingAction !== null || isAuthorizationPending;
+  const canAct = !disabled && !isPending;
+  return {
+    isConnecting: pendingAction === 'connect',
+    isDisconnecting: pendingAction === 'disconnect',
+    isConnected,
+    isAuthorizationPending,
+    canConnect: canAct && connector.status === 'available',
+    canDisconnect: canAct && isConnected,
+    redirectUrl: isAuthorizationPending ? authorizationPending.redirectUrl : undefined,
+  };
 }
 
 export function updateConnectorAuthorizationPendingFromConnectResponse(
@@ -362,7 +396,7 @@ export function connectorPanelAlerts(
 
 /**
  * Default `getDisplayableAccountLabel` — shows any account label the host
- * supplies. The origin hid this for one specific provider (Composio) with no
+ * supplies. The origin hid this for one specific provider (Connector Provider) with no
  * documented rationale; that's provider-specific policy, not generic logic,
  * so it's now a host-overridable default rather than baked in here. A host
  * that wants to hide the label for a specific provider passes its own

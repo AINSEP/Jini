@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/agentic/a2ui';
 import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';
 
-const CATALOG_ID = createLabCatalog().catalogId;
+const CATALOG_ID = createLabCatalog({}).catalogId;
 
 /** Wire components are flat: `{id, component, ...props}` — never `{id, component, props: {...}}`. That nested shape only exists in the interpreter's own internal `ComponentInstance` representation (see `interpreter.ts`'s `applyComponentsList`), not on the wire. */
 function createSurfaceMessage(surfaceId: string, components: unknown[]) {
@@ -480,7 +480,7 @@ describe('A2uiSurfaceCard', () => {
     expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
   });
 
-  it('renders a real recharts pie chart from real data, not the placeholder', () => {
+  it('renders the legacy pie chart data as a styled table without a provider', () => {
     const events = [
       createSurfaceMessage('s1', [
         { id: 'root', component: 'Column', children: ['title', 'chart'] },
@@ -497,6 +497,8 @@ describe('A2uiSurfaceCard', () => {
     ];
     render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
     expect(screen.getByText('Posts vs Pages')).toBeInTheDocument();
+    expect(screen.getByRole('table')).toHaveTextContent('Posts12Pages4');
+    expect(document.querySelector('svg.recharts-surface')).toBeNull();
     expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
   });
 });

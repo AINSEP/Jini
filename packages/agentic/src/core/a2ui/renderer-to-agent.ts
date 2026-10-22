@@ -92,19 +92,16 @@ export type ErrorMessage = z.infer<typeof ErrorMessageSchema>;
 
 export type RendererToAgentMessage = ActionMessage | FunctionResponseMessage | ErrorMessage;
 
-export function buildActionMessage(payload: ActionMessagePayload): ActionMessage {
+export function buildActionMessage({ payload }: { payload: ActionMessagePayload }, _optional: Record<string, never> = {}): ActionMessage {
   return { version: PROTOCOL_VERSION, action: payload };
 }
-export function buildFunctionResponseMessage(payload: FunctionResponsePayload): FunctionResponseMessage {
+export function buildFunctionResponseMessage({ payload }: { payload: FunctionResponsePayload }, _optional: Record<string, never> = {}): FunctionResponseMessage {
   return { version: PROTOCOL_VERSION, functionResponse: payload };
 }
-export function buildValidationFailedMessage(surfaceId: string, path: string, message: string): ErrorMessage {
+export function buildValidationFailedMessage({ surfaceId, path, message }: { surfaceId: string; path: string; message: string }, _optional: Record<string, never> = {}): ErrorMessage {
   return { version: PROTOCOL_VERSION, error: { code: 'VALIDATION_FAILED', surfaceId, path, message } };
 }
-export function buildGenericErrorMessage(
-  code: string,
-  message: string,
-  target: { surfaceId: string } | { functionCallId: string },
+export function buildGenericErrorMessage({ code, message, target }: { code: string; message: string; target: { surfaceId: string } | { functionCallId: string } }, _optional: Record<string, never> = {}
 ): ErrorMessage {
   return { version: PROTOCOL_VERSION, error: { code, message, ...target } };
 }
@@ -121,7 +118,7 @@ export interface RendererParseSuccess {
 }
 
 /** Same "inspect the shape, validate the one matching branch" dispatcher as `parseAgentToRendererMessage` — see that function's doc for why this beats a plain `z.union`. Used by tests and by anything on the agent side of this fixture that needs to validate what the browser sent. */
-export function parseRendererToAgentMessage(raw: unknown): RendererParseSuccess | RendererParseFailure {
+export function parseRendererToAgentMessage({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): RendererParseSuccess | RendererParseFailure {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, reason: 'envelope must be a JSON object' };
   }

@@ -2,7 +2,7 @@
  * Generic scene/toast/tooltip shapes for embedding an Excalidraw-backed
  * sketch surface. Deliberately excludes any pre-Excalidraw legacy item
  * format — that migration path is a host-product concern, not part of the
- * generic shim. See `packages/ui/source-map.md` for provenance.
+ * generic shim. See `packages/ui/archived provenance ledger` for provenance.
  */
 
 /** A serializable Excalidraw scene: elements + sanitized app state + files. */

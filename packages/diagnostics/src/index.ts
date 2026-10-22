@@ -1,12 +1,9 @@
 /**
  * @module @jini-ai/diagnostics
- *
- * Diagnostics-bundle tooling shared by any host application's HTTP and desktop
- * export surfaces: endpoint constants, JSON/text secret redaction, log-source
- * collection (incl. macOS crash reports and coding-agent CLI logs), a manifest
- * builder, and a zip packager. See `source-map.md` for full provenance and
- * scope-decision notes (this package is NOT yet in extraction-plan.md's
- * locked §3 package set — see that file for details).
+ * Host HTTP/desktop diagnostic exports: redaction, log collection, manifest building and ZIPs.
+ * Agent-CLI log integrations are optional and caller-parameterized. The AMR slot activates only
+ * when its home/data directory is supplied. Whether this named CLI vocabulary should become a
+ * generic {agent, dir} list remains an owner decision; it must not change silently during cleanup.
  */
 export {
   DIAGNOSTICS_CONTENT_TYPE,
@@ -27,6 +24,7 @@ export {
   findMacOSCrashReports,
   type CollectedFile,
   type CrashReportLookup,
+  type CrashReportOptions,
   type LogSource,
   type LogSourceKind,
 } from "./sources.js";
@@ -44,6 +42,7 @@ export {
 export {
   buildDiagnosticsZip,
   type DiagnosticsExportInput,
+  type DiagnosticsExportOptions,
   type DiagnosticsExportResult,
 } from "./zip.js";
 
@@ -52,3 +51,6 @@ export {
   buildAgentCliLogSources,
   type AgentCliLogOptions,
 } from "./agent-logs.js";
+
+export { createNodeDiagnosticsPorts } from "./node-ports.js";
+export type { DiagnosticsFilesystemPort, DiagnosticsSystemPort, DiagnosticsArchivePort, DiagnosticsArchiveFactoryPort, DiagnosticsPorts } from "./ports.js";

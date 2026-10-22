@@ -52,7 +52,7 @@ export interface EnforceVerifyInput {
   /** Master enable switch — when false, enforcement is skipped outright. */
   verifyEnabled: boolean;
   /** Host-supplied extraction of a scorecard from `assistantOutput`, or `null` if absent. */
-  extractScorecard: (output: string) => VerifyScorecard | null;
+  extractScorecard: (required: { output: string }) => VerifyScorecard | null;
 }
 
 export type VerifyStatus = 'skipped' | 'missing' | 'fail' | 'pass';
@@ -104,6 +104,14 @@ function isValidRowStatus(status: unknown): status is VerifyScorecardRowStatus {
   return status === 'pass' || status === 'fail';
 }
 
+function hasRuleSubstring({ row, text, minimumLength }: {
+  row: string;
+  text: string;
+  minimumLength: number;
+}, _options: Record<string, never> = {}): boolean {
+  return row.length >= minimumLength && text.length >= minimumLength && (row.includes(text) || text.includes(row));
+}
+
 /**
  * A scorecard row covers a rule when the row shares enough signal with the
  * rule's name or check: a direct substring containment, or at least two
@@ -119,8 +127,8 @@ function rowCoversRule(rowText: string, rule: ActiveRuleForVerify): boolean {
   if (!row) return false;
   const name = rule.name.toLowerCase().trim();
   const check = (rule.check ?? '').toLowerCase().trim();
-  if (name.length >= 5 && (row.includes(name) || name.includes(row))) return true;
-  if (check.length >= 8 && (row.includes(check) || check.includes(row))) return true;
+  if (hasRuleSubstring({ row, text: name, minimumLength: 5 })) return true;
+  if (hasRuleSubstring({ row, text: check, minimumLength: 8 })) return true;
   const rowWords = significantWords(rowText);
   const ruleWords = significantWords(`${rule.name} ${rule.check ?? ''}`);
   let shared = 0;
@@ -129,6 +137,22 @@ function rowCoversRule(rowText: string, rule: ActiveRuleForVerify): boolean {
     if (shared >= 2) return true;
   }
   return false;
+}
+
+function findUncoveredRules({ activeRules, rows }: {
+  activeRules: ActiveRuleForVerify[];
+  rows: VerifyScorecardRow[];
+}): string[] {
+  // Unique rule-to-row consumption: once a row has been used to cover a
+  // rule, it is removed from the pool for subsequent rules.
+  const usedRowIndices = new Set<number>();
+  const uncoveredRules: string[] = [];
+  for (const rule of activeRules) {
+    const index = rows.findIndex((row, i) => !usedRowIndices.has(i) && rowCoversRule(row.rule, rule));
+    if (index < 0) uncoveredRules.push(rule.name);
+    else usedRowIndices.add(index);
+  }
+  return uncoveredRules;
 }
 
 /**
@@ -168,7 +192,7 @@ export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
   if (activeRules.length === 0) return { ...base, status: 'skipped', skipReason: 'no-rules' };
   if (!input.hadArtifact) return { ...base, status: 'skipped', skipReason: 'no-artifact' };
 
-  const scorecard = input.extractScorecard(input.assistantOutput);
+  const scorecard = input.extractScorecard({ output: input.assistantOutput });
   if (!scorecard || !Array.isArray(scorecard.rows)) {
     return { ...base, status: 'missing', uncoveredRules: activeRules.map((r) => r.name) };
   }
@@ -176,22 +200,7 @@ export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
   const rows = scorecard.rows;
   const rowsFailed = rows.filter((r) => !isValidRowStatus(r.status) || r.status === 'fail').length;
 
-  // Unique rule-to-row consumption: once a row has been used to cover a
-  // rule, it is removed from the pool for subsequent rules.
-  const usedRowIndices = new Set<number>();
-  const uncoveredRules: string[] = [];
-  for (const rule of activeRules) {
-    let covered = false;
-    for (let i = 0; i < rows.length; i++) {
-      if (usedRowIndices.has(i)) continue;
-      if (rowCoversRule(rows[i]!.rule, rule)) {
-        usedRowIndices.add(i);
-        covered = true;
-        break;
-      }
-    }
-    if (!covered) uncoveredRules.push(rule.name);
-  }
+  const uncoveredRules = findUncoveredRules({ activeRules, rows });
   const rulesCovered = activeRules.length - uncoveredRules.length;
   const status: VerifyStatus = rowsFailed > 0 || uncoveredRules.length > 0 ? 'fail' : 'pass';
 
@@ -209,9 +218,9 @@ export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
 
 export interface VerifyLog {
   readonly events: EventEmitter;
-  record(result: VerifyResult, meta?: { runId?: string; contextId?: string | null }): VerifyRecord | null;
+  record(required: { result: VerifyResult }, meta?: { runId?: string; contextId?: string | null }): VerifyRecord | null;
   list(): VerifyRecord[];
-  remove(id: string): number;
+  remove(required: { id: string }): number;
   clear(): number;
 }
 
@@ -224,27 +233,30 @@ const MAX_RECORDS = 20;
  *
  * @returns A fresh, independent `VerifyLog`.
  */
-export function createVerifyLog(): VerifyLog {
+export function createVerifyLog(_required: Record<string, never>, optional: { now?: () => number; ids?: () => string; defer?: (required: { callback: () => void }) => void } = {}): VerifyLog {
+  const nowMs = optional.now ?? Date.now;
+  const nextId = optional.ids ?? randomUUID;
+  const defer = optional.defer ?? (({ callback }: { callback: () => void }) => { setImmediate(callback); });
   const records: VerifyRecord[] = [];
   const events = new EventEmitter();
   events.setMaxListeners(64);
 
   function emit(record: VerifyRecord | { id: string; status: string; at: number }): void {
-    setImmediate(() => {
+    defer({ callback: () => {
       try {
         events.emit('verify', { ...record });
       } catch {
         // A listener throwing is not this module's problem.
       }
-    });
+    } });
   }
 
-  function record(result: VerifyResult, meta: { runId?: string; contextId?: string | null } = {}): VerifyRecord | null {
+  function record({ result }: { result: VerifyResult }, meta: { runId?: string; contextId?: string | null } = {}): VerifyRecord | null {
     if (result.status === 'skipped') return null;
     const rec: VerifyRecord = {
       ...result,
-      id: randomUUID(),
-      at: Date.now(),
+      id: nextId(),
+      at: nowMs(),
       ...(meta.runId ? { runId: meta.runId } : {}),
       ...(meta.contextId !== undefined ? { contextId: meta.contextId } : {}),
     };
@@ -258,18 +270,18 @@ export function createVerifyLog(): VerifyLog {
     return records.map((r) => ({ ...r }));
   }
 
-  function remove(id: string): number {
+  function remove({ id }: { id: string }): number {
     const idx = records.findIndex((r) => r.id === id);
     if (idx < 0) return 0;
     records.splice(idx, 1);
-    emit({ id, status: 'deleted', at: Date.now() });
+    emit({ id, status: 'deleted', at: nowMs() });
     return 1;
   }
 
   function clear(): number {
     const removed = records.length;
     records.length = 0;
-    if (removed > 0) emit({ id: 'all', status: 'cleared', at: Date.now() });
+    if (removed > 0) emit({ id: 'all', status: 'cleared', at: nowMs() });
     return removed;
   }
 

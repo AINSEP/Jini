@@ -76,10 +76,10 @@ describe('renderTextInput', () => {
     expect(input.hasAttribute('min')).toBe(false);
   });
 
-  it('renders a masked password input when secret is true, with autocomplete off', () => {
+  it('renders a masked password input when secret is true, with autocomplete new-password (Chrome ignores off)', () => {
     const input = parse(renderTextInput({ name: 'secretKey', label: 'Secret Key', secret: true })).querySelector('input')!;
     expect(input.type).toBe('password');
-    expect(input.getAttribute('autocomplete')).toBe('off');
+    expect(input.getAttribute('autocomplete')).toBe('new-password');
   });
 
   it('renders a plain text input when secret is omitted or explicitly false, with no autocomplete override', () => {
@@ -97,12 +97,56 @@ describe('renderTextInput', () => {
       renderTextInput({ name: 'n', label: 'N', inputType: 'number', secret: true }),
     ).querySelector('input')!;
     expect(input.type).toBe('number');
+    expect(input.hasAttribute('autocomplete')).toBe(false);
   });
 
-  it('ignores multiline for a secret field — there is no masked textarea', () => {
-    const doc = parse(renderTextInput({ name: 'p', label: 'P', secret: true, multiline: true }));
-    expect(doc.querySelector('textarea')).toBeNull();
-    expect(doc.querySelector('input')?.type).toBe('password');
+  it('masks a secret textarea while retaining multiline, assistance settings and a non-submit reveal button', () => {
+    const doc = parse(renderTextInput({
+      name: 'p', label: 'P', secret: true, multiline: true, rows: 7, required: true, disabled: true, hint: 'Paste all lines',
+    }));
+    expect(doc.querySelector('input')).toBeNull();
+    const textarea = doc.querySelector('textarea')!;
+    expect(textarea.value).toBe('');
+    expect(textarea.rows).toBe(7);
+    expect(textarea.required).toBe(true);
+    expect(textarea.disabled).toBe(true);
+    expect(textarea.getAttribute('aria-describedby')).toBe('mcpui-field-p-hint');
+    expect(textarea.getAttribute('style')).toBe('-webkit-text-security: disc;');
+    expect(textarea.getAttribute('autocomplete')).toBe('off');
+    expect(textarea.getAttribute('spellcheck')).toBe('false');
+    const button = doc.querySelector('button')!;
+    expect(button.type).toBe('button');
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe('Show');
+    expect(button.getAttribute('aria-controls')).toBe(textarea.id);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('rejects a supplied secret before serialization with a fixed error that cannot echo the secret', () => {
+    // Masking was previously only visual: this value was still present in the HTML resource.
+    for (const multiline of [false, true]) {
+      expect(() => renderTextInput({
+        name: 'credential-sentinel-739', label: 'Credential', secret: true, multiline, value: 'credential-sentinel-739',
+      })).toThrowError(new Error('Secret fields cannot have a pre-filled value. Omit value.'));
+    }
+  });
+
+  it('escapes host-provided reveal labels on a standalone secret textarea', () => {
+    const doc = parse(renderTextInput({
+      name: 'p', label: 'P', secret: true, multiline: true, showSecret: '<Afficher>', hideSecret: 'Masquer "clé"',
+    }));
+    const toggle = doc.querySelector('button')!;
+    expect(toggle.textContent).toBe('<Afficher>');
+    expect(toggle.getAttribute('data-mcpui-show-secret')).toBe('<Afficher>');
+    expect(toggle.getAttribute('data-mcpui-hide-secret')).toBe('Masquer "clé"');
+    expect(toggle.children).toHaveLength(0);
+  });
+
+  it('rejects empty or numeric secret prefills even when number takes presentation precedence', () => {
+    for (const value of ['', 0]) {
+      expect(() => renderTextInput({ name: 'p', label: 'P', secret: true, inputType: 'number', value }))
+        .toThrowError(new Error('Secret fields cannot have a pre-filled value. Omit value.'));
+    }
   });
 });
 
@@ -217,6 +261,7 @@ describe('renderFieldControl', () => {
   it('forwards secret through a string field to render a masked input', () => {
     const doc = parse(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true }));
     expect(doc.querySelector('input')?.type).toBe('password');
+    expect(doc.querySelector('input')?.getAttribute('autocomplete')).toBe('new-password');
   });
 
   it('renders a plain text input for a string field when secret is absent — no regression against the unmasked path', () => {
@@ -236,5 +281,53 @@ describe('toFieldReadSpecs', () => {
       { name: 's', label: 'S', kind: 'string', required: false },
       { name: 'b', label: 'B', kind: 'boolean', required: true },
     ]);
+  });
+});
+
+// Exact-output pins for the kind dispatch: every optional property present, then none present.
+// Captured on the pre-refactor code so forwarding changes surface as a markup diff.
+describe('renderFieldControl exact markup', () => {
+  const shared = { hint: 'Help', required: true, disabled: true } as const;
+  const options = [{ value: 'a', label: 'A' }, { value: 'b' }] as const;
+  const cases: ReadonlyArray<readonly [string, SurfaceField]> = [
+    ['string, all props', { kind: 'string', name: 's', label: 'S', ...shared, value: 'v', placeholder: 'p', multiline: true, rows: 3, secret: false }],
+    ['string, no props', { kind: 'string', name: 's', label: 'S' }],
+    ['number, all props', { kind: 'number', name: 'n', label: 'N', ...shared, value: 4, placeholder: 'p', min: 1, max: 9, step: 2 }],
+    ['number, no props', { kind: 'number', name: 'n', label: 'N' }],
+    ['boolean, all props', { kind: 'boolean', name: 'b', label: 'B', ...shared, value: true }],
+    ['boolean, no props', { kind: 'boolean', name: 'b', label: 'B' }],
+    ['enum select, all props', { kind: 'enum', name: 'e', label: 'E', ...shared, options, value: 'b', placeholder: 'p', presentation: 'select' }],
+    ['enum select, no props', { kind: 'enum', name: 'e', label: 'E', options }],
+    ['enum radio, all props', { kind: 'enum', name: 'e', label: 'E', ...shared, options, value: 'b', placeholder: 'p', presentation: 'radio' }],
+    ['enum radio, no props', { kind: 'enum', name: 'e', label: 'E', options, presentation: 'radio' }],
+    ['multi-enum, all props', { kind: 'multi-enum', name: 'm', label: 'M', ...shared, options, value: ['a', 'b'] }],
+    ['multi-enum, no props', { kind: 'multi-enum', name: 'm', label: 'M', options }],
+  ];
+  it.each(cases)('%s', (_name, field) => {
+    expect(renderFieldControl(field)).toMatchSnapshot();
+  });
+
+  it('forwards host secret-reveal text to a secret string field', () => {
+    expect(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true, multiline: true }, { showSecret: 'Reveal', hideSecret: 'Conceal' })).toMatchSnapshot();
+  });
+});
+
+// Exact-output pins for each control shape renderTextInput can emit, captured on the pre-refactor code.
+describe('renderTextInput exact markup', () => {
+  const shared = { name: 'f', label: 'F', hint: 'Help', placeholder: 'p<"', required: true, disabled: true } as const;
+  const cases: ReadonlyArray<readonly [string, Parameters<typeof renderTextInput>[0]]> = [
+    ['text input with escaped value', { ...shared, value: 'a&<"b' }],
+    ['bare text input', { name: 'f', label: 'F' }],
+    ['number input with constraints and numeric value', { ...shared, inputType: 'number', value: 7, min: 1, max: 9, step: 2 }],
+    ['number input ignores multiline and secret', { name: 'f', label: 'F', inputType: 'number', multiline: true, secret: true, rows: 4 }],
+    ['password input', { ...shared, secret: true }],
+    ['plain textarea with rows and value', { ...shared, multiline: true, rows: 5, value: 'line1\nline2' }],
+    ['bare textarea', { name: 'f', label: 'F', multiline: true }],
+    ['secret textarea with default reveal text', { ...shared, multiline: true, secret: true }],
+    ['secret textarea with host reveal text', { name: 'f', label: 'F', multiline: true, secret: true, showSecret: 'Reveal<', hideSecret: 'Conceal"' }],
+    ['explicit text input type', { name: 'f', label: 'F', inputType: 'text', secret: false, min: 1 }],
+  ];
+  it.each(cases)('%s', (_name, props) => {
+    expect(renderTextInput(props)).toMatchSnapshot();
   });
 });

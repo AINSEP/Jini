@@ -22,7 +22,7 @@ export interface UseSketchDomEnhancementsParams {
   containerRef: RefObject<HTMLElement | null>;
   t: SketchTranslate;
   /** Host-supplied translations for Excalidraw's own baked-in English UI
-   *  text — no default translated copy ships (see `packages/ui/source-map.md`). */
+   *  text — no default translated copy ships (see `packages/ui/archived provenance ledger`). */
   domTextOverrides?: SketchDomTextOverrides | undefined;
   tooltipTargets?: readonly SketchTooltipTarget[] | undefined;
   contextMenuActionOrder?: readonly string[] | undefined;
@@ -104,18 +104,17 @@ export function useSketchDomEnhancements({
   // exact shape out of this hook. `useGlobalKeydown` re-reads its handler
   // via a latest-ref internally, so passing a fresh closure each render is
   // fine — no memoization needed here.
-  useGlobalKeydown(
-    (event) => {
+  useGlobalKeydown({
+    handler: (event) => {
       if (event.key !== 'Escape') return;
       if (!document.querySelector('.jini-sketch-modal .Modal')) return;
       event.preventDefault();
       event.stopPropagation();
       onCloseActiveDialog();
     },
-    { target: 'document', capture: true },
-  );
+  }, { target: 'document', capture: true });
 
-  useGlobalKeydown((event) => handleSketchPortalCommandEnter(event, mermaidInsertLabelPattern), {
+  useGlobalKeydown({ handler: (event) => handleSketchPortalCommandEnter(event, mermaidInsertLabelPattern) }, {
     target: 'document',
     capture: true,
   });

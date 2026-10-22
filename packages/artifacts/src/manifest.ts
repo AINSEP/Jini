@@ -73,6 +73,8 @@ type ValidationResult =
 export interface ValidateManifestOptions {
   /** Keep an existing `updatedAt` instead of stamping the current time (used when re-parsing a persisted manifest). */
   preserveUpdatedAt?: boolean;
+  /** Injectable clock used for manifest timestamps. */
+  now?: () => string;
 }
 
 function isPlainObject(value: unknown): value is JsonRecord {
@@ -99,15 +101,136 @@ function validateSupportingPath(value: unknown): string | null {
   if (value.length > MAX_SUPPORTING_FILE_LENGTH) {
     return `supportingFiles entries exceed max length (${MAX_SUPPORTING_FILE_LENGTH})`;
   }
-  if (/^[A-Za-z]:/.test(value) || value.startsWith('/')) {
+  const normalized = value.replace(/\\/g, '/');
+  if (/^[A-Za-z]:/.test(normalized) || normalized.startsWith('/')) {
     return 'supportingFiles cannot contain absolute paths';
   }
   if (value.includes('\u0000')) return 'supportingFiles cannot contain null bytes';
-  const normalized = value.replace(/\\/g, '/');
   if (normalized.includes('..')) return 'supportingFiles cannot contain traversal segments';
   const parts = normalized.split('/').filter(Boolean);
   if (parts.length === 0 || parts.some((p) => p === '.' || p === '..')) {
     return 'supportingFiles cannot contain traversal segments';
+  }
+  return null;
+}
+
+function validateManifestTaxonomy(
+  { manifest, taxonomy }: { manifest: JsonRecord; taxonomy: ArtifactManifestTaxonomy },
+  _options: Record<string, never> = {},
+): string | null {
+  const kindErr = validateBoundedString(manifest.kind, 'artifactManifest.kind', 64);
+  if (kindErr) return kindErr;
+  // Cast, not a runtime guard: validateBoundedString's first check is
+  // `typeof value !== 'string'`, which already returned above for any
+  // non-string `kind` — this only narrows the type for `taxonomy.allowedKinds.has`.
+  if (!taxonomy.allowedKinds.has(manifest.kind as string)) {
+    return 'artifactManifest.kind is not allowed';
+  }
+
+  const rendererErr = validateBoundedString(manifest.renderer, 'artifactManifest.renderer', 64);
+  if (rendererErr) return rendererErr;
+  // Same reasoning as `kind` above.
+  if (!taxonomy.allowedRenderers.has(manifest.renderer as string)) {
+    return 'artifactManifest.renderer is not allowed';
+  }
+  return null;
+}
+
+function validateManifestExports(
+  { manifest, taxonomy }: { manifest: JsonRecord; taxonomy: ArtifactManifestTaxonomy },
+  _options: Record<string, never> = {},
+): string | null {
+  if (!Array.isArray(manifest.exports) || manifest.exports.length === 0) {
+    return 'artifactManifest.exports must be a non-empty array';
+  }
+  for (const exp of manifest.exports) {
+    if (typeof exp !== 'string') {
+      return 'artifactManifest.exports must contain strings';
+    }
+    if (!taxonomy.allowedExports.has(exp)) {
+      return `artifactManifest.exports contains unsupported value: ${exp}`;
+    }
+  }
+  return null;
+}
+
+function validateManifestStatus(
+  { manifest }: { manifest: JsonRecord },
+  _options: Record<string, never> = {},
+): string | null {
+  if (manifest.status !== undefined) {
+    if (typeof manifest.status !== 'string') {
+      return 'artifactManifest.status must be a string';
+    }
+    if (!ALLOWED_STATUS.has(manifest.status as ArtifactStatus)) {
+      return 'artifactManifest.status is not allowed';
+    }
+  }
+  return null;
+}
+
+function validateManifestPaths(
+  { manifest }: { manifest: JsonRecord },
+  _options: Record<string, never> = {},
+): string | null {
+  if (manifest.primary !== undefined && manifest.primary !== true) {
+    const primaryErr = validateSupportingPath(manifest.primary);
+    if (primaryErr) return `artifactManifest.primary ${primaryErr}`;
+  }
+
+  if (manifest.supportingFiles === undefined) return null;
+  if (!Array.isArray(manifest.supportingFiles)) {
+    return 'artifactManifest.supportingFiles must be an array';
+  }
+  if (manifest.supportingFiles.length > MAX_SUPPORTING_FILES) {
+    return `artifactManifest.supportingFiles exceeds max items (${MAX_SUPPORTING_FILES})`;
+  }
+  for (const rel of manifest.supportingFiles) {
+    const relErr = validateSupportingPath(rel);
+    if (relErr) return relErr;
+  }
+  return null;
+}
+
+function validateManifestDetails(
+  { manifest }: { manifest: JsonRecord },
+  _options: Record<string, never> = {},
+): string | null {
+  if (manifest.title !== undefined) {
+    const titleErr = validateBoundedString(manifest.title, 'artifactManifest.title', MAX_TITLE_LENGTH, {
+      allowEmpty: false,
+    });
+    if (titleErr) return titleErr;
+  }
+
+  if (manifest.sourceContextId !== undefined) {
+    const sourceErr = validateBoundedString(
+      manifest.sourceContextId,
+      'artifactManifest.sourceContextId',
+      MAX_SOURCE_CONTEXT_ID_LENGTH,
+      { allowEmpty: true },
+    );
+    if (sourceErr) return sourceErr;
+  }
+  return null;
+}
+
+function validateManifestMetadata(
+  { manifest }: { manifest: JsonRecord },
+  _options: Record<string, never> = {},
+): string | null {
+  if (manifest.metadata !== undefined) {
+    if (!isPlainObject(manifest.metadata)) {
+      return 'artifactManifest.metadata must be a plain object';
+    }
+    // JSON.stringify always returns a string (never undefined) when called
+    // directly on a plain object — undefined-return only happens when the
+    // top-level argument itself is a function/symbol/undefined, which
+    // isPlainObject above already rejected.
+    const serialized: string = JSON.stringify(manifest.metadata);
+    if (new TextEncoder().encode(serialized).byteLength > MAX_METADATA_BYTES) {
+      return `artifactManifest.metadata exceeds max size (${MAX_METADATA_BYTES} bytes)`;
+    }
   }
   return null;
 }
@@ -120,9 +243,7 @@ function validateSupportingPath(value: unknown): string | null {
  * (see `store.ts`'s `resolveArtifactManifest`).
  */
 export function validateArtifactManifestInput(
-  manifest: unknown,
-  entry: unknown,
-  taxonomy: ArtifactManifestTaxonomy,
+  { manifest, entry, taxonomy }: { manifest: unknown; entry: unknown; taxonomy: ArtifactManifestTaxonomy },
   options: ValidateManifestOptions = {},
 ): ValidationResult {
   if (manifest == null) return { ok: true, value: null };
@@ -130,98 +251,16 @@ export function validateArtifactManifestInput(
     return { ok: false, error: 'artifactManifest must be an object' };
   }
 
-  const kindErr = validateBoundedString(manifest.kind, 'artifactManifest.kind', 64);
-  if (kindErr) return { ok: false, error: kindErr };
-  // Cast, not a runtime guard: validateBoundedString's first check is
-  // `typeof value !== 'string'`, which already returned above for any
-  // non-string `kind` — this only narrows the type for `taxonomy.allowedKinds.has`.
-  if (!taxonomy.allowedKinds.has(manifest.kind as string)) {
-    return { ok: false, error: 'artifactManifest.kind is not allowed' };
-  }
-
-  const rendererErr = validateBoundedString(manifest.renderer, 'artifactManifest.renderer', 64);
-  if (rendererErr) return { ok: false, error: rendererErr };
-  // Same reasoning as `kind` above.
-  if (!taxonomy.allowedRenderers.has(manifest.renderer as string)) {
-    return { ok: false, error: 'artifactManifest.renderer is not allowed' };
-  }
-
-  if (!Array.isArray(manifest.exports) || manifest.exports.length === 0) {
-    return { ok: false, error: 'artifactManifest.exports must be a non-empty array' };
-  }
-  for (const exp of manifest.exports) {
-    if (typeof exp !== 'string') {
-      return { ok: false, error: 'artifactManifest.exports must contain strings' };
-    }
-    if (!taxonomy.allowedExports.has(exp)) {
-      return { ok: false, error: `artifactManifest.exports contains unsupported value: ${exp}` };
-    }
-  }
-
-  if (manifest.status !== undefined) {
-    if (typeof manifest.status !== 'string') {
-      return { ok: false, error: 'artifactManifest.status must be a string' };
-    }
-    if (!ALLOWED_STATUS.has(manifest.status as ArtifactStatus)) {
-      return { ok: false, error: 'artifactManifest.status is not allowed' };
-    }
-  }
-
-  if (manifest.primary !== undefined) {
-    if (manifest.primary !== true) {
-      const primaryErr = validateSupportingPath(manifest.primary);
-      if (primaryErr) return { ok: false, error: `artifactManifest.primary ${primaryErr}` };
-    }
-  }
-
-  if (manifest.supportingFiles !== undefined) {
-    if (!Array.isArray(manifest.supportingFiles)) {
-      return { ok: false, error: 'artifactManifest.supportingFiles must be an array' };
-    }
-    if (manifest.supportingFiles.length > MAX_SUPPORTING_FILES) {
-      return {
-        ok: false,
-        error: `artifactManifest.supportingFiles exceeds max items (${MAX_SUPPORTING_FILES})`,
-      };
-    }
-    for (const rel of manifest.supportingFiles) {
-      const relErr = validateSupportingPath(rel);
-      if (relErr) return { ok: false, error: relErr };
-    }
-  }
-
-  if (manifest.title !== undefined) {
-    const titleErr = validateBoundedString(manifest.title, 'artifactManifest.title', MAX_TITLE_LENGTH, {
-      allowEmpty: false,
-    });
-    if (titleErr) return { ok: false, error: titleErr };
-  }
-
-  if (manifest.sourceContextId !== undefined) {
-    const sourceErr = validateBoundedString(
-      manifest.sourceContextId,
-      'artifactManifest.sourceContextId',
-      MAX_SOURCE_CONTEXT_ID_LENGTH,
-      { allowEmpty: true },
-    );
-    if (sourceErr) return { ok: false, error: sourceErr };
-  }
-
-  if (manifest.metadata !== undefined) {
-    if (!isPlainObject(manifest.metadata)) {
-      return { ok: false, error: 'artifactManifest.metadata must be a plain object' };
-    }
-    // JSON.stringify always returns a string (never undefined) when called
-    // directly on a plain object — undefined-return only happens when the
-    // top-level argument itself is a function/symbol/undefined, which
-    // isPlainObject above already rejected.
-    const serialized: string = JSON.stringify(manifest.metadata);
-    if (Buffer.byteLength(serialized, 'utf8') > MAX_METADATA_BYTES) {
-      return {
-        ok: false,
-        error: `artifactManifest.metadata exceeds max size (${MAX_METADATA_BYTES} bytes)`,
-      };
-    }
+  for (const validate of [
+    validateManifestTaxonomy,
+    validateManifestExports,
+    validateManifestStatus,
+    validateManifestPaths,
+    validateManifestDetails,
+    validateManifestMetadata,
+  ]) {
+    const error = validate({ manifest, taxonomy });
+    if (error) return { ok: false, error };
   }
 
   const manifestEntry =
@@ -232,16 +271,13 @@ export function validateArtifactManifestInput(
   }
   const safeEntry = (manifestEntry as string).replace(/\\/g, '/');
 
-  return { ok: true, value: sanitizeManifest(manifest, safeEntry, options) };
+  return { ok: true, value: sanitizeManifest({ manifest, entry: safeEntry }, options) };
 }
 
-/** Normalizes a validated manifest payload into the stamped, canonical {@link ArtifactManifest} shape. */
-export function sanitizeManifest(
-  manifest: JsonRecord,
-  entry: string,
-  options: ValidateManifestOptions = {},
-): ArtifactManifest {
-  const now = new Date().toISOString();
+function normalizeManifestFiles(
+  { manifest }: { manifest: JsonRecord },
+  _options: Record<string, never> = {},
+): Pick<ArtifactManifest, 'primary' | 'supportingFiles'> {
   const supportingFiles = Array.isArray(manifest.supportingFiles)
     ? manifest.supportingFiles.map((x) => String(x).replace(/\\/g, '/'))
     : undefined;
@@ -251,6 +287,32 @@ export function sanitizeManifest(
       : typeof manifest.primary === 'string'
         ? manifest.primary.replace(/\\/g, '/')
         : undefined;
+  return {
+    ...(primary !== undefined ? { primary } : {}),
+    ...(supportingFiles !== undefined ? { supportingFiles } : {}),
+  };
+}
+
+function stampManifestTimestamps(
+  { manifest, now }: { manifest: JsonRecord; now: string },
+  options: ValidateManifestOptions = {},
+): Pick<ArtifactManifest, 'createdAt' | 'updatedAt'> {
+  return {
+    createdAt: typeof manifest.createdAt === 'string' ? manifest.createdAt : now,
+    updatedAt:
+      options.preserveUpdatedAt && typeof manifest.updatedAt === 'string'
+        ? manifest.updatedAt
+        : now,
+  };
+}
+
+/** Normalizes a validated manifest payload into the stamped, canonical {@link ArtifactManifest} shape. */
+export function sanitizeManifest(
+  { manifest, entry }: { manifest: JsonRecord; entry: string },
+  options: ValidateManifestOptions = {},
+): ArtifactManifest {
+  const now = (options.now ?? (() => new Date().toISOString()))();
+  const files = normalizeManifestFiles({ manifest });
   return {
     version: MANIFEST_VERSION,
     kind: manifest.kind as string,
@@ -262,13 +324,8 @@ export function sanitizeManifest(
         ? (manifest.status as ArtifactStatus)
         : 'complete',
     exports: manifest.exports as readonly string[],
-    ...(primary !== undefined ? { primary } : {}),
-    ...(supportingFiles !== undefined ? { supportingFiles } : {}),
-    createdAt: typeof manifest.createdAt === 'string' ? manifest.createdAt : now,
-    updatedAt:
-      options.preserveUpdatedAt && typeof manifest.updatedAt === 'string'
-        ? manifest.updatedAt
-        : now,
+    ...files,
+    ...stampManifestTimestamps({ manifest, now }, options),
     ...(manifest.sourceContextId !== undefined ? { sourceContextId: manifest.sourceContextId as string } : {}),
     ...(manifest.metadata !== undefined ? { metadata: manifest.metadata as Record<string, unknown> } : {}),
   };
@@ -281,15 +338,13 @@ export function sanitizeManifest(
  * or stale sidecar should degrade to "no manifest", not crash the reader.
  */
 export function parsePersistedManifest(
-  raw: string,
-  fallbackEntry: string,
-  taxonomy: ArtifactManifestTaxonomy,
+  { raw, fallbackEntry, taxonomy }: { raw: string; fallbackEntry: string; taxonomy: ArtifactManifestTaxonomy },
 ): ArtifactManifest | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!isPlainObject(parsed) || parsed.version !== MANIFEST_VERSION) return null;
     const entry = typeof parsed.entry === 'string' && parsed.entry ? parsed.entry : fallbackEntry;
-    const result = validateArtifactManifestInput(parsed, entry, taxonomy, { preserveUpdatedAt: true });
+    const result = validateArtifactManifestInput({ manifest: parsed, entry, taxonomy }, { preserveUpdatedAt: true });
     return result.ok ? result.value : null;
   } catch {
     return null;
@@ -304,7 +359,7 @@ export function parsePersistedManifest(
  * classification (per the task brief: "keep OD's file-kind classification
  * as adapter").
  */
-export type ManifestInferrer = (entry: string) => Partial<ArtifactManifest> | null;
+export type ManifestInferrer = (required: { entry: string }) => Partial<ArtifactManifest> | null;
 
 /** Infers nothing — every create call must supply an explicit manifest. */
-export const noopManifestInferrer: ManifestInferrer = () => null;
+export const noopManifestInferrer: ManifestInferrer = (_required) => null;

@@ -36,7 +36,11 @@ import { mimeForTransformFormat } from "./transform-types.js";
 const require = createRequire(import.meta.url);
 
 /** Thrown by {@link SharpImageTransformer.transform} when the `sharp` package cannot be loaded. */
-export class ImageTransformUnavailableError extends Error {}
+export class ImageTransformUnavailableError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /**
  * Thrown by {@link SharpImageTransformer.transform} when `sharp` itself rejects the SOURCE bytes —
@@ -52,19 +56,36 @@ export class ImageTransformUnavailableError extends Error {}
  * error, never a silently faked/passed-through image" discipline this file's own header already
  * states for the sibling `ImageTransformUnavailableError` case.
  */
-export class ImageSourceCorruptError extends Error {}
+export class ImageSourceCorruptError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /** The narrow slice of `sharp`'s fluent API this adapter calls. */
-interface SharpInstance {
+export interface SharpInstance {
   resize(
     width?: number,
     height?: number,
     options?: { fit?: string }
   ): SharpInstance;
-  toFormat(format: string): SharpInstance;
+  toFormat(format: string, options?: { quality?: number }): SharpInstance;
+  flatten(options: { background: string }): SharpInstance;
   toBuffer(): Promise<Buffer>;
 }
-type SharpFactory = (input: Buffer, options?: { animated?: boolean }) => SharpInstance;
+export type SharpFactory = (input: Buffer, options?: { animated?: boolean }) => SharpInstance;
+
+/** Options for {@link SharpImageTransformer}; every field defaults at this composition edge. */
+export interface SharpImageTransformerOptional {
+  /** Resolves the `sharp` factory. Defaults to {@link requireSharp}; a host may inject its own
+   *  instance (or a fake), and a loader that throws is reported as {@link ImageTransformUnavailableError}. */
+  loadSharp?: () => SharpFactory;
+}
+
+/** The default loader: a deferred, untyped `require("sharp")` (see file header for why). */
+function requireSharp(): SharpFactory {
+  return require("sharp") as SharpFactory;
+}
 
 /**
  * {@link TransformFormat} values that can actually carry multiple frames on output. GIF and WebP
@@ -83,15 +104,14 @@ const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp",
  * on subsequent calls.
  * @overallScore 100
  */
-function loadSharpFactory(): SharpFactory {
+function loadSharpFactory(loadSharp: () => SharpFactory): SharpFactory {
   try {
-    return require("sharp") as SharpFactory;
-  } catch (err) {
-    throw new ImageTransformUnavailableError(
-      "the 'sharp' npm package is not installed in this environment (run `npm install sharp`) — " +
+    return loadSharp();
+  } catch {
+    throw new ImageTransformUnavailableError({ message: "the 'sharp' npm package is not installed in this environment (run `npm install sharp`) — " +
         "SharpImageTransformer cannot perform a real pixel transform without it. This is a " +
         "disclosed, optional-dependency blocker, not a silent stub: no bytes are faked or passed " +
-        "through unmodified."
+        "through unmodified." }
     );
   }
 }
@@ -149,8 +169,14 @@ function loadSharpFactory(): SharpFactory {
  * API.
  */
 export class SharpImageTransformer implements ImageTransformerPort {
+  private readonly loadSharp: () => SharpFactory;
+
+  constructor(_required: Record<string, never> = {}, optional: SharpImageTransformerOptional = {}) {
+    this.loadSharp = optional.loadSharp ?? requireSharp;
+  }
+
   async transform(input: TransformImageInput): Promise<TransformImageOutput> {
-    const sharpFactory = loadSharpFactory();
+    const sharpFactory = loadSharpFactory(this.loadSharp);
     const preserveAnimation = ANIMATION_CAPABLE_FORMATS.has(input.params.format);
 
     // Pipeline construction through `toBuffer()` all live in one try/catch: any of these steps can
@@ -171,17 +197,18 @@ export class SharpImageTransformer implements ImageTransformerPort {
         });
       }
 
-      pipeline = pipeline.toFormat(input.params.format);
+      // JPEG cannot carry alpha; explicit white avoids libvips' black background for logos.
+      if (input.params.format === "jpeg") pipeline = pipeline.flatten({ background: "#ffffff" });
+      pipeline = pipeline.toFormat(input.params.format, input.params.quality === undefined ? undefined : { quality: input.params.quality });
       const outBuffer = await pipeline.toBuffer();
 
       return {
         bytes: new Uint8Array(outBuffer),
-        contentType: mimeForTransformFormat(input.params.format),
+        contentType: mimeForTransformFormat({ format: input.params.format }),
       };
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      throw new ImageSourceCorruptError(
-        `the source image could not be decoded/re-encoded (target format '${input.params.format}'): ${detail}`
+      throw new ImageSourceCorruptError({ message: `the source image could not be decoded/re-encoded (target format '${input.params.format}'): ${detail}` }
       );
     }
   }

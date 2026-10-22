@@ -7,7 +7,7 @@
 /** A plain JSON object — the base payload type for pi RPC messages. */
 export type JsonRecord = Record<string, unknown>;
 /** Callback signature for forwarding a typed event to the daemon's SSE layer. */
-export type SendAgentEvent = (channel: string, payload: JsonRecord) => void;
+export type SendAgentEvent = (requiredArgs: { event: string; payload: JsonRecord }) => void;
 /** Optional token-count fields surfaced by pi's RPC protocol on turn completion. */
 export type TokenUsage = {
   input_tokens?: number;

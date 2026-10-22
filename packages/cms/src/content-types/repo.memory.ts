@@ -1,3 +1,5 @@
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 import type { ContentTypeRepoPort, ContentTypeRevisionInput, IndexProvisionerPort, OutboxPort } from "./write-service.js";
 import type { TeardownIndexProvisionerPort } from "./lifecycle.js";
 import type { ContentTypeListPort } from "./list.js";
@@ -48,7 +50,7 @@ export class InMemoryContentTypeRepo implements ContentTypeRepoPort, ContentType
     return row ? { ...row } : null;
   }
 
-  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+  async transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T> {
     return fn();
   }
 
@@ -80,7 +82,7 @@ export function toContentTypeOutbox(deps: {
       payload: Record<string, unknown>;
     }): Promise<void>;
   };
-  clock: { nowIso(): string };
+  clock: Clock;
   idGen: { newId(): string };
   /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale (workspace
    * tenant boundary, NOT NULL in persistent adapters, previously under-declared and omitted). */
@@ -92,7 +94,7 @@ export function toContentTypeOutbox(deps: {
         id: deps.idGen.newId(),
         workspaceId: deps.workspaceId,
         name: event.name,
-        occurredAt: deps.clock.nowIso(),
+        occurredAt: kernelNowIso({ clock: deps.clock }),
         payload: event.payload,
       });
     },

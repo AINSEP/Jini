@@ -1,0 +1,140 @@
+import { nowIso, type Clock } from '@jini-ai/core/primitives';
+import {
+    ClientSecretBasic, ClientSecretPost, Configuration, None, ResponseBodyError,
+    allowInsecureRequests, customFetch, genericGrantRequest, refreshTokenGrant,
+} from 'openid-client';
+import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
+import { MAX_OAUTH_RESPONSE_BYTES } from './bounded-json.js';
+import { assertSafeProviderEndpoint } from './endpoint-safety.js';
+import { adaptOAuthResponse, mapProviderErrorCode, OAuthError } from './errors.js';
+import { createOAuthCustomFetch } from './guarded-transport.js';
+import type { OAuthClient, OAuthTokenSet, OAuthHttpPorts, OAuthResource } from './ports.js';
+import { applyResourceIndicators } from './resource.js';
+
+export const DEFAULT_TOKEN_REQUEST_TIMEOUT_MS = 15000;
+export interface TokenRequestDeps extends OAuthHttpPorts { readonly clock: Clock }
+export interface TokenRequestInput {
+    readonly tokenEndpoint: string;
+    readonly client: OAuthClient;
+    readonly params: Readonly<Record<string, string>>;
+    readonly resource?: OAuthResource;
+    readonly timeoutMs?: number;
+}
+
+/** Shared configuration for endpoint-only operations. The opaque issuer is transport metadata,
+ * never a trusted identity guessed from a token URL. Only explicit OIDC validation asserts identity.
+ */
+export function createOAuthClientConfiguration({ client, endpoint, endpointName }: {
+    readonly client: OAuthClient; readonly endpoint: URL;
+    readonly endpointName: 'token_endpoint' | 'device_authorization_endpoint' | 'authorization_endpoint' | 'revocation_endpoint';
+}, _optionalArgs: OAuthEmptyArgs = {}): Configuration {
+    const auth = client.authMethod === 'none' ? None()
+        : client.authMethod === 'client_secret_basic' ? ClientSecretBasic(client.clientSecret ?? '')
+        : ClientSecretPost(client.clientSecret ?? '');
+    const config = new Configuration({ issuer: 'urn:jini:oauth:transport-only', [endpointName]: endpoint.href },
+        client.clientId, {}, auth);
+    // The guarded adapter owns the millisecond deadline through the complete body read.
+    config.timeout = undefined;
+    // HTTP is permitted only after the host's explicit loopback policy approves it.
+    if (endpoint.protocol === 'http:') allowInsecureRequests(config);
+    return config;
+}
+
+/** One grant request; upstream owns authentication, token validation and OAuth error decoding. */
+export async function requestOAuthToken(requiredArgs: OAuthRequiredArgs<TokenRequestDeps & TokenRequestInput>,
+    optionalArgs: OAuthOptionalArgs<TokenRequestDeps & TokenRequestInput> = {}): Promise<OAuthTokenSet> {
+    const { tokenEndpoint, client, clock } = requiredArgs;
+    const endpoint = assertSafeProviderEndpoint(tokenEndpoint, 'token endpoint', requiredArgs.guard);
+    const params = new URLSearchParams(requiredArgs.params);
+    applyResourceIndicators(params, optionalArgs.resource);
+    const guardedFetch = createOAuthCustomFetch({
+        ...requiredArgs, timeoutMs: optionalArgs.timeoutMs ?? DEFAULT_TOKEN_REQUEST_TIMEOUT_MS,
+        endpointLabel: 'token endpoint', responseMessages: {
+            overflowMessage: `the authorization server's response exceeded ${MAX_OAUTH_RESPONSE_BYTES} bytes`,
+            overflowOperatorAction: "This provider's token endpoint is not behaving like an OAuth 2.0 endpoint.",
+        },
+    }, { unreachable: {
+        message: `could not reach the authorization server at ${endpoint.host}`,
+        operatorAction: 'Check network access to this provider, then try connecting again. Nothing was retried automatically.' } });
+    let idToken: string | undefined;
+    let tokenType: string | undefined;
+    try {
+        const config = createOAuthClientConfiguration({ client, endpoint, endpointName: 'token_endpoint' });
+        // OAuth-only callers lack issuer/JWKS trust inputs. Keep identity data opaque until
+        // explicit validation, and preserve provider token-type casing after upstream validation.
+        config[customFetch] = async (url, options) => adaptOAuthResponse({ response: await guardedFetch(url, options) }, {
+            project(body) {
+                idToken = typeof body.id_token === 'string' && body.id_token !== '' ? body.id_token : undefined;
+                tokenType = typeof body.token_type === 'string' ? body.token_type : undefined;
+                delete body.id_token;
+            },
+        });
+        const tokens = await executeTokenGrant({ config, params });
+        return projectTokenSet({ tokens, idToken, tokenType, clock });
+    } catch (error) {
+        if (guardedFetch.failure) throw guardedFetch.failure.error;
+        throw tokenRequestError({ error, status: guardedFetch.status ?? 200 });
+    }
+}
+
+/** Delegate one grant to upstream; removing grant_type preserves its parameter contract. */
+async function executeTokenGrant({ config, params }: { config: Configuration; params: URLSearchParams }) {
+    const grantType = params.get('grant_type') ?? '';
+    params.delete('grant_type');
+    return grantType === 'refresh_token'
+        ? await refreshTokenGrant(config, params.get('refresh_token') ?? '', params)
+        : await genericGrantRequest(config, grantType, params);
+}
+
+/** Narrow validated tokens while retaining opaque identity and provider casing. */
+function projectTokenSet({ tokens, idToken, tokenType, clock }: {
+    tokens: Awaited<ReturnType<typeof genericGrantRequest>>;
+    idToken: string | undefined; tokenType: string | undefined; clock: Clock;
+}): OAuthTokenSet {
+    return {
+        accessToken: tokens.access_token, ...(idToken === undefined ? {} : { idToken }),
+        // Upstream token-response validation refuses a non-string token_type, and project() records
+        // every string one before upstream lower-cases it, so a returned token set always has one here.
+        refreshToken: tokens.refresh_token ?? null, tokenType: tokenType!,
+        scopes: tokens.scope?.split(/[\s,]+/).filter(Boolean) ?? [],
+        expiresAt: tokens.expires_in === undefined || tokens.expires_in <= 0 ? null
+            : new Date(Date.parse(nowIso({ clock })) + tokens.expires_in * 1000).toISOString(),
+    };
+}
+
+/** Provider protocol codes are mapped only after transport failures have been checked. */
+function providerTokenError({ error, status }: { error: ResponseBodyError; status: number }): OAuthError {
+    const code = mapProviderErrorCode({ providerErrorCode: error.error });
+    const interval = error.cause.interval;
+    return new OAuthError({
+        code, message: `the authorization server refused the request (HTTP ${status}, ${error.error})`,
+        operatorAction: code === 'OAUTH_INVALID_GRANT'
+            ? "This connection's authorization is no longer valid — reconnect it in the connection settings."
+            : "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.",
+    }, { providerErrorCode: error.error,
+        ...(typeof interval === 'number' && Number.isFinite(interval) ? { retryAfterSeconds: interval } : {}) });
+}
+function malformedTokenMessage({ error }: { error: unknown }): string {
+    const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+    return reason instanceof SyntaxError ? 'the authorization server did not return a JSON object'
+        : reason instanceof Error && reason.message.includes('"access_token"') ? "the authorization server's response contained no access token"
+        : "the authorization server's response did not contain a supported OAuth token set";
+}
+function tokenRequestError({ error, status }: { error: unknown; status: number }): OAuthError {
+    if (error instanceof ResponseBodyError) return providerTokenError({ error, status });
+    const successful = status >= 200 && status < 300;
+    const invalidInput = error instanceof TypeError;
+    const malformedMessage = malformedTokenMessage({ error });
+    // Never expose upstream causes: they can retain credentials, JWTs or response bodies.
+    if (invalidInput) return new OAuthError({
+        code: 'OAUTH_INVALID_REQUEST', message: 'the OAuth grant or client configuration is invalid',
+        operatorAction: "Check this provider's client id, secret and grant parameters.",
+    });
+    return new OAuthError({
+        code: successful ? 'OAUTH_MALFORMED_RESPONSE' : 'OAUTH_PROVIDER_REJECTED',
+        message: successful ? malformedMessage
+            : `the authorization server refused the request (HTTP ${status})`,
+        operatorAction: successful ? 'Check that the token endpoint URL points at an OAuth 2.0 token endpoint.'
+            : "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.",
+    });
+}

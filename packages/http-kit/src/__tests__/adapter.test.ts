@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiError } from '@jini-ai/protocol';
 import { ClientFacingError, defineJsonRoute, mountJsonRoute } from '../adapter.js';
 import { err, ok } from '../types.js';
-import { isLocalSameOrigin } from '../origin-validation.js';
+import { isLocalSameOrigin } from '@jini-ai/core';
 
-vi.mock('../origin-validation.js', () => ({
+vi.mock('@jini-ai/core', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@jini-ai/core')>(),
   isLocalSameOrigin: vi.fn(() => true),
 }));
 
@@ -41,7 +42,7 @@ function makeRes() {
 
 /** A `res` double that, unlike `makeRes`'s plain `{status,json}` stub, behaves like a real
  * `ServerResponse` closely enough to exercise `mountJsonRoute`'s disconnect wiring: it tracks
- * `'close'` listeners and exposes `fireClose()` for a test to simulate the connection dropping
+ * `'close'` listeners and exposes `fireClose` for a test to simulate the connection dropping
  * mid-handle. Disconnect is observed on `res`, not `req` — see `adapter.ts`'s own comment for why
  * (a real POST's body finishing being read fires `req`'s `'close'` long before any response is
  * sent, with no disconnect having happened). */
@@ -65,7 +66,7 @@ function makeClosableRes() {
   };
 }
 
-const adapter = { resolvedPortRef: { current: 7456 } };
+const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
 
 beforeEach(() => {
   vi.mocked(isLocalSameOrigin).mockReturnValue(true);
@@ -73,14 +74,9 @@ beforeEach(() => {
 
 describe('http adapter', () => {
   it('parses input and returns the success payload', async () => {
-    const route = defineJsonRoute<{ value: string }, { echoed: string }, unknown>({
-      method: 'post',
-      path: '/echo',
-      parse: (raw) => ok({ value: String((raw.body as any).value) }),
-      handle: (input) => ok({ echoed: input.value }),
-    });
+    const route = defineJsonRoute<{ value: string }, { echoed: string }, unknown>({ method: 'post', path: '/echo', parse: (raw) => ok({ value: { value: String((raw.body as any).value) } }), handle: ({ input }) => ok({ value: { echoed: input.value } }) });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['POST /echo']!({ body: { value: 'hi' }, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -88,14 +84,9 @@ describe('http adapter', () => {
   });
 
   it('returns 400 when parse fails', async () => {
-    const route = defineJsonRoute<{ value: string }, unknown, unknown>({
-      method: 'post',
-      path: '/missing',
-      parse: () => err(createApiError('BAD_REQUEST', 'required')),
-      handle: () => ok({}),
-    });
+    const route = defineJsonRoute<{ value: string }, unknown, unknown>({ method: 'post', path: '/missing', parse: () => err({ error: createApiError({ code: 'BAD_REQUEST', message: 'required' }) }), handle: () => ok({ value: {} }) });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['POST /missing']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -103,14 +94,9 @@ describe('http adapter', () => {
   });
 
   it('maps a NOT_FOUND domain error to 404', async () => {
-    const route = defineJsonRoute<void, unknown, unknown>({
-      method: 'get',
-      path: '/missing',
-      parse: () => ok(undefined),
-      handle: () => err(createApiError('NOT_FOUND', 'gone')),
-    });
+    const route = defineJsonRoute<void, unknown, unknown>({ method: 'get', path: '/missing', parse: () => ok({ value: undefined }), handle: () => err({ error: createApiError({ code: 'NOT_FOUND', message: 'gone' }) }) });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['GET /missing']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(404);
@@ -119,15 +105,9 @@ describe('http adapter', () => {
 
   it('allows a same-origin request through when requireSameOrigin is set', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-    const route = defineJsonRoute<void, { secret: number }, unknown>({
-      method: 'get',
-      path: '/secret',
-      requireSameOrigin: true,
-      parse: () => ok(undefined),
-      handle: () => ok({ secret: 42 }),
-    });
+    const route = defineJsonRoute<void, { secret: number }, unknown>({ method: 'get', path: '/secret', parse: () => ok({ value: undefined }), handle: () => ok({ value: { secret: 42 } }) }, { requireSameOrigin: true });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['GET /secret']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -136,15 +116,9 @@ describe('http adapter', () => {
 
   it('blocks cross-origin requests when requireSameOrigin is set', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const route = defineJsonRoute<void, { secret: number }, unknown>({
-      method: 'get',
-      path: '/secret',
-      requireSameOrigin: true,
-      parse: () => ok(undefined),
-      handle: () => ok({ secret: 42 }),
-    });
+    const route = defineJsonRoute<void, { secret: number }, unknown>({ method: 'get', path: '/secret', parse: () => ok({ value: undefined }), handle: () => ok({ value: { secret: 42 } }) }, { requireSameOrigin: true });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['GET /secret']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -161,16 +135,13 @@ describe('http adapter', () => {
   // tied to the caller's response by a correlation id.
   it('redacts a thrown handler error to a generic INTERNAL_ERROR (500) and reports it to the sink', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({
-      method: 'get',
-      path: '/boom',
-      parse: () => ok(undefined),
-      handle: () => {
+      method: 'get', path: '/boom', parse: () => ok({ value: undefined }), handle: () => {
         throw new Error('sqlite failed at /srv/secret/data.db; token=hunter2');
-      },
+      }
     });
     const app = makeApp();
     const onInternalError = vi.fn();
-    mountJsonRoute(app as any, route, {}, { ...adapter, onInternalError });
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
     const res = makeRes();
     await app.handlers['GET /boom']!({ body: {}, query: {}, params: {} }, res);
 
@@ -190,17 +161,14 @@ describe('http adapter', () => {
 
   it('redacts a thrown non-Error value the same way', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({
-      method: 'get',
-      path: '/boom-string',
-      parse: () => ok(undefined),
-      handle: () => {
+      method: 'get', path: '/boom-string', parse: () => ok({ value: undefined }), handle: () => {
         // eslint-disable-next-line @typescript-eslint/no-throw-literal
         throw 'boom-string-with-/srv/secret/data.db';
-      },
+      }
     });
     const app = makeApp();
     const onInternalError = vi.fn();
-    mountJsonRoute(app as any, route, {}, { ...adapter, onInternalError });
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
     const res = makeRes();
     await app.handlers['GET /boom-string']!({ body: {}, query: {}, params: {} }, res);
 
@@ -212,17 +180,14 @@ describe('http adapter', () => {
 
   it('falls back to a console sink when the host supplies none, still without leaking', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({
-      method: 'get',
-      path: '/boom-nosink',
-      parse: () => ok(undefined),
-      handle: () => {
+      method: 'get', path: '/boom-nosink', parse: () => ok({ value: undefined }), handle: () => {
         throw new Error('secret-at-/srv/secret/data.db');
-      },
+      }
     });
     const app = makeApp();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      mountJsonRoute(app as any, route, {}, adapter);
+      mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
       const res = makeRes();
       await app.handlers['GET /boom-nosink']!({ body: {}, query: {}, params: {} }, res);
       expect(JSON.stringify(res.json.mock.calls[0]![0])).not.toContain('/srv/secret/data.db');
@@ -242,22 +207,19 @@ describe('http adapter', () => {
   // already knows its own failure is safe to disclose should not have to reinvent that split.
   it('surfaces a thrown ClientFacingError verbatim instead of redacting it', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({
-      method: 'post',
-      path: '/conflict',
-      parse: () => ok(undefined),
-      handle: () => {
-        throw new ClientFacingError(createApiError('CONFLICT', 'site "tovu-com" already exists'));
-      },
+      method: 'post', path: '/conflict', parse: () => ok({ value: undefined }), handle: () => {
+        throw new ClientFacingError({ apiError: createApiError({ code: 'CONFLICT', message: 'site "sample-site" already exists' }) });
+      }
     });
     const app = makeApp();
     const onInternalError = vi.fn();
-    mountJsonRoute(app as any, route, {}, { ...adapter, onInternalError });
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
     const res = makeRes();
     await app.handlers['POST /conflict']!({ body: {}, query: {}, params: {} }, res);
 
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({
-      error: { code: 'CONFLICT', message: 'site "tovu-com" already exists' },
+      error: { code: 'CONFLICT', message: 'site "sample-site" already exists' },
     });
     // Classified, not internal: nothing genuinely unanticipated happened, so nothing goes to the
     // operator sink and no `requestId` correlation id is minted for it.
@@ -268,14 +230,9 @@ describe('http adapter', () => {
     interface Deps {
       tag: string;
     }
-    const route = defineJsonRoute<void, { tag: string }, Deps>({
-      method: 'get',
-      path: '/deps',
-      parse: () => ok(undefined),
-      handle: (_input, deps) => ok({ tag: deps.tag }),
-    });
+    const route = defineJsonRoute<void, { tag: string }, Deps>({ method: 'get', path: '/deps', parse: () => ok({ value: undefined }), handle: ({ input: _input, deps }) => ok({ value: { tag: deps.tag } }) });
     const app = makeApp();
-    mountJsonRoute(app as any, route, { tag: 'injected' }, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: { tag: 'injected' }, adapter });
     const res = makeRes();
     await app.handlers['GET /deps']!({ body: {}, query: {}, params: {} }, res);
     expect(res.json).toHaveBeenCalledWith({ tag: 'injected' });
@@ -285,19 +242,16 @@ describe('http adapter', () => {
     let capturedSignal: AbortSignal | undefined;
     let releaseHandle: (() => void) | undefined;
     const route = defineJsonRoute<void, unknown, unknown>({
-      method: 'get',
-      path: '/slow',
-      parse: () => ok(undefined),
-      handle: async (_input, _deps, signal) => {
+      method: 'get', path: '/slow', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps: _deps }, { signal } = {}) => {
         capturedSignal = signal;
         await new Promise<void>((resolve) => {
           releaseHandle = resolve;
         });
-        return ok({});
-      },
+        return ok({ value: {} });
+      }
     });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const req = { body: {}, query: {}, params: {} };
     const res = makeClosableRes();
     const handled = app.handlers['GET /slow']!(req, res);
@@ -315,14 +269,9 @@ describe('http adapter', () => {
   });
 
   it('does not misfire on a close observed only after the response has already been sent', async () => {
-    const route = defineJsonRoute<void, { ok: boolean }, unknown>({
-      method: 'get',
-      path: '/fast',
-      parse: () => ok(undefined),
-      handle: () => ok({ ok: true }),
-    });
+    const route = defineJsonRoute<void, { ok: boolean }, unknown>({ method: 'get', path: '/fast', parse: () => ok({ value: undefined }), handle: () => ok({ value: { ok: true } }) });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const req = { body: {}, query: {}, params: {} };
     const res = makeClosableRes();
     await app.handlers['GET /fast']!(req, res);
@@ -336,15 +285,12 @@ describe('http adapter', () => {
 
   it('leaves no dangling close listener after a route that throws', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({
-      method: 'get',
-      path: '/boom-cleanup',
-      parse: () => ok(undefined),
-      handle: () => {
+      method: 'get', path: '/boom-cleanup', parse: () => ok({ value: undefined }), handle: () => {
         throw new Error('boom');
-      },
+      }
     });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
     const req = { body: {}, query: {}, params: {} };
     const res = makeClosableRes();
     await app.handlers['GET /boom-cleanup']!(req, res);

@@ -18,26 +18,26 @@ describe('deepseekAgentDef shape', () => {
 
 describe('deepseekAgentDef.buildArgs', () => {
   it('omits --model when no options are passed at all, and appends the prompt last', () => {
-    const args = deepseekAgentDef.buildArgs('hello', [], []);
+    const args = deepseekAgentDef.buildArgs({ prompt: 'hello', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).toEqual(['exec', '--auto', 'hello']);
   });
 
   it('omits --model when options.model is the synthetic "default" sentinel', () => {
-    const args = deepseekAgentDef.buildArgs('hi', [], [], { model: 'default' });
+    const args = deepseekAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } });
     expect(args).toEqual(['exec', '--auto', 'hi']);
   });
 
   it('omits --model when options.model is falsy', () => {
-    const args = deepseekAgentDef.buildArgs('hi', [], [], { model: '' });
+    const args = deepseekAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: '' } });
     expect(args).not.toContain('--model');
   });
 
   it('includes --model <id> before the trailing prompt when a concrete model is selected', () => {
-    const args = deepseekAgentDef.buildArgs('hi', [], [], { model: 'deepseek-v4-pro' });
+    const args = deepseekAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'deepseek-v4-pro' } });
     expect(args).toEqual(['exec', '--auto', '--model', 'deepseek-v4-pro', 'hi']);
   });
 
   it('defaults options to {} when omitted entirely', () => {
-    expect(() => deepseekAgentDef.buildArgs('hi', [], [])).not.toThrow();
+    expect(() => deepseekAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).not.toThrow();
   });
 });

@@ -42,6 +42,7 @@ export {
   TermHasAssignedContentError,
   TermHasChildTermsError,
   TaxonomyHasAssignedContentError,
+  TaxonomyVersionConflictError,
   createTaxonomy,
   createTerm,
   renameTerm,
@@ -50,6 +51,8 @@ export {
   deleteTerm,
   deleteTaxonomy,
   onContentDeleted,
+  importTaxonomy,
+  importTerm,
   type AuthorizeFn,
   type Taxonomy,
   type Term,
@@ -61,11 +64,10 @@ export {
   type UnassignableEntryTermRepoPort,
   type TaxonomyRevisionRow,
   type TaxonomyRevisionRepoPort,
-  type ClockPort,
-  type IdGeneratorPort,
   type WriteServiceDeps,
   type CreateTaxonomyRequired,
   type CreateTermRequired,
+  type CreateTermOptional,
   type RenameTermRequired,
   type AssignTermsRequired,
   type UnassignTermsRequired,
@@ -77,6 +79,11 @@ export {
   type TransactionalRepoPort,
   type EntryTermsCleanupPort,
   type OnContentDeletedRequired,
+  type ImportableTaxonomyRepoPort,
+  type ImportableTermRepoPort,
+  type ImportTaxonomyRequired,
+  type ImportTermRequired,
+  type ImportTermOptional,
 } from "./write-service.js";
 
 export {
@@ -127,7 +134,4 @@ export {
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   taxonomyAgentToolCatalog,
-  type AgentToolDefinition as TaxonomyAgentToolDefinition,
-  type AgentToolSideEffect as TaxonomyAgentToolSideEffect,
-  type AgentToolActorClassRule as TaxonomyAgentToolActorClassRule,
 } from "./agent-tools.js";

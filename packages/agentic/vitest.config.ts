@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     // The root half of this package (everything outside src/core/dom/) is DOM-free by
-    // construction — see tsconfig.json's exclude and source-map.md's "DOM split" section — so it
+    // construction — see tsconfig.json's exclude and archived provenance ledger's "DOM split" section — so it
     // runs under vitest's default 'node' environment. Only src/core/dom/** (the browser
     // PageDriver) needs a DOM to exercise, hence the scoped override rather than a package-wide
     // 'jsdom' environment.

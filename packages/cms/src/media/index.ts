@@ -13,6 +13,7 @@
  */
 export type {
   MediaStatus,
+  MediaKind,
   MediaSource,
   MediaRecord,
   AssetBlobStatus,
@@ -40,6 +41,7 @@ export type {
 } from "./ports.js";
 
 export { computeBlobStorageKey } from "./blob-key.js";
+export { preserveMediaCreator, mediaRepoWithCreator } from "./created-by.js";
 
 export {
   MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES,
@@ -73,7 +75,7 @@ export {
 } from "./blob-gc.js";
 
 export { InMemoryBlobStore } from "./blob-store.memory.js";
-export { LocalFsBlobStore, type LocalFsBlobStoreDeps } from "./blob-store.fs.js";
+export { blobStoreFromObjectStore } from "./blob-store.object-store.js";
 
 export {
   DEFAULT_MAX_UPLOAD_BYTES,
@@ -129,7 +131,6 @@ export {
 export type { ImageTransformerPort, TransformImageInput, TransformImageOutput } from "./image-transformer.js";
 export { InMemoryImageTransformer } from "./image-transformer.js";
 
-export { SharpImageTransformer, ImageTransformUnavailableError, ImageSourceCorruptError } from "./image-transformer.sharp.js";
 
 // -----------------------------------------------------------------------------
 // Original-bytes admin preview route support. See `content-type-sniffer.ts`'s
@@ -141,9 +142,6 @@ export { sniffContentType, type SniffedContentType } from "./content-type-sniffe
 /** The agent-tool catalog for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   mediaAgentToolCatalog,
-  type AgentToolDefinition as MediaAgentToolDefinition,
-  type AgentToolSideEffect as MediaAgentToolSideEffect,
-  type AgentToolActorClassRule as MediaAgentToolActorClassRule,
 } from "./agent-tools.js";
 
 /**
@@ -158,3 +156,29 @@ export {
   mediaDerivedRisk,
   type MediaToolDeps,
 } from "./tool-registrations.js";
+
+// Named argument contracts for consumer adapters.
+export type { UploadMediaRequired, UploadMediaOptional, ListMediaRequired, GetMediaByIdRequired, UpdateMediaMetadataRequired, TrashMediaRequired, PurgeMediaRequired, RollbackUploadedMediaRequired } from "./media-service.js";
+export type { ResolveMediaRenditionRequired } from "./rendition-service.js";
+export type { RegisterTransformRequired, GetLatestTransformDefinitionRequired, IsLatestTransformVersionRequired } from "./transform-registry.js";
+export type { BlobReferenceProbes, IsBlobUnreferencedRequired, TombstoneBlobRequired, RunBlobGcDeletePassRequired, RunBlobGcUnlinkPassRequired, RunBlobGcCycleRequired } from "./blob-gc.js";
+
+export { rollbackUploadedMedia } from "./media-service.js";
+export type { MediaRowCleanupDeps } from "./media-service.js";
+
+// Video previews: policy/port. The bounded optional-host codec adapter lives in ./node.js.
+export {
+  VIDEO_DEFAULT_FRAMES, VIDEO_MAX_FRAMES, VIDEO_MAX_EDGE_PX, VIDEO_MAX_INPUT_BYTES,
+  VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_OUTPUT_BYTES, VIDEO_MAX_SHEET_BYTES, VIDEO_MAX_SHEETS, VIDEO_EXTRACTION_TIMEOUT_MS, planVideoFrames, parseVideoProbe, getVideoFrameEdge, planVideoContactSheets,
+  type VideoMetadata, type VideoFrame, type VideoFrameOptions, type VideoFrameResult, type VideoFrameExtractor,
+  type VideoSheetTile, type VideoSheetLayout, type VideoContactSheet,
+} from './video-frames.js';
+
+export type { MediaReferenceCheckPort } from "./ports.js";
+
+export { sanitizeSvg } from "./sanitize-svg.js";
+
+export { replaceMediaFile, type ReplaceMediaFileDeps, type MediaFileReplacementRepoPort } from './replace-media-file.js';
+
+export { MAX_DOCUMENT_BYTES, DOCUMENT_CONTENT_TYPES, documentContentType, validateDocumentIngress, decodeDocumentUtf8, documentDisplayFilename, type DocumentArchiveReaderPort } from "./document-ingress.js";
+export { DOCUMENT_TEXT_PAGE_BYTES, readDocumentText, isDocumentOnlyBlob } from "./document-read.js";

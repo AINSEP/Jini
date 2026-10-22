@@ -15,8 +15,11 @@ import { DEFAULT_ADMIN_BASE, adminHref, currentRoutePath, stripTrailingSlash } f
 export const NAVIGATION_EVENT = 'jini:admin-navigate';
 
 /** The current route path, read from the address bar. */
-export function readRoutePath(base: string = DEFAULT_ADMIN_BASE): string {
-  return currentRoutePath(window.location.pathname, base);
+export function readRoutePath(
+  { window }: { readonly window: Pick<Window, 'location'> },
+  { base = DEFAULT_ADMIN_BASE }: { readonly base?: string } = {},
+): string {
+  return currentRoutePath({ pathname: window.location.pathname }, { base });
 }
 
 /**
@@ -26,11 +29,11 @@ export function readRoutePath(base: string = DEFAULT_ADMIN_BASE): string {
  * `/admin/admin/settings`, which is exactly the class of mistake `adminHref` prevents.
  */
 export function navigate(
-  routePath: string,
+  { routePath, window }: { readonly routePath: string; readonly window: Pick<Window, 'location' | 'history' | 'dispatchEvent'> },
   options: { readonly replace?: boolean; readonly base?: string } = {},
 ): void {
   const base = options.base ?? DEFAULT_ADMIN_BASE;
-  const url = adminHref(routePath, base);
+  const url = adminHref({ routePath }, { base });
 
   /*
    * Navigating to where you already are is a no-op, not a history entry. Without this, clicking
@@ -50,7 +53,7 @@ export function navigate(
    */
   const target = new URL(url, window.location.href);
   const isCurrent =
-    stripTrailingSlash(target.pathname) === stripTrailingSlash(window.location.pathname) &&
+    stripTrailingSlash({ pathname: target.pathname }) === stripTrailingSlash({ pathname: window.location.pathname }) &&
     target.search === window.location.search &&
     target.hash === window.location.hash;
   if (isCurrent) return;
@@ -58,6 +61,44 @@ export function navigate(
   if (options.replace) window.history.replaceState(null, '', url);
   else window.history.pushState(null, '', url);
   window.dispatchEvent(new Event(NAVIGATION_EVENT));
+}
+
+/**
+ * Whether the browser should leave this click to us.
+ *
+ * Anything but an unmodified primary click is the browser's to handle: cmd/ctrl-click opens a
+ * tab, shift-click a window, alt-click downloads.
+ */
+function isPlainPrimaryClick({ event }: { readonly event: MouseEvent }): boolean {
+  if (event.defaultPrevented || event.button !== 0) return false;
+  return !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey);
+}
+
+/** The clicked `<a>` when it asks for an ordinary in-place navigation to a non-fragment href, else `null`. */
+function findInPlaceAnchor({ event }: { readonly event: MouseEvent }): HTMLAnchorElement | null {
+  const anchor = (event.target as Element | null)?.closest?.('a');
+  if (!anchor || anchor.hasAttribute('download')) return null;
+  // An explicit target (`_blank`, a frame name) is an explicit request not to navigate in place.
+  const target = anchor.getAttribute('target');
+  if (target && target !== '_self') return null;
+
+  const href = anchor.getAttribute('href');
+  if (!href || href.startsWith('#')) return null;
+  return anchor;
+}
+
+/** The route path (with query and hash) `anchor` points at, or `null` when it leaves the same-origin `base`. */
+function internalRoutePath({ anchor, window, base }: { readonly anchor: HTMLAnchorElement; readonly window: Pick<Window, 'location'>; readonly base: string }): string | null {
+  // `anchor.href` is the resolved absolute form, which is what makes relative hrefs and
+  // cross-origin links both fall out correctly.
+  const url = new URL(anchor.href, window.location.href);
+  if (url.origin !== window.location.origin) return null;
+  if (url.pathname !== base && !url.pathname.startsWith(`${base}/`)) return null;
+
+  // `url.hash` is carried through: an in-page fragment (`/admin/settings#seo-defaults`) is not a
+  // routing concern, but dropping it silently loses the anchor. It never reaches the matcher —
+  // the route snapshot is path + query only — so preserving it cannot affect routing.
+  return `${currentRoutePath({ pathname: url.pathname }, { base })}${url.search}${url.hash}`;
 }
 
 /**
@@ -71,35 +112,19 @@ export function navigate(
  *
  * @returns a teardown function.
  */
-export function installInternalLinkInterceptor(base: string = DEFAULT_ADMIN_BASE): () => void {
+export function installInternalLinkInterceptor(
+  { window, document }: { readonly window: Pick<Window, 'location' | 'history' | 'dispatchEvent'>; readonly document: Pick<Document, 'addEventListener' | 'removeEventListener'> },
+  { base = DEFAULT_ADMIN_BASE }: { readonly base?: string } = {},
+): () => void {
   const onClick = (event: MouseEvent) => {
-    // Anything but an unmodified primary click is the browser's to handle: cmd/ctrl-click opens a
-    // tab, shift-click a window, alt-click downloads.
-    if (event.defaultPrevented) return;
-    if (event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-
-    const anchor = (event.target as Element | null)?.closest?.('a');
+    if (!isPlainPrimaryClick({ event })) return;
+    const anchor = findInPlaceAnchor({ event });
     if (!anchor) return;
-    if (anchor.hasAttribute('download')) return;
-    // An explicit target (`_blank`, a frame name) is an explicit request not to navigate in place.
-    const target = anchor.getAttribute('target');
-    if (target && target !== '_self') return;
-
-    const href = anchor.getAttribute('href');
-    if (!href || href.startsWith('#')) return;
-
-    // `anchor.href` is the resolved absolute form, which is what makes relative hrefs and
-    // cross-origin links both fall out correctly.
-    const url = new URL(anchor.href, window.location.href);
-    if (url.origin !== window.location.origin) return;
-    if (url.pathname !== base && !url.pathname.startsWith(`${base}/`)) return;
+    const routePath = internalRoutePath({ anchor, window, base });
+    if (routePath === null) return;
 
     event.preventDefault();
-    // `url.hash` is carried through: an in-page fragment (`/admin/settings#seo-defaults`) is not a
-    // routing concern, but dropping it silently loses the anchor. It never reaches the matcher —
-    // the route snapshot is path + query only — so preserving it cannot affect routing.
-    navigate(`${currentRoutePath(url.pathname, base)}${url.search}${url.hash}`, { base });
+    navigate({ window, routePath }, { base });
   };
 
   document.addEventListener('click', onClick);
@@ -107,7 +132,9 @@ export function installInternalLinkInterceptor(base: string = DEFAULT_ADMIN_BASE
 }
 
 /** Subscribes to route changes from both `popstate` and programmatic `navigate()`. */
-export function subscribeToRoute(onChange: () => void): () => void {
+export function subscribeToRoute(
+  { window, onChange }: { readonly window: Pick<Window, 'addEventListener' | 'removeEventListener'>; readonly onChange: () => void },
+): () => void {
   window.addEventListener('popstate', onChange);
   window.addEventListener(NAVIGATION_EVENT, onChange);
   return () => {

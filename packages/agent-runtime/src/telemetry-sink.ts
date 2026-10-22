@@ -1,19 +1,8 @@
 /**
  * @module telemetry-sink
- *
- * Port replacing the OD analytics naming baked into OD's
- * `runtimes/runs/run-artifacts.ts` (`run_finished.artifact_count`,
- * `runAskedUserQuestion` → `run_finished.asked_user_question`,
- * `deriveActivationMilestones`'s PostHog `$set_once` person-property
- * scheme) and `run-lifecycle-analytics.ts` (not present as a separate file
- * on this branch — its concerns are folded into `run-artifacts.ts` here).
- * None of that OD-schema logic is ported.
- *
- * Per r1b §1b: the engine emits a generic run-lifecycle event stream; the
- * host maps it to its own analytics schema. `data` is intentionally
- * `Record<string, unknown>` — artifactCount, askedUserQuestion, stopReason,
- * etc. are opaque to the engine, populated by whatever
- * `ArtifactTaxonomy`/`PromptAugmenter` implementation the host wires in.
+ * The engine emits generic lifecycle events; hosts map them to their own analytics schema.
+ * data is opaque Record<string, unknown>: metrics supplied by ArtifactTaxonomy/PromptAugmenter
+ * must not install a product's analytics identity or event schema in the engine.
  */
 export interface RunLifecycleEvent {
   type: 'run_started' | 'run_finished' | 'run_failed' | 'tool_use' | 'artifact_written';

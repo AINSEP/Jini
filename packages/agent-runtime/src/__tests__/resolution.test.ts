@@ -16,7 +16,7 @@ describe('resolveAgentBin', () => {
   });
 
   it('returns null for an unknown agent id', () => {
-    expect(resolveAgentBin('not-a-real-agent-id')).toBeNull();
+    expect(resolveAgentBin({ id: 'not-a-real-agent-id' })).toBeNull();
   });
 
   it('returns null for a known agent id with nothing configured or on PATH', () => {
@@ -28,7 +28,7 @@ describe('resolveAgentBin', () => {
     process.env.AGENT_RUNTIME_HOME = dir;
     process.env.PATH = dir;
     try {
-      expect(resolveAgentBin('claude', {})).toBeNull();
+      expect(resolveAgentBin({ id: 'claude' }, { configuredEnv: {} })).toBeNull();
     } finally {
       process.env.PATH = originalPath;
       delete process.env.AGENT_RUNTIME_HOME;
@@ -39,7 +39,7 @@ describe('resolveAgentBin', () => {
     const bin = path.join(dir, 'claude');
     writeFileSync(bin, 'stub', 'utf8');
     chmodSync(bin, 0o755);
-    expect(resolveAgentBin('claude', { CLAUDE_BIN: bin })).toBe(bin);
+    expect(resolveAgentBin({ id: 'claude' }, { configuredEnv: { CLAUDE_BIN: bin } })).toBe(bin);
   });
 
   it('defaults configuredEnv to an empty object when omitted', () => {
@@ -47,7 +47,7 @@ describe('resolveAgentBin', () => {
     process.env.AGENT_RUNTIME_HOME = dir;
     process.env.PATH = dir;
     try {
-      expect(resolveAgentBin('claude')).toBeNull();
+      expect(resolveAgentBin({ id: 'claude' })).toBeNull();
     } finally {
       process.env.PATH = originalPath;
       delete process.env.AGENT_RUNTIME_HOME;

@@ -2,7 +2,7 @@
  * Provider: Volcengine Ark (Doubao) — Seedream / Seededit image generation
  * via an OpenAI-images-compatible `/images/generations` endpoint. Ported
  * near-verbatim from Open Design's `apps/daemon/src/media/index.ts`
- * `renderVolcengineImage` — see `source-map.md`.
+ * `renderVolcengineImage` — see `archived provenance ledger`.
  *
  * The response shape (`{ data: [{ b64_json | url }] }`) matches OpenAI's
  * images API, so this routes through `openai-compatible.ts`'s already-
@@ -50,14 +50,14 @@ import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, openaiSizeFor, pars
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 const NO_CREDENTIAL_MESSAGE = 'no Volcengine Ark credential — configure an API key or set ARK_API_KEY.';
 
 const volcengineImageAdapter: VendorAdapter = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || 'https://ark.cn-beijing.volces.com/api/v3').replace(/\/$/, '');
     const body: Record<string, unknown> = {
@@ -85,9 +85,9 @@ const volcengineImageAdapter: VendorAdapter = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext): Promise<RenderResult> {
+  async parseResponse({ resp, ctx }: { resp: Response; ctx: RenderContext }): Promise<RenderResult> {
     const data = await parseOpenAICompatibleJson(resp, 'volcengine image');
-    const bytes = await bytesFromOpenAICompatibleData(data, 'volcengine image', ctx.requestInit);
+    const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'volcengine image' }, ctx);
     return {
       bytes,
       providerNote: `volcengine/${ctx.wireModel} · ${ctx.aspect} · ${bytes.length} bytes`,
@@ -96,8 +96,14 @@ const volcengineImageAdapter: VendorAdapter = {
   },
 };
 
-mediaVendorRegistry.register('volcengine', 'image', volcengineImageAdapter);
+export async function renderVolcengineImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: volcengineImageAdapter, ctx: ctx, credentials: credentials });
+}
 
-export async function renderVolcengineImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(volcengineImageAdapter, ctx, credentials);
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'volcengine', routeKey: 'image', adapter: volcengineImageAdapter });
 }

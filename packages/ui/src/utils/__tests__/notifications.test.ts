@@ -14,7 +14,7 @@
 // `// @vitest-environment node` companion file loses branch-hit merging
 // across the two instrumented instances (see this file's
 // `features/html-viewer/dependencies` precedent in
-// packages/ui/source-map.md).
+// packages/ui/archived provenance ledger).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_FAILURE_SOUND_ID,

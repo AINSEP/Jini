@@ -35,12 +35,12 @@ function makeDeps() {
   };
 
   const deps = {
-    clock: { nowIso: () => "2026-07-10T00:00:00.000Z" },
+    clock: { nowMs: () => Date.parse("2026-07-10T00:00:00.000Z")},
     idGen: { newId: () => `id-${(counter += 1)}` },
-    mediaRepo: new InMemoryMediaRepo(),
-    blobRepo: new InMemoryAssetBlobRepo(),
-    renditionRepo: new InMemoryAssetRenditionRepo(),
-    transformRepo: new InMemoryTransformDefinitionRepo(),
+    mediaRepo: new InMemoryMediaRepo({}),
+    blobRepo: new InMemoryAssetBlobRepo({}),
+    renditionRepo: new InMemoryAssetRenditionRepo({}),
+    transformRepo: new InMemoryTransformDefinitionRepo({}),
     blobStore: new InMemoryBlobStore(),
     imageTransformer: countingTransformer,
   };
@@ -50,6 +50,20 @@ function makeDeps() {
 function bytesFrom(content: string): Uint8Array {
   return new TextEncoder().encode(content);
 }
+
+test("SVG transform URLs serve the vector original without invoking the raster transformer or saving renditions", async () => {
+  const { deps, transformCalls } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "logo.svg", contentType: "image/svg+xml",
+    bytes: bytesFrom('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10z"/></svg>'), createdByPrincipal: "owner" } });
+  await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "public", params: { format: "webp" }, owner: "core" } });
+  const result = await resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "public", version: 1 } });
+  assert.equal(result.outcome, "ok");
+  if (result.outcome !== "ok") assert.fail("SVG rendition must resolve");
+  assert.equal(result.contentType, "image/svg+xml");
+  assert.match(new TextDecoder().decode(result.bytes), /viewBox="0 0 10 10"/);
+  assert.deepEqual(transformCalls, []);
+  assert.deepEqual((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).map(row => row.transformName), ["original"]);
+});
 
 async function uploadOne(deps: ReturnType<typeof makeDeps>["deps"], content = "source-bytes") {
   return uploadMedia({
@@ -264,4 +278,41 @@ test("resolveMediaRendition: five concurrent requests for the same ungenerated r
   assert.ok(results.every((r) => r.outcome === "ok"));
   const rows = await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id });
   assert.equal(rows.filter((r) => r.transformName === "square").length, 1);
+});
+
+test("resolveMediaRendition: a document asset has no image renditions — not-found, never generated", async () => {
+  const { deps: uploadDeps, transformCalls } = makeDeps();
+  const { media } = await uploadOne(uploadDeps);
+  // Kind is fixed at creation (a save cannot change it), so the document row is seeded directly.
+  const deps = { ...uploadDeps, mediaRepo: new InMemoryMediaRepo({}, { initialRows: [{ ...media, kind: "document" }] }) };
+  await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "thumb", params: { width: 10, format: "webp" }, owner: "core" } });
+  assert.deepEqual(await resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "thumb", version: 1 } }), { outcome: "not-found" });
+  assert.deepEqual(transformCalls, []);
+});
+
+test("resolveMediaRendition: a media row whose source blob row is missing is surfaced as an integrity error, not a 404", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadOne(deps);
+  await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "thumb", params: { width: 10, format: "webp" }, owner: "core" } });
+  await deps.blobRepo.remove({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 });
+  await assert.rejects(
+    resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "thumb", version: 1 } }),
+    new RegExp(`media '${media.id}': source blob for sha256 '${media.source.sha256}' was not found`),
+  );
+});
+
+test("resolveMediaRendition: a stored rendition whose bytes are SVG is re-sanitized on every read", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadOne(deps);
+  await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "thumb", params: { width: 10, format: "webp" }, owner: "core" } });
+  // A legacy rendition blob written before SVG sanitizing existed.
+  const { storageKey } = await deps.blobStore.put({ workspaceId: WORKSPACE_ID, sha256: "e".repeat(64),
+    bytes: bytesFrom('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script><path d="M0 0h1v1z"/></svg>') });
+  await deps.renditionRepo.save({ id: "legacy-rendition", workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "thumb", version: 1, storageKey, createdAt: "2026-07-10T00:00:00.000Z" });
+  const result = await resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "thumb", version: 1 } });
+  if (result.outcome !== "ok") assert.fail(`expected ok, got ${result.outcome}`);
+  assert.equal(result.contentType, "image/svg+xml");
+  const served = new TextDecoder().decode(result.bytes);
+  assert.doesNotMatch(served, /onload|<script/);
+  assert.match(served, /<path d="M0 0h1v1z"/);
 });

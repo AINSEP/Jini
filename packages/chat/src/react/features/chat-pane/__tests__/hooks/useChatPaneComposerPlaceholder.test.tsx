@@ -24,17 +24,17 @@ afterEach(() => {
 describe('useChatPaneComposerPlaceholder', () => {
   it('returns placeholder unchanged when placeholders is absent or empty', () => {
     stubReducedMotion(false);
-    expect(renderHook(() => useChatPaneComposerPlaceholder('Ask something…', undefined)).result.current).toBe(
+    expect(renderHook(() => useChatPaneComposerPlaceholder({ placeholder: 'Ask something…', placeholders: undefined })).result.current).toBe(
       'Ask something…',
     );
-    expect(renderHook(() => useChatPaneComposerPlaceholder('Ask something…', [])).result.current).toBe(
+    expect(renderHook(() => useChatPaneComposerPlaceholder({ placeholder: 'Ask something…', placeholders: [] })).result.current).toBe(
       'Ask something…',
     );
   });
 
   it('shows a single-entry list with no rotation, ignoring placeholder', () => {
     stubReducedMotion(false);
-    const { result } = renderHook(() => useChatPaneComposerPlaceholder('fallback', ['Only one']));
+    const { result } = renderHook(() => useChatPaneComposerPlaceholder({ placeholder: 'fallback', placeholders: ['Only one'] }));
     expect(result.current).toBe('Only one');
   });
 
@@ -46,7 +46,7 @@ describe('useChatPaneComposerPlaceholder', () => {
     it('rotates through entries on a fixed interval', () => {
       stubReducedMotion(false);
       const { result } = renderHook(() =>
-        useChatPaneComposerPlaceholder('fallback', ['First', 'Second', 'Third']),
+        useChatPaneComposerPlaceholder({ placeholder: 'fallback', placeholders: ['First', 'Second', 'Third'] }),
       );
       expect(result.current).toBe('First');
 
@@ -65,7 +65,7 @@ describe('useChatPaneComposerPlaceholder', () => {
       stubReducedMotion(false);
       const { result, rerender } = renderHook(
         ({ placeholders }: { placeholders: readonly string[] }) =>
-          useChatPaneComposerPlaceholder('fallback', placeholders),
+          useChatPaneComposerPlaceholder({ placeholder: 'fallback', placeholders: placeholders }),
         { initialProps: { placeholders: ['A1', 'A2'] } },
       );
       act(() => vi.advanceTimersByTime(4_000));
@@ -81,7 +81,7 @@ describe('useChatPaneComposerPlaceholder', () => {
       stubReducedMotion(false);
       const { result, rerender } = renderHook(
         ({ placeholders }: { placeholders: readonly string[] }) =>
-          useChatPaneComposerPlaceholder('fallback', placeholders),
+          useChatPaneComposerPlaceholder({ placeholder: 'fallback', placeholders: placeholders }),
         { initialProps: { placeholders: ['A1', 'A2'] } },
       );
 
@@ -100,7 +100,7 @@ describe('useChatPaneComposerPlaceholder', () => {
     it('shows a stable first entry, never rotating, under prefers-reduced-motion: reduce', () => {
       stubReducedMotion(true);
       const { result } = renderHook(() =>
-        useChatPaneComposerPlaceholder('fallback', ['First', 'Second', 'Third']),
+        useChatPaneComposerPlaceholder({ placeholder: 'fallback', placeholders: ['First', 'Second', 'Third'] }),
       );
       expect(result.current).toBe('First');
 
@@ -111,7 +111,7 @@ describe('useChatPaneComposerPlaceholder', () => {
     it('stops rotating if the OS preference changes to reduced motion mid-session', () => {
       const listeners = stubReducedMotion(false);
       const { result } = renderHook(() =>
-        useChatPaneComposerPlaceholder('fallback', ['First', 'Second']),
+        useChatPaneComposerPlaceholder({ placeholder: 'fallback', placeholders: ['First', 'Second'] }),
       );
       act(() => vi.advanceTimersByTime(4_000));
       expect(result.current).toBe('Second');

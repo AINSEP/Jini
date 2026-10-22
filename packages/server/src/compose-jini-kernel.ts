@@ -32,6 +32,8 @@ import express, { type Express } from 'express';
 
 import {
   bindings,
+  assertValidAllowedOrigins,
+  configuredAllowedOrigins,
   createDaemon,
   disposePacks,
   registerPackTools,
@@ -46,8 +48,6 @@ import {
   registerApiBearerAuthMiddleware,
   registerApiOriginGuardMiddleware,
   requireStrictBearerToken,
-  assertValidAllowedOrigins,
-  configuredAllowedOrigins,
   type AdapterContext,
 } from '@jini-ai/http-kit';
 
@@ -63,6 +63,9 @@ import {
 } from './feature.js';
 import { resolveFeatureActivation, type FeatureActivationPlan } from './feature-activation.js';
 import { createJiniKernelBase, type JiniKernelBase, type JiniKernelStorage } from './kernel-base.js';
+
+/** Replaceable server validation wording shared by every composition entry. */
+export const defaultServerMessages = { invalidSecurityMode: 'an explicit supported security mode is required' };
 
 /** The token ids every composition binds before any caller customization runs. */
 export type KernelBoundIds = 'jini.eventLog' | 'jini.runLifecycle' | 'jini.agentExecutor';
@@ -127,8 +130,8 @@ export interface ComposeJiniKernelConfig {
   readonly packs?: readonly AnyPack[];
   readonly bindings?: (b: Bindings<KernelBoundIds>) => Bindings<string>;
   readonly agentExecutor?: Parameters<typeof createJiniKernelBase>[0]['agentExecutor'];
-  /** @default { mode: 'host' } */
-  readonly security?: JiniKernelSecurity;
+  /** Explicit trust policy; omitted and unknown modes are rejected before opening resources. */
+  readonly security: JiniKernelSecurity;
   /** @default true — set false when the caller's app already parses JSON bodies. */
   readonly installJsonBodyParser?: boolean;
   /**
@@ -180,7 +183,7 @@ function mountPhase(
 ): void {
   for (const entry of composed) {
     if ((entry.feature.phase ?? 'api') !== phase) continue;
-    mountPackHttp(app, [entry.pack], daemon);
+    mountPackHttp({ app, packs: [entry.pack], daemon });
   }
 }
 
@@ -190,21 +193,22 @@ interface ComposedFeature {
   readonly afterTools?: () => void;
 }
 
-/**
- * Composes the kernel, the selected feature set, and the caller's own packs onto `config.app`.
- *
- * @throws For any activation error (unknown feature id, denied capability under an explicit enable,
- * unmet `requires`), any missing required feature option, a duplicate tool id, or a failed
- * rehydration. Every kernel resource opened before the failure is disposed and closed before the
- * error propagates, so a failed composition never leaks a sqlite file handle or a pty manager.
- */
-export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promise<JiniKernel> {
+const originConfig = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
+
+function prepareComposition(
+  { config }: { config: ComposeJiniKernelConfig },
+  _optional: Record<string, never> = {},
+) {
+  const security = config.security;
+  if (!security || !['host', 'jini-local', 'sidecar-strict'].includes(security.mode)) {
+    throw new Error(defaultServerMessages.invalidSecurityMode);
+  }
   const env = config.env ?? process.env;
 
   // Boot-time, unconditional — deliberately not scoped to `security.mode === 'sidecar-strict' |
-  // 'jini-local'` the way the two `configuredAllowedOrigins(env)` calls below are. Those compute
+  // 'jini-local'` the way `mountApiSecurity`'s `configuredAllowedOrigins({ config, env })` call is. It computes
   // `extraAllowedOrigins` once at composition time too, but only for the two modes that mount
-  // `registerApiOriginGuardMiddleware`; the default `'host'` mode never reaches either call, so a
+  // `registerApiOriginGuardMiddleware`; the explicit `'host'` mode never reaches that call, so a
   // malformed `JINI_ALLOWED_ORIGINS` would otherwise go undetected at boot regardless of mode and
   // only surface later, inside `isLocalSameOrigin` (via `guardSameOrigin`, which every
   // `mountJsonRoute` route and the attachment/model-proxy routes call), on whichever request
@@ -212,7 +216,7 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
   // opens, matching the "fails before a single resource is opened" convention just below — turns
   // that into a fail-fast boot error instead. `configuredAllowedOrigins` itself no longer throws
   // (see its own doc): this is the ONE place that still does, deliberately.
-  assertValidAllowedOrigins(env);
+  assertValidAllowedOrigins({ config: originConfig, env });
 
   const profile = JINI_PROFILES[config.profile ?? 'agent-core-v1'];
   const catalog: readonly JiniFeature[] = [
@@ -228,99 +232,147 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
     ...(config.features === undefined ? {} : { featureOverrides: config.features }),
   });
 
+  return { security, env, catalog, activation };
+}
+
+function composeFeatures(
+  { base, adapter, env, catalog, activation, composed }: {
+    base: JiniKernelBase;
+    adapter: AdapterContext;
+    env: NodeJS.ProcessEnv;
+    catalog: readonly JiniFeature[];
+    activation: FeatureActivationPlan;
+    composed: ComposedFeature[];
+  },
+  _optional: Record<string, never> = {},
+): void {
+  const featureContext: FeatureBuildContext = { kernel: base, adapter, env };
+  const byId = new Map(catalog.map((feature) => [feature.id, feature]));
+  for (const record of activation.active) {
+    const feature = byId.get(record.id)!;
+    const composition = feature.compose(featureContext);
+    composed.push({
+      feature,
+      pack: composition.pack,
+      ...(composition.afterTools === undefined ? {} : { afterTools: composition.afterTools }),
+    });
+  }
+}
+
+function registerCompositionTools(
+  { base, featurePacks, featureDaemon, callerPacks, callerDaemon, registrations, composed }: {
+    base: JiniKernelBase;
+    featurePacks: readonly AnyPack[];
+    featureDaemon: Daemon<readonly AnyPack[]>;
+    callerPacks: readonly AnyPack[];
+    callerDaemon: Daemon<readonly AnyPack[]>;
+    registrations: readonly ToolRegistration[];
+    composed: readonly ComposedFeature[];
+  },
+  _optional: Record<string, never> = {},
+): void {
+  // Every tool, from every source, before any route mounts.
+  registerPackTools({ registry: base.registry, packs: featurePacks, daemon: featureDaemon });
+  // Host-contributed tools after the features' own, so a collision names the host's id rather
+  // than silently shadowing a built-in.
+  for (const registration of registrations) base.registry.register(registration);
+  registerPackTools({ registry: base.registry, packs: callerPacks, daemon: callerDaemon });
+
+  // Only now is the registry complete — see `toolCatalog`'s own `afterTools` doc.
+  for (const entry of composed) entry.afterTools?.();
+}
+
+function mountSecurity(
+  { config, security, env }: { config: ComposeJiniKernelConfig; security: JiniKernelSecurity; env: NodeJS.ProcessEnv },
+  _optional: Record<string, never> = {},
+): void {
+  const { app } = config;
+  // `sidecar-strict`'s bearer gate mounts BEFORE the body parser, unlike `jini-local`'s: a caller
+  // this gate is going to reject with 401 should never have had its body parsed in the first place.
+  // The gate reads only `req.path` and the `Authorization` header, so it needs nothing the parser
+  // provides. Its origin guard still mounts below, alongside `jini-local`'s.
+  if (security.mode === 'sidecar-strict') {
+    app.use(
+      requireStrictBearerToken({
+        tokenEnvVar: security.tokenEnvVar,
+        env,
+      }, security.exemptPaths !== undefined ? { exemptPaths: security.exemptPaths } : {}),
+    );
+  }
+
+  if (config.installJsonBodyParser !== false) app.use(express.json());
+
+  mountApiSecurity({ config, security, env });
+}
+
+function mountApiSecurity(
+  { config, security, env }: { config: ComposeJiniKernelConfig; security: JiniKernelSecurity; env: NodeJS.ProcessEnv },
+  _optional: Record<string, never> = {},
+): void {
+  const { app } = config;
+  if (security.mode === 'jini-local') {
+    registerApiBearerAuthMiddleware({ app,
+      tokenConfig: {
+        tokenEnvVar: security.apiToken?.tokenEnvVar ?? 'JINI_API_TOKEN',
+        disableEnvVar: security.apiToken?.disableEnvVar ?? 'JINI_DISABLE_API_AUTH',
+      },
+      env,
+    });
+  }
+
+  if (security.mode === 'sidecar-strict' || security.mode === 'jini-local') {
+    registerApiOriginGuardMiddleware({ app, deps: {
+      host: security.host,
+      extraAllowedOrigins: configuredAllowedOrigins({ config: originConfig, env }),
+      getResolvedPort: () => config.adapter.resolvedPortRef.current,
+      env,
+      ...originConfig,
+    } });
+  }
+}
+
+/**
+ * Composes the kernel, the selected feature set, and the caller's own packs onto `config.app`.
+ *
+ * @throws For any activation error (unknown feature id, denied capability under an explicit enable,
+ * unmet `requires`), any missing required feature option, a duplicate tool id, or a failed
+ * rehydration. Every kernel resource opened before the failure is disposed and closed before the
+ * error propagates, so a failed composition never leaks a sqlite file handle or a pty manager.
+ */
+export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promise<JiniKernel> {
+  const { security, env, catalog, activation } = prepareComposition({ config });
+
   const base = await createJiniKernelBase({
     storage: config.storage,
-    ...(config.agentExecutor === undefined ? {} : { agentExecutor: config.agentExecutor }),
+    agentExecutor: { ...config.agentExecutor, hostEnv: config.agentExecutor?.hostEnv ?? env },
   });
 
   const composed: ComposedFeature[] = [];
-  let featureDaemon: Daemon<readonly AnyPack[]> = { services: {} } as Daemon<readonly AnyPack[]>;
-  let callerDaemon: Daemon<readonly AnyPack[]> = { services: {} } as Daemon<readonly AnyPack[]>;
+  let featureDaemon: Daemon<readonly AnyPack[]> = { services: {} };
+  let callerDaemon: Daemon<readonly AnyPack[]> = { services: {} };
   const callerPacks = config.packs ?? [];
 
   try {
-    const kernelBindings = bindings()
-      .bind(EventLogToken, base.eventLog)
-      .bind(RunLifecycleToken, base.lifecycle)
-      .bind(AgentExecutorToken, base.agentExecutor);
+    const kernelBindings = bindings({})
+      .bind({ token: EventLogToken, impl: base.eventLog })
+      .bind({ token: RunLifecycleToken, impl: base.lifecycle })
+      .bind({ token: AgentExecutorToken, impl: base.agentExecutor });
     const boundBindings = config.bindings ? config.bindings(kernelBindings) : kernelBindings;
 
-    callerDaemon = (
-      createDaemon as (c: { packs: readonly AnyPack[]; bindings: Bindings<string> }) => Daemon<readonly AnyPack[]>
-    )({ packs: callerPacks, bindings: boundBindings });
+    callerDaemon = createDaemon({ packs: callerPacks, bindings: boundBindings });
 
-    const featureContext: FeatureBuildContext = { kernel: base, adapter: config.adapter, env };
-    const byId = new Map(catalog.map((feature) => [feature.id, feature]));
-    for (const record of activation.active) {
-      const feature = byId.get(record.id)!;
-      const composition = feature.compose(featureContext);
-      composed.push({
-        feature,
-        pack: composition.pack,
-        ...(composition.afterTools === undefined ? {} : { afterTools: composition.afterTools }),
-      });
-    }
+    composeFeatures({ base, adapter: config.adapter, env, catalog, activation, composed });
 
     const featurePacks = composed.map((entry) => entry.pack);
-    featureDaemon = (
-      createDaemon as (c: { packs: readonly AnyPack[]; bindings: Bindings<string> }) => Daemon<readonly AnyPack[]>
-    )({ packs: featurePacks, bindings: bindings() as Bindings<string> });
+    featureDaemon = createDaemon({ packs: featurePacks, bindings: bindings({}) });
 
-    // Every tool, from every source, before any route mounts.
-    registerPackTools(base.registry, featurePacks, featureDaemon);
-    // Host-contributed tools after the features' own, so a collision names the host's id rather
-    // than silently shadowing a built-in.
-    for (const registration of config.toolRegistrations ?? []) base.registry.register(registration);
-    registerPackTools(base.registry, callerPacks, callerDaemon);
-
-    // Only now is the registry complete — see `toolCatalog`'s own `afterTools` doc.
-    for (const entry of composed) entry.afterTools?.();
+    registerCompositionTools({ base, featurePacks, featureDaemon, callerPacks, callerDaemon,
+      registrations: config.toolRegistrations ?? [], composed });
 
     const { app } = config;
     mountPhase('probe', app, composed, featureDaemon);
 
-    const security = config.security ?? { mode: 'host' };
-
-    // `sidecar-strict`'s bearer gate mounts BEFORE the body parser, unlike `jini-local`'s: a caller
-    // this gate is going to reject with 401 should never have had its body parsed in the first place.
-    // The gate reads only `req.path` and the `Authorization` header, so it needs nothing the parser
-    // provides. Its origin guard still mounts below, alongside `jini-local`'s.
-    if (security.mode === 'sidecar-strict') {
-      app.use(
-        requireStrictBearerToken({
-          tokenEnvVar: security.tokenEnvVar,
-          env,
-          ...(security.exemptPaths !== undefined ? { exemptPaths: security.exemptPaths } : {}),
-        }),
-      );
-    }
-
-    if (config.installJsonBodyParser !== false) app.use(express.json());
-
-    if (security.mode === 'sidecar-strict') {
-      registerApiOriginGuardMiddleware(app, {
-        host: security.host,
-        extraAllowedOrigins: configuredAllowedOrigins(env),
-        getResolvedPort: () => config.adapter.resolvedPortRef.current,
-        env,
-      });
-    }
-
-    if (security.mode === 'jini-local') {
-      registerApiBearerAuthMiddleware(app, {
-        tokenConfig: {
-          tokenEnvVar: security.apiToken?.tokenEnvVar ?? 'JINI_API_TOKEN',
-          disableEnvVar: security.apiToken?.disableEnvVar ?? 'JINI_DISABLE_API_AUTH',
-        },
-        env,
-      });
-      registerApiOriginGuardMiddleware(app, {
-        host: security.host,
-        extraAllowedOrigins: configuredAllowedOrigins(env),
-        getResolvedPort: () => config.adapter.resolvedPortRef.current,
-        env,
-      });
-    }
+    mountSecurity({ config, security, env });
 
     mountPhase('api', app, composed, featureDaemon);
     config.onAfterApiRoutes?.(app, callerDaemon, base);
@@ -330,27 +382,27 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
     // daemon, so they release first. The caller's packs are disposed here too — `createDaemon` ran
     // their `services()` before the first feature composed, so a failure anywhere after that point
     // leaves whatever those services opened with no owner at all.
-    await disposePacks(
-      composed.map((entry) => entry.pack),
-      featureDaemon,
-    );
-    await disposePacks(callerPacks, callerDaemon);
+    await disposePacks({
+      packs: composed.map((entry) => entry.pack),
+      daemon: featureDaemon,
+    });
+    await disposePacks({ packs: callerPacks, daemon: callerDaemon });
     await base.close();
     throw error;
   }
 
   let disposedFeatures: Promise<void> | null = null;
   const disposeFeatures = (): Promise<void> => {
-    disposedFeatures ??= disposePacks(
-      composed.map((entry) => entry.pack),
-      featureDaemon,
-    ).then(() => undefined);
+    disposedFeatures ??= disposePacks({
+      packs: composed.map((entry) => entry.pack),
+      daemon: featureDaemon,
+    }).then(() => undefined);
     return disposedFeatures;
   };
 
   let disposedCallerPacks: Promise<void> | null = null;
   const disposeCallerPacks = (): Promise<void> => {
-    disposedCallerPacks ??= disposePacks(callerPacks, callerDaemon).then(() => undefined);
+    disposedCallerPacks ??= disposePacks({ packs: callerPacks, daemon: callerDaemon }).then(() => undefined);
     return disposedCallerPacks;
   };
 

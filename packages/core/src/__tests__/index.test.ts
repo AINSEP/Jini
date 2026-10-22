@@ -16,9 +16,9 @@ interface DeployProvider {
   name: string;
 }
 
-const RunStoreToken = token<RunStore>('jini.runStore');
-const EventLogToken = token<EventLog>('jini.eventLog');
-const DeployTargetToken = manyToken<DeployProvider>('jini.deployTarget');
+const RunStoreToken = token<RunStore>({ id: 'jini.runStore' });
+const EventLogToken = token<EventLog>({ id: 'jini.eventLog' });
+const DeployTargetToken = manyToken<DeployProvider>({ id: 'jini.deployTarget' });
 
 /**
  * The compile-time `__missingBindings` gate (see daemon.ts) is exactly what
@@ -38,8 +38,8 @@ describe('@jini-ai/core composition contract', () => {
       name: 'runs',
       deps: [RunStoreToken, EventLogToken],
       services: (c) => {
-        const runStore = c.get(RunStoreToken);
-        const eventLog = c.get(EventLogToken);
+        const runStore = c.get({ token: RunStoreToken });
+        const eventLog = c.get({ token: EventLogToken });
         return {
           start: (id: string) => {
             eventLog.append(`start:${id}`);
@@ -51,7 +51,7 @@ describe('@jini-ai/core composition contract', () => {
 
     const daemon = createDaemon({
       packs: [runsPack],
-      bindings: bindings().bind(RunStoreToken, runStoreImpl).bind(EventLogToken, eventLogImpl),
+      bindings: bindings({}).bind({ token: RunStoreToken, impl: runStoreImpl }).bind({ token: EventLogToken, impl: eventLogImpl }),
     });
 
     expect(daemon.services.runs.start('run_1')).toEqual(['run_1']);
@@ -64,56 +64,56 @@ describe('@jini-ai/core composition contract', () => {
     const deployPack = definePack({
       name: 'deploy',
       deps: [DeployTargetToken],
-      services: (c) => ({ targets: c.getMany(DeployTargetToken) }),
+      services: (c) => ({ targets: c.getMany({ token: DeployTargetToken }) }),
     });
 
     const daemon = createDaemon({
       packs: [deployPack],
-      bindings: bindings().bindMany(DeployTargetToken, netlify).bindMany(DeployTargetToken, vercel),
+      bindings: bindings({}).bindMany({ token: DeployTargetToken, impl: netlify }).bindMany({ token: DeployTargetToken, impl: vercel }),
     });
 
     expect(daemon.services.deploy.targets).toEqual([netlify, vercel]);
   });
 
   it('resolveMany() returns an empty array for a many-token that was never bindMany()-ed', () => {
-    expect(bindings().resolveMany(DeployTargetToken)).toEqual([]);
+    expect(bindings({}).resolveMany({ token: DeployTargetToken })).toEqual([]);
   });
 
   it('throws a legible error when a required token is never bound', () => {
     const runsPack = definePack({
       name: 'runs',
       deps: [RunStoreToken],
-      services: (c) => c.get(RunStoreToken),
+      services: (c) => c.get({ token: RunStoreToken }),
     });
 
     expect(() =>
       createDaemonUnsafe({
         packs: [runsPack],
-        bindings: bindings(),
+        bindings: bindings({}),
       }),
     ).toThrowError('missing binding: jini.runStore');
   });
 
   it('throws a legible error when a singleton token is bound twice', () => {
-    expect(() => bindings().bind(RunStoreToken, { save: () => [] }).bind(RunStoreToken, { save: () => [] })).toThrowError(
+    expect(() => bindings({}).bind({ token: RunStoreToken, impl: { save: () => [] } }).bind({ token: RunStoreToken, impl: { save: () => [] } })).toThrowError(
       'duplicate binding: jini.runStore is already bound',
     );
   });
 
   it('throws a legible error when a bound implementation targets an incompatible token version', () => {
-    const v1 = token<RunStore>('jini.runStore', { version: 1 });
-    const v2 = token<RunStore>('jini.runStore', { version: 2 });
+    const v1 = token<RunStore>({ id: 'jini.runStore' }, { version: 1 });
+    const v2 = token<RunStore>({ id: 'jini.runStore' }, { version: 2 });
 
     const runsPack = definePack({
       name: 'runs',
       deps: [v2],
-      services: (c) => c.get(v2),
+      services: (c) => c.get({ token: v2 }),
     });
 
     expect(() =>
       createDaemonUnsafe({
         packs: [runsPack],
-        bindings: bindings().bind(v1, { save: () => [] }),
+        bindings: bindings({}).bind({ token: v1, impl: { save: () => [] } }),
       }),
     ).toThrowError('version-incompatible binding: jini.runStore expects v2, got v1');
   });
@@ -122,13 +122,13 @@ describe('@jini-ai/core composition contract', () => {
     const sneakyPack = definePack({
       name: 'sneaky',
       deps: [],
-      services: (c) => c.get(RunStoreToken),
+      services: (c) => c.get({ token: RunStoreToken }),
     });
 
     expect(() =>
       createDaemonUnsafe({
         packs: [sneakyPack],
-        bindings: bindings().bind(RunStoreToken, { save: () => [] }),
+        bindings: bindings({}).bind({ token: RunStoreToken, impl: { save: () => [] } }),
       }),
     ).toThrowError('pack "sneaky" resolved "jini.runStore" without declaring it in deps');
   });

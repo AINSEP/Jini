@@ -35,9 +35,9 @@ export const DEFAULT_SIDEBAR_RAIL_STORAGE_KEY = 'jini-admin-sidebar-rail-collaps
  * it collapsed again on every reload, because their explicit `'0'` would be indistinguishable from
  * never having chosen. A stored value always wins over the default; only its absence defers.
  */
-function readPersisted(storageKey: string): boolean | undefined {
+function readPersisted(storageKey: string, storage: Pick<Storage, 'getItem'>): boolean | undefined {
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = storage.getItem(storageKey);
     if (raw === null) return undefined;
     return raw === '1';
   } catch {
@@ -45,9 +45,9 @@ function readPersisted(storageKey: string): boolean | undefined {
   }
 }
 
-function writePersisted(storageKey: string, collapsed: boolean): void {
+function writePersisted(storageKey: string, collapsed: boolean, storage: Pick<Storage, 'setItem'>): void {
   try {
-    localStorage.setItem(storageKey, collapsed ? '1' : '0');
+    storage.setItem(storageKey, collapsed ? '1' : '0');
   } catch {
     // Best-effort — a user who cannot persist the preference still gets a working toggle for the
     // current tab; failing loudly here would break the rail over a non-essential preference write.
@@ -69,21 +69,39 @@ export interface SidebarRail {
  * (expanded), which is what every existing host gets by not passing it. A stored preference always
  * takes precedence — see {@link readPersisted} for why absent and `'0'` must stay distinguishable.
  *
+ * @param railOverride A boolean controls the displayed rail without changing its saved preference.
+ * Null/undefined releases control and reveals the latest preference, including cross-tab updates.
+ * @param onCollapsedChange Receives toggle requests only while an override is active. The host must
+ * update its override to accept the request; without this callback the controlled rail stays fixed.
+ * @returns Displayed collapse state and a toggle (persisted when uncontrolled, requested otherwise).
+ * @example useSidebarRail({ storage, events }, { railOverride: true, onCollapsedChange: setOverride })
+ *
  * @complexity O(1) — one state read/write per toggle, no derived computation.
  */
 export function useSidebarRail(
-  storageKey: string = DEFAULT_SIDEBAR_RAIL_STORAGE_KEY,
-  defaultCollapsed = false,
+  { storage, events }: { readonly storage: Pick<Storage, 'getItem' | 'setItem'>; readonly events: Pick<Window, 'addEventListener' | 'removeEventListener'> },
+  { storageKey = DEFAULT_SIDEBAR_RAIL_STORAGE_KEY, defaultCollapsed = false, railOverride, onCollapsedChange }: {
+    readonly storageKey?: string | undefined;
+    readonly defaultCollapsed?: boolean | undefined;
+    readonly railOverride?: boolean | null | undefined;
+    readonly onCollapsedChange?: ((collapsed: boolean) => void) | undefined;
+  } = {},
 ): SidebarRail {
-  const [collapsed, setCollapsed] = useState<boolean>(() => readPersisted(storageKey) ?? defaultCollapsed);
+  const [collapsed, setCollapsed] = useState<boolean>(() => readPersisted(storageKey, storage) ?? defaultCollapsed);
 
   const toggle = useCallback(() => {
+    // A temporary host layout choice must not become the operator's saved preference. Request
+    // changes outside the state updater so React's StrictMode replay cannot notify the host twice.
+    if (railOverride != null) {
+      onCollapsedChange?.(!railOverride);
+      return;
+    }
     setCollapsed((current) => {
       const next = !current;
-      writePersisted(storageKey, next);
+      writePersisted(storageKey, next, storage);
       return next;
     });
-  }, [storageKey]);
+  }, [storageKey, storage, railOverride, onCollapsedChange]);
 
   /** Cross-tab sync: two admin tabs open side by side should agree on the rail state rather than
    *  silently diverging the moment either one is toggled. */
@@ -96,9 +114,9 @@ export function useSidebarRail(
       // collapsed-by-default host in every other one.
       setCollapsed(event.newValue === null ? defaultCollapsed : event.newValue === '1');
     }
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [storageKey, defaultCollapsed]);
+    events.addEventListener('storage', onStorage);
+    return () => events.removeEventListener('storage', onStorage);
+  }, [storageKey, defaultCollapsed, events]);
 
-  return { collapsed, toggle };
+  return { collapsed: railOverride ?? collapsed, toggle };
 }

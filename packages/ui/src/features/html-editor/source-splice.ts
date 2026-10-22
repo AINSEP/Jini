@@ -63,6 +63,24 @@ function hasChildNodes(node: Parse5Node): node is Parse5ParentNode {
   return 'childNodes' in node;
 }
 
+function recordInnerRange(
+  { node, currentPath, out }: { node: Parse5Element; currentPath: ElementPath; out: Map<string, ElementSourceRange> },
+  _options: object = {},
+): void {
+  const location = node.sourceCodeLocation;
+  // parse5 attaches a location only to elements created from a start-tag token, so a located
+  // element always has `startTag` (implied elements — a `tbody`, a `</p>`- or `</br>`-created
+  // element — carry no location at all and are skipped). Requiring `startTag` here replaces the old
+  // `: location.endOffset` fallback, which no parsed element could reach.
+  if (location?.startTag) {
+    // Void elements (`<br>`, `<img>`) have no `endTag` and no inner content: their range is
+    // empty (`start === end`), anchored at the end of the start tag.
+    const start = location.startTag.endOffset;
+    const end = location.endTag ? location.endTag.startOffset : start;
+    out.set(pathKey(currentPath), { start, end, tagName: node.tagName });
+  }
+}
+
 /**
  * Walks one level of element-only children (recursing into each), assigning each a path and
  * recording its source range. `style`/`script` children are skipped without consuming a path slot.
@@ -76,14 +94,7 @@ function indexChildren(children: readonly Parse5Node[], parentPath: ElementPath,
     if (UNINDEXED_TAGS.has(node.tagName)) continue;
 
     const currentPath = [...parentPath, elementIndex];
-    const location = node.sourceCodeLocation;
-    if (location) {
-      // Void elements (`<br>`, `<img>`) have no `endTag` and no inner content: their range is
-      // empty (`start === end`), anchored at the end of the start tag.
-      const start = location.startTag ? location.startTag.endOffset : location.endOffset;
-      const end = location.endTag ? location.endTag.startOffset : start;
-      out.set(pathKey(currentPath), { start, end, tagName: node.tagName });
-    }
+    recordInnerRange({ node, currentPath, out }, {});
 
     if (hasChildNodes(node)) indexChildren(node.childNodes, currentPath, out);
     elementIndex++;
@@ -137,4 +148,89 @@ export function spliceElementInner(html: string, path: ElementPath, expectedTagN
   const range = indexElementSourceRanges(html).get(pathKey(path));
   if (!range || range.tagName !== expectedTagName) return null;
   return html.slice(0, range.start) + newInner + html.slice(range.end);
+}
+
+const VOID_TAGS: ReadonlySet<string> = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+
+/** Verified offsets are JS string indexes (UTF-16), suitable for slice and textarea selection. */
+export interface ElementOuterRange {
+  readonly outerStart: number;
+  readonly outerEnd: number;
+  readonly openingEnd: number;
+}
+
+/** Source tree shared by block detection and preparation; raw atoms never consume a splice slot. */
+export interface SourceElement {
+  readonly tagName: string;
+  readonly attributes: Readonly<Record<string, string>>;
+  readonly path: ElementPath | null;
+  readonly outerRange: ElementOuterRange | null;
+  readonly sourceSupported: boolean;
+  readonly children: readonly SourceElement[];
+}
+
+function sourceOuterEnd({ node, html }: { node: Parse5Element; html: string }, _options: object = {}): number | undefined {
+  const loc = node.sourceCodeLocation;
+  const start = loc?.startTag;
+  const foreignSelfClosing = node.namespaceURI !== 'http://www.w3.org/1999/xhtml' && !!start
+    && html.slice(start.startOffset, start.endOffset).endsWith('/>');
+  if (VOID_TAGS.has(node.tagName) || foreignSelfClosing) return start?.endOffset;
+  return loc?.endTag?.endOffset;
+}
+
+function sourceOuterRange(
+  { node, html, parentStart, parentEnd }: { node: Parse5Element; html: string; parentStart: number; parentEnd: number },
+  _options: object = {},
+): ElementOuterRange | null {
+  const start = node.sourceCodeLocation?.startTag;
+  const outerEnd = sourceOuterEnd({ node, html }, {});
+  const boundsValid = !!start && outerEnd !== undefined && start.startOffset >= parentStart && outerEnd <= parentEnd;
+  // Template content is a separate fragment; it has no ordinary component path/shell here.
+  if (!boundsValid || node.tagName === 'template') return null;
+  return { outerStart: start!.startOffset, outerEnd: outerEnd!, openingEnd: start!.endOffset };
+}
+
+function invalidateOverlappingSiblings(
+  { elements }: { elements: (Omit<SourceElement, 'sourceSupported'> & { sourceSupported: boolean })[] },
+  _options: object = {},
+): void {
+  // Foster parenting can move a valid-looking node ahead of a source-earlier table. Neither
+  // sibling can be trusted as a model-addressable source owner in that recovered ordering.
+  for (let i = 1; i < elements.length; i++) {
+    const previous = elements[i - 1]!;
+    const current = elements[i]!;
+    if (previous.outerRange && current.outerRange && previous.outerRange.outerEnd > current.outerRange.outerStart) {
+      previous.sourceSupported = current.sourceSupported = false;
+    }
+  }
+}
+
+/**
+ * Extends the inner-splice index without changing its published range shape. Missing end tags,
+ * implicit nodes and reordered/foster-parented children cannot establish an opaque source owner.
+ * Validation is linear in source nodes; ranges are checked against their immediate source parent.
+ */
+export function indexSourceElements({ html }: { html: string }, _options: object = {}): SourceElement[] {
+  const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
+  const walk = ({ nodes, parentPath, parentStart, parentEnd }: { nodes: readonly Parse5Node[]; parentPath: ElementPath; parentStart: number; parentEnd: number }, _options: object = {}): SourceElement[] => {
+    let slot = 0;
+    const elements = nodes.filter(isElement).map(node => {
+      const atom = UNINDEXED_TAGS.has(node.tagName);
+      const path = atom ? null : [...parentPath, slot++];
+      const loc = node.sourceCodeLocation;
+      const children = walk({ nodes: node.childNodes, parentPath: path ?? parentPath, parentStart: loc?.startTag?.endOffset ?? parentStart, parentEnd: loc?.endTag?.startOffset ?? parentEnd }, {});
+      const outerRange = sourceOuterRange({ node, html, parentStart, parentEnd }, {});
+      return {
+        tagName: node.tagName,
+        attributes: Object.fromEntries(node.attrs.map(attr => [attr.name, attr.value])),
+        path,
+        outerRange,
+        sourceSupported: !!outerRange && children.every(child => child.sourceSupported),
+        children,
+      };
+    });
+    invalidateOverlappingSiblings({ elements }, {});
+    return elements;
+  };
+  return walk({ nodes: fragment.childNodes, parentPath: [], parentStart: 0, parentEnd: html.length }, {});
 }

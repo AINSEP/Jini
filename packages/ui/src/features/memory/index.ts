@@ -1,3 +1,4 @@
+export { MemoryPortsProvider, useMemoryPorts, type MemoryPorts } from './react/MemoryPorts.js';
 export { FIELD_LABEL_STYLE } from './react/styles.js';
 export { type AsyncCommitGuard, createAsyncCommitGuard } from './async-commit-guard.js';
 export {
@@ -78,6 +79,7 @@ export type {
 
 export {
   createFakeMemoryConnectorsPort,
+  createMemoryHttpPorts,
   fetchMemoryList,
   memoryConfigPort,
   memoryConnectorsPort,

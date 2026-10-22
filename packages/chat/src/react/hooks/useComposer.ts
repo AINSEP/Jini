@@ -28,10 +28,13 @@
  * the wrong thread, so they are cleared instead.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatAttachment } from '../../core/index.js';
+import type { ChatAttachment, ChatMessage } from '../../core/index.js';
+import type { ComposerHistoryStoragePort } from '../../core/composer-history.js';
+import { useComposerHistory, type ComposerHistoryController } from './useComposerHistory.hooks.js';
 import {
   readCachedAttachments,
   readCachedDraft,
+  rememberCachedDraft,
   writeCachedAttachments,
   writeCachedDraft,
 } from './composer-draft-cache.js';
@@ -45,6 +48,13 @@ export interface ComposerDraftPersistence {
 
 export interface UseComposerOptions {
   initialDraft?: string;
+  /** This principal's current transcript; only user-role text participates in recall. */
+  historyMessages?: readonly ChatMessage[];
+  /** Scopes recent prompts across conversations. Hosts with multiple users must supply an id. */
+  historyScope?: string;
+  historyStorage?: ComposerHistoryStoragePort;
+  /** Recall retention; defaults to 100, with existing duplicate collapse. */
+  historyCap?: number;
   initialAgent?: AgentSelection;
   project?: ProjectContextValue;
   composerSlots?: ComposerSlots;
@@ -73,6 +83,28 @@ export interface UseComposerOptions {
    * Captured in a ref, so an inline arrow is safe and will not re-run the restore on every render.
    */
   validateAttachments?: (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
+  /**
+   * Where the page-exit signals that flush a pending draft write come from (`pagehide` on the
+   * window, `visibilitychange` to hidden on the document). Defaults to the browser's own
+   * {@link browserPageLifecycle}; `null` means there is no page to leave (a non-DOM renderer runs
+   * effects without `window`), so only unmount, send and switch flush. Captured once at mount.
+   */
+  pageLifecycle?: ComposerPageLifecycle | null;
+}
+
+/** The page-exit event sources {@link useComposer} listens to, injectable so a host or test can supply its own. */
+export interface ComposerPageLifecycle {
+  readonly window: Pick<Window, 'addEventListener' | 'removeEventListener'>;
+  readonly document: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'>;
+}
+
+/**
+ * The real window/document pair, or `null` when this runtime has no `window` — a non-DOM React
+ * renderer still runs effects, and subscribing there would throw.
+ * @complexity Time/space: O(1).
+ */
+export function browserPageLifecycle(): ComposerPageLifecycle | null {
+  return typeof window === 'undefined' ? null : { window, document };
 }
 
 export interface MentionPopoverState {
@@ -83,6 +115,8 @@ export interface MentionPopoverState {
 
 export interface UseComposerResult {
   draft: string;
+  /** Optional for compatibility with host-created composer controllers. */
+  history?: ComposerHistoryController;
   setDraft: (next: string) => void;
   attachments: ChatAttachment[];
   /** Uploads via `project.uploadFiles` (when supplied) and stages the results; no-ops (with a rejected promise) when no upload port is wired. */
@@ -101,27 +135,129 @@ export interface UseComposerResult {
   canSubmit: boolean;
   /** Clears the draft and staged attachments (called after a successful send). */
   reset: () => void;
+  /**
+   * Writes a draft still waiting out {@link DRAFT_PERSIST_DEBOUNCE_MS} to storage and the host's
+   * persistence port now. `<Composer>` calls it on blur. Optional for compatibility with
+   * host-created composer controllers.
+   */
+  flushDraft?: () => void;
 }
 
 const EMPTY_MENTION: MentionPopoverState = { open: false, query: '', results: [] };
 
+/**
+ * How long typing must pause before the draft reaches `localStorage` and the host's persistence
+ * port. Those writes used to run synchronously on every keystroke (owner report 2026-10-08: typing
+ * lagged in a long conversation). The in-memory cache tier still updates per keystroke, and every
+ * exit path (send, conversation switch, unmount, page hide, blur) writes or discards immediately,
+ * so the delay can only cost a draft on a hard crash inside this window.
+ */
+export const DRAFT_PERSIST_DEBOUNCE_MS = 800;
+
+interface DeferredDraftWrite {
+  /** Replaces any pending write with `write`, run once typing pauses. */
+  schedule: (write: () => void) => void;
+  /** Runs the pending write now, if there is one. */
+  flush: () => void;
+  /** Drops the pending write without running it. */
+  cancel: () => void;
+}
+
+/**
+ * One pending durable draft write at a time, trailing-edge debounced. Flushes on unmount and when
+ * the page is hidden (`pagehide`, or `visibilitychange` to hidden — the last event a mobile browser
+ * reliably delivers before discarding the tab).
+ * @param pageLifecycle The page-exit event sources, captured at mount; `undefined` resolves the
+ *   browser's own, `null` subscribes to nothing (unmount still flushes).
+ * @complexity Time/space: O(1) per call.
+ */
+function useDeferredDraftWrite(pageLifecycle: ComposerPageLifecycle | null | undefined): DeferredDraftWrite {
+  const [lifecycle] = useState(() => (pageLifecycle === undefined ? browserPageLifecycle() : pageLifecycle));
+  const pendingRef = useRef<{ timer: ReturnType<typeof setTimeout>; write: () => void } | null>(null);
+
+  const cancel = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    clearTimeout(pending.timer);
+  }, []);
+
+  const flush = useCallback(() => {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    clearTimeout(pending.timer);
+    pending.write();
+  }, []);
+
+  const schedule = useCallback((write: () => void) => {
+    if (pendingRef.current) clearTimeout(pendingRef.current.timer);
+    const timer = setTimeout(() => {
+      pendingRef.current = null;
+      write();
+    }, DRAFT_PERSIST_DEBOUNCE_MS);
+    pendingRef.current = { timer, write };
+  }, []);
+
+  useEffect(() => {
+    if (lifecycle === null) return flush;
+    const { window: page, document: doc } = lifecycle;
+    const onVisibilityChange = () => {
+      if (doc.visibilityState === 'hidden') flush();
+    };
+    page.addEventListener('pagehide', flush);
+    doc.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      page.removeEventListener('pagehide', flush);
+      doc.removeEventListener('visibilitychange', onVisibilityChange);
+      flush();
+    };
+  }, [flush, lifecycle]);
+
+  return useMemo(() => ({ schedule, flush, cancel }), [schedule, flush, cancel]);
+}
+
 export function useComposer(options: UseComposerOptions = {}): UseComposerResult {
   const { project, composerSlots, persistence, conversationId, validateAttachments } = options;
   const [draft, setDraftState] = useState<string>(
-    () => options.initialDraft ?? persistence?.read() ?? readCachedDraft(conversationId) ?? '',
+    () => options.initialDraft ?? persistence?.read() ?? readCachedDraft({ conversationId: conversationId }) ?? '',
   );
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [agent, setAgent] = useState<AgentSelection | undefined>(options.initialAgent);
   const [mention, setMention] = useState<MentionPopoverState>(EMPTY_MENTION);
 
-  const setDraft = useCallback(
+  const deferredWrite = useDeferredDraftWrite(options.pageLifecycle);
+  const commitDraft = useCallback(
     (next: string) => {
       setDraftState(next);
-      persistence?.write(next);
-      writeCachedDraft(conversationId, next);
+      rememberCachedDraft({ conversationId: conversationId, draft: next });
+      const write = () => {
+        persistence?.write(next);
+        writeCachedDraft({ conversationId: conversationId, draft: next });
+      };
+      // A cleared draft (send, reset) is written at once and drops any pending write, so a stale
+      // timer can never put the sent text back.
+      if (next.trim() === '') {
+        deferredWrite.cancel();
+        write();
+        return;
+      }
+      deferredWrite.schedule(write);
     },
-    [persistence, conversationId],
+    [persistence, conversationId, deferredWrite],
   );
+
+  const history = useComposerHistory({ setRecalledDraft: setDraftState }, {
+    ...(options.historyMessages === undefined ? {} : { messages: options.historyMessages }),
+    ...(options.historyScope === undefined ? {} : { scope: options.historyScope }),
+    ...(options.historyCap === undefined ? {} : { cap: options.historyCap }),
+    ...(options.historyStorage === undefined ? {} : { storage: options.historyStorage }),
+    ...(conversationId === undefined ? {} : { conversationId }),
+  });
+  const setDraft = useCallback((next: string) => {
+    history.edit({});
+    commitDraft(next);
+  }, [commitDraft, history.edit]);
 
   // Lets the conversation-change effect below read the live draft without taking `draft` as a
   // dependency, which would re-run it on every keystroke.
@@ -138,7 +274,9 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     const previousConversationId = previousConversationIdRef.current;
     if (conversationId === previousConversationIdRef.current) return;
     previousConversationIdRef.current = conversationId;
-    const restored = readCachedDraft(conversationId);
+    // The pending write closed over the conversation being left, so this lands under its id.
+    deferredWrite.flush();
+    const restored = readCachedDraft({ conversationId: conversationId });
 
     // An id arriving where there was none is NOT a switch between two conversations — it is the one
     // the operator is already looking at finally getting a key (a new chat created server-side
@@ -150,14 +288,14 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     // message into another. Attachments and the mention popover are left alone here for the same
     // reason — nothing was switched away from.
     if (previousConversationId == null && conversationId != null && restored === null && draftRef.current.trim() !== '') {
-      writeCachedDraft(conversationId, draftRef.current);
+      writeCachedDraft({ conversationId: conversationId, draft: draftRef.current });
       return;
     }
 
     setDraftState(restored ?? '');
     setAttachments([]);
     setMention(EMPTY_MENTION);
-  }, [conversationId]);
+  }, [conversationId, deferredWrite]);
 
   // Held in a ref so an inline arrow from the host does not re-run the restore below on every
   // render. Reassigned each render so a host that swaps implementations still gets the new one.
@@ -179,7 +317,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       attachmentsHydratedForRef.current = conversationId;
       return;
     }
-    const cached = readCachedAttachments(conversationId);
+    const cached = readCachedAttachments({ conversationId: conversationId });
     if (cached === null || cached.length === 0) {
       attachmentsHydratedForRef.current = conversationId;
       return;
@@ -201,7 +339,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
         setAttachments((prev) => (prev.length === 0 ? [...valid] : prev));
       } else {
         // Every reference was dead. Purge them so the next load does not pay for this again.
-        writeCachedAttachments(conversationId, []);
+        writeCachedAttachments({ conversationId: conversationId, attachments: [] });
       }
       attachmentsHydratedForRef.current = conversationId;
     })();
@@ -217,7 +355,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   useEffect(() => {
     if (!validateAttachmentsRef.current || !conversationId) return;
     if (attachmentsHydratedForRef.current !== conversationId) return;
-    writeCachedAttachments(conversationId, attachments);
+    writeCachedAttachments({ conversationId: conversationId, attachments: attachments });
   }, [attachments, conversationId]);
 
   const addAttachment = useCallback((attachment: ChatAttachment) => {
@@ -240,7 +378,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       // `attachment-preview-cache.ts`'s module doc for why the server cannot hand it back.
       uploaded.forEach((a, i) => {
         const file = files[i];
-        if (file) cacheAttachmentPreviewSource(a.path, file);
+        if (file) cacheAttachmentPreviewSource({ path: a.path, file });
       });
       for (const a of uploaded) composerSlots?.onAttach?.(a);
     },
@@ -296,6 +434,7 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   return useMemo(
     () => ({
       draft,
+      history,
       setDraft,
       attachments,
       addAttachments,
@@ -310,7 +449,8 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       selectMention,
       canSubmit,
       reset,
+      flushDraft: deferredWrite.flush,
     }),
-    [draft, setDraft, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset],
+    [draft, history, setDraft, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset, deferredWrite.flush],
   );
 }

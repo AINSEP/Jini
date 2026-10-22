@@ -41,6 +41,8 @@ export interface OwningContentType {
   key: string;
   status: ContentTypeStatus;
   fields: ContentTypeFieldDef[];
+  /** The `fieldsJson.ext.<owner>` namespace this type's entries live under; absent = `"site"`. See `content-types/types.ts`'s `ContentTypeRecord.owner`. */
+  owner?: string | undefined;
 }
 
 export interface ActorIdentityInput {
@@ -50,4 +52,4 @@ export interface ActorIdentityInput {
   delegatedById?: string | null;
 }
 
-export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+

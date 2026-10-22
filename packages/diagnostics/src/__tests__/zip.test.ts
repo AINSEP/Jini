@@ -1,3 +1,4 @@
+import { createNodeDiagnosticsPorts } from "../node-ports.js";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,15 +23,11 @@ describe("buildDiagnosticsZip", () => {
     const logPath = join(tempDir, "daemon.log");
     await writeFile(logPath, "GET /api?token=abc123 ok\n", "utf8");
 
-    const result = await buildDiagnosticsZip({
-      context: {
+    const result = await buildDiagnosticsZip({ context: {
         app: { name: "jini-host", version: "1.2.3", packaged: false },
         source: "test",
         namespace: "default",
-      },
-      sources: [{ name: "logs/daemon/latest.log", absolutePath: logPath, kind: "text" }],
-      redaction: { username: "alice" },
-    });
+      }, sources: [{ name: "logs/daemon/latest.log", absolutePath: logPath, kind: "text" }], ...createNodeDiagnosticsPorts({}) }, { redaction: { username: "alice" } });
 
     const zip = await JSZip.loadAsync(result.zip);
     const log = await zip.file("logs/daemon/latest.log")!.async("string");
@@ -47,38 +44,22 @@ describe("buildDiagnosticsZip", () => {
   });
 
   it("appends matching macOS crash reports when crashReports lookup is provided", async () => {
-    // findMacOSCrashReports (see sources.ts) is a no-op unless the host
-    // platform is darwin, so this test stubs process.platform for its
-    // duration — otherwise it would pass vacuously on non-darwin CI hosts
-    // (Linux, in this repo) without ever exercising the crash-report path.
-    const originalDescriptor = Object.getOwnPropertyDescriptor(process, "platform")!;
-    Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
-    try {
-      const crashPath = join(tempDir, "MyApp-2024-01-01-crash.crash");
-      await writeFile(crashPath, "crash body", "utf8");
+    const crashPath = join(tempDir, "MyApp-2024-01-01-crash.crash");
+    await writeFile(crashPath, "crash body", "utf8");
 
-      const result = await buildDiagnosticsZip({
-        context: { app: { name: "jini-host" }, source: "test" },
-        sources: [],
-        crashReports: { matchSubstrings: ["MyApp"], searchDirs: [tempDir] },
-      });
+    const result = await buildDiagnosticsZip({ context: { app: { name: "jini-host" }, source: "test" }, sources: [], ...createNodeDiagnosticsPorts({}), system: { ...createNodeDiagnosticsPorts({}).system, platform: () => "darwin" } }, { crashReports: { matchSubstrings: ["MyApp"] }, crashReportOptions: { searchDirs: [tempDir] } });
 
-      const zip = await JSZip.loadAsync(result.zip);
-      expect(zip.file("crash-reports/MyApp-2024-01-01-crash.crash")).not.toBeNull();
-      expect(result.manifest.files.some((file) => file.name === "crash-reports/MyApp-2024-01-01-crash.crash")).toBe(true);
-    } finally {
-      Object.defineProperty(process, "platform", originalDescriptor);
-    }
+    const zip = await JSZip.loadAsync(result.zip);
+    expect(zip.file("crash-reports/MyApp-2024-01-01-crash.crash")).not.toBeNull();
+    expect(result.manifest.files.some((file) => file.name === "crash-reports/MyApp-2024-01-01-crash.crash")).toBe(true);
+
   });
 
   it("records a warning placeholder when a file cannot be read", async () => {
-    const result = await buildDiagnosticsZip({
-      context: {
+    const result = await buildDiagnosticsZip({ context: {
         app: { name: "jini-host" },
         source: "test",
-      },
-      sources: [{ name: "logs/missing.log", absolutePath: join(tempDir, "no-such.log"), kind: "text" }],
-    });
+      }, sources: [{ name: "logs/missing.log", absolutePath: join(tempDir, "no-such.log"), kind: "text" }], ...createNodeDiagnosticsPorts({}) });
 
     const zip = await JSZip.loadAsync(result.zip);
     const placeholder = await zip.file("logs/missing.log")!.async("string");

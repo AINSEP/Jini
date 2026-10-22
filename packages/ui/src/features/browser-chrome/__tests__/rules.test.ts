@@ -514,3 +514,226 @@ describe('navigation stack', () => {
 it('HISTORY_LIMIT is a sane positive cap', () => {
   expect(HISTORY_LIMIT).toBeGreaterThan(0);
 });
+
+describe('normalizeBrowserAddress boundaries', () => {
+  it('trims surrounding whitespace before classifying', () => {
+    expect(normalizeBrowserAddress('  example.com  ')).toBe('https://example.com');
+  });
+
+  it('matches the http(s)/file scheme case-insensitively', () => {
+    expect(normalizeBrowserAddress('HTTPS://Example.com')).toBe('HTTPS://Example.com');
+  });
+
+  it('matches localhost case-insensitively and with a path', () => {
+    expect(normalizeBrowserAddress('LocalHost/x')).toBe('http://LocalHost/x');
+  });
+
+  it('percent-encodes spaces in a file:// fallback path', () => {
+    expect(normalizeBrowserAddress('/a b/c')).toBe('file:///a%20b/c');
+  });
+
+  it('falls back to file:// when appOrigin is given without any appRoutePrefixes', () => {
+    expect(normalizeBrowserAddress('/api/x', { appOrigin: 'https://host.example' })).toBe('file:///api/x');
+  });
+
+  it('falls back to file:// when appRoutePrefixes are given without an appOrigin', () => {
+    expect(normalizeBrowserAddress('/api/x', { appRoutePrefixes: ['api'] })).toBe('file:///api/x');
+  });
+
+  it('resolves a bare prefix path with no trailing segment against appOrigin', () => {
+    expect(normalizeBrowserAddress('/api', { appOrigin: 'https://host.example', appRoutePrefixes: ['api'] })).toBe(
+      'https://host.example/api',
+    );
+  });
+
+  it('does not treat a longer segment sharing the prefix as a match', () => {
+    expect(normalizeBrowserAddress('/apix', { appOrigin: 'https://host.example', appRoutePrefixes: ['api'] })).toBe(
+      'file:///apix',
+    );
+  });
+
+  it('escapes regex metacharacters in a prefix so they match literally', () => {
+    const options = { appOrigin: 'https://host.example', appRoutePrefixes: ['a.b'] };
+    expect(normalizeBrowserAddress('/aXb/x', options)).toBe('file:///aXb/x');
+  });
+
+  it('matches a prefix containing a regex metacharacter literally', () => {
+    const options = { appOrigin: 'https://host.example', appRoutePrefixes: ['a.b'] };
+    expect(normalizeBrowserAddress('/a.b/x', options)).toBe('https://host.example/a.b/x');
+  });
+
+  it('treats a single-letter TLD as a search query', () => {
+    expect(normalizeBrowserAddress('foo.c')).toBe('https://www.google.com/search?q=foo.c');
+  });
+
+  it('adds https:// to a bare domain with a port', () => {
+    expect(normalizeBrowserAddress('example.com:8080/p')).toBe('https://example.com:8080/p');
+  });
+});
+
+describe('formatAddressDisplay with a custom home label', () => {
+  it('omits a title that equals the custom home label fallback for a host-less url', () => {
+    expect(formatAddressDisplayParts('file:///a.html', 'file:///a.html', 'Home')).toEqual({ url: 'file:///a.html' });
+  });
+
+  it('formats a distinct title with an explicit home label', () => {
+    expect(formatAddressDisplay('https://example.com/', 'Site', 'Home')).toBe('https://example.com / Site');
+  });
+
+  it('returns just the url when the title is blank', () => {
+    expect(formatAddressDisplay('https://example.com/', '   ')).toBe('https://example.com/');
+  });
+});
+
+describe('mergeHistoryEntry boundaries', () => {
+  it('keeps the existing title when the meta title is whitespace-only', () => {
+    const existing: BrowserHistoryEntry[] = [{ title: 'Kept', url: 'https://a.com', lastVisitedAt: 1, visitCount: 1 }];
+    expect(mergeHistoryEntry(existing, 'https://a.com', { title: '   ' }, {}, 5)[0]?.title).toBe('Kept');
+  });
+
+  it('trims a meta title', () => {
+    expect(mergeHistoryEntry([], 'https://a.com', { title: '  T  ' }, {}, 5)[0]?.title).toBe('T');
+  });
+
+  it('derives the title from the hostname when there is no meta or existing title', () => {
+    expect(mergeHistoryEntry([], 'https://www.a.com/x', {}, {}, 5)[0]?.title).toBe('a.com');
+  });
+
+  it('keeps the existing iconUrl when the meta iconUrl is invalid', () => {
+    const existing: BrowserHistoryEntry[] = [
+      { title: 'A', url: 'https://a.com', lastVisitedAt: 1, visitCount: 1, iconUrl: 'https://cdn.a.com/i.png' },
+    ];
+    const result = mergeHistoryEntry(existing, 'https://a.com', { iconUrl: 'nope' }, {}, 5);
+    expect(result[0]?.iconUrl).toBe('https://cdn.a.com/i.png');
+  });
+
+  it('prefers a valid meta iconUrl over the existing one', () => {
+    const existing: BrowserHistoryEntry[] = [
+      { title: 'A', url: 'https://a.com', lastVisitedAt: 1, visitCount: 1, iconUrl: 'https://cdn.a.com/i.png' },
+    ];
+    const result = mergeHistoryEntry(existing, 'https://a.com', { iconUrl: ' https://cdn.a.com/j.png ' }, {}, 5);
+    expect(result[0]?.iconUrl).toBe('https://cdn.a.com/j.png');
+  });
+
+  it('keeps an existing empty-string iconUrl when no other icon source exists (file: url)', () => {
+    const existing: BrowserHistoryEntry[] = [{ title: 'F', url: 'file:///f', lastVisitedAt: 1, visitCount: 1, iconUrl: '' }];
+    const result = mergeHistoryEntry(existing, 'file:///f', {}, {}, 5);
+    expect(result[0]).toEqual({ title: 'F', url: 'file:///f', lastVisitedAt: 5, visitCount: 2, iconUrl: '' });
+  });
+
+  it('merges a trailing-slash variant into the existing entry, keeping the existing url', () => {
+    const existing: BrowserHistoryEntry[] = [{ title: 'A', url: 'https://a.com/', lastVisitedAt: 1, visitCount: 1 }];
+    const result = mergeHistoryEntry(existing, 'https://a.com', {}, {}, 5);
+    expect(result).toEqual([
+      { title: 'A', url: 'https://a.com/', lastVisitedAt: 5, visitCount: 2, iconUrl: 'https://a.com/favicon.ico' },
+    ]);
+  });
+
+  it('returns a new array when only the iconUrl changes under countVisit false', () => {
+    const existing: BrowserHistoryEntry[] = [{ title: 'A', url: 'https://a.com', lastVisitedAt: 1, visitCount: 1 }];
+    const result = mergeHistoryEntry(existing, 'https://a.com', { title: 'A' }, { countVisit: false }, 5);
+    expect(result).toEqual([
+      { title: 'A', url: 'https://a.com', lastVisitedAt: 1, visitCount: 1, iconUrl: 'https://a.com/favicon.ico' },
+    ]);
+  });
+
+  it('counts a revisit even when it lands on the same timestamp as the last visit', () => {
+    const existing: BrowserHistoryEntry[] = [
+      { title: 'A', url: 'https://a.com', lastVisitedAt: 5, visitCount: 1, iconUrl: 'https://a.com/favicon.ico' },
+    ];
+    expect(mergeHistoryEntry(existing, 'https://a.com', {}, {}, 5)[0]?.visitCount).toBe(2);
+  });
+
+  it('caps the merged list at HISTORY_LIMIT', () => {
+    const existing: BrowserHistoryEntry[] = Array.from({ length: HISTORY_LIMIT }, (_, i) => ({
+      title: `T${i}`,
+      url: `https://s${i}.com`,
+      lastVisitedAt: i,
+      visitCount: 1,
+    }));
+    const result = mergeHistoryEntry(existing, 'https://new.com', {}, {}, 5);
+    expect(result).toHaveLength(HISTORY_LIMIT);
+  });
+
+  it('puts the new entry first when capping at HISTORY_LIMIT', () => {
+    const existing: BrowserHistoryEntry[] = Array.from({ length: HISTORY_LIMIT }, (_, i) => ({
+      title: `T${i}`,
+      url: `https://s${i}.com`,
+      lastVisitedAt: i,
+      visitCount: 1,
+    }));
+    const result = mergeHistoryEntry(existing, 'https://new.com', {}, {}, 5);
+    expect(result[0]?.url).toBe('https://new.com');
+  });
+});
+
+describe('recordNavigation boundaries', () => {
+  const stackOf = (...urls: string[]): BrowserNavigationState => ({
+    navigationStack: urls.map((url) => ({ title: url, url })),
+    navigationIndex: urls.length - 1,
+  });
+
+  it('derives the title from the url when the given title is whitespace-only', () => {
+    const result = recordNavigation(stackOf('https://a.com'), 'https://www.b.com', '   ');
+    expect(result.navigationStack[1]).toEqual({ title: 'b.com', url: 'https://www.b.com' });
+  });
+
+  it('trims a given title', () => {
+    const result = recordNavigation(stackOf('https://a.com'), 'https://b.com', '  B  ');
+    expect(result.navigationStack[1]?.title).toBe('B');
+  });
+
+  it('replaces the current entry url with the new url when it matches only by trailing slash', () => {
+    const result = recordNavigation(stackOf('https://a.com/'), 'https://a.com', 'A');
+    expect(result).toEqual({ navigationStack: [{ title: 'A', url: 'https://a.com' }], navigationIndex: 0 });
+  });
+
+  it('ignores a pendingTarget when replacePendingTarget is not set', () => {
+    const result = recordNavigation(stackOf('https://a.com'), 'https://b.com', 'B', { pendingTarget: 'https://a.com' });
+    expect(result.navigationIndex).toBe(1);
+  });
+
+  it('ignores replacePendingTarget when there is no pendingTarget', () => {
+    const result = recordNavigation(stackOf('https://a.com'), 'https://b.com', 'B', { replacePendingTarget: true });
+    expect(result.navigationIndex).toBe(1);
+  });
+
+  it('ignores replacePendingTarget with a null pendingTarget', () => {
+    const result = recordNavigation(stackOf('https://a.com'), 'https://b.com', 'B', {
+      replacePendingTarget: true,
+      pendingTarget: null,
+    });
+    expect(result.navigationIndex).toBe(1);
+  });
+
+  it('rejoins stack[0] from navigationIndex -1 via the next-index check', () => {
+    const state: BrowserNavigationState = { navigationStack: [{ title: 'A', url: 'https://a.com' }], navigationIndex: -1 };
+    expect(recordNavigation(state, 'https://a.com', 'A2')).toEqual({
+      navigationStack: [{ title: 'A2', url: 'https://a.com' }],
+      navigationIndex: 0,
+    });
+  });
+
+  it('caps the stack at HISTORY_LIMIT, dropping the oldest entry', () => {
+    const urls = Array.from({ length: HISTORY_LIMIT }, (_, i) => `https://s${i}.com`);
+    const result = recordNavigation(stackOf(...urls), 'https://new.com', 'N');
+    expect(result.navigationStack.map((e) => e.url)).toEqual([...urls.slice(1), 'https://new.com']);
+  });
+
+  it('points navigationIndex at the last entry after capping', () => {
+    const urls = Array.from({ length: HISTORY_LIMIT }, (_, i) => `https://s${i}.com`);
+    const result = recordNavigation(stackOf(...urls), 'https://new.com', 'N');
+    expect(result.navigationIndex).toBe(HISTORY_LIMIT - 1);
+  });
+
+  it('does not mutate the input stack when updating in place', () => {
+    const state = stackOf('https://a.com');
+    recordNavigation(state, 'https://a.com', 'Renamed');
+    expect(state.navigationStack[0]?.title).toBe('https://a.com');
+  });
+
+  it('labels a navigation to EMPTY_URL with the home label even when a title is given', () => {
+    const result = recordNavigation(stackOf('https://a.com'), EMPTY_URL, 'Ignored', { homeLabel: 'Start' });
+    expect(result.navigationStack[1]).toEqual({ title: 'Start', url: EMPTY_URL });
+  });
+});

@@ -10,7 +10,17 @@
   "dependencies": {
     "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/daemon": "workspace:*",
+    "@jini-ai/db": "workspace:*",
+    "@jini-ai/http-kit": "workspace:*",
+    "@jini-ai/oauth": "workspace:*",
     "@jini-ai/platform": "workspace:*",
-    "@jini-ai/server": "workspace:*"
+    "@jini-ai/registry": "workspace:*",
+    "@jini-ai/server": "workspace:*",
+    "@jini-ai/sidecar": "workspace:*",
+    "better-sqlite3": "^13.0.0",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11"
   }
 }

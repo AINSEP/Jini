@@ -3,7 +3,7 @@
  * "long-running task finished" style completion signals.
  *
  * Origin: `utils/notifications.ts`. Genericized in two places (see
- * `packages/ui/source-map.md`):
+ * `packages/ui/archived provenance ledger`):
  *   - `labelKey: keyof Dict` (OD's fixed translation dictionary type)
  *     widened to a plain `string` — this package's i18n feature has no
  *     fixed `Dict` shape for a sound catalog to key into.
@@ -65,7 +65,7 @@ interface ToneSpec {
   // Every real SOUND_PLAYERS entry (this type's only caller) always
   // supplies an explicit gain, so this is required rather than optional
   // with a fallback — an unreachable-by-any-real-caller default is dead
-  // code, not real API surface (see packages/ui/source-map.md).
+  // code, not real API surface (see packages/ui/archived provenance ledger).
   gain: number;
   /** Optional lowpass cutoff applied via a BiquadFilter for plucky textures. */
   lowpass?: number;

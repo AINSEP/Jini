@@ -7,10 +7,10 @@
  * consume — in particular the `check` text `verify.ts`'s
  * `ActiveRuleForVerify.check` expects a host to supply. Ported from the
  * `memory-capability-barrel` branch's `memory/rules/rules.ts`
- * `parseRuleBody` (see `source-map.md`'s "Barrel branch reconciliation"
+ * `parseRuleBody` (see `archived provenance ledger`'s "Barrel branch reconciliation"
  * section) — a standalone, zero-product-noun text parser with no coupling
  * to that file's annotation/LLM distillation machinery, which was not
- * ported (see `source-map.md`).
+ * ported (see `archived provenance ledger`).
  *
  * Tolerant by design: a body with no recognized labels falls back to
  * treating its first line as the assertion, since a user may type a rule's
@@ -29,6 +29,13 @@ export interface ParsedRuleBody {
 
 const LABELED_LINE_RE = /^([A-Za-z][A-Za-z ]*?):\s*(.*)$/;
 
+const RULE_LABEL_FIELDS = new Map<string, keyof ParsedRuleBody>([
+  ['assertion', 'assertion'],
+  ['check', 'check'],
+  ['verified by', 'rationale'],
+  ['rationale', 'rationale'],
+]);
+
 /**
  * Parse a rule note body's `Assertion:`/`Check:`/`Verified by:`/`Rationale:`
  * labeled lines into `{ assertion, check, rationale }`. Each label is taken
@@ -41,10 +48,8 @@ const LABELED_LINE_RE = /^([A-Za-z][A-Za-z ]*?):\s*(.*)$/;
  *   `Check:` line is present, and `assertion` defaults to the body's first
  *   line when no `Assertion:` line is present.
  */
-export function parseRuleBody(body: string): ParsedRuleBody {
-  let assertion = '';
-  let check = '';
-  let rationale = '';
+export function parseRuleBody({ body }: { body: string }): ParsedRuleBody {
+  const fields: ParsedRuleBody = { assertion: '', check: '', rationale: '' };
 
   for (const rawLine of body.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -57,21 +62,16 @@ export function parseRuleBody(body: string): ParsedRuleBody {
     const label = match[1]!.toLowerCase();
     const value = match[2]!.trim();
     if (value.length === 0) continue;
-    if (label === 'assertion' && assertion.length === 0) {
-      assertion = value;
-    } else if (label === 'check' && check.length === 0) {
-      check = value;
-    } else if ((label === 'verified by' || label === 'rationale') && rationale.length === 0) {
-      rationale = value;
-    }
+    const field = RULE_LABEL_FIELDS.get(label);
+    if (field !== undefined && fields[field].length === 0) fields[field] = value;
   }
 
-  if (assertion.length === 0) {
+  if (fields.assertion.length === 0) {
     // `String.prototype.split` always returns a non-empty array (at least
     // one element, `''` at the empty extreme), so index 0 is always
     // defined here — the assertion is TS-required, not reachable-undefined.
-    assertion = body.trim().split(/\r?\n/)[0]!.trim();
+    fields.assertion = body.trim().split(/\r?\n/)[0]!.trim();
   }
 
-  return { assertion, check: check.length > 0 ? check : assertion, rationale };
+  return { ...fields, check: fields.check.length > 0 ? fields.check : fields.assertion };
 }

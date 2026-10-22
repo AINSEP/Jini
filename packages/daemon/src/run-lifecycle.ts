@@ -4,7 +4,7 @@
  * never a product-record identifier), generalized from OD's `design.runs` service
  * (`apps/daemon/src/runtimes/runs.ts` + the terminal-decision half of
  * `apps/daemon/src/runtimes/start-chat-run.ts`, `arch/server-startserver-endgame`
- * branch — see `source-map.md` for exact line citations).
+ * branch — see `archived provenance ledger` for exact line citations).
  *
  * Scope boundary: this module owns the run *state machine* and its event
  * log — create, transition, emit, replay, cancellation-intent propagation,
@@ -40,12 +40,12 @@ export interface StartRunInput {
    * returns the original run (`started: false`) instead of creating a
    * second one — new behavior this port builds fresh, since OD's own
    * `clientRequestId` is threaded through but never actually deduplicated
-   * against (confirmed absent upstream; see `source-map.md`).
+   * against (confirmed absent upstream; see `archived provenance ledger`).
    */
   readonly idempotencyKey?: string;
   /** Override the generated run id — test/fixture hook only. */
   readonly runId?: string;
-  /** When set, arms an inactivity watchdog that fails the run as a resumable failure if no `emit()` occurs within this window. */
+  /** When set, arms an inactivity watchdog that fails the run permanently if no `emit()` occurs within this window. */
   readonly inactivityTimeoutMs?: number;
 }
 
@@ -95,23 +95,23 @@ export type StreamSubscribeResult = { readonly kind: 'ok'; readonly unsubscribe:
 
 export interface RunLifecycle {
   /** Rebuilds the in-memory run index from durable EventLog records. Hosts must await this once during boot before accepting run requests. */
-  rehydrate(): Promise<void>;
-  start(input: StartRunInput): Promise<StartRunResult>;
-  get(runId: string): Promise<RunStatus | undefined>;
-  list(contextRef?: string): Promise<readonly RunStatus[]>;
+  rehydrate(_args: Record<string, never>): Promise<void>;
+  start(requiredArgs: Pick<StartRunInput, "contextRef">, optionalArgs?: Pick<StartRunInput, "agentId" | "idempotencyKey" | "runId" | "inactivityTimeoutMs">): Promise<StartRunResult>;
+  get(args: { readonly runId: string }): Promise<RunStatus | undefined>;
+  list(args: Record<string, never>, optionalArgs?: { readonly contextRef?: string }): Promise<readonly RunStatus[]>;
   /** Records cancellation intent. Idempotent — cancelling an already-terminal run is a no-op, not an error. */
   cancel(request: RunCancelRequest): Promise<RunStatus>;
   /** Registers a listener fired synchronously when `cancel()` is called for `runId`. Returns an unsubscribe function. */
-  onCancelRequested(runId: string, listener: (request: RunCancelRequest) => void): Unsubscribe;
+  onCancelRequested(args: { readonly runId: string; readonly listener: (request: RunCancelRequest) => void }): Unsubscribe;
   /** Appends a driver-observed event and fans it out to live subscribers. Throws if `runId` is unknown or already terminal. */
-  emit(runId: string, input: DriverEmittableInput): Promise<RunProtocolEvent>;
+  emit(args: { readonly runId: string; readonly input: DriverEmittableInput }): Promise<RunProtocolEvent>;
   /** Idempotent terminal transition; a second call while already terminal is a no-op that returns the existing status unchanged. */
-  finish(input: FinishRunInput): Promise<RunStatus>;
-  resume(runId: string): Promise<ResumeRunResult>;
+  finish(requiredArgs: Pick<FinishRunInput, "runId" | "status" | "code" | "signal" | "resumable">, optionalArgs?: Pick<FinishRunInput, "sessionRef">): Promise<RunStatus>;
+  resume(args: { readonly runId: string }): Promise<ResumeRunResult>;
   /**
    * Suspends the slow-run watchdog for `runId` while a daemon-managed operation of legitimately
    * unbounded duration is in flight (e.g. an auto-resolved tool call the daemon itself awaits) — pair
-   * with {@link RunLifecycle.resumeSlowRunNotice} once that operation concludes. `emit()` is the
+   * with {@link RunLifecycle.resumeSlowRunNotice} once that operation concludes. `emit()` of an agent event (excluding the notice itself) is the
    * *only* other reset signal the watchdog has, and it fires nothing while such an operation is
    * running (there is no output to stream), so without this call a tool that legitimately runs past
    * the threshold (an install, a build, a repo-wide scan) is indistinguishable from the exact
@@ -119,17 +119,18 @@ export interface RunLifecycle {
    * on a run that never actually stalled. A driver that knows exactly why a run is quiet must say so
    * rather than leaving the watchdog to guess from silence alone. No-op if `runId` is unknown,
    * already terminal, or the slow-run notice is disabled kernel-wide (`slowRunThresholdMs: null`).
+   * Pairs nest: the notice stays suspended until every open suspension has been resumed.
    */
-  suspendSlowRunNotice(runId: string): void;
+  suspendSlowRunNotice(args: { readonly runId: string }): void;
   /**
    * Re-arms the slow-run watchdog for `runId` with a fresh timeout window, undoing
    * {@link RunLifecycle.suspendSlowRunNotice} once the known operation concludes — so a genuinely
    * stalled stretch starting *after* that point is still caught. No-op under the same conditions as
    * `suspendSlowRunNotice`.
    */
-  resumeSlowRunNotice(runId: string): void;
+  resumeSlowRunNotice(args: { readonly runId: string }): void;
   /** Resolves once `runId` reaches a terminal state; resolves immediately if it already has. */
-  waitForTerminal(runId: string): Promise<RunStatus>;
+  waitForTerminal(args: { readonly runId: string }): Promise<RunStatus>;
   /**
    * Replays buffered history after `options.afterCursor` (or from the
    * beginning if omitted/null) and then subscribes `onEvent` for live
@@ -139,7 +140,7 @@ export interface RunLifecycle {
    * of the final `'end'` event, so a client can never silently miss the
    * terminal signal (`runs.ts` `stream()`, researched source).
    */
-  stream(runId: string, onEvent: (event: RunProtocolEvent) => void, options?: StreamOptions): Promise<StreamSubscribeResult>;
+  stream(args: { readonly runId: string; readonly onEvent: (event: RunProtocolEvent) => void }, optionalArgs?: StreamOptions): Promise<StreamSubscribeResult>;
 }
 
 interface RunRecord {
@@ -172,6 +173,12 @@ interface RunRecord {
    * anything. See {@link armSlowRunWatchdogIfConfigured}.
    */
   slowRunWatchdog: InactivityWatchdog | undefined;
+  /**
+   * How many {@link RunLifecycle.suspendSlowRunNotice} calls are still open for this run. A count,
+   * not a flag: two delegated calls can be in flight at once (one parked on a human's form, one a
+   * plain tool), and the first to finish must not re-arm the notice over the other's open form.
+   */
+  slowRunSuspensions: number;
   /** Pending durable start append; idempotent duplicates wait for it instead of observing a ghost record. */
   startPromise: Promise<void> | undefined;
   /** Serializes concurrent terminal transitions while state remains non-terminal until the end append commits. */
@@ -265,7 +272,7 @@ function rehydratedStatus(
 function rehydratedRunRecord(
   runId: string,
   entries: readonly EventLogEntry[],
-): { record: RunRecord; idempotencyKey: string | undefined; isTerminal: boolean } {
+): { record: RunRecord; idempotencyKey: string | undefined; terminalAt: number | undefined } {
   const startEntry = entries.find((entry) => entry.event === 'start');
   const endEntry = [...entries].reverse().find((entry) => entry.event === 'end');
   const firstEntry = entries[0]!;
@@ -286,12 +293,15 @@ function rehydratedRunRecord(
       terminalEndEntry: endEntry,
       watchdog: undefined,
       slowRunWatchdog: undefined,
+      slowRunSuspensions: 0,
       startPromise: undefined,
       finishPromise: undefined,
       retentionTimer: undefined,
     },
     idempotencyKey,
-    isTerminal: terminal !== null,
+    // Terminal exactly when the log holds an 'end' entry (`terminal` is derived from it), so the
+    // end entry's own timestamp is the terminal time — never a "now" substitute.
+    terminalAt: endEntry?.recordedAt,
   };
 }
 
@@ -319,19 +329,14 @@ function terminalStateFromEndEntry(entry: EventLogEntry): { state: TerminalRunOu
  * or `undefined` when there is no key or no existing mapping (a fresh start proceeds normally).
  * Pure.
  */
-export function resolveIdempotentReplayRunId(
-  idempotencyIndex: ReadonlyMap<string, string>,
-  idempotencyKey: string | undefined,
+export function resolveIdempotentReplayRunId({ idempotencyIndex, idempotencyKey }: { readonly idempotencyIndex: ReadonlyMap<string, string>; readonly idempotencyKey: string | undefined }
 ): string | undefined {
   if (idempotencyKey === undefined) return undefined;
   return idempotencyIndex.get(idempotencyKey);
 }
 
 /** Registers `runId` under `idempotencyKey` in `idempotencyIndex` — a no-op when no key was supplied. */
-export function registerIdempotencyKeyIfPresent(
-  idempotencyIndex: Map<string, string>,
-  idempotencyKey: string | undefined,
-  runId: string,
+export function registerIdempotencyKeyIfPresent({ idempotencyIndex, idempotencyKey, runId }: { readonly idempotencyIndex: Map<string, string>; readonly idempotencyKey: string | undefined; readonly runId: string }
 ): void {
   if (idempotencyKey === undefined) return;
   idempotencyIndex.set(idempotencyKey, runId);
@@ -343,10 +348,7 @@ export function registerIdempotencyKeyIfPresent(
  * run that may have since claimed the same key (defensive; `start()`'s own locking makes that
  * race unreachable today, but the check costs nothing and documents the invariant).
  */
-export function clearIdempotencyIndexEntryIfMatching(
-  idempotencyIndex: Map<string, string>,
-  idempotencyKey: string | undefined,
-  runId: string,
+export function clearIdempotencyIndexEntryIfMatching({ idempotencyIndex, idempotencyKey, runId }: { readonly idempotencyIndex: Map<string, string>; readonly idempotencyKey: string | undefined; readonly runId: string }
 ): void {
   if (idempotencyKey !== undefined && idempotencyIndex.get(idempotencyKey) === runId) {
     idempotencyIndex.delete(idempotencyKey);
@@ -376,7 +378,7 @@ export const DEFAULT_MAX_TERMINAL_RUNS = 1000;
 
 /**
  * Default wall-clock threshold for the slow-run notice (distinct from the crash/inactivity watchdog
- * above): how long a run may go with no `emit()` before a `'slow_running'` agent event tells the UI
+ * above): how long a run may go with no agent-event `emit()` (excluding the notice itself) before a `'slow_running'` agent event tells the UI
  * "this is taking longer than usual," without ever finishing the run. See {@link armSlowRunWatchdogIfConfigured}'s
  * doc for the full "why a second, non-terminating watchdog" rationale. 45s was picked as long enough
  * that an ordinary quiet stretch (the agent thinking between tool calls, a slow but healthy model
@@ -394,14 +396,12 @@ export const DEFAULT_SLOW_RUN_THRESHOLD_MS = 45_000;
  * where a run may have gone terminal long before this process started) schedules an immediate
  * eviction rather than a negative-delay timer. Pure.
  */
-export function computeRetentionDelayMs(terminalAt: number, retentionMs: number, now: number): number {
+export function computeRetentionDelayMs({ terminalAt, retentionMs, now }: { readonly terminalAt: number; readonly retentionMs: number; readonly now: number }): number {
   return Math.max(0, retentionMs - (now - terminalAt));
 }
 
 /** The durable `'start'` entry's payload — pure field mapping, split out of `start()` so its two optional-field spreads don't count toward that method's own complexity. */
-export function buildStartPayload(
-  runId: string,
-  startInput: Pick<StartRunInput, 'contextRef' | 'agentId' | 'idempotencyKey'>,
+export function buildStartPayload({ runId, startInput }: { readonly runId: string; readonly startInput: Pick<StartRunInput, 'contextRef' | 'agentId' | 'idempotencyKey'> }
 ): RunStartPayload {
   return {
     runId,
@@ -416,10 +416,7 @@ export function buildStartPayload(
  * plain `{watchdog}` shape (not `Pick<RunRecord, 'watchdog'>`) purely so this function can be
  * exported without naming the private `RunRecord` type in a public signature.
  */
-export function armWatchdogIfConfigured(
-  record: { watchdog: InactivityWatchdog | undefined },
-  timeoutMs: number | undefined,
-  onTimeout: () => void,
+export function armWatchdogIfConfigured({ record, timeoutMs, onTimeout }: { readonly record: { watchdog: InactivityWatchdog | undefined }; readonly timeoutMs: number | undefined; readonly onTimeout: () => void }
 ): void {
   if (timeoutMs === undefined) return;
   record.watchdog = createInactivityWatchdog({ timeoutMs, onTimeout });
@@ -435,10 +432,7 @@ export function armWatchdogIfConfigured(
  * three-line dedup. `record` is typed as a plain `{slowRunWatchdog}` shape for the same exportability
  * reason {@link armWatchdogIfConfigured} already documents.
  */
-export function armSlowRunWatchdogIfConfigured(
-  record: { slowRunWatchdog: InactivityWatchdog | undefined },
-  timeoutMs: number | undefined,
-  onTimeout: () => void,
+export function armSlowRunWatchdogIfConfigured({ record, timeoutMs, onTimeout }: { readonly record: { slowRunWatchdog: InactivityWatchdog | undefined }; readonly timeoutMs: number | undefined; readonly onTimeout: () => void }
 ): void {
   if (timeoutMs === undefined) return;
   record.slowRunWatchdog = createInactivityWatchdog({ timeoutMs, onTimeout });
@@ -450,10 +444,7 @@ export function armSlowRunWatchdogIfConfigured(
  * (buffered live events observed during the replay, a terminal catch-up event). Pure aside from
  * calling the injected `onEvent`.
  */
-export function deliverReplayedEvents(
-  runId: string,
-  entries: readonly EventLogEntry[],
-  onEvent: (event: RunProtocolEvent) => void,
+export function deliverReplayedEvents({ runId, entries, onEvent }: { readonly runId: string; readonly entries: readonly EventLogEntry[]; readonly onEvent: (event: RunProtocolEvent) => void }
 ): Set<string> {
   const deliveredEventIds = new Set<string>();
   for (const entry of entries) {
@@ -469,10 +460,7 @@ export function deliverReplayedEvents(
  * delivered as it goes. Reused in `stream()` for both the buffered-live-event catch-up and the
  * single terminal-event catch-up, so the "don't double-deliver" bookkeeping lives in one place.
  */
-export function deliverUndeliveredEvents(
-  events: readonly RunProtocolEvent[],
-  deliveredEventIds: Set<string>,
-  onEvent: (event: RunProtocolEvent) => void,
+export function deliverUndeliveredEvents({ events, deliveredEventIds, onEvent }: { readonly events: readonly RunProtocolEvent[]; readonly deliveredEventIds: Set<string>; readonly onEvent: (event: RunProtocolEvent) => void }
 ): void {
   for (const event of events) {
     if (!deliveredEventIds.has(event.eventId)) {
@@ -488,10 +476,7 @@ export function deliverUndeliveredEvents(
  * registered behind the returned `unsubscribe`. `record` is typed as a plain `{subscribers}` shape
  * for the same exportability reason as {@link armWatchdogIfConfigured}.
  */
-export function finishStreamSubscription(
-  record: { subscribers: Set<(event: RunProtocolEvent) => void> },
-  subscriber: (event: RunProtocolEvent) => void,
-  terminal: boolean,
+export function finishStreamSubscription({ record, subscriber, terminal }: { readonly record: { subscribers: Set<(event: RunProtocolEvent) => void> }; readonly subscriber: (event: RunProtocolEvent) => void; readonly terminal: boolean }
 ): StreamSubscribeResult {
   if (terminal) {
     record.subscribers.delete(subscriber);
@@ -524,6 +509,7 @@ function buildNewRunRecord(
     terminalEndEntry: undefined,
     watchdog: undefined,
     slowRunWatchdog: undefined,
+    slowRunSuspensions: 0,
     startPromise: undefined,
     finishPromise: undefined,
     retentionTimer: undefined,
@@ -539,7 +525,16 @@ export interface CreateRunLifecycleInput {
   /** Hard cap on concurrently-retained terminal run records. See {@link DEFAULT_MAX_TERMINAL_RUNS}. Defaults to that constant. */
   readonly maxTerminalRuns?: number;
   /**
-   * How long a run may go with no `emit()` before a `'slow_running'` agent event tells the UI the
+   * When `true`, evicting a terminal run record (retention timer or `maxTerminalRuns` cap) also calls
+   * `eventLog.drop()` for it, giving the run's events the same lifetime as its record. Off by default
+   * because a durable adapter's `drop()` deletes stored rows (`@jini-ai/daemon/store/event-log/sqlite`),
+   * which would turn a memory bound into data loss for a host that never asked for it; a host whose
+   * log is in-memory only can opt in. A failed drop is reported through `onInternalError`
+   * (`source: 'event-log-drop'`).
+   */
+  readonly dropEventsOnEviction?: boolean;
+  /**
+   * How long a run may go with no agent-event `emit()` (excluding the notice itself) before a `'slow_running'` agent event tells the UI the
    * turn is taking longer than usual — never a terminating action; see
    * {@link armSlowRunWatchdogIfConfigured}'s doc. Applies kernel-wide to every `start()`ed run, unlike
    * `StartRunInput.inactivityTimeoutMs` (which requires a per-call opt-in and none of this codebase's
@@ -551,7 +546,7 @@ export interface CreateRunLifecycleInput {
 }
 
 export interface RunLifecycleInternalErrorContext {
-  readonly source: 'inactivity-timeout' | 'slow-run-notice';
+  readonly source: 'inactivity-timeout' | 'slow-run-notice' | 'event-log-drop';
   readonly runId: string;
   readonly error: unknown;
 }
@@ -562,11 +557,13 @@ export interface RunLifecycleInternalErrorContext {
  * @param input.eventLog - The durable `EventLog` port this lifecycle appends to and replays from.
  * @param input.terminalRetentionMs - See {@link CreateRunLifecycleInput.terminalRetentionMs}.
  * @param input.maxTerminalRuns - See {@link CreateRunLifecycleInput.maxTerminalRuns}.
+ * @param input.dropEventsOnEviction - See {@link CreateRunLifecycleInput.dropEventsOnEviction}.
  * @returns A `RunLifecycle` backed by an in-memory run registry plus the injected `EventLog`.
  * @complexity Per-call complexities documented on each method; the registry itself is a `Map` keyed by `runId` (O(1) lookup). Memory is bounded: non-terminal runs are O(n) in concurrently-live runs, and terminal runs are capped at `maxTerminalRuns` (each additionally bounded in retention time by `terminalRetentionMs`) rather than growing for the life of the process.
  * @overallScore 100/100
  */
-export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle {
+export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "eventLog">, optionalArgs: Pick<CreateRunLifecycleInput, "onInternalError" | "terminalRetentionMs" | "maxTerminalRuns" | "slowRunThresholdMs" | "dropEventsOnEviction"> = {}): RunLifecycle {
+  const input: CreateRunLifecycleInput = { ...requiredArgs, ...optionalArgs };
   const { eventLog } = input;
   const terminalRetentionMs = input.terminalRetentionMs ?? DEFAULT_TERMINAL_RETENTION_MS;
   const maxTerminalRuns = input.maxTerminalRuns ?? DEFAULT_MAX_TERMINAL_RUNS;
@@ -616,7 +613,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
   /** `start()`'s phase 2: appends the durable `'start'` entry, rolling back the in-memory record and idempotency-index entry on failure. */
   async function appendStartOrRollback(runId: string, record: RunRecord, startInput: StartRunInput): Promise<void> {
-    const startPayload = buildStartPayload(runId, startInput);
+    const startPayload = buildStartPayload({ runId: runId, startInput: startInput });
     const startPromise = appendEvent(runId, record, 'start', startPayload).then(() => undefined);
     record.startPromise = startPromise;
     try {
@@ -624,7 +621,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       record.startPromise = undefined;
     } catch (error) {
       runs.delete(runId);
-      clearIdempotencyIndexEntryIfMatching(idempotencyIndex, startInput.idempotencyKey, runId);
+      clearIdempotencyIndexEntryIfMatching({ idempotencyIndex: idempotencyIndex, idempotencyKey: startInput.idempotencyKey, runId: runId });
       throw error;
     }
   }
@@ -675,7 +672,29 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     if (!record) return;
     record.retentionTimer = undefined;
     runs.delete(runId);
-    clearIdempotencyIndexEntryIfMatching(idempotencyIndex, record.idempotencyKey, runId);
+    clearIdempotencyIndexEntryIfMatching({ idempotencyIndex: idempotencyIndex, idempotencyKey: record.idempotencyKey, runId: runId });
+    if (input.dropEventsOnEviction === true) void dropEvictedRunEvents(runId);
+  }
+
+  /** `evictTerminalRun`'s opt-in event drop (see `CreateRunLifecycleInput.dropEventsOnEviction`). Runs from a timer, so a failure is reported, never thrown. */
+  async function dropEvictedRunEvents(runId: string): Promise<void> {
+    try {
+      await eventLog.drop({ runId });
+    } catch (error) {
+      reportInternalError({ source: 'event-log-drop', runId, error });
+    }
+  }
+
+  /** Hands `context` to `onInternalError` (or `console.error`), containing a throwing sink. */
+  function reportInternalError(context: RunLifecycleInternalErrorContext): void {
+    try {
+      if (input.onInternalError) input.onInternalError(context);
+      // eslint-disable-next-line no-console
+      else console.error(`[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})`, context.error);
+    } catch (sinkError) {
+      // eslint-disable-next-line no-console
+      console.error(`[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})`, sinkError);
+    }
   }
 
   /** Trims the oldest terminal records until `terminalRunOrder` is back at or under `maxTerminalRuns`. */
@@ -695,7 +714,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
    */
   function trackTerminalRun(runId: string, record: RunRecord, terminalAt: number): void {
     terminalRunOrder.push(runId);
-    const delay = computeRetentionDelayMs(terminalAt, terminalRetentionMs, Date.now());
+    const delay = computeRetentionDelayMs({ terminalAt: terminalAt, retentionMs: terminalRetentionMs, now: Date.now() });
     const timer = setTimeout(() => evictTerminalRun(runId), delay);
     if (typeof timer.unref === 'function') timer.unref();
     record.retentionTimer = timer;
@@ -713,36 +732,33 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
   /**
    * Fires when a run's inactivity watchdog times out with no intervening
-   * `emit()`/`finish()`. Classified as a resumable failure (`code: null,
-   * signal: null`), mirroring OD's own timeout/inactivity classification
-   * (`isResumableFailure` in the researched `run-failure-classification.ts`
-   * treats timeout/inactivity as one of only two resumable categories).
+   * `emit()`/`finish()`. A deliberate watchdog kill is permanent: automatically restarting
+   * it would undo the operator's inactivity policy. Other unexpected process failures still
+   * retain their original runtime classification.
    *
-   * The `!record || isTerminalRunState(...)` guard below is defensive only and is currently
-   * unreachable through the public API — deliberately kept, not fake-tested, and the reason is
-   * recorded here so the next reader does not spend time trying to cover it:
+   * There is deliberately no "run missing or already terminal" guard here (an earlier
+   * `!record || isTerminalRunState(...)` guard was removed as unreachable through the public API,
+   * and the handler needs nothing from the record — it acts through `lifecycle.emit`/`finish` by id):
    *
-   * - `isTerminalRunState(...)`: every route to a terminal state runs through `finish()`, which
+   * - terminal: every route to a terminal state runs through `finish()`, which
    *   calls `record.watchdog?.cancel()` and assigns `record.status.state` in the *same synchronous
    *   block* after its durable end append resolves. There is no interleaving point between the two,
    *   so "watchdog still armed" and "record already terminal" cannot both hold when this fires. (If
    *   the end append *throws*, the watchdog stays armed but the run also stays non-terminal.)
-   * - `!record`: the only `runs.delete()` is `start()`'s unwind on a failed durable start append,
-   *   which happens strictly before the watchdog is armed a few lines later. It is also required
-   *   for type-narrowing `record` before `record.status.state` is read, so it cannot simply be
-   *   dropped.
+   * - missing: the only `runs.delete()` calls are `start()`'s unwind on a failed durable start
+   *   append, which happens strictly before the watchdog is armed a few lines later, and terminal
+   *   eviction, which only ever touches runs whose watchdog `finish()` already cancelled. And
+   *   `createInactivityWatchdog` never calls `onTimeout` after `cancel()`.
    *
-   * Note the "start/finish race" test below does *not* exercise this guard despite its name: by the
+   * Note the "start/finish race" test below does *not* exercise this handler despite its name: by the
    * time it advances the timers, `finish()` has already cancelled the watchdog, so the callback
    * never runs at all. It still correctly asserts that no second `finish()` happens.
    */
   async function handleInactivityTimeout(runId: string): Promise<void> {
-    const record = runs.get(runId);
-    if (!record || isTerminalRunState(record.status.state)) {
-      return;
-    }
     try {
-      await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
+      // A deliberate inactivity kill is permanent for this attempt, not an auto-resume signal.
+      await lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'Stopped by inactivity watchdog', detail: 'inactivity-watchdog' } } });
+      await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
     } catch (error) {
       const context: RunLifecycleInternalErrorContext = { source: 'inactivity-timeout', runId, error };
       try {
@@ -770,29 +786,25 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
    * one — see that variant's own doc in `@jini-ai/protocol`'s `events.ts` for why: nothing in this
    * codebase renders `'status'` events today, so reusing it here would have shipped an invisible fix.
    *
-   * The `!record || isTerminalRunState(...)` guard mirrors {@link handleInactivityTimeout}'s own
-   * (see that function's doc for why it is unreachable-but-kept there); it is reachable here in one
-   * more case worth naming: `finish()` cancels `record.slowRunWatchdog` synchronously before its
+   * Like {@link handleInactivityTimeout}, it has no "run missing or already terminal" guard (see
+   * that function's doc for why such a guard is unreachable). One more case is worth naming:
+   * `finish()` cancels `record.slowRunWatchdog` synchronously before its
    * `record.status.state` write ever yields, so between this timer firing and `emit()` actually
    * running there is no window where a normal `finish()` could race it — but `emit()` itself can
    * still legitimately throw (e.g. a `finishPromise` in flight from a concurrent `cancel()`-driven
-   * finish that started after this callback's own `runs.get()` read but before its `emit()` call
+   * finish that started after this callback fired but before its `emit()` call
    * completes its internal `await record.startPromise`), which is exactly what the `try`/`catch`
    * below contains rather than letting escape as an unhandled rejection.
    */
   async function handleSlowRunNotice(runId: string): Promise<void> {
-    const record = runs.get(runId);
-    if (!record || isTerminalRunState(record.status.state)) {
-      return;
-    }
     try {
-      await lifecycle.emit(runId, {
+      await lifecycle.emit({ runId: runId, input: {
         event: 'agent',
         data: {
           type: 'slow_running',
           detail: 'Still working — this turn is taking longer than usual.',
         },
-      });
+      } });
     } catch (error) {
       const context: RunLifecycleInternalErrorContext = { source: 'slow-run-notice', runId, error };
       try {
@@ -817,26 +829,27 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
    */
   async function rehydrateOne(runId: string): Promise<'skipped' | 'terminal' | 'non-terminal'> {
     if (runs.has(runId)) return 'skipped';
-    const replay = await eventLog.replay(runId, null);
+    const replay = await eventLog.replay({ runId: runId, afterCursor: null });
     if (replay.kind !== 'ok' || replay.entries.length === 0) return 'skipped';
 
-    const { record, idempotencyKey, isTerminal } = rehydratedRunRecord(runId, replay.entries);
+    const { record, idempotencyKey, terminalAt } = rehydratedRunRecord(runId, replay.entries);
     runs.set(runId, record);
     if (idempotencyKey !== undefined) idempotencyIndex.set(idempotencyKey, runId);
     // `eventLog.listRunIds()` returns every run id the durable log has ever seen, with no bound of
     // its own — without this, a restart would re-populate `runs` with the daemon's entire terminal
     // run history on every boot, reproducing the same unbounded growth this module now guards
     // against at runtime.
-    if (isTerminal) trackTerminalRun(runId, record, record.status.endedAt ?? Date.now());
-    return isTerminal ? 'terminal' : 'non-terminal';
+    if (terminalAt === undefined) return 'non-terminal';
+    trackTerminalRun(runId, record, terminalAt);
+    return 'terminal';
   }
 
   const lifecycle: RunLifecycle = {
-    async rehydrate(): Promise<void> {
+    async rehydrate(_args: Record<string, never>): Promise<void> {
       if (hydration) return hydration;
       hydration = (async () => {
         const rehydratedNonTerminalRunIds: string[] = [];
-        for (const runId of await eventLog.listRunIds()) {
+        for (const runId of await eventLog.listRunIds({  })) {
           if (await rehydrateOne(runId) === 'non-terminal') {
             rehydratedNonTerminalRunIds.push(runId);
           }
@@ -851,7 +864,8 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       return hydration;
     },
 
-    async start(startInput: StartRunInput): Promise<StartRunResult> {
+    async start(requiredArgs: Pick<StartRunInput, "contextRef">, optionalArgs: Pick<StartRunInput, "agentId" | "idempotencyKey" | "runId" | "inactivityTimeoutMs"> = {}): Promise<StartRunResult> {
+  const startInput: StartRunInput = { ...requiredArgs, ...optionalArgs };
       // Synchronous on purpose: `resolveIdempotentReplayRunId` does no I/O, and the common case
       // (no idempotencyKey, or a fresh one) must reach `runs.set()` below in the same synchronous
       // turn as this call — not after even one microtask tick — so a caller that races `finish()`
@@ -859,7 +873,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       // needs. Wrapping this check in its own `await`ed async function previously broke exactly
       // that: an `async function` always defers its continuation by a microtask even when its body
       // never itself awaits, which shifted `runs.set()` behind the racing `finish()` call.
-      const existingRunId = resolveIdempotentReplayRunId(idempotencyIndex, startInput.idempotencyKey);
+      const existingRunId = resolveIdempotentReplayRunId({ idempotencyIndex: idempotencyIndex, idempotencyKey: startInput.idempotencyKey });
       if (existingRunId !== undefined) {
         const existing = requireRun(existingRunId);
         await existing.startPromise;
@@ -873,21 +887,21 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
       const record = buildNewRunRecord(startInput, runId, Date.now());
       runs.set(runId, record);
-      registerIdempotencyKeyIfPresent(idempotencyIndex, startInput.idempotencyKey, runId);
+      registerIdempotencyKeyIfPresent({ idempotencyIndex: idempotencyIndex, idempotencyKey: startInput.idempotencyKey, runId: runId });
 
       await appendStartOrRollback(runId, record, startInput);
 
-      armWatchdogIfConfigured(record, startInput.inactivityTimeoutMs, () => {
+      armWatchdogIfConfigured({ record: record, timeoutMs: startInput.inactivityTimeoutMs, onTimeout: () => {
         void handleInactivityTimeout(runId);
-      });
-      armSlowRunWatchdogIfConfigured(record, slowRunThresholdMs, () => {
+      } });
+      armSlowRunWatchdogIfConfigured({ record: record, timeoutMs: slowRunThresholdMs, onTimeout: () => {
         void handleSlowRunNotice(runId);
-      });
+      } });
 
       return { run: toPublicStatus(record), started: true };
     },
 
-    async get(runId: string): Promise<RunStatus | undefined> {
+    async get({ runId }: { readonly runId: string }): Promise<RunStatus | undefined> {
       await settlePendingStart(runs.get(runId));
       // Re-read rather than reusing the record above: a failed start deletes it (see `start()`'s
       // unwind), and reporting a run whose durable `'start'` entry does not exist would advertise a
@@ -896,7 +910,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       return record ? toPublicStatus(record) : undefined;
     },
 
-    async list(contextRef?: string): Promise<readonly RunStatus[]> {
+    async list(_requiredArgs: Record<string, never>, { contextRef }: { readonly contextRef?: string } = {}): Promise<readonly RunStatus[]> {
       await Promise.all(Array.from(runs.values(), settlePendingStart));
       const all = Array.from(runs.values());
       const filtered = contextRef === undefined ? all : all.filter((record) => record.contextRef === contextRef);
@@ -909,7 +923,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       if (record.finishPromise) {
         return record.finishPromise;
       }
-      if (isTerminalRunState(record.status.state)) {
+      if (isTerminalRunState({ state: record.status.state })) {
         return toPublicStatus(record);
       }
       record.cancelRequested = true;
@@ -929,7 +943,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
      * happened would silently never learn about it, since a plain
      * subscribe-for-future-events registry has no memory of past firings.
      */
-    onCancelRequested(runId: string, listener: (request: RunCancelRequest) => void): Unsubscribe {
+    onCancelRequested({ runId, listener }: { readonly runId: string; readonly listener: (request: RunCancelRequest) => void }): Unsubscribe {
       const record = requireRun(runId);
       if (record.cancelRequested && record.lastCancelRequest) {
         listener(record.lastCancelRequest);
@@ -938,26 +952,32 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       return () => record.cancelListeners.delete(listener);
     },
 
-    async emit(runId: string, driverInput: DriverEmittableInput): Promise<RunProtocolEvent> {
+    async emit({ runId, input }: { readonly runId: string; readonly input: DriverEmittableInput }): Promise<RunProtocolEvent> {
       const record = requireRun(runId);
       await record.startPromise;
-      if (record.finishPromise || isTerminalRunState(record.status.state)) {
+      if (record.finishPromise || isTerminalRunState({ state: record.status.state })) {
         throw new Error(
-          `RunLifecycle: cannot emit "${driverInput.event}" on terminal run "${runId}" — drivers must stop emitting once finish() has been called`,
+          `RunLifecycle: cannot emit "${input.event}" on terminal run "${runId}" — drivers must stop emitting once finish() has been called`,
         );
       }
-      record.watchdog?.noteActivity();
-      record.slowRunWatchdog?.noteActivity();
-      return appendEvent(runId, record, driverInput.event, driverInput.data);
+      record.watchdog?.noteActivity({});
+      // The crash watchdog above counts ANY output (the process is alive). The slow-run notice asks
+      // a different question — "has the person seen anything new?" — so only `agent` events count.
+      // A CLI's raw stdout/stderr (e.g. Claude Code's 30 s `tool_progress` heartbeats during a long
+      // tool call) is not rendered, and letting it reset this window meant the notice could never
+      // fire during exactly the long, silent tool calls it exists for.
+      if (input.event === 'agent') record.slowRunWatchdog?.noteActivity({});
+      return appendEvent(runId, record, input.event, input.data);
     },
 
-    async finish(finishInput: FinishRunInput): Promise<RunStatus> {
+    async finish(requiredArgs: Pick<FinishRunInput, "runId" | "status" | "code" | "signal" | "resumable">, optionalArgs: Pick<FinishRunInput, "sessionRef"> = {}): Promise<RunStatus> {
+  const finishInput: FinishRunInput = { ...requiredArgs, ...optionalArgs };
       const record = requireRun(finishInput.runId);
       await record.startPromise;
       if (record.finishPromise) {
         return record.finishPromise;
       }
-      if (isTerminalRunState(record.status.state)) {
+      if (isTerminalRunState({ state: record.status.state })) {
         return toPublicStatus(record);
       }
       const finishing = (async (): Promise<RunStatus> => {
@@ -972,8 +992,8 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
         // Commit the in-memory terminal transition only after its durable end entry exists. Until
         // then `finishPromise` reserves the transition and blocks emits/concurrent finishes.
-        record.watchdog?.cancel();
-        record.slowRunWatchdog?.cancel();
+        record.watchdog?.cancel({});
+        record.slowRunWatchdog?.cancel({});
         record.status.state = finishInput.status;
         record.status.updatedAt = endEntry.recordedAt;
         record.status.endedAt = endEntry.recordedAt;
@@ -996,9 +1016,9 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       }
     },
 
-    async resume(runId: string): Promise<ResumeRunResult> {
+    async resume({ runId }: { readonly runId: string }): Promise<ResumeRunResult> {
       const record = requireRun(runId);
-      const eligible = isTerminalRunState(record.status.state) && record.resumable;
+      const eligible = isTerminalRunState({ state: record.status.state }) && record.resumable;
       if (!eligible) {
         return { run: toPublicStatus(record), resumed: false };
       }
@@ -1015,30 +1035,40 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       // freshly-started one does. Without this, `finish()`'s `record.slowRunWatchdog?.cancel()` (which
       // never fires again on its own — the underlying timer is one-shot) left the notice permanently
       // dark for the rest of a resumed run's life, silently disabling a feature the run is otherwise
-      // still eligible for.
-      armSlowRunWatchdogIfConfigured(record, slowRunThresholdMs, () => {
+      // still eligible for. Suspensions left open when the run ended can never be resumed (resume is a
+      // no-op on a terminal run), so they are dropped here or they would keep the notice dark forever.
+      record.slowRunSuspensions = 0;
+      armSlowRunWatchdogIfConfigured({ record: record, timeoutMs: slowRunThresholdMs, onTimeout: () => {
         void handleSlowRunNotice(runId);
-      });
+      } });
       // No protocol event is emitted here: none of RunProtocolEvent's six
       // kinds represents "resumed" (extraction-plan scope decision — see
-      // source-map.md). The event log's cursor sequence continues
+      // archived provenance ledger). The event log's cursor sequence continues
       // unbroken; only RunStatus.state changes.
       return { run: toPublicStatus(record), resumed: true };
     },
 
-    suspendSlowRunNotice(runId: string): void {
+    suspendSlowRunNotice({ runId }: { readonly runId: string }): void {
       const record = runs.get(runId);
-      if (!record || isTerminalRunState(record.status.state)) return;
-      record.slowRunWatchdog?.cancel();
+      if (!record || isTerminalRunState({ state: record.status.state })) return;
+      record.slowRunSuspensions += 1;
+      record.slowRunWatchdog?.cancel({});
     },
 
-    resumeSlowRunNotice(runId: string): void {
+    resumeSlowRunNotice({ runId }: { readonly runId: string }): void {
       const record = runs.get(runId);
-      if (!record || isTerminalRunState(record.status.state)) return;
-      record.slowRunWatchdog?.noteActivity();
+      if (!record || isTerminalRunState({ state: record.status.state })) return;
+      // Re-arm only when the LAST open suspension closes (see `RunRecord.slowRunSuspensions`).
+      if (record.slowRunSuspensions > 0) record.slowRunSuspensions -= 1;
+      if (record.slowRunSuspensions > 0) return;
+      // Suspension cancels permanently. Resuming must create a new window, never revive that handle.
+      record.slowRunWatchdog?.cancel({});
+      armSlowRunWatchdogIfConfigured({ record, timeoutMs: slowRunThresholdMs, onTimeout: () => {
+        void handleSlowRunNotice(runId);
+      } });
     },
 
-    async waitForTerminal(runId: string): Promise<RunStatus> {
+    async waitForTerminal({ runId }: { readonly runId: string }): Promise<RunStatus> {
       const record = requireRun(runId);
       // Awaited (and *propagated*, unlike in `get`/`list`) before any waiter is registered. A run
       // whose durable start append rejects is unwound, and nothing ever calls `finish()` for it — so
@@ -1046,7 +1076,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       // the same error that failed the start is the only honest terminal answer, and awaiting first
       // means `terminalWaiters` can only ever hold waiters for a run that really does exist.
       await record.startPromise;
-      if (isTerminalRunState(record.status.state)) {
+      if (isTerminalRunState({ state: record.status.state })) {
         return toPublicStatus(record);
       }
       return new Promise((resolve) => {
@@ -1054,10 +1084,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       });
     },
 
-    async stream(
-      runId: string,
-      onEvent: (event: RunProtocolEvent) => void,
-      options: StreamOptions = {},
+    async stream({ runId, onEvent }: { readonly runId: string; readonly onEvent: (event: RunProtocolEvent) => void }, options: StreamOptions = {}
     ): Promise<StreamSubscribeResult> {
       const record = runs.get(runId);
       if (!record) {
@@ -1075,21 +1102,21 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       };
       record.subscribers.add(subscriber);
       try {
-        const replay = await eventLog.replay(runId, options.afterCursor ?? null);
+        const replay = await eventLog.replay({ runId: runId, afterCursor: options.afterCursor ?? null });
         if (replay.kind !== 'ok') {
           record.subscribers.delete(subscriber);
           return replay;
         }
-        const deliveredEventIds = deliverReplayedEvents(runId, replay.entries, onEvent);
-        deliverUndeliveredEvents(bufferedLiveEvents, deliveredEventIds, onEvent);
+        const deliveredEventIds = deliverReplayedEvents({ runId: runId, entries: replay.entries, onEvent: onEvent });
+        deliverUndeliveredEvents({ events: bufferedLiveEvents, deliveredEventIds: deliveredEventIds, onEvent: onEvent });
         replaying = false;
 
-        const terminal = isTerminalRunState(record.status.state);
+        const terminal = isTerminalRunState({ state: record.status.state });
         if (terminal && record.terminalEndEntry) {
-          deliverUndeliveredEvents([toRunEvent(runId, record.terminalEndEntry)], deliveredEventIds, onEvent);
+          deliverUndeliveredEvents({ events: [toRunEvent(runId, record.terminalEndEntry)], deliveredEventIds: deliveredEventIds, onEvent: onEvent });
         }
 
-        return finishStreamSubscription(record, subscriber, terminal);
+        return finishStreamSubscription({ record: record, subscriber: subscriber, terminal: terminal });
       } catch (error) {
         // Subscription is installed before durable replay to close the replay→live race. Any
         // replay I/O or consumer callback failure must therefore remove it before propagating.

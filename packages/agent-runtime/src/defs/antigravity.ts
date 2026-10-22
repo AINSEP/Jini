@@ -1,6 +1,7 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/antigravity.ts` (import path adjusted only). See `source-map.md`. */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { redactOAuthUrls } from '@jini-ai/oauth';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModelOption } from '../types.js';
 
 // `agy` v1.1.24 has a real `--model <id>` flag (`agy --help`: "Model for the current CLI
 // session") plus a machine-readable `agy models` subcommand that lists every selectable model as
@@ -76,15 +77,15 @@ const OAUTH_URL_PLACEHOLDER = '[redacted sign-in URL]';
  * already has an owner — `auth.ts`'s `classifyAgentAuthFailure` /
  * `isAntigravityAuthFailureText`, consumed by whatever surfaces a structured
  * auth error — and duplicating the decision here would mean this def silently
- * rewrites assistant text into instructions. See `source-map.md`.
+ * rewrites assistant text into instructions.
  *
  * @param fullText - The concatenation of every stdout chunk agy produced.
  * @returns The same text with every sign-in URL replaced by a placeholder.
  * @complexity O(n) in the buffered text length.
  * @overallScore 100/100
  */
-export function redactAntigravityAuthUrls(fullText: string): string {
-  return fullText.replace(OAUTH_URL_PATTERN, OAUTH_URL_PLACEHOLDER);
+export function redactAntigravityAuthUrls({ fullText }: { fullText: string }): string {
+  return redactOAuthUrls({ text: fullText, pattern: OAUTH_URL_PATTERN, replacement: OAUTH_URL_PLACEHOLDER });
 }
 
 /**
@@ -104,7 +105,7 @@ export function redactAntigravityAuthUrls(fullText: string): string {
  * as an empty array: fall back to `fallbackModels`.
  * @complexity O(n) in the stdout length.
  */
-export function parseAgyModels(stdout: string): RuntimeModelOption[] | null {
+export function parseAgyModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())
@@ -117,33 +118,74 @@ export function parseAgyModels(stdout: string): RuntimeModelOption[] | null {
     if (/^fetching available models\.\.\.$/i.test(line)) continue;
     const tabIndex = line.indexOf('\t');
     if (tabIndex === -1) continue;
+    // `line` is already trimmed, so a tab inside it always has a non-blank character on each
+    // side: neither the id nor the label can come out empty here.
     const id = line.slice(0, tabIndex).trim();
-    if (!id || seen.has(id)) continue;
+    if (seen.has(id)) continue;
     seen.add(id);
-    const label = line.slice(tabIndex + 1).trim();
-    out.push({ id, label: label || id });
+    out.push({ id, label: line.slice(tabIndex + 1).trim() });
   }
 
   return out.length > 1 ? out : null;
 }
 
+// `agy models` does a real network fetch (its own stdout says "Fetching
+// available models..."), so this gets a longer budget than codex's 5s
+// local-cache read — 10s to absorb ordinary network latency without
+// making every detection pass wait needlessly long on a slow/offline run
+// (`detection.ts#fetchModels` falls back to `fallbackModels` on timeout).
+// It runs within the outer 10s discovery budget: Antigravity has no disk
+// fallback, so `probeAgentCatalog` reserves no recovery time for it.
+const AGY_MODELS_TIMEOUT_MS = 10_000;
+
+// Match the owner's existing Full CLI grant; never infer approval from headless mode.
+function skipPermissionsArgs({ options }: { options: RuntimeBuildOptions }): string[] {
+  return options.cliParity === true && options.permissionMode === 'bypass' && options.nativeToolAccess !== false
+    ? ['--dangerously-skip-permissions']
+    : [];
+}
+
+// `--model` is the same kind of Go flag as `--log-file`/`-p`: its value is
+// whatever argv token immediately follows it, so it too must be pushed
+// before `-p` (always last — see `buildArgs`). Verified live against agy
+// v1.1.24: `agy --model <slug> -p '<prompt>'` runs that one print-mode
+// turn on the named model, and combining it with `--log-file` works the
+// same way — relative order between `--model` and `--log-file` doesn't
+// matter (each independently consumes exactly the one token after it),
+// only that both precede `-p`.
+function modelArgs({ options }: { options: RuntimeBuildOptions }): string[] {
+  return options.model && options.model !== DEFAULT_MODEL_OPTION.id ? ['--model', options.model] : [];
+}
+
+// Always opt into `--log-file` when the daemon supplied a path so
+// it can post-exit grep for the actual upstream failure shape
+// (auth missing vs quota reached vs upstream error) — without it
+// the chat surfaces a generic "empty response" because print mode
+// never echoes those errors on stdout. See server.ts empty-output
+// guard for the consumer.
+function logFileArgs({ runtimeContext }: { runtimeContext: RuntimeContext }): string[] {
+  return runtimeContext.agentLogFilePath ? ['--log-file', runtimeContext.agentLogFilePath] : [];
+}
+
 export const antigravityAgentDef = {
+  ...createAgentModelDiscovery('antigravity', { fallbackModels: (): readonly RuntimeModelOption[] => antigravityAgentDef.fallbackModels, args: ['models'], parse: parseAgyModels, timeoutMs: AGY_MODELS_TIMEOUT_MS }),
   id: 'antigravity',
   name: 'Antigravity',
   bin: 'agy',
   versionArgs: ['--version'],
-  // `agy models` does a real network fetch (its own stdout says "Fetching
-  // available models..."), so this gets a longer budget than codex's 5s
-  // local-cache read — 10s to absorb ordinary network latency without
-  // making every detection pass wait needlessly long on a slow/offline run
-  // (`detection.ts#fetchModels` falls back to `fallbackModels` on timeout).
+  // Budget rationale: see `AGY_MODELS_TIMEOUT_MS`.
   listModels: {
     args: ['models'],
     parse: parseAgyModels,
-    timeoutMs: 10_000,
+    timeoutMs: AGY_MODELS_TIMEOUT_MS,
   },
+  // Checked against agy 1.4.2 and https://antigravity.google/docs/cli/headless/.
+  fallbackModelsAssertedAt: '2026-10-18',
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
+    { id: 'gemini-4-argon-high', label: 'Gemini 4 Argon High' },
+    { id: 'gemini-4-argon-medium', label: 'Gemini 4 Argon Medium' },
+    { id: 'gemini-4-argon-low', label: 'Gemini 4 Argon Low' },
     { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
     { id: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)' },
     { id: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' },
@@ -192,13 +234,7 @@ export const antigravityAgentDef = {
   // apps/web/src/providers/daemon.ts). The stronger OVERRIDE block
   // composed in server.ts gives a second line of defense for weak
   // plain-stream models like Gemini 3.5 Flash.
-  buildArgs: (
-    prompt,
-    _imagePaths,
-    _extra = [],
-    options = {},
-    runtimeContext = {},
-  ) => {
+  buildArgs: ({ prompt }, { options = {}, runtimeContext = {} } = {}) => {
     // `-p` is a Go `flag`-package flag that TAKES THE PROMPT AS ITS VALUE,
     // not a boolean switch followed by a positional prompt, and agy has no
     // stdin sentinel under the default `--input-format text`. Verified
@@ -211,29 +247,7 @@ export const antigravityAgentDef = {
     //   - `agy -p '<prompt>'`      -> the prompt actually lands.
     // So the prompt rides argv as `-p`'s value. That is also why this def is
     // argv-budgeted (`maxPromptArgBytes` below) rather than `promptViaStdin`.
-    const args: string[] = [];
-    // `--model` is the same kind of Go flag as `--log-file`/`-p`: its value is
-    // whatever argv token immediately follows it, so it too must be pushed
-    // before `-p` (always last — see below). Verified live against agy
-    // v1.1.24: `agy --model <slug> -p '<prompt>'` runs that one print-mode
-    // turn on the named model, and combining it with `--log-file` works the
-    // same way — relative order between `--model` and `--log-file` doesn't
-    // matter (each independently consumes exactly the one token after it),
-    // only that both precede `-p`.
-    if (options.model && options.model !== DEFAULT_MODEL_OPTION.id) {
-      args.push('--model', options.model);
-    }
-    // Always opt into `--log-file` when the daemon supplied a path so
-    // it can post-exit grep for the actual upstream failure shape
-    // (auth missing vs quota reached vs upstream error) — without it
-    // the chat surfaces a generic "empty response" because print mode
-    // never echoes those errors on stdout. See server.ts empty-output
-    // guard for the consumer.
-    if (runtimeContext.agentLogFilePath) {
-      args.push('--log-file', runtimeContext.agentLogFilePath);
-    }
-    args.push('-p', prompt);
-    return args;
+    return [...skipPermissionsArgs({ options }), ...modelArgs({ options }), ...logFileArgs({ runtimeContext }), '-p', prompt];
   },
   // agy takes its prompt on argv (see `buildArgs`), so this def is
   // argv-budgeted like the other plain-stream argv adapters (aider,
@@ -265,12 +279,12 @@ export const antigravityAgentDef = {
   //
   //   - Proven with a probe MCP server registered under a relocated `HOME`'s
   //     `.gemini/config/mcp_config.json`: booted under `agy -p`, it read a marker variable
-  //     (`TOVU_ENV_PASSTHROUGH_PROBE`) straight out of its own `process.env` — no config field, no
+  //     straight out of its own `process.env` — no config field, no
   //     argv, nothing but inherited environment. Full MCP handshake observed on the same run:
   //     `server/discover` → `initialize` → `notifications/initialized` → `tools/list`
   //     (protocolVersion `2025-11-25`, clientInfo `antigravity-client`).
   //   - That makes the registration itself a STATIC, one-time operation — the operator adds one
-  //     `tovu` entry to their real `~/.gemini/config/mcp_config.json` (confirmed still the one real
+  //     bridge entry to their real `~/.gemini/config/mcp_config.json` (confirmed still the one real
   //     mechanism; see the probes below) with a bare, env-free `command` pointing at this package's
   //     own `jini-mcp` bin, resolving its credential from the environment at spawn time instead of
   //     a baked-in value. No per-spawn config mutation, no lock, no restore discipline — the exact

@@ -1,3 +1,4 @@
+import { validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 /**
  * Types for the Agent Plugins 1.0.0 open standard (published by a Technical Steering Committee
  * with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel). A plugin is a
@@ -23,6 +24,8 @@ export interface PluginManifestAuthor {
   readonly email?: string;
   readonly url?: string;
 }
+
+export type { PluginIdentityExtension } from "@jini-ai/core/plugin-directory";
 
 export interface PluginManifest {
   readonly $schema?: string;
@@ -75,4 +78,15 @@ export function isMcpManifest(value: unknown): value is McpManifest {
   if (typeof value !== 'object' || value === null) return false;
   const servers = (value as Record<string, unknown>).mcpServers;
   return typeof servers === 'object' && servers !== null && !Array.isArray(servers);
+}
+
+/** Object-argument facade for the legacy structural validator.
+ * Hosts inject identityNamespace; the default retains the existing plugin extension format. */
+export function validatePluginManifest(required: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): boolean {
+  return isPluginManifest(required.value) && validatePluginIdentity({ manifest: required.value, namespace: optional.identityNamespace ?? "tovu" }).errors.length === 0;
+}
+
+/** Object-argument facade for the legacy structural validator. */
+export function validateMcpManifest(required: { readonly value: unknown }): boolean {
+  return isMcpManifest(required.value);
 }

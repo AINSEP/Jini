@@ -8,7 +8,7 @@ import { buildCanvasStyleConfig, CANVAS_STYLES_PENDING_CLASS } from "../canvas-s
  * 1. The editor's canvas loaded no stylesheets at all, so every document was edited against browser
  *    defaults (Times on white) rather than the CSS it actually publishes with.
  * 2. GrapesJS's default `frameStyle` lands in the canvas document's `<body>`, so its
- *    `body { background-color: #fff }` beats a host stylesheet loaded into `<head>` on document
+ *    `body { background-color: var(--jini-bg) }` beats a host stylesheet loaded into `<head>` on document
  *    order — a dark theme's near-white text then renders on white.
  *
  * See `canvas-style.ts`'s own file header for how both were confirmed live.
@@ -29,20 +29,20 @@ describe("buildCanvasStyleConfig", () => {
   });
 
   it("keeps GrapesJS's white body background when the host supplies no canvas styling", () => {
-    expect(buildCanvasStyleConfig({}).frameStyle).toContain("body { background-color: #fff }");
+    expect(buildCanvasStyleConfig({}).frameStyle).toContain("body { background-color: var(--jini-bg) }");
   });
 
   it("drops the white body background once the host loads its own stylesheet", () => {
     const { frameStyle } = buildCanvasStyleConfig({ stylesheets: ["/theme-assets/basic/css/theme.css"] });
-    expect(frameStyle).not.toContain("background-color: #fff");
+    expect(frameStyle).not.toContain("background-color: var(--jini-bg)");
   });
 
   it("drops the white body background once the host supplies raw canvas CSS", () => {
-    expect(buildCanvasStyleConfig({ css: ":root{--bg:#111}" }).frameStyle).not.toContain("background-color: #fff");
+    expect(buildCanvasStyleConfig({ css: ":root{--bg:#111}" }).frameStyle).not.toContain("background-color: var(--jini-bg)");
   });
 
   it("treats an empty stylesheet list as no host styling at all", () => {
-    expect(buildCanvasStyleConfig({ stylesheets: [] }).frameStyle).toContain("body { background-color: #fff }");
+    expect(buildCanvasStyleConfig({ stylesheets: [] }).frameStyle).toContain("body { background-color: var(--jini-bg) }");
   });
 
   it("keeps GrapesJS's scrollbar chrome in every case", () => {

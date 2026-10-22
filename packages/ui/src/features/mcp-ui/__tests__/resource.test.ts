@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MCP_UI_ACTION_PLAN_META_KEY,
+  MCP_UI_EXPIRES_AT_META_KEY,
   MCP_UI_MIME_TYPE,
   MCP_UI_METADATA_PREFIX,
   MCP_UI_PREFERRED_FRAME_SIZE_META_KEY,
@@ -10,6 +11,7 @@ import {
   createUIResource,
   parseUIResource,
   readActionPlan,
+  readExpiresAt,
   readPreferredFrameSize,
 } from '../resource.js';
 
@@ -76,6 +78,19 @@ describe('createUIResource', () => {
       [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['100%', '360px'],
       [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [] },
     });
+  });
+});
+
+describe('createUIResource expiresAtMs', () => {
+  it('writes the answer deadline under a Jini-owned key, as epoch milliseconds', () => {
+    expect(MCP_UI_EXPIRES_AT_META_KEY.startsWith(MCP_UI_METADATA_PREFIX)).toBe(false);
+    const resource = createUIResource({ uri: 'ui://x/1', htmlString: '', expiresAtMs: 1_700_000_300_000 });
+    expect(resource.resource._meta).toEqual({ [MCP_UI_EXPIRES_AT_META_KEY]: 1_700_000_300_000 });
+  });
+
+  it('writes no deadline key when none is given', () => {
+    const resource = createUIResource({ uri: 'ui://x/1', htmlString: '', actionPlan: { title: 'T', actions: [] } });
+    expect(resource.resource._meta).not.toHaveProperty(MCP_UI_EXPIRES_AT_META_KEY);
   });
 });
 
@@ -194,6 +209,7 @@ describe('readActionPlan', () => {
     ['a non-string description', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', description: 7, actions: [] } }],
     ['a missing actions array', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T' } }],
     ['a non-array actions', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: 'nope' } }],
+    ['a non-object action', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: ['confirm'] } }],
     ['an action with no id', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ label: 'X' }] } }],
     ['an action with an empty id', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: '', label: 'X' }] } }],
     ['an action with no label', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: 'a' }] } }],
@@ -202,5 +218,37 @@ describe('readActionPlan', () => {
     ['one good action alongside one malformed one', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: 'a', label: 'A' }, { id: 'b' }] } }],
   ])('returns undefined for %s, so the host builds no mirror rather than a partial one', (_label, meta) => {
     expect(readActionPlan(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
+  });
+});
+
+describe('readExpiresAt', () => {
+  function withMeta(meta: Record<string, unknown> | undefined) {
+    return parseUIResource({
+      type: 'resource',
+      resource: { uri: 'ui://x/1', mimeType: MCP_UI_MIME_TYPE, text: '', ...(meta === undefined ? {} : { _meta: meta }) },
+    })!;
+  }
+
+  it('reads the deadline a producer wrote', () => {
+    const resource = createUIResource({ uri: 'ui://x/1', htmlString: '', expiresAtMs: 1_700_000_300_000 });
+    expect(readExpiresAt(resource)).toBe(1_700_000_300_000);
+  });
+
+  it.each([
+    ['no _meta at all', undefined],
+    ['no deadline key', { other: 1 }],
+    ['a string deadline', { [MCP_UI_EXPIRES_AT_META_KEY]: '1700000300000' }],
+    ['a NaN deadline', { [MCP_UI_EXPIRES_AT_META_KEY]: Number.NaN }],
+    ['an infinite deadline', { [MCP_UI_EXPIRES_AT_META_KEY]: Number.POSITIVE_INFINITY }],
+  ])('returns undefined for %s, so the host shows no countdown rather than a wrong one', (_label, meta) => {
+    expect(readExpiresAt(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
+  });
+});
+
+it('preserves explicitly supplied empty metadata in the two-object builder contract', () => {
+  const ui = createUIResource({ uri: 'ui://compat/empty', htmlString: '', meta: {} }, {});
+  expect(ui.resource._meta).toEqual({});
+  expect(buildUIToolResult({ modelText: 'Shown.', ui, meta: {} }, {})).toEqual({
+    content: [{ type: 'text', text: 'Shown.' }, ui], _meta: {},
   });
 });

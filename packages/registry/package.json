@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/registry",
-  "version": "0.3.0",
-  "description": "Pluggable content-registry backends (static, GitHub, database) and semver specifier resolution over @jini-ai/protocol\u2019s registry wire types.",
+  "version": "0.5.2",
+  "description": "Pluggable content-registry backends (static, GitHub, database) and semver specifier resolution over @jini-ai/protocol’s registry wire types.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -11,7 +11,20 @@
   "jini": {
     "domain": "capability",
     "kind": "registry",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./tool-catalog": "universal",
+      "./tool-catalog/sqlite": "node",
+      "./tool-catalog-builder": "universal",
+      "./tool-catalog-builder/sqlite": "node"
+    },
+    "isolation": {
+      "entries": {
+        "./tool-catalog-builder": "tool-catalog",
+        "./tool-catalog-builder/sqlite": "tool-catalog"
+      }
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -22,10 +35,33 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./tool-catalog": {
+      "types": "./dist/tool-catalog/index.d.ts",
+      "import": "./dist/tool-catalog/index.js",
+      "default": "./dist/tool-catalog/index.js"
+    },
+    "./tool-catalog/sqlite": {
+      "types": "./dist/tool-catalog/sqlite.d.ts",
+      "import": "./dist/tool-catalog/sqlite.js",
+      "default": "./dist/tool-catalog/sqlite.js"
+    },
+    "./tool-catalog-builder": {
+      "types": "./dist/tool-catalog-builder/index.d.ts",
+      "import": "./dist/tool-catalog-builder/index.js",
+      "default": "./dist/tool-catalog-builder/index.js"
+    },
+    "./tool-catalog-builder/sqlite": {
+      "types": "./dist/tool-catalog-builder/sqlite.d.ts",
+      "import": "./dist/tool-catalog-builder/sqlite.js",
+      "default": "./dist/tool-catalog-builder/sqlite.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -44,19 +80,31 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/platform": "workspace:*",
-    "@jini-ai/protocol": "workspace:*"
+    "@jini-ai/protocol": "workspace:^",
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "better-sqlite3": "^13.0.0"
+    "better-sqlite3": "^13.0.0",
+    "@jini-ai/db": "^0.2.0 || ^0.3.0",
+    "@jini-ai/platform": "^0.5.1"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
+      "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
       "optional": true
     }
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
-    "better-sqlite3": "^13.0.0"
+    "better-sqlite3": "^13.0.0",
+    "@jini-ai/db": "workspace:*",
+    "@jini-ai/platform": "workspace:^",
+    "@jini-ai/protocol": "workspace:^",
+    "@jini-ai/core": "workspace:^"
   }
 }

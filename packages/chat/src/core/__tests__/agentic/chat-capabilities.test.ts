@@ -37,7 +37,7 @@ describe('chat-capabilities × page-capabilities: the real combined manifest', (
   });
 
   it('accepts the real shipped chat capabilities with valid input', () => {
-    expect(findCapabilityInputError(findCapability(ALL, 'chat.get_state')!, {})).toBeNull();
-    expect(findCapabilityInputError(findCapability(ALL, 'chat.send_message')!, { prompt: 'hi' })).toBeNull();
+    expect(findCapabilityInputError({ capability: findCapability({ capabilities: ALL, id: 'chat.get_state' })!, input: {} })).toBeNull();
+    expect(findCapabilityInputError({ capability: findCapability({ capabilities: ALL, id: 'chat.send_message' })!, input: { prompt: 'hi' } })).toBeNull();
   });
 });

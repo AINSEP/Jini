@@ -1,7 +1,7 @@
 import { ToolInputError } from "@jini-ai/core";
 
 /**
- * @file The write-side counterpart to `not-trashed.ts`'s read-side `notTrashed()` filter (Tovu
+ * @file The write-side counterpart to `not-trashed.ts`'s read-side `notTrashed()` filter (host
  * `features/trash/not-trashed.ts`).
  *
  * Purpose:
@@ -12,13 +12,13 @@ import { ToolInputError } from "@jini-ai/core";
  * This module is the one shared check every writer calls right after its own load, so the check
  * exists exactly once.
  *
- * Why it lives in `@jini-ai/cms/core` rather than in a Tovu module or a Jini domain package:
- * Tovu's writers (pages, SEO, redirects) and Jini's own domain writers (media, content-types,
- * taxonomy) both need it, Jini cannot import anything Tovu owns, and duplicating the check per side
+ * Why it lives in `@jini-ai/cms/core` rather than in a host module or a Jini domain package:
+ * a host's writers (pages, SEO, redirects) and Jini's own domain writers (media, content-types,
+ * taxonomy) both need it, Jini cannot import anything a host owns, and duplicating the check per side
  * reintroduces the drift this module exists to remove. `core` is the one place both reach.
  *
  * Why `EntityNotLiveError` extends `ToolInputError` rather than a plain `Error`: the daemon's tool
- * executor already treats `ToolInputError` as caller-facing (see `registration-kit.ts`'s doc
+ * executor already treats `ToolInputError` as caller-facing (see the kernel registration kit's doc
  * comment), so every domain's agent tool surfaces this error's message to the caller with no
  * per-domain allowlist entry, and every HTTP route that already maps `ToolInputError`-family errors
  * picks it up for free. A per-domain rule added to `contracts/core/model-facing-tool-errors.ts`
@@ -41,12 +41,15 @@ export type EntityLiveness = "live" | "trashed" | "tombstoned";
 export class EntityNotLiveError extends ToolInputError {
   readonly code: "ENTITY_IN_TRASH" | "ENTITY_TOMBSTONED";
 
-  constructor(
-    readonly entityType: string,
-    readonly entityId: string,
-    readonly state: "trashed" | "tombstoned"
-  ) {
-    super(buildEntityNotLiveMessage(entityType, entityId, state));
+  readonly entityType: string;
+  readonly entityId: string;
+  readonly state: "trashed" | "tombstoned";
+  constructor(requiredArgs: { entityType: string; entityId: string; state: "trashed" | "tombstoned" }, _optionalArgs: Record<string, never> = {}) {
+    const { entityType, entityId, state } = requiredArgs;
+    super({ message: buildEntityNotLiveMessage(entityType, entityId, state) });
+    this.entityType = entityType;
+    this.entityId = entityId;
+    this.state = state;
     this.name = "EntityNotLiveError";
     this.code = state === "trashed" ? "ENTITY_IN_TRASH" : "ENTITY_TOMBSTONED";
   }
@@ -67,5 +70,5 @@ function buildEntityNotLiveMessage(entityType: string, entityId: string, state: 
  */
 export function assertEntityLive(required: { entityType: string; entityId: string; state: EntityLiveness }): void {
   if (required.state === "live") return;
-  throw new EntityNotLiveError(required.entityType, required.entityId, required.state);
+  throw new EntityNotLiveError({ entityType: required.entityType, entityId: required.entityId, state: required.state });
 }

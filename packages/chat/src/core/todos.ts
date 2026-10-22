@@ -7,7 +7,7 @@
  * no framework.
  */
 import type { AgentEvent } from './events.js';
-import type { ChatRunStatus } from './messages.js';
+import { isTerminalRunStatus, type ChatRunStatus } from './messages.js';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'stopped';
 
@@ -25,7 +25,7 @@ const TODO_WRITE_TOOL_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 /** `true` when `name` is one of the accepted plan/TodoWrite tool-name spellings. */
-export function isTodoWriteToolName(name: string): boolean {
+export function isTodoWriteToolName({ name }: { name: string }): boolean {
   return TODO_WRITE_TOOL_NAMES.has(name);
 }
 
@@ -49,39 +49,42 @@ function normalizeTodoStatus(status: unknown): TodoStatus {
  * @returns Normalized items; entries with no recognizable body text are dropped.
  * @complexity O(n) in the number of raw plan entries.
  */
-export function parseTodoWriteInput(input: unknown): TodoItem[] {
-  if (!input || typeof input !== 'object') return [];
+export function parseTodoWriteInput({ input }: { input: unknown }): TodoItem[] {
+  const list = todoListOf({ input });
+  return list ? list.items.map((todo) => parseTodoItem({ todo })).filter((todo): todo is TodoItem => todo !== null) : [];
+}
+
+/** The plan array a tool input carries (`todos` wins over `plan`), with the key it sits under. */
+function todoListOf({ input }: { input: unknown }, _optional: {} = {}): { key: 'todos' | 'plan'; items: unknown[] } | null {
+  if (!input || typeof input !== 'object') return null;
   const obj = input as { plan?: unknown; todos?: unknown };
-  const rawItems = Array.isArray(obj.todos) ? obj.todos : Array.isArray(obj.plan) ? obj.plan : [];
-  return rawItems
-    .map((todo): TodoItem | null => {
-      if (!todo || typeof todo !== 'object') return null;
-      const record = todo as Record<string, unknown>;
-      const content =
-        typeof record.content === 'string'
-          ? record.content
-          : typeof record.step === 'string'
-            ? record.step
-            : typeof record.description === 'string'
-              ? record.description
-              : typeof record.label === 'string'
-                ? record.label
-                : typeof record.text === 'string'
-                  ? record.text
-                  : '';
-      if (!content) return null;
-      return {
-        content,
-        status: normalizeTodoStatus(record.status),
-        activeForm:
-          typeof record.activeForm === 'string'
-            ? record.activeForm
-            : typeof record.active_form === 'string'
-              ? record.active_form
-              : undefined,
-      };
-    })
-    .filter((todo): todo is TodoItem => todo !== null);
+  if (Array.isArray(obj.todos)) return { key: 'todos', items: obj.todos };
+  if (Array.isArray(obj.plan)) return { key: 'plan', items: obj.plan };
+  return null;
+}
+
+/** The first of `keys` whose value is a string (even an empty one), else undefined. */
+function firstStringField({ record, keys }: { record: Record<string, unknown>; keys: readonly string[] }, _optional: {} = {}): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string') return value;
+  }
+  return undefined;
+}
+
+const TODO_BODY_KEYS = ['content', 'step', 'description', 'label', 'text'] as const;
+const TODO_ACTIVE_FORM_KEYS = ['activeForm', 'active_form'] as const;
+
+function parseTodoItem({ todo }: { todo: unknown }, _optional: {} = {}): TodoItem | null {
+  if (!todo || typeof todo !== 'object') return null;
+  const record = todo as Record<string, unknown>;
+  const content = firstStringField({ record, keys: TODO_BODY_KEYS });
+  if (!content) return null;
+  return {
+    content,
+    status: normalizeTodoStatus(record.status),
+    activeForm: firstStringField({ record, keys: TODO_ACTIVE_FORM_KEYS }),
+  };
 }
 
 /**
@@ -89,19 +92,34 @@ export function parseTodoWriteInput(input: unknown): TodoItem[] {
  * return its parsed items, or `[]` if this turn never wrote a plan.
  * @complexity O(n), scanning from the end.
  */
-export function latestTodosFromEvents(events: AgentEvent[] | undefined): TodoItem[] {
-  if (!events) return [];
-  for (let i = events.length - 1; i >= 0; i -= 1) {
-    const event = events[i];
-    if (event?.kind !== 'tool_use' || !isTodoWriteToolName(event.name)) continue;
-    return parseTodoWriteInput(event.input);
+export function latestTodosFromEvents({ events }: { events: AgentEvent[] | undefined }): TodoItem[] {
+  const event = latestTodoWriteEvent({ events });
+  return event ? parseTodoWriteInput({ input: event.input }) : [];
+}
+
+type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
+
+/** The newest plan-tool `tool_use` in one turn's events, scanning from the end. */
+function latestTodoWriteEvent({ events }: { events: readonly AgentEvent[] | undefined }, _optional: {} = {}): ToolUseEvent | undefined {
+  return events?.findLast((event): event is ToolUseEvent => event.kind === 'tool_use' && isTodoWriteToolName({ name: event.name }));
+}
+
+/** The newest message holding a plan-tool call, with that call; messages are scanned newest first. */
+function latestTodoWriteInMessages<T extends { events?: AgentEvent[] | undefined }>(
+  { messages }: { messages: ReadonlyArray<T> | undefined },
+  _optional: {} = {},
+): { message: T; event: ToolUseEvent } | null {
+  for (let mi = (messages?.length ?? 0) - 1; mi >= 0; mi -= 1) {
+    const message = messages![mi]!;
+    const event = latestTodoWriteEvent({ events: message.events });
+    if (event) return { message, event };
   }
-  return [];
+  return null;
 }
 
 /** The subset of {@link latestTodosFromEvents} not yet marked `completed`. */
-export function unfinishedTodosFromEvents(events: AgentEvent[] | undefined): TodoItem[] {
-  return latestTodosFromEvents(events).filter((todo) => todo.status !== 'completed');
+export function unfinishedTodosFromEvents({ events }: { events: AgentEvent[] | undefined }): TodoItem[] {
+  return latestTodosFromEvents({ events: events }).filter((todo) => todo.status !== 'completed');
 }
 
 /**
@@ -116,44 +134,24 @@ export function unfinishedTodosFromEvents(events: AgentEvent[] | undefined): Tod
  *   the first hit scanning backwards, so the common case (a recent plan
  *   update) is far cheaper.
  */
-export function latestTodoWriteInputFromMessages(
-  messages: ReadonlyArray<{ events?: AgentEvent[] | undefined }> | undefined,
+export function latestTodoWriteInputFromMessages({ messages }: { messages: ReadonlyArray<{ events?: AgentEvent[] | undefined }> | undefined }
 ): unknown | null {
-  if (!messages || messages.length === 0) return null;
-  for (let mi = messages.length - 1; mi >= 0; mi -= 1) {
-    const events = messages[mi]?.events;
-    if (!events || events.length === 0) continue;
-    for (let ei = events.length - 1; ei >= 0; ei -= 1) {
-      const event = events[ei];
-      if (event?.kind !== 'tool_use') continue;
-      if (!isTodoWriteToolName(event.name)) continue;
-      return event.input;
-    }
-  }
-  return null;
+  return latestTodoWriteInMessages({ messages })?.event.input ?? null;
 }
 
 /** Convenience alias for {@link latestTodoWriteInputFromMessages} matching the `latestTodoWriteInput()` name in the target API. */
 export const latestTodoWriteInput = latestTodoWriteInputFromMessages;
 
 function hasTerminalRunEnded(runStatus: ChatRunStatus | undefined, endedAt: number | undefined): boolean {
-  return (
-    runStatus === 'succeeded' ||
-    runStatus === 'failed' ||
-    runStatus === 'canceled' ||
-    (runStatus === undefined && endedAt !== undefined)
-  );
+  return isTerminalRunStatus({ status: runStatus }) || (runStatus === undefined && endedAt !== undefined);
 }
 
 function stoppedTodoWriteInput(input: unknown): unknown {
-  if (!input || typeof input !== 'object') return input;
-  const obj = input as { todos?: unknown; plan?: unknown };
-  const key = Array.isArray(obj.todos) ? 'todos' : Array.isArray(obj.plan) ? 'plan' : null;
-  if (!key) return input;
-  const items = obj[key] as unknown[];
+  const list = todoListOf({ input });
+  if (!list) return input;
   return {
     ...(input as Record<string, unknown>),
-    [key]: items.map((todo) => {
+    [list.key]: list.items.map((todo) => {
       if (!todo || typeof todo !== 'object') return todo;
       const record = todo as Record<string, unknown>;
       if (record.status !== 'in_progress') return todo;
@@ -178,21 +176,9 @@ export function latestTodoWriteInputForPinnedCard<
     runStatus?: ChatRunStatus | undefined;
     endedAt?: number | undefined;
   },
->(messages: ReadonlyArray<T> | undefined): unknown | null {
-  if (!messages || messages.length === 0) return null;
-  for (let mi = messages.length - 1; mi >= 0; mi -= 1) {
-    const message = messages[mi];
-    const events = message?.events;
-    if (!events || events.length === 0) continue;
-    for (let ei = events.length - 1; ei >= 0; ei -= 1) {
-      const event = events[ei];
-      if (event?.kind !== 'tool_use') continue;
-      if (!isTodoWriteToolName(event.name)) continue;
-      if (!hasTerminalRunEnded(message.runStatus, message.endedAt)) {
-        return event.input;
-      }
-      return stoppedTodoWriteInput(event.input);
-    }
-  }
-  return null;
+>({ messages }: { messages: ReadonlyArray<T> | undefined }): unknown | null {
+  const found = latestTodoWriteInMessages({ messages });
+  if (!found) return null;
+  const { message, event } = found;
+  return hasTerminalRunEnded(message.runStatus, message.endedAt) ? stoppedTodoWriteInput(event.input) : event.input;
 }

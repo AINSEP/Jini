@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_SRC_DOC_CSP,
   buildLazySrcDocTransport,
@@ -82,6 +82,46 @@ describe('sanitizeTitleInDoc', () => {
     const doc = '<html><head><title>&#99999999;bad</title></head><body></body></html>';
     expect(sanitizeTitleInDoc(doc)).toContain(`<title>�bad</title>`);
   });
+
+  it('preserves every source character outside title content, including tag case and quoted > attributes', () => {
+    const before = "<!DOCTYPE html>\n<html><head data-note='>'><!-- İ --><TITLE data-note='>'>";
+    const after = "</TITLE  >\n<style>p { color: red; }</style></head><body data-x='&amp;'>Hi</body></html>";
+    expect(sanitizeTitleInDoc(before + '  Q3: &eacute;?  ' + after)).toBe(before + 'Q3- é-' + after);
+  });
+
+  it('uses the full HTML entity set and accepts semicolon-free numeric references', () => {
+    const doc = '<title>A&nbsp;B &NotEqualTilde; &#65 &#x42</title>';
+    expect(sanitizeTitleInDoc(doc)).toBe('<title>A\u00a0B ≂̸ A B</title>');
+  });
+
+  it('decodes character references once rather than interpreting decoded ampersands again', () => {
+    expect(sanitizeTitleInDoc('<title>&amp;lt;</title>')).toBe('<title>-lt;</title>');
+  });
+
+  it('uses HTML replacement rules for nulls, surrogates and legacy numeric references', () => {
+    expect(sanitizeTitleInDoc('<title>&#0;&#xD800;&#128;</title>')).toBe('<title>��€</title>');
+  });
+
+  it('ignores fake titles in styles, templates and attributes before the real head title', () => {
+    const before = '<head><meta data-note="<title>Fake: Attribute</title>"><style>p::before { content: "<title>Fake: Style</title>"; }</style><template><title>Fake: Template</title></template>';
+    const after = '</head><body>Original</body>';
+    expect(sanitizeTitleInDoc(before + '<title>Real: Title</title>' + after)).toBe(before + '<title>Real- Title</title>' + after);
+  });
+
+  it('sanitizes only the first head title and leaves subsequent titles unchanged', () => {
+    expect(sanitizeTitleInDoc('<head><title>First: Title</title><title>Second: Title</title></head>'))
+      .toBe('<head><title>First- Title</title><title>Second: Title</title></head>');
+  });
+
+  it('leaves titles outside the head untouched', () => {
+    const doc = '<html><head></head><body><title>Body: Title</title><svg><title>SVG: Title</title></svg></body></html>';
+    expect(sanitizeTitleInDoc(doc)).toBe(doc);
+  });
+
+  it('locates a title under an implicit head without adding missing document markup', () => {
+    expect(sanitizeTitleInDoc('<html><title>Implicit: Head</title><body>Hi</body>'))
+      .toBe('<html><title>Implicit- Head</title><body>Hi</body>');
+  });
 });
 
 describe('splice helpers', () => {
@@ -93,6 +133,14 @@ describe('splice helpers', () => {
 
   it('injectAfterHeadOpen prepends when there is no <head>', () => {
     expect(injectAfterHeadOpen('<div/>', '<X/>')).toBe('<X/><div/>');
+  });
+
+  it.each([
+    ['<html><!-- <head> --><head>', '<html><!-- <head> --><head><meta data-probe>'],
+    ['<html><head data-note=">">', '<html><head data-note=">"><meta data-probe>'],
+    ['<html><script>const fake = "<head>";</script>', '<html><meta data-probe><script>const fake = "<head>";</script>'],
+  ])('injectAfterHeadOpen uses parsed offsets for %s', (doc, expected) => {
+    expect(injectAfterHeadOpen(doc, '<meta data-probe>')).toBe(expected);
   });
 
   it('injectBeforeHeadEnd splices right before the real </head>', () => {
@@ -145,12 +193,19 @@ describe('splice helpers', () => {
     }
   });
 
-  it('injectBeforeHeadEnd falls back to a regex replace when <head> is open but never closed', () => {
+  it('injectBeforeHeadEnd falls back to the parsed opener when <head> is open but never closed', () => {
     // No `</head>` anywhere (so the lastIndexOf search misses), but a real
-    // `<head>` opening tag is present — takes the regex-replace path rather
+    // `<head>` opening tag is present — reuses the parsed opener rather
     // than falling through to the DOMParser branch at all.
     const out = injectBeforeHeadEnd('<html><head><meta charset="utf-8"></html>', '<X/>');
     expect(out).toBe('<html><head><X/><meta charset="utf-8"></html>');
+  });
+
+  it('injectBeforeHeadEnd uses the parsed opener past fake heads and quoted delimiters', () => {
+    const doc = '<html><!-- <head> --><head data-note=">"><meta charset="utf-8"></html>';
+    expect(injectBeforeHeadEnd(doc, '<meta data-probe>')).toBe(
+      '<html><!-- <head> --><head data-note=">"><meta data-probe><meta charset="utf-8"></html>',
+    );
   });
 
   it('injectBeforeHeadEnd measures the search limit from the full doc length when there is no <body> at all', () => {
@@ -186,30 +241,47 @@ describe('splice helpers', () => {
 
 describe('sanitizeTitleInDoc malformed-markup edge cases', () => {
   it('gives up without throwing when a <script> block before the title is missing its closing ">"', () => {
-    // `findRealTitleOffset`'s script/style skip-ahead re-searches for the
-    // closing tag's own ">"; when the document is truncated mid-tag there is
-    // none, and it must fall back to advancing past the closing tag text
-    // itself instead of looping forever or throwing.
+    // Truncated markup must remain unchanged rather than yield a guessed
+    // title range or throw while the streaming source is incomplete.
     const doc = '<html><script>x</script';
     expect(sanitizeTitleInDoc(doc)).toBe(doc);
   });
 
-  it('bails out instead of mis-slicing when a Turkish dotted capital I before <title> desyncs the lowercased search offset from the original string', () => {
-    // `sanitizeTitleInDoc` searches for "</title>" inside `html.toLowerCase()`
-    // but then re-uses that offset directly against the *original* `html`.
-    // `String.prototype.toLowerCase()` maps U+0130 (LATIN CAPITAL LETTER I
-    // WITH DOT ABOVE) to a two-code-unit sequence, so each occurrence before
-    // the title tag desyncs the lowercased offset from the original by one.
-    // With enough of them, the desynced offset walks past the end of the
-    // document and the final `html.indexOf('>', closingTagStart)` finds no
-    // more ">" at all (returns -1) — this must return the input unchanged
-    // rather than produce a garbage slice.
+  it('preserves a title after leading body text containing Turkish dotted capital I', () => {
+    // U+0130 expands when lowercased, so case-folded string offsets cannot
+    // safely address the source. Leading text also places this title outside
+    // the head; the parser must leave it untouched.
     const doc = 'İ'.repeat(8) + '<title>Foo</title>';
     expect(sanitizeTitleInDoc(doc)).toBe(doc);
   });
 });
 
 describe('buildSrcDoc', () => {
+  it.each([
+    '<html><!-- <head> --><head></head><body><script src="https://evil.example/p.js"></script></body></html>',
+    '<html><head data-note=">"><script>var fake = "<head>";</script></head><body></body></html>',
+    '<html><!-- <head> --><script src="https://evil.example/p.js"></script></html>',
+    '<!doctype html><!-- <head> --><script src="https://evil.example/p.js"></script>',
+    '<html><head><template><head></head></template><script src="https://evil.example/p.js"></script></head><body></body></html>',
+    // A quoted `<head` once caught the shim/base splice, whose own quotes then pushed the policy into <body>.
+    "<html><head data-x='<head>'><script src=\"https://evil.example/p.js\"></script></head></html>",
+    '<html lang="<head>"><script src="https://evil.example/p.js"></script></html>',
+  ])('places CSP in the parsed head before authored scripts: %s', html => {
+    const policy = "script-src 'none'";
+    const output = buildSrcDoc(html, { csp: policy, previewFocusGuard: true, baseHref: '/assets/' });
+    const parsed = new DOMParser().parseFromString(output, 'text/html');
+    const metas = parsed.querySelectorAll('meta[http-equiv="Content-Security-Policy"]');
+    expect(metas).toHaveLength(1);
+    expect(metas[0]?.parentElement).toBe(parsed.head);
+    expect(metas[0]?.getAttribute('content')).toBe(policy);
+    const follows = (node: Node) => (metas[0]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    // The host's own <base> must precede the policy, or the default base-uri 'none' would block it.
+    expect(follows(parsed.querySelector('base[href="/assets/"]')!)).toBe(false);
+    const authored = [...parsed.querySelectorAll('script')].filter(script => ![...script.attributes].some(attr => attr.name.startsWith('data-jini-')));
+    expect(authored.length).toBeGreaterThan(0);
+    for (const script of authored) expect(follows(script)).toBe(true);
+  });
+
   it('wraps a bare fragment in a minimal document', () => {
     const doc = buildSrcDoc('<p>hi</p>');
     expect(doc).toContain('<!doctype html>');
@@ -272,10 +344,9 @@ describe('buildSrcDoc', () => {
     expect(buildSrcDoc('<p>hi</p>', { lazyTransport: true })).toBe(buildLazySrcDocTransport());
   });
 
-  it('injects the base href/sandbox shim/focus guard into <body> when a full document has no <head> at all', () => {
+  it('injects the base href/sandbox shim/focus guard into the implicit head when no <head> is authored', () => {
     // A full document (starts with <html>, so buildSrcDoc passes it through
-    // unwrapped) that omits <head> entirely exercises each injector's
-    // "<body> but no <head>" fallback branch.
+    // unwrapped) must still receive all safety tags before its body content.
     const doc = buildSrcDoc('<html><body>Hi</body></html>', {
       baseHref: 'https://example.com/artifact/',
       previewFocusGuard: true,
@@ -285,22 +356,18 @@ describe('buildSrcDoc', () => {
     expect(doc).toContain('data-jini-preview-focus-guard');
   });
 
-  it('injects the sandbox shim/focus guard into <body> when there is no <head> and no baseHref (so nothing upstream synthesizes one)', () => {
-    // `injectBaseHref`'s own "no <head>" fallback wraps an <html> tag in a
-    // synthesized `<head>...</head>`, which — when baseHref *is* set — means
-    // by the time injectSandboxShim/injectPreviewFocusGuard run, the doc
-    // already has a <head> after all. Omitting baseHref here is the only way
-    // to reach their own independent "<body> but no <head>" branch.
+  it('injects the sandbox shim/focus guard into the implicit head without a baseHref', () => {
+    // Safety insertion cannot depend on a host base URL supplying a head.
     const doc = buildSrcDoc('<html><body>Hi</body></html>', { previewFocusGuard: true });
     expect(doc).not.toContain('<base href');
     expect(doc).toContain('data-jini-sandbox-shim');
     expect(doc).toContain('data-jini-preview-focus-guard');
   });
 
-  it('prepends the base href/sandbox shim/focus guard when a full document has neither <head> nor <body>', () => {
+  it('injects the base href/sandbox shim/focus guard after the doctype when no head or body is authored', () => {
     // Starts with <!doctype so buildSrcDoc treats it as a full document and
     // passes it through unwrapped, but the fragment itself has no <head> or
-    // <body> tag anywhere — the last-resort "neither" fallback branch.
+    // <body> tag anywhere; the safety tags must precede the plain content.
     const doc = buildSrcDoc('<!doctype html>just plain content, no head or body tags', {
       baseHref: 'https://example.com/other/',
       previewFocusGuard: true,
@@ -317,6 +384,36 @@ describe('buildLazySrcDocTransport', () => {
     const shell = buildLazySrcDocTransport();
     expect(shell).toContain('jini:srcdoc-transport-activate');
     expect(shell).toContain('jini:srcdoc-transport-ready');
+  });
+});
+
+describe('srcdoc activation sender boundary', () => {
+  it.each([
+    ['lazy shell', () => buildLazySrcDocTransport(), 'script[data-jini-lazy-srcdoc-transport]'],
+    ['active document', () => buildSrcDoc('<p>preview</p>'), 'script[data-jini-srcdoc-transport-activation]'],
+  ] as const)('%s accepts replacement HTML only from its parent', (_name, build, selector) => {
+    const parsed = new DOMParser().parseFromString(build(), 'text/html');
+    const script = parsed.querySelector(selector)!.textContent!;
+    const parent = { postMessage: vi.fn() };
+    const handlers: Array<(event: { source: unknown; data: unknown }) => void> = [];
+    const frame = { parent, addEventListener: (_type: string, handler: typeof handlers[number]) => handlers.push(handler) };
+    const document = { open: vi.fn(), write: vi.fn(), close: vi.fn() };
+    // Execute the generated listener with explicit window/document ports; no markup runs.
+    new Function('window', 'document', script)(frame, document);
+    expect(handlers).toHaveLength(1);
+    const data = { type: 'jini:srcdoc-transport-activate', html: '<h1>Fake sign-in</h1>' };
+    for (const source of [null, {}, frame]) handlers[0]!({ source, data });
+    expect(document.open).not.toHaveBeenCalled();
+    expect(document.write).not.toHaveBeenCalled();
+    expect(document.close).not.toHaveBeenCalled();
+    handlers[0]!({ source: parent, data: { ...data, type: 'other' } });
+    handlers[0]!({ source: parent, data: { ...data, html: 42 } });
+    expect(document.write).not.toHaveBeenCalled();
+    handlers[0]!({ source: parent, data });
+    expect(document.open).toHaveBeenCalledTimes(1);
+    expect(document.write).toHaveBeenCalledTimes(1);
+    expect(document.write).toHaveBeenCalledWith(data.html);
+    expect(document.close).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -345,5 +442,385 @@ describe('canActivateSrcDocTransport', () => {
 
   it('refuses to re-activate the same HTML twice', () => {
     expect(canActivateSrcDocTransport({ ...base, activatedHtml: base.srcDoc })).toBe(false);
+  });
+});
+
+describe('buildSrcDoc byte-for-byte output pins', () => {
+  const marker: SrcDocBridge = {
+    id: 'marker',
+    inject: (doc, ctx) => doc.replace('</body>', `<i data-ctx="${String(ctx.baseHref)}|${String(ctx.extra)}"></i></body>`),
+  };
+
+  it('pins a bare fragment with default options', () => {
+    expect(buildSrcDoc('<p>hi</p>')).toMatchInlineSnapshot(`
+      "<!doctype html>
+      <html>
+        <head><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'unsafe-inline'; img-src * data: blob:; font-src * data:; media-src * data: blob:; connect-src *; frame-src *; child-src *; object-src 'none'; base-uri 'none'; form-action 'none';">
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+        </head>
+        <body><p>hi</p><script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body>
+      </html>"
+    `);
+  });
+
+  it('pins a full document with title, base href, focus guard, custom CSP and a bridge', () => {
+    expect(
+      buildSrcDoc('<!doctype html><html><head><title>Q3: Plan</title></head><body><p>x</p></body></html>', {
+        baseHref: '/a/b/',
+        previewFocusGuard: true,
+        csp: "default-src 'self' \"q\"",
+        bridges: [marker],
+        bridgeContext: { extra: 'e' },
+      }),
+    ).toMatchInlineSnapshot(`
+      "<!doctype html><html><head><script data-jini-preview-focus-guard>(function(){
+        var lastTrustedInputAt = 0;
+        function userActivated(){
+          return Date.now() - lastTrustedInputAt < 1000;
+        }
+        function markTrustedInput(event){
+          if (event && event.isTrusted) lastTrustedInputAt = Date.now();
+        }
+        document.addEventListener('pointerdown', function(event){
+          markTrustedInput(event);
+        }, true);
+        document.addEventListener('keydown', function(event){
+          markTrustedInput(event);
+        }, true);
+        try {
+          var nativeWindowFocus = window.focus && window.focus.bind(window);
+          Object.defineProperty(window, 'focus', {
+            configurable: true,
+            writable: true,
+            value: function(){
+              if (userActivated() && nativeWindowFocus) return nativeWindowFocus();
+            }
+          });
+        } catch (_) {}
+        try {
+          var nativeElementFocus = HTMLElement.prototype.focus;
+          Object.defineProperty(HTMLElement.prototype, 'focus', {
+            configurable: true,
+            writable: true,
+            value: function(options){
+              if (userActivated()) return nativeElementFocus.call(this, options);
+            }
+          });
+        } catch (_) {}
+      })();</script><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script><base href="/a/b/"><meta http-equiv="Content-Security-Policy" content="default-src 'self' &quot;q&quot;"><title>Q3- Plan</title></head><body><p>x</p><i data-ctx="/a/b/|e"></i><script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body></html>"
+    `);
+  });
+
+  it('pins csp:false with an empty bridge list', () => {
+    expect(buildSrcDoc('<html><body>b</body></html>', { csp: false, bridges: [] })).toMatchInlineSnapshot(`
+      "<html><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script><body>b<script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body></html>"
+    `);
+  });
+
+  it('pins an empty-string csp as no CSP meta', () => {
+    expect(buildSrcDoc('<html><head></head><body></body></html>', { csp: '' })).toMatchInlineSnapshot(`
+      "<html><head><script data-jini-sandbox-shim>(function(){
+        function makeStore(){
+          var data = {};
+          var api = {
+            getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+            setItem: function(k, v){ data[k] = String(v); },
+            removeItem: function(k){ delete data[k]; },
+            clear: function(){ data = {}; },
+            key: function(i){ return Object.keys(data)[i] || null; }
+          };
+          Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+          return api;
+        }
+        function tryShim(name){
+          var works = false;
+          try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+          catch (_) { works = false; }
+          if (works) return;
+          try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+          catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+        }
+        tryShim('localStorage');
+        tryShim('sessionStorage');
+        document.addEventListener('click', (e) => {
+          if (!e.target || !(e.target instanceof Element)) return;
+          var link = e.target.closest('a[href]');
+          if (!link) return;
+          var href = link.getAttribute('href');
+          if (href === null) return;
+          var isAnchor = href.startsWith('#') || href === '';
+          if (isAnchor) {
+            e.preventDefault();
+            if (href === '' || href === '#') {
+              window.scrollTo({ top: 0 });
+              history.replaceState(null, '', ' ');
+            } else {
+              var targetId = href.slice(1);
+              var target = targetId ? document.getElementById(targetId) : null;
+              if (target) {
+                target.scrollIntoView();
+                location.hash === href && history.replaceState(null, '', ' ');
+                location.hash = href;
+              }
+            }
+          } else if (link.getAttribute('target') === '_blank') {
+            e.preventDefault();
+            let safe = false;
+            try {
+              var url = new URL(href, location.href);
+              safe =
+                url.protocol === 'http:' ||
+                url.protocol === 'https:' ||
+                url.protocol === 'mailto:';
+            } catch (_) {}
+            safe && window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+      })();</script></head><body><script data-jini-srcdoc-transport-activation>(function(){
+        window.addEventListener('message', function(ev){
+          // Only the embedding host may replace this document; nested frames are untrusted.
+          if (ev.source !== window.parent) return;
+          var data = ev && ev.data;
+          if (!data || data.type !== 'jini:srcdoc-transport-activate' || typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+      })();</script></body></html>"
+    `);
+  });
+
+  it('pins the lazy transport shell regardless of html', () => {
+    expect(buildSrcDoc('<p>ignored</p>', { lazyTransport: true, csp: 'x' })).toBe(buildLazySrcDocTransport());
+  });
+});
+
+describe('head/body splicers without a usable DOMParser', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('injectBeforeHeadEnd prepends when DOMParser does not exist', () => {
+    vi.stubGlobal('DOMParser', undefined);
+    expect(injectBeforeHeadEnd('<p>frag</p>', '<X/>')).toBe('<X/><p>frag</p>');
+  });
+
+  it('injectBeforeBodyEnd appends when DOMParser does not exist', () => {
+    vi.stubGlobal('DOMParser', undefined);
+    expect(injectBeforeBodyEnd('<p>frag</p>', '<X/>')).toBe('<p>frag</p><X/>');
+  });
+
+  it('injectBeforeHeadEnd serializes the parsed document unchanged when it has no head element', () => {
+    class HeadlessDOMParser {
+      parseFromString(): Document {
+        const parsed = document.implementation.createHTMLDocument('');
+        parsed.documentElement.removeChild(parsed.head);
+        return parsed;
+      }
+    }
+    vi.stubGlobal('DOMParser', HeadlessDOMParser);
+    expect(injectBeforeHeadEnd('<p>frag</p>', '<X/>')).toBe('<!doctype html>\n<html><body></body></html>');
   });
 });

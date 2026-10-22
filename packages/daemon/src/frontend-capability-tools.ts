@@ -124,9 +124,9 @@ function toCapabilityInput(capabilityId: string, input: unknown): Record<string,
  *
  * @complexity O(n) in `capabilities`; each handler is O(1) plus the round trip to the surface.
  */
-export function createFrontendCapabilityRegistrations(
-  options: CreateFrontendCapabilityRegistrationsOptions,
+export function createFrontendCapabilityRegistrations(requiredArgs: Pick<CreateFrontendCapabilityRegistrationsOptions, "registry" | "capabilities">, optionalArgs: Pick<CreateFrontendCapabilityRegistrationsOptions, "policy" | "timeoutMs" | "maxOutputBytes"> = {}
 ): readonly ToolRegistration[] {
+  const options: CreateFrontendCapabilityRegistrationsOptions = { ...requiredArgs, ...optionalArgs };
   const {
     registry,
     capabilities,
@@ -154,10 +154,8 @@ export function createFrontendCapabilityRegistrations(
     // and a cancelled run both reach the pending invocation without this module owning a timer.
     handler: async (ctx) =>
       registry.invoke(
-        ctx.run.id,
-        capability.id,
-        toCapabilityInput(capability.id, ctx.input),
-        ctx.signal,
+        { runId: ctx.run.id, capabilityId: capability.id, input: toCapabilityInput(capability.id, ctx.input) },
+        { signal: ctx.signal },
       ),
   }));
 }

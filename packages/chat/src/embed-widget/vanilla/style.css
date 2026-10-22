@@ -1,0 +1,22 @@
+.jini-chat-vanilla [hidden]{display:none!important}
+.jini-chat-vanilla svg{width:24px;height:24px}
+.jini-chat-vanilla :focus-visible{outline:3px solid var(--jini-chat-accent,#2563eb);outline-offset:3px}
+.jini-chat-vanilla{font:14px/1.5 var(--font-body,system-ui,sans-serif);color:var(--jini-chat-text,var(--color-text,CanvasText))}
+.jini-chat-vanilla__panel{position:fixed;right:var(--jini-embed-right,24px);bottom:88px;width:min(var(--jini-embed-width,440px),calc(100vw - 32px));height:min(var(--jini-embed-height,620px),calc(100dvh - 120px));z-index:var(--jini-embed-z-index,1000);display:flex;flex-direction:column;background:var(--jini-chat-background,var(--color-background,Canvas));border:1px solid var(--jini-chat-border,#767676);border-radius:16px;box-shadow:0 12px 48px #0003;overflow:hidden}
+.jini-chat-vanilla__header,.jini-chat-vanilla__composer,.jini-chat-vanilla__confirmation,.jini-chat-vanilla__proposal{display:flex;align-items:center;gap:8px;padding:12px;border-bottom:1px solid var(--jini-chat-border,#767676)}
+.jini-chat-vanilla__title{flex:1}
+.jini-chat-vanilla__button{font:inherit;color:inherit;background:transparent;border:1px solid var(--jini-chat-border,#767676);border-radius:8px;padding:6px 10px;cursor:pointer}
+.jini-chat-vanilla__button:disabled{opacity:.5;cursor:default}
+.jini-chat-vanilla__messages{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px}
+.jini-chat-vanilla__message{margin-bottom:16px;overflow-wrap:anywhere}
+.jini-chat-vanilla__message--user{white-space:pre-wrap;padding:10px;border-radius:8px;background:var(--jini-chat-user-background,#8882)}
+.jini-chat-vanilla__message p{margin:0 0 8px}
+.jini-chat-vanilla__message pre{overflow:auto;padding:8px;background:#8882;border-radius:8px}
+.jini-chat-vanilla__message a{color:var(--jini-chat-accent,var(--color-primary,#2563eb));text-decoration:underline}
+.jini-chat-vanilla__input{flex:1;min-width:0;resize:none;font:inherit;font-size:16px;color:inherit;background:transparent;border:1px solid var(--jini-chat-border,#767676);border-radius:8px;padding:8px}
+.jini-chat-vanilla__status,.jini-chat-vanilla__error{padding:0 12px}
+.jini-chat-vanilla__error{color:var(--jini-chat-error,#b91c1c)}
+.jini-chat-vanilla__confirmation{flex-wrap:wrap}
+@media(max-width:480px){.jini-chat-vanilla__panel{right:8px;bottom:88px;width:calc(100vw - 16px);height:calc(100dvh - 104px)}}
+
+.jini-chat-vanilla__announcements{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}

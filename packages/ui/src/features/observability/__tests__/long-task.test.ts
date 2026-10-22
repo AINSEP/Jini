@@ -178,7 +178,7 @@ describe('installLongTaskObserver', () => {
     expect(() => secondTeardown()).not.toThrow();
   });
 
-  it('keeps an unparseable containerSrc as-is instead of throwing', async () => {
+  it('omits an unparseable containerSrc without throwing', async () => {
     const { installLongTaskObserver } = await freshModule();
     const reporter = vi.fn();
     installLongTaskObserver({ reporter });
@@ -194,7 +194,7 @@ describe('installLongTaskObserver', () => {
 
     expect(reporter).toHaveBeenCalledWith(
       'client_long_task',
-      expect.objectContaining({ container_src_origin: 'not a valid url::::' }),
+      expect.objectContaining({ container_src_origin: undefined }),
     );
   });
 });

@@ -1,13 +1,13 @@
 /**
  * @module handle
  *
- * `agentHandle('save')` — the attribute props a component spreads onto its root element to
+ * `agentHandle({ handle: 'save' })` — the attribute props a component spreads onto its root element to
  * publish itself under this package's `data-agent-*` markup convention (see
  * `element-handles.ts`), without the caller having to know the attribute names or re-derive the
  * handle-validity rule itself.
  *
  * Deliberately pure data, no DOM: this returns a plain object of string attributes, spreadable by
- * React (`<button {...agentHandle('save')}>`), Vue, Svelte, or any renderer that accepts arbitrary
+ * React (`<button {...agentHandle({ handle: 'save' })}>`), Vue, Svelte, or any renderer that accepts arbitrary
  * attribute props on an element. That is what lets it live in this package's universal root
  * rather than `./dom` — nothing here touches `document` or any browser global.
  */
@@ -52,8 +52,8 @@ export type AgentHandleProps = {
  * @throws If `handle` is not a valid element handle — never publishes a handle a caller (`page.*`
  *   capabilities, `resolveHandleSelector`) could not later resolve.
  */
-export function agentHandle(handle: string, options: AgentHandleOptions = {}): AgentHandleProps {
-  if (!isValidElementHandle(handle)) {
+export function agentHandle({ handle }: { handle: string }, options: AgentHandleOptions = {}): AgentHandleProps {
+  if (!isValidElementHandle({ handle })) {
     throw new Error(
       `invalid element handle "${handle.slice(0, 128)}": `
       + 'handles are lowercase words joined by single hyphens, and are never CSS selectors',
@@ -64,6 +64,25 @@ export function agentHandle(handle: string, options: AgentHandleOptions = {}): A
   if (options.label !== undefined) props[AGENT_LABEL_ATTRIBUTE] = options.label;
   if (options.page !== undefined) props[AGENT_PAGE_ATTRIBUTE] = options.page;
   return props as AgentHandleProps;
+}
+
+/**
+ * Derives a bounded handle segment from an opaque id without rewriting that id.
+ * Short valid ids keep their spelling; other ids use a stable 64-bit FNV-1a fingerprint
+ * of their UTF-16 code units. The `h-<16 hex digits>` namespace is reserved for fingerprints.
+ * Unlike list collision suffixes, this segment does not depend on filtering or row order.
+ * This is display identity, not a cryptographic or authorization primitive.
+ * @param required - The original id; arbitrary characters, empty and long strings are accepted.
+ * @returns A valid segment of at most 40 characters; callers reserve space for their fixed prefix.
+ * @complexity O(n) time in id characters, O(1) auxiliary space. No effects or errors.
+ */
+export function agentHandleSegment({ value }: { value: string }, _optional: Record<string, never> = {}): string {
+  if (value.length <= 40 && isValidElementHandle({ handle: value }) && !/^h-[0-9a-f]{16}$/.test(value)) return value;
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = BigInt.asUintN(64, (hash ^ BigInt(value.charCodeAt(index))) * 0x100000001b3n);
+  }
+  return `h-${hash.toString(16).padStart(16, '0')}`;
 }
 
 /**
@@ -82,12 +101,14 @@ export function agentHandle(handle: string, options: AgentHandleOptions = {}): A
  * @returns `<base>-<action>`.
  * @complexity O(1).
  */
-export function agentSubHandle(base: string, action: string): string {
+export function agentSubHandle({ base, action }: { base: string; action: string }, _optional: Record<string, never> = {}): string {
   return `${base}-${action}`;
 }
 
 /** What to publish about one sub-element — see {@link agentHandleProps}. */
 export interface AgentHandlePropsOptions extends AgentHandleOptions {
+  /** Host-published base handle. Omit to leave the element unpublished. */
+  readonly base?: string | undefined;
   /**
    * The sub-element's name, appended to `base` via {@link agentSubHandle}. Omit when the element
    * IS `base` — the component's own root.
@@ -117,11 +138,10 @@ export interface AgentHandlePropsOptions extends AgentHandleOptions {
  *   answering to a handle the host never wrote.
  * @complexity O(1).
  */
-export function agentHandleProps(
-  base: string | undefined,
-  options: AgentHandlePropsOptions = {},
+export function agentHandleProps(_required: Record<string, never>, options: AgentHandlePropsOptions = {}
 ): AgentHandleProps | Record<string, never> {
+  const { base } = options;
   if (base === undefined) return {};
-  const { action, ...rest } = options;
-  return agentHandle(action === undefined ? base : agentSubHandle(base, action), rest);
+  const { action, base: _base, ...rest } = options;
+  return agentHandle({ handle: action === undefined ? base : agentSubHandle({ base, action }) }, rest);
 }

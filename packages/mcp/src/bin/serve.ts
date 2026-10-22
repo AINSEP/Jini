@@ -4,13 +4,13 @@
  *
  * The bootable `jini-mcp` binary (`package.json`'s `"bin": { "jini-mcp": "./dist/bin/serve.js" }`)
  * — the real executable entry point gap 3's MCP-callback continuation-transport spike needed and
- * did not have (see `packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1"
- * addition, and this package's own dated section in `source-map.md`). `../server/tool-server.js`'s
+ * did not have (see `packages/daemon/archived provenance ledger`'s "run/chat orchestration gap 3, part 1"
+ * addition, and this package's own dated section in `archived provenance ledger`). `../server/tool-server.js`'s
  * `createMcpToolServer` was always designed to run as *this process's own* stdio — meant to be a
  * script a client (Claude Code) spawns as its own child subprocess and talks to over that child's
  * stdin/stdout — but until this file, nothing in this package actually was that script.
  *
- * Follows `@jini-ai/cli/main.ts`'s established shape for a bootable, side-effect-guarded, `#!/usr/bin/env
+ * Follows the CLI entry point's established shape for a bootable, side-effect-guarded, `#!/usr/bin/env
  * node` entry point: a named, fully-dependency-injected `serve()` export (importable for tests, or
  * for a consumer building its own bin wrapper around it) plus a bottom-of-file guard that only
  * calls it for real when this module is the actual process entrypoint — mirrors that file's own
@@ -29,8 +29,8 @@
  * other tool this server hosts (`RUN_TOOLS`, `../server/tools/run-tools.js`) is run-agnostic and
  * needed no such scoping.
  *
- * **Daemon-URL resolution** mirrors `@jini-ai/cli/main.ts`'s own posture: no baked-in default, just
- * `resolveDaemonUrl` (`@jini-ai/cli`) wired to a `--daemon-url`-shaped precedence chain — except this
+ * **Daemon-URL resolution** follows the spawning host's environment: no baked-in default, just
+ * `resolveDaemonUrl` (the CLI transport) wired to a `--daemon-url`-shaped precedence chain — except this
  * process has no argv to parse (an MCP client launches it with a fixed `command`/`args`/`env`, not
  * interactive flags), so only the env-var step applies: {@link DAEMON_URL_ENV_VAR}. When unset,
  * `resolveDaemonUrl` throws, and this file's own top-level error boundary turns that into a clean
@@ -38,18 +38,20 @@
  */
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { resolveDaemonUrl as resolveDaemonUrlDefault, type ResolveDaemonUrlOptions } from '@jini-ai/cli';
-import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerOptions } from '../server/tool-server.js';
+import { isLoopbackHostname } from '@jini-ai/platform/net';
+import type { ToolDescriptor } from '@jini-ai/core';
+import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerRequiredArgs, type McpToolServerOptions } from '../server/tool-server.js';
 import type { McpToolDef } from '../server/tool-protocol.js';
 import { RUN_TOOLS } from '../server/tools/run-tools.js';
-import { TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
+import { describeToolTool, TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
 import { COMPONENT_CATALOG_TOOLS } from '../server/tools/component-catalog-tools.js';
 import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool } from '../server/tools/delegated-tool.js';
 import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
+import { createSiteGuideResource } from '../server/resources/site-guide-resource.js';
 
 /** The one run this process is scoped to for its entire lifetime. Set by the spawning daemon, never by the MCP client. */
 export const RUN_ID_ENV_VAR = 'JINI_RUN_ID';
-/** Checked (only) when resolving the daemon HTTP base URL — see `resolveDaemonUrl`'s own docs; matches `@jini-ai/cli/main.ts`'s identically-named constant. */
+/** Checked (only) when resolving the daemon HTTP base URL — see `resolveDaemonUrl`'s own docs; matches the CLI entry point's identically-named constant. */
 export const DAEMON_URL_ENV_VAR = 'JINI_DAEMON_URL';
 /**
  * Bearer credential for this process's daemon callbacks, set by the spawning daemon when it issued
@@ -76,27 +78,34 @@ export const DAEMON_TOKEN_ENV_VAR = 'JINI_DAEMON_TOKEN';
  * policy that would make a given number correct, so it must not refuse to boot over one.
  */
 export const DELEGATED_TOOL_TIMEOUT_ENV_VAR = 'JINI_DELEGATED_TOOL_TIMEOUT_MS';
+/** JSON array of host-selected visible registry IDs; never sourced from diagnostic IDs. */
+export const STARTUP_TOOL_IDS_ENV_VAR = 'JINI_STARTUP_TOOL_IDS';
 
 const SERVER_NAME = 'jini-mcp';
 const SERVER_VERSION = '0.0.0';
 const INSTRUCTIONS =
   'Tools proxying this host\'s Jini daemon over loopback HTTP, scoped to the run that spawned this MCP server process. ' +
   'Use execute_delegated_tool to invoke a Jini-registered tool (never an agent-vendor-specific tool name) against that run — ' +
-  'every call is routed through the daemon\'s deny-by-default ToolExecutor gate.';
+  'every call is routed through the daemon\'s deny-by-default ToolExecutor gate. ' +
+  'Concrete operation tools accept their own arguments directly. describe_tool publishes a concrete definition; ' +
+  'refresh tools/list when supported, or use the delegated gateways as the compatibility fallback. ' +
+  'When the host provides site_guide, consult jini://site-guide or call site_guide with operation overview ' +
+  'through execute_readonly_delegated_tool; follow with explain for the relevant topic ids. ' +
+  'If the host does not provide site_guide, report that availability gap.';
 
 export interface ServeDeps {
   /** @default process.env */
   readonly env?: NodeJS.ProcessEnv;
   /** @default process.stderr.write */
-  readonly writeErr?: (text: string) => void;
+  readonly writeErr?: (args: { text: string }) => void;
   /** @default process.exit; inject for tests (must not return) */
-  readonly exit?: (code: number) => never;
-  /** @default the real @jini-ai/cli resolveDaemonUrl */
-  readonly resolveDaemonUrl?: typeof resolveDaemonUrlDefault;
+  readonly exit?: (args: { code: number }) => never;
+  /** @default the real environment-only daemon URL resolution */
+  readonly resolveDaemonUrl?: (required: Record<string, never>, options: McpDaemonUrlOptions) => Promise<string>;
   /** @default the real createMcpToolServer */
   readonly createMcpToolServer?: typeof createMcpToolServerDefault;
   /** Threaded into `execute_delegated_tool`'s per-call correlation id. @default node:crypto randomUUID */
-  readonly generateToolUseId?: () => string;
+  readonly generateToolUseId?: (required: Record<string, never>) => string;
   /** Threaded into every tool's daemon call. @default the global fetch */
   readonly fetchImpl?: typeof fetch;
   /** @default process.stdin */
@@ -105,7 +114,39 @@ export interface ServeDeps {
   readonly stdout?: Writable;
 }
 
-function defaultWriteErr(text: string): void {
+/** This executable has no flags or discovery phase: its spawning host supplies the environment. */
+export interface McpDaemonUrlOptions {
+  flagUrl: null;
+  env: NodeJS.ProcessEnv;
+  envVarName: string;
+  warn: (required: { message: string }) => void;
+}
+
+// Keep the bin's environment-only assembly here; a general CLI resolver would introduce a
+// runtime dependency on another shell. No discovery/default URL is selected for a run child.
+async function resolveDaemonUrlDefault(_required: Record<string, never>, options: McpDaemonUrlOptions): Promise<string> {
+  const url = options.env[options.envVarName];
+  if (!url) {
+    throw new Error(`no daemon URL resolved: ${options.envVarName} is unset or empty; ` +
+      'the spawning Jini daemon must set it to its HTTP base URL.');
+  }
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return url; }
+  if (parsed.protocol !== 'https:' && !isLoopbackHostname({ hostname: parsed.hostname })) {
+    options.warn({ message: `daemon URL ${redactUserinfo(url, parsed)} is neither loopback nor HTTPS; traffic to a remote, non-HTTPS daemon is not encrypted.` });
+  }
+  return url;
+}
+
+// Keeps credentials out of the warning; a URL without userinfo is shown exactly as given.
+function redactUserinfo(url: string, parsed: URL): string {
+  if (!parsed.username && !parsed.password) return url;
+  parsed.username = '';
+  parsed.password = '';
+  return parsed.toString();
+}
+
+function defaultWriteErr({ text }: { text: string }): void {
   process.stderr.write(text);
 }
 
@@ -114,84 +155,151 @@ function defaultWriteErr(text: string): void {
  * has no meaningful default run to serve) plus `DAEMON_URL_ENV_VAR` resolution, then hosts
  * `RUN_TOOLS` (run-agnostic) alongside a fresh `execute_delegated_tool` def scoped to the resolved
  * `runId`, and `KERNEL_RESOURCES`. Resolves once the client disconnects (stdin EOF) or the
- * idle-exit window elapses (`createMcpToolServer`'s own default) — never bare-throws: every error
+ * idle-exit window elapses (`createMcpToolServer`'s own default). Enables describe publication and
+ * resolves startup descriptors before connecting stdio. Never bare-throws: every error
  * path below writes a message to `writeErr` and calls `exit(1)` instead.
  */
-export async function serve(deps: ServeDeps = {}): Promise<void> {
-  const env = deps.env ?? process.env;
-  const writeErr = deps.writeErr ?? defaultWriteErr;
-  const exit = deps.exit ?? ((code: number): never => process.exit(code));
-  const resolveDaemonUrlFn = deps.resolveDaemonUrl ?? resolveDaemonUrlDefault;
-  const createMcpToolServerFn = deps.createMcpToolServer ?? createMcpToolServerDefault;
+export async function serve(_requiredArgs: Record<string, never>, deps: ServeDeps = {}): Promise<void> {
+  const { env, writeErr, exit, resolveDaemonUrlFn, createMcpToolServerFn } = withProcessDefaults(deps);
 
   const runId = env[RUN_ID_ENV_VAR];
   if (typeof runId !== 'string' || runId.length === 0) {
-    writeErr(`${SERVER_NAME}: missing required ${RUN_ID_ENV_VAR} environment variable (this process must be spawned by a Jini daemon, which sets it)\n`);
-    return exit(1);
+    writeErr({ text: `${SERVER_NAME}: missing required ${RUN_ID_ENV_VAR} environment variable (this process must be spawned by a Jini daemon, which sets it)\n` });
+    return exit({ code: 1 });
   }
 
+  let baseUrlResolution: Promise<string> | undefined;
   const resolveBaseUrl = (): Promise<string> => {
-    const options: ResolveDaemonUrlOptions = { flagUrl: null, env, envVarName: DAEMON_URL_ENV_VAR, warn: writeErr };
-    return resolveDaemonUrlFn(options);
+    const options: McpDaemonUrlOptions = { flagUrl: null, env, envVarName: DAEMON_URL_ENV_VAR, warn: ({ message }) => writeErr({ text: message }) };
+    // Startup discovery and subsequent execution must use the same resolved daemon.
+    return baseUrlResolution ??= resolveDaemonUrlFn({}, options);
   };
 
-  // Shared by both gateways so their run scope, correlation-id source, and deadline cannot diverge
-  // — the only difference between the two defs is the read-only constraint each declares.
-  const delegatedGatewayOptions = {
-    runId,
-    ...(deps.generateToolUseId !== undefined ? { generateToolUseId: deps.generateToolUseId } : {}),
+  const delegatedGatewayOptions = buildDelegatedGatewayOptions({ env }, deps);
+  const requiredArgs: McpToolServerRequiredArgs = {
+    name: SERVER_NAME,
+    version: SERVER_VERSION,
+    tools: buildTools({ runId, delegatedGatewayOptions }),
+    resolveBaseUrl,
+  };
+  const serverOptions = buildServerOptions({ env, runId, delegatedGatewayOptions }, deps);
+
+  try {
+    const diagnosticToolIds = parseLaunchToolIds({ env, key: 'JINI_DIAGNOSTIC_TOOL_IDS' });
+    if (diagnosticToolIds.length) Object.assign(serverOptions, { diagnosticToolIds });
+    const initialTools = await resolveStartupTools({
+      toolIds: parseLaunchToolIds({ env, key: STARTUP_TOOL_IDS_ENV_VAR }), resolveBaseUrl, serverOptions,
+    });
+    Object.assign(serverOptions, { delegatedTools: { runId, ...delegatedGatewayOptions, initialTools } });
+    await createMcpToolServerFn(requiredArgs, serverOptions).run({});
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    writeErr({ text: `${SERVER_NAME}: ${message}\n` });
+    return exit({ code: 1 });
+  }
+}
+
+// The process-bound fallbacks for every injectable seam `serve()` itself calls.
+function withProcessDefaults(deps: ServeDeps) {
+  return {
+    env: deps.env ?? process.env,
+    writeErr: deps.writeErr ?? defaultWriteErr,
+    exit: deps.exit ?? (({ code }: { code: number }): never => process.exit(code)),
+    resolveDaemonUrlFn: deps.resolveDaemonUrl ?? resolveDaemonUrlDefault,
+    createMcpToolServerFn: deps.createMcpToolServer ?? createMcpToolServerDefault,
+  };
+}
+
+type DelegatedGatewayOptions = { generateToolUseId?: (required: Record<string, never>) => string; delegatedToolTimeoutMs?: number };
+
+// Drops `undefined` values so an absent dependency leaves no key at all — required under
+// `exactOptionalPropertyTypes`, and it keeps built option objects byte-identical to the
+// pre-injection shape when nothing is overridden.
+function definedOnly<T extends Record<string, unknown>>(entries: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(entries).filter(([, value]) => value !== undefined)) as { [K in keyof T]?: Exclude<T[K], undefined> };
+}
+
+// Shared by both gateways so their run scope, correlation-id source, and deadline cannot diverge
+// — the only difference between the two defs is the read-only constraint each declares.
+function buildDelegatedGatewayOptions({ env }: { env: NodeJS.ProcessEnv }, deps: ServeDeps): DelegatedGatewayOptions {
+  const rawTimeout = env[DELEGATED_TOOL_TIMEOUT_ENV_VAR];
+  return definedOnly({
+    generateToolUseId: deps.generateToolUseId,
     // Parsed, not validated: `createExecuteDelegatedToolTool` already rejects a non-finite or
     // non-positive value back to the default, so `NaN` from a malformed env var lands there too.
-    ...(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR] !== undefined
-      ? { delegatedToolTimeoutMs: Number(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR]) }
-      : {}),
-  };
+    delegatedToolTimeoutMs: rawTimeout === undefined ? undefined : Number(rawTimeout),
+  });
+}
 
-  const tools: readonly McpToolDef[] = [
+function buildTools({ runId, delegatedGatewayOptions }: { runId: string; delegatedGatewayOptions: DelegatedGatewayOptions }): readonly McpToolDef[] {
+  return [
     ...RUN_TOOLS,
     ...TOOL_CATALOG_TOOLS,
     ...COMPONENT_CATALOG_TOOLS,
-    createExecuteDelegatedToolTool(delegatedGatewayOptions),
+    createExecuteDelegatedToolTool({ runId }, delegatedGatewayOptions),
     // Hosted ALONGSIDE the unconstrained gateway, never instead of it. A client that gates on
     // `readOnlyHint: true` can now reach the read half of the catalog at all; every other client
     // sees both and picks by what its call actually does.
-    createExecuteReadonlyDelegatedToolTool(delegatedGatewayOptions),
+    createExecuteReadonlyDelegatedToolTool({ runId }, delegatedGatewayOptions),
   ];
+}
 
+function buildServerOptions(
+  { env, runId, delegatedGatewayOptions }: { env: NodeJS.ProcessEnv; runId: string; delegatedGatewayOptions: DelegatedGatewayOptions },
+  deps: ServeDeps,
+): McpToolServerOptions {
   // Absent credential => no `authHeaders` at all => byte-identical request headers to before this
   // env var existed. See DAEMON_TOKEN_ENV_VAR's doc for why an unset value is not a startup failure.
   const credential = env[DAEMON_TOKEN_ENV_VAR];
-  const authHeaders =
-    typeof credential === 'string' && credential.length > 0
-      ? { Authorization: `Bearer ${credential}` }
-      : undefined;
-
-  const serverOptions: McpToolServerOptions = {
-    name: SERVER_NAME,
-    version: SERVER_VERSION,
-    tools,
-    resources: KERNEL_RESOURCES,
-    resolveBaseUrl,
+  return {
+    resources: [...KERNEL_RESOURCES, createSiteGuideResource({ runId }, delegatedGatewayOptions)],
     instructions: INSTRUCTIONS,
-    ...(authHeaders !== undefined ? { authHeaders } : {}),
-    ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
-    ...(deps.stdin !== undefined ? { stdin: deps.stdin } : {}),
-    ...(deps.stdout !== undefined ? { stdout: deps.stdout } : {}),
+    ...definedOnly({
+      authHeaders: credential ? { Authorization: `Bearer ${credential}` } : undefined,
+      fetchImpl: deps.fetchImpl,
+      stdin: deps.stdin,
+      stdout: deps.stdout,
+    }),
   };
+}
 
-  try {
-    await createMcpToolServerFn(serverOptions).run();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    writeErr(`${SERVER_NAME}: ${message}\n`);
-    return exit(1);
+// Only the spawning host supplies registration metadata. Never learn exceptions from an
+// error body or model arguments: either would turn a secret into its own redaction exemption.
+function parseLaunchToolIds({ env, key }: { env: NodeJS.ProcessEnv; key: string }): string[] {
+  const toolIds: unknown = JSON.parse(env[key] ?? '[]');
+  if (!Array.isArray(toolIds) || !toolIds.every(id => typeof id === 'string')) {
+    throw new Error(`${key} must be a JSON array of registered tool IDs`);
   }
+  return toolIds;
+}
+
+/**
+ * Resolve each unique startup ID through the existing authenticated describe/publication owner.
+ * The temporary descriptor list seeds M1's bounded exposure; it is not an execution catalog.
+ * Failure aborts startup before any partially resolved list can reach the client.
+ * @returns Authoritative descriptors; no daemon I/O when startup IDs are absent.
+ * @throws The existing descriptor/daemon errors, reported by serve's stderr/exit boundary.
+ * @complexity O(n + s) space/time plus n sequential bounded GETs for n unique IDs and s schema bytes.
+ */
+async function resolveStartupTools({ toolIds, resolveBaseUrl, serverOptions }: {
+  toolIds: readonly string[]; resolveBaseUrl: () => Promise<string>; serverOptions: McpToolServerOptions;
+}): Promise<readonly ToolDescriptor[]> {
+  if (toolIds.length === 0) return [];
+  const descriptors: ToolDescriptor[] = [];
+  const ctx = {
+    baseUrl: await resolveBaseUrl(),
+    fetchImpl: serverOptions.fetchImpl ?? fetch,
+    ...definedOnly({ authHeaders: serverOptions.authHeaders, diagnosticToolIds: serverOptions.diagnosticToolIds }),
+    publishTool: async ({ descriptor }: { descriptor: ToolDescriptor }) => { descriptors.push(descriptor); },
+  };
+  for (const id of new Set(toolIds)) await describeToolTool.handler({ args: { id }, ctx });
+  return descriptors;
 }
 
 // Only run for real when this module is the actual process entrypoint (`node dist/bin/serve.js`,
 // or the `jini-mcp` bin shim pnpm/npm links to it) — not merely imported, e.g. by this file's own
-// tests importing the named `serve` export above. Mirrors `@jini-ai/cli/main.ts`'s identical guard.
+// tests importing the named `serve` export above. Mirrors the CLI entry point's identical guard.
 const isMainModule = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMainModule) {
-  await serve();
+  await serve({});
 }

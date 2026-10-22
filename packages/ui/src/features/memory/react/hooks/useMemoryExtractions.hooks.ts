@@ -15,7 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createAsyncCommitGuard } from '../../async-commit-guard.js';
 import type { MemoryExtractionsPort } from '../../ports.js';
 import type { MemoryExtractionEvent, MemoryExtractionRecord } from '../../types.js';
-import { memoryExtractionsPort } from '../../dependencies.js';
+import { useMemoryPorts } from '../MemoryPorts.js';
 import { createExtractionHistoryStore, type ExtractionHistoryStore } from './useMemoryExtractions.store.js';
 
 const LOAD_ERROR_MESSAGE = "Memory extraction history couldn't be loaded. Try again shortly.";
@@ -206,5 +206,5 @@ export function useMemoryExtractions(port: MemoryExtractionsPort): MemoryExtract
 }
 
 export function useWiredMemoryExtractions(): MemoryExtractionsController {
-  return useMemoryExtractions(memoryExtractionsPort);
+  return useMemoryExtractions(useMemoryPorts().extractions);
 }

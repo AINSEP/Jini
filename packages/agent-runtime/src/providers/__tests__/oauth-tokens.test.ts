@@ -53,13 +53,13 @@ const token = (overrides: Partial<StoredOAuthToken> = {}): StoredOAuthToken => (
 
 describe('getStoredOAuthToken / setStoredOAuthToken / clearStoredOAuthToken', () => {
   it('returns null when nothing is stored', async () => {
-    await expect(getStoredOAuthToken(dataDir, FILE_NAME)).resolves.toBeNull();
+    await expect(getStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME })).resolves.toBeNull();
   });
 
   it('stores and retrieves a token, chmod 0600 on POSIX', async () => {
     const t = token({ refreshToken: 'rt-1', scope: 'a b', expiresAt: 123 });
-    await setStoredOAuthToken(dataDir, FILE_NAME, t);
-    const stored = await getStoredOAuthToken(dataDir, FILE_NAME);
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: t });
+    const stored = await getStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME });
     expect(stored).toEqual(t);
     if (process.platform !== 'win32') {
       const st = await import('node:fs/promises').then((fs) => fs.stat(path.join(dataDir, FILE_NAME)));
@@ -70,31 +70,31 @@ describe('getStoredOAuthToken / setStoredOAuthToken / clearStoredOAuthToken', ()
   it('creates the data directory if missing', async () => {
     const nested = path.join(dataDir, 'nested', 'deeper');
     const t = token();
-    await setStoredOAuthToken(nested, FILE_NAME, t);
-    await expect(getStoredOAuthToken(nested, FILE_NAME)).resolves.toEqual(t);
+    await setStoredOAuthToken({ dataDir: nested, fileName: FILE_NAME, token: t });
+    await expect(getStoredOAuthToken({ dataDir: nested, fileName: FILE_NAME })).resolves.toEqual(t);
   });
 
   it('clears a stored token and is a no-op when nothing is stored', async () => {
-    await setStoredOAuthToken(dataDir, FILE_NAME, token());
-    await clearStoredOAuthToken(dataDir, FILE_NAME);
-    await expect(getStoredOAuthToken(dataDir, FILE_NAME)).resolves.toBeNull();
-    await expect(clearStoredOAuthToken(dataDir, FILE_NAME)).resolves.toBeUndefined();
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token() });
+    await clearStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME });
+    await expect(getStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME })).resolves.toBeNull();
+    await expect(clearStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME })).resolves.toBeUndefined();
   });
 
   it('overwrites an existing token atomically', async () => {
-    await setStoredOAuthToken(dataDir, FILE_NAME, token({ accessToken: 'first' }));
-    await setStoredOAuthToken(dataDir, FILE_NAME, token({ accessToken: 'second' }));
-    const stored = await getStoredOAuthToken(dataDir, FILE_NAME);
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token({ accessToken: 'first' }) });
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token({ accessToken: 'second' }) });
+    const stored = await getStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME });
     expect(stored?.accessToken).toBe('second');
   });
 
   it('serializes concurrent writes for the same dataDir+fileName without interleaving', async () => {
     await Promise.all([
-      setStoredOAuthToken(dataDir, FILE_NAME, token({ accessToken: 'a' })),
-      setStoredOAuthToken(dataDir, FILE_NAME, token({ accessToken: 'b' })),
-      setStoredOAuthToken(dataDir, FILE_NAME, token({ accessToken: 'c' })),
+      setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token({ accessToken: 'a' }) }),
+      setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token({ accessToken: 'b' }) }),
+      setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token({ accessToken: 'c' }) }),
     ]);
-    const stored = await getStoredOAuthToken(dataDir, FILE_NAME);
+    const stored = await getStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME });
     expect(['a', 'b', 'c']).toContain(stored?.accessToken);
   });
 
@@ -102,11 +102,11 @@ describe('getStoredOAuthToken / setStoredOAuthToken / clearStoredOAuthToken', ()
     const otherDir = await mkdtemp(path.join(tmpdir(), 'oauth-tokens-other-'));
     try {
       await Promise.all([
-        setStoredOAuthToken(dataDir, FILE_NAME, token({ accessToken: 'dir1' })),
-        setStoredOAuthToken(otherDir, FILE_NAME, token({ accessToken: 'dir2' })),
+        setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token({ accessToken: 'dir1' }) }),
+        setStoredOAuthToken({ dataDir: otherDir, fileName: FILE_NAME, token: token({ accessToken: 'dir2' }) }),
       ]);
-      await expect(getStoredOAuthToken(dataDir, FILE_NAME)).resolves.toMatchObject({ accessToken: 'dir1' });
-      await expect(getStoredOAuthToken(otherDir, FILE_NAME)).resolves.toMatchObject({ accessToken: 'dir2' });
+      await expect(getStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME })).resolves.toMatchObject({ accessToken: 'dir1' });
+      await expect(getStoredOAuthToken({ dataDir: otherDir, fileName: FILE_NAME })).resolves.toMatchObject({ accessToken: 'dir2' });
     } finally {
       await rm(otherDir, { recursive: true, force: true });
     }
@@ -115,27 +115,27 @@ describe('getStoredOAuthToken / setStoredOAuthToken / clearStoredOAuthToken', ()
 
 describe('readOAuthTokenFile', () => {
   it('returns {} on ENOENT', async () => {
-    await expect(readOAuthTokenFile(dataDir, 'missing.json')).resolves.toEqual({});
+    await expect(readOAuthTokenFile({ dataDir: dataDir, fileName: 'missing.json' })).resolves.toEqual({});
   });
 
   it('returns {} and logs on corrupted JSON', async () => {
     const { writeFile } = await import('node:fs/promises');
     await writeFile(path.join(dataDir, FILE_NAME), 'not json {{', 'utf8');
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(readOAuthTokenFile(dataDir, FILE_NAME)).resolves.toEqual({});
+    await expect(readOAuthTokenFile({ dataDir: dataDir, fileName: FILE_NAME })).resolves.toEqual({});
     expect(errSpy).toHaveBeenCalled();
   });
 
   it('re-throws an unexpected (non-ENOENT, non-SyntaxError) read error', async () => {
     // Mocked rather than induced via real file permissions: this sandbox
     // runs as root, where chmod 000 does not actually deny a root reader
-    // (see packages/agent-runtime/source-map.md's launch.test.ts note for
+    // (see packages/agent-runtime/archived provenance ledger's launch.test.ts note for
     // the same pre-existing environment caveat), so a real permission
     // error can't be reproduced here.
     fsMockState.readFileImpl = async () => {
       throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
     };
-    await expect(readOAuthTokenFile(dataDir, FILE_NAME)).rejects.toMatchObject({ code: 'EACCES' });
+    await expect(readOAuthTokenFile({ dataDir: dataDir, fileName: FILE_NAME })).rejects.toMatchObject({ code: 'EACCES' });
   });
 });
 
@@ -145,7 +145,7 @@ describe('writeTokenFile chmod fallback', () => {
       throw Object.assign(new Error('io error'), { code: 'EIO' });
     };
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await setStoredOAuthToken(dataDir, FILE_NAME, token());
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token() });
     expect(warnSpy).toHaveBeenCalledWith(
       '[oauth-tokens] could not chmod 0600',
       expect.stringContaining(FILE_NAME),
@@ -159,7 +159,7 @@ describe('writeTokenFile chmod fallback', () => {
       fsMockState.chmodImpl = async () => {
         throw Object.assign(new Error('x'), { code });
       };
-      await setStoredOAuthToken(dataDir, FILE_NAME, token());
+      await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token() });
     }
     expect(warnSpy).not.toHaveBeenCalled();
   });
@@ -169,35 +169,35 @@ describe('writeTokenFile chmod fallback', () => {
       throw { code: 'EIO' };
     };
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await setStoredOAuthToken(dataDir, FILE_NAME, token());
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token() });
     expect(warnSpy).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), { code: 'EIO' });
   });
 });
 
 describe('sanitizeOAuthTokenFile', () => {
   it('returns {} for non-plain-object input', () => {
-    expect(sanitizeOAuthTokenFile(null)).toEqual({});
-    expect(sanitizeOAuthTokenFile([1, 2])).toEqual({});
-    expect(sanitizeOAuthTokenFile('a string')).toEqual({});
+    expect(sanitizeOAuthTokenFile({ raw: null })).toEqual({});
+    expect(sanitizeOAuthTokenFile({ raw: [1, 2] })).toEqual({});
+    expect(sanitizeOAuthTokenFile({ raw: 'a string' })).toEqual({});
   });
 
   it('drops a token missing accessToken', () => {
-    expect(sanitizeOAuthTokenFile({ token: { tokenType: 'Bearer' } })).toEqual({});
-    expect(sanitizeOAuthTokenFile({ token: { accessToken: '   ' } })).toEqual({});
-    expect(sanitizeOAuthTokenFile({ token: null })).toEqual({});
+    expect(sanitizeOAuthTokenFile({ raw: { token: { tokenType: 'Bearer' } } })).toEqual({});
+    expect(sanitizeOAuthTokenFile({ raw: { token: { accessToken: '   ' } } })).toEqual({});
+    expect(sanitizeOAuthTokenFile({ raw: { token: null } })).toEqual({});
   });
 
   it('defaults tokenType to Bearer and savedAt to now when absent/invalid', () => {
     const before = Date.now();
-    const result = sanitizeOAuthTokenFile({ token: { accessToken: 'at-1', tokenType: '  ' } });
+    const result = sanitizeOAuthTokenFile({ raw: { token: { accessToken: 'at-1', tokenType: '  ' } } });
     expect(result.token?.tokenType).toBe('Bearer');
     expect(result.token?.savedAt).toBeGreaterThanOrEqual(before);
   });
 
   it('keeps refreshToken/scope/expiresAt when present and valid, drops when blank/invalid', () => {
-    const withAll = sanitizeOAuthTokenFile({
+    const withAll = sanitizeOAuthTokenFile({ raw: {
       token: { accessToken: 'at-1', refreshToken: 'rt-1', scope: 'a b', expiresAt: 12345, savedAt: 999 },
-    });
+    } });
     expect(withAll.token).toEqual({
       accessToken: 'at-1',
       tokenType: 'Bearer',
@@ -207,37 +207,37 @@ describe('sanitizeOAuthTokenFile', () => {
       savedAt: 999,
     });
 
-    const withBlanks = sanitizeOAuthTokenFile({
+    const withBlanks = sanitizeOAuthTokenFile({ raw: {
       token: { accessToken: 'at-1', refreshToken: '  ', scope: '  ', expiresAt: Number.NaN, savedAt: 'not-a-number' },
-    });
+    } });
     expect(withBlanks.token?.refreshToken).toBeUndefined();
     expect(withBlanks.token?.scope).toBeUndefined();
     expect(withBlanks.token?.expiresAt).toBeUndefined();
   });
 
   it('trims accessToken', () => {
-    const result = sanitizeOAuthTokenFile({ token: { accessToken: '  at-1  ' } });
+    const result = sanitizeOAuthTokenFile({ raw: { token: { accessToken: '  at-1  ' } } });
     expect(result.token?.accessToken).toBe('at-1');
   });
 });
 
 describe('isOAuthTokenExpired', () => {
   it('is false when no expiresAt is recorded', () => {
-    expect(isOAuthTokenExpired(token())).toBe(false);
+    expect(isOAuthTokenExpired({ token: token() })).toBe(false);
   });
 
   it('is false well before expiry and true within the skew window / past expiry', () => {
     const now = 1_000_000;
     const t = token({ expiresAt: now + 10_000 });
-    expect(isOAuthTokenExpired(t, now, 1000)).toBe(false);
-    expect(isOAuthTokenExpired(t, now + 9_500, 1000)).toBe(true);
-    expect(isOAuthTokenExpired(t, now + 10_001, 1000)).toBe(true);
+    expect(isOAuthTokenExpired({ token: t }, { now: now, skew: 1000 })).toBe(false);
+    expect(isOAuthTokenExpired({ token: t }, { now: now + 9_500, skew: 1000 })).toBe(true);
+    expect(isOAuthTokenExpired({ token: t }, { now: now + 10_001, skew: 1000 })).toBe(true);
   });
 
   it('uses the default skew and current time when not supplied', () => {
     const expired = token({ expiresAt: Date.now() - 1 });
-    expect(isOAuthTokenExpired(expired)).toBe(true);
+    expect(isOAuthTokenExpired({ token: expired })).toBe(true);
     const fresh = token({ expiresAt: Date.now() + 10 * 60 * 1000 });
-    expect(isOAuthTokenExpired(fresh)).toBe(false);
+    expect(isOAuthTokenExpired({ token: fresh })).toBe(false);
   });
 });

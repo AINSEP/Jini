@@ -24,6 +24,9 @@ export interface LocalFsBlobStoreDeps {
 
 export class LocalFsBlobStore implements BlobStorePort {
   private readonly rootDir: string;
+  // Storage keys include workspace + content hash: immutable bytes make successful sizes
+  // reusable for this process. Promises coalesce concurrent reads of the same hash as well.
+  private readonly sizesByKey = new Map<string, Promise<number | null>>();
 
   constructor(deps: LocalFsBlobStoreDeps) {
     this.rootDir = deps.rootDir;
@@ -38,6 +41,7 @@ export class LocalFsBlobStore implements BlobStorePort {
     const path = this.resolvePath(storageKey);
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, input.bytes);
+    this.sizesByKey.delete(storageKey);
     return { storageKey };
   }
 
@@ -58,6 +62,7 @@ export class LocalFsBlobStore implements BlobStorePort {
     await mkdir(dirname(path), { recursive: true });
     try {
       await writeFile(path, input.bytes, { flag: "wx" });
+      this.sizesByKey.delete(storageKey);
       return { storageKey, written: true };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "EEXIST") {
@@ -69,6 +74,24 @@ export class LocalFsBlobStore implements BlobStorePort {
 
   async get(input: { storageKey: string }): Promise<Uint8Array> {
     return readFile(this.resolvePath(input.storageKey));
+  }
+
+  sizeOf({ storageKey }: { storageKey: string }, _optional: Record<string, never> = {}): Promise<number | null> {
+    const cached = this.sizesByKey.get(storageKey);
+    if (cached) return cached;
+    const pending = stat(this.resolvePath(storageKey)).then((info) => info.size).catch((err: NodeJS.ErrnoException) => {
+      if (err.code === "ENOENT") return null;
+      throw err;
+    });
+    this.sizesByKey.set(storageKey, pending);
+    // Missing/restored blobs and transient failures must be retried. Identity guards prevent
+    // an older stat from clearing a newer entry after a write/remove invalidated the cache.
+    void pending.then((size) => {
+      if (size === null && this.sizesByKey.get(storageKey) === pending) this.sizesByKey.delete(storageKey);
+    }, () => {
+      if (this.sizesByKey.get(storageKey) === pending) this.sizesByKey.delete(storageKey);
+    });
+    return pending;
   }
 
   /**
@@ -92,5 +115,6 @@ export class LocalFsBlobStore implements BlobStorePort {
 
   async remove(input: { storageKey: string }): Promise<void> {
     await rm(this.resolvePath(input.storageKey), { force: true });
+    this.sizesByKey.delete(input.storageKey);
   }
 }

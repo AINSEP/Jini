@@ -8,9 +8,7 @@
  * only in OpenCode's own session log (`service=llm … error={…}`). This
  * module recovers that signal so a chat UI can show "usage limit reached"
  * instead of a bare timeout. OpenCode-specific by design.
- *
- * Ported verbatim from OD's `apps/daemon/src/runtimes/opencode-log.ts`
- * — no product coupling (it only reads OpenCode's own on-disk log format).
+
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -26,7 +24,7 @@ export interface OpenCodeServiceFailure {
 // `$HOME/.local/share/opencode`, with session logs under `log/`. Mirror that
 // so we read the same files the spawned CLI wrote. Null when neither var is
 // set (we have no basis to guess a path).
-export function resolveOpenCodeLogDir(env: Record<string, string | undefined>): string | null {
+export function resolveOpenCodeLogDir({ env }: { env: Record<string, string | undefined> }): string | null {
   const xdg = typeof env.XDG_DATA_HOME === 'string' ? env.XDG_DATA_HOME.trim() : '';
   const home = typeof env.HOME === 'string' ? env.HOME.trim() : '';
   const base = xdg || (home ? path.join(home, '.local', 'share') : '');
@@ -45,11 +43,23 @@ export function resolveOpenCodeLogDir(env: Record<string, string | undefined>): 
 // callers are a (non-async) run-close handler and an inactivity watchdog,
 // once per failed OpenCode run. Returns null on any fs error (no dir yet,
 // perms).
-export function readLatestOpenCodeLogTail(
-  logDir: string,
-  options: { maxBytes?: number; since?: number } = {},
+export function readLatestOpenCodeLogTail({ logDir }: { logDir: string }, options: { maxBytes?: number; since?: number } = {}
 ): string | null {
   const { maxBytes = 2_000_000, since } = options;
+  const names = listLogNamesNewestFirst({ logDir });
+  if (!names) return null;
+  for (const name of names) {
+    const full = path.join(logDir, name);
+    if (since != null && predatesSince({ file: full, since })) continue;
+    const tail = readFileTail({ file: full, maxBytes });
+    if (tail !== null) return tail;
+  }
+  return null;
+}
+
+// `.log` names in the dir, newest filename first; null when the dir is
+// unreadable or holds no logs.
+function listLogNamesNewestFirst({ logDir }: { logDir: string }): string[] | null {
   let names: string[];
   try {
     names = readdirSync(logDir).filter((name) => name.endsWith('.log'));
@@ -57,24 +67,27 @@ export function readLatestOpenCodeLogTail(
     return null;
   }
   if (names.length === 0) return null;
-  names.sort().reverse(); // newest filename first
-  for (const name of names) {
-    const full = path.join(logDir, name);
-    if (since != null) {
-      try {
-        if (statSync(full).mtimeMs < since) continue;
-      } catch {
-        continue;
-      }
-    }
-    try {
-      const buf = readFileSync(full, 'utf8');
-      return buf.length > maxBytes ? buf.slice(-maxBytes) : buf;
-    } catch {
-      continue;
-    }
+  return names.sort().reverse(); // newest filename first
+}
+
+// True when the file was last written before `since` (an earlier session's
+// log), or cannot be stat'ed — either way it is skipped.
+function predatesSince({ file, since }: { file: string; since: number }): boolean {
+  try {
+    return statSync(file).mtimeMs < since;
+  } catch {
+    return true;
   }
-  return null;
+}
+
+// The last `maxBytes` of the file, or null when it cannot be read.
+function readFileTail({ file, maxBytes }: { file: string; maxBytes: number }): string | null {
+  try {
+    const buf = readFileSync(file, 'utf8');
+    return buf.length > maxBytes ? buf.slice(-maxBytes) : buf;
+  } catch {
+    return null;
+  }
 }
 
 // Only treat a `"message":"…"` value as the failure reason when it reads
@@ -130,25 +143,27 @@ function defaultMessageForCode(code: AgentServiceFailureCode): string {
 // We scope to that single line so the huge request body of *other* lines
 // can't leak in, key the classification on the unambiguous HTTP `statusCode`
 // first, and fall back to keyword matching the extracted message only.
-export function extractOpenCodeServiceFailure(logTail: string): OpenCodeServiceFailure | null {
-  if (!logTail || !logTail.trim()) return null;
-  const lines = logTail.split(/\r?\n/);
-  let line: string | null = null;
+function findLatestLlmErrorLine({ lines }: { lines: readonly string[] }): string | null {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const candidate = lines[i]!;
     if (candidate.includes('service=llm') && /\bERROR\b/.test(candidate) && candidate.includes('error=')) {
-      line = candidate;
-      break;
+      return candidate;
     }
   }
+  return null;
+}
+
+export function extractOpenCodeServiceFailure({ logTail }: { logTail: string }): OpenCodeServiceFailure | null {
+  if (!logTail || !logTail.trim()) return null;
+  const line = findLatestLlmErrorLine({ lines: logTail.split(/\r?\n/) });
   if (!line) return null;
 
   const statusMatch = /"statusCode":\s*(\d{3})/.exec(line);
   const statusCode = statusMatch ? Number(statusMatch[1]) : null;
   const message = pickServiceErrorMessage(line);
 
-  let code: AgentServiceFailureCode | null = statusCode != null ? codeFromStatus(statusCode) : null;
-  if (!code && message) code = classifyAgentServiceFailure(message);
+  const statusDerived = statusCode != null ? codeFromStatus(statusCode) : null;
+  const code = statusDerived ?? (message ? classifyAgentServiceFailure({ text: message }) : null);
   if (!code) return null;
 
   return { code, message: message || defaultMessageForCode(code), statusCode };
@@ -157,13 +172,11 @@ export function extractOpenCodeServiceFailure(logTail: string): OpenCodeServiceF
 // Convenience for a run-close handler / inactivity watchdog: resolve the
 // log dir from the spawned agent's env, read the newest log tail (bound to
 // the current run via `since`), and classify it.
-export function readOpenCodeServiceFailure(
-  env: Record<string, string | undefined>,
-  options: { since?: number } = {},
+export function readOpenCodeServiceFailure({ env }: { env: Record<string, string | undefined> }, options: { since?: number } = {}
 ): OpenCodeServiceFailure | null {
-  const logDir = resolveOpenCodeLogDir(env);
+  const logDir = resolveOpenCodeLogDir({ env: env });
   if (!logDir) return null;
-  const tail = readLatestOpenCodeLogTail(logDir, options);
+  const tail = readLatestOpenCodeLogTail({ logDir: logDir }, options);
   if (!tail) return null;
-  return extractOpenCodeServiceFailure(tail);
+  return extractOpenCodeServiceFailure({ logTail: tail });
 }

@@ -1,10 +1,7 @@
+import type { ExecutableResolutionOptions } from './executables.js';
 /**
  * @module launch
- *
- * Turns a resolved agent executable into a launchable process: launch-path
- * resolution (including Codex's native-binary-vs-node-wrapper detection)
- * and PATH env application for the spawned child. Ported verbatim from
- * OD's `apps/daemon/src/runtimes/launch.ts` — no product coupling.
+ * Resolve a launchable process, including Codex native-binary/node-wrapper selection and child PATH.
  */
 import { accessSync, closeSync, constants, openSync, readdirSync, readSync, realpathSync, statSync } from 'node:fs';
 import path, { delimiter } from 'node:path';
@@ -20,11 +17,9 @@ export type AgentLaunchResolution = ReturnType<typeof inspectAgentExecutableReso
   diagnostic: string | null;
 };
 
-export function resolveAgentLaunch(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+export function resolveAgentLaunch({ def }: { def: RuntimeAgentDef }, options: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): AgentLaunchResolution {
-  const resolution = inspectAgentExecutableResolution(def, configuredEnv);
+  const resolution = inspectAgentExecutableResolution({ def: def }, options);
   if (!resolution.selectedPath) {
     return { ...resolution, launchPath: null, launchKind: 'selected', childPathPrepend: [], diagnostic: null };
   }
@@ -44,11 +39,7 @@ export function resolveAgentLaunch(
   };
 }
 
-export function applyAgentLaunchEnv(
-  env: NodeJS.ProcessEnv,
-  launch: Pick<AgentLaunchResolution, 'childPathPrepend'>,
-  nodeBinDir: string = path.dirname(process.execPath),
-  appendPathDirs: string[] = userToolchainBinDirs(),
+export function applyAgentLaunchEnv({ env, launch }: { env: NodeJS.ProcessEnv; launch: Pick<AgentLaunchResolution, 'childPathPrepend'> }, { nodeBinDir = path.dirname(process.execPath), appendPathDirs = userToolchainBinDirs() }: { nodeBinDir?: string; appendPathDirs?: string[] } = {}
 ): NodeJS.ProcessEnv {
   // Build the ordered list of directories to guarantee are at the front of
   // PATH: the running Node binary directory first (so npm .cmd shims on
@@ -70,28 +61,39 @@ export function applyAgentLaunchEnv(
   // toolchain dirs; tests pass [] for determinism.
   const toPrepend = [...(nodeBinDir ? [nodeBinDir] : []), ...launch.childPathPrepend];
   if (toPrepend.length === 0 && appendPathDirs.length === 0) return env;
-  // Case-insensitive key lookup — Windows uses 'Path', not 'PATH'. Using
-  // env.PATH directly would be undefined on Windows, yielding a
-  // one-entry PATH that contains only toPrepend and discards all system
-  // paths. Find the actual key name so we update in place rather than
-  // adding a conflicting duplicate key.
-  const pathKey = Object.keys(env).find((k) => k.toLowerCase() === 'path') ?? 'PATH';
+  const pathKey = pathEnvKey(env);
   const existing = typeof env[pathKey] === 'string' ? (env[pathKey] as string) : '';
-  const normalize = (p: string) => {
-    const trimmed = p.replace(/[/\\]+$/, '');
-    return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
-  };
   const existingParts = existing.split(delimiter).filter((e) => e.length > 0);
+  return { ...env, [pathKey]: dedupePathEntries([...toPrepend, ...existingParts, ...appendPathDirs]).join(delimiter) };
+}
+
+// Case-insensitive key lookup — Windows uses 'Path', not 'PATH'. Using
+// env.PATH directly would be undefined on Windows, yielding a
+// one-entry PATH that contains only toPrepend and discards all system
+// paths. Find the actual key name so we update in place rather than
+// adding a conflicting duplicate key.
+function pathEnvKey(env: NodeJS.ProcessEnv): string {
+  return Object.keys(env).find((k) => k.toLowerCase() === 'path') ?? 'PATH';
+}
+
+function normalizePathEntry(p: string): string {
+  const trimmed = p.replace(/[/\\]+$/, '');
+  return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
+}
+
+// Keep the first spelling of each directory (trailing separators ignored,
+// case-insensitive on Windows).
+function dedupePathEntries(entries: string[]): string[] {
   const seen = new Set<string>();
   const merged: string[] = [];
-  for (const entry of [...toPrepend, ...existingParts, ...appendPathDirs]) {
-    const n = normalize(entry);
+  for (const entry of entries) {
+    const n = normalizePathEntry(entry);
     if (!seen.has(n)) {
       seen.add(n);
       merged.push(entry);
     }
   }
-  return { ...env, [pathKey]: merged.join(delimiter) };
+  return merged;
 }
 
 function tryResolveCodexNativeBinary(wrapperPath: string): {
@@ -117,16 +119,17 @@ function tryResolveCodexNativeBinary(wrapperPath: string): {
 }
 
 function codexSearchRoots(wrapperPath: string): string[] {
-  const roots = new Set<string>();
-  for (const seed of [wrapperPath, safeRealpath(wrapperPath)]) {
-    if (!seed) continue;
-    let current = path.dirname(seed);
-    while (current !== path.dirname(current)) {
-      roots.add(current);
-      current = path.dirname(current);
-    }
-  }
-  return [...roots];
+  const resolved = safeRealpath(wrapperPath) ?? wrapperPath;
+  const directory = path.dirname(resolved);
+  // npm bin symlinks resolve inside @openai/codex/bin. Only that package's
+  // install directory owns the upgrade; ancestors of the shim or package do not.
+  if (path.basename(directory) !== 'bin' || path.basename(path.dirname(directory)) !== 'codex') return [directory];
+  const packageDir = path.dirname(directory);
+  const scopeDir = path.dirname(packageDir);
+  // Hoisted npm and pnpm layouts put the native package beside @openai/codex in the same
+  // node_modules; that tree already owns the wrapper, so it is not an ancestor search.
+  const ownsHoistedSibling = path.basename(scopeDir) === '@openai' && path.basename(path.dirname(scopeDir)) === 'node_modules';
+  return ownsHoistedSibling ? [packageDir, path.dirname(path.dirname(scopeDir))] : [packageDir];
 }
 
 function codexNativeCandidates(
@@ -162,14 +165,19 @@ function codexNativePackageSuffix(): string {
   return `${process.platform}-${process.arch}`;
 }
 
+const CODEX_NATIVE_TARGET_TRIPLES: ReadonlyMap<string, string> = new Map([
+  ['darwin-arm64', 'aarch64-apple-darwin'],
+  ['darwin-x64', 'x86_64-apple-darwin'],
+  ['linux-arm64', 'aarch64-unknown-linux-musl'],
+  ['linux-x64', 'x86_64-unknown-linux-musl'],
+  ['win32-arm64', 'aarch64-pc-windows-msvc'],
+  ['win32-x64', 'x86_64-pc-windows-msvc'],
+]);
+
+// Unmapped platform/arch pairs fall back to the npm package suffix itself.
 function codexNativeTargetTriple(): string {
-  if (process.platform === 'darwin' && process.arch === 'arm64') return 'aarch64-apple-darwin';
-  if (process.platform === 'darwin' && process.arch === 'x64') return 'x86_64-apple-darwin';
-  if (process.platform === 'linux' && process.arch === 'arm64') return 'aarch64-unknown-linux-musl';
-  if (process.platform === 'linux' && process.arch === 'x64') return 'x86_64-unknown-linux-musl';
-  if (process.platform === 'win32' && process.arch === 'arm64') return 'aarch64-pc-windows-msvc';
-  if (process.platform === 'win32' && process.arch === 'x64') return 'x86_64-pc-windows-msvc';
-  return `${process.platform}-${process.arch}`;
+  const suffix = codexNativePackageSuffix();
+  return CODEX_NATIVE_TARGET_TRIPLES.get(suffix) ?? suffix;
 }
 
 function looksLikeCodexNodeWrapper(filePath: string): boolean {

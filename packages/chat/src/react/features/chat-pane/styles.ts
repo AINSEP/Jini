@@ -31,10 +31,13 @@ export const CHAT_PANE_STYLES = `
   min-width: 0;
   min-height: 0;
   height: 100%;
+  /* clip after the hidden fallback: a hidden box still scrolls programmatically (a focus() or
+     scrollIntoView() inside it), which shifts the pinned composer up and leaves blank pane below. */
   overflow: hidden;
+  overflow: clip;
   color: var(--jini-chat-text);
   background: var(--jini-chat-bg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--jini-chat-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif);
   font-size: 13.5px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -58,7 +61,7 @@ export const CHAT_PANE_STYLES = `
   display: block;
   margin-bottom: 4px;
   color: var(--jini-chat-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 10px;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -84,6 +87,7 @@ export const CHAT_PANE_STYLES = `
   position: relative;
   min-height: 0;
   overflow: hidden;
+  overflow: clip;
 }
 .jini-chat-pane .jini-message-list {
   height: 100%;
@@ -105,11 +109,68 @@ export const CHAT_PANE_STYLES = `
   padding: 20px 22px calc(var(--jini-chat-controls-height, 240px) + 24px);
   scrollbar-width: thin;
 }
+/*
+ * 'Jump to latest' (MessageList.tsx's JumpToLatest): a zero-height sticky last child, so it floats
+ * centred just above the composer overlay without taking layout space. Sticky offsets measure from
+ * the scrollport edge, not the padding, hence the controls height in 'bottom'.
+ */
+.jini-message-list__jump {
+  position: sticky;
+  bottom: calc(var(--jini-chat-controls-height, 240px) + 8px);
+  height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  z-index: 2;
+  pointer-events: none;
+}
+.jini-message-list__jump-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 999px;
+  background: var(--jini-chat-panel);
+  color: var(--jini-chat-muted);
+  box-shadow: var(--jini-chat-popover-shadow);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.jini-message-list__jump-btn:hover { color: var(--jini-chat-text-strong); }
+.jini-message-list__jump-btn:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 2px; }
 .jini-chat-pane .jini-message {
   margin-bottom: 20px;
   color: var(--jini-chat-text);
   font-size: 14px;
   line-height: 1.62;
+}
+/*
+ * Off-screen rows skip style, layout and paint. Owner report 2026-10-11: typing in a long chat
+ * lagged. React was not the cost (no row re-renders per key); the browser was. A keystroke's DOM
+ * change can invalidate style for the whole document (a host dock's :has() rule did),
+ * and a transcript with ~2,000 tool cards and 3.5 MB of tool output then cost ~50 ms of style
+ * recalc per key. With this, only the rows on screen are recalculated (~8 ms). The DOM stays
+ * whole: find-in-page, textContent readers and screen readers still see every row.
+ * 'auto' in contain-intrinsic-size keeps a row's last real height once it has rendered; the
+ * auto-scroll ResizeObserver re-sticks to the bottom as estimated rows resolve.
+ * Containment clips paint at the row's edge, so overflow-clip-margin leaves room for focus rings
+ * (2px outline + 2px offset); @supports keeps browsers without it on the old, unclipped path.
+ */
+@supports (overflow-clip-margin: 8px) {
+  .jini-chat-pane .jini-message {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 160px;
+    overflow-clip-margin: 8px;
+  }
+}
+/* A mid-run user bubble is nested inside an assistant turn, so the preceding tool/text block
+ * has no message-row bottom margin. Give it the same separation as an ordinary next turn. */
+.jini-chat-pane .jini-message-user--mid-run {
+  margin-top: 20px;
 }
 /*
  * Bubble on the content, not the row: MessageRow.tsx renders attachments as siblings of
@@ -124,7 +185,12 @@ export const CHAT_PANE_STYLES = `
   padding: 10px 13px;
   width: fit-content;
   max-width: 88%;
-  background: var(--jini-chat-subtle);
+  /* MOVE: Answers may contain long labels or pasted URLs; wrap them within narrow chat panes. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* User bubbles share this style at every nesting depth, regardless of message length. */
+  background: var(--jini-chat-user-bubble, #1a1b1c);
+  color: var(--jini-chat-user-bubble-ink, #fff);
   border-radius: 12px 12px 3px 12px;
 }
 .jini-chat-pane .jini-message-user .jini-message-attachments {
@@ -148,6 +214,25 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .jini-message-user .jini-message-attachment-chip:hover {
   color: var(--jini-chat-text);
   border-color: var(--jini-chat-border-strong);
+}
+/* A sent image this browser still holds (SentAttachment.tsx): a small square thumbnail instead of
+ * the filename pill. Same click target and preview modal; cover-cropped so mixed aspect ratios line up. */
+.jini-chat-pane .jini-message-user .jini-message-attachment-chip.is-thumbnail {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 10px;
+}
+.jini-chat-pane .jini-message-user .jini-message-attachment-chip.is-thumbnail:focus-visible {
+  outline: 2px solid var(--jini-chat-accent);
+  outline-offset: 2px;
+}
+.jini-chat-pane .jini-message-attachment-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .jini-chat-pane .jini-message-agent {
   font-size: 11px;
@@ -489,12 +574,14 @@ export const CHAT_PANE_STYLES = `
   overflow: visible;
   padding: 0;
 }
+/* Half the tray's width, so a sidebar-width pane fits two chips per row and its 88px cap shows two
+   rows (four chips) before scrolling; at full width each chip took a row and the third was hidden. */
 .jini-chat-pane .jini-attachment-chip {
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
   min-width: 0;
-  max-width: min(100%, 290px);
+  max-width: min(calc(50% - 3px), 290px);
   height: 36px;
   padding: 3px 4px 3px 5px;
   color: var(--jini-chat-text);
@@ -504,6 +591,7 @@ export const CHAT_PANE_STYLES = `
   box-shadow: 0 1px 1px rgba(13, 12, 10, .025);
   animation: jini-chat-chip-in .16s ease both;
 }
+.jini-chat-pane .jini-composer-leading .jini-attachment-chip { max-width: min(100%, 290px); }
 @keyframes jini-chat-chip-in {
   from { opacity: 0; transform: translateY(3px) scale(.94); }
   to { opacity: 1; transform: none; }
@@ -516,6 +604,29 @@ export const CHAT_PANE_STYLES = `
   align-items: center;
   min-width: 0;
   gap: 7px;
+  /* A button (opens the preview modal), reset to the chip's own look. */
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.jini-chat-pane .jini-attachment-chip-body:focus-visible {
+  outline: 2px solid var(--jini-chat-accent);
+  outline-offset: 2px;
+}
+/* A staged image this browser holds: the thumbnail takes the icon tile's place, same size. */
+.jini-chat-pane .jini-attachment-chip-thumb {
+  display: block;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 7px;
+  background: var(--jini-chat-subtle);
 }
 .jini-chat-pane .jini-attachment-chip-icon {
   display: grid;
@@ -568,6 +679,24 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   outline: none;
 }
+/* Phones: the 25px "x" gets an invisible 44px tap area; the chip keeps its size. The area ends at the
+   chip's bottom edge and grows up into the tray's 8px top padding / row gap, because growing down
+   past the last row would make the 88px tray scroll by a few pixels. Rows are 8px apart here, not
+   6: at a 42px row pitch the second row's area covered the bottom 2.5px of the first row's, leaving
+   the top row a 41.5px target. 8px top padding + two 36px rows + an 8px gap is exactly the 88px cap. */
+@media (max-width: 640px), (pointer: coarse) {
+  .jini-chat-pane .jini-attachment-tray { row-gap: 8px; }
+  .jini-chat-pane .jini-attachment-remove { position: relative; }
+  .jini-chat-pane .jini-attachment-remove::before {
+    content: '';
+    position: absolute;
+    bottom: -5.5px;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translateX(-50%);
+  }
+}
 .jini-chat-pane .jini-composer-input {
   display: block;
   box-sizing: border-box;
@@ -581,6 +710,11 @@ export const CHAT_PANE_STYLES = `
   outline: 0;
   font-size: 13.5px;
   line-height: 1.6;
+}
+/* Shared focus-zoom floor: embeds at every width, all panes on small/touch viewports. */
+.jini-chat-embed .jini-chat-pane .jini-composer-input { font-size: 16px; }
+@media (max-width: 640px), (pointer: coarse) {
+  .jini-chat-pane.jini-chat-pane .jini-composer-input { font-size: 16px; }
 }
 .jini-chat-pane .jini-composer-input::placeholder { color: var(--jini-chat-faint); }
 .jini-chat-pane .jini-composer-footer {
@@ -787,36 +921,65 @@ export const CHAT_PANE_STYLES = `
 }
 .jini-chat-pane .jini-composer-workdir-confirm {
   padding: 6px 10px;
-  color: white;
+  color: var(--jini-chat-panel);
   white-space: nowrap;
   background: var(--jini-chat-text-strong);
   border: 0;
   border-radius: 6px;
   cursor: pointer;
 }
+/* \`.jini-icon-spin\` is \`<Icon name="spinner">\` (the tool-row "Running" badge). Its keyframes used to
+   live only in reference.css, which no host imports, so the badge sat still. */
 .jini-composer-spinner,
-.jini-runtime-spinner { animation: jini-chat-spin .8s linear infinite; }
+.jini-runtime-spinner,
+.jini-icon-spin { animation: jini-chat-spin .8s linear infinite; }
 @keyframes jini-chat-spin { to { transform: rotate(360deg); } }
+/* The model/effort cluster sits at the trailing edge beside send (owner, 2026-10-18); the "+"
+   stays at the start. The auto margin takes the free space, and gives it back first when a narrow
+   bar needs the room for the model label. */
 .jini-chat-pane .jini-composer-footer-accessories {
   display: flex;
-  margin-left: auto;
   min-width: 0;
+  margin-left: auto;
 }
+/* Basis 0: the hint takes only the room the runtime row leaves and wraps into it, instead of
+   claiming its one-line width and squeezing the picker under its icon/effort labels. */
+.jini-chat-pane .jini-composer-send-blocker {
+  flex: 1 1 0;
+  align-self: center;
+  margin-right: 8px;
+  color: var(--jini-chat-muted);
+  font-size: 12px;
+}
+/* Always pushed to the trailing edge. This also covers a footer with no attach/accessory controls
+   before the send group (a public visitor chat), which would otherwise leave the lone send button
+   at the start under the footer's space-between. */
+.jini-chat-pane .jini-composer-send-group {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+  margin-left: auto;
+}
+/* After the cluster, the send group sits right beside it instead of splitting the free space. */
+.jini-chat-pane .jini-composer-footer-accessories ~ .jini-composer-send-group { margin-left: 0; }
+/* Inverse ink: the fill is the strong text colour, so the icon takes the panel colour rather than a
+   fixed white. A host dark theme flips text-strong to near-white, and fixed white icons then drew a
+   blank white square (owner report, 2026-10-21). Disabled uses the theme's subtle/faint pair too. */
 .jini-chat-pane .jini-composer-send {
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   padding: 0;
-  color: white;
+  color: var(--jini-chat-panel);
   background: var(--jini-chat-text-strong);
   border: 0;
   border-radius: 8px;
   cursor: pointer;
 }
 .jini-chat-pane .jini-composer-send:disabled {
-  color: #aaa59e;
-  background: #ece8e2;
+  color: var(--jini-chat-faint);
+  background: var(--jini-chat-subtle);
   cursor: default;
 }
 .jini-chat-pane__workdir {
@@ -989,40 +1152,100 @@ export const CHAT_PANE_STYLES = `
   white-space: nowrap;
   opacity: .7;
 }
-.jini-runtime-picker { position: relative; }
-.jini-runtime-trigger {
-  display: inline-grid;
-  grid-template-columns: 24px 14px;
+/* Composer-bar runtime row: [agent icon] [model ⌄] [effort ⌄] -- compact, borderless, muted text.
+   The icon opens the runtime popover; model and effort each open a drop-up (RuntimeDropUp). */
+.jini-runtime-picker {
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 7px;
+  min-width: 0;
+}
+.jini-runtime-trigger,
+.jini-runtime-dropup-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   height: 32px;
   min-width: 0;
-  padding: 3px 7px 3px 5px;
-  color: var(--jini-chat-text);
+  padding: 3px 6px;
+  color: var(--jini-chat-muted);
   background: transparent;
   border: 0;
   border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
 }
-.jini-runtime-trigger:hover { background: var(--jini-chat-subtle); }
-.jini-runtime-trigger__copy { display: none; }
+.jini-runtime-trigger { gap: 6px; padding: 3px 4px; }
+/* Local mode's trigger is the icon alone, so it has nothing to give way: shrunk under the shared
+   \`min-width: 0\` on a narrow bar, the 22px icon spilled over the model/effort labels beside it
+   (owner report, 2026-10-21). API mode keeps shrinking -- its model label ellipsizes. */
+.jini-runtime-trigger--icon-only { flex: none; }
+.jini-runtime-trigger:hover,
+.jini-runtime-dropup-trigger:hover,
+.jini-runtime-dropup-trigger[aria-expanded="true"] { color: var(--jini-chat-text); background: var(--jini-chat-subtle); }
+.jini-runtime-trigger:focus-visible,
+.jini-runtime-dropup-trigger:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 1px; }
+/* 'contents' so the hidden name (absolutely positioned) adds no flex gap beside the icon-only
+   local trigger, and the API-mode model label is a direct, shrinkable flex item. */
+.jini-runtime-trigger__copy { display: contents; }
+/* Kept in the text (see the component), not shown: the icon already names the agent. */
 .jini-runtime-trigger__copy strong {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  max-width: 122px;
-  font-size: 11px;
-  font-weight: 650;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.jini-runtime-trigger__copy small,
+.jini-runtime-dropup-trigger__label {
+  overflow: hidden;
+  max-width: 180px;
+  font-size: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.jini-runtime-trigger__copy small {
-  overflow: hidden;
-  max-width: 122px;
+.jini-runtime-trigger__chevron { flex: none; }
+/* The effort label is short; the model label is the one that gives way on a narrow bar. */
+.jini-runtime-dropup-trigger--effort { flex: none; }
+.jini-runtime-dropup {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  color: var(--jini-chat-text);
+  background: var(--jini-chat-panel);
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 10px;
+  box-shadow: var(--jini-chat-popover-shadow, 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06));
+  font-size: 13px;
+  line-height: 1.4;
+}
+.jini-runtime-dropup__note {
+  padding: 4px 10px 6px;
   color: var(--jini-chat-muted);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 11.5px;
 }
-.jini-runtime-trigger__chevron { color: var(--jini-chat-muted); font-size: 12px; }
+.jini-runtime-dropup__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.jini-runtime-dropup__item:hover,
+.jini-runtime-dropup__item:focus-visible { background: var(--jini-chat-subtle); outline: none; }
+.jini-runtime-dropup__item.is-active { font-weight: 600; }
+.jini-runtime-dropup__item-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .jini-runtime-agent-icon.agent-icon { flex: 0 0 auto; object-fit: contain; }
 .jini-runtime-agent-icon.agent-icon-mono {
   display: inline-block;
@@ -1059,8 +1282,8 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
   border-radius: 12px;
-  box-shadow: 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif;
+  box-shadow: var(--jini-chat-popover-shadow, 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06));
+  font-family: var(--jini-chat-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif);
   font-size: 13.5px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -1232,7 +1455,9 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .op-status-error { color: var(--danger); }
 .jini-chat-pane .op-status-running { color: var(--jini-chat-accent); }
 .jini-chat-pane .op-title { font-weight: 600; flex-shrink: 0; }
-.jini-chat-pane .shimmer-text { opacity: .6; }
+.jini-chat-pane .shimmer-text { animation: jini-chat-shimmer 1.6s ease-in-out infinite; }
+@keyframes jini-chat-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .jini-chat-pane .shimmer-text { animation: none; opacity: .6; } }
 .jini-chat-pane .op-meta {
   color: var(--jini-chat-muted);
   overflow: hidden;
@@ -1251,7 +1476,7 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .op-path,
 .jini-chat-pane .op-command,
 .jini-chat-pane .op-output {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12px;
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
@@ -1261,6 +1486,8 @@ export const CHAT_PANE_STYLES = `
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* The "Waiting for the result or answer…" / "Finished with no output." line in an expanded tool row (ToolCard.tsx's ToolCallDetail). */
+.jini-chat-pane .op-detail-note { margin: 0; font-size: 12px; color: var(--jini-chat-muted); }
 .jini-chat-pane .op-open {
   border: 1px solid var(--jini-chat-border-strong);
   border-radius: 6px;
@@ -1279,6 +1506,36 @@ export const CHAT_PANE_STYLES = `
   margin-top: 2px;
 }
 .jini-chat-pane .jini-message-usage-dot { font-size: 8px; color: #4e875f; }
+/* toolCallDisplay 'collapsed' (ToolCallGroup.tsx): one quiet line per turn, cards open under it. */
+.jini-chat-pane .jini-tool-group { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.jini-chat-pane .jini-tool-group__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 2px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jini-chat-muted);
+  cursor: pointer;
+}
+.jini-chat-pane .jini-tool-group__toggle:hover { color: inherit; }
+.jini-chat-pane .jini-tool-group__toggle:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 2px; border-radius: 4px; }
+.jini-chat-pane .jini-tool-group__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jini-chat-pane .jini-tool-group[data-failed="true"] .jini-tool-group__toggle { color: var(--danger); }
+/* showThinking (MessageRow.tsx's ThinkingBlock): the model's reasoning, folded, set apart from the answer. */
+.jini-chat-pane .jini-message-thinking { font-size: 12px; color: var(--jini-chat-muted); }
+.jini-chat-pane .jini-message-thinking > summary { cursor: pointer; width: fit-content; }
+.jini-chat-pane .jini-message-thinking__text {
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 2px solid var(--jini-chat-border);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 /*
  * Fenced code block ('Markdown.tsx''s 'renderBlock' case 'code') and inline 'code' span visual
  * treatment — previously entirely unstyled (bare UA-default '<pre><code>', no background, border,
@@ -1304,7 +1561,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   border: 1px solid var(--jini-chat-border);
   border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12.5px;
   line-height: 1.5;
 }
@@ -1320,7 +1577,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   border: 1px solid var(--jini-chat-border);
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: .9em;
 }
 /*
@@ -1453,7 +1710,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
   border-radius: 12px;
-  box-shadow: 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06);
+  box-shadow: var(--jini-chat-popover-shadow, 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06));
 }
 .jini-md-table-modal::backdrop {
   background: rgba(0, 0, 0, .4);
@@ -1498,7 +1755,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-panel);
   border: 1px solid var(--jini-chat-border);
   border-radius: 12px;
-  box-shadow: 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06);
+  box-shadow: var(--jini-chat-popover-shadow, 0 18px 46px rgba(13, 12, 10, .15), 0 2px 8px rgba(13, 12, 10, .06));
 }
 .jini-attachment-preview-dialog::backdrop {
   background: rgba(0, 0, 0, .4);
@@ -1554,6 +1811,8 @@ export const CHAT_PANE_STYLES = `
   margin: auto;
 }
 .jini-attachment-preview-text {
+  /* Preserve this preview's wider fallback stack when the host does not supply a chat font. */
+  --jini-chat-font-mono: var(--jini-theme-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   width: 100%;
   max-height: calc(80vh - 90px);
   margin: 0;
@@ -1563,7 +1822,7 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   border: 1px solid var(--jini-chat-border-soft);
   border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--jini-chat-font-mono);
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -1602,5 +1861,70 @@ export const CHAT_PANE_STYLES = `
   margin-top: 6px;
   color: var(--jini-chat-muted);
   font-size: 12px;
+}
+/* Previous/next across a message's (or the composer's) images: a footer under the image, so the
+ * buttons sit on the panel colour - readable over any picture - side by side in the bottom-right. */
+/* A fixed stage while stepping: sized to each image, the dialog would resize and move the buttons
+ * out from under the pointer between clicks. */
+.jini-attachment-preview-dialog.has-nav .jini-attachment-preview-body {
+  flex: 0 0 auto;
+  height: min(calc(80vh - 152px), 480px);
+}
+.jini-attachment-preview-dialog.has-nav .jini-attachment-preview-image,
+.jini-attachment-preview-dialog.has-nav .jini-attachment-preview-text {
+  max-height: 100%;
+}
+.jini-attachment-preview-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--jini-chat-border-soft);
+}
+.jini-attachment-preview-count {
+  margin-right: auto;
+  color: var(--jini-chat-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.jini-attachment-preview-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: var(--jini-chat-text-strong);
+  background: var(--jini-chat-panel);
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.jini-attachment-preview-step:hover {
+  background: var(--jini-chat-subtle);
+  border-color: var(--jini-chat-border-strong);
+}
+.jini-attachment-preview-step:focus-visible {
+  outline: 2px solid var(--jini-chat-accent);
+  outline-offset: 2px;
+}
+/* Phones: 44px targets. The 26px close "x" keeps its size inside an invisible 44px area (centred,
+   so it stays within the header's 12px/14px padding); the bordered previous/next buttons just grow. */
+@media (max-width: 640px), (pointer: coarse) {
+  .jini-attachment-preview-close { position: relative; }
+  .jini-attachment-preview-close::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  .jini-attachment-preview-step {
+    width: 44px;
+    height: 44px;
+  }
 }
 `;

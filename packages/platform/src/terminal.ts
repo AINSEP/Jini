@@ -216,11 +216,11 @@ export interface CreateTerminalOptions {
 }
 
 export interface CreateTerminalServiceOptions {
-  /** Lazily loads the PTY spawner. Called at most once, on the first `create()`. */
+  /** Lazily loads the PTY spawner. Concurrent `create()` calls share one attempt; success is cached, failure permits retry. */
   loadSpawnPty: () => Promise<PtySpawn>;
   /** Count backstop for the per-session output ring-buffer; `maxBufferBytes` is the real ceiling. */
   maxEvents?: number;
-  /** Byte ceiling for retained reattach scrollback per running session (evicted oldest-first). */
+  /** UTF-8 byte ceiling for retained reattach scrollback (evicted oldest-first; the newest event is always kept). */
   maxBufferBytes?: number;
   /** Trailing scrollback kept once a shell exits, so an unreaped session doesn't pin memory. */
   exitTailBytes?: number;
@@ -265,10 +265,15 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
   } = options;
 
   const sessions = new Map<string, InternalSession>();
-  let cachedSpawnPty: PtySpawn | null = null;
+  let cachedSpawnPty: Promise<PtySpawn> | null = null;
 
-  const loadPty = async (): Promise<PtySpawn> => {
-    if (!cachedSpawnPty) cachedSpawnPty = await loadSpawnPty();
+  const loadPty = (): Promise<PtySpawn> => {
+    // Cache before invoking the loader so concurrent creates share the same
+    // attempt, including a synchronous throw. Retain the existing retry-on-failure behavior.
+    cachedSpawnPty ??= Promise.resolve().then(() => loadSpawnPty()).catch((error: unknown) => {
+      cachedSpawnPty = null;
+      throw error;
+    });
     return cachedSpawnPty;
   };
 
@@ -278,7 +283,7 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     }, ttlMs).unref?.();
   };
 
-  const recordByteLength = (data: TerminalEventData): number => ('data' in data ? data.data.length : 0);
+  const recordByteLength = (data: TerminalEventData): number => ('data' in data ? Buffer.byteLength(data.data, 'utf8') : 0);
 
   const trimBuffer = (session: InternalSession) => {
     if (session.bufferedBytes <= maxBufferBytes && session.events.length <= maxEvents) return;
@@ -385,7 +390,7 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     sessions.set(id, session);
     pty.onData((chunk: string) => {
       session.pendingData += chunk;
-      if (session.pendingData.length >= flushThresholdBytes) {
+      if (Buffer.byteLength(session.pendingData, 'utf8') >= flushThresholdBytes) {
         flushData(session);
         return;
       }

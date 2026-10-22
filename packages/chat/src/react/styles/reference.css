@@ -1,9 +1,9 @@
 /**
  * @jini-ai/chat-react reference stylesheet — structural layout only.
  *
- * NOT applied by default and not exported by package.json — see this package's README for why.
+ * Not applied by default; exported for opt-in use — see this package's README for why.
  * Kept here as a documented starting point for a host writing their own CSS against this
- * package's `jini-*` class names, not as something to `import` as-is.
+ * package's `jini-*` class names. Hosts may import it explicitly for structural layout.
  *
  * Every rule here exists because, without it, a plain-HTML default (inline elements that don't
  * stack, an inline-block that doesn't shrink to fit a narrow parent, a block box that forces a
@@ -113,11 +113,19 @@
 }
 
 .jini-attachment-remove,
-.jini-attachment-chip-icon {
+.jini-attachment-chip-icon,
+.jini-attachment-chip-thumb {
   flex: 0 0 auto;
 }
 
-/* chip-body is a <span> wrapping an icon <span> and a copy <span> — both inline by default, so
+/* A staged image's thumbnail, in the icon's place; without a size the raw image renders full-size. */
+.jini-attachment-chip-thumb {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+}
+
+/* chip-body is a <button> (opens the preview) wrapping an icon/thumbnail and a copy <span>, so
    without flex here the (post-fix, block-level) copy element drops to its own line under the
    icon instead of sitting beside it. */
 .jini-attachment-chip-body {
@@ -153,7 +161,7 @@
 /* ---- ChatPane (features/chat-pane/react/components/ChatPane.tsx) ---- */
 
 /*
- * The two traps from tovu-learnings.md §7:
+ * The two layout traps recorded during host integration (§7 of the original learning notes):
  *
  * __controls wraps the suggestions row, status banners, and composer area (via
  * ChatPaneComposerArea's fragment) as siblings. It renders with no inline style at all, so a

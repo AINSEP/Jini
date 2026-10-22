@@ -1,17 +1,17 @@
 /**
  * @file Server-side allowlist for `MediaRecord.htmlAttributes` (2026-09-07) — the enforcement half
  * of a validator that ALSO has a browser-side copy in the consuming product's admin
- * (`apps/admin/src/features/media/rules.ts`, `parseMediaHtmlAttributes` and friends).
+ * (its attribute parser and related rules).
  *
  * Deliberately duplicated, not shared via one imported module, for the same reason this codebase
  * already hand-copies `DEFAULT_ALLOWED_MIME_TYPES` into that admin's `FILE_HANDLER_ALLOWED_MIME_TYPES`/
  * `IMPORTABLE_CONTENT_TYPES`: `@jini-ai/cms/media`'s barrel (`index.ts`) re-exports files that
  * import real Node built-ins (`node:crypto` in `media-service.ts`, `node:fs` in
  * `blob-store.fs.ts`, native `sharp` bindings in `image-transformer.sharp.ts`) — importing this
- * subpath from a browser-bundled Vite app (that product's `apps/admin`) risks pulling those into the admin
+ * subpath from a browser-bundled admin app risks pulling those into the admin
  * SPA's bundle even if only this one pure function is actually used, and this admin's own copy
  * already exists, tested, with no such risk. This file is the copy every Node-side consumer
- * (`media-service.ts`'s own `updateMediaMetadata`, and that product's `apps/website` render path, both pure
+ * (`media-service.ts`'s own `updateMediaMetadata`, and the host's render path, both pure
  * backend code) can safely import from `@jini-ai/cms/media` instead of re-deriving the rules a
  * third time.
  *
@@ -75,7 +75,8 @@ const MEDIA_HTML_ATTRIBUTE_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
  * @complexity O(n) in the name's length (one anchored regex test), then O(1) — one prefix check,
  * one fixed-length array lookup.
  */
-export function isAllowedMediaHtmlAttributeName(name: string): boolean {
+export function isAllowedMediaHtmlAttributeName(requiredArgs: { name: string }, optionalArgs: Record<string, never> = {}): boolean {
+  const { name } = requiredArgs;
   const lower = name.toLowerCase();
   if (!MEDIA_HTML_ATTRIBUTE_NAME_PATTERN.test(lower)) return false;
   if (lower.startsWith("data-") || lower.startsWith("aria-")) return true;
@@ -122,7 +123,7 @@ const HTML_ATTRIBUTE_TOKEN = /([^\s="']+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s"']+)))
 function classifyMediaHtmlAttributeToken(name: string, value: string): MediaHtmlAttributeError | null {
   if (name.startsWith("on")) return { reason: "event-handler", attribute: name };
   if (value.trim().toLowerCase().startsWith("javascript:")) return { reason: "javascript-url", attribute: name };
-  if (!isAllowedMediaHtmlAttributeName(name)) return { reason: "disallowed-name", attribute: name };
+  if (!isAllowedMediaHtmlAttributeName({ name: name })) return { reason: "disallowed-name", attribute: name };
   return null;
 }
 
@@ -136,7 +137,8 @@ function classifyMediaHtmlAttributeToken(name: string, value: string): MediaHtml
  * @complexity Time O(n) in `text`'s length (one regex pass over it), space O(k) for k parsed
  *   attributes.
  */
-export function parseMediaHtmlAttributes(text: string): ParsedMediaHtmlAttributes {
+export function parseMediaHtmlAttributes(requiredArgs: { text: string }, optionalArgs: Record<string, never> = {}): ParsedMediaHtmlAttributes {
+  const { text } = requiredArgs;
   const trimmed = text.trim();
   if (trimmed === "") return { attributes: {}, error: null };
 

@@ -17,7 +17,7 @@
  * unambiguous, fully-specified semantics reachable from the fetched schema text alone — the
  * others, e.g. `formatString`/`formatDate`, depend on locale/formatting semantics not pinned down
  * by the schema text, and are deliberately not guessed at). The remaining 11 functions are **not
- * implemented** — see `../source-map.md` for the full gap list. `createLabCatalog()` also adds
+ * implemented** — see `../archived provenance ledger` for the full gap list. `createLabCatalog()` also adds
  * three lab-only demo functions (`greetUser`/`logServerEvent`/`adminReset`, clearly not part of
  * the real basic catalog) purely to exercise all three `callableFrom` values end-to-end — the real
  * basic catalog's own 14 functions are all `rendererOnly`, which alone can't test the `agentOnly` /
@@ -90,16 +90,16 @@ export interface Catalog {
   readonly functions: ReadonlyMap<string, FunctionSpec>;
 }
 
-export function isComponentAllowed(catalog: Catalog, componentType: string): boolean {
+export function isComponentAllowed({ catalog, componentType }: { catalog: Catalog; componentType: string }, _optional: Record<string, never> = {}): boolean {
   return catalog.components.has(componentType);
 }
 
 /** Mirrors the spec's own default: absent registration behaves exactly like an explicit `rendererOnly` entry. */
-export function callableFromOf(catalog: Catalog, functionName: string): CallableFrom {
+export function callableFromOf({ catalog, functionName }: { catalog: Catalog; functionName: string }, _optional: Record<string, never> = {}): CallableFrom {
   return catalog.functions.get(functionName)?.callableFrom ?? 'rendererOnly';
 }
 
-export function isFunctionRegistered(catalog: Catalog, functionName: string): boolean {
+export function isFunctionRegistered({ catalog, functionName }: { catalog: Catalog; functionName: string }, _optional: Record<string, never> = {}): boolean {
   return catalog.functions.has(functionName);
 }
 
@@ -350,7 +350,7 @@ function not(args: Record<string, unknown>): boolean {
  * each call (not a shared singleton) so tests can register their own `impl`s / mutate a copy
  * without cross-test leakage.
  */
-export function createLabCatalog(): Catalog {
+export function createLabCatalog(_required: Record<string, never>, _optional: Record<string, never> = {}): Catalog {
   // All 18 components of the real basic catalog, in that catalog's own declaration order.
   const components = new Map<string, ComponentSpec>([
     ['Text', { kind: 'text', propsSchema: TextPropsSchema }],

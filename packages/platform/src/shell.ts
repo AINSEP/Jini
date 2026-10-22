@@ -1,12 +1,15 @@
 /**
  * @module shell
  *
- * Buffered command execution that re-enters the user's login shell. A daemon
+ * Buffered command execution through the user's selected shell. A daemon
  * process's own `PATH` frequently lacks entries a shell profile adds (a
  * version manager's shims, a package-manager-installed CLI, a Homebrew
  * prefix), so a plain `execFile` against a bare command name can fail even
  * though the same command works fine in the user's terminal. Routing through
- * `$SHELL -c "..."` re-sources that PATH before running the command.
+ * `$SHELL -c "..."` preserves the daemon's current PATH before running the
+ * command; it does not load login profiles or recover profile-only entries.
+ * The host must supply those entries in its environment when needed. A login
+ * invocation could reset PATH and hide wrapped command shims or test fakes.
  *
  * Depends on nothing else in this package; owns no process lifecycle beyond
  * the single buffered child it spawns per call.
@@ -69,10 +72,11 @@ function buildLoginShellCommand(innerCommand: string): string {
 }
 
 /**
- * Run an arbitrary command re-entering the user's login shell (via
- * `$SHELL -c`) so shell-profile-only `PATH` entries are visible, then buffer
- * its output. Falls back to a direct `execFile` on Windows, where there is no
- * equivalent login-shell PATH gap.
+ * Run an arbitrary command through the user's selected shell (via
+ * `$SHELL -c`), explicitly preserving the current `process.env.PATH`, then
+ * buffer its output. The historical name is retained for compatibility;
+ * this non-login invocation does not load shell-profile-only PATH entries.
+ * Falls back to a direct `execFile` on Windows.
  *
  * @param command - The executable to run.
  * @param args - Arguments to pass to the executable.

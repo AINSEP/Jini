@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_BN: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "আপনার বার্তা থেকে কী বলে মনে হওয়া অংশটি সরিয়ে দিয়েছি। সেটি আসল হলে বদলে ফেলুন। সংরক্ষণ করতে নিরাপদ ফর্ম ব্যবহার করুন।",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "কী, টোকেন, পাসওয়ার্ড ও গোপন তথ্য সংরক্ষণ করতে নিরাপদ ফর্ম ব্যবহার করুন। চ্যাটের উত্তর সহকারীকে পাঠানো হয়।",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# আমার স্কিল\n\n1. ওয়ার্কফ্লো ব্যাখ্যা করুন।\n2. ইনপুট এবং আউটপুট বর্ণনা করুন।',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'একটি কাস্টম পাথ ওভাররাইড কাজ করেনি, তাই এর পরিবর্তে স্বয়ংক্রিয়ভাবে শনাক্ত করা বাইনারি ব্যবহার করা হয়েছে।',
   'API key': 'API কী',
   'About': 'সম্পর্কে',
   'Accent color': 'হাইলাইট রং',
   'Account': 'অ্যাকাউন্ট',
+  'Advanced': 'উন্নত',
   'Advanced: proxy & custom paths': 'উন্নত: প্রক্সি ও কাস্টম পাথ',
   'Agent check failed': 'এজেন্ট পরীক্ষা ব্যর্থ হয়েছে',
   'Agent is ready.': 'এজেন্ট প্রস্তুত।',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_BN: SettingsDialogDict = {
   'Copy': 'কপি করুন',
   'Copy to clipboard': 'ক্লিপবোর্ডে কপি করুন',
   'Could not load live models: {message}': 'লাইভ মডেল লোড করা যায়নি: {message}',
-  'No API key — connection test needs the key from this browser.': 'কোনো API কী নেই — সংযোগ পরীক্ষার জন্য এই ব্রাউজার থেকে কী প্রয়োজন।',
-  'No API key — model discovery needs the key from this browser.': 'কোনো API কী নেই — মডেল খুঁজে পেতে এই ব্রাউজার থেকে কী প্রয়োজন।',
+  'No API key saved. Save one to test the connection.': 'কোনো API কী সংরক্ষিত নেই। সংযোগ পরীক্ষা করতে একটি কী সংরক্ষণ করুন।',
+  'No API key saved. Save one to load models.': 'কোনো API কী সংরক্ষিত নেই। মডেল লোড করতে একটি কী সংরক্ষণ করুন।',
   'Could not load skills: {error}': 'স্কিল লোড করা যায়নি: {error}',
   'Could not reach the daemon: {error}': 'ডিমনে পৌঁছানো যায়নি: {error}',
   'Could not reach the server. Showing local changes only.': 'সার্ভারে পৌঁছানো যায়নি। শুধু স্থানীয় পরিবর্তন দেখানো হচ্ছে।',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_BN: SettingsDialogDict = {
   'Not available for this daemon.': 'এই ডিমনের জন্য উপলব্ধ নয়।',
   'Not configured': 'কনফিগার করা হয়নি',
   'Not installed': 'ইনস্টল করা নেই',
+  'Show {count} not installed': '{count}টি ইনস্টল না করা দেখান',
+  'Hide not installed': 'ইনস্টল না করা লুকান',
+  'Show not-installed CLIs': 'ইনস্টল না করা CLI দেখান',
   'Not sharing': 'শেয়ার করা হচ্ছে না',
   'Nothing is shared unless you opt in.': 'আপনি সম্মতি না দেওয়া পর্যন্ত কিছুই শেয়ার করা হয় না।',
   'Off': 'বন্ধ',

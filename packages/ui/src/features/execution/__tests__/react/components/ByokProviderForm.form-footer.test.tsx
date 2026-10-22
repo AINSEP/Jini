@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
 import type { ByokConfig, ProviderPreset } from '../../../types.js';
@@ -30,7 +31,7 @@ const CONFIG: ByokConfig = {
   model: 'model-a',
 };
 
-function renderForm(props: { apiKeyFooter?: React.ReactNode; formFooter?: React.ReactNode } = {}) {
+function renderForm(props: { apiKeyFooter?: React.ReactNode; formFooter?: React.ReactNode; modelFooter?: React.ReactNode; collapseAdvanced?: boolean } = {}) {
   return render(
     <ByokProviderForm
       config={CONFIG}
@@ -45,6 +46,20 @@ function renderForm(props: { apiKeyFooter?: React.ReactNode; formFooter?: React.
 }
 
 describe('ByokProviderForm formFooter slot', () => {
+  it('keeps model actions reachable before collapsed Advanced without activating a field', async () => {
+    const save = vi.fn();
+    renderForm({ collapseAdvanced: true, modelFooter: <button type="button" onClick={save}>Save model settings</button> });
+    const button = screen.getByRole('button', { name: 'Save model settings' });
+    const advanced = screen.getByText('Advanced');
+    const model = screen.getByRole('combobox', { name: /Model/ });
+    expect(model.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button.compareDocumentPosition(advanced) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(advanced.closest('details')).not.toHaveAttribute('open');
+    expect(button.closest('label')).toBeNull();
+    await userEvent.click(button);
+    expect(save).toHaveBeenCalledOnce();
+    expect(advanced.closest('details')).not.toHaveAttribute('open');
+  });
   it('renders host content at the foot of the card', () => {
     renderForm({ formFooter: <button type="button">Save settings</button> });
     expect(screen.getByRole('button', { name: 'Save settings' })).toBeInTheDocument();

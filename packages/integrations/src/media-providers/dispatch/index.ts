@@ -14,24 +14,37 @@ export { renderOpenRouterImage, openRouterAspectFor } from './providers/openrout
 export { renderSenseAudioImage, renderSenseAudioTTS } from './providers/senseaudio.js';
 export { renderVolcengineImage } from './providers/volcengine.js';
 export { renderStub, svgPlaceholder } from './stub.js';
-export { assertAndFetchExternalAsset, assertExternalAssetUrl, isBlockedExternalApiHostname, isLoopbackApiHost, validateBaseUrlResolved } from './ssrf-guard.js';
+export { assertAndFetchExternalAsset, assertExternalAssetUrl, validateBaseUrlResolved } from './ssrf-guard.js';
+export { isBlockedExternalApiHostname, isLoopbackApiHost } from '@jini-ai/platform/net';
 export type { DnsLookupAddress, DnsLookupFn } from './ssrf-guard.js';
 export type {
   MediaDispatchEngine,
   MediaDispatchEngineOptions,
+  MediaDispatchEngineRequired,
+  VendorAdapterLookup,
   MediaGenerationRequest,
   MediaGenerationRequestInit,
   MediaGenerationResult,
   MediaImageReference,
+  MediaModelCatalog,
   MediaSpeechFormat,
   ProviderCredentials,
 } from './types.js';
 // The generic vendor-adapter dispatch engine (added 2026-07-21) — see
-// `vendor-adapter.ts`'s module doc and `source-map.md` for the design and
+// `vendor-adapter.ts`'s module doc and `archived provenance ledger` for the design and
 // which vendors are registered onto it.
 export { dispatchVendorRequest, requireApiKey } from './vendor-adapter.js';
 export type { VendorAdapter, VendorCredentialGuard, VendorRequest, VendorRequestBuilder, VendorResponseParser } from './vendor-adapter.js';
-export { createVendorAdapterRegistry, mediaVendorRegistry, VendorAdapterRegistry } from './vendor-registry.js';
+export { createBuiltinVendorAdapterRegistry, createVendorAdapterRegistry, mediaVendorRegistry, VendorAdapterRegistry } from './vendor-registry.js';
+// Vendors as one-unit provider contributions on the shared keyed registry (2026-10-21).
+export {
+  builtinMediaProviderContributions,
+  createMediaProviderRegistry,
+  MEDIA_PROVIDER_CONTRACT,
+  mediaProviderDefinition,
+  mediaProviderRegistryId,
+} from './media-provider-registry.js';
+export type { MediaProviderContribution, MediaProviderModel, MediaProviderRegistry } from './media-provider-registry.js';
 export { createHexEnvelopeAudioParser, createRawBytesParser } from './response-parsers.js';
 // The submit-then-poll tier (added 2026-09-02) — purely additive alongside `VendorAdapter`, for
 // vendors that hand back a job handle instead of finishing inside one request/response. See
@@ -89,3 +102,6 @@ export type { SqliteAsyncOperationStore } from './sqlite-async-operation-store.j
 export { createImageRouterVideoPollingAdapter } from './providers/imagerouter-video-async.js';
 export type { ImageRouterVideoConfig, ImageRouterVideoMeta } from './providers/imagerouter-video-async.js';
 export type { HexEnvelopeAudioMeta, HexEnvelopeAudioParserOptions, RawBytesParserOptions } from './response-parsers.js';
+
+export { defaultMediaOutboundMessages } from './outbound.js';
+export type { MediaOutboundOptions } from './outbound.js';

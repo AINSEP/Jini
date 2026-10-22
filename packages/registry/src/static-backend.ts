@@ -4,15 +4,17 @@
  * A read-mostly `RegistryBackend` over an in-memory {@link RegistryManifest}:
  * list/search/resolve/doctor computed directly from `manifest.entries`, no
  * publish/yank support. The base class every other backend in this package
- * extends — `github-backend` overrides `getManifest()`'s source and adds
- * publish/yank over a GitHub PR mutation; `database-backend` overrides
+ * extends — `github-backend` loads one manifest snapshot during construction and adds
+ * publish/yank over a GitHub PR mutation without refreshing that snapshot; `database-backend` overrides
  * `getManifest()` to read from sqlite and adds publish/yank as direct writes.
  */
 import {
+  RegistryBackendKindSchema,
   RegistryEntrySchema,
   RegistryListFilterSchema,
   RegistryPublishRequestSchema,
   RegistrySearchQuerySchema,
+  RegistryTrustSchema,
   type RegistryBackend,
   type RegistryBackendKind,
   type RegistryDoctorReport,
@@ -25,14 +27,14 @@ import {
   type RegistryTrust,
   type ResolvedRegistryEntry,
 } from '@jini-ai/protocol';
+import type { Clock } from '@jini-ai/core/primitives';
 import { parseRegistrySpecifier, resolveRegistryEntryVersion } from './versioning.js';
 import { verifyRegistryEntrySignatures, type RegistryTrustRoot } from './trust.js';
 
 export interface StaticRegistryBackendOptions {
-  id: string;
   kind?: RegistryBackendKind;
-  trust: RegistryTrust;
-  manifest: RegistryManifest;
+  /** Inject the kernel clock for reproducible storage and diagnostic timestamps. */
+  clock?: Clock;
   /**
    * Optional per-entry signature trust root (currently `github-oidc` only —
    * see `trust.ts`). Omitting this is the pre-existing, unchanged default:
@@ -52,88 +54,53 @@ export class StaticRegistryBackend implements RegistryBackend {
   protected readonly manifestData: RegistryManifest;
   protected readonly trustRoot: RegistryTrustRoot | undefined;
 
-  constructor(options: StaticRegistryBackendOptions) {
-    this.id = options.id;
-    this.kind = options.kind ?? 'http';
-    this.trust = options.trust;
-    this.manifestData = options.manifest;
+  protected readonly clock: Clock;
+
+  constructor(
+    required: { id: string; trust: RegistryTrust; manifest: RegistryManifest },
+    options: StaticRegistryBackendOptions = {},
+  ) {
+    this.id = required.id;
+    // Trust is host policy, never inferred from the transport; reject unknown modes.
+    this.kind = RegistryBackendKindSchema.parse(options.kind ?? 'http');
+    this.trust = RegistryTrustSchema.parse(required.trust);
+    this.manifestData = required.manifest;
     this.trustRoot = options.trustRoot;
+    this.clock = options.clock ?? { nowMs: () => Date.now() };
   }
 
-  async list(filter?: RegistryListFilter): Promise<RegistryEntry[]> {
-    const parsedFilter = RegistryListFilterSchema.parse(filter);
-    let entries = validEntries(this.getManifest());
-
-    if (!parsedFilter?.includeYanked) {
-      entries = entries.filter((entry) => !entry.yanked);
-    }
-
-    if (parsedFilter?.publisher) {
-      const publisher = parsedFilter.publisher.toLowerCase();
-      entries = entries.filter(
-        (entry) => entry.publisher?.id?.toLowerCase() === publisher || entry.publisher?.github?.toLowerCase() === publisher,
-      );
-    }
-
-    if (parsedFilter?.tags && parsedFilter.tags.length > 0) {
-      const tags = parsedFilter.tags.map((tag) => tag.toLowerCase());
-      entries = entries.filter((entry) => {
-        const entryTags = new Set((entry.tags ?? []).map((tag) => tag.toLowerCase()));
-        return tags.every((tag) => entryTags.has(tag));
-      });
-    }
-
-    if (parsedFilter?.query) {
-      const terms = parsedFilter.query.toLowerCase().split(/\s+/g).filter(Boolean);
-      if (terms.length > 0) {
-        entries = entries.filter((entry) => terms.some((term) => searchHaystack(entry).includes(term)));
-      }
-    }
-
-    return entries;
+  async list(_required: Record<string, never>, filter: NonNullable<RegistryListFilter> = {}): Promise<RegistryEntry[]> {
+    const parsedFilter = RegistryListFilterSchema.unwrap().parse(filter);
+    return validEntries(this.getManifest()).filter(listFilterPredicate(parsedFilter));
   }
 
-  async search(input: RegistrySearchQuery): Promise<RegistrySearchResult[]> {
-    const query = RegistrySearchQuerySchema.parse(input);
-    const terms = query.query.toLowerCase().split(/\s+/g).filter(Boolean);
-    const tags = new Set((query.tags ?? []).map((tag) => tag.toLowerCase()));
+  async search(required: Pick<RegistrySearchQuery, 'query'>, optional: Omit<RegistrySearchQuery, 'query'> = {}): Promise<RegistrySearchResult[]> {
+    const query = RegistrySearchQuerySchema.parse({ ...required, ...optional });
+    const terms = queryTerms(query.query);
+    const tags = lowercased(query.tags);
     // Pass `includeYanked` through to `list` so search honors the same
     // filter contract instead of unconditionally dropping yanked entries.
-    const entries = await this.list({ includeYanked: query.includeYanked });
-    const results: RegistrySearchResult[] = [];
-    for (const entry of entries) {
-      if (tags.size > 0) {
-        const entryTags = new Set((entry.tags ?? []).map((tag) => tag.toLowerCase()));
-        if (![...tags].every((tag) => entryTags.has(tag))) continue;
-      }
-      const haystack = searchHaystack(entry);
-      const matched = terms.filter((term) => haystack.includes(term));
-      if (terms.length > 0 && matched.length === 0) continue;
-      results.push({
-        entry,
-        score: terms.length === 0 ? 0 : matched.length / terms.length,
-        matched,
-      });
-    }
-    return results
+    const entries = await this.list({}, { includeYanked: query.includeYanked });
+    return entries
+      .flatMap((entry) => searchResultFor(entry, terms, tags))
       .sort((left, right) => right.score - left.score || left.entry.name.localeCompare(right.entry.name))
       .slice(0, query.limit ?? 100);
   }
 
-  async resolve(name: string, range?: string): Promise<ResolvedRegistryEntry | null> {
-    const parsed = parseRegistrySpecifier(range ? `${name}@${range}` : name);
+  async resolve({ name }: { name: string }, { range }: { range?: string | undefined } = {}): Promise<ResolvedRegistryEntry | null> {
+    const parsed = parseRegistrySpecifier({ input: range ? `${name}@${range}` : name });
     const entry = validEntries(this.getManifest()).find(
       (candidate) => candidate.name.toLowerCase() === parsed.name.toLowerCase(),
     );
     if (!entry) return null;
-    const resolvedVersion = resolveRegistryEntryVersion(entry, parsed.range);
+    const resolvedVersion = resolveRegistryEntryVersion({ entry }, { requestedRange: parsed.range });
     if (!resolvedVersion) return null;
     // Additive alongside `trust`: never replaces or narrows the
     // backend-configured trust level above, which is still stamped exactly
     // as before. A backend with no `trustRoot` configured (the unchanged
     // default) always resolves `verified: false` here without attempting
     // any cryptographic work — see `trust.ts`'s `verifyRegistryEntrySignatures`.
-    const verification = verifyRegistryEntrySignatures(entry, this.trustRoot);
+    const verification = verifyRegistryEntrySignatures({ entry }, { trustRoot: this.trustRoot });
     return {
       backendId: this.id,
       backendKind: this.kind,
@@ -157,13 +124,12 @@ export class StaticRegistryBackend implements RegistryBackend {
     };
   }
 
-  async manifest(name: string, version: string): Promise<RegistryEntry | null> {
-    const resolved = await this.resolve(name, version);
+  async manifest({ name, version }: { name: string; version: string }): Promise<RegistryEntry | null> {
+    const resolved = await this.resolve({ name }, { range: version });
     return resolved?.entry ?? null;
   }
 
-  async doctor(): Promise<RegistryDoctorReport> {
-    const issues: RegistryDoctorReport['issues'] = [];
+  async doctor(_required: Record<string, never>): Promise<RegistryDoctorReport> {
     // Deliberately audits the RAW manifest entries (not the `validEntries()`
     // schema-filtered set `list`/`search`/`resolve` use) — doctor's whole
     // purpose is to surface malformed data, so silently dropping a bad entry
@@ -181,73 +147,15 @@ export class StaticRegistryBackend implements RegistryBackend {
     // Report that as one explicit issue instead of letting `for...of` throw
     // a bare `TypeError` out of a caller-facing diagnostic method.
     const rawEntries = manifestEntriesRaw(this.getManifest());
-    if (!Array.isArray(rawEntries)) {
-      issues.push({
-        severity: 'error',
-        code: 'malformed-manifest',
-        message: 'Registry manifest "entries" is missing or not an array; no entries could be checked.',
-      });
-    }
-    const entries = Array.isArray(rawEntries) ? rawEntries : [];
-    for (const raw of entries) {
-      const value = raw as unknown;
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-        issues.push({
-          severity: 'error',
-          code: 'malformed-entry',
-          message: 'Registry entry is not a valid object and could not be checked.',
-        });
-        continue;
-      }
-      const candidate = value as Partial<RegistryEntry>;
-      const name = typeof candidate.name === 'string' ? candidate.name : undefined;
-      if (!name || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/.test(name)) {
-        issues.push({
-          severity: 'error',
-          code: 'invalid-name',
-          message: 'Registry entry name must be vendor/name.',
-          pluginName: name,
-        });
-      }
-      const dist = candidate.dist && typeof candidate.dist === 'object' ? candidate.dist : undefined;
-      if (!candidate.source && !dist?.archive) {
-        issues.push({
-          severity: 'error',
-          code: 'missing-source',
-          message: 'Registry entry must provide source or dist.archive.',
-          pluginName: name,
-        });
-      }
-      if (!candidate.license) {
-        issues.push({
-          severity: 'warning',
-          code: 'missing-license',
-          message: 'Registry entry should declare a license.',
-          pluginName: name,
-        });
-      }
-      const capabilitiesSummary = Array.isArray(candidate.capabilitiesSummary) ? candidate.capabilitiesSummary : undefined;
-      if (!capabilitiesSummary || capabilitiesSummary.length === 0) {
-        issues.push({
-          severity: 'warning',
-          code: 'missing-capabilities',
-          message: 'Registry entry should summarize its capabilities.',
-          pluginName: name,
-        });
-      }
-      if (candidate.yanked && !candidate.yankReason) {
-        issues.push({
-          severity: 'error',
-          code: 'missing-yank-reason',
-          message: 'Yanked entries must keep a human-readable reason.',
-          pluginName: name,
-        });
-      }
-    }
+    const entries: unknown[] = Array.isArray(rawEntries) ? rawEntries : [];
+    const issues: DoctorIssue[] = [
+      ...(Array.isArray(rawEntries) ? [] : [{ ...MALFORMED_MANIFEST_ISSUE }]),
+      ...entries.flatMap(doctorEntryIssues),
+    ];
     return {
       ok: !issues.some((issue) => issue.severity === 'error'),
       backendId: this.id,
-      checkedAt: Date.now(),
+      checkedAt: this.clock.nowMs(),
       entriesChecked: entries.length,
       issues,
     };
@@ -306,8 +214,8 @@ function validEntries(manifest: RegistryManifest): RegistryEntry[] {
  * @returns The schema-parsed (and thus schema-shaped) request.
  * @throws If `request` does not conform to `RegistryPublishRequestSchema`.
  */
-export function assertValidPublishRequest(request: RegistryPublishRequest): RegistryPublishRequest {
-  const parsed = RegistryPublishRequestSchema.safeParse(request);
+export function assertValidPublishRequest(required: Pick<RegistryPublishRequest, 'entry'>, optional: Omit<RegistryPublishRequest, 'entry'> = {}): RegistryPublishRequest {
+  const parsed = RegistryPublishRequestSchema.safeParse({ ...required, ...optional });
   if (!parsed.success) {
     throw new Error(`Invalid registry publish request: ${parsed.error.message}`);
   }
@@ -327,4 +235,115 @@ function searchHaystack(entry: RegistryEntry): string {
   ]
     .join(' ')
     .toLowerCase();
+}
+
+/** @internal Lowercase every string in an optional list. */
+function lowercased(values: string[] | undefined): string[] {
+  return (values ?? []).map((value) => value.toLowerCase());
+}
+
+/** @internal Whitespace-separated, lowercased, non-empty query terms. */
+function queryTerms(query: string): string[] {
+  return query.toLowerCase().split(/\s+/g).filter(Boolean);
+}
+
+/** @internal True when the entry carries every one of the (already lowercased) `tags`; an empty list admits every entry. */
+function hasEveryTag(entry: RegistryEntry, tags: string[]): boolean {
+  const entryTags = new Set(lowercased(entry.tags));
+  return tags.every((tag) => entryTags.has(tag));
+}
+
+/** @internal `list`'s filter: yanked, publisher id/github handle, every tag, and any query term — all case-insensitive. */
+function listFilterPredicate(filter: NonNullable<RegistryListFilter>): (entry: RegistryEntry) => boolean {
+  const publisher = filter.publisher?.toLowerCase();
+  const tags = lowercased(filter.tags);
+  const terms = queryTerms(filter.query ?? '');
+  return (entry) =>
+    (filter.includeYanked === true || !entry.yanked) &&
+    (!publisher || publishedBy(entry, publisher)) &&
+    hasEveryTag(entry, tags) &&
+    (terms.length === 0 || terms.some((term) => searchHaystack(entry).includes(term)));
+}
+
+/** @internal True when the (already lowercased) `publisher` is the entry's publisher id or GitHub handle. */
+function publishedBy(entry: RegistryEntry, publisher: string): boolean {
+  return entry.publisher?.id?.toLowerCase() === publisher || entry.publisher?.github?.toLowerCase() === publisher;
+}
+
+/** @internal `search`'s per-entry result: none when a tag is missing or no term matches, else the matched fraction of terms (0 for an empty query). */
+function searchResultFor(entry: RegistryEntry, terms: string[], tags: string[]): RegistrySearchResult[] {
+  if (!hasEveryTag(entry, tags)) return [];
+  const haystack = searchHaystack(entry);
+  const matched = terms.filter((term) => haystack.includes(term));
+  if (terms.length > 0 && matched.length === 0) return [];
+  return [{ entry, score: terms.length === 0 ? 0 : matched.length / terms.length, matched }];
+}
+
+type DoctorIssue = RegistryDoctorReport['issues'][number];
+
+const MALFORMED_MANIFEST_ISSUE: DoctorIssue = {
+  severity: 'error',
+  code: 'malformed-manifest',
+  message: 'Registry manifest "entries" is missing or not an array; no entries could be checked.',
+};
+
+/**
+ * @internal The per-entry `doctor` checks, in report order. Each reads a RAW,
+ * unvalidated entry, so every field is guarded before it is dereferenced.
+ */
+const DOCTOR_ENTRY_CHECKS: Array<{
+  severity: DoctorIssue['severity'];
+  code: string;
+  message: string;
+  failed: (candidate: Partial<RegistryEntry>, name: string | undefined) => boolean;
+}> = [
+  {
+    severity: 'error',
+    code: 'invalid-name',
+    message: 'Registry entry name must be vendor/name.',
+    // The schema rejects undefined and "" too, so no separate presence check.
+    failed: (_candidate, name) => !RegistryEntrySchema.shape.name.safeParse(name).success,
+  },
+  {
+    severity: 'error',
+    code: 'missing-source',
+    message: 'Registry entry must provide source or dist.archive.',
+    failed: (candidate) => {
+      const dist = candidate.dist && typeof candidate.dist === 'object' ? candidate.dist : undefined;
+      return !candidate.source && !dist?.archive;
+    },
+  },
+  {
+    severity: 'warning',
+    code: 'missing-license',
+    message: 'Registry entry should declare a license.',
+    failed: (candidate) => !candidate.license,
+  },
+  {
+    severity: 'warning',
+    code: 'missing-capabilities',
+    message: 'Registry entry should summarize its capabilities.',
+    failed: (candidate) => !Array.isArray(candidate.capabilitiesSummary) || candidate.capabilitiesSummary.length === 0,
+  },
+  {
+    severity: 'error',
+    code: 'missing-yank-reason',
+    message: 'Yanked entries must keep a human-readable reason.',
+    failed: (candidate) => Boolean(candidate.yanked) && !candidate.yankReason,
+  },
+];
+
+/** @internal `doctor`'s issues for one raw manifest entry; a value that is not a plain object is one `malformed-entry` issue. */
+function doctorEntryIssues(raw: unknown): DoctorIssue[] {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return [{ severity: 'error', code: 'malformed-entry', message: 'Registry entry is not a valid object and could not be checked.' }];
+  }
+  const candidate = raw as Partial<RegistryEntry>;
+  const name = typeof candidate.name === 'string' ? candidate.name : undefined;
+  return DOCTOR_ENTRY_CHECKS.filter((check) => check.failed(candidate, name)).map(({ severity, code, message }) => ({
+    severity,
+    code,
+    message,
+    pluginName: name,
+  }));
 }

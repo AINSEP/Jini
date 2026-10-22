@@ -35,8 +35,8 @@
  * so every check below prefers the former.
  *
  * It refuses when:
- * - there are no events, or no tool rows AND no ext events to interleave (nothing to do — the flat
- *   path is identical);
+ * - there are no events, or no tool rows AND no ext events (AND no thinking, when the caller asked
+ *   for it) to interleave (nothing to do — the flat path is identical);
  * - the concatenated text events do not reproduce `content` byte for byte. This is the load-bearing
  *   check. A message persisted before the events schema settled, one rebuilt by a host that
  *   assembles `content` some other way, or any future divergence between the two, all land here;
@@ -46,6 +46,7 @@
  * Artifacts are handled by the caller, not here — see `MessageRow.tsx`.
  */
 import type { AgentEvent } from '../core/index.js';
+import { assistantContentFromEvents, isReplyBoundary, legacyAssistantContentFromEvents } from '../core/index.js';
 
 /**
  * One rendered block. Consecutive tool cards are coalesced into a single `tools` block so they keep
@@ -60,7 +61,113 @@ import type { AgentEvent } from '../core/index.js';
 export type MessageBlock<Row> =
   | { readonly kind: 'text'; readonly text: string; readonly key: string }
   | { readonly kind: 'tools'; readonly rows: readonly Row[]; readonly key: string }
-  | { readonly kind: 'ext'; readonly name: string; readonly key: string };
+  | { readonly kind: 'ext'; readonly name: string; readonly slot: string; readonly key: string }
+  /** Where reply `index` of a run ends: just before the mid-run user message that started the next
+   * reply (`isReplyBoundary`). `MessageRow` hangs that reply's own "Done" line here. */
+  | { readonly kind: 'reply-end'; readonly index: number; readonly key: string }
+  /** The model's reasoning (`kind: 'thinking'` events), where it happened. Emitted only when the
+   * caller passes `includeThinking` (a host's "show thinking" display choice, 2026-10-11);
+   * back-to-back thinking events with no text between them join into one block. */
+  | { readonly kind: 'thinking'; readonly text: string; readonly key: string };
+
+/** Mutable walk state threaded through the per-event helpers of {@link interleaveMessageBlocks}. */
+interface WalkState<Row> {
+  readonly rowById: ReadonlyMap<string, Row>;
+  readonly blocks: MessageBlock<Row>[];
+  readonly emitted: Set<string>;
+  readonly emittedExtSlots: Set<string>;
+  buffer: string;
+  replies: number;
+}
+
+type SlotOf = (ev: { readonly name: string; readonly data: unknown }) => string;
+
+/** Whether there is anything besides plain text to place: a tool row, an ext event, or (when asked
+ * for) non-blank thinking. With none of these the flat path is identical. */
+function hasSomethingToInterleave(
+  { events, rows }: { events: readonly AgentEvent[]; rows: readonly unknown[] },
+  { includeThinking }: { includeThinking: boolean },
+): boolean {
+  if (rows.length > 0) return true;
+  return events.some((ev) => ev.kind === 'ext' || (includeThinking && ev.kind === 'thinking' && ev.text.trim() !== ''));
+}
+
+/** Whether `content` is demonstrably built from the text events. */
+function contentMatchesEvents({ events, content }: { events: readonly AgentEvent[]; content: string }): boolean {
+  // Both producers' shapes count: today's (a paragraph break between steps, see
+  // `assistantContentFromEvents`) and the old plain concatenation older saved rows carry.
+  return content === assistantContentFromEvents({ events }) || content === legacyAssistantContentFromEvents({ events });
+}
+
+function flushText<Row>({ state }: { state: WalkState<Row> }): void {
+  if (state.buffer.length === 0) return;
+  state.blocks.push({ kind: 'text', text: state.buffer, key: `text-${state.blocks.length}` });
+  state.buffer = '';
+}
+
+function placeThinking<Row>({ state, text }: { state: WalkState<Row>; text: string }): void {
+  flushText({ state });
+  const { blocks } = state;
+  const last = blocks[blocks.length - 1];
+  if (last && last.kind === 'thinking') blocks[blocks.length - 1] = { kind: 'thinking', text: last.text + text, key: last.key };
+  else blocks.push({ kind: 'thinking', text, key: `thinking-${blocks.length}` });
+}
+
+function placeReplyEnd<Row>({ state }: { state: WalkState<Row> }): void {
+  flushText({ state });
+  state.blocks.push({ kind: 'reply-end', index: state.replies, key: `reply-end-${state.replies}` });
+  state.replies += 1;
+}
+
+function placeExt<Row>(
+  { state, ev }: { state: WalkState<Row>; ev: { readonly name: string; readonly data: unknown } },
+  { slotOf }: { slotOf: SlotOf },
+): void {
+  // One block per SLOT, at its first occurrence — later events in the same slot fold into it
+  // (`useExtEventGroups`'s job in `MessageRow.tsx`), not a second block. A slot is the `name`
+  // unless its renderer keys events into separate surfaces (see `ExtEventSlotKey`).
+  const slot = slotOf(ev);
+  if (state.emittedExtSlots.has(slot)) return;
+  state.emittedExtSlots.add(slot);
+  flushText({ state });
+  state.blocks.push({ kind: 'ext', name: ev.name, slot, key: `ext-${slot}` });
+}
+
+function placeToolUse<Row>({ state, id }: { state: WalkState<Row>; id: string }): void {
+  const row = state.rowById.get(id);
+  // A `tool_use` the timeline did not surface (deduped away as a repeat of one already seen).
+  // Skipping it keeps this function's output consistent with `rows`, which is the authority on
+  // what gets a card.
+  if (!row || state.emitted.has(id)) return;
+  state.emitted.add(id);
+
+  flushText({ state });
+  const { blocks } = state;
+  const last = blocks[blocks.length - 1];
+  if (last && last.kind === 'tools') {
+    blocks[blocks.length - 1] = { kind: 'tools', rows: [...last.rows, row], key: last.key };
+  } else {
+    blocks.push({ kind: 'tools', rows: [row], key: `tools-${blocks.length}` });
+  }
+}
+
+function placeEvent<Row>(
+  { state, ev }: { state: WalkState<Row>; ev: AgentEvent },
+  { slotOf, includeThinking }: { slotOf: SlotOf; includeThinking: boolean },
+): void {
+  if (ev.kind === 'text') {
+    state.buffer += ev.text;
+    return;
+  }
+  if (ev.kind === 'thinking') {
+    if (includeThinking) placeThinking({ state, text: ev.text });
+    return;
+  }
+  // Emitted per boundary, before any slot dedupe below, so every reply gets its own end marker.
+  if (isReplyBoundary({ event: ev })) placeReplyEnd({ state });
+  if (ev.kind === 'ext') placeExt({ state, ev }, { slotOf });
+  else if (ev.kind === 'tool_use') placeToolUse({ state, id: ev.id });
+}
 
 /**
  * Rebuilds an assistant message as ordered blocks, or returns `null` if that cannot be done
@@ -70,74 +177,41 @@ export type MessageBlock<Row> =
  * @param content - The message's `content`, expected to equal the concatenated text events.
  * @param rows - The tool timeline rows, already deduped and paired by `useToolTimeline`. Only rows
  *   present here are emitted, so a row the timeline chose to drop stays dropped.
+ * @param slotOf - The render slot an ext event belongs to (default: its `name`).
+ * @param includeThinking - Emit `thinking` blocks for the model's reasoning (default `false`: thinking
+ *   events are skipped, the layout every host had before this option). Thinking text is not part of
+ *   `content`, so it never affects the lossless check below.
  * @returns Ordered blocks, or `null` to signal "render the flat layout instead".
  * @complexity O(n + m) in the event and row counts.
  */
 export function interleaveMessageBlocks<Row extends { id: string }>(
-  events: readonly AgentEvent[] | undefined,
-  content: string,
-  rows: readonly Row[],
+  { events, content, rows }: { events: readonly AgentEvent[] | undefined; content: string; rows: readonly Row[] },
+  { slotOf = (ev) => ev.name, includeThinking = false }: {
+    slotOf?: SlotOf;
+    includeThinking?: boolean;
+  } = {},
 ): MessageBlock<Row>[] | null {
   if (!events || events.length === 0) return null;
-  const hasExtEvent = events.some((ev) => ev.kind === 'ext');
-  if (rows.length === 0 && !hasExtEvent) return null;
+  if (!hasSomethingToInterleave({ events, rows }, { includeThinking })) return null;
 
   // The reconstruction is only trustworthy if the text events are demonstrably the source `content`
   // was built from. Anything else and the offsets below are fiction.
-  let concatenated = '';
-  for (const ev of events) {
-    if (ev.kind === 'text') concatenated += ev.text;
-  }
-  if (concatenated !== content) return null;
+  if (!contentMatchesEvents({ events, content })) return null;
 
-  const rowById = new Map(rows.map((row) => [row.id, row]));
-  const blocks: MessageBlock<Row>[] = [];
-  const emitted = new Set<string>();
-  const emittedExtNames = new Set<string>();
-  let buffer = '';
-
-  const flushText = (): void => {
-    if (buffer.length === 0) return;
-    blocks.push({ kind: 'text', text: buffer, key: `text-${blocks.length}` });
-    buffer = '';
+  const state: WalkState<Row> = {
+    rowById: new Map(rows.map((row) => [row.id, row])),
+    blocks: [],
+    emitted: new Set<string>(),
+    emittedExtSlots: new Set<string>(),
+    buffer: '',
+    replies: 0,
   };
-
-  for (const ev of events) {
-    if (ev.kind === 'text') {
-      buffer += ev.text;
-      continue;
-    }
-    if (ev.kind === 'ext') {
-      // One block per name, at its FIRST occurrence — later events sharing the name fold into the
-      // SAME render slot (`useExtEventGroups`'s job in `MessageRow.tsx`), not a second block.
-      if (emittedExtNames.has(ev.name)) continue;
-      emittedExtNames.add(ev.name);
-      flushText();
-      blocks.push({ kind: 'ext', name: ev.name, key: `ext-${ev.name}` });
-      continue;
-    }
-    if (ev.kind !== 'tool_use') continue;
-
-    const row = rowById.get(ev.id);
-    // A `tool_use` the timeline did not surface (deduped away as a repeat of one already seen).
-    // Skipping it keeps this function's output consistent with `rows`, which is the authority on
-    // what gets a card.
-    if (!row || emitted.has(ev.id)) continue;
-    emitted.add(ev.id);
-
-    flushText();
-    const last = blocks[blocks.length - 1];
-    if (last && last.kind === 'tools') {
-      blocks[blocks.length - 1] = { kind: 'tools', rows: [...last.rows, row], key: last.key };
-    } else {
-      blocks.push({ kind: 'tools', rows: [row], key: `tools-${blocks.length}` });
-    }
-  }
-  flushText();
+  for (const ev of events) placeEvent({ state, ev }, { slotOf, includeThinking });
+  flushText({ state });
 
   // Every row must have found its place. If one did not, the message would render with a tool card
   // missing entirely — strictly worse than the flat layout it would have had.
-  if (emitted.size !== rows.length) return null;
+  if (state.emitted.size !== rows.length) return null;
 
-  return blocks;
+  return state.blocks;
 }

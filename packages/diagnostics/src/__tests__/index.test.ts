@@ -36,6 +36,12 @@ describe("@jini-ai/diagnostics barrel", () => {
     expect(typeof diagnostics.diagnosticsFileName).toBe("function");
   });
 
+  it("re-exports the explicit Node host adapter", () => {
+    const ports = diagnostics.createNodeDiagnosticsPorts({});
+    expect(Object.keys(ports).sort()).toEqual(["archiveFactory", "clock", "filesystem", "system"]);
+    expect(ports.system.platform({})).toBe(process.platform);
+  });
+
   it("re-exports the zip builder", () => {
     expect(typeof diagnostics.buildDiagnosticsZip).toBe("function");
   });

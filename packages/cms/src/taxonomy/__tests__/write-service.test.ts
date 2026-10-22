@@ -26,33 +26,34 @@ import { ForbiddenError } from "../../core/commands/command.js";
  *
  * ```ts
  * export interface WriteServiceDeps {
- *   authorize: AuthorizeFn;                 // reused AuthorizeFn shape from core/commands/command.ts —
- *                                            // these are ORDINARY mutations (per implementation-outline.md's
- *                                            // Module Map note "core/gated-mutations imported only for
- *                                            // mergeTerm"), so authorize()-before-any-side-effect (REQ-17)
- *                                            // is the same ForbiddenError/ordering core/commands already
- *                                            // provides, not core/gated-mutations' own gateway ceremony.
- *   clock: ClockPort; idGen: IdGeneratorPort;
- *   taxonomies: TaxonomyRepoPort; terms: TermRepoPort; entryTerms: EntryTermRepoPort;
- *   revisions: TaxonomyRevisionRepoPort;     // .insert() called for every op except assign/unassign
- *   stampWatermark: (tx: unknown) => void;   // core/gated-mutations.stampWatermark, injected
- *   outbox: { enqueue: (event: unknown) => Promise<void> };
- *   validateHierarchy: typeof import("../../validation-chain").validateHierarchyAssignment;
- *   validateContentJoin: typeof import("../../validation-chain").validateContentJoin;
+ * authorize: AuthorizeFn; reused AuthorizeFn shape from core/commands/command.ts —
+ * these are ORDINARY mutations (per implementation-outline.md's
+ * Module Map note "core/gated-mutations imported only for
+ * mergeTerm"), so authorize-before-any-side-effect 
+ * is the same ForbiddenError/ordering core/commands already
+ * provides, not core/gated-mutations' own gateway ceremony.
+ * clock: Clock; idGen: IdGenerator;
+ * taxonomies: TaxonomyRepoPort; terms: TermRepoPort; entryTerms: EntryTermRepoPort;
+ * revisions: TaxonomyRevisionRepoPort;.insert called for every op except assign/unassign
+ * stampWatermark: (tx: unknown) => void; core/gated-mutations.stampWatermark, injected
+ * outbox: { enqueue: (event: unknown) => Promise<void> };
+ * validateHierarchy: typeof import("../validation-chain.js").validateHierarchyAssignment;
+ * validateContentJoin: typeof import("../validation-chain.js").validateContentJoin;
  * }
  *
  * export async function createTaxonomy(required: { deps: WriteServiceDeps; principalId: string;
- *   name: string; hierarchical: boolean }, optional?: {}): Promise<Taxonomy>;
+ * name: string; hierarchical: boolean }, optional?: {}): Promise<Taxonomy>;
  *
  * export async function createTerm(required: { deps: WriteServiceDeps; principalId: string;
- *   taxonomyId: string; name: string; parentId?: string | null }, optional?: {}): Promise<Term>;
+ * taxonomyId: string; name: string; parentId?: string | null }, optional?: {}): Promise<Term>;
  *
  * export async function renameTerm(required: { deps: WriteServiceDeps; principalId: string;
- *   termId: string; newName: string }, optional?: {}): Promise<Term>;
+ * termId: string; newName: string }, optional?: {}): Promise<Term>;
  *
  * export async function assignTerms(required: { deps: WriteServiceDeps; principalId: string;
- *   contentType: string; contentId: string; termIds: string[] }, optional?: {}): Promise<void>;
+ * contentType: string; contentId: string; termIds: string[] }, optional?: {}): Promise<void>;
  * ```
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 
 function baseDeps(overrides: Partial<Record<string, unknown>> = {}) {
@@ -61,13 +62,15 @@ function baseDeps(overrides: Partial<Record<string, unknown>> = {}) {
   let watermarkStamps = 0;
   return {
     authorize: async () => ({ allowed: true, reason: "matched" }),
-    clock: { nowIso: () => "2026-07-15T00:00:00.000Z" },
+    // This fixture checks write outputs; rename-atomicity.test.ts supplies rollback/isolation.
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }): Promise<T> => fn(),
+    clock: { nowMs: () => Date.parse("2026-07-15T00:00:00.000Z")},
     idGen: (() => {
       let n = 0;
       return { newId: () => `id-${++n}` };
     })(),
     taxonomies: {
-      async findById(id: string) {
+      async findById({ id }: { id: string }) {
         return { id, hierarchical: true };
       },
       async insert(row: unknown) {
@@ -75,8 +78,8 @@ function baseDeps(overrides: Partial<Record<string, unknown>> = {}) {
       },
     },
     terms: {
-      async findById(id: string) {
-        // Default: any `term-*` id resolves against `tax-1` — matches the AC-17/AC-20
+      async findById({ id }: { id: string }) {
+        // Default: any `term-*` id resolves against `tax-1` — matches the. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
         // assignTerms fixtures below, which don't override `terms` themselves.
         return id.startsWith("term-") ? { id, taxonomyId: "tax-1" } : null;
       },
@@ -94,7 +97,7 @@ function baseDeps(overrides: Partial<Record<string, unknown>> = {}) {
     },
     // Finding 1 fix (TM-adr041-043-044-045-audit-001) — `assignTerms` now validates via
     // `validateContentJoin`. Default: caller's own workspace, and a resolvable "post"/"post-1"
-    // content row matching what the AC-17/AC-20 fixtures below assign terms to.
+    // content row matching what the fixtures below assign terms to. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
     workspaceId: "ws-1",
     contentLookup: {
       async resolve({ contentType, contentId }: { contentType: string; contentId: string }) {
@@ -116,7 +119,7 @@ function baseDeps(overrides: Partial<Record<string, unknown>> = {}) {
       return watermarkStamps;
     },
     outbox: {
-      async enqueue(event: unknown) {
+      async enqueue({ event }: { event: unknown }) {
         outboxEvents.push(event);
       },
     },
@@ -128,7 +131,7 @@ function baseDeps(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// REQ-01 / REQ-02 / AC-01 / AC-02 / AC-03
+//. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("AC-01: createTaxonomy stores both hierarchical and flat taxonomies in the same shared table (no separate category/tag table)", async () => {
@@ -146,7 +149,7 @@ test("AC-13 / EC-04: createTerm rejects a non-null parentId on a flat (tag) taxo
   });
 
   await assert.rejects(
-    createTerm({ deps, principalId: "u-1", taxonomyId: "tax-1", name: "urgent", parentId: "term-x" })
+    createTerm({ deps, principalId: "u-1", taxonomyId: "tax-1", name: "urgent" }, { parentId: "term-x" })
   );
 });
 
@@ -154,7 +157,7 @@ test("AC-03: createTerm accepts a valid same-taxonomy parentId on a hierarchical
   const deps = baseDeps({
     taxonomies: { async findById() { return { id: "tax-1", hierarchical: true }; } },
     terms: {
-      async findById(id: string) {
+      async findById({ id }: { id: string }) {
         return id === "term-parent" ? { id: "term-parent", taxonomyId: "tax-1" } : null;
       },
       async insert(row: unknown) {
@@ -163,12 +166,12 @@ test("AC-03: createTerm accepts a valid same-taxonomy parentId on a hierarchical
     },
   });
 
-  const term = await createTerm({ deps, principalId: "u-1", taxonomyId: "tax-1", name: "Child", parentId: "term-parent" });
+  const term = await createTerm({ deps, principalId: "u-1", taxonomyId: "tax-1", name: "Child" }, { parentId: "term-parent" });
   assert.ok(term);
 });
 
 // ---------------------------------------------------------------------------
-// REQ-12 / AC-15 / AC-15a / AC-15b — revisioning with composite actor identity
+// — revisioning with composite actor identity. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("AC-15: renameTerm produces exactly one taxonomy_revisions row carrying the pre-rename state", async () => {
@@ -191,7 +194,7 @@ test("AC-15: renameTerm produces exactly one taxonomy_revisions row carrying the
 });
 
 // ---------------------------------------------------------------------------
-// REQ-13 / INV-05 / AC-17 — assign/unassign never revisioned
+// — assign/unassign never revisioned. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("AC-17 / INV-05: assignTerms produces zero taxonomy_revisions rows", async () => {
@@ -205,7 +208,7 @@ test("AC-17 / INV-05: assignTerms produces zero taxonomy_revisions rows", async 
 });
 
 // ---------------------------------------------------------------------------
-// REQ-14 / AC-19 / AC-20 — same-transaction watermark + outbox
+// — same-transaction watermark + outbox. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("AC-19: renameTerm's commit includes exactly one watermark stamp and one outbox enqueue", async () => {
@@ -237,7 +240,7 @@ test("AC-20: assignTerms' commit includes exactly one watermark stamp and one ou
 // ---------------------------------------------------------------------------
 // A1 (Job A, taxonomy plan) — per-content-type taxonomy policy for Collection entries.
 // `contentTypeTaxonomyPolicy` is optional on `WriteServiceDeps`; `post`/`page` never consult it
-// (ADR-044/AC-08: posts are unchanged).
+// (: posts are unchanged). See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("A1: a Collection entry contentType resolves through contentTypeTaxonomyPolicy + contentLookup and assigns normally", async () => {
@@ -344,7 +347,7 @@ test("A1 / AC-08: contentType 'post' never consults contentTypeTaxonomyPolicy �
 });
 
 // ---------------------------------------------------------------------------
-// A2 (Job A, taxonomy plan) — unassignTerms: SPEC-018's REQ-07/REQ-13/REQ-14/REQ-17/REQ-22 spec
+// A2 (Job A, taxonomy plan) — unassignTerms: spec. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // debt. Shares `validateAssignmentTarget` with assignTerms, so it rejects on the same errors.
 // ---------------------------------------------------------------------------
 
@@ -466,7 +469,7 @@ test("A2 / REQ-07: a wrong resolved kind rejects with ContentTypeMismatchError, 
 });
 
 // ---------------------------------------------------------------------------
-// REQ-17 / AC-25 — authorize() before any side effect
+// — authorize before any side effect. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("AC-25 / REQ-17: an unauthorized renameTerm call is rejected before any other side effect (no revision, no watermark stamp, no outbox event)", async () => {
@@ -490,7 +493,7 @@ test("AC-25 / REQ-17: an unauthorized renameTerm call is rejected before any oth
 });
 
 // ---------------------------------------------------------------------------
-// AC-26 — createTaxonomy is ordinary, no plan()/confirmation ceremony
+// — createTaxonomy is ordinary, no plan/confirmation ceremony. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
 // ---------------------------------------------------------------------------
 
 test("AC-26: createTaxonomy succeeds directly with no plan()/confirmation token required", async () => {
@@ -524,7 +527,7 @@ function transactionRecorder() {
     mark(label: string) {
       log.push(label);
     },
-    async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    async transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T> {
       log.push("tx:start");
       try {
         const result = await fn();
@@ -549,7 +552,7 @@ function deletableTermsDeps(
   const deleted: string[] = [];
   return {
     deleted,
-    async findById(id: string) {
+    async findById({ id }: { id: string }) {
       recorder.mark("terms.findById");
       const row = seed.find((t) => t.id === id);
       return row ? { id: row.id, taxonomyId: row.taxonomyId, name: row.name } : null;
@@ -564,7 +567,7 @@ function deletableTermsDeps(
       recorder.mark("terms.countChildren");
       return seed.filter((t) => t.parentId === params.parentId && !deleted.includes(t.id)).length;
     },
-    async delete(id: string) {
+    async delete({ id }: { id: string }) {
       recorder.mark("terms.delete");
       deleted.push(id);
     },
@@ -720,11 +723,11 @@ test("deleteTaxonomy: cascades to every (unassigned) member term and returns the
   const deletedTaxonomies: string[] = [];
   const deps = Object.assign(baseDeps(), {
     taxonomies: {
-      async findById(id: string) {
+      async findById({ id }: { id: string }) {
         recorder.mark("taxonomies.findById");
         return { id, hierarchical: true };
       },
-      async delete(id: string) {
+      async delete({ id }: { id: string }) {
         recorder.mark("taxonomies.delete");
         deletedTaxonomies.push(id);
       },
@@ -772,11 +775,11 @@ test("deleteTaxonomy: refuses with TaxonomyHasAssignedContentError summed across
   const deletedTaxonomies: string[] = [];
   const deps = Object.assign(baseDeps(), {
     taxonomies: {
-      async findById(id: string) {
+      async findById({ id }: { id: string }) {
         recorder.mark("taxonomies.findById");
         return { id, hierarchical: true };
       },
-      async delete(id: string) {
+      async delete({ id }: { id: string }) {
         recorder.mark("taxonomies.delete");
         deletedTaxonomies.push(id);
       },
@@ -866,18 +869,18 @@ test("deleteTaxonomy: a mid-cascade failure rolls back rather than leaving a par
   // partway through the cascade (e.g. a disk-full/constraint error a real DB could raise).
   const originalDelete = terms.delete.bind(terms);
   let deleteCalls = 0;
-  terms.delete = async (id: string) => {
+  terms.delete = async ({ id }: { id: string }) => {
     deleteCalls += 1;
     if (deleteCalls === 2) {
       throw new Error("simulated mid-cascade failure");
     }
-    return originalDelete(id);
+    return originalDelete({ id });
   };
   const deletedTaxonomies: string[] = [];
   const deps = Object.assign(baseDeps(), {
     taxonomies: {
-      async findById(id: string) { return { id, hierarchical: true }; },
-      async delete(id: string) { deletedTaxonomies.push(id); },
+      async findById({ id }: { id: string }) { return { id, hierarchical: true }; },
+      async delete({ id }: { id: string }) { deletedTaxonomies.push(id); },
       async insert(row: unknown) { return row; },
     },
     terms,
@@ -901,4 +904,118 @@ test("deleteTaxonomy: a mid-cascade failure rolls back rather than leaving a par
   assert.equal(deletedTaxonomies.length, 0, "the taxonomy row must not be deleted after a mid-cascade failure");
   assert.equal(recorder.log.at(-1), "tx:rollback");
   assert.ok(!recorder.log.includes("taxonomies.delete"), "the taxonomy delete must never be reached after term-2's delete throws");
+});
+
+// ---------------------------------------------------------------------------
+// Async watermark stamps — a PGlite/Postgres host's stamp is a Promise. The write must not resolve
+// until that stamp has finished, and a failed stamp must fail the write rather than float as an
+// unhandled rejection after the caller already saw success.
+// ---------------------------------------------------------------------------
+
+function slowStamp(): { stampWatermark: () => Promise<void>; readonly finished: number } {
+  let finished = 0;
+  return {
+    stampWatermark: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      finished += 1;
+    },
+    get finished() {
+      return finished;
+    },
+  };
+}
+
+test("async stamp: createTaxonomy does not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), { stampWatermark: stamp.stampWatermark });
+
+  await createTaxonomy({ deps, principalId: "u-1", name: "Category", hierarchical: true });
+
+  assert.equal(stamp.finished, 1);
+});
+
+test("async stamp: createTerm does not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), { stampWatermark: stamp.stampWatermark });
+
+  await createTerm({ deps, principalId: "u-1", taxonomyId: "tax-1", name: "Leaf" });
+
+  assert.equal(stamp.finished, 1);
+});
+
+test("async stamp: renameTerm does not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), {
+    stampWatermark: stamp.stampWatermark,
+    terms: {
+      async findById() {
+        return { id: "term-1", name: "old-name", taxonomyId: "tax-1" };
+      },
+      async update(row: unknown) {
+        return row;
+      },
+    },
+  });
+
+  await renameTerm({ deps, principalId: "u-1", termId: "term-1", newName: "new-name" });
+
+  assert.equal(stamp.finished, 1);
+});
+
+test("async stamp: assignTerms and unassignTerms do not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), { stampWatermark: stamp.stampWatermark, entryTerms: removableEntryTermsDeps() });
+
+  await assignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  assert.equal(stamp.finished, 1);
+
+  await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  assert.equal(stamp.finished, 2);
+});
+
+test("async stamp: deleteTerm finishes its stamp inside the transaction, before commit", async () => {
+  const recorder = transactionRecorder();
+  const terms = deletableTermsDeps([{ id: "term-1", taxonomyId: "tax-1" }], recorder);
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), {
+    terms,
+    entryTerms: countableEntryTermsDeps({}, recorder),
+    transaction: recorder.transaction,
+    stampWatermark: async () => {
+      await stamp.stampWatermark();
+      recorder.log.push("stamp:done");
+    },
+  });
+
+  await deleteTerm({ deps, principalId: "u-1", termId: "term-1" });
+
+  assert.equal(stamp.finished, 1);
+  assert.deepEqual(recorder.log.slice(-2), ["stamp:done", "tx:commit"]);
+});
+
+test("async stamp: a rejected stamp rejects the write instead of floating", async () => {
+  const deps = Object.assign(baseDeps(), {
+    stampWatermark: async () => {
+      throw new Error("stamp failed");
+    },
+  });
+
+  await assert.rejects(
+    createTaxonomy({ deps, principalId: "u-1", name: "Category", hierarchical: true }),
+    (err: unknown) => err instanceof Error && err.message === "stamp failed"
+  );
+  assert.equal(deps.outboxEvents.length, 0, "no outbox event may be enqueued after a failed stamp");
+});
+
+// wm S18: truthful removal result, including duplicate requests and idempotent retries.
+test("unassign returns only removed ids and suppresses no-op watermark/outbox writes", async () => {
+  const deps = Object.assign(baseDeps(), { entryTerms: removableEntryTermsDeps() });
+  await assignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  const result = await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1", "term-2", "term-1"] });
+  assert.deepEqual(result, { removedTermIds: ["term-1"] });
+  assert.deepEqual((deps.outboxEvents.at(-1) as { termIds: string[] }).termIds, ["term-1"]);
+  assert.equal(deps.watermarkStamps, 2);
+  assert.deepEqual(await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] }), { removedTermIds: [] });
+  assert.equal(deps.watermarkStamps, 2);
+  assert.equal(deps.outboxEvents.length, 2);
 });

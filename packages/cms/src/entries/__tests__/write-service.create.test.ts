@@ -14,12 +14,13 @@ import type { EntryRecord } from "../types.js";
 /**
  * @file `createEntry` slug-uniqueness and type-existence/workspace-ownership validation.
  *
- * Covers: AC-21 (duplicate (workspaceId,type,slug) rejected), AC-29 (nonexistent type rejected),
- * AC-30 (cross-workspace type reference rejected — INV-01), AC-27 (entry.created outbox event).
+ * Covers: (duplicate (workspaceId,type,slug) rejected), (nonexistent type rejected),
+ * (cross-workspace type reference rejected — ), (entry.created outbox event).
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 
 const NOW = "2026-07-15T00:00:00.000Z";
-const clock = { nowIso: () => NOW };
+const clock = { nowMs: () => Date.parse(NOW)};
 let idCounter = 0;
 const ids = { newId: () => `entry-${++idCounter}` };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -66,7 +67,7 @@ function fakeEntryRepo(existing: Array<{ workspaceId: string; type: string; slug
     appendRevision: async (rev: EntryRevisionInput) => {
       revisions.push(rev as unknown as Record<string, unknown>);
     },
-    transaction: async <T>(fn: () => Promise<T>) => fn(),
+    transaction: async <T>({ fn }: { fn: () => Promise<T> }) => fn(),
   };
 }
 
@@ -136,7 +137,7 @@ test("AC-27: a successful entry creation enqueues an entry.created outbox event 
 // ---------------------------------------------------------------------------
 // Guards added because a mutation sweep proved nothing failed without them. Every test above
 // this line passes `alwaysAllow` and a valid, active content type, so `createEntry`'s
-// authorization, REQ-10 status, and field-validation guards could each be deleted outright
+// authorization, status, and field-validation guards could each be deleted outright. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
 // with a green suite. A guard is justified by a test that fails without it, or it comes out.
 // ---------------------------------------------------------------------------
 

@@ -1,9 +1,4 @@
-/**
- * Generic OAuth-integration-marketplace domain types. Ported from the origin
- * product's ConnectorsBrowser.tsx (see the vendored reference tree cited in
- * `packages/ui/source-map.md`), stripped of Composio/product-specific
- * wire-shape specifics — see that file for the full provenance note.
- */
+/** Generic OAuth-integration marketplace types; hosts own provider-specific wire shapes. */
 
 export type ConnectorStatus = 'available' | 'connected' | 'error' | 'disabled';
 
@@ -27,7 +22,7 @@ export interface ConnectorAuthBinding {
 export interface Connector {
   id: string;
   name: string;
-  /** Display provider name (e.g. "Composio", "Zapier"). */
+  /** Display provider name (e.g. "Connector Provider", "Zapier"). */
   provider: string;
   category: string;
   description?: string;
@@ -99,4 +94,16 @@ export interface ConnectorAuthResultEvent {
   action: ConnectorAction | 'refresh';
   result: 'success' | 'failed' | 'cancelled';
   errorCode?: string;
+}
+
+/** Derived connect/disconnect state shared by the connector card and detail drawer. */
+export interface ConnectorActionFlags {
+  isConnecting: boolean;
+  isDisconnecting: boolean;
+  isConnected: boolean;
+  isAuthorizationPending: boolean;
+  canConnect: boolean;
+  canDisconnect: boolean;
+  /** The pending authorization's redirect URL — only set while authorization is pending. */
+  redirectUrl: string | undefined;
 }

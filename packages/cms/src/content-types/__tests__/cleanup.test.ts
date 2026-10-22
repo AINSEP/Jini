@@ -4,12 +4,13 @@ import { test } from "vitest";
 import { planCleanup } from "../cleanup.js";
 
 /**
- * @file REQ-20 — the destructive cleanup ceremony's `plan()` eligibility gate (C-405),
+ * @file the destructive cleanup ceremony's `plan` eligibility gate,
  * instantiating the gated-mutation gateway (`domain="collections"`, `action="cleanup"`).
  *
- * Covers: AC-31 (not-tombstoned rejection), AC-32 (retention window not elapsed), AC-33 (eligible
- * plan returned), EC-09 (deprecated, never tombstoned), behavior.spec.md §2.3's fixed eligibility
+ * Covers: (not-tombstoned rejection), (retention window not elapsed), (eligible
+ * plan returned), (deprecated, never tombstoned), behavior.spec.md §2.3's fixed eligibility
  * check order (status -> retention window -> export reference).
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
@@ -39,7 +40,7 @@ test("AC-31/EC-09: plan() for a content type still 'active' or 'deprecated' (nev
   for (const status of ["active", "deprecated"] as const) {
     const repo = fakeRepo(contentType({ status }));
     const gateway = fakeGateway();
-    const clock = { nowIso: () => "2026-07-15T00:00:00.000Z" };
+    const clock = { nowMs: () => Date.parse("2026-07-15T00:00:00.000Z")};
 
     const result = await planCleanup({
       deps: { repo, gateway, clock, authorize: alwaysAllow },
@@ -58,7 +59,7 @@ test("AC-31/EC-09: plan() for a content type still 'active' or 'deprecated' (nev
 test("AC-32: plan() before 30 days have elapsed since tombstonedAt returns CLEANUP_NOT_ELIGIBLE, reason='retention_window_not_elapsed'", async () => {
   const repo = fakeRepo(contentType({ status: "tombstone", tombstonedAt: "2026-07-01T00:00:00.000Z" }));
   const gateway = fakeGateway();
-  const clock = { nowIso: () => "2026-07-15T00:00:00.000Z" }; // 14 days elapsed, not 30
+  const clock = { nowMs: () => Date.parse("2026-07-15T00:00:00.000Z")}; // 14 days elapsed, not 30
 
   const result = await planCleanup({
     deps: { repo, gateway, clock, authorize: alwaysAllow },
@@ -75,7 +76,7 @@ test("AC-32: plan() before 30 days have elapsed since tombstonedAt returns CLEAN
 test("behavior.spec.md §7: plan() at EXACTLY 30 days elapsed is treated as eligible (inclusive lower bound)", async () => {
   const repo = fakeRepo(contentType({ status: "tombstone", tombstonedAt: "2026-06-15T00:00:00.000Z" }));
   const gateway = fakeGateway();
-  const clock = { nowIso: () => "2026-07-15T00:00:00.000Z" }; // exactly 30 days
+  const clock = { nowMs: () => Date.parse("2026-07-15T00:00:00.000Z")}; // exactly 30 days
 
   const result = await planCleanup({
     deps: { repo, gateway, clock, authorize: alwaysAllow },
@@ -88,7 +89,7 @@ test("behavior.spec.md §7: plan() at EXACTLY 30 days elapsed is treated as elig
 test("plan() without an exportReference returns CLEANUP_NOT_ELIGIBLE, reason='export_reference_missing', even when tombstoned and retention window has elapsed", async () => {
   const repo = fakeRepo(contentType({ status: "tombstone", tombstonedAt: "2026-01-01T00:00:00.000Z" }));
   const gateway = fakeGateway();
-  const clock = { nowIso: () => "2026-07-15T00:00:00.000Z" };
+  const clock = { nowMs: () => Date.parse("2026-07-15T00:00:00.000Z")};
 
   const result = await planCleanup({
     deps: { repo, gateway, clock, authorize: alwaysAllow },
@@ -105,7 +106,7 @@ test("plan() without an exportReference returns CLEANUP_NOT_ELIGIBLE, reason='ex
 test("AC-33: plan() succeeds and returns an executable Plan once status='tombstone', retention window elapsed, and exportReference present", async () => {
   const repo = fakeRepo(contentType({ status: "tombstone", tombstonedAt: "2026-01-01T00:00:00.000Z" }));
   const gateway = fakeGateway();
-  const clock = { nowIso: () => "2026-07-15T00:00:00.000Z" };
+  const clock = { nowMs: () => Date.parse("2026-07-15T00:00:00.000Z")};
 
   const result = await planCleanup({
     deps: { repo, gateway, clock, authorize: alwaysAllow },
@@ -119,7 +120,7 @@ test("AC-33: plan() succeeds and returns an executable Plan once status='tombsto
 test("behavior.spec.md §2.3: eligibility conditions are checked in fixed order — a type that fails BOTH 'not_tombstoned' and would-also-fail retention/export reports only 'not_tombstoned'", async () => {
   const repo = fakeRepo(contentType({ status: "active", tombstonedAt: null }));
   const gateway = fakeGateway();
-  const clock = { nowIso: () => "2026-07-15T00:00:00.000Z" };
+  const clock = { nowMs: () => Date.parse("2026-07-15T00:00:00.000Z")};
 
   const result = await planCleanup({
     deps: { repo, gateway, clock, authorize: alwaysAllow },

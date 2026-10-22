@@ -315,7 +315,7 @@ function targetFromOptions(options: Pick<ManagedDownloadOptions, "basePath" | "b
   // `path.resolve` never actually walked upward. Empirically verified this
   // session: a 300k-segment fuzz found ~0.2% of `normalizeSegment`-valid
   // segments (every one starting with literal "..") trip this exact guard —
-  // see source-map.md's 2026-07-22 entry and this file's own test for a
+  // see archived provenance ledger's 2026-07-22 entry and this file's own test for a
   // concrete example (bucket "..evil").
   for (const path of [finalPath, manifestPath, partialPath, lockPath]) {
     if (!pathContains(basePath, path)) {
@@ -354,8 +354,16 @@ async function directoryIsEmpty(path: string): Promise<boolean> {
   return entries.length === 0;
 }
 
+// Every caller feeds this a `JSON.parse` result, and a parsed JSON array can
+// never carry the named string keys (`kind`, `algorithm`, `pid`, ...) each
+// guard goes on to require, so arrays are rejected without a separate
+// `Array.isArray` check.
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value != null;
+}
+
 function isStoreSentinel(value: unknown): value is StoreSentinel {
-  if (typeof value !== "object" || value == null || Array.isArray(value)) return false;
+  if (!isPlainObject(value)) return false;
   const record = value as Partial<StoreSentinel>;
   return record.kind === STORE_KIND && record.schemaVersion === STORE_SCHEMA_VERSION && typeof record.createdAt === "string";
 }
@@ -407,7 +415,7 @@ async function ensureManagedBase(basePath: string): Promise<void> {
 }
 
 function isChecksum(value: unknown): value is ManagedDownloadChecksum {
-  if (typeof value !== "object" || value == null || Array.isArray(value)) return false;
+  if (!isPlainObject(value)) return false;
   const checksum = value as Partial<ManagedDownloadChecksum>;
   return (
     (checksum.algorithm === "sha256" || checksum.algorithm === "sha512") &&
@@ -415,26 +423,30 @@ function isChecksum(value: unknown): value is ManagedDownloadChecksum {
   );
 }
 
+const MANIFEST_STRING_FIELDS = [
+  "bucket",
+  "fileName",
+  "targetKey",
+  "identityDigest",
+  "urlDigest",
+  "createdAt",
+  "updatedAt",
+] as const satisfies ReadonlyArray<keyof DownloadManifest>;
+
 function isManifest(value: unknown): value is DownloadManifest {
-  if (typeof value !== "object" || value == null || Array.isArray(value)) return false;
+  if (!isPlainObject(value)) return false;
   const record = value as Partial<DownloadManifest>;
   return (
     record.kind === MANIFEST_KIND &&
     record.schemaVersion === MANIFEST_SCHEMA_VERSION &&
-    typeof record.bucket === "string" &&
-    typeof record.fileName === "string" &&
-    typeof record.targetKey === "string" &&
-    typeof record.identityDigest === "string" &&
-    typeof record.urlDigest === "string" &&
+    MANIFEST_STRING_FIELDS.every((field) => typeof record[field] === "string") &&
     isChecksum(record.checksum) &&
-    (record.state === "complete" || record.state === "partial") &&
-    typeof record.createdAt === "string" &&
-    typeof record.updatedAt === "string"
+    (record.state === "complete" || record.state === "partial")
   );
 }
 
 function isDownloadLockFile(value: unknown): value is DownloadLockFile {
-  if (typeof value !== "object" || value == null || Array.isArray(value)) return false;
+  if (!isPlainObject(value)) return false;
   const record = value as Partial<DownloadLockFile>;
   return typeof record.createdAt === "string" &&
     typeof record.pid === "number" &&
@@ -529,7 +541,8 @@ async function statFileSize(path: string): Promise<number | null> {
 
 async function emitExistingProgress(path: string, totalBytes: number, emit: (progress: ManagedDownloadProgress) => void): Promise<void> {
   // `totalBytes` is required (not `number | undefined`): its only real call
-  // site (`tryResumeDownload`) always resolves one, via a `??` chain whose
+  // site (`tryResumeDownload`) always resolves one, via a `??` chain (in
+  // `acceptedResumeTotalBytes`) whose
   // last resort is arithmetic (`partialBytes + (contentLength(response) ??
   // 0)`) — never `undefined`.
   const existing = await statFileSize(path);
@@ -562,13 +575,17 @@ function validatorsConflict(saved: DownloadManifest["validators"] | undefined, r
 function parseContentRange(value: string | null): { end: number; start: number; totalBytes?: number } | null {
   if (value == null) return null;
   const match = /^bytes\s+(\d+)-(\d+)\/(\d+|\*)$/i.exec(value.trim());
-  if (match?.[1] == null || match[2] == null || match[3] == null) return null;
+  // Every group in the pattern is mandatory, so a match always carries all three.
+  if (match == null) return null;
+  // `\d+` always parses to an integer — except a digit run long enough to
+  // overflow to Infinity, which `Number.isInteger` rejects.
   const start = Number(match[1]);
   const end = Number(match[2]);
-  const totalBytes = match[3] === "*" ? undefined : Number(match[3]);
   if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) return null;
-  if (totalBytes != null && (!Number.isInteger(totalBytes) || totalBytes <= end)) return null;
-  return { start, end, ...(totalBytes == null ? {} : { totalBytes }) };
+  if (match[3] === "*") return { start, end };
+  const totalBytes = Number(match[3]);
+  if (!Number.isInteger(totalBytes) || totalBytes <= end) return null;
+  return { start, end, totalBytes };
 }
 
 async function writeResponseBodyToPartial(
@@ -602,28 +619,50 @@ async function writeResponseBodyToPartial(
   );
 }
 
+type DownloadDeps = {
+  emit: (progress: ManagedDownloadProgress) => void;
+  fetchImpl: typeof globalThis.fetch;
+};
+
+type DownloadRequestOptions = {
+  requestHeaders?: Record<string, string> | undefined;
+};
+
+function resumeRequestHeaders(
+  input: { manifest: DownloadManifest; partialBytes: number },
+  options: DownloadRequestOptions,
+): Record<string, string> {
+  const etag = input.manifest.validators?.etag;
+  return {
+    ...(options.requestHeaders ?? {}),
+    ...(etag == null ? {} : { "If-Range": etag }),
+    Range: `bytes=${input.partialBytes}-`,
+  };
+}
+
+/** The resumed total size, or `null` when the response cannot continue the saved partial. */
+function acceptedResumeTotalBytes(input: { manifest: DownloadManifest; partialBytes: number; response: Response }): number | null {
+  const { manifest, partialBytes, response } = input;
+  if (response.status !== 206) return null;
+  const range = parseContentRange(response.headers.get("content-range"));
+  if (range == null || range.start !== partialBytes || validatorsConflict(manifest.validators, response)) {
+    return null;
+  }
+  return range.totalBytes ?? manifest.totalBytes ?? partialBytes + (contentLength(response) ?? 0);
+}
+
 async function tryResumeDownload(
-  target: NormalizedTarget,
-  manifest: DownloadManifest,
-  fetchImpl: typeof globalThis.fetch,
-  emit: (progress: ManagedDownloadProgress) => void,
-  requestHeaders: Record<string, string> | undefined,
+  input: DownloadDeps & { manifest: DownloadManifest; target: NormalizedTarget },
+  options: DownloadRequestOptions,
 ): Promise<DownloadAttemptResult | "restart"> {
+  const { emit, fetchImpl, manifest, target } = input;
   const partialBytes = await statFileSize(target.partialPath);
   if (partialBytes == null || partialBytes <= 0) return "restart";
   const response = await fetchImpl(target.url, {
-    headers: {
-      ...(requestHeaders ?? {}),
-      ...(manifest.validators?.etag == null ? {} : { "If-Range": manifest.validators.etag }),
-      Range: `bytes=${partialBytes}-`,
-    },
+    headers: resumeRequestHeaders({ manifest, partialBytes }, options),
   });
-  if (response.status !== 206) return "restart";
-  const range = parseContentRange(response.headers.get("content-range"));
-  if (range == null || range.start !== partialBytes || validatorsConflict(manifest.validators, response)) {
-    return "restart";
-  }
-  const totalBytes = range.totalBytes ?? manifest.totalBytes ?? partialBytes + (contentLength(response) ?? 0);
+  const totalBytes = acceptedResumeTotalBytes({ manifest, partialBytes, response });
+  if (totalBytes == null) return "restart";
   await emitExistingProgress(target.partialPath, totalBytes, emit);
   await writeJson(target.manifestPath, {
     ...manifest,
@@ -637,11 +676,11 @@ async function tryResumeDownload(
 }
 
 async function downloadFromZero(
-  target: NormalizedTarget,
-  fetchImpl: typeof globalThis.fetch,
-  emit: (progress: ManagedDownloadProgress) => void,
-  requestHeaders: Record<string, string> | undefined,
+  input: DownloadDeps & { target: NormalizedTarget },
+  options: DownloadRequestOptions,
 ): Promise<DownloadAttemptResult> {
+  const { emit, fetchImpl, target } = input;
+  const { requestHeaders } = options;
   await rm(target.partialPath, { force: true }).catch(() => undefined);
   const response = await fetchImpl(target.url, {
     ...(requestHeaders == null ? {} : { headers: requestHeaders }),
@@ -666,29 +705,19 @@ async function downloadWithRetries(
 ): Promise<DownloadAttemptResult> {
   let lastError: unknown;
   let nextManifest = manifest;
-  let resumed = false;
+  const deps: DownloadDeps = { emit: options.emit, fetchImpl: options.fetchImpl };
   for (let attempt = 1; attempt <= options.maxAttempts; attempt += 1) {
     try {
       if (nextManifest?.state === "partial") {
-        const resume = await tryResumeDownload(target, nextManifest, options.fetchImpl, options.emit, options.requestHeaders);
-        if (resume !== "restart") return { ...resume, resumed: true };
+        const resume = await tryResumeDownload({ ...deps, manifest: nextManifest, target }, options);
+        if (resume !== "restart") return resume;
         await rm(target.partialPath, { force: true }).catch(() => undefined);
         nextManifest = null;
       }
-      const full = await downloadFromZero(target, options.fetchImpl, options.emit, options.requestHeaders);
-      resumed = resumed || full.resumed;
-      return { ...full, resumed };
+      return await downloadFromZero({ ...deps, target }, options);
     } catch (error) {
       lastError = error;
-      const partialBytes = await statFileSize(target.partialPath);
-      if (partialBytes != null && partialBytes > 0) {
-        nextManifest = {
-          ...(nextManifest ?? createManifest(target, "partial")),
-          state: "partial",
-          updatedAt: new Date().toISOString(),
-        };
-        await writeJson(target.manifestPath, nextManifest).catch(() => undefined);
-      }
+      nextManifest = await manifestAfterFailedAttempt({ manifest: nextManifest, target });
     }
   }
   throw new ManagedDownloadError(
@@ -697,36 +726,51 @@ async function downloadWithRetries(
   );
 }
 
+/** After a failed attempt, mark any bytes already on disk as a resumable partial (best-effort persisted). */
+async function manifestAfterFailedAttempt(input: {
+  manifest: DownloadManifest | null;
+  target: NormalizedTarget;
+}): Promise<DownloadManifest | null> {
+  const { manifest, target } = input;
+  const partialBytes = await statFileSize(target.partialPath);
+  if (partialBytes == null || partialBytes <= 0) return manifest;
+  const next: DownloadManifest = {
+    ...(manifest ?? createManifest(target, "partial")),
+    state: "partial",
+    updatedAt: new Date().toISOString(),
+  };
+  await writeJson(target.manifestPath, next).catch(() => undefined);
+  return next;
+}
+
 async function acquireLock(target: NormalizedTarget): Promise<AcquiredLock> {
   await mkdir(dirname(target.lockPath), { recursive: true });
-  // The `continue` below is only reachable on `attempt === 0`, so by the time
-  // `attempt` would reach 2 (the old loop bound), the branch above it has
-  // already thrown — there's no way to fall through to a third iteration, so
-  // no trailing fallback throw is needed. Every path out of this loop body is
-  // a `return` or a `throw`; V8 still instruments the loop's closing brace as
-  // a branch (whether execution "falls off" the loop normally), but that
-  // outcome is structurally impossible here — see source-map.md's
-  // 2026-07-22 entry.
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await writeFile(
-        target.lockPath,
-        `${JSON.stringify({
-          createdAt: new Date().toISOString(),
-          pid: process.pid,
-          processStartedAt: new Date(PROCESS_STARTED_AT_MS).toISOString(),
-        } satisfies DownloadLockFile)}\n`,
-        { flag: "wx" },
-      );
-      return { path: target.lockPath };
-    } catch (error) {
-      if (errorCode(error) === "EEXIST") {
-        const staleLockCleared = attempt === 0 && await clearStaleLock(target);
-        if (staleLockCleared) continue;
-        throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, `download target is locked: ${target.bucket}/${target.fileName}`);
-      }
-      throw error;
-    }
+  // At most two create attempts: the second only after the first hit an
+  // existing lock that `clearStaleLock` proved stale and removed; a second
+  // EEXIST is real contention. (This was formerly a `for (;;)` loop whose
+  // fall-through branch V8 instrumented but no path could take — see archived
+  // provenance ledger's 2026-07-22 entry; the straight-line form has none.)
+  if (await tryCreateLockFile(target)) return { path: target.lockPath };
+  if (await clearStaleLock(target) && await tryCreateLockFile(target)) return { path: target.lockPath };
+  throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, `download target is locked: ${target.bucket}/${target.fileName}`);
+}
+
+/** Exclusively create the lock file; `false` when one already exists, any other failure is rethrown. */
+async function tryCreateLockFile(target: NormalizedTarget): Promise<boolean> {
+  try {
+    await writeFile(
+      target.lockPath,
+      `${JSON.stringify({
+        createdAt: new Date().toISOString(),
+        pid: process.pid,
+        processStartedAt: new Date(PROCESS_STARTED_AT_MS).toISOString(),
+      } satisfies DownloadLockFile)}\n`,
+      { flag: "wx" },
+    );
+    return true;
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return false;
+    throw error;
   }
 }
 
@@ -755,34 +799,38 @@ async function loadReusableState(target: NormalizedTarget): Promise<ReusableStat
     return await suspiciousReset(target);
   }
   if (manifest == null) {
-    if (finalExists || partialExists) return await suspiciousReset(target);
-    return { manifest: null };
+    return finalExists || partialExists ? await suspiciousReset(target) : { manifest: null };
   }
   if (!manifestMatchesTarget(manifest, target)) {
     return await suspiciousReset(target);
   }
-  if (manifest.state === "complete") {
-    if (!finalExists) return await suspiciousReset(target);
-    const actual = await hashFile(target.finalPath, target.checksum.algorithm).catch(() => null);
-    if (actual !== target.checksum.value) return await suspiciousReset(target);
-    const bytes = await statFileSize(target.finalPath);
-    if (bytes == null) return await suspiciousReset(target);
-    return {
-      manifest,
-      result: {
-        bucket: target.bucket,
-        bytes,
-        checksum: target.checksum,
-        fileName: target.fileName,
-        path: target.finalPath,
-        reusedComplete: true,
-        resumed: false,
-        urlDigest: target.urlDigest,
-      },
-    };
-  }
+  if (manifest.state === "complete") return await reusableCompleteState({ manifest, target });
   if (!partialExists) return await suspiciousReset(target);
   return { manifest };
+}
+
+/** Reuse a complete download only when its final file exists and still hashes to the requested checksum. */
+async function reusableCompleteState(input: { manifest: DownloadManifest; target: NormalizedTarget }): Promise<ReusableState> {
+  const { manifest, target } = input;
+  // A missing final file needs no separate check: hashing it rejects, which
+  // maps to `null` and fails the checksum comparison into the same reset.
+  const actual = await hashFile(target.finalPath, target.checksum.algorithm).catch(() => null);
+  if (actual !== target.checksum.value) return await suspiciousReset(target);
+  const bytes = await statFileSize(target.finalPath);
+  if (bytes == null) return await suspiciousReset(target);
+  return {
+    manifest,
+    result: {
+      bucket: target.bucket,
+      bytes,
+      checksum: target.checksum,
+      fileName: target.fileName,
+      path: target.finalPath,
+      reusedComplete: true,
+      resumed: false,
+      urlDigest: target.urlDigest,
+    },
+  };
 }
 
 async function runManagedDownload(
@@ -796,48 +844,12 @@ async function runManagedDownload(
 ): Promise<ManagedDownloadResult> {
   await ensureManagedBase(target.basePath);
   await pruneManagedDownloads({ basePath: target.basePath }).catch(() => undefined);
-  let lock: AcquiredLock | null = await acquireLock(target);
+  const held: HeldLock = { lock: await acquireLock(target) };
   try {
-    let state = await loadReusableState(target);
+    const state = await loadStateAllowingOneReset({ held, target });
     if (state.result != null) return state.result;
-    if (state.reset === true) {
-      // A reset removes the lock as part of the managed base cleanup, so
-      // reacquire it before writing the fresh target state.
-      await releaseLock(lock);
-      lock = null;
-      await ensureManagedBase(target.basePath);
-      lock = await acquireLock(target);
-      state = await loadReusableState(target);
-      if (state.result != null) return state.result;
-      if (state.reset === true) {
-        throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "download state kept resetting after base cleanup");
-      }
-    }
     const download = await downloadWithRetries(target, state.manifest, options);
-    const actual = await hashFile(target.partialPath, target.checksum.algorithm).catch((error: unknown) => {
-      throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, `downloaded partial could not be hashed: ${errorMessage(error)}`);
-    });
-    if (actual !== target.checksum.value) {
-      await resetOwnedBase(target.basePath).catch(() => undefined);
-      throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.CHECKSUM_MISMATCH, "downloaded file checksum did not match requested payload", {
-        actual,
-        expected: target.checksum.value,
-      });
-    }
-
-    await mkdir(dirname(target.finalPath), { recursive: true });
-    if (await pathExists(target.finalPath)) {
-      const existing = await hashFile(target.finalPath, target.checksum.algorithm).catch(() => null);
-      if (existing !== target.checksum.value) {
-        await resetOwnedBase(target.basePath).catch(() => undefined);
-        throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "existing complete file did not match requested payload");
-      }
-      await rm(target.partialPath, { force: true }).catch(() => undefined);
-    } else {
-      await rename(target.partialPath, target.finalPath);
-    }
-    const bytes = await statFileSize(target.finalPath);
-    if (bytes == null) throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "complete file is missing after promotion");
+    const bytes = await promoteVerifiedPartial(target);
     await writeJson(target.manifestPath, createManifest(target, "complete", { totalBytes: download.totalBytes }));
     return {
       bucket: target.bucket,
@@ -850,8 +862,60 @@ async function runManagedDownload(
       urlDigest: target.urlDigest,
     };
   } finally {
-    await releaseLock(lock);
+    await releaseLock(held.lock);
   }
+}
+
+/** The lock a run currently holds; `null` while it is between releasing and re-acquiring. */
+type HeldLock = { lock: AcquiredLock | null };
+
+/** Load reusable state, re-locking and reloading once if the first load had to reset the managed base. */
+async function loadStateAllowingOneReset(input: { held: HeldLock; target: NormalizedTarget }): Promise<ReusableState> {
+  const { held, target } = input;
+  const state = await loadReusableState(target);
+  if (state.reset !== true) return state;
+  // A reset removes the lock as part of the managed base cleanup, so
+  // reacquire it before writing the fresh target state. `held.lock` is
+  // nulled first so a failed re-acquire never releases (deletes) a lock
+  // another process may have taken in the meantime.
+  await releaseLock(held.lock);
+  held.lock = null;
+  await ensureManagedBase(target.basePath);
+  held.lock = await acquireLock(target);
+  const reloaded = await loadReusableState(target);
+  if (reloaded.reset === true) {
+    throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "download state kept resetting after base cleanup");
+  }
+  return reloaded;
+}
+
+/** Verify the downloaded partial's checksum, promote it to the final path, and return the final size. */
+async function promoteVerifiedPartial(target: NormalizedTarget): Promise<number> {
+  const actual = await hashFile(target.partialPath, target.checksum.algorithm).catch((error: unknown) => {
+    throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, `downloaded partial could not be hashed: ${errorMessage(error)}`);
+  });
+  if (actual !== target.checksum.value) {
+    await resetOwnedBase(target.basePath).catch(() => undefined);
+    throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.CHECKSUM_MISMATCH, "downloaded file checksum did not match requested payload", {
+      actual,
+      expected: target.checksum.value,
+    });
+  }
+
+  await mkdir(dirname(target.finalPath), { recursive: true });
+  if (await pathExists(target.finalPath)) {
+    const existing = await hashFile(target.finalPath, target.checksum.algorithm).catch(() => null);
+    if (existing !== target.checksum.value) {
+      await resetOwnedBase(target.basePath).catch(() => undefined);
+      throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "existing complete file did not match requested payload");
+    }
+    await rm(target.partialPath, { force: true }).catch(() => undefined);
+  } else {
+    await rename(target.partialPath, target.finalPath);
+  }
+  const bytes = await statFileSize(target.finalPath);
+  if (bytes == null) throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "complete file is missing after promotion");
+  return bytes;
 }
 
 function activeKey(target: NormalizedTarget): string {
@@ -1011,14 +1075,19 @@ export async function downloadCopyAndClear(options: DownloadCopyAndClearOptions)
   }
 }
 
-export async function inspectManagedDownload(options: RemoveManagedDownloadOptions): Promise<ManagedDownloadInspection> {
-  const target = targetFromOptions({
+/** Resolve a target's paths for callers (inspect/remove) that have no payload; the placeholder never reaches the network. */
+function targetWithoutPayload(options: RemoveManagedDownloadOptions): NormalizedTarget {
+  return targetFromOptions({
     ...options,
     payload: {
       checksum: { algorithm: "sha256", value: "0".repeat(64) },
       url: "https://example.invalid/",
     },
   });
+}
+
+export async function inspectManagedDownload(options: RemoveManagedDownloadOptions): Promise<ManagedDownloadInspection> {
+  const target = targetWithoutPayload(options);
   await ensureManagedBase(target.basePath);
   const rawManifest = await readManifest(target.manifestPath);
   const manifest = rawManifest === "invalid" ? "unreadable" : rawManifest?.state ?? "missing";
@@ -1032,13 +1101,7 @@ export async function inspectManagedDownload(options: RemoveManagedDownloadOptio
 }
 
 export async function removeManagedDownload(options: RemoveManagedDownloadOptions): Promise<RemoveManagedDownloadResult> {
-  const target = targetFromOptions({
-    ...options,
-    payload: {
-      checksum: { algorithm: "sha256", value: "0".repeat(64) },
-      url: "https://example.invalid/",
-    },
-  });
+  const target = targetWithoutPayload(options);
   if (activeTargets.has(targetActiveKey(target))) {
     throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, `download target is active: ${target.bucket}/${target.fileName}`);
   }

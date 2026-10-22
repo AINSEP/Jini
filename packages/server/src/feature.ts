@@ -96,13 +96,14 @@ export const CAPABILITY_IDS: readonly CapabilityId[] = Object.freeze(
 );
 
 /** Whether `value` names a capability this vocabulary actually declares. */
-export function isCapabilityId(value: string): value is CapabilityId {
-  return Object.prototype.hasOwnProperty.call(CAPABILITY_ID_SET, value);
+export function isCapabilityId(required: { value: string }): required is { value: CapabilityId } {
+  return Object.prototype.hasOwnProperty.call(CAPABILITY_ID_SET, required.value);
 }
 
 /**
  * The capabilities a feature may default to *on* under the `core-only` activation policy — the
- * run-transport contract and nothing else.
+ * run transport, installed-agent discovery and the delegated-tool gateway. These are the frozen
+ * embedding contract; adding host execution or network egress would expand the security ceiling.
  *
  * A feature qualifies only if **every** capability it provides is in here, so a feature that mixes
  * a core capability with a non-core one (say `run:transport` plus `host:exec`) does not sneak in on
@@ -197,8 +198,9 @@ export type JiniProfileId = 'agent-core-v1' | 'local-daemon-v1';
  */
 export const JINI_PROFILES: Readonly<Record<JiniProfileId, JiniProfile>> = Object.freeze({
   /**
-   * The conservative embedding default: the run-transport contract only. Everything that touches
-   * the host, the network, a database file, or daemon control is outside the grant, so it can be
+   * The conservative embedding default: run transport, agent discovery and delegated tools.
+   * Everything that adds host execution, network egress, database administration or daemon control
+   * is outside the grant, so it can be
    * neither defaulted on nor explicitly enabled without the host first raising the ceiling.
    */
   'agent-core-v1': Object.freeze({

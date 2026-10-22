@@ -47,10 +47,9 @@ export type SeoIssueSeverity = "error" | "warning" | "info" | (string & {});
 
 /**
  * The author-authored override bag for one entry. Every field is OPTIONAL — omitting a field
- * means "derive from site defaults / the content itself," not "clear it"; `putSeoEntry` merge-
- * patches this bag onto whatever was previously stored; there is no way to unset a single
- * previously-set field back to "derive" short of the host's own reset affordance (the reference
- * implementation has none either).
+ * means "derive from site defaults / the content itself," not "clear it". `putSeoEntry` accepts
+ * AdminSeoOverridesPatch, which adds null as the remove-override sentinel; omission leaves a
+ * previously stored override unchanged. The resolved read shape never contains null clears.
  */
 export interface AdminSeoOverrides {
   readonly title?: string;
@@ -80,6 +79,12 @@ export interface AdminSeoOpenGraph {
   readonly url: string;
   /** Already resolved to a renderable URL — never a media ref. */
   readonly image?: string;
+  /** Source reference before resizing, used to diagnose the selected share image. */
+  readonly imageRef?: string;
+  /** Effective image provenance; absent from older hosts. */
+  readonly imageSource?: 'override' | 'content' | 'default';
+  /** Present (true) only when the entry stores its own image override; absent from older hosts. */
+  readonly imageOverridden?: true;
   readonly siteName?: string;
 }
 
@@ -88,6 +93,8 @@ export interface AdminSeoTwitterCard {
   readonly title: string;
   readonly description?: string;
   readonly image?: string;
+  /** Source reference before resizing, used to diagnose the selected share image. */
+  readonly imageRef?: string;
   readonly site?: string;
 }
 
@@ -145,13 +152,54 @@ export interface AdminSeoSettings {
   readonly robotsRules: readonly AdminSeoRobotsRule[];
 }
 
+/** Write-only clear sentinels: null removes a value; omission leaves it unchanged. */
+export type AdminSeoOverridesPatch = { [K in keyof AdminSeoOverrides]?: AdminSeoOverrides[K] | null };
+export type AdminSeoSettingsPatch = Partial<Omit<AdminSeoSettings, 'defaultDescription' | 'defaultOgImage' | 'twitterSite'>> & {
+  defaultDescription?: string | null;
+  defaultOgImage?: string | null;
+  twitterSite?: string | null;
+};
+
+/** Picker projection. Hosts may return additional content fields without a CMS dependency. */
+export interface AdminSeoEntryChoice {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  /** Tells two same-titled entries apart in the picker; optional for hosts that omit it. */
+  readonly slug?: string;
+}
+
+/** What an image field shows for a chosen library file: its name and, when stored, its size. */
+export interface AdminSeoMediaSummary {
+  readonly id: string;
+  readonly slug?: string;
+  readonly title: string;
+  readonly width?: number | null;
+  readonly height?: number | null;
+  /** The stored bytes' sniffed type (`image/png`); gives the displayed name its extension. */
+  readonly contentType?: string | null;
+}
+
 export interface AdminSeoPort {
-  getSeoEntry(entryId: string): Promise<AdminSeoMeta>;
+  getSeoEntry(requiredArgs: { entryId: string }): Promise<AdminSeoMeta>;
   /** Merge-patches the override bag and returns the newly-resolved meta — see file header. */
-  putSeoEntry(entryId: string, patch: AdminSeoOverrides): Promise<AdminSeoMeta>;
-  analyzeSeoEntry(entryId: string): Promise<AdminSeoAnalysis>;
-  getSeoSettings(): Promise<AdminSeoSettings>;
-  putSeoSettings(patch: Partial<AdminSeoSettings>): Promise<AdminSeoSettings>;
+  putSeoEntry(requiredArgs: { entryId: string }, optionalArgs?: AdminSeoOverridesPatch): Promise<AdminSeoMeta>;
+  analyzeSeoEntry(requiredArgs: { entryId: string }): Promise<AdminSeoAnalysis>;
+  getSeoSettings(requiredArgs: Record<string, never>): Promise<AdminSeoSettings>;
+  putSeoSettings(requiredArgs: Record<string, never>, optionalArgs?: AdminSeoSettingsPatch): Promise<AdminSeoSettings>;
   /** Fire-and-accept trigger, not a trackable job — see file header. */
-  regenerateSeoSitemap(): Promise<{ accepted: boolean }>;
+  regenerateSeoSitemap(requiredArgs: Record<string, never>): Promise<{ accepted: boolean }>;
+  /** Existing post/page reads, in their original order; authorization remains host-owned. */
+  listSeoPosts(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly AdminSeoEntryChoice[]>;
+  listSeoPages(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly AdminSeoEntryChoice[]>;
+  /** Exact public sitemap response, never reconstructed from admin entries. */
+  fetchSitemapXml(requiredArgs: Record<string, never>, optionalArgs?: { signal?: AbortSignal }): Promise<{ text: string }>;
+  /** Optional host-bound probe: byte size is unknown when Content-Length is unavailable. */
+  inspectShareImage?(required: { url: string }, optional?: { signal?: AbortSignal }): Promise<{ status: number; byteSize: number | null }>;
+  /** Resolve local rendered share URLs back to their original source for image diagnostics. */
+  mediaPreviewUrl?(required: { value: string }, optional?: Record<string, never>): string | null;
+  /** Optional: library rows so an image field can name its file instead of showing a reference. */
+  listSeoMedia?(required: Record<string, never>, optional?: { signal?: AbortSignal }): Promise<readonly AdminSeoMediaSummary[]>;
+  /** Original thumbnail URL; media-reference resolution stays on the server. */
+  mediaOriginalUrl(requiredArgs: { id: string }, optionalArgs?: Record<string, never>): string;
 }

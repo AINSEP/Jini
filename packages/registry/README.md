@@ -5,7 +5,7 @@ Three interchangeable backends for a content registry — the thing that answers
 they share, and real cryptographic signature verification against a GitHub Actions OIDC trust root.
 The wire types (`RegistryEntry`, `RegistryManifest`, `RegistryBackend`, …) live in
 `@jini-ai/protocol`; this package only adds the concrete backend logic, mirroring how
-`@jini-ai/sqlite` implements ports that `@jini-ai/protocol` defines.
+`@jini-ai/sqlite-chat` implements ports that `@jini-ai/protocol` defines.
 
 ## Install
 
@@ -109,5 +109,26 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0,
+See the archived provenance ledger for per-file provenance and scope decisions. Apache-2.0,
 inherited from Open Design — see the repo `NOTICE`.
+
+## Tool descriptor catalog
+
+`./tool-catalog` exports neutral `ToolCatalogEntry`, `ToolCatalogSearchHit` and `ToolCatalogQuery`
+types. `./tool-catalog/sqlite` exports synchronous ensure/reseed/search/describe helpers over a
+borrowed structural host handle. This is the unchanged `tool_catalog` + external-content FTS5/BM25
+snapshot, preserving schema/inputSchema/source, ranking and query sanitization. Reseed is atomic.
+The adapter is isolated from the registry root and content backends; db and SQLite are optional peers,
+with no driver value import or implicit connection acquisition.
+
+
+## Kernel contracts
+
+The GitHub client accepts core `HttpClientPort` and calls `send({ request })`, retaining a
+15-second total deadline and idle budget. Responses use `status`, `headers` and `bodyText`.
+The port buffers before status/JSON handling: body transport errors propagate unchanged;
+malformed JSON still reports the existing GitHub non-JSON response error.
+Backend options accept core `Clock` (`nowMs()`), while tool-catalog snapshots use `nowIso({ clock })`.
+Import both kernel types from `@jini-ai/core/primitives`; `RegistryDatabasePort` is exported at root.
+`tool-catalog-builder` stays universal; its `tool-catalog-builder/sqlite` factory is a Node subpath.
+Ranking belongs to the injected backend, source/enrichment policy belongs to the host.

@@ -11,7 +11,7 @@ function makeRes() {
 describe('sendJson', () => {
   it('writes the given status and body', () => {
     const res = makeRes();
-    sendJson(res as any, 201, { id: 1 });
+    sendJson({ res: res as any, status: 201, body: { id: 1 } });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ id: 1 });
   });
@@ -20,7 +20,7 @@ describe('sendJson', () => {
 describe('sendApiError', () => {
   it('writes the given status and the error wrapped in the standard envelope', () => {
     const res = makeRes();
-    sendApiError(res as any, 404, { code: 'NOT_FOUND', message: 'gone' });
+    sendApiError({ res: res as any, status: 404, error: { code: 'NOT_FOUND', message: 'gone' } });
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ error: { code: 'NOT_FOUND', message: 'gone' } });
   });
@@ -28,14 +28,14 @@ describe('sendApiError', () => {
 
 describe('statusForError', () => {
   it('resolves the mapped status for a known generic error code', () => {
-    expect(statusForError({ code: 'NOT_FOUND', message: 'x' })).toBe(404);
-    expect(statusForError({ code: 'FORBIDDEN', message: 'x' })).toBe(403);
-    expect(statusForError({ code: 'TOOL_TOKEN_MISSING', message: 'x' })).toBe(401);
-    expect(statusForError({ code: 'TOOL_NOT_AVAILABLE', message: 'x' })).toBe(503);
-    expect(statusForError({ code: 'OAUTH_FLOW_IN_PROGRESS', message: 'x' })).toBe(409);
+    expect(statusForError({ error: { code: 'NOT_FOUND', message: 'x' } })).toBe(404);
+    expect(statusForError({ error: { code: 'FORBIDDEN', message: 'x' } })).toBe(403);
+    expect(statusForError({ error: { code: 'TOOL_TOKEN_MISSING', message: 'x' } })).toBe(401);
+    expect(statusForError({ error: { code: 'TOOL_NOT_AVAILABLE', message: 'x' } })).toBe(503);
+    expect(statusForError({ error: { code: 'OAUTH_FLOW_IN_PROGRESS', message: 'x' } })).toBe(409);
   });
 
   it('falls back to 500 for a code with no explicit mapping (e.g. a pack-defined code)', () => {
-    expect(statusForError({ code: 'SOME_PACK_SPECIFIC_ERROR', message: 'x' })).toBe(500);
+    expect(statusForError({ error: { code: 'SOME_PACK_SPECIFIC_ERROR', message: 'x' } })).toBe(500);
   });
 });

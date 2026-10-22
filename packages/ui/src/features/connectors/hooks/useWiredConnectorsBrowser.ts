@@ -14,9 +14,9 @@ export interface UseWiredConnectorsBrowserParams {
   onConnectorsChanged?: (() => void) | undefined;
   onConnectorAuthResult?: ((event: ConnectorAuthResultEvent) => void) | undefined;
   /** Custom hook overrides for dependency injection / testing — mirrors `ConnectorsBrowserProps`. */
-  useConnectorCatalog?: typeof useConnectorCatalog;
-  useConnectorAuthorization?: typeof useConnectorAuthorization;
-  useConnectorDetail?: typeof useConnectorDetail;
+  useConnectorCatalog?: typeof useConnectorCatalog | undefined;
+  useConnectorAuthorization?: typeof useConnectorAuthorization | undefined;
+  useConnectorDetail?: typeof useConnectorDetail | undefined;
 }
 
 export interface WiredConnectorsBrowserController {

@@ -14,35 +14,35 @@ describe('attachment-preview-cache', () => {
   beforeEach(() => __resetAttachmentPreviewCacheForTests());
 
   it('returns undefined for a path that was never cached', () => {
-    expect(getAttachmentPreviewSource('attachment:never-cached')).toBeUndefined();
+    expect(getAttachmentPreviewSource({ path: 'attachment:never-cached' })).toBeUndefined();
   });
 
   it('round-trips a cached file by path', () => {
     const file = makeFile('a.png');
-    cacheAttachmentPreviewSource('attachment:1', file);
-    expect(getAttachmentPreviewSource('attachment:1')).toBe(file);
+    cacheAttachmentPreviewSource({ path: 'attachment:1', file });
+    expect(getAttachmentPreviewSource({ path: 'attachment:1' })).toBe(file);
   });
 
   it('evicts the oldest tracked attachment once the cap is exceeded', () => {
     for (let i = 0; i < MAX_CACHED_ATTACHMENT_PREVIEWS; i += 1) {
-      cacheAttachmentPreviewSource(`attachment:${i}`, makeFile(`file-${i}.txt`));
+      cacheAttachmentPreviewSource({ path: `attachment:${i}`, file: makeFile(`file-${i}.txt`) });
     }
-    expect(getAttachmentPreviewSource('attachment:0')).toBeDefined();
+    expect(getAttachmentPreviewSource({ path: 'attachment:0' })).toBeDefined();
 
-    cacheAttachmentPreviewSource('attachment:overflow', makeFile('overflow.txt'));
+    cacheAttachmentPreviewSource({ path: 'attachment:overflow', file: makeFile('overflow.txt') });
 
-    expect(getAttachmentPreviewSource('attachment:0')).toBeUndefined();
-    expect(getAttachmentPreviewSource('attachment:overflow')).toBeDefined();
+    expect(getAttachmentPreviewSource({ path: 'attachment:0' })).toBeUndefined();
+    expect(getAttachmentPreviewSource({ path: 'attachment:overflow' })).toBeDefined();
   });
 
   it('does not evict anything when overwriting an already-tracked path at the cap', () => {
     for (let i = 0; i < MAX_CACHED_ATTACHMENT_PREVIEWS; i += 1) {
-      cacheAttachmentPreviewSource(`attachment:${i}`, makeFile(`file-${i}.txt`));
+      cacheAttachmentPreviewSource({ path: `attachment:${i}`, file: makeFile(`file-${i}.txt`) });
     }
     const replacement = makeFile('file-0-edited.txt');
-    cacheAttachmentPreviewSource('attachment:0', replacement);
+    cacheAttachmentPreviewSource({ path: 'attachment:0', file: replacement });
 
-    expect(getAttachmentPreviewSource('attachment:0')).toBe(replacement);
-    expect(getAttachmentPreviewSource('attachment:1')).toBeDefined();
+    expect(getAttachmentPreviewSource({ path: 'attachment:0' })).toBe(replacement);
+    expect(getAttachmentPreviewSource({ path: 'attachment:1' })).toBeDefined();
   });
 });

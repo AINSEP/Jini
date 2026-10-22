@@ -1,16 +1,6 @@
-/**
- * Generic types for a Lexical-backed rich text input: a plain-text-with-
- * atomic-mention-tokens editor (not a full block/marks rich text editor —
- * the origin used Lexical's `PlainTextPlugin`, not `RichTextPlugin`).
- *
- * Origin: `apps/web/src/components/composer/*` (OD's chat composer). The
- * only OD-specific piece was the `@mention` pill's brand color, resolved
- * via a direct import of OD's connector-brand-theme logic — replaced here
- * by a host-injected `resolveMentionColor` callback (see
- * `react/hooks/useMentionColorStamping.ts`). Everything else (trigger
- * detection, atomic-node keyboard navigation, caret-floating-layer
- * positioning, serialize/deserialize) is genuinely generic and ported as-is.
- */
+/** PlainTextPlugin-backed editing with atomic mentions, rather than block/mark rich text.
+ * Mention colors are host-injected through resolveMentionColor; generic trigger/navigation/caret
+ * and wire serialization rules stay independent of a product's connector branding. */
 
 /** A single mention-able entity: any host-owned capability/entity with a
  *  stable id, a display label, and a free-form category ("kind"). Unlike

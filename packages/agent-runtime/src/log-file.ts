@@ -17,11 +17,6 @@
  * itself with its own flags). Only the containing directory is created, and
  * `mkdtemp` gives it `0o700` — which is the actual confidentiality control
  * here, since the CLI, not this module, decides the log file's own mode.
- *
- * No OD provenance: OD's daemon derived antigravity's `--log-file` path
- * inline in `server.ts` rather than through a reusable helper. Extracted as
- * one here so the staging is testable on its own and so a second adapter with
- * a log-file flag needs no new code — see `source-map.md`.
  */
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -49,9 +44,7 @@ export type PreparedAgentLogFile = {
  * @complexity One `mkdtemp` syscall; `null` return path does no I/O at all.
  * @overallScore 100/100
  */
-export async function prepareAgentLogFile(
-  def: RuntimeAgentDef | null | undefined,
-  label: string,
+export async function prepareAgentLogFile({ def, label }: { def: RuntimeAgentDef | null | undefined; label: string }
 ): Promise<PreparedAgentLogFile | null> {
   if (!def?.needsAgentLogFile) return null;
 

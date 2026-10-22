@@ -1,6 +1,6 @@
 /**
  * This feature is almost entirely presentational + pure logic (no fetch, no
- * project/file transport — see `packages/ui/source-map.md` for why the
+ * project/file transport — see `packages/ui/archived provenance ledger` for why the
  * actual file-content loading, saving, and rendering pipelines were left
  * out of scope). The one thing every consumer still needs a real browser
  * API for is copy-to-clipboard, so that's the one injectable seam here,

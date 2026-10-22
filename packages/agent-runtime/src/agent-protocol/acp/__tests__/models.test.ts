@@ -9,6 +9,7 @@ import {
   modelSelectionErrorIsRecoverable,
   currentModelFromSessionResult,
   detectAcpModels,
+  detectAcpModelMetadata,
 } from '../models.js';
 
 describe('normalizeConfigOptionToken', () => {
@@ -157,44 +158,34 @@ describe('normalizeModels', () => {
   const defaultOption = { id: 'default', label: 'Default (CLI config)' };
 
   it('prefers configOptions when it yields more than one option', () => {
-    const result = normalizeModels(
-      {},
-      defaultOption,
-      [{ id: 'model', category: 'model', options: [{ value: 'gpt' }] }],
+    const result = normalizeModels({ models: {}, defaultModelOption: defaultOption }, { configOptions: [{ id: 'model', category: 'model', options: [{ value: 'gpt' }] }] }
     );
     expect(result.map((m) => m.id)).toEqual(['default', 'gpt']);
   });
 
   it('falls back to models.availableModels when configOptions yields <= 1 option', () => {
-    const result = normalizeModels(
-      { availableModels: [{ modelId: 'claude', name: 'Claude' }], currentModelId: 'claude' },
-      defaultOption,
+    const result = normalizeModels({ models: { availableModels: [{ modelId: 'claude', name: 'Claude' }], currentModelId: 'claude' }, defaultModelOption: defaultOption }
     );
     expect(result).toEqual([{ id: 'default', label: 'Default (CLI config)' }, { id: 'claude', label: 'Claude (claude) • current' }]);
   });
 
   it('returns just the default when neither source has any usable models', () => {
-    expect(normalizeModels(null, defaultOption, null)).toEqual([defaultOption]);
+    expect(normalizeModels({ models: null, defaultModelOption: defaultOption }, { configOptions: null })).toEqual([defaultOption]);
   });
 
   it('skips an availableModels entry with no modelId', () => {
-    const result = normalizeModels({ availableModels: [{ name: 'x' }] }, defaultOption);
+    const result = normalizeModels({ models: { availableModels: [{ name: 'x' }] }, defaultModelOption: defaultOption });
     expect(result).toEqual([defaultOption]);
   });
 
   it('deduplicates availableModels entries by id', () => {
-    const result = normalizeModels(
-      { availableModels: [{ modelId: 'a' }, { modelId: 'a' }] },
-      defaultOption,
+    const result = normalizeModels({ models: { availableModels: [{ modelId: 'a' }, { modelId: 'a' }] }, defaultModelOption: defaultOption }
     );
     expect(result.map((m) => m.id)).toEqual(['default', 'a']);
   });
 
   it('falls back to configModels.models when the availableModels path yields only the default and configModels exists', () => {
-    const result = normalizeModels(
-      { availableModels: [] },
-      defaultOption,
-      [{ id: 'model', category: 'model', currentValue: 'solo', options: [{ value: 'solo' }] }],
+    const result = normalizeModels({ models: { availableModels: [] }, defaultModelOption: defaultOption }, { configOptions: [{ id: 'model', category: 'model', currentValue: 'solo', options: [{ value: 'solo' }] }] }
     );
     // configOptions yielded exactly 1 option (default + solo = 2 total, but
     // wait: defaultOption + solo = length 2, so config path already wins via
@@ -204,10 +195,7 @@ describe('normalizeModels', () => {
   });
 
   it('uses configModels.models as the final fallback when config yields exactly 1 (default-only) and availableModels also yields none', () => {
-    const result = normalizeModels(
-      {},
-      defaultOption,
-      [{ id: 'model', category: 'model', options: [] }],
+    const result = normalizeModels({ models: {}, defaultModelOption: defaultOption }, { configOptions: [{ id: 'model', category: 'model', options: [] }] }
     );
     expect(result).toEqual([defaultOption]);
   });
@@ -263,9 +251,12 @@ class FakeChild extends EventEmitter {
   stdout = new FakeStream();
   stderr = new FakeStream();
   killed = false;
+  exitCode: number | null = null;
   kill(signal?: string) {
     this.killed = true;
     this.emit('__killed', signal);
+    // Real children emit close after termination; the scheduler waits for that lifecycle edge.
+    void Promise.resolve().then(() => { this.exitCode = 0; this.emit('close', 0, signal); });
     return true;
   }
 }
@@ -437,7 +428,7 @@ describe('detectAcpModels', () => {
     vi.useFakeTimers();
     const child = new FakeChild();
     (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
-    const promise = detectAcpModels({ bin: 'bin', args: [], timeoutMs: 50 });
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { timeoutMs: 50 });
     const assertion = expect(promise).rejects.toThrow(/timed out after/);
     await vi.advanceTimersByTimeAsync(60);
     await assertion;
@@ -483,7 +474,7 @@ describe('detectAcpModels', () => {
   it('does not schedule a timer when effectiveTimeoutMs is 0', async () => {
     const child = new FakeChild();
     (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
-    const promise = detectAcpModels({ bin: 'bin', args: [], timeoutMs: 0 });
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { timeoutMs: 0 });
     child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })}\n`);
     await Promise.resolve();
     child.stdout.emit(
@@ -491,5 +482,137 @@ describe('detectAcpModels', () => {
       `${JSON.stringify({ jsonrpc: '2.0', id: 2, result: { models: {} } })}\n`,
     );
     await expect(promise).resolves.toEqual([{ id: 'default', label: 'Default (CLI config)' }]);
+  });
+});
+
+// Drives a FakeChild through initialize -> session/new, answering session/new with `sessionResult`.
+async function answerHandshake(child: FakeChild, sessionResult: unknown) {
+  child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })}\n`);
+  await Promise.resolve();
+  child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 2, result: sessionResult })}\n`);
+}
+
+function spawnReturns(child: FakeChild) {
+  (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
+}
+
+describe('detectAcpModels abort and limits', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects without writing initialize when the signal is already aborted', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      detectAcpModels({ bin: 'bin', args: [] }, { signal: controller.signal }),
+    ).rejects.toThrow('ACP model detection aborted');
+    expect(child.stdin.writes).toEqual([]);
+  });
+
+  it('rejects when the signal aborts mid-handshake', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const controller = new AbortController();
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { signal: controller.signal });
+    controller.abort();
+    await expect(promise).rejects.toThrow('ACP model detection aborted');
+  });
+
+  it('rejects once stdout exceeds the 8 MiB metadata limit', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModels({ bin: 'bin', args: [] });
+    child.stdout.emit('data', 'x'.repeat(8 * 1024 * 1024 + 1));
+    await expect(promise).rejects.toThrow('ACP metadata output exceeded its limit');
+  });
+
+  it('passes the session/new result to onSessionResult', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const onSessionResult = vi.fn();
+    const promise = detectAcpModels({ bin: 'bin', args: [] }, { onSessionResult });
+    await answerHandshake(child, { models: { currentModelId: 'a' } });
+    await promise;
+    expect(onSessionResult).toHaveBeenCalledWith({ models: { currentModelId: 'a' } });
+  });
+});
+
+describe('detectAcpModelMetadata', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('drops the default entry and reports the native current model id', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      models: { currentModelId: 'b', availableModels: [{ modelId: 'a' }, { modelId: 'b' }] },
+    });
+    await expect(promise).resolves.toEqual({
+      models: [
+        { id: 'a', label: 'a' },
+        { id: 'b', label: 'b' },
+      ],
+      currentModelId: 'b',
+    });
+  });
+
+  it('is what the native ACP model probe adapter reports as metadata', async () => {
+    const { nativeAcpModelProbe } = await import('../../../acp-model-probe.js');
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = nativeAcpModelProbe.detectMetadata!({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      models: { currentModelId: 'b', availableModels: [{ modelId: 'a' }, { modelId: 'b' }] },
+    });
+    await expect(promise).resolves.toEqual({ models: [{ id: 'a', label: 'a' }, { id: 'b', label: 'b' }], currentModelId: 'b' });
+  });
+
+  it('strips the " • current" marker and the " (id)" annotation from labels', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      models: { currentModelId: 'm1', availableModels: [{ modelId: 'm1', name: 'Model One' }] },
+    });
+    expect((await promise).models).toEqual([{ id: 'm1', label: 'Model One' }]);
+  });
+
+  it('keeps a native display-name suffix that is not our id annotation', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, {
+      configOptions: [
+        {
+          id: 'model',
+          category: 'model',
+          options: [{ value: 'fast', name: 'Fast (beta)' }],
+        },
+      ],
+    });
+    expect((await promise).models).toEqual([{ id: 'fast', label: 'Fast (beta)' }]);
+  });
+
+  it('reports a null current model id when the session result has none', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] });
+    await answerHandshake(child, { models: {} });
+    await expect(promise).resolves.toEqual({ models: [], currentModelId: null });
+  });
+
+  it('still forwards the session result to a caller-supplied onSessionResult', async () => {
+    const child = new FakeChild();
+    spawnReturns(child);
+    const onSessionResult = vi.fn();
+    const promise = detectAcpModelMetadata({ bin: 'bin', args: [] }, { onSessionResult });
+    await answerHandshake(child, { models: {} });
+    await promise;
+    expect(onSessionResult).toHaveBeenCalledWith({ models: {} });
   });
 });

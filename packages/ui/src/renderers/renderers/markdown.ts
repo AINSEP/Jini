@@ -3,7 +3,7 @@
  * `apps/web/src/artifacts/markdown.ts` in the origin project — no
  * product-specific logic in the original, just table-pipe-escaping + a few HTML
  * post-processing passes (safe external links, table wrapper class,
- * alignment-attribute → CSS). See `source-map.md`.
+ * alignment-attribute → CSS). See `archived provenance ledger`.
  */
 import { micromark } from 'micromark';
 import { gfm, gfmHtml } from 'micromark-extension-gfm';
@@ -128,7 +128,7 @@ export const MarkdownRenderer: ArtifactRenderer = {
   supportsStreaming: true,
   renderPartial: renderMarkdownToSafeHtml,
   canRender: ({ file }) => {
-    const manifest = resolveArtifactManifest(file);
+    const manifest = resolveArtifactManifest({ file: file });
     if (!manifest) return false;
     if (manifest.renderer === 'markdown' || manifest.kind === 'markdown-document') return true;
     return file.kind === 'text' && /\.md$/i.test(file.name);

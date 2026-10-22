@@ -18,6 +18,8 @@ export function propNameToAttributeName(name: string): string {
   if (name === 'htmlFor') return 'for';
   if (name === 'srcDoc') return 'srcdoc';
   if (name === 'tabIndex') return 'tabindex';
+  if (name === 'referrerPolicy') return 'referrerpolicy';
+  if (name === 'allowFullScreen') return 'allowfullscreen';
   if (name.startsWith('data-') || name.startsWith('aria-')) return name;
   return name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`).toLowerCase();
 }
@@ -83,6 +85,10 @@ export function syncStyle(
   }
 }
 
+const NON_ATTRIBUTE_PROPS = new Set([
+  'cacheKey', 'src', 'style', 'children', 'dangerouslySetInnerHTML',
+]);
+
 export function syncIframeProps(
   frame: HTMLIFrameElement,
   props: PooledIframeProps,
@@ -91,14 +97,7 @@ export function syncIframeProps(
 ) {
   const nextAttributes = new Set<string>();
   for (const [name, value] of Object.entries(props)) {
-    if (
-      name === 'cacheKey'
-      || name === 'src'
-      || name === 'style'
-      || name === 'children'
-      || name === 'dangerouslySetInnerHTML'
-      || name.startsWith('on')
-    ) {
+    if (NON_ATTRIBUTE_PROPS.has(name) || name.startsWith('on')) {
       continue;
     }
     const attributeName = propNameToAttributeName(name);

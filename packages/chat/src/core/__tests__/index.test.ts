@@ -40,54 +40,54 @@ describe('@jini-ai/chat/core barrel', () => {
       runStatus: 'succeeded',
     };
     const status: ChatRunStatus = message.runStatus ?? 'queued';
-    expect(isTerminalRunStatus(status)).toBe(true);
-    expect(dedupeToolUsesById(events)).toHaveLength(events.length); // no duplicates present
+    expect(isTerminalRunStatus({ status })).toBe(true);
+    expect(dedupeToolUsesById({ events: events })).toHaveLength(events.length); // no duplicates present
 
     const history: ChatMessage[] = [{ id: 'u1', role: 'user', content: 'summarize the readme' }, message];
-    expect(buildTranscript(history)).toBe('## user\nsummarize the readme\n\n## assistant\nHere is a summary.');
+    expect(buildTranscript({ history: history })).toBe('## user\nsummarize the readme\n\n## assistant\nHere is a summary.');
   });
 
   it('CHAT_RUN_STATUSES/isTerminalRunStatus agree on which states are terminal', () => {
-    expect(isTerminalRunStatus('queued')).toBe(false);
-    expect(isTerminalRunStatus('running')).toBe(false);
-    expect(isTerminalRunStatus('succeeded')).toBe(true);
-    expect(isTerminalRunStatus('failed')).toBe(true);
-    expect(isTerminalRunStatus('canceled')).toBe(true);
-    expect(isTerminalRunStatus(undefined)).toBe(false);
+    expect(isTerminalRunStatus({ status: 'queued' })).toBe(false);
+    expect(isTerminalRunStatus({ status: 'running' })).toBe(false);
+    expect(isTerminalRunStatus({ status: 'succeeded' })).toBe(true);
+    expect(isTerminalRunStatus({ status: 'failed' })).toBe(true);
+    expect(isTerminalRunStatus({ status: 'canceled' })).toBe(true);
+    expect(isTerminalRunStatus({ status: undefined })).toBe(false);
   });
 });
 
 describe('partial-json: repairJsonPrefix / parsePartialJson', () => {
   it('drops a dangling incomplete key (no colon yet) and closes the object empty, rather than throwing', () => {
-    expect(parsePartialJson('{"hel')).toEqual({});
-    expect(repairJsonPrefix('{"hello"')).toBe('{}');
+    expect(parsePartialJson({ buf: '{"hel' })).toEqual({});
+    expect(repairJsonPrefix({ buf: '{"hello"' })).toBe('{}');
   });
 
   it('closes a string value cut off mid-token and repairs a dangling escape at the cut point', () => {
-    expect(parsePartialJson('{"a":"b\\')).toEqual({ a: 'b' });
+    expect(parsePartialJson({ buf: '{"a":"b\\' })).toEqual({ a: 'b' });
   });
 
   it('trims a dangling comma / trailing key-with-no-value and closes open containers', () => {
-    expect(parsePartialJson('{"a":1,')).toEqual({ a: 1 });
-    expect(parsePartialJson('{"a":1,"b":')).toEqual({ a: 1 });
+    expect(parsePartialJson({ buf: '{"a":1,' })).toEqual({ a: 1 });
+    expect(parsePartialJson({ buf: '{"a":1,"b":' })).toEqual({ a: 1 });
   });
 
   it('drops a partial boolean/null/number token cut mid-literal instead of emitting invalid JSON', () => {
-    expect(parsePartialJson('{"a":tru')).toEqual({});
-    expect(parsePartialJson('{"a":1.5,"b":fal')).toEqual({ a: 1.5 });
-    expect(parsePartialJson('[1,2,3.')).toEqual([1, 2]);
+    expect(parsePartialJson({ buf: '{"a":tru' })).toEqual({});
+    expect(parsePartialJson({ buf: '{"a":1.5,"b":fal' })).toEqual({ a: 1.5 });
+    expect(parsePartialJson({ buf: '[1,2,3.' })).toEqual([1, 2]);
   });
 
   it('closes nested open arrays/objects innermost-first', () => {
-    expect(parsePartialJson('{"a":[1,2,{"b":3')).toEqual({ a: [1, 2, { b: 3 }] });
+    expect(parsePartialJson({ buf: '{"a":[1,2,{"b":3' })).toEqual({ a: [1, 2, { b: 3 }] });
   });
 
   it('returns null for empty or whitespace-only input', () => {
-    expect(parsePartialJson('')).toBeNull();
-    expect(parsePartialJson('   ')).toBeNull();
+    expect(parsePartialJson({ buf: '' })).toBeNull();
+    expect(parsePartialJson({ buf: '   ' })).toBeNull();
   });
 
   it('parses already-complete JSON unchanged', () => {
-    expect(parsePartialJson('{"a":1,"b":[2,3]}')).toEqual({ a: 1, b: [2, 3] });
+    expect(parsePartialJson({ buf: '{"a":1,"b":[2,3]}' })).toEqual({ a: 1, b: [2, 3] });
   });
 });

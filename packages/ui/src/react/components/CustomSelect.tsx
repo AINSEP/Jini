@@ -8,9 +8,10 @@
 // `useCustomSelect` hook that owns all state/refs/effects/handlers, the
 // `CustomSelectOptionButton` leaf, and the dumb `CustomSelect` render.
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, MutableRefObject, ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer } from './select-popover.js';
 import { Icon } from './Icon.js';
 
 export interface CustomSelectOption {
@@ -42,6 +43,10 @@ export interface CustomSelectProps {
   disabled?: boolean;
   placeholder?: string;
   portal?: boolean;
+  /** Host-owned portal destination; otherwise the nearest native dialog keeps the menu in its top layer.
+   * Keep this container outside clipping regions and transformed fixed-position containing blocks.
+   */
+  portalContainer?: Element | DocumentFragment | null | undefined;
   title?: string;
   onFocus?: () => void;
   /** Extra content rendered inside the menu, above the option list — the seam
@@ -199,7 +204,7 @@ export function isCustomSelectEventInside(
   button: HTMLElement | null,
   menu: HTMLElement | null,
 ): boolean {
-  return Boolean(button?.contains(target)) || Boolean(menu?.contains(target));
+  return isSelectEventInside({ target, trigger: button, panel: menu });
 }
 
 export interface UseCustomSelectParams {
@@ -257,25 +262,16 @@ export function useCustomSelect({
   portal,
   placeholder,
   onOpenChange,
-}: UseCustomSelectParams): UseCustomSelectResult {
+}: UseCustomSelectParams, _optional: Record<string, never> = {}): UseCustomSelectResult {
   const reactId = useId();
   const idBase = reactId.replace(/:/g, '');
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const wasOpenRef = useRef(false);
   const activeSourceValueRef = useRef(value);
-  const [open, setOpen] = useState(false);
-  // Stored in a ref (not a `useEffect` dependency) so an unmemoized caller
-  // passing a fresh function identity every render never re-fires this for
-  // any reason OTHER than `open` actually changing.
-  const onOpenChangeRef = useRef(onOpenChange);
-  onOpenChangeRef.current = onOpenChange;
   const [activeValue, setActiveValue] = useState(value);
-  const [position, setPosition] = useState<CustomSelectMenuPosition | null>(null);
-
-  useEffect(() => {
-    onOpenChangeRef.current?.(open);
-  }, [open]);
+  const popover = useSelectPopover({ measurePosition: ({ trigger }) => computeCustomSelectMenuPosition(
+    trigger.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight },
+  ) }, { portal, onOpenChange });
+  const { open, position, triggerRef: buttonRef, panelRef: menuRef, updatePosition } = popover;
 
   const flatOptions = useMemo(() => flattenCustomSelectOptions(options), [options]);
   const selected = flatOptions.find((option) => option.value === value);
@@ -294,26 +290,6 @@ export function useCustomSelect({
   );
   const activeOptionId = open && activeValue ? optionIdByValue.get(activeValue) : undefined;
 
-  const updatePosition = useCallback(() => {
-    if (!buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    setPosition(
-      computeCustomSelectMenuPosition(rect, {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }),
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!portal) return;
-    if (!open) {
-      setPosition(null);
-      return;
-    }
-    updatePosition();
-  }, [open, portal, updatePosition]);
-
   useEffect(() => {
     const result = reconcileCustomSelectActiveValue({
       open,
@@ -328,32 +304,11 @@ export function useCustomSelect({
     if (result.nextActiveValue !== undefined) setActiveValue(result.nextActiveValue);
   }, [open, value]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (isCustomSelectEventInside(target, buttonRef.current, menuRef.current)) return;
-      setOpen(false);
-    };
-    const onScrollOrResize = () => {
-      if (portal) updatePosition();
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('resize', onScrollOrResize);
-    window.addEventListener('scroll', onScrollOrResize, true);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      window.removeEventListener('resize', onScrollOrResize);
-      window.removeEventListener('scroll', onScrollOrResize, true);
-    };
-  }, [open, portal, updatePosition]);
-
   const choose = (nextValue: string) => {
     const next = flatOptions.find((option) => option.value === nextValue);
     if (!next || next.disabled) return;
     onChange(next.value);
-    setOpen(false);
-    buttonRef.current?.focus();
+    popover.closePanel({ refocusTrigger: true });
   };
 
   const moveActive = (direction: 1 | -1) => {
@@ -361,37 +316,17 @@ export function useCustomSelect({
     if (next !== null) setActiveValue(next);
   };
 
-  const toggleOpen = () => setOpen((current) => !current);
-
-  const closeAndRefocusTrigger = () => {
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
+  const toggleOpen = () => open ? popover.closePanel({ refocusTrigger: false }) : popover.openPanel();
 
   const onButtonKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
-      moveActive(event.key === 'ArrowDown' ? 1 : -1);
-      return;
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      if (open) {
-        choose(activeValue || value);
-      } else {
-        setOpen(true);
-      }
-      return;
-    }
-    if (event.key === 'Escape' && open) {
-      event.preventDefault();
-      event.stopPropagation();
-      closeAndRefocusTrigger();
-    }
+    if (popover.handleDismissKey(event)) return;
+    if (openSelectOnKey({ event, open, openPanel: popover.openPanel })) return;
+    if (!open) return;
+    applySelectNavigationKey({ key: event.key, actions: {
+      preventDefault: () => event.preventDefault(), move: moveActive,
+      edge: (edge) => setActiveValue((edge === 'first' ? enabledOptions[0] : enabledOptions.at(-1))?.value ?? ''),
+      choose: () => choose(activeValue || value),
+    } }, { spaceChooses: true });
   };
 
   // Escape closes even when focus has moved into custom `menuHeader` content
@@ -402,10 +337,7 @@ export function useCustomSelect({
   // take real focus). Attached to the menu container, not the document, so it
   // never fires for an unrelated Escape press elsewhere on the page.
   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopPropagation();
-    closeAndRefocusTrigger();
+    popover.handleDismissKey(event);
   };
 
   return {
@@ -427,6 +359,137 @@ export function useCustomSelect({
   };
 }
 
+export interface CustomSelectOriginTheme {
+  'data-admin-theme'?: string;
+  'data-color-scheme'?: string;
+  'data-theme'?: string;
+}
+
+/** Scheme attributes from one boundary node: canonical `data-color-scheme` wins; a legacy
+ * `data-theme` supplies the scheme only when it is `light`/`dark`, but is always mirrored. */
+function resolveCustomSelectSchemeAttributes({ canonical, legacy }: {
+  canonical: string | null | undefined; legacy: string | null | undefined;
+}): Pick<CustomSelectOriginTheme, 'data-color-scheme' | 'data-theme'> {
+  const scheme = canonical ?? (legacy === 'light' || legacy === 'dark' ? legacy : undefined);
+  return {
+    ...(scheme ? { 'data-color-scheme': scheme } : {}),
+    ...(canonical || legacy ? { 'data-theme': canonical ?? legacy! } : {}),
+  };
+}
+
+/** Resolve theme identity and the nearest scheme separately, so a local light pin beats a dark root.
+ * @complexity O(d) time, O(1) space for d DOM ancestors. No host-specific theme ids are needed. */
+export function resolveCustomSelectOriginTheme({ trigger }: { trigger: HTMLElement | null }, _optional: Record<string, never> = {}): CustomSelectOriginTheme {
+  const identity = trigger?.closest('[data-admin-theme]')?.getAttribute('data-admin-theme');
+  const boundary = trigger?.closest('[data-color-scheme], [data-theme]');
+  return {
+    ...(identity ? { 'data-admin-theme': identity } : {}),
+    ...resolveCustomSelectSchemeAttributes({
+      canonical: boundary?.getAttribute('data-color-scheme'),
+      legacy: boundary?.getAttribute('data-theme'),
+    }),
+  };
+}
+
+/**
+ * The theme of the place this menu was opened FROM.
+ *
+ * A portalled menu is a child of `document.body`, so it escapes any `data-theme` set on an ancestor
+ * of the trigger — and this package's theming works precisely by declaring `--jini-*` tokens on
+ * `[data-theme='light']` / `[data-theme='dark']`. A host that pins a theme on a WRAPPER rather than
+ * on `document.documentElement` therefore gets a correctly-themed control and a menu themed by
+ * whatever the document happens to be.
+ *
+ * Measured in a host admin that is light-only and pins `data-theme="light"` on its panel wrapper:
+ * on a machine set to dark, the trigger rendered light and its own dropdown rendered dark — one
+ * control, two themes, four pixels apart. The host cannot fix that from CSS either, because the
+ * tokens resolve on the portal node's ancestors, which it has no way to select.
+ *
+ * So the menu carries its origin's theme with it. The nearest scheme boundary wins, with
+ * canonical `data-color-scheme` taking precedence over legacy `data-theme` on the same node.
+ * Theme identity is independent of scheme. Observe the trigger's ancestors while open so a
+ * host's live theme/scheme change updates an existing portal too. With neither attribute, leave
+ * document-level theming untouched. Only applied when portalling — an inline menu is still
+ * inside the subtree and inherits correctly on its own.
+ * @complexity O(d) time/observer storage for d ancestors; disposed on close or unmount.
+ */
+export function useCustomSelectOriginTheme({ buttonRef, open, portal }: {
+  buttonRef: MutableRefObject<HTMLButtonElement | null>; open: boolean; portal: boolean;
+}, _optional: Record<string, never> = {}): CustomSelectOriginTheme {
+  const [attributes, setAttributes] = useState<CustomSelectOriginTheme>({});
+  useLayoutEffect(() => {
+    if (!open || !portal) return;
+    const update = () => {
+      const next = resolveCustomSelectOriginTheme({ trigger: buttonRef.current });
+      setAttributes((current) => current['data-admin-theme'] === next['data-admin-theme']
+        && current['data-color-scheme'] === next['data-color-scheme']
+        && current['data-theme'] === next['data-theme'] ? current : next);
+    };
+    update();
+    const observer = new MutationObserver(update);
+    // Observe only the origin chain, not portal nodes: copying attributes must not retrigger itself.
+    for (let node: HTMLElement | null = buttonRef.current; node; node = node.parentElement) {
+      observer.observe(node, { attributes: true, attributeFilter: ['data-admin-theme', 'data-color-scheme', 'data-theme'] });
+    }
+    return () => observer.disconnect();
+  }, [buttonRef, open, portal]);
+  return portal ? attributes : {};
+}
+
+/** Inline geometry for a portalled menu once it has been measured; an inline menu is laid out by CSS. */
+function customSelectMenuStyle({ portal, position }: {
+  portal: boolean; position: CustomSelectMenuPosition | null;
+}): CSSProperties | undefined {
+  return portal && position
+    ? {
+        top: position.top,
+        left: position.left,
+        width: position.width,
+        maxHeight: position.maxHeight,
+      }
+    : undefined;
+}
+
+/** Where an open menu renders: inline, or portalled only after its first measurement. */
+function mountCustomSelectMenu({ menu, portal, position, trigger }: {
+  menu: ReactNode; portal: boolean; position: CustomSelectMenuPosition | null; trigger: HTMLElement | null;
+}, { container }: { container?: Element | DocumentFragment | null | undefined } = {}): ReactNode {
+  if (!portal) return menu;
+  return position ? createPortal(menu, resolveSelectPortalContainer({ trigger }, { container })) : null;
+}
+
+/** The listbox rows: groups render a labelled block of option buttons, flat options render directly. */
+function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue, onChoose, onActive }: {
+  options: CustomSelectProps['options'];
+  value: string;
+  activeValue: string;
+  optionIdByValue: Map<string, string>;
+  onChoose: (value: string) => void;
+  onActive: (value: string) => void;
+}) {
+  const renderOption = (option: CustomSelectOption) => (
+    <CustomSelectOptionButton
+      key={option.value}
+      option={option}
+      selected={option.value === value}
+      active={option.value === activeValue}
+      id={optionIdByValue.get(option.value)}
+      onChoose={onChoose}
+      onActive={onActive}
+    />
+  );
+  return (
+    <>
+      {options.map((item) => (isCustomSelectGroup(item) ? (
+        <div className="jini-select-group" key={`group:${item.label}`}>
+          <div className="jini-select-group-label">{item.label}</div>
+          {item.options.map(renderOption)}
+        </div>
+      ) : renderOption(item)))}
+    </>
+  );
+}
+
 /**
  * Accessible custom `<select>` replacement with grouped options, full keyboard
  * navigation, and an optional portal-rendered menu. All behavior lives in
@@ -445,6 +508,7 @@ export function CustomSelect({
   disabled = false,
   placeholder,
   portal = true,
+  portalContainer,
   title,
   onFocus,
   menuHeader,
@@ -468,33 +532,14 @@ export function CustomSelect({
     onMenuKeyDown,
   } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
 
-  /**
-   * The theme of the place this menu was opened FROM.
-   *
-   * A portalled menu is a child of `document.body`, so it escapes any `data-theme` set on an ancestor
-   * of the trigger — and this package's theming works precisely by declaring `--jini-*` tokens on
-   * `[data-theme='light']` / `[data-theme='dark']`. A host that pins a theme on a WRAPPER rather than
-   * on `document.documentElement` therefore gets a correctly-themed control and a menu themed by
-   * whatever the document happens to be.
-   *
-   * Measured in a host admin that is light-only and pins `data-theme="light"` on its panel wrapper:
-   * on a machine set to dark, the trigger rendered light and its own dropdown rendered dark — one
-   * control, two themes, four pixels apart. The host cannot fix that from CSS either, because the
-   * tokens resolve on the portal node's ancestors, which it has no way to select.
-   *
-   * So the menu carries its origin's theme with it. Read from the trigger's nearest `[data-theme]`
-   * ancestor; `null` when there is none, which leaves document-level theming untouched and every
-   * existing caller byte-identical. Only applied when portalling — an inline menu is still inside the
-   * subtree and inherits correctly on its own.
-   */
-  const originTheme = buttonRef.current?.closest('[data-theme]')?.getAttribute('data-theme') ?? null;
+  const originTheme = useCustomSelectOriginTheme({ buttonRef, open, portal });
 
   const menu = (
     <div
       ref={menuRef}
       id={`${idBase}-menu`}
       onKeyDown={onMenuKeyDown}
-      {...(portal && originTheme ? { 'data-theme': originTheme } : {})}
+      {...originTheme}
       className={[
         'jini-select-menu',
         portal ? 'portal' : 'inline',
@@ -502,49 +547,17 @@ export function CustomSelect({
       ].filter(Boolean).join(' ')}
       role="listbox"
       aria-label={ariaLabel}
-      style={
-        portal && position
-          ? {
-              top: position.top,
-              left: position.left,
-              width: position.width,
-              maxHeight: position.maxHeight,
-            }
-          : undefined
-      }
+      style={customSelectMenuStyle({ portal, position })}
     >
       {menuHeader}
-      {options.map((item) => {
-        if (isCustomSelectGroup(item)) {
-          return (
-            <div className="jini-select-group" key={`group:${item.label}`}>
-              <div className="jini-select-group-label">{item.label}</div>
-              {item.options.map((option) => (
-                <CustomSelectOptionButton
-                  key={option.value}
-                  option={option}
-                  selected={option.value === value}
-                  active={option.value === activeValue}
-                  id={optionIdByValue.get(option.value)}
-                  onChoose={choose}
-                  onActive={setActiveValue}
-                />
-              ))}
-            </div>
-          );
-        }
-        return (
-          <CustomSelectOptionButton
-            key={item.value}
-            option={item}
-            selected={item.value === value}
-            active={item.value === activeValue}
-            id={optionIdByValue.get(item.value)}
-            onChoose={choose}
-            onActive={setActiveValue}
-          />
-        );
-      })}
+      <CustomSelectMenuOptions
+        options={options}
+        value={value}
+        activeValue={activeValue}
+        optionIdByValue={optionIdByValue}
+        onChoose={choose}
+        onActive={setActiveValue}
+      />
     </div>
   );
 
@@ -573,7 +586,7 @@ export function CustomSelect({
         </span>
         <Icon name="chevron-down" size={14} />
       </button>
-      {open ? (portal ? (position ? createPortal(menu, document.body) : null) : menu) : null}
+      {open ? mountCustomSelectMenu({ menu, portal, position, trigger: buttonRef.current }, { container: portalContainer }) : null}
     </div>
   );
 }

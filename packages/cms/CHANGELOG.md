@@ -1,0 +1,146 @@
+## Unreleased
+
+- `./consent/express`: new `readRequestConsentChoices({ ports, request }, { cookieName })` returns the categories a request's visitor allows (receipt, region and Sec-GPC, same rules as the page gate) for server-side decisions; disabled consent grants all, failures deny and never throw.
+
+## 0.5.13 — 2026-10-16
+
+- SEO: the X card falls back to the Open Graph override before the page default (391560e8); resolved meta flags an entry's own share-image override (c79abea8) and says where the resolved share image came from (746457d9).
+- Site directories: best-effort directory fsync so Windows site creation no longer fails with EPERM (87720117).
+- Widget config rejections name the failing fields and the expected config keys (eecbd5c8).
+
+## 0.5.12 — 2026-10-14
+
+- Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
+
+## 0.5.11 — 2026-10-13
+
+- `./forms`: URL fields accept bare domains (optional port, path and query), `http(s)://` URLs and `@handle`s, and store the value as typed (no forced `https://`). Whitespace, dotless hosts and other schemes are still rejected (`invalid_url`).
+- `./forms`: the `url` registry kind renders as `type="text"` with new `attributes` (`inputmode="url"`, `autocomplete="url"`, `spellcheck="false"`, `autocapitalize="off"`), so the browser no longer blocks scheme-less input. Stored HTML-mode forms with a legacy `<input type="url">` are upgraded when the row is read.
+- Runtime error text no longer carries spec IDs: widget and redirect messages drop their `(REQ-*)` suffixes. Hosts asserting the old redirect text (for example `(REQ-22)`) must update their expectations.
+
+## 0.5.10 — 2026-10-13
+
+- `./entries`: `InMemoryEntryRepo.hardDelete({ workspaceId, id })` removes one workspace-scoped entry and its revisions (memory-only purge seam, not part of the port).
+- `./forms`: `InMemoryFormSubmissionRepo.listAllForDefinition({ workspaceId, formDefinitionId })` lists a form's submissions, trashed ones included, so a host can drop their Trash rows before the purge cascade (memory-only, not part of the port).
+
+## 0.5.9 — 2026-10-13
+
+- `./widgets`: write, embed and region services take an optional `entryLocks` dependency, threaded into every `withEntryLock` call. New `getEntryLockState({ owner })` returns one lock state per store object, so a host that rebuilds dependency bags per request still shares one queue per store. Omitting `entryLocks` keeps the previous module-wide state.
+
+## 0.5.8 — 2026-10-13
+
+- New `./navigation/node` subpath: re-exports the full `./navigation` API with parse5 menu-HTML normalization bound into `createMenu`, `updateMenuTree`, `mergeMenuHtml` and `buildMenusRegistrations`. Node hosts writing HTML-mode menus should import those from `./navigation/node`.
+- `./navigation` no longer loads the optional peer `parse5`, so it is universal again. Every name is still exported; an HTML-mode write through it needs an injected `normalizeMenuHtml` (`normalizeHtml` for `mergeMenuHtml`) and otherwise fails before saving. Item-only writes are unchanged.
+- `./seo` no longer reaches the media transform module for rendition MIME types; `TransformFormat` and `mimeForTransformFormat` remain exported from the media entries.
+
+## 0.5.7 — 2026-10-12
+
+- New render-only leaf subpaths: `./forms/html-render`, `./forms/submission-attempts`, `./widgets/page-embed-types`, `./widgets/html/html-embeds`, `./widgets/html/gallery-render`, `./navigation/types`, `./navigation/dropdown` and `./media/slug` (the media slug rule, still re-exported from `./media`). Existing barrels are unchanged.
+
+## 0.5.4 — 2026-10-08
+
+- Ships `dist/forms/**`: 0.5.3's `files` negation `!forms/**` also stripped `dist/forms`, so `@jini-ai/cms/forms` (and `/html`, `/sql`, `/express`) failed to resolve. The negation is removed: `files` already ships only `dist`, and the nested `forms/` package is never packed.
+
+## 0.5.3 — 2026-10-08
+
+- `./widgets*`: Add isolated widgets, import-free markers, HTML embeds, resolver ports and StorageKernel region-binding SQL entries; preserve stored formats, permission gates and rendering contracts.
+- Fold forms into ./forms with isolated HTML, SQL and Express adapters and host-supplied authoring, validation, attempts and dispatch ports.
+- Add isolated comments, SQL and Express entries with injected settings, rate limits, table names and IP salt; preserve ingress, moderation and audit contracts.
+- Add isolated redirects, SQL, SPA, host-config and Express entries with required verified-origin/path-policy ports and explicit adapter refusal reporting.
+- Add isolated universal SEO and browser DOM head entries, host settings/post/media/routing/liveness ports, and per-instance sitemap hooks/cache; retain output and write contracts.
+- Move generic settings to `@jini-ai/core/settings` and the Express adapter to `@jini-ai/core/settings/express`; retain both former CMS subpaths as identity-preserving compatibility re-exports for one release.
+
+- Move filesystem, sharp and ffmpeg media adapters to `@jini-ai/cms/media/node`; share `TransactionalRepoPort` through core while retaining the taxonomy type export; rename the settings HTTP entry to `@jini-ai/cms/settings/express`.
+
+## 0.5.2 — 2026-10-06
+
+- Video previews (`@jini-ai/cms/media`): `planVideoFrames` / `planVideoContactSheets` / `getVideoFrameEdge` / `parseVideoProbe` plus the `VideoFrameExtractor` port and an ffmpeg adapter (`createFfmpegVideoFrameExtractor`, `findVideoBinaries`, `runLowPriorityVideoProcess`). Default 16 frames, up to 64 (frames past 16 shrink to bound image tokens), `every`/`start` spacing, explicit `at` times, or up to 4 contact sheets of ≤16 tiles with a timestamp map.
+- Bounded by design: ≤64 MiB input, ≤512 KiB per frame, ≤2 MiB per sheet, ≤8 MiB total; ffmpeg runs `nice -n 19`, `-threads 1`, ≤8 source decoders per process in serial batches, one extraction at a time, 60 s shared deadline. Uses `-fps_mode passthrough` (ffmpeg ≥ 5.1; `-vsync` is gone in ffmpeg 9).
+
+# Changelog
+
+## 0.5.1 — 2026-10-06
+
+- Navigation: the `menus_update_menu_tree` schema declares the `entryType`/`lastKnownHref` hints on entry targets, and `updateMenuTree` carries a stored hint forward when the same item still targets the same entry and the submitted target omits it, so echoing a read no longer marks the menu changed.
+
+## 0.5.0 — 2026-10-05
+
+### BREAKING
+
+- Entries: an entry's envelope owner comes from its content type, not the caller. `createEntry`/`updateEntry`/`importEntry` drop `input.owner` (a stray runtime value is ignored) and validate under `contentType.owner`; `ContentTypeRecord`/`OwningContentType` gain an optional `owner` (absent = `"site"`, so existing types are byte-identical) and `registerContentType` accepts one. Callers that passed `owner` register the type with its owner instead.
+- Entries, BREAKING for `EntryRepoPort` adapters: `save` takes `{ expectedVersion }` and must compare it atomically with the write inside the transaction (`VersionConflictError` thrown there becomes the Result's `{ ok: false }`). `expectedVersion: null` means "the id must be free" (live, trashed or another workspace); an import-as-create passes it, so two concurrent creates of one id no longer both land. New exports `EntrySaveOptions`, `entryVersionConflictError`; `InMemoryEntryRepo` implements both.
+- Navigation, BREAKING for `MenuRepoPort` adapters: `save` takes `{ expectedVersion }` and compares it atomically with the write; `updateMenuTree` and both `assignLocation` saves pass it. New exports `MenuSaveOptions`, `menuVersionConflictError`; `InMemoryMenuRepo` implements it (a trashed or missing row is "found none").
+
+### Changed
+
+- Content types: tombstoning tears down a type's indexes after the status save commits, not before, so a failed save no longer leaves a still-deprecated type with its indexes gone.
+- Entries: `updateEntry`, `publishEntry`/`unpublishEntry` and an import-as-update again refuse an `expectedVersion` that differs from the version they read (`VersionConflictError`), in addition to the save's compare-and-set. The compare-and-set alone let a record built from an older read overwrite a writer that landed the claimed version after that read.
+- Navigation: `updateMenuTree` restores the same read check. New `MenuVersionConflictError` (a `MenuConflictError` subclass) is what `menuVersionConflictError` and that check throw, so a host can tell a lost version check from a slug conflict.
+- Navigation, BREAKING for `MenuRepoPort` adapters: the port gains `transaction({ fn })`, and `assignLocation` runs both menu saves, the binding upsert and its outbox events inside it, so a conflict on the second save no longer leaves the displaced menu changed. `InMemoryMenuRepo.transaction` just runs `fn` (no rollback).
+- Navigation: `MenuSaveOptions.expectedVersion` accepts `null` — insert only when no row (live, trashed, any workspace) holds the id — for a host's id-preserving import-as-create; the loser gets `menu '<id>' already exists (expected no menu, found version <n>)`.
+
+## 0.4.2 — 2026-10-04
+
+- Media: optional `BlobStorePort.sizeOf` reports original blob bytes (filesystem store memoizes `stat`); `MediaRecord.createdBy` is stamped at creation and write-once.
+- Navigation: entry targets carry optional `lastKnownHref` and `entryType` hints.
+- Taxonomy: `unassignTerms` returns the removed ids. Trash: a no-op trash/restore does not notify again.
+- Internal `@jini-ai/*` dependencies are caret ranges (`workspace:^`) instead of exact pins, so a host on a newer patch resolves a single copy without an override.
+
+## Unreleased — Trash host adoption
+
+- Preserve `adapter-unavailable` for absent domains before checking entity policy; selected purge
+  still checks resolved-row authorization first. Added regression coverage for both manual and
+  retention purge outcomes.
+- Restore shared rationale for atomic marker/index changes, keyset pagination, retention promises,
+  restore races, leases and follow-up no-ops. Move the cursor wire/Unicode/malformed-input suite
+  into `src/trash/__tests__/cursor.test.ts`. Move the nine in-memory repository contract cases
+  and nine pure sweep decision cases alongside their shared implementations; native timer and
+  SQL/dialect integration coverage remains with the host adapters.
+
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Remove the unused `@jini-ai/cms/server` placeholder subpath and its `CMS_SERVER_LAYER` marker; concrete Node adapters remain in domain-specific entries and identity wiring belongs to `@jini-ai/user-management/server`.
+- Identity tools moved to user-management/server; analytics moved to the analytics package and trash to cms/trash. Settings use a principal lookup port, generic tool/HTTP/clock types come from core, and the nonexistent ./widgets entry was removed.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- `./media`: `blobStoreFromObjectStore({ store })` — `BlobStorePort` as a view over `@jini-ai/core/object-store`, keys unchanged (`computeBlobStorageKey`), `putIfAbsent` → atomic `ifAbsent`, absent `get` throws `blob '<key>' was not found`.
+### Compile repairs
+
+- Align settings HTTP adapters and value-write tool errors with current named kernel/domain arguments; import the canonical taxonomy ID generator type.
+- Correct feed callback/mock typing, authorization fixtures, taxonomy delete arguments, workspace update dependencies, and awaited index-identity assertions without removing tests.
+
+### Breaking architecture boundaries
+
+- Move identity registrations to `@jini-ai/user-management/server`; remove the user-management dependency.
+- Move generic registration helpers and tool catalog types to `@jini-ai/core`; remove domain type aliases and local primitive/Result/HTTP declarations. Use core primitives and named helper calls.
+- Replace the settings identity repository dependency with a host-owned findActiveById lookup that a raw identity repository cannot satisfy structurally.
+- Require explicitly bound transactions for term rename and workspace deletion.
+- Add `./trash`, moved with its tests from platform. Retention is an option defaulting to 60 days; eager RangeError validation and sweeper bounds are retained. ID allocation uses the kernel `IdGenerator.newId()` port.
+- Remove the unimplemented `./widgets` export and its metadata entry.
+
+
+- Add `@jini-ai/cms/http/settings`: move the eight settings routes, contracts, CMS
+  adapters and resumable change feed with their behavior suites from HTTP kit.
+  `express` and `@jini-ai/http-kit` are optional peers used only by HTTP entries.
+- Restore `401 UNAUTHENTICATED` when readiness or principal resolution fails.
+- Isolate throwing diagnostics and individual cleanup failures so subscriptions retry
+  safely and cancellation/end still run. Regression tests written, not run.
+
+- Remove specification identifiers from runtime refusal messages while preserving the guard, error class and explanatory text; retain rationale references in comments.
+
+- Add forms validation, audited definition writes, bounded submissions and notification services in the separate nested `@jini-ai/cms-forms` workspace package.
+- Add `./media/import` URL and binary validation with required MIME/size policy and injected HTTP, sniffer and outbound guard ports.
+
+### CMS integration
+
+- The universal `./core/tools` entry now owns CMS permission helpers. Named input, catalog, schema-rejection and registration helpers are exported directly by the kernel.
+- Complete the `./media/import` barrel and runtime metadata, with caller-supplied HTTP, binary validation, MIME/size policy and outbound safety ports.
+- Identity services and hashing now live in `@jini-ai/user-management` and `@jini-ai/user-management/server`; Identity tool registration composition is exported by the user-management server entry. Remove the former identity workspace dependency from CMS and exclude retired identity build output from packaging.
+- BREAKING: CMS domain functions, constructors, lifecycle handlers and scalar/callback repository, event-bus, outbox and change-set methods use `(requiredArgs, optionalArgs)` object arguments. Optional configuration and seeds move to the second object. Entry/content-type transactions use `transaction({ fn })`; their authorization ports use required principal/permission/workspace fields plus optional entity scope in the second object. Error details, validation and ordering are preserved. Hosts must rewire their adapters and calls.
+- BREAKING: Retire `./identity` and `./identity/hasher` CMS export targets after their source migration. Import services from the identity package; import the registration builder from `@jini-ai/user-management/server`.
+- Settings and navigation conversions still owned by their active jobs are pending. Legacy core helpers and authorization callbacks remain compatible until those callers migrate.
+- Correct `./media` runtime metadata to Node because its existing barrel exposes filesystem, crypto and native-transform adapters; `./media/import` remains universal.

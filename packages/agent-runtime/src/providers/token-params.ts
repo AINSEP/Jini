@@ -10,7 +10,7 @@
  */
 
 /** True when `model` belongs to a family that rejects the legacy `max_tokens` field. */
-export function usesMaxCompletionTokens(model: string): boolean {
+export function usesMaxCompletionTokens({ model }: { model: string }): boolean {
   const normalized = model.trim().toLowerCase();
   return (
     /^gpt-5(?:[.-]|$)/.test(normalized) ||
@@ -21,28 +21,26 @@ export function usesMaxCompletionTokens(model: string): boolean {
 }
 
 /** Selects `max_tokens` or `max_completion_tokens` per {@link usesMaxCompletionTokens}. */
-export function buildOpenAIChatTokenParam(
-  model: string,
-  maxTokens: number,
+export function buildOpenAIChatTokenParam({ model, maxTokens }: { model: string; maxTokens: number }
 ): { max_tokens: number } | { max_completion_tokens: number } {
-  if (usesMaxCompletionTokens(model)) {
+  if (usesMaxCompletionTokens({ model: model })) {
     return { max_completion_tokens: maxTokens };
   }
   return { max_tokens: maxTokens };
 }
 
 /** Always the legacy `max_tokens` shape — for callers that already know the model family. */
-export function buildLegacyMaxTokensParam(maxTokens: number): { max_tokens: number } {
+export function buildLegacyMaxTokensParam({ maxTokens }: { maxTokens: number }): { max_tokens: number } {
   return { max_tokens: maxTokens };
 }
 
 /** Always the newer `max_completion_tokens` shape — for callers that already know the model family. */
-export function buildMaxCompletionTokensParam(maxTokens: number): { max_completion_tokens: number } {
+export function buildMaxCompletionTokensParam({ maxTokens }: { maxTokens: number }): { max_completion_tokens: number } {
   return { max_completion_tokens: maxTokens };
 }
 
 /** Detects the provider error text a gateway returns when `max_tokens` was rejected in favor of `max_completion_tokens`. */
-export function isUnsupportedMaxTokensError(detail: string): boolean {
+export function isUnsupportedMaxTokensError({ detail }: { detail: string }): boolean {
   const normalized = detail.toLowerCase();
   return (
     normalized.includes('unsupported parameter') &&

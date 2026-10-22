@@ -111,6 +111,35 @@ describe('renderDetailList', () => {
   it('renders nothing at all for an empty list, rather than an empty dl', () => {
     expect(renderDetailList([])).toBe('');
   });
+
+  it('renders a code-format value in a pre block that keeps its line breaks, escaped', () => {
+    const sql = 'create table t (\n  id int\n);\n-- <b>not bold</b>';
+    const doc = parse(renderDetailList([{ label: 'query', value: sql, format: 'code' }, { label: 'Tool', value: 'execute_sql' }]));
+    const pre = doc.querySelector('dd pre.mcpui-code');
+    expect(pre?.textContent).toBe(sql);
+    expect(doc.querySelector('dd pre b')).toBeNull();
+    expect(doc.querySelectorAll('dd')[1]?.querySelector('pre')).toBeNull();
+    expect(doc.querySelectorAll('dd')[1]?.textContent).toBe('execute_sql');
+  });
+
+  it('scrolls a long code value inside its own box instead of stretching the dialog without limit', () => {
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-code \{[^}]*white-space: pre-wrap;[^}]*\}/);
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-code \{[^}]*max-height: 16em;[^}]*overflow: auto;[^}]*\}/);
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-code \{[^}]*font-family: var\(--jini-mcpui-font-mono\);[^}]*\}/);
+  });
+
+  it('caps the label column so a long label cannot squeeze values to one character per line', () => {
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-details \{[^}]*grid-template-columns: fit-content\(40%\) minmax\(0, 1fr\);/);
+    expect(SURFACE_BASE_CSS).not.toMatch(/\.mcpui-details \{[^}]*max-content/);
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-details dt \{[^}]*overflow-wrap: anywhere;/);
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-details dd \{[^}]*overflow-wrap: anywhere;/);
+  });
+
+  it('stacks label above value in narrow frames without touching the outcome layout', () => {
+    expect(SURFACE_BASE_CSS).toMatch(
+      /@media \(max-width: 480px\) \{\s*\.mcpui-details:not\(\.mcpui-details-outcome\) \{[^}]*grid-template-columns: minmax\(0, 1fr\);/,
+    );
+  });
 });
 
 describe('renderStatusRegion', () => {

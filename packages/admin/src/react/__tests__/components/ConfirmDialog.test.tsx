@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { memo, useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
-import { ConfirmDialogDefaultsProvider } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
+import { ConfirmDialogDefaultsProvider, useConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 import type { UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 
 function renderDialog(props: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) {
@@ -187,6 +187,30 @@ describe('ConfirmDialog open/close', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   });
 
+  it('cycles Tab and Shift+Tab at both confirm-dialog boundaries', () => {
+    const { rerender } = renderDialog();
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    confirm.focus();
+    expect(fireEvent.keyDown(confirm, { key: 'Tab' })).toBe(false);
+    expect(cancel).toHaveFocus();
+    expect(fireEvent.keyDown(cancel, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(confirm).toHaveFocus();
+    rerender(<ConfirmDialog open={false} title="t" body="" confirmLabel="Delete" onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    expect(fireEvent.keyDown(dialog(), { key: 'Tab' })).toBe(true);
+  });
+
+  it('traps focusable body content and ignores disabled controls at the boundaries', () => {
+    renderDialog({ body: <><button disabled>Unavailable</button><input aria-label="Reason" /></> });
+    const first = screen.getByRole('textbox', { name: 'Reason' });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    confirm.focus();
+    fireEvent.keyDown(confirm, { key: 'Tab' });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
+    expect(confirm).toHaveFocus();
+  });
+
   it('restores focus to the trigger on close, not to <body>', () => {
     function Host() {
       const [open, setOpen] = useState(false);
@@ -328,7 +352,7 @@ describe('ConfirmDialog dialog-hook injection', () => {
     // state and calls no React hook — the annotation, not the inference, is what says that is
     // allowed, because `typeof` names an implementation while this names a contract.
     const handleBackdropClick = vi.fn();
-    const stateless: UseConfirmDialog = (open, pending, onCancel) => ({
+    const stateless: UseConfirmDialog = ({ open, onCancel }, { pending } = {}) => ({
       titleId: 'contract-title-id',
       dialogRef: { current: null },
       cancelRef: { current: null },
@@ -428,4 +452,70 @@ describe('ConfirmDialog agent handles', () => {
     expect(cancel).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'delete-role-cancel');
     expect(cancel).toHaveAttribute('data-agent-label', 'Keep it — leaves "Delete post?" unconfirmed; no action taken');
   });
+});
+
+describe('ConfirmDialog shared confirmation owner', () => {
+  it('latches same-frame submits and blocks dismissal until the async action finishes', async () => {
+    let finish!: () => void;
+    const onConfirm = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const { onCancel } = renderDialog({ onConfirm });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    act(() => {
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+      fireEvent.click(cancel);
+      fireEvent.click(dialog());
+      fireEvent(dialog(), new Event('cancel', { cancelable: true }));
+    });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(confirm).toBeDisabled();
+    expect(cancel).toBeDisabled();
+    await act(async () => { finish(); });
+    expect(confirm).not.toBeDisabled();
+    fireEvent.click(cancel);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the shared error outcome and permits retry after a rejected action', async () => {
+    const onConfirm = vi.fn().mockRejectedValueOnce(new Error('Request failed')).mockResolvedValue(undefined);
+    renderDialog({ onConfirm });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    await act(async () => { fireEvent.click(confirm); });
+    expect(screen.getByRole('alert')).toHaveTextContent('The action failed. Please try again.');
+    expect(confirm).not.toBeDisabled();
+    await act(async () => { fireEvent.click(confirm); });
+    expect(onConfirm).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('restores the opener when an open dialog is unmounted', () => {
+    const opener = document.createElement('button');
+    document.body.append(opener);
+    try {
+      opener.focus();
+      const view = renderDialog();
+      expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+      view.unmount();
+      expect(opener).toHaveFocus();
+    } finally { opener.remove(); }
+  });
+});
+
+
+it('preserves the injected document focus port through the native lifecycle adapter', () => {
+  const opener = document.createElement('button');
+  document.body.append(opener);
+  const injectedDocument = { activeElement: opener };
+  const useInjectedDocument: UseConfirmDialog = (required, optional = {}) =>
+    useConfirmDialog({ ...required, document: injectedDocument }, optional);
+  try {
+    const view = renderDialog({ useDialog: useInjectedDocument });
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    view.rerender(<ConfirmDialog open={false} title="t" body="" confirmLabel="Delete"
+      onConfirm={vi.fn()} onCancel={vi.fn()} useDialog={useInjectedDocument} />);
+    expect(opener).toHaveFocus();
+    view.unmount();
+  } finally { opener.remove(); }
 });

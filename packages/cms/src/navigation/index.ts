@@ -15,6 +15,7 @@ export type {
   NavItemAttrs,
   NavItemNode,
   NavMenuDoc,
+  NavMenuMode,
   NavMenuEntry,
   MenuStatus,
   NavLocationKey,
@@ -56,7 +57,7 @@ export {
   NAVIGATION_AI_TOOLS,
 } from "./contracts.js";
 
-export { createNavMenuReadModel, type NavMenuReadModelDeps } from "./read-model.js";
+export { createNavMenuReadModel, type NavMenuReadModelDeps, type NavMenuReadModelOptions } from "./read-model.js";
 
 /**
  * `MenuRepoPort` is navigation-owned (not part of the frozen `ports.ts` ADR surface — see
@@ -66,7 +67,9 @@ export { createNavMenuReadModel, type NavMenuReadModelDeps } from "./read-model.
 export {
   InMemoryMenuRepo,
   InMemoryNavLocationBindingRepo,
+  menuVersionConflictError,
   type MenuRepoPort,
+  type MenuSaveOptions,
 } from "./repo.memory.js";
 
 /**
@@ -89,6 +92,7 @@ export {
   MenuNotFoundError,
   MenuValidationError,
   MenuConflictError,
+  MenuVersionConflictError,
   MenuLocationBoundError,
   DEFAULT_MAX_TREE_DEPTH,
   DEFAULT_MAX_ITEM_COUNT,
@@ -111,6 +115,17 @@ export {
   type DeleteMenuOptional,
 } from "./menu-service.js";
 
+/** HTML mode (2026-10-08): validation/normalization for a menu's author-written markup. */
+export {
+  MAX_MENU_HTML_LENGTH,
+  isMenuHtmlAuthoring,
+  menuHtmlInputProblem,
+  mergeMenuHtml,
+  type MenuHtmlAuthoring,
+  type MenuHtmlNormalizer,
+  type MenuHtmlOptions,
+} from "./menu-html.js";
+
 export {
   resolveForLocation,
   resolveMenuDoc,
@@ -128,12 +143,12 @@ export {
   type RebuildNavLocationBindingsResult,
 } from "./reconcile.js";
 
+/** Dropdown menus (2026-10-11): toggle markup + the inline keyboard/touch script (see `dropdown.ts`). */
+export { renderMenuToggle, injectMenuDropdownScript, MENU_DROPDOWN_SCRIPT } from "./dropdown.js";
+
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   menusAgentToolCatalog,
-  type AgentToolDefinition as NavigationAgentToolDefinition,
-  type AgentToolSideEffect as NavigationAgentToolSideEffect,
-  type AgentToolActorClassRule as NavigationAgentToolActorClassRule,
 } from "./agent-tools.js";
 
 /**

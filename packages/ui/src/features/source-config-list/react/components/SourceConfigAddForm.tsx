@@ -6,14 +6,15 @@ import type {
   SourceFieldSpec,
   SourceFieldValues,
   SourceTestResult,
-  SourceTrustOption,
+  SourceTrustSelectorProps,
 } from '../../types.js';
 import { SourceConfigField } from './SourceConfigField.js';
 import { SourceConfigTestControl } from './SourceConfigTestControl.js';
+import { SourceConfigTrustOptions } from './SourceConfigTrustOptions.js';
 
-export interface SourceConfigAddFormProps {
+/** Every add-form prop except the trust selector's pair (see {@link SourceTrustSelectorProps}). */
+export interface SourceConfigAddFormBaseProps {
   fieldSpecs: readonly SourceFieldSpec[];
-  trustOptions?: readonly SourceTrustOption[];
   values: SourceFieldValues;
   trust?: string | undefined;
   validation: SourceDraftValidation;
@@ -22,7 +23,6 @@ export interface SourceConfigAddFormProps {
   submitError?: string | null | undefined;
   addLabel?: string;
   onFieldChange: (key: string, value: string) => void;
-  onTrustChange: (value: string) => void;
   onSubmit: () => void;
   /**
    * Test-before-save (the origin BYOK `EntryShell.tsx`/`ByokConnectionTestControl`
@@ -57,6 +57,9 @@ export interface SourceConfigAddFormProps {
   cancelLabel?: string;
 }
 
+/** `onTrustChange` is required only together with `trustOptions` — see {@link SourceTrustSelectorProps}. */
+export type SourceConfigAddFormProps = SourceConfigAddFormBaseProps & SourceTrustSelectorProps;
+
 /**
  * The "add a source" form: one `SourceConfigField` per host-supplied field
  * spec, an optional trust selector (rendered only when `trustOptions` is
@@ -84,40 +87,10 @@ export interface SourceConfigAddFormProps {
  * caller's next `page.find_elements` sees them, because that verb re-queries
  * the DOM rather than replaying an earlier snapshot.
  */
-export function SourceConfigAddForm({
-  fieldSpecs,
-  trustOptions,
-  values,
-  trust,
-  validation,
-  submitAttempted,
-  submitting,
-  submitError,
-  addLabel,
-  onFieldChange,
-  onTrustChange,
-  onSubmit,
-  canTest = false,
-  testing = false,
-  testResult,
-  onTest,
-  agentHandle,
-  onCancel,
-  cancelLabel,
-}: SourceConfigAddFormProps) {
+export function SourceConfigAddForm(props: SourceConfigAddFormProps) {
+  const { addLabel, onSubmit, agentHandle, submitError } = props;
   const t = useT();
   const submitLabel = addLabel ? t(addLabel) : t('Add source');
-  const trustLabel = t('Trust level');
-  const submitButton = (
-    <button
-      type="submit"
-      className="source-config-add-form-submit"
-      disabled={submitting}
-      {...sourceConfigAgentProps(agentHandle, { role: 'button', label: submitLabel, action: 'submit' })}
-    >
-      {submitting ? t('Adding…') : submitLabel}
-    </button>
-  );
 
   return (
     <form
@@ -128,74 +101,104 @@ export function SourceConfigAddForm({
         onSubmit();
       }}
     >
-      {fieldSpecs.map((spec) => {
-        const issue = submitAttempted ? issueForField(validation, spec.key) : undefined;
-        return (
-          <SourceConfigField
-            key={spec.key}
-            spec={spec}
-            value={values[spec.key] ?? ''}
-            disabled={submitting}
-            onChange={(value) => onFieldChange(spec.key, value)}
-            {...(issue ? { error: t(issue.message, { label: t(spec.label) }) } : {})}
-            {...(agentHandle ? { agentHandle: sourceConfigFieldHandle(agentHandle, spec.key) } : {})}
-          />
-        );
-      })}
-      {trustOptions && trustOptions.length > 0 ? (
-        <label className="source-config-field" htmlFor="source-config-add-form-trust">
-          <span className="source-config-field-label">{trustLabel}</span>
-          <select
-            id="source-config-add-form-trust"
-            value={trust ?? ''}
-            disabled={submitting}
-            aria-label={trustLabel}
-            {...sourceConfigAgentProps(agentHandle, { role: 'field', label: trustLabel, action: 'trust' })}
-            onChange={(event) => onTrustChange(event.target.value)}
-          >
-            {!trust ? (
-              <option value="" disabled hidden>
-                {t('Select…')}
-              </option>
-            ) : null}
-            {trustOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(option.label)}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      {canTest && onTest ? (
-        <SourceConfigTestControl
-          running={testing}
-          disabled={submitting || !validation.ok}
-          onTest={onTest}
-          {...(testResult ? { result: testResult } : {})}
-          {...(agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {})}
-        />
-      ) : null}
+      <AddFormFields {...props} />
+      <AddFormTrustSelect {...props} />
+      <AddFormTestControl {...props} />
       {submitError ? (
         <div className="source-config-add-form-error" role="alert">
           {t(submitError)}
         </div>
       ) : null}
-      {onCancel ? (
-        <div className="source-config-add-form-actions">
-          {submitButton}
-          <button
-            type="button"
-            className="source-config-add-form-cancel"
-            disabled={submitting}
-            {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t(cancelLabel ?? 'Cancel'), action: 'cancel' })}
-            onClick={onCancel}
-          >
-            {t(cancelLabel ?? 'Cancel')}
-          </button>
-        </div>
-      ) : (
-        submitButton
-      )}
+      <AddFormActions {...props} submitLabel={submitLabel} />
     </form>
+  );
+}
+
+/** One `SourceConfigField` per spec; a field's error only shows once a submit has been attempted. */
+function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submitting, onFieldChange, agentHandle }: SourceConfigAddFormProps) {
+  const t = useT();
+  return fieldSpecs.map((spec) => {
+    const issue = submitAttempted ? issueForField(validation, spec.key) : undefined;
+    return (
+      <SourceConfigField
+        key={spec.key}
+        spec={spec}
+        value={values[spec.key] ?? ''}
+        disabled={submitting}
+        onChange={(value) => onFieldChange(spec.key, value)}
+        {...(issue ? { error: t(issue.message, { label: t(spec.label) }) } : {})}
+        {...(agentHandle ? { agentHandle: sourceConfigFieldHandle(agentHandle, spec.key) } : {})}
+      />
+    );
+  });
+}
+
+/** Rendered only when `trustOptions` is non-empty — the origin MCP-server shape has no trust concept at all. */
+function AddFormTrustSelect(props: SourceConfigAddFormProps) {
+  const t = useT();
+  // Narrow on `props` itself (not a destructured copy) so the non-empty `trustOptions` check also
+  // proves `onTrustChange` present — the `SourceTrustSelectorProps` union binds the two.
+  if (!props.trustOptions || props.trustOptions.length === 0) return null;
+  const { trustOptions, trust, submitting, onTrustChange, agentHandle } = props;
+  const trustLabel = t('Trust level');
+  return (
+    <label className="source-config-field" htmlFor="source-config-add-form-trust">
+      <span className="source-config-field-label">{trustLabel}</span>
+      <select
+        id="source-config-add-form-trust"
+        value={trust ?? ''}
+        disabled={submitting}
+        aria-label={trustLabel}
+        {...sourceConfigAgentProps(agentHandle, { role: 'field', label: trustLabel, action: 'trust' })}
+        onChange={(event) => onTrustChange(event.target.value)}
+      >
+        <SourceConfigTrustOptions trust={trust} trustOptions={trustOptions} />
+      </select>
+    </label>
+  );
+}
+
+/** Test-before-save: only when the host can test (`canTest`) and wired `onTest`; disabled while the draft is invalid. */
+function AddFormTestControl({ canTest = false, onTest, testing = false, submitting, validation, testResult, agentHandle }: SourceConfigAddFormProps) {
+  if (!canTest || !onTest) return null;
+  return (
+    <SourceConfigTestControl
+      running={testing}
+      disabled={submitting || !validation.ok}
+      onTest={onTest}
+      {...(testResult ? { result: testResult } : {})}
+      {...(agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {})}
+    />
+  );
+}
+
+/** The submit button alone, or wrapped beside a Cancel button when `onCancel` is given. */
+function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submitLabel }: SourceConfigAddFormProps & { submitLabel: string }) {
+  const t = useT();
+  const submitButton = (
+    <button
+      type="submit"
+      className="source-config-add-form-submit"
+      disabled={submitting}
+      {...sourceConfigAgentProps(agentHandle, { role: 'button', label: submitLabel, action: 'submit' })}
+    >
+      {submitting ? t('Adding…') : submitLabel}
+    </button>
+  );
+  if (!onCancel) return submitButton;
+  const resolvedCancelLabel = t(cancelLabel ?? 'Cancel');
+  return (
+    <div className="source-config-add-form-actions">
+      {submitButton}
+      <button
+        type="button"
+        className="source-config-add-form-cancel"
+        disabled={submitting}
+        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: resolvedCancelLabel, action: 'cancel' })}
+        onClick={onCancel}
+      >
+        {resolvedCancelLabel}
+      </button>
+    </div>
   );
 }

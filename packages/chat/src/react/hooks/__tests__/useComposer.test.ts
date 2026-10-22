@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatAttachment } from '../../../core/index.js';
 import { __resetComposerDraftCacheForTests } from '../composer-draft-cache.js';
 import { __resetAttachmentPreviewCacheForTests, getAttachmentPreviewSource } from '../attachment-preview-cache.js';
-import { useComposer } from '../useComposer.js';
+import { DRAFT_PERSIST_DEBOUNCE_MS, useComposer } from '../useComposer.js';
 import type { ProjectContextValue } from '../../slots.js';
 
 describe('useComposer', () => {
@@ -20,8 +20,15 @@ describe('useComposer', () => {
     const persistence = { read: () => store.value, write: (v: string) => (store.value = v) };
     const { result } = renderHook(() => useComposer({ persistence }));
     expect(result.current.draft).toBe('seeded draft');
-    act(() => result.current.setDraft('typed'));
-    expect(store.value).toBe('typed');
+    vi.useFakeTimers();
+    try {
+      act(() => result.current.setDraft('typed'));
+      // Debounced since 2026-10-08 — see `useComposer.draft-debounce.test.tsx`.
+      act(() => vi.advanceTimersByTime(DRAFT_PERSIST_DEBOUNCE_MS));
+      expect(store.value).toBe('typed');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('addAttachments uploads via ProjectContextValue.uploadFiles and stages the results', async () => {
@@ -53,8 +60,8 @@ describe('useComposer', () => {
         await result.current.addAttachments([fileA, fileB]);
       });
 
-      expect(getAttachmentPreviewSource('attachment:a')).toBe(fileA);
-      expect(getAttachmentPreviewSource('attachment:b')).toBe(fileB);
+      expect(getAttachmentPreviewSource({ path: 'attachment:a' })).toBe(fileA);
+      expect(getAttachmentPreviewSource({ path: 'attachment:b' })).toBe(fileB);
     });
 
     it('does not cache anything when the upload rejects, so a failed batch leaves no stale entries', async () => {
@@ -66,7 +73,7 @@ describe('useComposer', () => {
         await expect(result.current.addAttachments([file])).rejects.toThrow('upload failed');
       });
 
-      expect(getAttachmentPreviewSource('attachment:a')).toBeUndefined();
+      expect(getAttachmentPreviewSource({ path: 'attachment:a' })).toBeUndefined();
     });
   });
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import {
   modelIdForReasoningLevel,
+  pickerModelOptions,
   reasoningModelGroupFor,
   reasoningModelGroups,
   selectedAgentModel,
@@ -72,7 +73,7 @@ export interface UseReasoningControlResult {
   knownModelIds: readonly string[];
   /** Whether the custom model input is currently active. */
   customActive: boolean;
-  /** Options for the model select: base models for suffix agents, or raw models list. */
+  /** Options for the model select: base models for suffix agents, or deduped catalog rows. */
   modelChoices: readonly AgentModelOption[];
   /** Selected value for the model select element. */
   selectValue: string;
@@ -112,106 +113,42 @@ export function useReasoningControl(
   maybeConfig?: LocalCliConfig,
   maybeExplicitCustomMode?: boolean,
 ): UseReasoningControlResult {
-  const { agent, config, explicitCustomMode = false, onReasoningChange }: UseReasoningControlOptions =
-    'agent' in optionsOrAgent && 'config' in optionsOrAgent
-      ? optionsOrAgent
-      : {
-          agent: optionsOrAgent as DetectedAgent,
-          config: maybeConfig!,
-          explicitCustomMode: maybeExplicitCustomMode ?? false,
-        };
+  const { agent, config, explicitCustomMode = false, onReasoningChange } =
+    reasoningControlOptions(optionsOrAgent, maybeConfig, maybeExplicitCustomMode);
 
   const models = agent.models ?? [];
   const hasModels = models.length > 0;
   const resolvedModel = selectedAgentModel(config, agent);
   const rawModel = config.modelByAgentId?.[agent.id] ?? '';
 
-  // Two ways an agent can expose a reasoning-effort axis, and the card branches on the DECLARATION
-  // rather than on the agent's id — adding a third runtime with either shape is a def change, not
-  // an edit here.
-  //
-  //   `reasoningOptions`     — one flat vocabulary that travels to the CLI as its own flag
-  //                            (`claude --effort high`, codex's `-c model_reasoning_effort=...`).
-  //                            The choice is its own persisted value; `onReasoningChange` owns it.
-  //   `reasoningInModelId`   — no effort flag exists; the level is a suffix on the model id itself
-  //                            (antigravity's `gemini-3.1-pro-high`). The choice IS the model, so
-  //                            it goes through `onModelChange`, and the available levels are
-  //                            derived PER BASE MODEL from the agent's own catalog — they are not
-  //                            uniform (`gemini-3.1-pro` has no `-medium`, and `agy --model`
-  //                            rejects one), so a fixed dropdown would offer ids the CLI refuses.
-  const suffixLevels = agent.reasoningInModelId?.levels ?? [];
-  const suffixLevelIds = suffixLevels.map((level) => level.id);
-  const modelGroups = suffixLevels.length > 0 ? reasoningModelGroups(models, suffixLevels) : null;
-  const activeGroup = modelGroups ? reasoningModelGroupFor(modelGroups, resolvedModel, suffixLevelIds) : null;
-  const activeLevel = modelGroups ? splitReasoningModelId(resolvedModel, suffixLevelIds).level : null;
+  const { suffixLevels, suffixLevelIds, modelGroups, activeGroup, activeLevel } =
+    suffixReasoning({ agent, models, resolvedModel });
 
   const flatReasoningOptions = agent.reasoningOptions ?? [];
-  // Per-model narrowing: a runtime whose catalog reports reasoning levels PER MODEL rather than
-  // uniformly across the agent (Codex — see `AgentModelOption.reasoning`'s doc) declares them on the
-  // resolved model's own catalog row. `undefined` there means "this model's entry has nothing
-  // model-specific to say", so it falls back to the agent-wide union below — the same list every
-  // model rendered before this field existed. An explicit `[]` is honored AS-IS, even though a model
-  // with genuinely zero levels then hides the control: falling back to the union for `[]` too would
-  // just move today's "every model sees every level" bug one layer down instead of fixing it.
-  const selectedModelReasoning = models.find((model) => model.id === resolvedModel)?.reasoning;
-  // Exactly one effort control, whichever shape declared it. `reasoningOptions` wins if a def ever
-  // declares both, rather than rendering two controls that disagree about where the choice lands.
-  const reasoningOptions =
-    flatReasoningOptions.length === 0
-      ? (activeGroup?.levels ?? [])
-      : selectedModelReasoning === undefined
-        ? flatReasoningOptions
-        : selectedModelReasoning;
+  const reasoningOptions = effortOptions({ flatReasoningOptions, activeGroup, models, resolvedModel });
   const hasReasoning = reasoningOptions.length > 0;
-  const rawReasoningValue =
-    flatReasoningOptions.length > 0
-      ? selectedAgentReasoning(config, agent)
-      : (activeLevel ?? reasoningOptions[0]?.id ?? '');
-  // The persisted (or agent-wide-default) pick can name a level the narrowed list above does not
-  // actually offer for the CURRENT model — that is the whole point of narrowing. Rendering it anyway
-  // would just relocate today's bug: the `<select>` below has no matching `<option>`, so it would
-  // silently show whatever the browser highlights first while the underlying value stays wrong. This
-  // guards what actually renders; the effect further down clears the persisted copy so every other
-  // reader of `config.reasoningByAgentId` (not just this hook) sees the correction too.
-  const reasoningSupported = reasoningOptions.some((option) => option.id === rawReasoningValue);
-  const reasoningValue = reasoningSupported ? rawReasoningValue : (reasoningOptions[0]?.id ?? '');
+  const reasoningValue = effortValue({ agent, config, flatReasoningOptions, activeLevel, reasoningOptions });
   // A base model with exactly one variant has a real, fixed level worth showing — but nothing to
   // choose between, so the control is shown disabled rather than offering an illusion of choice.
   const reasoningDisabled = flatReasoningOptions.length === 0 && reasoningOptions.length < 2;
 
   const reasoningOptionIdsKey = reasoningOptions.map((option) => option.id).join('|');
   useEffect(() => {
-    // The reasoningInModelId path has no reasoning value of its own to clear — the level lives
-    // inside the model id itself, and picking a new base model already replaces it.
-    if (flatReasoningOptions.length === 0) return;
     if (!onReasoningChange) return;
-    const persisted = config.reasoningByAgentId?.[agent.id]?.trim();
-    if (!persisted) return;
-    if (reasoningOptions.some((option) => option.id === persisted)) return;
-    onReasoningChange('');
+    if (isStaleReasoningPick({ agent, config, flatReasoningOptions, reasoningOptions })) onReasoningChange('');
     // `reasoningOptionIdsKey` stands in for `reasoningOptions` (a fresh array every render) so this
     // only re-runs when the narrowed vocabulary actually changes, not on every unrelated re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flatReasoningOptions.length, onReasoningChange, config.reasoningByAgentId, agent.id, reasoningOptionIdsKey]);
 
-  // Adapters opt out via `supportsCustomModel: false` when their CLI has no
-  // free-text model flag, or validates the id against a live catalog and
-  // rejects unknown ones. `undefined` allows it, matching every adapter's
-  // default before this field existed.
-  const allowCustomModel = agent.supportsCustomModel !== false && modelGroups === null;
-  const knownModelIds = models.map((model) => model.id);
-  const customActive =
-    allowCustomModel && hasModels && shouldShowCustomModelInput(resolvedModel, knownModelIds, explicitCustomMode);
+  const { allowCustomModel, knownModelIds, customActive } =
+    customModelState({ agent, modelGroups, models, resolvedModel, explicitCustomMode });
   // A model-suffix agent picks a BASE model here; the effort control below supplies the rest of the
   // id. Everything else about the field — search, labels, provenance badge — is unchanged.
   const modelChoices: readonly AgentModelOption[] = modelGroups
     ? modelGroups.map((group) => ({ id: group.baseId, label: group.label }))
-    : models;
-  const selectValue = customActive
-    ? CUSTOM_MODEL_SENTINEL
-    : modelGroups
-      ? (activeGroup?.baseId ?? '')
-      : resolvedModel;
+    : pickerModelOptions({ models });
+  const selectValue = modelSelectValue({ customActive, modelGroups, activeGroup, models, resolvedModel });
   // While the custom box is open, the text field must show the operator's raw
   // typed text (which may not resolve to anything yet) rather than the
   // resolved-with-fallback value — otherwise every keystroke would show a
@@ -269,4 +206,149 @@ export function useReasoningControl(
     resolveNextModelId,
     resolveReasoningModelId,
   };
+}
+
+/** The two call shapes (options object, or the older positional `agent, config, explicitCustomMode`)
+ *  as one options object. */
+function reasoningControlOptions(
+  optionsOrAgent: UseReasoningControlOptions | DetectedAgent,
+  maybeConfig: LocalCliConfig | undefined,
+  maybeExplicitCustomMode: boolean | undefined,
+): UseReasoningControlOptions {
+  if ('agent' in optionsOrAgent && 'config' in optionsOrAgent) return optionsOrAgent;
+  return {
+    agent: optionsOrAgent as DetectedAgent,
+    config: maybeConfig!,
+    explicitCustomMode: maybeExplicitCustomMode ?? false,
+  };
+}
+
+/**
+ * The model-suffix reasoning shape: the agent's declared suffix levels, its catalog grouped by base
+ * model, and where the resolved model sits in those groups. All `null` (and empty) for an agent
+ * without `reasoningInModelId`.
+ *
+ * Two ways an agent can expose a reasoning-effort axis, and the card branches on the DECLARATION
+ * rather than on the agent's id — adding a third runtime with either shape is a def change, not
+ * an edit here.
+ *
+ *   `reasoningOptions`     — one flat vocabulary that travels to the CLI as its own flag
+ *                            (`claude --effort high`, codex's `-c model_reasoning_effort=...`).
+ *                            The choice is its own persisted value; `onReasoningChange` owns it.
+ *   `reasoningInModelId`   — no effort flag exists; the level is a suffix on the model id itself
+ *                            (antigravity's `gemini-3.1-pro-high`). The choice IS the model, so
+ *                            it goes through `onModelChange`, and the available levels are
+ *                            derived PER BASE MODEL from the agent's own catalog — they are not
+ *                            uniform (`gemini-3.1-pro` has no `-medium`, and `agy --model`
+ *                            rejects one), so a fixed dropdown would offer ids the CLI refuses.
+ */
+function suffixReasoning({ agent, models, resolvedModel }: {
+  agent: DetectedAgent;
+  models: readonly AgentModelOption[];
+  resolvedModel: string;
+}) {
+  const suffixLevels = agent.reasoningInModelId?.levels ?? [];
+  const suffixLevelIds = suffixLevels.map((level) => level.id);
+  if (suffixLevels.length === 0) {
+    return { suffixLevels, suffixLevelIds, modelGroups: null, activeGroup: null, activeLevel: null };
+  }
+  const modelGroups = reasoningModelGroups(models, suffixLevels);
+  const activeGroup = reasoningModelGroupFor(modelGroups, resolvedModel, suffixLevelIds);
+  const activeLevel = splitReasoningModelId(resolvedModel, suffixLevelIds).level;
+  return { suffixLevels, suffixLevelIds, modelGroups, activeGroup, activeLevel };
+}
+
+/** The effort options the reasoning dropdown offers for the resolved model. */
+function effortOptions({ flatReasoningOptions, activeGroup, models, resolvedModel }: {
+  flatReasoningOptions: readonly AgentModelOption[];
+  activeGroup: ReasoningModelGroup | null;
+  models: readonly AgentModelOption[];
+  resolvedModel: string;
+}): readonly AgentModelOption[] {
+  // Exactly one effort control, whichever shape declared it. `reasoningOptions` wins if a def ever
+  // declares both, rather than rendering two controls that disagree about where the choice lands.
+  if (flatReasoningOptions.length === 0) return activeGroup?.levels ?? [];
+  // Per-model narrowing: a runtime whose catalog reports reasoning levels PER MODEL rather than
+  // uniformly across the agent (Codex — see `AgentModelOption.reasoning`'s doc) declares them on the
+  // resolved model's own catalog row. `undefined` there means "this model's entry has nothing
+  // model-specific to say", so it falls back to the agent-wide union below — the same list every
+  // model rendered before this field existed. An explicit `[]` is honored AS-IS, even though a model
+  // with genuinely zero levels then hides the control: falling back to the union for `[]` too would
+  // just move today's "every model sees every level" bug one layer down instead of fixing it.
+  const selectedModelReasoning = models.find((model) => model.id === resolvedModel)?.reasoning;
+  return selectedModelReasoning === undefined ? flatReasoningOptions : selectedModelReasoning;
+}
+
+/** The value the reasoning select renders: the persisted / derived pick, or the first offered level
+ *  when that pick is not among the options. */
+function effortValue({ agent, config, flatReasoningOptions, activeLevel, reasoningOptions }: {
+  agent: DetectedAgent;
+  config: LocalCliConfig;
+  flatReasoningOptions: readonly AgentModelOption[];
+  activeLevel: string | null;
+  reasoningOptions: readonly AgentModelOption[];
+}): string {
+  const rawReasoningValue =
+    flatReasoningOptions.length > 0
+      ? selectedAgentReasoning(config, agent)
+      : (activeLevel ?? reasoningOptions[0]?.id ?? '');
+  // The persisted (or agent-wide-default) pick can name a level the narrowed list above does not
+  // actually offer for the CURRENT model — that is the whole point of narrowing. Rendering it anyway
+  // would just relocate today's bug: the `<select>` below has no matching `<option>`, so it would
+  // silently show whatever the browser highlights first while the underlying value stays wrong. This
+  // guards what actually renders; the effect further down clears the persisted copy so every other
+  // reader of `config.reasoningByAgentId` (not just this hook) sees the correction too.
+  const reasoningSupported = reasoningOptions.some((option) => option.id === rawReasoningValue);
+  return reasoningSupported ? rawReasoningValue : (reasoningOptions[0]?.id ?? '');
+}
+
+/** Whether the agent's persisted flat-reasoning pick names a level the current options no longer
+ *  offer, so the hook should ask the host to clear it. */
+function isStaleReasoningPick({ agent, config, flatReasoningOptions, reasoningOptions }: {
+  agent: DetectedAgent;
+  config: LocalCliConfig;
+  flatReasoningOptions: readonly AgentModelOption[];
+  reasoningOptions: readonly AgentModelOption[];
+}): boolean {
+  // The reasoningInModelId path has no reasoning value of its own to clear — the level lives
+  // inside the model id itself, and picking a new base model already replaces it.
+  if (flatReasoningOptions.length === 0) return false;
+  const persisted = config.reasoningByAgentId?.[agent.id]?.trim();
+  if (!persisted) return false;
+  return !reasoningOptions.some((option) => option.id === persisted);
+}
+
+/** The model select's value: the Custom sentinel, a suffix agent's base id, or the resolved model. */
+function modelSelectValue({ customActive, modelGroups, activeGroup, models, resolvedModel }: {
+  customActive: boolean;
+  modelGroups: readonly ReasoningModelGroup[] | null;
+  activeGroup: ReasoningModelGroup | null;
+  models: readonly AgentModelOption[];
+  resolvedModel: string;
+}): string {
+  if (customActive) return CUSTOM_MODEL_SENTINEL;
+  if (modelGroups) return activeGroup?.baseId ?? '';
+  // Persisted aliases stay known in the full catalog above, but the picker selects their concrete
+  // row. This is display-only: the saved model and dispatch resolution keep the operator's pick.
+  const selectedModel = models.find((model) => model.id === resolvedModel);
+  return selectedModel?.identityKind === 'alias' ? (selectedModel.resolvedId || resolvedModel) : resolvedModel;
+}
+
+/** Whether this agent takes a free-text model id at all, and whether the free-text box is open now. */
+function customModelState({ agent, modelGroups, models, resolvedModel, explicitCustomMode }: {
+  agent: DetectedAgent;
+  modelGroups: readonly ReasoningModelGroup[] | null;
+  models: readonly AgentModelOption[];
+  resolvedModel: string;
+  explicitCustomMode: boolean;
+}) {
+  // Adapters opt out via `supportsCustomModel: false` when their CLI has no
+  // free-text model flag, or validates the id against a live catalog and
+  // rejects unknown ones. `undefined` allows it, matching every adapter's
+  // default before this field existed.
+  const allowCustomModel = agent.supportsCustomModel !== false && modelGroups === null;
+  const knownModelIds = models.map((model) => model.id);
+  const customActive =
+    allowCustomModel && models.length > 0 && shouldShowCustomModelInput(resolvedModel, knownModelIds, explicitCustomMode);
+  return { allowCustomModel, knownModelIds, customActive };
 }

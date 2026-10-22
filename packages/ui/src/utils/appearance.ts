@@ -41,7 +41,7 @@ export function applyAppearanceToDocument({
     root.removeAttribute('data-theme');
   }
 
-  const vars = accentVars(resolveAccentColor(accentColor));
+  const vars = accentVars({ accentColor: resolveAccentColor({ value: accentColor }) });
   for (const name of Object.keys(vars) as (keyof typeof vars)[]) {
     root.style.setProperty(name, vars[name]);
   }

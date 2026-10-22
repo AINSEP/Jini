@@ -41,41 +41,41 @@ function makeFakeSignal(): { signal: AbortSignal; fire: (reason?: unknown) => vo
 
 describe('readPromptFromFlags', () => {
   it('returns --prompt verbatim when set', async () => {
-    const result = await readPromptFromFlags({ prompt: 'hello' });
+    const result = await readPromptFromFlags({ flags: { prompt: 'hello' } });
     expect(result).toBe('hello');
   });
 
   it('returns null when neither --prompt nor --prompt-file is set', async () => {
-    const result = await readPromptFromFlags({});
+    const result = await readPromptFromFlags({ flags: {} });
     expect(result).toBeNull();
   });
 
   it('returns null for an empty --prompt-file value', async () => {
-    const result = await readPromptFromFlags({ 'prompt-file': '' });
+    const result = await readPromptFromFlags({ flags: { 'prompt-file': '' } });
     expect(result).toBeNull();
   });
 
   it('reads from the injected readFile for a real path', async () => {
-    const readFile = async (path: string) => `contents of ${path}`;
-    const result = await readPromptFromFlags({ 'prompt-file': '/tmp/x.md' }, { readFile });
+    const readFile = async ({ path }: { path: string }) => `contents of ${path}`;
+    const result = await readPromptFromFlags({ flags: { 'prompt-file': '/tmp/x.md' } }, { readFile });
     expect(result).toBe('contents of /tmp/x.md');
   });
 
   it('reads from the injected readStdin for "-"', async () => {
     const readStdin = async () => 'stdin contents';
-    const result = await readPromptFromFlags({ 'prompt-file': '-' }, { readStdin });
+    const result = await readPromptFromFlags({ flags: { 'prompt-file': '-' } }, { readStdin });
     expect(result).toBe('stdin contents');
   });
 
   it('prefers --prompt over --prompt-file', async () => {
     const readFile = async () => 'should not be read';
-    const result = await readPromptFromFlags({ prompt: 'p', 'prompt-file': '/tmp/x.md' }, { readFile });
+    const result = await readPromptFromFlags({ flags: { prompt: 'p', 'prompt-file': '/tmp/x.md' } }, { readFile });
     expect(result).toBe('p');
   });
 
   it('treats an empty --prompt as unset and falls back to --prompt-file', async () => {
     const readFile = async () => 'from file';
-    const result = await readPromptFromFlags({ prompt: '', 'prompt-file': '/tmp/x.md' }, { readFile });
+    const result = await readPromptFromFlags({ flags: { prompt: '', 'prompt-file': '/tmp/x.md' } }, { readFile });
     expect(result).toBe('from file');
   });
 
@@ -87,7 +87,7 @@ describe('readPromptFromFlags', () => {
     const file = join(dir, 'prompt.txt');
     await writeFile(file, 'from real disk', 'utf8');
     try {
-      const result = await readPromptFromFlags({ 'prompt-file': file });
+      const result = await readPromptFromFlags({ flags: { 'prompt-file': file } });
       expect(result).toBe('from real disk');
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -103,7 +103,7 @@ describe('readPromptFromFlags', () => {
     const original = process.stdin;
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
-      const pending = readPromptFromFlags({ 'prompt-file': '-' });
+      const pending = readPromptFromFlags({ flags: { 'prompt-file': '-' } });
       fakeStdin.emit('data', 'piped ');
       fakeStdin.emit('data', 'in');
       fakeStdin.emit('end');
@@ -121,7 +121,7 @@ describe('readPromptFromFlags', () => {
     const file = join(dir, 'prompt.txt');
     await writeFile(file, 'this is way more than five bytes', 'utf8');
     try {
-      await expect(readPromptFromFlags({ 'prompt-file': file }, { maxBytes: 5 })).rejects.toThrow(
+      await expect(readPromptFromFlags({ flags: { 'prompt-file': file } }, { maxBytes: 5 })).rejects.toThrow(
         PayloadTooLargeError,
       );
     } finally {
@@ -139,7 +139,7 @@ describe('readPromptFromFlags', () => {
     try {
       const controller = new AbortController();
       controller.abort();
-      await expect(readPromptFromFlags({ 'prompt-file': file }, { signal: controller.signal })).rejects.toThrow();
+      await expect(readPromptFromFlags({ flags: { 'prompt-file': file } }, { signal: controller.signal })).rejects.toThrow();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -152,7 +152,7 @@ describe('readPromptFromFlags', () => {
     const original = process.stdin;
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
-      const pending = readPromptFromFlags({ 'prompt-file': '-' });
+      const pending = readPromptFromFlags({ flags: { 'prompt-file': '-' } });
       const streamError = new Error('EIO: real io error');
       fakeStdin.emit('error', streamError);
       await expect(pending).rejects.toBe(streamError);
@@ -170,7 +170,7 @@ describe('readPromptFromFlags', () => {
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
       const { signal, fire } = makeFakeSignal();
-      const pending = readPromptFromFlags({ 'prompt-file': '-' }, { signal });
+      const pending = readPromptFromFlags({ flags: { 'prompt-file': '-' } }, { signal });
       fakeStdin.emit('data', 'partial ');
       fire(undefined);
       await expect(pending).rejects.toThrow('stdin read aborted');
@@ -187,7 +187,7 @@ describe('readPromptFromFlags', () => {
     const original = process.stdin;
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
-      const pending = readPromptFromFlags({ 'prompt-file': '-' }, { maxBytes: 5 });
+      const pending = readPromptFromFlags({ flags: { 'prompt-file': '-' } }, { maxBytes: 5 });
       fakeStdin.emit('data', 'way more than five bytes');
       await expect(pending).rejects.toThrow(PayloadTooLargeError);
     } finally {
@@ -204,7 +204,7 @@ describe('readPromptFromFlags', () => {
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
       const controller = new AbortController();
-      const pending = readPromptFromFlags({ 'prompt-file': '-' }, { signal: controller.signal });
+      const pending = readPromptFromFlags({ flags: { 'prompt-file': '-' } }, { signal: controller.signal });
       fakeStdin.emit('data', 'partial ');
       controller.abort();
       await expect(pending).rejects.toThrow();
@@ -225,7 +225,7 @@ describe('readPromptFromFlags', () => {
       const controller = new AbortController();
       const abortError = new Error('aborted before start');
       controller.abort(abortError);
-      await expect(readPromptFromFlags({ 'prompt-file': '-' }, { signal: controller.signal })).rejects.toBe(abortError);
+      await expect(readPromptFromFlags({ flags: { 'prompt-file': '-' } }, { signal: controller.signal })).rejects.toBe(abortError);
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });
     }
@@ -247,7 +247,7 @@ describe('readPromptFromFlags', () => {
       // true`, which the real class never produces but the type itself doesn't forbid. A minimal
       // fake signal proves that fallback for real instead of leaving it untested.
       const fakeSignal = { aborted: true, reason: undefined } as unknown as AbortSignal;
-      await expect(readPromptFromFlags({ 'prompt-file': '-' }, { signal: fakeSignal })).rejects.toThrow(
+      await expect(readPromptFromFlags({ flags: { 'prompt-file': '-' } }, { signal: fakeSignal })).rejects.toThrow(
         'stdin read aborted',
       );
     } finally {
@@ -258,42 +258,42 @@ describe('readPromptFromFlags', () => {
 
 describe('readBodyFromFlags', () => {
   it('returns --body verbatim when set', async () => {
-    const result = await readBodyFromFlags({ body: 'hello' });
+    const result = await readBodyFromFlags({ flags: { body: 'hello' } });
     expect(result).toBe('hello');
   });
 
   it('treats an empty --body as provided (unlike readPromptFromFlags), short-circuiting before --body-file', async () => {
     const readFile = async () => 'should not be read';
-    const result = await readBodyFromFlags({ body: '', 'body-file': '/tmp/x.md' }, { readFile });
+    const result = await readBodyFromFlags({ flags: { body: '', 'body-file': '/tmp/x.md' } }, { readFile });
     expect(result).toBe('');
   });
 
   it('returns undefined when neither --body nor --body-file is set', async () => {
-    const result = await readBodyFromFlags({});
+    const result = await readBodyFromFlags({ flags: {} });
     expect(result).toBeUndefined();
   });
 
   it('reads from the injected readFile for a real path', async () => {
-    const readFile = async (path: string) => `contents of ${path}`;
-    const result = await readBodyFromFlags({ 'body-file': '/tmp/x.md' }, { readFile });
+    const readFile = async ({ path }: { path: string }) => `contents of ${path}`;
+    const result = await readBodyFromFlags({ flags: { 'body-file': '/tmp/x.md' } }, { readFile });
     expect(result).toBe('contents of /tmp/x.md');
   });
 
   it('reads an empty --body-file path via the injected readFile (no early return, unlike prompt)', async () => {
-    const readFile = async (path: string) => `contents of "${path}"`;
-    const result = await readBodyFromFlags({ 'body-file': '' }, { readFile });
+    const readFile = async ({ path }: { path: string }) => `contents of "${path}"`;
+    const result = await readBodyFromFlags({ flags: { 'body-file': '' } }, { readFile });
     expect(result).toBe('contents of ""');
   });
 
   it('reads from the injected readStdin for "-"', async () => {
     const readStdin = async () => 'stdin contents';
-    const result = await readBodyFromFlags({ 'body-file': '-' }, { readStdin });
+    const result = await readBodyFromFlags({ flags: { 'body-file': '-' } }, { readStdin });
     expect(result).toBe('stdin contents');
   });
 
   it('prefers --body over --body-file', async () => {
     const readFile = async () => 'should not be read';
-    const result = await readBodyFromFlags({ body: 'b', 'body-file': '/tmp/x.md' }, { readFile });
+    const result = await readBodyFromFlags({ flags: { body: 'b', 'body-file': '/tmp/x.md' } }, { readFile });
     expect(result).toBe('b');
   });
 
@@ -305,7 +305,7 @@ describe('readBodyFromFlags', () => {
     const file = join(dir, 'body.txt');
     await writeFile(file, 'from real disk', 'utf8');
     try {
-      const result = await readBodyFromFlags({ 'body-file': file });
+      const result = await readBodyFromFlags({ flags: { 'body-file': file } });
       expect(result).toBe('from real disk');
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -324,7 +324,7 @@ describe('readBodyFromFlags', () => {
     const original = process.stdin;
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
-      const result = await readBodyFromFlags({ 'body-file': '-' });
+      const result = await readBodyFromFlags({ flags: { 'body-file': '-' } });
       expect(result).toBe('piped in');
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });
@@ -339,7 +339,7 @@ describe('readBodyFromFlags', () => {
     const file = join(dir, 'body.txt');
     await writeFile(file, 'this is way more than five bytes', 'utf8');
     try {
-      await expect(readBodyFromFlags({ 'body-file': file }, { maxBytes: 5 })).rejects.toThrow(PayloadTooLargeError);
+      await expect(readBodyFromFlags({ flags: { 'body-file': file } }, { maxBytes: 5 })).rejects.toThrow(PayloadTooLargeError);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -356,7 +356,7 @@ describe('readBodyFromFlags', () => {
     const original = process.stdin;
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
-      await expect(readBodyFromFlags({ 'body-file': '-' }, { maxBytes: 5 })).rejects.toThrow(PayloadTooLargeError);
+      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { maxBytes: 5 })).rejects.toThrow(PayloadTooLargeError);
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });
     }
@@ -375,7 +375,7 @@ describe('readBodyFromFlags', () => {
     try {
       const controller = new AbortController();
       controller.abort();
-      await expect(readBodyFromFlags({ 'body-file': '-' }, { signal: controller.signal })).rejects.toThrow();
+      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal })).rejects.toThrow();
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });
     }
@@ -398,7 +398,7 @@ describe('readBodyFromFlags', () => {
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
       const { signal, fire } = makeFakeSignal();
-      const pending = readBodyFromFlags({ 'body-file': '-' }, { signal });
+      const pending = readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal });
       // Let the first chunk flow through the async iterator before the generator parks on the
       // controlled promise (proves the "not yet aborted" path ran for real, not just abort-before-start).
       await new Promise((r) => setTimeout(r, 0));
@@ -421,7 +421,7 @@ describe('readBodyFromFlags', () => {
     const original = process.stdin;
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true });
     try {
-      const result = await readBodyFromFlags({ 'body-file': '-' });
+      const result = await readBodyFromFlags({ flags: { 'body-file': '-' } });
       expect(result).toBe('buffered bytes');
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });

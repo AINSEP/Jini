@@ -4,8 +4,8 @@ import { createCopilotStreamHandler } from '../copilot-stream.js';
 /** Synthetic trace shaped like GitHub Copilot CLI's `--output-format json`; see `claude-stream.test.ts` for the network-access caveat. */
 function feed(lines: unknown[]) {
   const events: Record<string, unknown>[] = [];
-  const handler = createCopilotStreamHandler((event) => events.push(event));
-  for (const line of lines) handler.feed(`${JSON.stringify(line)}\n`);
+  const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+  for (const line of lines) handler.feed({ chunk: `${JSON.stringify(line)}\n` });
   handler.flush();
   return events;
 }
@@ -39,39 +39,39 @@ describe('createCopilotStreamHandler', () => {
 
   it('emits a raw event for malformed JSON instead of throwing', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    expect(() => handler.feed('{unterminated\n')).not.toThrow();
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    expect(() => handler.feed({ chunk: '{unterminated\n' })).not.toThrow();
     expect(events).toEqual([{ type: 'raw', line: '{unterminated' }]);
   });
 
   it('flush() processes a final line with no trailing newline', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed(JSON.stringify({ type: 'assistant.turn_start', data: {} }));
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: JSON.stringify({ type: 'assistant.turn_start', data: {} }) });
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'streaming' }]);
   });
 
   it('ignores blank lines between records', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed('\n\n');
-    handler.feed(`${JSON.stringify({ type: 'assistant.turn_start', data: {} })}\n`);
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '\n\n' });
+    handler.feed({ chunk: `${JSON.stringify({ type: 'assistant.turn_start', data: {} })}\n` });
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'streaming' }]);
   });
 
   it('flush() is a no-op when the buffer is empty', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
     handler.flush();
     expect(events).toEqual([]);
   });
 
   it('flush() emits a raw event for a malformed trailing line', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed('{still not json');
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '{still not json' });
     handler.flush();
     expect(events).toEqual([{ type: 'raw', line: '{still not json' }]);
   });
@@ -83,8 +83,8 @@ describe('createCopilotStreamHandler', () => {
 
   it('ignores a top-level JSON value that is not a record (e.g. a bare number)', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createCopilotStreamHandler((event) => events.push(event));
-    handler.feed('42\n');
+    const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '42\n' });
     handler.flush();
     expect(events).toEqual([]);
   });
@@ -159,6 +159,58 @@ describe('createCopilotStreamHandler', () => {
     it('JSON-stringifies a non-record, non-string, non-null result (e.g. a number)', () => {
       const events = feed([{ type: 'tool.execution_complete', data: { toolCallId: 'c', result: 7 } }]);
       expect(events[0]).toMatchObject({ content: '7' });
+    });
+  });
+
+  describe('characterization (pinned before the complexity refactor)', () => {
+    it('reports completed for exitCode 0 without a success flag', () => {
+      expect(feed([{ type: 'result', exitCode: 0 }])).toEqual([{ type: 'usage', usage: null, stopReason: 'completed', durationMs: null }]);
+    });
+
+    it('reports error for a string "0" exitCode and success other than true', () => {
+      expect(feed([{ type: 'result', exitCode: '0', success: 'true' }])[0]).toMatchObject({ stopReason: 'error' });
+    });
+
+    it('passes a non-record usage through and reports a null duration', () => {
+      expect(feed([{ type: 'result', usage: 5, success: true }])).toEqual([{ type: 'usage', usage: 5, stopReason: 'completed', durationMs: null }]);
+    });
+
+    it('treats a non-record data payload as empty', () => {
+      expect(feed([{ type: 'tool.execution_start', data: ['call_1'] }])).toEqual([{ type: 'tool_use', id: null, name: null, input: null }]);
+    });
+
+    it('reports isError only for success === false', () => {
+      expect(feed([{ type: 'tool.execution_complete', data: { result: 'x' } }])).toEqual([{ type: 'tool_result', toolUseId: null, content: 'x', isError: false }]);
+    });
+
+    it('skips session.tools_updated with a falsy model', () => {
+      expect(feed([{ type: 'session.tools_updated', data: { model: '' } }])).toEqual([]);
+    });
+
+    it('ignores prototype-named event types', () => {
+      expect(feed([{ type: 'constructor' }, { type: 'toString' }, { type: '__proto__' }])).toEqual([]);
+    });
+
+    it('reassembles a record split across chunks and handles several records and CRLF in one chunk', () => {
+      const events: unknown[] = [];
+      const handler = createCopilotStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: '{"type":"assistant.turn_' });
+      handler.feed({ chunk: 'start"}\r\n{"type":"assistant.message_delta","data":{"deltaContent":"a"}}\n' });
+      expect(events).toEqual([{ type: 'status', label: 'streaming' }, { type: 'text_delta', delta: 'a' }]);
+    });
+
+    it('lets an onEvent exception escape from feed()', () => {
+      const handler = createCopilotStreamHandler({ onEvent: () => { throw new Error('sink failed'); } });
+      expect(() => handler.feed({ chunk: '{"type":"assistant.turn_start"}\n' })).toThrow('sink failed');
+    });
+
+    it('re-emits the flushed line as raw when onEvent throws while flushing a valid record (reported, not fixed)', () => {
+      const events: unknown[] = [];
+      let calls = 0;
+      const handler = createCopilotStreamHandler({ onEvent: (event) => { calls += 1; if (calls === 1) throw new Error('sink failed'); events.push(event); } });
+      handler.feed({ chunk: '{"type":"assistant.turn_start"}' });
+      handler.flush();
+      expect(events).toEqual([{ type: 'raw', line: '{"type":"assistant.turn_start"}' }]);
     });
   });
 });

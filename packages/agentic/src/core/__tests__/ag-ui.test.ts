@@ -10,13 +10,13 @@ import {
 
 // PAGE_CAPABILITIES alone already has multiple entries, which is all "projects a whole manifest
 // in order" below needs — this package ships no product-specific manifest of its own to combine
-// it with (chat-core's CHAT_CAPABILITIES stays in chat-core; see source-map.md's "What moves").
+// it with (chat-core's CHAT_CAPABILITIES stays in chat-core; see archived provenance ledger's "What moves").
 const ALL = PAGE_CAPABILITIES;
 const HIGHLIGHT = PAGE_CAPABILITIES.find((c) => c.id === 'page.highlight')!;
 
 describe('ag-ui projection', () => {
   it('renames the schema field to `parameters`', () => {
-    const tool = toAgUiTool(HIGHLIGHT);
+    const tool = toAgUiTool({ capability: HIGHLIGHT });
     expect(tool.name).toBe('page.highlight');
     expect(tool.parameters).toBe(HIGHLIGHT.inputSchema);
     // The bug this guards: reading a manifest through the wrong field name sends a tool with
@@ -25,7 +25,7 @@ describe('ag-ui projection', () => {
   });
 
   it('projects a whole manifest in order', () => {
-    expect(toAgUiTools(ALL).map((t) => t.name)).toEqual(ALL.map((c) => c.id));
+    expect(toAgUiTools({ capabilities: ALL }).map((t) => t.name)).toEqual(ALL.map((c) => c.id));
   });
 
   it('names the streaming tool-call events', () => {
@@ -37,7 +37,7 @@ describe('ag-ui projection', () => {
   });
 
   it('encodes a successful result as a role:"tool" message referencing the call', () => {
-    const message = createAgUiToolResult('m1', 'call-1', { ok: true, output: { found: 3 } });
+    const message = createAgUiToolResult({ messageId: 'm1', toolCallId: 'call-1', outcome: { ok: true, output: { found: 3 } } });
     expect(message).toEqual({
       id: 'm1',
       role: 'tool',
@@ -47,16 +47,16 @@ describe('ag-ui projection', () => {
   });
 
   it('passes string output through without double-encoding it', () => {
-    expect(createAgUiToolResult('m2', 'c2', { ok: true, output: 'done' }).content).toBe('done');
+    expect(createAgUiToolResult({ messageId: 'm2', toolCallId: 'c2', outcome: { ok: true, output: 'done' } }).content).toBe('done');
   });
 
   it('returns a refusal as a result rather than losing it', () => {
     // A guard saying no is information the agent must be able to reason about, not an
     // exception that disappears into a transport.
-    const message = createAgUiToolResult('m3', 'c3', {
+    const message = createAgUiToolResult({ messageId: 'm3', toolCallId: 'c3', outcome: {
       ok: false,
       error: 'this field holds a credential or payment instrument',
-    });
+    } });
     expect(message.role).toBe('tool');
     expect(JSON.parse(message.content)).toEqual({
       error: 'this field holds a credential or payment instrument',
@@ -64,7 +64,7 @@ describe('ag-ui projection', () => {
   });
 
   it('encodes undefined output as null rather than dropping the field', () => {
-    expect(createAgUiToolResult('m4', 'c4', { ok: true, output: undefined }).content).toBe('null');
+    expect(createAgUiToolResult({ messageId: 'm4', toolCallId: 'c4', outcome: { ok: true, output: undefined } }).content).toBe('null');
   });
 
   // Regression (2026-07-29 audit). `content` is declared `string`, and a capability's `output` is
@@ -74,7 +74,7 @@ describe('ag-ui projection', () => {
   // landed on the transport rather than reaching the agent as a result it could reason about.
   describe('output JSON.stringify cannot represent', () => {
     it('reports a BigInt as a serialization failure instead of throwing', () => {
-      const message = createAgUiToolResult('m5', 'c5', { ok: true, output: { balance: 1n } });
+      const message = createAgUiToolResult({ messageId: 'm5', toolCallId: 'c5', outcome: { ok: true, output: { balance: 1n } } });
       expect(typeof message.content).toBe('string');
       expect(JSON.parse(message.content)).toMatchObject({ error: expect.stringContaining('could not be encoded') });
     });
@@ -82,7 +82,7 @@ describe('ag-ui projection', () => {
     it('reports a circular structure the same way', () => {
       const circular: Record<string, unknown> = { name: 'loop' };
       circular.self = circular;
-      const message = createAgUiToolResult('m6', 'c6', { ok: true, output: circular });
+      const message = createAgUiToolResult({ messageId: 'm6', toolCallId: 'c6', outcome: { ok: true, output: circular } });
       expect(typeof message.content).toBe('string');
       expect(JSON.parse(message.content)).toMatchObject({ error: expect.stringContaining('could not be encoded') });
     });
@@ -90,18 +90,18 @@ describe('ag-ui projection', () => {
     it('reports a non-Error thrown out of a custom toJSON without crashing on it either', () => {
       // `JSON.stringify` calls `toJSON()` if the value has one, and host code can throw anything
       // from it — the reason this catch does not assume it caught an `Error`.
-      const message = createAgUiToolResult('m9', 'c9', {
+      const message = createAgUiToolResult({ messageId: 'm9', toolCallId: 'c9', outcome: {
         ok: true,
         output: { toJSON() { throw 'just a string'; } },
-      });
+      } });
       expect(JSON.parse(message.content)).toMatchObject({ error: expect.stringContaining('just a string') });
     });
 
     it('encodes a function or symbol output as null rather than as literal undefined', () => {
       // `JSON.stringify(() => 1)` is `undefined`, not a string — `content` was genuinely
       // `undefined` here despite its declared type.
-      expect(createAgUiToolResult('m7', 'c7', { ok: true, output: () => 1 }).content).toBe('null');
-      expect(createAgUiToolResult('m8', 'c8', { ok: true, output: Symbol('x') }).content).toBe('null');
+      expect(createAgUiToolResult({ messageId: 'm7', toolCallId: 'c7', outcome: { ok: true, output: () => 1 } }).content).toBe('null');
+      expect(createAgUiToolResult({ messageId: 'm8', toolCallId: 'c8', outcome: { ok: true, output: Symbol('x') } }).content).toBe('null');
     });
   });
 });

@@ -5,26 +5,14 @@ import type {
   TabStripTab,
 } from './types.js';
 
-/**
- * Which edge of `rect` a pointer at `pointerX` lands on. Ported from
- * `WorkspaceTabsBar.tsx`'s `tabDropEdgeFromElement` and
- * `FileWorkspace.tsx`'s `tabDropEdgeFromEvent` — both compute this exact
- * "left half vs right half of the target's bounding rect" split, just
- * against a `DragEvent` directly rather than a plain `clientX` number. The
- * pure form here takes the already-extracted `clientX`/rect so it needs no
- * DOM/event types.
- */
+/** Compare the pointer with the target rectangle's midpoint. Plain coordinates keep this rule
+ * independent of DOM/event types. */
 export function dropEdgeFromPointerX(pointerX: number, rect: Pick<TabStripElementRect, 'left' | 'width'>): TabStripDropEdge {
   return pointerX > rect.left + rect.width / 2 ? 'after' : 'before';
 }
 
-/**
- * Coerces a drop target that would place a tab before a pinned tab into
- * landing after it instead — pinned tabs always stay leftmost. Generalizes
- * `WorkspaceTabsBar.tsx`'s `findTabDropTarget`'s `resolveTarget` closure
- * (there hardcoded to the single entry tab; here driven by the host-
- * supplied `pinned` field on any number of tabs).
- */
+/** Land after a pinned target even when its left half was hit; pinned tabs must stay leftmost.
+ * Hosts supply the pinned ids, so the rule does not assume one special entry tab. */
 export function coercePinnedDropTarget(
   target: TabStripDragTarget,
   pinnedTabIds: ReadonlySet<string>,
@@ -63,7 +51,6 @@ export function reorderTabIds(
   return arraysEqual(nextIds, tabIds) ? original : nextIds;
 }
 
-/** Ported verbatim (both files have an identical helper under this name). */
 export function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((value, index) => value === b[index]);

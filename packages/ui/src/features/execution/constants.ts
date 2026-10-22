@@ -1,12 +1,11 @@
 import type { AgentCliEnvFieldSpec, ApiProtocol, ProviderPreset } from './types.js';
 
-/** Fallback endpoint per protocol, used when a host supplies no preset and
- *  the operator has not typed a base URL. Origin: `DEFAULT_BASE_URL_BY_PROTOCOL`. */
+/** @deprecated Endpoints come from host presets. Blank means the operator must supply an endpoint. */
 export const DEFAULT_BASE_URL_BY_PROTOCOL: Readonly<Record<ApiProtocol, string>> = {
-  anthropic: 'https://api.anthropic.com',
-  openai: 'https://api.openai.com/v1',
+  anthropic: '',
+  openai: '',
   azure: '',
-  google: 'https://generativelanguage.googleapis.com',
+  google: '',
 };
 
 /** Display order and English labels for the protocol row. Values are i18n
@@ -30,8 +29,8 @@ export const CUSTOM_MODEL_SENTINEL = '__custom__';
 /**
  * The shortest string `apiKeyFormatWarning` will let pass without remark.
  *
- * Chosen from evidence rather than taste. The shortest real key shape any preset in
- * {@link DEFAULT_PROVIDER_PRESETS} describes is Azure OpenAI's bare 32-character hex string;
+ * Chosen from evidence rather than taste. The shortest real key shape in the integrations
+ * starter presets is Azure OpenAI's bare 32-character hex string;
  * Google's is `AIza` + 35 = 39, OpenAI's `sk-` + 48 = 51, OpenRouter's `sk-or-v1-` + 64 = 73, and
  * Anthropic's longer again. 20 therefore sits 12 characters below that floor, so no credential this
  * catalog knows about can trip it, while it still catches the failure the check exists for: the
@@ -62,91 +61,8 @@ export const API_KEY_CROSS_VENDOR_WARNING =
 export const API_KEY_TOO_SHORT_WARNING =
   'This is shorter than any provider API key — check that the whole key was pasted. You can still save and test it.';
 
-/**
- * A small, vendor-shaped starting catalog. Deliberately NOT the origin's full
- * ~30-entry list: that list is hand-curated product content that goes stale,
- * and this package's rule for tables like this (see `LanguageTab`) is that the
- * host owns them. Pass your own `presets` to replace this wholesale.
- */
-export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
-  {
-    id: 'anthropic',
-    title: 'Anthropic',
-    protocol: 'anthropic',
-    baseUrl: 'https://api.anthropic.com',
-    preferredModels: ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'],
-    kind: 'protocol',
-    apiKeyPrefix: 'sk-ant-',
-  },
-  {
-    id: 'openai',
-    title: 'OpenAI',
-    protocol: 'openai',
-    baseUrl: 'https://api.openai.com/v1',
-    // `gpt-4o`/`gpt-4o-mini`/`o3`/`o4-mini` are stale: OpenAI's GPT-5.6 family
-    // (released 2026-07-09, per the API changelog) replaced the old
-    // flagship/mini/nano naming with named tiers — sol/terra/luna. `sol` is
-    // the one the changelog and pricing docs call out as "recommended for
-    // production API usage", so it leads (see `preferredModels[0]` default
-    // in `rules.ts`) rather than the newer, pricier `gpt-6-astra` flagship
-    // (released 2026-09-03) — picking that as the silent default would jump
-    // an existing user's cost without them choosing it.
-    preferredModels: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
-    kind: 'protocol',
-    apiKeyPrefix: 'sk-',
-  },
-  {
-    id: 'azure-openai',
-    title: 'Azure OpenAI',
-    protocol: 'azure',
-    baseUrl: '',
-    preferredModels: [],
-    kind: 'protocol',
-    // No `apiKeyPrefix` deliberately: an Azure OpenAI key is a bare hex string with no vendor
-    // prefix, so any value here would be a guess — and a wrong prefix claim does not merely stay
-    // silent, it lets some OTHER vendor's valid key be announced as Azure's. Its 32 hex characters
-    // are also the shortest real key shape in this catalog, which is what sets
-    // `MIN_PLAUSIBLE_API_KEY_LENGTH`.
-  },
-  {
-    id: 'google-gemini',
-    title: 'Google Gemini',
-    protocol: 'google',
-    baseUrl: 'https://generativelanguage.googleapis.com',
-    // Ordered newest-first: `rules.ts`'s `saved?.model ?? preset.preferredModels[0]` makes entry [0]
-    // the default for anyone who has never picked a model, so a stale head silently pins new users
-    // to an old generation. Reported live: the field defaulted to `gemini-2.5-flash` while the
-    // operator was actually running `gemini-3.6-flash`. This list is only a FALLBACK — the form
-    // prefers live `listModels` discovery and drops back here when that call fails.
-    preferredModels: ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],
-    kind: 'protocol',
-    // `AIza` + 35 characters is the classic Google key shape, and it is recorded here so a key of
-    // this shape is recognised as GOOGLE'S when it turns up in some other provider's field.
-    // Emphatically not a test that a Google key must look like this: an operator pasted a real,
-    // working Gemini key in a newer shape and the old allowlist told them it was not a Google key.
-    apiKeyPrefix: 'AIza',
-  },
-  {
-    id: 'openrouter',
-    title: 'OpenRouter',
-    protocol: 'openai',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    preferredModels: ['anthropic/claude-sonnet-5', 'google/gemini-2.5-pro', 'openai/gpt-5.6-sol'],
-    kind: 'gateway',
-    // Longer than OpenAI's `sk-`, and deliberately so: `apiKeyFormatWarning` resolves a key to the
-    // MOST specific prefix that claims it, so `sk-or-v1-…` is attributed here rather than to OpenAI.
-    apiKeyPrefix: 'sk-or-',
-  },
-  {
-    id: 'ollama',
-    title: 'Ollama',
-    protocol: 'openai',
-    baseUrl: 'http://localhost:11434/v1',
-    preferredModels: [],
-    kind: 'gateway',
-    requiresApiKey: false,
-  },
-];
+/** @deprecated Supply host presets. The former starter set is exported by integrations/media-providers/catalog. */
+export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [];
 
 /**
  * One-line descriptions for the code-agent CLIs this package knows about,

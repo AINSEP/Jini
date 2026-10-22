@@ -1,3 +1,6 @@
+import { createElement, type ReactNode } from 'react';
+import { MemoryPortsProvider } from '../../../react/MemoryPorts.js';
+import { memoryConfigPort as hostConfig, memoryEntriesPort as hostEntries, memoryExtractionsPort as hostExtractions, memoryConnectorsPort as hostConnectors } from '../../../dependencies.js';
 // Unit tests for the saved-memories hook. Transport is a hand-written fake
 // port (never global `fetch` mocking); runtime coordination (flash pill,
 // config hydrate, editor open/close) is a set of spies, so we assert the
@@ -1089,7 +1092,7 @@ describe('useWiredMemoryEntries', () => {
     const fetchMemoryTree = vi.spyOn(memoryEntriesPort, 'fetchMemoryTree').mockResolvedValue([]);
     const coord = makeCoord();
 
-    const { result } = renderHook(() => useWiredMemoryEntries(coord));
+    const { result } = renderHook(() => useWiredMemoryEntries(coord), { wrapper: ({ children }: { children: ReactNode }) => createElement(MemoryPortsProvider, { ports: { config: hostConfig, entries: hostEntries, extractions: hostExtractions, connectors: hostConnectors }, children }) });
     await act(async () => {
       await result.current.reload();
     });

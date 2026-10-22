@@ -17,13 +17,12 @@
  * session) — this script never handles login.
  */
 import { execFileSync } from 'node:child_process';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computeClosure, discoverJiniPackages } from './lib/pack-jini-packages.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
-const packagesDir = join(repoRoot, 'packages');
 
 function parseOnlyFlag(argv: readonly string[]): string[] | null {
   const idx = argv.indexOf('--only');
@@ -51,18 +50,19 @@ function isVersionAlreadyPublished(name: string, version: string): boolean {
 
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
-  const registry = discoverJiniPackages(packagesDir);
+  const registry = discoverJiniPackages(repoRoot);
 
   const onlyShortNames = parseOnlyFlag(process.argv.slice(2));
   const rootNames = onlyShortNames
     ? onlyShortNames.map((short) => {
         const full = `@jini-ai/${short}`;
-        if (!registry.has(full)) throw new Error(`publish-all: "${short}" (${full}) is not a real package under packages/*`);
+        if (!registry.has(full)) throw new Error(`publish-all: "${short}" (${full}) is not a real workspace package`);
         return full;
       })
     : [...registry.keys()];
 
-  const closure = computeClosure(registry, rootNames);
+  // `pnpm publish` refuses a private package outright, so one in the closure would end the run.
+  const closure = computeClosure(registry, rootNames).filter((name) => registry.get(name)!.pkg.private !== true);
 
   try {
     execFileSync('npm', ['whoami'], { stdio: 'pipe' });

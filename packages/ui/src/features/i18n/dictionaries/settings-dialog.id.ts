@@ -16,12 +16,16 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_ID: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Saya menghapus teks yang tampak seperti kunci dari pesan Anda. Jika itu kunci asli, gantilah. Gunakan formulir aman untuk menyimpannya.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Gunakan formulir aman untuk menyimpan kunci, token, kata sandi, dan rahasia. Jawaban chat dikirim ke asisten.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# Skill saya\n\n1. Jelaskan alur kerjanya.\n2. Jelaskan input dan outputnya.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'Penggantian jalur kustom tidak berhasil, jadi ini menggunakan biner yang terdeteksi otomatis sebagai gantinya.',
   'API key': 'Kunci API',
   'About': 'Tentang',
   'Accent color': 'Warna aksen',
   'Account': 'Akun',
+  'Advanced': 'Lanjutan',
   'Advanced: proxy & custom paths': 'Lanjutan: proxy & jalur kustom',
   'Agent check failed': 'Pemeriksaan agen gagal',
   'Agent is ready.': 'Agen sudah siap.',
@@ -65,8 +69,8 @@ export const SETTINGS_DIALOG_ID: SettingsDialogDict = {
   'Copy': 'Salin',
   'Copy to clipboard': 'Salin ke clipboard',
   'Could not load live models: {message}': 'Tidak dapat memuat model live: {message}',
-  'No API key — connection test needs the key from this browser.': 'Tidak ada kunci API — uji koneksi memerlukan kunci dari browser ini.',
-  'No API key — model discovery needs the key from this browser.': 'Tidak ada kunci API — penemuan model memerlukan kunci dari browser ini.',
+  'No API key saved. Save one to test the connection.': 'Belum ada kunci API yang disimpan. Simpan kunci untuk menguji koneksi.',
+  'No API key saved. Save one to load models.': 'Belum ada kunci API yang disimpan. Simpan kunci untuk memuat model.',
   'Could not load skills: {error}': 'Tidak dapat memuat skill: {error}',
   'Could not reach the daemon: {error}': 'Tidak dapat menjangkau daemon: {error}',
   'Could not reach the server. Showing local changes only.': 'Tidak dapat menjangkau server. Hanya menampilkan perubahan lokal.',
@@ -146,6 +150,9 @@ export const SETTINGS_DIALOG_ID: SettingsDialogDict = {
   'Not available for this daemon.': 'Tidak tersedia untuk daemon ini.',
   'Not configured': 'Belum dikonfigurasi',
   'Not installed': 'Belum terinstal',
+  'Show {count} not installed': 'Tampilkan {count} yang belum terinstal',
+  'Hide not installed': 'Sembunyikan yang belum terinstal',
+  'Show not-installed CLIs': 'Tampilkan CLI yang belum terinstal',
   'Not sharing': 'Tidak dibagikan',
   'Nothing is shared unless you opt in.': 'Tidak ada yang dibagikan kecuali Anda memilih untuk mengikutinya.',
   'Off': 'Nonaktif',

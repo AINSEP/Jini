@@ -54,6 +54,6 @@ export interface AdminExtensionEnabledResult {
 }
 
 export interface AdminExtensionsPort {
-  listPlugins(): Promise<readonly AdminPlugin[]>;
-  setPluginEnabled(id: string, input: { enabled: boolean }): Promise<AdminExtensionEnabledResult>;
+  listPlugins(requiredArgs: Record<string, never>): Promise<readonly AdminPlugin[]>;
+  setPluginEnabled(requiredArgs: { id: string; enabled: boolean }): Promise<AdminExtensionEnabledResult>;
 }

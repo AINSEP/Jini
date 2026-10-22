@@ -359,3 +359,62 @@ describe('VersionManagerModal with useVersionManager hook override', () => {
     expect(mockRestore).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('VersionManagerModal metadata characterization (L204)', () => {
+  it('uses the file name and disables prompt with no selected version', async () => {
+    const dependencies = createDeps({ versions: [] });
+    render(
+      <VersionManagerModal fileRef={FILE_REF} currentContent={null} onClose={vi.fn()} onRestored={vi.fn()} dependencies={dependencies} />,
+    );
+    await waitFor(() => expect(screen.getByText('0 versions')).toBeInTheDocument());
+    expect(screen.getByText(FILE_REF.name)).toHaveClass('jini-version-selected-date');
+    expect(screen.getByRole('button', { name: 'Prompt' })).toBeDisabled();
+    expect(screen.queryByText('Current')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Restore this version' })).not.toBeInTheDocument();
+  });
+
+  it.each([null, undefined, '   '])('shows the empty-prompt message for prompt %s', async (prompt) => {
+    const version = makeVersion({ id: 'v1', version: 1, current: true, prompt });
+    const dependencies = createDeps({ versions: [version] });
+    render(
+      <VersionManagerModal fileRef={FILE_REF} currentContent="body" onClose={vi.fn()} onRestored={vi.fn()} dependencies={dependencies} />,
+    );
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Prompt' })).toBeEnabled());
+    await userEvent.click(screen.getByRole('button', { name: 'Prompt' }));
+    expect(within(screen.getByRole('region')).getByText('This version has no recorded prompt.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeDisabled();
+  });
+
+  it('updates current, source and restored-from badges when selection changes', async () => {
+    const original = makeVersion({ id: 'original', version: 1, source: 'manual', label: 'Original draft' });
+    const restored = makeVersion({ id: 'restored', version: 2, source: 'restore', current: true, restoreFromVersionId: original.id });
+    const dependencies = createDeps({ versions: [original, restored], content: new Map([[original.id, 'original body']]) });
+    const { container } = render(
+      <VersionManagerModal fileRef={FILE_REF} currentContent="restored body" onClose={vi.fn()} onRestored={vi.fn()} dependencies={dependencies} />,
+    );
+    // The portal is rendered into document.body, outside the render container.
+    expect(container).toBeEmptyDOMElement();
+    const metadata = document.querySelector('.jini-version-meta');
+    if (!(metadata instanceof HTMLElement)) throw new Error('Missing modal metadata');
+    await waitFor(() => expect(within(metadata).getByText('Current')).toBeInTheDocument());
+    expect(within(metadata).getByText('Restored from v1')).toBeInTheDocument();
+    expect(within(metadata).getByText('Restored')).toHaveClass('restore');
+    await userEvent.click(screen.getByText('Original draft'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Restore this version' })).toBeEnabled());
+    expect(within(metadata).queryByText('Current')).not.toBeInTheDocument();
+    expect(within(metadata).queryByText('Restored from v1')).not.toBeInTheDocument();
+    expect(within(metadata).getByText('Manual')).toHaveClass('manual');
+  });
+
+  it('omits a restored-from badge if the referenced version is absent', async () => {
+    const version = makeVersion({ id: 'v2', version: 2, current: true, source: 'restore', restoreFromVersionId: 'missing' });
+    const dependencies = createDeps({ versions: [version] });
+    render(
+      <VersionManagerModal fileRef={FILE_REF} currentContent="body" onClose={vi.fn()} onRestored={vi.fn()} dependencies={dependencies} />,
+    );
+    await waitFor(() => expect(screen.getByText('1 version')).toBeInTheDocument());
+    // The list resolves before the selected version's cached content populates the preview.
+    expect(await screen.findByTitle(`${FILE_REF.name} · v2`)).toBeInTheDocument();
+    expect(screen.queryByText(/Restored from v/)).not.toBeInTheDocument();
+  });
+});

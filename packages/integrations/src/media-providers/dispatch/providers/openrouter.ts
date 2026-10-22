@@ -4,7 +4,7 @@
  * `modalities: ["image"]`), not the dedicated `/images/generations` shape
  * OpenRouter's own *video* generation uses. Ported near-verbatim from Open
  * Design's `apps/daemon/src/media/index.ts` `renderOpenRouterImage` — see
- * `source-map.md`.
+ * `archived provenance ledger`.
  *
  * Not OpenAI-images-wire-compatible (chat-completions request shape;
  * `choices[0].message.images[].image_url.url` response shape), so this
@@ -30,18 +30,17 @@
  * base64) has no other current consumer, so it correctly stays a bespoke
  * `parseResponse`.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
+import { assertAndFetchExternalAsset } from '../ssrf-guard.js';
 import { sniffImageExt, truncate, withRequestInit } from '../openai-compatible.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 // Chat-completions image generation can take a while for some routed
 // models; matches the same 10-minute ceiling `openai.ts`'s image dispatcher
-// uses for the same reason (see `OPENAI_IMAGE_HEADERS_TIMEOUT_MS`/
-// `OPENAI_IMAGE_BODY_TIMEOUT_MS` there — this vendor has no separate
-// headers/body distinction, so a single `AbortSignal.timeout` suffices).
+// uses for the same reason (see `OPENAI_IMAGE_TIMEOUT_MS` there — a single
+// `AbortSignal.timeout` covers the whole request for both vendors).
 const OPENROUTER_IMAGE_TIMEOUT_MS = 10 * 60 * 1000;
 
 /**
@@ -53,7 +52,7 @@ const OPENROUTER_IMAGE_TIMEOUT_MS = 10 * 60 * 1000;
  * `imageRouterSizeFor`) — same input -> output mapping for every case, not
  * a behavior change.
  */
-export function openRouterAspectFor(aspect: string | undefined): string {
+export function openRouterAspectFor({ aspect }: { aspect: string | undefined }): string {
   if (aspect === '1:1') return '1:1';
   if (aspect === '16:9') return '16:9';
   if (aspect === '9:16') return '9:16';
@@ -70,9 +69,9 @@ interface OpenRouterImageMeta {
 }
 
 const openRouterImageAdapter: VendorAdapter<OpenRouterImageMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<OpenRouterImageMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<OpenRouterImageMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
 
@@ -86,7 +85,7 @@ const openRouterImageAdapter: VendorAdapter<OpenRouterImageMeta> = {
     // output; image-only models (Flux, Recraft, Sourceful) only accept
     // ["image"]. A simple heuristic on the slug, matching the origin.
     const modalities: readonly string[] = wireModel.includes('gemini') ? ['image', 'text'] : ['image'];
-    const aspectRatio = openRouterAspectFor(ctx.aspect);
+    const aspectRatio = openRouterAspectFor({ aspect: ctx.aspect });
 
     const body: Record<string, unknown> = {
       model: wireModel,
@@ -111,43 +110,14 @@ const openRouterImageAdapter: VendorAdapter<OpenRouterImageMeta> = {
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<OpenRouterImageMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<OpenRouterImageMeta> }): Promise<RenderResult> {
     const { wireModel, aspectRatio } = request.meta;
     const text = await resp.text();
     if (!resp.ok) {
       throw new Error(`openrouter image ${resp.status}: ${truncate(text, 240)}`);
     }
-    let data: unknown;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(`openrouter image non-JSON response: ${truncate(text, 200)}`);
-    }
-
-    const images = (data as { choices?: Array<{ message?: { images?: unknown } }> } | null)?.choices?.[0]?.message?.images;
-    if (!Array.isArray(images) || images.length === 0) {
-      throw new Error(`openrouter image response contained no images for model ${wireModel}: ${truncate(text, 200)}`);
-    }
-    const dataUrl = (images[0] as { image_url?: { url?: unknown } } | null)?.image_url?.url;
-    if (typeof dataUrl !== 'string' || !dataUrl) {
-      throw new Error(`openrouter image response missing image_url.url: ${truncate(text, 200)}`);
-    }
-
-    // Strip a "data:image/...;base64," prefix and decode; fall back to
-    // downloading a plain URL, or treating the string as raw base64.
-    const b64Match = dataUrl.match(/^data:image\/[^;]+;base64,(.+)$/s);
-    let bytes: Buffer;
-    if (b64Match) {
-      bytes = Buffer.from(b64Match[1]!, 'base64');
-    } else if (dataUrl.startsWith('http')) {
-      // Downloading already-generated bytes, not waiting on generation — UPLOAD-class (2min), not
-      // the 10-minute GENERATE-class timeout the chat-completions call itself uses above.
-      const imgResp = await fetchWithTimeout(dataUrl, withRequestInit(ctx), { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD });
-      if (!imgResp.ok) throw new Error(`openrouter image download ${imgResp.status}`);
-      bytes = Buffer.from(await imgResp.arrayBuffer());
-    } else {
-      bytes = Buffer.from(dataUrl, 'base64');
-    }
+    const imageUrl = extractOpenRouterImageUrl({ text, wireModel });
+    const bytes = await decodeOpenRouterImage({ imageUrl, ctx });
 
     return {
       bytes,
@@ -157,8 +127,61 @@ const openRouterImageAdapter: VendorAdapter<OpenRouterImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register('openrouter', 'image', openRouterImageAdapter);
+/**
+ * Parses an OK chat-completions body and returns
+ * `choices[0].message.images[0].image_url.url`.
+ * @throws Error — non-JSON body, no images, or a missing/empty/non-string url;
+ *   each message quotes the truncated body (never request headers/credentials).
+ */
+function extractOpenRouterImageUrl({ text, wireModel }: { text: string; wireModel: string }): string {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`openrouter image non-JSON response: ${truncate(text, 200)}`);
+  }
 
-export async function renderOpenRouterImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(openRouterImageAdapter, ctx, credentials);
+  const images = firstChoiceImages({ data });
+  if (!Array.isArray(images) || images.length === 0) {
+    throw new Error(`openrouter image response contained no images for model ${wireModel}: ${truncate(text, 200)}`);
+  }
+  const imageUrl = (images[0] as { image_url?: { url?: unknown } } | null)?.image_url?.url;
+  if (typeof imageUrl !== 'string' || !imageUrl) {
+    throw new Error(`openrouter image response missing image_url.url: ${truncate(text, 200)}`);
+  }
+  return imageUrl;
+}
+
+/** `choices[0].message.images` of a parsed body, or `undefined` when any level is absent (a JSON `null` body included). */
+function firstChoiceImages({ data }: { data: unknown }): unknown {
+  return (data as { choices?: Array<{ message?: { images?: unknown } }> } | null)?.choices?.[0]?.message?.images;
+}
+
+/**
+ * Turns the returned image reference into bytes.
+ * @throws Error — the SSRF guard refuses the download URL, or the download is not OK.
+ */
+async function decodeOpenRouterImage({ imageUrl, ctx }: { imageUrl: string; ctx: RenderContext }): Promise<Buffer> {
+  // Strip a "data:image/...;base64," prefix and decode; fall back to
+  // downloading a plain URL, or treating the string as raw base64.
+  const b64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/s);
+  if (b64Match) return Buffer.from(b64Match[1]!, 'base64');
+  if (!imageUrl.startsWith('http')) return Buffer.from(imageUrl, 'base64');
+  // Downloading already-generated bytes, not waiting on generation — UPLOAD-class (2min), not
+  // the 10-minute GENERATE-class timeout the chat-completions call itself uses above.
+  const imgResp = await assertAndFetchExternalAsset({ url: imageUrl }, { ...ctx, init: withRequestInit(ctx) });
+  if (!imgResp.ok) throw new Error(`openrouter image download ${imgResp.status}`);
+  return Buffer.from(await imgResp.arrayBuffer());
+}
+
+export async function renderOpenRouterImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: openRouterImageAdapter, ctx, credentials });
+}
+
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'openrouter', routeKey: 'image', adapter: openRouterImageAdapter });
 }

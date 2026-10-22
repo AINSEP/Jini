@@ -10,10 +10,6 @@ describe('@jini-ai/mcp public barrel', () => {
       'inferMcpAuthModeForUrl', 'sanitizeMcpServer', 'sanitizeMcpConfig', 'readMcpConfig',
       'writeMcpConfig', 'isManagedProjectCwd', 'buildClaudeMcpJson', 'buildAcpMcpServers',
       'buildOpenCodeMcpConfigContent',
-      // core: oauth
-      'generateCodeVerifier', 'deriveCodeChallenge', 'generateState', 'discoverProtectedResource',
-      'discoverAuthServer', 'registerClient', 'getOrRegisterClient', 'buildAuthorizeUrl',
-      'exchangeCodeForToken', 'refreshAccessToken', 'PendingAuthCache', 'beginAuth',
       // core: tokens + install-info
       'sanitizeTokensFile', 'readTokensFile', 'getToken', 'setToken', 'clearToken',
       'readAllTokens', 'isTokenExpired', 'buildMcpInstallPayload',
@@ -24,7 +20,7 @@ describe('@jini-ai/mcp public barrel', () => {
       // server: tool-hosting mechanism + kernel-run tool defs
       'createMcpToolServer', 'okResult', 'errorResult', 'requireString', 'toolsToList',
       'buildToolIndex', 'handleToolCall', 'getDaemonJson', 'postDaemonJson',
-      'DaemonResponseTooLargeError', 'RUN_TOOLS', 'startRunTool', 'getRunTool', 'cancelRunTool',
+      'DaemonResponseTooLargeError', 'DaemonHttpError', 'RUN_TOOLS', 'startRunTool', 'getRunTool', 'cancelRunTool',
       'getActiveContextTool', 'listAgentsTool',
       // server: resource surface + kernel resource defs
       'resourcesToList', 'buildResourceIndex', 'handleResourceRead', 'KERNEL_RESOURCES',
@@ -55,4 +51,13 @@ describe('@jini-ai/mcp public barrel', () => {
     expect(typeof mcp.searchToolsTool.handler).toBe('function');
     expect(typeof mcp.describeToolTool.handler).toBe('function');
   });
+});
+
+// The OAuth engine has a separate package; the protocol adapter must not restore its retired copy.
+it('keeps the retired OAuth implementation off the root surface', () => {
+  for (const name of ['generateCodeVerifier', 'deriveCodeChallenge', 'generateState', 'discoverProtectedResource',
+    'discoverAuthServer', 'registerClient', 'getOrRegisterClient', 'buildAuthorizeUrl', 'exchangeCodeForToken',
+    'refreshAccessToken', 'PendingAuthCache', 'beginAuth']) {
+    expect(Object.prototype.hasOwnProperty.call(mcp, name), name).toBe(false);
+  }
 });

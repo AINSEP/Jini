@@ -9,26 +9,27 @@ import { parseContentTypeFieldDefs } from "../field-defs.js";
  *
  * The three cases this suite exists for are the gaps that motivated the module, each of which was
  * reachable from both the admin HTTP routes and the agent tools before it existed:
- *   - a non-boolean `required`/`queryable` was persisted verbatim (integrity gap);
- *   - a non-object element threw a bare `TypeError` inside the grammar guard (500 / opaque
- *     `'failed'` rather than a typed rejection);
- *   - a misspelled key was silently dropped.
+ * - a non-boolean `required`/`queryable` was persisted verbatim (integrity gap);
+ * - a non-object element threw a bare `TypeError` inside the grammar guard (500 / opaque
+ * `'failed'` rather than a typed rejection);
+ * - a misspelled key was silently dropped.
  *
  * It deliberately also pins what this module does NOT judge, so a future editor does not "finish
- * the job" by moving the CIC U-002-B1 guard rules in here — see the module's own header.
+ * the job" by moving the guard rules in here — see the module's own header.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 const VALID = { name: "servings", kind: "integer", required: false, queryable: true } as const;
 
 function expectShapeViolation(value: unknown): InvalidFieldShapeError {
-  const result = parseContentTypeFieldDefs(value);
+  const result = parseContentTypeFieldDefs({ value: value });
   assert.equal(result.ok, false);
   assert.ok(!result.ok && result.error instanceof InvalidFieldShapeError, "expected an InvalidFieldShapeError");
   return (result as { ok: false; error: InvalidFieldShapeError }).error;
 }
 
 test("accepts a well-formed payload and returns the four verified keys, dropping nothing", () => {
-  const result = parseContentTypeFieldDefs([VALID, { name: "title", kind: "text", required: true, queryable: false }]);
+  const result = parseContentTypeFieldDefs({ value: [VALID, { name: "title", kind: "text", required: true, queryable: false }] });
 
   assert.ok(result.ok);
   assert.deepEqual(result.ok && result.value, [
@@ -38,7 +39,7 @@ test("accepts a well-formed payload and returns the four verified keys, dropping
 });
 
 test("accepts an empty array — a content type with no fields is legal", () => {
-  const result = parseContentTypeFieldDefs([]);
+  const result = parseContentTypeFieldDefs({ value: [] });
 
   assert.ok(result.ok);
   assert.deepEqual(result.ok && result.value, []);
@@ -113,20 +114,20 @@ test("RESOURCE BOUND: a payload above the 500-entry cap is rejected before any p
   assert.equal(error.violation.path, "fields");
   assert.match(error.violation.expected, /at most 500 entries/);
   // The cap is a resource bound, not a product rule — the boundary value itself must pass.
-  assert.equal(parseContentTypeFieldDefs(overCap.slice(0, 500)).ok, true);
+  assert.equal(parseContentTypeFieldDefs({ value: overCap.slice(0, 500) }).ok, true);
 });
 
 test("no error message ever echoes the offending VALUE — a fields payload can carry operator content", () => {
   const secret = "s3cret-operator-content";
   for (const payload of [[{ ...VALID, required: secret }], [{ ...VALID, name: 42, kind: secret }], secret]) {
-    const result = parseContentTypeFieldDefs(payload);
+    const result = parseContentTypeFieldDefs({ value: payload });
     assert.equal(result.ok, false);
     assert.equal(!result.ok && result.error.message.includes(secret), false, `message leaked the value: ${!result.ok ? result.error.message : ""}`);
   }
 });
 
 test("a 'kind' outside the closed enum raises the domain's own InvalidFieldKindError, not a shape error — both call sites already map it to 400", () => {
-  const result = parseContentTypeFieldDefs([{ ...VALID, kind: "bogus" }]);
+  const result = parseContentTypeFieldDefs({ value: [{ ...VALID, kind: "bogus" }] });
 
   assert.equal(result.ok, false);
   assert.ok(!result.ok && result.error instanceof InvalidFieldKindError);
@@ -138,7 +139,7 @@ test("a non-string 'kind' is a shape violation, so the enum predicate never rece
 });
 
 test("does NOT judge field-name grammar — that stays CIC U-002-B1 guard 3, whose fixed order is pinned by AC-38", () => {
-  const result = parseContentTypeFieldDefs([{ ...VALID, name: "NotValidGrammar!" }]);
+  const result = parseContentTypeFieldDefs({ value: [{ ...VALID, name: "NotValidGrammar!" }] });
 
   assert.equal(result.ok, true, "a grammar-invalid but structurally-valid name must pass this boundary and be rejected by guard 3 instead");
 });
@@ -146,11 +147,11 @@ test("does NOT judge field-name grammar — that stays CIC U-002-B1 guard 3, who
 test("does NOT judge the queryable-field cap — that stays CIC U-002-B1 guard 5", () => {
   const allQueryable = Array.from({ length: 25 }, (_, i) => ({ ...VALID, name: `f_${i}`, queryable: true }));
 
-  assert.equal(parseContentTypeFieldDefs(allQueryable).ok, true, "25 queryable fields exceeds QUERYABLE_FIELD_CAP (20) but is structurally valid — guard 5 owns that rejection");
+  assert.equal(parseContentTypeFieldDefs({ value: allQueryable }).ok, true, "25 queryable fields exceeds QUERYABLE_FIELD_CAP (20) but is structurally valid — guard 5 owns that rejection");
 });
 
 test("KNOWN GAP, recorded deliberately: duplicate field names are structurally valid and pass — no guard rejects them today", () => {
-  const result = parseContentTypeFieldDefs([VALID, VALID]);
+  const result = parseContentTypeFieldDefs({ value: [VALID, VALID] });
 
   assert.equal(result.ok, true, "if a duplicate-name rule is ever added it belongs in the domain guard chain, not here — see this suite's header");
 });

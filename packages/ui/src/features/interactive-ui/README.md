@@ -42,30 +42,33 @@ never the other way around.
 
 - Only one shadcn component (`table`) — `21st`/`magic` providers don't exist yet, and shadcn only
   has the one.
-- `search_components`/`describe_component` exist in `@jini-ai/mcp`, and Tovu wires them for real
+- `search_components`/`describe_component` exist in `@jini-ai/mcp`, and the host wires them for real
   (`src/assistant/component-catalog-query.ts`, mirroring that repo's own `tool-catalog-query.ts` —
   in-memory, not SQLite, since `ALL_MANIFESTS` is static). Any *other* consumer of `@jini-ai/mcp`
   still needs its own equivalent wiring; there is no default.
 - `ui/features/a2ui` consumes this registry (full recursive tree-walking as of 2026-08-08, not
   root-only — see its own README for the per-row-action gap that remains).
 - No agent tool anywhere yet actually *places* a registry component into a live surface via
-  conversation — `search_components` only lets an agent discover one exists. Tovu's admin
+  conversation — `search_components` only lets an agent discover one exists. the host’s admin
   Playground page (`apps/admin/src/features/playground/`) adds components by hand, not by asking
   the assistant; that's still open.
 
-## Decided: shipping without shadcn's real styling for now
+## Styling (2026-10-08; supersedes the 2026-08-08 unstyled interim decision)
 
-`styles.css` (this folder) is real and correctly scoped (`@source` limited to `providers/**`,
-verified to produce ~7.5KB of only the classes actually used, not a sweep of anything else) — but
-it is **not imported anywhere** in Tovu yet. A naive global `import '@jini-ai/ui/interactive-ui.css'`
-would inject Tailwind's preflight layer app-wide, resetting every button/input across the whole
-admin, not just this feature. Confirmed live in a browser 2026-08-08: both `native.data-table` and
-`shadcn.data-table` render with zero visual styling — structurally different (shadcn's `data-slot`
-div-wrapped markup vs. native's bare `<table>`), equally plain.
+Hosts must import `@jini-ai/ui/interactive-ui.css` where registry surfaces render. The build now
+imports Tailwind's theme and utilities separately, excluding preflight: the original global
+reset concern is resolved without resetting unrelated host buttons, inputs or headings.
+Source scanning remains limited to `providers/**`. Tables use the shared, prefixed
+`data-table.css` presentation contract, so native fallback has the same padded cells, separators,
+sticky muted headers, numeric alignment and scroll behavior as the preferred shadcn table.
+No host root class is required; both components supply their own frame and table classes.
 
-Decided 2026-08-08: ship unstyled for now, revisit real CSS scoping (`@scope`, a prefixed wrapper
-selector, or a preflight-disabled build) once there's a clearer sense of what needs to be covered —
-right now there's exactly one shadcn component, not enough to design the scoping approach around.
+`shadcn.data-table` preserves the initial row order and adds keyboard-operable column sorting
+(`sortable: false` disables it). Optional `pageSize` (1–100) enables local paging; omission shows
+all rows, preserving existing callers. Row-click callbacks always receive the original row and
+source index after sorting or paging. `columns`/`rows` and A2UI action passthrough stay compatible.
+The manifest preference order already selects shadcn first; descriptions now identify it as the
+styled default for records/spreadsheets and native as the fallback.
 
 ## Decided: mcp-ui does not consume this registry
 
@@ -79,3 +82,22 @@ static preview, or (b) adding a non-sandboxed "trusted" mcp-ui mode for registry
 components. Both remain open options if a real need shows up — (a) is a small addition, (b) is a
 real security-boundary change that deserves its own review when there's an actual case for it, not
 as a byproduct of this scaffold. Revisit here before re-attempting either.
+
+## Charts (extracted 2026-10-12)
+
+The three `recharts.*` wire IDs and schemas are core-owned compatibility vocabulary. The default
+registry mounts the neutral chart host and displays a styled data table; Recharts is no longer a
+UI dependency or built-in renderer. The unused `BarChart`/`LineChart`/`PieChart` component exports
+are removed. Headless manifests remain safe to import without React.
+
+Hosts build a stable snapshot using `createChartProviderRegistry` from `@jini-ai/ui/charts` and
+`createChartInteractiveRegistry` from `@jini-ai/ui/charts/react`. The same selected entry supplies
+validation and rendering, and aliases resolve by their specific chart capability. Selection honours
+the optional spec provider, the site's `core.charts/provider` setting, then enabled providers in
+registry order. Config changes replace the snapshot and remount cards by host generation.
+
+The framework-free `@jini-ai/ui/charts/browser` owns mount/update/destroy and safe table fallback.
+Providers declare their own kinds; core implements only the current bar/line/pie wire conversion.
+The private Recharts workspace produces reviewed JS/CSS directory artifacts. Import the existing
+interactive table CSS and attach admitted provider CSS where cards render, including portals.
+`charts/html`, public embeds/loaders and provider override UI are deferred.

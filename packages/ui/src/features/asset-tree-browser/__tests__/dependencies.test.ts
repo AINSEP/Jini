@@ -17,7 +17,7 @@ describe('createBrowserAssetTreeClipboardPort', () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const port = createBrowserAssetTreeClipboardPort();
-    await expect(port.copyToClipboard('hello')).resolves.toBe(true);
+    await expect(port.copyToClipboard({ text: 'hello' })).resolves.toBe(true);
     expect(writeText).toHaveBeenCalledWith('hello');
   });
 });
@@ -103,7 +103,7 @@ describe('createBrowserAssetTreeDependencies', () => {
 describe('createFakeAssetTreeDependencies', () => {
   it('defaults to a successful copy and inert DOM subscriptions', async () => {
     const deps = createFakeAssetTreeDependencies();
-    await expect(deps.clipboard.copyToClipboard('x')).resolves.toBe(true);
+    await expect(deps.clipboard.copyToClipboard({ text: 'x' })).resolves.toBe(true);
     expect(deps.dom.getViewportHeight()).toBe(768);
     expect(() => deps.dom.subscribeOutsideDismiss(undefined, () => {})()).not.toThrow();
     expect(() => deps.dom.subscribeGlobalPaste(() => {})()).not.toThrow();
@@ -111,6 +111,6 @@ describe('createFakeAssetTreeDependencies', () => {
 
   it('honors an overridden copyToClipboardResult', async () => {
     const deps = createFakeAssetTreeDependencies({ copyToClipboardResult: false });
-    await expect(deps.clipboard.copyToClipboard('x')).resolves.toBe(false);
+    await expect(deps.clipboard.copyToClipboard({ text: 'x' })).resolves.toBe(false);
   });
 });

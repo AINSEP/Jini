@@ -31,10 +31,15 @@ import { fileURLToPath } from 'node:url';
 import { checkAgenticDomPurity } from './check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkDriverIsolation } from './check-driver-isolation.js';
+import { checkHardwiring } from './check-hardwiring.js';
 import { checkEngineBoundaries, type Violation } from './check-engine-boundaries.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
+import { checkSourceNeutrality } from './lib/source-neutrality.js';
+import { checkPackageLayers } from './check-package-layers.js';
+import { checkSubpathIsolation } from './check-subpath-isolation.js';
+import { runPublishHygieneSelfTest } from './lib/publish-hygiene-self-test.js';
 import { runGuardSelfTest } from './lib/self-test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -110,6 +115,7 @@ export function diffAgainstBaseline(baseline: readonly Violation[], current: rea
 
 async function main(): Promise<void> {
   const selfTestFailures = await runGuardSelfTest();
+  for (const expectation of runPublishHygieneSelfTest()) selfTestFailures.push({ expectation, detail: 'publish hygiene fixture' });
   if (selfTestFailures.length) {
     console.error('[guard:drift] SELF-TEST FAILED — refusing to trust the checks against the real repo.');
     for (const failure of selfTestFailures) {
@@ -124,11 +130,15 @@ async function main(): Promise<void> {
 
   const results = [
     await checkEngineBoundaries(),
+    checkSourceNeutrality(),
+    checkPackageLayers(),
+    checkSubpathIsolation(),
     await checkProtocolPurity(),
-    await checkAgenticDomPurity(),
+    await checkAgenticDomPurity({ domSubdir: 'src/core/dom' }),
     await checkChatPanePublicSurface(),
     await checkExtensionlessImports(),
     await checkDriverIsolation(),
+    checkHardwiring(),
     await checkModelFallbackFreshness(),
   ];
   const current = results.flat();

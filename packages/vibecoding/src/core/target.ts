@@ -51,7 +51,7 @@ export interface EditTarget {
   listParts(): Promise<readonly PartRef[]>;
 
   /** Current content of one part. Rejects if `id` was not published by `listParts`. */
-  readPart(id: PartId): Promise<string>;
+  readPart(args: { readonly id: PartId }): Promise<string>;
 
   /**
    * Write one part's content, creating it if absent — this is an **upsert**.
@@ -60,7 +60,7 @@ export interface EditTarget {
    * apply loop, which validates first. Implementations should assume `content` is model-authored
    * and therefore arbitrary.
    */
-  replacePart(id: PartId, content: string): Promise<void>;
+  replacePart(args: { readonly id: PartId; readonly content: string }): Promise<void>;
 
   /** Capture every part's content. See `Snapshot` — data only, never execution state. */
   snapshot(): Promise<Snapshot>;
@@ -71,7 +71,7 @@ export interface EditTarget {
    * Returns once the data is back. Any downstream execution state is the host's to re-sync
    * afterwards; this call makes no claim about it.
    */
-  restore(snapshot: Snapshot): Promise<void>;
+  restore(args: { readonly snapshot: Snapshot }): Promise<void>;
 
   /**
    * Decide whether a prospective change may be committed.

@@ -1,21 +1,19 @@
 import { describe, expect, it } from 'vitest';
-// Reached by relative path on purpose. `connection-guard.ts` has ZERO imports —
-// its synchronous half is pure string/URL logic — so this costs no dependency
-// in either direction and, unlike importing the built package, cannot pass
-// against a stale `dist`. Both sides are compared from source.
-import { validateBaseUrl } from '../../../../agent-runtime/src/providers/connection-guard.js';
+// Compare the public runtime URL wrapper. Vitest aliases this package to its
+// source entry so the parity check cannot silently pass against stale dist.
+// Hostname predicates are shared through platform's browser-safe leaf; URL
+// parsing/trimming retain independent UI and runtime contracts.
+import { validateBaseUrl } from '@jini-ai/agent-runtime';
 import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
 
 /**
  * @file Holds `@jini-ai/ui`'s `utils/endpoint-policy.ts` and `agent-runtime`'s
  * `connection-guard.ts` in agreement mechanically.
  *
- * The copy between them is deliberate and documented (`endpoint-policy.ts`'s
- * header): `endpoint-policy.ts` itself has zero imports of its own so it can
- * run in a browser bundle, and `connection-guard`'s richer half needs
- * `node:dns`. What was missing was
- * enforcement. Its instruction — "if one side's block-list changes, change the
- * other" — was a comment, and comments do not fail builds.
+ * Both wrappers now call platform's browser-safe hostname owner. The richer
+ * runtime check adds DNS validation at connection time, while this UI path
+ * must stay safe to load in browsers. Sharing the predicates alone does not
+ * establish that the wrappers parse and trim URLs identically.
  *
  * The gap that motivated this got past two independent audits in opposite
  * directions: one rated the pair CLOSED off a 46-URL corpus of address forms
@@ -94,7 +92,7 @@ const TRIMMABLE = [
 ] as const;
 
 function agrees(raw: string): { ui: boolean; runtime: boolean } {
-  return { ui: isAllowedEndpointUrl(raw), runtime: !('error' in validateBaseUrl(raw)) };
+  return { ui: isAllowedEndpointUrl({ raw }), runtime: !('error' in validateBaseUrl({ baseUrl: raw })) };
 }
 
 describe('endpoint-policy / connection-guard parity', () => {
@@ -144,8 +142,8 @@ describe('endpoint-policy / connection-guard parity', () => {
       const ws = String.fromCodePoint(code);
       for (const form of mustStayBlocked) {
         for (const padded of [ws + form, form + ws, ws + form + ws]) {
-          expect(isAllowedEndpointUrl(padded), `ui allowed ${JSON.stringify(padded)}`).toBe(false);
-          expect('error' in validateBaseUrl(padded), `runtime allowed ${JSON.stringify(padded)}`).toBe(true);
+          expect(isAllowedEndpointUrl({ raw: padded }), `ui allowed ${JSON.stringify(padded)}`).toBe(false);
+          expect('error' in validateBaseUrl({ baseUrl: padded }), `runtime allowed ${JSON.stringify(padded)}`).toBe(true);
         }
       }
     }
@@ -157,7 +155,7 @@ describe('endpoint-policy / connection-guard parity', () => {
     const nbspPadded = `${nbsp}https://example.com${nbsp}`;
     // If this ever becomes an ordinary space the case is gone, not fixed.
     expect(nbspPadded).not.toBe(' https://example.com ');
-    expect(isAllowedEndpointUrl(nbspPadded)).toBe(true);
-    expect(validateBaseUrl(nbspPadded)).not.toHaveProperty('error');
+    expect(isAllowedEndpointUrl({ raw: nbspPadded })).toBe(true);
+    expect(validateBaseUrl({ baseUrl: nbspPadded })).not.toHaveProperty('error');
   });
 });

@@ -2,13 +2,13 @@
  * @module local-daemon-discovery
  *
  * The real `discover` callback `resolveDaemonUrl` (`daemon-url.ts`) has always accepted but this
- * package never implemented — see `source-map.md`'s "Deferred" item 1 and its own 2026-07-21
+ * package never implemented — see `archived provenance ledger`'s "Deferred" item 1 and its own 2026-07-21
  * investigation, which found `@jini-ai/server`'s `createLocalNodeDaemon` wrote nothing anywhere a
  * separate CLI process could read. That daemon side is now built (`@jini-ai/server`'s
  * `discoveryFile` config, backed by `@jini-ai/sidecar`'s `daemon-registry.ts`); this module is the
  * matching CLI-side reader: `createLocalDaemonDiscovery(...)` builds a probe over that same
  * on-disk record, verified live (not just present — see `readLiveDaemonRegistryRecord`'s own
- * doc), that plugs directly into `resolveDaemonUrl({ discover })`.
+ * doc), that plugs directly into `resolveDaemonUrl({}, { discover })`.
  *
  * Deliberately not wired to a hardcoded default `dataDir`: exactly like `resolveDaemonUrl` itself
  * has no baked-in env var name or default URL, this package has no opinion on where a given
@@ -21,33 +21,26 @@ import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-a
 
 import type { ResolveDaemonUrlOptions } from './daemon-url.js';
 
-export interface LocalDaemonDiscoveryOptions {
-  /**
-   * The same `dataDir` the target `createLocalNodeDaemon({ dataDir, ... })` call was given. The
-   * registry path is derived from it via `@jini-ai/sidecar`'s `resolveDaemonRegistryPath` — the
-   * identical derivation `@jini-ai/server` uses for its own `discoveryFile` default. Ignored when
-   * `registryPath` is also given.
-   */
-  dataDir?: string;
-  /**
-   * The exact registry file path, for when the host overrode `createLocalNodeDaemon`'s
-   * `discoveryFile` away from its `dataDir`-derived default. Takes precedence over `dataDir`.
-   */
-  registryPath?: string;
-}
+/** Explicit registry path or the daemon data directory; neither is defaulted. */
+// dataDir must match the daemon's: both sides derive the registry path with the same
+// sidecar helper. Supply registryPath when the host overrides the daemon's discoveryFile;
+// the explicit path takes precedence if a caller supplies both values at runtime.
+export type LocalDaemonDiscoveryOptions =
+  | { registryPath: string }
+  | { dataDir: string };
 
 /**
  * @internal Resolve the registry path this discovery probe should read, from whichever of
  * `registryPath`/`dataDir` was supplied.
  */
 function resolveRegistryPathFromOptions(options: LocalDaemonDiscoveryOptions): string {
-  if (options.registryPath !== undefined) return options.registryPath;
-  if (options.dataDir !== undefined) return resolveDaemonRegistryPath(options.dataDir);
+  if ("registryPath" in options) return options.registryPath;
+  if ("dataDir" in options) return resolveDaemonRegistryPath({ dataDir: options.dataDir });
   throw new Error('createLocalDaemonDiscovery requires either dataDir or registryPath');
 }
 
 /**
- * Build a `resolveDaemonUrl({ discover })`-compatible probe backed by a local, on-disk daemon
+ * Build a `resolveDaemonUrl({}, { discover })`-compatible probe backed by a local, on-disk daemon
  * registry record: reads the record at the resolved registry path, confirms the recording
  * process's pid is still alive (a stale record left behind by a daemon that crashed rather than
  * shut down cleanly is never trusted — see `readLiveDaemonRegistryRecord`), and returns its
@@ -65,7 +58,7 @@ export function createLocalDaemonDiscovery(
 ): NonNullable<ResolveDaemonUrlOptions['discover']> {
   const registryPath = resolveRegistryPathFromOptions(options);
   return async () => {
-    const record = await readLiveDaemonRegistryRecord(registryPath);
+    const record = await readLiveDaemonRegistryRecord({ registryPath });
     return record?.url ?? null;
   };
 }

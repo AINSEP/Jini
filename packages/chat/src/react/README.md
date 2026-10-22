@@ -13,11 +13,12 @@ npm install @jini-ai/chat-react react react-dom
 ```
 
 `react`/`react-dom` are peer dependencies (`^18.3.0 || ^19.0.0`). `@jini-ai/agentic`,
-`@jini-ai/chat-core`, `@jini-ai/protocol`, and `@jini-ai/ui` are regular dependencies.
+`@jini-ai/core`, `@jini-ai/protocol`, and `@jini-ai/ui` are regular dependencies.
+The framework-free chat vocabulary lives in this package's `./core` subpath.
 
 ## What you get
 
-- **Run streaming and conversation state** — `useRunStream(transport)` (low-level: start/stop one
+- **Run streaming and conversation state** — `useRunStream({ transport })` (low-level: start/stop one
   run against a `ChatTransport`) and `useConversation(options)` (history-aware: sends a message,
   tracks the in-flight run, appends the result). Supporting hooks: `useComposer` (draft text,
   attachments, mention popover), `useToolTimeline`, `useExtEventGroups`, `usePinnedTodos`,
@@ -42,8 +43,8 @@ npm install @jini-ai/chat-react react react-dom
   `AttachmentTraySlot`, `AnnotationAdapter`, `FilePreviewSlot`, `AnalyticsAdapter`, `I18nAdapter`.
 - **Renderer registries** — `registerToolRenderer`/`getToolRenderer`/`clearToolRenderers` and the
   `ext-event` equivalents, for a host to render its own tool/extension-event kinds.
-- **`features/model-picker`** — an independent slice (`useModelPicker`, `<ModelPicker>`,
-  `<CredentialStatusBadge>`, `defaultModelPickerPort`) depending only on `@jini-ai/protocol`.
+- **Host model selection** — inject `ModelAgentPickerSlot`; model/provider selection belongs
+  to the host. The unused internal picker was removed after confirming it had no consumers.
 - **`features/chat-pane`** — a higher-level, self-contained `<ChatPane>` and `<AgentRuntimePicker>`
   with their own hooks (`useChatPane`, `useChatPaneAgentControl`, `useChatPaneWorkingDirectory`,
   `useChatPaneRuntimeInventory`) and `CHAT_PANE_AGENT_TOOLS` for wiring an in-app agent-control
@@ -117,5 +118,5 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0,
+See the archived provenance ledger for per-file provenance and scope decisions. Apache-2.0,
 inherited from Open Design — see the repo `NOTICE`.

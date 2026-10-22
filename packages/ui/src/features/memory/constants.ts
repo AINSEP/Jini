@@ -82,7 +82,7 @@ export function connectorAppLabel(connectorId: string): string | undefined {
 /**
  * Placeholder `provider` label for a memory-connector catalogue row this
  * client has only an id for (no full connector detail has loaded yet).
- * The pinned source hardcoded `'composio'` here — that's a specific
+ * The pinned source hardcoded `'connector-provider'` here — that's a specific
  * third-party OAuth-integration vendor OD's real deployment happens to use,
  * not a generic concept, so this package uses a neutral placeholder instead;
  * a host resolving real connector details overwrites it via

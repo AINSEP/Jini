@@ -36,18 +36,19 @@ export type SidecarContractDescriptor<TStamp extends SidecarStampShape = Sidecar
     namespace: string;
     source: string;
   };
-  normalizeApp(app: unknown): TStamp["app"];
-  normalizeNamespace(namespace: unknown): string;
-  normalizeSource(source: unknown): TStamp["source"];
-  normalizeStamp(input: unknown): TStamp;
+  normalizeApp(requiredArgs: { app: unknown }): TStamp["app"];
+  normalizeNamespace(requiredArgs: { namespace: unknown }): string;
+  normalizeSource(requiredArgs: { source: unknown }): TStamp["source"];
+  normalizeStamp(requiredArgs: { input: unknown }): TStamp;
 };
 
 /** Inputs for resolving the effective namespace (explicit, env, or default). */
 export type NamespaceResolutionOptions<TStamp extends SidecarStampShape = SidecarStampShape> = {
   contract: SidecarContractDescriptor<TStamp>;
-  env?: NodeJS.ProcessEnv;
-  namespace?: string | null;
+
 };
+
+export type NamespaceOptionalArgs = { env?: NodeJS.ProcessEnv; namespace?: string | null };
 
 /** Inputs for resolving a source-scoped runtime root under a project. */
 export type ProjectRuntimePathRequest<TStamp extends SidecarStampShape = SidecarStampShape> = {
@@ -58,10 +59,7 @@ export type ProjectRuntimePathRequest<TStamp extends SidecarStampShape = Sidecar
 
 /** Inputs for resolving the sidecar base (explicit, env, or project-derived). */
 export type BaseResolutionOptions<TStamp extends SidecarStampShape = SidecarStampShape> = {
-  base?: string | null;
   contract: SidecarContractDescriptor<TStamp>;
-  env?: NodeJS.ProcessEnv;
-  projectRoot?: string;
   source: TStamp["source"] | string;
 };
 
@@ -81,7 +79,6 @@ export type RuntimeRootRequest<TStamp extends SidecarStampShape = SidecarStampSh
 export type AppIpcPathRequest<TStamp extends SidecarStampShape = SidecarStampShape> = {
   app: TStamp["app"] | string;
   contract: SidecarContractDescriptor<TStamp>;
-  env?: NodeJS.ProcessEnv;
   namespace: string;
 };
 
@@ -106,16 +103,13 @@ export type SidecarRuntimeContext<TStamp extends SidecarStampShape = SidecarStam
 export type SidecarLaunchEnvRequest<TStamp extends SidecarStampShape = SidecarStampShape> = {
   base: string;
   contract: SidecarContractDescriptor<TStamp>;
-  extraEnv?: NodeJS.ProcessEnv;
   stamp: TStamp;
 };
 
 /** Inputs for bootstrapping a sidecar runtime from a stamp + env. */
 export type BootstrapSidecarRuntimeOptions<TStamp extends SidecarStampShape = SidecarStampShape> = {
   app: TStamp["app"] | string;
-  base?: string | null;
   contract: SidecarContractDescriptor<TStamp>;
-  projectRoot?: string;
 };
 
 /** Result of allocating a port: the chosen port and how it was chosen. */
@@ -133,9 +127,28 @@ export type PortRequest = {
 };
 
 /** Handler invoked with each decoded JSON-IPC message, returning the reply. */
-export type JsonIpcHandler = (message: any) => unknown | Promise<unknown>;
+export type JsonIpcHandler = (requiredArgs: { message: any }) => unknown | Promise<unknown>;
 
 /** Handle to a running JSON-IPC server. */
 export type JsonIpcServerHandle = {
   close(): Promise<void>;
+};
+
+export type BaseResolutionOptionsOptionalArgs = {
+  base?: string | null;
+  env?: NodeJS.ProcessEnv;
+  projectRoot?: string;
+};
+
+export type AppIpcPathRequestOptionalArgs = {
+  env?: NodeJS.ProcessEnv;
+};
+
+export type SidecarLaunchEnvRequestOptionalArgs = {
+  extraEnv?: NodeJS.ProcessEnv;
+};
+
+export type BootstrapSidecarRuntimeOptionsOptionalArgs = {
+  base?: string | null;
+  projectRoot?: string;
 };

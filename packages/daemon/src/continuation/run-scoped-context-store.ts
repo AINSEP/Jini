@@ -38,8 +38,10 @@ import type { RunLifecycle } from '../run-lifecycle.js';
  * usually "not found", not "internal error" — instead of string-matching a message.
  */
 export class RunContextNotBoundError extends Error {
-  constructor(public readonly runId: string) {
+  public readonly runId: string;
+  constructor({ runId }: { readonly runId: string }) {
     super(`no context is bound for run "${runId}"`);
+    this.runId = runId;
     this.name = 'RunContextNotBoundError';
   }
 }
@@ -50,15 +52,15 @@ export interface RunScopedContextStore<T> {
    * state. Binding the same `runId` twice replaces the value without adding a second eviction
    * subscription.
    */
-  bind(runId: string, value: T): void;
+  bind(args: { readonly runId: string; readonly value: T }): void;
   /**
    * The value bound for `runId`.
    * @throws {@link RunContextNotBoundError} when the run is unknown, already finished, or was never
    * bound. Never returns a default — see this module's doc on why fabricating one would be the bug.
    */
-  resolve(runId: string): T;
+  resolve(args: { readonly runId: string }): T;
   /** Whether `runId` currently has a binding. For callers that need a check without a throw. */
-  has(runId: string): boolean;
+  has(args: { readonly runId: string }): boolean;
   /** Live binding count. Exists so a host (or a test) can assert the map actually drains. */
   readonly size: number;
 }
@@ -87,7 +89,7 @@ export function createRunScopedContextStore<T>(
   const values = new Map<string, T>();
 
   return {
-    bind(runId: string, value: T): void {
+    bind({ runId, value }: { readonly runId: string; readonly value: T }): void {
       // Re-binding replaces the value but must not subscribe twice: each subscription is a retained
       // promise callback, and one eviction is all a run can need.
       const alreadyTracked = values.has(runId);
@@ -100,15 +102,15 @@ export function createRunScopedContextStore<T>(
       // `then(evict, evict)`, not `.finally(evict)`: a rejecting `waitForTerminal` would leave
       // `.finally`'s returned promise rejected, and nothing awaits it — an unhandled rejection that
       // could take the process down. Either outcome means the run is over, so both evict.
-      void options.lifecycle.waitForTerminal(runId).then(evict, evict);
+      void options.lifecycle.waitForTerminal({ runId: runId }).then(evict, evict);
     },
 
-    resolve(runId: string): T {
-      if (!values.has(runId)) throw new RunContextNotBoundError(runId);
+    resolve({ runId }: { readonly runId: string }): T {
+      if (!values.has(runId)) throw new RunContextNotBoundError({ runId: runId });
       return values.get(runId) as T;
     },
 
-    has(runId: string): boolean {
+    has({ runId }: { readonly runId: string }): boolean {
       return values.has(runId);
     },
 

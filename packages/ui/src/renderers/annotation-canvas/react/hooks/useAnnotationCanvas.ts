@@ -1,3 +1,4 @@
+import { resolveAnnotationTheme } from '../../theme.js';
 /**
  * Headless controller for the annotation-canvas engine: freehand/box/text
  * drawing, undo/redo, canvas rAF/DPR redraw, the collision-avoiding floating
@@ -7,7 +8,7 @@
  * Shift+Cmd/Ctrl+Z redo; Enter in the note input submits as Queue).
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx`. See
- * `../../source-map.md` for the exact file-by-file port breakdown and what
+ * `../../archived provenance ledger` for the exact file-by-file port breakdown and what
  * was intentionally left product-side (the `window` `CustomEvent` wire
  * protocol, the compositor-iframe snapshot lookup, the composer's
  * submission semantics).
@@ -777,7 +778,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     // ever reached via `send()`, itself only invocable from an event handler
     // on an already-mounted, hydrated component — never during an SSR render
     // pass, where `document` is provably defined. Proved dead and removed
-    // during the coverage pass (see `source-map.md`); the guard is only
+    // during the coverage pass (see `archived provenance ledger`); the guard is only
     // meaningful at JSX-render time (portal / effect bodies), not inside an
     // async handler like this one.
     const out = document.createElement('canvas');
@@ -792,7 +793,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
       img.src = snap.dataUrl;
     });
     if (!bg) return null;
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = resolveAnnotationTheme({ canvas: out }).bg;
     ctx.fillRect(0, 0, out.width, out.height);
     ctx.drawImage(bg, 0, 0, snap.w, snap.h);
     const sx = snap.w / Math.max(1, frameRect.width);

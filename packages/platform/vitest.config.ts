@@ -7,7 +7,7 @@ export default defineConfig({
       // The v8 text table silently drops rows once there are many files —
       // json-summary/json are what a coverage-driven pass should actually
       // read (see ADS-memory/reports/jini-port's Phase 6.5 method).
-      reporter: ['text', 'json-summary', 'json'],
+      reporter: ['text', 'json-summary', 'json', 'lcov'],
       // CR-R4: widened to the whole package (matching packages/core and
       // packages/agent-runtime's package-wide convention) — the prior config
       // measured only 4 files, silently excluding command.ts/http.ts/
@@ -31,8 +31,9 @@ export default defineConfig({
         // pre-existing "Strictness-only edits" precedent above). Branches
         // sits at 99.54, not 100, because of exactly 3 branches confirmed
         // genuinely unreachable through any real call path this session
-        // (verified via fuzzing, not assumed) — see source-map.md's
-        // 2026-07-22 entry for each: asset-cache.ts's `isPrivateAddress`
+        // (verified via fuzzing, not assumed) — see archived provenance ledger's
+        // 2026-07-22 entry for each: the former asset-cache.ts classifier (now
+        // net/address.ts's `isPrivateAddress`)
         // `!groups` fallback, download.ts's `acquireLock` loop-tail, and
         // proxy-env.ts's `resolveSystemProxyEnv` outer catch. Raise these
         // numbers if a future change closes one of those — do not lower them.

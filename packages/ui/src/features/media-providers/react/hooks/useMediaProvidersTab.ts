@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MediaProvidersPort } from '../../ports.js';
+import type { MediaProviderCatalogPolicy, MediaProvidersPort } from '../../ports.js';
 import {
   hasAnyConfiguredProvider,
   isEntryEmpty,
@@ -22,6 +22,8 @@ export type MediaProviderEditPatch = Pick<MediaProviderCredentials, 'apiKey' | '
 
 export interface UseMediaProvidersTabOptions {
   port: MediaProvidersPort;
+  /** Identity rules shared by catalog rows, local edits and daemon responses. Stable while mounted. */
+  catalogPolicy: MediaProviderCatalogPolicy;
   /** Host-persisted local edits from before this tab mounted (e.g. the
    *  host's own locally-cached config, read before the daemon round-trip
    *  completes). Defaults to none. Threaded into the initial
@@ -54,6 +56,50 @@ export interface UseMediaProvidersTabResult {
 }
 
 /**
+ * Releases the tombstones a successful write carried. The server has now accepted a map without
+ * these, so the local absence is no longer a claim waiting to be defended — the daemon agrees.
+ * Re-touched ids keep their tombstone: the operator changed their mind mid-flight and this
+ * response does not describe that decision.
+ */
+function releaseAcknowledgedClears({
+  cleared,
+  clearsInFlight,
+  touched,
+}: {
+  cleared: Set<string>;
+  clearsInFlight: readonly string[];
+  touched: ReadonlySet<string>;
+}): void {
+  for (const providerId of clearsInFlight) {
+    if (!touched.has(providerId)) cleared.delete(providerId);
+  }
+}
+
+/** The server's saved map with every provider touched during the flight reset to local truth —
+ *  including local deletion (see `flushNow`'s doc comment). Mutates and returns `saved`. */
+function overlayTouchedProviders({
+  saved,
+  local,
+  touched,
+}: {
+  saved: MediaProviderMap;
+  local: MediaProviderMap;
+  touched: ReadonlySet<string>;
+}): MediaProviderMap {
+  for (const providerId of touched) {
+    const entry = local[providerId];
+    if (entry === undefined) delete saved[providerId];
+    else saved[providerId] = entry;
+  }
+  return saved;
+}
+
+/** A save rejection as display text; a non-`Error` rejection is stringified rather than read as `.message`. */
+function saveErrorMessage({ error }: { error: unknown }): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
  * Owns the tab's async edges: the initial daemon fetch (plus the one-time
  * first-upload migration `shouldSyncLocalProvidersToDaemon` guards), manual
  * reload, per-field edits, clear, and save. Origin: `MediaProvidersSection`'s
@@ -70,8 +116,9 @@ export interface UseMediaProvidersTabResult {
  * `{}` before merging — would make a transient daemon blip read as "the
  * server manages nothing" and silently wipe local edits.
  */
-export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvidersTabOptions): UseMediaProvidersTabResult {
-  const [providers, setProviders] = useState<MediaProviderMap>(() => ({ ...(initialProviders ?? {}) }));
+export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: UseMediaProvidersTabOptions): UseMediaProvidersTabResult {
+  const { normalizeMediaProviderMap, canonicalMediaProviderId } = catalogPolicy;
+  const [providers, setProviders] = useState<MediaProviderMap>(() => normalizeMediaProviderMap({ providers: initialProviders ?? {} }));
   const [pendingProviderIds, setPendingProviderIds] = useState<ReadonlySet<string>>(() => new Set());
   const [load, setLoad] = useState<MediaProvidersLoadState>({ status: 'loading' });
   const [save, setSave] = useState<MediaProvidersSaveState>({ status: 'idle' });
@@ -179,19 +226,10 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       const saved = await portRef.current.saveMediaProviders(sent);
       if (!alive.current) return { status: 'abandoned' };
       const touched = mutatedSinceSend.current;
-      // The server has now accepted a map without these, so the local absence is no longer a claim
-      // waiting to be defended — the daemon agrees. Re-touched ids keep their tombstone: the
-      // operator changed their mind mid-flight and this response does not describe that decision.
-      for (const providerId of clearsInFlight) {
-        if (!touched.has(providerId)) clearedProviderIds.current.delete(providerId);
-      }
-      const next: MediaProviderMap = { ...saved };
-      for (const providerId of touched) {
-        const local = providersRef.current[providerId];
-        if (local === undefined) delete next[providerId];
-        else next[providerId] = local;
-      }
-      applyProviders(next);
+      releaseAcknowledgedClears({ cleared: clearedProviderIds.current, clearsInFlight, touched });
+      applyProviders(
+        overlayTouchedProviders({ saved: normalizeMediaProviderMap({ providers: saved }), local: providersRef.current, touched }),
+      );
       // Everything this write sent is now persisted; only edits made during
       // the flight are still unflushed.
       applyPending(new Set([...pendingRef.current].filter((providerId) => touched.has(providerId))));
@@ -199,10 +237,10 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       return { status: 'saved' };
     } catch (error: unknown) {
       if (!alive.current) return { status: 'abandoned' };
-      setSave({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
+      setSave({ status: 'save-error', message: saveErrorMessage({ error }) });
       return { status: 'failed' };
     }
-  }, [applyProviders, applyPending]);
+  }, [applyProviders, applyPending, normalizeMediaProviderMap]);
 
   /** True while a write is at the port. */
   const writing = useRef(false);
@@ -277,7 +315,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
           setLoad({ status: 'unreachable' });
           return;
         }
-        const merged = mergeDaemonProviders(providersRef.current, daemonResult, {
+        const merged = mergeDaemonProviders(providersRef.current, normalizeMediaProviderMap({ providers: daemonResult }), {
           preserveLocalProviderIds: pendingRef.current,
           dropProviderIds: clearedProviderIds.current,
         });
@@ -288,7 +326,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
         }
       });
     },
-    [persist, applyProviders],
+    [persist, applyProviders, normalizeMediaProviderMap],
   );
 
   useEffect(() => {
@@ -304,6 +342,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
 
   const updateProvider = useCallback(
     (providerId: string, patch: MediaProviderEditPatch) => {
+      providerId = canonicalMediaProviderId({ id: providerId });
       const current = providersRef.current;
       const nextEntry: MediaProviderCredentials = { ...(current[providerId] ?? {}), ...patch };
       const nextMap = { ...current };
@@ -317,11 +356,12 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       if (!currentPending.has(providerId)) applyPending(new Set(currentPending).add(providerId));
       mutatedSinceSend.current.add(providerId);
     },
-    [applyProviders, applyPending],
+    [applyProviders, applyPending, canonicalMediaProviderId],
   );
 
   const clearProvider = useCallback(
     (providerId: string) => {
+      providerId = canonicalMediaProviderId({ id: providerId });
       void (async () => {
         const previousEntry = providersRef.current[providerId];
         const next = { ...providersRef.current };
@@ -352,7 +392,7 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
         applyProviders({ ...providersRef.current, [providerId]: previousEntry });
       })();
     },
-    [persist, applyProviders],
+    [persist, applyProviders, canonicalMediaProviderId],
   );
 
   const saveChanges = useCallback(() => {

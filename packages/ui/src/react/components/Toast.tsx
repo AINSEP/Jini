@@ -196,6 +196,55 @@ export function useToastAutoDismiss(
 
 // --- Dumb component --------------------------------------------------------
 
+function ToastIcon({ iconName }: { iconName: ToastToneIcon }) {
+  return iconName ? (
+    <span className="jini-toast-icon" aria-hidden>
+      <Icon name={iconName} size={14} />
+    </span>
+  ) : null;
+}
+
+function ToastActionButton({ actionLabel, actionAriaLabel, onAction }: {
+  actionLabel: string | null | undefined;
+  actionAriaLabel: string | undefined;
+  onAction: (() => void) | undefined;
+}) {
+  return actionLabel && onAction ? (
+    <button
+      type="button"
+      className="jini-toast-action"
+      onClick={onAction}
+      aria-label={actionAriaLabel ?? actionLabel}
+    >
+      {actionLabel}
+    </button>
+  ) : null;
+}
+
+/** A code toast is pinned open, so it gets a labelled "Dismiss" button instead of the close glyph. */
+function ToastDismissButton({ code, onDismiss }: { code: string | null | undefined; onDismiss: (() => void) | undefined }) {
+  if (!onDismiss) return null;
+  return code ? (
+    <button
+      type="button"
+      className="jini-toast-dismiss"
+      onClick={onDismiss}
+      aria-label="Dismiss"
+    >
+      Dismiss
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="jini-toast-close"
+      onClick={onDismiss}
+      aria-label="Dismiss"
+    >
+      <Icon name="close" size={13} />
+    </button>
+  );
+}
+
 /**
  * Pure render of a transient toast. All timing/state lives in
  * {@link useToastAutoDismiss}; all derivations in the module-level helpers.
@@ -219,7 +268,6 @@ export function Toast({
 }: ToastProps) {
   const effectiveTtl = toastEffectiveTtl(code, ttlMs);
   const { leaving } = useToastAutoDismissHook({ message, details, code, effectiveTtl, onDismiss });
-  const iconName = toastToneIcon(tone);
 
   return (
     <div
@@ -228,47 +276,15 @@ export function Toast({
       aria-live={toastAriaLive(role)}
     >
       <div className="jini-toast-body">
-        {iconName ? (
-          <span className="jini-toast-icon" aria-hidden>
-            <Icon name={iconName} size={14} />
-          </span>
-        ) : null}
+        <ToastIcon iconName={toastToneIcon(tone)} />
         <div className="jini-toast-message">{message}</div>
       </div>
       {details ? <div className="jini-toast-details">{details}</div> : null}
       {code ? (
         <pre className="jini-toast-code">{code}</pre>
       ) : null}
-      {actionLabel && onAction ? (
-        <button
-          type="button"
-          className="jini-toast-action"
-          onClick={onAction}
-          aria-label={actionAriaLabel ?? actionLabel}
-        >
-          {actionLabel}
-        </button>
-      ) : null}
-      {!code && onDismiss ? (
-        <button
-          type="button"
-          className="jini-toast-close"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-        >
-          <Icon name="close" size={13} />
-        </button>
-      ) : null}
-      {code && onDismiss ? (
-        <button
-          type="button"
-          className="jini-toast-dismiss"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-        >
-          Dismiss
-        </button>
-      ) : null}
+      <ToastActionButton actionLabel={actionLabel} actionAriaLabel={actionAriaLabel} onAction={onAction} />
+      <ToastDismissButton code={code} onDismiss={onDismiss} />
     </div>
   );
 }

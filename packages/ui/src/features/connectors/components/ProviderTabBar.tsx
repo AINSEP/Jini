@@ -16,7 +16,7 @@ export interface ProviderTabBarProps {
 export function ProviderTabBar({ tabs, selectedId, onSelect, ariaLabel, agentHandle }: ProviderTabBarProps) {
   const t = useT();
   const resolvedAriaLabel = ariaLabel ?? t('Connector provider');
-  const tabHandles = agentHandle ? buildAgentListHandles(agentHandle, tabs.map((tab) => tab.id)) : undefined;
+  const tabHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: tabs.map((tab) => tab.id) }) : undefined;
   return (
     <div className="connectors-provider-tabs" role="tablist" aria-label={resolvedAriaLabel}>
       {tabs.map((tab, index) => {
@@ -30,7 +30,7 @@ export function ProviderTabBar({ tabs, selectedId, onSelect, ariaLabel, agentHan
             className={`connectors-provider-tab${active ? ' is-active' : ''}`}
             onClick={() => onSelect(tab.id)}
             data-testid={`connectors-provider-tab-${tab.id}`}
-            {...agentHandleProps(tabHandles?.[index], { role: 'button', label: t(tab.label) })}
+            {...agentHandleProps({}, { base: tabHandles?.[index], ...({ role: 'button', label: t(tab.label) }) })}
           >
             {t(tab.label)}
           </button>

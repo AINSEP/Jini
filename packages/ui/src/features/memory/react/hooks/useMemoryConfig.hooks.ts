@@ -8,15 +8,15 @@
 //     mocks, no global `fetch` stub.
 //   - business logic (the pure `rules`) is imported directly; only the
 //     side-effecting transport is injected.
-//   - `useWiredMemoryConfig()` (the wirer, bottom of file) binds the real
-//     provider port and is the default a host injects, so production callers
-//     pass nothing while tests swap the whole hook.
+//   - useWiredMemoryConfig() (below) reads the host-injected config port from
+//     MemoryPortsProvider. Production hosts must mount that provider; tests inject
+//     a fake port directly or swap the hook. There is no implicit REST fallback.
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { createAsyncCommitGuard } from '../../async-commit-guard.js';
 import type { MemoryConfigPort } from '../../ports.js';
 import { enabledPatch, type MemoryConfigFlagKey, singleFlagPatch } from '../../rules.js';
 import type { MemoryListResponse } from '../../types.js';
-import { memoryConfigPort } from '../../dependencies.js';
+import { useMemoryPorts } from '../MemoryPorts.js';
 
 /** One coalesced write intent: the latest desired value for a setting, plus
  *  every caller awaiting the PATCH that will carry it. */
@@ -278,9 +278,9 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
 }
 
 /**
- * Wirer: binds the real provider port and returns a ready-to-call hook. This is
- * the default a host injects; swap it via the component prop in tests.
+ * Reads the host-injected config port from MemoryPortsProvider (required).
+ * Hosts own authorization/transport; tests may inject a fake into useMemoryConfig.
  */
 export function useWiredMemoryConfig(): MemoryConfigController {
-  return useMemoryConfig(memoryConfigPort);
+  return useMemoryConfig(useMemoryPorts().config);
 }

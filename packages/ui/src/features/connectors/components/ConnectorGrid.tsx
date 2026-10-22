@@ -29,6 +29,45 @@ export interface ConnectorGridProps {
   agentHandle?: string;
 }
 
+interface ConnectorGridEmptyProps {
+  searchQuery: string;
+  onClearSearch: () => void;
+  emptyNoMatchTitle: ConnectorGridProps['emptyNoMatchTitle'];
+  emptyNoMatchBody: ConnectorGridProps['emptyNoMatchBody'];
+  emptyNoMatchAction: ConnectorGridProps['emptyNoMatchAction'];
+  agentHandle: ConnectorGridProps['agentHandle'];
+}
+
+/** Search-empty state: the no-match title/body and a clear-search action, each copy line host-overridable. */
+function ConnectorGridEmpty({
+  searchQuery,
+  onClearSearch,
+  emptyNoMatchTitle,
+  emptyNoMatchBody,
+  emptyNoMatchAction,
+  agentHandle,
+}: ConnectorGridEmptyProps) {
+  const t = useT();
+  const title = emptyNoMatchTitle
+    ? emptyNoMatchTitle(searchQuery.trim())
+    : t('No connectors match "{query}"', { query: searchQuery.trim() });
+  const action = emptyNoMatchAction ?? t('Clear search');
+  return (
+    <div className="tab-empty connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
+      <p className="connectors-empty-title">{title}</p>
+      <p className="connectors-empty-body">{emptyNoMatchBody ?? t('Try a different search term.')}</p>
+      <button
+        type="button"
+        className="ghost connectors-empty-action"
+        onClick={onClearSearch}
+        {...agentHandleProps({}, { base: agentHandle, action: 'clear-search', role: 'button', label: action })}
+      >
+        {action}
+      </button>
+    </div>
+  );
+}
+
 /** Card grid + the search-empty-state and locked-gate overlays. */
 export function ConnectorGrid({
   connectors,
@@ -52,27 +91,18 @@ export function ConnectorGrid({
   emptyNoMatchAction,
   agentHandle,
 }: ConnectorGridProps) {
-  const t = useT();
-  const resolvedEmptyNoMatchTitle =
-    emptyNoMatchTitle ?? ((query: string) => t('No connectors match "{query}"', { query }));
-  const resolvedEmptyNoMatchBody = emptyNoMatchBody ?? t('Try a different search term.');
-  const resolvedEmptyNoMatchAction = emptyNoMatchAction ?? t('Clear search');
-  const cardHandles = agentHandle ? buildAgentListHandles(agentHandle, connectors.map((c) => c.id)) : undefined;
+  const cardHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: connectors.map((c) => c.id) }) : [];
   return (
     <div className={`connector-grid-wrap${locked ? ' is-masked' : ''}`} data-testid="connector-grid-wrap">
       {hasNoResults && !locked ? (
-        <div className="tab-empty connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
-          <p className="connectors-empty-title">{resolvedEmptyNoMatchTitle(searchQuery.trim())}</p>
-          <p className="connectors-empty-body">{resolvedEmptyNoMatchBody}</p>
-          <button
-            type="button"
-            className="ghost connectors-empty-action"
-            onClick={onClearSearch}
-            {...agentHandleProps(agentHandle, { action: 'clear-search', role: 'button', label: resolvedEmptyNoMatchAction })}
-          >
-            {resolvedEmptyNoMatchAction}
-          </button>
-        </div>
+        <ConnectorGridEmpty
+          searchQuery={searchQuery}
+          onClearSearch={onClearSearch}
+          emptyNoMatchTitle={emptyNoMatchTitle}
+          emptyNoMatchBody={emptyNoMatchBody}
+          emptyNoMatchAction={emptyNoMatchAction}
+          agentHandle={agentHandle}
+        />
       ) : (
         <div className="connector-grid" aria-hidden={locked || undefined}>
           {connectors.map((connector, index) => (
@@ -90,7 +120,7 @@ export function ConnectorGrid({
               onOpenDetails={onOpenDetails}
               {...(getCategoryLabel ? { getCategoryLabel } : {})}
               {...(onOpenExternalUrl ? { onOpenExternalUrl } : {})}
-              {...(cardHandles?.[index] ? { agentHandle: cardHandles[index] } : {})}
+              {...(cardHandles[index] ? { agentHandle: cardHandles[index] } : {})}
             />
           ))}
         </div>

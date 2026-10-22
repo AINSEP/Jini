@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/platform",
-  "version": "0.3.0",
+  "version": "0.5.9",
   "description": "Generic OS/platform primitives: process exec and lifecycle, filesystem containment, HTTP readiness polling, toolchain discovery, blob storage, AWS signing, and an SSRF-safe asset cache.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,50 @@
   "jini": {
     "domain": "platform",
     "kind": "abstraction",
-    "runtime": "node"
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./fetch-with-timeout": "node",
+      "./asset-cache": "node",
+      "./secrets": "node",
+      "./secrets/credential-sets": "node",
+      "./secrets/credential-sets/contracts": "universal",
+      "./secrets/testing": "node",
+      "./http/guarded": "node",
+      "./mail": "node",
+      "./mail/smtp": "node",
+      "./fs/guarded-reader": "node",
+      "./fs/durable-json": "node",
+      "./fs": "node",
+      "./object-store": "node",
+      "./net": "node",
+      "./net/endpoint-policy": "universal",
+      "./fs/file-lock": "node",
+      "./secrets/credential-token": "universal",
+      "./web": "node",
+      "./command": "node",
+      "./process": "node",
+      "./toolchain": "node",
+      "./proxy-env": "node",
+      "./shell": "node",
+      "./child-environment": "node"
+    },
+    "isolation": {
+      "entries": {
+        "./command": "os",
+        "./process": "os",
+        "./toolchain": "os",
+        "./proxy-env": "os",
+        "./shell": "os",
+        "./child-environment": "os"
+      },
+      "shared": [
+        "src/net/address.ts",
+        "src/net/endpoint-policy.ts",
+        "src/fetch-with-timeout.ts",
+        "src/http/guarded/errors.ts"
+      ]
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -27,10 +70,128 @@
       "types": "./dist/fetch-with-timeout.d.ts",
       "import": "./dist/fetch-with-timeout.js",
       "default": "./dist/fetch-with-timeout.js"
+    },
+    "./asset-cache": {
+      "types": "./dist/asset-cache.d.ts",
+      "import": "./dist/asset-cache.js",
+      "default": "./dist/asset-cache.js"
+    },
+    "./secrets": {
+      "types": "./dist/secrets/index.d.ts",
+      "import": "./dist/secrets/index.js",
+      "default": "./dist/secrets/index.js"
+    },
+    "./secrets/credential-sets": {
+      "types": "./dist/secrets/credential-sets/index.d.ts",
+      "import": "./dist/secrets/credential-sets/index.js",
+      "default": "./dist/secrets/credential-sets/index.js"
+    },
+    "./secrets/credential-sets/contracts": {
+      "types": "./dist/secrets/credential-sets/contracts.d.ts",
+      "import": "./dist/secrets/credential-sets/contracts.js",
+      "default": "./dist/secrets/credential-sets/contracts.js"
+    },
+    "./secrets/testing": {
+      "types": "./dist/secrets/testing.d.ts",
+      "import": "./dist/secrets/testing.js",
+      "default": "./dist/secrets/testing.js"
+    },
+    "./http/guarded": {
+      "types": "./dist/http/guarded/index.d.ts",
+      "import": "./dist/http/guarded/index.js",
+      "default": "./dist/http/guarded/index.js"
+    },
+    "./mail": {
+      "types": "./dist/mail/index.d.ts",
+      "import": "./dist/mail/index.js",
+      "default": "./dist/mail/index.js"
+    },
+    "./mail/smtp": {
+      "types": "./dist/mail/smtp.d.ts",
+      "import": "./dist/mail/smtp.js",
+      "default": "./dist/mail/smtp.js"
+    },
+    "./fs/guarded-reader": {
+      "types": "./dist/fs/guarded-reader.d.ts",
+      "import": "./dist/fs/guarded-reader.js",
+      "default": "./dist/fs/guarded-reader.js"
+    },
+    "./fs/durable-json": {
+      "types": "./dist/fs/durable-json.d.ts",
+      "import": "./dist/fs/durable-json.js",
+      "default": "./dist/fs/durable-json.js"
+    },
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "import": "./dist/fs/index.js",
+      "default": "./dist/fs/index.js"
+    },
+    "./object-store": {
+      "types": "./dist/object-store/index.d.ts",
+      "import": "./dist/object-store/index.js",
+      "default": "./dist/object-store/index.js"
+    },
+    "./net": {
+      "types": "./dist/net/index.d.ts",
+      "import": "./dist/net/index.js",
+      "default": "./dist/net/index.js"
+    },
+    "./net/endpoint-policy": {
+      "types": "./dist/net/endpoint-policy.d.ts",
+      "import": "./dist/net/endpoint-policy.js",
+      "default": "./dist/net/endpoint-policy.js"
+    },
+    "./fs/file-lock": {
+      "types": "./dist/fs/file-lock.d.ts",
+      "import": "./dist/fs/file-lock.js",
+      "default": "./dist/fs/file-lock.js"
+    },
+    "./secrets/credential-token": {
+      "types": "./dist/secrets/credential-token.d.ts",
+      "import": "./dist/secrets/credential-token.js",
+      "default": "./dist/secrets/credential-token.js"
+    },
+    "./web": {
+      "types": "./dist/web/index.d.ts",
+      "import": "./dist/web/index.js",
+      "default": "./dist/web/index.js"
+    },
+    "./command": {
+      "types": "./dist/command.d.ts",
+      "import": "./dist/command.js",
+      "default": "./dist/command.js"
+    },
+    "./process": {
+      "types": "./dist/process.d.ts",
+      "import": "./dist/process.js",
+      "default": "./dist/process.js"
+    },
+    "./toolchain": {
+      "types": "./dist/toolchain.d.ts",
+      "import": "./dist/toolchain.js",
+      "default": "./dist/toolchain.js"
+    },
+    "./proxy-env": {
+      "types": "./dist/proxy-env.d.ts",
+      "import": "./dist/proxy-env.js",
+      "default": "./dist/proxy-env.js"
+    },
+    "./shell": {
+      "types": "./dist/shell.d.ts",
+      "import": "./dist/shell.js",
+      "default": "./dist/shell.js"
+    },
+    "./child-environment": {
+      "types": "./dist/child-environment.d.ts",
+      "import": "./dist/child-environment.js",
+      "default": "./dist/child-environment.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -39,7 +200,7 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "undici": "^7.25.0"
+    "@jini-ai/core": "^0.4.0"
   },
   "publishConfig": {
     "access": "public",
@@ -49,9 +210,35 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:properties": "vitest run src/net/__tests__/unit/address.property.unit.test.ts"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "undici": "^7.25.0",
+    "hast-util-from-parse5": "8.0.3",
+    "hast-util-to-mdast": "10.1.2",
+    "mdast-util-to-markdown": "2.1.2",
+    "mdast-util-gfm-table": "2.0.0",
+    "parse5": "7.3.0",
+    "fast-check": "4.3.0"
+  },
+  "peerDependencies": {
+    "undici": "^7.25.0",
+    "hast-util-from-parse5": "8.0.3",
+    "hast-util-to-mdast": "10.1.2",
+    "mdast-util-to-markdown": "2.1.2",
+    "mdast-util-gfm-table": "2.0.0",
+    "parse5": "7.3.0"
+  },
+  "peerDependenciesMeta": {
+    "undici": { "optional": true },
+    "hast-util-from-parse5": { "optional": true },
+    "hast-util-to-mdast": { "optional": true },
+    "mdast-util-to-markdown": { "optional": true },
+    "mdast-util-gfm-table": { "optional": true },
+    "parse5": {
+      "optional": true
+    }
   }
 }

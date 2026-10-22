@@ -1,18 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 import { mimoAgentDef } from '../mimo.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 describe('mimoAgentDef.buildArgs', () => {
   it('builds the base run/json argv with no model selected', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [], {})).toEqual(['run', '--format', 'json']);
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} })).toEqual(['run', '--format', 'json']);
   });
 
   it('defaults options to {} when omitted entirely', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [])).toEqual(['run', '--format', 'json']);
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).toEqual(['run', '--format', 'json']);
   });
 
   it('adds --model when a non-default model is selected', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [], { model: 'mimo-large' })).toEqual([
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'mimo-large' } })).toEqual([
       'run',
       '--format',
       'json',
@@ -22,7 +23,7 @@ describe('mimoAgentDef.buildArgs', () => {
   });
 
   it('omits --model when the model is the literal string "default"', () => {
-    expect(mimoAgentDef.buildArgs('hi', [], [], { model: 'default' })).toEqual([
+    expect(mimoAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } })).toEqual([
       'run',
       '--format',
       'json',
@@ -39,5 +40,13 @@ describe('mimoAgentDef shape', () => {
     expect(mimoAgentDef.streamFormat).toBe('json-event-stream');
     expect(mimoAgentDef.eventParser).toBe('opencode');
     expect(mimoAgentDef.externalMcpInjection).toBe('mimo-env-content');
+  });
+});
+
+describe('mimoAgentDef.discoverModels', () => {
+  it('offline discovery yields an empty catalog: the only static fallback is the \'default\' sentinel, which the catalog strips', async () => {
+    const catalog = await mimoAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models).toEqual([]);
   });
 });

@@ -1,3 +1,4 @@
+import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /**
  * `AsyncOperationStore` — the durable operation row behind submit-then-poll media generation.
  *
@@ -187,17 +188,17 @@ export interface AsyncOperationReconcileResult {
 }
 
 export interface AsyncOperationStore {
-  create(input: AsyncOperationCreateInput): Promise<AsyncOperationRecord>;
-  get(id: string): Promise<AsyncOperationRecord | null>;
+  create(required: RequiredArgs<AsyncOperationCreateInput>, optional?: OptionalArgs<AsyncOperationCreateInput>): Promise<AsyncOperationRecord>;
+  get(required: { id: string }): Promise<AsyncOperationRecord | null>;
   /**
    * Applies `patch`. Pass `options.leaseOwner` to fence the write to a lease the caller believes it
    * holds — see `AsyncOperationUpdateOptions`. Omitted, the write applies unconditionally (the
    * pre-lease case, e.g. `startOperation`'s initial persistence).
    */
-  update(id: string, patch: AsyncOperationPatch, options?: AsyncOperationUpdateOptions): Promise<AsyncOperationRecord | null>;
-  listByOwner(ownerRef: string): Promise<AsyncOperationRecord[]>;
+  update(required: { id: string; patch: AsyncOperationPatch }, optional?: { options?: AsyncOperationUpdateOptions | undefined }): Promise<AsyncOperationRecord | null>;
+  listByOwner(required: { ownerRef: string }): Promise<AsyncOperationRecord[]>;
   /** Atomically leases every due, unleased, non-terminal operation and returns the leased rows. */
-  claimDue(options: AsyncOperationClaimOptions): Promise<AsyncOperationRecord[]>;
+  claimDue(required: RequiredArgs<AsyncOperationClaimOptions>, optional?: OptionalArgs<AsyncOperationClaimOptions>): Promise<AsyncOperationRecord[]>;
   /**
    * Releases a lease this caller believes it holds. Fenced on `leaseOwner`: a release only takes
    * effect while the row's current `leaseOwner` still equals the one passed here (the equivalent
@@ -208,7 +209,7 @@ export interface AsyncOperationStore {
    * never claimed it, or another worker has since reclaimed it — is a no-op, not an error: the
    * caller's intent ("I'm done, let someone else have it") is already satisfied either way.
    */
-  releaseLease(id: string, leaseOwner: string): Promise<void>;
+  releaseLease(required: { id: string; leaseOwner: string }): Promise<void>;
   /**
    * Boot-time recovery. Unlike `MediaTaskStore.reconcileOnBoot`, this does NOT terminate in-flight
    * work: a vendor-side job outlives our process, so the row stays pollable and only its dead
@@ -228,7 +229,7 @@ export interface AsyncOperationStore {
  * @complexity O(n) in the total number of keys, bounded by `MAX_STATE_DEPTH` against a cyclic or
  *   pathologically nested object.
  */
-export function assertNoCredentialMaterial(state: Readonly<Record<string, unknown>> | null | undefined): void {
+export function assertNoCredentialMaterial({ state }: { state: Readonly<Record<string, unknown>> | null | undefined }): void {
   if (state == null) return;
   const seen = new Set<unknown>();
   const walk = (value: unknown, depth: number): void => {
@@ -267,8 +268,8 @@ export function assertNoCredentialMaterial(state: Readonly<Record<string, unknow
  * @throws When `schemaVersion` is newer than this build understands.
  * @complexity O(1).
  */
-export function hydrateAsyncOperationRecord(raw: Record<string, unknown>): AsyncOperationRecord {
-  const stored = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 0;
+export function hydrateAsyncOperationRecord({ raw }: { raw: Record<string, unknown> }): AsyncOperationRecord {
+  const stored = numberOr(raw.schemaVersion, 0);
   if (stored > ASYNC_OPERATION_SCHEMA_VERSION) {
     throw new Error(
       `async operation row was written at schema version ${stored}, newer than this build understands (${ASYNC_OPERATION_SCHEMA_VERSION}) — upgrade rather than risk misreading it`,
@@ -284,24 +285,34 @@ export function hydrateAsyncOperationRecord(raw: Record<string, unknown>): Async
     routeKey: String(raw.routeKey),
     ownerRef: String(raw.ownerRef),
     status: (raw.status as AsyncOperationStatus | undefined) ?? 'submitted',
-    attempts: typeof raw.attempts === 'number' ? raw.attempts : 0,
+    attempts: numberOr(raw.attempts, 0),
     maxAttempts: Number(raw.maxAttempts),
     deadlineAt: Number(raw.deadlineAt),
-    nextPollAt: typeof raw.nextPollAt === 'number' ? raw.nextPollAt : now,
+    nextPollAt: numberOr(raw.nextPollAt, now),
     leaseOwner: (raw.leaseOwner as string | null | undefined) ?? null,
     leaseExpiresAt: (raw.leaseExpiresAt as number | null | undefined) ?? null,
     state: (raw.state as Readonly<Record<string, unknown>> | null | undefined) ?? null,
     result: (raw.result as AsyncOperationResult | null | undefined) ?? null,
     error: (raw.error as AsyncOperationError | null | undefined) ?? null,
-    createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : now,
-    updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : now,
+    createdAt: numberOr(raw.createdAt, now),
+    updatedAt: numberOr(raw.updatedAt, now),
   };
+}
+
+/** A persisted number column, or `fallback` when the raw value is absent or not a number. */
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === 'number' ? value : fallback;
+}
+
+/** Deep-copies a `state` handle so no caller-held object aliases a stored row. */
+function cloneState(state: AsyncOperationRecord['state']): AsyncOperationRecord['state'] {
+  return state === null ? null : structuredClone(state);
 }
 
 function cloneRecord(row: AsyncOperationRecord): AsyncOperationRecord {
   return {
     ...row,
-    state: row.state === null ? null : structuredClone(row.state),
+    state: cloneState(row.state),
     result: row.result === null ? null : { ...row.result },
     error: row.error === null ? null : { ...row.error },
   };
@@ -318,6 +329,70 @@ export function assertTransition(from: AsyncOperationStatus, to: AsyncOperationS
 }
 
 /**
+ * Create-time validation shared by every store, in order: `maxAttempts`, `deadlineAt`, then the
+ * `state` allowlist. The duplicate-id check stays with each store, which alone knows its storage
+ * and runs it first. Exported for the same reason as `TERMINAL_STATUSES` — see its doc.
+ * @throws RangeError for a bad bound; `Error` (see `assertNoCredentialMaterial`) for a bad state.
+ */
+export function assertValidCreateInput({ input }: { input: AsyncOperationCreateInput }): void {
+  if (!Number.isFinite(input.maxAttempts) || input.maxAttempts < 1) {
+    throw new RangeError(`Invalid maxAttempts: ${input.maxAttempts} must be a finite number >= 1`);
+  }
+  if (!Number.isFinite(input.deadlineAt)) {
+    throw new RangeError(`Invalid deadlineAt: ${input.deadlineAt} must be a finite epoch-ms timestamp`);
+  }
+  assertNoCredentialMaterial({ state: input.state });
+}
+
+/**
+ * True when a fenced write names a lease owner the row no longer has. Such a write is a no-op that
+ * returns the row unchanged — see `AsyncOperationUpdateOptions.leaseOwner`. Exported for the same
+ * reason as `TERMINAL_STATUSES`.
+ */
+export function isFencedOut(
+  { existing, options }: { existing: AsyncOperationRecord; options: AsyncOperationUpdateOptions | undefined },
+): boolean {
+  return options?.leaseOwner !== undefined && existing.leaseOwner !== options.leaseOwner;
+}
+
+type NullablePatchKey = 'state' | 'result' | 'error' | 'leaseOwner' | 'leaseExpiresAt';
+
+/** A key present in the patch replaces the field (`undefined` clears it to `null`); an absent key keeps it. */
+function patchedNullable<K extends NullablePatchKey>(
+  { patch, existing, key }: { patch: AsyncOperationPatch; existing: AsyncOperationRecord; key: K },
+): AsyncOperationRecord[K] {
+  return key in patch ? (patch[key] ?? null) as AsyncOperationRecord[K] : existing[key];
+}
+
+/**
+ * The update rule every store applies after its lease fence: reject credential material in a
+ * patched `state`, then an illegal status transition, then merge. Returns the next record without
+ * copying `state` — the caller decides how to store it. Exported for the same reason as
+ * `TERMINAL_STATUSES`.
+ * @throws `Error` for credential material; `RangeError` for an illegal transition.
+ */
+export function mergeAsyncOperationPatch(
+  { existing, patch }: { existing: AsyncOperationRecord; patch: AsyncOperationPatch },
+  { now }: { now: number },
+): AsyncOperationRecord {
+  if ('state' in patch) assertNoCredentialMaterial({ state: patch.state });
+  const status = patch.status ?? existing.status;
+  assertTransition(existing.status, status);
+  return {
+    ...existing,
+    status,
+    attempts: patch.attempts ?? existing.attempts,
+    nextPollAt: patch.nextPollAt ?? existing.nextPollAt,
+    state: patchedNullable({ patch, existing, key: 'state' }),
+    result: patchedNullable({ patch, existing, key: 'result' }),
+    error: patchedNullable({ patch, existing, key: 'error' }),
+    leaseOwner: patchedNullable({ patch, existing, key: 'leaseOwner' }),
+    leaseExpiresAt: patchedNullable({ patch, existing, key: 'leaseExpiresAt' }),
+    updatedAt: now,
+  };
+}
+
+/**
  * Creates the in-memory reference `AsyncOperationStore`. No persistence — a durable adapter
  * implements the same interface; every method here is written so the equivalent SQL is a direct
  * translation (`claimDue` in particular is a single conditional UPDATE ... RETURNING).
@@ -325,20 +400,13 @@ export function assertTransition(from: AsyncOperationStatus, to: AsyncOperationS
 export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
   const rows = new Map<string, AsyncOperationRecord>();
 
-  const requireRow = (id: string): AsyncOperationRecord | undefined => rows.get(id);
-
   return {
-    async create(input: AsyncOperationCreateInput): Promise<AsyncOperationRecord> {
+    async create(required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput> = {}): Promise<AsyncOperationRecord> {
+      const input = { ...required, ...optional };
       if (rows.has(input.id)) {
         throw new Error(`async operation "${input.id}" already exists`);
       }
-      if (!Number.isFinite(input.maxAttempts) || input.maxAttempts < 1) {
-        throw new RangeError(`Invalid maxAttempts: ${input.maxAttempts} must be a finite number >= 1`);
-      }
-      if (!Number.isFinite(input.deadlineAt)) {
-        throw new RangeError(`Invalid deadlineAt: ${input.deadlineAt} must be a finite epoch-ms timestamp`);
-      }
-      assertNoCredentialMaterial(input.state);
+      assertValidCreateInput({ input });
 
       const now = Date.now();
       const row: AsyncOperationRecord = {
@@ -354,7 +422,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
         nextPollAt: input.nextPollAt ?? now,
         leaseOwner: null,
         leaseExpiresAt: null,
-        state: input.state === undefined || input.state === null ? null : structuredClone(input.state),
+        state: cloneState(input.state ?? null),
         result: null,
         error: null,
         createdAt: now,
@@ -364,49 +432,33 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       return cloneRecord(row);
     },
 
-    async get(id: string): Promise<AsyncOperationRecord | null> {
-      const row = requireRow(id);
+    async get({ id }: { id: string }): Promise<AsyncOperationRecord | null> {
+      const row = rows.get(id);
       return row ? cloneRecord(row) : null;
     },
 
-    async update(id: string, patch: AsyncOperationPatch, options?: AsyncOperationUpdateOptions): Promise<AsyncOperationRecord | null> {
-      const existing = requireRow(id);
+    async update({ id, patch }: { id: string; patch: AsyncOperationPatch } , { options }: { options?: AsyncOperationUpdateOptions | undefined } = {}): Promise<AsyncOperationRecord | null> {
+      const existing = rows.get(id);
       if (!existing) return null;
       // Fenced, like releaseLease: a caller writing against a lease it no longer holds gets a
       // no-op, not an overwrite of whoever holds (or now holds none of) it.
-      if (options?.leaseOwner !== undefined && existing.leaseOwner !== options.leaseOwner) {
-        return cloneRecord(existing);
-      }
-      if ('state' in patch) assertNoCredentialMaterial(patch.state);
-
-      const status = patch.status ?? existing.status;
-      assertTransition(existing.status, status);
-
-      const next: AsyncOperationRecord = {
-        ...existing,
-        schemaVersion: existing.schemaVersion,
-        status,
-        attempts: patch.attempts ?? existing.attempts,
-        nextPollAt: patch.nextPollAt ?? existing.nextPollAt,
-        state: 'state' in patch ? (patch.state == null ? null : structuredClone(patch.state)) : existing.state,
-        result: 'result' in patch ? (patch.result ?? null) : existing.result,
-        error: 'error' in patch ? (patch.error ?? null) : existing.error,
-        leaseOwner: 'leaseOwner' in patch ? (patch.leaseOwner ?? null) : existing.leaseOwner,
-        leaseExpiresAt: 'leaseExpiresAt' in patch ? (patch.leaseExpiresAt ?? null) : existing.leaseExpiresAt,
-        updatedAt: Date.now(),
-      };
+      if (isFencedOut({ existing, options })) return cloneRecord(existing);
+      const merged = mergeAsyncOperationPatch({ existing, patch }, { now: Date.now() });
+      // Store a private copy of `state` so the caller's patch object never aliases the row.
+      const next: AsyncOperationRecord = { ...merged, state: cloneState(merged.state) };
       rows.set(id, next);
       return cloneRecord(next);
     },
 
-    async listByOwner(ownerRef: string): Promise<AsyncOperationRecord[]> {
+    async listByOwner({ ownerRef }: { ownerRef: string }): Promise<AsyncOperationRecord[]> {
       return [...rows.values()]
         .filter((row) => row.ownerRef === ownerRef)
         .sort((a, b) => a.createdAt - b.createdAt)
         .map(cloneRecord);
     },
 
-    async claimDue(options: AsyncOperationClaimOptions): Promise<AsyncOperationRecord[]> {
+    async claimDue(required: RequiredArgs<AsyncOperationClaimOptions>, optional: OptionalArgs<AsyncOperationClaimOptions> = {}): Promise<AsyncOperationRecord[]> {
+      const options = { ...required, ...optional };
       const { now, leaseOwner, leaseMs } = options;
       const limit = options.limit ?? 10;
       const claimed: AsyncOperationRecord[] = [];
@@ -431,8 +483,8 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       return claimed;
     },
 
-    async releaseLease(id: string, leaseOwner: string): Promise<void> {
-      const row = requireRow(id);
+    async releaseLease({ id, leaseOwner }: { id: string; leaseOwner: string }): Promise<void> {
+      const row = rows.get(id);
       if (!row) return;
       // Fenced: a stale owner's late release must not clear a lease another worker has since
       // legitimately reclaimed. See the interface doc for why this is not merely defensive.

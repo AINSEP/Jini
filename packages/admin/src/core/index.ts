@@ -139,14 +139,17 @@ export type {
   AdminRedirectsPort,
   AdminRedirectUpdatePatch,
   AdminSeoAnalysis,
+  AdminSeoEntryChoice,
   AdminSeoIssue,
   AdminSeoMeta,
   AdminSeoOpenGraph,
   AdminSeoOverrides,
+  AdminSeoOverridesPatch,
   AdminSeoPort,
   AdminSeoRobotsDirective,
   AdminSeoRobotsRule,
   AdminSeoSettings,
+  AdminSeoSettingsPatch,
   AdminSeoTwitterCard,
   FormDefinitionStatus,
   FormFieldType,
@@ -160,3 +163,35 @@ export type {
   SeoOpenGraphType,
   SeoTwitterCardKind,
 } from './ports/index.js';
+
+// Generic entity port — the one port that carries its own schema, so a single screen can render an
+// application's own entities with no per-entity code. Types here; runtime in `./entities/rules.js`.
+export type {
+  AdminEntityDescriptor,
+  AdminEntityField,
+  AdminEntityFieldKind,
+  AdminEntityFilter,
+  AdminEntityJsonField,
+  AdminEntityListQuery,
+  AdminEntityPage,
+  AdminEntityPort,
+  AdminEntityRegistry,
+  AdminEntityRelationField,
+  AdminEntityRow,
+  AdminEntityRowData,
+  AdminEntityScalarField,
+  AdminErasedEntityPort,
+} from './ports/index.js';
+export {
+  createAdminEntityRegistry,
+  describeAdminEntityFieldMismatch,
+  eraseEntityPort,
+  getErasedEntityPort,
+  listErasedEntityPorts,
+} from './entities/rules.js';
+export type { AdminEntityErasureOptions, AdminEntityRowViolation } from './entities/rules.js';
+
+export type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, AdminShellSessionPort } from './ports/shell.js';
+
+export { loadNamespaceValues, saveChangedEntries, readString, readBoolean, readNumber } from './ledger-slice.js';
+export type { LedgerEntry, LedgerCandidate } from './ledger-slice.js';

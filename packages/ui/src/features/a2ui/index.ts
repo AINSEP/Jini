@@ -2,6 +2,7 @@ export {
   createA2uiInterpreter,
   createLabCatalog,
   type A2uiInterpreter,
+  type A2uiIdsPort,
   type ApplyMessageResult,
   type BuildActionResult,
   type ComponentInstance,

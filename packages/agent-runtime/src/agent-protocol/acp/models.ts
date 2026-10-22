@@ -8,7 +8,7 @@
  */
 import { spawn } from 'node:child_process';
 import { createJsonLineStream } from '../core/index.js';
-import type { JsonRpcId, JsonObject, TimerHandle } from './types.js';
+import type { JsonRpcId, UnknownRecord, TimerHandle } from './types.js';
 import { ACP_PROTOCOL_VERSION, DEFAULT_TIMEOUT_MS, MODEL_CONFIG_OPTION_IDS } from './constants.js';
 import { errorMessage, resolveAcpTimeoutMs, asObject } from './json.js';
 import { sendRpc, rpcErrorMessage } from './rpc.js';
@@ -35,6 +35,10 @@ export interface DetectAcpModelsOptions {
   clientName?: string;
   clientVersion?: string;
   defaultModelOption?: ModelOption;
+  signal?: AbortSignal;
+  onSessionResult?: (result: UnknownRecord) => void;
+  /** Process effect port; metadata tests use a child fake rather than replacing modules. */
+  spawnProcess?: typeof spawn;
 }
 /**
  * Normalises a raw config-option field value to a lowercase, whitespace- and
@@ -56,7 +60,7 @@ export function normalizeConfigOptionToken(value: unknown): string {
  * @param option - A single item from the `configOptions` array.
  * @param configId - The trimmed `id` field of that item.
  */
-export function isModelConfigOption(option: JsonObject, configId: string): boolean {
+export function isModelConfigOption(option: UnknownRecord, configId: string): boolean {
   const category = normalizeConfigOptionToken(option.category);
   if (category === 'model') return true;
   const id = normalizeConfigOptionToken(configId);
@@ -76,24 +80,69 @@ export function isModelConfigOption(option: JsonObject, configId: string): boole
 export function findModelConfigOption(configOptions: unknown): AcpModelConfigOption | null {
   const options = Array.isArray(configOptions) ? configOptions : [];
   for (const rawOption of options) {
-    const option = asObject(rawOption);
-    if (!option) continue;
-    const configId = typeof option.id === 'string' ? option.id.trim() : '';
-    if (!configId) continue;
-    const type = typeof option.type === 'string' ? option.type.trim() : '';
-    if (type && type !== 'select') continue;
-    if (!isModelConfigOption(option, configId)) continue;
-    const currentValue =
-      typeof option.currentValue === 'string' && option.currentValue.trim()
-        ? option.currentValue.trim()
-        : null;
-    return {
-      configId,
-      currentValue,
-      values: Array.isArray(option.options) ? option.options : [],
-    };
+    const parsed = parseModelConfigOption(rawOption);
+    if (parsed) return parsed;
   }
   return null;
+}
+/** Returns the trimmed string when `value` is a string, else `''`. */
+function trimmedOrEmpty(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+/** Parses one `configOptions` entry, returning it only when it is a
+ * select-type (or untyped) model-selection option with a non-blank id. */
+function parseModelConfigOption(rawOption: unknown): AcpModelConfigOption | null {
+  const option = asObject(rawOption);
+  if (!option) return null;
+  const configId = trimmedOrEmpty(option.id);
+  if (!configId) return null;
+  const type = trimmedOrEmpty(option.type);
+  if (type && type !== 'select') return null;
+  if (!isModelConfigOption(option, configId)) return null;
+  return {
+    configId,
+    currentValue: trimmedOrEmpty(option.currentValue) || null,
+    values: Array.isArray(option.options) ? option.options : [],
+  };
+}
+/** One candidate model as read from either the config-option or legacy path. */
+interface ModelEntry {
+  id: string;
+  name: string;
+}
+/** Builds the deduplicated option list: `defaultModelOption` first, then each
+ * entry with a non-blank unseen id, labelled `name (id)` when a distinct name
+ * exists and suffixed ` • current` for `currentId`. */
+function buildModelOptions({
+  defaultModelOption,
+  currentId,
+  entries,
+}: {
+  defaultModelOption: ModelOption;
+  currentId: string | null;
+  entries: ModelEntry[];
+}): ModelOption[] {
+  const seen = new Set([defaultModelOption.id]);
+  const out = [defaultModelOption];
+  for (const { id, name } of entries) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const labelBase = name && name !== id ? `${name} (${id})` : id;
+    out.push({ id, label: id === currentId ? `${labelBase} • current` : labelBase });
+  }
+  return out;
+}
+/** Reads a config-option value entry: id from `value` (when non-blank) else `id`. */
+function configOptionEntry(value: UnknownRecord): ModelEntry {
+  return {
+    id: trimmedOrEmpty(value.value) || trimmedOrEmpty(value.id),
+    name: trimmedOrEmpty(value.name),
+  };
+}
+/** Reads a legacy `models.availableModels` entry. */
+function legacyModelEntry(model: unknown): ModelEntry {
+  const obj = asObject(model);
+  return { id: trimmedOrEmpty(obj?.modelId), name: trimmedOrEmpty(obj?.name) };
 }
 /**
  * Extracts and normalises the available models list from an ACP
@@ -111,25 +160,17 @@ export function normalizeModelConfigOptions(
 ): { currentModelId: string | null; models: ModelOption[] } | null {
   const modelConfig = findModelConfigOption(configOptions);
   if (!modelConfig) return null;
-  const seen = new Set([defaultModelOption.id]);
-  const out = [defaultModelOption];
+  const entries: ModelEntry[] = [];
   for (const rawValue of modelConfig.values) {
     const value = asObject(rawValue);
-    if (!value) continue;
-    const id =
-      typeof value.value === 'string' && value.value.trim()
-        ? value.value.trim()
-        : typeof value.id === 'string'
-          ? value.id.trim()
-          : '';
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    const name = typeof value.name === 'string' ? value.name.trim() : '';
-    const isCurrent = id === modelConfig.currentValue;
-    const labelBase = name && name !== id ? `${name} (${id})` : id;
-    out.push({ id, label: isCurrent ? `${labelBase} • current` : labelBase });
+    if (value) entries.push(configOptionEntry(value));
   }
-  return { currentModelId: modelConfig.currentValue, models: out };
+  const models = buildModelOptions({
+    defaultModelOption,
+    currentId: modelConfig.currentValue,
+    entries,
+  });
+  return { currentModelId: modelConfig.currentValue, models };
 }
 /**
  * Produces the final ordered `ModelOption[]` for a session, merging the
@@ -142,31 +183,28 @@ export function normalizeModelConfigOptions(
  * @param configOptions - Optional `result.configOptions` for the config-option path.
  * @returns A deduplicated array of `ModelOption` items.
  */
-export function normalizeModels(
-  models: unknown,
-  defaultModelOption: ModelOption,
-  configOptions?: unknown,
+export function normalizeModels({ models, defaultModelOption }: { models: unknown; defaultModelOption: ModelOption }, { configOptions }: { configOptions?: unknown } = {}
 ): ModelOption[] {
   const configModels = normalizeModelConfigOptions(configOptions, defaultModelOption);
   if (configModels && configModels.models.length > 1) {
     return configModels.models;
   }
-  const modelsObj = asObject(models);
-  const available = Array.isArray(modelsObj?.availableModels) ? modelsObj.availableModels : [];
-  const currentModelId =
-    typeof modelsObj?.currentModelId === 'string' ? modelsObj.currentModelId : null;
-  const seen = new Set([defaultModelOption.id]);
-  const out = [defaultModelOption];
-  for (const model of available) {
-    const id = typeof model?.modelId === 'string' ? model.modelId.trim() : '';
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    const name = typeof model?.name === 'string' ? model.name.trim() : '';
-    const isCurrent = id === currentModelId;
-    const labelBase = name && name !== id ? `${name} (${id})` : id;
-    out.push({ id, label: isCurrent ? `${labelBase} • current` : labelBase });
-  }
+  const out = legacyModelOptions({ models, defaultModelOption });
   return out.length > 1 || !configModels ? out : configModels.models;
+}
+/** The legacy `result.models.availableModels` path of `normalizeModels`. */
+function legacyModelOptions({
+  models,
+  defaultModelOption,
+}: {
+  models: unknown;
+  defaultModelOption: ModelOption;
+}): ModelOption[] {
+  const modelsObj = asObject(models);
+  const available: unknown[] = Array.isArray(modelsObj?.availableModels) ? modelsObj.availableModels : [];
+  const currentId =
+    typeof modelsObj?.currentModelId === 'string' ? modelsObj.currentModelId : null;
+  return buildModelOptions({ defaultModelOption, currentId, entries: available.map(legacyModelEntry) });
 }
 /**
  * Returns `true` for JSON-RPC error codes that indicate a model-selection
@@ -185,7 +223,7 @@ export function modelSelectionErrorIsRecoverable(code: unknown): boolean {
  *
  * @param result - The parsed `result` object from a session handshake response.
  */
-export function currentModelFromSessionResult(result: JsonObject): string | null {
+export function currentModelFromSessionResult(result: UnknownRecord): string | null {
   const configCurrent = findModelConfigOption(result.configOptions)?.currentValue;
   if (configCurrent) return configCurrent;
   const models = asObject(result.models);
@@ -212,7 +250,8 @@ export function currentModelFromSessionResult(result: JsonObject): string | null
  * @param options.defaultModelOption - Fallback option prepended to the result list.
  * @returns A promise resolving to the available `ModelOption[]`.
  */
-export async function detectAcpModels({
+export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions, "bin" | "args">, optionalArgs: Omit<DetectAcpModelsOptions, "bin" | "args"> = {}): Promise<ModelOption[]> {
+  const {
   bin,
   args,
   cwd = process.cwd(),
@@ -221,10 +260,13 @@ export async function detectAcpModels({
   clientName = 'agent-runtime-detect',
   clientVersion = 'runtime-adapter',
   defaultModelOption = { id: 'default', label: 'Default (CLI config)' },
-}: DetectAcpModelsOptions): Promise<ModelOption[]> {
+  signal,
+  onSessionResult,
+  spawnProcess = spawn,
+}: DetectAcpModelsOptions = { ...optionalArgs, ...requiredArgs };
   const effectiveTimeoutMs = resolveAcpTimeoutMs(env, timeoutMs);
   return await new Promise<ModelOption[]>((resolve, reject) => {
-    const child = spawn(bin, args, {
+    const child = spawnProcess(bin, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...env },
@@ -233,25 +275,35 @@ export async function detectAcpModels({
     child.stderr.setEncoding('utf8');
 
     let settled = false;
+    let closed = false;
     let stderrBuf = '';
+    let stdoutBytes = 0;
     let expectedId = 1;
-    let nextId = 2;
 
     let timer: TimerHandle | null = null;
     const finish = <T extends ModelOption[] | Error>(fn: (value: T) => void, value: T) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       try {
         child.stdin.end();
       } catch {}
-      fn(value);
+      if (!child.killed) child.kill('SIGTERM');
+      const killTimer = setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 250);
+      killTimer.unref();
+      // The process scheduler must retain its slot until exit, including the SIGKILL grace
+      // period. Returning at metadata receipt would overlap this child with the next probe.
+      if (closed) { clearTimeout(killTimer); fn(value); }
+      else child.once('close', () => { clearTimeout(killTimer); fn(value); });
     };
 
     const fail = (message: string) => {
       finish(reject, new Error(message));
-      if (!child.killed) child.kill('SIGTERM');
     };
+    const abort = () => fail('ACP model detection aborted');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) { abort(); return; }
 
     const writeRpc = (id: JsonRpcId, method: string, params: unknown) => {
       try {
@@ -261,39 +313,43 @@ export async function detectAcpModels({
       }
     };
 
-    const sendSessionNew = () => {
-      expectedId = nextId;
-      writeRpc(nextId, 'session/new', buildAcpSessionNewParams(cwd));
-      nextId += 1;
+    const handleRpcError = (obj: UnknownRecord | null, rpcErr: string) => {
+      // JSON-RPC -32603 "Internal error" during model detection:
+      // If this is for the current expected-id (initialize/session/new),
+      // it's a real probe failure — reject immediately.
+      // Otherwise it's cleanup noise — suppress it.
+      if (asObject(obj?.error)?.code === -32603 && obj?.id !== expectedId) return;
+      fail(rpcErr);
     };
 
-    const parser = createJsonLineStream((raw) => {
+    const handleResult = (result: UnknownRecord) => {
+      if (expectedId === 1) {
+        expectedId = 2;
+        writeRpc(2, 'session/new', buildAcpSessionNewParams({ cwd: cwd }));
+        return;
+      }
+      onSessionResult?.(result);
+      const models = normalizeModels({ models: result.models, defaultModelOption: defaultModelOption }, { configOptions: result.configOptions });
+      finish(resolve, models);
+    };
+
+    const parser = createJsonLineStream({ onMessage: ({ message: raw }) => {
       const obj = asObject(raw);
-      const error = asObject(obj?.error);
-      const result = asObject(obj?.result);
       const rpcErr = rpcErrorMessage(raw);
       if (rpcErr) {
-        // JSON-RPC -32603 "Internal error" during model detection:
-        // If this is for the current expected-id (initialize/session/new),
-        // it's a real probe failure — reject immediately.
-        // Otherwise it's cleanup noise — suppress it.
-        if (error?.code === -32603 && obj?.id !== expectedId) return;
-        fail(rpcErr);
+        handleRpcError(obj, rpcErr);
         return;
       }
+      const result = asObject(obj?.result);
       if (obj?.id !== expectedId || !result) return;
-      if (expectedId === 1) {
-        sendSessionNew();
-        return;
-      }
-      if (expectedId === 2) {
-        const models = normalizeModels(result.models, defaultModelOption, result.configOptions);
-        finish(resolve, models);
-        if (!child.killed) child.kill('SIGTERM');
-      }
-    });
+      handleResult(result);
+    } });
 
-    child.stdout.on('data', (chunk) => parser.feed(chunk));
+    child.stdout.on('data', (chunk) => {
+      stdoutBytes += Buffer.byteLength(String(chunk), 'utf8');
+      if (stdoutBytes > 8 * 1024 * 1024) { fail('ACP metadata output exceeded its limit'); return; }
+      parser.feed({ chunk: chunk });
+    });
     child.stdout.on('close', () => parser.flush());
     child.stdin.on('error', (err) => fail(`stdin error: ${err.message}`));
     child.stderr.on('data', (chunk) => {
@@ -301,6 +357,7 @@ export async function detectAcpModels({
     });
     child.on('error', (err) => fail(`spawn failed: ${err.message}`));
     child.on('close', (code, signal) => {
+      closed = true;
       parser.flush();
       if (!settled) {
         const errTail = stderrBuf.trim();
@@ -321,4 +378,22 @@ export async function detectAcpModels({
       clientInfo: { name: clientName, version: clientVersion },
     });
   });
+}
+
+/** Retains native current selection. Session creation can write CLI state/start services;
+ * this metadata probe never sends session/prompt. The old array API remains compatible. */
+export async function detectAcpModelMetadata(requiredArgs: Pick<DetectAcpModelsOptions, 'bin' | 'args'>,
+  optionalArgs: Omit<DetectAcpModelsOptions, 'bin' | 'args'> = {},
+): Promise<{ models: ModelOption[]; currentModelId: string | null }> {
+  let currentModelId: string | null = null;
+  const models = await detectAcpModels(requiredArgs, { ...optionalArgs, onSessionResult: (result) => {
+    currentModelId = currentModelFromSessionResult(result);
+    optionalArgs.onSessionResult?.(result);
+  } });
+  return { models: models.filter((model) => model.id !== 'default').map((model) => {
+    const label = model.label.replace(/ • current$/, '');
+    const suffix = ` (${model.id})`;
+    // Remove only our ID annotation; native display-name capability suffixes are meaningful.
+    return { ...model, label: label.endsWith(suffix) ? label.slice(0, -suffix.length) : label };
+  }), currentModelId };
 }

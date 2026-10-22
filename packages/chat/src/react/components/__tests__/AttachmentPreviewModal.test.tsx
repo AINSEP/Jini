@@ -22,7 +22,7 @@ describe('AttachmentPreviewModal', () => {
   });
 
   it('shows the file contents in a scrollable monospace pane for a cached text-ish attachment', async () => {
-    cacheAttachmentPreviewSource('attachment:2', new File(['a,b,c\n1,2,3'], 'rows.csv'));
+    cacheAttachmentPreviewSource({ path: 'attachment:2', file: new File(['a,b,c\n1,2,3'], 'rows.csv') });
     const attachment: ChatAttachment = { path: 'attachment:2', name: 'rows.csv', kind: 'file' };
     render(<AttachmentPreviewModal attachment={attachment} onClose={vi.fn()} />);
 
@@ -33,7 +33,7 @@ describe('AttachmentPreviewModal', () => {
 
   it('truncates a text preview past the character cap and says so', async () => {
     const big = 'x'.repeat(200_050);
-    cacheAttachmentPreviewSource('attachment:3', new File([big], 'huge.log'));
+    cacheAttachmentPreviewSource({ path: 'attachment:3', file: new File([big], 'huge.log') });
     const attachment: ChatAttachment = { path: 'attachment:3', name: 'huge.log', kind: 'file' };
     render(<AttachmentPreviewModal attachment={attachment} onClose={vi.fn()} />);
 
@@ -63,7 +63,7 @@ describe('AttachmentPreviewModal', () => {
     });
 
     it('renders a cached image attachment as an <img>, scaled to fit rather than linked', () => {
-      cacheAttachmentPreviewSource('attachment:4', new File(['bytes'], 'photo.png'));
+      cacheAttachmentPreviewSource({ path: 'attachment:4', file: new File(['bytes'], 'photo.png') });
       const attachment: ChatAttachment = { path: 'attachment:4', name: 'photo.png', kind: 'image' };
       render(<AttachmentPreviewModal attachment={attachment} onClose={vi.fn()} />);
 
@@ -77,7 +77,7 @@ describe('AttachmentPreviewModal', () => {
     // (see AttachmentPreviewModal.hooks.ts's module doc). The chip must still preview it as an
     // image on extension alone rather than deferring to that stale `kind`.
     it('attempts an AVIF attachment as an image even though its server-reported kind is "file"', () => {
-      cacheAttachmentPreviewSource('attachment:5', new File(['bytes'], 'ai-caps.avif'));
+      cacheAttachmentPreviewSource({ path: 'attachment:5', file: new File(['bytes'], 'ai-caps.avif') });
       const attachment: ChatAttachment = { path: 'attachment:5', name: 'ai-caps.avif', kind: 'file' };
       render(<AttachmentPreviewModal attachment={attachment} onClose={vi.fn()} />);
 
@@ -85,7 +85,7 @@ describe('AttachmentPreviewModal', () => {
     });
 
     it('falls back to the honest metadata view when the browser cannot actually decode the attempted image', () => {
-      cacheAttachmentPreviewSource('attachment:6', new File(['bytes'], 'weird.avif'));
+      cacheAttachmentPreviewSource({ path: 'attachment:6', file: new File(['bytes'], 'weird.avif') });
       const attachment: ChatAttachment = { path: 'attachment:6', name: 'weird.avif', kind: 'file', size: 10 };
       render(<AttachmentPreviewModal attachment={attachment} onClose={vi.fn()} />);
 
@@ -96,7 +96,7 @@ describe('AttachmentPreviewModal', () => {
     });
 
     it('revokes the object URL on unmount', () => {
-      cacheAttachmentPreviewSource('attachment:7', new File(['bytes'], 'photo.png'));
+      cacheAttachmentPreviewSource({ path: 'attachment:7', file: new File(['bytes'], 'photo.png') });
       const attachment: ChatAttachment = { path: 'attachment:7', name: 'photo.png', kind: 'image' };
       const { unmount } = render(<AttachmentPreviewModal attachment={attachment} onClose={vi.fn()} />);
       unmount();

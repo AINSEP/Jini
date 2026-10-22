@@ -1,11 +1,6 @@
 import type { ReactNode } from 'react';
 
-/**
- * Which side of the drop-target tab the dragged tab lands on. Shared
- * concept across both source shapes this feature consolidates
- * (`WorkspaceTabsBar.tsx`'s `TabDropEdge`, `FileWorkspace.tsx`'s
- * `TabDropEdge`) — identical meaning in both.
- */
+/** Which side of the target tab receives the dragged item. */
 export type TabStripDropEdge = 'before' | 'after';
 
 export interface TabStripDragTarget {
@@ -13,13 +8,7 @@ export interface TabStripDragTarget {
   edge: TabStripDropEdge;
 }
 
-/**
- * One tab-strip item. `content` is host-injected — the primitive never
- * renders an icon or label itself, it just lays out whatever the host gives
- * it (see `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s consolidation
- * map: "the specific parts become host-injected config, not part of the
- * primitive").
- */
+/** One tab item. The host owns icon/label/meta content; this primitive only lays it out. */
 export interface TabStripTab {
   id: string;
   /** Icon + label + meta + badges — anything the host wants inside the tab. */

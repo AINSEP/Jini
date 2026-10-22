@@ -27,8 +27,8 @@ import type { AnyToken, ManyToken, Token } from './token.js';
  * silently falling through to a global container.
  */
 export interface PackContainer {
-  get<T>(t: Token<T, string>): T;
-  getMany<T>(t: ManyToken<T, string>): T[];
+  get<T>(required: { token: Token<T, string> }): T;
+  getMany<T>(required: { token: ManyToken<T, string> }): T[];
 }
 
 export interface Pack<
@@ -41,22 +41,31 @@ export interface Pack<
   readonly services: (c: PackContainer) => Services;
   /**
    * `{descriptor, handler, policy}` triples this pack contributes to the composition's shared
-   * `ToolRegistry`. Called exactly once per composed pack, before any transport is mounted, so a
-   * pack's routes can assume its own tools are already registered.
+   * `ToolRegistry`. Composition roots must call `registerPackTools` exactly once per composed pack,
+   * before mounting any transport, so a pack's routes can assume its tools are already registered.
+   * This interface and `createDaemon` do not enforce that orchestration; repeated registration
+   * invokes the contribution again and duplicate tool IDs are rejected by the registry.
    *
    * Atomic with `http`/`cli` by construction: a pack that is not composed contributes neither its
    * tools nor its routes. See this module's own doc for the failure mode that makes this
    * load-bearing rather than a convenience.
    */
-  readonly tools?: (services: Services) => readonly ToolRegistration[];
-  readonly http?: (app: unknown, services: Services) => void;
-  readonly cli?: (reg: unknown, services: Services) => void;
+  readonly tools?: (required: { services: Services }) => readonly ToolRegistration[];
+  readonly http?: (required: { app: unknown; services: Services }) => void;
+  readonly cli?: (required: { reg: unknown; services: Services }) => void;
   /**
    * Releases whatever this pack's `services` acquired (a pty manager, a database handle, an OAuth
    * callback listener). Composition roots call these in reverse composition order, best-effort:
    * one pack's failure to dispose must never prevent another's from running.
    */
-  readonly dispose?: (services: Services) => Promise<void> | void;
+  readonly dispose?: (required: { services: Services }) => Promise<void> | void;
+}
+
+export interface PackContributions<Services> {
+  tools?: (required: { services: Services }) => readonly ToolRegistration[];
+  http?: (required: { app: unknown; services: Services }) => void;
+  cli?: (required: { reg: unknown; services: Services }) => void;
+  dispose?: (required: { services: Services }) => Promise<void> | void;
 }
 
 export function definePack<
@@ -67,10 +76,6 @@ export function definePack<
   name: Name;
   deps: Deps;
   services: (c: PackContainer) => Services;
-  tools?: (services: Services) => readonly ToolRegistration[];
-  http?: (app: unknown, services: Services) => void;
-  cli?: (reg: unknown, services: Services) => void;
-  dispose?: (services: Services) => Promise<void> | void;
-}): Pack<Deps, Services, Name> {
-  return def as unknown as Pack<Deps, Services, Name>;
+}, optional: PackContributions<Services> = {}): Pack<Deps, Services, Name> {
+  return { ...def, ...optional };
 }

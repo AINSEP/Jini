@@ -16,12 +16,16 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_UK: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Я видалив із повідомлення те, що було схоже на ключ. Якщо він справжній, замініть його. Збережіть його через захищену форму.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Використовуйте захищену форму для збереження ключів, токенів, паролів і секретів. Відповіді в чаті надсилаються асистенту.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# Моя навичка\n\n1. Опишіть робочий процес.\n2. Опишіть вхідні та вихідні дані.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'Користувацький шлях не спрацював, тому натомість було використано автоматично визначений виконуваний файл.',
   'API key': 'Ключ API',
   'About': 'Про програму',
   'Accent color': 'Акцентний колір',
   'Account': 'Обліковий запис',
+  'Advanced': 'Додатково',
   'Advanced: proxy & custom paths': 'Додатково: проксі та власні шляхи',
   'Agent check failed': 'Перевірку агента не пройдено',
   'Agent is ready.': 'Агент готовий.',
@@ -65,8 +69,8 @@ export const SETTINGS_DIALOG_UK: SettingsDialogDict = {
   'Copy': 'Копіювати',
   'Copy to clipboard': 'Копіювати в буфер обміну',
   'Could not load live models: {message}': 'Не вдалося завантажити актуальні моделі: {message}',
-  'No API key — connection test needs the key from this browser.': 'Немає API-ключа — для перевірки підключення потрібен ключ із цього браузера.',
-  'No API key — model discovery needs the key from this browser.': 'Немає API-ключа — для пошуку моделей потрібен ключ із цього браузера.',
+  'No API key saved. Save one to test the connection.': 'API-ключ не збережено. Збережіть ключ, щоб перевірити підключення.',
+  'No API key saved. Save one to load models.': 'API-ключ не збережено. Збережіть ключ, щоб завантажити моделі.',
   'Could not load skills: {error}': 'Не вдалося завантажити навички: {error}',
   'Could not reach the daemon: {error}': 'Не вдалося з\'єднатися з демоном: {error}',
   'Could not reach the server. Showing local changes only.': 'Не вдалося з\'єднатися з сервером. Показано лише локальні зміни.',
@@ -146,6 +150,9 @@ export const SETTINGS_DIALOG_UK: SettingsDialogDict = {
   'Not available for this daemon.': 'Недоступно для цього демона.',
   'Not configured': 'Не налаштовано',
   'Not installed': 'Не встановлено',
+  'Show {count} not installed': 'Показати невстановлені ({count})',
+  'Hide not installed': 'Сховати невстановлені',
+  'Show not-installed CLIs': 'Показати невстановлені CLI',
   'Not sharing': 'Не поширюється',
   'Nothing is shared unless you opt in.': 'Нічого не поширюється, доки ви не увімкнете це самостійно.',
   'Off': 'Вимкнено',

@@ -2,7 +2,7 @@
  * Provider: FishAudio — Speech-1.x family text-to-speech (synchronous,
  * `POST /v1/tts`). Ported near-verbatim from Open Design's
  * `apps/daemon/src/media/index.ts` `renderFishAudioTTS` — see
- * `source-map.md`.
+ * `archived provenance ledger`.
  *
  * 2026-07-21: migrated onto the generic vendor-adapter dispatch engine
  * (`vendor-adapter.ts`/`vendor-registry.ts`). External behavior (URL,
@@ -27,7 +27,7 @@ import { createRawBytesParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 const FISHAUDIO_DEFAULT_BASE_URL = 'https://api.fish.audio';
 
@@ -42,9 +42,9 @@ interface FishAudioTTSMeta {
 }
 
 const fishAudioTTSAdapter: VendorAdapter<FishAudioTTSMeta> = {
-  requireCredential: requireApiKey(NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<FishAudioTTSMeta> {
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<FishAudioTTSMeta> {
     const apiKey = credentials.apiKey!; // requireCredential already validated this.
     const baseUrl = (credentials.baseUrl || FISHAUDIO_DEFAULT_BASE_URL).replace(/\/$/, '');
     // Same precedence as minimax.ts's renderMinimaxTTS: an explicit caller
@@ -86,13 +86,19 @@ const fishAudioTTSAdapter: VendorAdapter<FishAudioTTSMeta> = {
   parseResponse: createRawBytesParser<FishAudioTTSMeta>({
     errorTag: 'fishaudio tts',
     zeroBytesMessage: 'fishaudio tts returned zero bytes',
-    note: (bytes, meta) => `fishaudio/${meta.wireModel} · ${bytes.length} bytes`,
+    note: ({ bytes, meta }) => `fishaudio/${meta.wireModel} · ${bytes.length} bytes`,
     suggestedExt: '.mp3',
   }),
 };
 
-mediaVendorRegistry.register('fishaudio', 'audio:speech', fishAudioTTSAdapter);
+export async function renderFishAudioTTS({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: fishAudioTTSAdapter, ctx: ctx, credentials: credentials });
+}
 
-export async function renderFishAudioTTS(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(fishAudioTTSAdapter, ctx, credentials);
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'fishaudio', routeKey: 'audio:speech', adapter: fishAudioTTSAdapter });
 }

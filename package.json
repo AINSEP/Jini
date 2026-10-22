@@ -7,7 +7,9 @@
     "pnpm": ">=10.33.2 <11"
   },
   "scripts": {
-    "guard": "tsx ./scripts/guard.ts",
+    "test:scripts": "vitest run scripts/__tests__ && pnpm run test:scripts:node",
+    "test:scripts:node": "node --import tsx --test --test-concurrency=1 scripts/__tests__/check-hardwiring.test.ts scripts/__tests__/integration/infra-retirement.integration.test.ts",
+    "guard": "node --import tsx ./scripts/guard.ts",
     "guard:drift": "tsx ./scripts/check-guard-drift.ts",
     "playground": "tsx ./scripts/start-playground.ts",
     "playground:web": "tsx ./scripts/start-playground.ts --web-only",
@@ -15,7 +17,14 @@
     "typecheck": "pnpm -r --if-present run typecheck && tsc -p scripts/tsconfig.json --noEmit",
     "changeset": "changeset",
     "complexity": "eslint --no-error-on-unmatched-pattern .",
-    "complexity:strict": "eslint --no-error-on-unmatched-pattern --rule 'complexity: [\"error\", 10]' --rule 'sonarjs/cognitive-complexity: [\"error\", 10]'"
+    "complexity:strict": "eslint --no-error-on-unmatched-pattern --rule 'complexity: [\"error\", 10]' --rule 'sonarjs/cognitive-complexity: [\"error\", 10]'",
+    "quality:knip": "knip --config knip.json --no-exit-code",
+    "quality:depcruise": "bash scripts/quality-depcruise.sh",
+    "quality:secrets": "bash scripts/quality-secrets.sh",
+    "quality:semgrep": "python3 scripts/quality-semgrep.py",
+    "quality:semgrep:test": "python3 scripts/quality-semgrep.py --test",
+    "quality:properties": "pnpm -r --no-bail --filter @jini-ai/platform --filter @jini-ai/chat --filter @jini-ai/oauth --filter @jini-ai/cms run test:properties",
+    "quality:sonar": "eslint --config development/quality/eslint.sonar.config.mjs --format ./development/quality/sonar-formatter.mjs --no-error-on-unmatched-pattern packages"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",
@@ -26,7 +35,9 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.65.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "knip": "5.61.3",
+    "dependency-cruiser": "18.1.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -6,7 +6,7 @@
  * (`extraction-log.ts`), a pure self-verify scorecard enforcer
  * (`verify.ts`), a labeled-line rule-body parser (`rule-body.ts`), and a
  * generic multi-vendor "call an LLM HTTP API, get strict JSON back"
- * primitive (`llm-provider.ts`). See `source-map.md` for provenance and the
+ * primitive (`llm-provider.ts`). See `archived provenance ledger` for provenance and the
  * scope decisions (what was generalized vs. explicitly left OD-side).
  */
 export type { EntryFrontmatter } from './entry-frontmatter.js';
@@ -24,8 +24,16 @@ export type {
   NoteStoreConfig,
   NoteStoreOptions,
   NoteTreeNode,
+  NoteStoreFilesystemPort,
+  NoteStoreOptionalArgs,
+  NoteUpsertInput,
+  NoteTreePatch,
 } from './note-store.js';
-export { createNoteStore, NoteStoreConfigError } from './note-store.js';
+export {
+  createNoteStore, NoteStoreConfigError, hasInvalidSubdirLength, isReservedRelativeSegment,
+  containsPathSeparatorOrNul, isMultiSegmentOrAbsoluteWin32Path,
+  isValidUpsertInput, resolveUpsertEntryId, buildUpsertChangeEvent,
+} from './note-store.js';
 
 export type { ExtractionLog, ExtractionPhase, ExtractionProvider, ExtractionRecord } from './extraction-log.js';
 export { createExtractionLog } from './extraction-log.js';
@@ -43,7 +51,7 @@ export type {
 } from './verify.js';
 export { createVerifyLog, enforceVerify } from './verify.js';
 
-export type { LlmProviderConfig, LlmProviderId } from './llm-provider.js';
+export type { LlmProviderConfig, LlmProviderId, LlmProviderOptions } from './llm-provider.js';
 export {
   AZURE_DEFAULT_API_VERSION,
   DEFAULT_TIMEOUT_MS,

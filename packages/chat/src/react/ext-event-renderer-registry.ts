@@ -1,3 +1,4 @@
+import { acceptedInputEvent } from '../core/accepted-input.js';
 /**
  * @module ext-event-renderer-registry
  *
@@ -20,6 +21,20 @@
 import type { ReactNode } from 'react';
 
 /** Render-prop payload for one `name` group of `kind: 'ext'` events belonging to a message. */
+/**
+ * The tool call that was still open when a group's first ext event arrived: the call that emitted
+ * the surface. For a held-open question (a tool that shows a card and waits for the answer), the
+ * call's `result` is the exchange ending: answered, expired or dismissed. Absent `result` means
+ * the call is still waiting, or its run ended before it returned.
+ */
+export interface ExtEventCall {
+  /** Stable owning tool identity for matching persisted answer receipts. */
+  readonly id?: string;
+  readonly name: string;
+  readonly input: unknown;
+  readonly result?: { readonly content: string; readonly isError: boolean };
+}
+
 export interface ExtEventRenderProps {
   name: string;
   /** Every matching event's `data`, in arrival order. Never empty. */
@@ -27,8 +42,30 @@ export interface ExtEventRenderProps {
   /** Whether the owning run is still streaming — more events with this `name` may still arrive. */
   runStreaming: boolean;
   runSucceeded: boolean;
+  /**
+   * Whether the owning run is waiting on the person — a card (form, confirm, sign-in) sits on a
+   * still-open tool call (`isAwaitingAnswer` in `core/run-activity.ts`). A "still working" notice
+   * should hide while this is true. Always `false` once the run stops streaming. Optional so a host
+   * that builds these props itself (tests, wrappers) keeps compiling; `MessageRow` always sets it.
+   */
+  awaitingAnswer?: boolean;
   /** The owning message's `ChatMessage.runId`, if known — a renderer that needs to send something back to this specific run (e.g. an A2UI action) needs this; omitted (`undefined`) for a message with no run association. */
   runId: string | undefined;
+  /** See {@link ExtEventCall}. Absent when the group's first event arrived outside any tool call. */
+  call?: ExtEventCall;
+  /** Whether this card already reported its answer delivered (see {@link onAnswered}). */
+  answered?: boolean;
+  /**
+   * A card calls this once the person's answer reached the server. Its tool call may stay open for
+   * the work the answer started, and the run must stop reading as "waiting for your answer".
+   */
+  onAnswered?: () => void;
+  /** Optional readable answer delivered through the card; emitted before onAnswered. */
+  onAnswerText?: (answerText: string) => void;
+  /** Delivered answer text while the owning tool is still finishing. */
+  answerText?: string;
+  /** A matching user_message receipt already owns the visible bubble. */
+  answerRecorded?: boolean;
 }
 
 /**
@@ -43,24 +80,100 @@ export interface ExtEventRenderProps {
  */
 export type ExtEventRenderer = (props: ExtEventRenderProps) => ReactNode;
 
-const renderers = new Map<string, ExtEventRenderer>();
-
 /**
- * Register a renderer for an ext-event `name`. Returns an unregister handle so tests / hot-reloads
- * can dispose cleanly. Re-registering the same name overwrites — last writer wins.
+ * Names the independent surface one ext event belongs to, or `undefined` for "the name's shared slot".
+ *
+ * Without one, every event sharing a `name` folds into ONE render slot at the name's first
+ * occurrence — right for a stream that builds a single surface (A2UI's create → update sequence).
+ * It is wrong for a protocol whose events are separate surfaces: MCP-UI emits one resource per
+ * card, so a run's second card rendered inside the first card's slot, far above where it arrived,
+ * and a run blocked on it waited for an answer nobody could see (host stuck-chat investigation,
+ * 2026-09-27). A slot key gives each surface its own slot at its own first occurrence; later events
+ * with the same key still update that slot in place.
  */
-export function registerExtEventRenderer(name: string, renderer: ExtEventRenderer): () => void {
-  renderers.set(name, renderer);
-  return () => {
-    if (renderers.get(name) === renderer) renderers.delete(name);
-  };
+export type ExtEventSlotKey = (required: { data: unknown }) => string | undefined;
+
+export interface ExtEventRendererOptions {
+  /** See {@link ExtEventSlotKey}. Omit for one shared slot per `name`. */
+  slotKey?: ExtEventSlotKey;
 }
 
-export function getExtEventRenderer(name: string): ExtEventRenderer | undefined {
-  return renderers.get(name);
+interface RegisteredExtEventRenderer {
+  readonly renderer: ExtEventRenderer;
+  readonly slotKey: ExtEventSlotKey | undefined;
 }
 
-/** Visible mainly for tests. */
-export function clearExtEventRenderers(): void {
-  renderers.clear();
+/** Owned renderer and slot-key state for one chat tree. */
+export interface ExtEventRendererRegistry {
+  register(required: { name: string; renderer: ExtEventRenderer }, options?: ExtEventRendererOptions): () => void;
+  get(required: { name: string }): ExtEventRenderer | undefined;
+  slot(required: { name: string; data: unknown }): string;
+  clear(): void;
 }
+
+/** Create independent extension renderer state, including each protocol's slot grouping.
+ * @returns A keyed registry with identity-safe unregister handles.
+ * @example const extensions = createExtEventRendererRegistry({}); extensions.register({ name: 'card', renderer });
+ */
+export function createExtEventRendererRegistry(_required: Record<string, never> = {}): ExtEventRendererRegistry {
+  const renderers = new Map<string, RegisteredExtEventRenderer>();
+  /**
+   * Register a renderer for an ext-event `name`. Returns an unregister handle so tests / hot-reloads
+   * can dispose cleanly. Re-registering the same name overwrites — last writer wins.
+   */
+  function register(
+    { name, renderer }: { name: string; renderer: ExtEventRenderer },
+    options: ExtEventRendererOptions = {},
+  ): () => void {
+    const entry: RegisteredExtEventRenderer = { renderer, slotKey: options.slotKey };
+    renderers.set(name, entry);
+    return () => {
+      if (renderers.get(name) === entry) renderers.delete(name);
+    };
+  }
+
+  function get({ name }: { name: string }): ExtEventRenderer | undefined {
+    return renderers.get(name)?.renderer;
+  }
+
+  /**
+   * The render slot an ext event belongs to: its `name`, or `name:key` when the name's renderer was
+   * registered with a {@link ExtEventSlotKey} that recognizes this event. A throwing key function
+   * falls back to the shared slot rather than taking the whole message down.
+   */
+  function slot({ name, data }: { name: string; data: unknown }): string {
+    const slotKey = renderers.get(name)?.slotKey;
+    if (!slotKey) {
+      const input = acceptedInputEvent({ event: { kind: 'ext', name, data } });
+      return input ? `${name}:${input.data.id}` : name;
+    }
+    let key: string | undefined;
+    try {
+      key = slotKey({ data });
+    } catch {
+      key = undefined;
+    }
+    return key === undefined || key === '' ? name : `${name}:${key}`;
+  }
+
+  /** Visible mainly for tests. */
+  function clear(): void { renderers.clear(); }
+  return { register, get, slot, clear };
+}
+
+/** Compatibility default for hosts that have not supplied owned state. */
+export const defaultExtEventRendererRegistry = createExtEventRendererRegistry({});
+
+/** Register against the compatibility default; see the owned registry's registration contract. */
+export function registerExtEventRenderer(required: { name: string; renderer: ExtEventRenderer }, options: ExtEventRendererOptions = {}): () => void {
+  return defaultExtEventRendererRegistry.register(required, options);
+}
+export function getExtEventRenderer(required: { name: string }): ExtEventRenderer | undefined {
+  return defaultExtEventRendererRegistry.get(required);
+}
+/** Resolve a slot using the compatibility default's registered slot key. */
+export function extEventSlot(required: { name: string; data: unknown }): string {
+  return defaultExtEventRendererRegistry.slot(required);
+}
+/** Visible mainly for tests using the compatibility default. */
+export function clearExtEventRenderers(): void { defaultExtEventRendererRegistry.clear(); }

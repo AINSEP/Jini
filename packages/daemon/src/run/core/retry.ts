@@ -50,10 +50,7 @@ function backoffBaseDelayMs(category: RunFailureCategory | undefined): number {
  * @param random - Optional jitter source; defaults to `Math.random` for production use.
  * @returns Backoff duration in milliseconds, capped at `MAX_RETRY_BACKOFF_DELAY_MS`.
  */
-export function computeRetryBackoffMs(
-  attemptIndex: number,
-  category: RunFailureCategory | undefined,
-  random: () => number = Math.random,
+export function computeRetryBackoffMs({ attemptIndex, category }: { readonly attemptIndex: number; readonly category: RunFailureCategory | undefined }, { random = Math.random }: { readonly random?: () => number } = {}
 ): number {
   const exponent = Math.max(0, Math.floor(attemptIndex) - 1);
   const raw = backoffBaseDelayMs(category) * RETRY_BACKOFF_MULTIPLIER ** exponent;
@@ -121,7 +118,7 @@ export type RunRetryPolicyDecision =
  * @returns A `RunRetryFailureSignal` suitable for {@link decideSafeRunRetry}.
  * @complexity O(1).
  */
-export function classifyProcessExitFailure(code: number | null, signal: string | null): RunRetryFailureSignal {
+export function classifyProcessExitFailure({ code, signal }: { readonly code: number | null; readonly signal: string | null }): RunRetryFailureSignal {
   if (signal !== null) {
     return { failure_category: 'process_exit', failure_detail: 'signal_killed', retryable: true };
   }
@@ -155,17 +152,9 @@ export function classifyProcessExitFailure(code: number | null, signal: string |
  * behavior for any other caller.
  * @complexity O(1).
  */
-export function resumableFromProcessExit(
-  code: number | null,
-  signal: string | null,
-  sideEffects?: Pick<RunRetrySideEffectState, 'userVisibleOutputSeen' | 'toolCallSeen'>,
+export function resumableFromProcessExit({ code, signal }: { readonly code: number | null; readonly signal: string | null }, { sideEffects }: { readonly sideEffects?: Pick<RunRetrySideEffectState, 'userVisibleOutputSeen' | 'toolCallSeen'> } = {}
 ): boolean {
-  const decision = decideSafeRunRetry({
-    result: 'failed',
-    failure: classifyProcessExitFailure(code, signal),
-    attemptCount: 0,
-    ...(sideEffects !== undefined ? { sideEffects } : {}),
-  });
+  const decision = decideSafeRunRetry({ result: 'failed', attemptCount: 0 }, { failure: classifyProcessExitFailure({ code: code, signal: signal }), ...(sideEffects !== undefined ? { sideEffects } : {}) });
   return decision.shouldRetry;
 }
 
@@ -244,61 +233,84 @@ function transientSuppressedReason(
   return 'non_retryable_category';
 }
 
+/** Side effects that make a same-run retry unsafe (it could duplicate work the user already saw),
+ *  in the order they are reported when several were observed. `cancelRequested` is not listed: it is
+ *  checked earlier, ahead of the failure signal itself. */
+const SIDE_EFFECT_SUPPRESSIONS: ReadonlyArray<
+  readonly [Exclude<keyof RunRetrySideEffectState, 'cancelRequested'>, RunRetrySuppressedReason]
+> = [
+  ['userVisibleOutputSeen', 'user_visible_output_seen'],
+  ['toolCallSeen', 'tool_call_seen'],
+  ['artifactWriteSeen', 'artifact_write_seen'],
+  ['liveArtifactSeen', 'live_artifact_seen'],
+];
+
+function sideEffectSuppressedReason(sideEffects: RunRetrySideEffectState): RunRetrySuppressedReason | null {
+  const observed = SIDE_EFFECT_SUPPRESSIONS.find(([flag]) => Boolean(sideEffects[flag]));
+  return observed === undefined ? null : observed[1];
+}
+
+// A non-retryable category is reported ahead of the `retryable` flag, while the other transient
+// reasons (an unknown category, an unsafe stage) are reported only after it.
+function failureSuppressedReason(failure: RunRetryFailureSignal | undefined): RunRetrySuppressedReason | null {
+  if (!failure) return 'missing_failure_signal';
+  if (failure.failure_detail === 'hard_quota') return 'hard_quota';
+  const transientReason = transientSuppressedReason(
+    failure.failure_category,
+    failure.failure_detail,
+    failure.failure_stage,
+  );
+  if (transientReason === 'non_retryable_category') return transientReason;
+  if (!failure.retryable) return 'not_retryable';
+  return transientReason;
+}
+
+/** The first reason (in policy order) that suppresses a retry, or `null` when a retry is safe. */
+function retrySuppressedReason(input: {
+  readonly result: RunFailureResult;
+  readonly failure: RunRetryFailureSignal | undefined;
+  readonly sideEffects: RunRetrySideEffectState;
+  readonly attemptCount: number;
+  readonly retryMaxAttempts: number;
+}): RunRetrySuppressedReason | null {
+  if (input.result !== 'failed') return 'not_failed';
+  if (input.sideEffects.cancelRequested) return 'cancel_requested';
+  const failureReason = failureSuppressedReason(input.failure);
+  if (failureReason !== null) return failureReason;
+  if (input.attemptCount >= input.retryMaxAttempts) return 'attempt_limit_reached';
+  return sideEffectSuppressedReason(input.sideEffects);
+}
+
 /**
  * Decides whether a failed run should be automatically retried and, if so, schedules the delay.
  * Suppresses retries when the run was cancelled, emitted user-visible output, or hit a non-transient failure.
  * @param input - Run outcome, failure classification, attempt count, and observable side effects.
  * @returns A `RunRetryPolicyDecision` with `shouldRetry: true` and a delay, or `shouldRetry: false` with a suppression reason.
  */
-export function decideSafeRunRetry(
-  input: RunRetryPolicyInput,
+export function decideSafeRunRetry(requiredArgs: Pick<RunRetryPolicyInput, "result" | "attemptCount">, optionalArgs: Pick<RunRetryPolicyInput, "failure" | "maxAttempts" | "sideEffects" | "random"> = {}
 ): RunRetryPolicyDecision {
-  const attemptCount = normalizeAttemptCount(input.attemptCount);
-  const retryMaxAttempts = normalizeMaxAttempts(input.maxAttempts);
+  const attemptCount = normalizeAttemptCount(requiredArgs.attemptCount);
+  const retryMaxAttempts = normalizeMaxAttempts(optionalArgs.maxAttempts);
   const retryAttemptIndex = attemptCount + 1;
   const base = {
     retryAttemptIndex,
     retryMaxAttempts,
     retryStrategy: SAFE_RUN_RETRY_STRATEGY,
   };
-  const suppress = (
-    retrySuppressedReason: RunRetrySuppressedReason,
-  ): RunRetryPolicyDecision => ({
-    ...base,
-    shouldRetry: false,
-    retrySuppressedReason,
+  const reason = retrySuppressedReason({
+    result: requiredArgs.result,
+    failure: optionalArgs.failure,
+    sideEffects: optionalArgs.sideEffects ?? {},
+    attemptCount,
+    retryMaxAttempts,
   });
-
-  if (input.result !== 'failed') return suppress('not_failed');
-
-  const sideEffects = input.sideEffects ?? {};
-  if (sideEffects.cancelRequested) return suppress('cancel_requested');
-
-  const failure = input.failure;
-  if (!failure) return suppress('missing_failure_signal');
-  if (failure.failure_detail === 'hard_quota') return suppress('hard_quota');
-  const transientReason = transientSuppressedReason(
-    failure.failure_category,
-    failure.failure_detail,
-    failure.failure_stage,
-  );
-  if (transientReason === 'non_retryable_category') return suppress(transientReason);
-  if (!failure.retryable) return suppress('not_retryable');
-  if (transientReason) return suppress(transientReason);
-  if (attemptCount >= retryMaxAttempts) return suppress('attempt_limit_reached');
-  if (sideEffects.userVisibleOutputSeen) return suppress('user_visible_output_seen');
-  if (sideEffects.toolCallSeen) return suppress('tool_call_seen');
-  if (sideEffects.artifactWriteSeen) return suppress('artifact_write_seen');
-  if (sideEffects.liveArtifactSeen) return suppress('live_artifact_seen');
+  if (reason !== null) return { ...base, shouldRetry: false, retrySuppressedReason: reason };
 
   return {
     ...base,
     shouldRetry: true,
     retryReason: 'transient_failure',
-    retryDelayMs: computeRetryBackoffMs(
-      retryAttemptIndex,
-      failure.failure_category,
-      input.random,
+    retryDelayMs: computeRetryBackoffMs({ attemptIndex: retryAttemptIndex, category: optionalArgs.failure?.failure_category }, optionalArgs.random === undefined ? {} : { random: optionalArgs.random }
     ),
   };
 }

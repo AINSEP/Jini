@@ -3,7 +3,7 @@
  *
  * CLI transport-shell: HTTP-client-mode generic transport/infra ported from
  * OD's `apps/daemon/src/cli.ts` (extraction-plan §3 / §8 task 9). See
- * `source-map.md` for the full classification of what was and wasn't
+ * `archived provenance ledger` for the full classification of what was and wasn't
  * ported. This is a first generic slice, not the full `@jini-ai/cli` package.
  * This barrel itself registers nothing against `CommandRegistry` — see the
  * NOTE below for `main.ts`, this package's own bootable entrypoint, which does.
@@ -27,3 +27,5 @@ export * from './tokens.js';
 // imported for real (guarded so that merely importing its named `main` export does not trigger
 // that side effect — see `main.ts`'s own module doc) — bundling it into this barrel would mean
 // `import '@jini-ai/cli'` could start behaving like a CLI invocation.
+
+export * from './introspection.js';

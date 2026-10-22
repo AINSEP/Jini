@@ -39,7 +39,7 @@ describe('handleAgentStart', () => {
   it('sends a working status', () => {
     const send = vi.fn();
     expect(handleAgentStart({}, send)).toBeNull();
-    expect(send).toHaveBeenCalledWith('agent', { type: 'status', label: 'working' });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'working' } });
   });
 });
 
@@ -53,7 +53,7 @@ describe('handleTurnStart', () => {
   it('sends a thinking status', () => {
     const send = vi.fn();
     expect(handleTurnStart({}, send)).toBeNull();
-    expect(send).toHaveBeenCalledWith('agent', { type: 'status', label: 'thinking' });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'thinking' } });
   });
 });
 
@@ -80,24 +80,24 @@ describe('emitTurnEndUsage', () => {
   it('sends a usage event with cost.total when present', () => {
     const send = vi.fn();
     emitTurnEndUsage({ input: 1, cost: { total: 0.5 } }, send, ctx({ runStartedAt: 1000 }));
-    expect(send).toHaveBeenCalledWith('agent', {
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: {
       type: 'usage',
       usage: { input_tokens: 1 },
       costUsd: 0.5,
       durationMs: expect.any(Number),
-    });
+    } });
   });
 
   it('falls back to cost.totalCost when cost.total is absent', () => {
     const send = vi.fn();
     emitTurnEndUsage({ input: 1, cost: { totalCost: 0.25 } }, send, ctx());
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ costUsd: 0.25 }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ costUsd: 0.25 }) });
   });
 
   it('sends costUsd: null when there is no cost object at all', () => {
     const send = vi.fn();
     emitTurnEndUsage({ input: 1 }, send, ctx());
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ costUsd: null }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ costUsd: null }) });
   });
 });
 
@@ -118,13 +118,13 @@ describe('emitTurnEndErrorIfPresent', () => {
     const send = vi.fn();
     const raw = { type: 'turn_end' };
     emitTurnEndErrorIfPresent({ stopReason: 'error', errorMessage: 'boom' }, raw, send);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'error', message: 'boom', raw });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'error', message: 'boom', raw } });
   });
 
   it('falls back to a generic message when errorMessage is absent', () => {
     const send = vi.fn();
     emitTurnEndErrorIfPresent({ stopReason: 'error' }, {}, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ message: 'Pi agent error' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'Pi agent error' }) });
   });
 });
 
@@ -136,8 +136,8 @@ describe('handleTurnEnd', () => {
       send,
       ctx(),
     );
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'usage' }));
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'error', message: 'boom' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ type: 'usage' }) });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ type: 'error', message: 'boom' }) });
   });
 
   it('sends nothing when there is no message at all', () => {
@@ -159,16 +159,16 @@ describe('handleAssistantTextDelta', () => {
     const c = ctx();
     handleAssistantTextDelta({ delta: 'a' }, send, c);
     handleAssistantTextDelta({ delta: 'b' }, send, c);
-    expect(send).toHaveBeenNthCalledWith(1, 'agent', { type: 'status', label: 'streaming', ttftMs: expect.any(Number) });
-    expect(send).toHaveBeenNthCalledWith(2, 'agent', { type: 'text_delta', delta: 'a' });
-    expect(send).toHaveBeenNthCalledWith(3, 'agent', { type: 'text_delta', delta: 'b' });
+    expect(send).toHaveBeenNthCalledWith(1, { event: 'agent', payload: { type: 'status', label: 'streaming', ttftMs: expect.any(Number) } });
+    expect(send).toHaveBeenNthCalledWith(2, { event: 'agent', payload: { type: 'text_delta', delta: 'a' } });
+    expect(send).toHaveBeenNthCalledWith(3, { event: 'agent', payload: { type: 'text_delta', delta: 'b' } });
   });
 
   it('does not re-emit the streaming status once sentFirstToken is already true', () => {
     const send = vi.fn();
     handleAssistantTextDelta({ delta: 'x' }, send, ctx({ sentFirstToken: { value: true } }));
     expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'text_delta', delta: 'x' });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'text_delta', delta: 'x' } });
   });
 });
 
@@ -182,7 +182,7 @@ describe('handleAssistantThinkingDelta', () => {
   it('emits thinking_delta', () => {
     const send = vi.fn();
     handleAssistantThinkingDelta({ delta: 't' }, send);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'thinking_delta', delta: 't' });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'thinking_delta', delta: 't' } });
   });
 });
 
@@ -191,8 +191,8 @@ describe('handleAssistantThinkingStart / handleAssistantThinkingEnd', () => {
     const send = vi.fn();
     handleAssistantThinkingStart({}, send);
     handleAssistantThinkingEnd({}, send);
-    expect(send).toHaveBeenNthCalledWith(1, 'agent', { type: 'thinking_start' });
-    expect(send).toHaveBeenNthCalledWith(2, 'agent', { type: 'thinking_end' });
+    expect(send).toHaveBeenNthCalledWith(1, { event: 'agent', payload: { type: 'thinking_start' } });
+    expect(send).toHaveBeenNthCalledWith(2, { event: 'agent', payload: { type: 'thinking_end' } });
   });
 });
 
@@ -201,13 +201,13 @@ describe('handleAssistantError', () => {
     const send = vi.fn();
     const raw = { type: 'message_update' };
     handleAssistantError({ reason: 'r' }, send, ctx(), raw);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'error', message: 'r', raw });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'error', message: 'r', raw } });
     send.mockClear();
     handleAssistantError({ delta: 'd' }, send, ctx(), raw);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ message: 'd' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'd' }) });
     send.mockClear();
     handleAssistantError({}, send, ctx(), raw);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ message: 'Agent error' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'Agent error' }) });
   });
 });
 
@@ -234,7 +234,7 @@ describe('handleMessageUpdate', () => {
   it('dispatches to the matching sub-handler', () => {
     const send = vi.fn();
     handleMessageUpdate({ assistantMessageEvent: { type: 'thinking_start' } }, send, ctx());
-    expect(send).toHaveBeenCalledWith('agent', { type: 'thinking_start' });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'thinking_start' } });
   });
 });
 
@@ -248,13 +248,13 @@ describe('handleToolExecutionStart', () => {
   it('sends a tool_use event, nullish-coalescing missing fields', () => {
     const send = vi.fn();
     handleToolExecutionStart({}, send);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'tool_use', id: null, name: null, input: null });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'tool_use', id: null, name: null, input: null } });
   });
 
   it('forwards the toolCallId, toolName, and args fields when present', () => {
     const send = vi.fn();
     handleToolExecutionStart({ toolCallId: 'c1', toolName: 'bash', args: { cmd: 'ls' } }, send);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'tool_use', id: 'c1', name: 'bash', input: { cmd: 'ls' } });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'tool_use', id: 'c1', name: 'bash', input: { cmd: 'ls' } } });
   });
 });
 
@@ -262,34 +262,34 @@ describe('handleToolExecutionEnd', () => {
   it('joins an array of text content blocks with newlines', () => {
     const send = vi.fn();
     handleToolExecutionEnd({ toolCallId: 'c1', result: { content: [{ type: 'text', text: 'line1' }, { type: 'text', text: 'line2' }] } }, send);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'tool_result', toolUseId: 'c1', content: 'line1\nline2', isError: false });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'tool_result', toolUseId: 'c1', content: 'line1\nline2', isError: false } });
   });
 
   it('JSON-stringifies non-text content blocks', () => {
     const send = vi.fn();
     handleToolExecutionEnd({ result: { content: [{ type: 'image', data: 'x' }] } }, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ content: JSON.stringify({ type: 'image', data: 'x' }) }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ content: JSON.stringify({ type: 'image', data: 'x' }) }) });
   });
 
   it('uses a plain string content value directly', () => {
     const send = vi.fn();
     handleToolExecutionEnd({ result: { content: 'plain text' } }, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ content: 'plain text' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ content: 'plain text' }) });
   });
 
   it('sends empty content when result.content is absent or an unrecognised shape', () => {
     const send = vi.fn();
     handleToolExecutionEnd({}, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ content: '' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ content: '' }) });
   });
 
   it('reports isError only when raw.isError is exactly true', () => {
     const send = vi.fn();
     handleToolExecutionEnd({ isError: true }, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ isError: true }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ isError: true }) });
     send.mockClear();
     handleToolExecutionEnd({ isError: 'true' }, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ isError: false }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ isError: false }) });
   });
 });
 
@@ -298,16 +298,16 @@ describe('handleExtensionError', () => {
     const send = vi.fn();
     const raw = { error: 'boom' };
     handleExtensionError(raw, send);
-    expect(send).toHaveBeenCalledWith('agent', { type: 'error', message: 'boom', raw });
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'error', message: 'boom', raw } });
   });
 
   it('falls back to a generic message when raw.error is absent or empty', () => {
     const send = vi.fn();
     handleExtensionError({}, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ message: 'Extension error' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'Extension error' }) });
     send.mockClear();
     handleExtensionError({ error: '' }, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ message: 'Extension error' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'Extension error' }) });
   });
 });
 
@@ -316,8 +316,8 @@ describe('handleCompactionStart / handleAutoRetryStart', () => {
     const send = vi.fn();
     handleCompactionStart({}, send);
     handleAutoRetryStart({}, send);
-    expect(send).toHaveBeenNthCalledWith(1, 'agent', { type: 'status', label: 'compacting' });
-    expect(send).toHaveBeenNthCalledWith(2, 'agent', { type: 'status', label: 'retrying' });
+    expect(send).toHaveBeenNthCalledWith(1, { event: 'agent', payload: { type: 'status', label: 'compacting' } });
+    expect(send).toHaveBeenNthCalledWith(2, { event: 'agent', payload: { type: 'status', label: 'retrying' } });
   });
 });
 
@@ -332,12 +332,12 @@ describe('handleAutoRetryEnd', () => {
   it('uses finalError when present', () => {
     const send = vi.fn();
     handleAutoRetryEnd({ success: false, finalError: 'gave up' }, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ message: 'gave up' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'gave up' }) });
   });
 
   it('falls back to a generic message when finalError is absent', () => {
     const send = vi.fn();
     handleAutoRetryEnd({ success: false }, send);
-    expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ message: 'Auto-retry exhausted' }));
+    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: expect.objectContaining({ message: 'Auto-retry exhausted' }) });
   });
 });

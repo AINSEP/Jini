@@ -117,7 +117,7 @@ export type RoutineRunHandler = (input: {
  */
 export interface RoutinePersistence {
   list(): Routine[];
-  insertRun(run: RoutineRun, options?: { scheduledSlotAt?: number }): boolean | void;
-  updateRun(id: string, patch: Partial<RoutineRun>): void;
-  getLatestRun(routineId: string): RoutineRun | null;
+  insertRun(args: { readonly run: RoutineRun }, optionalArgs?: { scheduledSlotAt?: number }): boolean | void;
+  updateRun(args: { readonly id: string; readonly patch: Partial<RoutineRun> }): void;
+  getLatestRun(args: { readonly routineId: string }): RoutineRun | null;
 }

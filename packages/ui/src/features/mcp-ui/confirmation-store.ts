@@ -142,9 +142,10 @@ function defaultRandomToken(): string {
   const source = globalThis.crypto;
   if (typeof source?.getRandomValues !== 'function') {
     // No `Math.random` fallback. A predictable confirmation token is a confirmation bypass, and a
-    // store that silently degrades to one is worse than a store that refuses to start — every
+    // store that silently degrades to one is worse than a store that refuses to mint — every
     // browser and every supported Node exposes `getRandomValues` (it needs no secure context,
     // unlike `crypto.subtle`), so reaching this means something is deeply wrong with the host.
+    // Creation is lazy: the default token source is checked on mint, not when the store is created.
     throw new Error('createConfirmationStore requires crypto.getRandomValues; pass deps.randomToken to override.');
   }
   const bytes = source.getRandomValues(new Uint8Array(TOKEN_BYTES));

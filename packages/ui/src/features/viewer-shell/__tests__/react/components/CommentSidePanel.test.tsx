@@ -311,6 +311,95 @@ describe('CommentSidePanel', () => {
   });
 });
 
+describe('CommentSidePanel boundary pins', () => {
+  it('sendDisabled disables the select-bar send button', () => {
+    render(<CommentSidePanel {...baseProps({ selectedIds: new Set(['c1']), sendDisabled: true })} />);
+    expect(screen.getByTestId('comment-side-send-claude')).toBeDisabled();
+  });
+
+  it('sendDisabled keeps the new-comment submit disabled even with a draft', async () => {
+    render(<CommentSidePanel {...baseProps({ onCreateComment: vi.fn(), sendDisabled: true })} />);
+    await userEvent.type(screen.getByPlaceholderText('Add a comment…'), 'note');
+    expect(screen.getByRole('button', { name: /^Send$/ })).toBeDisabled();
+  });
+
+  it('trims the draft before handing it to onCreateComment and clears it once saved', async () => {
+    const onCreateComment = vi.fn().mockResolvedValue(true);
+    render(<CommentSidePanel {...baseProps({ onCreateComment })} />);
+    const textarea = screen.getByPlaceholderText('Add a comment…');
+    await userEvent.type(textarea, '  padded  ');
+    await userEvent.click(screen.getByRole('button', { name: /^Send$/ }));
+    expect(onCreateComment).toHaveBeenCalledWith('padded');
+    expect(textarea).toHaveValue('');
+  });
+
+  it('keeps the draft when onCreateComment reports it was not saved', async () => {
+    const onCreateComment = vi.fn().mockResolvedValue(false);
+    render(<CommentSidePanel {...baseProps({ onCreateComment })} />);
+    const textarea = screen.getByPlaceholderText('Add a comment…');
+    await userEvent.type(textarea, 'keep me');
+    await userEvent.click(screen.getByRole('button', { name: /^Send$/ }));
+    expect(onCreateComment).toHaveBeenCalledWith('keep me');
+    expect(textarea).toHaveValue('keep me');
+  });
+
+  it('keeps the draft across a collapse and re-expand', async () => {
+    const props = baseProps({ onCreateComment: vi.fn() });
+    const { rerender } = render(<CommentSidePanel {...props} />);
+    await userEvent.type(screen.getByPlaceholderText('Add a comment…'), 'draft');
+    rerender(<CommentSidePanel {...props} collapsed />);
+    rerender(<CommentSidePanel {...props} collapsed={false} />);
+    expect(screen.getByPlaceholderText('Add a comment…')).toHaveValue('draft');
+  });
+
+  it('submits on Ctrl+Enter as well as Cmd+Enter', async () => {
+    const onCreateComment = vi.fn().mockResolvedValue(true);
+    render(<CommentSidePanel {...baseProps({ onCreateComment })} />);
+    const textarea = screen.getByPlaceholderText('Add a comment…');
+    await userEvent.type(textarea, 'ctrl note');
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
+    expect(onCreateComment).toHaveBeenCalledWith('ctrl note');
+  });
+
+  it('renders no attachment strip when the resolver is supplied but a comment has no attachments', () => {
+    const { container } = render(
+      <CommentSidePanel {...baseProps({ getCommentAttachments: () => [], resolveAttachmentUrl: (a) => a.path })} />,
+    );
+    expect(container.querySelector('.comment-side-attachments')).toBeNull();
+  });
+
+  it('renders no attachment strip when attachments exist but no resolver is supplied', () => {
+    const { container } = render(
+      <CommentSidePanel {...baseProps({ getCommentAttachments: () => [{ path: 'a.png', name: 'a.png' }] })} />,
+    );
+    expect(container.querySelector('.comment-side-attachments')).toBeNull();
+  });
+
+  it('marks a selected row and its checkbox, and offers Deselect', () => {
+    render(<CommentSidePanel {...baseProps({ selectedIds: new Set(['c2']) })} />);
+    const row = screen.getByText('2. Header').closest('[data-testid="comment-side-item"]')!;
+    expect(row).toHaveClass('selected');
+    const check = screen.getByRole('button', { name: 'Deselect' });
+    expect(check).toHaveClass('comment-side-check checked');
+    expect(check).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('counts only selected ids that are still visible', () => {
+    render(<CommentSidePanel {...baseProps({ selectedIds: new Set(['c1', 'gone']) })} />);
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
+  it('shows no drop-edge class on the dragged row itself or before any edge is known', () => {
+    render(<CommentSidePanel {...baseProps({ onReorder: vi.fn() })} />);
+    const dragHandle = screen.getAllByLabelText('Drag to reorder')[0]!;
+    const dataTransfer = { setData: vi.fn(), getData: vi.fn(() => ''), dropEffect: '' };
+    fireEvent.dragStart(dragHandle, { dataTransfer });
+    const rows = screen.getAllByTestId('comment-side-item');
+    expect(rows[0]!.className).toBe('comment-side-item dragging');
+    expect(rows[1]!.className).toBe('comment-side-item');
+  });
+});
+
 describe('CommentSidePanel hook override 4-pattern test suite', () => {
   it('Pattern 1 — State 1: Collapsed rail view state', () => {
     const onCollapsedChange = vi.fn();

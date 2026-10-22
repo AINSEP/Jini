@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -15,6 +15,7 @@ import {
   nextCustomSelectActiveValue,
   reconcileCustomSelectActiveValue,
   resolveInitialCustomSelectActiveValue,
+  resolveCustomSelectOriginTheme,
   useCustomSelect,
   type CustomSelectFlatOption,
   type CustomSelectItem,
@@ -244,6 +245,93 @@ describe('CustomSelect keyboard navigation', () => {
     act(() => { fireEvent.keyDown(trigger, { key: 'Escape' }); }); // closed + Escape -> no-op
     act(() => { fireEvent.keyDown(trigger, { key: 'a' }); }); // unrelated key -> no-op
     expect(screen.queryByRole('listbox')).toBeNull();
+  });
+});
+
+describe('CustomSelect Home/End navigation', () => {
+  const open = (trigger: HTMLElement) => act(() => { fireEvent.keyDown(trigger, { key: 'ArrowDown' }); });
+
+  it('moves the active option to the last enabled option on End', () => {
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    const trigger = screen.getByRole('combobox');
+    open(trigger);
+    act(() => { fireEvent.keyDown(trigger, { key: 'End' }); });
+    expect(trigger.getAttribute('aria-activedescendant')).toBe(optionButton('Beta').id);
+  });
+
+  it('moves the active option to the first enabled option on Home', () => {
+    render(<CustomSelect value="b" options={OPTIONS3} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    const trigger = screen.getByRole('combobox');
+    open(trigger);
+    act(() => { fireEvent.keyDown(trigger, { key: 'Home' }); });
+    expect(trigger.getAttribute('aria-activedescendant')).toBe(optionButton('Alpha').id);
+  });
+
+  it('clears the active option on Home when every option is disabled', () => {
+    render(<CustomSelect value="a" options={ALL_DISABLED} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    const trigger = screen.getByRole('combobox');
+    open(trigger);
+    act(() => { fireEvent.keyDown(trigger, { key: 'Home' }); });
+    expect(trigger.hasAttribute('aria-activedescendant')).toBe(false);
+  });
+});
+
+describe('CustomSelect menu rows and geometry', () => {
+  it('renders every option of a group inside that group, and flat items beside it', async () => {
+    const user = userEvent.setup();
+    const items = [{ label: 'Greek letters', options: OPTIONS3.slice(0, 2) }, { value: 'z', label: 'Zed' }];
+    render(<CustomSelect value="a" options={items} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    await user.click(screen.getByRole('combobox'));
+    const group = screen.getByText('Greek letters').closest('.jini-select-group')!;
+    expect(Array.from(group.querySelectorAll('[role=option]'), (option) => option.textContent)).toEqual(['Alpha', 'Beta']);
+    expect(optionButton('Zed').closest('.jini-select-group')).toBeNull();
+  });
+
+  it('positions a portalled menu with the measured trigger geometry', async () => {
+    const user = userEvent.setup();
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" />);
+    const trigger = screen.getByRole('combobox');
+    await user.click(trigger);
+    const expected = computeCustomSelectMenuPosition(trigger.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight });
+    const { style } = screen.getByRole('listbox');
+    expect([style.top, style.left, style.width, style.maxHeight]).toEqual(
+      [`${expected.top}px`, `${expected.left}px`, `${expected.width}px`, `${expected.maxHeight}px`],
+    );
+  });
+
+  it('leaves an inline menu without inline geometry', async () => {
+    const user = userEvent.setup();
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    await user.click(screen.getByRole('combobox'));
+    expect(screen.getByRole('listbox').hasAttribute('style')).toBe(false);
+  });
+});
+
+describe('resolveCustomSelectOriginTheme attribute edge cases', () => {
+  function originTheme(attributes: Record<string, string>) {
+    const trigger = document.createElement('button');
+    for (const [name, value] of Object.entries(attributes)) trigger.setAttribute(name, value);
+    return resolveCustomSelectOriginTheme({ trigger });
+  }
+
+  it('maps a legacy light/dark theme to the scheme too', () => {
+    expect(originTheme({ 'data-theme': 'dark' })).toEqual({ 'data-color-scheme': 'dark', 'data-theme': 'dark' });
+  });
+
+  it('mirrors a canonical scheme into data-theme', () => {
+    expect(originTheme({ 'data-color-scheme': 'light' })).toEqual({ 'data-color-scheme': 'light', 'data-theme': 'light' });
+  });
+
+  it('omits an empty theme identity', () => {
+    expect(originTheme({ 'data-admin-theme': '', 'data-theme': 'custom' })).toEqual({ 'data-theme': 'custom' });
+  });
+
+  it('lets an empty canonical scheme shadow a legacy scheme on the same node, copying data-theme as empty', () => {
+    expect(originTheme({ 'data-color-scheme': '', 'data-theme': 'dark' })).toEqual({ 'data-theme': '' });
+  });
+
+  it('copies nothing when both scheme attributes are empty', () => {
+    expect(originTheme({ 'data-color-scheme': '', 'data-theme': '' })).toEqual({});
   });
 });
 
@@ -711,5 +799,154 @@ describe('CustomSelect with hook override prop', () => {
     screen.getByRole('combobox').focus();
     await user.click(screen.getByRole('combobox'));
     expect(calls).toEqual([false, true]);
+  });
+});
+
+
+describe('CustomSelect shared popover lifecycle', () => {
+  it('portals to the nearest native dialog and consumes only the dropdown Escape', () => {
+    const onHostKeyDown = vi.fn(), onChange = vi.fn();
+    render(<dialog open onKeyDown={onHostKeyDown}>
+      <CustomSelect value="a" options={OPTIONS} onChange={onChange} ariaLabel="Pick" menuHeader={<input aria-label="Search" />} />
+    </dialog>);
+    const trigger = screen.getByRole('combobox');
+    fireEvent.click(trigger);
+    const menu = screen.getByRole('listbox');
+    expect(menu.parentElement).toBe(trigger.closest('dialog'));
+    const search = screen.getByRole('textbox', { name: 'Search' });
+    search.focus();
+    fireEvent.keyDown(search, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(onHostKeyDown).not.toHaveBeenCalled();
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(onHostKeyDown).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('uses an explicit portal container and removes the menu on dismissal', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    try {
+      const view = render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portalContainer={container} />);
+      const trigger = screen.getByRole('combobox');
+      fireEvent.click(trigger);
+      expect(screen.getByRole('listbox').parentElement).toBe(container);
+      fireEvent.keyDown(trigger, { key: 'Escape' });
+      expect(container.childElementCount).toBe(0);
+      view.unmount();
+    } finally { container.remove(); }
+  });
+
+  it.each([false, true])('returns Tab to the trigger DOM neighbours from injected search (backward: %s)', (shiftKey) => {
+    render(<>
+      <button type="button">Before</button>
+      <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" menuHeader={<input aria-label="Search" />} />
+      <button type="button">After</button>
+    </>);
+    fireEvent.click(screen.getByRole('combobox'));
+    const search = screen.getByRole('textbox', { name: 'Search' });
+    search.focus();
+    fireEvent.keyDown(search, { key: 'Tab', shiftKey });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: shiftKey ? 'Before' : 'After' }));
+  });
+
+  it('keeps Tab within a modal native dialog', () => {
+    render(<>
+      <button type="button">Outside</button>
+      <dialog open>
+        <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" menuHeader={<input aria-label="Search" />} />
+      </dialog>
+    </>);
+    const trigger = screen.getByRole('combobox'), dialog = trigger.closest('dialog')!;
+    const matches = dialog.matches.bind(dialog);
+    // jsdom has no modal top layer; fake the modal query while exercising actual portal/focus behavior.
+    const modalState = vi.spyOn(dialog, 'matches').mockImplementation((selector) => selector === ':modal' || matches(selector));
+    try {
+      fireEvent.click(trigger);
+      const search = screen.getByRole('textbox', { name: 'Search' });
+      search.focus();
+      fireEvent.keyDown(search, { key: 'Tab' });
+      expect(screen.queryByRole('listbox')).toBeNull();
+      expect(document.activeElement).toBe(trigger);
+    } finally { modalState.mockRestore(); }
+  });
+});
+
+describe('CustomSelect portal origin theme and scheme', () => {
+  it('copies the nearest scheme and theme identity independently, preserving local light pins', async () => {
+    render(
+      <div data-admin-theme="glass" data-color-scheme="dark">
+        <div data-theme="light">
+          <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" />
+        </div>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    const menu = screen.getByRole('listbox');
+    expect(menu.parentElement).toBe(document.body);
+    expect(menu).toHaveAttribute('data-admin-theme', 'glass');
+    expect(menu).toHaveAttribute('data-color-scheme', 'light');
+    expect(menu).toHaveAttribute('data-theme', 'light');
+  });
+
+  it('updates an open portal for canonical scheme changes, theme switches and attribute removal', async () => {
+    const view = render(
+      <div data-admin-theme="glass" data-color-scheme="dark" data-theme="light">
+        <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" />
+      </div>,
+    );
+    const origin = view.container.firstElementChild!;
+    await userEvent.click(screen.getByRole('combobox'));
+    const menu = screen.getByRole('listbox');
+    // The canonical scheme wins over a conflicting legacy attribute on the same node.
+    expect(menu).toHaveAttribute('data-color-scheme', 'dark');
+    expect(menu).toHaveAttribute('data-theme', 'dark');
+    act(() => {
+      origin.setAttribute('data-admin-theme', 'classic');
+      origin.setAttribute('data-color-scheme', 'light');
+    });
+    await waitFor(() => expect(menu).toHaveAttribute('data-admin-theme', 'classic'));
+    expect(menu).toHaveAttribute('data-color-scheme', 'light');
+    expect(menu).toHaveAttribute('data-theme', 'light');
+    act(() => {
+      origin.removeAttribute('data-color-scheme');
+      origin.setAttribute('data-theme', 'dark');
+    });
+    await waitFor(() => expect(menu).toHaveAttribute('data-color-scheme', 'dark'));
+    act(() => {
+      origin.removeAttribute('data-admin-theme');
+      origin.removeAttribute('data-theme');
+    });
+    await waitFor(() => expect(menu).not.toHaveAttribute('data-admin-theme'));
+    expect(menu).not.toHaveAttribute('data-color-scheme');
+    expect(menu).not.toHaveAttribute('data-theme');
+    // Attribute propagation must not disturb the menu's existing keyboard/selection lifecycle.
+    await userEvent.click(screen.getByRole('option', { name: 'Beta' }));
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveFocus();
+  });
+
+  it('leaves inline menus inside their original theme scope without copied attributes', async () => {
+    render(
+      <div data-admin-theme="glass" data-color-scheme="dark">
+        <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />
+      </div>,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    const menu = screen.getByRole('listbox');
+    expect(menu).not.toHaveAttribute('data-admin-theme');
+    expect(menu).not.toHaveAttribute('data-color-scheme');
+    expect(menu).not.toHaveAttribute('data-theme');
+    expect(menu.closest('[data-admin-theme]')).toHaveAttribute('data-admin-theme', 'glass');
+  });
+
+  it('has no attributes without an origin and preserves non-scheme legacy themes', () => {
+    expect(resolveCustomSelectOriginTheme({ trigger: null })).toEqual({});
+    const trigger = document.createElement('button');
+    expect(resolveCustomSelectOriginTheme({ trigger })).toEqual({});
+    trigger.setAttribute('data-theme', 'custom');
+    expect(resolveCustomSelectOriginTheme({ trigger })).toEqual({ 'data-theme': 'custom' });
   });
 });

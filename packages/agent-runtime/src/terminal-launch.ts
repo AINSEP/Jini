@@ -10,7 +10,7 @@
  *
  * Ported from OD's `apps/daemon/src/runtimes/terminal-launch.ts`
  * with one de-branding change: the Windows path opened a `cmd.exe` window
- * titled literally with the product's own name (see `source-map.md` for
+ * titled literally with the product's own name (see `archived provenance ledger` for
  * the exact original string). `launchAgentInSystemTerminal` now takes an
  * optional `windowTitle` (default `'Agent Sign-in'`).
  *
@@ -110,10 +110,7 @@ async function launchOnWindows(command: string, windowTitle: string): Promise<Te
   }
 }
 
-export async function launchAgentInSystemTerminal(
-  command: string,
-  platform: NodeJS.Platform = process.platform,
-  windowTitle: string = 'Agent Sign-in',
+export async function launchAgentInSystemTerminal({ command }: { command: string }, { platform = process.platform, windowTitle = 'Agent Sign-in' }: { platform?: NodeJS.Platform; windowTitle?: string } = {}
 ): Promise<TerminalLaunchResult> {
   switch (platform) {
     case 'darwin':

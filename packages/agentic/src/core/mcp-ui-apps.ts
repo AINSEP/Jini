@@ -137,13 +137,13 @@ export interface JsonRpcRequest {
   readonly jsonrpc: '2.0';
   readonly id: number | string;
   readonly method: string;
-  readonly params?: Record<string, unknown>;
+  readonly params?: Record<string, unknown> | undefined;
 }
 
 export interface JsonRpcNotification {
   readonly jsonrpc: '2.0';
   readonly method: string;
-  readonly params?: Record<string, unknown>;
+  readonly params?: Record<string, unknown> | undefined;
 }
 
 export interface JsonRpcError {
@@ -229,16 +229,13 @@ function isJsonRpcErrorObject(value: unknown): value is JsonRpcError {
  * @param value - The raw `event.data`.
  * @returns True when the value is a well-formed JSON-RPC message.
  */
-export function isJsonRpcMessage(value: unknown): value is JsonRpcMessage {
+export function isJsonRpcMessage(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: JsonRpcMessage } {
+  const { value } = required;
   if (!isRecord(value) || value['jsonrpc'] !== '2.0') return false;
-  if ('id' in value && typeof value['id'] !== 'number' && typeof value['id'] !== 'string') return false;
+  if (!hasValidJsonRpcId({ value })) return false;
 
   if ('method' in value) {
-    // Request or notification: `id` present or not, but never a response's members alongside.
-    return typeof value['method'] === 'string'
-      && hasValidParams(value)
-      && !('result' in value)
-      && !('error' in value);
+    return isJsonRpcCallShape({ value });
   }
 
   // Response: correlated by `id`, carrying exactly one of `result` / `error`.
@@ -249,8 +246,27 @@ export function isJsonRpcMessage(value: unknown): value is JsonRpcMessage {
   return hasResult || isJsonRpcErrorObject(value['error']);
 }
 
+function hasValidJsonRpcId(
+  { value }: { value: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): boolean {
+  return !('id' in value) || typeof value['id'] === 'number' || typeof value['id'] === 'string';
+}
+
+function isJsonRpcCallShape(
+  { value }: { value: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): boolean {
+  // Request or notification: `id` present or not, but never a response's members alongside.
+  return typeof value['method'] === 'string'
+    && hasValidParams(value)
+    && !('result' in value)
+    && !('error' in value);
+}
+
 /** Whether a validated message expects a response (as opposed to being a notification). */
-export function isJsonRpcRequest(message: JsonRpcMessage): message is JsonRpcRequest {
+export function isJsonRpcRequest(required: { message: JsonRpcMessage }, _optional: Record<string, never> = {}): required is { message: JsonRpcRequest } {
+  const { message } = required;
   return 'id' in message && typeof (message as JsonRpcRequest).method === 'string';
 }
 
@@ -262,33 +278,24 @@ export function isJsonRpcRequest(message: JsonRpcMessage): message is JsonRpcReq
  * @param method - Method name.
  * @param params - Optional parameters.
  */
-export function createJsonRpcRequest(
-  id: number | string,
-  method: string,
-  params?: Record<string, unknown>,
+export function createJsonRpcRequest({ id, method }: { id: number | string; method: string }, { params }: { params?: Record<string, unknown> | undefined } = {}
 ): JsonRpcRequest {
   return { jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) };
 }
 
 /** Builds a notification — no `id`, so no response is expected or allowed. */
-export function createJsonRpcNotification(
-  method: string,
-  params?: Record<string, unknown>,
+export function createJsonRpcNotification({ method }: { method: string }, { params }: { params?: Record<string, unknown> | undefined } = {}
 ): JsonRpcNotification {
   return { jsonrpc: '2.0', method, ...(params === undefined ? {} : { params }) };
 }
 
 /** Builds a success response for `id`. */
-export function createJsonRpcResult(id: number | string, result: unknown): JsonRpcResponse {
+export function createJsonRpcResult({ id, result }: { id: number | string; result: unknown }, _optional: Record<string, never> = {}): JsonRpcResponse {
   return { jsonrpc: '2.0', id, result };
 }
 
 /** Builds an error response for `id`. */
-export function createJsonRpcError(
-  id: number | string,
-  code: number,
-  message: string,
-  data?: unknown,
+export function createJsonRpcError({ id, code, message }: { id: number | string; code: number; message: string }, { data }: { data?: unknown } = {}
 ): JsonRpcResponse {
   return { jsonrpc: '2.0', id, error: { code, message, ...(data === undefined ? {} : { data }) } };
 }
@@ -301,10 +308,7 @@ export function createJsonRpcError(
  * @param input - Capability arguments.
  * @returns The namespaced extension request.
  */
-export function createPageActionRequest(
-  id: number | string,
-  capabilityId: string,
-  input: Record<string, unknown>,
+export function createPageActionRequest({ id, capabilityId, input }: { id: number | string; capabilityId: string; input: Record<string, unknown> }, _optional: Record<string, never> = {}
 ): JsonRpcRequest {
-  return createJsonRpcRequest(id, JINI_PAGE_ACTION_METHOD, { capabilityId, input });
+  return createJsonRpcRequest({ id, method: JINI_PAGE_ACTION_METHOD }, { params: { capabilityId, input } });
 }

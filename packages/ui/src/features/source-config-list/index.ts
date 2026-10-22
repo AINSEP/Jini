@@ -43,6 +43,7 @@ export type {
   SourceFieldValues,
   SourceTestResult,
   SourceTrustOption,
+  SourceTrustSelectorProps,
 } from './types.js';
 
 export { useSourceConfigList, useWiredSourceConfigList } from './react/hooks/useSourceConfigList.js';
@@ -63,9 +64,9 @@ export type { SourceConfigFieldProps } from './react/components/SourceConfigFiel
 export { SourceConfigTestControl } from './react/components/SourceConfigTestControl.js';
 export type { SourceConfigTestControlProps } from './react/components/SourceConfigTestControl.js';
 export { SourceConfigAddForm } from './react/components/SourceConfigAddForm.js';
-export type { SourceConfigAddFormProps } from './react/components/SourceConfigAddForm.js';
+export type { SourceConfigAddFormBaseProps, SourceConfigAddFormProps } from './react/components/SourceConfigAddForm.js';
 export { SourceConfigItemCard } from './react/components/SourceConfigItemCard.js';
-export type { SourceConfigItemCardProps } from './react/components/SourceConfigItemCard.js';
+export type { SourceConfigItemCardBaseProps, SourceConfigItemCardProps } from './react/components/SourceConfigItemCard.js';
 export { SourceConfigListView } from './react/components/SourceConfigListView.js';
 export type { SourceConfigListViewProps } from './react/components/SourceConfigListView.js';
 export { SourceConfigList } from './react/components/SourceConfigList.js';

@@ -51,7 +51,7 @@ export type SandboxErrorCategory =
 export class SandboxOperationError extends Error {
   readonly category: SandboxErrorCategory;
 
-  constructor(category: SandboxErrorCategory, message: string, options?: ErrorOptions) {
+  constructor({ category, message }: { category: SandboxErrorCategory; message: string }, options?: ErrorOptions) {
     super(message, options);
     this.name = 'SandboxOperationError';
     this.category = category;

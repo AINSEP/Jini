@@ -63,8 +63,8 @@ export type AgentSlug = (typeof AGENT_SLUGS)[number];
  * @param value The string to test.
  * @returns `true` if `value` is a valid `AgentSlug`, `false` otherwise.
  */
-export function isAgentSlug(value: string): value is AgentSlug {
-  return (AGENT_SLUGS as readonly string[]).includes(value);
+export function isAgentSlug(args: { value: string }): args is { value: AgentSlug } {
+  return (AGENT_SLUGS as readonly string[]).includes(args.value);
 }
 
 /** The resolved stdio launch spec — mirrors the relevant fields of
@@ -153,226 +153,156 @@ function envFlags(env: Record<string, string>, flag: string): string[] {
   return out;
 }
 
+// Attaches the env map under `key` only when non-empty, so configs stay clean.
+function withEnv(entry: Record<string, unknown>, env: Record<string, string>, key: 'env' | 'environment'): Record<string, unknown> {
+  if (Object.keys(env).length > 0) entry[key] = env;
+  return entry;
+}
+
 /** JSON server entry shared by the `env`-style agents (cursor / copilot /
  *  cline / openclaw / antigravity / trae). `extra` carries per-agent
  *  fields; env is only attached when non-empty so configs stay clean. */
-function jsonEntry(
-  spec: McpLaunchSpec,
-  extra: Record<string, unknown> = {},
-  envKey: 'env' | 'environment' = 'env',
-): Record<string, unknown> {
-  const entry: Record<string, unknown> = {
-    command: spec.command,
-    args: spec.args,
-    ...extra,
-  };
-  if (Object.keys(spec.env).length > 0) {
-    entry[envKey] = spec.env;
-  }
-  return entry;
+function jsonEntry(spec: McpLaunchSpec, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return withEnv({ command: spec.command, args: spec.args, ...extra }, spec.env, 'env');
 }
+
+/** Inputs every per-agent planner receives; `appData` is the resolved `APPDATA` (win32 only). */
+interface PlannerArgs {
+  spec: McpLaunchSpec;
+  ctx: PlanContext;
+  appData: string | undefined;
+}
+
+function cliPlan(slug: AgentSlug, bin: string, argv: Pick<CliInstallPlan, 'addArgv' | 'removeArgv'>, serverName: string): CliInstallPlan {
+  return { kind: 'cli', slug, bin, ...argv, getArgv: ['mcp', 'get', serverName] };
+}
+
+function jsonPlan(slug: AgentSlug, configPath: string, keyPath: string[], serverKey: string, entry: unknown): JsonInstallPlan {
+  return { kind: 'json', slug, configPath, keyPath, serverKey, entry };
+}
+
+// One planner per slug. Typed as a total map over `AgentSlug`, so adding a slug
+// without a planner is a compile error (the role the old switch's `never` default played).
+const AGENT_PLANNERS: { readonly [K in AgentSlug]: (args: PlannerArgs) => InstallPlan } = {
+  // ----- CLI-driven agents (idempotent via the agent's own tool) -----
+  claude: ({ spec, ctx: { serverName } }) => cliPlan('claude', 'claude', {
+    addArgv: [
+      'mcp', 'add', '--scope', 'user',
+      serverName,
+      ...envFlags(spec.env, '-e'),
+      '--', spec.command, ...spec.args,
+    ],
+    removeArgv: ['mcp', 'remove', '--scope', 'user', serverName],
+  }, serverName),
+  codex: ({ spec, ctx: { serverName } }) => cliPlan('codex', 'codex', {
+    addArgv: [
+      'mcp', 'add', serverName,
+      ...envFlags(spec.env, '--env'),
+      '--', spec.command, ...spec.args,
+    ],
+    removeArgv: ['mcp', 'remove', serverName],
+  }, serverName),
+  kimi: ({ spec, ctx: { serverName } }) => cliPlan('kimi', 'kimi', {
+    addArgv: [
+      'mcp', 'add', '--transport', 'stdio',
+      ...envFlags(spec.env, '--env'),
+      serverName, '--', spec.command, ...spec.args,
+    ],
+    removeArgv: ['mcp', 'remove', serverName],
+  }, serverName),
+
+  // ----- JSON config-file agents (safe deep-merge) -----
+  cursor: ({ spec, ctx: { home, serverName } }) =>
+    jsonPlan('cursor', path.join(home, '.cursor', 'mcp.json'), ['mcpServers'], serverName, jsonEntry(spec, { type: 'stdio' })),
+  // GitHub Copilot CLI: ~/.copilot/mcp-config.json, type "local".
+  // (VS Code Copilot uses a different `servers` key in
+  // .vscode/mcp.json; the terminal installer targets the CLI.)
+  copilot: ({ spec, ctx: { home, serverName } }) =>
+    jsonPlan('copilot', path.join(home, '.copilot', 'mcp-config.json'), ['mcpServers'], serverName, jsonEntry(spec, { type: 'local', tools: ['*'] })),
+  cline: ({ spec, ctx: { home, platform, serverName }, appData }) =>
+    jsonPlan('cline', clineConfigPath(home, platform, appData), ['mcpServers'], serverName, jsonEntry(spec, { disabled: false, autoApprove: [] })),
+  // OpenCode nests under `mcp`, folds command+args into one array,
+  // and gates the server with `enabled`.
+  opencode: ({ spec, ctx: { home, serverName } }) =>
+    jsonPlan('opencode', path.join(home, '.config', 'opencode', 'opencode.json'), ['mcp'], serverName,
+      withEnv({ type: 'local', command: [spec.command, ...spec.args], enabled: true }, spec.env, 'environment')),
+  openclaw: ({ spec, ctx: { home, serverName } }) =>
+    jsonPlan('openclaw', path.join(home, '.openclaw', 'openclaw.json'), ['mcp', 'servers'], serverName, jsonEntry(spec)),
+  antigravity: ({ spec, ctx: { home, serverName } }) =>
+    jsonPlan('antigravity', path.join(home, '.gemini', 'antigravity', 'mcp_config.json'), ['mcpServers'], serverName, jsonEntry(spec)),
+  trae: ({ spec, ctx: { home, platform, serverName }, appData }) =>
+    jsonPlan('trae', traeConfigPath(home, platform, appData), ['mcpServers'], serverName, jsonEntry(spec)),
+
+  // ----- Unverified formats: print-only, never write -----
+  vibe: ({ spec, ctx: { home, serverName } }) => ({
+    kind: 'manual',
+    slug: 'vibe',
+    format: 'toml',
+    configPath: path.join(home, '.vibe', 'config.toml'),
+    snippet: vibeTomlSnippet(spec, serverName),
+    reason:
+      'Vibe uses a TOML array-of-tables ([[mcp_servers]]); ' +
+      'its exact schema is unverified, so append this block by hand ' +
+      'to avoid corrupting an existing config.',
+  }),
+  pi: ({ spec, ctx: { home, serverName } }) => ({
+    kind: 'manual',
+    slug: 'pi',
+    format: 'json',
+    configPath: path.join(home, '.pi', 'agent', 'mcp.json'),
+    snippet: JSON.stringify({ mcpServers: { [serverName]: jsonEntry(spec) } }, null, 2),
+    reason:
+      'The pi coding agent exposes MCP, but its config path/schema is ' +
+      'not authoritatively documented. Paste this into pi’s MCP ' +
+      'config (check `pi --help` for the exact location).',
+  }),
+  hermes: ({ spec, ctx: { home, serverName } }) => ({
+    kind: 'manual',
+    slug: 'hermes',
+    format: 'yaml',
+    configPath: path.join(home, '.hermes', 'config.yaml'),
+    snippet: hermesYamlSnippet(spec, serverName),
+    reason:
+      'Hermes config format is unverified. Add this under your Hermes ' +
+      'MCP server configuration by hand.',
+  }),
+};
 
 /**
  * Build the registration plan for one agent. Pure — all IO happens in the
  * executor. Throws on an unknown slug so callers surface a clear error.
  */
 export function planAgentInstall(
-  slug: AgentSlug,
-  spec: McpLaunchSpec,
-  ctx: PlanContext,
+  { slug, spec, ctx }: { slug: AgentSlug; spec: McpLaunchSpec; ctx: PlanContext },
+  { env = process.env }: { env?: NodeJS.ProcessEnv } = {},
 ): InstallPlan {
-  const { home, platform, serverName } = ctx;
-
-  switch (slug) {
-    // ----- CLI-driven agents (idempotent via the agent's own tool) -----
-    case 'claude':
-      return {
-        kind: 'cli',
-        slug,
-        bin: 'claude',
-        addArgv: [
-          'mcp', 'add', '--scope', 'user',
-          serverName,
-          ...envFlags(spec.env, '-e'),
-          '--', spec.command, ...spec.args,
-        ],
-        removeArgv: ['mcp', 'remove', '--scope', 'user', serverName],
-        getArgv: ['mcp', 'get', serverName],
-      };
-    case 'codex':
-      return {
-        kind: 'cli',
-        slug,
-        bin: 'codex',
-        addArgv: [
-          'mcp', 'add', serverName,
-          ...envFlags(spec.env, '--env'),
-          '--', spec.command, ...spec.args,
-        ],
-        removeArgv: ['mcp', 'remove', serverName],
-        getArgv: ['mcp', 'get', serverName],
-      };
-    case 'kimi':
-      return {
-        kind: 'cli',
-        slug,
-        bin: 'kimi',
-        addArgv: [
-          'mcp', 'add', '--transport', 'stdio',
-          ...envFlags(spec.env, '--env'),
-          serverName, '--', spec.command, ...spec.args,
-        ],
-        removeArgv: ['mcp', 'remove', serverName],
-        getArgv: ['mcp', 'get', serverName],
-      };
-
-    // ----- JSON config-file agents (safe deep-merge) -----
-    case 'cursor':
-      return {
-        kind: 'json',
-        slug,
-        configPath: path.join(home, '.cursor', 'mcp.json'),
-        keyPath: ['mcpServers'],
-        serverKey: serverName,
-        entry: jsonEntry(spec, { type: 'stdio' }),
-      };
-    case 'copilot':
-      // GitHub Copilot CLI: ~/.copilot/mcp-config.json, type "local".
-      // (VS Code Copilot uses a different `servers` key in
-      // .vscode/mcp.json; the terminal installer targets the CLI.)
-      return {
-        kind: 'json',
-        slug,
-        configPath: path.join(home, '.copilot', 'mcp-config.json'),
-        keyPath: ['mcpServers'],
-        serverKey: serverName,
-        entry: jsonEntry(spec, { type: 'local', tools: ['*'] }),
-      };
-    case 'cline':
-      return {
-        kind: 'json',
-        slug,
-        configPath: clineConfigPath(home, platform),
-        keyPath: ['mcpServers'],
-        serverKey: serverName,
-        entry: jsonEntry(spec, { disabled: false, autoApprove: [] }),
-      };
-    case 'opencode':
-      // OpenCode nests under `mcp`, folds command+args into one array,
-      // and gates the server with `enabled`.
-      return {
-        kind: 'json',
-        slug,
-        configPath: path.join(home, '.config', 'opencode', 'opencode.json'),
-        keyPath: ['mcp'],
-        serverKey: serverName,
-        entry: (() => {
-          const e: Record<string, unknown> = {
-            type: 'local',
-            command: [spec.command, ...spec.args],
-            enabled: true,
-          };
-          if (Object.keys(spec.env).length > 0) e.environment = spec.env;
-          return e;
-        })(),
-      };
-    case 'openclaw':
-      return {
-        kind: 'json',
-        slug,
-        configPath: path.join(home, '.openclaw', 'openclaw.json'),
-        keyPath: ['mcp', 'servers'],
-        serverKey: serverName,
-        entry: jsonEntry(spec),
-      };
-    case 'antigravity':
-      return {
-        kind: 'json',
-        slug,
-        configPath: path.join(home, '.gemini', 'antigravity', 'mcp_config.json'),
-        keyPath: ['mcpServers'],
-        serverKey: serverName,
-        entry: jsonEntry(spec),
-      };
-    case 'trae':
-      return {
-        kind: 'json',
-        slug,
-        configPath: traeConfigPath(home, platform),
-        keyPath: ['mcpServers'],
-        serverKey: serverName,
-        entry: jsonEntry(spec),
-      };
-
-    // ----- Unverified formats: print-only, never write -----
-    case 'vibe':
-      return {
-        kind: 'manual',
-        slug,
-        format: 'toml',
-        configPath: path.join(home, '.vibe', 'config.toml'),
-        snippet: vibeTomlSnippet(spec, serverName),
-        reason:
-          'Vibe uses a TOML array-of-tables ([[mcp_servers]]); ' +
-          'its exact schema is unverified, so append this block by hand ' +
-          'to avoid corrupting an existing config.',
-      };
-    case 'pi':
-      return {
-        kind: 'manual',
-        slug,
-        format: 'json',
-        configPath: path.join(home, '.pi', 'agent', 'mcp.json'),
-        snippet: genericMcpServersSnippet(spec, serverName),
-        reason:
-          'The pi coding agent exposes MCP, but its config path/schema is ' +
-          'not authoritatively documented. Paste this into pi’s MCP ' +
-          'config (check `pi --help` for the exact location).',
-      };
-    case 'hermes':
-      return {
-        kind: 'manual',
-        slug,
-        format: 'yaml',
-        configPath: path.join(home, '.hermes', 'config.yaml'),
-        snippet: hermesYamlSnippet(spec, serverName),
-        reason:
-          'Hermes config format is unverified. Add this under your Hermes ' +
-          'MCP server configuration by hand.',
-      };
-    default: {
-      const exhaustive: never = slug;
-      throw new Error(`unknown agent slug: ${String(exhaustive)}`);
-    }
+  // Own-property lookup only: a slug such as `constructor` or `__proto__` must not
+  // resolve to an inherited Object.prototype member and be called as a planner.
+  if (!Object.prototype.hasOwnProperty.call(AGENT_PLANNERS, slug)) {
+    throw new Error(`unknown agent slug: ${String(slug)}`);
   }
+  return AGENT_PLANNERS[slug]({ spec, ctx, appData: env.APPDATA });
 }
 
-function clineConfigPath(home: string, platform: NodeJS.Platform): string {
-  const rel = path.join(
+// VS Code-family editors keep per-user state under one platform-specific root.
+function editorUserDir(app: string, home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
+  if (platform === 'darwin') return path.join(home, 'Library', 'Application Support', app, 'User');
+  if (platform === 'win32') return path.join(suppliedAppData ?? path.join(home, 'AppData', 'Roaming'), app, 'User');
+  return path.join(home, '.config', app, 'User');
+}
+
+function clineConfigPath(home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
+  return path.join(
+    editorUserDir('Code', home, platform, suppliedAppData),
     'globalStorage',
     'saoudrizwan.claude-dev',
     'settings',
     'cline_mcp_settings.json',
   );
-  if (platform === 'darwin') {
-    return path.join(home, 'Library', 'Application Support', 'Code', 'User', rel);
-  }
-  if (platform === 'win32') {
-    const appData = process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming');
-    return path.join(appData, 'Code', 'User', rel);
-  }
-  return path.join(home, '.config', 'Code', 'User', rel);
 }
 
-function traeConfigPath(home: string, platform: NodeJS.Platform): string {
-  if (platform === 'darwin') {
-    return path.join(home, 'Library', 'Application Support', 'Trae', 'User', 'mcp.json');
-  }
-  if (platform === 'win32') {
-    const appData = process.env.APPDATA ?? path.join(home, 'AppData', 'Roaming');
-    return path.join(appData, 'Trae', 'User', 'mcp.json');
-  }
-  return path.join(home, '.config', 'Trae', 'User', 'mcp.json');
+function traeConfigPath(home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
+  return path.join(editorUserDir('Trae', home, platform, suppliedAppData), 'mcp.json');
 }
 
 // --- Pure JSON merge / removal (the heart of the 'json' strategy) -------
@@ -414,7 +344,7 @@ function assertSafeJsonInstallPlan(plan: JsonInstallPlan): void {
  * (caller decides whether to bail or back up), or if `plan.keyPath` /
  * `plan.serverKey` contains a dangerous object-path segment (CR-007).
  */
-export function applyJsonInstall(existingText: string | null, plan: JsonInstallPlan): string {
+export function applyJsonInstall({ existingText, plan }: { existingText: string | null; plan: JsonInstallPlan }): string {
   assertSafeJsonInstallPlan(plan);
   const root = parseJsonObject(existingText, plan.configPath);
   let cursor: Record<string, unknown> = root;
@@ -435,7 +365,7 @@ export function applyJsonInstall(existingText: string | null, plan: JsonInstallP
  * if `plan.keyPath` / `plan.serverKey` contains a dangerous object-path
  * segment (CR-007).
  */
-export function removeJsonInstall(existingText: string | null, plan: JsonInstallPlan): string | null {
+export function removeJsonInstall({ existingText, plan }: { existingText: string | null; plan: JsonInstallPlan }): string | null {
   assertSafeJsonInstallPlan(plan);
   if (existingText == null || existingText.trim() === '') return null;
   const root = parseJsonObject(existingText, plan.configPath);
@@ -468,15 +398,6 @@ function parseJsonObject(text: string | null, where: string): Record<string, unk
 }
 
 // --- Snippets for the manual (print-only) strategy ----------------------
-
-function genericMcpServersSnippet(spec: McpLaunchSpec, name: string): string {
-  const server: Record<string, unknown> = {
-    command: spec.command,
-    args: spec.args,
-  };
-  if (Object.keys(spec.env).length > 0) server.env = spec.env;
-  return JSON.stringify({ mcpServers: { [name]: server } }, null, 2);
-}
 
 function hermesYamlSnippet(spec: McpLaunchSpec, name: string): string {
   const lines = [

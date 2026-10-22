@@ -5,7 +5,7 @@ import { ConnectorGrid } from '../../components/ConnectorGrid.js';
 import type { Connector } from '../../types.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
-  return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };
+  return { id: 'slack', name: 'Slack', provider: 'Connector Provider', category: 'communication', status: 'available', tools: [], ...overrides };
 }
 
 const noop = () => {};
@@ -194,4 +194,52 @@ describe('ConnectorGrid', () => {
     expect(screen.getByTestId('connector-gate')).toBeTruthy();
     expect(screen.getByTestId('connector-grid-wrap').className).toContain('is-masked');
   });
+
+  it('gives each card its own agent sub-handle derived from the grid handle', () => {
+    const { container } = render(
+      <ConnectorGrid
+        connectors={[makeConnector({ id: 'a', name: 'A' }), makeConnector({ id: 'b', name: 'B' })]}
+        locked={false}
+        hasNoResults={false}
+        searchQuery=""
+        pendingConnectorAction={null}
+        authorizationPending={{}}
+        authorizationCancelFailed={{}}
+        toolsLoaded={false}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={noop}
+        onClearSearch={noop}
+        agentHandle="grid"
+      />,
+    );
+    const handles = [...container.querySelectorAll('[role="button"][data-agent-element]')].map((el) =>
+      el.getAttribute('data-agent-element'),
+    );
+    expect(handles).toEqual(['grid-a', 'grid-b']);
+  });
+
+  it('gives the clear-search action a sub-handle of the grid handle', () => {
+    render(
+      <ConnectorGrid
+        connectors={[]}
+        locked={false}
+        hasNoResults
+        searchQuery="zzz"
+        pendingConnectorAction={null}
+        authorizationPending={{}}
+        authorizationCancelFailed={{}}
+        toolsLoaded={false}
+        onConnect={noop}
+        onDisconnect={noop}
+        onCancelAuthorization={noop}
+        onOpenDetails={noop}
+        onClearSearch={noop}
+        agentHandle="grid"
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Clear search' }).getAttribute('data-agent-element')).toBe('grid-clear-search');
+  });
 });
+

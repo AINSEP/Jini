@@ -15,7 +15,10 @@
  * Sync by design: intended to run at daemon startup before any database
  * connection opens, so it can't race a concurrent open of the destination.
  */
-import * as fs from 'node:fs';
+import * as nodeFilesystem from 'node:fs';
+
+/** Node filesystem ABI, injected so migration can run against a host-owned adapter. */
+export type LegacyFilesystemPort = Pick<typeof nodeFilesystem, 'statSync' | 'lstatSync' | 'existsSync' | 'readdirSync' | 'mkdirSync' | 'cpSync' | 'renameSync' | 'rmSync' | 'writeFileSync'>;
 import * as path from 'node:path';
 
 /** Which files/dirs constitute a data root's migratable payload, host-supplied. */
@@ -40,8 +43,9 @@ export interface MigrateLegacyDataDirOptions extends LegacyDataMigrationConfig {
   dataDir: string;
   /** Optional logger. Defaults to console.log. */
   logger?: {
-    info(message: string): void;
+    info(args: { message: string }): void;
   };
+  filesystem?: LegacyFilesystemPort;
   /**
    * Test seam. The default writes the JSON marker with fs.writeFileSync;
    * tests inject a function that throws so the rollback path (which removes
@@ -50,7 +54,7 @@ export interface MigrateLegacyDataDirOptions extends LegacyDataMigrationConfig {
    * pass this.
    * @internal
    */
-  writeMarker?: (dataDir: string, legacyDir: string, markerFile: string) => void;
+  writeMarker?: (args: { dataDir: string; legacyDir: string; markerFile: string }) => void;
 }
 
 export type MigrateStatus = 'noop' | 'migrated' | 'skipped';
@@ -71,14 +75,14 @@ const DEFAULT_MARKER_FILE = '.migrated-from';
  */
 export class LegacyMigrationError extends Error {
   readonly code: string;
-  constructor(code: string, message: string) {
+  constructor({ code, message }: { readonly code: string; readonly message: string }) {
     super(message);
     this.code = code;
     this.name = 'LegacyMigrationError';
   }
 }
 
-function isExistingDir(p: string): boolean {
+function isExistingDir(p: string, fs: LegacyFilesystemPort): boolean {
   try {
     return fs.statSync(p).isDirectory();
   } catch {
@@ -86,7 +90,7 @@ function isExistingDir(p: string): boolean {
   }
 }
 
-function isExistingFile(p: string): boolean {
+function isExistingFile(p: string, fs: LegacyFilesystemPort): boolean {
   try {
     return fs.statSync(p).isFile();
   } catch {
@@ -105,9 +109,9 @@ function isExistingFile(p: string): boolean {
  * @param dataDir - The data root to check.
  * @param config - The host's payload/proof-entry configuration.
  */
-export function dataDirIsEmptyOrFresh(dataDir: string, config: LegacyDataMigrationConfig): boolean {
-  if (!isExistingDir(dataDir)) return true;
-  return !isExistingFile(path.join(dataDir, config.proofEntry));
+export function dataDirIsEmptyOrFresh({ dataDir, config }: { readonly dataDir: string; readonly config: LegacyDataMigrationConfig }, { filesystem: fs = nodeFilesystem }: { filesystem?: LegacyFilesystemPort } = {}): boolean {
+  if (!isExistingDir(dataDir, fs)) return true;
+  return !isExistingFile(path.join(dataDir, config.proofEntry), fs);
 }
 
 /**
@@ -117,9 +121,9 @@ export function dataDirIsEmptyOrFresh(dataDir: string, config: LegacyDataMigrati
  * @param legacyDir - The candidate legacy data directory.
  * @param config - The host's payload/proof-entry configuration.
  */
-export function legacyDirHasPayload(legacyDir: string, config: LegacyDataMigrationConfig): boolean {
-  if (!isExistingDir(legacyDir)) return false;
-  return isExistingFile(path.join(legacyDir, config.proofEntry));
+export function legacyDirHasPayload({ legacyDir, config }: { readonly legacyDir: string; readonly config: LegacyDataMigrationConfig }, { filesystem: fs = nodeFilesystem }: { filesystem?: LegacyFilesystemPort } = {}): boolean {
+  if (!isExistingDir(legacyDir, fs)) return false;
+  return isExistingFile(path.join(legacyDir, config.proofEntry), fs);
 }
 
 /**
@@ -131,8 +135,8 @@ export function legacyDirHasPayload(legacyDir: string, config: LegacyDataMigrati
  * @param dataDir - The data root to check.
  * @param config - The host's payload/proof-entry configuration.
  */
-export function dataDirHasExistingPayload(dataDir: string, config: LegacyDataMigrationConfig): string[] {
-  if (!isExistingDir(dataDir)) return [];
+export function dataDirHasExistingPayload({ dataDir, config }: { readonly dataDir: string; readonly config: LegacyDataMigrationConfig }, { filesystem: fs = nodeFilesystem }: { filesystem?: LegacyFilesystemPort } = {}): string[] {
+  if (!isExistingDir(dataDir, fs)) return [];
   return config.payloadEntries.filter((entry) => fs.existsSync(path.join(dataDir, entry)));
 }
 
@@ -141,25 +145,25 @@ export function dataDirHasExistingPayload(dataDir: string, config: LegacyDataMig
  * preserved symlink would let a downstream reader escape the data root.
  * @internal
  */
-function assertNoSymlinks(srcRoot: string, displayPath = srcRoot): void {
+function assertNoSymlinks(srcRoot: string, fs: LegacyFilesystemPort, displayPath = srcRoot): void {
   const stat = fs.lstatSync(srcRoot);
   if (stat.isSymbolicLink()) {
-    throw new LegacyMigrationError('symlink_in_payload', `legacy payload contains a symlink at "${displayPath}"; refusing to migrate`);
+    throw new LegacyMigrationError({ code: 'symlink_in_payload', message: `legacy payload contains a symlink at "${displayPath}"; refusing to migrate` });
   }
   if (!stat.isDirectory()) return;
   for (const child of fs.readdirSync(srcRoot)) {
-    assertNoSymlinks(path.join(srcRoot, child), path.join(displayPath, child));
+    assertNoSymlinks(path.join(srcRoot, child), fs, path.join(displayPath, child));
   }
 }
 
 /** Stage every present payload entry into `stagingDir`. Returns the entries actually copied. @internal */
-function stagePayload(legacyDir: string, stagingDir: string, payloadEntries: readonly string[]): string[] {
+function stagePayload(legacyDir: string, stagingDir: string, payloadEntries: readonly string[], fs: LegacyFilesystemPort): string[] {
   fs.mkdirSync(stagingDir, { recursive: true });
   const copied: string[] = [];
   for (const entry of payloadEntries) {
     const src = path.join(legacyDir, entry);
     if (!fs.existsSync(src)) continue;
-    assertNoSymlinks(src);
+    assertNoSymlinks(src, fs);
     const dst = path.join(stagingDir, entry);
     fs.cpSync(src, dst, { recursive: true, force: true, errorOnExist: false });
     copied.push(entry);
@@ -179,7 +183,7 @@ function stagePayload(legacyDir: string, stagingDir: string, payloadEntries: rea
  * @param entries - The payload entries to promote.
  * @returns The entries that were placed into `dataDir` before any failure.
  */
-export function promoteStaged(stagingDir: string, dataDir: string, entries: readonly string[]): readonly string[] {
+export function promoteStaged({ stagingDir, dataDir, entries }: { readonly stagingDir: string; readonly dataDir: string; readonly entries: readonly string[] }, { filesystem: fs = nodeFilesystem }: { filesystem?: LegacyFilesystemPort } = {}): readonly string[] {
   fs.mkdirSync(dataDir, { recursive: true });
   const promoted: string[] = [];
   try {
@@ -200,19 +204,19 @@ export function promoteStaged(stagingDir: string, dataDir: string, entries: read
       promoted.push(entry);
     }
   } catch (err) {
-    rollbackPromoted(dataDir, promoted);
+    rollbackPromoted(dataDir, promoted, fs);
     throw err;
   }
   return promoted;
 }
 
-function rollbackPromoted(dataDir: string, promoted: readonly string[]): void {
+function rollbackPromoted(dataDir: string, promoted: readonly string[], fs: LegacyFilesystemPort): void {
   for (const entry of promoted) {
     fs.rmSync(path.join(dataDir, entry), { recursive: true, force: true });
   }
 }
 
-function writeMarkerDefault(dataDir: string, legacyDir: string, markerFile: string): void {
+function writeMarkerDefault({ dataDir, legacyDir, markerFile }: { dataDir: string; legacyDir: string; markerFile: string }, fs: LegacyFilesystemPort): void {
   const marker = path.join(dataDir, markerFile);
   const temp = `${marker}.tmp-${process.pid}-${Date.now()}`;
   const payload = JSON.stringify({ legacyDir: path.resolve(legacyDir), migratedAt: new Date().toISOString() }, null, 2);
@@ -225,26 +229,15 @@ function writeMarkerDefault(dataDir: string, legacyDir: string, markerFile: stri
   }
 }
 
-/**
- * One-shot, idempotent legacy data migrator. Synchronous so it can run at
- * module import time before a database connection opens. Throws
- * {@link LegacyMigrationError} on operator-actionable failures (env set but
- * path invalid; `dataDir` already populated; symlink in payload).
- *
- * @param options - Legacy/current dir paths plus the host's payload config.
- * @returns The migration outcome (`noop` when unconfigured, `skipped` when
- *   already migrated, `migrated` with the copied entry list otherwise).
- */
-export function migrateLegacyDataDirSync(options: MigrateLegacyDataDirOptions): MigrateLegacyDataDirResult {
-  const log = options.logger ?? { info: (m: string) => console.log(`[jini-migrate] ${m}`) };
-  const markerFile = options.markerFile ?? DEFAULT_MARKER_FILE;
+type MigrationPlan = { readonly legacyDir: string; readonly dataDir: string; readonly markerPath: string };
 
-  const raw = options.legacyDir;
+/** Resolve both roots and decide the no-op/skip outcomes; a plan means migration must proceed. */
+function planMigration({ legacyDir: raw, dataDir: rawDataDir, markerFile }: { legacyDir: string | undefined; dataDir: string; markerFile: string }, fs: LegacyFilesystemPort): MigrateLegacyDataDirResult | MigrationPlan {
   if (raw === undefined || raw.length === 0) {
     return { status: 'noop', reason: 'legacy data dir not configured' };
   }
   const legacyDir = path.resolve(raw);
-  const dataDir = path.resolve(options.dataDir);
+  const dataDir = path.resolve(rawDataDir);
 
   if (legacyDir === dataDir) {
     return { status: 'noop', reason: 'legacy data dir equals current data dir' };
@@ -257,41 +250,72 @@ export function migrateLegacyDataDirSync(options: MigrateLegacyDataDirOptions): 
   if (fs.existsSync(markerPath)) {
     return { status: 'skipped', reason: 'migration marker already present' };
   }
+  return { legacyDir, dataDir, markerPath };
+}
 
-  if (!legacyDirHasPayload(legacyDir, options)) {
-    throw new LegacyMigrationError(
-      'legacy_dir_invalid',
-      `legacy data dir "${legacyDir}" is not a usable legacy data dir (expected "${options.proofEntry}" directly inside it).`,
+/** Refuse loudly when the legacy source is unusable or the destination already holds payload. */
+function assertMigratable({ legacyDir, dataDir, config }: { legacyDir: string; dataDir: string; config: LegacyDataMigrationConfig }, fs: LegacyFilesystemPort): void {
+  if (!legacyDirHasPayload({ legacyDir: legacyDir, config }, { filesystem: fs })) {
+    throw new LegacyMigrationError({ code: 'legacy_dir_invalid', message: `legacy data dir "${legacyDir}" is not a usable legacy data dir (expected "${config.proofEntry}" directly inside it).` }
     );
   }
 
-  const existing = dataDirHasExistingPayload(dataDir, options);
+  const existing = dataDirHasExistingPayload({ dataDir: dataDir, config }, { filesystem: fs });
   if (existing.length > 0) {
-    throw new LegacyMigrationError(
-      'data_dir_not_empty',
-      `data dir "${dataDir}" already contains payload entries (${existing.join(', ')}); refusing to merge legacy data on top. Move the existing data aside or pick a fresh data root before retrying.`,
+    throw new LegacyMigrationError({ code: 'data_dir_not_empty', message: `data dir "${dataDir}" already contains payload entries (${existing.join(', ')}); refusing to merge legacy data on top. Move the existing data aside or pick a fresh data root before retrying.` }
     );
   }
+}
 
-  log.info(`migrating legacy data from "${legacyDir}" to "${dataDir}"`);
-
+/** Stage, promote and mark; any failure removes promoted entries, the marker and the staging dir. */
+function stagePromoteAndMark({ plan, markerFile, payloadEntries, writeMarker }: {
+  plan: MigrationPlan; markerFile: string; payloadEntries: readonly string[]; writeMarker: MigrateLegacyDataDirOptions['writeMarker'];
+}, fs: LegacyFilesystemPort): string[] {
+  const { legacyDir, dataDir, markerPath } = plan;
   fs.mkdirSync(path.dirname(dataDir), { recursive: true });
   const stagingDir = path.join(path.dirname(dataDir), `${path.basename(dataDir)}.migrate-${process.pid}-${Date.now()}`);
 
   let copied: string[];
   let promoted: readonly string[] = [];
   try {
-    copied = stagePayload(legacyDir, stagingDir, options.payloadEntries);
-    promoted = promoteStaged(stagingDir, dataDir, copied);
-    (options.writeMarker ?? writeMarkerDefault)(dataDir, legacyDir, markerFile);
+    copied = stagePayload(legacyDir, stagingDir, payloadEntries, fs);
+    promoted = promoteStaged({ stagingDir: stagingDir, dataDir: dataDir, entries: copied }, { filesystem: fs });
+    if (writeMarker) writeMarker({ dataDir, legacyDir, markerFile });
+    else writeMarkerDefault({ dataDir, legacyDir, markerFile }, fs);
   } catch (err) {
-    rollbackPromoted(dataDir, promoted);
+    rollbackPromoted(dataDir, promoted, fs);
     fs.rmSync(markerPath, { force: true });
     fs.rmSync(stagingDir, { recursive: true, force: true });
     throw err;
   }
   fs.rmSync(stagingDir, { recursive: true, force: true });
+  return copied;
+}
 
-  log.info(`migration complete: copied ${copied.length} entr${copied.length === 1 ? 'y' : 'ies'} (${copied.join(', ')})`);
+/**
+ * One-shot, idempotent legacy data migrator. Synchronous so it can run at
+ * module import time before a database connection opens. Throws
+ * {@link LegacyMigrationError} on operator-actionable failures (env set but
+ * path invalid; `dataDir` already populated; symlink in payload).
+ *
+ * @param options - Legacy/current dir paths plus the host's payload config.
+ * @returns The migration outcome (`noop` when unconfigured, `skipped` when
+ *   already migrated, `migrated` with the copied entry list otherwise).
+ */
+export function migrateLegacyDataDirSync(requiredArgs: Pick<MigrateLegacyDataDirOptions, "legacyDir" | "dataDir" | "payloadEntries" | "proofEntry">, optionalArgs: Pick<MigrateLegacyDataDirOptions, "logger" | "writeMarker" | "markerFile" | "filesystem"> = {}): MigrateLegacyDataDirResult {
+  const options: MigrateLegacyDataDirOptions = { ...requiredArgs, ...optionalArgs };
+  const fs = options.filesystem ?? nodeFilesystem;
+  const log = options.logger ?? { info: ({ message }: { message: string }) => console.log(`[jini-migrate] ${message}`) };
+  const markerFile = options.markerFile ?? DEFAULT_MARKER_FILE;
+
+  const plan = planMigration({ legacyDir: options.legacyDir, dataDir: options.dataDir, markerFile }, fs);
+  if ('status' in plan) return plan;
+  const { legacyDir, dataDir } = plan;
+  assertMigratable({ legacyDir, dataDir, config: options }, fs);
+
+  log.info({ message: `migrating legacy data from "${legacyDir}" to "${dataDir}"` });
+  const copied = stagePromoteAndMark({ plan, markerFile, payloadEntries: options.payloadEntries, writeMarker: options.writeMarker }, fs);
+
+  log.info({ message: `migration complete: copied ${copied.length} entr${copied.length === 1 ? 'y' : 'ies'} (${copied.join(', ')})` });
   return { status: 'migrated', reason: 'copied legacy payload', copied };
 }

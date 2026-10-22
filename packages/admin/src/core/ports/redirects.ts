@@ -18,12 +18,14 @@
  * has no `slug` field at all) — kept here because the union is OPEN and a different host may
  * legitimately implement `regex` even though the reference implementation refuses it.
  *
- * ## `tombstoneRedirect` is a soft delete
+ * ## `tombstoneRedirect` moves the rule to the Trash
  *
- * Mirrors `AdminIntegrationsPort.deleteIntegrationSubscription`, not `AdminMediaPort.deleteMedia`:
- * the rule's `status` flips to `"disabled"` and the row is retained (audit trail, still readable
- * via `listRedirects`/`getRedirect`), never hard-purged. The method resolves to the updated record
- * (200-style), not `void` — a panel can render the new state without a re-fetch.
+ * The rule's `status` flips to `"disabled"` and the row is retained (audit trail, still readable
+ * via `getRedirect`), never hard-purged here — but it LEAVES `listRedirects` (Bug B, 2026-10-22):
+ * a removed rule is shown only in the host's Trash, unlike a rule merely toggled off, which stays
+ * listed as `"disabled"`. Removing a toggled-off rule moves it to the Trash too. A pure
+ * `updateRedirect({ status: "active" })` (or the host's Trash restore) brings it back to the list.
+ * The method resolves to the updated record (200-style), not `void`.
  *
  * ## `source: "auto_slug_change"` is read-only provenance
  *
@@ -135,16 +137,16 @@ export interface AdminRedirectImportResult {
 }
 
 export interface AdminRedirectsPort {
-  listRedirects(filter?: AdminRedirectListFilter): Promise<readonly AdminRedirect[]>;
-  getRedirect(id: string): Promise<AdminRedirect>;
-  createRedirect(input: AdminRedirectCreateInput): Promise<AdminRedirect>;
-  updateRedirect(id: string, patch: AdminRedirectUpdatePatch): Promise<AdminRedirect>;
-  /** Soft delete — returns the tombstoned record, not `void`. See file header. */
-  tombstoneRedirect(id: string): Promise<AdminRedirect>;
+  listRedirects(requiredArgs: Record<string, never>, optionalArgs?: AdminRedirectListFilter): Promise<readonly AdminRedirect[]>;
+  getRedirect(requiredArgs: { id: string }): Promise<AdminRedirect>;
+  createRedirect(requiredArgs: Omit<AdminRedirectCreateInput, "override" | "priority">, optionalArgs?: Pick<AdminRedirectCreateInput, "override" | "priority">): Promise<AdminRedirect>;
+  updateRedirect(requiredArgs: { id: string }, optionalArgs?: AdminRedirectUpdatePatch): Promise<AdminRedirect>;
+  /** Moves the rule to the Trash (off `listRedirects`) — returns the tombstoned record, not `void`. See file header. */
+  tombstoneRedirect(requiredArgs: { id: string }): Promise<AdminRedirect>;
   /** Resolves with `hitCount: 0`/`lastHitAt: null` when no hits have been recorded yet — distinct
    *  from the redirect itself not existing, which is a not-found-class rejection instead. */
-  getRedirectHitStats(id: string): Promise<AdminRedirectHitStats>;
+  getRedirectHitStats(requiredArgs: { id: string }): Promise<AdminRedirectHitStats>;
   /** Always a partial-success batch — see file header. Each item shares `AdminRedirectCreateInput`'s
    *  shape (provenance is stamped `"import"` automatically, not caller-supplied). */
-  importRedirects(rules: readonly AdminRedirectCreateInput[]): Promise<AdminRedirectImportResult>;
+  importRedirects(requiredArgs: { rules: readonly AdminRedirectCreateInput[] }): Promise<AdminRedirectImportResult>;
 }

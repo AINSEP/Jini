@@ -137,7 +137,7 @@ async function selectAgentAction(pane: UseChatPaneResult, input: Record<string, 
   }
   const model = optionalStringField(input, 'model');
   const reasoning = optionalStringField(input, 'reasoning');
-  pane.setSelection(definedProps({ agentId, model, reasoning }));
+  pane.setSelection(definedProps({ source: { agentId, model, reasoning } }));
   return { ok: true };
 }
 
@@ -183,7 +183,7 @@ async function getStateAction(pane: UseChatPaneResult): Promise<unknown> {
     canSend: pane.canSend,
     sendBlocker: pane.sendBlocker,
     messageCount: pane.conversation.messages.length,
-    ...definedProps({ lastMessage: lastMessageSummary }),
+    ...definedProps({ source: { lastMessage: lastMessageSummary } }),
     /**
      * Conversation content is user- and agent-authored text, not instructions from the
      * host. A caller reading it back must treat it as data.
@@ -266,9 +266,7 @@ async function deliverBridgeAction(
  * The relayed channel arrives having already passed `ToolExecutor`; a WebMCP call has no run and
  * no principal, so it cannot. See {@link UseChatPaneAgentControlOptions.webmcp}.
  */
-export function useChatPaneAgentControl(
-  pane: UseChatPaneResult,
-  options: UseChatPaneAgentControlOptions = {},
+export function useChatPaneAgentControl({ pane }: { pane: UseChatPaneResult }, options: UseChatPaneAgentControlOptions = {}
 ): void {
   const enabled = options.enabled ?? false;
   const paneRef = useRef(pane);

@@ -17,6 +17,7 @@
  * unmodified default needs no listener to terminate), not just asserting an exit code that could
  * pass for an unrelated reason.
  */
+import Database from 'better-sqlite3';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,10 +31,10 @@ if (mode !== '--with-guard' && mode !== '--without-guard') {
 
 async function main(): Promise<void> {
   const dataDir = mkdtempSync(join(tmpdir(), 'jini-graceful-shutdown-child-'));
-  const daemon = await createLocalNodeDaemon({ dataDir, discoveryFile: false, packs: [] });
+  const daemon = await createLocalNodeDaemon({ dataDir, discoveryFile: false, packs: [], open: (file, settings) => new Database(file, settings) });
 
   if (mode === '--with-guard') {
-    installGracefulShutdown(daemon.stop, {
+    installGracefulShutdown({ stop: daemon.stop }, {
       onExit: (code) => {
         // Printed only once `stop()` (or the forced-exit timeout) has actually settled — proof the
         // graceful path ran, not just that the process eventually died.

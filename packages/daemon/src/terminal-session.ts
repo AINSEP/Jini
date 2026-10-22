@@ -12,7 +12,7 @@
  *
  * 1. **A real `node-pty`-backed `PtySpawn`.** `@jini-ai/platform` intentionally
  *    does not depend on `node-pty` (a native compiled addon); `@jini-ai/daemon`
- *    does (see this package's `package.json` and `source-map.md`'s dated
+ *    does (see this package's `package.json` and `archived provenance ledger`'s dated
  *    section for why that dependency now lives here, not in `@jini-ai/http-kit` or
  *    `@jini-ai/platform`). {@link loadRealSpawnPty} is the real, dynamically
  *    imported default the reference session manager below uses.
@@ -114,7 +114,7 @@ function toPtyProcess(pty: IPty): PtyProcess {
  * package (`@jini-ai/daemon`) actually declares — this is exactly the
  * resolver injection seam `spawnHelperCandidatePaths` was built for.
  */
-export async function loadRealSpawnPty(): Promise<PtySpawn> {
+export async function loadRealSpawnPty(_requiredArgs: Record<string, never>): Promise<PtySpawn> {
   ensureSpawnHelperExecutable(
     spawnHelperCandidatePaths({ resolve: (specifier) => daemonRequire.resolve(specifier) }),
   );
@@ -188,17 +188,17 @@ export type TerminalSessionAttachResult = 'attached' | 'ended' | 'not-found';
 
 export interface TerminalSessionManager {
   /** The one call gated through `ToolExecutor` (see module doc §2) — this method is what `createTerminalToolRegistrations`'s handler calls, never invoked directly by a route. */
-  create(principal: Principal, options: CreateTerminalSessionOptions): Promise<TerminalSessionInfo>;
-  get(principal: Principal, id: string): TerminalSessionAccessResult;
+  create(args: { readonly principal: Principal; readonly options: CreateTerminalSessionOptions }): Promise<TerminalSessionInfo>;
+  get(args: { readonly principal: Principal; readonly id: string }): TerminalSessionAccessResult;
   /** Sessions the given principal owns, optionally narrowed by `resourceRef`. Never returns another principal's sessions. */
-  list(principal: Principal, filter?: TerminalSessionListFilter): readonly TerminalSessionInfo[];
-  write(principal: Principal, id: string, input: string): Promise<TerminalSessionActionResult>;
-  resize(principal: Principal, id: string, cols: number, rows: number): Promise<TerminalSessionActionResult>;
-  kill(principal: Principal, id: string, signal?: string): Promise<TerminalSessionActionResult>;
+  list(args: { readonly principal: Principal }, optionalArgs?: { readonly filter?: TerminalSessionListFilter }): readonly TerminalSessionInfo[];
+  write(args: { readonly principal: Principal; readonly id: string; readonly input: string }): Promise<TerminalSessionActionResult>;
+  resize(args: { readonly principal: Principal; readonly id: string; readonly cols: number; readonly rows: number }): Promise<TerminalSessionActionResult>;
+  kill(args: { readonly principal: Principal; readonly id: string }, optionalArgs?: { readonly signal?: string }): Promise<TerminalSessionActionResult>;
   /** Replays scrollback after `lastEventId` and attaches `sink` for live output — ownership-checked the same as `write`/`resize`/`kill`, since reading a session's output is exactly as sensitive as writing to it. */
-  attach(principal: Principal, id: string, lastEventId: number, sink: TerminalSseSink): TerminalSessionAttachResult;
+  attach(args: { readonly principal: Principal; readonly id: string; readonly lastEventId: number; readonly sink: TerminalSseSink }): TerminalSessionAttachResult;
   /** No ownership check: removing a sink that was never attached (e.g. a foreign/unknown id) is already a safe no-op at the `@jini-ai/platform` layer, and detach carries no capability of its own. */
-  detach(id: string, sink: TerminalSseSink): void;
+  detach(args: { readonly id: string; readonly sink: TerminalSseSink }): void;
   shutdownActive(options?: { graceMs?: number }): Promise<void>;
 }
 
@@ -220,6 +220,13 @@ interface SessionMetadata {
   readonly principalId: string;
   readonly resourceRef: string | null;
   killed: boolean;
+}
+
+type DefinedOnly<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
+
+/** Drop undefined-valued keys so an omitted option never overrides the engine's own default. */
+function definedOnly<T extends object>(value: T): DefinedOnly<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as DefinedOnly<T>;
 }
 
 /**
@@ -247,20 +254,21 @@ async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string,
  * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
  * `ToolExecutor` gating for creation. See module doc for the full design.
  */
-export function createTerminalSessionManager(
-  options: CreateTerminalSessionManagerOptions = {},
+export function createTerminalSessionManager(_requiredArgs: Record<string, never>, options: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}
 ): TerminalSessionManager {
   const terminalService =
     options.terminalService ??
     createTerminalService({
-      loadSpawnPty: options.loadSpawnPty ?? loadRealSpawnPty,
-      ...(options.maxEvents !== undefined ? { maxEvents: options.maxEvents } : {}),
-      ...(options.maxBufferBytes !== undefined ? { maxBufferBytes: options.maxBufferBytes } : {}),
-      ...(options.exitTailBytes !== undefined ? { exitTailBytes: options.exitTailBytes } : {}),
-      ...(options.flushIntervalMs !== undefined ? { flushIntervalMs: options.flushIntervalMs } : {}),
-      ...(options.flushThresholdBytes !== undefined ? { flushThresholdBytes: options.flushThresholdBytes } : {}),
-      ...(options.ttlMs !== undefined ? { ttlMs: options.ttlMs } : {}),
-      ...(options.shutdownGraceMs !== undefined ? { shutdownGraceMs: options.shutdownGraceMs } : {}),
+      loadSpawnPty: options.loadSpawnPty ?? (() => loadRealSpawnPty({})),
+      ...definedOnly({
+        maxEvents: options.maxEvents,
+        maxBufferBytes: options.maxBufferBytes,
+        exitTailBytes: options.exitTailBytes,
+        flushIntervalMs: options.flushIntervalMs,
+        flushThresholdBytes: options.flushThresholdBytes,
+        ttlMs: options.ttlMs,
+        shutdownGraceMs: options.shutdownGraceMs,
+      }),
     });
 
   const metadata = new Map<string, SessionMetadata>();
@@ -291,24 +299,22 @@ export function createTerminalSessionManager(
     return { session, meta };
   }
 
-  async function create(principal: Principal, createOptions: CreateTerminalSessionOptions): Promise<TerminalSessionInfo> {
+  async function create({ principal, options: createOptions }: { readonly principal: Principal; readonly options: CreateTerminalSessionOptions }): Promise<TerminalSessionInfo> {
     const session = await terminalService.create({
       cwd: createOptions.cwd,
-      ...(createOptions.cols !== undefined ? { cols: createOptions.cols } : {}),
-      ...(createOptions.rows !== undefined ? { rows: createOptions.rows } : {}),
-      ...(createOptions.shell !== undefined ? { shell: createOptions.shell } : {}),
+      ...definedOnly({ cols: createOptions.cols, rows: createOptions.rows, shell: createOptions.shell }),
     });
     const resourceRef = createOptions.resourceRef ?? null;
     metadata.set(session.id, { principalId: principal.id, resourceRef, killed: false });
     return toSessionInfo(session, resourceRef);
   }
 
-  function get(principal: Principal, id: string): TerminalSessionAccessResult {
+  function get({ principal, id }: { readonly principal: Principal; readonly id: string }): TerminalSessionAccessResult {
     const found = checkOwnership(principal, id);
     return found ? { status: 'ok', session: toSessionInfo(found.session, found.meta.resourceRef) } : { status: 'not-found' };
   }
 
-  function list(principal: Principal, filter: TerminalSessionListFilter = {}): readonly TerminalSessionInfo[] {
+  function list({ principal }: { readonly principal: Principal }, { filter = {} }: { readonly filter?: TerminalSessionListFilter } = {}): readonly TerminalSessionInfo[] {
     const result: TerminalSessionInfo[] = [];
     for (const session of terminalService.list()) {
       const meta = metadata.get(session.id);
@@ -325,7 +331,8 @@ export function createTerminalSessionManager(
     return session ? toSessionInfo(session, resourceRef) : null;
   }
 
-  async function write(principal: Principal, id: string, input: string): Promise<TerminalSessionActionResult> {
+  /** Shared write/resize path: ownership check, then the per-session lock, then the killed flag. */
+  async function unlessKilled(principal: Principal, id: string, act: () => boolean): Promise<TerminalSessionActionResult> {
     const found = checkOwnership(principal, id);
     if (!found) return { status: 'not-found' };
     return runExclusive(locks, id, () => {
@@ -335,25 +342,20 @@ export function createTerminalSessionManager(
       if (!meta || meta.killed) {
         return { status: 'ok' as const, ok: false, session: currentSnapshot(id, meta?.resourceRef ?? null) };
       }
-      const ok = terminalService.write(id, input);
+      const ok = act();
       return { status: 'ok' as const, ok, session: currentSnapshot(id, meta.resourceRef) };
     });
   }
 
-  async function resize(principal: Principal, id: string, cols: number, rows: number): Promise<TerminalSessionActionResult> {
-    const found = checkOwnership(principal, id);
-    if (!found) return { status: 'not-found' };
-    return runExclusive(locks, id, () => {
-      const meta = metadata.get(id);
-      if (!meta || meta.killed) {
-        return { status: 'ok' as const, ok: false, session: currentSnapshot(id, meta?.resourceRef ?? null) };
-      }
-      const ok = terminalService.resize(id, cols, rows);
-      return { status: 'ok' as const, ok, session: currentSnapshot(id, meta.resourceRef) };
-    });
+  async function write({ principal, id, input }: { readonly principal: Principal; readonly id: string; readonly input: string }): Promise<TerminalSessionActionResult> {
+    return unlessKilled(principal, id, () => terminalService.write(id, input));
   }
 
-  async function kill(principal: Principal, id: string, signal?: string): Promise<TerminalSessionActionResult> {
+  async function resize({ principal, id, cols, rows }: { readonly principal: Principal; readonly id: string; readonly cols: number; readonly rows: number }): Promise<TerminalSessionActionResult> {
+    return unlessKilled(principal, id, () => terminalService.resize(id, cols, rows));
+  }
+
+  async function kill({ principal, id }: { readonly principal: Principal; readonly id: string }, { signal }: { readonly signal?: string } = {}): Promise<TerminalSessionActionResult> {
     const found = checkOwnership(principal, id);
     if (!found) return { status: 'not-found' };
     return runExclusive(locks, id, () => {
@@ -367,13 +369,13 @@ export function createTerminalSessionManager(
     });
   }
 
-  function attach(principal: Principal, id: string, lastEventId: number, sink: TerminalSseSink): TerminalSessionAttachResult {
+  function attach({ principal, id, lastEventId, sink }: { readonly principal: Principal; readonly id: string; readonly lastEventId: number; readonly sink: TerminalSseSink }): TerminalSessionAttachResult {
     const found = checkOwnership(principal, id);
     if (!found) return 'not-found';
     return terminalService.attach(id, lastEventId, sink);
   }
 
-  function detach(id: string, sink: TerminalSseSink): void {
+  function detach({ id, sink }: { readonly id: string; readonly sink: TerminalSseSink }): void {
     terminalService.detach(id, sink);
   }
 
@@ -409,14 +411,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * audit trail (matching `db-ops.ts`'s `createDaemonDbToolRegistrations`
  * precedent).
  */
-export function createTerminalToolRegistrations(
-  options: CreateTerminalToolRegistrationsOptions,
+export function createTerminalToolRegistrations(requiredArgs: Pick<CreateTerminalToolRegistrationsOptions, "manager">, optionalArgs: Pick<CreateTerminalToolRegistrationsOptions, "policy" | "requiresConfirmation" | "timeoutMs"> = {}
 ): TerminalToolRegistrations {
-  const { manager, policy = denyAllTerminalCreatePolicy, requiresConfirmation, timeoutMs } = options;
-  const descriptorExtras = {
-    ...(requiresConfirmation !== undefined ? { requiresConfirmation } : {}),
-    ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-  };
+  const { manager } = requiredArgs;
+  const { policy = denyAllTerminalCreatePolicy, requiresConfirmation, timeoutMs } = optionalArgs;
+  const descriptorExtras = definedOnly({ requiresConfirmation, timeoutMs });
 
   return {
     create: {
@@ -437,13 +436,12 @@ export function createTerminalToolRegistrations(
         const cols = typeof record.cols === 'number' ? record.cols : undefined;
         const rows = typeof record.rows === 'number' ? record.rows : undefined;
         const shell = typeof record.shell === 'string' ? record.shell : null;
-        return manager.create(ctx.principal, {
+        return manager.create({ principal: ctx.principal, options: {
           resourceRef,
           cwd,
-          ...(cols !== undefined ? { cols } : {}),
-          ...(rows !== undefined ? { rows } : {}),
+          ...definedOnly({ cols, rows }),
           shell,
-        });
+        } });
       },
     },
   };

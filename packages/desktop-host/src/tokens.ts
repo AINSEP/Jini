@@ -14,9 +14,9 @@ import type { SidecarLauncherPort } from './sidecar.js';
 import type { RenderService } from './render-service.js';
 import type { ShellPort } from './shell.js';
 
-export const SingleInstanceLockToken = token<SingleInstanceLockPort>('jini.desktopHost.singleInstanceLock');
-export const WindowLifecycleToken = token<WindowLifecyclePort>('jini.desktopHost.windowLifecycle');
-export const ProtocolHandlerToken = token<ProtocolHandlerPort>('jini.desktopHost.protocolHandler');
-export const SidecarLauncherToken = token<SidecarLauncherPort>('jini.desktopHost.sidecarLauncher');
-export const RenderServiceToken = token<RenderService>('jini.desktopHost.renderService');
-export const ShellToken = token<ShellPort>('jini.desktopHost.shell');
+export const SingleInstanceLockToken = token<SingleInstanceLockPort>({ id: 'jini.desktopHost.singleInstanceLock' });
+export const WindowLifecycleToken = token<WindowLifecyclePort>({ id: 'jini.desktopHost.windowLifecycle' });
+export const ProtocolHandlerToken = token<ProtocolHandlerPort>({ id: 'jini.desktopHost.protocolHandler' });
+export const SidecarLauncherToken = token<SidecarLauncherPort>({ id: 'jini.desktopHost.sidecarLauncher' });
+export const RenderServiceToken = token<RenderService>({ id: 'jini.desktopHost.renderService' });
+export const ShellToken = token<ShellPort>({ id: 'jini.desktopHost.shell' });

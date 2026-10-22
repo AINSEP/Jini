@@ -24,6 +24,13 @@ describe('buildSandboxedPreviewPage', () => {
     expect(page).toContain('sandbox="allow-scripts allow-modals"');
   });
 
+  it('renders the outer page theme variables for the requested color scheme', () => {
+    const dark = buildSandboxedPreviewPage('<p>hi</p>', 'T', { colorScheme: 'dark' });
+    const light = buildSandboxedPreviewPage('<p>hi</p>', 'T', { colorScheme: 'light' });
+    expect(dark).toContain(':root{color-scheme:dark;');
+    expect(light).toContain(':root{color-scheme:light;');
+  });
+
   it('passes SandboxedDocumentOptions through to the inner document', () => {
     const page = buildSandboxedPreviewPage('<p>hi</p>', 'T', { baseHref: 'https://cdn.test/' });
     expect(page).toContain('&lt;base href=&quot;https://cdn.test/&quot;&gt;');

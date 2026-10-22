@@ -71,7 +71,7 @@ export function ComponentKitPreview({ tokens, theme, onThemeChange }: ComponentK
     '--jini-kit-preview-body-font': tokens.bodyFont,
     '--jini-kit-preview-font-size': `${tokens.fontSize}px`,
   } as CSSProperties;
-  const primaryText = readableTextColor(tokens.colorPrimary);
+  const primaryText = readableTextColor({ hex: tokens.colorPrimary });
 
   return (
     <div className="jini-component-kit-preview" style={style} data-theme={theme}>

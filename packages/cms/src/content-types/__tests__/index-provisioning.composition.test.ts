@@ -4,21 +4,21 @@ import { test } from "vitest";
 import { resolveFieldIndexTransition } from "../index-provisioning.js";
 
 /**
- * @file CIC U-003 — field-update index-provisioning composition (C-403; REQ-27, REQ-29,
- * REQ-30; INV-09, INV-10).
+ * @file field-update index-provisioning composition.
  *
- * Binding constraint U-003-B1: for every field in an `UPDATE_CONTENT_TYPE_FIELDS` full-replace
+ * Binding constraint : for every field in an `UPDATE_CONTENT_TYPE_FIELDS` full-replace
  * submission, index state is resolved from a SINGLE before/after comparison of that field's
  * `(kind, queryable)` pair — never from two independent branches that each assume the other
  * property is unchanged. This property test exhaustively covers all 4 combination classes named
- * across REQ-27/REQ-29/REQ-30:
+ * across :
  *
- * 1. kind-only change (queryable stays true across the call) -> REQ-27 -> reprovision
- * 2. queryable-only change (kind stays constant) -> REQ-29 -> provision (false->true) / teardown (true->false)
- * 3. both kind AND queryable change together on an existing field -> REQ-30(b) -> resolved from post-call state
- * 4. brand-new field introduced with queryable=true -> REQ-30(a) -> provision, registration-parity
+ * 1. kind-only change (queryable stays true across the call) -> -> reprovision
+ * 2. queryable-only change (kind stays constant) -> -> provision (false->true) / teardown (true->false)
+ * 3. both kind AND queryable change together on an existing field -> (b) -> resolved from post-call state
+ * 4. brand-new field introduced with queryable=true -> (a) -> provision, registration-parity
  *
- * Covers: AC-43, AC-52, AC-53, AC-54, AC-55; INV-09, INV-10; EC-12, EC-17, EC-18, EC-19.
+ * Covers:.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 type FieldState = { kind: "text" | "integer" | "real" | "boolean" | "datetime"; queryable: boolean } | undefined;
@@ -53,9 +53,9 @@ test("AC-54/EC-18 (REQ-30a): a brand-new field introduced with queryable=true ->
 });
 
 test("AC-55/EC-19 (REQ-30b, the audit-critical case): kind AND queryable both change together in the same call -> resolved from POST-call state, index state is provisioned under the new kind, not left ungoverned", () => {
-  // This is the exact case U-003's designation names: an independent-branches implementation
-  // would either skip this entirely (neither REQ-27's nor REQ-29's literal condition alone is
-  // met — REQ-27 requires queryable UNCHANGED, REQ-29 requires kind UNCHANGED) or take an
+  // This is the exact case designation names: an independent-branches implementation. See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
+  // would either skip this entirely (neither nor literal condition alone is. See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
+  // met — requires queryable UNCHANGED, requires kind UNCHANGED) or take an. See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
   // unspecified branch.
   const result = transition({ kind: "integer", queryable: false }, { kind: "real", queryable: true });
 

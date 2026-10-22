@@ -126,10 +126,11 @@ describe('playground runtime input forwarding', () => {
   });
 
   it('emits and terminalizes only pre-executor failures', async () => {
-    const emit = vi.fn(async () => undefined);
-    const finish = vi.fn(async () => undefined);
+    type FailureLifecycle = Parameters<typeof failPlaygroundRunBeforeExecutor>[0]['lifecycle'];
+    const emit = vi.fn<FailureLifecycle['emit']>(async () => undefined);
+    const finish = vi.fn<FailureLifecycle['finish']>(async () => undefined);
     const running = {
-      get: vi.fn(async () => ({ state: 'running' })),
+      get: vi.fn<FailureLifecycle['get']>(async () => ({ state: 'running' })),
       emit,
       finish,
     };
@@ -137,10 +138,14 @@ describe('playground runtime input forwarding', () => {
       lifecycle: running,
       runId: 'run-1',
     })).resolves.toBe(true);
-    expect(emit).toHaveBeenCalledWith('run-1', {
-      event: 'error',
-      data: {
-        message: 'The run could not start because its local inputs are unavailable or no longer approved.',
+    expect(running.get).toHaveBeenCalledWith({ runId: 'run-1' });
+    expect(emit).toHaveBeenCalledWith({
+      runId: 'run-1',
+      input: {
+        event: 'error',
+        data: {
+          message: 'The run could not start because its local inputs are unavailable or no longer approved.',
+        },
       },
     });
     expect(finish).toHaveBeenCalledWith({
@@ -161,6 +166,36 @@ describe('playground runtime input forwarding', () => {
     })).resolves.toBe(false);
     expect(emit).toHaveBeenCalledTimes(1);
     expect(finish).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['succeeded', 'failed', 'cancelled'])('leaves an executor-owned %s transition alone when emitting races', async (state) => {
+    type FailureLifecycle = Parameters<typeof failPlaygroundRunBeforeExecutor>[0]['lifecycle'];
+    const get = vi.fn<FailureLifecycle['get']>()
+      .mockResolvedValueOnce({ state: 'running' })
+      .mockResolvedValueOnce({ state });
+    const emit = vi.fn<FailureLifecycle['emit']>(async () => {
+      throw new Error('Run is already terminal');
+    });
+    const finish = vi.fn<FailureLifecycle['finish']>(async () => undefined);
+
+    await expect(failPlaygroundRunBeforeExecutor({ lifecycle: { get, emit, finish }, runId: 'run-raced' }))
+      .resolves.toBe(false);
+    expect(get).toHaveBeenNthCalledWith(1, { runId: 'run-raced' });
+    expect(get).toHaveBeenNthCalledWith(2, { runId: 'run-raced' });
+    expect(finish).not.toHaveBeenCalled();
+  });
+
+  it('propagates an event-log failure when the run remains active', async () => {
+    type FailureLifecycle = Parameters<typeof failPlaygroundRunBeforeExecutor>[0]['lifecycle'];
+    const failure = new Error('Event log is unavailable');
+    const get = vi.fn<FailureLifecycle['get']>(async () => ({ state: 'running' }));
+    const emit = vi.fn<FailureLifecycle['emit']>(async () => { throw failure; });
+    const finish = vi.fn<FailureLifecycle['finish']>(async () => undefined);
+
+    await expect(failPlaygroundRunBeforeExecutor({ lifecycle: { get, emit, finish }, runId: 'run-active' }))
+      .rejects.toBe(failure);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(finish).not.toHaveBeenCalled();
   });
 
   it('adds the validated attachment manifest only when attachments exist', () => {

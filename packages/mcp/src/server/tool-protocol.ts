@@ -6,7 +6,7 @@
  * projection, and `tools/call` dispatch (look up a tool by name, run its
  * handler, wrap the result). None of this touches `@modelcontextprotocol/sdk`'s
  * `Server`/transport classes or the network — a tool `handler` is just
- * `(args, ctx) => value | Promise<value>` that either returns a
+ * `({ args, ctx }) => value | Promise<value>` that either returns a
  * JSON-serializable payload (wrapped as a successful MCP result) or throws
  * (wrapped as an `{isError:true}` MCP result). `./tool-server.js` is the thin
  * layer that wires this to a real `Server` + `StdioServerTransport`.
@@ -22,7 +22,7 @@
  * `delegated-tool-bridge.ts` already keeps an image block in its returned `ToolExecutionResult.output`
  * (it is model-safe per that package's `tool-result-surfaces.ts`), but this module still turned it
  * back into text on the way out. It is also how a **human-confirmation token reached model-visible
- * text** in a separate, traced incident (`ADR-053` Decision 5): a `resource` block carrying the token
+ * text** in a separate, traced incident ( Decision 5): a `resource` block carrying the token
  * fell to the same stringify path because an earlier version of this fix only recognized `text` and
  * `image`, and `resource` was not yet in that hand-rolled allowlist.
  *
@@ -41,16 +41,22 @@
  * allowlist" into "remember to bump the SDK", not into an unconditional guarantee. It also does not
  * (and cannot) judge intent: a handler that puts a secret inside an otherwise well-formed `text` block
  * will still have it pass through as designed — withholding a value from the model is the handler's
- * responsibility (`ADR-053` Decision 4), not this generic wrapper's.
+ * responsibility ( Decision 4), not this generic wrapper's.
+ * See docs/decisions/DR-002-protocol-resource-boundary.md.
  */
-import { sanitizeUntrustedText } from '@jini-ai/cli';
-import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
-import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/sdk/validation';
+import { batchOutcomeFor, type ToolDescriptor } from '@jini-ai/core';
+import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
+import { argumentShapeMessage, isRecord, normalizeToolArguments, type McpToolArgumentContract } from './tool-arguments.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
+  /** Publishes a successfully described, host-owned descriptor in this server run only. */
+  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<void>;
+  /** Host registration metadata, supplied outside model-controlled arguments. */
+  readonly diagnosticToolIds?: readonly string[];
   /** The resolved daemon HTTP base URL (no trailing slash), fixed for the lifetime of one server run. */
   readonly baseUrl: string;
   /** Defaults to the global `fetch`; threaded through so a host can inject its own (e.g. for tests). */
@@ -87,9 +93,10 @@ export interface McpToolContext {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function daemonCallOptions(ctx: McpToolContext): { fetchImpl: typeof fetch; headers?: Record<string, string>; signal?: AbortSignal } {
+export function daemonCallOptions({ ctx }: { ctx: McpToolContext }): { fetchImpl: typeof fetch; headers?: Record<string, string>; signal?: AbortSignal; diagnosticToolIds?: readonly string[] } {
   return {
     fetchImpl: ctx.fetchImpl,
+    ...(ctx.diagnosticToolIds !== undefined ? { diagnosticToolIds: ctx.diagnosticToolIds } : {}),
     ...(ctx.authHeaders !== undefined ? { headers: { ...ctx.authHeaders } } : {}),
     ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
   };
@@ -103,16 +110,11 @@ export function daemonCallOptions(ctx: McpToolContext): { fetchImpl: typeof fetc
  * `CallToolResult` shape by {@link handleToolCall}, so individual tools never construct MCP
  * protocol objects themselves.
  */
-export interface McpToolDef<Args extends Record<string, unknown> = Record<string, unknown>> {
+export interface McpToolDef<Args extends Record<string, unknown> = Record<string, unknown>> extends McpToolArgumentContract {
   readonly name: string;
   readonly description: string;
-  readonly inputSchema: Tool['inputSchema'];
   readonly annotations?: Tool['annotations'];
-  readonly handler: (args: Args, ctx: McpToolContext) => Promise<unknown> | unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  readonly handler: (requiredArgs: { args: Args; ctx: McpToolContext }) => Promise<unknown> | unknown;
 }
 
 /**
@@ -146,40 +148,47 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
 }
 
 /**
- * Wraps a successful tool result as an MCP `CallToolResult`.
+ * Wraps a tool result as an MCP `CallToolResult`, preserving explicit errors and failed batch outcomes.
  *
  * A payload that is already a well-formed MCP content envelope (see {@link isMcpContentEnvelope}) is
  * returned with its `content` array verbatim, so a typed block inside it — `image`, `resource`, or any
  * other block the pinned SDK's `ContentBlockSchema` recognizes — reaches the client as a real content
  * block rather than flattened text (see this module's own doc for the bug this closes). Every other
  * payload keeps the original behavior: a string passes through as one text block; anything else is
- * JSON-stringified into one.
+ * JSON-stringified (compact, no indentation) into one.
  *
  * @complexity O(n) in the number of content-array entries, only when `payload` already looks like an
- * envelope; O(1) otherwise.
+ * envelope or batch; O(1) otherwise.
  */
-export function okResult(payload: unknown): CallToolResult {
+export function okResult({ payload }: { payload: unknown }): CallToolResult {
+  const outcome = batchOutcomeFor({ output: payload });
+  const isError = (typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true)
+    || outcome === 'partial_failure' || outcome === 'error';
   if (isMcpContentEnvelope(payload)) {
-    return { content: payload.content as CallToolResult['content'] };
+    return { content: payload.content as CallToolResult['content'], ...(isError ? { isError: true } : {}) };
   }
-  const text = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
-  return { content: [{ type: 'text', text }] };
+  // Compact on the wire: indentation made nested results ~2.5x larger for the model to read. A view
+  // that shows a result to a person re-indents it at render time (`@jini-ai/chat`'s
+  // `formatToolOutputForDisplay`).
+  const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  return { content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) };
 }
 
 /** Wraps a tool failure as an MCP `isError` result. */
-export function errorResult(message: string): CallToolResult {
+export function errorResult({ message }: { message: string }): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: message }] };
 }
 
-/** Throws a caller-facing validation error unless `value` is a non-empty string. Mirrors the OD origin's `requireString` — a convenience for tool authors, not part of the MCP protocol itself. */
-export function requireString(value: unknown, name: string): asserts value is string {
+/** Returns a validated non-empty string, or throws the existing caller-facing error. */
+export function requireString({ value, name }: { value: unknown; name: string }): string {
   if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`${name} is required (string).`);
   }
+  return value;
 }
 
 /** Projects a tool list into the `Tool[]` shape `tools/list` returns. */
-export function toolsToList(tools: readonly McpToolDef[]): Tool[] {
+export function toolsToList({ tools }: { tools: readonly McpToolDef[] }): Tool[] {
   return tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
@@ -189,7 +198,7 @@ export function toolsToList(tools: readonly McpToolDef[]): Tool[] {
 }
 
 /** Builds a name -> def lookup, throwing if two tools in `tools` share a name (a caller-configuration bug, surfaced eagerly at server-construction time rather than silently letting the second registration shadow the first). */
-export function buildToolIndex(tools: readonly McpToolDef[]): Map<string, McpToolDef> {
+export function buildToolIndex({ tools }: { tools: readonly McpToolDef[] }): Map<string, McpToolDef> {
   const index = new Map<string, McpToolDef>();
   for (const tool of tools) {
     if (index.has(tool.name)) {
@@ -200,33 +209,23 @@ export function buildToolIndex(tools: readonly McpToolDef[]): Map<string, McpToo
   return index;
 }
 
-/**
- * The SDK's own edge-runtime-compatible (no `eval`/codegen) JSON Schema validator — the same
- * mechanism `McpServer.registerTool()`'s high-level helper uses internally, borrowed here because
- * `createMcpToolServer` is built on the SDK's low-level `Server.setRequestHandler` instead (see
- * `tool-server.ts`'s module doc), which does not validate a tool's declared `inputSchema` against
- * arguments before its handler runs. One provider instance is reused across every tool: it holds no
- * per-schema state itself (see {@link compiledValidators} for the actual compiled-validator cache).
- */
-const schemaValidatorProvider = new CfWorkerJsonSchemaValidator();
+/** Compiled schemas are reused for each stable tool definition, as in the SDK provider. */
+const compiledValidators = new WeakMap<McpToolDef, Validator>();
 
-/**
- * Compiling a validator from a schema is real work `CfWorkerJsonSchemaValidator` does not cache
- * internally (per its own doc), so it is cached here per `McpToolDef` instance — stable for a
- * server's whole lifetime, since tool defs are created once at module load and never rebuilt.
- */
-const compiledValidators = new WeakMap<McpToolDef, JsonSchemaValidator<Record<string, unknown>>>();
-
-function validatorForTool(tool: McpToolDef): JsonSchemaValidator<Record<string, unknown>> {
+/** Returns the cached validator, retaining structured field locations for recovery instructions. */
+function validatorForTool(tool: McpToolDef): Validator {
   const cached = compiledValidators.get(tool);
   if (cached) return cached;
-  const validator = schemaValidatorProvider.getValidator<Record<string, unknown>>(tool.inputSchema as JsonSchemaType);
+  // The validator adds internal URI fields while compiling. F0's published schemas are frozen;
+  // compile a detached copy so validation cannot mutate the immutable wire contract.
+  const validator = new Validator(structuredClone(tool.inputSchema) as Schema, '2020-12', true);
   compiledValidators.set(tool, validator);
   return validator;
 }
 
 /**
- * `tools/call` dispatch: looks up `name` in `tools`, validates `rawArgs` against the tool's
+ * `tools/call` dispatch: looks up `name` in `tools`, normalizes aliases/wrapper input, then
+ * validates the canonical arguments against the tool's
  * declared `inputSchema`, runs its handler, and converts the outcome to a `CallToolResult` — an
  * unknown tool name, a schema violation, or a thrown error all produce an `{isError:true}` result
  * rather than rejecting, matching MCP's convention that tool failures are protocol-level results,
@@ -234,44 +233,38 @@ function validatorForTool(tool: McpToolDef): JsonSchemaValidator<Record<string, 
  * agent, not this repo's own code) supplies `rawArgs`, so a handler must never be trusted to check
  * its own declared contract on the untrusted-input path. Both a validation failure's message and a
  * thrown error's message are passed through {@link sanitizeUntrustedText} before reaching the
- * result: either can end up echoing caller- or daemon-supplied text, and it is cheaper to sanitize
- * unconditionally than to prove which call site needs it.
+ * result: either can end up echoing caller- or daemon-supplied text. The validation prefix uses the
+ * registered tool name outside sanitization so long gateway names are not mistaken for secrets.
  */
 export async function handleToolCall(
-  name: string,
-  rawArgs: Record<string, unknown> | undefined,
-  tools: ReadonlyMap<string, McpToolDef>,
-  ctx: McpToolContext,
+  { name, tools, ctx }: { name: string; tools: ReadonlyMap<string, McpToolDef>; ctx: McpToolContext },
+  { rawArgs }: { rawArgs?: Record<string, unknown> | undefined } = {},
 ): Promise<CallToolResult> {
+  const diagnosticToolIds = [...tools.keys(), ...(ctx.diagnosticToolIds ?? [])];
+  ctx = { ...ctx, diagnosticToolIds };
   const tool = tools.get(name);
   if (tool === undefined) {
-    return errorResult(`unknown tool: ${name}`);
+    return errorResult({ message: `unknown tool: ${name}` });
   }
-  const args = rawArgs ?? {};
-  // Validation gets its own error boundary, separate from the handler's below. The
-  // validator does not only return `{valid:false}` for a bad argument — `@cfworker/json-schema`
-  // *throws* for JavaScript values JSON cannot encode (an explicitly-`undefined` optional
-  // property yields `Instances of "undefined" type are not supported.`). Compiling the
-  // validator can throw too, on a malformed `inputSchema`. Either escaping would break this
-  // function's whole contract, that a schema violation is an `{isError:true}` result and never
-  // a rejection — and `handleToolCall` is exported, typed `Record<string, unknown>`, and
-  // callable directly by a host, so this is reachable and not merely theoretical.
+  // Normalization and schema validation share an error boundary; handlers run only afterward.
+  // See docs/decisions/DR-005-proxy-argument-shapes.md.
   let validatedArgs: Record<string, unknown>;
   try {
-    const validation = validatorForTool(tool)(args);
+    const args = normalizeToolArguments({ tool, rawArgs: rawArgs ?? {} });
+    const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult(sanitizeUntrustedText(`invalid arguments for ${name}: ${validation.errorMessage}`));
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors }) }, { diagnosticToolIds })}` });
     }
-    validatedArgs = validation.data;
+    validatedArgs = args;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return errorResult(sanitizeUntrustedText(`invalid arguments for ${name}: ${message}`));
+    return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: message }, { diagnosticToolIds })}` });
   }
   try {
-    const result = await tool.handler(validatedArgs, ctx);
-    return okResult(result);
+    const result = await tool.handler({ args: validatedArgs, ctx: ctx });
+    return okResult({ payload: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return errorResult(sanitizeUntrustedText(message));
+    return errorResult({ message: sanitizeUntrustedText({ text: message }, { diagnosticToolIds }) });
   }
 }

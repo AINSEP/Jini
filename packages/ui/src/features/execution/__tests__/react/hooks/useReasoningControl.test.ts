@@ -100,6 +100,55 @@ function claudeAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
 }
 
 describe('useReasoningControl — flat reasoning options (flag-based)', () => {
+  it('dedupes live Claude picker rows and selects the concrete row for a persisted alias', () => {
+    const models = [
+      { id: 'claude-opus-5-5', label: 'claude-opus-5-5', identityKind: 'concrete' },
+      { id: 'opus', label: 'Opus 5.5', identityKind: 'alias', resolvedId: 'claude-opus-5-5' },
+      { id: 'claude-opus-5-5', label: 'Opus 5.5', identityKind: 'concrete' },
+      { id: 'fable', label: 'Fable 5.1', identityKind: 'alias', resolvedId: 'claude-fable-5-1' },
+      { id: 'claude-fable-5-1', label: 'Fable 5.1', identityKind: 'concrete' },
+      { id: 'sonnet', label: 'Sonnet 5.5', identityKind: 'alias', resolvedId: 'claude-sonnet-5-5' },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', identityKind: 'concrete' },
+      { id: 'haiku', label: 'Haiku 5.5', identityKind: 'alias', resolvedId: 'claude-haiku-5-5' },
+      { id: 'claude-haiku-5-5', label: 'Haiku 5.5', identityKind: 'concrete' },
+    ] as const;
+    const agent = claudeAgent({ models, modelsSource: 'live' });
+    const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: 'fable' } };
+    const { result, rerender } = renderHook(
+      ({ config }: { config: LocalCliConfig }) => useReasoningControl({ agent, config }),
+      { initialProps: { config } },
+    );
+
+    // This uses the existing public hook so the old verbatim catalog fails by assertion,
+    // independently of the new pure helper's export or implementation.
+    expect(result.current.modelChoices.map(({ id, label }) => ({ id, label }))).toEqual([
+      { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'claude-fable-5-1', label: 'Fable 5.1' },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+      { id: 'claude-haiku-5-5', label: 'Haiku 5.5' },
+    ]);
+    expect(result.current.selectValue).toBe('claude-fable-5-1');
+    expect(result.current.models).toBe(models);
+    expect(result.current.knownModelIds).toEqual(models.map(({ id }) => id));
+    expect(result.current.customActive).toBe(false);
+    expect(result.current.resolvedModel).toBe('fable');
+    expect(config.modelByAgentId?.claude).toBe('fable');
+
+    rerender({ config: { agentId: 'claude' } });
+    expect(result.current.selectValue).toBe('claude-opus-5-5');
+  });
+
+  it('keeps a persisted alias selected when it has no resolved ID', () => {
+    const agent = claudeAgent({
+      models: [{ id: 'fable', label: 'Fable', identityKind: 'alias' }],
+      modelsSource: 'live',
+    });
+    const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: 'fable' } };
+    const { result } = renderHook(() => useReasoningControl({ agent, config }));
+
+    expect(result.current.selectValue).toBe('fable');
+  });
+
   it('derives flat reasoning options and preserves models directly', () => {
     const agent = claudeAgent();
     const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { claude: 'high' } };
@@ -338,5 +387,61 @@ describe('useReasoningControl — per-model reasoning narrowing (flat reasoning 
     });
 
     expect(onReasoningChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('useReasoningControl — edge branches', () => {
+  it('requests no clear when nothing is persisted for the agent', () => {
+    const onReasoningChange = vi.fn();
+    const config: LocalCliConfig = { agentId: 'codex', modelByAgentId: { codex: 'gpt-5.5' } };
+    renderHook(() => useReasoningControl({ agent: codexAgent(), config, onReasoningChange }));
+    const otherAgentOnly: LocalCliConfig = { ...config, reasoningByAgentId: { claude: 'xhigh' } };
+    renderHook(() => useReasoningControl({ agent: codexAgent(), config: otherAgentOnly, onReasoningChange }));
+    expect(onReasoningChange).not.toHaveBeenCalled();
+  });
+
+  it('selects no base model when the resolved suffix model belongs to no group', () => {
+    const agent = agyAgent({ models: [{ id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' }] });
+    const config: LocalCliConfig = { agentId: 'antigravity', modelByAgentId: { antigravity: 'other-model' } };
+    const { result } = renderHook(() => useReasoningControl({ agent, config }));
+    expect(result.current.activeGroup).toBeNull();
+    expect(result.current.selectValue).toBe('');
+    expect(result.current.resolveReasoningModelId('low')).toBeNull();
+  });
+
+  it('renders an empty effort value when the model offers no levels at all', () => {
+    const config: LocalCliConfig = { agentId: 'codex', modelByAgentId: { codex: 'gpt-legacy' }, reasoningByAgentId: { codex: 'high' } };
+    const { result } = renderHook(() => useReasoningControl({ agent: codexAgent(), config }));
+    expect(result.current.hasReasoning).toBe(false);
+    expect(result.current.reasoningValue).toBe('');
+  });
+
+  it('shows the first level when the saved suffix model is the bare base id', () => {
+    const agent = agyAgent({
+      models: [
+        { id: 'gemini-x', label: 'Gemini X' },
+        { id: 'gemini-x-high', label: 'Gemini X (High)' },
+        { id: 'gemini-x-low', label: 'Gemini X (Low)' },
+      ],
+    });
+    const config: LocalCliConfig = { agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-x' } };
+    const { result } = renderHook(() => useReasoningControl({ agent, config }));
+    expect(result.current.activeLevel).toBeNull();
+    expect(result.current.reasoningOptions.map((option) => option.id)).toEqual(['high', 'low']);
+    expect(result.current.reasoningValue).toBe('high');
+  });
+
+  it('passes an unknown base model id through unchanged', () => {
+    const config: LocalCliConfig = { agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.1-pro-low' } };
+    const { result } = renderHook(() => useReasoningControl({ agent: agyAgent(), config }));
+    expect(result.current.resolveNextModelId('not-a-base')).toBe('not-a-base');
+  });
+
+  it('passes the picked id through for an agent without suffix reasoning', () => {
+    const config: LocalCliConfig = { agentId: 'claude', modelByAgentId: { claude: 'claude-sonnet-4-6' } };
+    const { result } = renderHook(() => useReasoningControl({ agent: claudeAgent(), config }));
+    expect(result.current.modelGroups).toBeNull();
+    expect(result.current.resolveNextModelId('claude-opus-4-6')).toBe('claude-opus-4-6');
+    expect(result.current.resolveReasoningModelId('low')).toBeNull();
   });
 });

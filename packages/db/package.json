@@ -1,0 +1,239 @@
+{
+  "name": "@jini-ai/db",
+  "version": "0.3.5",
+  "description": "Database ports, connection helpers, ownership, isolated Kysely kernels and migrations. All peers are optional; drivers are injected.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/db"
+  },
+  "jini": {
+    "domain": "server",
+    "kind": "persistence-adapter",
+    "runtime": "node",
+    "neutralEntries": [
+      "src/core"
+    ],
+    "isolation": {
+      "entries": {
+        "./tools": "transfer"
+      },
+      "shared": [
+        "src/kernel/dialect.ts",
+        "src/kernel/index.ts",
+        "src/kernel/kernel-core.ts",
+        "src/kernel/ops.ts",
+        "src/kernel/port.ts",
+        "src/kernel/postgres-lock.ts",
+        "src/kernel/schema-scope.ts",
+        "src/kernel/schema-shape.ts",
+        "src/kernel/store-copy.ts",
+        "src/kernel/turn-lock.ts",
+        "src/kernel/typegen.ts"
+      ]
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite/index.d.ts",
+      "import": "./dist/sqlite/index.js",
+      "default": "./dist/sqlite/index.js"
+    },
+    "./pglite": {
+      "types": "./dist/pglite/index.d.ts",
+      "import": "./dist/pglite/index.js",
+      "default": "./dist/pglite/index.js"
+    },
+    "./postgres": {
+      "types": "./dist/postgres/index.d.ts",
+      "import": "./dist/postgres/index.js",
+      "default": "./dist/postgres/index.js"
+    },
+    "./kernel": {
+      "types": "./dist/kernel/index.d.ts",
+      "import": "./dist/kernel/index.js",
+      "default": "./dist/kernel/index.js"
+    },
+    "./kernel/sqlite": {
+      "types": "./dist/kernel/sqlite/index.d.ts",
+      "import": "./dist/kernel/sqlite/index.js",
+      "default": "./dist/kernel/sqlite/index.js"
+    },
+    "./kernel/pglite": {
+      "types": "./dist/kernel/pglite/index.d.ts",
+      "import": "./dist/kernel/pglite/index.js",
+      "default": "./dist/kernel/pglite/index.js"
+    },
+    "./kernel/postgres": {
+      "types": "./dist/kernel/postgres/index.d.ts",
+      "import": "./dist/kernel/postgres/index.js",
+      "default": "./dist/kernel/postgres/index.js"
+    },
+    "./migrate": {
+      "types": "./dist/migrate/index.d.ts",
+      "import": "./dist/migrate/index.js",
+      "default": "./dist/migrate/index.js"
+    },
+    "./testing/pg-fixture": {
+      "types": "./dist/pg-fixture.d.ts",
+      "import": "./dist/pg-fixture.js",
+      "default": "./dist/pg-fixture.js"
+    },
+    "./package.json": "./package.json",
+    "./transfer": {
+      "types": "./dist/transfer/index.d.ts",
+      "import": "./dist/transfer/index.js",
+      "default": "./dist/transfer/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js",
+      "default": "./dist/tools/index.js"
+    },
+    "./kernel/store-copy": {
+      "types": "./dist/kernel/store-copy.d.ts",
+      "import": "./dist/kernel/store-copy.js",
+      "default": "./dist/kernel/store-copy.js"
+    },
+    "./recovery/*": {
+      "types": "./dist/recovery/*.d.ts",
+      "import": "./dist/recovery/*.js",
+      "default": "./dist/recovery/*.js"
+    },
+    "./recovery": {
+      "types": "./dist/recovery/index.d.ts",
+      "import": "./dist/recovery/index.js",
+      "default": "./dist/recovery/index.js"
+    },
+    "./secrets-vault": {
+      "types": "./dist/secrets-vault/index.d.ts",
+      "import": "./dist/secrets-vault/index.js",
+      "default": "./dist/secrets-vault/index.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "core": [
+        "./dist/core/index.d.ts"
+      ],
+      "sqlite": [
+        "./dist/sqlite/index.d.ts"
+      ],
+      "pglite": [
+        "./dist/pglite/index.d.ts"
+      ],
+      "postgres": [
+        "./dist/postgres/index.d.ts"
+      ],
+      "kernel": [
+        "./dist/kernel/index.d.ts"
+      ],
+      "kernel/sqlite": [
+        "./dist/kernel/sqlite/index.d.ts"
+      ],
+      "kernel/pglite": [
+        "./dist/kernel/pglite/index.d.ts"
+      ],
+      "kernel/postgres": [
+        "./dist/kernel/postgres/index.d.ts"
+      ],
+      "migrate": [
+        "./dist/migrate/index.d.ts"
+      ],
+      "testing/pg-fixture": [
+        "./dist/pg-fixture.d.ts"
+      ],
+      "package.json": [
+        "./package.json"
+      ],
+      "transfer": [
+        "./dist/transfer/index.d.ts"
+      ],
+      "tools": [
+        "./dist/tools/index.d.ts"
+      ],
+      "kernel/store-copy": [
+        "./dist/kernel/store-copy.d.ts"
+      ],
+      "recovery/*": [
+        "./dist/recovery/*.d.ts"
+      ],
+      "recovery": [
+        "./dist/recovery/index.d.ts"
+      ],
+      "secrets-vault": [
+        "./dist/secrets-vault/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE.md",
+    "LICENSE.pglite-socket",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/__tests__/**",
+    "!dist/**/testing/**",
+    "!dist/**/*.map"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:postgres": "vitest run --config vitest.postgres.config.ts"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "kysely": "^0.29.6",
+    "better-sqlite3": "^13.0.0",
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "^8.23.0",
+    "@jini-ai/platform": "^0.5.6"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/pg": "8.23.1",
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "13.0.3",
+    "kysely": "0.29.6",
+    "pg": "8.23.0",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*"
+  }
+}

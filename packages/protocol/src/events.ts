@@ -82,7 +82,15 @@ export interface RunEndPayload {
 }
 
 export type RunAgentPayload =
-  | { type: 'status'; label: string; model?: string; ttftMs?: number; detail?: string }
+  /** Host-assembled installed guidance, displayed only after successful delivery. */
+  | { type: 'agent_plugins'; conversationId: string; state: { decision: { selected: readonly string[]; asked?: boolean } | null; excluded: readonly string[] }; plugins: readonly { id: string; name: string }[] }
+  | {
+      type: 'status'; label: string; model?: string; ttftMs?: number; detail?: string;
+      /** Concrete prior model on a structured `model_switch` receipt. */
+      previousModel?: string;
+      /** Agent CLI session/thread locator, reported early so hosts can checkpoint before terminal end. */
+      sessionId?: string;
+    }
   | { type: 'text_delta'; delta: string }
   | { type: 'thinking_start' }
   | { type: 'thinking_delta'; delta: string }
@@ -111,14 +119,14 @@ export type RunAgentPayload =
    * model still only ever sees `content`, since no driver forwards `media` into a prompt.
    */
   | { type: 'tool_result'; toolUseId: string; content: string; isError?: boolean; media?: unknown }
-  | { type: 'usage'; usage?: { input_tokens?: number; output_tokens?: number }; costUsd?: number; durationMs?: number }
+  | { type: 'usage'; usage?: { input_tokens?: number; output_tokens?: number }; costUsd?: number; cumulativeCostUsd?: number; costSessionId?: string; durationMs?: number }
   | { type: 'raw'; line: string }
   /**
    * Announces a named sub-stage of a multi-step agent run beginning/ending — generic scaffolding
    * for any driver that structures its work into stages (a build pipeline, a multi-pass review,
    * a plan/execute/verify loop), not tied to any one product's own pipeline concept. Added for
    * `@jini-ai/agui`'s generalization of OD's `pipeline_stage_started`/`pipeline_stage_completed`
-   * events — see `packages/agentic/source-map.md` for the full reasoning and two-consumer
+   * events — see `packages/agentic/archived provenance ledger` for the full reasoning and two-consumer
    * justification. Flows through the existing `RunLifecycle.emit('agent', ...)` channel exactly
    * like `tool_use`/`tool_result` already do; no driver in this codebase produces these yet.
    */
@@ -130,7 +138,7 @@ export type RunAgentPayload =
    * "the agent needs the user to answer something mid-run" — not a UI component/data-binding
    * protocol (see the real, much larger A2UI spec at a2ui.org for that different, out-of-scope
    * problem). Added for `@jini-ai/agui`'s generalization of OD's `genui_surface_request`/
-   * `genui_surface_response`/`genui_surface_timeout` events — see `packages/agentic/source-map.md`.
+   * `genui_surface_response`/`genui_surface_timeout` events — see `packages/agentic/archived provenance ledger`.
    * A timeout is represented as a `surface_response` with `respondedBy: 'auto'`, mirroring OD's
    * own collapsing of its two response-shaped event kinds into one. No driver in this codebase
    * produces these yet.
@@ -163,8 +171,9 @@ export type RunAgentPayload =
    * model-visible remainder as the usual `tool_result`.
    *
    * Why it cannot simply stay in the result: a tool call's return value is definitionally what the
-   * model receives, and `@jini-ai/mcp`'s `okResult()` JSON.stringifies a whole result into one text
-   * block. A confirmation dialog left in the result therefore hands the model the very token the
+   * model receives, and `@jini-ai/mcp`'s `okResult()` forwards valid MCP content arrays or
+   * JSON-stringifies other results into one text block. Either path can expose a confirmation
+   * dialog left in the result, handing the model the very token the
    * dialog exists to withhold — after which the model can approve its own destructive action with
    * no human involved. Emitting out-of-band is what makes that structurally impossible rather than
    * merely discouraged.
@@ -196,7 +205,15 @@ export type RunAgentPayload =
    * registers no `'slow_running'` ext renderer sees nothing new — additive to every existing
    * consumer, the same guarantee every other addition to this union already gives.
    */
-  | { type: 'slow_running'; detail: string };
+  | { type: 'slow_running'; detail: string }
+  /**
+   * A message the human sent while this run was going, delivered into the live agent session (see
+   * `@jini-ai/daemon`'s `AgentExecutor.sendUserMessage`). Recorded in the run's own stream so every
+   * subscriber — and a reload replaying the log — shows it where it happened in the turn. `id` is
+   * unique per message, so a renderer can give each one its own slot. Like `slow_running`, a chat
+   * transport hands it on as an `ext` event of the same name.
+   */
+  | { type: 'user_message'; id: string; text: string };
 
 export type RunProtocolEvent =
   | RunEvent<'start', RunStartPayload>

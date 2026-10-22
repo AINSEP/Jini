@@ -38,13 +38,17 @@ export interface AttachmentStagingOptions {
  * prunes staged files older than `maxAgeMs` on each call.
  */
 export interface AttachmentStaging {
-  stage(imagePaths: readonly string[], uploadRoot?: string | null): Promise<string[]>;
+  stage(required: { imagePaths: readonly string[] }, optional?: { uploadRoot?: string | null | undefined }): Promise<string[]>;
 }
 
 const DEFAULT_STAGING_DIRNAME = '.media-attachments';
 const DEFAULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_ITEMS = 50;
 const DEFAULT_MAX_BYTES_PER_FILE = 100 * 1024 * 1024;
+
+// Authorization failures must escape the advisory-file catch below; otherwise
+// a missing containment boundary looks like an ordinary missing attachment.
+class MissingUploadRootError extends Error {}
 
 function isWithinRoot(root: string, candidate: string): boolean {
   const relativePath = path.relative(root, candidate);
@@ -88,8 +92,81 @@ async function pruneStagedAttachments(stagingDir: string, maxAgeMs: number): Pro
   );
 }
 
+// Fail closed, not open: an explicitly-supplied uploadRoot that doesn't
+// resolve is a caller configuration error, not an "unrestricted" signal
+// (SEC-RB-003 — the prior behavior collapsed "no uploadRoot" and
+// "unresolvable uploadRoot" into the same no-restriction case, letting
+// any host-readable file be staged when uploadRoot merely failed to
+// resolve). Omitting uploadRoot entirely is still allowed, but then only
+// paths already inside `cwd` can be staged — nothing outside `cwd` can
+// be copied in without a resolvable uploadRoot to authorize it.
+async function resolveUploadRoot(uploadRoot: string | null | undefined): Promise<string | null> {
+  if (uploadRoot == null) return null;
+  try {
+    return await fs.promises.realpath(uploadRoot);
+  } catch (error) {
+    throw new Error(`attachment staging: uploadRoot ${JSON.stringify(uploadRoot)} could not be resolved: ${(error as Error).message}`);
+  }
+}
+
+/** Creates `stagingDir`, refuses a symlinked one, and prunes stale entries. */
+async function prepareStagingDir(stagingDir: string, maxAgeMs: number): Promise<void> {
+  await fs.promises.mkdir(stagingDir, { recursive: true });
+  // The staging directory is a destination this component writes into
+  // and later prunes/deletes from — refuse to operate through a symlink
+  // here, since a pre-planted symlink would redirect writes/deletes
+  // outside `root` (SEC-RB-003).
+  const stagingDirLstat = await fs.promises.lstat(stagingDir);
+  if (stagingDirLstat.isSymbolicLink()) {
+    throw new Error(`attachment staging: staging directory ${stagingDir} is a symlink, refusing to use it`);
+  }
+  await pruneStagedAttachments(stagingDir, maxAgeMs);
+}
+
+interface StageContext {
+  readonly rootReal: string;
+  readonly uploadRootReal: string | null;
+  readonly stagingDir: string;
+  readonly maxBytesPerFile: number;
+}
+
+/**
+ * Stages one already-validated, non-blank path. Returns the path to submit,
+ * or null when the file is advisory-skippable (not a file, outside
+ * uploadRoot, too large). Throws `MissingUploadRootError` for an outside-cwd
+ * file with no uploadRoot; any other error is the caller's to swallow.
+ */
+async function stageOne(inputPath: string, ctx: StageContext): Promise<string | null> {
+  const real = await fs.promises.realpath(path.resolve(inputPath));
+  const stat = await fs.promises.stat(real);
+  if (!stat.isFile()) return null;
+  if (isWithinRoot(ctx.rootReal, real)) return real;
+  // Outside cwd: this is the "copy an external file into staging"
+  // path, which requires an authorized uploadRoot — deny by default.
+  if (ctx.uploadRootReal == null) {
+    throw new MissingUploadRootError('attachment staging: files outside cwd require an uploadRoot');
+  }
+  if (!isWithinRoot(ctx.uploadRootReal, real)) return null;
+  if (stat.size > ctx.maxBytesPerFile) return null;
+  const destination = path.join(ctx.stagingDir, `${randomUUID()}-${path.basename(real)}`);
+  await fs.promises.copyFile(real, destination);
+  return destination;
+}
+
+/** `stageOne` with the advisory-input policy: malformed or missing files are skipped, authorization failures escape. */
+async function stageOneAdvisory(inputPath: unknown, ctx: StageContext): Promise<string | null> {
+  if (typeof inputPath !== 'string' || inputPath.trim().length === 0) return null;
+  try {
+    return await stageOne(inputPath, ctx);
+  } catch (error) {
+    if (error instanceof MissingUploadRootError) throw error;
+    // Ignore malformed or missing files; attachments are advisory input.
+    return null;
+  }
+}
+
 /** Creates a filesystem-backed `AttachmentStaging` rooted at `cwd`. */
-export function createFsAttachmentStaging(cwd: string, options: AttachmentStagingOptions = {}): AttachmentStaging {
+export function createFsAttachmentStaging({ cwd }: { cwd: string }, options: AttachmentStagingOptions = {}): AttachmentStaging {
   const stagingDirName = options.stagingDirName ?? DEFAULT_STAGING_DIRNAME;
   assertSafeStagingDirName(stagingDirName);
   const maxAgeMs = options.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
@@ -99,37 +176,13 @@ export function createFsAttachmentStaging(cwd: string, options: AttachmentStagin
   const stagingDir = path.join(root, stagingDirName);
 
   return {
-    async stage(imagePaths: readonly string[], uploadRoot?: string | null): Promise<string[]> {
+    async stage({ imagePaths }: { imagePaths: readonly string[] } , { uploadRoot }: { uploadRoot?: string | null | undefined } = {}): Promise<string[]> {
       if (!Array.isArray(imagePaths) || imagePaths.length === 0) return [];
       if (imagePaths.length > maxItems) {
         throw new Error(`attachment staging: ${imagePaths.length} paths exceeds the ${maxItems}-item limit`);
       }
-      // Fail closed, not open: an explicitly-supplied uploadRoot that doesn't
-      // resolve is a caller configuration error, not an "unrestricted" signal
-      // (SEC-RB-003 — the prior behavior collapsed "no uploadRoot" and
-      // "unresolvable uploadRoot" into the same no-restriction case, letting
-      // any host-readable file be staged when uploadRoot merely failed to
-      // resolve). Omitting uploadRoot entirely is still allowed, but then only
-      // paths already inside `cwd` can be staged — nothing outside `cwd` can
-      // be copied in without a resolvable uploadRoot to authorize it.
-      let uploadRootReal: string | null = null;
-      if (uploadRoot != null) {
-        try {
-          uploadRootReal = await fs.promises.realpath(uploadRoot);
-        } catch (error) {
-          throw new Error(`attachment staging: uploadRoot ${JSON.stringify(uploadRoot)} could not be resolved: ${(error as Error).message}`);
-        }
-      }
-      await fs.promises.mkdir(stagingDir, { recursive: true });
-      // The staging directory is a destination this component writes into
-      // and later prunes/deletes from — refuse to operate through a symlink
-      // here, since a pre-planted symlink would redirect writes/deletes
-      // outside `root` (SEC-RB-003).
-      const stagingDirLstat = await fs.promises.lstat(stagingDir);
-      if (stagingDirLstat.isSymbolicLink()) {
-        throw new Error(`attachment staging: staging directory ${stagingDir} is a symlink, refusing to use it`);
-      }
-      await pruneStagedAttachments(stagingDir, maxAgeMs);
+      const uploadRootReal = await resolveUploadRoot(uploadRoot);
+      await prepareStagingDir(stagingDir, maxAgeMs);
       // `root` is guaranteed to exist at this point (the recursive mkdir above
       // created it if it didn't already). Resolve its real path once so the
       // "already inside cwd" check below compares like-for-like against
@@ -138,30 +191,12 @@ export function createFsAttachmentStaging(cwd: string, options: AttachmentStagin
       // prefix (e.g. macOS's /tmp -> /private/tmp, /var -> /private/var),
       // causing an unnecessary copy instead of returning the path as-is.
       const rootReal = await fs.promises.realpath(root).catch(() => root);
+      const ctx: StageContext = { rootReal, uploadRootReal, stagingDir, maxBytesPerFile };
 
       const staged: string[] = [];
       for (const inputPath of imagePaths) {
-        if (typeof inputPath !== 'string' || inputPath.trim().length === 0) continue;
-        try {
-          const resolved = path.resolve(inputPath);
-          const real = await fs.promises.realpath(resolved);
-          const stat = await fs.promises.stat(real);
-          if (!stat.isFile()) continue;
-          if (isWithinRoot(rootReal, real)) {
-            staged.push(real);
-            continue;
-          }
-          // Outside cwd: this is the "copy an external file into staging"
-          // path, which requires an authorized uploadRoot — deny by default.
-          if (uploadRootReal == null || !isWithinRoot(uploadRootReal, real)) continue;
-          if (stat.size > maxBytesPerFile) continue;
-          const basename = path.basename(real);
-          const destination = path.join(stagingDir, `${randomUUID()}-${basename}`);
-          await fs.promises.copyFile(real, destination);
-          staged.push(destination);
-        } catch {
-          // Ignore malformed or missing files; attachments are advisory input.
-        }
+        const result = await stageOneAdvisory(inputPath, ctx);
+        if (result !== null) staged.push(result);
       }
       return staged;
     },

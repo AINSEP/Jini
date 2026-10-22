@@ -26,6 +26,7 @@ import type { RefObject } from 'react';
 import { subscribeOutsideClickOrEscape } from '../utils/dom-subscriptions.js';
 
 export interface UseDismissOnOutsideOrEscapeOptions {
+  subscription?: DismissSubscriptionPort;
   /** Skip attaching any listeners while `false` (e.g. only while a menu is open). Defaults to `true`. */
   enabled?: boolean;
   /**
@@ -37,15 +38,26 @@ export interface UseDismissOnOutsideOrEscapeOptions {
   containerRef?: RefObject<HTMLElement | null>;
 }
 
+export interface DismissSubscriptionPort {
+  subscribe(requiredArgs: {
+    containerRef: RefObject<HTMLElement | null> | undefined;
+    onDismiss: () => void;
+  }): () => void;
+}
+
+const browserSubscription: DismissSubscriptionPort = {
+  subscribe: ({ containerRef, onDismiss }) => subscribeOutsideClickOrEscape(containerRef, onDismiss),
+};
+
 /**
  * Calls `onDismiss` on a `pointerdown` outside `options.containerRef` (when
  * supplied) or on the Escape key anywhere. A no-op outside the browser (SSR).
  */
 export function useDismissOnOutsideOrEscape(
-  onDismiss: () => void,
+  { onDismiss }: { onDismiss: () => void },
   options: UseDismissOnOutsideOrEscapeOptions = {},
 ): void {
-  const { enabled = true, containerRef } = options;
+  const { enabled = true, containerRef, subscription = browserSubscription } = options;
 
   // Latest-ref indirection so callers don't need to memoize `onDismiss` for
   // the subscription effect below to stay attached with fresh behavior.
@@ -56,6 +68,6 @@ export function useDismissOnOutsideOrEscape(
 
   useEffect(() => {
     if (!enabled) return;
-    return subscribeOutsideClickOrEscape(containerRef, () => onDismissRef.current());
-  }, [enabled, containerRef]);
+    return subscription.subscribe({ containerRef, onDismiss: () => onDismissRef.current() });
+  }, [enabled, containerRef, subscription]);
 }

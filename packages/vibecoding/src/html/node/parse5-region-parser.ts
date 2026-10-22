@@ -14,11 +14,11 @@
  * browsers use for `Element.innerHTML`) is the correct entry point for that shape, parsed against a
  * `<div>` context element: a generic block container, matching how a real host embeds this content.
  * Getting this choice right is not cosmetic — the fragment context materially changes recovery
- * behavior (verified empirically; see the CIC-2 section below), so a `<template>` context (parse5's
+ * behavior (verified empirically; see the section below), so a `<template>` context (parse5's
  * own default when none is given) would UNDER-detect a real failure mode this module exists to
  * catch.
  *
- * ## CIC-2 — a tagged element the parser could not reliably locate must never be silently dropped
+ * ## — a tagged element the parser could not reliably locate must never be silently dropped
  *
  * `regions.ts`'s own contract states the requirement (`findRegions`'s doc: "must report ALL of
  * them... a parser that filters them out silently defeats the allowlist check"). Silently omitting
@@ -32,18 +32,18 @@
  * inferred from parse5's docs alone.** Two distinct mechanisms were confirmed reachable:
  *
  * 1. **A located-but-incomplete node.** parse5's own docs state `sourceCodeLocation` is `undefined`
- *    for elements the parser implicitly created during tree correction; concretely, this shows up as
- *    a tagged element whose `sourceCodeLocation.endTag` is missing — an implicitly-closed element at
- *    EOF, or (structurally, always) a tagged void element (`<img>`, `<br>`, ...), which has no
- *    content model and therefore can never have a closing tag to locate.
+ * for elements the parser implicitly created during tree correction; concretely, this shows up as
+ * a tagged element whose `sourceCodeLocation.endTag` is missing — an implicitly-closed element at
+ * EOF, or (structurally, always) a tagged void element (`<img>`, `<br>`,...), which has no
+ * content model and therefore can never have a closing tag to locate.
  * 2. **A node dropped from the tree entirely — no location to inspect because no node exists.**
- *    Confirmed with a tagged `<td>` used outside a `<table>`, parsed with a `<div>` fragment context:
- *    the HTML5 "in body" insertion mode's table-tag handling is a spec-mandated "parse error, ignore
- *    the token" — the element (and its `data-agent-element` attribute) never enters the tree at all.
- *    Neither `sourceCodeLocationInfo` nor `onParseError` flags this case on its own (verified: this
- *    fixture produces zero `onParseError` entries), which is why this module cross-checks the raw
- *    source text's occurrence count against what the tree walk actually found, independent of
- *    parse5's own error stream.
+ * Confirmed with a tagged `<td>` used outside a `<table>`, parsed with a `<div>` fragment context:
+ * the HTML5 "in body" insertion mode's table-tag handling is a spec-mandated "parse error, ignore
+ * the token" — the element (and its `data-agent-element` attribute) never enters the tree at all.
+ * Neither `sourceCodeLocationInfo` nor `onParseError` flags this case on its own (verified: this
+ * fixture produces zero `onParseError` entries), which is why this module cross-checks the raw
+ * source text's occurrence count against what the tree walk actually found, independent of
+ * parse5's own error stream.
  *
  * Both mechanisms are handled uniformly: `findRegions` throws (never returns a silently-shortened
  * list), and `checkWellFormed` reports the same problem through the port's ordinary rejection
@@ -56,9 +56,10 @@
  * document from a recovered one." parse5 genuinely cannot always tell, so `checkWellFormed` is
  * honest about that — ordinary spec-compliant recovery that produces no `onParseError` entry (e.g.
  * an implied `</p>` before a following block element) is allowed to pass. Only two things fail it:
- * a CIC-2 location problem (above), or at least one genuine `onParseError` entry, phrased for the
+ * a location problem (above), or at least one genuine `onParseError` entry, phrased for the
  * model. The handle-multiset check in `regions.ts`'s `validate` remains the actual security
  * property; this method exists to give the model a better reason sooner, not to replace that check.
+ * See docs/decisions/DR-001-conservative-region-detection.md.
  */
 import { defaultTreeAdapter, html, parseFragment, type DefaultTreeAdapterTypes, type ParserError } from "parse5";
 
@@ -97,10 +98,12 @@ const VOID_ELEMENTS = new Set([
  * quoting style, so it survives single-quoted, double-quoted and unquoted attribute forms alike.
  *
  * This is a plain substring/regex scan of the raw source, the same cost/precision tradeoff
- * `withFormGuardrail` (ADR-056 Decision 8) makes for its own guardrail: a comment or script-text
+ * `withFormGuardrail` ( Decision 8) makes for its own guardrail: a comment or script-text
  * mention of the attribute name can inflate the count and cause an over-eager rejection, but that
  * false positive is a safe failure mode (the model is asked to retry), whereas the false negative
- * this check exists to catch — a genuinely dropped region — is not. */
+ * this check exists to catch — a genuinely dropped region — is not.
+ * See docs/decisions/DR-001-conservative-region-detection.md.
+ */
 const RAW_HANDLE_ATTRIBUTE_RE = new RegExp(`\\b${AGENT_ELEMENT_ATTRIBUTE}\\s*=`, "gi");
 
 function attributeValue(element: Parse5Element, name: string): string | undefined {
@@ -115,11 +118,6 @@ function* walkElements(node: Parse5Node): Generator<Parse5Element> {
   for (const child of children) yield* walkElements(child);
 }
 
-/** Fresh `<div>` fragment-context element — see this module's doc for why `<div>`, not the default. */
-function divFragmentContext(): Parse5Element {
-  return defaultTreeAdapter.createElement("div", html.NS.HTML, []);
-}
-
 /** A parse-error entry, phrased for the model rather than left as parse5's bare kebab-case code. */
 function describeParseError(error: ParserError): string {
   return `${error.code.replace(/-/g, " ")} near character ${error.startOffset}`;
@@ -127,9 +125,46 @@ function describeParseError(error: ParserError): string {
 
 interface DocumentAnalysis {
   readonly regions: readonly ParsedRegion[];
-  /** Set when a tagged element's boundaries could not be safely determined — see CIC-2 above. */
+  /** Set when a tagged element's boundaries could not be safely determined — see above. See docs/decisions/DR-001-conservative-region-detection.md. */
   readonly locationProblem?: string;
   readonly parseErrorReasons: readonly string[];
+}
+
+function analyzeRegion(
+  { element, handle }: { readonly element: Parse5Element; readonly handle: string },
+  _options: Record<string, never> = {},
+): { readonly region: ParsedRegion } | { readonly locationProblem: string } {
+  const location = element.sourceCodeLocation;
+  if (location === null || location === undefined || location.startTag === undefined) {
+    return {
+      locationProblem:
+        `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") could not be located in the document — ` +
+        "the parser's error-recovery rules likely dropped or repositioned it. Rewrite the document " +
+        "so this element is reachable in ordinary document structure (for example, not a table-only " +
+        "tag used outside a <table>).",
+    };
+  }
+  if (location.endTag === undefined) {
+    return {
+      locationProblem: VOID_ELEMENTS.has(element.tagName)
+        ? `"${handle}" tags a <${element.tagName}> element, which is void and has no inner content — ` +
+          `void elements cannot be a ${AGENT_ELEMENT_ATTRIBUTE} region`
+        : `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") has no closing tag the parser could ` +
+          "locate — its content boundaries cannot be determined safely. Close the tag explicitly.",
+    };
+  }
+
+  const role = attributeValue(element, "data-agent-role");
+  const label = attributeValue(element, "data-agent-label");
+  return {
+    region: {
+      handle,
+      innerStart: location.startTag.endOffset,
+      innerEnd: location.endTag.startOffset,
+      ...(role === undefined ? {} : { role }),
+      ...(label === undefined ? {} : { label }),
+    },
+  };
 }
 
 /**
@@ -140,7 +175,9 @@ interface DocumentAnalysis {
  */
 function analyzeDocument(html_: string): DocumentAnalysis {
   const parseErrorReasons: string[] = [];
-  const fragment = parseFragment(divFragmentContext(), html_, {
+  /** Fresh `<div>` fragment-context element — see this module's doc for why `<div>`, not the default. */
+  const context = defaultTreeAdapter.createElement("div", html.NS.HTML, []);
+  const fragment = parseFragment(context, html_, {
     sourceCodeLocationInfo: true,
     onParseError: (error) => parseErrorReasons.push(describeParseError(error)),
   });
@@ -150,38 +187,15 @@ function analyzeDocument(html_: string): DocumentAnalysis {
 
   for (const element of walkElements(fragment)) {
     const handle = attributeValue(element, AGENT_ELEMENT_ATTRIBUTE);
-    if (handle === undefined) continue;
-    if (locationProblem !== undefined) continue; // Already failed; stop accumulating regions.
+    if (handle === undefined || locationProblem !== undefined) continue; // Already failed; stop accumulating regions.
 
-    const location = element.sourceCodeLocation;
-    if (location === null || location === undefined || location.startTag === undefined) {
-      locationProblem =
-        `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") could not be located in the document — ` +
-        "the parser's error-recovery rules likely dropped or repositioned it. Rewrite the document " +
-        "so this element is reachable in ordinary document structure (for example, not a table-only " +
-        "tag used outside a <table>).";
-      continue;
-    }
-    if (location.endTag === undefined) {
-      locationProblem = VOID_ELEMENTS.has(element.tagName)
-        ? `"${handle}" tags a <${element.tagName}> element, which is void and has no inner content — ` +
-          `void elements cannot be a ${AGENT_ELEMENT_ATTRIBUTE} region`
-        : `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") has no closing tag the parser could ` +
-          "locate — its content boundaries cannot be determined safely. Close the tag explicitly.";
+    const analyzed = analyzeRegion({ element, handle });
+    if ("locationProblem" in analyzed) {
+      locationProblem = analyzed.locationProblem;
       continue;
     }
 
-    regions.push({
-      handle,
-      innerStart: location.startTag.endOffset,
-      innerEnd: location.endTag.startOffset,
-      ...(attributeValue(element, "data-agent-role") === undefined
-        ? {}
-        : { role: attributeValue(element, "data-agent-role") as string }),
-      ...(attributeValue(element, "data-agent-label") === undefined
-        ? {}
-        : { label: attributeValue(element, "data-agent-label") as string }),
-    });
+    regions.push(analyzed.region);
   }
 
   if (locationProblem === undefined) {
@@ -205,18 +219,19 @@ function analyzeDocument(html_: string): DocumentAnalysis {
  * Build the parse5-backed `HtmlRegionParser`. Stateless — a single instance is safe to share as a
  * module-level singleton across every call, per `./regions.js`'s injected-port contract.
  *
- * @returns a parser ready to hand to `createHtmlRegionTarget`.
+ * @returns a parser ready to hand to `createHtmlRegionTarget`, with `checkWellFormed` always
+ * present even though the generic parser port allows implementations to omit it.
  * @complexity 1 (delegates entirely to `analyzeDocument`)
  */
-export function createParse5RegionParser(): HtmlRegionParser {
+export function createParse5RegionParser(): HtmlRegionParser & Required<Pick<HtmlRegionParser, "checkWellFormed">> {
   return {
-    findRegions(html_: string): readonly ParsedRegion[] {
+    findRegions({ html: html_ }: { readonly html: string }): readonly ParsedRegion[] {
       const { regions, locationProblem } = analyzeDocument(html_);
       if (locationProblem !== undefined) throw new Error(locationProblem);
       return regions;
     },
 
-    checkWellFormed(html_: string): { readonly ok: true } | { readonly ok: false; readonly reason: string } {
+    checkWellFormed({ html: html_ }: { readonly html: string }): { readonly ok: true } | { readonly ok: false; readonly reason: string } {
       const { locationProblem, parseErrorReasons } = analyzeDocument(html_);
       if (locationProblem !== undefined) return { ok: false, reason: locationProblem };
       if (parseErrorReasons.length > 0) {

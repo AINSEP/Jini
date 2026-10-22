@@ -12,77 +12,110 @@
 import type { DirectionCard, FormOption, FormQuestion, QuestionType } from './types.js';
 import { formOptionValueForLabel } from './format.js';
 
-export function mapRawQuestion(q: unknown, index: number): FormQuestion | null {
-  if (!q || typeof q !== 'object') return null;
-  const qo = q as Record<string, unknown>;
-  const id = typeof qo.id === 'string' && qo.id.trim().length > 0 ? qo.id.trim() : `q${index + 1}`;
-  const label = typeof qo.label === 'string' ? qo.label : id;
+/** `raw` viewed as a record of fields, or `null` when it isn't an object at all. */
+export function asRecord(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+}
+
+/** `raw` when it is a string, else `undefined`. */
+export function stringOrUndefined(raw: unknown): string | undefined {
+  return typeof raw === 'string' ? raw : undefined;
+}
+
+/** `raw` when it is a non-empty string, else `undefined`. */
+export function nonEmptyString(raw: unknown): string | undefined {
+  return stringOrUndefined(raw) || undefined;
+}
+
+/** `raw` trimmed when it is a string with visible content, else `undefined`. */
+function trimmedNonBlank(raw: unknown): string | undefined {
+  return nonEmptyString(stringOrUndefined(raw)?.trim());
+}
+
+/** The string entries of `raw` when it is an array, else an empty list. */
+function stringsOnly(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+type OmitUndefined<T> = { [K in keyof T as undefined extends T[K] ? never : K]: T[K] } & {
+  [K in keyof T as undefined extends T[K] ? K : never]?: Exclude<T[K], undefined>;
+};
+
+/**
+ * `obj` without its `undefined`-valued keys, in the original key order — so
+ * an optional field is absent rather than present-but-undefined, which
+ * `exactOptionalPropertyTypes` (and a consumer's `'key' in obj`) can tell apart.
+ */
+export function omitUndefined<T extends Record<string, unknown>>(obj: T): OmitUndefined<T> {
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined)) as OmitUndefined<T>;
+}
+
+export function mapRawQuestion({ q, index }: { q: unknown; index: number }): FormQuestion | null {
+  const qo = asRecord(q);
+  if (!qo) return null;
+  const id = trimmedNonBlank(qo.id) ?? `q${index + 1}`;
   const type = normalizeType(qo.type);
   const options = parseOptions(qo.options);
-  const placeholder = typeof qo.placeholder === 'string' ? qo.placeholder : undefined;
-  const help = typeof qo.help === 'string' ? qo.help : undefined;
-  const required = qo.required === true;
-  const maxSelections =
-    typeof qo.maxSelections === 'number' && Number.isInteger(qo.maxSelections) && qo.maxSelections > 0
-      ? qo.maxSelections
-      : undefined;
-  const cards = parseDirectionCards(qo.cards);
-  const defaultValue = parseDefaultValue(qo, options);
-  const allowCustom =
-    qo.allowCustom === false ? false : qo.allowCustom === true || qo.custom === true ? true : undefined;
-  const customLabel = typeof qo.customLabel === 'string' ? qo.customLabel : undefined;
-  const customPlaceholder = typeof qo.customPlaceholder === 'string' ? qo.customPlaceholder : undefined;
-  const min = parseNumberAttr(qo.min);
-  const max = parseNumberAttr(qo.max);
-  const step = parseNumberAttr(qo.step);
-  const multiple = qo.multiple === true;
-  const accept = typeof qo.accept === 'string' ? qo.accept : undefined;
-  return {
+  const isFile = type === 'file';
+  return omitUndefined({
     id,
-    label,
+    name: stringOrUndefined(qo.name),
+    label: stringOrUndefined(qo.label) ?? id,
     type,
-    ...(options ? { options } : {}),
-    ...(placeholder ? { placeholder } : {}),
-    ...(help ? { help } : {}),
-    ...(required ? { required } : {}),
-    ...(defaultValue !== undefined ? { defaultValue } : {}),
-    ...(maxSelections !== undefined && type === 'checkbox' ? { maxSelections } : {}),
-    ...(allowCustom !== undefined ? { allowCustom } : {}),
-    ...(customLabel ? { customLabel } : {}),
-    ...(customPlaceholder ? { customPlaceholder } : {}),
-    ...(min !== undefined ? { min } : {}),
-    ...(max !== undefined ? { max } : {}),
-    ...(step !== undefined ? { step } : {}),
-    ...(multiple && type === 'file' ? { multiple } : {}),
-    ...(accept && type === 'file' ? { accept } : {}),
-    ...(cards ? { cards } : {}),
-  };
+    options,
+    placeholder: nonEmptyString(qo.placeholder),
+    help: nonEmptyString(qo.help),
+    required: qo.required === true || undefined,
+    defaultValue: parseDefaultValue(qo, options),
+    maxSelections: type === 'checkbox' ? positiveInteger(qo.maxSelections) : undefined,
+    allowCustom: parseAllowCustom(qo),
+    customLabel: nonEmptyString(qo.customLabel),
+    customPlaceholder: nonEmptyString(qo.customPlaceholder),
+    min: parseNumberAttr(qo.min),
+    max: parseNumberAttr(qo.max),
+    step: parseNumberAttr(qo.step),
+    multiple: (isFile && qo.multiple === true) || undefined,
+    accept: isFile ? nonEmptyString(qo.accept) : undefined,
+    cards: parseDirectionCards(qo.cards),
+  });
 }
+
+function positiveInteger(raw: unknown): number | undefined {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw > 0 ? raw : undefined;
+}
+
+// An explicit `allowCustom: false` wins over the legacy `custom: true` key.
+function parseAllowCustom(question: Record<string, unknown>): boolean | undefined {
+  if (question.allowCustom === false) return false;
+  return question.allowCustom === true || question.custom === true || undefined;
+}
+
+const TYPE_ALIASES = new Map<string, QuestionType>(
+  (
+    [
+      ['radio', ['radio', 'single', 'choice']],
+      ['checkbox', ['checkbox', 'multi', 'multiple']],
+      ['select', ['select', 'dropdown']],
+      ['textarea', ['textarea', 'long', 'paragraph']],
+      ['number', ['number', 'numeric']],
+      ['range', ['range', 'slider']],
+      ['date', ['date']],
+      ['time', ['time']],
+      ['datetime-local', ['datetime-local', 'datetime', 'date-time', 'datetime_local']],
+      ['color', ['color', 'colour', 'color-picker']],
+      ['url', ['url', 'link']],
+      ['email', ['email']],
+      ['tel', ['tel', 'phone']],
+      ['file', ['file', 'upload', 'attachment']],
+      ['switch', ['switch', 'toggle', 'boolean']],
+      ['direction-cards', ['direction-cards', 'directions', 'cards', 'direction']],
+    ] satisfies [QuestionType, string[]][]
+  ).flatMap(([type, aliases]) => aliases.map((alias): [string, QuestionType] => [alias, type])),
+);
 
 function normalizeType(raw: unknown): QuestionType {
   if (typeof raw !== 'string') return 'text';
-  const lower = raw.toLowerCase().trim();
-  if (lower === 'radio' || lower === 'single' || lower === 'choice') return 'radio';
-  if (lower === 'checkbox' || lower === 'multi' || lower === 'multiple') return 'checkbox';
-  if (lower === 'select' || lower === 'dropdown') return 'select';
-  if (lower === 'textarea' || lower === 'long' || lower === 'paragraph') return 'textarea';
-  if (lower === 'number' || lower === 'numeric') return 'number';
-  if (lower === 'range' || lower === 'slider') return 'range';
-  if (lower === 'date') return 'date';
-  if (lower === 'time') return 'time';
-  if (lower === 'datetime-local' || lower === 'datetime' || lower === 'date-time' || lower === 'datetime_local') {
-    return 'datetime-local';
-  }
-  if (lower === 'color' || lower === 'colour' || lower === 'color-picker') return 'color';
-  if (lower === 'url' || lower === 'link') return 'url';
-  if (lower === 'email') return 'email';
-  if (lower === 'tel' || lower === 'phone') return 'tel';
-  if (lower === 'file' || lower === 'upload' || lower === 'attachment') return 'file';
-  if (lower === 'switch' || lower === 'toggle' || lower === 'boolean') return 'switch';
-  if (lower === 'direction-cards' || lower === 'directions' || lower === 'cards' || lower === 'direction') {
-    return 'direction-cards';
-  }
-  return 'text';
+  return TYPE_ALIASES.get(raw.toLowerCase().trim()) ?? 'text';
 }
 
 function parseNumberAttr(raw: unknown): number | undefined {
@@ -100,41 +133,29 @@ function parseOptions(raw: unknown): FormOption[] | undefined {
 
 function parseOption(raw: unknown): FormOption | null {
   if (typeof raw === 'string') {
-    const label = raw.trim();
-    return label.length > 0 ? { label, value: label } : null;
+    const label = trimmedNonBlank(raw);
+    return label ? { label, value: label } : null;
   }
-  if (!raw || typeof raw !== 'object') return null;
-  const obj = raw as Record<string, unknown>;
-  const label = typeof obj.label === 'string' ? obj.label.trim() : '';
-  if (label.length === 0) return null;
-  const value = typeof obj.value === 'string' && obj.value.trim().length > 0 ? obj.value.trim() : label;
-  const description = typeof obj.description === 'string' && obj.description.trim().length > 0 ? obj.description.trim() : undefined;
-  return {
-    label,
-    value,
-    ...(description ? { description } : {}),
-  };
+  const obj = asRecord(raw) ?? {};
+  const label = trimmedNonBlank(obj.label);
+  if (!label) return null;
+  return omitUndefined({ label, value: trimmedNonBlank(obj.value) ?? label, description: trimmedNonBlank(obj.description) });
 }
 
+// Only `defaultValue` may hold a list; the legacy `default` key is read as a scalar only.
 function parseDefaultValue(
   question: Record<string, unknown>,
   options: FormOption[] | undefined,
 ): string | string[] | undefined {
-  const raw =
-    typeof question.defaultValue === 'string' || Array.isArray(question.defaultValue)
-      ? question.defaultValue
-      : typeof question.defaultValue === 'number' || typeof question.defaultValue === 'boolean'
-        ? String(question.defaultValue)
-        : typeof question.default === 'string'
-          ? question.default
-          : typeof question.default === 'number' || typeof question.default === 'boolean'
-            ? String(question.default)
-            : undefined;
-  if (typeof raw === 'string') return formOptionValueForLabel({ options }, raw);
-  if (Array.isArray(raw)) {
-    return raw.filter((value): value is string => typeof value === 'string').map((value) => formOptionValueForLabel({ options }, value));
-  }
-  return undefined;
+  const resolve = (labelOrValue: string) => formOptionValueForLabel({ question: { options }, labelOrValue });
+  if (Array.isArray(question.defaultValue)) return stringsOnly(question.defaultValue).map(resolve);
+  const raw = scalarString(question.defaultValue) ?? scalarString(question.default);
+  return raw === undefined ? undefined : resolve(raw);
+}
+
+function scalarString(raw: unknown): string | undefined {
+  if (typeof raw === 'number' || typeof raw === 'boolean') return String(raw);
+  return stringOrUndefined(raw);
 }
 
 /** `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`. */
@@ -162,7 +183,7 @@ const COLOR_FUNCTION = /^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(\s
  * rather than substituted: a silently recoloured swatch would misrepresent the agent's proposal,
  * and a card with fewer swatches is honest about what survived validation.
  */
-export function isRenderableColor(value: string): boolean {
+export function isRenderableColor({ value }: { value: string }): boolean {
   const candidate = value.trim();
   // Bounded before any regex runs: these come from model output, and the function pattern's `\s*`
   // plus a character class is the shape that makes a pathological input worth not accepting at all.
@@ -172,21 +193,21 @@ export function isRenderableColor(value: string): boolean {
 
 function parseDirectionCards(raw: unknown): DirectionCard[] | undefined {
   if (!Array.isArray(raw)) return undefined;
-  const out: DirectionCard[] = [];
-  for (const entry of raw) {
-    if (!entry || typeof entry !== 'object') continue;
-    const e = entry as Record<string, unknown>;
-    const id = typeof e.id === 'string' && e.id.trim().length > 0 ? e.id.trim() : null;
-    const label = typeof e.label === 'string' ? e.label : null;
-    if (id === null || label === null) continue;
-    const mood = typeof e.mood === 'string' ? e.mood : '';
-    const references = Array.isArray(e.references) ? e.references.filter((r): r is string => typeof r === 'string').slice(0, 6) : [];
-    const palette = Array.isArray(e.palette)
-      ? e.palette.filter((p): p is string => typeof p === 'string' && isRenderableColor(p)).slice(0, 8)
-      : [];
-    const displayFont = typeof e.displayFont === 'string' ? e.displayFont : 'Georgia, serif';
-    const bodyFont = typeof e.bodyFont === 'string' ? e.bodyFont : '-apple-system, system-ui, sans-serif';
-    out.push({ id, label, mood, references, palette, displayFont, bodyFont });
-  }
+  const out = raw.flatMap((entry: unknown) => parseDirectionCard(asRecord(entry) ?? {}) ?? []);
   return out.length > 0 ? out : undefined;
+}
+
+function parseDirectionCard(e: Record<string, unknown>): DirectionCard | null {
+  const id = trimmedNonBlank(e.id);
+  const label = stringOrUndefined(e.label);
+  if (id === undefined || label === undefined) return null;
+  return {
+    id,
+    label,
+    mood: stringOrUndefined(e.mood) ?? '',
+    references: stringsOnly(e.references).slice(0, 6),
+    palette: stringsOnly(e.palette).filter((value) => isRenderableColor({ value })).slice(0, 8),
+    displayFont: stringOrUndefined(e.displayFont) ?? 'Georgia, serif',
+    bodyFont: stringOrUndefined(e.bodyFont) ?? '-apple-system, system-ui, sans-serif',
+  };
 }

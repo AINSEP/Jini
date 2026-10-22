@@ -53,14 +53,12 @@ export const searchComponentsTool: McpToolDef = {
     additionalProperties: false,
   },
   annotations: { ...READ_ANNOTATIONS, title: 'Search the interactive-UI component catalog' },
-  handler: async (args, ctx) => {
-    requireString(args.query, 'query');
-    const params = new URLSearchParams({ q: args.query });
+  handler: async ({ args, ctx }) => {
+    const query = requireString({ value: args.query, name: 'query' });
+    const params = new URLSearchParams({ q: query });
     if (typeof args.limit === 'number') params.set('limit', String(args.limit));
     const data = await getDaemonJson<ComponentCatalogSearchResponse>(
-      ctx.baseUrl,
-      `/api/components/search?${params.toString()}`,
-      daemonCallOptions(ctx),
+      { baseUrl: ctx.baseUrl, route: `/api/components/search?${params.toString()}` }, daemonCallOptions({ ctx }),
     );
     return data.hits;
   },
@@ -80,9 +78,9 @@ export const describeComponentTool: McpToolDef = {
     additionalProperties: false,
   },
   annotations: { ...READ_ANNOTATIONS, title: 'Describe an interactive-UI component' },
-  handler: async (args, ctx) => {
-    requireString(args.id, 'id');
-    return getDaemonJson(ctx.baseUrl, `/api/components/${encodeURIComponent(args.id)}`, daemonCallOptions(ctx));
+  handler: async ({ args, ctx }) => {
+    const id = requireString({ value: args.id, name: 'id' });
+    return getDaemonJson({ baseUrl: ctx.baseUrl, route: `/api/components/${encodeURIComponent(id)}` }, daemonCallOptions({ ctx }));
   },
 };
 

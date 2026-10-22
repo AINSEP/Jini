@@ -6,6 +6,7 @@ import {
   RegistryYankOutcomeSchema,
   ResolvedRegistryEntrySchema,
   type RegistryBackend,
+  type RegistryBackendFactory,
 } from '../registry.js';
 
 const entry = RegistryEntrySchema.parse({
@@ -43,17 +44,21 @@ describe('registry protocol', () => {
   });
 
   it('keeps all backend implementations behind one async contract', async () => {
+    const calls: unknown[] = [];
     const backend: RegistryBackend = {
       id: 'fixture',
       kind: 'local',
       trust: 'restricted',
-      async list() {
+      async list(requiredArgs, optionalArgs) {
+        calls.push(['list', requiredArgs, optionalArgs]);
         return [entry];
       },
-      async search(query) {
-        return query.query === 'Example' ? [{ entry, score: 1, matched: ['title'] }] : [];
+      async search({ query }, optionalArgs) {
+        calls.push(['search', query, optionalArgs]);
+        return query === 'Example' ? [{ entry, score: 1, matched: ['title'] }] : [];
       },
-      async resolve(name) {
+      async resolve({ name }, optionalArgs) {
+        calls.push(['resolve', name, optionalArgs]);
         if (name !== entry.name) return null;
         return {
           backendId: this.id,
@@ -65,10 +70,11 @@ describe('registry protocol', () => {
           source: entry.source,
         };
       },
-      async manifest(name) {
-        return name === entry.name ? entry : null;
+      async manifest({ name, version }) {
+        return name === entry.name && version === entry.version ? entry : null;
       },
-      async doctor() {
+      async doctor(requiredArgs) {
+        calls.push(['doctor', requiredArgs]);
         return {
           ok: true,
           backendId: this.id,
@@ -77,27 +83,55 @@ describe('registry protocol', () => {
           issues: [],
         };
       },
-      async publish(request) {
+      async publish({ entry: publishedEntry }, options) {
+        calls.push(['publish', publishedEntry, options]);
         return RegistryPublishOutcomeSchema.parse({
           ok: true,
-          dryRun: request.dryRun,
-          changedFiles: [`plugins/${request.entry.name}/versions/${request.entry.version}.json`],
+          dryRun: options?.dryRun,
+          changedFiles: [`plugins/${publishedEntry.name}/versions/${publishedEntry.version}.json`],
           warnings: [],
         });
       },
+      async yank({ name, version, reason }) {
+        return RegistryYankOutcomeSchema.parse({ ok: true, name, version, reason });
+      },
     };
 
-    await expect(backend.list()).resolves.toHaveLength(1);
+    await expect(backend.list({})).resolves.toHaveLength(1);
     await expect(backend.search({ query: 'Example' })).resolves.toHaveLength(1);
-    await expect(backend.resolve('vendor/example')).resolves.toMatchObject({
+    await expect(backend.resolve({ name: 'vendor/example' })).resolves.toMatchObject({
       backendId: 'fixture',
       source: entry.source,
     });
-    await expect(backend.doctor()).resolves.toMatchObject({ ok: true, entriesChecked: 1 });
-    await expect(backend.publish?.({ entry, dryRun: true })).resolves.toMatchObject({
+    await expect(backend.doctor({})).resolves.toMatchObject({ ok: true, entriesChecked: 1 });
+    await expect(backend.publish?.({ entry }, { dryRun: true })).resolves.toMatchObject({
       ok: true,
       dryRun: true,
     });
+    await expect(backend.list({}, { includeYanked: true })).resolves.toEqual([entry]);
+    await expect(backend.search({ query: 'Example' }, { limit: 1 })).resolves.toEqual([
+      { entry, score: 1, matched: ['title'] },
+    ]);
+    await expect(backend.search({ query: 'missing' })).resolves.toEqual([]);
+    await expect(backend.resolve({ name: entry.name }, { range: '^1.0.0' })).resolves.toMatchObject({ entry });
+    await expect(backend.resolve({ name: 'vendor/missing' })).resolves.toBeNull();
+    await expect(backend.manifest({ name: entry.name, version: entry.version })).resolves.toEqual(entry);
+    await expect(backend.manifest({ name: entry.name, version: '2.0.0' })).resolves.toBeNull();
+    await expect(backend.yank?.({ name: entry.name, version: entry.version, reason: 'security' })).resolves.toEqual({
+      ok: true, name: entry.name, version: entry.version, reason: 'security', warnings: [],
+    });
+    expect(calls).toContainEqual(['list', {}, undefined]);
+    expect(calls).toContainEqual(['list', {}, { includeYanked: true }]);
+    expect(calls).toContainEqual(['search', 'Example', { limit: 1 }]);
+    expect(calls).toContainEqual(['resolve', entry.name, { range: '^1.0.0' }]);
+    expect(calls).toContainEqual(['doctor', {}]);
+    expect(calls).toContainEqual(['publish', entry, { dryRun: true }]);
+
+    const factory: RegistryBackendFactory<{ backend: RegistryBackend }> = {
+      kind: 'local',
+      create({ config }) { return config.backend; },
+    };
+    expect(factory.create({ config: { backend } })).toBe(backend);
   });
 
   it('defaults verified to false without requiring it, and never mutates what trust means (additive verification field)', () => {

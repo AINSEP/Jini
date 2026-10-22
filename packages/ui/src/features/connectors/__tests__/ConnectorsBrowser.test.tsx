@@ -6,9 +6,10 @@ import { I18nProvider } from '../../i18n/index.js';
 import { ConnectorsBrowser } from '../ConnectorsBrowser.js';
 import { createFakeConnectorsDependencies } from '../dependencies.js';
 import type { Connector } from '../types.js';
+import type { ConnectorAuthorizationController } from '../hooks/useConnectorAuthorization.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
-  return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };
+  return { id: 'slack', name: 'Slack', provider: 'Connector Provider', category: 'communication', status: 'available', tools: [], ...overrides };
 }
 
 describe('ConnectorsBrowser', () => {
@@ -416,3 +417,23 @@ describe('ConnectorsBrowser — agentHandle', () => {
     );
   });
 });
+
+describe('ConnectorsBrowser — detail drawer authorization error', () => {
+  it("shows the opened connector's authorization error inside the detail drawer", async () => {
+    const dependencies = createFakeConnectorsDependencies({ connectors: [makeConnector()] });
+    const authorization: ConnectorAuthorizationController = {
+      pending: {},
+      cancelFailed: {},
+      authError: { slack: 'Provider rejected the grant.' },
+      pendingConnectorAction: null,
+      reloadStatuses: async () => ({}),
+      runConnectorAction: async () => {},
+      cancelAuthorization: async () => {},
+    };
+    render(<ConnectorsBrowser unlocked dependencies={dependencies} useConnectorAuthorization={() => authorization} />);
+    const grid = await screen.findByTestId('connector-grid-wrap');
+    await userEvent.click(within(grid).getByRole('button', { name: 'Open details for Slack' }));
+    expect(within(screen.getByTestId('connector-drawer')).getByRole('alert').textContent).toBe('Provider rejected the grant.');
+  });
+});
+

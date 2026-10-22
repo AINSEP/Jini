@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import sharp from "sharp";
 
-import { ImageSourceCorruptError, ImageTransformUnavailableError, SharpImageTransformer } from "../image-transformer.sharp.js";
+import { ImageSourceCorruptError, ImageTransformUnavailableError, SharpImageTransformer, type SharpInstance } from "../image-transformer.sharp.js";
 
 test("SharpImageTransformer.transform actually resizes and re-encodes real image bytes", async () => {
   const transformer = new SharpImageTransformer();
@@ -78,7 +78,7 @@ test("SharpImageTransformer.transform rejects a malformed GIF that passes this p
 });
 
 test("ImageTransformUnavailableError stays exported and instantiable for environments without 'sharp'", () => {
-  const err = new ImageTransformUnavailableError("the 'sharp' npm package is not installed");
+  const err = new ImageTransformUnavailableError({ message: "the 'sharp' npm package is not installed" });
   assert.ok(err instanceof Error);
   assert.match(err.message, /sharp/i);
 });
@@ -166,4 +166,54 @@ test("SharpImageTransformer.transform deliberately flattens an animated source t
   // `pageHeight * frameCount` (30).
   assert.strictEqual(outMeta.height, 10, "must be a single clean frame, not all frames stacked into one image");
   assert.strictEqual(outMeta.pages, undefined);
+});
+
+test('transparent PNG pixels become white in JPEG while PNG retains alpha', async () => {
+  const source = await sharp({ create: { width: 8, height: 8, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+  const transformer = new SharpImageTransformer();
+  const jpeg = await transformer.transform({ bytes: source, params: { format: 'jpeg', quality: 82 } });
+  const pixels = await sharp(jpeg.bytes).raw().toBuffer();
+  assert.deepEqual(pixels, Buffer.alloc(8 * 8 * 3, 255), 'transparent pixels must flatten onto white, not black');
+  const png = await transformer.transform({ bytes: source, params: { format: 'png' } });
+  assert.deepEqual(await sharp(png.bytes).raw().toBuffer(), await sharp(source).raw().toBuffer(), 'alpha-capable formats retain transparent pixels');
+});
+
+test('og JPEG applies named dimensions and quality to real pixels', async () => {
+  const source = await sharp({ create: { width: 1200, height: 630, channels: 3, background: { r: 173, g: 91, b: 37 } } }).png().toBuffer();
+  const params = { width: 1200, height: 630, fit: 'cover' as const, format: 'jpeg' as const, quality: 82 };
+  const transformed = await new SharpImageTransformer().transform({ bytes: source, params });
+  const expected = await sharp(source).resize(1200, 630, { fit: 'cover' }).jpeg({ quality: 82 }).toBuffer();
+  assert.equal(transformed.contentType, 'image/jpeg');
+  assert.deepEqual(Buffer.from(transformed.bytes), expected);
+  const decoded = await sharp(transformed.bytes).metadata();
+  assert.equal(decoded.width, 1200);
+  assert.equal(decoded.height, 630);
+  assert.equal(decoded.format, 'jpeg');
+});
+
+test('a sharp loader that fails is reported as ImageTransformUnavailableError, never as a corrupt source', async () => {
+  const transformer = new SharpImageTransformer({}, { loadSharp: () => { throw Object.assign(new Error("Cannot find module 'sharp'"), { code: 'MODULE_NOT_FOUND' }); } });
+  await assert.rejects(transformer.transform({ bytes: new Uint8Array([1]), params: { format: 'png' } }), (error: unknown) => {
+    assert.ok(error instanceof ImageTransformUnavailableError);
+    assert.match(error.message, /'sharp' npm package is not installed/);
+    return true;
+  });
+});
+
+test('a non-Error rejection from the codec still surfaces as ImageSourceCorruptError carrying its text', async () => {
+  const calls: unknown[][] = [];
+  const failing: SharpInstance = {
+    resize: (...args) => { calls.push(['resize', ...args]); return failing; },
+    flatten: (options) => { calls.push(['flatten', options]); return failing; },
+    toFormat: (...args) => { calls.push(['toFormat', ...args]); return failing; },
+    toBuffer: () => Promise.reject('VipsJpeg: premature end of input'),
+  };
+  const transformer = new SharpImageTransformer({}, { loadSharp: () => (_input, options) => { calls.push(['load', options]); return failing; } });
+  await assert.rejects(transformer.transform({ bytes: new Uint8Array([1]), params: { format: 'jpeg' } }), (error: unknown) => {
+    assert.ok(error instanceof ImageSourceCorruptError);
+    assert.equal(error.message, "the source image could not be decoded/re-encoded (target format 'jpeg'): VipsJpeg: premature end of input");
+    return true;
+  });
+  // No resize without dimensions; JPEG is flattened onto white and encoded without a quality override.
+  assert.deepEqual(calls, [['load', undefined], ['flatten', { background: '#ffffff' }], ['toFormat', 'jpeg', undefined]]);
 });

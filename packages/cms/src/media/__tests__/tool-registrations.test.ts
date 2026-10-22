@@ -9,6 +9,7 @@ import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } 
 import { InMemoryBlobStore } from "../blob-store.memory.js";
 import { MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES } from "../html-attributes.js";
 import type { MediaRecord } from "../types.js";
+import { uploadMedia } from "../media-service.js";
 
 /**
  * Covers `media_upload_asset`'s {@link MediaToolDeps.recordUploadContentType} hook — the fix for the
@@ -33,14 +34,14 @@ function executionContext(input: Record<string, unknown>): ToolExecutionContext 
 function fakeDeps(
   overrides: Partial<MediaToolDeps> = {}
 ): { deps: MediaToolDeps; mediaRepo: InMemoryMediaRepo; assetBlobRepo: InMemoryAssetBlobRepo; assetRenditionRepo: InMemoryAssetRenditionRepo } {
-  const mediaRepo = new InMemoryMediaRepo();
-  const assetBlobRepo = new InMemoryAssetBlobRepo();
-  const assetRenditionRepo = new InMemoryAssetRenditionRepo();
+  const mediaRepo = new InMemoryMediaRepo({});
+  const assetBlobRepo = new InMemoryAssetBlobRepo({});
+  const assetRenditionRepo = new InMemoryAssetRenditionRepo({});
   let counter = 0;
   const deps: MediaToolDeps = {
     authorize: async () => ({ allowed: true, reason: "matched" }),
     workspaceId: WORKSPACE_ID,
-    clock: { nowIso: () => NOW },
+    clock: { nowMs: () => Date.parse(NOW)},
     idGen: { newId: () => `id-${++counter}` },
     mediaRepo,
     assetBlobRepo,
@@ -64,7 +65,7 @@ test("media_upload_asset calls recordUploadContentType with the uploaded bytes a
       recorded.push(params);
     },
   });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload, "media_upload_asset must be wired");
 
@@ -79,7 +80,7 @@ test("media_upload_asset calls recordUploadContentType with the uploaded bytes a
 
 test("media_upload_asset without the hook configured behaves exactly as before — no throw, upload still succeeds", async () => {
   const { deps } = fakeDeps(); // no recordUploadContentType at all
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -96,7 +97,7 @@ test("a hook that throws propagates — an upload must not be silently reported 
       throw new Error("content-type store unavailable");
     },
   });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -117,7 +118,7 @@ const ELEVEN_MIB = 11 * 1024 * 1024;
 
 test("media_upload_asset accepts a file over the 10 MiB default when the host supplies a higher maxUploadBytes cap", async () => {
   const { deps } = fakeDeps({ maxUploadBytes: 20 * 1024 * 1024 });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload, "media_upload_asset must be wired");
 
@@ -131,7 +132,7 @@ test("media_upload_asset accepts a file over the 10 MiB default when the host su
 
 test("media_upload_asset still rejects a file over 10 MiB when the host supplies no maxUploadBytes cap (today's default, unchanged)", async () => {
   const { deps } = fakeDeps(); // no maxUploadBytes override
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -150,7 +151,7 @@ test("a hook that throws AFTER uploadMedia() commits does not leave the media/re
       throw new Error("content-type store unavailable");
     },
   });
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload);
 
@@ -187,7 +188,7 @@ test("a hook that throws AFTER uploadMedia() commits does not leave the media/re
  * `html-attributes.ts` gives the render path).
  */
 async function seedAsset(deps: MediaToolDeps): Promise<string> {
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
   assert.ok(upload, "media_upload_asset must be wired");
   const result = (await upload.handler(
@@ -199,7 +200,7 @@ async function seedAsset(deps: MediaToolDeps): Promise<string> {
 test("media_update_metadata writes htmlAttributes through the allowlist and returns it on the view", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update, "media_update_metadata must be wired");
 
@@ -215,7 +216,7 @@ test("media_update_metadata writes htmlAttributes through the allowlist and retu
 test("media_update_metadata rejects an on* handler and writes nothing", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
   const before = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
@@ -234,7 +235,7 @@ test("media_update_metadata rejects an on* handler and writes nothing", async ()
 test("media_update_metadata sets and clears cssClass", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 
@@ -250,7 +251,7 @@ test("media_update_metadata sets and clears cssClass", async () => {
 
 test("media_update_metadata publishes cssClass and htmlAttributes in its schema, naming every allowlisted attribute", async () => {
   const { deps } = fakeDeps();
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 
@@ -270,7 +271,7 @@ test("media_update_metadata publishes cssClass and htmlAttributes in its schema,
 test("media tool views include the asset slug", async () => {
   const { deps } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const list = registrations.find((r) => r.descriptor.id === "media_list_assets");
   assert.ok(list);
 
@@ -283,22 +284,22 @@ test("media tool views include the asset slug", async () => {
 test("media_update_metadata changes the slug", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const mediaId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 
-  const result = (await update.handler(executionContext({ mediaId, slug: "tovu-commercial-edit" }))) as { media: { slug: string } };
-  assert.equal(result.media.slug, "tovu-commercial-edit");
+  const result = (await update.handler(executionContext({ mediaId, slug: "sample-commercial-edit" }))) as { media: { slug: string } };
+  assert.equal(result.media.slug, "sample-commercial-edit");
 
   const row = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
-  assert.equal(row?.slug, "tovu-commercial-edit");
+  assert.equal(row?.slug, "sample-commercial-edit");
 });
 
 test("media_update_metadata refuses a slug another asset already uses and writes nothing", async () => {
   const { deps, mediaRepo } = fakeDeps();
   const firstId = await seedAsset(deps);
   const secondId = await seedAsset(deps);
-  const registrations = buildMediaRegistrations(deps);
+  const registrations = buildMediaRegistrations(deps, { resolvePublicUrls: deps.resolvePublicUrls, recordUploadContentType: deps.recordUploadContentType, maxUploadBytes: deps.maxUploadBytes });
   const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
   assert.ok(update);
 
@@ -312,4 +313,109 @@ test("media_update_metadata refuses a slug another asset already uses and writes
 
   const after = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: secondId });
   assert.equal(after?.version, before?.version, "a refused slug conflict must leave the row's version unchanged");
+});
+
+function tool(deps: MediaToolDeps, id: string, optional: Parameters<typeof buildMediaRegistrations>[1] = {}) {
+  const found = buildMediaRegistrations(deps, optional).find((r) => r.descriptor.id === id);
+  assert.ok(found, `${id} must be wired`);
+  return found;
+}
+
+async function seedDocument(deps: MediaToolDeps, filename: string, body: string): Promise<MediaRecord> {
+  const { media } = await uploadMedia({
+    deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo, renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore },
+    input: { workspaceId: WORKSPACE_ID, kind: "document", filename, contentType: "application/octet-stream", bytes: Buffer.from(body), createdByPrincipal: "uploader" },
+  });
+  return media;
+}
+
+test("library_list lists only active documents, with display filename, content type and stored byte size", async () => {
+  const { deps } = fakeDeps();
+  const guide = await seedDocument(deps, "guide.md", "# Guide\n");
+  const trashed = await seedDocument(deps, "old.txt", "old");
+  await tool(deps, "media_trash_asset").handler(executionContext({ mediaId: trashed.id }));
+  await seedAsset(deps);
+  const result = await tool(deps, "library_list").handler(executionContext({}));
+  assert.deepEqual(result, { documents: [{
+    id: guide.id, title: "guide", filename: "guide.md", originalFilename: "guide.md", contentType: "text/markdown",
+    byteSize: 8, createdAt: NOW, createdBy: "uploader", publicUrl: null,
+  }] });
+});
+
+test("library_list reports an unknown byte size when the blob row is gone or the store cannot size blobs", async () => {
+  const { deps, assetBlobRepo } = fakeDeps();
+  const kept = await seedDocument(deps, "kept.md", "kept");
+  const orphan = await seedDocument(deps, "orphan.md", "orphan");
+  await assetBlobRepo.remove({ workspaceId: WORKSPACE_ID, sha256: orphan.source.sha256 });
+  const sizes = (result: unknown) => (result as { documents: Array<{ id: string; byteSize: number | null }> }).documents.map((d) => [d.id, d.byteSize]);
+  assert.deepEqual(sizes(await tool(deps, "library_list").handler(executionContext({}))), [[kept.id, 4], [orphan.id, null]]);
+  const store = new InMemoryBlobStore();
+  const unsized = { put: store.put.bind(store), putIfAbsent: store.putIfAbsent.bind(store), get: store.get.bind(store), exists: store.exists.bind(store), remove: store.remove.bind(store) };
+  assert.deepEqual(sizes(await tool({ ...deps, blobStore: unsized }, "library_list").handler(executionContext({}))), [[kept.id, null], [orphan.id, null]]);
+});
+
+test("library_read returns a document's untrusted text, and a bad offset or unknown id is rejected with the tool schema attached", async () => {
+  const { deps } = fakeDeps();
+  const guide = await seedDocument(deps, "guide.md", "# Guide\n");
+  const read = tool(deps, "library_read");
+  const result = await read.handler(executionContext({ documentId: guide.id })) as { text: string; untrusted: boolean };
+  assert.equal(result.text, "# Guide\n");
+  assert.equal(result.untrusted, true);
+  await assert.rejects(read.handler(executionContext({ documentId: guide.id, offset: "2" })), /offset must be a non-negative byte offset[\s\S]*Schema for 'library_read'/);
+  await assert.rejects(read.handler(executionContext({ documentId: "missing" })), /document was not found[\s\S]*Schema for 'library_read'/);
+});
+
+test("media_trash_asset soft-deletes the asset and returns its trashed view", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const mediaId = await seedAsset(deps);
+  const result = await tool(deps, "media_trash_asset").handler(executionContext({ mediaId })) as { media: { id: string; status: string } };
+  assert.equal(result.media.id, mediaId);
+  assert.equal(result.media.status, "trashed");
+  assert.equal((await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId }))?.status, "trashed");
+});
+
+test("media_upload_asset and media_update_metadata carry string text fields through; an update ignores non-string ones", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const uploaded = await tool(deps, "media_upload_asset").handler(executionContext({
+    dataBase64: PNG_BYTES.toString("base64"), filename: "logo.png", contentType: "image/png", alt: " Logo ", caption: "Cap", credit: "Me",
+  })) as { media: { id: string; alt: string; caption: string; credit: string } };
+  assert.deepEqual([uploaded.media.alt, uploaded.media.caption, uploaded.media.credit], ["Logo", "Cap", "Me"]);
+  const updated = await tool(deps, "media_update_metadata").handler(executionContext({
+    mediaId: uploaded.media.id, title: "Brand", alt: "Alt", caption: "New caption", credit: "Studio",
+  })) as { media: { title: string; alt: string; caption: string; credit: string } };
+  assert.deepEqual([updated.media.title, updated.media.alt, updated.media.caption, updated.media.credit], ["Brand", "Alt", "New caption", "Studio"]);
+  const ignored = await tool(deps, "media_update_metadata").handler(executionContext({ mediaId: uploaded.media.id, title: 1, alt: null })) as { media: { title: string; alt: string } };
+  assert.deepEqual([ignored.media.title, ignored.media.alt], ["Brand", "Alt"]);
+  assert.equal((await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: uploaded.media.id }))?.credit, "Studio");
+});
+
+test("media views resolve publicUrl through the host's batch resolver and show unknown attribution as null", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const mediaId = await seedAsset(deps);
+  const seeded = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
+  const { createdBy: _createdBy, ...legacy } = seeded!;
+  await mediaRepo.remove({ workspaceId: WORKSPACE_ID, id: mediaId });
+  await mediaRepo.save(legacy);
+  const batches: string[][] = [];
+  const resolvePublicUrls = async ({ assets }: { assets: readonly MediaRecord[] }) => {
+    batches.push(assets.map((asset) => asset.id));
+    return new Map([[mediaId, `https://cdn.example/${mediaId}.png`]]);
+  };
+  const result = await tool(deps, "media_list_assets", { resolvePublicUrls }).handler(executionContext({})) as { media: Array<{ id: string; createdBy: string | null; publicUrl: string | null }> };
+  assert.deepEqual(batches, [[mediaId]]);
+  assert.deepEqual(result.media.map(({ id, createdBy, publicUrl }) => ({ id, createdBy, publicUrl })), [{ id: mediaId, createdBy: null, publicUrl: `https://cdn.example/${mediaId}.png` }]);
+});
+
+test("library_list shows unknown attribution as null and refuses to guess a type for a document row with no original filename", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const guide = await seedDocument(deps, "guide.md", "# Guide\n");
+  const { createdBy: _createdBy, ...unattributed } = guide;
+  // Kind, filename and creator are preserved on save, so these legacy rows are seeded directly.
+  const legacy = new InMemoryMediaRepo({}, { initialRows: [unattributed] });
+  const listed = await tool({ ...deps, mediaRepo: legacy }, "library_list").handler(executionContext({})) as { documents: Array<{ createdBy: string | null }> };
+  assert.deepEqual(listed.documents.map((d) => d.createdBy), [null]);
+  const { originalFilename: _name, ...nameless } = guide;
+  const broken = new InMemoryMediaRepo({}, { initialRows: [nameless] });
+  await assert.rejects(tool({ ...deps, mediaRepo: broken }, "library_list").handler(executionContext({})), /document filename must be a plain filename/);
+  assert.equal((await mediaRepo.list({ workspaceId: WORKSPACE_ID })).length, 1);
 });

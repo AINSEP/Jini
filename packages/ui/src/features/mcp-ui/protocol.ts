@@ -4,11 +4,8 @@
  * The MCP Apps wire vocabulary, re-exported from `@jini-ai/agentic`'s `mcp-ui-apps.ts` rather than
  * restated here.
  *
- * `mcp-ui-apps.ts` is the spec-verified module (re-checked 2026-07-28 against
- * `github.com/modelcontextprotocol/ext-apps`, both the 2026-01-26 [Stable] text and the draft), and
- * it already carries the two things a second copy would immediately lose: the audit history for
- * which lifecycle messages travel in which direction, and `isJsonRpcMessage`'s hardening against
- * malformed `postMessage` input found by live adversarial testing. Duplicating any of it would
+ * `mcp-ui-apps.ts` owns message direction and isJsonRpcMessage's malformed-postMessage guards.
+ * Duplicating those rules would
  * create a second surface to keep in sync with a moving spec, so this module owns nothing of the
  * envelope — it only re-exports it, plus adds the one constant that genuinely belongs to *this*
  * package: {@link MCP_UI_VIEW_SANDBOX}.

@@ -1,7 +1,8 @@
 {
   "name": "@jini-ai/infra",
-  "version": "0.3.2",
-  "description": "Backing-service infrastructure for a Jini-hosted site: a driver-neutral persistence core plus selectively-installable database drivers. Import `./db/core` with no native module installed; add `./db/sqlite` only if you run SQLite.",
+  "version": "0.5.3",
+  "description": "Deprecated compatibility re-exports of @jini-ai/db/core and @jini-ai/db/sqlite. Import those directly.",
+  "deprecated": "Compatibility shim: use @jini-ai/db/core and @jini-ai/db/sqlite directly.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -19,31 +20,31 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./events/outbox": {
+      "types": "./dist/events/outbox/index.d.ts",
+      "import": "./dist/events/outbox/index.js",
+      "default": "./dist/events/outbox/index.js"
+    },
     "./db/core": {
       "import": {
-        "types": "./dist/db/core/index.d.ts",
-        "default": "./dist/db/core/index.js"
-      },
-      "require": {
-        "types": "./dist/cjs/db/core/index.d.ts",
-        "default": "./dist/cjs/db/core/index.js"
+        "types": "./dist/db/driver/index.d.ts",
+        "default": "./dist/db/driver/index.js"
       }
     },
     "./db/sqlite": {
       "import": {
         "types": "./dist/db/sqlite/index.d.ts",
         "default": "./dist/db/sqlite/index.js"
-      },
-      "require": {
-        "types": "./dist/cjs/db/sqlite/index.d.ts",
-        "default": "./dist/cjs/db/sqlite/index.js"
       }
     }
   },
   "typesVersions": {
     "*": {
+      "events/outbox": [
+        "./dist/events/outbox/index.d.ts"
+      ],
       "db/core": [
-        "./dist/db/core/index.d.ts"
+        "./dist/db/driver/index.d.ts"
       ],
       "db/sqlite": [
         "./dist/db/sqlite/index.d.ts"
@@ -52,6 +53,9 @@
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -64,22 +68,23 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\"",
+    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "@jini-ai/db": "workspace:^",
+    "@jini-ai/core": "workspace:*"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
   "peerDependencies": {
-    "better-sqlite3": "^13.0.0"
+    "@jini-ai/db": "^0.3.4"
   },
   "peerDependenciesMeta": {
-    "better-sqlite3": {
-      "optional": true
-    }
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
-    "@vitest/coverage-v8": "^2.1.9",
-    "better-sqlite3": "^13.0.0"
+    "@jini-ai/db": { "optional": true }
   }
 }

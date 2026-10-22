@@ -40,6 +40,10 @@ export type SniffedContentType =
   | "image/avif"
   | "video/mp4"
   | "video/webm"
+  | "audio/wav"
+  | "audio/mpeg"
+  | "audio/flac"
+  | "audio/mp4"
   | "text/html"
   | "image/svg+xml"
   | "application/octet-stream";
@@ -109,9 +113,9 @@ const MAX_SCANNED_COMPATIBLE_BRANDS = 16;
 
 /** The `ftyp` box's declared end offset (big-endian size at bytes 0-3), clamped to the bytes
  * actually present so a truncated or size-inflating file can never push the brand scan past the
- * buffer or into unrelated trailing boxes. */
+ * buffer or into unrelated trailing boxes. Only called after {@link isIsoBmffFtyp}, which already
+ * guarantees the four size bytes (and the `ftyp` tag through offset 8) are present. */
 function ftypBoxEnd(bytes: Uint8Array): number {
-  if (bytes.length < FTYP_MAJOR_BRAND_OFFSET) return 0;
   const declared = ((bytes[0]! << 24) | (bytes[1]! << 16) | (bytes[2]! << 8) | bytes[3]!) >>> 0;
   return Math.min(declared, bytes.length);
 }
@@ -178,6 +182,33 @@ function isSvgLike(text: string): boolean {
   return false;
 }
 
+/** Untagged MPEG audio: sync bits plus non-reserved version, layer, bitrate and sample rate. */
+function isUntaggedMpegAudio(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0 &&
+    (bytes[1]! & 0x18) !== 0x08 && (bytes[1]! & 0x06) !== 0 &&
+    (bytes[2]! & 0xf0) !== 0 && (bytes[2]! & 0xf0) !== 0xf0 && (bytes[2]! & 0x0c) !== 0x0c;
+}
+
+/** Binary signatures in precedence order; the first match wins. */
+const BINARY_SIGNATURES: ReadonlyArray<readonly [(bytes: Uint8Array) => boolean, SniffedContentType]> = [
+  [isPng, "image/png"],
+  [isJpeg, "image/jpeg"],
+  [isGif, "image/gif"],
+  [isWebp, "image/webp"],
+  // MUST precede the MP4 check: AVIF is ISO-BMFF too, so the brand-blind `ftyp` test below would
+  // otherwise claim every AVIF as video/mp4 (the 2026-09-06 regression).
+  [isAvif, "image/avif"],
+  // Audio support (owner-approved mediawidget, 2026-10-10/11) shares the original-byte
+  // path. Distinguish explicit M4A brands before the existing ISO-BMFF video fallback.
+  [(bytes) => isIsoBmffFtyp(bytes) && asciiEqualAt(bytes, 8, "M4A "), "audio/mp4"],
+  [isIsoBmffFtyp, "video/mp4"],
+  [isWebm, "video/webm"],
+  [(bytes) => asciiEqualAt(bytes, 0, "RIFF") && asciiEqualAt(bytes, 8, "WAVE"), "audio/wav"],
+  [(bytes) => asciiEqualAt(bytes, 0, "fLaC"), "audio/flac"],
+  [(bytes) => asciiEqualAt(bytes, 0, "ID3"), "audio/mpeg"],
+  [isUntaggedMpegAudio, "audio/mpeg"],
+];
+
 /**
  * Identifies a media type from `bytes`' leading magic bytes. Allowlist-shaped: only the formats
  * named in {@link SniffedContentType} are ever returned as something other than
@@ -191,16 +222,9 @@ function isSvgLike(text: string): boolean {
  * {@link TEXT_SNIFF_WINDOW} bytes, a fixed constant independent of `bytes.length`.
  * @overallScore 100
  */
-export function sniffContentType(bytes: Uint8Array): SniffedContentType {
-  if (isPng(bytes)) return "image/png";
-  if (isJpeg(bytes)) return "image/jpeg";
-  if (isGif(bytes)) return "image/gif";
-  if (isWebp(bytes)) return "image/webp";
-  // MUST precede the MP4 check: AVIF is ISO-BMFF too, so the brand-blind `ftyp` test below would
-  // otherwise claim every AVIF as video/mp4 (the 2026-09-06 regression).
-  if (isAvif(bytes)) return "image/avif";
-  if (isIsoBmffFtyp(bytes)) return "video/mp4";
-  if (isWebm(bytes)) return "video/webm";
+export function sniffContentType({ bytes }: { bytes: Uint8Array }, _optional: Record<string, never> = {}): SniffedContentType {
+  const binary = BINARY_SIGNATURES.find(([matches]) => matches(bytes));
+  if (binary) return binary[1];
 
   const text = leadingText(bytes);
   if (isHtmlLike(text)) return "text/html";

@@ -36,7 +36,7 @@ export function ProviderChipGroup({
   if (presets.length === 0) return null;
 
   const chipHandles = agentHandle
-    ? buildAgentListHandles(agentHandle, presets.map((preset) => preset.id))
+    ? buildAgentListHandles({ prefix: agentHandle, ids: presets.map((preset) => preset.id) })
     : undefined;
 
   return (
@@ -57,7 +57,7 @@ export function ProviderChipGroup({
               onClick={() => {
                 if (!active) onSelect(preset);
               }}
-              {...agentHandleProps(chipHandles?.[index], { role: 'button', label: preset.title })}
+              {...agentHandleProps({}, { base: chipHandles?.[index], ...({ role: 'button', label: preset.title }) })}
             >
               <span
                 className={`jini-provider-chip-status${configured ? ' is-configured' : ' is-unset'}`}

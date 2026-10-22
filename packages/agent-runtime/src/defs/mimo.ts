@@ -1,14 +1,16 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/mimo.ts` (import path adjusted only). See `source-map.md`. */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const mimoAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('mimo', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => mimoAgentDef.fallbackModels }),
   id: 'mimo',
   name: 'MiMo Code',
   bin: 'mimo',
   versionArgs: ['--version'],
   fallbackModels: [DEFAULT_MODEL_OPTION],
-  buildArgs: (_prompt, _imagePaths, _extra, options = {}) => {
+  buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) => {
     const args = ['run', '--format', 'json'];
     if (options.model && options.model !== 'default') {
       args.push('--model', options.model);

@@ -1,0 +1,736 @@
+{
+  "symbols": {
+    "legacyAssistantContentFromEvents": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "repairJsonPrefix": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parsePartialJson": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "deriveConversationTitle": {
+      "totalTextReferences": 8,
+      "files": {
+        "apps/admin/src/hooks/assistant-chats-dependencies.hooks.ts": 4,
+        "apps/admin/src/components/AssistantDock/__tests__/composer-selected-skills.unit.test.tsx": 2,
+        "apps/website/src/server/runtime/composition/modules/assistant-chats.ts": 2
+      }
+    },
+    "formatFormAnswers": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "formOptionLabelForValue": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "formOptionValueForLabel": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "mapRawQuestion": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "isRenderableColor": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "splitOnQuestionForms": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "findFirstQuestionForm": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parseQuestionForm": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "stripTrailingOpenQuestionForm": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "hasUnterminatedQuestionForm": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parsePartialQuestionForm": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "humanizeToolName": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "deriveRunActivity": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "formatActivityClock": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "describeRunActivity": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "isTodoWriteToolName": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parseTodoWriteInput": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "latestTodosFromEvents": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "unfinishedTodosFromEvents": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "latestTodoWriteInputFromMessages": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "latestTodoWriteInputForPinnedCard": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "dedupeToolUsesById": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "formatToolOutputForDisplay": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "deriveToolStatus": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "toRenderProps": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "latestUserPromptFromHistory": {
+      "totalTextReferences": 12,
+      "files": {
+        "apps/site-chat/src/site-assistant-transport.ts": 5,
+        "apps/site-chat/src/__tests__/site-assistant-transport.test.ts": 1,
+        "apps/admin/src/lib/assistant-transport.ts": 3,
+        "apps/admin/src/lib/__tests__/assistant-transport.transcript.test.ts": 3
+      }
+    },
+    "sanitizePriorAssistantTurn": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "buildTranscript": {
+      "totalTextReferences": 19,
+      "files": {
+        "apps/site-chat/src/site-assistant-transport.ts": 1,
+        "apps/admin/src/lib/assistant-transport.ts": 5,
+        "apps/admin/src/lib/__tests__/assistant-transport.turn-delivery.unit.test.ts": 1,
+        "apps/admin/src/lib/__tests__/assistant-transport.transcript.test.ts": 5,
+        "apps/admin/src/lib/__tests__/assistant-transport.daemon.unit.test.ts": 1,
+        "apps/desktop/src/renderer/workspace-chat-transport.ts": 2,
+        "apps/desktop/src/renderer/workspace-chat-transport.test.ts": 2,
+        "apps/website/src/server/runtime/composition/modules/assistant-ag-ui.ts": 1,
+        "apps/website/src/server/runtime/composition/modules/site-assistant.ts": 1
+      }
+    },
+    "artifactManifestNameFor": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "serializeArtifactManifest": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parseArtifactManifest": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "isRealArtifactOpenAt": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "computeSkipRanges": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "rangeContains": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parseQuotedAttrs": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parseArtifacts": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "recoverStandaloneHtmlDocument": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "recoverHtmlDocumentFromMarkdownFence": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "stripArtifact": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "stripRecoveredHtmlFallbackForDisplay": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "matchPersistedArtifactFile": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "summarizeArtifactsForTranscript": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "splitStreamingArtifact": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "validateHtmlArtifact": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "looksLikeImageAttachment": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useAttachmentPreviewModal": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "formatAttachmentSize": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "replaceComposerSlashTrigger": {
+      "totalTextReferences": 3,
+      "files": {
+        "apps/admin/src/features/plugins/composer-capabilities.ts": 2,
+        "apps/admin/src/features/plugins/__tests__/composer-capabilities.unit.test.ts": 1
+      }
+    },
+    "appendComposerDiscovery": {
+      "totalTextReferences": 2,
+      "files": {
+        "apps/admin/src/features/voice-input/hooks/space-hold-rules.ts": 1,
+        "apps/admin/src/features/voice-input/hooks/use-composer-voice-input.hooks.ts": 1
+      }
+    },
+    "resolveComposerSlashKeyAction": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "runtimeAgentStatus": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "createDaemonAttachmentUploader": {
+      "totalTextReferences": 23,
+      "files": {
+        "apps/admin/src/lib/chat-attachment-liveness.ts": 3,
+        "apps/desktop/src/renderer/chat-attachments.ts": 1,
+        "apps/admin/src/components/AssistantDock/AssistantDock.tsx": 1,
+        "apps/admin/src/components/AssistantDock/hooks/AssistantDock.hooks.tsx": 8,
+        "apps/admin/src/lib/__tests__/attachment-uploader-quotas.unit.test.ts": 5,
+        "apps/desktop/src/contracts/chat-attachments.ts": 1,
+        "apps/admin/src/components/__tests__/AssistantDock.unit.test.tsx": 1,
+        "apps/admin/src/components/__tests__/AssistantDock.runtime-access.unit.test.tsx": 1,
+        "apps/admin/src/components/__tests__/AssistantDock.hooks.unit.test.tsx": 1,
+        "apps/website/src/server/runtime/composition/modules/assistant.ts": 1
+      }
+    },
+    "createMcpUiToolCaller": {
+      "totalTextReferences": 11,
+      "files": {
+        "apps/admin/src/lib/a2ui-action-poster.ts": 2,
+        "apps/admin/src/components/AssistantDock/AssistantDock.tsx": 3,
+        "apps/admin/src/components/__tests__/AssistantDock.unit.test.tsx": 2,
+        "apps/admin/src/components/__tests__/AssistantDock.runtime-access.unit.test.tsx": 1,
+        "apps/admin/src/features/plugins/composer-capabilities.ts": 1,
+        "apps/website/src/server/__tests__/admin-mcp-ui-tool-calls-route.test.ts": 1,
+        "apps/website/src/server/runtime/composition/modules/assistant.ts": 1
+      }
+    },
+    "runtimeOptionLabel": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "runtimePopoverPosition": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "resolveTabWrapIndex": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "resolveRovingIndex": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "resolvePopoverKeyAction": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "runtimeSummaryText": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "byokSummaryText": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useChatPaneAgentControl": {
+      "totalTextReferences": 8,
+      "files": {
+        "apps/website/src/assistant/frontend-control-capabilities.ts": 1,
+        "apps/admin/src/components/AssistantDock/AssistantDock.tsx": 2,
+        "apps/website/src/assistant/__tests__/frontend-control-capabilities.test.ts": 1,
+        "apps/admin/src/components/__tests__/AssistantDock.unit.test.tsx": 4
+      }
+    },
+    "useChatPaneComposerPlaceholder": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "defaultChatPaneSelection": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "resolveChatPaneSelection": {
+      "totalTextReferences": 3,
+      "files": {
+        "apps/admin/src/components/AssistantDock/local-cli-selection-echo.ts": 3
+      }
+    },
+    "isChatPaneQueueableBlocker": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "orderChatPaneAgents": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "groupModelsByProvider": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "matchesModelQuery": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "filterModelGroups": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "findSelectedModel": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "isCustomModelId": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "firstAvailableModelId": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "readCachedDraft": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "writeCachedDraft": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "clearCachedDraft": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "readCachedAttachments": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "writeCachedAttachments": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useArtifactStream": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "clampChatFabToViewport": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useChatFabDrag": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useExtEventGroups": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "normalizeOperationError": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "usePinnedTodos": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useQuestionForms": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "parseSubmittedAnswers": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useRunActivity": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useToolTimeline": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "registerToolRenderer": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "getToolRenderer": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "definedProps": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "chatAdditionalContract": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "allChatContracts": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "chatIsolationContract": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "chatPagingContract": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "chatParityContract": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "chatTransactionContract": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "twoConnectionContract": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "compileContract": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "missingRequiredTable": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "listConversations": {
+      "totalTextReferences": 21,
+      "files": {
+        "apps/admin/src/lib/assistant-chats.ts": 2,
+        "apps/admin/src/hooks/use-assistant-chats.hooks.ts": 1,
+        "apps/admin/src/hooks/__tests__/use-assistant-chats.unit.test.ts": 7,
+        "apps/admin/src/lib/__tests__/assistant-chats.unit.test.ts": 5,
+        "apps/admin/src/hooks/assistant-chats-port.hooks.ts": 1,
+        "apps/desktop/src/renderer/runner-api.ts": 1,
+        "apps/admin/src/hooks/assistant-chats-dependencies.hooks.ts": 3,
+        "apps/desktop/src/renderer/App.hooks.ts": 1
+      }
+    },
+    "getConversation": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "normalizeConversationSessionMode": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "insertConversation": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "updateConversation": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "deleteConversation": {
+      "totalTextReferences": 15,
+      "files": {
+        "apps/admin/src/lib/__tests__/assistant-chats.unit.test.ts": 4,
+        "apps/admin/src/lib/assistant-chats.ts": 1,
+        "apps/desktop/src/renderer/App.hooks.ts": 1,
+        "apps/desktop/src/renderer/runner-api.ts": 1,
+        "apps/admin/src/hooks/use-assistant-chats.hooks.ts": 1,
+        "apps/admin/src/hooks/__tests__/use-assistant-chats.unit.test.ts": 1,
+        "apps/admin/src/hooks/assistant-chats-port.hooks.ts": 1,
+        "apps/admin/src/hooks/assistant-chats-dependencies.hooks.ts": 3,
+        "apps/website/src/assistant/__tests__/frontend-control-capabilities.test.ts": 1,
+        "apps/website/src/assistant/frontend-control-capabilities.ts": 1
+      }
+    },
+    "listMessages": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "upsertMessage": {
+      "totalTextReferences": 12,
+      "files": {
+        "apps/admin/src/hooks/use-assistant-chats.hooks.ts": 1,
+        "apps/admin/src/hooks/__tests__/assistant-chats-dependencies.unit.test.ts": 7,
+        "apps/admin/src/hooks/assistant-chats-dependencies.hooks.ts": 4
+      }
+    },
+    "getMessageTelemetryFinalizationState": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "appendMessageStatusEvent": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "appendMessageAgentEvent": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "deleteMessage": {
+      "totalTextReferences": 3,
+      "files": {
+        "apps/admin/src/features/forms/rules.ts": 3
+      }
+    },
+    "validateKernel": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "copyScope": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "atStoreBoundary": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "runChatQuery": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "pageLimit": {
+      "totalTextReferences": 33,
+      "files": {
+        "apps/website/src/server/inbound/admin-http/routes/site/profile.ts": 9,
+        "apps/website/src/server/inbound/admin-http/routes/site/__tests__/profile-query.test.ts": 5,
+        "apps/website/src/features/site-inspection/__tests__/tool-registrations.unit.test.ts": 1,
+        "apps/website/src/features/site-inspection/__tests__/site-profile.unit.test.ts": 4,
+        "apps/website/src/features/site-inspection/agent-tools.ts": 1,
+        "apps/website/src/features/site-inspection/site-profile.ts": 6,
+        "apps/website/src/features/site-inspection/tool-registrations.ts": 3,
+        "apps/website/src/server/__tests__/routes/site-profile-route.test.ts": 4
+      }
+    },
+    "encodeCursor": {
+      "totalTextReferences": 2,
+      "files": {
+        "apps/website/src/platform/db/sqlite/database-journal-repo.ts": 2
+      }
+    },
+    "decodeCursor": {
+      "totalTextReferences": 2,
+      "files": {
+        "apps/website/src/platform/db/sqlite/database-journal-repo.ts": 2
+      }
+    },
+    "createChatHistoryStore": {
+      "totalTextReferences": 22,
+      "files": {
+        "apps/website/src/assistant/persistence/__tests__/ddl-parity.test.ts": 3,
+        "apps/website/src/assistant/persistence/__tests__/package-adapters.dialects.test.ts": 4,
+        "apps/website/src/assistant/persistence/__tests__/chat-expiry-sweep.dialects.test.ts": 3,
+        "apps/website/src/assistant/persistence/__tests__/chat-history-store.dialects.test.ts": 4,
+        "apps/website/src/assistant/persistence/chat-history-store.ts": 1,
+        "apps/website/src/assistant/persistence/tenant-scope.ts": 2,
+        "apps/website/src/platform/db/migrations/__tests__/chat-pre-adoption.fixture.ts": 2,
+        "apps/website/src/platform/db/migrations/__tests__/chat-package-adoption.test.ts": 3
+      }
+    },
+    "createChatHistoryMaintenance": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "ensureChatHistoryTables": {
+      "totalTextReferences": 2,
+      "files": {
+        "apps/website/src/platform/db/sqlite/__tests__/chat-orphan-check.integration.test.ts": 1,
+        "apps/website/src/server/runtime/composition/app.ts": 1
+      }
+    },
+    "latestTodoWriteInput": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "createArtifactParser": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "clearToolRenderers": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "useLatestOperation": {
+      "totalTextReferences": 1,
+      "files": {
+        "apps/admin/src/components/AssistantDock/hooks/AssistantDock.hooks.tsx": 1
+      }
+    },
+    "createFrontendSessionBridge": {
+      "totalTextReferences": 14,
+      "files": {
+        "apps/admin/src/lib/agent-screenshot.ts": 1,
+        "apps/admin/src/__tests__/unit/app-hooks-frontend-session-error.unit.test.ts": 1,
+        "apps/admin/src/__tests__/unit/app-hooks-admin-capability-executors.unit.test.tsx": 2,
+        "apps/admin/src/__tests__/unit/app-hooks-admin-webmcp.unit.test.tsx": 1,
+        "apps/admin/src/lib/__tests__/agent-screenshot.unit.test.ts": 1,
+        "apps/admin/src/components/AssistantDock/AssistantDock.tsx": 1,
+        "apps/admin/src/App.hooks.tsx": 4,
+        "apps/admin/src/components/__tests__/AssistantDock.unit.test.tsx": 2,
+        "apps/website/src/assistant/frontend-control-capabilities.ts": 1
+      }
+    },
+    "ChatStoreError": {
+      "totalTextReferences": 2,
+      "files": {
+        "apps/website/src/assistant/persistence/chat-expiry-sweep.ts": 2
+      }
+    },
+    "MessageConversationMismatchError": {
+      "totalTextReferences": 0,
+      "files": {}
+    },
+    "FrontendSessionBridgeArgs": {
+      "totalTextReferences": 0,
+      "files": {}
+    }
+  },
+  "modules": {
+    "run-events": {
+      "totalMatchingImportLines": 10,
+      "files": {
+        "apps/admin/src/lib/sse-frames.ts": 1,
+        "apps/admin/src/lib/assistant-transport.ts": 2,
+        "apps/admin/vitest.config.ts": 1,
+        "apps/admin/vite.config.ts": 1,
+        "apps/website/src/server/runtime/composition/modules/assistant-chats.ts": 1,
+        "apps/website/src/server/runtime/composition/modules/assistant-run-finalizer.ts": 1,
+        "apps/website/src/assistant/persistence/run-ledger.ts": 1,
+        "apps/website/src/assistant/persistence/tenant-scope.ts": 1,
+        "apps/website/src/contracts/core/__tests__/unit/assistant-run-events.activity.unit.test.ts": 1
+      }
+    },
+    "run-finalizer": {
+      "totalMatchingImportLines": 4,
+      "files": {
+        "apps/website/src/server/__tests__/assistant-run-finalizer.test.ts": 1,
+        "apps/website/src/server/__tests__/assistant-chats-skill-title.unit.test.ts": 1,
+        "apps/website/src/server/__tests__/assistant-run-finalizer.restart.test.ts": 1,
+        "apps/website/src/server/runtime/composition/modules/assistant-chats.ts": 1
+      }
+    },
+    "ag-ui": {
+      "totalMatchingImportLines": 9,
+      "files": {
+        "apps/admin/src/lib/__tests__/assistant-transport.ag-ui.unit.test.ts": 3,
+        "apps/admin/src/lib/assistant-transport-ag-ui.ts": 2,
+        "apps/website/src/server/runtime/composition/modules/assistant-ag-ui.ts": 1,
+        "apps/website/src/server/__tests__/assistant-ag-ui-translate.test.ts": 1,
+        "apps/website/src/server/__tests__/assistant-ag-ui-routes.test.ts": 1,
+        "apps/website/src/server/runtime/composition/app.ts": 1
+      }
+    },
+    "widget": {
+      "totalMatchingImportLines": 1,
+      "files": {
+        "apps/site-chat/src/main.tsx": 1
+      }
+    },
+    "header": {
+      "totalMatchingImportLines": 3,
+      "files": {
+        "apps/site-chat/src/SiteAssistantWidget.tsx": 1,
+        "apps/site-chat/src/__tests__/SiteAssistantHeader.test.ts": 2
+      }
+    },
+    "fetch-sse": {
+      "totalMatchingImportLines": 2,
+      "files": {
+        "apps/site-chat/src/SiteAssistantWidget.tsx": 1,
+        "apps/site-chat/src/__tests__/site-assistant-transport.test.ts": 1
+      }
+    },
+    "session-store": {
+      "totalMatchingImportLines": 3,
+      "files": {
+        "apps/site-chat/src/SiteAssistantWidget.tsx": 1,
+        "apps/site-chat/src/__tests__/session-store.test.ts": 1,
+        "apps/site-chat/src/main.tsx": 1
+      }
+    },
+    "page-actions": {
+      "totalMatchingImportLines": 11,
+      "files": {
+        "apps/site-chat/src/SiteAssistantWidget.tsx": 2,
+        "apps/site-chat/src/__tests__/highlight.test.ts": 1,
+        "apps/site-chat/src/main.tsx": 2,
+        "apps/site-chat/src/__tests__/client-directives.test.ts": 1,
+        "apps/website/src/assistant/index.ts": 2,
+        "apps/website/src/assistant/site/tools.ts": 1,
+        "apps/website/src/assistant/site/__tests__/client-directives.test.ts": 1,
+        "apps/website/src/assistant/site/capability-registry.ts": 1
+      }
+    },
+    "skill-install": {
+      "totalMatchingImportLines": 2,
+      "files": {
+        "apps/website/src/features/skills/__tests__/unit/hot-paths.unit.test.ts": 1,
+        "apps/website/src/features/skills/__tests__/unit/install-service.unit.test.ts": 1
+      }
+    }
+  }
+}

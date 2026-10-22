@@ -8,7 +8,7 @@
  * rendering needs a host-injected postMessage bridge (see
  * `srcdoc/bridge.ts`), so a host registers its own `deck-html`
  * {@link ArtifactRenderer} into the registry instance it constructs instead
- * of this package shipping one. See `source-map.md`.
+ * of this package shipping one. See `archived provenance ledger`.
  */
 import type { ArtifactFile, ArtifactManifest } from './types.js';
 
@@ -29,7 +29,7 @@ export interface ArtifactRenderer {
    */
   supportsStreaming: boolean;
   renderPartial?: ((content: string) => string) | undefined;
-  canRender: (ctx: ArtifactRendererContext) => boolean;
+  canRender: (required: Pick<ArtifactRendererContext, "file">, optional?: Omit<ArtifactRendererContext, "file">) => boolean;
 }
 
 export interface ArtifactRenderMatch {
@@ -48,29 +48,31 @@ export interface ArtifactRenderMatch {
  * resolve a manifest for the file itself — see `@jini-ai/chat`'s
  * `inferLegacyManifest` — before handing the file to this registry.
  */
-export function resolveArtifactManifest(file: ArtifactFile): ArtifactManifest | null {
+export function resolveArtifactManifest({ file }: { file: ArtifactFile }): ArtifactManifest | null {
   return file.manifest ?? null;
 }
 
 export class RendererRegistry {
-  constructor(private readonly renderers: readonly ArtifactRenderer[]) {}
+  private readonly renderers: readonly ArtifactRenderer[];
+
+  constructor({ renderers }: { renderers: readonly ArtifactRenderer[] }) { this.renderers = renderers; }
 
   /** Renderers currently registered, in resolution order. */
   list(): readonly ArtifactRenderer[] {
     return this.renderers;
   }
 
-  resolve(ctx: ArtifactRendererContext): ArtifactRenderMatch | null {
-    const manifest = resolveArtifactManifest(ctx.file);
+  resolve({ file }: Pick<ArtifactRendererContext, "file">, { hints }: Omit<ArtifactRendererContext, "file"> = {}): ArtifactRenderMatch | null {
+    const manifest = resolveArtifactManifest({ file });
     if (!manifest) return null;
-    const renderer = this.renderers.find((item) => item.canRender(ctx));
+    const renderer = this.renderers.find((item) => item.canRender({ file }, { hints }));
     if (!renderer) return null;
     return { renderer, manifest };
   }
 
   /** Returns a new registry with `renderer` appended (or replacing an existing renderer of the same id). */
-  register(renderer: ArtifactRenderer): RendererRegistry {
+  register({ renderer }: { renderer: ArtifactRenderer }): RendererRegistry {
     const withoutExisting = this.renderers.filter((item) => item.id !== renderer.id);
-    return new RendererRegistry([...withoutExisting, renderer]);
+    return new RendererRegistry({ renderers: [...withoutExisting, renderer] });
   }
 }

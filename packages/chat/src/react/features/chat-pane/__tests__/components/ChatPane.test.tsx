@@ -7,8 +7,9 @@ import type { ChatMessage } from '@jini-ai/chat';
 import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
+import { createTypedAnswerPoster } from '../../create-typed-answer-poster.js';
 import { CHAT_PANE_STYLES } from '../../styles.js';
-import type { ChatPaneActivity, ChatPaneAgent, ChatPaneComposerHandle } from '../../types.js';
+import type { ChatPaneActivity, ChatPaneAgent, ChatPaneComposerHandle, DeliverTypedAnswer } from '../../types.js';
 
 const agents: ChatPaneAgent[] = [{
   id: 'codex',
@@ -27,6 +28,69 @@ const welcome: ChatMessage = {
 };
 
 describe('ChatPane', () => {
+  it('enables Send with an off-list Claude default and sends the concrete picker model', async () => {
+    const transport = createFakeChatTransport();
+    const catalog = {
+      models: [
+        { id: 'opus', label: 'Opus', identityKind: 'alias' as const },
+        { id: 'sonnet', label: 'Sonnet', identityKind: 'alias' as const },
+        { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      ],
+      defaultSelectionId: 'opus[1m]',
+      source: 'rpc' as const, freshness: 'fresh' as const, coverage: 'account' as const,
+      fetchedAt: '2026-10-17T00:00:00.000Z', expiresAt: '2026-10-17T00:15:00.000Z', launchFingerprint: 'fixture',
+    };
+    const claude: ChatPaneAgent = {
+      id: 'claude', name: 'Claude Code', available: true, models: catalog.models, modelCatalog: catalog,
+      defaultModelResolution: { status: 'unresolved', selectionId: 'opus[1m]', reason: 'No concrete model evidence.' },
+    };
+    render(<ChatPane transport={transport} agents={[claude]} selection={{ agentId: 'claude' }}
+      runContext={({ selection }) => ({ model: selection.model })} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Hello Claude' } });
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    expect(transport.calls[0]?.input).toMatchObject({ agentId: 'claude', context: { model: 'claude-opus-5-5' } });
+    act(() => transport.finish([]));
+  });
+
+  it('exposes the blocker in the Send title and footer when the agent becomes unavailable', () => {
+    const transport = createFakeChatTransport();
+    const { rerender } = render(<ChatPane transport={transport} agents={agents} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep my draft' } });
+    rerender(<ChatPane transport={transport} agents={[{ ...agents[0]!, available: false }]} />);
+    expect(screen.getByRole('textbox')).toHaveValue('Keep my draft');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'no agent is selected');
+    expect(screen.getByText('no agent is selected').closest('.jini-composer-footer')).not.toBeNull();
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it('excludes workspace controls on the embed surface while retaining draft and send behavior', async () => {
+    const transport = createFakeChatTransport();
+    const upload = vi.fn(async () => []);
+    render(<ChatPane variant="embed" transport={transport} agents={agents}
+      workingDirectoryControlPlacement="composer" uploadAttachments={upload}
+      leadingAccessory={<button>Admin context</button>}
+      composerSlots={{ footerLeadingAccessory: <button>Admin tool</button>,
+        discoveryGroups: [{ id: 'admin', label: 'Admin tools', items: [{ id: 'secret', label: 'Admin command', insertText: '/admin' }] }] }}
+      emptyState={<p>Ask about this site.</p>} suggestions={['Find posts']} />);
+    expect(screen.queryByRole('button', { name: /working directory/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /runtime|Codex|model|attach|context|discover|Admin/i })).toBeNull();
+    expect(screen.getByText('Ask about this site.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Find posts' }));
+    expect(screen.getByRole('textbox')).toHaveValue('Find posts');
+    expect(screen.getByRole('textbox')).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Find posts' }).closest('.jini-message-list--empty')).not.toBeNull();
+    expect(transport.calls).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    expect(transport.calls[0]?.input.agentId).toBe('codex');
+    expect(screen.queryByText('Ask about this site.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Find posts' })).toBeNull();
+    expect(upload).not.toHaveBeenCalled();
+    act(() => transport.finish([]));
+  });
   it('owns composer/conversation/send orchestration and forwards selection plus run context', async () => {
     const transport = createFakeChatTransport();
     const activities: ChatPaneActivity[] = [];
@@ -173,6 +237,23 @@ describe('ChatPane', () => {
       .toHaveStyle({ minHeight: '400px' });
   });
 
+  it('opens every in-pane link in a new tab, including host-rendered card links', () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    try {
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          header={<a href="/admin/pages/x">card link</a>}
+        />,
+      );
+      fireEvent.click(screen.getByText('card link'));
+      expect(open).toHaveBeenCalledWith(`${window.location.origin}/admin/pages/x`, '_blank', 'noopener,noreferrer');
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it('owns file picking/upload staging and forwards uploaded attachments on send', async () => {
     const transport = createFakeChatTransport();
     const uploaded = {
@@ -255,6 +336,54 @@ describe('ChatPane', () => {
     ));
     expect(target).not.toHaveClass('is-dragging-files');
     expect(await screen.findByText('dropped.txt')).toBeInTheDocument();
+  });
+
+  it('stages attach-button, dropped and pasted files while a run streams and sends them with the next message', async () => {
+    const transport = createFakeChatTransport();
+    const uploadAttachments = vi.fn(async (files: File[]) => files.map((file) => ({
+      path: `/tmp/${file.name}`,
+      name: file.name,
+      kind: 'file' as const,
+    })));
+    render(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+
+    await userEvent.type(screen.getByPlaceholderText('Send a message…'), 'Run');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    expect(screen.getByRole('button', { name: 'Stop run' })).toBeEnabled();
+    // Send behavior while running is unchanged: an empty draft shows only Stop.
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
+
+    expect(screen.getByRole('button', { name: 'Attach files' })).toBeEnabled();
+    expect(screen.getByTestId('composer-attachment-input')).toBeEnabled();
+
+    const target = screen.getByTestId('chat-pane-file-drop-target');
+    const dropped = new File(['drop content'], 'dropped.txt', { type: 'text/plain' });
+    const fileTransfer = { types: ['Files'], items: [], files: [dropped], dropEffect: 'none' };
+    fireEvent.dragEnter(target, { dataTransfer: fileTransfer });
+    expect(target).toHaveClass('is-dragging-files');
+    fireEvent.dragOver(target, { dataTransfer: fileTransfer });
+    expect(fileTransfer.dropEffect).toBe('copy');
+    fireEvent.drop(target, { dataTransfer: fileTransfer });
+    expect(await screen.findByText('dropped.txt')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Attach files' })).toBeEnabled());
+
+    const pasted = new File(['png'], 'pasted.png', { type: 'image/png' });
+    fireEvent.paste(screen.getByPlaceholderText('Send a message…'), { clipboardData: { files: [pasted] } });
+    expect(await screen.findByText('pasted.png')).toBeInTheDocument();
+    expect(uploadAttachments.mock.calls.map(([files]) => files)).toEqual([[dropped], [pasted]]);
+    expect(transport.calls).toHaveLength(1);
+
+    await userEvent.type(screen.getByPlaceholderText('Send a message…'), 'Use these');
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(transport.calls).toHaveLength(1);
+    act(() => transport.finish([]));
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]?.input.attachments).toEqual([
+      { path: '/tmp/dropped.txt', name: 'dropped.txt', kind: 'file' },
+      { path: '/tmp/pasted.png', name: 'pasted.png', kind: 'file' },
+    ]);
+    act(() => transport.finish([]));
   });
 
   it('owns the package working-directory picker and delegates only native I/O plus changes', async () => {
@@ -349,13 +478,45 @@ describe('ChatPane', () => {
     const statusTexts = screen.getAllByRole('status').map((el) => el.textContent);
     expect(statusTexts).toContain('Checking working directory…');
     expect(statusTexts).toContain('Loading available CLIs');
-    expect(await screen.findByText('inventory unavailable')).toBeInTheDocument();
     await act(async () => resolveExists(false));
     expect(await screen.findByText('Working directory is unavailable.')).toBeInTheDocument();
-    // `listAgents` rejected above, so detection is finished (not loading) and found nothing —
-    // now the genuine terminal case, which is the one case that should render as an `alert`.
-    expect(await screen.findByText('No usable CLI is selected.')).toBeInTheDocument();
+    // `listAgents` REJECTED above: that is no answer yet (a daemon mid-restart), not a finished
+    // detection that found nothing — so a plain "connecting" status while the pane retries, never
+    // the red "No usable CLI" alert or the raw transport error (2026-09-28).
+    expect(await screen.findByText('Connecting to the assistant…')).toBeInTheDocument();
+    expect(screen.getByText('Connecting to the assistant…')).toHaveAttribute('role', 'status');
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+    expect(screen.queryByText('inventory unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading available CLIs')).not.toBeInTheDocument();
+  });
+
+  it('recovers from a failed CLI inventory without a reload once the daemon comes back', async () => {
+    let online = false;
+    const listAgents = vi
+      .fn<() => Promise<ChatPaneAgent[]>>()
+      .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+      .mockResolvedValue(agents);
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        initialSelection={{ agentId: 'codex' }}
+        runtimeStatusPollMs={20}
+        runtimeAccess={{
+          listAgents,
+          rescanAgents: async () => [],
+          daemonOnline: async () => online,
+        }}
+      />,
+    );
+
+    expect(await screen.findByText('Connecting to the assistant…')).toBeInTheDocument();
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+
+    online = true;
+    await waitFor(() => expect(screen.queryByText('Connecting to the assistant…')).not.toBeInTheDocument());
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+    expect(listAgents).toHaveBeenCalledTimes(2);
   });
 
   it('shows a loading status while CLI detection is in flight, not the red unavailable banner', async () => {
@@ -456,6 +617,26 @@ describe('ChatPane', () => {
     } finally {
       Reflect.deleteProperty(globalThis.document as unknown as Record<string, unknown>, 'modelContext');
     }
+  });
+
+  it('shows a rescan failure as an alert while keeping the last good inventory on screen', async () => {
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        runtimeAccess={{
+          listAgents: async () => agents,
+          rescanAgents: async () => {
+            throw new Error('rescan answered 503');
+          },
+          daemonOnline: async () => true,
+        }}
+      />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose AI runtime' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rescan PATH' }));
+    expect(await screen.findByText('rescan answered 503')).toHaveAttribute('role', 'alert');
+    expect(screen.queryByText('Connecting to the assistant…')).not.toBeInTheDocument();
   });
 
   it('delegates an explicit rescan to runtimeAccess and reflects the refreshed inventory', async () => {
@@ -898,5 +1079,231 @@ describe('ChatPane', () => {
       expect(cancelRule).toMatch(/font-size:\s*\S+/);
       expect(cancelRule).toMatch(/font-weight:\s*\S+/);
     });
+  });
+
+  it('explains a failed typed-answer delivery without offering to send it as a new message', async () => {
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        initialDraft="ship the post"
+        deliverTypedAnswer={Object.assign(async () => 'failed' as const, { toolName: 'assistant_ask_choice' })}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    act(() => {
+      transport.emit({ kind: 'tool_use', id: 'ask-1', name: 'assistant_ask_choice', input: {} });
+      transport.emit({ kind: 'ext', name: 'unregistered-question', data: {} });
+    });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'publish it' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Your answer could not be delivered. Try sending it again.');
+    expect(screen.queryByRole('button', { name: 'Send as a new message' })).toBeNull();
+  });
+
+  it('automatically sends a stale question answer as a normal message once, without an error notice', async () => {
+    const transport = createFakeChatTransport();
+    const post = vi.fn(async () => new Response(null, { status: 409 }));
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        initialDraft="ship the post"
+        deliverTypedAnswer={createTypedAnswerPoster({ baseUrl: '', fetch: post, toolName: 'assistant_ask_choice' })}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    act(() => {
+      transport.emit({ kind: 'tool_use', id: 'ask-1', name: 'assistant_ask_choice', input: {} });
+      transport.emit({ kind: 'ext', name: 'unregistered-question', data: {} });
+    });
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'publish it' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledWith('/api/mcp-ui/tool-calls', expect.objectContaining({
+      body: JSON.stringify({ toolName: 'assistant_ask_choice', params: { __typedAnswer: 'publish it' } }),
+    }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send as a new message' })).toBeNull();
+    expect(transport.calls).toHaveLength(1);
+    expect(screen.getAllByText('publish it')).toHaveLength(1);
+    act(() => transport.finish());
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('publish it');
+    expect(screen.getAllByText('publish it')).toHaveLength(1);
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+    expect(screen.getByRole('textbox')).toHaveValue('publish it');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+it('hides prior automatic plugin usage immediately when the host chooses Off', () => {
+  const initialMessages: ChatMessage[] = [{ id: 'plugin-turn', role: 'assistant', content: '', createdAt: 1,
+    events: [{ kind: 'ext', name: 'agent_plugins', data: { conversationId: 'plugins-off-chat', plugins: [{ id: 'fixture', name: 'Fixture plugin' }] } }] }];
+  const transport = createFakeChatTransport();
+  const { rerender } = render(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="auto" />);
+  expect(screen.getByText('Using:')).toBeInTheDocument();
+  rerender(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="off" />);
+  expect(screen.queryByText('Using:')).not.toBeInTheDocument();
+});
+
+
+describe('ChatPane accepted input recording', () => {
+  it.each(['normal', 'answer', 'steer', 'queue', 'interrupt'] as const)(
+    'shows and recalls an accepted %s once, including storage remount', async (path) => {
+      let saved: readonly string[] = [];
+      let transcript: ChatMessage[] = [];
+      const storage = { read: async () => saved, write: async ({ entries }: { entries: readonly string[] }) => { saved = [...entries]; } };
+      const transport = createFakeChatTransport();
+      const answer: DeliverTypedAnswer = Object.assign(vi.fn(async () => 'delivered' as const), { toolName: 'assistant_ask_choice' });
+      const steer = vi.fn(async () => 'delivered' as const);
+      const view = render(<ChatPane transport={transport} agents={agents} initialDraft="first"
+        composerHistoryScope={`accepted-${path}`} composerHistoryStorage={storage}
+        onMessagesChange={messages => { transcript = messages; }}
+        {...(path === 'answer' ? { deliverTypedAnswer: answer } : {})}
+        {...(path === 'steer' ? { deliverMidRunMessage: steer } : {})} />);
+      await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+      await waitFor(() => expect(saved).toEqual(['first']));
+      if (path === 'normal') act(() => transport.finish());
+      if (path === 'answer') act(() => {
+        transport.emit({ kind: 'tool_use', id: 'ask', name: answer.toolName, input: {} });
+        transport.emit({ kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask' } });
+      });
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'accepted text' } });
+      await act(async () => {
+        const event = { key: 'Enter', ...(path === 'interrupt' ? { ctrlKey: true } : {}) };
+        fireEvent.keyDown(screen.getByRole('textbox'), event);
+        fireEvent.keyDown(screen.getByRole('textbox'), event);
+      });
+      await waitFor(() => expect(saved).toEqual(['first', 'accepted text']));
+      expect(screen.getAllByText('accepted text')).toHaveLength(1);
+      if (path === 'answer' || path === 'steer' || path === 'queue') expect(transport.calls).toHaveLength(1);
+      if (path === 'answer') act(() => transport.emit({ kind: 'tool_result', toolUseId: 'ask', content: JSON.stringify({ submitted: true, freeText: 'accepted text' }), isError: false }));
+      if (path === 'steer') act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'persisted-steer', text: 'accepted text' } }));
+      if (path === 'queue') act(() => transport.finish());
+      await waitFor(() => expect(screen.getAllByText('accepted text')).toHaveLength(1));
+      expect(saved).toEqual(['first', 'accepted text']);
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+      expect(screen.getByRole('textbox')).toHaveValue('accepted text');
+      act(() => transport.finish());
+      const reloaded = JSON.parse(JSON.stringify(transcript)) as ChatMessage[];
+      view.unmount();
+      const recovered = render(<ChatPane transport={createFakeChatTransport()} agents={agents}
+        composerHistoryScope={`accepted-${path}`} composerHistoryStorage={storage} initialMessages={reloaded} />);
+      await waitFor(() => expect(screen.getAllByText('accepted text')).toHaveLength(1));
+      fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+      expect(screen.getByRole('textbox')).toHaveValue('accepted text');
+      expect(saved).toEqual(['first', 'accepted text']);
+      recovered.unmount();
+    },
+  );
+
+  it('reconstructs typed answer bubbles and recall from saved tool results alone', () => {
+    render(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={[{
+      id: 'saved-answer', role: 'assistant', content: '', runStatus: 'succeeded', events: [
+        { kind: 'tool_use', id: 'ask-saved', name: 'assistant_ask_choice', input: {} },
+        { kind: 'tool_result', toolUseId: 'ask-saved', content: JSON.stringify({ submitted: true, freeText: 'saved answer' }), isError: false },
+      ],
+    }]} />);
+    expect(screen.getAllByText('saved answer')).toHaveLength(1);
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
+    expect(screen.getByRole('textbox')).toHaveValue('saved answer');
+  });
+
+  it('keeps a rejected normal draft out of recall and preserves it for retry', async () => {
+    const transport = createFakeChatTransport();
+    transport.startRun = vi.fn(async () => { throw new Error('409 refused'); });
+    let saved: readonly string[] = [];
+    const storage = { read: async () => saved, write: async ({ entries }: { entries: readonly string[] }) => { saved = entries; } };
+    render(<ChatPane transport={transport} agents={agents} composerHistoryStorage={storage} initialDraft="keep this draft" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    expect(screen.getByRole('textbox')).toHaveValue('keep this draft');
+    expect(saved).toEqual([]);
+    expect(document.querySelectorAll('.jini-message-user')).toHaveLength(0);
+  });
+});
+
+// MOVE: Owner regression, 2026-10-20: preserve each submitted message and the screenshot's owner,
+// while delivery remains one paid run. Inspect rendered bubbles as well as the transport payload.
+describe('ChatPane per-message queue', () => {
+  async function queueOwnerMessages(_required: {}, _options = {}) {
+    const transport = createFakeChatTransport();
+    const image = { path: 'attachment:footer', name: 'footer.png', kind: 'image' as const };
+    let transcript: ChatMessage[] = [];
+    const view = render(<ChatPane transport={transport} agents={agents} initialDraft="first turn"
+      uploadAttachments={async () => [image]} onMessagesChange={messages => { transcript = messages; }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'were you stuck?' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await userEvent.upload(screen.getByTestId('composer-attachment-input'), new File(['pixels'], 'footer.png', { type: 'image/png' }));
+    await waitFor(() => expect(screen.getByTestId('composer-attachment-tray')).toBeInTheDocument());
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'add the footer icons' } });
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
+    return { ...view, transport, image, transcript: () => transcript };
+  }
+
+  it('shows two queued bubbles with the screenshot only on message 2 and an empty composer', async () => {
+    await queueOwnerMessages({});
+    const bubbles = screen.getAllByTestId('chat-pane-queued');
+    expect(bubbles).toHaveLength(2);
+    expect(bubbles[0]).toHaveTextContent('were you stuck?');
+    expect(bubbles[0]!.querySelector('.jini-message-attachment-chip')).toBeNull();
+    expect(bubbles[1]).toHaveTextContent('add the footer icons');
+    expect(bubbles[1]!.querySelector('[aria-label="Open footer.png"]')).toBeInTheDocument();
+    expect(bubbles.map(bubble => bubble.querySelectorAll('button[title="Cancel queued message"]').length)).toEqual([1, 1]);
+    expect(screen.queryByTestId('composer-attachment-tray')).toBeNull();
+  });
+
+  it('flushes one combined turn with the screenshot and displays separate history bubbles, including reload', async () => {
+    const fixture = await queueOwnerMessages({});
+    act(() => fixture.transport.finish());
+    await waitFor(() => expect(fixture.transport.calls).toHaveLength(2));
+    expect(fixture.transport.calls[1]!.input.history.at(-1)?.content).toBe('were you stuck?\n\nadd the footer icons');
+    expect(fixture.transport.calls[1]!.input.attachments).toEqual([fixture.image]);
+    expect(screen.queryAllByTestId('chat-pane-queued')).toHaveLength(0);
+    const first = screen.getByText('were you stuck?').closest('[data-message-id]');
+    const second = screen.getByText('add the footer icons').closest('[data-message-id]');
+    expect(first).not.toBe(second);
+    expect(first!.querySelector('.jini-message-attachment-chip')).toBeNull();
+    expect(second!.querySelector('[aria-label="Open footer.png"]')).toBeInTheDocument();
+    act(() => fixture.transport.finish());
+    const persisted = JSON.parse(JSON.stringify(fixture.transcript())) as ChatMessage[];
+    fixture.unmount();
+    render(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={persisted} />);
+    expect(screen.getByText('were you stuck?').closest('[data-message-id]')).toHaveAttribute('data-message-id', first!.getAttribute('data-message-id'));
+    expect(screen.getByText('add the footer icons').closest('[data-message-id]')).toHaveAttribute('data-message-id', second!.getAttribute('data-message-id'));
+    expect(screen.getByRole('button', { name: 'Open footer.png' })).toBeInTheDocument();
+  });
+
+  it.each([0, 1])('cancels only queued message %s and delivers only the surviving message and its files', async index => {
+    const { transport, image } = await queueOwnerMessages({});
+    await userEvent.click(screen.getAllByTitle('Cancel queued message')[index]!);
+    const remaining = screen.getAllByTestId('chat-pane-queued');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]).toHaveTextContent(index === 0 ? 'add the footer icons' : 'were you stuck?');
+    act(() => transport.finish());
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+    expect(transport.calls[1]!.input.history.at(-1)?.content).toBe(index === 0 ? 'add the footer icons' : 'were you stuck?');
+    expect(transport.calls[1]!.input.attachments).toEqual(index === 0 ? [image] : undefined);
+  });
+
+  it('canceling the last bubble empties the queue and never sends either message', async () => {
+    const { transport } = await queueOwnerMessages({});
+    await userEvent.click(screen.getAllByTitle('Cancel queued message')[0]!);
+    await userEvent.click(screen.getByTitle('Cancel queued message'));
+    expect(screen.queryAllByTestId('chat-pane-queued')).toHaveLength(0);
+    expect(screen.queryByTestId('composer-attachment-tray')).toBeNull();
+    act(() => transport.finish());
+    expect(transport.calls).toHaveLength(1);
   });
 });

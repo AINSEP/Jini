@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_PL: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Usunąłem z wiadomości tekst, który wyglądał jak klucz. Jeśli był prawdziwy, wymień go. Zapisz go za pomocą bezpiecznego formularza.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Użyj bezpiecznego formularza do zapisywania kluczy, tokenów, haseł i sekretów. Odpowiedzi na czacie są wysyłane do asystenta.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# Moja umiejętność\n\n1. Opisz przebieg pracy.\n2. Opisz dane wejściowe i wyjściowe.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'Niestandardowa ścieżka nie zadziałała, więc użyto automatycznie wykrytego pliku binarnego.',
   'API key': 'Klucz API',
   'About': 'Informacje',
   'Accent color': 'Kolor akcentu',
   'Account': 'Konto',
+  'Advanced': 'Zaawansowane',
   'Advanced: proxy & custom paths': 'Zaawansowane: proxy i niestandardowe ścieżki',
   'Agent check failed': 'Sprawdzenie agenta nie powiodło się',
   'Agent is ready.': 'Agent jest gotowy.',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_PL: SettingsDialogDict = {
   'Copy': 'Kopiuj',
   'Copy to clipboard': 'Kopiuj do schowka',
   'Could not load live models: {message}': 'Nie udało się wczytać modeli na żywo: {message}',
-  'No API key — connection test needs the key from this browser.': 'Brak klucza API — test połączenia wymaga klucza z tej przeglądarki.',
-  'No API key — model discovery needs the key from this browser.': 'Brak klucza API — wykrywanie modeli wymaga klucza z tej przeglądarki.',
+  'No API key saved. Save one to test the connection.': 'Nie zapisano klucza API. Zapisz klucz, aby przetestować połączenie.',
+  'No API key saved. Save one to load models.': 'Nie zapisano klucza API. Zapisz klucz, aby wczytać modele.',
   'Could not load skills: {error}': 'Nie udało się wczytać umiejętności: {error}',
   'Could not reach the daemon: {error}': 'Nie udało się połączyć z demonem: {error}',
   'Could not reach the server. Showing local changes only.': 'Nie udało się połączyć z serwerem. Wyświetlane są tylko zmiany lokalne.',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_PL: SettingsDialogDict = {
   'Not available for this daemon.': 'Niedostępne dla tego demona.',
   'Not configured': 'Nieskonfigurowane',
   'Not installed': 'Niezainstalowane',
+  'Show {count} not installed': 'Pokaż niezainstalowane ({count})',
+  'Hide not installed': 'Ukryj niezainstalowane',
+  'Show not-installed CLIs': 'Pokaż niezainstalowane CLI',
   'Not sharing': 'Nieudostępniane',
   'Nothing is shared unless you opt in.': 'Nic nie jest udostępniane, dopóki się na to nie zgodzisz.',
   'Off': 'Wyłączone',

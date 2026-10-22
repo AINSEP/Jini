@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Packed-import tests reuse the repo's shared fixture without emitting it into the package.
+    "rootDir": "../..",
+    "noEmit": true
+  },
+  "include": ["tests"]
+}

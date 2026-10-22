@@ -1,3 +1,6 @@
+import { acceptedInputUserEvent, projectAcceptedInputEvents, type AcceptedChatInput } from '../../core/accepted-input.js';
+import { redactUserHistory, redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
+import { preserveAssistantContent, mergeRunEvents } from '../../core/durable-projection.js';
 /**
  * @module useConversation
  *
@@ -12,13 +15,15 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
-import { isTerminalRunStatus } from '../../core/index.js';
+import { assistantContentFromEvents, isTerminalRunStatus } from '../../core/index.js';
 import type { ChatTransport, RunContext } from '../../core/index.js';
 import { useRunStream } from './useRunStream.js';
 
-export interface UseConversationOptions {
+export interface UseConversationOptions extends UserTextRedactionOptions {
   transport: ChatTransport;
   initialMessages?: ChatMessage[];
+  /** Optional host loader and browser ports, e.g. `{ loadMessages, visibility: document, focus: window }`; refresh stays passive. */
+  refreshSignal?: { loadMessages: () => Promise<ChatMessage[]>; visibility: EventTarget & { readonly visibilityState: string }; focus: EventTarget };
   conversationId?: string | null;
   agentId?: string;
   /** Defaults to a `crypto.randomUUID()`-based id generator when available, else a counter. */
@@ -26,6 +31,12 @@ export interface UseConversationOptions {
 }
 
 export interface SendMessageOptions {
+  /** Queue flushes reuse the input receipts recorded when they were queued. */
+  acceptedInputs?: AcceptedChatInput[];
+  /** Called after transport acceptance; rejection never consumes the draft or recall slot. */
+  onAccepted?: (input: { inputs: AcceptedChatInput[] }) => void;
+  /** Non-secret signal from a composer that already sanitized the content before this boundary. */
+  secretRedaction?: ChatMessage['secretRedaction'];
   attachments?: ChatAttachment[];
   context?: RunContext;
   agentId?: string;
@@ -56,19 +67,30 @@ function defaultCreateMessageId(): string {
   return `msg-${Date.now()}-${fallbackIdCounter}`;
 }
 
-function assistantContentFromEvents(events: AgentEvent[]): string {
-  let out = '';
-  for (const ev of events) {
-    if (ev.kind === 'text') out += ev.text;
-  }
-  return out;
+function pendingUserMessage(
+  { content, sendOptions, createMessageId }: { content: string; sendOptions: SendMessageOptions; createMessageId: () => string },
+  options: UserTextRedactionOptions = {},
+): ChatMessage {
+  return redactUserMessage<ChatMessage>({ message: {
+  id: createMessageId(),
+  role: 'user',
+  inputPending: true,
+  ...(sendOptions.acceptedInputs ? { events: sendOptions.acceptedInputs.map(input => acceptedInputUserEvent({ input }, { receipt: 'accepted' })) } : {}),
+  content,
+  createdAt: Date.now(),
+  ...(sendOptions.secretRedaction ? { secretRedaction: sendOptions.secretRedaction } : {}),
+  ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
+} }, options).message;
 }
 
 export function useConversation(options: UseConversationOptions): UseConversationResult {
   const { transport, conversationId = null, agentId, createMessageId = defaultCreateMessageId } = options;
-  const [messages, setMessagesState] = useState<ChatMessage[]>(options.initialMessages ?? []);
+  const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory(
+    { history: options.initialMessages ?? [] },
+    { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) },
+  ));
   const [scrollIntent, setScrollIntent] = useState(false);
-  const run = useRunStream(transport);
+  const run = useRunStream({ transport });
   // The assistant message id the currently-active run is writing into.
   const activeAssistantIdRef = useRef<string | null>(null);
   const messagesRef = useRef(messages);
@@ -76,6 +98,80 @@ export function useConversation(options: UseConversationOptions): UseConversatio
 
   const setMessages = useCallback((updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
     setMessagesState((prev) => (typeof updater === 'function' ? (updater as (p: ChatMessage[]) => ChatMessage[])(prev) : updater));
+  }, []);
+
+  // Map upserts preserve order in O(local + saved) time/space; cleanup fences late reads on switch/unmount/local runs.
+  useEffect(() => {
+    const source = options.refreshSignal;
+    if (!source || run.isStreaming) return;
+    let disposed = false, pending = false, timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const saved = await source.loadMessages();
+        if (!disposed) setMessagesState(prev => [...new Map([...prev, ...saved].map(message => [message.id, message])).values()]);
+      } catch (error) { if (!disposed) console.error('[chat] conversation refresh failed', error); }
+      finally { pending = false; }
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      if (source.visibility.visibilityState === 'visible') timer = setTimeout(() => { void refresh(); }, 500);
+    };
+    const events: [EventTarget, string][] = [[source.visibility, 'visibilitychange'], [source.focus, 'focus']];
+    for (const [target, event] of events) target.addEventListener(event, schedule);
+    return () => { disposed = true; clearTimeout(timer); for (const [target, event] of events) target.removeEventListener(event, schedule); };
+  }, [options.refreshSignal, run.isStreaming]);
+
+  /**
+   * The mount-time snapshot of `initialMessages`, captured once — the same "read once, never react
+   * to a later identity change" contract `messages`'s own `useState` initializer above already has
+   * for this same prop. A host's `initialMessages` array is expected to be a fresh identity on every
+   * render (`ChatPane` remounts the whole pane with a fresh `key` on a real conversation switch
+   * rather than pushing a new array into a live one), so depending on it directly in the effect below
+   * would re-fire on every render of a host that does not itself memoize the prop.
+   */
+  const initialMessagesRef = useRef(options.initialMessages);
+
+  /**
+   * Resumes an interrupted run on mount instead of leaving it frozen forever.
+   *
+   * `run.reattach` (`useRunStream.ts`) has existed since 2026-07-29 and is fully implemented —
+   * generation-guarded against double-subscription, abortable, race-safe — but until this effect,
+   * nothing in this package or any host ever called it. The gap it left: once a browser's live
+   * subscription to a run is torn down for ANY reason (this hook unmounting, a host remount, an HMR
+   * reload, a daemon restart), the run keeps going server-side and nothing ever tells the browser
+   * about it again — no more events, no more persistence, no error, just a frozen pane. The 2026-09-11 incident showed that teardown without remount reattachment
+   * leaves a running server task invisible to the browser. Reattaching needs a durably-recorded, non-terminal `runId` to find
+   * in `initialMessages` in the first place — the host is responsible for that half by persisting the run stub before starting the subscription.
+   *
+   * Mount-only (`[]` deps), by design: `useConversation` owns exactly one `useRunStream` instance for
+   * its whole lifetime, and a host that wants a different transcript remounts the pane with a fresh
+   * `key` rather than pushing a new `initialMessages` into a live one (see `initialMessagesRef`'s own
+   * doc) — so "the moment this hook mounts" IS "the moment a stale subscription needs recovering",
+   * and there is no later point in this hook's life that also needs this check.
+   *
+   * `activeAssistantIdRef.current` is set BEFORE calling `reattach`, not after: the reconciliation
+   * effect below (`applyRunToAssistantMessage`) no-ops whenever that ref is `null` — a reattach whose
+   * first event arrived before this assignment landed would be silently dropped on the floor instead
+   * of reaching the message it belongs to.
+   *
+   * A message with a `runId` but no `runStatus` at all is treated as nothing to reattach to, not as
+   * "assume non-terminal" — `useConversation`'s own reconciliation always writes both together, so
+   * the combination only arises from data this hook did not itself produce (a host's legacy rows, a
+   * different producer entirely), and there is no positive evidence there of an in-flight run worth
+   * the network round trip.
+   */
+  useEffect(() => {
+    const last = initialMessagesRef.current?.at(-1);
+    if (!last || last.role !== 'assistant') return;
+    if (last.runId === undefined || last.runStatus === undefined) return;
+    if (isTerminalRunStatus({ status: last.runStatus })) return;
+    activeAssistantIdRef.current = last.id;
+    void run.reattach(last.runId, last.events);
+    // Mount-only: see this effect's own doc for why `run` is deliberately not listed — it is a
+    // `useCallback` (`useRunStream.ts`), stable for this hook instance's whole lifetime, so omitting
+    // it changes nothing about correctness.
   }, []);
 
   const applyRunToAssistantMessage = useCallback(() => {
@@ -102,10 +198,11 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         return {
           ...m,
           ...(nextRunId !== undefined ? { runId: nextRunId } : {}),
-          events: run.events,
-          content: assistantContentFromEvents(run.events),
+          events: projectAcceptedInputEvents({ events: mergeRunEvents({ saved: m.events, incoming: run.events }, {}) }),
+          // Replayed completion prefixes cannot erase a saved interrupted segment.
+          content: preserveAssistantContent({ saved: m.content, incoming: assistantContentFromEvents({ events: run.events }) }, {}),
           runStatus,
-          ...(isTerminalRunStatus(runStatus) ? { endedAt: Date.now() } : {}),
+          ...(isTerminalRunStatus({ status: runStatus }) ? { endedAt: Date.now() } : {}),
         };
       }),
     );
@@ -125,13 +222,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
 
   const sendMessage = useCallback(
     async (content: string, sendOptions: SendMessageOptions = {}) => {
-      const userMessage: ChatMessage = {
-        id: createMessageId(),
-        role: 'user',
-        content,
-        createdAt: Date.now(),
-        ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
-      };
+      const userMessage = pendingUserMessage({ content, sendOptions, createMessageId }, options);
       const resolvedAgentId = sendOptions.agentId ?? agentId;
       const assistantMessage: ChatMessage = {
         id: createMessageId(),
@@ -143,18 +234,32 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         startedAt: Date.now(),
       };
       activeAssistantIdRef.current = assistantMessage.id;
-      const history = [...messagesRef.current, userMessage];
-      setMessagesState([...history, assistantMessage]);
+      const history = redactUserHistory({ history: [...messagesRef.current, userMessage] }, options);
+      // Functional, never `[...history, assistantMessage]`: `messagesRef` is the last RENDER's
+      // snapshot, and a host that sends from an effect (`useChatPane`'s queued-prompt flush) runs in
+      // the same commit as the reconciliation effect that just marked the previous turn terminal.
+      // Replacing the array with the snapshot threw that pending update away, leaving the finished
+      // turn `running` forever — and never persisted, since hosts persist only terminal turns
+      // (host stuck-chat investigation, 2026-09-27).
+      setMessagesState((prev) => [...prev, userMessage, assistantMessage]);
       setScrollIntent(true);
-      await run.start({
+      const accepted = await run.start({
+        assistantMessageId: assistantMessage.id,
         history,
         ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
         conversationId,
         ...(sendOptions.attachments !== undefined ? { attachments: sendOptions.attachments } : {}),
         ...(sendOptions.context !== undefined ? { context: sendOptions.context } : {}),
       });
+      if (!accepted) {
+        setMessagesState(prev => prev.filter(message => message.id !== userMessage.id && message.id !== assistantMessage.id));
+        return;
+      }
+      const inputs = sendOptions.acceptedInputs ?? [{ id: userMessage.id, text: userMessage.content }];
+      setMessagesState(prev => prev.map(message => message.id === userMessage.id ? { ...message, inputPending: false } : message));
+      sendOptions.onAccepted?.({ inputs });
     },
-    [agentId, conversationId, createMessageId, run],
+    [agentId, conversationId, createMessageId, run, options.redactUserText, options.onSecretRedacted],
   );
 
   const retry = useCallback(
@@ -163,10 +268,14 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       if (idx <= 0) return;
       const priorUser = messagesRef.current[idx - 1];
       if (!priorUser || priorUser.role !== 'user') return;
-      const history = messagesRef.current.slice(0, idx);
+      const history = redactUserHistory({ history: messagesRef.current.slice(0, idx) }, options);
       const resetAssistant: ChatMessage = { ...messagesRef.current[idx]!, content: '', events: [], runStatus: 'queued' };
       activeAssistantIdRef.current = resetAssistant.id;
-      setMessagesState([...history, resetAssistant]);
+      // Functional for the same reason as `sendMessage`'s: keep a just-queued terminal update.
+      setMessagesState((prev) => {
+        const at = prev.findIndex((m) => m.id === assistantMessageId);
+        return at < 0 ? [...history, resetAssistant] : [...prev.slice(0, at), resetAssistant];
+      });
       setScrollIntent(true);
       const resolvedAgentId = resetAssistant.agentId ?? agentId;
       // `priorUser`'s attachments go back out with the retry. They were located above and then
@@ -176,13 +285,14 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       // attachment beside the user turn, the failure reads as the model ignoring it rather than as
       // the client never having sent it.
       await run.start({
+        assistantMessageId: resetAssistant.id,
         history,
         ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
         conversationId,
         ...(priorUser.attachments !== undefined ? { attachments: priorUser.attachments } : {}),
       });
     },
-    [agentId, conversationId, run],
+    [agentId, conversationId, run, options.redactUserText, options.onSecretRedacted],
   );
 
   const cancel = useCallback(() => run.cancel(), [run]);

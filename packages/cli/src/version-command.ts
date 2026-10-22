@@ -4,7 +4,7 @@
  * `version` — prints just the running daemon's version string. Sourced from
  * `GET /api/daemon/status`'s `version` field (`packages/http/src/daemon-status.ts`,
  * `DaemonStatusResponse.version`) — the same route `daemon-command.ts`'s `daemon status`
- * already calls. `packages/cli/source-map.md`'s original UNCLEAR verdict on a standalone
+ * already calls. `packages/cli/archived provenance ledger`'s original UNCLEAR verdict on a standalone
  * `version` command noted "@jini-ai/http-kit has no version route yet ... nothing to call"; that
  * blocker never actually required a *separate* route — `daemonStatusRoute`'s response body
  * already carries a `version` field, so no new HTTP route was added for this command. It just
@@ -24,35 +24,32 @@ export interface VersionCommandDeps {
   /** Resolves the daemon HTTP base URL once per command invocation (e.g. wraps `resolveDaemonUrl`). */
   resolveBaseUrl: () => Promise<string> | string;
   /** Defaults to `process.stdout.write`; inject for tests. Used for the printed version string. */
-  write?: (text: string) => void;
+  write?: (requiredArgs: { text: string }) => void;
   /** Defaults to `process.stderr.write`; inject for tests. Used for usage/validation errors. */
-  writeErr?: (text: string) => void;
+  writeErr?: (requiredArgs: { text: string }) => void;
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   /** Defaults to `process.exit`; inject for tests (must not return). */
-  exit?: (code: number) => never;
+  exit?: (requiredArgs: { code: number }) => never;
   /** Extra/overriding `code -> exitCode` entries layered on the package default table. */
   exitCodes?: ExitCodeTable;
 }
 
-function defaultWrite(text: string): void {
+function defaultWrite({ text }: { text: string }): void {
   process.stdout.write(text);
 }
 
-function defaultWriteErr(text: string): void {
+function defaultWriteErr({ text }: { text: string }): void {
   process.stderr.write(text);
 }
 
-const VERSION_USAGE = renderUsage({
-  usage: ['version'],
-  description: 'Prints the running daemon\'s version string (nothing else — see "daemon status" for the full status envelope).',
-});
+const VERSION_USAGE = renderUsage({ usage: ['version'] }, { description: 'Prints the running daemon\'s version string (nothing else — see "daemon status" for the full status envelope).' });
 
 /** Builds `{write, exit, exitCodes?}` for `errors.ts`'s structured-error helpers, never assigning `exitCodes` when unset (required under `exactOptionalPropertyTypes`). */
-function errorOptions(deps: VersionCommandDeps): { write: (text: string) => void; exit: (code: number) => never; exitCodes?: ExitCodeTable } {
+function errorOptions(deps: VersionCommandDeps): { write: (requiredArgs: { text: string }) => void; exit: (requiredArgs: { code: number }) => never; exitCodes?: ExitCodeTable } {
   return {
     write: deps.writeErr ?? defaultWriteErr,
-    exit: deps.exit ?? ((code: number) => process.exit(code)),
+    exit: deps.exit ?? (({ code }: { code: number }) => process.exit(code)),
     ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
   };
 }
@@ -60,8 +57,8 @@ function errorOptions(deps: VersionCommandDeps): { write: (text: string) => void
 /** Builds the transport-call options object for `getJsonFromDaemon`, only ever including a key when its value is actually set. */
 function transportOptions(deps: VersionCommandDeps): {
   fetchImpl?: typeof fetch;
-  write?: (text: string) => void;
-  exit?: (code: number) => never;
+  write?: (requiredArgs: { text: string }) => void;
+  exit?: (requiredArgs: { code: number }) => never;
   exitCodes?: ExitCodeTable;
 } {
   return {
@@ -84,25 +81,24 @@ function extractVersion(deps: VersionCommandDeps, body: unknown): string {
     const version = (body as { version?: unknown }).version;
     if (typeof version === 'string' && version.length > 0) return version;
   }
-  return exitWithStructuredError(
-    { code: 'daemon-not-running', message: '/api/daemon/status response did not include a version string' },
-    errorOptions(deps),
-  );
+  return exitWithStructuredError({ code: 'daemon-not-running', message: '/api/daemon/status response did not include a version string' }, errorOptions(deps));
 }
 
 /** `version` */
-export async function versionCommand(args: readonly string[], deps: VersionCommandDeps): Promise<void> {
+export async function versionCommand({ args, resolveBaseUrl }: { args: readonly string[]; resolveBaseUrl: VersionCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<VersionCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: VersionCommandDeps = { resolveBaseUrl, ...optionalArgs };
   if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${VERSION_USAGE}\n`);
+    (deps.write ?? defaultWrite)({ text: `${VERSION_USAGE}\n` });
     return;
   }
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await getJsonFromDaemon(baseUrl, '/api/daemon/status', transportOptions(deps));
+  const result = await getJsonFromDaemon({ base: baseUrl, route: '/api/daemon/status' }, transportOptions(deps));
   const version = extractVersion(deps, result);
-  (deps.write ?? defaultWrite)(`${version}\n`);
+  (deps.write ?? defaultWrite)({ text: `${version}\n` });
 }
 
 /** Registers `version` against `registry`. */
-export function registerVersionCommand(registry: CommandRegistry, deps: VersionCommandDeps): void {
-  registry.add('version', (args) => versionCommand(args, deps), { usage: VERSION_USAGE });
+export function registerVersionCommand({ registry, resolveBaseUrl }: { registry: CommandRegistry; resolveBaseUrl: VersionCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<VersionCommandDeps, "resolveBaseUrl"> = {}): void {
+  const deps: VersionCommandDeps = { resolveBaseUrl, ...optionalArgs };
+  registry.add({ name: 'version', handler: ({ args }) => versionCommand({ args, resolveBaseUrl: resolveBaseUrl }, optionalArgs) }, { usage: VERSION_USAGE });
 }

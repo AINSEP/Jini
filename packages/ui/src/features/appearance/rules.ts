@@ -17,16 +17,16 @@ export type AccentCssVars = Record<(typeof ACCENT_VARS)[number], string>;
  *   string or does not match `#rrggbb`.
  * @complexity O(1).
  */
-export function normalizeAccentColor(value: unknown): string | null {
+export function normalizeAccentColor({ value }: { value: unknown }): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed.toLowerCase() : null;
 }
 
-/** `normalizeAccentColor(value) ?? DEFAULT_ACCENT_COLOR` — always returns a
+/** `normalizeAccentColor({ value }) ?? DEFAULT_ACCENT_COLOR` — always returns a
  *  usable color. */
-export function resolveAccentColor(value: unknown): string {
-  return normalizeAccentColor(value) ?? DEFAULT_ACCENT_COLOR;
+export function resolveAccentColor({ value }: { value: unknown }): string {
+  return normalizeAccentColor({ value }) ?? DEFAULT_ACCENT_COLOR;
 }
 
 /**
@@ -38,7 +38,7 @@ export function resolveAccentColor(value: unknown): string {
  *
  * @complexity O(1) — five template-string formulas, no DOM access.
  */
-export function accentVars(accentColor: string): AccentCssVars {
+export function accentVars({ accentColor }: { accentColor: string }): AccentCssVars {
   return {
     '--accent': accentColor,
     '--accent-strong': `color-mix(in srgb, ${accentColor} 86%, var(--text-strong))`,

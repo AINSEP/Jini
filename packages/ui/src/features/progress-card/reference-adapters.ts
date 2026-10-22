@@ -6,7 +6,7 @@
  * on that package, and any host whose real types are a structural superset
  * can pass them in directly. Field-level provenance and what was
  * deliberately dropped (a Bash `rm`-command heuristic from the file-ops
- * derivation) are documented in `packages/ui/source-map.md`.
+ * derivation) are documented in `packages/ui/archived provenance ledger`.
  *
  * These adapters are shipped as documented reference material, not as the
  * package's primary port surface — a host with its own run/job shape maps
@@ -91,18 +91,13 @@ export function parseTodoWriteInput(input: unknown): TodoItemLike[] {
     .map((todo): TodoItemLike | null => {
       if (!todo || typeof todo !== 'object') return null;
       const todoRecord = todo as Record<string, unknown>;
-      const content =
-        typeof todoRecord.content === 'string'
-          ? todoRecord.content
-          : typeof todoRecord.step === 'string'
-            ? todoRecord.step
-            : typeof todoRecord.description === 'string'
-              ? todoRecord.description
-              : typeof todoRecord.label === 'string'
-                ? todoRecord.label
-                : typeof todoRecord.text === 'string'
-                  ? todoRecord.text
-                  : '';
+      let content = '';
+      for (const key of ['content', 'step', 'description', 'label', 'text'] as const) {
+        if (typeof todoRecord[key] === 'string') {
+          content = todoRecord[key] as string;
+          break;
+        }
+      }
       if (!content) return null;
       return { content, status: normalizeTodoStatus(todoRecord.status) };
     })
@@ -139,7 +134,7 @@ function todoStatusToProgressStatus(status: TodoStatusLike): ProgressStatus {
 // ---------------------------------------------------------------------------
 // File-op derivation (ported from the source `runtime/file-ops.ts` and
 // `runtime/tool-events.ts`, minus the Bash `rm`-command detection heuristic —
-// see source-map.md)
+// see archived provenance ledger)
 // ---------------------------------------------------------------------------
 
 export type FileOpStatusLike = 'running' | 'done' | 'error';
@@ -192,42 +187,57 @@ export function dedupeToolUsesById(events: AgentEventLike[] | undefined): AgentE
   let deduped: AgentEventLike[] | null = null;
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index]!;
-    if (isToolUseEvent(event)) {
-      if (seen.has(event.id)) {
-        if (!deduped) deduped = events.slice(0, index);
-        continue;
-      }
+    if (!isToolUseEvent(event)) {
+      deduped?.push(event);
+    } else if (seen.has(event.id)) {
+      deduped ??= events.slice(0, index);
+    } else {
       seen.add(event.id);
+      deduped?.push(event);
     }
-    if (deduped) deduped.push(event);
   }
   return deduped ?? events;
+}
+
+function fileOpFromAgentEvent(
+  { event, resultByToolUseId }: {
+    event: AgentEventLike;
+    resultByToolUseId: ReadonlyMap<string, AgentToolResultEventLike>;
+  },
+  _options: Record<string, never> = {},
+): { fullPath: string; kind: FileOpKindLike; status: FileOpStatusLike } | null {
+  if (!isToolUseEvent(event)) return null;
+  const kind = classifyFileOp(event.name);
+  if (!kind) return null;
+  const fullPath = extractFileOpPath(event.input);
+  if (!fullPath) return null;
+  const result = resultByToolUseId.get(event.id);
+  const status: FileOpStatusLike = result === undefined ? 'running' : result.isError ? 'error' : 'done';
+  return { fullPath, kind, status };
 }
 
 export function deriveFileOpsFromAgentEvents(events: AgentEventLike[] | undefined): FileOpEntryLike[] {
   if (!events || events.length === 0) return [];
   const dedupedEvents = dedupeToolUsesById(events);
-  const resultByToolUseId = new Map<string, AgentToolResultEventLike>();
-  for (const event of dedupedEvents) {
-    if (isToolResultEvent(event)) resultByToolUseId.set(event.toolUseId, event);
-  }
-
+  const resultByToolUseId = new Map(
+    dedupedEvents.filter(isToolResultEvent).map((event) => [event.toolUseId, event] as const),
+  );
   const byPath = new Map<string, FileOpEntryLike>();
   for (const event of dedupedEvents) {
-    if (!isToolUseEvent(event)) continue;
-    const kind = classifyFileOp(event.name);
-    if (!kind) continue;
-    const fullPath = extractFileOpPath(event.input);
-    if (!fullPath) continue;
-    const result = resultByToolUseId.get(event.id);
-    const status: FileOpStatusLike = result === undefined ? 'running' : result.isError ? 'error' : 'done';
-    const existing = byPath.get(fullPath);
+    const entry = fileOpFromAgentEvent({ event, resultByToolUseId });
+    if (!entry) continue;
+    const existing = byPath.get(entry.fullPath);
     if (existing) {
-      if (!existing.ops.includes(kind)) existing.ops.push(kind);
-      existing.status = mergeFileOpStatus(existing.status, status);
+      if (!existing.ops.includes(entry.kind)) existing.ops.push(entry.kind);
+      existing.status = mergeFileOpStatus(existing.status, entry.status);
       continue;
     }
-    byPath.set(fullPath, { path: basename(fullPath), fullPath, ops: [kind], status });
+    byPath.set(entry.fullPath, {
+      path: basename(entry.fullPath),
+      fullPath: entry.fullPath,
+      ops: [entry.kind],
+      status: entry.status,
+    });
   }
   return Array.from(byPath.values());
 }
@@ -288,15 +298,7 @@ function fallbackChatActivitySteps(status: ProgressStatus, fileOps: FileOpEntryL
     {
       id: 'update-files',
       label: 'Update files',
-      status: hasError
-        ? 'failed'
-        : hasMutation
-          ? fileOps.some((entry) => entry.status === 'running')
-            ? 'running'
-            : 'succeeded'
-          : status === 'running'
-            ? 'pending'
-            : 'succeeded',
+      status: fallbackUpdateStatus({ status, fileOps, hasError, hasMutation }),
     },
     {
       id: 'finalize',
@@ -304,6 +306,32 @@ function fallbackChatActivitySteps(status: ProgressStatus, fileOps: FileOpEntryL
       status: status === 'succeeded' ? 'succeeded' : status === 'failed' ? 'failed' : 'pending',
     },
   ];
+}
+
+function fallbackUpdateStatus(
+  { status, fileOps, hasError, hasMutation }: {
+    status: ProgressStatus;
+    fileOps: FileOpEntryLike[];
+    hasError: boolean;
+    hasMutation: boolean;
+  },
+  _options: Record<string, never> = {},
+): ProgressStatus {
+  if (hasError) return 'failed';
+  if (hasMutation) return fileOps.some((entry) => entry.status === 'running') ? 'running' : 'succeeded';
+  return status === 'running' ? 'pending' : 'succeeded';
+}
+
+function chatActivitySteps(
+  { todos, status, fileOps }: { todos: TodoItemLike[]; status: ProgressStatus; fileOps: FileOpEntryLike[] },
+  _options: Record<string, never> = {},
+): ProgressCardItem[] {
+  if (todos.length === 0) return fallbackChatActivitySteps(status, fileOps);
+  return todos.map((todo, index) => ({
+    id: `${todo.content}-${index}`,
+    label: todo.content,
+    status: todoStatusToProgressStatus(todo.status),
+  }));
 }
 
 /** Maps a chat message's agent-event stream onto `ProgressCardData`. Returns
@@ -323,14 +351,7 @@ export function chatActivityToProgressCard(
     options.active || todos.length > 0 || fileOps.length > 0 || statusDetail !== null || status === 'failed';
   if (!hasActivity) return null;
 
-  const steps: ProgressCardItem[] =
-    todos.length > 0
-      ? todos.map((todo, index) => ({
-          id: `${todo.content}-${index}`,
-          label: todo.content,
-          status: todoStatusToProgressStatus(todo.status),
-        }))
-      : fallbackChatActivitySteps(status, fileOps);
+  const steps = chatActivitySteps({ todos, status, fileOps });
 
   const secondaryItems: ProgressCardItem[] = fileOps.map((entry) => ({
     id: entry.fullPath,

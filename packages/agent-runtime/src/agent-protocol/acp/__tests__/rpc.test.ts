@@ -207,30 +207,30 @@ describe('choosePermissionOutcome', () => {
     expect(choosePermissionOutcome(undefined)).toBeNull();
   });
 
-  it('prefers approve_for_session when present', () => {
+  it('uses allow_once in bypass mode rather than a session-wide approval', () => {
     expect(
       choosePermissionOutcome([
         { optionId: 'allow_once', kind: 'allow_once' },
         { optionId: 'approve_for_session' },
-      ]),
-    ).toBe('approve_for_session');
+      ], { permissionMode: 'bypass' }),
+    ).toBe('allow_once');
   });
 
-  it('falls back to allow_always when no approve_for_session option exists', () => {
+  it('prefers allow_once over allow_always in bypass mode', () => {
     expect(
       choosePermissionOutcome([
         { optionId: 'allow_once', kind: 'allow_once' },
         { optionId: 'always-id', kind: 'allow_always' },
-      ]),
-    ).toBe('always-id');
+      ], { permissionMode: 'bypass' }),
+    ).toBe('allow_once');
   });
 
-  it('falls back to allow_once when neither of the above exist', () => {
-    expect(choosePermissionOutcome([{ optionId: 'once-id', kind: 'allow_once' }])).toBe('once-id');
+  it('selects allow_once when bypass is explicit', () => {
+    expect(choosePermissionOutcome([{ optionId: 'once-id', kind: 'allow_once' }], { permissionMode: 'bypass' })).toBe('once-id');
   });
 
-  it('returns null when no approvable option is found', () => {
-    expect(choosePermissionOutcome([{ optionId: 'deny', kind: 'reject_once' }])).toBeNull();
+  it('rejects once by default', () => {
+    expect(choosePermissionOutcome([{ optionId: 'deny', kind: 'reject_once' }])).toBe('deny');
   });
 
   it('returns null when an allow_always option has no optionId', () => {
@@ -238,7 +238,19 @@ describe('choosePermissionOutcome', () => {
   });
 
   it('returns null when an allow_once option has no optionId', () => {
-    expect(choosePermissionOutcome([{ kind: 'allow_once' }])).toBeNull();
+    expect(choosePermissionOutcome([{ kind: 'allow_once' }], { permissionMode: 'bypass' })).toBeNull();
+  });
+
+  it('rejects rather than broadening a bypass approval when allow_once is absent', () => {
+    expect(choosePermissionOutcome([{ optionId: 'always', kind: 'allow_always' }, { optionId: 'deny', kind: 'reject_once' }], { permissionMode: 'bypass' })).toBe('deny');
+  });
+
+  it('falls back to reject_always when reject_once is absent', () => {
+    expect(choosePermissionOutcome([{ optionId: 'deny-all', kind: 'reject_always' }])).toBe('deny-all');
+  });
+
+  it('does not authorize an unknown kind, empty id, or malformed option', () => {
+    expect(choosePermissionOutcome([null, 7, { optionId: '', kind: 'reject_once' }, { optionId: 'unknown', kind: 'approve' }])).toBeNull();
   });
 
   it('returns null for an empty array', () => {

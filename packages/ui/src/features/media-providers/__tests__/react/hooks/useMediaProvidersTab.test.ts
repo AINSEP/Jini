@@ -1,3 +1,4 @@
+import { identityCatalogPolicy as catalogPolicy } from '../../catalog-policy.fixture.js';
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeMediaProvidersPort } from '../../../dependencies.js';
@@ -18,7 +19,7 @@ import { useMediaProvidersTab } from '../../../react/hooks/useMediaProvidersTab.
 describe('useMediaProvidersTab — initial load', () => {
   it('starts loading and reconciles against the daemon result', async () => {
     const port = createFakeMediaProvidersPort({ providers: { a: { apiKeyConfigured: true, apiKeyTail: '1234' } } });
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     expect(result.current.load).toEqual({ status: 'loading' });
 
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
@@ -29,7 +30,7 @@ describe('useMediaProvidersTab — initial load', () => {
   it('an unreachable daemon (null) leaves local state exactly as it was, not wiped to {}', async () => {
     const port = createFakeMediaProvidersPort({ unreachable: true });
     const initialProviders: MediaProviderMap = { a: { apiKey: 'typed-locally' } };
-    const { result } = renderHook(() => useMediaProvidersTab({ port, initialProviders }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port, initialProviders }));
 
     await waitFor(() => expect(result.current.load).toEqual({ status: 'unreachable' }));
     // The bug this pins: collapsing null into {} here would drop `a` entirely.
@@ -40,7 +41,7 @@ describe('useMediaProvidersTab — initial load', () => {
     const port = createFakeMediaProvidersPort();
     const saveSpy = vi.spyOn(port, 'saveMediaProviders');
     const initialProviders: MediaProviderMap = { a: { apiKey: 'sk-local' } };
-    renderHook(() => useMediaProvidersTab({ port, initialProviders }));
+    renderHook(() => useMediaProvidersTab({ catalogPolicy, port, initialProviders }));
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledWith({ a: { apiKey: 'sk-local' } }));
   });
@@ -49,7 +50,7 @@ describe('useMediaProvidersTab — initial load', () => {
     const port = createFakeMediaProvidersPort({ providers: { b: { apiKeyConfigured: true } } });
     const saveSpy = vi.spyOn(port, 'saveMediaProviders');
     const initialProviders: MediaProviderMap = { a: { apiKey: 'sk-local' } };
-    const { result } = renderHook(() => useMediaProvidersTab({ port, initialProviders }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port, initialProviders }));
 
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
     expect(saveSpy).not.toHaveBeenCalled();
@@ -59,7 +60,7 @@ describe('useMediaProvidersTab — initial load', () => {
 describe('useMediaProvidersTab — updateProvider', () => {
   it('sets a field and marks the provider pending', async () => {
     const port = createFakeMediaProvidersPort();
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.updateProvider('a', { apiKey: 'sk-1' });
@@ -69,7 +70,7 @@ describe('useMediaProvidersTab — updateProvider', () => {
 
   it('merges a patch onto the existing entry rather than replacing it', async () => {
     const port = createFakeMediaProvidersPort({ providers: { a: { apiKeyConfigured: true, apiKeyTail: '1234' } } });
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toEqual({ apiKeyConfigured: true, apiKeyTail: '1234' }));
 
     result.current.updateProvider('a', { baseUrl: 'https://typed' });
@@ -80,7 +81,7 @@ describe('useMediaProvidersTab — updateProvider', () => {
 
   it('drops the provider entirely once every field is patched back to empty', async () => {
     const port = createFakeMediaProvidersPort();
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.updateProvider('a', { apiKey: 'sk-1' });
@@ -93,7 +94,7 @@ describe('useMediaProvidersTab — updateProvider', () => {
 describe('useMediaProvidersTab — clearProvider', () => {
   it('removes the provider and persists the removal immediately', async () => {
     const port = createFakeMediaProvidersPort({ providers: { a: { apiKeyConfigured: true } } });
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toBeDefined());
 
     result.current.clearProvider('a');
@@ -107,13 +108,44 @@ describe('useMediaProvidersTab — clearProvider', () => {
       fetchMediaProviders: () => Promise.resolve({ a: { apiKeyConfigured: true } }),
       saveMediaProviders: () => Promise.reject(new Error('disk full')),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toBeDefined());
 
     result.current.clearProvider('a');
     await waitFor(() => expect(result.current.save).toEqual({ status: 'save-error', message: 'disk full' }));
     // The credential the daemon never actually dropped must still be there.
     expect(result.current.providers.a).toEqual({ apiKeyConfigured: true });
+  });
+
+  it('a failed clear of a provider that was never present restores nothing', async () => {
+    const port: MediaProvidersPort = {
+      fetchMediaProviders: () => Promise.resolve({ a: { apiKeyConfigured: true } }),
+      saveMediaProviders: () => Promise.reject(new Error('disk full')),
+    };
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
+    await waitFor(() => expect(result.current.providers.a).toBeDefined());
+
+    result.current.clearProvider('ghost');
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'save-error', message: 'disk full' }));
+    expect(result.current.providers).toEqual({ a: { apiKeyConfigured: true } });
+  });
+
+  it('releases the tombstone once the clear is saved, so a later daemon copy shows again', async () => {
+    let daemon: MediaProviderMap = { a: { apiKeyConfigured: true } };
+    const port: MediaProvidersPort = {
+      fetchMediaProviders: () => Promise.resolve(daemon),
+      saveMediaProviders: (providers) => Promise.resolve(providers),
+    };
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
+    await waitFor(() => expect(result.current.providers.a).toBeDefined());
+
+    result.current.clearProvider('a');
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+
+    // Re-configured elsewhere after the clear landed: the daemon is authoritative again.
+    daemon = { a: { apiKeyTail: '7777' } };
+    result.current.reload();
+    await waitFor(() => expect(result.current.providers.a).toEqual({ apiKeyTail: '7777' }));
   });
 
   /**
@@ -134,7 +166,7 @@ describe('useMediaProvidersTab — clearProvider', () => {
           saveResolve = resolve;
         }),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toBeDefined());
 
     result.current.clearProvider('a');
@@ -161,7 +193,7 @@ describe('useMediaProvidersTab — clearProvider', () => {
       fetchMediaProviders: () => Promise.resolve({ a: { apiKeyConfigured: true } }),
       saveMediaProviders: () => Promise.reject(new Error('disk full')),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toBeDefined());
 
     result.current.clearProvider('a');
@@ -176,7 +208,7 @@ describe('useMediaProvidersTab — clearProvider', () => {
 describe('useMediaProvidersTab — saveChanges', () => {
   it('flushes every current provider and clears pending state on success', async () => {
     const port = createFakeMediaProvidersPort();
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.updateProvider('a', { apiKey: 'sk-1' });
@@ -193,7 +225,7 @@ describe('useMediaProvidersTab — saveChanges', () => {
       fetchMediaProviders: () => Promise.resolve({}),
       saveMediaProviders: () => Promise.reject('boom'),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.saveChanges();
@@ -202,7 +234,7 @@ describe('useMediaProvidersTab — saveChanges', () => {
 
   it('reports a save error and keeps the unsaved edit intact', async () => {
     const port = createFakeMediaProvidersPort({ saveError: 'network down' });
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.updateProvider('a', { apiKey: 'sk-1' });
@@ -223,7 +255,7 @@ describe('useMediaProvidersTab — unmount safety', () => {
           resolveSave = resolve;
         }),
     };
-    const { result, unmount } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result, unmount } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.saveChanges();
@@ -245,7 +277,7 @@ describe('useMediaProvidersTab — unmount safety', () => {
           rejectSave = reject;
         }),
     };
-    const { result, unmount } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result, unmount } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.saveChanges();
@@ -259,7 +291,7 @@ describe('useMediaProvidersTab — unmount safety', () => {
 describe('useMediaProvidersTab — reload', () => {
   it('preserves a pending local edit over what the server reports for that same provider', async () => {
     const port = createFakeMediaProvidersPort({ providers: { a: { apiKeyTail: '9999', apiKeyConfigured: true } } });
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.updateProvider('a', { apiKey: 'still-typing' });
@@ -288,7 +320,7 @@ describe('useMediaProvidersTab — reload', () => {
         .mockResolvedValueOnce(null),
       saveMediaProviders: vi.fn(),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
     expect(result.current.providers).toEqual({ a: { apiKeyConfigured: true } });
 
@@ -314,7 +346,7 @@ describe('useMediaProvidersTab — reload', () => {
         }),
       saveMediaProviders: vi.fn(),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(pending).toHaveLength(1));
     pending[0]!({});
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
@@ -365,7 +397,7 @@ describe('useMediaProvidersTab — serialized whole-map saves', () => {
     // Save-then-Clear is an ordinary double-click: nothing disables Clear while
     // a save is in flight. The second write must WAIT, not race.
     const { port, release, calls } = gatedPort();
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.saveChanges();
@@ -406,7 +438,7 @@ describe('useMediaProvidersTab — serialized whole-map saves', () => {
           });
         }),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.saveChanges();
@@ -428,7 +460,7 @@ describe('useMediaProvidersTab — serialized whole-map saves', () => {
 
   it('coalesces several requests made during one in-flight write into a single follow-up', async () => {
     const { port, release, calls } = gatedPort();
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
 
     result.current.saveChanges();
@@ -465,7 +497,7 @@ describe('useMediaProvidersTab — edits made while a write is in flight', () =>
           rejectSave = reject;
         }),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toBeDefined());
 
     result.current.clearProvider('a');
@@ -490,7 +522,7 @@ describe('useMediaProvidersTab — edits made while a write is in flight', () =>
           rejectSave = reject;
         }),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toBeDefined());
 
     result.current.clearProvider('a');
@@ -516,7 +548,7 @@ describe('useMediaProvidersTab — edits made while a write is in flight', () =>
           resolveSave = resolve;
         }),
     };
-    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    const { result } = renderHook(() => useMediaProvidersTab({ catalogPolicy, port }));
     await waitFor(() => expect(result.current.providers.a).toBeDefined());
 
     result.current.saveChanges();

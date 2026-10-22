@@ -4,6 +4,7 @@ import type { TabStripHapticsPort } from '../../ports.js';
 import type { TabStripDropEdge, TabStripReorderTiming, TabStripTab } from '../../types.js';
 import { useTabStripDragReorder } from '../hooks/useTabStripDragReorder.js';
 import { TabStripItem } from './TabStripItem.js';
+import { TabStripFrame } from './TabStripFrame.js';
 
 export interface TabStripProps {
   tabs: TabStripTab[];
@@ -63,7 +64,7 @@ export function TabStrip({
   });
 
   return (
-    <div
+    <TabStripFrame
       className={['jini-tab-strip', className].filter(Boolean).join(' ')}
       role="tablist"
       aria-label={ariaLabel}
@@ -89,6 +90,6 @@ export function TabStrip({
         />
       ))}
       {trailing}
-    </div>
+    </TabStripFrame>
   );
 }

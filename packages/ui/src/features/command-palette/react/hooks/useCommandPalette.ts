@@ -61,16 +61,11 @@ export function useCommandPalette(
       onClose();
       return;
     }
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       if (results.length === 0) return;
-      setCursor((current) => nextCursor(current, results.length, 1));
-      return;
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (results.length === 0) return;
-      setCursor((current) => nextCursor(current, results.length, -1));
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      setCursor((current) => nextCursor(current, results.length, direction));
       return;
     }
     if (event.key === 'Enter') {

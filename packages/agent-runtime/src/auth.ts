@@ -11,12 +11,12 @@
  * `antigravityQuotaGuidance`, `reasonixAuthGuidance`, `claudeAuthGuidance`)
  * and `genericAuthGuidance` took an implicit product name baked into nine
  * literal strings (e.g. "expose CURSOR_API_KEY in the <product>'s process
- * environment" — see `source-map.md` for the exact original text). Each
+ * environment" — see `archived provenance ledger` for the exact original text). Each
  * now takes an optional `hostName`
  * parameter (default `'the host application'`) so the guidance text is
  * product-neutral by default and a consumer can substitute its own name.
  * `classifyAgentAuthFailure`/`probeAgentAuthStatus` thread `hostName`
- * through to whichever guidance function they call. See `source-map.md`.
+ * through to whichever guidance function they call. See `archived provenance ledger`.
  */
 import { execAgentFile } from './invocation.js';
 import type { RuntimeAgentDef, RuntimeEnv } from './types.js';
@@ -37,11 +37,11 @@ export type AgentAuthProbeResult = {
 
 const DEFAULT_HOST_NAME = 'the host application';
 
-function cursorAuthGuidanceText(hostName: string): string {
+export function cursorAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return `Cursor Agent is not authenticated. Run \`cursor-agent login\`, then \`cursor-agent status\`, and retry. For automation, ensure CURSOR_API_KEY is set in ${hostName}'s process environment.`;
 }
 
-function deepseekAuthGuidanceText(hostName: string): string {
+export function deepseekAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return `DeepSeek TUI is installed but is not authenticated. Add or verify your API key in \`~/.deepseek/config.toml\` as \`api_key = "..."\`, or expose DEEPSEEK_API_KEY to ${hostName}'s daemon process, then retry. If ${hostName} is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.`;
 }
 
@@ -55,7 +55,7 @@ function deepseekAuthGuidanceText(hostName: string): string {
 // browser, completes OAuth, and writes the credentials to the system
 // keyring — both `-p` and TUI invocations read from there afterward, so
 // the chat run can succeed on retry.
-function antigravityAuthGuidanceText(hostName: string): string {
+export function antigravityAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return `Antigravity needs to sign in. The agy CLI's keyring entry has expired or been cleared, and \`-p\` print mode cannot complete OAuth on its own (it has no field to paste the auth code into).\n\nFix: open a terminal and run \`agy\` once — it will open Google sign-in in your browser, accept the redirect, and store the token in your system keyring. After you finish, return here and retry this chat. You only need to do this once; the keyring entry persists across both terminal and ${hostName} runs.`;
 }
 
@@ -66,43 +66,20 @@ function antigravityAuthGuidanceText(hostName: string): string {
 //   your administrator to enable overages. Resets in <H>h<M>m<S>s.
 // to the `--log-file`. Print mode emits nothing on stdout/stderr, so
 // without log inspection the failure misreads as missing-OAuth.
-function antigravityQuotaGuidanceText(): string {
+export function antigravityQuotaGuidance(): string {
   return 'Antigravity returned "RESOURCE_EXHAUSTED: Individual quota reached" for the current model. Each Antigravity model (Gemini 3 Pro / Flash, Claude 4.6, GPT-OSS) has its own quota.\n\nFix: open `agy` in a terminal and use its Switch Model picker (the menu at the bottom of the TUI) to pick a model with available quota, then retry here. Quotas reset automatically on Antigravity\'s schedule.';
 }
 
-function reasonixAuthGuidanceText(hostName: string): string {
+export function reasonixAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return `DeepSeek Reasonix is installed but is not authenticated. Add your API key in \`~/.reasonix/config.json\` under \`apiKey\`, or expose DEEPSEEK_API_KEY to ${hostName}'s daemon process, then retry. If ${hostName} is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.`;
 }
 
-function claudeAuthGuidanceText(hostName: string): string {
+export function claudeAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
   return `Claude Code is installed but is not authenticated. Run \`claude auth login\` or open \`claude\` and complete login in a terminal, then rescan. If ${hostName} was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.`;
 }
 
-export function cursorAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
-  return cursorAuthGuidanceText(hostName);
-}
 
-export function deepseekAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
-  return deepseekAuthGuidanceText(hostName);
-}
-
-export function antigravityAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
-  return antigravityAuthGuidanceText(hostName);
-}
-
-export function antigravityQuotaGuidance(): string {
-  return antigravityQuotaGuidanceText();
-}
-
-export function reasonixAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
-  return reasonixAuthGuidanceText(hostName);
-}
-
-export function claudeAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
-  return claudeAuthGuidanceText(hostName);
-}
-
-export function isCursorAuthFailureText(text: string): boolean {
+export function isCursorAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -124,7 +101,7 @@ export function isCursorAuthFailureText(text: string): boolean {
 //   "error getting token source: You are not logged into Antigravity"
 // Any of these is sufficient signal — match conservatively so the regex
 // doesn't fire on prose containing the word "authentication" by accident.
-export function isAntigravityAuthFailureText(text: string): boolean {
+export function isAntigravityAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -135,7 +112,7 @@ export function isAntigravityAuthFailureText(text: string): boolean {
   );
 }
 
-export function isDeepSeekAuthFailureText(text: string): boolean {
+export function isDeepSeekAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -147,7 +124,7 @@ export function isDeepSeekAuthFailureText(text: string): boolean {
   );
 }
 
-export function isReasonixAuthFailureText(text: string): boolean {
+export function isReasonixAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
   return (
@@ -158,9 +135,11 @@ export function isReasonixAuthFailureText(text: string): boolean {
   );
 }
 
-export function isClaudeAuthFailureText(text: string): boolean {
-  const value = String(text || '');
-  if (!value.trim()) return false;
+// Structured verdict from `claude auth status` JSON: a boolean when either key
+// is a boolean (`true` wins), undefined when the text is not JSON or carries
+// neither key. Property access on a JSON `null` throws inside the `try`, which
+// deliberately lands in the same text-matching fallback as invalid JSON.
+function claudeJsonAuthFailure({ value }: { value: string }): boolean | undefined {
   try {
     const parsed = JSON.parse(value) as { authenticated?: unknown; loggedIn?: unknown };
     if (parsed.authenticated === true || parsed.loggedIn === true) return false;
@@ -168,6 +147,10 @@ export function isClaudeAuthFailureText(text: string): boolean {
   } catch {
     // Fall through to text matching below.
   }
+  return undefined;
+}
+
+function claudeTextAuthFailure({ value }: { value: string }): boolean {
   if (/"authenticated"\s*:\s*true/i.test(value) || /"loggedIn"\s*:\s*true/i.test(value)) {
     return false;
   }
@@ -181,32 +164,34 @@ export function isClaudeAuthFailureText(text: string): boolean {
   );
 }
 
-export function classifyAgentAuthFailure(
-  agentId: string,
-  text: string,
-  hostName: string = DEFAULT_HOST_NAME,
+export function isClaudeAuthFailureText({ text }: { text: string }): boolean {
+  const value = String(text || '');
+  if (!value.trim()) return false;
+  return claudeJsonAuthFailure({ value }) ?? claudeTextAuthFailure({ value });
+}
+
+type TailoredAuthClassifier = {
+  isFailure: (requiredArgs: { text: string }) => boolean;
+  guidance: (requiredArgs: { hostName: string }) => string;
+};
+
+// Agents that ship a bespoke auth-failure classifier + tailored sign-in hint.
+// Map (not an object literal) so an arbitrary agent id can never hit a
+// prototype key.
+const TAILORED_AUTH_CLASSIFIERS: ReadonlyMap<string, TailoredAuthClassifier> = new Map<string, TailoredAuthClassifier>([
+  ['claude', { isFailure: isClaudeAuthFailureText, guidance: ({ hostName }) => claudeAuthGuidance({}, { hostName }) }],
+  ['cursor-agent', { isFailure: isCursorAuthFailureText, guidance: ({ hostName }) => cursorAuthGuidance({}, { hostName }) }],
+  ['deepseek', { isFailure: isDeepSeekAuthFailureText, guidance: ({ hostName }) => deepseekAuthGuidance({}, { hostName }) }],
+  ['antigravity', { isFailure: isAntigravityAuthFailureText, guidance: ({ hostName }) => antigravityAuthGuidance({}, { hostName }) }],
+  ['reasonix', { isFailure: isReasonixAuthFailureText, guidance: ({ hostName }) => reasonixAuthGuidance({}, { hostName }) }],
+]);
+
+
+export function classifyAgentAuthFailure({ agentId, text }: { agentId: string; text: string }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}
 ): AgentAuthProbeResult | null {
-  if (agentId === 'claude') {
-    if (!isClaudeAuthFailureText(text)) return null;
-    return { status: 'missing', message: claudeAuthGuidance(hostName) };
-  }
-  if (agentId === 'cursor-agent') {
-    if (!isCursorAuthFailureText(text)) return null;
-    return { status: 'missing', message: cursorAuthGuidance(hostName) };
-  }
-  if (agentId === 'deepseek') {
-    if (!isDeepSeekAuthFailureText(text)) return null;
-    return { status: 'missing', message: deepseekAuthGuidance(hostName) };
-  }
-  if (agentId === 'antigravity') {
-    if (!isAntigravityAuthFailureText(text)) return null;
-    return { status: 'missing', message: antigravityAuthGuidance(hostName) };
-  }
-  if (agentId === 'reasonix') {
-    if (!isReasonixAuthFailureText(text)) return null;
-    return { status: 'missing', message: reasonixAuthGuidance(hostName) };
-  }
-  return null;
+  const classifier = TAILORED_AUTH_CLASSIFIERS.get(agentId);
+  if (!classifier?.isFailure({ text: text })) return null;
+  return { status: 'missing', message: classifier.guidance({ hostName: hostName }) };
 }
 
 // Model-service failure classes that map a CLI agent's raw error text to a
@@ -257,7 +242,7 @@ const AGENT_UPSTREAM_FAILURE_RE = new RegExp(
 // process failure. Auth is checked before rate/upstream so a `401` is never
 // misread as a `5xx`. Pure text match — no agent-specific assumptions — so it
 // applies uniformly to any CLI agent.
-export function classifyAgentServiceFailure(text: string): AgentServiceFailureCode | null {
+export function classifyAgentServiceFailure({ text }: { text: string }): AgentServiceFailureCode | null {
   const value = String(text || '');
   if (!value.trim()) return null;
   if (AGENT_AUTH_FAILURE_RE.test(value)) return 'AGENT_AUTH_REQUIRED';
@@ -272,7 +257,7 @@ const PROBE_TAIL_BYTES = 400;
 
 // Both real call sites (`withProbeTails`, immediately below) already hold a
 // `string` — `probeAgentAuthStatus` normalizes `stdout`/`stderr` to `''` via
-// `typeof stdout === 'string' ? stdout : ''` before either ever reaches here
+// `stringOrEmpty` before either ever reaches here
 // — so a `value: unknown` parameter plus a runtime `typeof` guard was dead
 // code for every real caller. Narrowed to `string` to remove the
 // unreachable branch instead of padding a test around it.
@@ -301,12 +286,13 @@ function genericAuthGuidance(agentName: string, hostName: string): string {
 }
 
 // Agents that ship a bespoke auth-failure classifier + tailored sign-in hint
-// via `classifyAgentAuthFailure`. For these, a null result is authoritative
+// via `classifyAgentAuthFailure` (`TAILORED_AUTH_CLASSIFIERS`). For these, a null result is authoritative
 // ("authenticated"); we must NOT second-guess it with the broad generic
 // regex (e.g. cursor-agent's healthy `status` output mentions "login" in
 // ways the generic matcher would misread). The generic classifier is only a
 // fallback for adapters with no tailored classifier of their own.
-const TAILORED_AUTH_AGENTS = new Set(['claude', 'cursor-agent', 'deepseek', 'antigravity', 'reasonix']);
+// (The tailored set is `TAILORED_AUTH_CLASSIFIERS`' keys, so the two lists
+// can no longer drift apart.)
 
 function hasNonEmptyEnv(env: RuntimeEnv, keys: string[]): boolean {
   return keys.some((key) => {
@@ -336,71 +322,95 @@ function classifyProbedAuthFailure(
   text: string,
   hostName: string,
 ): AgentAuthProbeResult | null {
-  if (TAILORED_AUTH_AGENTS.has(def.id)) {
-    return classifyAgentAuthFailure(def.id, text, hostName);
+  if (TAILORED_AUTH_CLASSIFIERS.has(def.id)) {
+    return classifyAgentAuthFailure({ agentId: def.id, text: text }, { hostName: hostName });
   }
-  if (classifyAgentServiceFailure(text) === 'AGENT_AUTH_REQUIRED') {
+  if (classifyAgentServiceFailure({ text: text }) === 'AGENT_AUTH_REQUIRED') {
     return { status: 'missing', message: genericAuthGuidance(def.name || def.id, hostName) };
   }
   return null;
+}
+
+type AuthProbeDef = Pick<RuntimeAgentDef, 'id' | 'name' | 'authProbe'>;
+type AuthProbeSpec = NonNullable<RuntimeAgentDef['authProbe']>;
+
+function stringOrEmpty(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+// Classify the probe's combined output and, on a missing-auth result, attach
+// the exit context and the stdout/stderr tails.
+function probedFailureWithContext(
+  { def, output, stdoutText, stderrText, exitCode, signal }: { def: AuthProbeDef; output: string; stdoutText: string; stderrText: string; exitCode: number | null; signal: string | null },
+  { hostName }: { hostName: string },
+): AgentAuthProbeResult | null {
+  const failure = classifyProbedAuthFailure(def, output, hostName);
+  if (!failure) return null;
+  return withProbeTails({ ...failure, exitCode, signal }, stdoutText, stderrText);
+}
+
+async function runAuthProbe(
+  { def, probe, resolvedBin, env }: { def: AuthProbeDef; probe: AuthProbeSpec; resolvedBin: string; env: RuntimeEnv },
+  { hostName }: { hostName: string },
+): Promise<AgentAuthProbeResult> {
+  const { stdout, stderr } = await execAgentFile({ command: resolvedBin, args: probe.args }, { options: {
+    env: env as NodeJS.ProcessEnv,
+    timeout: probe.timeoutMs ?? 5000,
+    maxBuffer: 1024 * 1024,
+  } });
+  const stdoutText = stringOrEmpty(stdout);
+  const stderrText = stringOrEmpty(stderr);
+  const output = `${stdoutText}\n${stderrText}`;
+  return (
+    probedFailureWithContext({ def, output, stdoutText, stderrText, exitCode: 0, signal: null }, { hostName }) ?? { status: 'ok' }
+  );
+}
+
+function probeRejectionResult(
+  { def, probe, error }: { def: AuthProbeDef; probe: AuthProbeSpec; error: unknown },
+  { hostName }: { hostName: string },
+): AgentAuthProbeResult {
+  const err = error as NodeJS.ErrnoException & {
+    stdout?: unknown;
+    stderr?: unknown;
+    code?: string | number;
+    signal?: string;
+  };
+  const stdoutText = stringOrEmpty(err.stdout);
+  const stderrText = stringOrEmpty(err.stderr);
+  const output = [err.message, stdoutText, stderrText].join('\n');
+  // util.promisify(execFile) attaches `code` and `signal` to the
+  // rejection error. `code` may be a number (real non-zero exit) or a
+  // Node ErrnoException string ("ENOENT"); only the numeric form is
+  // meaningful as an exit code.
+  const exitCode = typeof err.code === 'number' ? err.code : null;
+  const signal = typeof err.signal === 'string' ? err.signal : null;
+  const failure = probedFailureWithContext({ def, output, stdoutText, stderrText, exitCode, signal }, { hostName });
+  if (failure) return failure;
+  return withProbeTails(
+    {
+      status: 'unknown',
+      message: `${def.name || def.id} authentication status could not be verified with \`${def.id} ${probe.args.join(' ')}\`.`,
+      exitCode,
+      signal,
+    },
+    stdoutText,
+    stderrText,
+  );
 }
 
 // Run an adapter's declared authentication probe (a cheap, side-effect-free
 // status/whoami command) and classify the result. Returns null when the
 // adapter declares no `authProbe` — those agents are never actively probed;
 // their auth status is inferred only from a real chat failure's error text.
-export async function probeAgentAuthStatus(
-  def: Pick<RuntimeAgentDef, 'id' | 'name' | 'authProbe'>,
-  resolvedBin: string,
-  env: RuntimeEnv,
-  hostName: string = DEFAULT_HOST_NAME,
+export async function probeAgentAuthStatus({ def, resolvedBin, env }: { def: Pick<RuntimeAgentDef, 'id' | 'name' | 'authProbe'>; resolvedBin: string; env: RuntimeEnv }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}
 ): Promise<AgentAuthProbeResult | null> {
   const probe = def.authProbe;
   if (!probe) return null;
   if (hasProbeSatisfyingApiKey(def, env)) return { status: 'ok' };
   try {
-    const { stdout, stderr } = await execAgentFile(resolvedBin, probe.args, {
-      env: env as NodeJS.ProcessEnv,
-      timeout: probe.timeoutMs ?? 5000,
-      maxBuffer: 1024 * 1024,
-    });
-    const stdoutText = typeof stdout === 'string' ? stdout : '';
-    const stderrText = typeof stderr === 'string' ? stderr : '';
-    const output = `${stdoutText}\n${stderrText}`;
-    const failure = classifyProbedAuthFailure(def, output, hostName);
-    if (failure) {
-      return withProbeTails({ ...failure, exitCode: 0, signal: null }, stdoutText, stderrText);
-    }
-    return { status: 'ok' };
+    return await runAuthProbe({ def, probe, resolvedBin, env }, { hostName });
   } catch (error) {
-    const err = error as NodeJS.ErrnoException & {
-      stdout?: unknown;
-      stderr?: unknown;
-      code?: string | number;
-      signal?: string;
-    };
-    const stdoutText = typeof err.stdout === 'string' ? err.stdout : '';
-    const stderrText = typeof err.stderr === 'string' ? err.stderr : '';
-    const output = [err.message, stdoutText, stderrText].join('\n');
-    // util.promisify(execFile) attaches `code` and `signal` to the
-    // rejection error. `code` may be a number (real non-zero exit) or a
-    // Node ErrnoException string ("ENOENT"); only the numeric form is
-    // meaningful as an exit code.
-    const numericExit = typeof err.code === 'number' ? err.code : null;
-    const childSignal = typeof err.signal === 'string' ? err.signal : null;
-    const failure = classifyProbedAuthFailure(def, output, hostName);
-    if (failure) {
-      return withProbeTails({ ...failure, exitCode: numericExit, signal: childSignal }, stdoutText, stderrText);
-    }
-    return withProbeTails(
-      {
-        status: 'unknown',
-        message: `${def.name || def.id} authentication status could not be verified with \`${def.id} ${probe.args.join(' ')}\`.`,
-        exitCode: numericExit,
-        signal: childSignal,
-      },
-      stdoutText,
-      stderrText,
-    );
+    return probeRejectionResult({ def, probe, error }, { hostName });
   }
 }

@@ -73,17 +73,10 @@ function authServerMetadata(config: OAuthPkceProviderConfig): AuthorizationServe
 export function beginOAuthPkce(input: BeginOAuthPkceInput): BeginOAuthPkceResult {
   const { config, pending, redirectUri } = input;
   const codeVerifier = generateCodeVerifier();
-  const codeChallenge = deriveCodeChallenge(codeVerifier);
+  const codeChallenge = deriveCodeChallenge({ verifier: codeVerifier });
   const state = generateState();
 
-  const authorizeUrl = buildAuthorizeUrl({
-    authServer: authServerMetadata(config),
-    clientId: config.clientId,
-    redirectUri,
-    state,
-    codeChallenge,
-    scope: config.scope,
-  });
+  const authorizeUrl = buildAuthorizeUrl({ authServer: authServerMetadata(config), clientId: config.clientId, redirectUri, state, codeChallenge }, { scope: config.scope });
 
   const pendingState: PendingAuthState = {
     serverId: config.providerId,
@@ -96,7 +89,7 @@ export function beginOAuthPkce(input: BeginOAuthPkceInput): BeginOAuthPkceResult
     createdAt: Date.now(),
   };
 
-  pending.put(state, pendingState);
+  pending.put({ state: state, value: pendingState });
   return { authorizeUrl, state };
 }
 
@@ -114,10 +107,10 @@ export interface CompleteOAuthPkceInput {
  * exchanges `code` for tokens. Throws if `state` is unknown, expired,
  * already consumed, or was issued for a different provider.
  */
-export async function completeOAuthPkce(
-  input: CompleteOAuthPkceInput,
+export async function completeOAuthPkce(requiredArgs: Pick<CompleteOAuthPkceInput, "config" | "pending" | "state" | "code">, optionalArgs: Omit<CompleteOAuthPkceInput, "config" | "pending" | "state" | "code"> = {}
 ): Promise<OAuthTokenResponse> {
-  const consumed = input.pending.consume(input.state);
+  const input: CompleteOAuthPkceInput = { ...optionalArgs, ...requiredArgs };
+  const consumed = input.pending.consume({ state: input.state });
   if (!consumed) {
     throw new Error(`${input.config.providerId} OAuth state not found or expired`);
   }
@@ -126,15 +119,13 @@ export async function completeOAuthPkce(
       `${input.config.providerId} OAuth state mismatch: expected serverId=${input.config.providerId}, got ${consumed.serverId}`,
     );
   }
-  return exchangeCodeForToken(
-    {
+  return exchangeCodeForToken({ input: {
       tokenEndpoint: consumed.tokenEndpoint,
       clientId: consumed.clientId,
       redirectUri: consumed.redirectUri,
       code: input.code,
       codeVerifier: consumed.codeVerifier,
-    },
-    input.fetchImpl ?? fetch,
+    } }, { fetchImpl: input.fetchImpl ?? fetch }
   );
 }
 
@@ -149,16 +140,14 @@ export interface RefreshOAuthPkceInput {
  * client_id that originally received it (RFC 6749 §6); since the same fixed
  * client_id is always used, it doesn't need to be persisted per-token.
  */
-export async function refreshOAuthPkceToken(
-  input: RefreshOAuthPkceInput,
+export async function refreshOAuthPkceToken(requiredArgs: Pick<RefreshOAuthPkceInput, "config" | "refreshToken">, optionalArgs: Omit<RefreshOAuthPkceInput, "config" | "refreshToken"> = {}
 ): Promise<OAuthTokenResponse> {
-  return refreshAccessToken(
-    {
+  const input: RefreshOAuthPkceInput = { ...optionalArgs, ...requiredArgs };
+  return refreshAccessToken({ input: {
       tokenEndpoint: input.config.tokenEndpoint,
       clientId: input.config.clientId,
       refreshToken: input.refreshToken,
-    },
-    input.fetchImpl ?? fetch,
+    } }, { fetchImpl: input.fetchImpl ?? fetch }
   );
 }
 

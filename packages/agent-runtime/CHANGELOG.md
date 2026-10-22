@@ -1,4 +1,80 @@
+## 0.4.11 — 2026-10-14
+
+- Gemini: `applyGoogleUsage` adds `input_tokens` (`promptTokenCount`) and `output_tokens` (`candidatesTokenCount` + `thoughtsTokenCount`) next to the raw `usageMetadata` fields, so usage reducers show Gemini token counts (024fe7e8).
+- Gemini: a first reply with no text and no tool calls (for example thinking consumed the whole `MAX_TOKENS` budget) now emits an error carrying the finish reason and ends with `error` instead of a blank successful `stop`. Partial text cut off by `MAX_TOKENS` and tool-only turns still succeed (a80066ae).
+
+## 0.4.10 — 2026-10-13
+
+- ACP `session/request_permission` no longer fails the run. Without an injected `onPermissionRequest`, the session answers by the new `AttachAcpSessionOptions.permissionMode`: `bypass` selects `allow_once`; otherwise `reject_once`, falling back to `reject_always` or `cancelled`. It never picks an "always" approval. A handler that throws, rejects, or selects an unoffered option cancels the request. Each request emits one `status` event (`label: 'acp_permission'`) with only the tool kind and decision. `choosePermissionOutcome(options, { permissionMode })` follows the same policy.
+
+## 0.4.9 — 2026-10-13
+
+- `@jini-ai/oauth` is a regular dependency, no longer an optional peer: the root imports it statically, so a consumer without its own copy (Tovu Desktop 0.1.15) crashed at load with ERR_MODULE_NOT_FOUND.
+
+## 0.4.8 — 2026-10-13
+
+- The root import no longer needs the optional `@jini-ai/integrations` peer: the media-provider catalog loads lazily, only when a default provider URL is needed. A missing peer at that point throws an actionable error with the import failure as its `cause`; explicit `*_BASE_URL` env values never touch it.
+- New `createElevenLabsVoiceClient({ http, clock }, { maxCacheEntries })`: voices listed through an injected `HttpClientPort`, expired entries swept, oldest evicted past the bound, `clearCache()`. `listElevenLabsVoiceOptions` stays as the compatibility wrapper over native fetch.
+
+## 0.4.7 — 2026-10-13
+
+- New `createNativeAgentRuntime({ env }, { state, acpModelProbe, codexDisablePlugins, piGracefulShutdownMs })`: one host-owned runtime state with detection, launch and definitions bound to it, environment policies resolved once, and `dispose({})` that drains in-flight discovery before clearing caches.
+- ACP model probes can come from the host (`AgentRuntimeState.acpModelProbe`, `fetchModels(required, { acpModelProbe })`); `setAcpModelProbe` stays as the compatibility setter for unbound definitions.
+- Codex `--disable plugins` and the pi RPC shutdown grace period are explicit (`RuntimeBuildOptions.codexDisablePlugins`, `PiRpcSessionOptions.gracefulShutdownMs`); `CODEX_DISABLE_PLUGINS` / `PI_GRACEFUL_SHUTDOWN_MS` are read at native composition instead of inside `buildArgs` / the session.
+
+## 0.4.6 — 2026-10-13
+
+- New `./model-discovery` subpath: the discovery policy with injected `deps` and `probes` (`createAgentModelDiscovery({ agentId, configuration, deps, probes })`, `modelDiscoveryForDef({ def, deps })`, `resolveModelForLaunch({ def, context, deps })`). It loads no child_process/fs or native adapters. The root keeps the published scalar signatures, wired to the native probes.
+- Platform helpers come from the narrow platform subpaths; peer `@jini-ai/platform` floor is now `^0.5.5`.
+
+## 0.4.3 — 2026-10-08
+
+- Desktop 0.1.13 release fixes: see commits a2659d24 (admin), 5695a7c3 (chat, agent-runtime), 8ad4ac5c (devops).
+
+## 0.4.2 — 2026-10-08
+
+- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+
+## 0.4.1 — 2026-10-06
+
+- Tool turns accept message `images` (`{ mimeType, data }`) and deliver them to providers as image content.
+- Runtime `@jini-ai/*` deps are `workspace:^` (pack as caret ranges).
+
 # @jini-ai/agent-runtime
+
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Use isolated provider and cache subpaths, including ./providers/sse-decode for browsers; core clock/redaction and canonical platform address classifiers replace local contracts. Unloaded bundled skill/craft documents are archived outside the package.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+### Fixes
+
+- Align parser parity and default-option fixtures with current argument objects and exact optional-property contracts. Preserve manifest fixture tuples and type Google continuation mocks with checked request bodies for strict indexed access.
+- Omit the probe environment's absent proxy override so the existing system-proxy default remains active.
+
+### BREAKING — canonical OAuth, redaction and network primitives
+
+- Provider PKCE uses the main OAuth API, explicitly retaining 64-byte verifier entropy; normalized tokens are adapted to the existing persisted provider wire DTO. Main OAuth now guards/bounds fixed-issuer HTTP and returns typed errors; deriveCodeChallenge validates RFC verifiers.
+- Remove runtime classifier/redactor exports and local implementations. Import hostname policies from `@jini-ai/platform/net` and `redactSecrets({ input }, { exactSecrets })` from core. Conservative masking keeps model/request identifiers and uses categorized markers; diagnostics never opt into opaque-run masking.
+- Model catalog clocks use core `Clock.nowMs()`; ACP unknown-value records are named `UnknownRecord`, not JSON objects.
+- Callback payload caches use the main bounded store while retaining exclusive TTL and unref timer behavior. Neutralize host-settings wording and host identity comments. Drop the conversion report from published files; the document remains for later relocation.
+
+
+- Preserve host environment customization after CLI housekeeping; correct the hook documentation.
+- Keep DNS resolver injection required and reject lookup failures or empty answers instead of allowing unpinned fallback.
+- Validate model catalogue variants with an explicit `TypeError` before trimming.
+- Tag ACP failures before resume acknowledgement with `error.details.kind: 'resume_failed'`, preserving original codes and nesting original details under `cause`.
+
+- Add `./providers/tool-turn` with injected provider adapters, normalized tool results and termination reasons, and Gemini schema adaptation. Existing provider loops and exports are preserved.
+- Add `./model-catalog/cache` for instance-owned live discovery, TTL success/failure caching, tenant-safe key tuples, and injected clock/merge ports. Share the single-flight loader with the existing AMR cache.
+- Complete the runtime subpaths (`./providers/tool-turn`, `./model-catalog/cache`, and `./providers/sse-decode`) with runtime metadata, declaration mappings, root barrel exports for turns/cache, and API documentation. The cache and SSE decoder can be imported independently in universal runtimes; the provider adapters and root require Node.
+- Delegate provider PKCE and pending authorization primitives to `@jini-ai/oauth`, retaining provider contracts and wire formats.
+- **BREAKING:** Convert existing public runtime/provider helpers, session factories, cache constructors and methods, runtime-definition callbacks, custom DNS/HTTP/event ports, and stream-feed methods to `(requiredArgs, optionalArgs)` objects. Required inputs are in the first object; optional controls are in the second. Update hosts and port implementations together using `API-CONVERSION-w7.md`. Existing export names and package version are retained; no positional compatibility adapters are provided. React props and upstream standard-library callable contracts are unchanged.
+- **BREAKING:** `AcpModelProbe.detectModels` now separates required `{ bin, args }` from optional probe controls, matching `detectAcpModels` and its `probeAcpModels` alias. Custom probes must read environment, timeout, client identity and default model from the second object.
 
 ## 0.2.1
 

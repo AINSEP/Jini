@@ -1,5 +1,6 @@
 import { publishEntry, unpublishEntry, type PublishUnpublishEntryRequired } from "./write-service.js";
-import type { EntryRecord, Result } from "./types.js";
+import type { Result } from "@jini-ai/core/primitives";
+import type { EntryRecord } from "./types.js";
 
 /**
  * @file Entry publish/unpublish `op` dispatch (the closed-union-dispatch convention, same
@@ -10,7 +11,8 @@ export const ENTRY_LIFECYCLE_OP_NAMES = ["publish", "unpublish"] as const;
 export type EntryLifecycleOp = (typeof ENTRY_LIFECYCLE_OP_NAMES)[number];
 
 /** Narrows an untrusted `op` string to {@link EntryLifecycleOp}, or `null` if it isn't one. */
-export function parseEntryLifecycleOp(op: unknown): EntryLifecycleOp | null {
+export function parseEntryLifecycleOp(requiredArgs: { op: unknown }, optionalArgs: Record<string, never> = {}): EntryLifecycleOp | null {
+  const { op } = requiredArgs;
   return typeof op === "string" && (ENTRY_LIFECYCLE_OP_NAMES as readonly string[]).includes(op) ? (op as EntryLifecycleOp) : null;
 }
 

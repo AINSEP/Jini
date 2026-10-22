@@ -7,11 +7,11 @@
  * This exists because `DelegatedToolBridge.execute()` (this package's `delegated-tool-bridge.ts`)
  * calls `lifecycle.emit()` directly, in-process — there was previously no way for a caller that
  * executed a tool somewhere else to report the outcome back into this run's log. That absence is
- * what forced `ToolExecutor`/`ToolRegistry`/`RunLifecycle` to all live in one process per run (see
- * this repo's own `tovu-learnings.md` §1a). This module is the missing half: the same two event
+ * what forced `ToolExecutor`/`ToolRegistry`/`RunLifecycle` to live in one process per run: only an
+ * in-process lifecycle could append those events. This module supplies the same two event
  * shapes `DelegatedToolBridge.execute()` already emits (`tool_use` then `tool_result`), exposed as
  * a small, explicit recording API a *transport* (this package does not itself expose one — see
- * `@jini-ai/http-kit`'s `remote-run-events.ts`) can wrap with authentication and call remotely.
+ * `@jini-ai/daemon/http`'s `remote-run-events.ts`) can wrap with authentication and call remotely.
  *
  * This does not change how tool execution is authorized. A caller of `recordToolUse`/
  * `recordToolResult` has, by definition, already run the tool through its OWN `ToolExecutor` (with
@@ -37,9 +37,9 @@ export interface RemoteToolResultRecord {
 
 export interface RemoteToolEventRecorder {
   /** Records that a tool call started. Throws (matching `RunLifecycle.emit`) if `runId` is unknown or already terminal. */
-  recordToolUse(runId: string, record: RemoteToolUseRecord): Promise<RunProtocolEvent>;
+  recordToolUse(args: { readonly runId: string; readonly record: RemoteToolUseRecord }): Promise<RunProtocolEvent>;
   /** Records that a tool call finished (or failed) — mirrors `DelegatedToolBridge.execute()`'s own `tool_result` shape exactly. */
-  recordToolResult(runId: string, record: RemoteToolResultRecord): Promise<RunProtocolEvent>;
+  recordToolResult(args: { readonly runId: string; readonly record: RemoteToolResultRecord }): Promise<RunProtocolEvent>;
 }
 
 export interface CreateRemoteToolEventRecorderOptions {
@@ -50,14 +50,14 @@ export function createRemoteToolEventRecorder(options: CreateRemoteToolEventReco
   const { lifecycle } = options;
 
   return {
-    recordToolUse(runId, record) {
-      return lifecycle.emit(runId, {
+    recordToolUse({ runId, record }: { readonly runId: string; readonly record: RemoteToolUseRecord }) {
+      return lifecycle.emit({ runId: runId, input: {
         event: 'agent',
         data: { type: 'tool_use', id: record.toolUseId, name: record.toolId, input: record.input },
-      });
+      } });
     },
-    recordToolResult(runId, record) {
-      return lifecycle.emit(runId, {
+    recordToolResult({ runId, record }: { readonly runId: string; readonly record: RemoteToolResultRecord }) {
+      return lifecycle.emit({ runId: runId, input: {
         event: 'agent',
         data: {
           type: 'tool_result',
@@ -65,7 +65,7 @@ export function createRemoteToolEventRecorder(options: CreateRemoteToolEventReco
           content: record.content,
           ...(record.isError ? { isError: true } : {}),
         },
-      });
+      } });
     },
   };
 }

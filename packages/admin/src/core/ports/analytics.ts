@@ -30,5 +30,5 @@ export interface AdminAnalyticsPort {
   /** `limit` bounds how many recent hits come back; omitting it defers to the host's own default
    *  bound rather than requesting an unbounded list — see the file header on why this is a recent
    *  activity feed, not a queryable store. */
-  listRecentAnalyticsHits(options?: { limit?: number }): Promise<readonly AdminAnalyticsHit[]>;
+  listRecentAnalyticsHits(requiredArgs: Record<string, never>, optionalArgs?: { limit?: number }): Promise<readonly AdminAnalyticsHit[]>;
 }

@@ -489,3 +489,134 @@ describe('useVersionManager', () => {
     expect(result.current.versions).toHaveLength(1);
   });
 });
+
+describe('useVersionManager list and restore characterization (L204)', () => {
+  it.each([
+    { name: 'empty list', versions: [], selectedId: null },
+    { name: 'newest without a current version', versions: [makeVersion({ id: 'older', version: 1 }), makeVersion({ id: 'newer', version: 2 })], selectedId: 'newer' },
+    { name: 'current ahead of newest', versions: [makeVersion({ id: 'current', version: 1, current: true }), makeVersion({ id: 'newer', version: 2 })], selectedId: 'current' },
+  ])('selects $name when listing', async ({ versions, selectedId }) => {
+    const port = createTestPort({ versions });
+    const dependencies = createTestDependencies(port);
+    const { result } = renderHook(() => useVersionManager(dependencies, { fileRef: FILE_REF, currentContent: null, onRestored: vi.fn() }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.selectedId).toBe(selectedId);
+    expect(result.current.versions.map((version) => version.version)).toEqual(versions.map((version) => version.version).sort((a, b) => b - a));
+  });
+
+  it.each([
+    { currentContent: null, expectedContent: 'fetched', expectedFetches: 1 },
+    { currentContent: '', expectedContent: '', expectedFetches: 0 },
+    { currentContent: 'seeded', expectedContent: 'seeded', expectedFetches: 0 },
+  ])('seeds current content $currentContent without replacing empty strings', async ({ currentContent, expectedContent, expectedFetches }) => {
+    const current = makeVersion({ id: 'current', version: 1, current: true });
+    const port = createTestPort({ versions: [current], content: new Map([[current.id, 'fetched']]) });
+    const dependencies = createTestDependencies(port);
+    const { result } = renderHook(() => useVersionManager(dependencies, { fileRef: FILE_REF, currentContent, onRestored: vi.fn() }));
+    await waitFor(() => expect(result.current.selectedId).toBe(current.id));
+    await waitFor(() => expect(result.current.loadingContent).toBe(false));
+    expect(result.current.selectedContent).toBe(expectedContent);
+    expect(port.fetchVersionContent).toHaveBeenCalledTimes(expectedFetches);
+  });
+
+  it('keeps the cached current body after currentContent changes (reported, not fixed)', async () => {
+    const current = makeVersion({ id: 'current', version: 1, current: true });
+    const port = createTestPort({ versions: [current] });
+    const dependencies = createTestDependencies(port);
+    const { result, rerender } = renderHook(
+      ({ currentContent }) => useVersionManager(dependencies, { fileRef: FILE_REF, currentContent, onRestored: vi.fn() }),
+      { initialProps: { currentContent: 'first body' } },
+    );
+    await waitFor(() => expect(result.current.selectedContent).toBe('first body'));
+    rerender({ currentContent: 'updated body' });
+    await waitFor(() => expect(port.listVersions).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.selectedContent).toBe('first body');
+    expect(result.current.previewDocument).toBe('<doc>first body</doc>');
+    expect(port.fetchVersionContent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: 'returned version', returnedId: 'restored', expectedId: 'restored' },
+    { name: 'omitted version', returnedId: undefined, expectedId: 'target' },
+    { name: 'missing preferred version', returnedId: 'absent', expectedId: 'current' },
+    { name: 'empty preferred id', returnedId: '', expectedId: 'current' },
+  ])('preserves warning and selection for $name', async ({ returnedId, expectedId }) => {
+    const current = makeVersion({ id: 'current', version: 3, current: true });
+    const target = makeVersion({ id: 'target', version: 1 });
+    const restored = makeVersion({ id: 'restored', version: 2, source: 'restore' });
+    const returnedVersion = returnedId === undefined ? undefined : { ...restored, id: returnedId };
+    const restoreResult: VersionRestoreResult = { warning: { message: 'Snapshot warning' }, ...(returnedVersion ? { version: returnedVersion } : {}) };
+    const port = createTestPort({ versions: [target, current, restored], content: new Map([[target.id, 'target body']]), restoreResult });
+    const dependencies = createTestDependencies(port);
+    const onRestored = vi.fn();
+    const onRestoredCleanly = vi.fn();
+    const { result } = renderHook(() => useVersionManager(dependencies, { fileRef: FILE_REF, currentContent: 'current body', onRestored, onRestoredCleanly }));
+    await waitFor(() => expect(result.current.selectedContent).toBe('current body'));
+    act(() => result.current.selectVersion(target.id));
+    await waitFor(() => expect(result.current.selectedContent).toBe('target body'));
+    await act(async () => { await result.current.restore(); });
+    expect(onRestored).toHaveBeenCalledTimes(1);
+    expect(onRestored).toHaveBeenCalledWith('target body', returnedVersion ?? target);
+    expect(onRestoredCleanly).not.toHaveBeenCalled();
+    expect(result.current.selectedId).toBe(expectedId);
+    expect(result.current.selectedContent).toBe(expectedId === 'current' ? 'current body' : 'target body');
+    expect(result.current.error).toBe('Snapshot warning');
+    expect(result.current.restoring).toBe(false);
+    expect(port.listVersions).toHaveBeenCalledTimes(2);
+    expect(port.fetchVersionContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks restore for current content and while another selection is loading', async () => {
+    const current = makeVersion({ id: 'current', version: 2, current: true });
+    const target = makeVersion({ id: 'target', version: 1 });
+    let finishFetch: (content: string | null) => void = () => { throw new Error('Fetch has not started'); };
+    const port = createTestPort({ versions: [current, target] });
+    port.fetchVersionContent = vi.fn(() => new Promise<string | null>((resolve) => { finishFetch = resolve; }));
+    const dependencies = createTestDependencies(port);
+    const { result } = renderHook(() => useVersionManager(dependencies, { fileRef: FILE_REF, currentContent: 'current body', onRestored: vi.fn() }));
+    await waitFor(() => expect(result.current.selectedContent).toBe('current body'));
+    await act(async () => { await result.current.restore(); });
+    expect(port.restoreVersion).not.toHaveBeenCalled();
+    act(() => result.current.selectVersion(target.id));
+    expect(result.current.loadingContent).toBe(true);
+    expect(result.current.selectedContent).toBe('current body');
+    await act(async () => { await result.current.restore(); });
+    expect(port.restoreVersion).not.toHaveBeenCalled();
+    await act(async () => { finishFetch(''); });
+    expect(result.current.selectedContent).toBe('');
+    expect(result.current.restoreDisabled).toBe(true);
+    await act(async () => { await result.current.restore(); });
+    expect(port.restoreVersion).not.toHaveBeenCalled();
+  });
+
+  it('resets restoring and propagates a rejected host callback', async () => {
+    const target = makeVersion({ id: 'target', version: 1 });
+    const port = createTestPort({ versions: [target], content: new Map([[target.id, 'body']]) });
+    const dependencies = createTestDependencies(port);
+    const failure = new Error('Host rejected restore');
+    const onRestored = vi.fn(async () => { throw failure; });
+    const onRestoredCleanly = vi.fn();
+    const { result } = renderHook(() => useVersionManager(dependencies, { fileRef: FILE_REF, currentContent: null, onRestored, onRestoredCleanly }));
+    await waitFor(() => expect(result.current.restoreDisabled).toBe(false));
+    await act(async () => { await expect(result.current.restore()).rejects.toBe(failure); });
+    expect(result.current.restoring).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(onRestoredCleanly).not.toHaveBeenCalled();
+  });
+
+  it('keeps restoring true after clean success without a close callback (reported, not fixed)', async () => {
+    const target = makeVersion({ id: 'target', version: 1 });
+    const port = createTestPort({ versions: [target], content: new Map([[target.id, 'body']]) });
+    const dependencies = createTestDependencies(port);
+    const onRestored = vi.fn();
+    const { result } = renderHook(() => useVersionManager(dependencies, { fileRef: FILE_REF, currentContent: null, onRestored }));
+    await waitFor(() => expect(result.current.restoreDisabled).toBe(false));
+    await act(async () => { await result.current.restore(); });
+    expect(onRestored).toHaveBeenCalledTimes(1);
+    expect(onRestored).toHaveBeenCalledWith('body', target);
+    expect(result.current.restoring).toBe(true);
+    expect(result.current.restoreDisabled).toBe(true);
+    expect(result.current.error).toBeNull();
+  });
+});

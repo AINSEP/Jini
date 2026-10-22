@@ -27,7 +27,7 @@ export interface AdminAuthPort {
   /** Expect an authentication-class rejection (invalid credentials, disabled account) rather than
    *  a specific code — see the file header. */
   login(input: { username: string; password: string }): Promise<{ user: AdminAuthUser }>;
-  logout(): Promise<{ ok: boolean }>;
+  logout(requiredArgs: Record<string, never>): Promise<{ ok: boolean }>;
   /**
    * The current session's principal, plus (when the host computes it) the permission strings
    * effective for that principal right now. `effectivePermissions` is an affordance list for
@@ -36,5 +36,5 @@ export interface AdminAuthPort {
    * entirely rather than send an empty array; callers should not treat "absent" and "empty" as the
    * same thing.
    */
-  me(): Promise<{ user: AdminAuthUser; effectivePermissions?: readonly string[] }>;
+  me(requiredArgs: Record<string, never>): Promise<{ user: AdminAuthUser; effectivePermissions?: readonly string[] }>;
 }

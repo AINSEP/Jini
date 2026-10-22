@@ -5,7 +5,7 @@
  * rename in its original switcher and silently lost it in the newer one. A behaviour that can
  * regress by omission needs a test that fails when it does.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -29,8 +29,8 @@ function setup(overrides: Partial<React.ComponentProps<typeof ConversationList>>
     confirmDelete: () => true,
     ...overrides,
   };
-  render(<ConversationList {...props} />);
-  return { props, user: userEvent.setup() };
+  const view = render(<ConversationList {...props} />);
+  return { props, user: userEvent.setup(), view };
 }
 
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
@@ -38,6 +38,26 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('opening and listing', () => {
+  it('shows clean stored titles in the row, trigger tooltip and accessible label without renaming', async () => {
+    const conversations = [{ id: 'c1', title: 'Page: **Plannie** at **plannie' }];
+    const { props, user } = setup({ conversations });
+    const trigger = screen.getByTestId('conversation-trigger');
+    expect(trigger).toHaveAttribute('title', 'Page: Plannie at **plannie');
+    expect(trigger).toHaveAttribute('aria-label', 'Conversations — Page: Plannie at **plannie');
+    await openMenu(user);
+    expect(screen.getByTestId('conversation-select-c1')).toHaveTextContent('Page: Plannie at **plannie');
+    expect(props.onRename).not.toHaveBeenCalled();
+    expect(conversations[0]!.title).toBe('Page: **Plannie** at **plannie');
+  });
+
+  it('cleans server search result titles before displaying them', async () => {
+    const onSearch = vi.fn(async () => [{ id: 'found', title: '# [Plannie](https://plannie.com) `API`' }]);
+    const { user } = setup({ onSearch });
+    await openMenu(user);
+    await user.type(screen.getByPlaceholderText('Search conversations'), 'Plannie');
+    await waitFor(() => expect(screen.getByTestId('conversation-select-found')).toHaveTextContent('Plannie API'));
+  });
+
   it('renders every conversation once open, and an untitled fallback', async () => {
     const { user } = setup();
     await openMenu(user);
@@ -106,6 +126,113 @@ describe('the four actions', () => {
 });
 
 describe('rename on double-click', () => {
+  it('opens Rename from the keyboard and commits a trimmed title without selecting', async () => {
+    const { props, user } = setup();
+    await openMenu(user);
+    const rename = within(screen.getByTestId('conversation-item-c2')).getByRole('button', { name: 'Rename chat' });
+    rename.focus();
+    await user.keyboard('{Enter}');
+    const input = screen.getByTestId('conversation-rename-c2');
+    expect(input).toHaveFocus();
+    await user.clear(input);
+    await user.type(input, '  New title  {Enter}');
+    expect(props.onRename).toHaveBeenCalledTimes(1);
+    expect(props.onRename).toHaveBeenCalledWith('c2', 'New title');
+    expect(props.onSelect).not.toHaveBeenCalled();
+  });
+
+  it('keeps the row available for a double-click whose clicks are 300ms apart', () => {
+    vi.useFakeTimers();
+    try {
+      const { props } = setup();
+      fireEvent.click(screen.getByTestId('conversation-trigger'));
+      const row = screen.getByTestId('conversation-select-c2');
+      fireEvent.click(row, { detail: 1 });
+      act(() => vi.advanceTimersByTime(300));
+      expect(screen.getByTestId('conversation-select-c2')).toBe(row);
+      fireEvent.click(row, { detail: 2 });
+      fireEvent.doubleClick(row);
+      act(() => vi.runOnlyPendingTimers());
+      expect(screen.getByTestId('conversation-rename-c2')).toHaveFocus();
+      expect(props.onSelect).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('limits the inline title input to 50 characters', async () => {
+    const { props, user } = setup();
+    await openMenu(user);
+    await user.dblClick(screen.getByTestId('conversation-select-c2'));
+    const input = screen.getByTestId('conversation-rename-c2');
+    expect(input).toHaveAttribute('maxlength', '50');
+    await user.clear(input);
+    await user.type(input, 'x'.repeat(51));
+    await user.keyboard('{Enter}');
+    expect(props.onRename).toHaveBeenCalledTimes(1);
+    expect(props.onRename).toHaveBeenCalledWith('c2', 'x'.repeat(50));
+  });
+
+  it('does not write an untouched draft after the host refreshes the stored title', async () => {
+    const { props, user, view } = setup();
+    await openMenu(user);
+    await user.dblClick(screen.getByTestId('conversation-select-c1'));
+    view.rerender(<ConversationList {...props} conversations={[{ id: 'c1', title: 'Refreshed title' }]} />);
+    await user.keyboard('{Enter}');
+    expect(props.onRename).not.toHaveBeenCalled();
+    expect(screen.getByTestId('conversation-select-c1')).toHaveTextContent('Refreshed title');
+  });
+
+  it.each([
+    { title: `**Long title** ${'retained words '.repeat(12)}tail`, finish: 'Enter' },
+    { title: '  **Deliberate** _markers_ and *.ts  ', finish: 'blur' },
+    { title: null, finish: 'Enter' },
+  ])('preserves the raw title and skips an unchanged rename on $finish: $title', async ({ title, finish }) => {
+    const conversations = [{ id: 'c1', title }];
+    const { props, user } = setup({ conversations });
+    await openMenu(user);
+    await user.dblClick(screen.getByTestId('conversation-select-c1'));
+    expect(screen.getByTestId('conversation-rename-c1')).toHaveValue(title ?? '');
+    if (finish === 'Enter') await user.keyboard('{Enter}');
+    else await user.click(screen.getByTestId('conversation-search'));
+    expect(screen.queryByTestId('conversation-rename-c1')).not.toBeInTheDocument();
+    expect(props.onRename).not.toHaveBeenCalled();
+    expect(conversations[0]!.title).toBe(title);
+  });
+
+  it('displays the full cleaned legacy title and replaces it with a bounded raw rename', async () => {
+    const rawTitle = `**Deliberate** ${'retained words '.repeat(12)}tail`;
+    const { props, user } = setup({ conversations: [{ id: 'c1', title: rawTitle }] });
+    await openMenu(user);
+    expect(screen.getByTestId('conversation-select-c1').querySelector('.jini-conv-item-title')?.textContent)
+      .toBe(rawTitle.replace('**Deliberate**', 'Deliberate'));
+    await user.dblClick(screen.getByTestId('conversation-select-c1'));
+    expect(screen.getByTestId('conversation-rename-c1')).toHaveValue(rawTitle);
+    await user.clear(screen.getByTestId('conversation-rename-c1'));
+    await user.type(screen.getByTestId('conversation-rename-c1'), '**Deliberate** revised{Enter}');
+    expect(props.onRename).toHaveBeenCalledTimes(1);
+    expect(props.onRename).toHaveBeenCalledWith('c1', '**Deliberate** revised');
+  });
+
+  it.each(['c1', 'unloaded'])('uses the raw server result for %s, including newer titles for loaded ids', async id => {
+    const rawTitle = `**Search title** ${'full title '.repeat(12)}tail`;
+    const onSearch = async () => [{ id, title: rawTitle }];
+    const { props, user } = setup({ onSearch });
+    await openMenu(user);
+    await user.type(screen.getByTestId('conversation-search'), 'search');
+    await waitFor(() => expect(screen.getByTestId(`conversation-select-${id}`)).toHaveTextContent('Search title'));
+    await user.dblClick(screen.getByTestId(`conversation-select-${id}`));
+    expect(screen.getByTestId(`conversation-rename-${id}`)).toHaveValue(rawTitle);
+    await user.keyboard('{Enter}');
+    expect(props.onRename).not.toHaveBeenCalled();
+    await user.dblClick(screen.getByTestId(`conversation-select-${id}`));
+    await user.clear(screen.getByTestId(`conversation-rename-${id}`));
+    await user.type(screen.getByTestId(`conversation-rename-${id}`), '**Search title** revised');
+    await user.click(screen.getByTestId('conversation-search'));
+    expect(props.onRename).toHaveBeenCalledTimes(1);
+    expect(props.onRename).toHaveBeenCalledWith(id, '**Search title** revised');
+  });
+
   it('opens an editor seeded with the current title and commits on Enter', async () => {
     const { props, user } = setup();
     await openMenu(user);

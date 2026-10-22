@@ -46,6 +46,7 @@ describe('ui-ux-design plugin', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
     expect(isPluginManifest(manifest)).toBe(true);
     expect((manifest as { name: string }).name).toBe('ui-ux-design');
+    expect((manifest as { version: string }).version).toBe('0.4.6');
   });
 
   it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill', () => {
@@ -80,29 +81,5 @@ describe('ui-ux-design plugin', () => {
     // inside a client's own namespace directory, so there is no shape to validate against.
     const raw = readFileSync(join(pluginRoot, 'com.anthropic.claude-code', 'hooks', 'hooks.json'), 'utf8');
     expect(() => JSON.parse(raw)).not.toThrow();
-  });
-});
-
-describe('create-tovu-theme plugin', () => {
-  const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-  const pluginRoot = join(packageRoot, 'create-tovu-theme');
-
-  it('has a plugin.json that validates as a PluginManifest', () => {
-    const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
-    expect(isPluginManifest(manifest)).toBe(true);
-    expect((manifest as { name: string }).name).toBe('create-tovu-theme');
-  });
-
-  it('bundles the create-tovu-theme skill', () => {
-    const skillDirs = readdirSync(join(pluginRoot, PLUGIN_SKILLS_DIRNAME));
-    expect(skillDirs).toEqual(['create-tovu-theme']);
-  });
-
-  it('every bundled skill carries a SKILL.md', () => {
-    const skillDirs = readdirSync(join(pluginRoot, PLUGIN_SKILLS_DIRNAME));
-    for (const dir of skillDirs) {
-      const files = readdirSync(join(pluginRoot, PLUGIN_SKILLS_DIRNAME, dir));
-      expect(files).toContain('SKILL.md');
-    }
   });
 });

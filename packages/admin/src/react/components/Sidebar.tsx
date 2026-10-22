@@ -1,6 +1,7 @@
 import {
   Fragment,
   createContext,
+  createElement,
   useContext,
   useEffect,
   useMemo,
@@ -8,6 +9,7 @@ import {
   useState,
   type FocusEvent,
   type MouseEvent,
+  type ReactElement,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -23,7 +25,7 @@ import { useSidebarRail } from '../hooks/use-sidebar-rail.js';
  *
  * A sidebar's *content* and its *chrome* are two different questions, and only the first has an
  * obvious owner. The content is already host-owned: `<Sidebar.Nav>` takes the array `/core`'s
- * `buildNav(panels)` returns, so this package ships no labels, no icons, and no section list.
+ * `buildNav({ panels })` returns, so this package ships no labels, no icons, and no section list.
  *
  * The chrome is where a props-based API quietly imposes one host's product decisions on every other
  * host. An earlier draft of this component rendered a mobile header, then the nav, then a footer
@@ -37,7 +39,7 @@ import { useSidebarRail } from '../hooks/use-sidebar-rail.js';
  *
  *     <Sidebar activeId={activeId} base="/admin">
  *       <Sidebar.MobileHeader onClose={closeDrawer} />
- *       <Sidebar.Nav groups={buildNav(panels)} />
+ *       <Sidebar.Nav groups={buildNav({ panels })} />
  *       <Sidebar.Footer>
  *         <Sidebar.RailToggle />
  *         <MyLogoutButton onClick={logout} />
@@ -122,15 +124,106 @@ export function useSidebar(): SidebarContextValue {
   return value;
 }
 
+/**
+ * Shape elements `AdminNavEntry.icon` markup may use. A host draws its own glyphs as raw inner
+ * SVG (see that field's doc comment in `core/manifest/types.ts`), so this can't be a fixed set of
+ * named icons — but it also means the string reaching {@link Icon} was written by whoever owns the
+ * nav entry, which soon enough will be a descriptor rather than code. `g` is included so multi-path
+ * icons can group and transform their pieces together.
+ */
+const ICON_ALLOWED_TAGS = new Set(['path', 'circle', 'rect', 'line', 'polygon', 'polyline', 'ellipse', 'g']);
+
+/**
+ * Presentation attributes let through on an icon shape, mapped from their SVG/XML spelling to the
+ * camelCase prop name React expects. Anything not listed here — `style`, `href`/`xlink:href`, every
+ * `on*` handler — is dropped by {@link sanitizeIconNode} rather than passed through, so there is no
+ * allowlist gap to keep in sync with a separate denylist.
+ */
+const ICON_ALLOWED_ATTRS: Record<string, string> = {
+  d: 'd',
+  cx: 'cx',
+  cy: 'cy',
+  r: 'r',
+  rx: 'rx',
+  ry: 'ry',
+  x: 'x',
+  y: 'y',
+  width: 'width',
+  height: 'height',
+  x1: 'x1',
+  y1: 'y1',
+  x2: 'x2',
+  y2: 'y2',
+  points: 'points',
+  transform: 'transform',
+  fill: 'fill',
+  'fill-rule': 'fillRule',
+  opacity: 'opacity',
+  'stroke-width': 'strokeWidth',
+  'stroke-linecap': 'strokeLinecap',
+  'stroke-linejoin': 'strokeLinejoin',
+  'clip-rule': 'clipRule',
+};
+
+/**
+ * Rebuilds one parsed element as a React element, keeping only {@link ICON_ALLOWED_TAGS} /
+ * {@link ICON_ALLOWED_ATTRS}. This is what stands in for `dangerouslySetInnerHTML`: the browser's
+ * own parser does the tokenizing (far less error-prone than a hand-rolled regex over SVG/XML), and
+ * this function decides what survives the trip into React's tree — a `<script>`, a `<foreignObject>`
+ * carrying arbitrary HTML, an `<image>`/`<use>` reference, or an `onload=` attribute all fail to
+ * match anything on either allowlist and are simply not there afterward, whatever they contained.
+ */
+function sanitizeIconNode(node: Element, key: number): ReactElement | null {
+  const tag = node.tagName.toLowerCase();
+  if (!ICON_ALLOWED_TAGS.has(tag)) return null;
+
+  // `key` goes straight into the props object — `createElement` pulls it out as the element's
+  // reserved key rather than forwarding it to the DOM, the same as writing `key={key}` in JSX.
+  const props: Record<string, string | number> = { key };
+  for (const attr of Array.from(node.attributes)) {
+    const propName = ICON_ALLOWED_ATTRS[attr.name.toLowerCase()];
+    if (propName) props[propName] = attr.value;
+  }
+
+  const children = Array.from(node.children)
+    .map((child, i) => sanitizeIconNode(child, i))
+    .filter((child): child is ReactElement => child !== null);
+
+  return createElement(tag, props, children.length ? children : undefined);
+}
+
+// Reused across parses rather than constructed per render — `DOMParser` instances are stateless
+// and this runs once per icon render, but there is no reason to pay allocation cost for it twice.
+let iconMarkupParser: DOMParser | undefined;
+
+/**
+ * Parses one `AdminNavEntry.icon` string into a sanitized element list. Wrapping in a throwaway
+ * `<svg>` document (never attached to the page — this is markup parsing, not rendering) lets the
+ * browser's own XML parser validate structure for free: malformed markup surfaces as a
+ * `parsererror` node, which is treated the same as empty input — the row loses its icon, not its
+ * label or link.
+ */
+function parseIconMarkup(markup: string): ReactElement[] {
+  if (!markup) return [];
+  iconMarkupParser ??= new DOMParser();
+  const doc = iconMarkupParser.parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${markup}</svg>`,
+    'image/svg+xml',
+  );
+  if (doc.getElementsByTagName('parsererror').length > 0) return [];
+  return Array.from(doc.documentElement.children)
+    .map((child, i) => sanitizeIconNode(child, i))
+    .filter((child): child is ReactElement => child !== null);
+}
+
 function Icon(props: { markup: string }) {
+  // Re-parsing on every keystroke of an unrelated state update would be wasted work for a string
+  // that, in practice, never changes after the nav manifest is built.
+  const children = useMemo(() => parseIconMarkup(props.markup), [props.markup]);
   return (
-    <svg
-      viewBox="0 0 18 18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      dangerouslySetInnerHTML={{ __html: props.markup }}
-    />
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      {children}
+    </svg>
   );
 }
 
@@ -186,6 +279,12 @@ export interface SidebarProps {
    * @default false
    */
   railDefaultCollapsed?: boolean;
+  /** Temporary displayed rail state. A boolean controls it without changing the stored preference;
+   *  null/undefined restores that preference. @example railOverride={dockOpen ? true : null} */
+  railOverride?: boolean | null | undefined;
+  /** Toggle requests while `railOverride` is active. The host updates its override to accept them;
+   *  without a callback the controlled rail stays fixed. Uncontrolled toggles persist as usual. */
+  onRailCollapsedChange?: ((collapsed: boolean) => void) | undefined;
   /** Accessible name for the `<nav>` landmark. @default "Admin" */
   label?: string;
   /** Extra class names appended to `.cms-nav`. */
@@ -195,8 +294,18 @@ export interface SidebarProps {
   children?: ReactNode;
 }
 
+// Read the browser storage property only inside the hooks' best-effort get/set calls: the
+// property getter itself can throw in restricted embeds, before a hook can catch the failure.
+const sidebarStorage: Pick<Storage, 'getItem' | 'setItem'> = {
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value),
+};
+
 function SidebarRoot(props: SidebarProps) {
-  const rail = useSidebarRail(props.railStorageKey, props.railDefaultCollapsed);
+  const rail = useSidebarRail({ storage: sidebarStorage, events: window }, {
+    storageKey: props.railStorageKey, defaultCollapsed: props.railDefaultCollapsed,
+    railOverride: props.railOverride, onCollapsedChange: props.onRailCollapsedChange,
+  });
   const [tooltip, setTooltip] = useState<TooltipTarget | null>(null);
   const open = props.open ?? false;
   const base = props.base ?? DEFAULT_ADMIN_BASE;
@@ -297,7 +406,7 @@ function SidebarMobileHeader(props: SidebarMobileHeaderProps) {
 }
 
 export interface SidebarNavProps {
-  /** From `/core`'s `buildNav(resolvePanels(panels, context))`. */
+  /** From `/core`'s `buildNav({ panels: resolvePanels({ panels }, context) })`. */
   groups: readonly AdminNavGroup[];
   /** Label on a `soon` item's badge. @default "Soon" */
   soonLabel?: ReactNode;
@@ -319,7 +428,7 @@ export interface SidebarNavProps {
 
 function SidebarNav(props: SidebarNavProps) {
   const { activeId, base, collapsed, railTooltipProps } = useSidebar();
-  const sections = useNavSections();
+  const sections = useNavSections({ storage: sidebarStorage, events: window });
 
   return (
     <>
@@ -332,98 +441,98 @@ function SidebarNav(props: SidebarNavProps) {
          * returns intact when the rail expands — this only overrides what is rendered.
          */
         const collapsible = Boolean(group.label) && !collapsed && (props.collapsibleGroups ?? []).includes(group.label as string);
-        const open = !collapsible || sections.isOpen(group.label as string);
-        const panelId = `cms-section-${(group.label ?? `top-${gi}`).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+        const open = !collapsible || sections.isOpen({ groupLabel: group.label as string });
+        const sectionKey = group.label ?? `top-${gi}`;
+        const panelId = `cms-section-${sectionKey.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
         return (
-        <div className="cms-section" key={group.label ?? `top-${gi}`}>
+        <div className="cms-section" key={sectionKey}>
           {/* Expected to become a plain divider rule in rail mode rather than vanishing — two
               dozen items across five groups with zero separation once the labels are gone is a
               scanning problem of its own. The label text stays in the DOM either way. */}
-          {group.label && collapsible ? (
-            // A real `<button>`, not a click-handled `<div>`: keyboard focus, Enter/Space
-            // activation, and the button role all come free, and `aria-expanded` only carries its
-            // meaning on an element that is actually a control.
-            <button
-              type="button"
-              className={`cms-group cms-group-toggle${open ? '' : ' is-closed'}`}
-              aria-expanded={open}
-              aria-controls={panelId}
-              onClick={() => sections.toggle(group.label as string)}
-            >
-              <span>{group.label}</span>
-              <svg className="cms-group-chevron" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-                <path d="M5 7l4 4 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          ) : group.label ? (
-            <div className="cms-group">{group.label}</div>
-          ) : null}
+          <NavGroupHeading label={group.label} collapsible={collapsible} open={open} panelId={panelId}
+            onToggle={() => sections.toggle({ groupLabel: group.label as string })} />
           {/* `hidden` rather than unmounting the items: it removes them from the accessibility tree
               and tab order exactly as unmounting would, but leaves `aria-controls` pointing at an
               element that actually exists, which is what makes the relationship announceable. */}
           <div className="cms-section-items" id={panelId} hidden={!open}>
-          {group.items.map((item) => {
-            const active = item.id === activeId;
-            const href = adminHref(item.href, base);
-            if (props.renderItem) {
-              return <Fragment key={item.id}>{props.renderItem(item, { active, href, collapsed })}</Fragment>;
-            }
-            if (item.soon && !item.soonPreviewable) {
-              return (
-                <div className="cms-item is-soon" aria-disabled="true" key={item.id}>
-                  <Icon markup={item.icon ?? ''} />
-                  <span>{item.label}</span>
-                  {/* Expected to be hidden outright in rail mode rather than shrunk — there is
-                      nowhere for a badge to sit beside a centered icon, and `is-soon`'s own faint
-                      color is what keeps the item reading as disabled once the badge is gone. */}
-                  <span className="soon">{props.soonLabel ?? 'Soon'}</span>
-                </div>
-              );
-            }
-            if (item.soon) {
-              // `soonPreviewable`: same real `<a>` as a shipped row (active state, aria-current,
-              // rail tooltip, cmd-click/copy-link all work identically) with the `soon` badge kept
-              // alongside the label — the announcement stays honest, but the row is no longer inert.
-              return (
-                <a
-                  key={item.id}
-                  className={`cms-item is-soon${active ? ' active' : ''}`}
-                  href={href}
-                  aria-current={active ? 'page' : undefined}
-                  {...railTooltipProps(item.label)}
-                >
-                  <Icon markup={item.icon ?? ''} />
-                  <span>{item.label}</span>
-                  <span className="soon">{props.soonLabel ?? 'Soon'}</span>
-                </a>
-              );
-            }
-            return (
-              <a
-                key={item.id}
-                className={`cms-item${active ? ' active' : ''}`}
-                // `AdminNavItem.href` is a route path; the base is applied here so the panel
-                // manifest never has to know it. A real URL, so cmd-click and "copy link address"
-                // behave normally.
-                href={href}
-                aria-current={active ? 'page' : undefined}
-                {...railTooltipProps(item.label)}
-              >
-                <Icon markup={item.icon ?? ''} />
-                {/* The real accessible name — kept in the DOM and merely clipped visually in rail
-                    mode, not removed, so the rail stays a set of named links rather than a column
-                    of unlabelled icons. The portaled tooltip is a *sighted-only* supplement to
-                    this, never a replacement — a screen reader sees this label, not the portal. */}
-                <span>{item.label}</span>
-              </a>
-            );
-          })}
+          {group.items.map((item) => (
+            <NavItemRow key={item.id} item={item} nav={props} active={item.id === activeId}
+              href={adminHref({ routePath: item.href }, { base })} collapsed={collapsed} railTooltipProps={railTooltipProps} />
+          ))}
           </div>
         </div>
         );
       })}
     </>
+  );
+}
+
+function NavGroupHeading({ label, collapsible, open, panelId, onToggle }: {
+  readonly label: string | undefined; readonly collapsible: boolean; readonly open: boolean; readonly panelId: string; readonly onToggle: () => void;
+}) {
+  if (!label) return null;
+  if (!collapsible) return <div className="cms-group">{label}</div>;
+  return (
+    // A real `<button>`, not a click-handled `<div>`: keyboard focus, Enter/Space
+    // activation, and the button role all come free, and `aria-expanded` only carries its
+    // meaning on an element that is actually a control.
+    <button
+      type="button"
+      className={`cms-group cms-group-toggle${open ? '' : ' is-closed'}`}
+      aria-expanded={open}
+      aria-controls={panelId}
+      onClick={onToggle}
+    >
+      <span>{label}</span>
+      <svg className="cms-group-chevron" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+        <path d="M5 7l4 4 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+function DisabledSoonItem({ item, soonLabel }: { readonly item: AdminNavItem; readonly soonLabel: ReactNode }) {
+  return (
+    <div className="cms-item is-soon" aria-disabled="true">
+      <Icon markup={item.icon ?? ''} />
+      <span>{item.label}</span>
+      {/* Expected to be hidden outright in rail mode rather than shrunk — there is
+          nowhere for a badge to sit beside a centered icon, and `is-soon`'s own faint
+          color is what keeps the item reading as disabled once the badge is gone. */}
+      <span className="soon">{soonLabel}</span>
+    </div>
+  );
+}
+
+function NavItemRow({ item, nav, active, href, collapsed, railTooltipProps }: {
+  readonly item: AdminNavItem; readonly nav: SidebarNavProps; readonly active: boolean; readonly href: string;
+  readonly collapsed: boolean; readonly railTooltipProps: (label: string) => RailTooltipHandlers;
+}) {
+  if (nav.renderItem) return <>{nav.renderItem(item, { active, href, collapsed })}</>;
+  const soonLabel = nav.soonLabel ?? 'Soon';
+  if (item.soon && !item.soonPreviewable) return <DisabledSoonItem item={item} soonLabel={soonLabel} />;
+  // `soonPreviewable`: same real `<a>` as a shipped row (active state, aria-current,
+  // rail tooltip, cmd-click/copy-link all work identically) with the `soon` badge kept
+  // alongside the label — the announcement stays honest, but the row is no longer inert.
+  return (
+    <a
+      className={`cms-item${item.soon ? ' is-soon' : ''}${active ? ' active' : ''}`}
+      // `AdminNavItem.href` is a route path; the base is applied here so the panel
+      // manifest never has to know it. A real URL, so cmd-click and "copy link address"
+      // behave normally.
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      {...railTooltipProps(item.label)}
+    >
+      <Icon markup={item.icon ?? ''} />
+      {/* The real accessible name — kept in the DOM and merely clipped visually in rail
+          mode, not removed, so the rail stays a set of named links rather than a column
+          of unlabelled icons. The portaled tooltip is a *sighted-only* supplement to
+          this, never a replacement — a screen reader sees this label, not the portal. */}
+      <span>{item.label}</span>
+      {item.soon ? <span className="soon">{soonLabel}</span> : null}
+    </a>
   );
 }
 

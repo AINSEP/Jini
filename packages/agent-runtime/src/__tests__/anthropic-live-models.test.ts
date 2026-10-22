@@ -10,6 +10,16 @@ import { setClaudeCodeModelIoForTesting } from '../claude-code-models.js';
 import { claudeAgentDef } from '../defs/claude.js';
 import type { RuntimeModelOption } from '../types.js';
 
+// Keep the real SSRF guard and model-catalog parser; only DNS is supplied by the fixture.
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      if (hostname !== 'api.anthropic.com') throw new Error(`ENOTFOUND ${hostname}`);
+      return [{ address: '8.8.8.8', family: 4 }];
+    },
+  },
+}));
+
 const FALLBACK: RuntimeModelOption[] = [
   { id: 'default', label: 'Default (CLI config)' },
   { id: 'fable', label: 'Fable (alias)' },
@@ -85,19 +95,18 @@ describe('loadAnthropicLiveModels', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
       throw new Error('no network call should have been attempted');
     });
-    await expect(loadAnthropicLiveModels({}, FALLBACK)).resolves.toBeNull();
+    await expect(loadAnthropicLiveModels({ env: {}, fallbackModels: FALLBACK })).resolves.toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('merges the account catalog on top of the fallback list', async () => {
+  it('keeps packaged hints out of the account catalog', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(anthropicCatalog('claude-opus-5', 'claude-fable-5-1'));
 
-    const result = await loadAnthropicLiveModels({ ANTHROPIC_API_KEY: 'sk-a' }, FALLBACK);
+    const result = await loadAnthropicLiveModels({ env: { ANTHROPIC_API_KEY: 'sk-a' }, fallbackModels: FALLBACK });
 
-    // The exact list, not "contains claude-fable-5-1": a result that REPLACED the fallback would
-    // still satisfy a containment assertion while silently dropping the CLI aliases the Local-CLI
-    // path depends on.
-    expect(result?.map((m) => m.id)).toEqual(['default', 'fable', 'claude-opus-5', 'claude-fable-5-1']);
+    // The old union protected CLI aliases; explicit resolution now preserves aliases separately,
+    // while removed live IDs must not be reintroduced from packaged hints.
+    expect(result?.map((m) => m.id)).toEqual(['claude-fable-5-1', 'claude-opus-5']);
   });
 
   it('returns null when the live call fails, so the caller keeps its static list', async () => {
@@ -106,13 +115,13 @@ describe('loadAnthropicLiveModels', () => {
       new Response('{"error":{"message":"bad key"}}', { status: 401 }) as unknown as Response,
     );
 
-    await expect(loadAnthropicLiveModels({ ANTHROPIC_API_KEY: 'sk-bad' }, FALLBACK)).resolves.toBeNull();
+    await expect(loadAnthropicLiveModels({ env: { ANTHROPIC_API_KEY: 'sk-bad' }, fallbackModels: FALLBACK })).resolves.toBeNull();
   });
 
   it('returns null for a 200 that carries no models', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(anthropicCatalog());
-    await expect(loadAnthropicLiveModels({ ANTHROPIC_API_KEY: 'sk-a' }, FALLBACK)).resolves.toBeNull();
+    await expect(loadAnthropicLiveModels({ env: { ANTHROPIC_API_KEY: 'sk-a' }, fallbackModels: FALLBACK })).resolves.toBeNull();
   });
 
   it('issues one request for repeated probes inside the TTL window', async () => {
@@ -121,8 +130,8 @@ describe('loadAnthropicLiveModels', () => {
       .mockImplementation(async () => anthropicCatalog('claude-fable-5-1'));
 
     const env = { ANTHROPIC_API_KEY: 'sk-a' };
-    await loadAnthropicLiveModels(env, FALLBACK, () => 1_000);
-    await loadAnthropicLiveModels(env, FALLBACK, () => 2_000);
+    await loadAnthropicLiveModels({ env, fallbackModels: FALLBACK }, { now: () => 1_000 });
+    await loadAnthropicLiveModels({ env, fallbackModels: FALLBACK }, { now: () => 2_000 });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -133,8 +142,8 @@ describe('loadAnthropicLiveModels', () => {
       .mockImplementation(async () => anthropicCatalog('claude-fable-5-1'));
 
     const env = { ANTHROPIC_API_KEY: 'sk-a' };
-    await loadAnthropicLiveModels(env, FALLBACK, () => 1_000);
-    const refreshed = await loadAnthropicLiveModels(env, FALLBACK, () => 1_000 + 5 * 60_000 + 1);
+    await loadAnthropicLiveModels({ env, fallbackModels: FALLBACK }, { now: () => 1_000 });
+    const refreshed = await loadAnthropicLiveModels({ env, fallbackModels: FALLBACK }, { now: () => 1_000 + 5 * 60_000 + 1 });
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     // The re-issued call really answered — not a second request whose body was already consumed.
@@ -148,8 +157,8 @@ describe('loadAnthropicLiveModels', () => {
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async () => anthropicCatalog('claude-fable-5-1'));
 
-    await loadAnthropicLiveModels({ ANTHROPIC_API_KEY: 'sk-a' }, FALLBACK, () => 1_000);
-    const second = await loadAnthropicLiveModels({ ANTHROPIC_API_KEY: 'sk-b' }, FALLBACK, () => 1_000);
+    await loadAnthropicLiveModels({ env: { ANTHROPIC_API_KEY: 'sk-a' }, fallbackModels: FALLBACK }, { now: () => 1_000 });
+    const second = await loadAnthropicLiveModels({ env: { ANTHROPIC_API_KEY: 'sk-b' }, fallbackModels: FALLBACK }, { now: () => 1_000 });
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(second?.map((m) => m.id)).toContain('claude-fable-5-1');
@@ -170,19 +179,16 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
     setClaudeCodeModelIoForTesting(null);
   });
 
-  it('reaches live discovery when no mmd routes file resolves, and merges into the static list', async () => {
+  it('reaches live discovery when no mmd routes file resolves without adding static hints', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(anthropicCatalog('claude-fable-6-hypothetical'));
 
-    const result = await claudeAgentDef.fetchModels!('claude', {
+    const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: {
       HOME: '/nonexistent-home-for-this-test',
       ANTHROPIC_API_KEY: 'sk-a',
-    });
+    } });
 
     expect(result?.map((m) => m.id)).toContain('claude-fable-6-hypothetical');
-    // Everything the static list offered is still offered.
-    for (const model of claudeAgentDef.fallbackModels) {
-      expect(result?.some((m) => m.id === model.id)).toBe(true);
-    }
+    expect(result?.map((m) => m.id)).toEqual(['claude-fable-6-hypothetical']);
   });
 
   it('makes no network call when the agent environment carries no key', async () => {
@@ -190,8 +196,44 @@ describe("claudeAgentDef.fetchModels — the def's own resolution order", () => 
       throw new Error('no network call should have been attempted');
     });
 
-    await claudeAgentDef.fetchModels!('claude', { HOME: '/nonexistent-home-for-this-test' });
+    await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { HOME: '/nonexistent-home-for-this-test' } });
 
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('loadAnthropicLiveModels through an injected catalog port', () => {
+  const key = ['sk', 'ant', 'port', 'fixture'].join('-');
+  const env = { ANTHROPIC_API_KEY: key };
+  const warnings: string[] = [];
+  beforeEach(() => {
+    resetAnthropicLiveModelCacheForTesting();
+    warnings.length = 0;
+    vi.spyOn(console, 'warn').mockImplementation((message: string) => { warnings.push(message); });
+  });
+  afterEach(() => { vi.restoreAllMocks(); resetAnthropicLiveModelCacheForTesting(); });
+
+  it('passes the resolved credential and a timeout signal to the port and returns its models', async () => {
+    const calls: unknown[] = [];
+    const listModels = async (required: { baseUrl: string; apiKey: string; protocol: string }, optional: { signal?: AbortSignal } = {}) => {
+      calls.push({ ...required, hasSignal: optional.signal instanceof AbortSignal });
+      return { ok: true, kind: 'success' as const, latencyMs: 1, models: [{ id: 'claude-live', label: 'Claude Live' }] };
+    };
+    expect(await loadAnthropicLiveModels({ env, fallbackModels: [] }, { now: () => 0, listModels })).toEqual([{ id: 'claude-live', label: 'Claude Live' }]);
+    expect(calls).toEqual([{ protocol: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: key, hasSignal: true }]);
+  });
+  it('a failure without detail warns with the kind only and keeps the static list', async () => {
+    const listModels = async () => ({ ok: false, kind: 'auth_failed' as const, latencyMs: 1 });
+    expect(await loadAnthropicLiveModels({ env, fallbackModels: [] }, { now: () => 0, listModels })).toBeNull();
+    expect(warnings).toEqual(['[agent-runtime] live Claude model discovery failed (auth_failed) — keeping the static model list']);
+  });
+  it('a success that carries no models array keeps the static list silently', async () => {
+    const listModels = async () => ({ ok: true, kind: 'success' as const, latencyMs: 1 });
+    expect(await loadAnthropicLiveModels({ env, fallbackModels: [] }, { now: () => 0, listModels })).toBeNull();
+    expect(warnings).toEqual([]);
+  });
+  it('a port that throws is contained and keeps the static list', async () => {
+    const listModels = async () => { throw new Error('socket hang up'); };
+    expect(await loadAnthropicLiveModels({ env, fallbackModels: [] }, { now: () => 0, listModels })).toBeNull();
   });
 });

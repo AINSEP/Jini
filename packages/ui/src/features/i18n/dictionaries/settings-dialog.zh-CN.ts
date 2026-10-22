@@ -16,12 +16,17 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_ZH_CN: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "我已从你的消息中移除疑似密钥的内容。如果是真实密钥，请更换它。请使用安全表单保存。",
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- Translation of user-facing credential-safety guidance; the value is prose, not a password.
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "请使用安全表单保存密钥、令牌、密码和机密信息。聊天回答会发送给助手。",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# 我的技能\n\n1. 说明工作流程。\n2. 描述输入和输出。',
   'A custom path override did not work, so this used the automatically detected binary instead.': '自定义路径覆盖未生效，因此改用自动检测到的二进制文件。',
   'API key': 'API 密钥',
   'About': '关于',
   'Accent color': '强调色',
   'Account': '账户',
+  'Advanced': '高级',
   'Advanced: proxy & custom paths': '高级：代理与自定义路径',
   'Agent check failed': '智能体检查失败',
   'Agent is ready.': '智能体已就绪。',
@@ -65,8 +70,8 @@ export const SETTINGS_DIALOG_ZH_CN: SettingsDialogDict = {
   'Copy': '复制',
   'Copy to clipboard': '复制到剪贴板',
   'Could not load live models: {message}': '无法加载实时模型列表：{message}',
-  'No API key — connection test needs the key from this browser.': '没有 API 密钥——连接测试需要来自此浏览器的密钥。',
-  'No API key — model discovery needs the key from this browser.': '没有 API 密钥——模型发现需要来自此浏览器的密钥。',
+  'No API key saved. Save one to test the connection.': '未保存 API 密钥。请先保存密钥再测试连接。',
+  'No API key saved. Save one to load models.': '未保存 API 密钥。请先保存密钥再加载模型。',
   'Could not load skills: {error}': '无法加载技能：{error}',
   'Could not reach the daemon: {error}': '无法连接到守护进程：{error}',
   'Could not reach the server. Showing local changes only.': '无法连接到服务器，仅显示本地更改。',
@@ -146,6 +151,9 @@ export const SETTINGS_DIALOG_ZH_CN: SettingsDialogDict = {
   'Not available for this daemon.': '此守护进程不支持该功能。',
   'Not configured': '未配置',
   'Not installed': '未安装',
+  'Show {count} not installed': '显示 {count} 个未安装',
+  'Hide not installed': '隐藏未安装',
+  'Show not-installed CLIs': '显示未安装的 CLI',
   'Not sharing': '未共享',
   'Nothing is shared unless you opt in.': '除非你主动选择，否则不会共享任何内容。',
   'Off': '关闭',

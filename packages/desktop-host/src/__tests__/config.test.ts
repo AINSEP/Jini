@@ -14,7 +14,7 @@ describe('loadHostConfigFile', () => {
 
   it('returns {} when no explicit path is set and no candidate exists', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-config-'));
-    const config = await loadHostConfigFile({ candidatePaths: [join(dir, 'missing.json')], env: {} });
+    const config = await loadHostConfigFile({ candidatePaths: [join(dir, 'missing.json')] }, { env: {} });
     expect(config).toEqual({});
   });
 
@@ -22,10 +22,7 @@ describe('loadHostConfigFile', () => {
     dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-config-'));
     const configPath = join(dir, 'config.json');
     await writeFile(configPath, JSON.stringify({ hello: 'world' }), 'utf8');
-    const config = await loadHostConfigFile<{ hello: string }>({
-      candidatePaths: [join(dir, 'missing.json'), configPath],
-      env: {},
-    });
+    const config = await loadHostConfigFile({ candidatePaths: [join(dir, 'missing.json'), configPath] }, { env: {} });
     expect(config).toEqual({ hello: 'world' });
   });
 
@@ -39,31 +36,19 @@ describe('loadHostConfigFile', () => {
     dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-config-'));
     const configPath = join(dir, 'config.json');
     await writeFile(configPath, JSON.stringify({ fallback: true }), 'utf8');
-    const config = await loadHostConfigFile<{ fallback: boolean }>({
-      explicitPathEnvVar: 'JINI_HOST_CONFIG_PATH',
-      candidatePaths: [configPath],
-      env: { JINI_HOST_CONFIG_PATH: '' },
-    });
+    const config = await loadHostConfigFile({ candidatePaths: [configPath] }, { explicitPathEnvVar: 'JINI_HOST_CONFIG_PATH', env: { JINI_HOST_CONFIG_PATH: '' } });
     expect(config).toEqual({ fallback: true });
   });
 
   it('prefers the explicit-path env var override and throws if that file is missing', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-config-'));
     await expect(
-      loadHostConfigFile({
-        explicitPathEnvVar: 'JINI_HOST_CONFIG_PATH',
-        candidatePaths: [],
-        env: { JINI_HOST_CONFIG_PATH: join(dir, 'missing.json') },
-      }),
+      loadHostConfigFile({ candidatePaths: [] }, { explicitPathEnvVar: 'JINI_HOST_CONFIG_PATH', env: { JINI_HOST_CONFIG_PATH: join(dir, 'missing.json') } }),
     ).rejects.toThrow(/host config not found/);
 
     const configPath = join(dir, 'config.json');
     await writeFile(configPath, JSON.stringify({ ok: true }), 'utf8');
-    const config = await loadHostConfigFile<{ ok: boolean }>({
-      explicitPathEnvVar: 'JINI_HOST_CONFIG_PATH',
-      candidatePaths: [],
-      env: { JINI_HOST_CONFIG_PATH: configPath },
-    });
+    const config = await loadHostConfigFile({ candidatePaths: [] }, { explicitPathEnvVar: 'JINI_HOST_CONFIG_PATH', env: { JINI_HOST_CONFIG_PATH: configPath } });
     expect(config).toEqual({ ok: true });
   });
 });

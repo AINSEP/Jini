@@ -3,7 +3,6 @@ import {
   API_KEY_CROSS_VENDOR_WARNING,
   API_KEY_TOO_SHORT_WARNING,
   CUSTOM_PRESET_ID,
-  DEFAULT_BASE_URL_BY_PROTOCOL,
   MIN_PLAUSIBLE_API_KEY_LENGTH,
 } from './constants.js';
 import type {
@@ -45,7 +44,7 @@ import type {
  * connection time.
  */
 export function isValidApiBaseUrl(raw: string): boolean {
-  return isAllowedEndpointUrl(raw);
+  return isAllowedEndpointUrl({ raw });
 }
 
 /** The synthetic "Custom" preset, so the picker always has a manual escape
@@ -288,22 +287,28 @@ export function nextConfigForPresetSelect(config: ByokConfig, preset: ProviderPr
   if (preset.custom) {
     return { ...config, providerId: null, savedByProviderId };
   }
-  const saved = savedByProviderId[preset.id];
   return {
     ...config,
     providerId: preset.id,
     protocol: preset.protocol,
-    apiKey: saved?.apiKey ?? '',
-    baseUrl: saved?.baseUrl ?? (preset.baseUrl || DEFAULT_BASE_URL_BY_PROTOCOL[preset.protocol]),
-    model: saved?.model ?? preset.preferredModels[0] ?? '',
-    maxTokens: saved?.maxTokens,
+    ...presetCredentials(savedByProviderId[preset.id], preset),
     savedByProviderId,
   };
 }
 
+/** A preset's saved draft, or blank credentials seeded with its base URL and top preferred model. */
+function presetCredentials(saved: ByokProviderCredentials | undefined, preset: ProviderPreset): ByokProviderCredentials {
+  return {
+    apiKey: saved?.apiKey ?? '',
+    baseUrl: saved?.baseUrl ?? preset.baseUrl,
+    model: saved?.model ?? preset.preferredModels[0] ?? '',
+    maxTokens: saved?.maxTokens,
+  };
+}
+
 /** Switching protocol by hand drops the preset selection (the old preset no
- *  longer speaks this protocol) and adopts the protocol's default endpoint
- *  only when the operator hasn't typed their own. */
+ *  longer speaks this protocol) and keeps operator-entered endpoints. Hosts
+ *  seed endpoints through presets; protocol selection never chooses a vendor. */
 export function nextConfigForProtocolSelect(
   config: ByokConfig,
   protocol: ByokConfig['protocol'],
@@ -313,7 +318,7 @@ export function nextConfigForProtocolSelect(
     ...config,
     protocol,
     providerId: null,
-    baseUrl: config.baseUrl.trim() ? config.baseUrl : DEFAULT_BASE_URL_BY_PROTOCOL[protocol],
+    baseUrl: config.baseUrl.trim() ? config.baseUrl : '',
   };
 }
 
@@ -346,6 +351,24 @@ export function sortDetectedAgents<T extends { installed: boolean; label: string
     if (a.installed !== b.installed) return a.installed ? -1 : 1;
     return a.label.localeCompare(b.label);
   });
+}
+
+/**
+ * Splits the CLI grid into what to show up front and what sits behind the "Show N not installed"
+ * toggle. Installed CLIs are the ones an operator can pick, so a long tail of uninstalled cards
+ * buried every setting below the grid. The selected agent always stays visible even when it is
+ * not installed (a stale pick after an uninstall), so the current choice is never hidden.
+ */
+export function partitionAgentsByInstalled<T extends { id: string; installed: boolean }>(
+  agents: readonly T[],
+  selectedAgentId: string | null | undefined,
+): { visible: T[]; collapsed: T[] } {
+  const visible: T[] = [];
+  const collapsed: T[] = [];
+  for (const agent of agents) {
+    (agent.installed || agent.id === selectedAgentId ? visible : collapsed).push(agent);
+  }
+  return { visible, collapsed };
 }
 
 /**
@@ -571,6 +594,43 @@ export function agentExecutableRepairState(result: {
   return { detectedPath, canUseDetected: true };
 }
 
+/** Resolves alias evidence to a concrete picker row; other rows retain their identity. */
+function resolvedPickerModelOption(
+  { model }: { model: AgentModelOption },
+  _optional: Record<string, never> = {},
+): AgentModelOption {
+  const resolvedId = model.identityKind === 'alias' ? model.resolvedId : undefined;
+  if (!resolvedId) return model;
+  const label = model.label === model.id ? resolvedId : model.label;
+  return { ...model, id: resolvedId, label, identityKind: 'concrete' };
+}
+
+/**
+ * Builds picker rows from catalog evidence without changing the source catalog. Resolved aliases
+ * share a concrete row; unresolved aliases and routing modes remain selectable as reported.
+ * Keeps the first position and prefers a human label over a raw ID, including the CLI default's
+ * raw-label row. No names or context variants are inferred from model IDs.
+ * @returns Distinct picker rows in catalog order. No side effects or errors.
+ * @complexity O(n) time and space in catalog rows, using insertion-ordered Map keys.
+ */
+export function pickerModelOptions(
+  { models }: { models: readonly AgentModelOption[] },
+  _optional: Record<string, never> = {},
+): AgentModelOption[] {
+  const choices = new Map<string, AgentModelOption>();
+  for (const model of models) {
+    const option = resolvedPickerModelOption({ model });
+    const { id, label } = option;
+    const existing = choices.get(id);
+    if (!existing) {
+      choices.set(id, option);
+    } else if (existing.label === id && label !== id) {
+      choices.set(id, { ...existing, label });
+    }
+  }
+  return [...choices.values()];
+}
+
 /** Case-insensitive substring match against a model's id or label, mirroring
  *  the origin's search box. Matches on both fields (not just the visible
  *  label) so an operator can search by the raw model id too. */
@@ -647,13 +707,18 @@ export function splitReasoningModelId(
  * has no level, so nothing is stripped, and a vendor label that happens to end in an unrelated
  * parenthetical keeps it.
  */
+/** `Head (Inner)` with optional surrounding whitespace; group 1 is the head, group 2 the qualifier. */
+const TRAILING_PARENTHETICAL = /^(.*?)\s*\(([^()]*)\)\s*$/;
+
 function baseLabelForLevel(label: string, level: AgentModelOption | undefined): string {
   if (!level) return label;
-  const match = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(label);
-  if (!match) return label;
-  const inner = (match[2] ?? '').trim().toLowerCase();
+  if (!TRAILING_PARENTHETICAL.test(label)) return label;
+  // Both capture groups always participate once the pattern matches, so reading them through
+  // `replace` (which yields a plain string) replaces the old `match[n] ?? ''` fallbacks, which no
+  // matching label could ever reach.
+  const inner = label.replace(TRAILING_PARENTHETICAL, '$2').trim().toLowerCase();
   if (inner !== level.id.toLowerCase() && inner !== level.label.toLowerCase()) return label;
-  const stripped = (match[1] ?? '').trim();
+  const stripped = label.replace(TRAILING_PARENTHETICAL, '$1').trim();
   return stripped || label;
 }
 

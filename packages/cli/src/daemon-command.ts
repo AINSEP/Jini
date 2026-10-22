@@ -3,7 +3,7 @@
  *
  * `daemon status` / `daemon stop` — concrete commands over `@jini-ai/http-kit`'s
  * `daemonStatusRoute`/`daemonShutdownRoute` (`packages/http/src/daemon-status.ts`).
- * `packages/cli/source-map.md`'s original UNCLEAR verdict on these two
+ * `packages/cli/archived provenance ledger`'s original UNCLEAR verdict on these two
  * blocked on `@jini-ai/http-kit` being a stub with no `/status`/`/shutdown` route to
  * call; that blocker no longer holds (both routes exist and are tested), and
  * `run-command.ts` is now a real, established "first concrete command"
@@ -26,45 +26,36 @@ export interface DaemonCommandDeps {
   /** Resolves the daemon HTTP base URL once per command invocation (e.g. wraps `resolveDaemonUrl`). */
   resolveBaseUrl: () => Promise<string> | string;
   /** Defaults to `process.stdout.write`; inject for tests. Used for successful command output. */
-  write?: (text: string) => void;
+  write?: (requiredArgs: { text: string }) => void;
   /** Defaults to `process.stderr.write`; inject for tests. Used for usage/validation errors. */
-  writeErr?: (text: string) => void;
+  writeErr?: (requiredArgs: { text: string }) => void;
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   /** Defaults to `process.exit`; inject for tests (must not return). */
-  exit?: (code: number) => never;
+  exit?: (requiredArgs: { code: number }) => never;
   /** Extra/overriding `code -> exitCode` entries layered on the package default table. */
   exitCodes?: ExitCodeTable;
 }
 
-function defaultWrite(text: string): void {
+function defaultWrite({ text }: { text: string }): void {
   process.stdout.write(text);
 }
 
-function defaultWriteErr(text: string): void {
+function defaultWriteErr({ text }: { text: string }): void {
   process.stderr.write(text);
 }
 
-const DAEMON_STATUS_USAGE = renderUsage({
-  usage: ['daemon status'],
-  description: 'Reports the running daemon\'s version/host/port/dataDir/shutdown state.',
-});
+const DAEMON_STATUS_USAGE = renderUsage({ usage: ['daemon status'] }, { description: 'Reports the running daemon\'s version/host/port/dataDir/shutdown state.' });
 
-const DAEMON_STOP_USAGE = renderUsage({
-  usage: ['daemon stop'],
-  description: 'Schedules a graceful daemon shutdown. Responds once the shutdown is scheduled, not once the process has actually exited.',
-});
+const DAEMON_STOP_USAGE = renderUsage({ usage: ['daemon stop'] }, { description: 'Schedules a graceful daemon shutdown. Responds once the shutdown is scheduled, not once the process has actually exited.' });
 
-const DAEMON_USAGE = renderUsage({
-  usage: ['daemon <status|stop> ...'],
-  description: 'Inspect or control a running Jini daemon over HTTP.',
-});
+const DAEMON_USAGE = renderUsage({ usage: ['daemon <status|stop> ...'] }, { description: 'Inspect or control a running Jini daemon over HTTP.' });
 
 /** Builds `{write, exit, exitCodes?}` for `errors.ts`'s structured-error helpers, never assigning `exitCodes` when unset (required under `exactOptionalPropertyTypes`). */
-function errorOptions(deps: DaemonCommandDeps): { write: (text: string) => void; exit: (code: number) => never; exitCodes?: ExitCodeTable } {
+function errorOptions(deps: DaemonCommandDeps): { write: (requiredArgs: { text: string }) => void; exit: (requiredArgs: { code: number }) => never; exitCodes?: ExitCodeTable } {
   return {
     write: deps.writeErr ?? defaultWriteErr,
-    exit: deps.exit ?? ((code: number) => process.exit(code)),
+    exit: deps.exit ?? (({ code }: { code: number }) => process.exit(code)),
     ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
   };
 }
@@ -72,8 +63,8 @@ function errorOptions(deps: DaemonCommandDeps): { write: (text: string) => void;
 /** Builds the transport-call options object for `postJsonToDaemon`/`getJsonFromDaemon`, only ever including a key when its value is actually set. */
 function transportOptions(deps: DaemonCommandDeps): {
   fetchImpl?: typeof fetch;
-  write?: (text: string) => void;
-  exit?: (code: number) => never;
+  write?: (requiredArgs: { text: string }) => void;
+  exit?: (requiredArgs: { code: number }) => never;
   exitCodes?: ExitCodeTable;
 } {
   return {
@@ -89,51 +80,50 @@ function invalidFlag(deps: DaemonCommandDeps, message: string): never {
 }
 
 function printJsonResult(deps: DaemonCommandDeps, value: unknown): void {
-  (deps.write ?? defaultWrite)(`${JSON.stringify(value)}\n`);
+  (deps.write ?? defaultWrite)({ text: `${JSON.stringify(value)}\n` });
 }
 
 /** `daemon status` */
-export async function daemonStatusCommand(args: readonly string[], deps: DaemonCommandDeps): Promise<void> {
+export async function daemonStatusCommand({ args, resolveBaseUrl }: { args: readonly string[]; resolveBaseUrl: DaemonCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<DaemonCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: DaemonCommandDeps = { resolveBaseUrl, ...optionalArgs };
   if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${DAEMON_STATUS_USAGE}\n`);
+    (deps.write ?? defaultWrite)({ text: `${DAEMON_STATUS_USAGE}\n` });
     return;
   }
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await getJsonFromDaemon(baseUrl, '/api/daemon/status', transportOptions(deps));
+  const result = await getJsonFromDaemon({ base: baseUrl, route: '/api/daemon/status' }, transportOptions(deps));
   printJsonResult(deps, result);
 }
 
 /** `daemon stop` */
-export async function daemonStopCommand(args: readonly string[], deps: DaemonCommandDeps): Promise<void> {
+export async function daemonStopCommand({ args, resolveBaseUrl }: { args: readonly string[]; resolveBaseUrl: DaemonCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<DaemonCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: DaemonCommandDeps = { resolveBaseUrl, ...optionalArgs };
   if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${DAEMON_STOP_USAGE}\n`);
+    (deps.write ?? defaultWrite)({ text: `${DAEMON_STOP_USAGE}\n` });
     return;
   }
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await postJsonToDaemon(baseUrl, '/api/daemon/shutdown', {}, transportOptions(deps));
+  const result = await postJsonToDaemon({ base: baseUrl, route: '/api/daemon/shutdown', body: {} }, transportOptions(deps));
   printJsonResult(deps, result);
 }
 
 /** Registers `daemon` (dispatching `status`/`stop` on the first remaining token) against `registry`. */
-export function registerDaemonCommands(registry: CommandRegistry, deps: DaemonCommandDeps): void {
-  registry.add(
-    'daemon',
-    async (args) => {
+export function registerDaemonCommands({ registry, resolveBaseUrl }: { registry: CommandRegistry; resolveBaseUrl: DaemonCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<DaemonCommandDeps, "resolveBaseUrl"> = {}): void {
+  const deps: DaemonCommandDeps = { resolveBaseUrl, ...optionalArgs };
+  registry.add({ name: 'daemon', handler: async ({ args }) => {
       const [sub, ...rest] = args;
       switch (sub) {
         case 'status':
-          return daemonStatusCommand(rest, deps);
+          return daemonStatusCommand({ args: rest, resolveBaseUrl: resolveBaseUrl }, optionalArgs);
         case 'stop':
-          return daemonStopCommand(rest, deps);
+          return daemonStopCommand({ args: rest, resolveBaseUrl: resolveBaseUrl }, optionalArgs);
         case undefined:
         case '--help':
         case '-h':
-          (deps.write ?? defaultWrite)(`${DAEMON_USAGE}\n`);
+          (deps.write ?? defaultWrite)({ text: `${DAEMON_USAGE}\n` });
           return;
         default:
           invalidFlag(deps, `unknown "daemon" subcommand: ${sub}`);
       }
-    },
-    { usage: DAEMON_USAGE },
-  );
+    } }, { usage: DAEMON_USAGE });
 }

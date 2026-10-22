@@ -56,7 +56,7 @@ export interface AgUiToolResultMessage {
  * @param capability - The capability to expose.
  * @returns The tool entry for `RunAgentInput.tools`.
  */
-export function toAgUiTool(capability: CapabilityDef): AgUiTool {
+export function toAgUiTool({ capability }: { capability: CapabilityDef }, _optional: Record<string, never> = {}): AgUiTool {
   return {
     name: capability.id,
     description: capability.description,
@@ -70,8 +70,8 @@ export function toAgUiTool(capability: CapabilityDef): AgUiTool {
  * @param capabilities - Capabilities to expose, already filtered by whatever policy applies.
  * @returns One tool per capability, in manifest order.
  */
-export function toAgUiTools(capabilities: readonly CapabilityDef[]): readonly AgUiTool[] {
-  return capabilities.map(toAgUiTool);
+export function toAgUiTools({ capabilities }: { capabilities: readonly CapabilityDef[] }, _optional: Record<string, never> = {}): readonly AgUiTool[] {
+  return capabilities.map(capability => toAgUiTool({ capability }));
 }
 
 /**
@@ -115,10 +115,7 @@ function encodeToolContent(output: unknown): string {
  * @param outcome - What happened.
  * @returns The `role: "tool"` message to send back.
  */
-export function createAgUiToolResult(
-  messageId: string,
-  toolCallId: string,
-  outcome: { ok: true; output: unknown } | { ok: false; error: string },
+export function createAgUiToolResult({ messageId, toolCallId, outcome }: { messageId: string; toolCallId: string; outcome: { ok: true; output: unknown } | { ok: false; error: string } }, _optional: Record<string, never> = {}
 ): AgUiToolResultMessage {
   const content = outcome.ok
     ? typeof outcome.output === 'string' ? outcome.output : encodeToolContent(outcome.output)

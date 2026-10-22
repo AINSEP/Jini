@@ -1,17 +1,16 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
-import { CUSTOM_MODEL_SENTINEL, DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
+import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import {
   apiKeyFormatWarning,
-  isBaseUrlInvalid,
-  missingRequiredFields,
   parseMaxTokens,
   presetRequiresApiKey,
   shouldShowCustomModelInput,
   showsBaseUrlField,
 } from '../../rules.js';
 import { SearchableModelSelect } from './SearchableModelSelect.js';
+import { useByokFieldValidation } from '../hooks/use-byok-field-validation.hooks.js';
 import type {
   ByokConfig,
   ConnectionTestState,
@@ -29,10 +28,8 @@ export interface ByokProviderFormProps {
    * as ANOTHER row's, so `apiKeyFormatWarning` can say whose it looks like. Never used to validate
    * the selected preset's own key — see that function for why that direction is forbidden.
    *
-   * Defaults to `DEFAULT_PROVIDER_PRESETS`, matching `ExecutionTab`'s own default for the same
-   * prop, so a host rendering this card standalone still gets the shipped vendor prefixes rather
-   * than losing the check silently. A host with its own catalog should pass it, exactly as
-   * `ExecutionTab` does.
+   * Defaults to no presets. Hosts rendering this card standalone must pass their catalog
+   * to enable cross-provider prefix hints, exactly as `ExecutionTab` does.
    */
   presets?: readonly ProviderPreset[];
   /** Live model-discovery result. `'ok'` suggestions win over the preset's
@@ -77,6 +74,8 @@ export interface ByokProviderFormProps {
    * Omitted by every existing caller, so the rendered output is byte-identical without it.
    */
   formFooter?: ReactNode;
+  /** Host actions directly below Model and its results, before any Advanced disclosure. */
+  modelFooter?: ReactNode;
   /**
    * `true` when a key is already held somewhere the browser cannot read — so the API-key input is
    * legitimately empty and must NOT be treated as a missing required field.
@@ -110,6 +109,36 @@ export interface ByokProviderFormProps {
   apiKeyPlaceholder?: string;
   /** This card's own agent handle — see `ExecutionTab`'s `agentHandle` doc for the split. */
   agentHandle?: string;
+  /**
+   * A host's button row for the key (Test key / Save key), directly UNDER the input; Show stays on
+   * the input's own line (owner, 2026-10-09: the input with Show beside it, actions beneath). Given,
+   * the key field renders as a `<div>` whose `<label>` wraps only the field name, so these buttons are
+   * never nested inside a label (which would fold their text into the input's accessible name).
+   */
+  apiKeyActions?: ReactNode;
+  /**
+   * Moves Base URL and Max tokens into a collapsed "Advanced" disclosure after the Model row. For
+   * hosts where those two are rarely touched; it opens on its own while Base URL is invalid or
+   * missing, so a required-field problem is never hidden. Default `false` keeps the original order.
+   */
+  collapseAdvanced?: boolean;
+  /** Paint required-field errors after that field loses focus; validation gates stay immediate. */
+  deferMissingFeedback?: boolean;
+}
+
+/** What every field part of the card shares: the config it edits, the one-key patcher, and the
+ *  validation state from `useByokFieldValidation`. */
+interface ByokFieldPartProps {
+  config: ByokConfig;
+  patch: (next: Partial<ByokConfig>) => void;
+  preset: ProviderPreset | null;
+  agentHandle: string | undefined;
+  validation: ReturnType<typeof useByokFieldValidation>;
+}
+
+/** `' is-missing'` when `field` is a required field the operator still has to fill. */
+function missingClass(validation: ByokFieldPartProps['validation'], field: 'apiKey' | 'baseUrl' | 'model'): string {
+  return validation.isMissing({ field }) ? ' is-missing' : '';
 }
 
 /**
@@ -122,16 +151,20 @@ export function ByokProviderForm({
   config,
   onConfigChange,
   preset,
-  presets = DEFAULT_PROVIDER_PRESETS,
+  presets = [],
   modelDiscovery,
   connectionTest,
   onTestConnection,
   canTestConnection = true,
   apiKeyFooter,
   formFooter,
+  modelFooter,
   apiKeyStoredExternally = false,
   apiKeyPlaceholder,
   agentHandle,
+  apiKeyActions,
+  collapseAdvanced = false,
+  deferMissingFeedback = false,
 }: ByokProviderFormProps) {
   const t = useT();
   const [revealKey, setRevealKey] = useState(false);
@@ -158,17 +191,247 @@ export function ByokProviderForm({
     setRevealKey(false);
   }, [config.providerId]);
 
-  const missing = new Set(missingRequiredFields(config, preset));
-  // A stored-but-unreadable key satisfies the requirement. Subtracted here rather than threaded into
-  // `missingRequiredFields` because that function is a pure rule over `ByokConfig` and this is a fact
-  // about the HOST's storage, which does not belong in the config shape.
-  if (apiKeyStoredExternally) missing.delete('apiKey');
-  const baseUrlInvalid = isBaseUrlInvalid(config);
+  const validation = useByokFieldValidation(
+    { config, preset, apiKeyStoredExternally }, { deferMissingFeedback },
+  );
+  const patch = (next: Partial<ByokConfig>) => onConfigChange({ ...config, ...next });
+  const part: ByokFieldPartProps = { config, patch, preset, agentHandle, validation };
+
+  const connectionFields = <ByokConnectionFields {...part} />;
+
+  return (
+    <div className="jini-byok-card">
+      <div className="jini-byok-card-head">
+        <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>
+      </div>
+
+      {presetRequiresApiKey(preset) ? (
+        <ByokApiKeyField
+          {...part}
+          presets={presets}
+          revealKey={revealKey}
+          onToggleReveal={() => setRevealKey((shown) => !shown)}
+          apiKeyFooter={apiKeyFooter}
+          apiKeyPlaceholder={apiKeyPlaceholder}
+          apiKeyActions={apiKeyActions}
+        />
+      ) : null}
+
+      {collapseAdvanced ? null : connectionFields}
+
+      <ByokModelRow
+        {...part}
+        modelDiscovery={modelDiscovery}
+        explicitCustomModel={explicitCustomModel}
+        setExplicitCustomModel={setExplicitCustomModel}
+        connectionTest={connectionTest}
+        onTestConnection={onTestConnection}
+        canTestConnection={canTestConnection}
+      />
+
+      <ByokDiscoveryError modelDiscovery={modelDiscovery} />
+
+      <ByokConnectionResult connectionTest={connectionTest} canTestConnection={canTestConnection} />
+
+      {/* Same bare-sibling treatment as `apiKeyFooter` above — `.jini-byok-card` is a flex column
+          with a 14px gap, so this inherits the card's own rhythm rather than defining its own. */}
+      <ByokSlot className="jini-byok-model-footer">{modelFooter}</ByokSlot>
+
+      {collapseAdvanced ? <ByokAdvanced validation={validation}>{connectionFields}</ByokAdvanced> : null}
+
+      <ByokSlot className="jini-byok-form-footer">{formFooter}</ByokSlot>
+    </div>
+  );
+}
+
+/** Base URL (unless the preset has a fixed origin) and Max tokens, on one wrapping row. */
+function ByokConnectionFields({ config, patch, preset, agentHandle, validation }: ByokFieldPartProps) {
+  const t = useT();
+  return (
+    <>
+      {/* Base URL and Max tokens share a row (owner ruling, 2026-09-02) — neither needs the card's
+          full width, and stacking them wasted a whole line on a number input. A WRAPPING flex row,
+          not a two-column grid: the card is rendered at very different widths (a settings modal, a
+          full admin page, a phone), and at a narrow one this has to become Base URL with Max tokens
+          BELOW it rather than two squeezed columns. Source order is therefore the stacking order.
+          With `showsBaseUrlField` false the row holds one child, which then fills it. */}
+      <div className="jini-byok-field-row">
+        {showsBaseUrlField(preset) ? (
+          <label className="jini-field" onBlurCapture={() => validation.markTouched({ field: 'baseUrl' })}>
+            <span className="jini-field-label">
+              {t('Base URL')}
+              {preset?.baseUrl ? null : <span className="jini-field-required" aria-hidden="true">
+                *
+              </span>}
+            </span>
+            <input
+              className={'jini-input' + missingClass(validation, 'baseUrl')}
+              type="url"
+              inputMode="url"
+              spellCheck={false}
+              value={config.baseUrl}
+              onChange={(event) => patch({ baseUrl: event.target.value })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'base-url', role: 'field', label: t('Base URL') }) })}
+            />
+            <span className={'jini-field-hint' + (validation.baseUrlInvalid ? ' is-error' : '')}>
+              {validation.baseUrlInvalid
+                ? t('Enter an absolute http(s) URL.')
+                : t('Default endpoint. Usually no need to change this.')}
+            </span>
+          </label>
+        ) : null}
+
+        <label className="jini-field">
+          <span className="jini-field-label">{t('Max tokens (optional)')}</span>
+          <input
+            className="jini-input"
+            type="number"
+            min={1}
+            step={1}
+            value={config.maxTokens ?? ''}
+            onChange={(event) => patch({ maxTokens: parseMaxTokens(event.target.value) })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'max-tokens', role: 'field', label: t('Max tokens (optional)') }) })}
+          />
+          <span className="jini-field-hint">
+            {t('Cap on the response length. Leave blank to use the model default.')}
+          </span>
+        </label>
+      </div>
+    </>
+  );
+}
+
+interface ByokApiKeyFieldProps extends ByokFieldPartProps {
+  presets: readonly ProviderPreset[];
+  revealKey: boolean;
+  onToggleReveal: () => void;
+  apiKeyFooter: ReactNode;
+  apiKeyPlaceholder: string | undefined;
+  apiKeyActions: ReactNode;
+}
+
+/** The API-key field (with Show/Hide, host actions and the advisory format warning) plus the
+ *  host's `apiKeyFooter` slot beneath it. */
+function ByokApiKeyField({
+  config, patch, preset, agentHandle, validation,
+  presets, revealKey, onToggleReveal, apiKeyFooter, apiKeyPlaceholder, apiKeyActions,
+}: ByokApiKeyFieldProps) {
+  const t = useT();
+  const keyInputId = useId();
+  const KeyField = apiKeyActions ? 'div' : 'label';
   /** Deliberately NOT folded into `missing` above: that set drives `is-missing` styling and the
    *  Test-connection disable, and a wrong-SHAPED key must never reach either. */
   const keyFormatWarning = apiKeyFormatWarning(config, preset, presets);
-  const suggestions = modelDiscovery.status === 'ok' ? modelDiscovery.models : (preset?.preferredModels ?? []);
-  const modelListId = 'jini-byok-model-options';
+  return (
+    <>
+    <KeyField className="jini-field" onBlurCapture={() => validation.markTouched({ field: 'apiKey' })}>
+      <span className="jini-field-label">
+        <ByokApiKeyLabel keyInputId={apiKeyActions ? keyInputId : undefined} />
+        {preset?.apiKeyConsoleUrl ? (
+          <a
+            className="jini-field-link"
+            href={preset.apiKeyConsoleUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            {t('Get key')}
+          </a>
+        ) : null}
+      </span>
+      <span className="jini-field-input-row">
+        <input
+          {...(apiKeyActions ? { id: keyInputId } : {})}
+          className={'jini-input' + missingClass(validation, 'apiKey')}
+          type={revealKey ? 'text' : 'password'}
+          /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on credential-shaped
+             fields (a long-standing intentional decision, not a bug). `off` here is what let the
+             reported autofill through: Chrome filled this field with the admin's own saved
+             PASSWORD, the form sent it, and the provider answered with its own "API key not
+             valid" — a true message about a string the operator never typed. `new-password` is
+             the value Chrome/Safari/Firefox actually honor for "this is not a saved-login
+             field", which suppresses both the credential dropdown and the silent fill.
+
+             Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on
+             this field — a suggestion popup, not a silently wrong value. */
+          autoComplete="new-password"
+          spellCheck={false}
+          placeholder={apiKeyPlaceholder}
+          value={config.apiKey}
+          onChange={(event) => patch({ apiKey: event.target.value })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'api-key', role: 'field', label: t('API key') }) })}
+        />
+        <button
+          type="button"
+          className="jini-input-affix-btn"
+          aria-pressed={revealKey}
+          onClick={onToggleReveal}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reveal-key', role: 'button', label: t('Reveal API key') }) })}
+        >
+          {revealKey ? t('Hide') : t('Show')}
+        </button>
+      </span>
+      {apiKeyActions ? <span className="jini-byok-key-actions">{apiKeyActions}</span> : null}
+      <span className="jini-field-hint">{t('Stored only by this host.')}</span>
+      {/* Advisory, never a gate: `Save`/`Test connection` stay exactly as enabled as they were,
+          and the typed key is still sent verbatim. See `apiKeyFormatWarning`'s own doc for why
+          a client-side format guess must not be allowed to block a credential.
+
+          `role="status"` rather than `alert`: this is a suggestion the operator may correctly
+          ignore, not a failure. It reuses the `is-error` hint styling because that is the one
+          emphasised hint style this package ships and a silent-looking warning would not do the
+          job — the emphasis is the point, the blocking is not. */}
+      {keyFormatWarning ? (
+        <span className="jini-field-hint is-error" role="status">
+          {t(keyFormatWarning.message, keyFormatWarning.vars)}
+        </span>
+      ) : null}
+    </KeyField>
+    {/* No wrapper styling of its own — `.jini-byok-card` is a flex column with a 14px gap, so a
+        bare sibling inherits the card's own field rhythm. A host that wants a tighter coupling to
+        the field above can supply its own margin from the outside. */}
+    <ByokSlot className="jini-byok-key-footer">{apiKeyFooter}</ByokSlot>
+    </>
+  );
+}
+
+/** "API key *". With host key actions the field is a `<div>`, so the name gets its own `<label>`
+ *  pointing at the input by id; otherwise the whole field is already the label. */
+function ByokApiKeyLabel({ keyInputId }: { keyInputId: string | undefined }) {
+  const t = useT();
+  if (keyInputId) {
+    return (
+      <label className="jini-field-label" htmlFor={keyInputId}>
+        <span>{t('API key')}</span>
+        <span className="jini-field-required" aria-hidden="true">*</span>
+      </label>
+    );
+  }
+  return (
+    <>
+      {t('API key')}
+      <span className="jini-field-required" aria-hidden="true">
+        *
+      </span>
+    </>
+  );
+}
+
+interface ByokModelRowProps extends ByokFieldPartProps {
+  modelDiscovery: ModelDiscoveryState;
+  explicitCustomModel: boolean;
+  setExplicitCustomModel: (custom: boolean) => void;
+  connectionTest: ConnectionTestState;
+  onTestConnection: () => void;
+  canTestConnection: boolean;
+}
+
+/** The Model field (live picker, free-text box, or both) with "Test connection" beside it. */
+function ByokModelRow({
+  config, patch, preset, agentHandle, validation,
+  modelDiscovery, explicitCustomModel, setExplicitCustomModel,
+  connectionTest, onTestConnection, canTestConnection,
+}: ByokModelRowProps) {
+  const t = useT();
 
   /**
    * Live discovery turns the Model field from a text box into a real picker.
@@ -195,255 +458,232 @@ export function ByokProviderForm({
   // a hydrated or hand-typed id is never silently replaced by whatever sorts first.
   const customModelActive =
     showModelPicker && shouldShowCustomModelInput(config.model, liveModels, explicitCustomModel);
-
-  const patch = (next: Partial<ByokConfig>) => onConfigChange({ ...config, ...next });
+  const modelClassName = 'jini-input' + missingClass(validation, 'model');
 
   return (
-    <div className="jini-byok-card">
-      <div className="jini-byok-card-head">
-        <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>
-      </div>
-
-      {presetRequiresApiKey(preset) ? (
-        <>
-        <label className="jini-field">
-          <span className="jini-field-label">
-            {t('API key')}
-            <span className="jini-field-required" aria-hidden="true">
-              *
-            </span>
-            {preset?.apiKeyConsoleUrl ? (
-              <a
-                className="jini-field-link"
-                href={preset.apiKeyConsoleUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-              >
-                {t('Get key')}
-              </a>
-            ) : null}
+    // "Test connection" sits BESIDE the Model control (owner ruling, 2026-09-02), not on a row of
+    // its own underneath it. It probes the endpoint the Model field belongs to, and a row's
+    // distance made it read as unrelated to any particular field.
+    //
+    // A SIBLING of the label, never a child: a `<button>` inside a `<label>` makes every click on
+    // the button also focus and activate the labelled control — here, opening the model picker —
+    // and nesting interactive controls in a label is an accessibility defect regardless. Same rule
+    // `apiKeyFooter` documents.
+    //
+    // Wrapping, and `align-items: flex-end`, so the button sits on the input's own line at a
+    // comfortable width and drops below the field at a narrow one. Both status lines
+    // (discovery error, connection result) are deliberately OUTSIDE this row: inside it they would
+    // either sit beside the button or, as label children, push it out of line the moment either
+    // appeared.
+    <div className="jini-byok-model-row">
+      <label className="jini-field" onBlurCapture={() => validation.markTouched({ field: 'model' })}>
+        <span className="jini-field-label">
+          {t('Model')}
+          <span className="jini-field-required" aria-hidden="true">
+            *
           </span>
-          <span className="jini-field-input-row">
-            <input
-              className={'jini-input' + (missing.has('apiKey') ? ' is-missing' : '')}
-              type={revealKey ? 'text' : 'password'}
-              /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on credential-shaped
-                 fields (a long-standing intentional decision, not a bug). `off` here is what let the
-                 reported autofill through: Chrome filled this field with the admin's own saved
-                 PASSWORD, the form sent it, and the provider answered with its own "API key not
-                 valid" — a true message about a string the operator never typed. `new-password` is
-                 the value Chrome/Safari/Firefox actually honor for "this is not a saved-login
-                 field", which suppresses both the credential dropdown and the silent fill.
-
-                 Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on
-                 this field — a suggestion popup, not a silently wrong value. */
-              autoComplete="new-password"
-              spellCheck={false}
-              placeholder={apiKeyPlaceholder}
-              value={config.apiKey}
-              onChange={(event) => patch({ apiKey: event.target.value })}
-              {...agentHandleProps(agentHandle, { action: 'api-key', role: 'field', label: t('API key') })}
-            />
-            <button
-              type="button"
-              className="jini-input-affix-btn"
-              aria-pressed={revealKey}
-              onClick={() => setRevealKey((shown) => !shown)}
-              {...agentHandleProps(agentHandle, { action: 'reveal-key', role: 'button', label: t('Reveal API key') })}
-            >
-              {revealKey ? t('Hide') : t('Show')}
-            </button>
-          </span>
-          <span className="jini-field-hint">{t('Stored only by this host.')}</span>
-          {/* Advisory, never a gate: `Save`/`Test connection` stay exactly as enabled as they were,
-              and the typed key is still sent verbatim. See `apiKeyFormatWarning`'s own doc for why
-              a client-side format guess must not be allowed to block a credential.
-
-              `role="status"` rather than `alert`: this is a suggestion the operator may correctly
-              ignore, not a failure. It reuses the `is-error` hint styling because that is the one
-              emphasised hint style this package ships and a silent-looking warning would not do the
-              job — the emphasis is the point, the blocking is not. */}
-          {keyFormatWarning ? (
-            <span className="jini-field-hint is-error" role="status">
-              {t(keyFormatWarning.message, keyFormatWarning.vars)}
-            </span>
-          ) : null}
-        </label>
-        {/* No wrapper styling of its own — `.jini-byok-card` is a flex column with a 14px gap, so a
-            bare sibling inherits the card's own field rhythm. A host that wants a tighter coupling to
-            the field above can supply its own margin from the outside. */}
-        {apiKeyFooter ? <div className="jini-byok-key-footer">{apiKeyFooter}</div> : null}
-        </>
-      ) : null}
-
-      {/* Base URL and Max tokens share a row (owner ruling, 2026-09-02) — neither needs the card's
-          full width, and stacking them wasted a whole line on a number input. A WRAPPING flex row,
-          not a two-column grid: the card is rendered at very different widths (a settings modal, a
-          full admin page, a phone), and at a narrow one this has to become Base URL with Max tokens
-          BELOW it rather than two squeezed columns. Source order is therefore the stacking order.
-          With `showsBaseUrlField` false the row holds one child, which then fills it. */}
-      <div className="jini-byok-field-row">
-        {showsBaseUrlField(preset) ? (
-          <label className="jini-field">
-            <span className="jini-field-label">
-              {t('Base URL')}
-              <span className="jini-field-required" aria-hidden="true">
-                *
-              </span>
-            </span>
-            <input
-              className={'jini-input' + (baseUrlInvalid || missing.has('baseUrl') ? ' is-missing' : '')}
-              type="url"
-              inputMode="url"
-              spellCheck={false}
-              value={config.baseUrl}
-              onChange={(event) => patch({ baseUrl: event.target.value })}
-              {...agentHandleProps(agentHandle, { action: 'base-url', role: 'field', label: t('Base URL') })}
-            />
-            <span className={'jini-field-hint' + (baseUrlInvalid ? ' is-error' : '')}>
-              {baseUrlInvalid
-                ? t('Enter an absolute http(s) URL.')
-                : t('Default endpoint. Usually no need to change this.')}
-            </span>
-          </label>
-        ) : null}
-
-        <label className="jini-field">
-          <span className="jini-field-label">{t('Max tokens (optional)')}</span>
-          <input
-            className="jini-input"
-            type="number"
-            min={1}
-            step={1}
-            value={config.maxTokens ?? ''}
-            onChange={(event) => patch({ maxTokens: parseMaxTokens(event.target.value) })}
-            {...agentHandleProps(agentHandle, { action: 'max-tokens', role: 'field', label: t('Max tokens (optional)') })}
-          />
-          <span className="jini-field-hint">
-            {t('Cap on the response length. Leave blank to use the model default.')}
-          </span>
-        </label>
-      </div>
-
-      {/* "Test connection" sits BESIDE the Model control (owner ruling, 2026-09-02), not on a row of
-          its own underneath it. It probes the endpoint the Model field belongs to, and a row's
-          distance made it read as unrelated to any particular field.
-
-          A SIBLING of the label, never a child: a `<button>` inside a `<label>` makes every click on
-          the button also focus and activate the labelled control — here, opening the model picker —
-          and nesting interactive controls in a label is an accessibility defect regardless. Same rule
-          `apiKeyFooter` documents.
-
-          Wrapping, and `align-items: flex-end`, so the button sits on the input's own line at a
-          comfortable width and drops below the field at a narrow one. Both status lines
-          (discovery error, connection result) are deliberately OUTSIDE this row: inside it they would
-          either sit beside the button or, as label children, push it out of line the moment either
-          appeared. */}
-      <div className="jini-byok-model-row">
-        <label className="jini-field">
-          <span className="jini-field-label">
-            {t('Model')}
-            <span className="jini-field-required" aria-hidden="true">
-              *
-            </span>
-          </span>
-          {showModelPicker ? (
-            <SearchableModelSelect
-              className={'jini-input' + (missing.has('model') ? ' is-missing' : '')}
-              ariaLabel={t('Model')}
-              searchPlaceholder={t('Search models')}
-              testId="jini-byok-model-select"
-              searchInputTestId="jini-byok-model-search"
-              {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'model') } : {})}
-              value={customModelActive ? CUSTOM_MODEL_SENTINEL : config.model}
-              models={liveModels.map((model) => ({ id: model, label: model }))}
-              additionalOptions={[{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }]}
-              onChange={(next) => {
-                if (next === CUSTOM_MODEL_SENTINEL) {
-                  // Open the free-text box WITHOUT clearing `config.model`. Blanking it here would
-                  // discard a working model the moment someone opened the picker to look at it.
-                  setExplicitCustomModel(true);
-                  return;
-                }
-                setExplicitCustomModel(false);
-                patch({ model: next });
-              }}
-            />
-          ) : null}
-          {/* Rendered when there is no live list at all (unchanged behaviour, `<datalist>` and all),
-              and ALSO alongside the picker while custom mode is active — the second case is what
-              keeps an unlisted model id typeable instead of unreachable. */}
-          {!showModelPicker || customModelActive ? (
-            <input
-              className={'jini-input' + (missing.has('model') ? ' is-missing' : '')}
-              list={!showModelPicker && suggestions.length > 0 ? modelListId : undefined}
-              spellCheck={false}
-              value={config.model}
-              onChange={(event) => patch({ model: event.target.value })}
-              {...agentHandleProps(agentHandle, { action: 'model', role: 'field', label: t('Model') })}
-            />
-          ) : null}
-          {!showModelPicker && suggestions.length > 0 ? (
-            <datalist id={modelListId}>
-              {suggestions.map((model) => (
-                <option key={model} value={model} />
-              ))}
-            </datalist>
-          ) : null}
-        </label>
-
-        {canTestConnection ? (
-          <button
-            type="button"
-            className="jini-btn jini-byok-test-btn"
-            disabled={connectionTest.status === 'testing' || missing.size > 0}
-            onClick={onTestConnection}
-            {...agentHandleProps(agentHandle, { action: 'test-connection', role: 'button', label: t('Test connection') })}
-          >
-            {connectionTest.status === 'testing' ? t('Testing…') : t('Test connection')}
-          </button>
-        ) : null}
-      </div>
-
-      {modelDiscovery.status === 'error' ? (
-        // Non-blocking (the field above stays editable, with the preset's static
-        // suggestions) but never silent — a discovery failure is an operator-actionable
-        // fact (bad key, wrong base URL, unreachable endpoint), not "no models exist".
-        //
-        // Moved out of the Model `<label>` when the probe button moved up beside it: as a label
-        // child it grew the field and pushed the bottom-aligned button off the input's line every
-        // time discovery failed. Same element, same `.jini-field-hint.is-error[role="status"]`
-        // identity host suites locate it by — only its parent changed.
-        <span className="jini-field-hint is-error" role="status">
-          {/* The inner message goes through `t()` too: a host-side refusal such as the runtime's
-              "No API key — model discovery needs the key from this browser." is a fixed English
-              sentence the shipped dictionaries carry. A provider's free-form error is not a key,
-              so `t()` returns it verbatim — English output is unchanged either way. */}
-          {t('Could not load live models: {message}', { message: t(modelDiscovery.message) })}
         </span>
-      ) : null}
+        {showModelPicker ? (
+          <ByokLiveModelSelect
+            className={modelClassName}
+            agentHandle={agentHandle}
+            value={customModelActive ? CUSTOM_MODEL_SENTINEL : config.model}
+            liveModels={liveModels}
+            patch={patch}
+            setExplicitCustomModel={setExplicitCustomModel}
+          />
+        ) : null}
+        {/* Rendered when there is no live list at all (unchanged behaviour, `<datalist>` and all),
+            and ALSO alongside the picker while custom mode is active — the second case is what
+            keeps an unlisted model id typeable instead of unreachable. */}
+        {!showModelPicker || customModelActive ? (
+          <ByokModelTextInput
+            className={modelClassName}
+            value={config.model}
+            patch={patch}
+            agentHandle={agentHandle}
+            suggestions={showModelPicker ? [] : modelSuggestions(modelDiscovery, preset)}
+          />
+        ) : null}
+      </label>
 
-      {/* The probe's RESULT keeps its own full-width line. Beside the button it would have made the
-          Model row's width depend on the length of a provider's error message. */}
-      {canTestConnection && (connectionTest.status === 'ok' || connectionTest.status === 'error') ? (
-        <div className="jini-byok-test-row">
-          <span
-            className={`jini-byok-test-status is-${connectionTest.status}`}
-            role={connectionTest.status === 'error' ? 'alert' : 'status'}
-          >
-            {/* Host-reported messages route through `t()` so fixed runtime sentences (e.g.
-                "No API key — connection test needs the key from this browser.") translate; any
-                message not in the dictionary — a provider's own error text — renders verbatim. */}
-            {connectionTest.status === 'ok'
-              ? (connectionTest.message !== undefined ? t(connectionTest.message) : t('Connection succeeded'))
-              : t(connectionTest.message)}
-          </span>
-        </div>
-      ) : null}
-
-      {/* Same bare-sibling treatment as `apiKeyFooter` above — `.jini-byok-card` is a flex column
-          with a 14px gap, so this inherits the card's own rhythm rather than defining its own. */}
-      {formFooter ? <div className="jini-byok-form-footer">{formFooter}</div> : null}
+      <ByokTestConnectionButton
+        agentHandle={agentHandle}
+        validation={validation}
+        connectionTest={connectionTest}
+        onTestConnection={onTestConnection}
+        canTestConnection={canTestConnection}
+      />
     </div>
+  );
+}
+
+/** The probe's RESULT keeps its own full-width line. Beside the button it would have made the
+ *  Model row's width depend on the length of a provider's error message. Renders nothing until
+ *  the probe has finished. */
+function ByokConnectionResult({ connectionTest, canTestConnection }: {
+  connectionTest: ConnectionTestState;
+  canTestConnection: boolean;
+}) {
+  const t = useT();
+  if (!canTestConnection) return null;
+  if (connectionTest.status !== 'ok' && connectionTest.status !== 'error') return null;
+  return (
+    <div className="jini-byok-test-row">
+      <span
+        className={`jini-byok-test-status is-${connectionTest.status}`}
+        role={connectionTest.status === 'error' ? 'alert' : 'status'}
+      >
+        {/* Host-reported messages route through `t()` so fixed runtime sentences (e.g.
+            "No API key saved. Save one to test the connection.") translate; any
+            message not in the dictionary — a provider's own error text — renders verbatim. */}
+        {connectionTest.status === 'ok'
+          ? (connectionTest.message !== undefined ? t(connectionTest.message) : t('Connection succeeded'))
+          : t(connectionTest.message)}
+      </span>
+    </div>
+  );
+}
+
+/** Discovery failure, as an inline hint below the Model row. Renders nothing otherwise. */
+function ByokDiscoveryError({ modelDiscovery }: { modelDiscovery: ModelDiscoveryState }) {
+  const t = useT();
+  if (modelDiscovery.status !== 'error') return null;
+  return (
+    // Non-blocking (the field above stays editable, with the preset's static
+    // suggestions) but never silent — a discovery failure is an operator-actionable
+    // fact (bad key, wrong base URL, unreachable endpoint), not "no models exist".
+    //
+    // Moved out of the Model `<label>` when the probe button moved up beside it: as a label
+    // child it grew the field and pushed the bottom-aligned button off the input's line every
+    // time discovery failed. Same element, same `.jini-field-hint.is-error[role="status"]`
+    // identity host suites locate it by — only its parent changed.
+    <span className="jini-field-hint is-error" role="status">
+      {/* The inner message goes through `t()` too: a host-side refusal such as the runtime's
+          "No API key saved. Save one to load models." is a fixed English
+          sentence the shipped dictionaries carry. A provider's free-form error is not a key,
+          so `t()` returns it verbatim — English output is unchanged either way. */}
+      {t('Could not load live models: {message}', { message: t(modelDiscovery.message) })}
+    </span>
+  );
+}
+
+/** A host slot's wrapper `<div>`, rendered only when the host supplied content for it. */
+function ByokSlot({ className, children }: { className: string; children: ReactNode }) {
+  return children ? <div className={className}>{children}</div> : null;
+}
+
+/** The collapsed "Advanced" disclosure for Base URL and Max tokens. Opens on its own while Base URL
+ *  is invalid or missing, so a required-field problem is never hidden. */
+function ByokAdvanced({ validation, children }: { validation: ByokFieldPartProps['validation']; children: ReactNode }) {
+  const t = useT();
+  return (
+    <details className="jini-byok-advanced" open={validation.baseUrlInvalid || validation.missing.has('baseUrl') || undefined}>
+      <summary>{t('Advanced')}</summary>
+      {children}
+    </details>
+  );
+}
+
+/** The live-model picker. "Custom…" opens the free-text box beside it; any real pick closes it. */
+function ByokLiveModelSelect({
+  className, agentHandle, value, liveModels, patch, setExplicitCustomModel,
+}: {
+  className: string;
+  agentHandle: string | undefined;
+  value: string;
+  liveModels: readonly string[];
+  patch: ByokFieldPartProps['patch'];
+  setExplicitCustomModel: (custom: boolean) => void;
+}) {
+  const t = useT();
+  return (
+    <SearchableModelSelect
+      className={className}
+      ariaLabel={t('Model')}
+      searchPlaceholder={t('Search models')}
+      testId="jini-byok-model-select"
+      searchInputTestId="jini-byok-model-search"
+      {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {})}
+      value={value}
+      models={liveModels.map((model) => ({ id: model, label: model }))}
+      additionalOptions={[{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }]}
+      onChange={(next) => {
+        if (next === CUSTOM_MODEL_SENTINEL) {
+          // Open the free-text box WITHOUT clearing `config.model`. Blanking it here would
+          // discard a working model the moment someone opened the picker to look at it.
+          setExplicitCustomModel(true);
+          return;
+        }
+        setExplicitCustomModel(false);
+        patch({ model: next });
+      }}
+    />
+  );
+}
+
+/** "Test connection", beside the Model field. Disabled while a probe runs or a required field is
+ *  blank; absent for hosts with no probe endpoint. */
+function ByokTestConnectionButton({
+  agentHandle, validation, connectionTest, onTestConnection, canTestConnection,
+}: {
+  agentHandle: string | undefined;
+  validation: ByokFieldPartProps['validation'];
+  connectionTest: ConnectionTestState;
+  onTestConnection: () => void;
+  canTestConnection: boolean;
+}) {
+  const t = useT();
+  if (!canTestConnection) return null;
+  return (
+    <button
+      type="button"
+      className="jini-btn jini-byok-test-btn"
+      disabled={connectionTest.status === 'testing' || validation.missing.size > 0}
+      onClick={onTestConnection}
+      {...agentHandleProps({}, { base: agentHandle, ...({ action: 'test-connection', role: 'button', label: t('Test connection') }) })}
+    >
+      {connectionTest.status === 'testing' ? t('Testing…') : t('Test connection')}
+    </button>
+  );
+}
+
+/** Autocomplete hints for the free-text Model box: the live list when discovery succeeded, else the
+ *  preset's static `preferredModels`. */
+function modelSuggestions(modelDiscovery: ModelDiscoveryState, preset: ProviderPreset | null): readonly string[] {
+  return modelDiscovery.status === 'ok' ? modelDiscovery.models : (preset?.preferredModels ?? []);
+}
+
+/** The free-text Model box, with a `<datalist>` autocomplete when there are suggestions. */
+function ByokModelTextInput({
+  className, value, patch, agentHandle, suggestions,
+}: {
+  className: string;
+  value: string;
+  patch: ByokFieldPartProps['patch'];
+  agentHandle: string | undefined;
+  suggestions: readonly string[];
+}) {
+  const t = useT();
+  const modelListId = 'jini-byok-model-options';
+  const showDatalist = suggestions.length > 0;
+  return (
+    <>
+      <input
+        className={className}
+        list={showDatalist ? modelListId : undefined}
+        spellCheck={false}
+        value={value}
+        onChange={(event) => patch({ model: event.target.value })}
+        {...agentHandleProps({}, { base: agentHandle, ...({ action: 'model', role: 'field', label: t('Model') }) })}
+      />
+      {showDatalist ? (
+        <datalist id={modelListId}>
+          {suggestions.map((model) => (
+            <option key={model} value={model} />
+          ))}
+        </datalist>
+      ) : null}
+    </>
   );
 }

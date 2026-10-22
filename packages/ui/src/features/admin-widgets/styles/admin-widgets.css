@@ -1,0 +1,3 @@
+/* Existing ui subpath continues to load the merged admin styles. */
+@import "../../../styles/admin.css";
+@import "../../../styles/lightbox.css";

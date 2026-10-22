@@ -17,7 +17,7 @@
 import { renderCheckbox } from './checkbox.js';
 import { renderChoiceGroup } from './choice-group.js';
 import { renderSelect, type SelectOption } from './select.js';
-import { renderTextInput } from './text-input.js';
+import { renderTextInput, type SecretInputText } from './text-input.js';
 
 interface SurfaceFieldBase {
   /** HTML `name`, DOM `id` suffix, and the params key the value is posted under. */
@@ -35,7 +35,8 @@ export interface StringField extends SurfaceFieldBase {
   readonly placeholder?: string;
   readonly multiline?: boolean;
   readonly rows?: number;
-  /** Renders as a masked `<input type="password">` — see {@link TextInputProps.secret}. */
+  /** Renders as a masked input or multiline textarea; pre-filled values are forbidden.
+   *  See {@link TextInputProps.secret}. */
   readonly secret?: boolean;
 }
 
@@ -83,72 +84,55 @@ export interface MultiEnumField extends SurfaceFieldBase {
 
 export type SurfaceField = StringField | NumberField | BooleanField | EnumField | MultiEnumField;
 
-/** Only the properties present on a given field are forwarded, because `exactOptionalPropertyTypes` makes `{ hint: undefined }` and `{}` different types. */
+/** The listed properties that are present on `source`, in listed order.
+ * Only the properties present on a given field are forwarded, because `exactOptionalPropertyTypes` makes `{ hint: undefined }` and `{}` different types.
+ * @complexity O(k) in the key count. */
+function present<T extends object, K extends keyof T>(source: T, keys: readonly K[]): { [P in K]?: Exclude<T[P], undefined> } {
+  const picked: { [P in K]?: Exclude<T[P], undefined> } = {};
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined) picked[key] = value as Exclude<T[K], undefined>;
+  }
+  return picked;
+}
+
 function base(field: SurfaceField): { name: string; label: string; hint?: string; required?: boolean; disabled?: boolean } {
-  return {
-    name: field.name,
-    label: field.label,
-    ...(field.hint === undefined ? {} : { hint: field.hint }),
-    ...(field.required === undefined ? {} : { required: field.required }),
-    ...(field.disabled === undefined ? {} : { disabled: field.disabled }),
-  };
+  return { name: field.name, label: field.label, ...present(field, ['hint', 'required', 'disabled']) };
+}
+
+/** One-of-N, drawn as radios or a select per {@link EnumField.presentation}. @complexity O(n) in the rendered length. */
+function renderEnumField(field: EnumField): string {
+  if (field.presentation === 'radio') {
+    return renderChoiceGroup({
+      ...base(field),
+      selection: 'single',
+      options: field.options,
+      ...(field.value === undefined ? {} : { value: [field.value] }),
+    });
+  }
+  return renderSelect({ ...base(field), options: field.options, ...present(field, ['value', 'placeholder']) });
 }
 
 /**
  * Renders the control fragment for one field, dispatching on its kind.
  *
  * @param field - See {@link SurfaceField}.
+ * @param text - Optional host translations for secret reveal controls.
  * @returns An HTML fragment.
  * @complexity O(n) in the rendered length.
  */
-export function renderFieldControl(field: SurfaceField): string {
+export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInputText>): string {
   switch (field.kind) {
     case 'string':
-      return renderTextInput({
-        ...base(field),
-        ...(field.value === undefined ? {} : { value: field.value }),
-        ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
-        ...(field.multiline === undefined ? {} : { multiline: field.multiline }),
-        ...(field.rows === undefined ? {} : { rows: field.rows }),
-        ...(field.secret === undefined ? {} : { secret: field.secret }),
-      });
+      return renderTextInput({ ...base(field), ...text, ...present(field, ['value', 'placeholder', 'multiline', 'rows', 'secret']) });
     case 'number':
-      return renderTextInput({
-        ...base(field),
-        inputType: 'number',
-        ...(field.value === undefined ? {} : { value: field.value }),
-        ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
-        ...(field.min === undefined ? {} : { min: field.min }),
-        ...(field.max === undefined ? {} : { max: field.max }),
-        ...(field.step === undefined ? {} : { step: field.step }),
-      });
+      return renderTextInput({ ...base(field), inputType: 'number', ...present(field, ['value', 'placeholder', 'min', 'max', 'step']) });
     case 'boolean':
-      return renderCheckbox({
-        ...base(field),
-        ...(field.value === undefined ? {} : { value: field.value }),
-      });
+      return renderCheckbox({ ...base(field), ...present(field, ['value']) });
     case 'enum':
-      if (field.presentation === 'radio') {
-        return renderChoiceGroup({
-          ...base(field),
-          selection: 'single',
-          options: field.options,
-          ...(field.value === undefined ? {} : { value: [field.value] }),
-        });
-      }
-      return renderSelect({
-        ...base(field),
-        options: field.options,
-        ...(field.value === undefined ? {} : { value: field.value }),
-        ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
-      });
+      return renderEnumField(field);
     case 'multi-enum':
-      return renderChoiceGroup({
-        ...base(field),
-        selection: 'multiple',
-        options: field.options,
-        ...(field.value === undefined ? {} : { value: field.value }),
-      });
+      return renderChoiceGroup({ ...base(field), selection: 'multiple', options: field.options, ...present(field, ['value']) });
   }
 }
 

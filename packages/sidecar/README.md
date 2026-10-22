@@ -13,7 +13,7 @@ or knows what your sidecar actually does — it is the filesystem/IPC/port layer
 npm install @jini-ai/sidecar
 ```
 
-No peer dependencies. Its one dependency is `@jini-ai/core` (installed automatically); everything
+No peer dependencies. Its dependencies are `@jini-ai/core` and `@jini-ai/platform` (installed automatically); everything
 else it uses is a Node built-in.
 
 ## What you get
@@ -28,20 +28,20 @@ hardcoded product constants: `resolveNamespace`, `resolveNamespaceRoot`, `resolv
 **IPC paths** — `normalizeIpcPath` and `isWindowsNamedPipePath` (Windows named pipes vs. Unix
 domain sockets), plus `resolveAppIpcPath` for the app-scoped socket path.
 
-**JSON IPC** — `createJsonIpcServer({ socketPath, handler, maxFrameBytes, idleTimeoutMs })` and
-`requestJsonIpc(socketPath, payload, { timeoutMs })`: a newline-delimited JSON request/response
+**JSON IPC** — `createJsonIpcServer({ socketPath, handler }, { maxFrameBytes, idleTimeoutMs })` and
+`requestJsonIpc({ socketPath, payload }, { timeoutMs })`: a newline-delimited JSON request/response
 channel over a local socket, with a per-frame byte cap and an idle-connection timeout.
 
-**Port allocation** — `allocatePort({ host, label, port, reserved })`, which either honors a forced
+**Port allocation** — `allocatePort({}, { host, label, port, reserved })`, which either honors a forced
 port or finds a free dynamic one, returning `{ port, source: 'dynamic' | 'forced' }`.
 
 **Launch and bootstrap** — `createSidecarLaunchEnv` (parent side: build the child's environment) and
-`bootstrapSidecarRuntime(stamp, env, options)` (child side: validate the stamp against the expected
+`bootstrapSidecarRuntime({ stampInput, env, app, contract }, options)` (child side: validate the stamp against the expected
 app via the injected contract and return a `SidecarRuntimeContext`). A stamp mismatch throws rather
 than starting a sidecar that belongs to a different app.
 
 **Local daemon registry** — a `dataDir`-scoped pointer file recording a running daemon's
-URL/host/port/pid/start time, plus liveness checking: `resolveDaemonRegistryPath(dataDir)`,
+URL/host/port/pid/start time, plus liveness checking: `resolveDaemonRegistryPath({ dataDir })`,
 `writeDaemonRegistryRecord`, `readLiveDaemonRegistryRecord` (returns `null` when the recorded pid is
 gone), `removeDaemonRegistryRecordIfCurrent`, `isProcessAlive`.
 
@@ -60,9 +60,9 @@ import {
   type LocalDaemonRegistryRecord,
 } from '@jini-ai/sidecar';
 
-const { port } = await allocatePort({ host: '127.0.0.1', label: 'daemon' });
+const { port } = await allocatePort({}, { host: '127.0.0.1', label: 'daemon' });
 
-const registryPath = resolveDaemonRegistryPath('/var/lib/example');
+const registryPath = resolveDaemonRegistryPath({ dataDir: '/var/lib/example' });
 const record: LocalDaemonRegistryRecord = {
   url: `http://127.0.0.1:${port}`,
   host: '127.0.0.1',
@@ -70,16 +70,16 @@ const record: LocalDaemonRegistryRecord = {
   pid: process.pid,
   startedAt: new Date().toISOString(),
 };
-await writeDaemonRegistryRecord(registryPath, record);
+await writeDaemonRegistryRecord({ registryPath, record });
 
 // Any other process, later — `null` when nothing is actually running.
-const live = await readLiveDaemonRegistryRecord(registryPath);
+const live = await readLiveDaemonRegistryRecord({ registryPath });
 
 const ipc = await createJsonIpcServer({
   socketPath: '/tmp/example/daemon.sock',
-  handler: async (message) => ({ echo: message }),
+  handler: async ({ message }) => ({ echo: message }),
 });
-const reply = await requestJsonIpc<{ echo: unknown }>('/tmp/example/daemon.sock', { ping: true });
+const reply = await requestJsonIpc<{ echo: unknown }>({ socketPath: '/tmp/example/daemon.sock', payload: { ping: true } });
 await ipc.close();
 ```
 
@@ -102,5 +102,31 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0,
+See the archived provenance ledger for per-file provenance and scope decisions. Apache-2.0,
 inherited from Open Design — see the repo `NOTICE`.
+
+## Argument convention and runtime subpaths
+
+See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/sidecar/API.md) for supervisor ports and the required/optional object convention. `./respawn-policy` and `./supervisor` are universal; `./supervisor/node` and the root entry use Node.
+
+## Kernel contracts
+
+Runtime JSON state writes delegate to `@jini-ai/platform/fs`'s async atomic writer.
+`writeJsonFile({ filePath, payload })` keeps pretty JSON and its trailing newline. Existing
+permissions survive replacement; new files keep the usual umask-filtered create mode.
+The writer exclusively creates its sibling temp, syncs file bytes before rename, syncs the
+parent directory afterward, and propagates failures (including a sync failure after replacement).
+
+## Isolated supervisor Node defaults
+
+`@jini-ai/sidecar/supervisor` exports only the generic process-port supervisor
+and its types. `createNodeDaemonProcessAdapter`, `createSupervisorRegistry`,
+`createNodeSupervisorScheduler` and the adapter types are exported exclusively
+from `@jini-ai/sidecar/supervisor/node`. They are no longer re-exported from the
+root or generic entry. Generic supervisor construction still requires the same
+process, clock, scheduler and reporting ports and starts no work on import.
+
+## Development typechecking
+
+The package TypeScript configuration includes production source and `src/**/__tests__`.
+`npx tsc -p tsconfig.json --noEmit`, run from this package directory, checks both without running tests.

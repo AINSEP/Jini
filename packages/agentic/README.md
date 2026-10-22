@@ -28,8 +28,8 @@ point additionally needs a real DOM (browser or jsdom) at runtime — see Entry 
 - **The generic page-capability manifest** — `PAGE_CAPABILITIES` (`page.find_elements`,
   `page.click`, and friends — every verb addresses a published `data-agent-element` handle, never
   a caller-supplied selector or script), `PageDriver`/`FindElementsFilter`, and
-  `executePageCapability(driver, capabilityId, input)` to run one.
-- **The `data-agent-*` markup convention** — `agentHandle('save', { role, label, page })` returns
+  `executePageCapability({ driver, capabilityId, input })` to run one.
+- **The `data-agent-*` markup convention** — `agentHandle({ handle: 'save' }, { role, label, page })` returns
   spreadable attribute props (pure data, works with React/Vue/Svelte/anything); plus the
   attribute-name constants, `AGENT_ELEMENT_ROLES`, `isValidElementHandle`, and
   `resolveHandleSelector` for a driver to resolve a handle back to a DOM node.
@@ -40,7 +40,7 @@ point additionally needs a real DOM (browser or jsdom) at runtime — see Entry 
 - **Genuine AG-UI projection** — `toAgUiTool`/`toAgUiTools`, `createAgUiToolResult`,
   `AG_UI_TOOL_CALL_EVENTS`. Real conformance: emits AG-UI's own `parameters` field name and its
   canonical `TOOL_CALL_START`/`TOOL_CALL_ARGS`/`TOOL_CALL_END` event names.
-- **GenUI run-stream protocol** (`./gen-ui`, re-exported at root) — `createGenUiEncoder` and the
+- **GenUI run-stream protocol** (re-exported at root and `./core`) — `createGenUiEncoder` and the
   six dotted-lowercase event kinds (`GenUiEvent`: `agent.message`, `tool_call`, `state_update`,
   `ui.surface_requested`, `ui.surface_responded`, `run.lifecycle`). **Not AG-UI** — it shares zero
   event names with the real protocol above; it's a de-branded port of one product's own run-event
@@ -55,21 +55,37 @@ point additionally needs a real DOM (browser or jsdom) at runtime — see Entry 
 import { PAGE_CAPABILITIES, executePageCapability, agentHandle, type PageDriver } from '@jini-ai/agentic';
 
 // A component publishes itself once, in whatever framework renders it:
-// <button {...agentHandle('save', { role: 'button', label: 'Save changes' })}>Save</button>
+// <button {...agentHandle({ handle: 'save' }, { role: 'button', label: 'Save changes' })}>Save</button>
 
 declare const driver: PageDriver; // e.g. createDomPageDriver(...) from '@jini-ai/agentic/dom'
 
-const elements = await executePageCapability(driver, 'page.find_elements', { role: 'button' });
+const elements = await executePageCapability({ driver, capabilityId: 'page.find_elements', input: { role: 'button' } });
 console.log(PAGE_CAPABILITIES.map((c) => c.id)); // every verb an outside caller may invoke
 ```
+
+All public functions and ports take a required argument object, followed by an optional settings
+object. For example, `driver.fill({ handle, text })` and
+`driver.selectOption({ handle, option }, { selected: false })`. A method with no required values
+receives `{}`, such as `driver.findElements({}, { role: 'button' })`.
+
+`createGenUiEncoder({ clock })` requires a `clock.nowMs()` port; encode with
+`encoder.encode({ event, runId }, { seq })`. `createA2uiInterpreter({ catalog, clock, ids })`
+requires `clock.nowMs()` and `ids.next({})` ports. WebMCP projection receives an execution port as
+`toWebMcpTool({ capability, execute }, options)`, calling `execute({ id, args })`.
+`getAgentModelContext({ host })` reads `host.candidates({})` in host-defined priority order and
+returns an argument-object adapter to the first installed native WebMCP surface. A browser host
+can return `[document.modelContext, navigator.modelContext]` from that port.
 
 ## Entry points
 
 | subpath | what's behind it | extra dep it pulls in |
 |---|---|---|
 | `.` | Capability vocabulary, `PAGE_CAPABILITIES`, `data-agent-*` markup helpers, WebMCP/AG-UI projections, GenUI protocol, MCP-UI wire helpers. Zero DOM, zero transport. | none beyond `@jini-ai/protocol`, `zod` |
+| `./core` | The same framework-free agent-control surface as the root. | none |
 | `./dom` | `createDomPageDriver`/`currentAgentPage` — the one `PageDriver` that reads and writes a real DOM subtree, compiled under its own DOM-lib `tsconfig`. Also WebMCP feature detection (`getAgentModelContext`). `@jini-ai/chat-react` is its one in-repo consumer. | a real DOM (browser or jsdom) |
 | `./a2ui` | The real A2UI v1.0 wire types and a minimal client-side interpreter (`common-types`, `agent-to-renderer`, `renderer-to-agent`, `catalog`, `json-pointer`, `resolve`, `tree`, `interpreter`) — zero DOM dependency. | none |
+| `./skills/install` | Bounded bundle validation, archive/GitHub import, installation/state, explicit layout and live-registration factories. | Node runtime; injected filesystem, YAML, archive, HTTP, IDs and tool-source ports |
+| `./skills/install/node` | `createNodeSkillFilesystem({})`, a bounded no-follow filesystem adapter. | Node runtime |
 
 ## What's swappable
 
@@ -86,7 +102,18 @@ attribute names, and the wire shapes of both the GenUI and A2UI protocols.
 DOM at runtime — see Entry points above).
 ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
+The two skill entries are `node` runtime entries. They use Node paths and byte buffers and are
+kept out of the universal root/core barrels. Every storage root, workspace-directory segment,
+state filename and tool-ID mapping is supplied by the host. The installer never executes scripts.
+Wrap an explicitly supplied native fetch with `createSkillFetchAdapter({ fetch })`, or implement
+`SkillFetchPort` as `fetch({ url }, requestOptions)`. YAML and ZIP parsing remain injected ports;
+this package adds no parser dependency. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/agentic/API.md) for construction and migration.
+
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance, the AG-UI/GenUI naming history, and
+See the archived provenance ledger for per-file provenance, the AG-UI/GenUI naming history, and
 the A2UI spec-parity gap list. Apache-2.0, inherited from Open Design — see the repo `NOTICE`.
+
+`defaultAgenticMessages` (root / `./core`) supplies the neutral navigation description. Hosts
+replace copy through the existing `CapabilityDef.description` before projecting model tools;
+IDs, schemas and capability policy remain intact. Both UI interpreters accept core `Clock`.

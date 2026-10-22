@@ -116,25 +116,32 @@ function accessibleLabelsOf(control: Element): string[] {
   return [...new Set(candidates.filter((text): text is string => !!text))];
 }
 
+function editableFieldDescriptorOf(
+  { control }: { control: HTMLElement },
+  _optional: Record<string, never> = {},
+): FieldDescriptor {
+  // Reported as a field so the same guards run: a contenteditable div named `card-number` is
+  // no more fillable than an input would be. `type` is not a real HTML input type, and is not
+  // in any denied set, which is correct — the guard should judge it by name and attributes.
+  return {
+    type: 'contenteditable',
+    // Read for the same reason `name` is: neither attribute is standard on a div, but a page
+    // that bothers to set one is telling the guard what the field holds, and honouring `name`
+    // while ignoring `autocomplete` would refuse `name="card_number"` and accept the
+    // `autocomplete="cc-number"` spelling of the same field.
+    autocomplete: control.getAttribute('autocomplete')?.toLowerCase() || undefined,
+    name: control.getAttribute('name') || undefined,
+    id: control.id || undefined,
+    accessibleLabels: accessibleLabelsOf(control),
+    readOnly: control.getAttribute('aria-readonly') === 'true',
+    disabled: control.getAttribute('aria-disabled') === 'true',
+  } satisfies FieldDescriptor;
+}
+
 /** The field attributes the guards need, or `null` when the control is not a text-bearing input. */
 function fieldDescriptorOf(control: Element): FieldDescriptor | null {
   if (isEditableRegion(control)) {
-    // Reported as a field so the same guards run: a contenteditable div named `card-number` is
-    // no more fillable than an input would be. `type` is not a real HTML input type, and is not
-    // in any denied set, which is correct — the guard should judge it by name and attributes.
-    return {
-      type: 'contenteditable',
-      // Read for the same reason `name` is: neither attribute is standard on a div, but a page
-      // that bothers to set one is telling the guard what the field holds, and honouring `name`
-      // while ignoring `autocomplete` would refuse `name="card_number"` and accept the
-      // `autocomplete="cc-number"` spelling of the same field.
-      autocomplete: control.getAttribute('autocomplete')?.toLowerCase() || undefined,
-      name: control.getAttribute('name') || undefined,
-      id: control.id || undefined,
-      accessibleLabels: accessibleLabelsOf(control),
-      readOnly: control.getAttribute('aria-readonly') === 'true',
-      disabled: control.getAttribute('aria-disabled') === 'true',
-    } satisfies FieldDescriptor;
+    return editableFieldDescriptorOf({ control });
   }
   if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
     return null;
@@ -151,6 +158,62 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
     // answer for both, and is what decides whether the value even reaches form submission.
     disabled: control.matches(':disabled'),
   } satisfies FieldDescriptor;
+}
+
+function dropdownFieldDescriptorOf(
+  { dropdown }: { dropdown: HTMLSelectElement | undefined },
+  _optional: Record<string, never> = {},
+): FieldDescriptor | null {
+  if (dropdown === undefined) return null;
+  return {
+    type: 'select',
+    name: dropdown.name || undefined,
+    id: dropdown.id || undefined,
+    // Same reason `fieldDescriptorOf` carries these: a `<select aria-label="Card number"
+    // name="f9">` states its sensitivity nowhere else, and this descriptor is built by hand
+    // rather than going through that function, so it needs the labels wired up separately.
+    accessibleLabels: accessibleLabelsOf(dropdown),
+    // Same `:disabled` reasoning as `disabledOf` — a `<select>` inside a disabled `<fieldset>`
+    // is not itself flagged by the `.disabled` IDL property.
+    disabled: dropdown.matches(':disabled'),
+  } satisfies FieldDescriptor;
+}
+
+function rawElementStateOf(
+  { element, control, checkable, readable, value, dropdown }: {
+    element: Element;
+    control: Element;
+    checkable: boolean;
+    readable: FieldDescriptor | null;
+    value: string | undefined;
+    dropdown: HTMLSelectElement | undefined;
+  },
+  _optional: Record<string, never> = {},
+): AgentElementRawState {
+  const text = publicTextOf(element);
+  return {
+    text,
+    // A contenteditable region has no `.value`; its content IS its value, so `text` is the
+    // one channel carrying it and the executor has to gate it exactly like a value. Reported
+    // as a mechanical fact about the element, not as a judgment about the content — the
+    // decision of whether it may be shown stays in `projectElementState`, with every other
+    // secrecy rule.
+    ...(isEditableRegion(control) ? { textIsValue: true } : {}),
+    // Reported raw and unconditionally; `projectElementState` applies the read guard. A
+    // driver deciding here which values are secret is a driver holding policy.
+    ...(value !== undefined ? { value } : {}),
+    ...(checkable ? { checked: (control as HTMLInputElement).checked } : {}),
+    ...(disabledOf(control) !== undefined ? { disabled: disabledOf(control) } : {}),
+    ...(visibilityOf(element) !== undefined ? { visible: visibilityOf(element) } : {}),
+    ...(readable !== null ? { field: readable } : {}),
+    ...(dropdown !== undefined
+      ? {
+          options: Array.from(dropdown.options)
+            .map((entry) => entry.text.trim())
+            .filter((entry) => entry.length > 0),
+        }
+      : {}),
+  } satisfies AgentElementRawState;
 }
 
 /**
@@ -241,19 +304,52 @@ function describe(element: Element, page: string | undefined): AgentElementDescr
   };
 }
 
+function findSelectableOption(
+  { control, handle, option }: { control: HTMLSelectElement; handle: string; option: string },
+  _optional: Record<string, never> = {},
+): HTMLOptionElement {
+  // Visible text first, then value: the text is what a caller saw in `find_elements`, and
+  // matching value first would make an option whose value collides with another's label
+  // resolve to the wrong entry.
+  // A disabled option is not selectable by the user either, for the same reason.
+  const options = Array.from(control.options).filter((entry) => !entry.disabled);
+  const match = options.find((entry) => entry.text.trim() === option)
+    ?? options.find((entry) => entry.value === option);
+  if (match === undefined) {
+    // Every other piece of page-authored text this system hands to a model goes through
+    // normalizeAgentLabel first — bounded, control- and bidi-stripped. `available` is exactly
+    // that: the page's own <option> texts, read verbatim with no length bound of their own.
+    // The caller's `option` is sanitized too, for the same reason page.navigate's caller-
+    // supplied `page` now is — an unbounded value reaching a thrown message a model reads is
+    // the same shape of problem regardless of which side authored it. `handle` needs no
+    // treatment: it is already validated ASCII, length-capped by isValidElementHandle before
+    // this driver is ever called.
+    const safeOption = normalizeAgentLabel({ raw: option }).text;
+    const available = options.map((entry) => normalizeAgentLabel({ raw: entry.text.trim() }).text)
+      .filter((text) => text.length > 0);
+    throw new Error(
+      `"${safeOption}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
+    );
+  }
+  return match;
+}
+
 /** One page a host allows navigation to: its human label, and how to actually get there. */
 export interface DomPageDriverPage {
   /** Shown to a caller by `page.find_elements`/`page.navigate`'s refusal message — see
    *  `PageSummary.label` for why this exists at all. */
   readonly label: string;
-  readonly navigate: () => void;
+  readonly navigate: (required: Record<string, never>) => void;
 }
 
-export interface DomPageDriverOptions {
+export interface DomPageDriverRequired {
   /** The subtree to expose. Never pass `document`. */
   readonly root: ParentNode & { querySelector: Element['querySelector'] };
   /** Page ids this driver may navigate to, each with its label and how to get there. */
   readonly pages: Readonly<Record<string, DomPageDriverPage>>;
+}
+
+export interface DomPageDriverOptions {
   /**
    * The id of the page currently shown, reported on every element.
    *
@@ -272,8 +368,7 @@ export interface DomPageDriverOptions {
  * @param options - The subtree, the navigable pages, and the current page id.
  * @returns A driver ready to hand to `executePageCapability`.
  */
-export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
-  const { root, pages } = options;
+export function createDomPageDriver({ root, pages }: DomPageDriverRequired, options: DomPageDriverOptions = {}): PageDriver {
   /**
    * The page a specific element belongs to — its own nearest `[data-agent-page]` ancestor, not a
    * single document-wide guess.
@@ -306,7 +401,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
    * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
    * here so both callers below can refuse rather than silently pick one.
    */
-  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector(handle)))
+  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector({ handle })))
     .filter((element) => !isPrivate(element));
 
   /**
@@ -363,7 +458,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
   };
 
   return {
-    async findElements(filter: FindElementsFilter) {
+    async findElements(_required: Record<string, never>, filter: FindElementsFilter = {}) {
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
         .filter((element) => !isPrivate(element))
         .map((element) => describe(element, pageOf(element)))
@@ -377,18 +472,18 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       });
     },
 
-    async listPages() {
+    async listPages(_required: Record<string, never>, _optional: Record<string, never> = {}) {
       // `Object.entries`, same own-enumerable-keys-only guarantee `Object.keys` gives `navigate`'s
       // own `hasOwnProperty` check above — no risk of a `pages.label`/`pages.navigate`-shaped
       // prototype entry leaking in as a fake page id.
       return Object.entries(pages).map(([id, page]) => ({ id, label: page.label }));
     },
 
-    async describeField(handle) {
+    async describeField({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       return fieldDescriptorOf(controlOf(find(handle)));
     },
 
-    async describeState(handle) {
+    async describeState({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       // Unlike every other method here, a handle that no longer resolves is an answer rather than
       // an error: an element that a click removed is exactly what the caller is asking about. A
       // handle resolving to *more than one* element is a different situation entirely — not an
@@ -406,45 +501,11 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       // avoided by looking. It carries a descriptor too, so the read guard still runs — a
       // `<select name="secret_token">` is no more readable than an input of the same name.
       const dropdown = control instanceof HTMLSelectElement ? control : undefined;
-      const readable = field ?? (dropdown === undefined ? null : {
-        type: 'select',
-        name: dropdown.name || undefined,
-        id: dropdown.id || undefined,
-        // Same reason `fieldDescriptorOf` carries these: a `<select aria-label="Card number"
-        // name="f9">` states its sensitivity nowhere else, and this descriptor is built by hand
-        // rather than going through that function, so it needs the labels wired up separately.
-        accessibleLabels: accessibleLabelsOf(dropdown),
-        // Same `:disabled` reasoning as `disabledOf` — a `<select>` inside a disabled `<fieldset>`
-        // is not itself flagged by the `.disabled` IDL property.
-        disabled: dropdown.matches(':disabled'),
-      } satisfies FieldDescriptor);
+      const readable = field ?? dropdownFieldDescriptorOf({ dropdown });
       const value = field !== null
         ? (control as HTMLInputElement | HTMLTextAreaElement).value
         : dropdown?.value;
-      const text = publicTextOf(element);
-      return {
-        text,
-        // A contenteditable region has no `.value`; its content IS its value, so `text` is the
-        // one channel carrying it and the executor has to gate it exactly like a value. Reported
-        // as a mechanical fact about the element, not as a judgment about the content — the
-        // decision of whether it may be shown stays in `projectElementState`, with every other
-        // secrecy rule.
-        ...(isEditableRegion(control) ? { textIsValue: true } : {}),
-        // Reported raw and unconditionally; `projectElementState` applies the read guard. A
-        // driver deciding here which values are secret is a driver holding policy.
-        ...(value !== undefined ? { value } : {}),
-        ...(checkable ? { checked: (control as HTMLInputElement).checked } : {}),
-        ...(disabledOf(control) !== undefined ? { disabled: disabledOf(control) } : {}),
-        ...(visibilityOf(element) !== undefined ? { visible: visibilityOf(element) } : {}),
-        ...(readable !== null ? { field: readable } : {}),
-        ...(dropdown !== undefined
-          ? {
-              options: Array.from(dropdown.options)
-                .map((entry) => entry.text.trim())
-                .filter((entry) => entry.length > 0),
-            }
-          : {}),
-      } satisfies AgentElementRawState;
+      return rawElementStateOf({ element, control, checkable, readable, value, dropdown });
     },
 
     /**
@@ -453,7 +514,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
      * would hang for the whole life of a backgrounded tab; without the frames every write would
      * report its own target unchanged, because the read would beat the render.
      */
-    async settle() {
+    async settle(_required: Record<string, never>, _optional: Record<string, never> = {}) {
       await new Promise<void>((resolve) => {
         let timer: ReturnType<typeof setTimeout> | undefined;
         // No re-entry guard: whichever side loses the race calls this again, and both of its
@@ -472,7 +533,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       });
     },
 
-    async highlight(handle, durationMs) {
+    async highlight({ handle, durationMs }: { handle: string; durationMs: number }, _optional: Record<string, never> = {}) {
       const element = find(handle);
       // Same refusal as `click()`, for the same reason: an SVG (or other non-HTMLElement) target
       // has no `.style` to draw an outline on, so silently returning here drew nothing while
@@ -499,17 +560,17 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       highlights.set(handle, { timer, restore });
     },
 
-    async scrollTo(handle) {
+    async scrollTo({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       find(handle).scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
 
-    async click(handle) {
+    async click({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
       const control = controlOf(find(handle));
       if (!(control instanceof HTMLElement)) throw new Error(`"${handle}" is not clickable`);
       control.click();
     },
 
-    async fill(handle, text) {
+    async fill({ handle, text }: { handle: string; text: string }, _optional: Record<string, never> = {}) {
       const control = controlOf(find(handle));
       if (isEditableRegion(control)) {
         // A contenteditable region has no `value`; its content *is* its children, and a real
@@ -534,14 +595,14 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
 
-    async selectOption(handle, option, selected = true) {
+    async selectOption({ handle, option }: { handle: string; option: string }, { selected = true }: { selected?: boolean | undefined } = {}) {
       const control = controlOf(find(handle));
       if (!(control instanceof HTMLSelectElement)) {
         throw new Error(`"${handle}" is not a dropdown`);
       }
       // A disabled control is not one a user could touch, so writing to it is a way around the
       // page's own rule and the resulting selection cannot be submitted. The per-`<option>` filter
-      // below reads as if it enforced that, but only ever looked at each option — a
+      // in `findSelectableOption` reads as if it enforced that, but only ever looked at each option — a
       // `<select disabled>` (and a `<select>` inside a `<fieldset disabled>`, which `:disabled`
       // also covers and `.disabled` does not) was written to happily, and the executor then
       // reported `targetChanged: true` because the value really had changed.
@@ -555,29 +616,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
           + 'a user cannot change it either, and its value would not be submitted',
         );
       }
-      // Visible text first, then value: the text is what a caller saw in `find_elements`, and
-      // matching value first would make an option whose value collides with another's label
-      // resolve to the wrong entry.
-      // A disabled option is not selectable by the user either, for the same reason.
-      const options = Array.from(control.options).filter((entry) => !entry.disabled);
-      const match = options.find((entry) => entry.text.trim() === option)
-        ?? options.find((entry) => entry.value === option);
-      if (match === undefined) {
-        // Every other piece of page-authored text this system hands to a model goes through
-        // normalizeAgentLabel first — bounded, control- and bidi-stripped. `available` is exactly
-        // that: the page's own <option> texts, read verbatim with no length bound of their own.
-        // The caller's `option` is sanitized too, for the same reason page.navigate's caller-
-        // supplied `page` now is — an unbounded value reaching a thrown message a model reads is
-        // the same shape of problem regardless of which side authored it. `handle` needs no
-        // treatment: it is already validated ASCII, length-capped by isValidElementHandle before
-        // this driver is ever called.
-        const safeOption = normalizeAgentLabel(option).text;
-        const available = options.map((entry) => normalizeAgentLabel(entry.text.trim()).text)
-          .filter((text) => text.length > 0);
-        throw new Error(
-          `"${safeOption}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
-        );
-      }
+      const match = findSelectableOption({ control, handle, option });
       if (control.multiple) {
         // A multi-select accumulates by default. Assigning `value` would silently clear every
         // prior choice, so a caller building up a selection would end with only its last call's
@@ -590,7 +629,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
         // the control would invent a third state (no selection) that a native <select> cannot hold.
         throw new Error(
           `"${handle}" is a single-select; its choice cannot be removed, only replaced — `
-          + `select a different option instead of deselecting "${normalizeAgentLabel(option).text}"`,
+          + `select a different option instead of deselecting "${normalizeAgentLabel({ raw: option }).text}"`,
         );
       } else {
         // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
@@ -603,7 +642,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
 
-    async navigate(page) {
+    async navigate({ page }: { page: string }, _optional: Record<string, never> = {}) {
       // `hasOwnProperty`, not `pages[page]`: a plain object literal inherits everything
       // `Object.prototype` contributes, so a bare lookup answered `navigate("constructor")` with
       // the `Object` constructor — a function the host never published, which this then called,
@@ -617,8 +656,8 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       // `PageDriver` is a public interface — a caller that reaches this method directly, bypassing
       // the executor entirely, hands `page` in unsanitized, so the same bound-and-strip treatment
       // applies here too rather than assuming the only caller is the one that already checked.
-      if (!published) throw new Error(`"${normalizeAgentLabel(page).text}" is not a published page`);
-      pages[page]!.navigate();
+      if (!published) throw new Error(`"${normalizeAgentLabel({ raw: page }).text}" is not a published page`);
+      pages[page]!.navigate({});
     },
   };
 }
@@ -670,7 +709,7 @@ function fillEditableRegion(control: HTMLElement, text: string): void {
 }
 
 /** Reads the current page's `data-agent-page`, for hosts that tag the body. */
-export function currentAgentPage(root: ParentNode): string | undefined {
+export function currentAgentPage({ root }: { root: ParentNode }, _optional: Record<string, never> = {}): string | undefined {
   const tagged = root.querySelector(`[${AGENT_PAGE_ATTRIBUTE}]`);
   return tagged?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
 }

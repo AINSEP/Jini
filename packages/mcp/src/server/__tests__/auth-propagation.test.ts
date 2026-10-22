@@ -1,3 +1,4 @@
+import { splitGatewayFixture } from '../../__tests__/args-fixtures.js';
 import { describe, expect, it } from 'vitest';
 import { createExecuteDelegatedToolTool } from '../tools/delegated-tool.js';
 import { RUN_TOOLS } from '../tools/run-tools.js';
@@ -47,7 +48,7 @@ const PERMISSIVE_ARGS = {
 const ALL_TOOLS = [
   ...RUN_TOOLS,
   ...TOOL_CATALOG_TOOLS,
-  createExecuteDelegatedToolTool({ runId: 'run-1', generateToolUseId: () => 'tu-1' }),
+  createExecuteDelegatedToolTool(...splitGatewayFixture({ runId: 'run-1', generateToolUseId: () => 'tu-1' })),
 ];
 
 describe('daemon credential propagation', () => {
@@ -76,7 +77,7 @@ describe('daemon credential propagation', () => {
         fetchImpl,
         authHeaders: { Authorization: 'Bearer run-scoped-secret' },
       };
-      await tool.handler(PERMISSIVE_ARGS as never, ctx);
+      await tool.handler({ args: PERMISSIVE_ARGS as never, ctx: ctx });
       expect(calls).not.toHaveLength(0);
       for (const call of calls) {
         expect(call.headers.Authorization, `${_name} -> ${call.url}`).toBe('Bearer run-scoped-secret');
@@ -93,7 +94,7 @@ describe('daemon credential propagation', () => {
         fetchImpl,
         authHeaders: { Authorization: 'Bearer run-scoped-secret' },
       };
-      await resource.read(ctx);
+      await resource.read({ ctx: ctx });
       expect(calls).not.toHaveLength(0);
       for (const call of calls) {
         expect(call.headers.Authorization, `${uri} -> ${call.url}`).toBe('Bearer run-scoped-secret');
@@ -107,7 +108,7 @@ describe('daemon credential propagation', () => {
     'tool %s sends no Authorization header when no credential was issued',
     async (_name, tool) => {
       const { calls, fetchImpl } = makeSpyFetch();
-      await tool.handler(PERMISSIVE_ARGS as never, { baseUrl: 'http://d.example', fetchImpl });
+      await tool.handler({ args: PERMISSIVE_ARGS as never, ctx: { baseUrl: 'http://d.example', fetchImpl } });
       expect(calls).not.toHaveLength(0);
       for (const call of calls) {
         expect(call.headers).not.toHaveProperty('Authorization');
@@ -120,25 +121,25 @@ describe('daemonCallOptions', () => {
   const fetchImpl = (async () => new Response('{}')) as unknown as typeof fetch;
 
   it('omits headers entirely when the context carries no auth headers', () => {
-    expect(daemonCallOptions({ baseUrl: 'http://d.example', fetchImpl })).toEqual({ fetchImpl });
+    expect(daemonCallOptions({ ctx: { baseUrl: 'http://d.example', fetchImpl } })).toEqual({ fetchImpl });
   });
 
   it('passes through the auth headers when present', () => {
     expect(
-      daemonCallOptions({ baseUrl: 'http://d.example', fetchImpl, authHeaders: { Authorization: 'Bearer x' } }),
+      daemonCallOptions({ ctx: { baseUrl: 'http://d.example', fetchImpl, authHeaders: { Authorization: 'Bearer x' } } }),
     ).toEqual({ fetchImpl, headers: { Authorization: 'Bearer x' } });
   });
 
   it('passes through the request cancellation signal when present', () => {
     const signal = new AbortController().signal;
-    expect(daemonCallOptions({ baseUrl: 'http://d.example', fetchImpl, signal })).toEqual({ fetchImpl, signal });
+    expect(daemonCallOptions({ ctx: { baseUrl: 'http://d.example', fetchImpl, signal } })).toEqual({ fetchImpl, signal });
   });
 
   // Copied, not aliased: a handler mutating its own options object must not corrupt the shared
   // per-process context every later tool call reads from.
   it('copies the header map rather than aliasing the context', () => {
     const authHeaders = { Authorization: 'Bearer x' };
-    const options = daemonCallOptions({ baseUrl: 'http://d.example', fetchImpl, authHeaders });
+    const options = daemonCallOptions({ ctx: { baseUrl: 'http://d.example', fetchImpl, authHeaders } });
     options.headers!.Authorization = 'Bearer mutated';
     expect(authHeaders.Authorization).toBe('Bearer x');
   });

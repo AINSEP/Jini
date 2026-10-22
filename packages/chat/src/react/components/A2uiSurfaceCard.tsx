@@ -32,14 +32,19 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { createSystemClock } from '@jini-ai/core/primitives';
 import { buildA2uiCatalogFromRegistry } from '@jini-ai/ui/a2ui';
-import { DEFAULT_INTERACTIVE_UI_REGISTRY } from '@jini-ai/ui/interactive-ui';
+import { DEFAULT_INTERACTIVE_UI_REGISTRY, type InteractiveUiRegistry } from '@jini-ai/ui/interactive-ui';
 import type { ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 
 /** Every agent→renderer message shape carries `surfaceId` under exactly one of these keys. */
 const SURFACE_ID_KEYS = ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface'] as const;
+
+// Preserve the interpreter's former module-wide sequence so separate cards cannot reuse an
+// action ID in the same millisecond; the wall-clock suffix keeps the existing wire format.
+let actionIdCounter = 0;
 
 function extractSurfaceId(message: unknown): string | undefined {
   if (typeof message !== 'object' || message === null) return undefined;
@@ -59,12 +64,14 @@ function RenderComponent({
   componentId,
   ancestors,
   onAction,
+  registry,
 }: {
   interpreter: A2uiInterpreter;
   surfaceId: string;
   componentId: string;
   ancestors: ReadonlySet<string>;
   onAction: (componentId: string) => void;
+  registry: Pick<InteractiveUiRegistry, 'list' | 'resolveById'>;
 }): ReactNode {
   if (ancestors.has(componentId)) {
     return (
@@ -73,7 +80,7 @@ function RenderComponent({
       </span>
     );
   }
-  const surface = interpreter.getSurface(surfaceId);
+  const surface = interpreter.getSurface({ surfaceId });
   const component = surface?.components.get(componentId);
   if (!component) {
     return (
@@ -85,10 +92,12 @@ function RenderComponent({
 
   const nextAncestors = new Set(ancestors);
   nextAncestors.add(componentId);
-  const childProps = { interpreter, surfaceId, ancestors: nextAncestors, onAction };
+  const childProps = { interpreter, surfaceId, ancestors: nextAncestors, onAction, registry };
 
   function resolveText(value: unknown): string {
-    const result = interpreter.resolve(surfaceId, value as Parameters<A2uiInterpreter['resolve']>[1]);
+    // Text props already passed the catalog schema. Parsing preserves that wire type at this
+    // Record<string, unknown> boundary without asserting a shape the compiler cannot verify.
+    const result = interpreter.resolve({ surfaceId, value: DynamicValueSchema.parse(value) });
     if (!result.ok) return `⚠ unresolved (${result.reason})`;
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);
   }
@@ -155,9 +164,9 @@ function RenderComponent({
       // one of the 13 basic types this switch has no case for, or a registry-sourced component
       // (`shadcn.*`/`recharts.*`) merged into the catalog by `A2uiSurfaceCard`'s own
       // `buildA2uiCatalogFromRegistry` call below. Resolved against the SAME registry
-      // `@jini-ai/ui`'s own `A2uiSurfaceRenderer` uses, so a type addable to the catalog and
+      // the catalog below uses, so a type addable to the catalog and
       // renderable there is addable and renderable here too.
-      const entry = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveById(component.component);
+      const entry = registry.resolveById({ id: component.component });
       if (!entry) {
         return (
           <span className="a2ui-placeholder" data-a2ui-status="unrenderable-type">
@@ -200,6 +209,9 @@ function isThenable(value: unknown): value is PromiseLike<A2uiAgentActionOutcome
 }
 
 export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
+  /** Host registry used for both wire validation and rendering. Defaults to ui's built-ins.
+   * Supply a stable registry for the card's lifetime; remount the card to switch catalogs. */
+  registry?: Pick<InteractiveUiRegistry, 'list' | 'resolveById'>;
   /**
    * Called when a rendered surface produces a `message`-shaped action meant for the agent (as
    * opposed to a `local` client-side function call, which this component already resolves and
@@ -220,18 +232,30 @@ export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'a2ui'` name — see module doc. */
-export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCardProps) {
+export function A2uiSurfaceCard({ events, runId, onAgentAction, registry = DEFAULT_INTERACTIVE_UI_REGISTRY }: A2uiSurfaceCardProps) {
   const t = useT();
-  // Merges `DEFAULT_INTERACTIVE_UI_REGISTRY` (shadcn/recharts) into the lab catalog, keyed under
+  // Merges the host registry (shadcn/recharts by default) into the lab catalog, keyed under
   // the SAME `catalogId` the lab catalog already uses — so a tool built against
-  // `createLabCatalog().catalogId` (e.g. `demo-a2ui-tool.ts`) still validates unchanged, and now
+  // `createLabCatalog({}).catalogId` (e.g. `demo-a2ui-tool.ts`) still validates unchanged, and now
   // ALSO gains every registry component as a real, addable/removable catalog entry.
   const catalog = useMemo(() => {
-    const base = createLabCatalog();
-    return buildA2uiCatalogFromRegistry(DEFAULT_INTERACTIVE_UI_REGISTRY, base.catalogId, { base });
-  }, []);
+    const base = createLabCatalog({});
+    return buildA2uiCatalogFromRegistry({ registry, catalogId: base.catalogId }, { base });
+  }, [registry]);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
-  if (!interpreterRef.current) interpreterRef.current = createA2uiInterpreter(catalog);
+  if (!interpreterRef.current) {
+    const clock = createSystemClock();
+    interpreterRef.current = createA2uiInterpreter({
+      catalog,
+      clock,
+      ids: {
+        next: (_required) => {
+          actionIdCounter += 1;
+          return `a2ui-action-${actionIdCounter}-${clock.nowMs().toString(36)}`;
+        },
+      },
+    });
+  }
   const interpreter = interpreterRef.current;
 
   const [, forceRender] = useState(0);
@@ -245,7 +269,11 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
   const [localActionResult, setLocalActionResult] = useState<{ componentId: string; value: unknown } | null>(null);
   const [deliveryFailureNotice, setDeliveryFailureNotice] = useState<string | null>(null);
 
-  useEffect(() => interpreter.subscribe(() => forceRender((n) => n + 1)), [interpreter]);
+  useEffect(() => {
+    const unsubscribe = interpreter.subscribe({ listener: () => forceRender((n) => n + 1) });
+    // React invokes cleanup with no arguments; the interpreter's port takes a required bag.
+    return () => unsubscribe({});
+  }, [interpreter]);
 
   useEffect(() => {
     while (appliedCountRef.current < events.length) {
@@ -253,7 +281,7 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
       appliedCountRef.current += 1;
       const surfaceId = extractSurfaceId(message);
       if (surfaceId) surfaceIdRef.current = surfaceId;
-      const result = interpreter.applyAgentMessage(message);
+      const result = interpreter.applyAgentMessage({ raw: message });
       if (result.unattributedViolation) {
         setRefusalNotice(result.unattributedViolation);
       } else {
@@ -287,14 +315,14 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
   }, [events, interpreter, onAgentAction, runId]);
 
   const surfaceId = surfaceIdRef.current;
-  const root = surfaceId ? interpreter.getRoot(surfaceId) : undefined;
+  const root = surfaceId ? interpreter.getRoot({ surfaceId }) : undefined;
 
   function handleAction(componentId: string) {
     // `surfaceId` is non-null here by construction, not by luck: this callback is only ever reached
     // from a `Button` inside the rendered tree, and nothing renders until `root` resolves — which
     // the `!root` early return below only permits when `surfaceId` was already truthy. Asserted
     // rather than re-checked, exactly as the `RenderComponent` call site below already does.
-    const built = interpreter.buildAction(surfaceId!, componentId);
+    const built = interpreter.buildAction({ surfaceId: surfaceId!, componentId });
     if (!built.ok) {
       setRefusalNotice(built.reason);
       return;
@@ -362,7 +390,7 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
 
   return (
     <div className="a2ui-surface-card" data-a2ui-surface-id={surfaceId}>
-      <RenderComponent interpreter={interpreter} surfaceId={surfaceId!} componentId="root" ancestors={new Set()} onAction={handleAction} />
+      <RenderComponent interpreter={interpreter} surfaceId={surfaceId!} componentId="root" ancestors={new Set()} onAction={handleAction} registry={registry} />
       {refusalNotice ? (
         <div className="a2ui-surface-notice a2ui-surface-notice-refused" role="status">
           {t('Action refused: {reason}', { reason: refusalNotice })}

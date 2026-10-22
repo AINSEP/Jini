@@ -1,8 +1,9 @@
+import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as SqliteModule from '@jini-ai/sqlite';
+import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
 
 import { createJiniKernelBase } from '../kernel-base.js';
 
@@ -41,12 +42,12 @@ afterEach(() => {
  * expected" case.
  */
 function spyOnEventLogs(failingFile: string | null) {
-  const original = SqliteModule.createSqliteEventLog;
+  const original = SqliteModule.openSqliteEventLog;
   const closes = new Map<string, ReturnType<typeof vi.fn>>();
   const spy = vi
-    .spyOn(SqliteModule, 'createSqliteEventLog')
+    .spyOn(SqliteModule, 'openSqliteEventLog')
     .mockImplementation((...args: Parameters<typeof original>) => {
-      const [dbPath] = args;
+      const [{ file: dbPath }] = args;
       if (failingFile !== null && dbPath.endsWith(failingFile)) {
         throw new Error(`SqliteError: unable to open database file (${dbPath})`);
       }
@@ -63,7 +64,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs('journal.db');
     try {
-      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', dataDir } })).rejects.toThrow(
+      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
         /unable to open database file/,
       );
 
@@ -81,7 +82,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs('events.db');
     try {
-      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', dataDir } })).rejects.toThrow(
+      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
         /unable to open database file/,
       );
       expect(closes.size).toBe(0);
@@ -94,7 +95,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs(null);
     try {
-      const base = await createJiniKernelBase({ storage: { kind: 'sqlite', dataDir } });
+      const base = await createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } });
       expect(base.sqlite).not.toBeNull();
       expect(base.sqlite!.connection.open).toBe(true);
 
@@ -120,4 +121,63 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
       spy.mockRestore();
     }
   });
+});
+
+/** Every durable fixture uses the external host's installed SQLite driver. */
+function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }
+
+
+describe('L039a runtime option pins', () => {
+  it.each([undefined, false, true])('keeps explicit runtime policy values (%s)', async (codexDisablePlugins) => {
+    const hostEnv = { PATH: '/pin/bin' };
+    const base = await createJiniKernelBase({ storage: { kind: 'memory' }, agentExecutor: {
+      hostEnv, piGracefulShutdownMs: 0, ...(codexDisablePlugins === undefined ? {} : { codexDisablePlugins }),
+    } });
+    try {
+      expect(base.agentRuntime.hostEnv).toEqual(hostEnv);
+      expect(base.agentRuntime.piGracefulShutdownMs).toBe(0);
+      expect(base.agentRuntime.codexDisablePlugins).toBe(codexDisablePlugins ?? false);
+    } finally { await base.close(); }
+  });
+  it('shares a supplied runtime state and disposes it only once', async () => {
+    const first = await createJiniKernelBase({ storage: { kind: 'memory' } });
+    const base = await createJiniKernelBase({ storage: { kind: 'memory' }, agentExecutor: {
+      runtimeState: first.agentRuntime.state,
+    } });
+    const dispose = vi.spyOn(base.agentRuntime, 'dispose');
+    try {
+      expect(base.agentRuntime.state).toBe(first.agentRuntime.state);
+      await Promise.all([base.close(), base.close()]);
+      expect(dispose).toHaveBeenCalledTimes(1);
+    } finally { await base.close(); await first.close(); }
+  });
+});
+
+it.each([false, true])('preserves a feature-connection boot error while closing both logs (close throws: %s)', async (closeThrows) => {
+  const dataDir = makeTempDataDir();
+  const { spy, closes } = spyOnEventLogs(null);
+  const bootError = new Error('feature pragma failure');
+  let opens = 0;
+  let featureClose: ReturnType<typeof vi.fn> | undefined;
+  try {
+    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', dataDir,
+      open: (file, settings) => {
+        const db = new Database(file, settings);
+        opens += 1;
+        if (opens === 3) {
+          vi.spyOn(db, 'pragma').mockImplementation(() => { throw bootError; });
+          const realClose = db.close.bind(db);
+          featureClose = vi.fn(() => {
+            realClose();
+            if (closeThrows) throw new Error('close failure');
+          });
+          vi.spyOn(db, 'close').mockImplementation(() => { featureClose!(); return db; });
+        }
+        return db;
+      },
+    } })).rejects.toBe(bootError);
+    expect(featureClose).toHaveBeenCalledTimes(1);
+    expect(closes.get('events.db')).toHaveBeenCalledTimes(1);
+    expect(closes.get('journal.db')).toHaveBeenCalledTimes(1);
+  } finally { spy.mockRestore(); vi.restoreAllMocks(); }
 });

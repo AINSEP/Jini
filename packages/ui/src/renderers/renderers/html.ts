@@ -10,8 +10,8 @@ import { resolveArtifactManifest, type ArtifactRenderer } from '../registry.js';
 export const HtmlRenderer: ArtifactRenderer = {
   id: 'html',
   supportsStreaming: false,
-  canRender: ({ file, hints }) => {
-    const manifest = resolveArtifactManifest(file);
+  canRender: ({ file }, { hints } = {}) => {
+    const manifest = resolveArtifactManifest({ file: file });
     if (!manifest) return false;
     if (manifest.kind === 'deck' || manifest.renderer === 'deck-html') return false;
     if (manifest.renderer === 'html' || manifest.kind === 'html') return true;

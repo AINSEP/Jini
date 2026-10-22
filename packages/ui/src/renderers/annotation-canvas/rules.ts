@@ -6,7 +6,7 @@
  * useAnnotationCanvas.ts`) measures from the live DOM and passes in.
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx`. See
- * `../source-map.md`.
+ * `../archived provenance ledger`.
  */
 import type {
   AnnotationAction,

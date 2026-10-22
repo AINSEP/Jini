@@ -1,17 +1,12 @@
 /**
- * `@jini-ai/capability-providers` — abstract, swappable capability-provider
- * ports (auth/storage/payments/db/realtime): stable interfaces and typed DI
- * tokens only. Speculative port-design exploration, built with no current
- * consumer — see `source-map.md` for the full scope note and sign-off
- * status.
- *
- * This entry point intentionally does NOT export any concrete
- * implementation. The non-cryptographic, non-production in-memory
- * reference stubs that prove each port is genuinely implementable
- * (`createInMemoryAuthProvider` and friends) live under
- * `src/unsafe-reference/` and are exported only from the separate
- * `@jini-ai/capability-providers/unsafe-reference` entry point — see that
- * directory's `index.ts` header before importing anything from it.
+ * @jini-ai/capability-providers supplies independently bindable auth/storage/payment/db/realtime
+ * ports and tokens, with no current consumer commitment. Avoid an optional-method umbrella bag:
+ * a consumer should see only the capabilities it binds. One adapter can implement several ports
+ * and bind to several tokens at the composition site.
+ * @jini-ai/core's bindings already own registration; this package must not create a second registry.
+ * Concrete implementations are separate entries. unsafe-reference stubs prove the interfaces are
+ * implementable, with non-cryptographic/non-production behavior; never infer production guarantees
+ * from them. See that entry's index header for its specific limitations.
  */
 export * from './auth.js';
 export * from './storage.js';

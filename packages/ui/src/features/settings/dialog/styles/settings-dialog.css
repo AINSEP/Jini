@@ -95,6 +95,8 @@
 }
 
 .jini-input {
+  min-height: var(--jini-control-h, 37px);
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   padding: 8px 10px;
@@ -105,6 +107,17 @@
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
   transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
+}
+
+/* Native selects share one affordance across execution settings and host forms. */
+select.jini-input {
+  appearance: none;
+  padding-right: 2rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 10px 6px;
 }
 
 .jini-input:focus {
@@ -122,9 +135,13 @@
    controls use this family instead of `.jini-btn`. `<a>` is included
    alongside `<button>` because the MCP server tab's "One-click install"
    deep link renders as an anchor styled as a button, not a real button. */
-.jini-btn,
-.jini-button,
-a.jini-button {
+/* These primitives belong to settings tab content, including standalone sections.
+   Scope them so loading this stylesheet cannot style another package's buttons. */
+.jini-settings-section .jini-btn,
+.jini-settings-section .jini-button,
+.jini-settings-section a.jini-button {
+  min-height: var(--jini-control-h, 37px);
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -142,13 +159,13 @@ a.jini-button {
   transition: border-color 120ms var(--jini-ease-out), background-color 120ms var(--jini-ease-out);
 }
 
-.jini-btn:hover:not(:disabled),
-.jini-button:hover:not(:disabled) {
+.jini-settings-section .jini-btn:hover:not(:disabled),
+.jini-settings-section .jini-button:hover:not(:disabled) {
   border-color: var(--jini-border-strong);
 }
 
-.jini-btn:disabled,
-.jini-button:disabled {
+.jini-settings-section .jini-btn:disabled,
+.jini-settings-section .jini-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -160,18 +177,18 @@ a.jini-button {
    `disabled` (it drops `href` instead — see `IntegrationsTab.tsx`), so the
    component sets this class in the same case a real `disabled` attribute
    would apply. */
-.jini-button-primary {
-  color: #fff;
+.jini-settings-section .jini-button-primary {
+  color: var(--jini-accent-ink);
   background: var(--jini-accent);
   border-color: var(--jini-accent);
 }
 
-.jini-button-primary:hover {
+.jini-settings-section .jini-button-primary:hover {
   background: var(--jini-accent-hover);
   border-color: var(--jini-accent-hover);
 }
 
-.jini-button-disabled {
+.jini-settings-section .jini-button-disabled {
   opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;
@@ -344,7 +361,7 @@ a.jini-button {
 .jini-provider-chip.active {
   background: var(--jini-accent);
   border-color: var(--jini-accent);
-  color: #fff;
+  color: var(--jini-accent-ink);
 }
 
 .jini-provider-chip-status {
@@ -363,7 +380,7 @@ a.jini-button {
 
 .jini-provider-chip.active .jini-provider-chip-status.is-configured,
 .jini-provider-chip.active .jini-provider-chip-status.is-unset {
-  box-shadow: 0 0 0 2px color-mix(in srgb, #fff 40%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--jini-accent-ink) 40%, transparent);
 }
 
 .jini-byok-card {
@@ -392,6 +409,21 @@ a.jini-button {
 
    `align-items: start` so a field with a two-line hint (an invalid base URL) does not stretch its
    neighbour's input to match. */
+/* `ByokProviderForm`'s `collapseAdvanced`: Base URL + Max tokens behind one disclosure after Model. */
+.jini-byok-advanced > summary {
+  cursor: pointer;
+  width: max-content;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jini-text-muted);
+}
+.jini-byok-advanced > summary:hover { color: var(--jini-text-strong); }
+.jini-byok-advanced[open] > summary { margin-bottom: 12px; }
+
+/* `ByokProviderForm`'s `apiKeyActions`: the host's button row directly under the key input (Show
+   stays on the input's line). Wraps on a narrow card. */
+.jini-byok-key-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
+
 .jini-byok-field-row {
   display: flex;
   flex-wrap: wrap;
@@ -477,11 +509,23 @@ a.jini-button {
 
 /* Agent cards. The origin drew a responsive grid of selectable vendor cards;
    `auto-fill` keeps it one column inside a narrow settings panel and two or
-   more when the host gives the dialog room. */
+   more when the host gives the dialog room.
+
+   Settings grow inside the selected card's own column; top alignment keeps
+   its neighbour at its normal height. */
 .jini-agent-grid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 10px;
+}
+
+/* "Show N not installed" — the uninstalled tail of the grid sits behind this toggle. */
+.jini-local-cli-more {
+  display: block;
+  width: auto;
+  align-self: flex-start;
+  margin: 10px 0;
 }
 
 .jini-agent-card {
@@ -498,6 +542,7 @@ a.jini-button {
 }
 
 .jini-agent-card.is-selected {
+  grid-column: span 1;
   border-color: var(--jini-accent);
   box-shadow: 0 0 0 1px var(--jini-accent);
 }
@@ -530,30 +575,26 @@ a.jini-button {
 
 /* The whole card is the click target, not just the text at the top of it.
  *
- * `.jini-agent-grid` is a grid, so selecting one CLI stretches every card in
- * that row to match the expanded one — while `-select` keeps its natural
- * content height. The space the row-mate's expansion added was therefore
- * inert: clicking the lower two-thirds of a stretched-but-unselected card did
- * nothing, which reads as a broken card rather than as "aim higher".
+ * The select button owns the whole header, including its padding, when no
+ * other controls need that space.
  *
  * `:last-child` is load-bearing. A card renders its diagnostics, model config,
  * test result and path-repair actions as SIBLINGS after `-main`, and those
  * blocks contain their own buttons; growing `-main` unconditionally would push
  * them to the card's bottom edge, and a full-card overlay would swallow their
  * clicks outright. `-main:last-child` is true exactly when nothing rendered
- * after it — the unselected, no-diagnostics case this bug is about.
+ * after it — the no-diagnostics case this bug is about.
  *
- * `:not(.is-selected)` guards the padding move specifically: a SELECTED card
- * can render its Test button inside `-main`, and zeroing the padding there
- * would shove that button flush against the card edge. */
-.jini-agent-card:not(.is-selected) .jini-agent-card-main:last-child {
+ * Test stays in the selected card's header; settings follow `-main`, keeping
+ * both their controls and the header's Test button independently clickable. */
+.jini-agent-card .jini-agent-card-main:last-child {
   flex: 1 1 auto;
   /* Handed to the button below — left here it would ring the card in 12px of
      unclickable margin, a smaller version of the same bug. */
   padding: 0;
 }
 
-.jini-agent-card:not(.is-selected) .jini-agent-card-main:last-child > .jini-agent-card-select {
+.jini-agent-card .jini-agent-card-main:last-child > .jini-agent-card-select {
   /* The row is `align-items: flex-start` so the Test button never stretches;
      this opts the select button alone into filling the card. Its own
      `align-items: flex-start` keeps icon and text at the top — only the hit
@@ -603,13 +644,13 @@ a.jini-button {
   color: var(--jini-text);
 }
 
-.jini-agent-card-name-divider {
-  color: var(--jini-text-disabled);
-}
-
 .jini-agent-card-tagline {
   font-size: 12px;
   color: var(--jini-text-muted);
+}
+
+.jini-agent-card.is-selected .jini-agent-card-tagline:not(:empty)::before {
+  content: '·\00a0';
 }
 
 .jini-agent-card-badges {
@@ -655,14 +696,98 @@ a.jini-button {
   opacity: 0.7;
 }
 
-.jini-agent-card-config {
+/* Selection reads as the accent ring plus this check, never as a bigger card. */
+.jini-agent-card-check {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--jini-accent);
+  color: var(--jini-accent-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Settings stay inside the selected card, with each label above its control
+   and the model's provenance sentence visible below the picker. */
+.jini-agent-settings {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 12px 12px;
+  gap: 8px;
+  padding: 10px 12px;
   border-top: 1px solid var(--jini-border);
-  margin-top: 2px;
-  padding-top: 10px;
+}
+
+.jini-agent-settings-row,
+.jini-agent-settings-tail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px 16px;
+}
+
+.jini-agent-settings-tail {
+  gap: 8px 10px;
+}
+
+/* Wide enough for "Testing…", so starting a test never reflows its controls. */
+.jini-agent-settings-tail > .jini-agent-card-test {
+  min-width: 5.5rem;
+}
+
+.jini-agent-settings-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.jini-agent-settings-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jini-agent-settings-field > .jini-field-label {
+  white-space: nowrap;
+}
+
+.jini-agent-settings .jini-searchable-select,
+.jini-agent-settings select.jini-input,
+.jini-agent-settings .jini-agent-settings-custom {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.jini-agent-settings-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.jini-agent-settings-source > .jini-agent-model-source {
+  margin-left: 0;
+  white-space: nowrap;
+}
+
+.jini-agent-settings .jini-agent-card-test-result {
+  padding: 0;
+}
+
+.jini-agent-settings .jini-agent-card-path-repair {
+  margin: 0;
+}
+
+.jini-agent-settings .jini-agent-cli-env {
+  margin: 0;
+  padding-top: 8px;
 }
 
 /* The source badge is load-bearing, not decoration: a built-in list can be
@@ -843,12 +968,12 @@ a.jini-button {
   gap: 8px;
 }
 
-.jini-btn-ghost,
-.jini-button-ghost {
+.jini-settings-section .jini-btn-ghost,
+.jini-settings-section .jini-button-ghost {
   background: transparent;
 }
 
-/* A host app's own global `button:disabled` reset (Tovu's admin: `styles.css`'s burnt-orange
+/* A host app's own global `button:disabled` reset (the host’s admin: `styles.css`'s burnt-orange
    `color-mix` tint) is a type selector + pseudo-class, (0,1,1) specificity — it outranks the
    class-only rule above for the SAME property, so a disabled ghost button would otherwise show
    that host's accent tint behind it instead of staying transparent (confirmed live: the Media
@@ -857,14 +982,14 @@ a.jini-button {
    any state, disabled included, and that contract shouldn't depend on what a consuming app's own
    button reset happens to do.
 
-   `color` needs the same treatment, not just `background`: Tovu's global rule sets BOTH as a
+   `color` needs the same treatment, not just `background`: the host’s global rule sets BOTH as a
    matched pair (a near-white "ink" meant to sit on ITS OWN peach fill), so resetting only the
    background left white-on-white invisible text — confirmed live, not a hypothetical. `.jini-
    button:disabled` (above, line ~150) already dims via `opacity: 0.55`; restoring the ordinary
    `var(--jini-text)` here just gives that opacity something visible to dim, same as every other
    disabled `.jini-button` variant that doesn't hit this host-specific collision. */
-.jini-btn-ghost:disabled,
-.jini-button-ghost:disabled {
+.jini-settings-section .jini-btn-ghost:disabled,
+.jini-settings-section .jini-button-ghost:disabled {
   background: transparent;
   color: var(--jini-text);
 }
@@ -893,7 +1018,21 @@ a.jini-button {
   width: 100%;
 }
 
+/* Hosts may pass the input class to the wrapper; only the trigger paints the control. */
+.jini-select.jini-input {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  min-height: 0;
+}
+.jini-select.is-missing > .jini-select-trigger {
+  border-color: color-mix(in srgb, var(--jini-danger) 55%, var(--jini-border));
+}
+
 .jini-select-trigger {
+  min-height: var(--jini-control-h, 37px);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -908,6 +1047,17 @@ a.jini-button {
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
   cursor: pointer;
+}
+
+.jini-select-trigger:focus-visible {
+  outline: none;
+  border-color: var(--jini-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
+}
+
+@media (max-width: 640px) {
+  .jini-input,
+  .jini-select-trigger { font-size: 16px; min-height: 40px; }
 }
 
 .jini-select-trigger:hover:not(:disabled) {
@@ -1200,7 +1350,7 @@ a.jini-button {
 }
 
 .jini-privacy-consent-action--primary {
-  color: #fff;
+  color: var(--jini-accent-ink);
   background: var(--jini-accent);
   border-color: var(--jini-accent);
 }
@@ -1268,7 +1418,7 @@ a.jini-button {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--jini-bg);
   box-shadow: var(--jini-shadow-xs);
   transition: transform 120ms var(--jini-ease-out);
 }
@@ -1568,16 +1718,18 @@ a.jini-button {
   position: relative;
 }
 
+/* The right padding keeps the absolutely positioned copy button off the wrapped code; on a phone
+   that much side padding would halve the line, so the code starts below the button instead. */
 .jini-snippet-pre {
   margin: 0;
-  padding: 14px 16px;
+  padding: 14px 104px 14px 16px;
   overflow-x: auto;
   background: var(--jini-text-strong);
   border-radius: var(--jini-radius);
 }
 
 .jini-snippet-code {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
   font-size: 12px;
   line-height: 1.6;
   color: var(--jini-bg-panel);
@@ -1598,6 +1750,12 @@ a.jini-button {
   background: color-mix(in srgb, var(--jini-text-strong) 75%, transparent);
 }
 
+@media (max-width: 640px) {
+  .jini-snippet-pre {
+    padding: 56px 16px 14px;
+  }
+}
+
 /* ============================================================
    Connectors tab — PORTED from OD's real source, not authored by eye.
    Sources: `foundry/integrations/open-design/reference/od-web-src.orig/
@@ -1613,7 +1771,7 @@ a.jini-button {
    OD-global `button`/`.ghost`/`.primary`/`.icon-only` rule is rescoped
    under `.connectors-panel` — those are unscoped in OD's own app (a
    single-purpose SPA where every button gets that treatment), but here
-   they'd otherwise leak onto every unrelated `<button>` in the Tovu admin.
+   they'd otherwise leak onto every unrelated `<button>` in the the host admin.
    Two intentional substitutions where jini's token set has no equivalent:
    `var(--bg)` (OD's page-level background, distinct from `--bg-panel`) →
    `var(--jini-bg-subtle)` in the gate's backdrop gradient; OD's
@@ -1791,14 +1949,14 @@ a.jini-button {
 .connector-card:hover:not(.is-locked) {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--jini-text) 28%, var(--jini-border));
-  box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.25), var(--jini-shadow-xs);
+  box-shadow: 0 8px 24px -14px color-mix(in srgb, var(--jini-text) 25%, transparent), var(--jini-shadow-xs);
 }
 .connector-card:focus-visible {
   outline: none;
   border-color: color-mix(in srgb, var(--jini-text) 48%, var(--jini-border));
   box-shadow:
     0 0 0 3px color-mix(in srgb, var(--jini-text) 14%, transparent),
-    0 8px 24px -14px rgba(0, 0, 0, 0.25);
+    0 8px 24px -14px color-mix(in srgb, var(--jini-text) 25%, transparent);
 }
 .connector-card.status-connected {
   border-color: color-mix(in srgb, var(--jini-success) 40%, var(--jini-border));
@@ -1936,28 +2094,28 @@ a.jini-button {
 }
 .connector-logo.state-error[data-palette='1'] .connector-logo-fallback,
 .connector-logo.is-fallback[data-palette='1'] .connector-logo-fallback {
-  background: color-mix(in oklab, #6b8afd 7%, var(--jini-bg-subtle));
-  color: color-mix(in oklab, #6b8afd 38%, var(--jini-text-muted));
+  background: color-mix(in oklab, var(--jini-primary) 7%, var(--jini-bg-subtle));
+  color: color-mix(in oklab, var(--jini-primary) 38%, var(--jini-text-muted));
 }
 .connector-logo.state-error[data-palette='2'] .connector-logo-fallback,
 .connector-logo.is-fallback[data-palette='2'] .connector-logo-fallback {
-  background: color-mix(in oklab, #2dbfa8 7%, var(--jini-bg-subtle));
-  color: color-mix(in oklab, #2dbfa8 38%, var(--jini-text-muted));
+  background: color-mix(in oklab, var(--jini-success) 7%, var(--jini-bg-subtle));
+  color: color-mix(in oklab, var(--jini-success) 38%, var(--jini-text-muted));
 }
 .connector-logo.state-error[data-palette='3'] .connector-logo-fallback,
 .connector-logo.is-fallback[data-palette='3'] .connector-logo-fallback {
-  background: color-mix(in oklab, #d18b3a 7%, var(--jini-bg-subtle));
-  color: color-mix(in oklab, #d18b3a 40%, var(--jini-text-muted));
+  background: color-mix(in oklab, var(--jini-warning) 7%, var(--jini-bg-subtle));
+  color: color-mix(in oklab, var(--jini-warning) 40%, var(--jini-text-muted));
 }
 .connector-logo.state-error[data-palette='4'] .connector-logo-fallback,
 .connector-logo.is-fallback[data-palette='4'] .connector-logo-fallback {
-  background: color-mix(in oklab, #c356b3 6%, var(--jini-bg-subtle));
-  color: color-mix(in oklab, #c356b3 38%, var(--jini-text-muted));
+  background: color-mix(in oklab, var(--jini-danger) 6%, var(--jini-bg-subtle));
+  color: color-mix(in oklab, var(--jini-danger) 38%, var(--jini-text-muted));
 }
 .connector-logo.state-error[data-palette='5'] .connector-logo-fallback,
 .connector-logo.is-fallback[data-palette='5'] .connector-logo-fallback {
-  background: color-mix(in oklab, #5d6b85 9%, var(--jini-bg-subtle));
-  color: color-mix(in oklab, #5d6b85 42%, var(--jini-text-muted));
+  background: color-mix(in oklab, var(--jini-muted) 9%, var(--jini-bg-subtle));
+  color: color-mix(in oklab, var(--jini-muted) 42%, var(--jini-text-muted));
 }
 .connector-logo.state-error,
 .connector-logo.is-fallback {
@@ -2120,7 +2278,7 @@ a.jini-button {
 /* Base button + `.ghost`/`.primary`/`.icon-only` — OD's `primitives.css`
    defines these UNSCOPED (every `<button>` in its single-purpose app gets
    them). Rescoped under `.connectors-panel` so they style only this
-   feature's buttons and never leak onto the rest of the Tovu admin. */
+   feature's buttons and never leak onto the rest of the the host admin. */
 .connectors-panel button {
   font: inherit;
   color: var(--jini-text);
@@ -2141,10 +2299,10 @@ a.jini-button {
   gap: 6px;
   background: var(--jini-accent);
   border-color: var(--jini-accent);
-  color: #fff;
+  color: var(--jini-accent-ink);
   font-weight: 500;
   line-height: 1.2;
-  box-shadow: 0 1px 0 rgba(180, 90, 59, 0.18) inset, var(--jini-shadow-xs);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--jini-text) 18%, transparent) inset, var(--jini-shadow-xs);
 }
 .connectors-panel button.primary:hover:not(:disabled) {
   background: var(--jini-accent-hover);
@@ -2271,7 +2429,7 @@ button.connector-action.is-loading { cursor: wait; }
 }
 .connector-card > .connector-authorization-link { margin-top: -2px; }
 
-/* Gate: masks the grid when the Composio API key is missing. */
+/* Gate: masks the grid when the Connector Provider API key is missing. */
 .connector-grid-wrap { position: relative; }
 .connector-grid-wrap.is-masked .connector-grid {
   filter: blur(2px) saturate(0.85);
@@ -2334,7 +2492,7 @@ button.connector-action.is-loading { cursor: wait; }
   flex: 0 0 auto;
 }
 /* Hide the provider tabs when there is only one option — no choice = no
-   need for a tab (matches OD exactly; Tovu's single "All" tab hits this). */
+   need for a tab (matches OD exactly; the host’s single "All" tab hits this). */
 .connectors-provider-tabs:has(> :only-child) { display: none; }
 .connectors-provider-tab {
   appearance: none;
@@ -2358,11 +2516,11 @@ button.connector-action.is-loading { cursor: wait; }
 .connectors-provider-tab.is-active {
   color: var(--jini-text);
   background: var(--jini-bg-panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px color-mix(in srgb, var(--jini-text) 12%, var(--jini-border));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--jini-text) 6%, transparent), 0 0 0 1px color-mix(in srgb, var(--jini-text) 12%, var(--jini-border));
 }
 .connectors-provider-tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--jini-text) 14%, transparent), 0 1px 2px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--jini-text) 14%, transparent), 0 1px 2px color-mix(in srgb, var(--jini-text) 6%, transparent);
 }
 .connectors-panel-embedded .connector-grid-wrap.is-masked {
   min-height: clamp(320px, 45vh, 420px);
@@ -2613,7 +2771,7 @@ button.connector-action.is-loading { cursor: wait; }
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: color-mix(in srgb, #111827 18%, transparent);
+  background: color-mix(in srgb, var(--jini-text) 18%, transparent);
   backdrop-filter: blur(1px);
   -webkit-backdrop-filter: blur(1px);
   display: flex;
@@ -2636,7 +2794,7 @@ button.connector-action.is-loading { cursor: wait; }
   background: var(--jini-bg-panel);
   border: 1px solid color-mix(in srgb, var(--jini-border) 82%, transparent);
   border-radius: var(--jini-radius-lg);
-  box-shadow: 0 24px 64px -34px rgba(15, 23, 42, 0.5);
+  box-shadow: 0 24px 64px -34px color-mix(in srgb, var(--jini-text) 50%, transparent);
   overflow: hidden;
   animation: connector-drawer-slide 220ms cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -2890,7 +3048,7 @@ button.connector-action.is-loading { cursor: wait; }
   line-height: 1.42;
 }
 .connector-drawer-tool-name {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
   font-size: 10.5px;
   color: var(--jini-text-disabled);
   background: color-mix(in srgb, var(--jini-bg-subtle) 76%, transparent);
@@ -2954,7 +3112,7 @@ button.connector-action.is-loading { cursor: wait; }
   height: 100%;
   max-height: none;
   border-radius: var(--jini-radius);
-  box-shadow: 0 20px 48px -28px rgba(15, 23, 42, 0.55);
+  box-shadow: 0 20px 48px -28px color-mix(in srgb, var(--jini-text) 55%, transparent);
 }
 @media (max-width: 720px) {
   .connectors-panel-embedded:has(.connector-drawer-backdrop) { min-height: clamp(520px, 70vh, 640px); }
@@ -3087,7 +3245,7 @@ button.connector-action.is-loading { cursor: wait; }
 }
 .jini-skills-row:hover {
   border-color: var(--jini-border-strong);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--jini-text) 4%, transparent);
 }
 .jini-skills-row-expanded {
   background: var(--jini-bg-subtle);
@@ -3308,7 +3466,7 @@ button.connector-action.is-loading { cursor: wait; }
   padding: 10px 12px;
   font-size: 12.5px;
   line-height: 1.55;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
   white-space: pre-wrap;
 }
 .jini-skills-file-tree {
@@ -3355,7 +3513,7 @@ button.connector-action.is-loading { cursor: wait; }
   margin: 0;
   font-size: 11px;
   color: var(--jini-text-disabled);
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
 }
 
 /* Real OD form fields for `SkillDraftForm` — from `.../viewer/
@@ -3435,13 +3593,21 @@ button.connector-action.is-loading { cursor: wait; }
   flex-wrap: wrap;
 }
 
+/* A wrapping row, not a fixed column grid: a card holds two or three fields (the model field only
+   when the provider lists models) plus Clear, and the old three-column grid squeezed each input to
+   a few characters on a phone and pushed Clear onto its own full-column row everywhere. Each field
+   asks for 11rem, so a phone gets one field per line, wider screens fit the whole row, and the cap
+   keeps a desktop field from stretching across the card. */
 .jini-media-provider-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
 }
 
 .jini-media-provider-field {
+  flex: 1 1 11rem;
+  max-width: 28rem;
   min-width: 0;
 }
 
@@ -3556,7 +3722,7 @@ button.connector-action.is-loading { cursor: wait; }
   width: 14px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: var(--jini-bg);
   border-radius: 50%;
   transition: transform 0.2s;
 }
@@ -3577,7 +3743,7 @@ button.connector-action.is-loading { cursor: wait; }
    both features were functional but had literally never been styled by any
    host. Reference screenshots: `od-settings-memory.png`,
    `od-settings-memory-howitworks.png`, `od-settings-external-mcp.png`,
-   `od-settings-external-mcp-customform.png`. Tovu mounts the two new
+   `od-settings-external-mcp-customform.png`. the host mounts the two new
    composed components this section styles — `MemorySettingsPanel`
    (`features/memory`) and `ExternalMcpTab` (new `features/external-mcp`) —
    inert-wrapped in `SettingsUi.tsx`, same pattern as Media providers/
@@ -3629,7 +3795,7 @@ button.connector-action.is-loading { cursor: wait; }
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--jini-bg);
   box-shadow: var(--jini-shadow-xs);
   transition: transform 120ms var(--jini-ease-out);
 }
@@ -3722,7 +3888,7 @@ button.connector-action.is-loading { cursor: wait; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Tovu's own global `button { padding: 0.5rem 0.95rem }` reset otherwise
+  /* the host’s own global `button { padding: 0.5rem 0.95rem }` reset otherwise
      wins here (this rule never declared a `padding` of its own, so the
      cascade fills it in from that less-specific element selector) — 15.2px
      of horizontal padding on each side left a 34px button almost no room for
@@ -3888,7 +4054,7 @@ button.connector-action.is-loading { cursor: wait; }
 
 .library-empty-hint code {
   padding: 1px 6px;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
   font-size: 11px;
   color: var(--jini-text);
   background: var(--jini-bg-panel);
@@ -4093,7 +4259,7 @@ button.connector-action.is-loading { cursor: wait; }
 .source-config-field textarea {
   min-height: 64px;
   resize: vertical;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
   font-size: 12px;
 }
 
@@ -4149,7 +4315,7 @@ button.connector-action.is-loading { cursor: wait; }
   font: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: #fff;
+  color: var(--jini-accent-ink);
   background: var(--jini-accent);
   border: 1px solid var(--jini-accent);
   border-radius: var(--jini-radius-sm);
@@ -4396,7 +4562,7 @@ button.connector-action.is-loading { cursor: wait; }
 .source-config-item-card-field dd {
   margin: 0;
   font-size: 12px;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
   color: var(--jini-text);
   word-break: break-all;
 }
@@ -4440,7 +4606,7 @@ button.connector-action.is-loading { cursor: wait; }
   font: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: #fff;
+  color: var(--jini-accent-ink);
   background: var(--jini-accent);
   border: 1px solid var(--jini-accent);
   border-radius: var(--jini-radius-sm);
@@ -4495,7 +4661,7 @@ button.connector-action.is-loading { cursor: wait; }
   padding: 5px 14px;
   font-size: 12px;
   font-weight: 600;
-  color: #fff;
+  color: var(--jini-accent-ink);
   background: var(--jini-accent);
   border-radius: var(--jini-radius-pill);
 }
@@ -4507,7 +4673,7 @@ button.connector-action.is-loading { cursor: wait; }
 
 .external-mcp-stored-at code {
   padding: 1px 6px;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-family: var(--jini-font-mono);
   font-size: 11px;
   color: var(--jini-text);
   background: var(--jini-bg-subtle);

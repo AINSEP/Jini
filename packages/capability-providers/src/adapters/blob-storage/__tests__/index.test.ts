@@ -47,13 +47,13 @@ function createFakeBlobStorage(): BlobStorage & { calls: Array<{ method: string;
 
 describe('BlobStorageProvider', () => {
   it('rejects construction with an empty namespace', () => {
-    expect(() => new BlobStorageProvider(createFakeBlobStorage(), { namespace: '' })).toThrow(/namespace/);
+    expect(() => new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: '' })).toThrow(/namespace/);
   });
 
   it('put() delegates to blobStorage.writeFile scoped under the configured namespace', async () => {
     const blobStorage = createFakeBlobStorage();
-    const provider = new BlobStorageProvider(blobStorage, { namespace: 'tenant-1' });
-    const meta = await provider.put('images/a.png', new Uint8Array([1, 2, 3]));
+    const provider = new BlobStorageProvider({ blobStorage, namespace: 'tenant-1' });
+    const meta = await provider.put({ key: 'images/a.png', data: new Uint8Array([1, 2, 3]) });
 
     expect(blobStorage.calls[0]).toEqual({
       method: 'writeFile',
@@ -63,26 +63,26 @@ describe('BlobStorageProvider', () => {
   });
 
   it('put() echoes contentType back in the returned meta but cannot persist it (BlobFileMeta has no such field)', async () => {
-    const provider = new BlobStorageProvider(createFakeBlobStorage(), { namespace: 'ns' });
-    const meta = await provider.put('a.png', new Uint8Array([1]), { contentType: 'image/png' });
+    const provider = new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: 'ns' });
+    const meta = await provider.put({ key: 'a.png', data: new Uint8Array([1]) }, { contentType: 'image/png' });
     expect(meta.contentType).toBe('image/png');
 
     // A later list() cannot recover it — nothing under @jini-ai/platform ever stored it.
-    const listed = await provider.list();
+    const listed = await provider.list({}, {});
     expect(listed[0]?.contentType).toBeUndefined();
   });
 
   it('get() returns the bytes for a known key', async () => {
-    const provider = new BlobStorageProvider(createFakeBlobStorage(), { namespace: 'ns' });
-    await provider.put('a.bin', new Uint8Array([9, 8, 7]));
-    const result = await provider.get('a.bin');
+    const provider = new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: 'ns' });
+    await provider.put({ key: 'a.bin', data: new Uint8Array([9, 8, 7]) });
+    const result = await provider.get({ key: 'a.bin' });
     expect(result).not.toBeNull();
     expect(Array.from(result!)).toEqual([9, 8, 7]);
   });
 
   it('get() maps a BlobStorage NOT_FOUND error to null', async () => {
-    const provider = new BlobStorageProvider(createFakeBlobStorage(), { namespace: 'ns' });
-    expect(await provider.get('missing.bin')).toBeNull();
+    const provider = new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: 'ns' });
+    expect(await provider.get({ key: 'missing.bin' })).toBeNull();
   });
 
   it('get() rethrows a non-NOT_FOUND BlobStorage error', async () => {
@@ -90,8 +90,8 @@ describe('BlobStorageProvider', () => {
     blobStorage.readFile = vi.fn(async () => {
       throw new StorageError('IO', 'disk exploded');
     });
-    const provider = new BlobStorageProvider(blobStorage, { namespace: 'ns' });
-    await expect(provider.get('a.bin')).rejects.toThrow('disk exploded');
+    const provider = new BlobStorageProvider({ blobStorage, namespace: 'ns' });
+    await expect(provider.get({ key: 'a.bin' })).rejects.toThrow('disk exploded');
   });
 
   it('get() rethrows a non-StorageError thrown by the backing BlobStorage', async () => {
@@ -99,42 +99,42 @@ describe('BlobStorageProvider', () => {
     blobStorage.readFile = vi.fn(async () => {
       throw new Error('unexpected');
     });
-    const provider = new BlobStorageProvider(blobStorage, { namespace: 'ns' });
-    await expect(provider.get('a.bin')).rejects.toThrow('unexpected');
+    const provider = new BlobStorageProvider({ blobStorage, namespace: 'ns' });
+    await expect(provider.get({ key: 'a.bin' })).rejects.toThrow('unexpected');
   });
 
   it('delete() is idempotent for an unknown key (delegates straight through to BlobStorage.deleteFile)', async () => {
-    const provider = new BlobStorageProvider(createFakeBlobStorage(), { namespace: 'ns' });
-    await expect(provider.delete('nope')).resolves.toBeUndefined();
+    const provider = new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: 'ns' });
+    await expect(provider.delete({ key: 'nope' })).resolves.toBeUndefined();
   });
 
   it('delete() removes a known key', async () => {
-    const provider = new BlobStorageProvider(createFakeBlobStorage(), { namespace: 'ns' });
-    await provider.put('a.bin', new Uint8Array([1]));
-    await provider.delete('a.bin');
-    expect(await provider.get('a.bin')).toBeNull();
+    const provider = new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: 'ns' });
+    await provider.put({ key: 'a.bin', data: new Uint8Array([1]) });
+    await provider.delete({ key: 'a.bin' });
+    expect(await provider.get({ key: 'a.bin' })).toBeNull();
   });
 
   it('list() with no prefix returns every object under the namespace, sorted by key', async () => {
-    const provider = new BlobStorageProvider(createFakeBlobStorage(), { namespace: 'ns' });
-    await provider.put('b.bin', new Uint8Array([1]));
-    await provider.put('a.bin', new Uint8Array([1]));
-    expect((await provider.list()).map((m) => m.key)).toEqual(['a.bin', 'b.bin']);
+    const provider = new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: 'ns' });
+    await provider.put({ key: 'b.bin', data: new Uint8Array([1]) });
+    await provider.put({ key: 'a.bin', data: new Uint8Array([1]) });
+    expect((await provider.list({}, {})).map((m) => m.key)).toEqual(['a.bin', 'b.bin']);
   });
 
   it('list() filters by prefix', async () => {
-    const provider = new BlobStorageProvider(createFakeBlobStorage(), { namespace: 'ns' });
-    await provider.put('images/a.png', new Uint8Array([1]));
-    await provider.put('docs/a.pdf', new Uint8Array([1]));
-    expect((await provider.list('images/')).map((m) => m.key)).toEqual(['images/a.png']);
+    const provider = new BlobStorageProvider({ blobStorage: createFakeBlobStorage(), namespace: 'ns' });
+    await provider.put({ key: 'images/a.png', data: new Uint8Array([1]) });
+    await provider.put({ key: 'docs/a.pdf', data: new Uint8Array([1]) });
+    expect((await provider.list({}, { prefix: 'images/' })).map((m) => m.key)).toEqual(['images/a.png']);
   });
 
   it('two providers over the same BlobStorage but different namespaces do not see each other\'s keys', async () => {
     const blobStorage = createFakeBlobStorage();
-    const tenantA = new BlobStorageProvider(blobStorage, { namespace: 'tenant-a' });
-    const tenantB = new BlobStorageProvider(blobStorage, { namespace: 'tenant-b' });
-    await tenantA.put('secret.bin', new Uint8Array([1]));
-    expect(await tenantB.get('secret.bin')).toBeNull();
-    expect(await tenantB.list()).toEqual([]);
+    const tenantA = new BlobStorageProvider({ blobStorage, namespace: 'tenant-a' });
+    const tenantB = new BlobStorageProvider({ blobStorage, namespace: 'tenant-b' });
+    await tenantA.put({ key: 'secret.bin', data: new Uint8Array([1]) });
+    expect(await tenantB.get({ key: 'secret.bin' })).toBeNull();
+    expect(await tenantB.list({}, {})).toEqual([]);
   });
 });

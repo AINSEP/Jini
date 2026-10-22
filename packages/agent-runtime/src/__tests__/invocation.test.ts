@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe('execAgentFile', () => {
   it('defaults cwd to the OS tmpdir when no cwd is supplied', async () => {
-    await execAgentFile('some-bin', ['--version']);
+    await execAgentFile({ command: 'some-bin', args: ['--version'] });
     expect(mockState.calls).toHaveLength(1);
     const call = mockState.calls[0]!;
     expect(call.file).toBe('some-bin');
@@ -34,24 +34,24 @@ describe('execAgentFile', () => {
   });
 
   it('honors an explicit cwd instead of the tmpdir default', async () => {
-    await execAgentFile('some-bin', [], { cwd: '/explicit/dir' });
+    await execAgentFile({ command: 'some-bin', args: [] }, { options: { cwd: '/explicit/dir' } });
     expect(mockState.calls[0]!.options.cwd).toBe('/explicit/dir');
   });
 
   it('passes options.env through to createCommandInvocation and the exec call', async () => {
-    await execAgentFile('some-bin', ['x'], { env: { FOO: 'bar' } });
+    await execAgentFile({ command: 'some-bin', args: ['x'] }, { options: { env: { FOO: 'bar' } } });
     expect(mockState.calls[0]!.options.env).toEqual({ FOO: 'bar' });
   });
 
   it('omits env from the invocation request when none is supplied', async () => {
-    await execAgentFile('some-bin', ['x'], { timeout: 5000 });
+    await execAgentFile({ command: 'some-bin', args: ['x'] }, { options: { timeout: 5000 } });
     const call = mockState.calls[0]!;
     expect(call.options.timeout).toBe(5000);
     expect(call.options.env).toBeUndefined();
   });
 
   it('resolves with the child process stdout/stderr', async () => {
-    const result = await execAgentFile('some-bin', []);
+    const result = await execAgentFile({ command: 'some-bin', args: [] });
     expect(result).toEqual({ stdout: 'ok', stderr: '' });
   });
 });

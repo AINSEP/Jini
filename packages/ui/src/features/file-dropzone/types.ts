@@ -2,7 +2,7 @@
  * Pure types for the file-dropzone feature. No React.
  *
  * Consolidates two independent OD file-staging zones into one
- * primitive (see `packages/ui/source-map.md` for the full consolidation
+ * primitive (see `packages/ui/archived provenance ledger` for the full consolidation
  * writeup): `DesignSystemAssetDropzone.tsx` (a rich, kind-aware thumbnail
  * grid over staged `File[]`) and `DesignSystemFlow.tsx`'s `DropZone` (a
  * labeled, prompt-driven zone with a file-dialog cancel-vs-still-loading

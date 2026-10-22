@@ -1,3 +1,4 @@
+import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
@@ -50,6 +51,7 @@ function renderLocalized(locale: 'es', apiKey: string) {
   return render(
     <I18nProvider initialLocale={locale} dictionaries={SETTINGS_DIALOG_DICTIONARIES}>
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith(apiKey)}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}
@@ -87,6 +89,7 @@ describe('ByokProviderForm — key-format warnings with no I18nProvider mounted'
   it('still renders the cross-vendor warning in English via the passthrough translator', () => {
     render(
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith(ANTHROPIC_SHAPED_KEY)}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}
@@ -101,6 +104,7 @@ describe('ByokProviderForm — key-format warnings with no I18nProvider mounted'
   it('still renders the too-short warning in English via the passthrough translator', () => {
     render(
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith(TOO_SHORT_KEY)}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}
@@ -120,8 +124,8 @@ describe('ByokProviderForm — key-format warnings with no I18nProvider mounted'
  * dictionary keys; a provider's free-form error is not, and must still render verbatim.
  */
 describe('ByokProviderForm — host-reported no-key messages', () => {
-  const NO_KEY_TEST = 'No API key — connection test needs the key from this browser.';
-  const NO_KEY_DISCOVERY = 'No API key — model discovery needs the key from this browser.';
+  const NO_KEY_TEST = 'No API key saved. Save one to test the connection.';
+  const NO_KEY_DISCOVERY = 'No API key saved. Save one to load models.';
 
   function renderWith(
     locale: 'de' | 'en' | null,
@@ -130,6 +134,7 @@ describe('ByokProviderForm — host-reported no-key messages', () => {
   ) {
     const form = (
       <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
         config={configWith('')}
         onConfigChange={vi.fn()}
         preset={GOOGLE_PRESET}
@@ -150,7 +155,7 @@ describe('ByokProviderForm — host-reported no-key messages', () => {
   it('translates the connection-test no-key refusal in German', () => {
     renderWith('de', { status: 'error', message: NO_KEY_TEST });
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Kein API-Schlüssel — der Verbindungstest benötigt den Schlüssel aus diesem Browser.',
+      'Kein API-Schlüssel gespeichert. Speichern Sie einen, um die Verbindung zu testen.',
     );
     expect(screen.queryByText(NO_KEY_TEST)).not.toBeInTheDocument();
   });
@@ -159,7 +164,7 @@ describe('ByokProviderForm — host-reported no-key messages', () => {
     renderWith('de', { status: 'idle' }, { status: 'error', message: NO_KEY_DISCOVERY });
     expect(
       screen.getByText(
-        'Live-Modelle konnten nicht geladen werden: Kein API-Schlüssel — die Modellerkennung benötigt den Schlüssel aus diesem Browser.',
+        'Live-Modelle konnten nicht geladen werden: Kein API-Schlüssel gespeichert. Speichern Sie einen, um Modelle zu laden.',
       ),
     ).toBeInTheDocument();
   });

@@ -15,7 +15,7 @@
  * - `execute` also carries `restorePointId`: belt-and-suspenders against a confirmation token
  *   being replayed against a different target than the one it was confirmed for.
  *
- * `GatedOperation` carries `TConfirmInput`/`TExecuteInput` type parameters (defaulting to `string`)
+ * `GatedOperation` carries `TConfirmInput`/`TExecuteInput` object type parameters
  * for exactly this, so restore is declared as a real `GatedOperation` rather than three loose
  * methods. See `../gated/types.js` for the full rationale — in short, `disclosureAcknowledged`
  * shows the protocol is *recorded informed consent* rather than a two-step token handshake, and
@@ -167,21 +167,21 @@ export interface RestoreExecuteResult {
 
 export interface AdminRecoveryPort {
   /** Same underlying set as `AdminDatabasePort.listDatabaseRestorePoints` — see the file header. */
-  listRecoveryRestorePoints(): Promise<readonly AdminRestorePoint[]>;
-  computeRecoveryDisclosure(restorePointId: string): Promise<AdminDisclosureResult>;
+  listRecoveryRestorePoints(requiredArgs: Record<string, never>): Promise<readonly AdminRestorePoint[]>;
+  computeRecoveryDisclosure(requiredArgs: { restorePointId: string }): Promise<AdminDisclosureResult>;
   /** Resolves a deep-link envelope back into a restore point reference. `found: false` means the
    *  envelope no longer resolves to anything (e.g. the restore point it named was since purged) —
    *  not an error, a valid negative result a panel should render distinctly from a thrown error. */
   resolveRecoveryDeepLink(envelope: DatabaseContextEnvelope): Promise<AdminRecoveryDeepLinkResult>;
-  getRecoveryStatus(): Promise<AdminRecoveryStatus>;
+  getRecoveryStatus(requiredArgs: Record<string, never>): Promise<AdminRecoveryStatus>;
 
   /**
-   * The restore ceremony: `restore.plan(restorePointId)` -> `restore.confirm(...)` ->
+   * The restore ceremony: `restore.plan({ restorePointId })` -> `restore.confirm(...)` ->
    * `restore.execute(...)`. A real `GatedOperation`, so a shared confirmation component can drive
    * it without knowing it is a restore — see the file header.
    */
   readonly restore: GatedOperation<
-    /* plan input    */ string,
+    /* plan input    */ { readonly restorePointId: string },
     /* plan details  */ unknown,
     /* result        */ RestoreExecuteResult,
     /* confirm input */ RestoreConfirmInput,

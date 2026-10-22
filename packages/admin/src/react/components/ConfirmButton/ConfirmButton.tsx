@@ -60,9 +60,8 @@ export interface ConfirmButtonProps {
  */
 export function ConfirmButton({ useConfirmButton: useConfirmButtonState = useConfirmButton, ...props }: ConfirmButtonProps) {
   const { confirming, buttonRef, handleClick, handleBlur } = useConfirmButtonState(
-    props.pending,
-    props.disabled,
-    props.onConfirm,
+    { onConfirm: props.onConfirm, document },
+    { pending: props.pending, disabled: props.disabled },
   );
 
   const label = props.pending

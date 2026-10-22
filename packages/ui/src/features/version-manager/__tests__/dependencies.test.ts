@@ -36,6 +36,16 @@ describe('createFakeVersionManagerPort', () => {
     await expect(port.fetchVersionContent(FILE_REF, 'ghost')).resolves.toBeNull();
   });
 
+  it('loads seeded content with scope isolation and a detached seed snapshot', async () => {
+    const content = new Map([['proj-1:index.html:v1', '<p>first</p>'], ['proj-1:index.html:v2', '']]);
+    const port = createFakeVersionManagerPort(undefined, { content });
+    content.set('proj-1:index.html:v1', 'changed later');
+    await expect(port.fetchVersionContent(FILE_REF, 'v1')).resolves.toBe('<p>first</p>');
+    await expect(port.fetchVersionContent(FILE_REF, 'v2')).resolves.toBe('');
+    await expect(port.fetchVersionContent({ ...FILE_REF, scopeId: 'other' }, 'v1')).resolves.toBeNull();
+    await expect(port.fetchVersionContent({ ...FILE_REF, name: 'other.html' }, 'v1')).resolves.toBeNull();
+  });
+
   it('restoreVersion marks the restored version current and clears the others', async () => {
     const v1 = version({ id: 'v1', version: 1, current: true });
     const v2 = version({ id: 'v2', version: 2, current: false });

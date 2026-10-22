@@ -3,22 +3,36 @@
 // locked-clipboard contexts, or insecure (HTTP) origins where
 // navigator.clipboard.writeText rejects.
 
+export interface ClipboardWritePort {
+  writeText(requiredArgs: { text: string }): Promise<void>;
+}
+
+export interface CopyToClipboardOptions {
+  clipboard?: ClipboardWritePort;
+  document?: Document;
+  isHTMLElement?: (requiredArgs: { value: Element | null }) => boolean;
+}
+
 /**
- * Copy `text` to the system clipboard.
- *
- * @param text - The text to place on the clipboard.
- * @returns `true` on success (either path), `false` when both the Clipboard
- *   API and the `execCommand('copy')` fallback fail.
- * @complexity O(1) — a single clipboard write, with a bounded-size DOM
- *   fallback (create/select/copy/remove one textarea) on rejection.
+ * Copy `requiredArgs.text` to the system clipboard.
+ * Optional ports replace the clipboard writer, fallback document and element check.
+ * Returns true on success through either strategy, false when both writes fail.
+ * O(1): one clipboard write and a single temporary textarea on rejection.
  */
-export async function copyToClipboard(text: string): Promise<boolean> {
+export async function copyToClipboard(
+  { text }: { text: string },
+  options: CopyToClipboardOptions = {},
+): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(text);
+    if (options.clipboard) await options.clipboard.writeText({ text });
+    else await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    const priorFocus =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const document = options.document ?? globalThis.document;
+    const isHTMLElement = options.isHTMLElement ?? (({ value }: { value: Element | null }) => value instanceof HTMLElement);
+    const priorFocus = isHTMLElement({ value: document.activeElement })
+      ? document.activeElement as HTMLElement
+      : null;
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.position = 'fixed';
@@ -31,7 +45,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     // "abrupt completion through finally" branch permanently unreachable —
     // same dead-branch discipline as this repo's `daemon/tool-executor.ts`
     // and `packages/ui`'s `useMemoryExtractions.hooks.ts` precedents (see
-    // packages/ui/source-map.md's 2026-07-22 dated entry).
+    // packages/ui/archived provenance ledger's 2026-07-22 dated entry).
     const cleanup = () => {
       document.body.removeChild(ta);
       if (priorFocus?.isConnected) {

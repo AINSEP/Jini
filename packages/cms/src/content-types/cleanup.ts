@@ -1,23 +1,24 @@
-import type { ClockPort } from "../core/ports.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 import { CleanupNotEligibleError } from "./errors.js";
 import type { AuthorizeFn } from "./write-service.js";
-import type { Result } from "./types.js";
+import type { Result } from "@jini-ai/core/primitives";
 
 /**
- * @file REQ-20/REQ-21 — the destructive cleanup ceremony, instantiating the
+ * @file the destructive cleanup ceremony, instantiating the
  * gated-mutation gateway (`domain="collections"`, `action="cleanup"`) around a tombstoned content
  * type's final, irreversible removal (the disable -> tombstone -> cleanup
  * lifecycle).
  *
  * Purpose:
- * `planCleanup` is the eligibility gate (C-405): a content type must be `status='tombstone'`, its
+ * `planCleanup` is the eligibility gate : a content type must be `status='tombstone'`, its
  * retention window (30 days since `tombstonedAt`, inclusive) must have elapsed, and an
  * `exportReference` must be present — checked in that fixed order, stopping at the first failure
- * (behavior.spec.md §2.3), before the actual gated-mutation `plan()` is ever reached. `executeCleanup`
- * forwards straight to the gated-mutation gateway's own `execute()` (token redemption, actor-class
+ * (behavior.spec.md §2.3), before the actual gated-mutation `plan` is ever reached. `executeCleanup`
+ * forwards straight to the gated-mutation gateway's own `execute` (token redemption, actor-class
  * check, plan-staleness re-check all live there — this module does not re-implement them) and
  * only performs the actual multi-table removal after the gateway confirms the token; a rejected
- * gateway call never triggers any local removal (EC-10, INV-07).
+ * gateway call never triggers any local removal.
  *
  * How it relates to the project:
  * `deps.gateway` in `planCleanup`/`executeCleanup` is intentionally two different narrow port
@@ -27,6 +28,7 @@ import type { Result } from "./types.js";
  *
  * Architectural role:
  * `features/content-types` domain logic, composing `write-service.ts`'s `AuthorizeFn` shape.
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 
 export interface CleanupEligibilityCheckRepoPort {
@@ -46,17 +48,18 @@ export interface PlanCleanupGatewayPort {
 const RETENTION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface PlanCleanupRequired {
-  deps: { repo: CleanupEligibilityCheckRepoPort; gateway: PlanCleanupGatewayPort; clock: ClockPort; authorize: AuthorizeFn };
+  deps: { repo: CleanupEligibilityCheckRepoPort; gateway: PlanCleanupGatewayPort; clock: Clock; authorize: AuthorizeFn };
   input: { workspaceId: string; actorId: string; contentTypeKey: string; exportReference: string };
 }
 
 /**
- * REQ-20 — the fixed-order eligibility gate: `status==='tombstone'` -> retention window elapsed
+ * — the fixed-order eligibility gate: `status==='tombstone'` -> retention window elapsed
  * (>=30 days since `tombstonedAt`, inclusive lower bound) -> `exportReference` present. Only once
- * all three pass does this call reach the real `gateway.plan()`.
+ * all three pass does this call reach the real `gateway.plan`.
  *
  * @complexity O(1) — one repo read, one date diff, one delegated gateway call at most.
  * @overallScore 100
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 export async function planCleanup(
   required: PlanCleanupRequired
@@ -65,22 +68,22 @@ export async function planCleanup(
 
   const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.read", workspaceId: input.workspaceId });
   if (!authResult.allowed) {
-    return { ok: false, error: new CleanupNotEligibleError("forbidden", `principal '${input.actorId}' is not authorized to plan a cleanup (${authResult.reason})`) };
+    return { ok: false, error: new CleanupNotEligibleError({ reason: "forbidden" }, { message: `principal '${input.actorId}' is not authorized to plan a cleanup (${authResult.reason})` }) };
   }
 
   const contentType = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.contentTypeKey });
   if (!contentType || contentType.status !== "tombstone") {
-    return { ok: false, error: new CleanupNotEligibleError("not_tombstoned") };
+    return { ok: false, error: new CleanupNotEligibleError({ reason: "not_tombstoned" }) };
   }
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
   const elapsedMs = new Date(now).getTime() - new Date(contentType.tombstonedAt ?? now).getTime();
   if (elapsedMs < RETENTION_WINDOW_MS) {
-    return { ok: false, error: new CleanupNotEligibleError("retention_window_not_elapsed") };
+    return { ok: false, error: new CleanupNotEligibleError({ reason: "retention_window_not_elapsed" }) };
   }
 
   if (!input.exportReference) {
-    return { ok: false, error: new CleanupNotEligibleError("export_reference_missing") };
+    return { ok: false, error: new CleanupNotEligibleError({ reason: "export_reference_missing" }) };
   }
 
   const planResult = await deps.gateway.plan({
@@ -91,7 +94,7 @@ export async function planCleanup(
     action: "cleanup",
   });
   if (!planResult.ok) {
-    return { ok: false, error: new CleanupNotEligibleError("gateway_rejected", String(planResult.error)) };
+    return { ok: false, error: new CleanupNotEligibleError({ reason: "gateway_rejected" }, { message: String(planResult.error) }) };
   }
   return { ok: true, value: planResult.value };
 }
@@ -107,7 +110,7 @@ export interface ExecuteCleanupGatewayPort {
 
 export interface CleanupRemovalRepoPort {
   removeContentTypeAndAllScopedRows(params: { contentTypeKey: string }): Promise<{ removedEntryCount: number }>;
-  transaction<T>(fn: () => Promise<T>): Promise<T>;
+  transaction<T>(required: { fn: () => Promise<T> }): Promise<T>;
 }
 
 export interface ExecuteCleanupRequired {
@@ -116,14 +119,15 @@ export interface ExecuteCleanupRequired {
 }
 
 /**
- * REQ-21/INV-07 — forwards straight to the gated-mutation gateway's own `execute()`; only once
+ * — forwards straight to the gated-mutation gateway's own `execute`; only once
  * that confirms (token redeemed, actor-class checked, plan still fresh) does this function perform
  * the actual atomic multi-table removal. A gateway rejection (expired/already-redeemed token,
- * stale plan) is forwarded verbatim and no local removal is ever attempted (EC-10).
+ * stale plan) is forwarded verbatim and no local removal is ever attempted.
  *
  * @complexity O(1) plus one delegated gateway call and, on success, one same-tx multi-table
  * removal.
  * @overallScore 100
+ * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
 export async function executeCleanup(
   required: ExecuteCleanupRequired
@@ -140,9 +144,9 @@ export async function executeCleanup(
     return gatewayResult;
   }
 
-  const removal = await deps.repo.transaction(async () =>
-    deps.repo.removeContentTypeAndAllScopedRows({ contentTypeKey: input.contentTypeKey })
-  );
+  const removal = await deps.repo.transaction({
+    fn: async () => deps.repo.removeContentTypeAndAllScopedRows({ contentTypeKey: input.contentTypeKey }),
+  });
 
   return { ok: true, value: removal };
 }

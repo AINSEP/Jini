@@ -1,13 +1,17 @@
+import { pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
 
 import { useT } from '../../../hooks/context.js';
+import { definedProps } from '../../../util/defined-props.js';
+import { RuntimeDropUp } from './RuntimeDropUp.js';
 import { defaultChatPaneSelection } from '../rules.js';
 import {
   runtimeOptionLabel,
   runtimePopoverPosition,
   useAgentRuntimePicker,
+  type UseAgentRuntimePickerResult,
 } from '../hooks/useAgentRuntimePicker.hooks.js';
 import type {
   AgentRuntimePickerProps,
@@ -20,7 +24,7 @@ import type {
 // pure and now live beside the hook that consumes them.
 export { runtimeOptionLabel, runtimePopoverPosition };
 
-export function runtimeAgentStatus(agent: ChatPaneAgent): string {
+export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string {
   if (agent.available === false) return agent.diagnostic ?? 'Not found on PATH';
   if (agent.authStatus === 'missing') return 'Installed · sign-in required';
   return agent.version ?? 'Installed';
@@ -97,7 +101,7 @@ function RuntimeAgentList({
     <>
       {orderedAgents.map((agent) => {
         const active = agent.id === value.agentId;
-        const status = runtimeAgentStatus(agent);
+        const status = runtimeAgentStatus({ agent: agent });
         return (
           <button
             type="button"
@@ -107,13 +111,13 @@ function RuntimeAgentList({
             key={agent.id}
             aria-current={active ? 'true' : undefined}
             aria-label={`${agent.name} · ${status}`}
-            onClick={() => onChange(defaultChatPaneSelection(agent))}
+            onClick={() => onChange(defaultChatPaneSelection({ agent: agent }))}
           >
             <AgentIcon
               id={agent.id}
               size={20}
               className="jini-runtime-agent-icon"
-              {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
+              {...definedProps({ source: { basePath: agentIconBasePath } })}
             />
             <span className="jini-runtime-agent__copy">
               <strong>{agent.name}</strong>
@@ -139,54 +143,61 @@ function RuntimeAgentList({
   );
 }
 
-interface RuntimeModelSelectsProps {
+interface RuntimeBarMenusProps {
   selectedAgent: ChatPaneAgent | undefined;
   value: ChatPaneAgentSelection;
   onChange: (selection: ChatPaneAgentSelection) => void;
+  modelLabel: string;
   t: (key: string) => string;
 }
 
-function RuntimeModelSelects({ selectedAgent, value, onChange, t }: RuntimeModelSelectsProps): ReactNode {
+/**
+ * The composer bar's "Model ⌄" and "Effort ⌄" drop-ups for the selected CLI. These replace the
+ * Model / Reasoning selects that used to sit in the runtime popover under the agent list (owner
+ * 2026-10-18: pick them from the bar and keep the popover small); they read and write the same
+ * selection, so nothing else changed. Either one renders nothing when the agent publishes no
+ * choices for it, rather than an empty menu.
+ */
+function RuntimeBarMenus({ selectedAgent, value, onChange, modelLabel, t }: RuntimeBarMenusProps): ReactNode {
   if (!selectedAgent) return null;
+  const models = pickerModelOptions(selectedAgent);
+  const efforts = selectedAgent.reasoningOptions ?? [];
   return (
-    <div className="jini-runtime-models">
-      {(selectedAgent.models?.length ?? 0) > 0 ? (
-        <label className="jini-runtime-select">
-          <span>{t('Model')}</span>
-          <select
-            aria-label={t('Model')}
-            value={value.model ?? ''}
-            onChange={(event) => onChange({
-              agentId: value.agentId,
-              model: event.target.value,
-              ...(value.reasoning ? { reasoning: value.reasoning } : {}),
-            })}
-          >
-            {selectedAgent.models?.map((model) => (
-              <option value={model.id} key={model.id}>{model.label}</option>
-            ))}
-          </select>
-        </label>
+    <>
+      {models.length > 0 ? (
+        <RuntimeDropUp
+          label={t('Model')}
+          valueLabel={modelLabel}
+          // The agent icon sits right beside it, so the bar drops the vendor word and caps the rest.
+          triggerLabel={shortModelLabel({ label: modelLabel, agentId: selectedAgent.id })}
+          value={pickerModelValue(selectedAgent, value.model)}
+          options={models}
+          note={pickerCatalogNote(selectedAgent, t)}
+          width={260}
+          onSelect={(model) => onChange({
+            agentId: value.agentId,
+            model,
+            ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+          })}
+        />
       ) : null}
-      {(selectedAgent.reasoningOptions?.length ?? 0) > 0 ? (
-        <label className="jini-runtime-select">
-          <span>{t('Reasoning')}</span>
-          <select
-            aria-label={t('Reasoning')}
-            value={value.reasoning ?? ''}
-            onChange={(event) => onChange({
-              agentId: value.agentId,
-              ...(value.model ? { model: value.model } : {}),
-              reasoning: event.target.value,
-            })}
-          >
-            {selectedAgent.reasoningOptions?.map((option) => (
-              <option value={option.id} key={option.id}>{option.label}</option>
-            ))}
-          </select>
-        </label>
+      {efforts.length > 0 ? (
+        <RuntimeDropUp
+          label={t('Reasoning')}
+          // An unset reasoning shows the first option, as the old native select did.
+          valueLabel={efforts.find((option) => option.id === value.reasoning)?.label ?? efforts[0]!.label}
+          value={value.reasoning ?? ''}
+          options={efforts}
+          width={180}
+          className="jini-runtime-dropup-trigger--effort"
+          onSelect={(reasoning) => onChange({
+            agentId: value.agentId,
+            ...(value.model ? { model: value.model } : {}),
+            reasoning,
+          })}
+        />
       ) : null}
-    </div>
+    </>
   );
 }
 
@@ -217,19 +228,32 @@ interface RuntimeByokDetailsProps {
  * disabled dropdown would read as "editable once something is enabled" when nothing here will
  * enable it.
  */
-function RuntimeByokDetails({ byokRuntime, onByokModelChange, t }: RuntimeByokDetailsProps): ReactNode {
+function resolveByokModel(
+  { onByokModelChange }: { onByokModelChange: ((model: string) => void) | undefined },
+  { byokRuntime }: { byokRuntime?: ByokRuntimeSummary | undefined },
+): {
+  model: string | undefined;
+  models: NonNullable<ByokRuntimeSummary['models']>;
+  /** Set only when the model is editable here: the host wired a writer AND supplied a list. */
+  pickModel: ((model: string) => void) | undefined;
+} {
   const model = byokRuntime?.model?.trim();
   const models = byokRuntime?.models ?? [];
-  const editable = onByokModelChange !== undefined && models.length > 0;
+  const pickModel = onByokModelChange !== undefined && models.length > 0 ? onByokModelChange : undefined;
+  return { model, models, pickModel };
+}
+
+function RuntimeByokDetails({ byokRuntime, onByokModelChange, t }: RuntimeByokDetailsProps): ReactNode {
+  const { model, models, pickModel } = resolveByokModel({ onByokModelChange }, { byokRuntime });
   return (
     <div className="jini-runtime-models">
       <div className="jini-runtime-select jini-runtime-byok-model">
         <span>{t('Model')}</span>
-        {editable ? (
+        {pickModel ? (
           <SearchableModelSelect
             models={models}
             value={model ?? ''}
-            onChange={(next) => onByokModelChange(next)}
+            onChange={(next) => pickModel(next)}
             ariaLabel={t('Model')}
             searchPlaceholder={t('Search models')}
             // The menu portals to `document.body` at the package default `z-index: 60`, while this
@@ -243,7 +267,7 @@ function RuntimeByokDetails({ byokRuntime, onByokModelChange, t }: RuntimeByokDe
           <strong>{model || t('No model configured')}</strong>
         )}
       </div>
-      {!model && !editable ? (
+      {!model && !pickModel ? (
         <div className="jini-runtime-empty">
           {t('Set a model in the BYOK settings before sending a message.')}
         </div>
@@ -282,6 +306,144 @@ function RuntimeRescanFooter({ onRescan, scanning, t }: RuntimeRescanFooterProps
   return null;
 }
 
+interface RuntimeTriggerProps {
+  picker: UseAgentRuntimePickerResult;
+  isApi: boolean;
+  byokRuntime: ByokRuntimeSummary | undefined;
+  agentIconBasePath: string | undefined;
+  t: (key: string) => string;
+}
+
+function RuntimeTriggerIcon({ picker, isApi, byokRuntime, agentIconBasePath }: Omit<RuntimeTriggerProps, 't'>): ReactNode {
+  const basePath = definedProps({ source: { basePath: agentIconBasePath } });
+  if (!isApi) {
+    return <AgentIcon id={picker.selectedAgent?.id ?? ''} size={22} className="jini-runtime-agent-icon" {...basePath} />;
+  }
+  if (byokRuntime?.iconId) {
+    return <AgentIcon id={byokRuntime.iconId} size={22} className="jini-runtime-agent-icon" {...basePath} />;
+  }
+  return <RemixIcon name="link" size={20} className="jini-runtime-agent-icon" />;
+}
+
+function RuntimeTrigger({ picker, isApi, byokRuntime, agentIconBasePath, t }: RuntimeTriggerProps): ReactNode {
+  return (
+    <button
+      ref={picker.triggerRef}
+      type="button"
+      className={isApi ? 'jini-runtime-trigger' : 'jini-runtime-trigger jini-runtime-trigger--icon-only'}
+      aria-label={t('Choose AI runtime')}
+      aria-haspopup="dialog"
+      aria-expanded={picker.open}
+      aria-controls={picker.dialogId}
+      title={`${picker.triggerTitle} · ${picker.modelLabel}`}
+      onClick={picker.toggleOpen}
+    >
+      {/* The provider's own mark in API mode — the selected CLI's logo would be an outright false
+          claim about what answers the next message. `AgentIcon` resolves the brand asset the host
+          ships (e.g. `gemini.svg`); the generic link glyph is the fallback for a provider the host
+          has no mark for, which is honest rather than wrong. */}
+      <RuntimeTriggerIcon picker={picker} isApi={isApi} byokRuntime={byokRuntime} agentIconBasePath={agentIconBasePath} />
+      {/* The agent name stays in the text (visually hidden; the icon already names it) so the
+          trigger still reads "Choose agent" when none is picked; "agent · model" is the hover
+          title above. In local mode the model is its own drop-up beside this button, so only
+          API mode shows the model here — its picker still lives in the popover. */}
+      <span className="jini-runtime-trigger__copy">
+        <strong>{picker.triggerTitle}</strong>
+        {isApi ? <small>{picker.modelLabel}</small> : null}
+      </span>
+      {isApi ? (
+        <RemixIcon
+          name="arrow-down-s-line"
+          size={15}
+          className="jini-runtime-trigger__chevron"
+        />
+      ) : null}
+    </button>
+  );
+}
+
+interface RuntimePopoverProps {
+  picker: UseAgentRuntimePickerResult;
+  value: ChatPaneAgentSelection;
+  onChange: (selection: ChatPaneAgentSelection) => void;
+  onRescan: (() => void) | undefined;
+  scanning: boolean;
+  daemonOnline: boolean;
+  executionMode: 'local' | 'api';
+  apiModeAvailable: boolean;
+  onExecutionModeChange: ((mode: 'local' | 'api') => void) | undefined;
+  byokRuntime: ByokRuntimeSummary | undefined;
+  onByokModelChange: ((model: string) => void) | undefined;
+  agentIconBasePath: string | undefined;
+  t: (key: string) => string;
+}
+
+function RuntimePopover({
+  picker,
+  value,
+  onChange,
+  onRescan,
+  scanning,
+  daemonOnline,
+  executionMode,
+  apiModeAvailable,
+  onExecutionModeChange,
+  byokRuntime,
+  onByokModelChange,
+  agentIconBasePath,
+  t,
+}: RuntimePopoverProps): ReactNode {
+  if (!picker.open || !picker.position) return null;
+  const isApi = executionMode === 'api';
+  return createPortal(
+    <div
+      ref={picker.popoverRef}
+      className="jini-runtime-popover"
+      // Carries the host's theme across the portal — see `originTheme`'s own comment for the
+      // dark-on-dark select this exists to prevent.
+      {...(picker.originTheme ? { 'data-theme': picker.originTheme } : {})}
+      id={picker.dialogId}
+      role="dialog"
+      aria-label={t('Choose AI runtime')}
+      aria-modal="false"
+      style={picker.position}
+      onKeyDown={picker.handlePopoverKeyDown}
+    >
+      <div className="jini-runtime-popover__head">
+        <strong>{executionMode === 'local' ? t('Local CLI') : t('API · BYOK')}</strong>
+        <span>{picker.runtimeSummary}</span>
+      </div>
+      <RuntimeModeButtons
+        executionMode={executionMode}
+        daemonOnline={daemonOnline}
+        apiModeAvailable={apiModeAvailable}
+        onExecutionModeChange={onExecutionModeChange}
+        t={t}
+      />
+
+      {isApi ? (
+        <RuntimeByokDetails byokRuntime={byokRuntime} onByokModelChange={onByokModelChange} t={t} />
+      ) : (
+        <>
+          <div className="jini-runtime-section-label">{t('Code agent')}</div>
+          <div role="radiogroup" aria-label={t('Code agent')}>
+            <RuntimeAgentList
+              orderedAgents={picker.orderedAgents}
+              value={value}
+              onChange={onChange}
+              {...definedProps({ source: { agentIconBasePath } })}
+              t={t}
+            />
+          </div>
+
+          <RuntimeRescanFooter onRescan={onRescan} scanning={scanning} t={t} />
+        </>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 /**
  * Renders the package-owned local/API, agent, model, and reasoning picker.
  *
@@ -307,21 +469,7 @@ export function AgentRuntimePicker({
   agentIconBasePath,
 }: AgentRuntimePickerProps) {
   const t = useT();
-  const {
-    dialogId,
-    open,
-    position,
-    triggerRef,
-    popoverRef,
-    orderedAgents,
-    selectedAgent,
-    modelLabel,
-    runtimeSummary,
-    triggerTitle,
-    originTheme,
-    toggleOpen,
-    handlePopoverKeyDown,
-  } = useAgentRuntimePicker({ agents, value, placement, t, executionMode, byokRuntime });
+  const picker = useAgentRuntimePicker({ agents, value, placement, t, executionMode, byokRuntime });
 
   // The one branch this component makes. Everything below the mode buttons describes a detected CLI
   // — the agent radios, its model and reasoning selects, and the PATH rescan — and none of it is
@@ -332,99 +480,26 @@ export function AgentRuntimePicker({
 
   return (
     <div className="jini-runtime-picker">
-      <button
-        ref={triggerRef}
-        type="button"
-        className="jini-runtime-trigger"
-        aria-label={t('Choose AI runtime')}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-controls={dialogId}
-        onClick={toggleOpen}
-      >
-        {/* The provider's own mark in API mode — the selected CLI's logo would be an outright false
-            claim about what answers the next message. `AgentIcon` resolves the brand asset the host
-            ships (e.g. `gemini.svg`); the generic link glyph is the fallback for a provider the host
-            has no mark for, which is honest rather than wrong. */}
-        {isApi ? (
-          byokRuntime?.iconId ? (
-            <AgentIcon
-              id={byokRuntime.iconId}
-              size={22}
-              className="jini-runtime-agent-icon"
-              {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
-            />
-          ) : (
-            <RemixIcon name="link" size={20} className="jini-runtime-agent-icon" />
-          )
-        ) : (
-          <AgentIcon
-            id={selectedAgent?.id ?? ''}
-            size={22}
-            className="jini-runtime-agent-icon"
-            {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
-          />
-        )}
-        <span className="jini-runtime-trigger__copy">
-          <strong>{triggerTitle}</strong>
-          <small>{modelLabel}</small>
-        </span>
-        <RemixIcon
-          name="arrow-down-s-line"
-          size={15}
-          className="jini-runtime-trigger__chevron"
-        />
-      </button>
+      <RuntimeTrigger picker={picker} isApi={isApi} byokRuntime={byokRuntime} agentIconBasePath={agentIconBasePath} t={t} />
+      {isApi ? null : (
+        <RuntimeBarMenus selectedAgent={picker.selectedAgent} value={value} onChange={onChange} modelLabel={picker.modelLabel} t={t} />
+      )}
 
-      {open && position ? createPortal(
-        <div
-          ref={popoverRef}
-          className="jini-runtime-popover"
-          // Carries the host's theme across the portal — see `originTheme`'s own comment for the
-          // dark-on-dark select this exists to prevent.
-          {...(originTheme ? { 'data-theme': originTheme } : {})}
-          id={dialogId}
-          role="dialog"
-          aria-label={t('Choose AI runtime')}
-          aria-modal="false"
-          style={position}
-          onKeyDown={handlePopoverKeyDown}
-        >
-          <div className="jini-runtime-popover__head">
-            <strong>{executionMode === 'local' ? t('Local CLI') : t('API · BYOK')}</strong>
-            <span>{runtimeSummary}</span>
-          </div>
-          <RuntimeModeButtons
-            executionMode={executionMode}
-            daemonOnline={daemonOnline}
-            apiModeAvailable={apiModeAvailable}
-            onExecutionModeChange={onExecutionModeChange}
-            t={t}
-          />
-
-          {isApi ? (
-            <RuntimeByokDetails byokRuntime={byokRuntime} onByokModelChange={onByokModelChange} t={t} />
-          ) : (
-            <>
-              <div className="jini-runtime-section-label">{t('Code agent')}</div>
-              <div role="radiogroup" aria-label={t('Code agent')}>
-                <RuntimeAgentList
-                  orderedAgents={orderedAgents}
-                  value={value}
-                  onChange={onChange}
-                  {...(agentIconBasePath === undefined ? {} : { agentIconBasePath })}
-                  t={t}
-                />
-              </div>
-
-              <RuntimeModelSelects selectedAgent={selectedAgent} value={value} onChange={onChange} t={t} />
-
-              <RuntimeRescanFooter onRescan={onRescan} scanning={scanning} t={t} />
-            </>
-          )}
-        </div>,
-        document.body,
-      ) : null}
+      <RuntimePopover
+        picker={picker}
+        value={value}
+        onChange={onChange}
+        onRescan={onRescan}
+        scanning={scanning}
+        daemonOnline={daemonOnline}
+        executionMode={executionMode}
+        apiModeAvailable={apiModeAvailable}
+        onExecutionModeChange={onExecutionModeChange}
+        byokRuntime={byokRuntime}
+        onByokModelChange={onByokModelChange}
+        agentIconBasePath={agentIconBasePath}
+        t={t}
+      />
     </div>
   );
 }

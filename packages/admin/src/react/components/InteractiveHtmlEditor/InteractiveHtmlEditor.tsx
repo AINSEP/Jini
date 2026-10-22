@@ -7,14 +7,13 @@ import {
 
 /**
  * @file Consuming-product-specific composition of `@jini-ai/ui/html-editor`'s generic
- * `InteractiveHtmlEditor`: a Page's `body_html` (the first caller — see the consuming product's own
- * `apps/admin/src/features/pages/PageEditor.tsx`)
+ * `InteractiveHtmlEditor`: a page editor's `body_html`
  * can carry `<div data-embed-type="…" data-embed-id="…"></div>` placeholders (and the legacy
  * `data-widget-embed`/`data-form-embed` attributes on migration-era rows) that a separate scanner
- * (that product's own `src/widgets/html-embeds.ts`) resolves at render time — that scanner requires the div to
+ * in the host resolves at render time — that scanner requires the div to
  * stay exactly empty and self-closing, and degrades silently, with no error, the moment anything is
  * written inside one. The CURRENT convention has since moved to a single `data-embed-config`
- * attribute carrying a JSON payload (that product's own `src/core/embeds/marker.ts`); `isProtectedEmbedElement`
+ * attribute carrying a JSON payload in the host marker schema; `isProtectedEmbedElement`
  * below has not been updated to recognize it (tracked separately — see that function's own doc), but
  * `describeEmbedPlaceholder` below IS built against the current convention, since it only needs to
  * read the marker, not police edits to it.
@@ -42,7 +41,7 @@ const EMBED_MARKER_ATTRIBUTES = ['data-embed-type', 'data-widget-embed', 'data-f
  *  direct unit-testability without mounting the editor. Uses `hasAttributeOnAnyNodeShape` because
  *  the `isProtectedElement` predicate is invoked from inside GrapesJS's `isComponent` callback,
  *  which is not always called with a real DOM `Element` — see that helper's own doc. */
-export function isProtectedEmbedElement(el: Element): boolean {
+export function isProtectedEmbedElement({ el }: { readonly el: Element }): boolean {
   return EMBED_MARKER_ATTRIBUTES.some((attr) => hasAttributeOnAnyNodeShape(el, attr));
 }
 
@@ -79,6 +78,7 @@ export function isProtectedEmbedElement(el: Element): boolean {
  */
 const EMBED_KIND_LABELS: Readonly<Record<string, string>> = {
   media: 'Media',
+  gallery: 'Gallery',
   widget: 'Widget',
   post: 'Post',
   content: 'Content',
@@ -102,7 +102,7 @@ const ID_PREVIEW_LENGTH = 8;
  * otherwise a truncated `id`, otherwise an explicit "nothing was set" note rather than a blank line.
  *
  * **Deliberately does not fetch a human title for a `media` marker.** There is no cheap existing admin
- * route for a single media asset's title by id — `AdminAPI.listMedia()` (`apps/admin/src/lib/api.ts`)
+ * route for a single media asset's title by id — the host's media-list API
  * is the only read, and it returns the ENTIRE workspace's media library, active and trashed, with no
  * id filter or pagination, just to answer one id's `title`. Adding a `GET /media/:id` route is out of
  * this feature's scope (an editor-chrome label is not worth a new server endpoint), and reusing
@@ -134,8 +134,17 @@ function identityLabel(config: Readonly<Record<string, unknown>>): string {
  *
  * @complexity O(1) — one attribute read, one `JSON.parse` of a small config object, one table lookup.
  */
-export function describeEmbedPlaceholder(el: Element): CanvasEmbedPlaceholderDescriptor | undefined {
-  const raw = el.getAttribute('data-embed-config');
+export function describeEmbedPlaceholder({ el }: { readonly el: Element }): CanvasEmbedPlaceholderDescriptor | undefined {
+  const marker = parseEmbedConfig(el.getAttribute('data-embed-config'));
+  if (!marker) return undefined;
+  const { config } = marker;
+  const type = marker.type.toLowerCase();
+  if (type === 'gallery') return { kindLabel: EMBED_KIND_LABELS.gallery!, identityLabel: galleryIdentityLabel(config) };
+  return { kindLabel: EMBED_KIND_LABELS[type] ?? titleCase(type), identityLabel: identityLabel(config) };
+}
+
+/** A marker's config object and its non-empty string `type`, or `undefined` for anything else. */
+function parseEmbedConfig(raw: string | null): { readonly config: Record<string, unknown>; readonly type: string } | undefined {
   if (!raw) return undefined;
   let parsed: unknown;
   try {
@@ -146,9 +155,12 @@ export function describeEmbedPlaceholder(el: Element): CanvasEmbedPlaceholderDes
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
   const config = parsed as Record<string, unknown>;
   if (typeof config.type !== 'string' || config.type === '') return undefined;
+  return { config, type: config.type };
+}
 
-  const type = config.type.toLowerCase();
-  return { kindLabel: EMBED_KIND_LABELS[type] ?? titleCase(type), identityLabel: identityLabel(config) };
+function galleryIdentityLabel(config: Readonly<Record<string, unknown>>): string {
+  const count = Array.isArray(config.images) ? config.images.length : 0;
+  return count === 0 ? 'no images set' : `${count} ${count === 1 ? 'image' : 'images'}`;
 }
 
 export type InteractiveHtmlEditorProps = Omit<HtmlEditorProps, 'isProtectedElement' | 'describeEmbedPlaceholder'>;
@@ -157,8 +169,8 @@ export function InteractiveHtmlEditor(props: InteractiveHtmlEditorProps) {
   return (
     <HtmlEditor
       {...props}
-      isProtectedElement={isProtectedEmbedElement}
-      describeEmbedPlaceholder={describeEmbedPlaceholder}
+      isProtectedElement={(el) => isProtectedEmbedElement({ el })}
+      describeEmbedPlaceholder={(el) => describeEmbedPlaceholder({ el })}
     />
   );
 }

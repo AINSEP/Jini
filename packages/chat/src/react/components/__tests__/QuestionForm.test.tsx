@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { DirectionCard, FormQuestion, QuestionForm as QuestionFormType } from '../../../core/index.js';
 import { QuestionForm, type QuestionFormHandle } from '../QuestionForm.js';
+import { CREDENTIAL_CARD_GUIDANCE, SECRET_REDACTED_NOTICE } from '../../../core/user-text-redaction.js';
 
 const form: QuestionFormType = {
   id: 'discovery',
@@ -690,5 +691,49 @@ describe('QuestionForm', () => {
       expect(() => fireEvent.change(fileInput)).not.toThrow();
       expect(screen.queryByText('a.png')).not.toBeInTheDocument();
     });
+  });
+  describe('credential guard', () => {
+    it('shows the credential-card guidance only under a secret-named text question', () => {
+      render(<QuestionForm form={questionForm([{ id: 'apiKey', label: 'API key', type: 'text' }, { id: 'notes', label: 'Notes', type: 'text' }])} interactive onSubmit={vi.fn()} />);
+      expect(screen.getAllByText(CREDENTIAL_CARD_GUIDANCE)).toHaveLength(1);
+    });
+
+    it('submits through a host redactUserText and shows the redaction notice', () => {
+      const onSubmit = vi.fn();
+      const onSecretRedacted = vi.fn();
+      const redactUserText = vi.fn(({ text }: { text: string }) => ({ text: text.replace('hush', '[gone]'), secretRedacted: text.includes('hush'), count: text.includes('hush') ? 1 : 0 }));
+      render(<QuestionForm form={questionForm([{ id: 'notes', label: 'Notes', type: 'text' }])} interactive onSubmit={onSubmit} redactUserText={redactUserText} onSecretRedacted={onSecretRedacted} />);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'say hush' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+      expect(onSubmit.mock.calls[0]![1]).toEqual({ notes: 'say [gone]' });
+      expect(onSecretRedacted).toHaveBeenCalledWith({ secretRedacted: true, count: 1 });
+      expect(screen.getByRole('status').textContent).toBe(SECRET_REDACTED_NOTICE);
+    });
+  });
+
+  it('never restores a file question from draftAnswers (the picked File objects are gone)', () => {
+    const q = questionForm([{ id: 'avatar', label: 'Avatar', type: 'file' }]);
+    render(<QuestionForm form={q} interactive onSubmit={vi.fn()} draftAnswers={{ avatar: 'old.png' }} />);
+    expect(screen.queryByText('old.png')).not.toBeInTheDocument();
+  });
+
+  it('keeps submit disabled while a checkbox holds more selections than maxSelections allows', () => {
+    const q = questionForm([{ id: 'c', label: 'C', type: 'checkbox', options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }], maxSelections: 1, defaultValue: ['a', 'b'] }]);
+    render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('renders no control for checkbox and select questions that arrive without options', () => {
+    const q = questionForm([{ id: 'c', label: 'C', type: 'checkbox' }, { id: 's', label: 'S', type: 'select' }]);
+    const { container } = render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
+    expect([...container.querySelectorAll('.qf-field')].map((field) => field.children.length)).toEqual([1, 1]);
+  });
+
+  it('renders the label but no control for a question type it does not know', () => {
+    const q = questionForm([{ id: 'odd', label: 'Odd', type: 'mystery' as FormQuestion['type'] }]);
+    const { container } = render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
+    expect(screen.getByText('Odd')).toBeInTheDocument();
+    expect(container.querySelector('.qf-field')!.children).toHaveLength(1);
   });
 });

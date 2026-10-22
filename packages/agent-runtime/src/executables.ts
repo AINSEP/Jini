@@ -1,3 +1,4 @@
+import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module executables
  *
@@ -10,33 +11,38 @@
  *
  * 1. `wellKnownUserToolchainBins` now comes from `@jini-ai/platform` instead of
  *    the OD workspace package it originally shipped from (same function,
- *    already verbatim-lifted — see `@jini-ai/platform`'s own `source-map.md`).
+ *    already verbatim-lifted — see `@jini-ai/platform`'s own `archived provenance ledger`).
  * 2. De-branded: the origin's product-prefixed agent-home / resource-root
  *    env var names and its sandbox-runtime-config integration (an
  *    OD-daemon-level subsystem out of this package's charter) are replaced
  *    by `configureExecutableResolutionEnv()` — an injectable pair of
  *    env-var names, defaulting to `AGENT_RUNTIME_HOME` /
  *    `AGENT_RUNTIME_RESOURCE_ROOT`, with no sandbox dependency. See
- *    `source-map.md` for the exact original names.
+ *    `archived provenance ledger` for the exact original names.
  */
-import { accessSync, constants, existsSync, statSync } from 'node:fs';
+import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter } from 'node:path';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import { wellKnownUserToolchainBins } from '@jini-ai/platform';
+import { wellKnownUserToolchainBins } from '@jini-ai/platform/toolchain';
 import { expandHomePath } from './paths.js';
 import type { RuntimeAgentDef } from './types.js';
 
 const AGENT_BIN_ENV_KEYS = new Map<string, string>([
   ['amr', 'VELA_BIN'],
   ['aider', 'AIDER_BIN'],
+  ['auggie', 'AUGGIE_BIN'],
   ['claude', 'CLAUDE_BIN'],
+  ['cline', 'CLINE_BIN'],
   ['codebuddy', 'CODEBUDDY_BIN'],
   ['codex', 'CODEX_BIN'],
   ['copilot', 'COPILOT_BIN'],
+  ['crush', 'CRUSH_BIN'],
   ['cursor-agent', 'CURSOR_AGENT_BIN'],
   ['deepseek', 'DEEPSEEK_BIN'],
   ['devin', 'DEVIN_BIN'],
+  ['droid', 'DROID_BIN'],
+  ['goose', 'GOOSE_BIN'],
   ['hermes', 'HERMES_BIN'],
   ['kimi', 'KIMI_BIN'],
   ['kiro', 'KIRO_BIN'],
@@ -51,11 +57,25 @@ const AGENT_BIN_ENV_KEYS = new Map<string, string>([
   ['vibe', 'VIBE_BIN'],
 ]);
 
-/** Env var names consulted by detection-home/resource-root resolution. Overridable via `configureExecutableResolutionEnv`. */
-const executableResolutionEnv = {
-  agentHomeEnvVar: 'AGENT_RUNTIME_HOME',
-  resourceRootEnvVar: 'AGENT_RUNTIME_RESOURCE_ROOT',
-};
+/** Host environment and runtime state used by executable resolution. */
+export interface ExecutableResolutionOptions { env?: NodeJS.ProcessEnv; state?: AgentRuntimeState }
+
+// Options with the process-level defaults applied once at the public entry
+// point, so internal helpers never re-derive them.
+interface ResolvedOptions { env: NodeJS.ProcessEnv; state: AgentRuntimeState }
+
+function withDefaults(options: ExecutableResolutionOptions): ResolvedOptions {
+  return { env: options.env ?? process.env, state: options.state ?? defaultRuntimeState };
+}
+
+// `<name>.exe` on Windows, `<name>` elsewhere.
+function platformExecutableName({ name }: { name: string }): string {
+  return process.platform === 'win32' ? `${name}.exe` : name;
+}
+
+function pathExtEntries(env: NodeJS.ProcessEnv): string[] {
+  return (env.PATHEXT || '.EXE;.CMD;.BAT').split(';');
+}
 
 /**
  * Override the env var names `resolveDetectionHome` / the packaged-binary
@@ -63,54 +83,56 @@ const executableResolutionEnv = {
  * at startup if it wants its own namespaced env vars instead of the
  * generic defaults.
  */
-export function configureExecutableResolutionEnv(overrides: {
+export function configureExecutableResolutionEnv({ overrides }: { overrides: {
   agentHomeEnvVar?: string;
   resourceRootEnvVar?: string;
-}): void {
+} }, { state = defaultRuntimeState }: { state?: AgentRuntimeState } = {}): void {
+  const executableResolutionEnv = state.executable.envNames;
   if (overrides.agentHomeEnvVar) executableResolutionEnv.agentHomeEnvVar = overrides.agentHomeEnvVar;
   if (overrides.resourceRootEnvVar) executableResolutionEnv.resourceRootEnvVar = overrides.resourceRootEnvVar;
 }
 
 const TOOLCHAIN_DIR_CACHE_TTL_MS = 5000;
-let cachedToolchainHome: string | null = null;
-let cachedToolchainDirs: string[] | null = null;
-let cachedToolchainDirsAt = 0;
+// Toolchain cache and env names live with the injected host state.
 
 // Resolve the home directory detection should search, honoring the
 // configured agent-home override env var. `hasOverride` lets callers scope
 // strictly to the override home (skipping real-machine system locations) so
 // sandboxed detection runs and tests stay deterministic instead of
 // reaching the host.
-function resolveDetectionHome(): { home: string; hasOverride: boolean } {
-  const homeOverride = process.env[executableResolutionEnv.agentHomeEnvVar];
-  return { home: homeOverride || homedir(), hasOverride: Boolean(homeOverride) };
+function resolveDetectionHome({ env, state }: ResolvedOptions): { home: string; hasOverride: boolean } {
+  const homeOverride = env[state.executable.envNames.agentHomeEnvVar];
+  return { home: homeOverride || env.HOME || env.USERPROFILE || homedir(), hasOverride: Boolean(homeOverride) };
 }
 
-function userToolchainDirs() {
-  const { home, hasOverride } = resolveDetectionHome();
-  const homeOverride = hasOverride ? home : undefined;
+function userToolchainDirs(options: ResolvedOptions): string[] {
+  const { env } = options;
+  const cache = options.state.executable;
+  const { home, hasOverride } = resolveDetectionHome(options);
+  // Every environment field the existing toolchain adapter consults participates in the cache key.
+  const key = JSON.stringify([home, hasOverride, ...['VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'].map(name => env[name])]);
   const now = Date.now();
   if (
-    cachedToolchainHome === home &&
-    cachedToolchainDirs &&
-    now - cachedToolchainDirsAt < TOOLCHAIN_DIR_CACHE_TTL_MS
+    cache.toolchainKey === key &&
+    cache.toolchainDirs &&
+    now - cache.toolchainDirsAt < TOOLCHAIN_DIR_CACHE_TTL_MS
   ) {
-    return cachedToolchainDirs;
+    return cache.toolchainDirs;
   }
-  cachedToolchainHome = home;
-  cachedToolchainDirsAt = now;
+  cache.toolchainKey = key;
+  cache.toolchainDirsAt = now;
   // When the agent-home override is set, scope the search strictly to the
   // override home: skip Homebrew / /usr/local *and* pass an empty env so
   // that a developer or CI runner with NPM_CONFIG_PREFIX /
   // npm_config_prefix exported can't leak the real machine's <prefix>/bin
   // into a sandboxed detection run. Without this, tests that build a tmp
   // home would be machine-environment-dependent.
-  cachedToolchainDirs = wellKnownUserToolchainBins({
+  cache.toolchainDirs = wellKnownUserToolchainBins({
     home,
-    includeSystemBins: process.platform !== 'win32' && !homeOverride,
-    env: homeOverride ? {} : process.env,
+    includeSystemBins: process.platform !== 'win32' && !hasOverride,
+    env: hasOverride ? {} : env,
   });
-  return cachedToolchainDirs;
+  return cache.toolchainDirs;
 }
 
 // The user-level toolchain bin directories (Homebrew, ~/.local/bin, ~/.bun/bin,
@@ -119,22 +141,22 @@ function userToolchainDirs() {
 // a binary can resolve here yet fail to *execute* if its shebang interpreter
 // (e.g. `#!/usr/bin/env bun`) lives in one of these dirs and the spawn PATH
 // doesn't include it. Keeping resolution and spawn PATH symmetric fixes that.
-export function userToolchainBinDirs(): string[] {
-  return userToolchainDirs();
+export function userToolchainBinDirs(_required: Record<string, never> = {}, options: ExecutableResolutionOptions = {}): string[] {
+  return userToolchainDirs(withDefaults(options));
 }
 
-function resolvePathDirs() {
+function resolvePathDirs(options: ResolvedOptions): string[] {
   const seen = new Set();
   const dirs = [
-    ...(process.env.PATH || '').split(delimiter),
+    ...(options.env.PATH || '').split(delimiter),
     // GUI launchers (macOS .app bundles, Linux .desktop files) often start
     // with a minimal PATH. Include common user-level CLI install locations
     // so agent detection matches the user's shell-installed tools,
     // especially Node version managers.
-    ...userToolchainDirs(),
+    ...userToolchainDirs(options),
   ];
   return dirs.filter((dir) => {
-    if (!dir || seen.has(dir)) return false;
+    if (!path.isAbsolute(dir) || seen.has(dir)) return false;
     seen.add(dir);
     return true;
   });
@@ -144,98 +166,98 @@ function resolvePathDirs() {
 // detection can attach it to a `not-on-path` diagnostic verbatim — the UI
 // shows the user where we actually looked before asking them to set an
 // explicit binary path, instead of recomputing PATH client-side.
-export function agentSearchDirs(): string[] {
-  return resolvePathDirs();
+export function agentSearchDirs(_required: Record<string, never> = {}, options: ExecutableResolutionOptions = {}): string[] {
+  return resolvePathDirs(withDefaults(options));
 }
 
 // The `*_BIN` environment variable that overrides PATH detection for a given
 // agent id (e.g. `cursor-agent` → `CURSOR_AGENT_BIN`), or null when the agent
 // has no override key. Drives the `setEnv` / `clearEnv` fix intents.
-export function agentBinEnvKey(agentId: string | undefined): string | null {
+export function agentBinEnvKey({ agentId }: { agentId: string | undefined }): string | null {
   if (!agentId) return null;
   return AGENT_BIN_ENV_KEYS.get(agentId) ?? null;
 }
 
-export function resolveOnPath(bin: string): string | null {
-  const exts =
-    process.platform === 'win32'
-      ? (process.env.PATHEXT || '.EXE;.CMD;.BAT').split(';')
-      : [''];
-  const dirs = resolvePathDirs();
-  for (const dir of dirs) {
+export function resolveOnPath({ bin }: { bin: string }, options: ExecutableResolutionOptions = {}): string | null {
+  return searchPath({ bin }, withDefaults(options));
+}
+
+function searchPath({ bin }: { bin: string }, options: ResolvedOptions): string | null {
+  const exts = process.platform === 'win32' ? pathExtEntries(options.env) : [''];
+  for (const dir of resolvePathDirs(options)) {
     for (const ext of exts) {
       const full = path.join(dir, bin + ext);
-      if (full && existsSync(full)) return full;
+      const executable = executableFilePath(full, options);
+      if (executable) return executable;
     }
   }
   return null;
 }
 
-function looksExecutableOnWindows(filePath: string): boolean {
+function looksExecutableOnWindows(filePath: string, { env }: ResolvedOptions): boolean {
   const ext = path.extname(filePath).trim().toUpperCase();
   if (!ext) return false;
-  const executableExts = (process.env.PATHEXT || '.EXE;.CMD;.BAT')
-    .split(';')
+  const executableExts = pathExtEntries(env)
     .map((value) => value.trim().toUpperCase())
     .filter(Boolean);
   return executableExts.includes(ext);
 }
 
-function executableFilePath(raw: string | undefined): string | null {
-  if (typeof raw !== 'string' || raw.trim().length === 0) return null;
-  const expanded = expandHomePath(raw.trim());
-  if (!path.isAbsolute(expanded)) return null;
+// A regular file the host may launch: on Windows its extension must be in
+// PATHEXT, elsewhere it must carry the execute permission. Any stat/access
+// failure (missing, unreadable) counts as "not runnable".
+function isRunnableFile(filePath: string, options: ResolvedOptions): boolean {
   try {
-    if (!statSync(expanded).isFile()) return null;
-    if (process.platform === 'win32') {
-      if (!looksExecutableOnWindows(expanded)) return null;
-    } else {
-      accessSync(expanded, constants.X_OK);
-    }
-    return expanded;
+    if (!statSync(filePath).isFile()) return false;
+    if (process.platform === 'win32') return looksExecutableOnWindows(filePath, options);
+    accessSync(filePath, constants.X_OK);
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
-// Resolve the first available binary for an agent definition. Tries
-// `def.bin` first, then walks `def.fallbackBins` in order. Used for agents
-// whose forks ship under a different binary name but speak the exact same
-// CLI. Returns null when no candidate is on PATH.
+function executableFilePath(raw: string | undefined, options: ResolvedOptions): string | null {
+  if (typeof raw !== 'string' || raw.trim().length === 0) return null;
+  const { env } = options;
+  // `~` in an override expands from the supplied env, so sandboxed detection never reaches the real home.
+  const expanded = expandHomePath({ value: raw.trim() }, { home: env.HOME || env.USERPROFILE || homedir() });
+  if (!path.isAbsolute(expanded)) return null;
+  return isRunnableFile(expanded, options) ? expanded : null;
+}
+
 function configuredExecutableOverride(
   def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+  configuredEnv: Record<string, string>,
+  options: ResolvedOptions,
 ): string | null {
   const envKey = AGENT_BIN_ENV_KEYS.get(def?.id);
   if (!envKey) return null;
-  return executableFilePath(configuredEnv?.[envKey]);
+  return executableFilePath(configuredEnv?.[envKey], options);
 }
 
-export function resolveAmrOpenCodeExecutable(
-  env: Record<string, string | undefined> = process.env,
+export function resolveAmrOpenCodeExecutable({  }: {  }, { env = process.env, state = defaultRuntimeState }: ExecutableResolutionOptions = {}
 ): string | null {
-  const configured = executableFilePath(env.VELA_OPENCODE_BIN);
-  if (configured) return configured;
+  const options = { env, state };
   // In packaged builds prefer the bundled companion under
   // `<resourceRoot>/bin/libexec/opencode/opencode` so a stale global
   // `opencode` on the user's PATH can't override the known-good build that
   // shipped with this app. PATH is only consulted as a last resort.
-  const resourceRoot = (
-    env[executableResolutionEnv.resourceRootEnvVar] ?? process.env[executableResolutionEnv.resourceRootEnvVar]
-  )?.trim();
-  if (resourceRoot) {
-    const bundledDir = packagedVelaOpenCodeCompanionTree(resourceRoot);
-    if (bundledDir) {
-      const bundled = executableFilePath(
-        path.join(
-          bundledDir,
-          process.platform === 'win32' ? 'opencode.exe' : 'opencode',
-        ),
-      );
-      if (bundled) return bundled;
-    }
-  }
-  return resolveOnPath('opencode-cli') ?? resolveOnPath('opencode');
+  return executableFilePath(env.VELA_OPENCODE_BIN, options)
+    ?? bundledAmrOpenCode({ resourceRoot: resourceRootOf(options) }, options)
+    ?? searchPath({ bin: 'opencode-cli' }, options)
+    ?? searchPath({ bin: 'opencode' }, options);
+}
+
+function resourceRootOf({ env, state }: ResolvedOptions): string | undefined {
+  return env[state.executable.envNames.resourceRootEnvVar]?.trim();
+}
+
+function bundledAmrOpenCode({ resourceRoot }: { resourceRoot: string | undefined }, options: ResolvedOptions): string | null {
+  if (!resourceRoot) return null;
+  const bundledDir = packagedVelaOpenCodeCompanionTree(resourceRoot, options);
+  if (!bundledDir) return null;
+  return executableFilePath(path.join(bundledDir, platformExecutableName({ name: 'opencode' })), options);
 }
 
 // The AMR (vela) OpenCode companion ships as a
@@ -244,55 +266,32 @@ export function resolveAmrOpenCodeExecutable(
 // a false-positive availability path: `detectAgents()` would surface AMR as
 // available even though the first real run can't launch. Verify the inner
 // executable too.
-function packagedVelaOpenCodeCompanionTree(resourceRoot: string): string | null {
+function packagedVelaOpenCodeCompanionTree(resourceRoot: string, options: ResolvedOptions): string | null {
   const candidate = path.join(resourceRoot, 'bin', 'libexec', 'opencode');
-  const exe = path.join(
-    candidate,
-    process.platform === 'win32' ? 'opencode.exe' : 'opencode',
-  );
   try {
     if (!statSync(candidate).isDirectory()) return null;
-    if (!statSync(exe).isFile()) return null;
-    if (process.platform === 'win32') {
-      if (!looksExecutableOnWindows(exe)) return null;
-    } else {
-      accessSync(exe, constants.X_OK);
-    }
-    return candidate;
   } catch {
     return null;
   }
+  return isRunnableFile(path.join(candidate, platformExecutableName({ name: 'opencode' })), options) ? candidate : null;
 }
 
 function packagedBuiltInExecutable(
   def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+  configuredEnv: Record<string, string>,
+  options: ResolvedOptions,
 ): string | null {
   if (def.id !== 'amr') return null;
-  const resourceRoot = process.env[executableResolutionEnv.resourceRootEnvVar]?.trim();
+  const resourceRoot = resourceRootOf(options);
   if (!resourceRoot) return null;
   if (
-    !resolveAmrOpenCodeExecutable({ ...process.env, ...configuredEnv }) &&
-    !packagedVelaOpenCodeCompanionTree(resourceRoot)
+    !resolveAmrOpenCodeExecutable({  }, { ...options, env: { ...options.env, ...configuredEnv } }) &&
+    !packagedVelaOpenCodeCompanionTree(resourceRoot, options)
   ) {
     return null;
   }
-  const candidate = path.join(
-    resourceRoot,
-    'bin',
-    process.platform === 'win32' ? 'vela.exe' : 'vela',
-  );
-  try {
-    if (!statSync(candidate).isFile()) return null;
-    if (process.platform === 'win32') {
-      if (!looksExecutableOnWindows(candidate)) return null;
-    } else {
-      accessSync(candidate, constants.X_OK);
-    }
-    return candidate;
-  } catch {
-    return null;
-  }
+  const candidate = path.join(resourceRoot, 'bin', platformExecutableName({ name: 'vela' }));
+  return isRunnableFile(candidate, options) ? candidate : null;
 }
 
 // The official OpenAI Codex desktop app ships the `codex` CLI *inside* its
@@ -304,10 +303,10 @@ function packagedBuiltInExecutable(
 // bundle. Probe the well-known bundle locations so app-only installs are
 // detected. This is a last-resort fallback that ranks below PATH, so an
 // explicit `npm i -g` / Homebrew / version-manager install always wins.
-function codexAppBundleExecutable(def: RuntimeAgentDef): string | null {
+function codexAppBundleExecutable(def: RuntimeAgentDef, options: ResolvedOptions): string | null {
   if (def?.id !== 'codex') return null;
-  for (const candidate of codexAppBundleCandidates()) {
-    const resolved = executableFilePath(candidate);
+  for (const candidate of appBundleCandidates(options)) {
+    const resolved = executableFilePath(candidate, options);
     if (resolved) return resolved;
   }
   return null;
@@ -318,11 +317,15 @@ function codexAppBundleExecutable(def: RuntimeAgentDef): string | null {
 // depend on the host actually having `/Applications/Codex.app`), so tests
 // assert the built candidate list directly to catch a path typo or
 // ordering regression in the common real-world install case.
-export function codexAppBundleCandidates(): string[] {
+export function codexAppBundleCandidates(_required: Record<string, never> = {}, options: ExecutableResolutionOptions = {}): string[] {
+  return appBundleCandidates(withDefaults(options));
+}
+
+function appBundleCandidates(options: ResolvedOptions): string[] {
   // The Codex app bundle is a macOS-only concept; other platforms have no
   // analogous standalone install of the `codex` CLI to probe for here.
   if (process.platform !== 'darwin') return [];
-  const { home, hasOverride } = resolveDetectionHome();
+  const { home, hasOverride } = resolveDetectionHome(options);
   const bundleSuffix = ['Codex.app', 'Contents', 'Resources', 'codex'];
   // User-scoped install (~/Applications). Honors the override home so
   // sandboxed detection runs and tests stay deterministic.
@@ -336,16 +339,28 @@ export function codexAppBundleCandidates(): string[] {
   return candidates;
 }
 
-export function resolveAgentExecutable(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
-): string | null {
-  return inspectAgentExecutableResolution(def, configuredEnv).selectedPath;
+// Resolve the first available binary for an agent definition. Tries
+// `def.bin` first, then walks `def.fallbackBins` in order. Used for agents
+// whose forks ship under a different binary name but speak the exact same
+// CLI. Returns null when no candidate is on PATH.
+function firstBinOnPath(def: RuntimeAgentDef, options: ResolvedOptions): string | null {
+  const candidates = [
+    def.bin,
+    ...(Array.isArray(def.fallbackBins) ? def.fallbackBins : []),
+  ];
+  for (const bin of candidates) {
+    const resolved = searchPath({ bin }, options);
+    if (resolved) return resolved;
+  }
+  return null;
 }
 
-export function inspectAgentExecutableResolution(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string> = {},
+export function resolveAgentExecutable({ def }: { def: RuntimeAgentDef }, options: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
+): string | null {
+  return inspectAgentExecutableResolution({ def: def }, options).selectedPath;
+}
+
+export function inspectAgentExecutableResolution({ def }: { def: RuntimeAgentDef }, options: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): {
   configuredOverridePath: string | null;
   pathResolvedPath: string | null;
@@ -358,21 +373,12 @@ export function inspectAgentExecutableResolution(
       selectedPath: null,
     };
   }
-  const configuredOverridePath = configuredExecutableOverride(def, configuredEnv);
-  const candidates = [
-    def.bin,
-    ...(Array.isArray(def.fallbackBins) ? def.fallbackBins : []),
-  ];
-  let pathResolvedPath: string | null = null;
-  for (const bin of candidates) {
-    const resolved = resolveOnPath(bin);
-    if (resolved) {
-      pathResolvedPath = resolved;
-      break;
-    }
-  }
-  const builtInPath = packagedBuiltInExecutable(def, configuredEnv);
-  const appBundlePath = codexAppBundleExecutable(def);
+  const resolved = withDefaults(options);
+  const configuredEnv = options.configuredEnv ?? {};
+  const configuredOverridePath = configuredExecutableOverride(def, configuredEnv, resolved);
+  const pathResolvedPath = firstBinOnPath(def, resolved);
+  const builtInPath = packagedBuiltInExecutable(def, configuredEnv, resolved);
+  const appBundlePath = codexAppBundleExecutable(def, resolved);
   return {
     configuredOverridePath,
     pathResolvedPath,

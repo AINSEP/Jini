@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -8,6 +8,8 @@ import {
   runtimeOptionLabel,
   runtimePopoverPosition,
 } from '../../components/AgentRuntimePicker.js';
+import { runtimeDropUpPosition } from '../../hooks/useRuntimeDropUp.hooks.js';
+import { I18nContext } from '../../../../hooks/context.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection } from '../../types.js';
 
 const agents: ChatPaneAgent[] = [
@@ -17,7 +19,7 @@ const agents: ChatPaneAgent[] = [
     available: true,
     version: 'codex-cli 0.145.0',
     models: [
-      { id: 'default', label: 'Default model' },
+      { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
       { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
     ],
     reasoningOptions: [
@@ -30,7 +32,7 @@ const agents: ChatPaneAgent[] = [
     name: 'Claude Code',
     available: true,
     version: '2.1.201',
-    models: [{ id: 'sonnet', label: 'Sonnet' }],
+    models: [{ id: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
   },
   {
     id: 'missing',
@@ -64,6 +66,39 @@ function PickerHarness({
 }
 
 describe('AgentRuntimePicker', () => {
+  it('shows the discovered Claude default and emits concrete IDs from the dynamic model list', async () => {
+    const onChange = vi.fn();
+    const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true, models: [
+      { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', identityKind: 'concrete' },
+      { id: 'claude-opus-5-5[1m]', label: 'Default (recommended)', identityKind: 'concrete' },
+    ], defaultModelResolution: { status: 'resolved', id: 'claude-opus-5-5[1m]', source: 'rpc', resolvedAt: '2026-10-08T00:00:00.000Z', launchFingerprint: 'fixture' } };
+    const { rerender } = render(<AgentRuntimePicker agents={[claude]} value={{ agentId: 'claude' }} onChange={onChange} />);
+    // The catalog has no display name for it, so the bar prettifies the id and drops "Claude".
+    expect(screen.getByRole('button', { name: 'Model: claude-opus-5-5[1m]' })).toHaveTextContent(/^Opus 5\.5$/);
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    expect(screen.getByRole('menuitemradio', { name: 'claude-opus-5-5[1m]' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByText('Default (recommended)')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Claude Sonnet 5' }));
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'claude-sonnet-5' });
+    // No concrete model to offer: no model control at all rather than an empty menu.
+    rerender(<AgentRuntimePicker agents={[{ ...claude, models: [], defaultModelResolution: { status: 'unresolved', reason: 'Discovery failed' } }]} value={{ agentId: 'claude' }} onChange={onChange} />);
+    expect(screen.queryByRole('button', { name: /^Model:/ })).not.toBeInTheDocument();
+  });
+
+  it('uses the host translator for the trigger prompt and cached/offline catalog notes', async () => {
+    const dictionary: Record<string, string> = { 'Choose model': 'Elegir modelo', Cached: 'En caché', 'Offline fallback': 'Alternativa sin conexión' };
+    const t = (key: string) => dictionary[key] || key;
+    const catalog = { source: 'cli' as const, freshness: 'stale' as const, fetchedAt: '2026-10-06T00:00:00.000Z', expiresAt: '2026-10-06T00:15:00.000Z', coverage: 'account' as const, launchFingerprint: 'scope' };
+    const pickerAgent: ChatPaneAgent = { ...agents[0]!, modelCatalog: catalog };
+    const view = (agent: ChatPaneAgent) => <I18nContext.Provider value={{ t, locale: 'es' }}><AgentRuntimePicker agents={[agent]} value={{ agentId: agent.id }} onChange={() => {}} /></I18nContext.Provider>;
+    const { rerender } = render(view(pickerAgent));
+    expect(screen.getByRole('button', { name: /^Model:/ })).toHaveTextContent('Elegir modelo');
+    // The catalog note heads the model drop-up now that the model choice lives there.
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    expect(within(screen.getByRole('menu', { name: 'Model' })).getByText('En caché · 2026-10-06T00:00:00.000Z')).toBeInTheDocument();
+    rerender(view({ ...pickerAgent, modelCatalog: { ...catalog, freshness: 'offline-fallback' } }));
+    expect(screen.getByText('Alternativa sin conexión')).toBeInTheDocument();
+  });
   // Popover summary/meta text: rendered during every popover test above for other reasons, so
   // v8 counted it covered while nothing asserted it. See ChatPane.test.tsx's own note.
   it('summarizes the selection, and says so plainly when nothing is selected', async () => {
@@ -96,25 +131,25 @@ describe('AgentRuntimePicker', () => {
   });
 
   it('maps known and fallback runtime presentation details', () => {
-    expect(runtimeAgentStatus({
+    expect(runtimeAgentStatus({ agent: {
       id: 'missing',
       name: 'Missing',
       available: false,
       diagnostic: 'Custom diagnostic',
-    })).toBe('Custom diagnostic');
-    expect(runtimeAgentStatus({ id: 'missing', name: 'Missing', available: false }))
+    } })).toBe('Custom diagnostic');
+    expect(runtimeAgentStatus({ agent: { id: 'missing', name: 'Missing', available: false } }))
       .toBe('Not found on PATH');
-    expect(runtimeAgentStatus({ id: 'auth', name: 'Auth', authStatus: 'missing' }))
+    expect(runtimeAgentStatus({ agent: { id: 'auth', name: 'Auth', authStatus: 'missing' } }))
       .toBe('Installed · sign-in required');
-    expect(runtimeAgentStatus({ id: 'versioned', name: 'Versioned', version: '1.2.3' }))
+    expect(runtimeAgentStatus({ agent: { id: 'versioned', name: 'Versioned', version: '1.2.3' } }))
       .toBe('1.2.3');
-    expect(runtimeAgentStatus({ id: 'installed', name: 'Installed' })).toBe('Installed');
+    expect(runtimeAgentStatus({ agent: { id: 'installed', name: 'Installed' } })).toBe('Installed');
 
     const options = [{ id: 'high', label: 'High' }];
-    expect(runtimeOptionLabel(options, undefined, 'Default')).toBe('Default');
-    expect(runtimeOptionLabel(options, 'default', 'Default')).toBe('Default');
-    expect(runtimeOptionLabel(options, 'high', 'Default')).toBe('High');
-    expect(runtimeOptionLabel(undefined, 'custom', 'Default')).toBe('custom');
+    expect(runtimeOptionLabel({ options: options, value: undefined, fallback: 'Default' })).toBe('Default');
+    expect(runtimeOptionLabel({ options: options, value: 'default', fallback: 'Default' })).toBe('Default');
+    expect(runtimeOptionLabel({ options: options, value: 'high', fallback: 'Default' })).toBe('High');
+    expect(runtimeOptionLabel({ options: undefined, value: 'custom', fallback: 'Default' })).toBe('custom');
   });
 
   it('calculates bounded upward and downward portal geometry', () => {
@@ -126,13 +161,13 @@ describe('AgentRuntimePicker', () => {
       top: 500,
       bottom: 540,
     } as DOMRect;
-    expect(runtimePopoverPosition(middle, 'up')).toMatchObject({
+    expect(runtimePopoverPosition({ trigger: middle, placement: 'up' })).toMatchObject({
       left: 300,
       bottom: 276,
       width: 320,
       maxHeight: 480,
     });
-    expect(runtimePopoverPosition(middle, 'down')).toMatchObject({
+    expect(runtimePopoverPosition({ trigger: middle, placement: 'down' })).toMatchObject({
       left: 300,
       top: 548,
       width: 320,
@@ -140,10 +175,43 @@ describe('AgentRuntimePicker', () => {
     });
 
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 300 });
-    expect(runtimePopoverPosition({ ...middle, left: -200, top: 50 } as DOMRect, 'up'))
+    expect(runtimePopoverPosition({ trigger: { ...middle, left: -200, top: 50 } as DOMRect, placement: 'up' }))
       .toMatchObject({ left: 12, width: 276, maxHeight: 30 });
-    expect(runtimePopoverPosition({ ...middle, left: 500, bottom: 700 } as DOMRect, 'down'))
+    expect(runtimePopoverPosition({ trigger: { ...middle, left: 500, bottom: 700 } as DOMRect, placement: 'down' }))
       .toMatchObject({ left: 12, top: 708, maxHeight: 48 });
+  });
+
+  it('keeps the agent-icon popover inside the composer box in a narrow dock', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 915 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
+    // Centred on an icon near the dock's left edge it would start at 490, past the composer's 553.
+    const icon = { left: 636, width: 28, top: 700, bottom: 728 } as DOMRect;
+    expect(runtimePopoverPosition({ trigger: icon, placement: 'up' }, { bounds: { left: 553, right: 898 } }))
+      .toMatchObject({ left: 553, width: 320 });
+    // A composer narrower than the popover narrows it to the composer's width.
+    expect(runtimePopoverPosition({ trigger: icon, placement: 'down' }, { bounds: { left: 553, right: 843 } }))
+      .toMatchObject({ left: 553, width: 290 });
+  });
+
+  it('anchors drop-ups above their trigger, right-aligned and clamped into the viewport', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 });
+    // The cluster sits at the bar's trailing edge, so the menu's right edge meets the trigger's.
+    const trigger = { left: 230, right: 350, top: 800, width: 120, bottom: 832 } as DOMRect;
+    expect(runtimeDropUpPosition({ trigger, width: 260 })).toMatchObject({
+      position: 'fixed', left: 90, bottom: 50, width: 260, maxHeight: 320,
+    });
+    // Near the left edge it slides right; on a tiny viewport it narrows and its height follows the room above.
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 0, right: 120 } as DOMRect, width: 260 })).toMatchObject({ left: 12 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 200 });
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 60, right: 180, top: 100 } as DOMRect, width: 260 }))
+      .toMatchObject({ left: 12, width: 176, maxHeight: 82 });
+    // Inside a narrow dock it stays within the composer box instead of spilling onto the page.
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 915 });
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 685, right: 773 } as DOMRect, width: 260 }, { bounds: { left: 553, right: 898 } }))
+      .toMatchObject({ left: 553, width: 260 });
+    expect(runtimeDropUpPosition({ trigger: { ...trigger, left: 685, right: 773 } as DOMRect, width: 260 }, { bounds: { left: 600, right: 798 } }))
+      .toMatchObject({ left: 600, width: 198 });
   });
 
   it('renders the reference runtime menu structure with agents, model, and reasoning', async () => {
@@ -168,8 +236,9 @@ describe('AgentRuntimePicker', () => {
     expect(
       screen.getByRole('radio', { name: /Claude Code/ }).querySelector('img[src^="data:image/svg+xml;base64,"]'),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6-terra');
-    expect(screen.getByLabelText('Reasoning')).toHaveValue('medium');
+    // Model and Reasoning moved to the composer-bar drop-ups (owner 2026-10-18).
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Offline fallback')).not.toBeInTheDocument();
   });
 
   it('emits agent, model, and reasoning selections without closing the agent menu', async () => {
@@ -183,21 +252,123 @@ describe('AgentRuntimePicker', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
     await userEvent.click(screen.getByRole('radio', { name: /Claude Code/ }));
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'sonnet' });
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'claude-sonnet-5' });
     expect(screen.getByRole('dialog', { name: 'Choose AI runtime' })).toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText('Model'), 'default');
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'GPT-6.1 Sol' }));
     expect(onChange).toHaveBeenCalledWith({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-6.1-sol',
       reasoning: 'medium',
     });
-    await userEvent.selectOptions(screen.getByLabelText('Reasoning'), 'high');
+    await userEvent.click(screen.getByRole('button', { name: /^Reasoning:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'High' }));
     expect(onChange).toHaveBeenCalledWith({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'high',
     });
+  });
+
+  it('shows the short model name in the bar and the full name in a tooltip on hover and focus', async () => {
+    const user = userEvent.setup();
+    render(<AgentRuntimePicker agents={agents} value={{ agentId: 'codex', model: 'gpt-5.6-terra' }} onChange={vi.fn()} />);
+    const model = screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' });
+    expect(model).toHaveTextContent(/^5\.6 Terra$/);
+    // The styled bubble replaces the native title, which would stack a second tooltip on it.
+    expect(model).not.toHaveAttribute('title');
+    const bubble = () => document.body.querySelector('.info-tip-bubble');
+    await user.hover(model);
+    expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
+    await user.unhover(model);
+    expect(bubble()).toBeNull();
+    act(() => model.focus());
+    expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
+    await user.keyboard('{Escape}');
+    expect(bubble()).toBeNull();
+    // A label the bar shows unshortened (the effort) keeps its plain title and gets no bubble.
+    const effort = screen.getByRole('button', { name: 'Reasoning: Medium' });
+    expect(effort).toHaveAttribute('title', 'Medium');
+    await user.hover(effort);
+    expect(bubble()).toBeNull();
+    // Opening the menu hides it: the list already shows the full name.
+    await user.click(model);
+    expect(screen.getByRole('menu', { name: 'Model' })).toBeInTheDocument();
+    expect(bubble()).toBeNull();
+  });
+
+  it('picks model and reasoning effort from composer-bar drop-ups that open above the trigger', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
+    const { rerender } = render(
+      <AgentRuntimePicker
+        agents={agents}
+        value={{ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'medium' }}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveAttribute('title', 'Codex CLI · GPT-5.6-Terra');
+    const model = screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' });
+    const effort = screen.getByRole('button', { name: 'Reasoning: Medium' });
+    expect(effort).toHaveTextContent('Medium');
+
+    // Keyboard: ArrowUp opens with the current choice focused, arrows rove, Escape returns focus.
+    effort.focus();
+    await user.keyboard('{ArrowUp}');
+    const effortMenu = screen.getByRole('menu', { name: 'Reasoning' });
+    expect(effortMenu.style.bottom).not.toBe('');
+    expect(effortMenu.style.top).toBe('');
+    expect(screen.getByRole('menuitemradio', { name: 'Medium' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitemradio', { name: 'High' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(effort).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+
+    // Pointer: pick, the menu closes, and focus goes back to the trigger.
+    await user.click(effort);
+    await user.click(screen.getByRole('menuitemradio', { name: 'High' }));
+    expect(onChange).toHaveBeenLastCalledWith({ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'high' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(effort).toHaveFocus();
+
+    await user.click(model);
+    expect(within(screen.getByRole('menu', { name: 'Model' })).getAllByRole('menuitemradio').map((item) => item.textContent))
+      .toEqual(['GPT-6.1 Sol', 'GPT-5.6-Terra']);
+    expect(screen.getByRole('menuitemradio', { name: 'GPT-5.6-Terra' })).toHaveAttribute('aria-checked', 'true');
+    // An outside click dismisses without choosing; Tab does too.
+    await user.click(document.body);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await user.click(model);
+    await user.keyboard('{Tab}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    // An agent with no reasoning options gets no effort control at all, rather than an empty one.
+    rerender(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude', model: 'claude-sonnet-5' }} onChange={onChange} />);
+    expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Model: Claude Sonnet 5' })).toHaveTextContent(/^Sonnet 5$/);
+    // Local mode's trigger is the icon alone, so it is marked never to shrink under its icon.
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveClass('jini-runtime-trigger--icon-only');
+
+    // API mode: neither CLI menu; the trigger names the provider's model and the popover keeps its picker.
+    rerender(
+      <AgentRuntimePicker
+        agents={agents}
+        value={{ agentId: 'codex', model: 'gpt-5.6-terra', reasoning: 'medium' }}
+        onChange={onChange}
+        executionMode="api"
+        apiModeAvailable
+        byokRuntime={{ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' }}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /^Model:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('gemini-2.5-flash-lite');
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).not.toHaveClass('jini-runtime-trigger--icon-only');
   });
 
   it('supports upward/downward portal placement, Escape dismissal, and rescanning', async () => {
@@ -308,6 +479,39 @@ describe('AgentRuntimePicker', () => {
       expect(within(trigger).getByText('API · BYOK')).toBeInTheDocument();
       expect(within(trigger).getByText('No model configured')).toBeInTheDocument();
       expect(within(trigger).queryByText('Claude Code')).not.toBeInTheDocument();
+    });
+
+    it('serves the provider mark from a host-vendored icon directory when agentIconBasePath is set', () => {
+      render(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude' }}
+          onChange={() => {}}
+          executionMode="api"
+          apiModeAvailable
+          byokRuntime={{ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite', iconId: 'gemini' }}
+          agentIconBasePath="/vendor-icons"
+        />,
+      );
+      const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+      expect(trigger.querySelector('img')).toHaveAttribute('src', '/vendor-icons/gemini.svg');
+    });
+
+    it('offers the model picker with nothing chosen and no "set a model" warning when no model is configured yet', async () => {
+      render(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude' }}
+          onChange={() => {}}
+          executionMode="api"
+          apiModeAvailable
+          byokRuntime={{ providerLabel: 'Google Gemini', models: [{ id: 'gemini-3.1-pro-preview', label: 'gemini-3.1-pro-preview' }] }}
+          onByokModelChange={() => {}}
+        />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+      expect(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')).toBeInTheDocument();
+      expect(screen.queryByText('Set a model in the BYOK settings before sending a message.')).not.toBeInTheDocument();
     });
 
     it('renders a real model picker when the host supplies a list and a writer', async () => {
@@ -478,8 +682,8 @@ describe('AgentRuntimePicker', () => {
     const onChange = vi.fn();
     const sparseAgents: ChatPaneAgent[] = [
       {
-        id: 'gemini',
-        name: 'Gemini CLI',
+        id: 'antigravity',
+        name: 'Antigravity',
         available: true,
         authStatus: 'missing',
         models: [{ id: 'flash', label: 'Flash' }],
@@ -490,23 +694,25 @@ describe('AgentRuntimePicker', () => {
     const { rerender } = render(
       <AgentRuntimePicker
         agents={sparseAgents}
-        value={{ agentId: 'gemini' }}
+        value={{ agentId: 'antigravity' }}
         onChange={onChange}
         onRescan={() => {}}
         scanning
       />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-    expect(screen.getByRole('radio', { name: /Gemini CLI · Installed · sign-in required/ }))
+    expect(screen.getByRole('radio', { name: /Antigravity · Installed · sign-in required/ }))
       .toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Zed Agent · Installed/ })).toBeInTheDocument();
     expect(screen.getByText('Scanning PATH…')).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByLabelText('Model'), 'flash');
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'gemini', model: 'flash' });
-    await userEvent.selectOptions(screen.getByLabelText('Reasoning'), 'high');
-    expect(onChange).toHaveBeenCalledWith({ agentId: 'gemini', reasoning: 'high' });
     await userEvent.click(screen.getByRole('radio', { name: /Zed Agent/ }));
     expect(onChange).toHaveBeenCalledWith({ agentId: 'zed' });
+    await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'Flash' }));
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', model: 'flash' });
+    await userEvent.click(screen.getByRole('button', { name: /^Reasoning:/ }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: 'High' }));
+    expect(onChange).toHaveBeenCalledWith({ agentId: 'antigravity', reasoning: 'high' });
     rerender(
       <AgentRuntimePicker
         agents={sparseAgents}
@@ -514,11 +720,11 @@ describe('AgentRuntimePicker', () => {
         onChange={onChange}
       />,
     );
-    expect(screen.queryByLabelText('Model')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Reasoning')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Model:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
   });
 
-  it('wraps Tab focus inside the dialog without stealing native select arrows', async () => {
+  it('wraps Tab focus inside the dialog and roves between its buttons', async () => {
     const user = userEvent.setup();
     render(<PickerHarness onRescan={() => {}} />);
     await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
@@ -543,17 +749,6 @@ describe('AgentRuntimePicker', () => {
     expect(nativeTab.defaultPrevented).toBe(false);
     expect(middleControl).toHaveFocus();
 
-    const modelSelect = screen.getByLabelText('Model');
-    modelSelect.focus();
-    const nativeArrow = new KeyboardEvent('keydown', {
-      bubbles: true,
-      cancelable: true,
-      key: 'ArrowDown',
-    });
-    expect(modelSelect.dispatchEvent(nativeArrow)).toBe(true);
-    expect(nativeArrow.defaultPrevented).toBe(false);
-    expect(modelSelect).toHaveFocus();
-
     firstControl.focus();
     await user.keyboard('{ArrowDown}');
     expect(screen.getByRole('radio', { name: /Claude Code/ })).toHaveFocus();
@@ -572,6 +767,17 @@ describe('AgentRuntimePicker', () => {
    * per-agent projection of that def-level fact; this only asserts the picker's own reaction to it,
    * not the derivation itself (covered by `registry.test.ts`).
    */
+  it('serves the CLI marks on the trigger and in the agent list from a host-vendored icon directory', async () => {
+    render(
+      <AgentRuntimePicker agents={agents} value={{ agentId: 'codex' }} onChange={() => {}} agentIconBasePath="/vendor-icons" />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+    expect(trigger.querySelector('img')).toHaveAttribute('src', '/vendor-icons/codex.svg');
+    await userEvent.click(trigger);
+    const radio = screen.getByRole('radio', { name: /Claude Code/ });
+    expect(radio.querySelector('img')).toHaveAttribute('src', '/vendor-icons/claude.svg');
+  });
+
   it('badges a runtime that cannot receive tools, and leaves tool-capable ones unbadged', async () => {
     const mixedAgents: ChatPaneAgent[] = [
       { id: 'claude', name: 'Claude Code', available: true, supportsTools: true },

@@ -1,0 +1,225 @@
+import assert from "node:assert/strict";
+import { test } from "vitest";
+import { harness, removal, WS, AT, ACTOR, ALLOW_ALL } from "./fixture.js";
+import { createTrashService, computePurgeAfter, bindRemoveEntity, bindForgetRemovedEntity, TrashAdapterMissingError, type TrashChangeEvent } from "../write-service.js";
+
+// Generalized from trash.contract, prior-marker.contract and on-changed.contract suites.
+test("hide and restore never parse or rewrite the entity payload; listing uses the snapshot", async () => {
+  const h = harness();
+  assert.deepEqual(await h.trash.trash(removal), { ok: true, version: 2 });
+  assert.equal(h.records.records.get("record-1")!.bodyJson, "{corrupt");
+  assert.equal((await h.trash.list({ workspaceId: WS, now: AT, limit: 10 })).items[0]!.displayTitle, "Snapshot title");
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "restored");
+  assert.equal(h.records.records.get("record-1")!.bodyJson, "{corrupt");
+  assert.equal(h.records.records.get("record-1")!.version, 3);
+  assert.equal(h.repo.all({}).length, 0);
+});
+test("index insert failure rolls back the marker flip", async () => {
+  const h = harness();
+  h.repo.insert = async () => { throw new Error("disk full"); };
+  await assert.rejects(() => h.trash.trash(removal), /disk full/);
+  assert.equal(h.records.records.get("record-1")!.version, 1);
+  assert.equal(h.records.records.get("record-1")!.deletedAt, undefined);
+  assert.equal(h.repo.all({}).length, 0);
+});
+test("domain removal may enter an existing transaction", async () => {
+  const h = harness();
+  const remove = bindRemoveEntity({ trash: h.trash, entityType: "record" });
+  await h.deps.transaction({ work: () => remove({ workspaceId: WS, id: "record-1", actor: ACTOR, display: removal.display, at: AT, expectedVersion: 1 }) });
+  assert.equal(h.records.records.get("record-1")!.version, 2);
+  assert.equal(h.repo.all({}).length, 1);
+});
+test("missing adapters list snapshots but degrade on restore and purge; adapters resolve per call", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  h.adapters.clear();
+  assert.equal((await h.trash.list({ workspaceId: WS, now: AT, limit: 10 })).items.length, 1);
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "adapter-unavailable");
+  assert.deepEqual((await h.trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: ALLOW_ALL })).results, [{ id: "trash-1", outcome: "adapter-unavailable" }]);
+  await assert.rejects(() => h.trash.trash(removal), TrashAdapterMissingError);
+  h.adapters.set("record", h.adapter);
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "restored");
+});
+test("authorization receives stored rows and gates destruction before adapter resolution", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  h.adapters.clear();
+  const seen: string[] = [];
+  const report = await h.trash.purgeSelected({ workspaceId: WS, ids: ["trash-1", "unknown"], actor: ACTOR,
+    authorizeItem: async ({ item }) => { seen.push(item.entityType); return false; } });
+  assert.deepEqual(seen, ["record"]);
+  assert.deepEqual(report.results, [{ id: "trash-1", outcome: "forbidden" }, { id: "unknown", outcome: "not-found" }]);
+  assert.equal(h.repo.all({}).length, 1);
+  assert.ok(h.records.records.get("record-1"));
+});
+test("a stale version stands down and preserves the index; vanished rows remove only the index", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  h.records.records.get("record-1")!.version++;
+  const input = { workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: ALLOW_ALL };
+  assert.equal((await h.trash.purgeSelected(input)).results[0]!.outcome, "version-changed");
+  assert.equal(h.repo.all({}).length, 1);
+  h.records.records.delete("record-1");
+  assert.equal((await h.trash.purgeSelected(input)).results[0]!.outcome, "already-gone");
+  assert.equal(h.repo.all({}).length, 0);
+});
+test("a still-referenced row keeps its index and marker while later rows are purged", async () => {
+  const seen: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: event => { seen.push(event); } });
+  h.records.records.set("record-2", { id: "record-2", workspaceId: WS, version: 1, updatedAt: AT });
+  await h.trash.trash(removal);
+  await h.trash.trash({ ...removal, entityId: "record-2" });
+  const retainedRecord = structuredClone(h.records.records.get("record-1"));
+  const retainedIndex = structuredClone(h.repo.all({}).find(row => row.id === "trash-1"));
+  const purge = h.adapter.purge;
+  h.adapters.set("record", { ...h.adapter, purge: async (required, optional) =>
+    required.entityId === "record-1" ? "still-referenced" : purge(required, optional) });
+  seen.length = 0;
+
+  assert.deepEqual(await h.trash.purgeSelected({ workspaceId: WS, ids: ["trash-1", "trash-2"], actor: ACTOR, authorizeItem: ALLOW_ALL }), {
+    purged: 1,
+    results: [{ id: "trash-1", outcome: "still-referenced" }, { id: "trash-2", outcome: "purged" }],
+  });
+  assert.deepEqual(h.repo.all({}), [retainedIndex]);
+  assert.deepEqual(h.records.records.get("record-1"), retainedRecord);
+  assert.equal(h.records.records.has("record-2"), false);
+  assert.deepEqual(seen, [{ workspaceId: WS, entityType: "record", entityId: "record-2", change: "purge" }]);
+});
+test("notifications are in arg 2 and cannot undo a mutation when reporting fails", async () => {
+  const seen: string[] = [];
+  const h = harness({ onChanged: async event => { seen.push(event.change); throw new Error("notifier failed"); }, onError: () => { throw new Error("reporter failed"); } });
+  await h.trash.trash(removal);
+  await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT });
+  await h.trash.trash({ ...removal, expectedVersion: 3 });
+  assert.equal((await h.trash.purgeSelected({ workspaceId: WS, ids: ["trash-2"], actor: ACTOR, authorizeItem: ALLOW_ALL })).purged, 1);
+  assert.deepEqual(seen, ["trash", "restore", "trash", "purge"]);
+  assert.equal(h.records.records.size, 0);
+});
+test("repeated trash preserves the marker and index without notifying again", async () => {
+  const seen: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: event => { seen.push(event); } });
+  assert.deepEqual(await h.trash.trash(removal), { ok: true, version: 2 });
+  const record = structuredClone(h.records.records.get("record-1"));
+  const index = structuredClone(h.repo.all({}));
+  assert.equal(index.length, 1);
+  const event = { workspaceId: WS, entityType: "record", entityId: "record-1", change: "trash" };
+  assert.deepEqual(seen, [event]);
+
+  // A retry is successful but explicitly noop; it must not emit a second outbox event (F1487).
+  for (const expectedVersion of [2, null]) {
+    assert.deepEqual(await h.trash.trash({ ...removal, expectedVersion, at: "2026-09-21T12:00:00.000Z" }),
+      { ok: true, version: 2, noop: true });
+    assert.deepEqual(h.records.records.get("record-1"), record);
+    assert.deepEqual(h.repo.all({}), index);
+    assert.deepEqual(seen, [event]);
+  }
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "restored");
+  assert.deepEqual(seen, [event, { ...event, change: "restore" }]);
+  assert.equal(h.records.records.get("record-1")!.version, 3);
+  assert.deepEqual(h.repo.all({}), []);
+});
+test("restore cleans a stale index without notifying when the marker is already clear", async () => {
+  const seen: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: event => { seen.push(event); } });
+  await h.trash.trash(removal);
+  assert.equal(h.repo.all({}).length, 1);
+  // Model a marker cleared outside Trash while its index snapshot is still present. The real
+  // record adapter returns noop, so cleanup must not claim a second domain transition (F1487).
+  const cleared = { ...h.records.records.get("record-1")!, deletedAt: null };
+  h.records.records.set("record-1", structuredClone(cleared));
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: "2026-09-21T12:00:00.000Z" }), "restored");
+  assert.deepEqual(h.records.records.get("record-1"), cleared);
+  assert.deepEqual(h.repo.all({}), []);
+  assert.deepEqual(seen, [{ workspaceId: WS, entityType: "record", entityId: "record-1", change: "trash" }]);
+});
+test("retention and entity policy are host-owned and evaluated at the operation", async () => {
+  const h = harness();
+  const short = createTrashService(h.deps, { retentionDays: 2 });
+  await short.trash(removal);
+  assert.equal(h.repo.all({})[0]!.purgeAfter, "2026-09-22T12:00:00.000Z");
+  assert.equal((await short.list({ workspaceId: WS, now: "2026-09-22T12:00:00.000Z", limit: 10 })).items.length, 0);
+  assert.equal(computePurgeAfter({ at: AT }, { retentionDays: 60 }), "2026-11-19T12:00:00.000Z");
+  const denied = createTrashService({ ...h.deps, entityPolicy: () => false });
+  await assert.rejects(() => denied.trash(removal), TrashAdapterMissingError);
+  assert.throws(() => computePurgeAfter({ at: "invalid" }, { retentionDays: 60 }), RangeError);
+});
+test("prior marker from the adapter wins; fallback and index-only cleanup remain available", async () => {
+  const h = harness();
+  h.adapters.set("record", { ...h.adapter, hide: async () => ({ ok: true, version: 2, priorMarker: "draft" }) });
+  await h.trash.trash(removal, { priorMarker: "published" });
+  assert.equal(h.repo.all({})[0]!.priorMarker, "draft");
+  await bindForgetRemovedEntity({ repo: h.repo, entityType: "record" })({ workspaceId: WS, id: "record-1" });
+  assert.equal(h.repo.all({}).length, 0);
+});
+
+// REGRESSION: fails if the entityPolicy denial is moved ahead of the missing-adapter branch.
+test("authorized missing-domain purge remains adapter-unavailable with a deny policy", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  h.adapters.clear();
+  const trash = createTrashService({ ...h.deps, entityPolicy: () => false });
+  const denied = await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: async () => false });
+  assert.deepEqual(denied.results, [{ id: "trash-1", outcome: "forbidden" }]);
+  const allowed = await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: async () => true });
+  assert.deepEqual(allowed.results, [{ id: "trash-1", outcome: "adapter-unavailable" }]);
+  assert.equal(h.repo.all({}).length, 1);
+  assert.ok(h.records.records.has("record-1"));
+});
+
+test("a refused hide returns the adapter's refusal and writes no index row and no notification", async () => {
+  const events: TrashChangeEvent[] = [];
+  const h = harness({ onChanged: (event) => { events.push(event); } });
+
+  assert.deepEqual(await h.trash.trash({ ...removal, expectedVersion: 7 }), { ok: false, reason: "version-changed" });
+  assert.equal(h.repo.all({}).length, 0);
+  assert.equal(h.records.records.get("record-1")!.version, 1);
+  assert.deepEqual(events, []);
+});
+
+test("restoring an entity that was never trashed is not-found and never consults the adapter", async () => {
+  const h = harness();
+  let unhides = 0;
+  h.adapters.set("record", { ...h.adapter, unhide: async (...args) => { unhides += 1; return h.adapter.unhide(...args); } });
+
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "not-found");
+  assert.equal(unhides, 0);
+});
+
+test("restore maps an adapter not-found to not-found and any other refusal to version-changed, keeping the index row", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+
+  h.adapters.set("record", { ...h.adapter, unhide: async () => ({ ok: false, reason: "not-found" }) });
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "not-found");
+
+  h.adapters.set("record", { ...h.adapter, unhide: async () => ({ ok: false, reason: "version-changed" }) });
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "version-changed");
+
+  assert.equal(h.repo.all({}).length, 1);
+});
+
+test("purgeSelected reports forbidden when the entity policy no longer allows the row's installed type", async () => {
+  const h = harness();
+  await h.trash.trash(removal);
+  const trash = createTrashService({ ...h.deps, entityPolicy: () => false });
+
+  assert.deepEqual(
+    await trash.purgeSelected({ workspaceId: WS, ids: ["trash-1"], actor: ACTOR, authorizeItem: ALLOW_ALL }),
+    { purged: 0, results: [{ id: "trash-1", outcome: "forbidden" }] }
+  );
+  assert.ok(h.records.records.get("record-1"));
+  assert.equal(h.repo.all({}).length, 1);
+});
+
+test("restore forwards the restoring actor to the adapter only when one is supplied", async () => {
+  const h = harness();
+  await h.trash.trash(removal, { priorMarker: "draft" });
+  const seen: unknown[] = [];
+  h.adapters.set("record", { ...h.adapter, unhide: async (required, optional) => { seen.push(optional); return h.adapter.unhide(required, optional); } });
+
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }, { actor: ACTOR }), "restored");
+  await h.trash.trash({ ...removal, expectedVersion: 3 });
+  assert.equal(await h.trash.restore({ workspaceId: WS, entityType: "record", entityId: "record-1", at: AT }), "restored");
+
+  assert.deepEqual(seen, [{ priorMarker: "draft", actor: ACTOR }, { priorMarker: null }]);
+});

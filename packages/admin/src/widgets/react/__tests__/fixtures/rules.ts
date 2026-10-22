@@ -1,0 +1,14 @@
+import * as rules from '../../../rules.js';
+import { t as translate } from './widgets-i18n.js';
+import { widgetTypes, slugRedirectPath } from './catalog.js';
+import type { AdminWidget } from '../../../models.js';
+export const WIDGETS_LIBRARY_RESOURCE = rules.WIDGETS_LIBRARY_RESOURCE;
+export const WIDGETS_REGIONS_RESOURCE = rules.WIDGETS_REGIONS_RESOURCE;
+export const widgetTypeLabel = (widgetType: string, locale: string) => rules.widgetTypeLabel({ widgetType, types: widgetTypes }, { t: key => translate({ locale, key }) });
+export const isKnownWidgetType = (widgetType: string) => rules.isKnownWidgetType({ widgetType, types: widgetTypes });
+export const widgetConfigFieldErrors = (error: unknown) => rules.widgetConfigFieldErrors({ error });
+export const resolveEditorWidgetType = (isNew: boolean, queryWidgetType: string | null, widget: AdminWidget | null) => rules.resolveEditorWidgetType({ isNew, queryWidgetType, widget });
+export const movePlacement = <T>(items: T[], index: number, direction: -1 | 1) => rules.movePlacement({ items, index, direction });
+export const buildDraftPlacement = (widgetInstanceId: string) => rules.buildDraftPlacement({ widgetInstanceId });
+export const widgetSlugRedirectPath = (params: Parameters<typeof rules.widgetSlugRedirectPath>[0]) => rules.widgetSlugRedirectPath(params, { slugRedirectPath });
+export const widgetInstanceGuard = (state: Omit<Parameters<typeof rules.widgetInstanceGuard>[0], 'types'>) => rules.widgetInstanceGuard({ ...state, types: widgetTypes });

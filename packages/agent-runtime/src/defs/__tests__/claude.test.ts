@@ -7,6 +7,17 @@ import { agentCapabilities } from '../../capabilities.js';
 import { setClaudeCodeModelIoForTesting, type ClaudeCodeModelIo } from '../../claude-code-models.js';
 import { claudeAgentDef } from '../claude.js';
 import { sanitizeCustomModel } from '../../models.js';
+import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
+
+// Live discovery uses the real SSRF guard with an explicit, offline DNS answer.
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      if (hostname !== 'api.anthropic.com') throw new Error(`ENOTFOUND ${hostname}`);
+      return [{ address: '8.8.8.8', family: 4 }];
+    },
+  },
+}));
 
 afterEach(() => {
   agentCapabilities.delete('claude');
@@ -29,6 +40,11 @@ describe('claudeAgentDef shape', () => {
       'sonnet',
       'opus',
       'haiku',
+      // The 2026-10-07 picker refresh adds current IDs ahead of retained pinned selections.
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+      'claude-haiku-4-5-20251001',
       'claude-fable-5-1',
       'claude-fable-5',
       'claude-opus-5',
@@ -42,11 +58,22 @@ describe('claudeAgentDef shape', () => {
       'claude-sonnet-4-5',
     ]);
   });
+
+  // Claude Code defers MCP tools behind its ToolSearch tool by default, so every run paid one
+  // extra `select:` model round (~3 s) before its first real tool call. The run's MCP set is only
+  // the daemon's own server (`--strict-mcp-config`), so loading it up front is cheap. Documented
+  // at code.claude.com/docs/en/mcp: `ENABLE_TOOL_SEARCH=false` = "All MCP tools loaded upfront".
+  it('loads MCP tools up front instead of deferring them behind ToolSearch', () => {
+    expect(claudeAgentDef.env).toEqual({
+      ENABLE_TOOL_SEARCH: 'false',
+      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '0',
+    });
+  });
 });
 
 describe('claudeAgentDef.buildArgs', () => {
   it('produces the base argv with no capability flags, no model, no dirs, no session', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], []);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).toEqual([
       '-p',
       '--input-format',
@@ -61,29 +88,29 @@ describe('claudeAgentDef.buildArgs', () => {
 
   it('adds --include-partial-messages only when the capability probe recorded partialMessages', () => {
     agentCapabilities.set('claude', { partialMessages: true });
-    const args = claudeAgentDef.buildArgs('hi', [], []);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).toContain('--include-partial-messages');
   });
 
   it('omits --include-partial-messages when the capability entry says false', () => {
     agentCapabilities.set('claude', { partialMessages: false });
-    const args = claudeAgentDef.buildArgs('hi', [], []);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).not.toContain('--include-partial-messages');
   });
 
   it('omits --include-partial-messages when there is no capability entry at all', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], []);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] });
     expect(args).not.toContain('--include-partial-messages');
   });
 
   it('adds --model <id> for a concrete model selection', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { model: 'sonnet' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'sonnet' } });
     expect(args).toContain('--model');
     expect(args[args.indexOf('--model') + 1]).toBe('sonnet');
   });
 
   it('omits --model for the "default" sentinel', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { model: 'default' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' } });
     expect(args).not.toContain('--model');
   });
 
@@ -94,14 +121,14 @@ describe('claudeAgentDef.buildArgs', () => {
   it('adds --effort <level> for every level the CLI accepts, once the probe recorded the capability', () => {
     for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) {
       agentCapabilities.set('claude', { effort: true });
-      const args = claudeAgentDef.buildArgs('hi', [], [], { reasoning: level });
+      const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: level } });
       expect(args).toContain('--effort');
       expect(args[args.indexOf('--effort') + 1]).toBe(level);
     }
   });
 
   it('omits --effort when the capability probe never saw the flag, so an older build is not killed by an unknown option', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { reasoning: 'high' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'high' } });
     expect(args).not.toContain('--effort');
   });
 
@@ -110,102 +137,102 @@ describe('claudeAgentDef.buildArgs', () => {
   // forwarding one would look like the setting applied while doing nothing.
   it('drops a level from another runtime\'s vocabulary rather than forwarding it', () => {
     agentCapabilities.set('claude', { effort: true });
-    expect(claudeAgentDef.buildArgs('hi', [], [], { reasoning: 'ultra' })).not.toContain('--effort');
-    expect(claudeAgentDef.buildArgs('hi', [], [], { reasoning: 'default' })).not.toContain('--effort');
+    expect(claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'ultra' } })).not.toContain('--effort');
+    expect(claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { reasoning: 'default' } })).not.toContain('--effort');
   });
 
   it('omits --model when falsy', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { model: '' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: '' } });
     expect(args).not.toContain('--model');
   });
 
   it('adds --add-dir with all non-empty string dirs when addDir capability is not explicitly false', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], ['/a', '', '/b']);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/a', '', '/b'] });
     const idx = args.indexOf('--add-dir');
     expect(idx).toBeGreaterThan(-1);
     expect(args.slice(idx + 1, idx + 3)).toEqual(['/a', '/b']);
   });
 
   it('omits --add-dir entirely when the filtered dirs list is empty', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], ['']);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [''] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('tolerates an explicit null extraAllowedDirs (the `|| []` fallback, distinct from the default param)', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], null as unknown as string[]);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: null as unknown as string[] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('omits --add-dir when the capability probe explicitly recorded addDir: false, even with dirs present', () => {
     agentCapabilities.set('claude', { addDir: false });
-    const args = claudeAgentDef.buildArgs('hi', [], ['/a']);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/a'] });
     expect(args).not.toContain('--add-dir');
   });
 
   it('includes --add-dir when addDir capability is explicitly true', () => {
     agentCapabilities.set('claude', { addDir: true });
-    const args = claudeAgentDef.buildArgs('hi', [], ['/a']);
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: ['/a'] });
     expect(args).toContain('--add-dir');
   });
 
   it('uses --resume <id> when runtimeContext.resumeSessionId is a non-empty string', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: 'sess-123' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: 'sess-123' } });
     expect(args).toContain('--resume');
     expect(args[args.indexOf('--resume') + 1]).toBe('sess-123');
     expect(args).not.toContain('--session-id');
   });
 
   it('uses --session-id <id> when resumeSessionId is absent but newSessionId is present', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { newSessionId: 'new-456' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { newSessionId: 'new-456' } });
     expect(args).toContain('--session-id');
     expect(args[args.indexOf('--session-id') + 1]).toBe('new-456');
     expect(args).not.toContain('--resume');
   });
 
   it('emits neither --resume nor --session-id when both are absent', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, {});
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).not.toContain('--resume');
     expect(args).not.toContain('--session-id');
   });
 
   it('treats an empty-string resumeSessionId as absent and falls through to newSessionId', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: '', newSessionId: 'new-789' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: '', newSessionId: 'new-789' } });
     expect(args).not.toContain('--resume');
     expect(args).toContain('--session-id');
   });
 
   it('treats a null resumeSessionId as absent', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { resumeSessionId: null });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { resumeSessionId: null } });
     expect(args).not.toContain('--resume');
   });
 
   it('treats an empty-string newSessionId as absent (no --session-id emitted)', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { newSessionId: '' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { newSessionId: '' } });
     expect(args).not.toContain('--session-id');
   });
 
   it('always appends --permission-mode bypassPermissions as the trailing flag', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { model: 'opus' }, { resumeSessionId: 'x' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'opus' }, runtimeContext: { resumeSessionId: 'x' } });
     expect(args.slice(-2)).toEqual(['--permission-mode', 'bypassPermissions']);
   });
 
   it('omits --permission-mode bypassPermissions entirely when permissionMode is "restricted"', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { permissionMode: 'restricted' } });
     expect(args).not.toContain('--permission-mode');
     expect(args).not.toContain('bypassPermissions');
   });
 
   it('still bypasses permissions when permissionMode is left unset (backward-compatible default)', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {});
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} });
     expect(args.slice(-2)).toEqual(['--permission-mode', 'bypassPermissions']);
   });
 
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
-    expect(() => claudeAgentDef.buildArgs('hi', [])).not.toThrow();
+    expect(() => claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] })).not.toThrow();
   });
 
   it('adds --strict-mcp-config --mcp-config <path> when runtimeContext.mcpJsonPath is set', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '/tmp/run-abc/.mcp.json' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { mcpJsonPath: '/tmp/run-abc/.mcp.json' } });
     expect(args).toContain('--strict-mcp-config');
     const idx = args.indexOf('--mcp-config');
     expect(idx).toBeGreaterThan(-1);
@@ -213,13 +240,13 @@ describe('claudeAgentDef.buildArgs', () => {
   });
 
   it('omits --strict-mcp-config and --mcp-config when mcpJsonPath is absent (default, unchanged behavior)', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, {});
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
     expect(args).not.toContain('--strict-mcp-config');
     expect(args).not.toContain('--mcp-config');
   });
 
   it('omits --mcp-config for an empty-string mcpJsonPath', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '' });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { mcpJsonPath: '' } });
     expect(args).not.toContain('--mcp-config');
   });
 
@@ -230,32 +257,60 @@ describe('claudeAgentDef.buildArgs', () => {
   // names" — and confirmed live that `--disallowedTools Bash` actually refuses a Bash tool call
   // even under `--permission-mode bypassPermissions` (a prompt-only prohibition would not).
   it('omits --disallowedTools/--allowedTools entirely when neither option is set (default, unchanged behavior)', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], {});
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {} });
     expect(args).not.toContain('--disallowedTools');
     expect(args).not.toContain('--allowedTools');
   });
 
   it('emits --disallowedTools with every name when RuntimeBuildOptions.disallowedTools is a non-empty list', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { disallowedTools: ['Bash', 'Edit', 'Write'] });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { disallowedTools: ['Bash', 'Edit', 'Write'] } });
     const idx = args.indexOf('--disallowedTools');
     expect(idx).toBeGreaterThan(-1);
     expect(args.slice(idx + 1, idx + 4)).toEqual(['Bash', 'Edit', 'Write']);
   });
 
   it('emits --allowedTools with every name when RuntimeBuildOptions.allowedTools is a non-empty list', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { allowedTools: ['Read', 'ToolSearch'] });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { allowedTools: ['Read', 'ToolSearch'] } });
     const idx = args.indexOf('--allowedTools');
     expect(idx).toBeGreaterThan(-1);
     expect(args.slice(idx + 1, idx + 3)).toEqual(['Read', 'ToolSearch']);
   });
 
   it('omits --disallowedTools for an empty array (explicit no-op, not an accidental deny-everything)', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { disallowedTools: [] });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { disallowedTools: [] } });
     expect(args).not.toContain('--disallowedTools');
   });
 
+  it('denies the native edit/shell tools and locks MCP when nativeToolAccess is false', () => {
+    expect(claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { nativeToolAccess: false } })).toEqual([
+      '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'bypassPermissions',
+      '--strict-mcp-config', '--disallowedTools', 'Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'BashOutput', 'KillShell',
+    ]);
+  });
+
+  it('denies only the shell tools when nativeCapabilities.shell is false', () => {
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { nativeCapabilities: { shell: false } } });
+    expect(args.slice(args.indexOf('--disallowedTools'))).toEqual(['--disallowedTools', 'Bash', 'BashOutput', 'KillShell']);
+  });
+
+  it('omits --allowedTools for an empty array', () => {
+    expect(claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { allowedTools: [] } })).not.toContain('--allowedTools');
+  });
+
+  it('locks user settings with an empty --setting-sources and --disable-slash-commands, ignoring a requested list', () => {
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { nativeCapabilities: { userSettings: false }, settingSources: ['user'], capabilities: { settingSources: true } } });
+    expect(args.slice(args.indexOf('--setting-sources'))).toEqual(['--setting-sources', '', '--disable-slash-commands']);
+  });
+
+  it('honors host-scoped options.capabilities over the cached probe', () => {
+    agentCapabilities.set('claude', { partialMessages: true });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { options: { capabilities: { effort: true }, reasoning: 'high' } });
+    expect(args).not.toContain('--include-partial-messages');
+    expect(args).toContain('--effort');
+  });
+
   it('can emit both --disallowedTools and --allowedTools in the same call', () => {
-    const args = claudeAgentDef.buildArgs('hi', [], [], { disallowedTools: ['Bash'], allowedTools: ['Read'] });
+    const args = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { disallowedTools: ['Bash'], allowedTools: ['Read'] } });
     expect(args).toContain('--disallowedTools');
     expect(args).toContain('--allowedTools');
   });
@@ -292,7 +347,7 @@ describe('claudeAgentDef.fetchModels', () => {
 
   const noRoutes = () => ({ HOME: dir, MMD_MODEL_ROUTES_FILE: path.join(dir, 'no-routes.json') });
 
-  it('unions the CLI picker catalog into the static list with NO credential (subscription-only install)', async () => {
+  it('returns only the CLI picker catalog with NO credential (subscription-only install)', async () => {
     setClaudeCodeModelIoForTesting(cliAnswering([
       { value: 'opus[1m]', resolvedModel: 'claude-opus-5-5[1m]', displayName: 'Opus (1M context)' },
       { value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet' },
@@ -300,11 +355,12 @@ describe('claudeAgentDef.fetchModels', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
       throw new Error('no network call should have been attempted');
     });
-    const result = await claudeAgentDef.fetchModels!('claude', noRoutes());
+    const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() });
     const ids = result!.map((m) => m.id);
-    // Static list fully present, first, in its own order — never shrunk, never reordered.
-    expect(ids.slice(0, claudeAgentDef.fallbackModels.length)).toEqual(claudeAgentDef.fallbackModels.map((m) => m.id));
-    expect(ids).toContain('claude-opus-5-5');
+    // Owner decision 2026-10-06: packaged fallback rows are offline-only and are never unioned
+    // into a live answer, so a model the CLI no longer lists cannot reappear.
+    expect(ids).toEqual(['opus', 'claude-opus-5-5', 'sonnet', 'claude-sonnet-5']);
+    expect(ids).not.toContain('fable');
     expect(new Set(ids).size).toBe(ids.length);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -320,8 +376,8 @@ describe('claudeAgentDef.fetchModels', () => {
       runInitialize: async () => null,
       readConfigFile: async (p) => (await import('node:fs/promises')).readFile(p, 'utf8').catch(() => null),
     });
-    const result = await claudeAgentDef.fetchModels!('claude', noRoutes());
-    expect(result!.map((m) => m.id)).toEqual([...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-fable-6']);
+    const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() });
+    expect(result!.map((m) => m.id)).toEqual(['claude-fable-6']);
   });
 
   it('returns null (static list renders) when the CLI and a malformed ~/.claude.json both give nothing', async () => {
@@ -330,27 +386,25 @@ describe('claudeAgentDef.fetchModels', () => {
       runInitialize: async () => 'error: unknown option\n',
       readConfigFile: async (p) => (await import('node:fs/promises')).readFile(p, 'utf8').catch(() => null),
     });
-    await expect(claudeAgentDef.fetchModels!('claude', noRoutes())).resolves.toBeNull();
+    await expect(claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: noRoutes() })).resolves.toBeNull();
   });
 
-  it('keeps the BYOK path when the CLI step finds nothing, and unions both when both answer', async () => {
+  it('keeps the BYOK path when the CLI step finds nothing, and unions both live sources when both answer', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
       JSON.stringify({ data: [{ id: 'claude-api-only-1', display_name: 'API only', type: 'model' }] }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ) as unknown as Response);
-    const byokOnly = await claudeAgentDef.fetchModels!('claude', { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' });
-    expect(byokOnly!.map((m) => m.id)).toEqual([...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-api-only-1']);
+    const byokOnly = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' } });
+    expect(byokOnly!.map((m) => m.id)).toEqual(['claude-api-only-1']);
 
     resetAnthropicLiveModelCacheForTesting();
     setClaudeCodeModelIoForTesting(cliAnswering([{ value: 'claude-opus-5-5' }]));
-    const both = await claudeAgentDef.fetchModels!('claude', { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' });
-    expect(both!.map((m) => m.id)).toEqual([
-      ...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-opus-5-5', 'claude-api-only-1',
-    ]);
+    const both = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' } });
+    expect(both!.map((m) => m.id)).toEqual(['claude-opus-5-5', 'claude-api-only-1']);
   });
 
   it('falls back to null when no mmd routes file is resolvable (no HOME, no override)', async () => {
-    const result = await claudeAgentDef.fetchModels!('claude', {});
+    const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: {} });
     // With an empty env (no HOME, no MMD_MODEL_ROUTES_FILE), resolveMmdRoutesFile
     // falls back to the real OS homedir(), which normally exists on this dev
     // machine and won't have a mms/model-routes.json file, so this resolves to
@@ -358,7 +412,7 @@ describe('claudeAgentDef.fetchModels', () => {
     expect(result).toBeNull();
   });
 
-  it('merges live mmd route ids with the static fallback models when a valid routes file exists', async () => {
+  it('returns the mmd route ids without the static fallback models when a valid routes file exists', async () => {
     const routesFile = path.join(dir, 'model-routes.json');
     mkdirSync(dir, { recursive: true });
     writeFileSync(
@@ -370,17 +424,17 @@ describe('claudeAgentDef.fetchModels', () => {
       }),
       'utf8',
     );
-    const result = await claudeAgentDef.fetchModels!('claude', { MMD_MODEL_ROUTES_FILE: routesFile });
+    const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: { MMD_MODEL_ROUTES_FILE: routesFile } });
     expect(result).not.toBeNull();
     expect(result!.some((m) => m.id === 'my-routed-model')).toBe(true);
-    // Static fallback models still present alongside the routed id.
-    expect(result!.some((m) => m.id === 'sonnet')).toBe(true);
+    // Packaged fallback rows are offline-only; only the default sentinel accompanies the routes.
+    expect(result!.map((m) => m.id)).toEqual(['default', 'my-routed-model']);
   });
 
   it('returns null when the configured routes file does not exist', async () => {
-    const result = await claudeAgentDef.fetchModels!('claude', {
+    const result = await claudeAgentDef.fetchModels!({ resolvedBin: 'claude', env: {
       MMD_MODEL_ROUTES_FILE: path.join(dir, 'does-not-exist.json'),
-    });
+    } });
     expect(result).toBeNull();
   });
 });
@@ -408,7 +462,15 @@ describe('claudeAgentDef.fallbackModels — the list the picker actually renders
     // `~/.claude.json`'s server-fetched cache spells Fable `claude-fable-5-1[1m]`. Copying that
     // verbatim would put an id in the picker that the chat path then refuses.
     for (const model of claudeAgentDef.fallbackModels) {
-      expect(sanitizeCustomModel(model.id)).toBe(model.id);
+      expect(sanitizeCustomModel({ id: model.id })).toBe(model.id);
     }
+  });
+});
+
+describe('claudeAgentDef.discoverModels', () => {
+  it('falls back to the def\'s fallbackModels when every probe is offline', async () => {
+    const catalog = await claudeAgentDef.discoverModels({ context: discoveryContext }, { deps: offlineDiscoveryDeps() });
+    expect(catalog.freshness).toBe('offline-fallback');
+    expect(catalog.models.map((model) => model.id)).toContain('claude-opus-5-5');
   });
 });

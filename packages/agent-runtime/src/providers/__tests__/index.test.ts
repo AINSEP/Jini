@@ -6,7 +6,8 @@ describe('providers barrel', () => {
     expect(typeof providers.buildOpenAIChatTokenParam).toBe('function');
     expect(typeof providers.googleGenerateContentUrl).toBe('function');
     expect(typeof providers.aihubmixHeaders).toBe('function');
-    expect(typeof providers.isLoopbackApiHost).toBe('function');
+    // PARITY: runtime still exposes its validation/transport boundary after classifiers move.
+    expect(typeof providers.validateBaseUrl).toBe('function');
     expect(typeof providers.listProviderModels).toBe('function');
     expect(typeof providers.listElevenLabsVoiceOptions).toBe('function');
     expect(typeof providers.generateCodeVerifier).toBe('function');

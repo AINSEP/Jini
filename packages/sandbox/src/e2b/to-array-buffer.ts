@@ -13,6 +13,6 @@
 
 /** Returns a fresh `ArrayBuffer` containing exactly `bytes`' own range — safe even when `bytes`
  *  is a view with a non-zero `byteOffset` over a larger, shared `buffer`. */
-export function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+export function toArrayBuffer({ bytes }: { bytes: Uint8Array }): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }

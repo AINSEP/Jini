@@ -1,30 +1,14 @@
 /**
- * @jini-ai/chat-react — headless hooks + presentational components + slots for
- * a chat/artifact frontend, built on `@jini-ai/chat/core`'s framework-free
- * vocabulary. See ADS-memory/reports/jini-port/recon/r4b-webui-design.md §1/§2/§4 for the
- * spec this package implements, and source-map.md for provenance.
- *
- * This barrel is filled in incrementally as each layer lands (hooks first,
- * then presentational components, then the `<JiniChatProvider>` composition
- * root) — see source-map.md's "Status" section for what's shipped so far.
- *
- * ## Every export here is explicit. Do not reintroduce `export *`.
- *
- * This file used 15 `export * from` statements until 2026-08-05. That made the package's public
- * API *implicit*: whatever any of those modules happened to export was public, so renaming an
- * internal helper shipped a breaking change nobody reviewed, and no one could read this file and
- * say what the package exports. It is also the likeliest reason consumers reach past this barrel
- * into `@jini-ai/chat/core` deep paths — a grab-bag invites bypassing.
- *
- * The expansion was mechanical and provably surface-preserving: 193 symbols before and after,
- * identical in name AND in value-vs-type kind. `features/chat-pane/index.ts` is the style model.
- *
- * When adding an export, add the name here deliberately. That edit IS the API review.
+ * @jini-ai/chat/react — headless hooks, presentational components and slots over framework-free
+ * chat/core vocabulary. Every export is explicit: adding or renaming a name here is a public API
+ * review, so internal module exports cannot silently become public. Do not use export *.
  */
-// The `ChatTransport` port moved to `@jini-ai/chat/core` on 2026-07-29 (it is pure types over
-// `AbortSignal`, so a non-React host should not need this package to name the seam it implements).
-// Re-exported here so every existing `import { ChatTransport } from '@jini-ai/chat-react'` keeps
-// working; new code should import it from `@jini-ai/chat/core` directly.
+export { ChatSettingsDialog } from './components/ChatSettingsDialog.js';
+export { ChatSettingsSegmented } from './components/ChatSettingsSegmented.js';
+export { useChatSettingsDialog } from './components/ChatSettingsDialog.hooks.js';
+export type { ChatPermissionsPort, ChatSettingsSection } from './components/ChatSettingsDialog.hooks.js';
+// ChatTransport is a framework-free port owned by chat/core. This compatibility re-export
+// preserves existing imports; new hosts should import the port from chat/core directly.
 export type {
   ChatTransport,
   FeedbackChange,
@@ -33,6 +17,7 @@ export type {
   RunContext,
   RunHandlers,
   StartRunInput,
+  UserTextRedaction,
 } from '../core/index.js';
 export {
   RendererRegistry,
@@ -64,21 +49,28 @@ export type {
   ProjectContextValue,
 } from './slots.js';
 export {
+  createToolRendererRegistry,
   clearToolRenderers,
   getToolRenderer,
   registerToolRenderer,
 } from './tool-renderer-registry.js';
 export type {
+  ToolRendererRegistry,
   ToolRenderer,
 } from './tool-renderer-registry.js';
 export {
+  createExtEventRendererRegistry,
   clearExtEventRenderers,
+  extEventSlot,
   getExtEventRenderer,
   registerExtEventRenderer,
 } from './ext-event-renderer-registry.js';
 export type {
+  ExtEventRendererRegistry,
   ExtEventRenderProps,
   ExtEventRenderer,
+  ExtEventRendererOptions,
+  ExtEventSlotKey,
 } from './ext-event-renderer-registry.js';
 
 // `features/model-picker/` (REF-001 Step B, 2026-08-05): NOT re-exported here. It was, on the
@@ -94,11 +86,11 @@ export type {
 // this package's re-export. See ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md
 // §2.4 for the full trace and §9 for the re-confirmation against the post-BYOK tree.
 //
-// The feature itself is not deleted — `./features/model-picker/index.js` still exists and still
-// works for anything inside this package that wants it (nothing currently does). This removes only
-// the root barrel's re-export of it. A future consumer that genuinely needs it gets a real ADR-worthy
-// decision (its own subpath, most likely, following Step C's pattern) instead of a standing
-// "just in case" export nobody asked for.
+// The unused feature was deleted on 2026-10-02 after re-confirming that no import or export
+// outside its own tests reached it. Model/provider selection belongs to the host-injected
+// `ModelAgentPickerSlot`, not chat's domain. A future standalone picker needs a real consumer
+// and an explicit API decision (its own subpath, most likely, following Step C's pattern)
+// instead of a standing "just in case" export nobody asked for.
 /**
  * @deprecated REF-001 Step C (2026-08-05): `ChatPane` and its companions moved to their own
  * subpath, `@jini-ai/chat/react/chat-pane` — import from there in new code. Re-exported here,
@@ -112,6 +104,8 @@ export {
   ChatPane,
   createDaemonAttachmentUploader,
   createMcpUiToolCaller,
+  createMidRunMessagePoster,
+  createTypedAnswerPoster,
   defaultChatPaneSelection,
   orderChatPaneAgents,
   resolveChatPaneSelection,
@@ -143,8 +137,15 @@ export type {
   ChatPaneWorkingDirectoryAccess,
   CreateDaemonAttachmentUploaderOptions,
   CreateMcpUiToolCallerOptions,
+  CreateMidRunMessagePosterOptions,
+  CreateTypedAnswerPosterOptions,
+  DeliverMidRunMessage,
+  DeliverTypedAnswer,
   McpUiToolCallRequest,
+  MidRunMessageDelivery,
   RuntimePickerPlacement,
+  TypedAnswerDelivery,
+  TypedAnswerNotice,
   UseChatPaneAgentControlOptions,
   UseChatPaneOptions,
   UseChatPaneResult,
@@ -176,6 +177,7 @@ export {
 } from './hooks/useComposer.js';
 export type {
   ComposerDraftPersistence,
+  ComposerPageLifecycle,
   MentionPopoverState,
   UseComposerOptions,
   UseComposerResult,
@@ -194,6 +196,13 @@ export {
 export type {
   ExtEventGroup,
 } from './hooks/useExtEventGroups.js';
+export {
+  SYSTEM_SURFACE_EXPIRY_CLOCK,
+  useSurfaceExpiry,
+} from './hooks/useSurfaceExpiry.js';
+export type {
+  SurfaceExpiryClock,
+} from './hooks/useSurfaceExpiry.js';
 export {
   usePinnedTodos,
 } from './hooks/usePinnedTodos.js';
@@ -286,17 +295,29 @@ export { appendComposerDiscovery } from './components/composer-discovery.js';
  */
 export { interleaveMessageBlocks } from './message-blocks.js';
 export type { MessageBlock } from './message-blocks.js';
+/** Transcript display modes for tool calls (`ChatPaneProps.toolCallDisplay`, 2026-10-11) — public so
+ * a custom message row can apply the same show / collapsed / hidden rules to its own blocks. */
+export { applyToolCallDisplay, isFailedToolRow, summarizeToolGroup, toolGroupLabel, toolRowsForDisplay } from './tool-call-display.js';
+export type { ToolCallDisplay, ToolDisplayRow, ToolGroupSummary } from './tool-call-display.js';
 
 export { TodoCard } from './components/TodoCard.js';
 export type { TodoCardProps } from './components/TodoCard.js';
 /**
  * The conversation switcher — new / select / delete / search / rename-on-double-click. Storage
- * agnostic: it takes data plus callbacks, so a host backs it with `@jini-ai/sqlite`'s
+ * agnostic: it takes data plus callbacks, so a host backs it with `@jini-ai/sqlite-chat`'s
  * `ChatHistoryStore`, an HTTP endpoint, or a plain array. Drop it into `ChatPane`'s
  * `leadingAccessory` slot; it needs no changes to `ChatPane` itself.
  */
 export { ConversationList } from './components/ConversationList.js';
+export { ConversationTitle, ConversationTitleEditor } from './components/ConversationTitleEditor.js';
+export type { ConversationTitleProps, ConversationTitleEditorProps } from './components/ConversationTitleEditor.js';
 export type { ConversationListProps, ConversationListItem } from './components/ConversationList.js';
+/**
+ * The conversation an operator last had open, per caller identity — so a host's switcher lands
+ * back on it after a reload instead of an empty new chat. See the module doc for the contract.
+ */
+export { createLastConversationStore, LAST_CONVERSATION_STORAGE_PREFIX } from './hooks/last-conversation-store.js';
+export type { LastConversationStorage, LastConversationStore } from './hooks/last-conversation-store.js';
 export { ToolCard } from './components/ToolCard.js';
 export type { ToolCardProps } from './components/ToolCard.js';
 export { A2uiSurfaceCard } from './components/A2uiSurfaceCard.js';
@@ -308,8 +329,10 @@ export type { A2uiAgentActionOutcome, A2uiSurfaceCardProps } from './components/
  * doc) — the same `kind: 'ext'` extensibility seam as `A2uiSurfaceCard` above, just for MCP-UI
  * resources instead of A2UI surfaces.
  */
-export { McpUiSurfaceCard, registerMcpUiSurfaceRenderer, MCP_UI_EXT_EVENT_NAME } from './components/McpUiSurfaceCard.js';
+export { McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer, MCP_UI_EXT_EVENT_NAME } from './components/McpUiSurfaceCard.js';
 export type { McpUiSurfaceCardProps } from './components/McpUiSurfaceCard.js';
+/** A message sent mid-run (`ChatPane`'s `deliverMidRunMessage`), drawn as a user bubble inside the running turn. */
+export { MidRunUserMessage, midRunUserMessageSlotKey, registerMidRunUserMessageRenderer, MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './components/MidRunUserMessage.js';
 export { ExtEventErrorBoundary } from './components/ExtEventErrorBoundary.js';
 export type { ExtEventErrorBoundaryProps } from './components/ExtEventErrorBoundary.js';
 export { QuestionForm } from './components/QuestionForm.js';
@@ -345,6 +368,23 @@ export type { JiniChatProviderProps, JiniChatSlots } from './components/JiniChat
 export { createFrontendSessionBridge } from './agent-bridge/frontend-session-bridge.js';
 export type {
   FrontendSessionBridge,
+  FrontendSessionBridgeArgs,
   FrontendSessionBridgeOptions,
 } from './agent-bridge/frontend-session-bridge.js';
 export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from '@jini-ai/agentic/dom';
+
+export { createBrowserComposerHistoryStorage } from './hooks/composer-history-storage.js';
+export type { ComposerHistoryStoragePort } from '../core/composer-history.js';
+
+// ChatPane consumers share the same redaction and draft/preview state owners.
+export { SECRET_REDACTED_NOTICE, redactUserText } from '../core/user-text-redaction.js';
+export type { UserTextRedactionOptions } from '../core/user-text-redaction.js';
+export { useUserTextGuard } from './hooks/useUserTextGuard.js';
+export { cacheAttachmentPreviewSource } from './hooks/attachment-preview-cache.js';
+export { readCachedAttachmentBatchId, writeCachedAttachmentBatchId } from './hooks/composer-draft-cache.js';
+
+export { createAssistantChatsClient } from "./hooks/assistant-chats.js";
+export type { AssistantChatsPort, AssistantChatsClientPorts, AssistantChatsClient, UseAssistantChats } from "./hooks/assistant-chats-contracts.js";
+
+export { useFabPosition } from "./hooks/fab-position.js";
+export type { FabPositionInput, FabPositionResult } from "./hooks/fab-position.js";

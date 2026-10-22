@@ -8,19 +8,21 @@ import {
   createRoleGatedDeployPublishPolicy,
   denyAllDeployPublishPolicy,
 } from '../tool.js';
-import type { DeployPublishInput, DeployPublishResult, DeployTarget, DeploymentUrlCheck } from '../types.js';
+import type { DeployPublishInput, DeployPublishOptions, DeployPublishResult, DeployTarget, DeploymentUrlCheck } from '../types.js';
 
 class FakeDeployTarget implements DeployTarget {
   public lastInput: DeployPublishInput | undefined;
+  public lastOptions: DeployPublishOptions | undefined;
 
   constructor(readonly id: string) {}
 
-  async publish(input: DeployPublishInput): Promise<DeployPublishResult> {
+  async publish(input: DeployPublishInput, options?: DeployPublishOptions): Promise<DeployPublishResult> {
     this.lastInput = input;
+    this.lastOptions = options;
     return { targetId: this.id, url: `https://${input.projectName}.example`, status: 'ready' };
   }
 
-  async checkReachability(_url: string): Promise<DeploymentUrlCheck> {
+  async checkReachability(_args: { url: string }): Promise<DeploymentUrlCheck> {
     return { reachable: true, statusCode: 200 };
   }
 }
@@ -36,7 +38,7 @@ describe('denyAllDeployPublishPolicy', () => {
         principal: withRoles,
         run,
         tool: { id: DEPLOY_PUBLISH_TOOL_ID },
-        input: { targetId: 'vercel', files: [], projectName: 'demo' },
+        input: { targetId: 'target-a', files: [], projectName: 'demo' },
       }),
     ).toBe('deny');
     expect(
@@ -52,7 +54,7 @@ describe('denyAllDeployPublishPolicy', () => {
 
 describe('createRoleGatedDeployPublishPolicy', () => {
   it('denies a principal with no roles at all (undefined roles)', async () => {
-    const policy = createRoleGatedDeployPublishPolicy();
+    const policy = createRoleGatedDeployPublishPolicy({});
     const decision = await policy.authorize({
       principal: { id: 'user-1' },
       run,
@@ -63,7 +65,7 @@ describe('createRoleGatedDeployPublishPolicy', () => {
   });
 
   it('denies a principal with an explicitly empty roles array', async () => {
-    const policy = createRoleGatedDeployPublishPolicy();
+    const policy = createRoleGatedDeployPublishPolicy({});
     const decision = await policy.authorize({
       principal: { id: 'user-1', roles: [] },
       run,
@@ -74,7 +76,7 @@ describe('createRoleGatedDeployPublishPolicy', () => {
   });
 
   it('denies a principal whose roles do not include any allowed role', async () => {
-    const policy = createRoleGatedDeployPublishPolicy();
+    const policy = createRoleGatedDeployPublishPolicy({});
     const decision = await policy.authorize({
       principal: { id: 'user-1', roles: ['some-other-role'] },
       run,
@@ -85,7 +87,7 @@ describe('createRoleGatedDeployPublishPolicy', () => {
   });
 
   it('allows a principal carrying the default role', async () => {
-    const policy = createRoleGatedDeployPublishPolicy();
+    const policy = createRoleGatedDeployPublishPolicy({});
     const decision = await policy.authorize({
       principal: { id: 'user-1', roles: [DEFAULT_DEPLOY_PUBLISH_ROLE] },
       run,
@@ -96,7 +98,7 @@ describe('createRoleGatedDeployPublishPolicy', () => {
   });
 
   it('honors a caller-supplied allowedRoles list instead of the default', async () => {
-    const policy = createRoleGatedDeployPublishPolicy(['custom:deployer']);
+    const policy = createRoleGatedDeployPublishPolicy({}, { allowedRoles: ['custom:deployer'] });
     const deniedForDefault = await policy.authorize({
       principal: { id: 'user-1', roles: [DEFAULT_DEPLOY_PUBLISH_ROLE] },
       run,
@@ -131,13 +133,14 @@ describe('createDeployPublishToolRegistration', () => {
 
   it('uses a caller-supplied policy instead of the default when provided', () => {
     const customPolicy = { authorize: () => 'allow' as const };
-    const registration = createDeployPublishToolRegistration({ targets: [], policy: customPolicy });
+    const registration = createDeployPublishToolRegistration({ targets: [] }, { policy: customPolicy });
     expect(registration.policy).toBe(customPolicy);
   });
 
   it('forwards requiresConfirmation and timeoutMs onto the descriptor when supplied', () => {
     const registration = createDeployPublishToolRegistration({
       targets: [],
+    }, {
       requiresConfirmation: true,
       timeoutMs: 30_000,
     });
@@ -146,90 +149,122 @@ describe('createDeployPublishToolRegistration', () => {
   });
 
   it("handler dispatches to the matching bound DeployTarget's publish via publishDeploy", async () => {
-    const vercel = new FakeDeployTarget('vercel');
-    const cloudflare = new FakeDeployTarget('cloudflare-pages');
-    const registration = createDeployPublishToolRegistration({ targets: [vercel, cloudflare], policy: { authorize: () => 'allow' } });
+    const targetA = new FakeDeployTarget('target-a');
+    const targetB = new FakeDeployTarget('target-b');
+    const registration = createDeployPublishToolRegistration({ targets: [targetA, targetB] }, { policy: { authorize: () => 'allow' } });
 
     const ctx: ToolExecutionContext = {
       executionId: 'exec-1',
       principal: { id: 'user-1' },
       run,
-      input: { targetId: 'cloudflare-pages', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
+      input: { targetId: 'target-b', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
       signal: new AbortController().signal,
     };
     const result = await registration.handler(ctx);
 
-    expect(result).toEqual({ targetId: 'cloudflare-pages', url: 'https://demo.example', status: 'ready' });
-    expect(cloudflare.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
-    expect(vercel.lastInput).toBeUndefined();
+    expect(result).toEqual({ targetId: 'target-b', url: 'https://demo.example', status: 'ready' });
+    expect(targetB.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
+    expect(targetA.lastInput).toBeUndefined();
+  });
+
+  it('forwards tool-input metadata to the target as a publish option, never as part of the file input', async () => {
+    const target = new FakeDeployTarget('target-a');
+    const registration = createDeployPublishToolRegistration({ targets: [target] }, { policy: { authorize: () => 'allow' } });
+    const metadata = { runId: 'run-1', reviewer: 'ops' };
+
+    await registration.handler({
+      executionId: 'exec-2',
+      principal: { id: 'user-1' },
+      run,
+      input: { targetId: 'target-a', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo', metadata },
+      signal: new AbortController().signal,
+    });
+
+    expect(target.lastOptions).toEqual({ metadata });
+    expect(target.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
+  });
+
+  it('passes no metadata option when the tool input carries none', async () => {
+    const target = new FakeDeployTarget('target-a');
+    const registration = createDeployPublishToolRegistration({ targets: [target] }, { policy: { authorize: () => 'allow' } });
+
+    await registration.handler({
+      executionId: 'exec-3',
+      principal: { id: 'user-1' },
+      run,
+      input: { targetId: 'target-a', files: [], projectName: 'demo' },
+      signal: new AbortController().signal,
+    });
+
+    expect(target.lastOptions).toEqual({});
   });
 });
 
 describe('deploy.publish wired end-to-end through the real ToolExecutor', () => {
   it('denies an unauthorized principal under the default policy: the handler never runs and the audit trail stops at denied', async () => {
-    const target = new FakeDeployTarget('vercel');
-    const registry = createToolRegistry();
+    const target = new FakeDeployTarget('target-a');
+    const registry = createToolRegistry({});
     registry.register(createDeployPublishToolRegistration({ targets: [target] }));
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(
-      { id: 'anonymous-caller' },
+    const result = await executor.execute({
+      principal: { id: 'anonymous-caller' },
       run,
-      DEPLOY_PUBLISH_TOOL_ID,
-      { targetId: 'vercel', files: [], projectName: 'demo' },
-    );
+      toolId: DEPLOY_PUBLISH_TOOL_ID,
+      input: { targetId: 'target-a', files: [], projectName: 'demo' },
+    });
 
     expect(result.status).toBe('denied');
     expect(target.lastInput).toBeUndefined();
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'denied']);
   });
 
   it('still denies a principal with roles when no role matches an explicit allowlist policy', async () => {
-    const target = new FakeDeployTarget('vercel');
-    const registry = createToolRegistry();
+    const target = new FakeDeployTarget('target-a');
+    const registry = createToolRegistry({});
     registry.register(
-      createDeployPublishToolRegistration({ targets: [target], policy: createRoleGatedDeployPublishPolicy() }),
+      createDeployPublishToolRegistration({ targets: [target] }, { policy: createRoleGatedDeployPublishPolicy({}) }),
     );
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(
-      { id: 'user-1', roles: ['unrelated-role'] },
+    const result = await executor.execute({
+      principal: { id: 'user-1', roles: ['unrelated-role'] },
       run,
-      DEPLOY_PUBLISH_TOOL_ID,
-      { targetId: 'vercel', files: [], projectName: 'demo' },
-    );
+      toolId: DEPLOY_PUBLISH_TOOL_ID,
+      input: { targetId: 'target-a', files: [], projectName: 'demo' },
+    });
 
     expect(result.status).toBe('denied');
     expect(target.lastInput).toBeUndefined();
   });
 
   it('allows and completes a call from a principal holding the required role, recording a full audit trail', async () => {
-    const target = new FakeDeployTarget('vercel');
-    const registry = createToolRegistry();
+    const target = new FakeDeployTarget('target-a');
+    const registry = createToolRegistry({});
     registry.register(
-      createDeployPublishToolRegistration({ targets: [target], policy: createRoleGatedDeployPublishPolicy() }),
+      createDeployPublishToolRegistration({ targets: [target] }, { policy: createRoleGatedDeployPublishPolicy({}) }),
     );
     const executor = createToolExecutor({ registry });
 
-    const result = await executor.execute(
-      { id: 'operator-1', roles: [DEFAULT_DEPLOY_PUBLISH_ROLE] },
+    const result = await executor.execute({
+      principal: { id: 'operator-1', roles: [DEFAULT_DEPLOY_PUBLISH_ROLE] },
       run,
-      DEPLOY_PUBLISH_TOOL_ID,
-      { targetId: 'vercel', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
-    );
+      toolId: DEPLOY_PUBLISH_TOOL_ID,
+      input: { targetId: 'target-a', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
+    });
 
     expect(result.status).toBe('completed');
-    expect(result.output).toEqual({ targetId: 'vercel', url: 'https://demo.example', status: 'ready' });
+    expect(result.output).toEqual({ targetId: 'target-a', url: 'https://demo.example', status: 'ready' });
     expect(target.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
-    const audit = executor.getAuditRecord(result.executionId);
+    const audit = executor.getAuditRecord({ executionId: result.executionId });
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'completed']);
   });
 
   it('is unreachable except through ToolExecutor.execute: a route/agent holding only the ToolRegistry gets descriptors, never the handler or policy', () => {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     registry.register(createDeployPublishToolRegistration({ targets: [] }));
-    const descriptor = registry.list().find((d) => d.id === DEPLOY_PUBLISH_TOOL_ID);
+    const descriptor = registry.list({}).find((d) => d.id === DEPLOY_PUBLISH_TOOL_ID);
     expect(descriptor).toBeDefined();
     expect((descriptor as unknown as { handler?: unknown }).handler).toBeUndefined();
     expect((descriptor as unknown as { policy?: unknown }).policy).toBeUndefined();

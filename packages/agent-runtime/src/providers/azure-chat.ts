@@ -17,14 +17,14 @@
  * to `'2024-10-21'`, the default this repo's real OD predecessor used for
  * its own azure chat-completions proxy route (`apps/daemon/src/routes/
  * chat.ts`'s `[proxy:azure]` handler, confirmed by reading that file
- * directly in a sibling checkout — see `source-map.md`'s dated entry).
+ * directly in a sibling checkout — see `archived provenance ledger`'s dated entry).
  * That source additionally branches on whether `baseUrl` already contains
  * a versioned `/openai/v1` path (a newer Azure OpenAI API preview); that
  * branch is deliberately not carried forward here — this adapter targets
  * the one documented, stable URL/body shape per this task's approved scope
  * ("byte-identical to OpenAI, only URL/auth differ"). Its 400-retry
  * behavior IS carried forward (see "Token-limit fix" below) — round-4
- * external audit (`AUD-R4-001`) found the first port had dropped it,
+ * external audit found the first port had dropped it,
  * which fails every request against a GPT-5/o-series Azure deployment.
  *
  * **Auth**: `api-key: {apiKey}` header — NOT `Authorization: Bearer`,
@@ -70,9 +70,11 @@
  * follow-up (never interleaved — a real 400 otherwise), same per-image attribution label naming
  * the tool call it answers. See that module's doc for the full rationale; it is not repeated here
  * beyond this pointer to avoid the two copies drifting.
+ * See docs/decisions/DR-001-provider-native-tool-lifecycle.md.
  */
 import { defaultDnsLookup, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
-import { runOpenAiCompatibleRequest, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
+import { runOpenAiCompatibleRequest, refreshOpenAiTools, createStrictToolRetry, type StrictToolRetryState, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 
@@ -82,6 +84,7 @@ export interface AzureFunctionToolDef {
     readonly name: string;
     readonly description?: string;
     readonly parameters: Record<string, unknown>;
+    readonly strict?: boolean;
   };
 }
 
@@ -152,6 +155,9 @@ export interface AzureTurnOptions {
   readonly apiVersion?: string;
   readonly messages: readonly AzureMessageParam[];
   readonly tools?: readonly AzureFunctionToolDef[];
+  /** Refresh the run's projection immediately before each HTTP request. */
+  readonly getTools?: (options?: ProviderToolSnapshotOptions) => readonly AzureFunctionToolDef[];
+  readonly onSchemaFallback?: (event: ProviderSchemaFallback) => void;
   readonly temperature?: number;
   /** Defaults to 8192 when omitted or not a positive number — a token limit is always sent, matching OD's real `azure` proxy handler (see module doc). */
   readonly maxTokens?: number;
@@ -218,8 +224,9 @@ async function runSingleAzureRequest(
   messages: readonly AzureMessageParam[],
   emitEnd: (reason: AzureTurnEndReason) => void,
   hasEnded: () => boolean,
+  retry: StrictToolRetryState,
 ): Promise<OpenAiCompatibleRequestOutcome> {
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl, options.dnsLookup ?? defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved({ baseUrl: options.baseUrl, lookup: options.dnsLookup ?? defaultDnsLookup });
   if (baseUrlCheck.error) {
     options.onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
@@ -227,14 +234,20 @@ async function runSingleAzureRequest(
   }
 
   const maxTokens = effectiveAzureMaxTokens(options);
+  const requestOptions = refreshOpenAiTools({ options, retry });
 
-  return runOpenAiCompatibleRequest({
+  return (({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded, ...optionalArgs }: Parameters<typeof runOpenAiCompatibleRequest>[0] & NonNullable<Parameters<typeof runOpenAiCompatibleRequest>[1]>) => runOpenAiCompatibleRequest({ url, headers, body, redactSecretsList, guardMessageId, providerLabel, onEvent, emitEnd, hasEnded }, optionalArgs))({
     url: azureRequestUrl(options.baseUrl, options.model, options.apiVersion),
     headers: azureHeaders(options),
-    body: azureRequestBody(options, messages, buildLegacyMaxTokensParam(maxTokens)),
+    body: azureRequestBody(requestOptions, messages, buildLegacyMaxTokensParam({ maxTokens: maxTokens })),
+    retryToolBody: ({ status, rawErrorText, body }) => {
+      const toolNames = (requestOptions.tools ?? []).filter(tool => tool.function.strict).map(tool => tool.function.name);
+      if (!retry.downgrade({ status, rawErrorText, toolNames })) return null;
+      return { ...body, tools: refreshOpenAiTools({ options, retry }).tools };
+    },
     retryableBody: (status, rawErrorText) =>
-      status === 400 && isUnsupportedMaxTokensError(rawErrorText)
-        ? azureRequestBody(options, messages, buildMaxCompletionTokensParam(maxTokens))
+      status === 400 && isUnsupportedMaxTokensError({ detail: rawErrorText })
+        ? azureRequestBody(refreshOpenAiTools({ options, retry }), messages, buildMaxCompletionTokensParam({ maxTokens: maxTokens }))
         : null,
     ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
@@ -311,14 +324,14 @@ function splitAzureToolResultContent(content: string | readonly AzureContentPart
  * instead proceed to execute the pending tool calls — mirrors
  * `anthropic-messages.ts#anthropicLoopExitReason`'s pure decision/effect split.
  */
-export function azureLoopExitReason(outcome: OpenAiCompatibleRequestOutcome, toolTurns: number, maxToolTurns: number): AzureTurnEndReason | null {
+export function azureLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: OpenAiCompatibleRequestOutcome; toolTurns: number; maxToolTurns: number }): AzureTurnEndReason | null {
   if (outcome.finishReason !== 'tool_calls' || outcome.toolCalls.length === 0) return 'stop';
   if (toolTurns >= maxToolTurns) return 'max_tool_turns';
   return null;
 }
 
 /** Builds the assistant continuation's `tool_calls` field — same shape as `openai-chat.ts#buildOpenAiAssistantToolCallMessage`'s `tool_calls`, since Azure's wire body is byte-identical to plain OpenAI's (see module doc). */
-export function buildAzureAssistantToolCalls(toolCalls: readonly AzureToolCall[]): AzureToolCallParam[] {
+export function buildAzureAssistantToolCalls({ toolCalls }: { toolCalls: readonly AzureToolCall[] }): AzureToolCallParam[] {
   return toolCalls.map((call) => ({ id: call.id, type: 'function' as const, function: { name: call.name, arguments: JSON.stringify(call.input) } }));
 }
 
@@ -328,10 +341,7 @@ export interface AzureToolExecutionOutcome {
 }
 
 /** Azure counterpart of `openai-chat.ts#executeOpenAiToolCalls` — same split (text-only `tool` message plus one labeled-image follow-up per batch) and same per-batch assembly discipline; see that function's doc and module doc's "synthetic follow-up message" note for why. */
-export async function executeAzureToolCalls(
-  executeTool: AzureToolExecutor,
-  calls: readonly AzureToolCall[],
-  onEvent: (event: AzureTurnEvent) => void,
+export async function executeAzureToolCalls({ executeTool, calls, onEvent }: { executeTool: AzureToolExecutor; calls: readonly AzureToolCall[]; onEvent: (event: AzureTurnEvent) => void }
 ): Promise<AzureToolExecutionOutcome> {
   const toolResultMessages: AzureMessageParam[] = [];
   const followUpParts: AzureContentPart[] = [];
@@ -351,9 +361,7 @@ export async function executeAzureToolCalls(
 }
 
 /** Azure counterpart of `openai-chat.ts#buildOpenAiToolExchangeMessages` — appends the batch's `tool` messages plus, when present, the single labeled-image follow-up message. */
-export function buildAzureToolExchangeMessages(
-  toolResultMessages: readonly AzureMessageParam[],
-  followUpParts: readonly AzureContentPart[],
+export function buildAzureToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly AzureMessageParam[]; followUpParts: readonly AzureContentPart[] }
 ): AzureMessageParam[] {
   return [...toolResultMessages, ...(followUpParts.length > 0 ? [{ role: 'user' as const, content: followUpParts }] : [])];
 }
@@ -364,7 +372,9 @@ export function buildAzureToolExchangeMessages(
  * requests a function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s
  * doc for the shared event-stream/`ended`-flag contract this mirrors exactly.
  */
-export async function runAzureToolTurn(options: AzureTurnOptions): Promise<AzureTurnResult> {
+export async function runAzureToolTurn(requiredArgs: Pick<AzureTurnOptions, "apiKey" | "baseUrl" | "model" | "messages" | "onEvent">, optionalArgs: Omit<AzureTurnOptions, "apiKey" | "baseUrl" | "model" | "messages" | "onEvent"> = {}): Promise<AzureTurnResult> {
+  const options: AzureTurnOptions = { ...optionalArgs, ...requiredArgs };
+  const retry = createStrictToolRetry({ protocol: 'azure', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
   const executeTool = options.executeTool;
 
@@ -376,12 +386,12 @@ export async function runAzureToolTurn(options: AzureTurnOptions): Promise<Azure
   let lastFinishReason: string | null = null;
 
   while (true) {
-    const outcome = await runSingleAzureRequest(options, messages, emitEnd, endGuard.hasEnded);
+    const outcome = await runSingleAzureRequest(options, messages, emitEnd, endGuard.hasEnded, retry);
     lastFinishReason = outcome.finishReason;
 
     if (endGuard.hasEnded()) break;
 
-    const exitReason = azureLoopExitReason(outcome, toolTurns, maxToolTurns);
+    const exitReason = azureLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
     if (exitReason) {
       emitEnd(exitReason);
       break;
@@ -392,13 +402,13 @@ export async function runAzureToolTurn(options: AzureTurnOptions): Promise<Azure
     }
     toolTurns += 1;
 
-    const assistantToolCalls = buildAzureAssistantToolCalls(outcome.toolCalls);
-    const { toolResultMessages, followUpParts } = await executeAzureToolCalls(executeTool, outcome.toolCalls, options.onEvent);
+    const assistantToolCalls = buildAzureAssistantToolCalls({ toolCalls: outcome.toolCalls });
+    const { toolResultMessages, followUpParts } = await executeAzureToolCalls({ executeTool: executeTool, calls: outcome.toolCalls, onEvent: options.onEvent });
 
     messages = [
       ...messages,
       { role: 'assistant', content: outcome.text || null, tool_calls: assistantToolCalls },
-      ...buildAzureToolExchangeMessages(toolResultMessages, followUpParts),
+      ...buildAzureToolExchangeMessages({ toolResultMessages: toolResultMessages, followUpParts: followUpParts }),
     ];
   }
 

@@ -24,8 +24,7 @@ export interface EntryListPort {
    * `limit` are pushed down into the query itself (not applied client-side after a full scan) by
    * every real adapter — a caller needing a bounded, sorted read (e.g. a resolver's cost clamp)
    * must supply them rather than fetching everything and truncating in memory. */
-  listByWorkspace(params: {
-    workspaceId: string;
+  listByWorkspace(required: { workspaceId: string }, optional?: {
     type?: string | undefined;
     status?: EntryStatus | undefined;
     orderBy?: "updatedAt" | undefined;
@@ -41,10 +40,11 @@ export interface EntryListPort {
  * @overallScore 100
  */
 export async function listEntries(
-  required: { repo: EntryListPort; workspaceId: string; type?: string | undefined },
-  _optional: Record<string, never> = {}
+  required: { repo: EntryListPort; workspaceId: string },
+  optional: { type?: string | undefined } = {}
 ): Promise<{ items: EntryRecord[] }> {
-  const { repo, workspaceId, type } = required;
-  const items = await repo.listByWorkspace({ workspaceId, type });
+  const { repo, workspaceId } = required;
+  const { type } = optional;
+  const items = await repo.listByWorkspace({ workspaceId }, { type });
   return { items };
 }

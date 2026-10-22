@@ -66,7 +66,7 @@ function escapeToken(token: string): string {
 }
 
 /** Splits a non-root pointer into its unescaped reference tokens. `pointer` must start with `/`. */
-export function parsePointerTokens(pointer: string): string[] {
+export function parsePointerTokens({ pointer }: { pointer: string }, _optional: Record<string, never> = {}): string[] {
   if (pointer === '') return [];
   if (!pointer.startsWith('/')) {
     throw new Error(`invalid JSON Pointer (must start with "/"): ${JSON.stringify(pointer)}`);
@@ -74,40 +74,119 @@ export function parsePointerTokens(pointer: string): string[] {
   return pointer.slice(1).split('/').map(unescapeToken);
 }
 
-export function joinPointer(base: string, ...tokens: string[]): string {
-  const baseTokens = base === '' || base === '/' ? [] : parsePointerTokens(base);
+export function joinPointer({ base, tokens }: { base: string; tokens: string[] }, _optional: Record<string, never> = {}): string {
+  const baseTokens = isRootPointer(base) ? [] : parsePointerTokens({ pointer: base });
   return '/' + [...baseTokens, ...tokens].map(escapeToken).join('/');
 }
 
+/** The pointer's tokens, or `null` for a malformed pointer — the read and write paths both degrade on that instead of throwing. */
+function tryParsePointerTokens(pointer: string): string[] | null {
+  try {
+    return parsePointerTokens({ pointer });
+  } catch {
+    return null;
+  }
+}
+
+/** The array index `token` names, or `undefined` unless it is a canonical RFC 6901 index (`0`, or digits with no leading zero — never `-`, signs, exponents or whitespace). */
+function arrayIndexOf(token: string): number | undefined {
+  return /^(0|[1-9]\d*)$/.test(token) ? Number(token) : undefined;
+}
+
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function notFound(): PointerGetResult {
+  return { found: false, value: undefined };
+}
+
+/** One step of a read: the member `token` names in `current`, if `current` itself (never its prototype chain) has it. */
+function readMember(current: unknown, token: string): PointerGetResult {
+  if (Array.isArray(current)) {
+    const index = arrayIndexOf(token);
+    return index !== undefined && index < current.length ? { found: true, value: current[index] } : notFound();
+  }
+  return isObjectLike(current) && hasOwnToken(current, token) ? { found: true, value: current[token] } : notFound();
+}
+
 /** Reads the value at `pointer` in `doc`. Never throws on a non-resolving path — `found: false` degrades sanely, matching this port's "a bad binding must not crash the renderer" adversarial requirement (see `resolve.ts`). */
-export function getAtPointer(doc: unknown, pointer: string): PointerGetResult {
+export function getAtPointer({ doc, pointer }: { doc: unknown; pointer: string }, _optional: Record<string, never> = {}): PointerGetResult {
   if (isRootPointer(pointer)) return { found: true, value: doc };
 
-  let tokens: string[];
-  try {
-    tokens = parsePointerTokens(pointer);
-  } catch {
-    return { found: false, value: undefined };
-  }
+  const tokens = tryParsePointerTokens(pointer);
+  if (tokens === null) return notFound();
 
   let current: unknown = doc;
   for (const token of tokens) {
-    if (Array.isArray(current)) {
-      if (!/^(0|[1-9]\d*)$/.test(token)) return { found: false, value: undefined };
-      const index = Number(token);
-      if (index >= current.length) return { found: false, value: undefined };
-      current = current[index];
-      continue;
-    }
-    if (current !== null && typeof current === 'object') {
-      const record = current as Record<string, unknown>;
-      if (!hasOwnToken(record, token)) return { found: false, value: undefined };
-      current = record[token];
-      continue;
-    }
-    return { found: false, value: undefined };
+    const step = readMember(current, token);
+    if (!step.found) return step;
+    current = step.value;
   }
   return { found: true, value: current };
+}
+
+/** A shallow copy of `current` when it is an object, otherwise a fresh empty object to write into. */
+function copyRecord(current: unknown): Record<string, unknown> {
+  return isObjectLike(current) ? { ...current } : {};
+}
+
+/** The final write/delete into an array parent. A non-index token leaves the array untouched (same instance). */
+function writeArrayLeaf(array: unknown[], token: string, value: unknown): unknown[] {
+  const index = arrayIndexOf(token);
+  if (index === undefined) return array;
+  const next = array.slice();
+  // `splice` past the end removes nothing, so an out-of-range delete needs no guard of its own.
+  if (value === null) {
+    next.splice(index, 1);
+  } else {
+    next[index] = value;
+  }
+  return next;
+}
+
+/** The final write/delete into an object parent (a non-object parent is replaced by a fresh object). */
+function writeRecordLeaf(current: unknown, token: string, value: unknown): Record<string, unknown> {
+  const record = copyRecord(current);
+  if (value === null) {
+    delete record[token];
+  } else {
+    defineOwn(record, token, value);
+  }
+  return record;
+}
+
+/** The write's final segment and value, threaded unchanged through the path walk. */
+interface LeafWrite {
+  readonly token: string;
+  readonly value: unknown;
+}
+
+/** Returns a copy of `current` with `leaf` applied at `remaining` (the parent tokens still to walk). */
+function writePath(current: unknown, remaining: readonly string[], leaf: LeafWrite): unknown {
+  if (remaining.length === 0) {
+    // `current` here is the parent container; apply the final write/delete.
+    return Array.isArray(current) ? writeArrayLeaf(current, leaf.token, leaf.value) : writeRecordLeaf(current, leaf.token, leaf.value);
+  }
+  const [head, ...rest] = remaining as [string, ...string[]];
+  return Array.isArray(current) ? writeArrayBranch(current, head, rest, leaf) : writeRecordBranch(current, head, rest, leaf);
+}
+
+/** An intermediate array segment. A non-index token (the empty token included) leaves the array untouched. */
+function writeArrayBranch(array: unknown[], head: string, rest: readonly string[], leaf: LeafWrite): unknown[] {
+  const index = arrayIndexOf(head);
+  if (index === undefined) return array;
+  const next = array.slice();
+  next[index] = writePath(index < next.length ? next[index] : {}, rest, leaf);
+  return next;
+}
+
+/** An intermediate object segment. An empty-string token is a documented no-op (see the `"//x"` test): the copy is returned unwritten. */
+function writeRecordBranch(current: unknown, head: string, rest: readonly string[], leaf: LeafWrite): Record<string, unknown> {
+  const record = copyRecord(current);
+  if (!head) return record;
+  defineOwn(record, head, writePath(hasOwnToken(record, head) ? record[head] : {}, rest, leaf));
+  return record;
 }
 
 /**
@@ -128,54 +207,10 @@ export function getAtPointer(doc: unknown, pointer: string): PointerGetResult {
  * for the same class of bug — this is the specific root cause it would otherwise have had to
  * catch).
  */
-export function setAtPointer(doc: unknown, pointer: string, value: unknown): unknown {
+export function setAtPointer({ doc, pointer, value }: { doc: unknown; pointer: string; value: unknown }, _optional: Record<string, never> = {}): unknown {
   if (isRootPointer(pointer)) return value;
 
-  let tokens: string[];
-  try {
-    tokens = parsePointerTokens(pointer);
-  } catch {
-    return doc;
-  }
-  const parentTokens = tokens.slice(0, -1);
-  const lastToken = tokens[tokens.length - 1]!;
-
-  function recurse(current: unknown, remaining: string[]): unknown {
-    if (remaining.length === 0) {
-      // `current` here is the parent container; apply the final write/delete.
-      if (Array.isArray(current)) {
-        if (!/^(0|[1-9]\d*)$/.test(lastToken)) return current;
-        const index = Number(lastToken);
-        const next = current.slice();
-        if (value === null) {
-          if (index < next.length) next.splice(index, 1);
-          return next;
-        }
-        next[index] = value;
-        return next;
-      }
-      const record = current !== null && typeof current === 'object' ? { ...(current as Record<string, unknown>) } : {};
-      if (value === null) {
-        delete record[lastToken];
-        return record;
-      }
-      defineOwn(record, lastToken, value);
-      return record;
-    }
-
-    const [head, ...rest] = remaining;
-    if (Array.isArray(current)) {
-      if (!head || !/^(0|[1-9]\d*)$/.test(head)) return current;
-      const index = Number(head);
-      const next = current.slice();
-      next[index] = recurse(index < next.length ? next[index] : {}, rest);
-      return next;
-    }
-    const record = current !== null && typeof current === 'object' ? { ...(current as Record<string, unknown>) } : {};
-    if (!head) return record;
-    defineOwn(record, head, recurse(hasOwnToken(record, head) ? record[head] : {}, rest));
-    return record;
-  }
-
-  return recurse(doc, parentTokens);
+  const tokens = tryParsePointerTokens(pointer);
+  if (tokens === null) return doc;
+  return writePath(doc, tokens.slice(0, -1), { token: tokens[tokens.length - 1]!, value });
 }

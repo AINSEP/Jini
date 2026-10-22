@@ -7,7 +7,7 @@
  * and `packages/daemon/src/tool-executor.ts`). This file follows the same
  * `{descriptor, handler, policy}` shape `packages/daemon/src/
  * delegated-tool-bridge.ts` established for wiring an existing capability
- * into that boundary — see `source-map.md`'s "2026-07-21 addition" section
+ * into that boundary — see the archived extraction source map's "2026-07-21 addition" section
  * for the full design rationale, in particular why the default policy below
  * denies every call rather than allowing one.
  *
@@ -19,7 +19,7 @@
  */
 import type { ToolAuthorizationContext, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import { publishDeploy, type DeployPublishToolInput } from './tokens.js';
-import type { DeployPublishResult, DeployTarget } from './types.js';
+import type { DeployPublishResult, DeployTarget } from '../core/deploy-types.js';
 
 /** The `ToolRegistry` id this file registers `deploy.publish` under. */
 export const DEPLOY_PUBLISH_TOOL_ID = 'deploy.publish';
@@ -44,9 +44,9 @@ export const DEFAULT_DEPLOY_PUBLISH_ROLE = 'deploy:publish';
  * Why deny-by-default specifically (not e.g. "allow same-principal-as-run"
  * or some other partial default): `deploy.publish` is the one tool in this
  * codebase that reaches real external infrastructure under the caller's own
- * cloud account — a successful call spends the operator's Vercel/Cloudflare
- * quota, publishes content to a public, internet-reachable URL, and (for
- * Cloudflare custom domains) can create real DNS records. Unlike most tool
+ * cloud account — a successful call spends the operator's hosting-provider
+ * quota, publishes content to a public, internet-reachable URL, and (for a
+ * target that manages custom domains) can create real DNS records. Unlike most tool
  * calls, a wrongly-allowed `deploy.publish` is not cheaply reversible and
  * has an externally visible blast radius. That is a strictly stronger case
  * for deny-by-default than `@jini-ai/media`'s `DEFAULT_MEDIA_EXECUTION_POLICY`
@@ -78,7 +78,8 @@ export const denyAllDeployPublishPolicy: ToolPolicy = {
  * @overallScore 100/100
  */
 export function createRoleGatedDeployPublishPolicy(
-  allowedRoles: readonly string[] = [DEFAULT_DEPLOY_PUBLISH_ROLE],
+  _requiredArgs: Record<string, never>,
+  { allowedRoles = [DEFAULT_DEPLOY_PUBLISH_ROLE] }: { allowedRoles?: readonly string[] } = {},
 ): ToolPolicy {
   return {
     authorize(ctx: ToolAuthorizationContext) {
@@ -89,9 +90,12 @@ export function createRoleGatedDeployPublishPolicy(
   };
 }
 
-export interface CreateDeployPublishToolRegistrationOptions {
+export interface CreateDeployPublishToolRegistrationArgs {
   /** Every bound `DeployTarget` the resulting tool call may dispatch to — typically `c.getMany(DeployTargetToken)`. */
   readonly targets: readonly DeployTarget[];
+}
+
+export interface CreateDeployPublishToolRegistrationOptions {
   /** Defaults to {@link denyAllDeployPublishPolicy} — see its doc comment for why a permissive default was rejected. */
   readonly policy?: ToolPolicy;
   /** Forwarded to `ToolDescriptor.requiresConfirmation` — an extra transport-level "are you sure" gate `ToolExecutor` applies after authorization. Omitted (not forced `true`) because this file already denies by default; a host layering its own confirmation UI on top opts in explicitly. */
@@ -113,21 +117,21 @@ export interface CreateDeployPublishToolRegistrationOptions {
  * `timeoutMs`/external cancellation still aborts the *call* from the
  * executor's perspective (the audit trail records `timed-out`/`cancelled`),
  * it just cannot interrupt an in-flight HTTP request inside a target's own
- * `publish` implementation — flagged as a follow-up in `source-map.md`
+ * `publish` implementation — flagged as a follow-up in the archived extraction source map
  * rather than silently assumed away.
  *
  * @complexity O(1) to build the registration; the handler's own cost is `publishDeploy`'s (O(targets) dispatch plus the matched target's `publish`).
  * @overallScore 100/100
  */
 export function createDeployPublishToolRegistration(
-  options: CreateDeployPublishToolRegistrationOptions,
+  { targets }: CreateDeployPublishToolRegistrationArgs,
+  { policy = denyAllDeployPublishPolicy, requiresConfirmation, timeoutMs }: CreateDeployPublishToolRegistrationOptions = {},
 ): ToolRegistration {
-  const { targets, policy = denyAllDeployPublishPolicy, requiresConfirmation, timeoutMs } = options;
 
   return {
     descriptor: {
       id: DEPLOY_PUBLISH_TOOL_ID,
-      description: 'Publishes a file set to a bound deploy target (e.g. Vercel, Cloudflare Pages, Netlify, GitHub Pages).',
+      description: 'Publishes a file set to a bound deploy target (a hosting provider the host registered).',
       ...(requiresConfirmation !== undefined ? { requiresConfirmation } : {}),
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     },
@@ -141,8 +145,8 @@ export function createDeployPublishToolRegistration(
       // is introduced here; `publishDeploy`/the matched `DeployTarget`
       // already reject a malformed `targetId`/`files`/`projectName` on
       // their own terms (e.g. `DeployError` for an unknown target).
-      const input = ctx.input as DeployPublishToolInput;
-      return publishDeploy(input, targets);
+      const { metadata, ...input } = ctx.input as DeployPublishToolInput;
+      return publishDeploy({ ...input, targets }, metadata === undefined ? {} : { metadata });
     },
   };
 }

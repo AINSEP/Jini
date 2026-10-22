@@ -7,7 +7,7 @@
  * decoupled from it: a host's transport adapter is responsible for reducing
  * wire deltas (`text_delta`, `thinking_delta`, `tool_input_delta`, ...) into
  * the persisted/renderable `AgentEvent` items below before handing them to
- * chat-core's pure helpers. See source-map.md for the provenance of this
+ * chat-core's pure helpers. See archived provenance ledger for the provenance of this
  * split and why chat-core does not itself depend on `@jini-ai/protocol`.
  */
 
@@ -32,7 +32,14 @@ export type ToolResultMediaBlock =
  * through the same envelope without this package knowing about them.
  */
 export type AgentEvent =
-  | { kind: 'status'; label: string; detail?: string; code?: string }
+  | {
+      kind: 'status';
+      label: string;
+      detail?: string;
+      code?: string;
+      /** Structured fields for a coded status (e.g. `api_retry`'s attempt numbers). See `run-activity.ts`. */
+      data?: Readonly<Record<string, string | number>>;
+    }
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string }
   | { kind: 'tool_use'; id: string; name: string; input: unknown }
@@ -50,6 +57,9 @@ export type AgentEvent =
       inputTokens?: number;
       outputTokens?: number;
       costUsd?: number;
+      /** CLI session snapshot, persisted in events_json; reconciled across turns before display. */
+      cumulativeCostUsd?: number;
+      costSessionId?: string;
       durationMs?: number;
       stopReason?: string;
     }

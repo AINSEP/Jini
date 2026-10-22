@@ -73,15 +73,43 @@ interface StoredDraft {
   readonly d: string;
 }
 
-/** The attachment entry's stored shape; `a` holds plain references, never file bytes. */
+/**
+ * The attachment entry's stored shape; `a` holds plain references, never file bytes. `b` is the
+ * upload batch those references were uploaded under (see {@link readCachedAttachmentBatchId}).
+ * Optional so entries written before it existed still restore — they just carry no batch.
+ */
 interface StoredAttachments {
   readonly v: 1;
   readonly t: number;
   readonly a: readonly ChatAttachment[];
+  readonly b?: string;
+}
+
+/** What one stored attachment entry decodes to. */
+interface StoredStagedAttachments {
+  readonly attachments: readonly ChatAttachment[];
+  readonly batchId: string | null;
 }
 
 const drafts = new Map<string, string>();
 const stagedAttachments = new Map<string, readonly ChatAttachment[]>();
+// Kept beside `stagedAttachments` rather than inside it so `writeCachedAttachments` keeps its
+// attachments-only signature: `useComposer` persists the list and never sees a batch id, while
+// `useChatPane` (the one caller that uploads in batches) records the batch here.
+const stagedBatchIds = new Map<string, string>();
+
+/**
+ * Sets `key` in one of the in-memory tiers, evicting the oldest-inserted entry first if this would
+ * introduce a new key past {@link MAX_CACHED_CONVERSATION_DRAFTS}.
+ * @complexity Time/space: O(1) amortized.
+ */
+function setBounded<V>(map: Map<string, V>, { key, value }: { key: string; value: V }): void {
+  if (!map.has(key) && map.size >= MAX_CACHED_CONVERSATION_DRAFTS) {
+    // `size >= MAX_CACHED_CONVERSATION_DRAFTS > 0`, so there is always a first key to evict.
+    map.delete(map.keys().next().value!);
+  }
+  map.set(key, value);
+}
 
 /**
  * The origin's `localStorage`, or `null` when it cannot be used.
@@ -100,30 +128,26 @@ function storage(): Storage | null {
 }
 
 /**
- * Reads and validates the stored draft for `conversationId`.
+ * Reads the entry at `prefix + conversationId` and hands its parsed JSON to `decode`.
  *
- * Anything that does not parse as this module's own envelope is treated as foreign or corrupt and
- * deleted rather than returned — a stale format, another tool writing under a colliding key, or a
- * truncated write must not surface as composer text.
+ * Anything `decode` rejects (returns `null` for) is treated as foreign or corrupt and deleted rather
+ * than returned — a stale format, another tool writing under a colliding key, or a truncated write
+ * must not surface as composer state.
  *
- * @returns The stored draft, or `null` when there is none, storage is unavailable, or the entry
+ * @returns The decoded value, or `null` when there is no entry, storage is unavailable, or the entry
  * failed validation.
- * @complexity Time/space: O(n) in the stored draft's length (the JSON parse).
+ * @complexity Time/space: O(n) in the stored entry's length (the JSON parse) plus `decode`.
  */
-function readStoredDraft(conversationId: string): string | null {
+function readStoredEnvelope<T>(prefix: string, { conversationId, decode }: { conversationId: string; decode: (parsed: unknown) => T | null }): T | null {
   const store = storage();
   if (!store) return null;
-  const key = `${COMPOSER_DRAFT_STORAGE_PREFIX}${conversationId}`;
+  const key = `${prefix}${conversationId}`;
   try {
     const raw = store.getItem(key);
     if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    const draft = (parsed as StoredDraft | null)?.d;
-    if (typeof draft !== 'string' || draft === '') {
-      store.removeItem(key);
-      return null;
-    }
-    return draft;
+    const decoded = decode(JSON.parse(raw));
+    if (decoded === null) store.removeItem(key);
+    return decoded;
   } catch {
     // A parse failure leaves the bad entry behind on purpose when `removeItem` is what threw —
     // there is nothing further this module can do, and memory-only is still a working composer.
@@ -134,6 +158,24 @@ function readStoredDraft(conversationId: string): string | null {
     }
     return null;
   }
+}
+
+/**
+ * Validates a parsed draft envelope.
+ * @returns Its draft, or `null` when it is not this module's envelope or holds a blank draft.
+ * @complexity Time/space: O(1).
+ */
+function decodeStoredDraft(parsed: unknown): string | null {
+  const draft = (parsed as StoredDraft | null)?.d;
+  return typeof draft === 'string' && draft !== '' ? draft : null;
+}
+
+/**
+ * Reads and validates the stored draft for `conversationId`; see {@link readStoredEnvelope}.
+ * @complexity Time/space: O(n) in the stored draft's length (the JSON parse).
+ */
+function readStoredDraft(conversationId: string): string | null {
+  return readStoredEnvelope(COMPOSER_DRAFT_STORAGE_PREFIX, { conversationId, decode: decodeStoredDraft });
 }
 
 /**
@@ -151,19 +193,7 @@ function pruneStored(prefix: string, keep: number): void {
   const store = storage();
   if (!store) return;
   try {
-    const entries: { key: string; at: number }[] = [];
-    for (let i = 0; i < store.length; i += 1) {
-      const key = store.key(i);
-      if (key === null || !key.startsWith(prefix)) continue;
-      let at = 0;
-      try {
-        const parsed = JSON.parse(store.getItem(key) ?? '') as { t?: unknown } | null;
-        at = typeof parsed?.t === 'number' ? parsed.t : 0;
-      } catch {
-        at = 0;
-      }
-      entries.push({ key, at });
-    }
+    const entries = storedEntries(store, { prefix });
     if (entries.length <= keep) return;
     entries.sort((a, b) => a.at - b.at);
     for (const entry of entries.slice(0, entries.length - keep)) store.removeItem(entry.key);
@@ -173,28 +203,68 @@ function pruneStored(prefix: string, keep: number): void {
 }
 
 /**
- * Writes or removes the stored copy for `conversationId`.
- *
- * @param draft A blank draft removes the entry. A quota rejection is swallowed: the in-memory tier
- * has already accepted the draft, so the composer keeps working and only reload-survival is lost.
- * @complexity Time O(n) in the draft's length, plus a prune (see {@link pruneStored}) only
- * when this introduces a new key at the cap. Space O(n) in the draft's length.
+ * Every stored key under `prefix`, with its envelope's write timestamp (`0` when the envelope does
+ * not parse or carries none).
+ * @complexity Time/space: O(n) in the number of stored keys.
  */
-function writeStoredDraft(conversationId: string, draft: string): void {
+function storedEntries(store: Storage, { prefix }: { prefix: string }): { key: string; at: number }[] {
+  const entries: { key: string; at: number }[] = [];
+  for (let i = 0; i < store.length; i += 1) {
+    const key = store.key(i);
+    if (key?.startsWith(prefix)) entries.push({ key, at: storedTimestamp(store, { key }) });
+  }
+  return entries;
+}
+
+/**
+ * The write timestamp of the envelope at `key`, or `0` when it cannot be read or parsed.
+ * @complexity Time/space: O(n) in the stored entry's length.
+ */
+function storedTimestamp(store: Storage, { key }: { key: string }): number {
+  try {
+    // `String(null)` is `'null'`, which parses to `null` and so reads as timestamp `0` — the same
+    // answer a missing entry got before, without a branch for a key `store.key` just returned.
+    const parsed = JSON.parse(String(store.getItem(key))) as { t?: unknown } | null;
+    return typeof parsed?.t === 'number' ? parsed.t : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Writes or removes the stored entry at `prefix + conversationId`.
+ *
+ * @param envelope `null` removes the entry. A quota rejection is swallowed: the in-memory tier
+ * has already accepted the value, so the composer keeps working and only reload-survival is lost.
+ * @complexity Time O(n) in the envelope's size, plus a prune (see {@link pruneStored}) only
+ * when this introduces a new key at the cap. Space O(n) in the envelope's size.
+ */
+function writeStoredEnvelope(prefix: string, { conversationId, envelope }: { conversationId: string; envelope: StoredDraft | StoredAttachments | null }): void {
   const store = storage();
   if (!store) return;
-  const key = `${COMPOSER_DRAFT_STORAGE_PREFIX}${conversationId}`;
+  const key = `${prefix}${conversationId}`;
   try {
-    if (draft === '') {
+    if (envelope === null) {
       store.removeItem(key);
       return;
     }
-    if (store.getItem(key) === null) pruneStored(COMPOSER_DRAFT_STORAGE_PREFIX, MAX_CACHED_CONVERSATION_DRAFTS - 1);
-    const envelope: StoredDraft = { v: 1, t: Date.now(), d: draft };
+    if (store.getItem(key) === null) pruneStored(prefix, MAX_CACHED_CONVERSATION_DRAFTS - 1);
     store.setItem(key, JSON.stringify(envelope));
   } catch {
     /* blocked, full, or unusable storage — memory-only is the documented degraded mode */
+    /* (on a removal: blocked storage; the in-memory tier is already correct) */
   }
+}
+
+/**
+ * Writes or removes the stored copy for `conversationId`.
+ *
+ * @param draft A blank draft removes the entry; see {@link writeStoredEnvelope}.
+ * @complexity Time O(n) in the draft's length; see {@link writeStoredEnvelope}.
+ */
+function writeStoredDraft(conversationId: string, draft: string): void {
+  const envelope: StoredDraft | null = draft === '' ? null : { v: 1, t: Date.now(), d: draft };
+  writeStoredEnvelope(COMPOSER_DRAFT_STORAGE_PREFIX, { conversationId, envelope });
 }
 
 /**
@@ -203,11 +273,7 @@ function writeStoredDraft(conversationId: string, draft: string): void {
  * @complexity Time/space: O(1) amortized.
  */
 function rememberInMemory(conversationId: string, draft: string): void {
-  if (!drafts.has(conversationId) && drafts.size >= MAX_CACHED_CONVERSATION_DRAFTS) {
-    const oldest = drafts.keys().next().value;
-    if (oldest !== undefined) drafts.delete(oldest);
-  }
-  drafts.set(conversationId, draft);
+  setBounded(drafts, { key: conversationId, value: draft });
 }
 
 /**
@@ -221,7 +287,7 @@ function rememberInMemory(conversationId: string, draft: string): void {
  * treat `null` as "nothing to restore".
  * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored draft's length otherwise.
  */
-export function readCachedDraft(conversationId: string | null | undefined): string | null {
+export function readCachedDraft({ conversationId }: { conversationId: string | null | undefined }): string | null {
   if (!conversationId) return null;
   const remembered = drafts.get(conversationId);
   if (remembered !== undefined) return remembered;
@@ -241,15 +307,30 @@ export function readCachedDraft(conversationId: string | null | undefined): stri
  * writes `''` here.
  * @complexity Time/space: O(n) in the draft's length; see {@link writeStoredDraft}.
  */
-export function writeCachedDraft(conversationId: string | null | undefined, draft: string): void {
+export function writeCachedDraft({ conversationId, draft }: { conversationId: string | null | undefined; draft: string }): void {
+  if (!conversationId) return;
+  rememberCachedDraft({ conversationId: conversationId, draft: draft });
+  writeStoredDraft(conversationId, draft.trim() === '' ? '' : draft);
+}
+
+/**
+ * Stores `draft` for `conversationId` in the in-memory tier only, leaving `localStorage` alone.
+ *
+ * `useComposer` calls this on every keystroke and defers the durable {@link writeCachedDraft} until
+ * typing pauses: the memory tier is what a conversation switch or `ChatPane` remount reads back, so
+ * keeping it current per keystroke means debouncing the storage write can never lose text to either.
+ *
+ * @param draft A blank (or whitespace-only) draft deletes the in-memory entry, same rule as
+ * {@link writeCachedDraft}.
+ * @complexity Time/space: O(1) amortized.
+ */
+export function rememberCachedDraft({ conversationId, draft }: { conversationId: string | null | undefined; draft: string }): void {
   if (!conversationId) return;
   if (draft.trim() === '') {
     drafts.delete(conversationId);
-    writeStoredDraft(conversationId, '');
     return;
   }
   rememberInMemory(conversationId, draft);
-  writeStoredDraft(conversationId, draft);
 }
 
 /**
@@ -259,11 +340,11 @@ export function writeCachedDraft(conversationId: string | null | undefined, draf
  * follow-up caller, out of scope here (that flow lives outside this package).
  * @complexity Time/space: O(1).
  */
-export function clearCachedDraft(conversationId: string | null | undefined): void {
+export function clearCachedDraft({ conversationId }: { conversationId: string | null | undefined }): void {
   if (!conversationId) return;
   drafts.delete(conversationId);
   writeStoredDraft(conversationId, '');
-  writeCachedAttachments(conversationId, []);
+  writeCachedAttachments({ conversationId: conversationId, attachments: [] });
 }
 
 /**
@@ -280,48 +361,40 @@ function isChatAttachment(candidate: unknown): candidate is ChatAttachment {
   if (typeof path !== 'string' || path === '') return false;
   if (typeof name !== 'string') return false;
   if (kind !== 'image' && kind !== 'file') return false;
-  if (size !== undefined && typeof size !== 'number') return false;
-  if (order !== undefined && typeof order !== 'number') return false;
-  return true;
+  return isOptionalNumber(size) && isOptionalNumber(order);
+}
+
+/** @complexity Time/space: O(1). */
+function isOptionalNumber(value: unknown): boolean {
+  return value === undefined || typeof value === 'number';
 }
 
 /**
- * Reads the stored attachment references for `conversationId`.
+ * Reads the stored attachment references (and their upload batch) for `conversationId`.
  *
  * Elements that do not validate are dropped individually rather than failing the whole entry — one
- * malformed row should cost the operator that row, not every attachment on the turn.
+ * malformed row should cost the operator that row, not every attachment on the turn. A missing or
+ * malformed batch id costs only the batch (`batchId: null`), never the references.
  *
  * @returns The stored references, or `null` when there are none, storage is unavailable, or nothing
  * in the entry validated.
  * @complexity Time/space: O(n) in the number of stored references.
  */
-function readStoredAttachments(conversationId: string): readonly ChatAttachment[] | null {
-  const store = storage();
-  if (!store) return null;
-  const key = `${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}${conversationId}`;
-  try {
-    const raw = store.getItem(key);
-    if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    const list = (parsed as StoredAttachments | null)?.a;
-    if (!Array.isArray(list)) {
-      store.removeItem(key);
-      return null;
-    }
-    const valid = list.filter(isChatAttachment);
-    if (valid.length === 0) {
-      store.removeItem(key);
-      return null;
-    }
-    return valid;
-  } catch {
-    try {
-      store.removeItem(key);
-    } catch {
-      /* storage is unusable; the in-memory tier still serves this conversation */
-    }
-    return null;
-  }
+function readStoredAttachments(conversationId: string): StoredStagedAttachments | null {
+  return readStoredEnvelope(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, { conversationId, decode: decodeStoredAttachments });
+}
+
+/**
+ * Validates a parsed attachments envelope; see {@link readStoredAttachments} for the rules.
+ * @complexity Time/space: O(n) in the number of stored references.
+ */
+function decodeStoredAttachments(parsed: unknown): StoredStagedAttachments | null {
+  const list = (parsed as StoredAttachments | null)?.a;
+  const batchId: unknown = (parsed as StoredAttachments | null)?.b;
+  if (!Array.isArray(list)) return null;
+  const valid = list.filter(isChatAttachment);
+  if (valid.length === 0) return null;
+  return { attachments: valid, batchId: typeof batchId === 'string' && batchId !== '' ? batchId : null };
 }
 
 /**
@@ -337,16 +410,52 @@ function readStoredAttachments(conversationId: string): readonly ChatAttachment[
  * @returns The cached references, or `null` when there are none.
  * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored count otherwise.
  */
-export function readCachedAttachments(
-  conversationId: string | null | undefined,
+export function readCachedAttachments({ conversationId }: { conversationId: string | null | undefined }
 ): readonly ChatAttachment[] | null {
   if (!conversationId) return null;
   const remembered = stagedAttachments.get(conversationId);
   if (remembered !== undefined) return remembered;
   const stored = readStoredAttachments(conversationId);
   if (stored === null) return null;
-  stagedAttachments.set(conversationId, stored);
-  return stored;
+  stagedAttachments.set(conversationId, stored.attachments);
+  if (stored.batchId !== null) stagedBatchIds.set(conversationId, stored.batchId);
+  return stored.attachments;
+}
+
+/**
+ * The upload batch `conversationId`'s cached attachments were uploaded under, so a pane that
+ * restores those attachments uploads the next file into the SAME batch.
+ *
+ * Why this exists: the daemon grants the agent exactly one batch directory per turn and refuses a
+ * turn whose attachments span two ("Attachments must belong to one batch"). A pane that restored an
+ * attachment after a remount, reload, or conversation switch used to upload the next file under a
+ * brand-new batch id, so every such turn failed before the agent started (2026-10-06).
+ *
+ * @returns The batch id, or `null` when there are no cached attachments to stay consistent with
+ * (none staged, attachment persistence off because the host supplied no validator, or an entry
+ * written before batch ids were recorded) — the caller then starts a fresh batch.
+ * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored count otherwise.
+ */
+export function readCachedAttachmentBatchId({ conversationId }: { conversationId: string | null | undefined },
+  _options: Record<string, never> = {},
+): string | null {
+  if (!conversationId) return null;
+  if (readCachedAttachments({ conversationId: conversationId }) === null) return null;
+  return stagedBatchIds.get(conversationId) ?? null;
+}
+
+/**
+ * Records the upload batch of an attachment about to be staged in `conversationId`'s composer.
+ * Memory only: the stored envelope picks it up on the {@link writeCachedAttachments} that persists
+ * that attachment, so it is never written ahead of the references it describes.
+ *
+ * @complexity Time/space: O(1) amortized.
+ */
+export function writeCachedAttachmentBatchId({ conversationId, batchId }: { conversationId: string | null | undefined; batchId: string },
+  _options: Record<string, never> = {},
+): void {
+  if (!conversationId) return;
+  setBounded(stagedBatchIds, { key: conversationId, value: batchId });
 }
 
 /**
@@ -356,35 +465,20 @@ export function readCachedAttachments(
  * restore — the same rule the draft text follows.
  * @complexity Time/space: O(n) in the number of references.
  */
-export function writeCachedAttachments(
-  conversationId: string | null | undefined,
-  attachments: readonly ChatAttachment[],
+export function writeCachedAttachments({ conversationId, attachments }: { conversationId: string | null | undefined; attachments: readonly ChatAttachment[] }
 ): void {
   if (!conversationId) return;
-  const key = `${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}${conversationId}`;
-  const store = storage();
   if (attachments.length === 0) {
     stagedAttachments.delete(conversationId);
-    try {
-      store?.removeItem(key);
-    } catch {
-      /* blocked storage; the in-memory tier is already correct */
-    }
+    // A sent or cleared turn's batch is spent; the next upload starts a fresh one.
+    stagedBatchIds.delete(conversationId);
+    writeStoredEnvelope(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, { conversationId, envelope: null });
     return;
   }
-  if (!stagedAttachments.has(conversationId) && stagedAttachments.size >= MAX_CACHED_CONVERSATION_DRAFTS) {
-    const oldest = stagedAttachments.keys().next().value;
-    if (oldest !== undefined) stagedAttachments.delete(oldest);
-  }
-  stagedAttachments.set(conversationId, attachments);
-  if (!store) return;
-  try {
-    if (store.getItem(key) === null) pruneStored(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, MAX_CACHED_CONVERSATION_DRAFTS - 1);
-    const envelope: StoredAttachments = { v: 1, t: Date.now(), a: attachments };
-    store.setItem(key, JSON.stringify(envelope));
-  } catch {
-    /* blocked, full, or unusable storage — memory-only is the documented degraded mode */
-  }
+  setBounded(stagedAttachments, { key: conversationId, value: attachments });
+  const batchId = stagedBatchIds.get(conversationId);
+  const envelope: StoredAttachments = { v: 1, t: Date.now(), a: attachments, ...(batchId === undefined ? {} : { b: batchId }) };
+  writeStoredEnvelope(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, { conversationId, envelope });
 }
 
 /**
@@ -398,6 +492,7 @@ export function writeCachedAttachments(
 export function __resetComposerDraftCacheForTests(options?: { readonly keepStorage?: boolean }): void {
   drafts.clear();
   stagedAttachments.clear();
+  stagedBatchIds.clear();
   if (options?.keepStorage === true) return;
   pruneStored(COMPOSER_DRAFT_STORAGE_PREFIX, 0);
   pruneStored(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, 0);

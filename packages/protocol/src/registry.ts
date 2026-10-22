@@ -156,8 +156,9 @@ export const ResolvedRegistryEntrySchema = z.object({
    * "which backend object a host happened to construct"); `verified` reports
    * whether that claim also has cryptographic backing. A backend with no
    * trust root configured (the default, unchanged from before this field
-   * existed) always resolves entries with `verified: false` — this field
-   * never throws and never changes what `trust` means. See
+   * existed) always resolves entries with `verified: false` — omission still defaults to false
+   * without changing what `trust` means. Inconsistent verification identity metadata is rejected
+   * by the schema rather than accepted as evidence. See
    * `@jini-ai/registry`'s `trust.ts` for the verifier.
    */
   verified: z.boolean().default(false),
@@ -171,6 +172,14 @@ export const ResolvedRegistryEntrySchema = z.object({
   ref: z.string().optional(),
   integrity: z.string().optional(),
   manifestDigest: z.string().optional(),
+}).superRefine((entry, context) => {
+  // Verification identity is evidence only alongside an explicit successful verification.
+  // Reject inconsistent metadata rather than letting an unverified backend impersonate a signer.
+  for (const field of ['verifiedIssuer', 'verifiedSubject'] as const) {
+    if (!entry.verified && entry[field] !== undefined) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: [field], message: 'Verification metadata requires verified: true' });
+    }
+  }
 });
 export type ResolvedRegistryEntry = z.infer<typeof ResolvedRegistryEntrySchema>;
 
@@ -226,18 +235,24 @@ export interface RegistryBackend {
   readonly kind: RegistryBackendKind;
   readonly trust: RegistryTrust;
 
-  list(filter?: RegistryListFilter): Promise<RegistryEntry[]>;
-  search(query: RegistrySearchQuery): Promise<RegistrySearchResult[]>;
-  resolve(name: string, range?: string): Promise<ResolvedRegistryEntry | null>;
-  manifest(name: string, version: string): Promise<RegistryEntry | null>;
-  doctor(): Promise<RegistryDoctorReport>;
+  list(requiredArgs: Record<string, never>, optionalArgs?: NonNullable<RegistryListFilter>): Promise<RegistryEntry[]>;
+  search(
+    requiredArgs: Pick<RegistrySearchQuery, 'query'>,
+    optionalArgs?: Omit<RegistrySearchQuery, 'query'>,
+  ): Promise<RegistrySearchResult[]>;
+  resolve(requiredArgs: { name: string }, optionalArgs?: { range?: string }): Promise<ResolvedRegistryEntry | null>;
+  manifest(requiredArgs: { name: string; version: string }): Promise<RegistryEntry | null>;
+  doctor(requiredArgs: Record<string, never>): Promise<RegistryDoctorReport>;
 
-  publish?(request: RegistryPublishRequest): Promise<RegistryPublishOutcome>;
-  yank?(name: string, version: string, reason: string): Promise<RegistryYankOutcome>;
+  publish?(
+    requiredArgs: Pick<RegistryPublishRequest, 'entry'>,
+    optionalArgs?: Omit<RegistryPublishRequest, 'entry'>,
+  ): Promise<RegistryPublishOutcome>;
+  yank?(requiredArgs: { name: string; version: string; reason: string }): Promise<RegistryYankOutcome>;
 }
 
 /** Constructs a `RegistryBackend` of a given kind from backend-specific config. */
 export interface RegistryBackendFactory<TConfig = unknown> {
   readonly kind: RegistryBackendKind;
-  create(config: TConfig): RegistryBackend;
+  create(requiredArgs: { config: TConfig }): RegistryBackend;
 }

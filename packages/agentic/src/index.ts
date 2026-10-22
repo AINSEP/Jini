@@ -1,6 +1,4 @@
-/**
- * Compatibility root — re-exports `./core` unchanged so existing `from '@jini-ai/agentic'`
- * imports keep resolving. New code should prefer the explicit `@jini-ai/agentic/core` import;
- * see `core/README.md` for why this package is split the way it is.
- */
+/** Compatibility root: preserve existing imports by re-exporting core. Prefer the explicit
+ * @jini-ai/agentic/core entry for new code. DOM-free policy is compiled without browser globals;
+ * only core/dom owns the PageDriver that touches a live page. See core/README.md for the split. */
 export * from './core/index.js';

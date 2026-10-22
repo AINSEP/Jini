@@ -16,12 +16,10 @@ import { NotImplementedError } from './not-implemented.js';
 export { NotImplementedError };
 
 function notImplemented(method: string): never {
-  throw new NotImplementedError(
-    `RenderService.${method} is not implemented by the Tauri adapter — out of scope for the C7 narrow spike (sidecar/window/shutdown/single-instance/shell only)`,
-  );
+  throw new NotImplementedError({ message: `RenderService.${method} is not implemented by the Tauri adapter — out of scope for the C7 narrow spike (sidecar/window/shutdown/single-instance/shell only)` });
 }
 
-export function createTauriRenderService(): RenderService {
+export function createTauriRenderService(_requiredArgs: Record<string, never>): RenderService {
   return {
     async renderToPdf() {
       return notImplemented('renderToPdf');

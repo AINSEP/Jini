@@ -1,11 +1,12 @@
 /**
- * @file Blob-GC protocol tests (INV-1) — `blob-gc.ts` /
+ * @file Blob-GC protocol tests — `blob-gc.ts` /
  * `blob-gc-lock.ts`. `media-service.test.ts` covers the `purgeMedia`-driven
  * happy path (tombstone -> grace-gated delete-pass -> unlink-pass end to
  * end); this file drills into the protocol's own invariants directly:
  * unreferenced detection, idempotent tombstoning, the grace gate, the
  * two-phase journal handoff, the sha256 lock's mutual exclusion, and the
  * concurrent purge-vs-upload race the lock exists to close.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -16,6 +17,7 @@ import {
   runBlobGcDeletePass,
   runBlobGcUnlinkPass,
   runBlobGcCycle,
+  runMonthlyOrphanSweepStub,
   tombstoneBlobIfUnreferenced,
 } from "../blob-gc.js";
 import { withSha256Lock } from "../blob-gc-lock.js";
@@ -34,13 +36,13 @@ function makeDeps() {
   let counter = 0;
   let currentNow = "2026-07-10T00:00:00.000Z";
   const deps = {
-    clock: { nowIso: () => currentNow },
+    clock: { nowMs: () => Date.parse(currentNow)},
     idGen: { newId: () => `id-${(counter += 1)}` },
-    mediaRepo: new InMemoryMediaRepo(),
-    blobRepo: new InMemoryAssetBlobRepo(),
-    renditionRepo: new InMemoryAssetRenditionRepo(),
+    mediaRepo: new InMemoryMediaRepo({}),
+    blobRepo: new InMemoryAssetBlobRepo({}),
+    renditionRepo: new InMemoryAssetRenditionRepo({}),
     blobStore: new InMemoryBlobStore(),
-    journalRepo: new InMemoryBlobGcJournalRepo(),
+    journalRepo: new InMemoryBlobGcJournalRepo({}),
   };
   return { deps, setNow: (iso: string) => (currentNow = iso) };
 }
@@ -75,21 +77,21 @@ test("withSha256Lock serializes calls for the same key (no interleaving)", async
   let releaseFirst!: () => void;
   const firstGate = new Promise<void>((resolve) => (releaseFirst = resolve));
 
-  const first = withSha256Lock("shared-key", async () => {
+  const first = withSha256Lock({ key: "shared-key", criticalSection: async () => {
     events.push("first-start");
     await firstGate;
     events.push("first-end");
-  });
+  } });
 
   // Give the first critical section a chance to actually start before
   // queuing the second, so this test genuinely exercises queuing rather than
   // both starting from a cold, unstarted `withSha256Lock` call.
   await Promise.resolve();
 
-  const second = withSha256Lock("shared-key", async () => {
+  const second = withSha256Lock({ key: "shared-key", criticalSection: async () => {
     events.push("second-start");
     events.push("second-end");
-  });
+  } });
 
   assert.deepEqual(events, ["first-start"]); // second must NOT have started yet
   releaseFirst();
@@ -102,15 +104,15 @@ test("withSha256Lock runs different keys fully concurrently", async () => {
   let releaseA!: () => void;
   const gateA = new Promise<void>((resolve) => (releaseA = resolve));
 
-  const a = withSha256Lock("key-a", async () => {
+  const a = withSha256Lock({ key: "key-a", criticalSection: async () => {
     events.push("a-start");
     await gateA;
     events.push("a-end");
-  });
-  const b = withSha256Lock("key-b", async () => {
+  } });
+  const b = withSha256Lock({ key: "key-b", criticalSection: async () => {
     events.push("b-start");
     events.push("b-end");
-  });
+  } });
 
   await b; // key-b's independent critical section completes without waiting on key-a
   assert.deepEqual(events, ["a-start", "b-start", "b-end"]);
@@ -121,13 +123,13 @@ test("withSha256Lock runs different keys fully concurrently", async () => {
 test("withSha256Lock does not let one key's rejection poison later calls on the same key", async () => {
   await assert.rejects(
     () =>
-      withSha256Lock("flaky-key", async () => {
+      withSha256Lock({ key: "flaky-key", criticalSection: async () => {
         throw new Error("boom");
-      }),
+      } }),
     /boom/
   );
 
-  const result = await withSha256Lock("flaky-key", async () => "ok-after-failure");
+  const result = await withSha256Lock({ key: "flaky-key", criticalSection: async () => "ok-after-failure" });
   assert.equal(result, "ok-after-failure");
 });
 
@@ -419,4 +421,59 @@ test("runBlobGcCycle deletes every eligible tombstoned blob and drains the journ
 
   assert.equal(await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: mediaA.source.sha256 }), null);
   assert.equal(await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: mediaB.source.sha256 }), null);
+});
+
+// ---------------------------------------------------------------------------
+// Host-supplied reference probes and missing-row outcomes
+// ---------------------------------------------------------------------------
+
+test("isBlobUnreferenced honors a host's live entry_refs probe and retained-snapshot probe", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadOne(deps, "probed");
+  await deps.mediaRepo.remove({ workspaceId: WORKSPACE_ID, id: media.id });
+  const input = { workspaceId: WORKSPACE_ID, sha256: media.source.sha256 };
+  const asked: string[] = [];
+  const probe = (name: string, answer: boolean) => async (probed: typeof input) => { asked.push(`${name}:${probed.sha256 === input.sha256}`); return answer; };
+
+  assert.equal(await isBlobUnreferenced({ deps: { ...deps, referenceProbes: { hasLiveEntryRefs: probe("refs", true) } }, input }), false);
+  assert.equal(await isBlobUnreferenced({ deps: { ...deps, referenceProbes: { hasRetainedSnapshot: probe("snapshot", true) } }, input }), false);
+  assert.equal(await isBlobUnreferenced({ deps: { ...deps, referenceProbes: { hasLiveEntryRefs: probe("refs", false), hasRetainedSnapshot: () => false } }, input }), true);
+  assert.deepEqual(asked, ["refs:true", "snapshot:true", "refs:true"]);
+});
+
+test("a blob a host probe still references is neither tombstoned nor, once a reference appears after tombstoning, deleted", async () => {
+  const { deps, setNow } = makeDeps();
+  const { media } = await uploadOne(deps, "late-reference");
+  await deps.mediaRepo.remove({ workspaceId: WORKSPACE_ID, id: media.id });
+  const input = { workspaceId: WORKSPACE_ID, sha256: media.source.sha256 };
+
+  assert.deepEqual(
+    await tombstoneBlobIfUnreferenced({ deps: { ...deps, referenceProbes: { hasLiveEntryRefs: () => true } }, input }),
+    { tombstoned: false, reason: "still-referenced" },
+  );
+  assert.deepEqual(await tombstoneBlobIfUnreferenced({ deps, input }), { tombstoned: true, reason: "tombstoned" });
+  setNow(advance("2026-07-10T00:00:00.000Z", DEFAULT_GC_GRACE_MS + 1000));
+
+  // A retained snapshot taken after the tombstone-pass is exactly what the delete-pass re-check exists for.
+  const snapshotted = { ...deps, referenceProbes: { hasRetainedSnapshot: () => true } };
+  assert.deepEqual(await runBlobGcDeletePass({ deps: snapshotted, input }), { deleted: false, reason: "resurrected" });
+  assert.equal((await deps.blobRepo.findByHash(input))?.status, "tombstoned");
+  assert.deepEqual(await deps.journalRepo.list({ workspaceId: WORKSPACE_ID }), []);
+});
+
+test("both GC passes report no-blob-row for a sha256 that has no asset_blobs row at all", async () => {
+  const { deps } = makeDeps();
+  const input = { workspaceId: WORKSPACE_ID, sha256: "f".repeat(64) };
+  assert.deepEqual(await tombstoneBlobIfUnreferenced({ deps, input }), { tombstoned: false, reason: "no-blob-row" });
+  assert.deepEqual(await runBlobGcDeletePass({ deps, input }), { deleted: false, reason: "no-blob-row" });
+  assert.deepEqual(await deps.journalRepo.list({ workspaceId: WORKSPACE_ID }), []);
+});
+
+test("the monthly orphan sweep is a named no-op seam: it reports unimplemented and touches neither store nor repo", async () => {
+  const untouchable = new Proxy({}, { get: (_target, name) => { throw new Error(`orphan sweep stub touched ${String(name)}`); } });
+  const result = await runMonthlyOrphanSweepStub({
+    deps: { blobStore: untouchable as InMemoryBlobStore, blobRepo: untouchable as InMemoryAssetBlobRepo },
+    input: { workspaceId: WORKSPACE_ID },
+  }, {});
+  assert.deepEqual(result, { implemented: false });
 });

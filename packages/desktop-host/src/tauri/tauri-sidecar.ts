@@ -20,10 +20,10 @@ const DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 5_000;
 async function waitForProcessExit(child: TauriChildProcessLike, timeoutMs: number): Promise<boolean> {
   return await new Promise<boolean>((resolve) => {
     let exited = false;
-    child.onExit(() => {
+    child.onExit({ listener: () => {
       exited = true;
       resolve(true);
-    });
+    } });
     setTimeout(() => {
       if (!exited) resolve(false);
     }, timeoutMs);
@@ -36,9 +36,9 @@ async function waitUntilReady<T>(child: TauriChildProcessLike, options: SidecarR
   const startedAt = Date.now();
   let lastError: unknown;
   let exited: { code: number | null; signal: NodeJS.Signals | null } | null = null;
-  child.onExit((code, signal) => {
+  child.onExit({ listener: ({ code, signal }) => {
     exited = { code, signal };
-  });
+  } });
 
   while (Date.now() - startedAt < timeoutMs) {
     if (exited !== null) {
@@ -47,7 +47,7 @@ async function waitUntilReady<T>(child: TauriChildProcessLike, options: SidecarR
     }
     try {
       const status = await options.probe();
-      if (options.isReady(status)) return status;
+      if (options.isReady({ status })) return status;
     } catch (error) {
       lastError = error;
     }
@@ -66,24 +66,25 @@ async function shutdownChild(child: TauriChildProcessLike, options: SidecarShutd
   }
   const gracefulTimeoutMs = options.gracefulTimeoutMs ?? DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS;
   if (await waitForProcessExit(child, gracefulTimeoutMs)) return;
-  child.kill('SIGKILL');
+  child.kill({}, { signal: 'SIGKILL' });
   await waitForProcessExit(child, gracefulTimeoutMs);
 }
 
-export function createTauriSidecarLauncher(api: TauriSidecarCommandApi): SidecarLauncherPort {
+export function createTauriSidecarLauncher({ api }: { api: TauriSidecarCommandApi }): SidecarLauncherPort {
   return {
-    async launch(options: SidecarLaunchOptions): Promise<SidecarHandle> {
-      const child = await api.spawnSidecar(options.command, options.args ?? [], options.env as Record<string, string> | undefined);
+    async launch(requiredArgs: Pick<SidecarLaunchOptions, 'command'>, optionalArgs: Omit<SidecarLaunchOptions, 'command'> = {}): Promise<SidecarHandle> {
+      const options = { ...optionalArgs, ...requiredArgs };
+      const child = await api.spawnSidecar({ binaryName: options.command, args: options.args ?? [] }, { env: options.env as Record<string, string> | undefined });
       const processHandle: SidecarProcessHandle = {
         pid: child.pid,
-        onExit: (listener) => child.onExit(listener),
-        kill: (signal) => child.kill(signal),
+        onExit: ({ listener }) => child.onExit({ listener: ({ code, signal }) => listener({ code, signal }) }),
+        kill: (_requiredArgs, { signal } = {}) => child.kill({}, { signal }),
       };
       return {
         process: processHandle,
         logPath: null,
-        waitUntilReady: (readyOptions) => waitUntilReady(child, readyOptions),
-        shutdown: (shutdownOptions) => shutdownChild(child, shutdownOptions),
+        waitUntilReady: (requiredArgs, optionalArgs = {}) => waitUntilReady(child, { ...optionalArgs, ...requiredArgs }),
+        shutdown: (_requiredArgs, shutdownOptions) => shutdownChild(child, shutdownOptions),
       };
     },
   };

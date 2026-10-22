@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
+import { projectAcceptedInputMessages } from '../../../core/accepted-input.js';
 
 const messages: ChatMessage[] = [
   { id: '1', role: 'user', content: 'hi' },
@@ -75,6 +76,45 @@ describe('MessageList', () => {
     expect(el.scrollTop).toBe(0);
   });
 
+  describe('re-sticking to the bottom when the user starts a new turn', () => {
+    // Owner-reported ("Chat auto-scroll still sticks"): a user who scrolled up to read history and
+    // then SENT a message stayed parked up there — the sticky-follow gate above, correct for
+    // streamed chatter, also swallowed the user's own send. A send is an explicit "I am here now".
+    function scrolledUpList(initial: ChatMessage[]) {
+      const view = render(<MessageList messages={initial} scrollIntent={false} />);
+      const el = view.container.querySelector('.jini-message-list') as HTMLDivElement;
+      Object.defineProperty(el, 'scrollHeight', { value: 300, configurable: true });
+      Object.defineProperty(el, 'clientHeight', { value: 100, configurable: true });
+      el.scrollTop = 0;
+      el.dispatchEvent(new Event('scroll'));
+      return { ...view, el };
+    }
+
+    it('scrolls back to the bottom when the user sends a message while scrolled up', () => {
+      const { el, rerender } = scrolledUpList(messages);
+      const sent: ChatMessage[] = [
+        ...messages,
+        { id: '3', role: 'user', content: 'next question' },
+        { id: '4', role: 'assistant', content: '', runStatus: 'queued' },
+      ];
+      rerender(<MessageList messages={sent} scrollIntent />);
+      expect(el.scrollTop).toBe(300);
+    });
+
+    it('scrolls back to the bottom when a retry restarts an existing assistant turn', () => {
+      const { el, rerender } = scrolledUpList(messages);
+      const retried: ChatMessage[] = [messages[0]!, { id: '2', role: 'assistant', content: '', runStatus: 'queued' }];
+      rerender(<MessageList messages={retried} scrollIntent />);
+      expect(el.scrollTop).toBe(300);
+    });
+
+    it('stays put when only an assistant message streams in', () => {
+      const { el, rerender } = scrolledUpList([...messages, { id: '3', role: 'user', content: 'q' }, { id: '4', role: 'assistant', content: '', runStatus: 'queued' }]);
+      rerender(<MessageList messages={[...messages, { id: '3', role: 'user', content: 'q' }, { id: '4', role: 'assistant', content: 'partial', runStatus: 'running' }]} scrollIntent />);
+      expect(el.scrollTop).toBe(0);
+    });
+  });
+
   describe('re-sticking to the bottom when a message ROW grows after mount', () => {
     // Reproduces the MCP-UI clipping bug: a confirmation surface mounts small (its
     // `preferredFrameSize`/`DEFAULT_INITIAL_HEIGHT` guess), the one-shot `scrollIntent` effect scrolls
@@ -121,6 +161,27 @@ describe('MessageList', () => {
       fireResize();
 
       expect(el.scrollTop).toBe(600);
+    });
+
+    // Regression (demo dry-run 2026-10-05): after a run with several tool calls the final reply sat
+    // below the fold. A programmatic scroll's `scroll` event is dispatched a frame later; when more
+    // streamed rows landed in between, the handler saw "not at the bottom" and unstuck the
+    // transcript for the rest of the run, though the user never scrolled.
+    it('stays stuck to the bottom when a late scroll event reports a position the content outgrew', () => {
+      installFakeResizeObserver();
+      const { container, rerender } = render(<MessageList messages={messages} scrollIntent onScrolled={() => {}} />);
+      const el = container.querySelector('.jini-message-list') as HTMLDivElement;
+      Object.defineProperty(el, 'scrollHeight', { value: 300, configurable: true });
+      Object.defineProperty(el, 'clientHeight', { value: 100, configurable: true });
+      el.scrollTop = 200;
+      el.dispatchEvent(new Event('scroll'));
+
+      // More tool rows stream in before the scroll event from the last auto-scroll is delivered.
+      Object.defineProperty(el, 'scrollHeight', { value: 500, configurable: true });
+      el.dispatchEvent(new Event('scroll'));
+
+      rerender(<MessageList messages={[...messages, { id: '3', role: 'assistant', content: 'final reply', runStatus: 'running' }]} scrollIntent onScrolled={() => {}} />);
+      expect(el.scrollTop).toBe(500);
     });
 
     it('does NOT yank the view back down when the user had scrolled up to read history', () => {
@@ -188,6 +249,12 @@ describe('MessageList', () => {
     ];
     const onRequestOpenFile = vi.fn();
     render(<MessageList messages={withTool} projectFileNames={new Set(['known.txt'])} onRequestOpenFile={onRequestOpenFile} />);
+    // fc592b9f mounts tool details on expansion; opening a file starts by opening its card.
+    expect(screen.queryByRole('button', { name: 'Open' })).toBeNull();
+    const readButton = screen.getByRole('button', { name: 'Read known.txt' });
+    expect(readButton).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(readButton);
+    expect(readButton).toHaveAttribute('aria-expanded', 'true');
     const openButton = screen.getByRole('button', { name: 'Open' });
     await userEvent.click(openButton);
     expect(onRequestOpenFile).toHaveBeenCalledWith('known.txt');
@@ -213,6 +280,7 @@ describe('MessageList', () => {
       const el = container.querySelector('.jini-message-list') as HTMLDivElement;
       expect(el.lastElementChild).toHaveAttribute('data-testid', 'chat-pane-queued');
       expect(screen.getByText('third turn')).toBeInTheDocument();
+      expect(screen.getByText('Queued — sends when this reply finishes')).toBeVisible();
     });
 
     it('invokes onCancel from the transcript entry\'s own cancel affordance', async () => {
@@ -233,4 +301,35 @@ describe('MessageList', () => {
       expect(container.querySelectorAll('[data-message-id]')).toHaveLength(messages.length);
     });
   });
+});
+
+it('projects persisted accepted inputs as distinct user rows and keeps each redaction signal on its own receipt', () => {
+  const inputs = [
+    { id: 'input-1', text: 'safe first message', attachments: [] },
+    { id: 'input-2', text: 'second [token removed]', attachments: [], secretRedaction: { secretRedacted: true as const, count: 1 } },
+  ];
+  const combined: ChatMessage = { id: 'combined', role: 'user', content: 'safe first message\n\nsecond [token removed]',
+    secretRedaction: { secretRedacted: true, count: 1 },
+    events: inputs.map(input => ({ kind: 'ext', name: 'user_message', data: input })),
+  };
+  expect(projectAcceptedInputMessages({ messages: [combined] }).map(message => message.secretRedaction)).toEqual([
+    undefined, { secretRedacted: true, count: 1 },
+  ]);
+  const { container } = render(<MessageList messages={[combined]} />);
+  const rows = container.querySelectorAll('[data-message-id]');
+  expect([...rows].map(row => row.getAttribute('data-message-id'))).toEqual(['input-1', 'input-2']);
+  expect(rows[0]).toHaveTextContent('safe first message');
+  expect(rows[1]).toHaveTextContent('second [token removed]');
+  expect(combined.content).toBe('safe first message\n\nsecond [token removed]');
+});
+
+it('retains files on the final bubble when loading older queue receipts without per-input attachment metadata', () => {
+  const image = { path: 'attachment:legacy', name: 'legacy.png', kind: 'image' as const };
+  const message: ChatMessage = { id: 'old-turn', role: 'user', content: 'first\n\nsecond', attachments: [image], events: [
+    { kind: 'ext', name: 'user_message', data: { id: 'old-1', text: 'first' } },
+    { kind: 'ext', name: 'user_message', data: { id: 'old-2', text: 'second' } },
+  ] };
+  render(<MessageList messages={[message]} />);
+  expect(screen.getByText('first').closest('[data-message-id]')!.querySelector('.jini-message-attachment-chip')).toBeNull();
+  expect(screen.getByText('second').closest('[data-message-id]')!.querySelector('[aria-label="Open legacy.png"]')).toBeInTheDocument();
 });

@@ -15,5 +15,5 @@ export { ReactComponentRenderer } from './react-component.js';
  * deck rendering registers its own via `.register(...)`.
  */
 export function createDefaultRendererRegistry(): RendererRegistry {
-  return new RendererRegistry([HtmlRenderer, MarkdownRenderer, SvgRenderer, ReactComponentRenderer]);
+  return new RendererRegistry({ renderers: [HtmlRenderer, MarkdownRenderer, SvgRenderer, ReactComponentRenderer] });
 }

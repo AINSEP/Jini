@@ -39,7 +39,7 @@ export type ContinuationTransport = 'mcp-callback' | 'stdin-injection' | 'none';
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveContinuationTransport(def: RuntimeAgentDef): ContinuationTransport {
+export function resolveContinuationTransport({ def }: { readonly def: RuntimeAgentDef }): ContinuationTransport {
   if (def.externalMcpInjection !== undefined) return 'mcp-callback';
   if (def.promptInputFormat === 'stream-json' && def.promptViaStdin === true) return 'stdin-injection';
   return 'none';

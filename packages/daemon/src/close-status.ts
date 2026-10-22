@@ -1,13 +1,15 @@
 /**
  * Pure run-close classification and inactivity-timeout helpers, generalized
  * from OD's `apps/daemon/src/runtimes/chat-run-lifecycle.ts`
- * (`arch/server-startserver-endgame` branch — see `source-map.md`). The
+ * (`arch/server-startserver-endgame` branch — see `archived provenance ledger`). The
  * origin file mixes a generic close-status decision tree with several
  * OD/ACP-vendor-specific escape hatches (forced-shutdown-but-actually-clean
  * heuristics for a specific agent-CLI protocol, artifact-quiet-period
- * nuance). Only the generic skeleton is kept here — see `source-map.md` for
+ * nuance). Only the generic skeleton is kept here — see `archived provenance ledger` for
  * the itemized list of what was dropped and why.
  */
+
+import type { SchedulerPort } from './scheduler.js';
 
 export type TerminalRunOutcome = 'succeeded' | 'failed' | 'cancelled';
 
@@ -30,7 +32,8 @@ export interface CloseStatusInput {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function classifyRunCloseStatus(input: CloseStatusInput): TerminalRunOutcome {
+export function classifyRunCloseStatus(requiredArgs: Pick<CloseStatusInput, "cancelRequested" | "code">, optionalArgs: Pick<CloseStatusInput, "signal"> = {}): TerminalRunOutcome {
+  const input: CloseStatusInput = { ...requiredArgs, ...optionalArgs };
   if (input.cancelRequested) {
     return 'cancelled';
   }
@@ -67,7 +70,8 @@ export interface ResolveTimeoutMsInput {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveTimeoutMs(input: ResolveTimeoutMsInput): number {
+export function resolveTimeoutMs(requiredArgs: Pick<ResolveTimeoutMsInput, "defaultMs" | "maxMs">, optionalArgs: Pick<ResolveTimeoutMsInput, "envVar" | "agentDefaultMs" | "env"> = {}): number {
+  const input: ResolveTimeoutMsInput = { ...requiredArgs, ...optionalArgs };
   const env = input.env ?? (typeof process !== 'undefined' ? process.env : {});
   const rawFromEnv = input.envVar ? env[input.envVar] : undefined;
   const fromEnv = rawFromEnv !== undefined ? Number(rawFromEnv) : undefined;
@@ -78,9 +82,9 @@ export function resolveTimeoutMs(input: ResolveTimeoutMsInput): number {
 
 export interface InactivityWatchdog {
   /** Resets the timeout window — call on every observed unit of run activity (an emitted event, a stdout chunk). */
-  noteActivity(): void;
+  noteActivity(_args: Record<string, never>): void;
   /** Disarms the watchdog permanently (e.g. once the run reaches a terminal state). Safe to call more than once. */
-  cancel(): void;
+  cancel(_args: Record<string, never>): void;
 }
 
 export interface CreateInactivityWatchdogInput {
@@ -97,7 +101,7 @@ export interface CreateInactivityWatchdogInput {
  * `onTimeout` callback is where that would plug in).
  *
  * @param input.timeoutMs - Milliseconds of inactivity before `onTimeout` fires.
- * @param input.onTimeout - Fired at most once per watchdog instance.
+ * @param input.onTimeout - Fired once per armed timeout window; later activity can start a new window until cancellation.
  * @returns A handle to reset (`noteActivity`) or permanently disarm (`cancel`) the timer.
  * @remarks Side effect: starts a `setTimeout` immediately and calls
  * `.unref()` on it (when available) so a bare watchdog never keeps a Node
@@ -105,28 +109,38 @@ export interface CreateInactivityWatchdogInput {
  * @complexity O(1) per call.
  * @overallScore 100/100
  */
-export function createInactivityWatchdog(input: CreateInactivityWatchdogInput): InactivityWatchdog {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+export function createInactivityWatchdog(
+  input: CreateInactivityWatchdogInput,
+  { scheduler }: { scheduler?: SchedulerPort } = {},
+): InactivityWatchdog {
+  const timers: SchedulerPort = scheduler ?? {
+    schedule({ delayMs, callback }) {
+      const timer = setTimeout(callback, delayMs);
+      if (typeof timer.unref === 'function') timer.unref();
+      return () => clearTimeout(timer);
+    },
+  };
+  let cancelTimer: (() => void) | undefined;
+  // Terminal cancellation must survive activity arriving from an already-queued callback.
+  let cancelled = false;
 
   const arm = (): void => {
-    if (timer) {
-      clearTimeout(timer);
-    }
-    timer = setTimeout(input.onTimeout, input.timeoutMs);
-    if (typeof timer.unref === 'function') {
-      timer.unref();
-    }
+    if (cancelled) return;
+    cancelTimer?.();
+    cancelTimer = timers.schedule({
+      delayMs: input.timeoutMs,
+      callback: () => { if (!cancelled) input.onTimeout(); },
+    });
   };
 
   arm();
 
   return {
     noteActivity: arm,
-    cancel: (): void => {
-      if (timer) {
-        clearTimeout(timer);
-        timer = undefined;
-      }
+    cancel: (_args: Record<string, never>): void => {
+      cancelled = true;
+      cancelTimer?.();
+      cancelTimer = undefined;
     },
   };
 }

@@ -6,7 +6,7 @@
  * rejection (always active), and — for a daemon whose threat model is a co-resident process rather
  * than a remote one — a strict bearer gate with no loopback exemption and no disable flag
  * ({@link requireStrictBearerToken}). The first two were genericized from an origin daemon's inline
- * `startServer` middleware pair — see `source-map.md` for the exact drop-list. All are plain Express
+ * `startServer` middleware pair — see `archived provenance ledger` for the exact drop-list. All are plain Express
  * middleware factories with configuration injected, so none reads a hardcoded env var name or an
  * OD-specific request shape.
  *
@@ -15,7 +15,7 @@
  * wrong one is a silent no-op rather than a visible error, so see each function's own doc before
  * choosing.
  *
- * **Dropped, not carried over** (see `source-map.md`'s transformation table for the full
+ * **Dropped, not carried over** (see `archived provenance ledger`'s transformation table for the full
  * reasoning): the project-preview-scope GET exemption, the zero-config browser-extension
  * ("clipper") bypass, the live-artifacts-preview bypass, and the `Origin: null` safe-GET
  * allow-list regex — all four name or exist solely for OD product routes with no meaning in the
@@ -25,11 +25,14 @@ import { timingSafeEqual } from 'node:crypto';
 import type { Express, NextFunction, Request, Response } from 'express';
 import {
   apiTokenFromEnv,
+  allowedBrowserPorts,
+  isAllowedBrowserOrigin,
+  timingSafeTokenMatch as compareTokenWithPort,
+  type OriginValidationEnvConfig,
   isApiTokenMiddlewareEnabled,
   type ApiTokenAuthEnvConfig,
 } from '@jini-ai/core';
 import { isLoopbackPeerAddress } from './local-daemon-request.js';
-import { allowedBrowserPorts, isAllowedBrowserOrigin } from './origin-validation.js';
 
 /** Health/readiness/version probes stay reachable without a bearer token so monitoring never needs one. Both the mount-relative and `/api`-prefixed forms are listed because this middleware is always registered via `app.use('/api', ...)`, under which Express strips the `/api` prefix from `req.path` for a request to `/api/health` — the prefixed form is kept for parity with the origin module's own set rather than dropped as dead, in case a future caller mounts this middleware unprefixed. */
 const OPEN_PROBE_PATHS = new Set([
@@ -56,7 +59,7 @@ const BEARER_TOKEN_PATTERN = /^Bearer\s+(\S+)\s*$/i;
  * @complexity O(n) in the header length.
  * @overallScore 100/100
  */
-export function bearerTokenFromHeader(header: string | undefined): string | null {
+export function bearerTokenFromHeader({ header }: { readonly header: string | undefined }, _optional: Record<string, never> = {}): string | null {
   return BEARER_TOKEN_PATTERN.exec(header ?? '')?.[1] ?? null;
 }
 
@@ -77,18 +80,18 @@ export function bearerTokenFromHeader(header: string | undefined): string | null
  * @complexity O(n) in the token length, with no data-dependent early exit.
  * @overallScore 100/100
  */
-export function timingSafeTokenMatch(presented: string, expected: string): boolean {
-  const presentedBytes = Buffer.from(presented, 'utf8');
-  const expectedBytes = Buffer.from(expected, 'utf8');
-  if (presentedBytes.length !== expectedBytes.length) return false;
-  return timingSafeEqual(presentedBytes, expectedBytes);
+export function timingSafeTokenMatch({ presented, expected }: { readonly presented: string; readonly expected: string }, _optional: Record<string, never> = {}): boolean {
+  // Node port binding for the existing public name; this is not an alias of the pure helper.
+  return compareTokenWithPort({ presented, expected,
+    timingSafeEqual: ({ left, right }) => timingSafeEqual(left, right),
+  });
 }
 
 export interface ApiBearerAuthMiddlewareDeps {
-  /** Env var names for the token/disable flags. Defaults to `JINI_API_TOKEN` / `JINI_DISABLE_API_AUTH`. */
-  tokenConfig?: ApiTokenAuthEnvConfig;
-  /** Defaults to `process.env`. Threaded through so tests never have to mutate real process env. */
-  env?: NodeJS.ProcessEnv;
+  /** Host-supplied env var names for the token/disable flags. */
+  tokenConfig: ApiTokenAuthEnvConfig;
+  /** Host-supplied environment; tests and hosts use the same explicit seam. */
+  env: NodeJS.ProcessEnv;
   /**
    * Whether an unproxied loopback peer may skip the bearer check. Defaults to `true` — the
    * affordance a desktop UI or local CLI talking to its own daemon relies on.
@@ -119,11 +122,6 @@ function looksProxied(req: Request): boolean {
   });
 }
 
-const DEFAULT_TOKEN_CONFIG: ApiTokenAuthEnvConfig = {
-  tokenEnvVar: 'JINI_API_TOKEN',
-  disableEnvVar: 'JINI_DISABLE_API_AUTH',
-};
-
 /**
  * Registers a bearer-token gate on every `/api/*` route, active only when
  * {@link isApiTokenMiddlewareEnabled} says a token is configured and auth hasn't been disabled.
@@ -132,18 +130,16 @@ const DEFAULT_TOKEN_CONFIG: ApiTokenAuthEnvConfig = {
  * request is rejected with 401 before reaching any route handler.
  *
  * @param app - The Express app to register the gate on.
- * @param deps - See {@link ApiBearerAuthMiddlewareDeps}. Both fields are optional; omitting `deps`
- * entirely reads `JINI_API_TOKEN`/`JINI_DISABLE_API_AUTH` from real `process.env`.
+ * @param requiredArgs - App, environment and host-selected token env var names.
+ * @param deps - Optional loopback trust policy; see {@link ApiBearerAuthMiddlewareDeps}.
  * @returns Nothing. Registers zero middleware (a deliberate no-op, not a bug) when no token is configured.
  * @complexity Setup is O(1). Each gated request is O(1) (one Set lookup, one regex match).
  * @overallScore 100/100
  */
-export function registerApiBearerAuthMiddleware(app: Express, deps: ApiBearerAuthMiddlewareDeps = {}): void {
-  const tokenConfig = deps.tokenConfig ?? DEFAULT_TOKEN_CONFIG;
-  const env = deps.env ?? process.env;
-  if (!isApiTokenMiddlewareEnabled(tokenConfig, env)) return;
+export function registerApiBearerAuthMiddleware({ app, tokenConfig, env }: { readonly app: Express } & Pick<ApiBearerAuthMiddlewareDeps, 'tokenConfig' | 'env'>, deps: Pick<ApiBearerAuthMiddlewareDeps, 'trustLoopbackPeers'> = {}): void {
+  if (!isApiTokenMiddlewareEnabled({ config: tokenConfig, env })) return;
 
-  const apiToken = apiTokenFromEnv(tokenConfig, env);
+  const apiToken = apiTokenFromEnv({ config: tokenConfig, env });
   const trustLoopbackPeers = deps.trustLoopbackPeers ?? true;
   app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     if (OPEN_PROBE_PATHS.has(req.path)) {
@@ -167,12 +163,12 @@ export function registerApiBearerAuthMiddleware(app: Express, deps: ApiBearerAut
     // deployment that strips its own forwarding headers is not covered by this and must set
     // `trustLoopbackPeers: false`, which is also the correct setting for any host where an
     // untrusted co-resident process can reach the port.
-    if (trustLoopbackPeers && isLoopbackPeerAddress(req.socket?.remoteAddress) && !looksProxied(req)) {
+    if (trustLoopbackPeers && isLoopbackPeerAddress({ address: req.socket?.remoteAddress }) && !looksProxied(req)) {
       next();
       return;
     }
-    const presented = bearerTokenFromHeader(req.get('authorization'));
-    if (presented === null || !timingSafeTokenMatch(presented, apiToken)) {
+    const presented = bearerTokenFromHeader({ header: req.get('authorization') });
+    if (presented === null || !timingSafeTokenMatch({ presented, expected: apiToken })) {
       res.status(401).json({
         error: {
           code: 'API_TOKEN_REQUIRED',
@@ -191,8 +187,8 @@ export interface StrictBearerTokenDeps {
    * secret it enforces, and this package has no business guessing a host's env-var name.
    */
   readonly tokenEnvVar: string;
-  /** Defaults to `process.env`. Threaded through so tests never have to mutate real process env. */
-  readonly env?: NodeJS.ProcessEnv;
+  /** Host-supplied environment; tests and hosts use the same explicit seam. */
+  readonly env: NodeJS.ProcessEnv;
   /**
    * Exact request paths this gate does not apply to. Defaults to none — this is a gate-everything
    * primitive, and each exemption must be opted into explicitly at the mount site with a stated
@@ -238,10 +234,9 @@ export interface StrictBearerTokenDeps {
  * than defended against in code: normalizing `req.baseUrl + req.path` here would silently accept both
  * mount styles and remove the caller's ability to reason about which paths its entries refer to.
  */
-export function requireStrictBearerToken(deps: StrictBearerTokenDeps) {
-  const { tokenEnvVar } = deps;
-  const env = deps.env ?? process.env;
-  const exempt = new Set(deps.exemptPaths ?? []);
+export function requireStrictBearerToken(requiredArgs: Omit<StrictBearerTokenDeps, 'exemptPaths'>, optionalArgs: Pick<StrictBearerTokenDeps, 'exemptPaths'> = {}) {
+  const { tokenEnvVar, env } = requiredArgs;
+  const exempt = new Set(optionalArgs.exemptPaths ?? []);
 
   return function requireStrictBearerTokenMiddleware(req: Request, res: Response, next: NextFunction): void {
     if (exempt.has(req.path)) {
@@ -261,8 +256,8 @@ export function requireStrictBearerToken(deps: StrictBearerTokenDeps) {
     }
 
     // Deliberately no loopback/peer-address exemption — see this function's doc.
-    const presented = bearerTokenFromHeader(req.get('authorization'));
-    if (presented === null || !timingSafeTokenMatch(presented, expected)) {
+    const presented = bearerTokenFromHeader({ header: req.get('authorization') });
+    if (presented === null || !timingSafeTokenMatch({ presented, expected })) {
       res.status(401).json({
         error: { code: 'API_TOKEN_REQUIRED', message: `Authorization: Bearer <${tokenEnvVar}> required` },
       });
@@ -272,15 +267,15 @@ export function requireStrictBearerToken(deps: StrictBearerTokenDeps) {
   };
 }
 
-export interface ApiOriginGuardMiddlewareDeps {
+export interface ApiOriginGuardMiddlewareDeps extends OriginValidationEnvConfig {
   /** The host this daemon is bound to — compared against a request's `Host`/`Origin` headers. */
   host: string;
   /** Extra allow-listed origins (e.g. a reverse-proxy's public origin). Defaults to none. */
   extraAllowedOrigins?: readonly string[];
   /** Returns the daemon's resolved listen port, or a falsy value before it has resolved. */
   getResolvedPort: () => number | null | undefined;
-  /** Defaults to `process.env`. Threaded through so `JINI_WEB_PORT` is testable without mutating real process env. */
-  env?: NodeJS.ProcessEnv;
+  /** Host-supplied environment; port env var names are supplied by the host too. */
+  env: NodeJS.ProcessEnv;
 }
 
 /**
@@ -306,10 +301,10 @@ function isPortlessLoopbackOrigin(origin: string): boolean {
  * @complexity Setup is O(1). Each gated request is O(p) in the number of allowed ports (typically 1-2).
  * @overallScore 100/100
  */
-export function registerApiOriginGuardMiddleware(app: Express, deps: ApiOriginGuardMiddlewareDeps): void {
-  const { host, getResolvedPort } = deps;
+export function registerApiOriginGuardMiddleware({ app, deps }: { readonly app: Express; readonly deps: ApiOriginGuardMiddlewareDeps }, _optional: Record<string, never> = {}): void {
+  const { host, getResolvedPort, env, allowedOriginsEnvVar, webPortEnvVar, bindHostEnvVar } = deps;
+  const config = { allowedOriginsEnvVar, webPortEnvVar, bindHostEnvVar };
   const extraAllowedOrigins = deps.extraAllowedOrigins ?? [];
-  const env = deps.env ?? process.env;
 
   app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
@@ -332,8 +327,8 @@ export function registerApiOriginGuardMiddleware(app: Express, deps: ApiOriginGu
       return;
     }
 
-    const ports = allowedBrowserPorts(resolvedPort, env);
-    if (!isAllowedBrowserOrigin(origin, req.headers.host, ports, host, [...extraAllowedOrigins])) {
+    const ports = allowedBrowserPorts({ config, port: resolvedPort, env });
+    if (!isAllowedBrowserOrigin({ config, origin, hostHeader: req.headers.host, ports, bindHost: host, extraAllowedOrigins: [...extraAllowedOrigins] })) {
       if (req.method !== 'GET' || !isPortlessLoopbackOrigin(String(origin))) {
         res.status(403).json({ error: 'Cross-origin requests are not allowed' });
         return;

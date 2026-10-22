@@ -13,7 +13,7 @@ describe('@jini-ai/cli barrel', () => {
     expect(typeof jiniCli.postJsonToDaemon).toBe('function');
     expect(typeof jiniCli.surfaceFetchError).toBe('function');
     expect(typeof jiniCli.readPromptFromFlags).toBe('function');
-    expect(typeof jiniCli.sanitizeUntrustedText).toBe('function');
+    expect('sanitizeUntrustedText' in jiniCli).toBe(false);
     expect(typeof jiniCli.renderUsage).toBe('function');
     expect(typeof jiniCli.CommandRegistry).toBe('function');
     expect(jiniCli.CommandRegistryToken).toBeDefined();

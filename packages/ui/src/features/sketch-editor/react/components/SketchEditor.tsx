@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useRef } from 'react';
 import { useI18n } from '../../../i18n/index.js';
 import { Toast } from '../../../../react/components/Toast.js';
 import { defaultSketchEditorDependencies } from '../../dependencies.js';
@@ -10,13 +10,14 @@ import type {
   SketchScene,
   SketchSceneChangeOptions,
   SketchTooltipTarget,
+  SketchTranslate,
 } from '../../types.js';
 import { useSketchDomEnhancements } from '../hooks/useSketchDomEnhancements.js';
 import { useSketchSaveWorkflow } from '../hooks/useSketchSaveWorkflow.js';
 import { useSketchScene } from '../hooks/useSketchScene.js';
 import { useSketchTheme } from '../hooks/useSketchTheme.js';
 import { SketchMainMenu } from './SketchMainMenu.js';
-import { SketchSaveStateBadge } from './SketchSaveStateBadge.js';
+import { SketchSaveStateBadge, type SketchSaveStateBadgeProps } from './SketchSaveStateBadge.js';
 
 export interface SketchEditorProps {
   scene: SketchScene;
@@ -60,6 +61,38 @@ export interface SketchEditorProps {
   dependencies?: SketchEditorDependencies;
   /** Custom hook override for dependency injection / testing. */
   useSketchTheme?: typeof useSketchTheme;
+}
+
+const EXCALIDRAW_UI_OPTIONS = {
+  canvasActions: {
+    saveToActiveFile: false,
+    loadScene: false,
+    toggleTheme: false,
+    saveAsImage: false,
+    export: false,
+  },
+  tools: { image: true },
+} as const;
+
+/** `saving` wins over `dirty`; only the active label is translated. */
+function resolveSaveStatus({ saving, dirty, t }: { saving: boolean; dirty: boolean; t: SketchTranslate }): SketchSaveStateBadgeProps {
+  if (saving) return { state: 'saving', label: t('Saving…') };
+  if (dirty) return { state: 'dirty', label: t('Unsaved changes') };
+  return { state: 'saved', label: t('Saved') };
+}
+
+/** An export toast carries a file to open: it lingers longer and offers an
+ *  "Open file" action; every other toast is a short-lived notice. */
+function sketchToastActionProps({
+  actionFileName,
+  t,
+  onAction,
+}: {
+  actionFileName: string | undefined;
+  t: SketchTranslate;
+  onAction: () => void;
+}): { ttlMs: number; actionLabel?: string; onAction?: () => void } {
+  return actionFileName ? { ttlMs: 5000, actionLabel: t('Open file'), onAction } : { ttlMs: 2200 };
 }
 
 /**
@@ -138,26 +171,9 @@ export function SketchEditor({
     onCloseActiveDialog: closeActiveDialog,
   });
 
-  const excalidrawUIOptions = useMemo(
-    () =>
-      ({
-        canvasActions: {
-          saveToActiveFile: false,
-          loadScene: false,
-          toggleTheme: false,
-          saveAsImage: false,
-          export: false,
-        },
-        tools: { image: true },
-      }) as const,
-    [],
-  );
-
   const hasContent = sketchSceneHasContent(scene);
-  const canClear = hasContent;
   const canSave = dirty || hasContent;
-  const saveState = saving ? 'saving' : dirty ? 'dirty' : 'saved';
-  const saveStateLabel = saving ? t('Saving…') : dirty ? t('Unsaved changes') : t('Saved');
+  const saveStatus = resolveSaveStatus({ saving, dirty, t });
 
   const { Excalidraw, MainMenu } = engine;
 
@@ -175,8 +191,8 @@ export function SketchEditor({
           handleKeyboardGlobally={false}
           autoFocus
           name={fileName}
-          UIOptions={excalidrawUIOptions}
-          renderTopRightUI={() => <SketchSaveStateBadge state={saveState} label={saveStateLabel} />}
+          UIOptions={EXCALIDRAW_UI_OPTIONS}
+          renderTopRightUI={() => <SketchSaveStateBadge {...saveStatus} />}
           validateEmbeddable={validateSketchEmbeddableUrl}
         >
           <SketchMainMenu
@@ -190,7 +206,7 @@ export function SketchEditor({
             exporting={exporting}
             canExport={hasContent}
             onExportImage={() => void handleExportImage()}
-            canClear={canClear}
+            canClear={hasContent}
             onClear={handleClear}
           />
         </Excalidraw>
@@ -200,9 +216,8 @@ export function SketchEditor({
           message={toast.message}
           details={toast.details ?? null}
           tone={toast.tone}
-          ttlMs={toast.actionFileName ? 5000 : 2200}
           onDismiss={dismissToast}
-          {...(toast.actionFileName ? { actionLabel: t('Open file'), onAction: handleToastAction } : {})}
+          {...sketchToastActionProps({ actionFileName: toast.actionFileName, t, onAction: handleToastAction })}
         />
       ) : null}
     </div>

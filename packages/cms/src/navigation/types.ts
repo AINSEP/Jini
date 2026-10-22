@@ -22,7 +22,7 @@
  * this library introduces; the entries repo, revisions, `entry_refs`, and the command
  * gateway are reused unchanged from the generic entries model.
  */
-import type { ISODateTime, JsonObject, UUID } from "../core/ports.js";
+import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
 
 // ---------------------------------------------------------------------------
 // Content-type identity
@@ -62,6 +62,11 @@ export type ReservedNavTargetKind = "dynamicQuery" | "content";
 /** A link to another content entry (page/post/media/…). Integrity-tracked. */
 export interface NavEntryTarget {
   readonly kind: "entryRef";
+  /** Optional content-type hint for editors; reference integrity and routing still use entryId. */
+  readonly entryType?: string;
+  /** Author's last known URL, retained for exports and routing misses. A known unavailable
+   * entry must remain hidden; this snapshot never overrides an availability decision. */
+  readonly lastKnownHref?: string;
   /** Target entry id. Extracted to `entry_refs` at the write chokepoint. */
   readonly entryId: UUID;
 }
@@ -142,7 +147,14 @@ export interface NavMenuDoc {
   /** Doc-schema version, so the validator can migrate shapes later. */
   readonly version: number;
   readonly items: readonly NavItemNode[];
+  /** What renders at the menu's marker; absent means `"items"`. See `menu-html.ts`. */
+  readonly mode?: NavMenuMode | undefined;
+  /** Author-written HTML for `"html"` mode, kept even while the menu renders its items. */
+  readonly html?: string | undefined;
 }
+
+/** `"items"` renders the item tree; `"html"` renders the author's own markup (`menu-html.ts`). */
+export type NavMenuMode = "items" | "html";
 
 // ---------------------------------------------------------------------------
 // The menu read model (a typed view over the generic entries row)

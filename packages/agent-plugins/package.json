@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.3.0",
-  "description": "Support for Agent Plugins, the open, vendor-neutral spec (v1.0.0, published 2026-08-06, Technical Steering Committee with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel) for bundling Agent Skills and MCP servers into one portable directory: PluginManifest/McpManifest types + structural validators on the package root, plus the bundled plugins themselves, each on a subpath named for itself (./ui-ux-design, ./create-tovu-theme). Extracted 2026-08-18 from @jini-ai/plugins, which now only reserves the unrelated, unimplemented ./host format.",
+  "version": "0.4.7",
+  "description": "Support for Agent Plugins, the open, vendor-neutral spec (v1.0.0, published 2026-08-06; v1.1.0 and later 1.x manifests are also accepted; Technical Steering Committee with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel) for bundling Agent Skills and MCP servers into one portable directory: PluginManifest/McpManifest types + structural validators on the package root, plus the bundled plugins themselves, each on a subpath named for itself (./ui-ux-design). Extracted 2026-08-18 from @jini-ai/plugins, which now only reserves the unrelated, unimplemented ./host format.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -15,7 +15,28 @@
     "entries": {
       ".": "universal",
       "./ui-ux-design/*": "universal",
-      "./create-tovu-theme/*": "universal"
+      "./lifecycle": "node",
+      "./lifecycle/node": "node",
+      "./lifecycle/yauzl": "node",
+      "./lifecycle/tools": "node",
+      "./manifest": "universal",
+      "./persistent-state": "node",
+      "./folder-zip": "universal",
+      "./folder-zip/node": "node",
+      "./admin-surfaces": "universal",
+      "./admin-surfaces/client": "universal"
+    },
+    "isolation": {
+      "entries": {
+        "./manifest": "lifecycle",
+        "./persistent-state": "core"
+      },
+      "shared": [
+        "core/persistent-state.js",
+        "persistent-state.js",
+        "src/lifecycle/contribution-loader.ts",
+        "src/lifecycle/tools/capabilities.ts"
+      ]
     }
   },
   "type": "module",
@@ -27,17 +48,71 @@
       "default": "./dist/index.js"
     },
     "./ui-ux-design/*": "./ui-ux-design/*",
-    "./create-tovu-theme/*": "./create-tovu-theme/*"
+    "./lifecycle": {
+      "types": "./dist/lifecycle/index.d.ts",
+      "import": "./dist/lifecycle/index.js",
+      "default": "./dist/lifecycle/index.js"
+    },
+    "./lifecycle/node": {
+      "types": "./dist/lifecycle/node.d.ts",
+      "import": "./dist/lifecycle/node.js",
+      "default": "./dist/lifecycle/node.js"
+    },
+    "./lifecycle/yauzl": {
+      "types": "./dist/lifecycle/yauzl-archive-reader.d.ts",
+      "import": "./dist/lifecycle/yauzl-archive-reader.js",
+      "default": "./dist/lifecycle/yauzl-archive-reader.js"
+    },
+    "./lifecycle/tools": {
+      "types": "./dist/lifecycle/tools/index.d.ts",
+      "import": "./dist/lifecycle/tools/index.js",
+      "default": "./dist/lifecycle/tools/index.js"
+    },
+    "./manifest": {
+      "types": "./dist/lifecycle/manifest.d.ts",
+      "import": "./dist/lifecycle/manifest.js",
+      "default": "./dist/lifecycle/manifest.js"
+    },
+    "./persistent-state": {
+      "types": "./persistent-state.d.ts",
+      "import": "./persistent-state.js",
+      "default": "./persistent-state.js"
+    },
+    "./folder-zip": {
+      "types": "./dist/folder-zip.d.ts",
+      "import": "./dist/folder-zip.js",
+      "default": "./dist/folder-zip.js"
+    },
+    "./folder-zip/node": {
+      "types": "./dist/folder-zip-node.d.ts",
+      "import": "./dist/folder-zip-node.js",
+      "default": "./dist/folder-zip-node.js"
+    },
+    "./admin-surfaces": {
+      "types": "./dist/admin-surfaces/index.d.ts",
+      "import": "./dist/admin-surfaces/index.js",
+      "default": "./dist/admin-surfaces/index.js"
+    },
+    "./admin-surfaces/client": {
+      "types": "./dist/admin-surfaces/surface-client.d.ts",
+      "import": "./dist/admin-surfaces/surface-client.js",
+      "default": "./dist/admin-surfaces/surface-client.js"
+    }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "ui-ux-design",
-    "create-tovu-theme",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "persistent-state.js",
+    "persistent-state.d.ts",
+    "core"
   ],
   "publishConfig": {
     "access": "public",
@@ -50,6 +125,34 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "yazl": "^3.3.1",
+    "@jini-ai/core": "^0.4.2",
+    "@jini-ai/platform": "^0.5.0",
+    "@cfworker/json-schema": "^4.1.1",
+    "@jini-ai/plugins": "workspace:^",
+    "@types/semver": "^7.5.8",
+    "semver": "^7.6.2"
+  },
+  "peerDependencies": {
+    "yauzl": "^3.4.0",
+    "@jini-ai/core": "^0.4.9",
+    "@jini-ai/platform": "^0.5.3",
+    "@cfworker/json-schema": "^4.1.1",
+    "semver": "^7.6.2"
+  },
+  "peerDependenciesMeta": {
+    "yauzl": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
+      "optional": true
+    },
+    "@cfworker/json-schema": {
+      "optional": true
+    },
+    "semver": {
+      "optional": true
+    }
   }
 }

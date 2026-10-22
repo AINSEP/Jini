@@ -34,7 +34,7 @@ function buildProxyErrorResponse(error: unknown, target: string): Response {
   });
 }
 
-export function buildProtocolProxyTargetUrl(targetBaseUrl: string, requestUrl: string): string {
+export function buildProtocolProxyTargetUrl({ targetBaseUrl, requestUrl }: { targetBaseUrl: string; requestUrl: string }): string {
   const incoming = new URL(requestUrl);
   const target = new URL(targetBaseUrl);
   target.pathname = incoming.pathname;
@@ -43,16 +43,13 @@ export function buildProtocolProxyTargetUrl(targetBaseUrl: string, requestUrl: s
   return target.toString();
 }
 
-export type ProtocolFetch = (request: Request) => Promise<Response>;
+export type ProtocolFetch = (args: { request: Request }) => Promise<Response>;
 
-export async function handleProtocolProxyRequest(
-  request: Request,
-  targetBaseUrl: string,
-  fetchImpl: ProtocolFetch = fetch,
+export async function handleProtocolProxyRequest({ request, targetBaseUrl }: { request: Request; targetBaseUrl: string }, { fetchImpl = ({ request }) => fetch(request) }: { fetchImpl?: ProtocolFetch } = {}
 ): Promise<Response> {
-  const target = buildProtocolProxyTargetUrl(targetBaseUrl, request.url);
+  const target = buildProtocolProxyTargetUrl({ targetBaseUrl, requestUrl: request.url });
   try {
-    return await fetchImpl(new Request(target, request));
+    return await fetchImpl({ request: new Request(target, request) });
   } catch (error) {
     return buildProxyErrorResponse(error, target);
   }
@@ -64,9 +61,9 @@ export interface ProtocolSchemeRegistration {
 }
 
 export interface ProtocolHandlerPort {
-  registerSchemeProxy(scheme: string, targetBaseUrl: string): ProtocolSchemeRegistration;
+  registerSchemeProxy({ scheme, targetBaseUrl }: { scheme: string; targetBaseUrl: string }): ProtocolSchemeRegistration;
 }
 
-export function schemeEntryUrl(scheme: string): string {
+export function schemeEntryUrl({ scheme }: { scheme: string }): string {
   return `${scheme}://app/`;
 }

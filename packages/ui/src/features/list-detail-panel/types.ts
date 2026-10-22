@@ -6,7 +6,7 @@
  * selection-interaction chrome and the selection-validity rule.
  *
  * Origin: `DesignSystemsTab.tsx` in the real OD source (the confirmed
- * instance of this shape — see `packages/ui/source-map.md` for why
+ * instance of this shape — see `packages/ui/archived provenance ledger` for why
  * `PluginsView.tsx`'s detail modal and `ProjectView.tsx`'s composition were
  * verified NOT to share it despite the surface-level "conceptually related"
  * flag in `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md`).

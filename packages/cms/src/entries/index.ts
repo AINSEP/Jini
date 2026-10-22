@@ -16,7 +16,6 @@ export type {
   EntryRecord,
   OwningContentType,
   ActorIdentityInput,
-  Result,
 } from "./types.js";
 
 export type { EntryListPort } from "./list.js";
@@ -46,6 +45,7 @@ export {
   EntrySlugConflictError,
   VersionConflictError,
   EntryFieldValidationError,
+  entryVersionConflictError,
 } from "./errors.js";
 
 export type { EntryLifecycleOp, EntryLifecycleHandler } from "./lifecycle-dispatch.js";
@@ -59,14 +59,16 @@ export type {
   AuthorizeFn,
   EntryRevisionInput,
   EntryRepoPort,
+  EntrySaveOptions,
   ContentTypeLookupPort,
   OutboxPort,
   WatermarkPort,
   CreateEntryRequired,
   UpdateEntryRequired,
   PublishUnpublishEntryRequired,
+  ImportEntryRequired,
 } from "./write-service.js";
-export { createEntry, updateEntry, publishEntry, unpublishEntry } from "./write-service.js";
+export { createEntry, updateEntry, publishEntry, unpublishEntry, importEntry } from "./write-service.js";
 
 /**
  * The in-memory repository. Exported for the same reason `navigation` exports its own: a host's
@@ -78,8 +80,6 @@ export { InMemoryEntryRepo, toEntryOutbox } from "./repo.memory.js";
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   entriesAgentToolCatalog,
-  type AgentToolDefinition as EntriesAgentToolDefinition,
-  type AgentToolSideEffect as EntriesAgentToolSideEffect,
 } from "./agent-tools.js";
 
 /**

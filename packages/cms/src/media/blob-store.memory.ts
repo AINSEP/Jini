@@ -41,6 +41,10 @@ export class InMemoryBlobStore implements BlobStorePort {
     return this.bytesByKey.has(input.storageKey);
   }
 
+  async sizeOf({ storageKey }: { storageKey: string }, _optional: Record<string, never> = {}): Promise<number | null> {
+    return this.bytesByKey.get(storageKey)?.byteLength ?? null;
+  }
+
   async remove(input: { storageKey: string }): Promise<void> {
     this.bytesByKey.delete(input.storageKey);
   }

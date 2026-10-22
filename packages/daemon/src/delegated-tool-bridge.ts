@@ -6,7 +6,7 @@
  * enforces Jini's registry policy, confirmation, timeout, cancellation, and
  * audit trail before any registered handler runs.
  */
-import type { Principal, RunRef, SurfaceEmission } from '@jini-ai/core';
+import { batchOutcomeFor, type Principal, type RunRef, type SurfaceEmission } from '@jini-ai/core';
 import type { RunAgentPayload } from '@jini-ai/protocol';
 import type { RunLifecycle } from './run-lifecycle.js';
 import { extractResultMedia } from './tool-result-media.js';
@@ -39,11 +39,11 @@ export interface DelegatedToolInvocation {
 export interface DelegatedToolBridge {
   /**
    * Emits a canonical `tool_use`, executes through `ToolExecutor`, then emits
-   * exactly one matching `tool_result`. Unknown tool ids remain programmer or
-   * routing errors from `ToolExecutor` and are rethrown after their error
+   * exactly one matching `tool_result`. Unknown tool ids are input errors
+   * from `ToolExecutor` and are rethrown after their error
    * result is recorded.
    */
-  execute(invocation: DelegatedToolInvocation): Promise<ToolExecutionResult>;
+  execute(requiredArgs: Pick<DelegatedToolInvocation, "runId" | "toolUseId" | "toolId" | "principal" | "input">, optionalArgs?: Pick<DelegatedToolInvocation, "signal">): Promise<ToolExecutionResult>;
 }
 
 export interface CreateDelegatedToolBridgeOptions {
@@ -76,7 +76,7 @@ function errorMessage(error: unknown): string {
 }
 
 /** Converts arbitrary registered-tool output into the string-bearing run protocol. */
-export function serializeDelegatedToolOutput(output: unknown): string {
+export function serializeDelegatedToolOutput({ output }: { readonly output: unknown }): string {
   if (typeof output === 'string') return output;
   if (output === undefined) return '';
   try {
@@ -92,10 +92,10 @@ export function serializeDelegatedToolOutput(output: unknown): string {
  * gap 3's stdin-tool-result injector in `agent-executor.ts`) reports back as the tool's visible
  * output/failure reason. Exported so both real callers share one mapping rather than drifting.
  */
-export function resultContent(result: ToolExecutionResult): string {
+export function resultContent({ result }: { readonly result: ToolExecutionResult }): string {
   switch (result.status) {
     case 'completed':
-      return serializeDelegatedToolOutput(result.output);
+      return serializeDelegatedToolOutput({ output: result.output });
     case 'denied':
       return 'Tool execution denied by policy.';
     case 'confirmation-denied':
@@ -109,6 +109,156 @@ export function resultContent(result: ToolExecutionResult): string {
   }
 }
 
+/** Context shared by the helpers of one delegated call. */
+interface DelegatedCall {
+  readonly lifecycle: RunLifecycle;
+  readonly runId: string;
+  readonly toolUseId: string;
+}
+
+/**
+ * Builds the abort controller handed to `ToolExecutor`, aborted by either a run cancellation or the
+ * invocation's own transport signal. `dispose()` detaches both listeners once the call settles.
+ */
+function linkCancellation({ lifecycle, runId }: Pick<DelegatedCall, 'lifecycle' | 'runId'>, { signal }: { readonly signal?: AbortSignal }): { controller: AbortController; dispose: () => void } {
+  const controller = new AbortController();
+  const unsubscribeCancel = lifecycle.onCancelRequested({ runId: runId, listener: () => controller.abort() });
+  const abortFromTransport = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener('abort', abortFromTransport, { once: true });
+  return {
+    controller,
+    dispose: () => {
+      unsubscribeCancel();
+      signal?.removeEventListener('abort', abortFromTransport);
+    },
+  };
+}
+
+  /**
+   * The seam a handler needs in order to show something it then WAITS on.
+   *
+   * Surfaces normally ride out in the return value and are split out below — which is useless to a
+   * handler that cannot return until the human has answered the very thing it wants to display.
+   * Emitting through here reaches the same run event stream, so a message pushed mid-call is
+   * indistinguishable to a renderer from one carried by the result.
+   *
+   * **Channel-neutral by construction.** The handler names its own channel, and this only injects
+   * correlation. That is what lets one seam drive `mcp-ui`, A2UI's multi-turn envelope
+   * (`createSurface` → `updateComponents` → …), the protocol's own `surface_request`/
+   * `surface_response` pair, or a channel invented later — none of which this file needs to know
+   * the shape of, matching `@jini-ai/protocol`'s own posture of typing each channel's body
+   * `unknown` and validating where the concrete type is known.
+   *
+   * Callable any number of times before the call settles; refused after. A handler that stashed
+   * this emitter could otherwise paint a surface onto a run whose `tool_result` is already on
+   * screen, with no call left to answer it.
+   */
+function createSurfaceSeam({ lifecycle, runId, toolUseId }: DelegatedCall): { emitSurface: (emission: SurfaceEmission) => Promise<void>; settle: () => void; release: () => void } {
+  let settled = false;
+  // A handler emits a surface mid-call because it is about to WAIT on the human (a form, a card).
+  // Nothing reaches the run's event stream while they answer, so the slow-run watchdog would read
+  // that silence as a stall and post "Still working…" over an open form — which then reappears
+  // once the form is answered. Suspended from the first surface until the call settles (the
+  // `finally` below); the watchdog re-arms then, so a genuine stall afterwards is still caught.
+  let slowRunSuspended = false;
+  const emitSurface = async (emission: SurfaceEmission): Promise<void> => {
+    if (settled) throw new Error(`emitSurface: tool call ${toolUseId} has already completed`);
+    if (!slowRunSuspended) {
+      slowRunSuspended = true;
+      lifecycle.suspendSlowRunNotice({ runId: runId });
+    }
+    // Cast because `RunAgentPayload` is a closed union and `channel` is deliberately an open
+    // string — a seam that only accepts channels this file already knows about is not a
+    // channel-neutral seam. This mirrors `@jini-ai/protocol`'s own posture of typing each
+    // channel's BODY `unknown` and validating where the concrete type is known, applied one level
+    // up to the channel name itself.
+    //
+    // Blast radius of a bogus channel is bounded and worth stating: this path is human-only, so
+    // the failure mode is an event no renderer subscribes to — nothing rendered. It cannot put
+    // anything into model context, which is the property that would actually matter.
+    //
+    // That bound holds only for an UNKNOWN channel, which is why the spread order below matters.
+    // `payload` used to be spread LAST, so a handler could set `type` to a channel this bridge
+    // does know — `tool_result`, `mcp-ui` — and set `toolUseId` to a DIFFERENT call's, producing
+    // a well-formed forged event correlated against someone else's tool call. The cast is what
+    // let it past the closed `RunAgentPayload` union unnoticed. `SurfaceEmission.payload` is
+    // documented as "the channel's own fields, merged into the emitted event BESIDE `type`" —
+    // beside, not over — so both reserved keys are stripped rather than merely out-ordered.
+    // Stripping, not reordering: `correlationFor` returns `{}` for a channel that carries no
+    // `toolUseId`, so spread order alone would still let a payload smuggle one onto those.
+    const safePayload: Record<string, unknown> = { ...emission.payload };
+    delete safePayload['type'];
+    delete safePayload['toolUseId'];
+    const data = {
+      ...safePayload,
+      type: emission.channel,
+      ...correlationFor(emission.channel, toolUseId),
+    } as unknown as RunAgentPayload;
+    await lifecycle.emit({ runId: runId, input: { event: 'agent', data } });
+  };
+  /** Refuses every later emission: the call has a result. */
+  const settle = (): void => {
+    settled = true;
+  };
+  /** Re-arms the slow-run notice if a surface suspended it — run last, once the call's events are out. */
+  const release = (): void => {
+    if (slowRunSuspended) lifecycle.resumeSlowRunNotice({ runId: runId });
+  };
+  return { emitSurface, settle, release };
+}
+
+/** Splits human-only surfaces out of an executed result, emits them, then the matching `tool_result`. */
+async function emitExecutedResult({ lifecycle, runId, toolUseId }: DelegatedCall, { executed }: { readonly executed: ToolExecutionResult }): Promise<ToolExecutionResult> {
+    // Recognized media blocks (images) are collected here purely to populate the sibling
+    // `media` field the `tool_result` event carries below, for a UI that wants to render one
+    // inline without re-parsing `content` (`ToolCard`'s `<img>`, per `assistant_demo_image`'s
+    // own doc). This does NOT remove the image block from `executed.output` — `image` is one
+    // of `tool-result-surfaces.ts`'s own `MODEL_VISIBLE_BLOCK_TYPES`, so the split below already
+    // keeps it in `modelOutput` on its own. An image reaching the model IS the point
+    // (`assistant_demo_image`/`admin.capture_screenshot` exist to prove exactly that round
+    // trip) — unlike an `mcp-ui` resource, which is genuinely human-only and must never survive
+    // into `modelOutput`. (Earlier this extraction fed its own de-imaged `remainder` into the
+    // surfaces split below and discarded the image from `output` entirely, on the assumption
+    // that the sibling `media` field was the only channel a caller needed — true for a UI
+    // reading the run's event stream, false for `@jini-ai/mcp`'s `execute_delegated_tool`, which
+    // hands the bridge's RETURN VALUE to the model with no access to that event stream at all.)
+  const { media } = extractResultMedia({ output: executed.output });
+
+    // THE MODEL/HUMAN FORK. A tool call's return value is definitionally what the model
+    // receives, so a UI resource left inside it is model-visible context no matter what any
+    // downstream layer does — `@jini-ai/mcp`'s `okResult()` JSON.stringifies the whole result
+    // into a single text block. This is the only point holding BOTH the raw result and the
+    // run's event stream, which is why the split happens here rather than later.
+    //
+    // Whitelist, not blacklist: only block types known to be model-safe survive into `output`;
+    // everything else is withheld and emitted for the human. See `tool-result-surfaces.ts` for
+    // why that direction is load-bearing.
+  const { modelOutput, surfaces } = splitToolResultSurfaces({ output: executed.output });
+  const result: ToolExecutionResult = surfaces.length === 0 ? executed : { ...executed, output: modelOutput };
+
+    // Emitted BEFORE `tool_result` so the surface is on screen by the time the transcript shows
+    // the call completing — otherwise the human is asked to confirm something not yet visible.
+  for (const surface of surfaces) {
+    await lifecycle.emit({ runId: runId, input: {
+      event: 'agent',
+      data: { type: MCP_UI_EVENT_TYPE, toolUseId, resource: surface },
+    } });
+  }
+
+  await lifecycle.emit({ runId: runId, input: {
+    event: 'agent',
+    data: {
+      type: 'tool_result',
+      toolUseId,
+      content: resultContent({ result }),
+      ...(result.status === 'completed' && (batchOutcomeFor({ output: result.output }) ?? 'completed') === 'completed' ? {} : { isError: true }),
+      ...(media.length > 0 ? { media } : {}),
+    },
+  } });
+  return result;
+}
+
 /**
  * Creates the transport-neutral bridge used by future ACP-delegate, MCP, or
  * other host protocols. This module does not invent a server transport: a
@@ -118,145 +268,38 @@ export function resultContent(result: ToolExecutionResult): string {
 export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOptions): DelegatedToolBridge {
   const { lifecycle, toolExecutor } = options;
 
-  async function execute(invocation: DelegatedToolInvocation): Promise<ToolExecutionResult> {
+  async function execute(requiredArgs: Pick<DelegatedToolInvocation, "runId" | "toolUseId" | "toolId" | "principal" | "input">, optionalArgs: Pick<DelegatedToolInvocation, "signal"> = {}): Promise<ToolExecutionResult> {
+    // Merged rather than read from `optionalArgs` alone: a caller may hand `signal` in the first
+    // object (the delegated-tools HTTP route does), and it must still be honoured.
+    const invocation: DelegatedToolInvocation = { ...requiredArgs, ...optionalArgs };
     const { runId, toolUseId, toolId, principal, input } = invocation;
-    await lifecycle.emit(runId, {
+    const call: DelegatedCall = { lifecycle, runId, toolUseId };
+    await lifecycle.emit({ runId: runId, input: {
       event: 'agent',
       data: { type: 'tool_use', id: toolUseId, name: toolId, input },
-    });
+    } });
 
-    const controller = new AbortController();
-    const unsubscribeCancel = lifecycle.onCancelRequested(runId, () => controller.abort());
-    const abortFromTransport = () => controller.abort();
-    if (invocation.signal) {
-      if (invocation.signal.aborted) controller.abort();
-      else invocation.signal.addEventListener('abort', abortFromTransport, { once: true });
-    }
-
+    const cancellation = linkCancellation(call, invocation);
+    const seam = createSurfaceSeam(call);
     const run: RunRef = { id: runId };
-
-    /**
-     * The seam a handler needs in order to show something it then WAITS on.
-     *
-     * Surfaces normally ride out in the return value and are split out below — which is useless to a
-     * handler that cannot return until the human has answered the very thing it wants to display.
-     * Emitting through here reaches the same run event stream, so a message pushed mid-call is
-     * indistinguishable to a renderer from one carried by the result.
-     *
-     * **Channel-neutral by construction.** The handler names its own channel, and this only injects
-     * correlation. That is what lets one seam drive `mcp-ui`, A2UI's multi-turn envelope
-     * (`createSurface` → `updateComponents` → …), the protocol's own `surface_request`/
-     * `surface_response` pair, or a channel invented later — none of which this file needs to know
-     * the shape of, matching `@jini-ai/protocol`'s own posture of typing each channel's body
-     * `unknown` and validating where the concrete type is known.
-     *
-     * Callable any number of times before the call settles; refused after. A handler that stashed
-     * this emitter could otherwise paint a surface onto a run whose `tool_result` is already on
-     * screen, with no call left to answer it.
-     */
-    let settled = false;
-    const emitSurface = async (emission: SurfaceEmission): Promise<void> => {
-      if (settled) throw new Error(`emitSurface: tool call ${toolUseId} has already completed`);
-      // Cast because `RunAgentPayload` is a closed union and `channel` is deliberately an open
-      // string — a seam that only accepts channels this file already knows about is not a
-      // channel-neutral seam. This mirrors `@jini-ai/protocol`'s own posture of typing each
-      // channel's BODY `unknown` and validating where the concrete type is known, applied one level
-      // up to the channel name itself.
-      //
-      // Blast radius of a bogus channel is bounded and worth stating: this path is human-only, so
-      // the failure mode is an event no renderer subscribes to — nothing rendered. It cannot put
-      // anything into model context, which is the property that would actually matter.
-      //
-      // That bound holds only for an UNKNOWN channel, which is why the spread order below matters.
-      // `payload` used to be spread LAST, so a handler could set `type` to a channel this bridge
-      // does know — `tool_result`, `mcp-ui` — and set `toolUseId` to a DIFFERENT call's, producing
-      // a well-formed forged event correlated against someone else's tool call. The cast is what
-      // let it past the closed `RunAgentPayload` union unnoticed. `SurfaceEmission.payload` is
-      // documented as "the channel's own fields, merged into the emitted event BESIDE `type`" —
-      // beside, not over — so both reserved keys are stripped rather than merely out-ordered.
-      // Stripping, not reordering: `correlationFor` returns `{}` for a channel that carries no
-      // `toolUseId`, so spread order alone would still let a payload smuggle one onto those.
-      const safePayload: Record<string, unknown> = { ...emission.payload };
-      delete safePayload['type'];
-      delete safePayload['toolUseId'];
-      const data = {
-        ...safePayload,
-        type: emission.channel,
-        ...correlationFor(emission.channel, toolUseId),
-      } as unknown as RunAgentPayload;
-      await lifecycle.emit(runId, { event: 'agent', data });
-    };
 
     try {
       try {
-        const executed = await toolExecutor.execute(
-          principal,
-          run,
-          toolId,
-          input,
-          controller.signal,
-          emitSurface,
+        const executed = await toolExecutor.execute({ principal: principal, run: run, toolId: toolId, input: input }, { signal: cancellation.controller.signal, emitSurface: seam.emitSurface }
         );
-        settled = true;
-
-        // Recognized media blocks (images) are collected here purely to populate the sibling
-        // `media` field the `tool_result` event carries below, for a UI that wants to render one
-        // inline without re-parsing `content` (`ToolCard`'s `<img>`, per `assistant_demo_image`'s
-        // own doc). This does NOT remove the image block from `executed.output` — `image` is one
-        // of `tool-result-surfaces.ts`'s own `MODEL_VISIBLE_BLOCK_TYPES`, so the split below already
-        // keeps it in `modelOutput` on its own. An image reaching the model IS the point
-        // (`assistant_demo_image`/`admin.capture_screenshot` exist to prove exactly that round
-        // trip) — unlike an `mcp-ui` resource, which is genuinely human-only and must never survive
-        // into `modelOutput`. (Earlier this extraction fed its own de-imaged `remainder` into the
-        // surfaces split below and discarded the image from `output` entirely, on the assumption
-        // that the sibling `media` field was the only channel a caller needed — true for a UI
-        // reading the run's event stream, false for `@jini-ai/mcp`'s `execute_delegated_tool`, which
-        // hands the bridge's RETURN VALUE to the model with no access to that event stream at all.)
-        const { media } = extractResultMedia(executed.output);
-
-        // THE MODEL/HUMAN FORK. A tool call's return value is definitionally what the model
-        // receives, so a UI resource left inside it is model-visible context no matter what any
-        // downstream layer does — `@jini-ai/mcp`'s `okResult()` JSON.stringifies the whole result
-        // into a single text block. This is the only point holding BOTH the raw result and the
-        // run's event stream, which is why the split happens here rather than later.
-        //
-        // Whitelist, not blacklist: only block types known to be model-safe survive into `output`;
-        // everything else is withheld and emitted for the human. See `tool-result-surfaces.ts` for
-        // why that direction is load-bearing.
-        const { modelOutput, surfaces } = splitToolResultSurfaces(executed.output);
-        const result: ToolExecutionResult = surfaces.length === 0 ? executed : { ...executed, output: modelOutput };
-
-        // Emitted BEFORE `tool_result` so the surface is on screen by the time the transcript shows
-        // the call completing — otherwise the human is asked to confirm something not yet visible.
-        for (const surface of surfaces) {
-          await lifecycle.emit(runId, {
-            event: 'agent',
-            data: { type: MCP_UI_EVENT_TYPE, toolUseId, resource: surface },
-          });
-        }
-
-        await lifecycle.emit(runId, {
-          event: 'agent',
-          data: {
-            type: 'tool_result',
-            toolUseId,
-            content: resultContent(result),
-            ...(result.status === 'completed' ? {} : { isError: true }),
-            ...(media.length > 0 ? { media } : {}),
-          },
-        });
-        return result;
+        seam.settle();
+        return await emitExecutedResult(call, { executed });
       } catch (error) {
-        settled = true;
-        await lifecycle.emit(runId, {
+        seam.settle();
+        await lifecycle.emit({ runId: runId, input: {
           event: 'agent',
           data: { type: 'tool_result', toolUseId, content: errorMessage(error), isError: true },
-        });
+        } });
         throw error;
       }
     } finally {
-      unsubscribeCancel();
-      invocation.signal?.removeEventListener('abort', abortFromTransport);
+      cancellation.dispose();
+      seam.release();
     }
   }
 

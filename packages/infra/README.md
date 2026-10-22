@@ -1,66 +1,61 @@
 # `@jini-ai/infra`
 
-Backing-service infrastructure for a Jini-hosted site. Today that means one thing — the database —
-exposed as two subpath exports: `./db/core` (driver-neutral ports and pure helpers) and
-`./db/sqlite` (the `better-sqlite3` driver).
+Deprecated compatibility package: replace `@jini-ai/infra/db/core` with `@jini-ai/db/core` and
+`@jini-ai/infra/db/sqlite` with `@jini-ai/db/sqlite`.
+
+This package and its published exports remain available for compatibility. The package owner
+applies npm registry deprecation at publish time; the manifest notice does not deprecate existing
+registry versions by itself. The retained outbox owner is exposed as `@jini-ai/infra/events/outbox`;
+the database entries remain compatibility shims.
+
+`@jini-ai/db` is an optional peer, required only by `./db/core` and `./db/sqlite`.
+Hosts using those entries must declare and install it explicitly; the published peer range
+tracks the matching workspace db release. `./events/outbox` works without db installed and
+requires only the regular `@jini-ai/core` dependency. The compatibility entries continue to
+re-export db's implementations; no database driver is loaded by the shim itself.
+
+Version 0.4.0 keeps the 0.3.3 names at `@jini-ai/infra/db/core` and
+`@jini-ai/infra/db/sqlite` for existing ESM consumers. Database implementations and their tests
+now live in `@jini-ai/db`. This shim has no driver peer dependency and no CommonJS build.
 
 ```ts
-import type { DbOpsPort } from '@jini-ai/infra/db/core';
-import { openSqliteConnection, SqliteDbOpsAdapter } from '@jini-ai/infra/db/sqlite';
+import type { DbOpsPort } from '@jini-ai/db/core';
+import { openSqliteConnection, SqliteDbOpsAdapter } from '@jini-ai/db/sqlite';
+import Database from 'better-sqlite3';
+
+const connection = openSqliteConnection({
+  filePath: 'app.db',
+  open: (filePath, options) => new Database(filePath, options),
+});
 ```
 
-## The point of the split
+`openSqliteConnection` now requires an injected `open`. It has no known host callers; the existing
+consumer uses `SqliteDbOpsAdapter`. The injected opener returns the host's own driver handle, and
+custom pragmas still replace the defaults. See `packages/db/README.md` for the complete subpath map,
+load-time requirements and isolation tests.
 
-A host that runs Postgres or Supabase should never compile `better-sqlite3`. That is not a
-nice-to-have here, it is the reason the package is shaped this way:
+`src/db/core` remains an R12 neutral directory declaring the naming port. The published `./db/core`
+compatibility entry binds that port in `src/db/driver` and preserves the canonical helper identities
+and original exports, including erased types. `shim-surface.test.ts` freezes both original name lists.
 
-- **No ORM on the public surface.** This package exports connection lifecycle and database
-  operations, never query building. It has no opinion about — and no dependency on — how you query.
-  An earlier version exported Drizzle-typed helpers; they were removed because an ORM's class types
-  carry private/protected members and therefore cannot cross a package boundary when the consumer
-  resolves its own copy. Schemas, migrations and queries belong to the host.
-- **The driver is an optional peer dependency.** `better-sqlite3` is declared in
-  `peerDependenciesMeta` as optional, so `npm install @jini-ai/infra` on its own pulls no native
-  module and triggers no node-gyp build.
-- **There is no `.` export.** A root barrel re-exporting both subpaths would load the driver for
-  everyone regardless of which subpath they imported, because Node does not tree-shake — whatever
-  the static import graph reaches gets resolved and executed. Omitting `.` is what makes the
-  separation real rather than aspirational.
-- **`db/core` is closed under relative imports.** Nothing in it may import a sibling directory, so
-  it cannot reach a driver transitively either.
+## Design decisions
 
-## How that promise is enforced
+- [Worker-owned bounded outbox retries](docs/decisions/DR-001-bounded-outbox-retries.md).
 
-Two checks, because the static and behavioural failure modes are different:
+## Kernel contracts
 
-| Check | Where | Catches |
-| --- | --- | --- |
-| `R12-driver-isolation` | `pnpm guard` (`scripts/check-driver-isolation.ts`) | `db/core` importing an optional peer, a subpath of one, or anything outside its own directory |
-| `loads-without-driver.test.ts` | `pnpm --filter @jini-ai/infra test` | The consequence: a real install fixture containing only the built `dist/`, proving `./db/core` imports with no driver resolvable |
+The outbox entry owns generic delivery, retries, enqueue-only views and drain scheduling. Its source
+uses core `Clock` (`nowMs()`) and `Pick<Logger, 'error'>`; structured errors go in logging's second
+argument. Reliability rationale stays in symbol JSDoc. The existing six-attempt policy,
+claim leases, timeouts, envelope identity and host-owned storage remain unchanged.
 
-R12's forbidden list is **derived from `peerDependenciesMeta`**, not hardcoded. Adding `pg` as an
-optional peer automatically extends the check with no edit to it. Opt-in is via `jini.neutralEntries`
-in `package.json`; packages that do not declare it are not scanned.
+```ts
+import { createNodeOutboxScheduler, processOutbox } from '@jini-ai/infra/events/outbox';
 
-The runtime test carries a deliberate positive control (`./db/sqlite` must *fail* to import in the
-same fixture). Without it, a fixture that accidentally included the driver would still show
-`./db/core` loading fine and the test would prove nothing.
+await processOutbox({ outbox, bus, clock, logger, random: Math.random,
+  scheduler: createNodeOutboxScheduler({}) });
+```
 
-## Adding a second driver
-
-The layout anticipates it: add `src/db/<driver>/`, declare its client as another optional peer, and
-add the subpath to `exports` and `typesVersions`. Nothing in `db/core` changes, and R12 starts
-guarding the new driver's package name on its own. Shared logic goes in `db/core` — there is
-deliberately no "shared but not core" bucket, because a third directory is exactly how the isolation
-rule gets quietly bypassed.
-
-## `DEFAULT_PRAGMAS`, and a measured caveat
-
-`openSqliteConnection` applies `journal_mode = WAL`, `foreign_keys = ON`, and `busy_timeout = 5000` unless
-you pass your own list (which **replaces** the defaults rather than extending them).
-
-Measured against better-sqlite3 11.x opened with no pragmas at all: `foreign_keys` is already `1` and
-`busy_timeout` is already `5000`. Only `journal_mode = WAL` actually changes behaviour; the other two
-restate a driver default so the guarantee survives a driver change. The practical consequence is that
-neither can be used to test whether the pragma list ran — `journal_mode` on a file-backed database is
-the only usable probe.
+The host's outbox and bus receive `{ event }` objects. Claims receive `{ batchSize, nowIso,
+claimLeaseMs }`; storage remains host-owned. Start the drainer only after the delivering process
+subscribes its real handlers. Importing the entry or creating a scheduler starts no background work.

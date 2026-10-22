@@ -69,14 +69,14 @@ export interface AdminIntegrationDelivery {
 }
 
 export interface AdminIntegrationsPort {
-  listIntegrationSubscriptions(): Promise<readonly AdminIntegrationSubscription[]>;
+  listIntegrationSubscriptions(requiredArgs: Record<string, never>): Promise<readonly AdminIntegrationSubscription[]>;
   createIntegrationSubscription(input: {
     label: string;
     targetUrl: string;
     topics: readonly string[];
   }): Promise<AdminIntegrationSubscription>;
-  pauseIntegrationSubscription(id: string, input: { paused: boolean }): Promise<AdminIntegrationSubscription>;
+  pauseIntegrationSubscription(requiredArgs: { id: string; paused: boolean }): Promise<AdminIntegrationSubscription>;
   /** Soft delete — see the file header. */
-  deleteIntegrationSubscription(id: string): Promise<AdminIntegrationSubscription>;
-  listIntegrationDeliveries(subscriptionId: string): Promise<readonly AdminIntegrationDelivery[]>;
+  deleteIntegrationSubscription(requiredArgs: { id: string }): Promise<AdminIntegrationSubscription>;
+  listIntegrationDeliveries(requiredArgs: { subscriptionId: string }): Promise<readonly AdminIntegrationDelivery[]>;
 }

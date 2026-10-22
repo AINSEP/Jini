@@ -1,14 +1,17 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/devin.ts` (import path adjusted only). See `source-map.md`. */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const devinAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('devin', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => devinAgentDef.fallbackModels }),
     id: 'devin',
     name: 'Devin for Terminal',
     bin: 'devin',
     versionArgs: ['--version'],
-    fetchModels: async (resolvedBin, env) =>
-      detectAcpModels({
+    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
+      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
+        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
         bin: resolvedBin,
         args: [
           '--permission-mode',
@@ -41,7 +44,7 @@ export const devinAgentDef = {
     // the CLI falls back to its own built-in default mode and to respecting workspace
     // trust — the conservative side of each flag, without this def having to name a
     // safe-mode string it cannot verify against the installed `devin` build.
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}) =>
+    buildArgs: ({ prompt: _prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) =>
       options.permissionMode === 'restricted'
         ? ['acp']
         : ['--permission-mode', 'dangerous', '--respect-workspace-trust', 'false', 'acp'],

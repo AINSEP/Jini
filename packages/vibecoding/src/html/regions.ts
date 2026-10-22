@@ -66,7 +66,7 @@ const HANDLE_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_HANDLE_LENGTH = 128;
 
 /** Whether `handle` is a syntactically valid region handle. */
-export function isValidRegionHandle(handle: string): boolean {
+export function isValidRegionHandle({ handle }: { readonly handle: string }): boolean {
   return handle.length > 0 && handle.length <= MAX_HANDLE_LENGTH && HANDLE_PATTERN.test(handle);
 }
 
@@ -99,7 +99,7 @@ export interface HtmlRegionParser {
    * this module needs to *see* invalid and duplicated handles in order to refuse them. A parser
    * that filters them out silently defeats the allowlist check.
    */
-  findRegions(html: string): readonly ParsedRegion[];
+  findRegions(args: { readonly html: string }): readonly ParsedRegion[];
 
   /**
    * Optional structural check on a whole document.
@@ -108,13 +108,13 @@ export interface HtmlRegionParser {
    * method entirely if the parser cannot distinguish a malformed document from a recovered one —
    * that is honest, and the handle-set check below still catches the damage that matters most.
    */
-  checkWellFormed?(html: string): { readonly ok: true } | { readonly ok: false; readonly reason: string };
+  checkWellFormed?(args: { readonly html: string }): { readonly ok: true } | { readonly ok: false; readonly reason: string };
 }
 
 /** Where the document itself lives. The host owns storage; this module never assumes one. */
 export interface HtmlDocumentStore {
   read(): Promise<string>;
-  write(html: string): Promise<void>;
+  write(args: { readonly html: string }): Promise<void>;
 }
 
 export interface HtmlRegionTargetOptions {
@@ -130,12 +130,18 @@ export interface HtmlRegionTargetOptions {
 export interface HtmlRegionTargetDeps {
   readonly store: HtmlDocumentStore;
   readonly parser: HtmlRegionParser;
-  readonly options?: HtmlRegionTargetOptions;
 }
 
 /** Handles in document order, including duplicates — order and multiplicity both matter. */
 function handlesOf(regions: readonly ParsedRegion[]): string[] {
   return regions.map((region) => region.handle);
+}
+
+/** Counts the whole document first so even the first occurrence of an ambiguous handle is omitted. */
+function handleCounts(regions: readonly ParsedRegion[]): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+  for (const { handle } of regions) counts.set(handle, (counts.get(handle) ?? 0) + 1);
+  return counts;
 }
 
 /** A stable, order-insensitive description of a handle multiset, for comparison in a message. */
@@ -164,12 +170,16 @@ function findOne(
  * Build an `EditTarget` over the tagged regions of one HTML document.
  *
  * @param deps - document storage and an HTML parser, both host-supplied.
+ * @param options - optional region size limit, separate from the required ports.
  * @returns a target ready to hand to `applyEdit`/`applyEdits` or to `createEditHistory`.
  * @complexity 4
  */
-export function createHtmlRegionTarget(deps: HtmlRegionTargetDeps): EditTarget {
+export function createHtmlRegionTarget(
+  deps: HtmlRegionTargetDeps,
+  options: HtmlRegionTargetOptions = {}
+): EditTarget {
   const { store, parser } = deps;
-  const maxPartLength = deps.options?.maxPartLength ?? 256 * 1024;
+  const maxPartLength = options.maxPartLength ?? 256 * 1024;
 
   /** Splices `content` into `region`'s inner range, preserving every byte outside it. */
   function spliced(html: string, region: ParsedRegion, content: string): string {
@@ -178,14 +188,13 @@ export function createHtmlRegionTarget(deps: HtmlRegionTargetDeps): EditTarget {
 
   return {
     async listParts(): Promise<readonly PartRef[]> {
-      const regions = parser.findRegions(await store.read());
-      const seen = new Set<string>();
+      const regions = parser.findRegions({ html: await store.read() });
+      const counts = handleCounts(regions);
       const refs: PartRef[] = [];
       for (const region of regions) {
         // A malformed or duplicated handle is not publishable: publishing it would advertise an id
         // that `readPart`/`replacePart` must then refuse, or worse, resolve ambiguously.
-        if (!isValidRegionHandle(region.handle) || seen.has(region.handle)) continue;
-        seen.add(region.handle);
+        if (!isValidRegionHandle({ handle: region.handle }) || counts.get(region.handle) !== 1) continue;
         refs.push({
           id: region.handle,
           ...(region.role === undefined ? {} : { kind: region.role }),
@@ -195,9 +204,9 @@ export function createHtmlRegionTarget(deps: HtmlRegionTargetDeps): EditTarget {
       return refs;
     },
 
-    async readPart(id: PartId): Promise<string> {
+    async readPart({ id }: { readonly id: PartId }): Promise<string> {
       const html = await store.read();
-      const found = findOne(parser.findRegions(html), id);
+      const found = findOne(parser.findRegions({ html }), id);
       if (!found.ok) throw new Error(found.reason);
       return html.slice(found.region.innerStart, found.region.innerEnd);
     },
@@ -208,21 +217,20 @@ export function createHtmlRegionTarget(deps: HtmlRegionTargetDeps): EditTarget {
      * position in someone else's document and a tag to wrap it in. A host that wants a new region
      * adds it to the document itself, and it becomes addressable at the next `listParts`.
      */
-    async replacePart(id: PartId, content: string): Promise<void> {
+    async replacePart({ id, content }: { readonly id: PartId; readonly content: string }): Promise<void> {
       const html = await store.read();
-      const found = findOne(parser.findRegions(html), id);
+      const found = findOne(parser.findRegions({ html }), id);
       if (!found.ok) throw new Error(found.reason);
-      await store.write(spliced(html, found.region, content));
+      await store.write({ html: spliced(html, found.region, content) });
     },
 
     async snapshot(): Promise<Snapshot> {
       const html = await store.read();
-      const regions = parser.findRegions(html);
+      const regions = parser.findRegions({ html });
       const parts: Record<PartId, string> = {};
-      const seen = new Set<string>();
+      const counts = handleCounts(regions);
       for (const region of regions) {
-        if (!isValidRegionHandle(region.handle) || seen.has(region.handle)) continue;
-        seen.add(region.handle);
+        if (!isValidRegionHandle({ handle: region.handle }) || counts.get(region.handle) !== 1) continue;
         parts[region.handle] = html.slice(region.innerStart, region.innerEnd);
       }
       return { id: `html-${regions.length}-${html.length}`, parts };
@@ -235,12 +243,12 @@ export function createHtmlRegionTarget(deps: HtmlRegionTargetDeps): EditTarget {
      * the offsets of every region after it. Computing them all up front is the obvious
      * implementation and it silently corrupts the document whenever two regions change length.
      */
-    async restore(snapshot: Snapshot): Promise<void> {
+    async restore({ snapshot }: { readonly snapshot: Snapshot }): Promise<void> {
       for (const [handle, content] of Object.entries(snapshot.parts)) {
         const html = await store.read();
-        const found = findOne(parser.findRegions(html), handle);
+        const found = findOne(parser.findRegions({ html }), handle);
         if (!found.ok) continue; // The region is gone; there is nowhere to put its content back.
-        await store.write(spliced(html, found.region, content));
+        await store.write({ html: spliced(html, found.region, content) });
       }
     },
 
@@ -253,7 +261,7 @@ export function createHtmlRegionTarget(deps: HtmlRegionTargetDeps): EditTarget {
       }
 
       const html = await store.read();
-      const before = parser.findRegions(html);
+      const before = parser.findRegions({ html });
       const found = findOne(before, candidate.id);
       if (!found.ok) return { ok: false, reason: found.reason };
 
@@ -261,10 +269,10 @@ export function createHtmlRegionTarget(deps: HtmlRegionTargetDeps): EditTarget {
       // well-formed by itself can still break the document it lands in.
       const prospective = spliced(html, found.region, candidate.content);
 
-      const structural = parser.checkWellFormed?.(prospective);
+      const structural = parser.checkWellFormed?.({ html: prospective });
       if (structural && !structural.ok) return { ok: false, reason: structural.reason };
 
-      const afterHandles = handlesOf(parser.findRegions(prospective));
+      const afterHandles = handlesOf(parser.findRegions({ html: prospective }));
       const beforeHandles = handlesOf(before);
 
       // The allowlist check. Compared as multisets so an invented, deleted OR duplicated handle is

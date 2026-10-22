@@ -1,4 +1,5 @@
-import type { ClockPort, UUID } from "../core/ports.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock, UUID } from "@jini-ai/core/primitives";
 
 /**
  * @file Presentation settings — the active-theme identity of a workspace.
@@ -26,7 +27,7 @@ export interface PresentationSettingsRecord {
 }
 
 export interface PresentationSettingsRepoPort {
-  findByWorkspaceId(workspaceId: UUID): Promise<PresentationSettingsRecord | null>;
+  findByWorkspaceId({ workspaceId }: { workspaceId: UUID }): Promise<PresentationSettingsRecord | null>;
   save(record: PresentationSettingsRecord): Promise<void>;
   /**
    * Every row across every workspace, for the one-time
@@ -47,7 +48,7 @@ export interface GetPresentationSettingsRequired {
 }
 
 export interface SetActiveThemeDeps {
-  clock: ClockPort;
+  clock: Clock;
   repo: PresentationSettingsRepoPort;
   /** Discovered valid theme ids; falls back to ALLOWED_THEME_IDS when absent. */
   availableThemeIds?: readonly string[] | undefined;
@@ -63,17 +64,24 @@ export interface SetActiveThemeRequired {
 
 export interface PresentationOptional {}
 
-export class PresentationSettingsNotFoundError extends Error {}
-export class PresentationSettingsValidationError extends Error {}
+export class PresentationSettingsNotFoundError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
+export class PresentationSettingsValidationError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 export async function getPresentationSettings(
   required: GetPresentationSettingsRequired,
   _optional: PresentationOptional = {}
 ): Promise<{ settings: PresentationSettingsRecord; availableThemeIds: string[] }> {
-  const settings = await required.deps.repo.findByWorkspaceId(required.input.workspaceId);
+  const settings = await required.deps.repo.findByWorkspaceId({ workspaceId: required.input.workspaceId });
   if (!settings) {
-    throw new PresentationSettingsNotFoundError(
-      `presentation settings for workspace '${required.input.workspaceId}' were not found`
+    throw new PresentationSettingsNotFoundError({ message: `presentation settings for workspace '${required.input.workspaceId}' were not found` }
     );
   }
 
@@ -90,22 +98,20 @@ export async function setActiveTheme(
   const { deps, input } = required;
   const allowed = deps.availableThemeIds ?? ALLOWED_THEME_IDS;
   if (!allowed.includes(input.activeThemeId)) {
-    throw new PresentationSettingsValidationError(
-      `theme '${input.activeThemeId}' is not supported`
+    throw new PresentationSettingsValidationError({ message: `theme '${input.activeThemeId}' is not supported` }
     );
   }
 
-  const existing = await deps.repo.findByWorkspaceId(input.workspaceId);
+  const existing = await deps.repo.findByWorkspaceId({ workspaceId: input.workspaceId });
   if (!existing) {
-    throw new PresentationSettingsNotFoundError(
-      `presentation settings for workspace '${input.workspaceId}' were not found`
+    throw new PresentationSettingsNotFoundError({ message: `presentation settings for workspace '${input.workspaceId}' were not found` }
     );
   }
 
   const settings: PresentationSettingsRecord = {
     ...existing,
     activeThemeId: input.activeThemeId,
-    updatedAt: deps.clock.nowIso(),
+    updatedAt: kernelNowIso({ clock: deps.clock }),
   };
 
   await deps.repo.save(settings);

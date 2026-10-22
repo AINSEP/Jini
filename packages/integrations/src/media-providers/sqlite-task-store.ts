@@ -17,19 +17,19 @@
  * addition beyond the port interface to release the file handle — the same
  * shape `SqliteEventLog extends EventLog` already established.
  *
- * **Why this lives in `@jini-ai/media` itself, not `@jini-ai/sqlite`** (the
+ * **Why this lives in `@jini-ai/media` itself, not `@jini-ai/sqlite-chat`** (the
  * "natural" home per the `EventLog` precedent, where the durable adapter
- * lives in a separate package from the port it implements): `@jini-ai/sqlite`
+ * lives in a separate package from the port it implements): `@jini-ai/sqlite-chat`
  * is one of `scripts/check-engine-boundaries.ts`'s 14 *locked* packages;
  * `@jini-ai/media` is listed in `UNLOCKED.md` with `status: "incubating"`.
  * `check-engine-boundaries.ts`'s R7 rule forbids a locked package from
- * importing an unlocked, non-`"stable"` one — `@jini-ai/sqlite` depending on
+ * importing an unlocked, non-`"stable"` one — `@jini-ai/sqlite-chat` depending on
  * `@jini-ai/media` for `MediaTaskStore`'s types would fail `pnpm guard`
  * outright. Implementing the adapter inside `@jini-ai/media` (itself
  * unlocked, so unrestricted in what it may depend on) keeps the exact same
  * schema/transaction/WAL/`close()` conventions without a guard violation.
  * See `ADS-memory/reports/proposals/PROP-media-durable-tasks-2026-07-21.md`
- * for the open question of whether this should move to `@jini-ai/sqlite` once
+ * for the open question of whether this should move to `@jini-ai/sqlite-chat` once
  * `@jini-ai/media` is promoted to `"stable"`.
  *
  * Implements `task-store.ts`'s `MediaTaskStore` port exactly: same
@@ -39,7 +39,8 @@
  * two-phase boot reconciliation. See `createInMemoryMediaTaskStore` in
  * `task-store.ts` for the reference behavior this mirrors.
  */
-import type Database from 'better-sqlite3';
+import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { loadMediaSqliteOpener } from './sqlite-driver.adapter.js';
 import type {
   MediaTask,
   MediaTaskCreateInput,
@@ -52,35 +53,11 @@ import type {
   MediaTaskStore,
 } from './task-store.js';
 
-const VALID_STATUSES: ReadonlySet<MediaTaskStatus> = new Set([
-  'queued',
-  'running',
-  'done',
-  'failed',
-  'interrupted',
-]);
-const TERMINAL_STATUSES: ReadonlySet<MediaTaskStatus> = new Set(['done', 'failed', 'interrupted']);
-
-// Mirrors task-store.ts's own ALLOWED_TRANSITIONS exactly (CR-013: enum
-// membership alone doesn't prove a transition is legal, e.g. done -> running).
-const ALLOWED_TRANSITIONS: Readonly<Record<MediaTaskStatus, ReadonlySet<MediaTaskStatus>>> = {
-  queued: new Set(['queued', 'running', 'done', 'failed', 'interrupted']),
-  running: new Set(['running', 'done', 'failed', 'interrupted']),
-  done: new Set(['done']),
-  failed: new Set(['failed']),
-  interrupted: new Set(['interrupted']),
-};
-
-const INTERRUPTED_ERROR: MediaTaskError = {
-  message: 'media task interrupted by daemon restart',
-  code: 'DAEMON_RESTART',
-};
-
-function assertValidStatus(status: MediaTaskStatus): void {
-  if (!VALID_STATUSES.has(status)) {
-    throw new RangeError(`Invalid media task status: "${status}"`);
-  }
-}
+// Shared with task-store.ts's in-memory adapter (task-lifecycle.ts), so the
+// two cannot drift: CR-013's transition graph (enum membership alone doesn't
+// prove a transition is legal, e.g. done -> running), duplicate-free status
+// sets, and the create/patch/reconcile row arithmetic all live there once.
+import { applyTaskPatch, assertValidTerminalTtl, buildNewTask, reconcileAction } from './task-lifecycle.js';
 
 interface TaskRow {
   id: string;
@@ -139,7 +116,8 @@ export interface SqliteMediaTaskStore extends MediaTaskStore {
  * `reconcileOnBoot` can then mark anything still `queued`/`running` as
  * `interrupted`.
  *
- * `better-sqlite3` (a native compiled addon) is dynamically imported here
+ * `better-sqlite3` (a native compiled addon) is dynamically imported by the default
+ * adapter only when no host opener is supplied
  * rather than statically at module scope (mirroring `@jini-ai/daemon`'s
  * `loadRealSpawnPty`/`node-pty` pattern) — this package's root barrel
  * re-exports this module unconditionally, so a static top-level import would
@@ -149,9 +127,14 @@ export interface SqliteMediaTaskStore extends MediaTaskStore {
  * fails cleanly (a rejected promise) rather than crashing unrelated imports
  * if the platform/environment lacks a usable prebuild.
  */
-export async function createSqliteMediaTaskStore(dbPath: string): Promise<SqliteMediaTaskStore> {
-  const { default: Database } = await import('better-sqlite3');
-  const db = new Database(dbPath);
+export async function createSqliteMediaTaskStore(
+  required: { dbPath: string; open?: SqliteSyncOpener } | string,
+  options: { open?: SqliteSyncOpener } = {},
+): Promise<SqliteMediaTaskStore> {
+  // The string overload remains for published callers; new hosts supply an argument object.
+  const dbPath = typeof required === 'string' ? required : required.dbPath;
+  const open = (typeof required === 'string' ? undefined : required.open) ?? options.open ?? await loadMediaSqliteOpener({});
+  const db = open(dbPath, {});
   db.pragma('journal_mode = WAL');
 
   db.exec(`
@@ -228,24 +211,7 @@ export async function createSqliteMediaTaskStore(dbPath: string): Promise<Sqlite
     if (getStmt.get(input.id)) {
       throw new Error(`media task "${input.id}" already exists`);
     }
-    const status = input.status ?? 'queued';
-    assertValidStatus(status);
-    const now = Date.now();
-    const startedAt = input.startedAt ?? now;
-    const task: MediaTask = {
-      id: input.id,
-      ownerRef: input.ownerRef,
-      status,
-      progress: input.progress ? [...input.progress] : [],
-      file: input.file == null ? null : (structuredClone(input.file) as unknown),
-      error: input.error == null ? null : { ...input.error },
-      startedAt,
-      endedAt: null,
-      createdAt: now,
-      updatedAt: now,
-      ...(input.surface !== undefined ? { surface: input.surface } : {}),
-      ...(input.model !== undefined ? { model: input.model } : {}),
-    };
+    const task = buildNewTask(input, Date.now());
     writeRow(task, true);
     return task;
   });
@@ -253,28 +219,7 @@ export async function createSqliteMediaTaskStore(dbPath: string): Promise<Sqlite
   const updateTxn = db.transaction((id: string, patch: MediaTaskPatch): MediaTask | null => {
     const row = getStmt.get(id);
     if (!row) return null;
-    const existing = rowToTask(row);
-    const status = patch.status ?? existing.status;
-    assertValidStatus(status);
-    if (!ALLOWED_TRANSITIONS[existing.status].has(status)) {
-      throw new RangeError(`Invalid media task transition: "${existing.status}" -> "${status}"`);
-    }
-    const surface = 'surface' in patch ? (patch.surface ?? undefined) : existing.surface;
-    const model = 'model' in patch ? (patch.model ?? undefined) : existing.model;
-    const next: MediaTask = {
-      id: existing.id,
-      ownerRef: existing.ownerRef,
-      status,
-      progress: patch.progress ? [...patch.progress] : existing.progress,
-      file: 'file' in patch ? (patch.file == null ? null : (structuredClone(patch.file) as unknown)) : existing.file,
-      error: 'error' in patch ? (patch.error == null ? null : { ...patch.error }) : existing.error,
-      startedAt: existing.startedAt,
-      endedAt: 'endedAt' in patch ? (patch.endedAt ?? null) : existing.endedAt,
-      createdAt: existing.createdAt,
-      updatedAt: Date.now(),
-      ...(surface !== undefined ? { surface } : {}),
-      ...(model !== undefined ? { model } : {}),
-    };
+    const next = applyTaskPatch(rowToTask(row), patch, Date.now());
     writeRow(next, false);
     return next;
   });
@@ -286,19 +231,11 @@ export async function createSqliteMediaTaskStore(dbPath: string): Promise<Sqlite
     let deleted = 0;
     for (const row of selectAllStmt.all()) {
       const task = rowToTask(row);
-      if (task.status === 'queued' || task.status === 'running') {
-        const next: MediaTask = {
-          ...task,
-          status: 'interrupted',
-          error: INTERRUPTED_ERROR,
-          endedAt: task.endedAt ?? now,
-          updatedAt: now,
-        };
-        writeRow(next, false);
+      const action = reconcileAction(task, now, cutoff);
+      if (action.kind === 'interrupt') {
+        writeRow(action.next, false);
         interrupted += 1;
-        continue;
-      }
-      if (TERMINAL_STATUSES.has(task.status) && (task.endedAt ?? task.updatedAt) < cutoff) {
+      } else if (action.kind === 'delete') {
         deleteStmt.run(task.id);
         deleted += 1;
       }
@@ -331,9 +268,7 @@ export async function createSqliteMediaTaskStore(dbPath: string): Promise<Sqlite
     },
 
     async reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult> {
-      if (!Number.isFinite(options.terminalTtlMs) || options.terminalTtlMs < 0) {
-        throw new RangeError(`Invalid terminalTtlMs: ${options.terminalTtlMs} must be a non-negative finite number`);
-      }
+      assertValidTerminalTtl(options.terminalTtlMs);
       return reconcileTxn(options);
     },
 

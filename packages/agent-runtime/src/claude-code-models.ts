@@ -1,3 +1,4 @@
+import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module claude-code-models
  *
@@ -27,7 +28,7 @@
  *      older CLI without the control protocol, a fork bin (`openclaude`), a timeout.
  *
  * **Enrichment, never a gate.** Every failure resolves to `null` ("nothing to add"), and a non-null
- * result is always `mergeLiveModels(fallback, live)` — the static list is fully present, in order.
+ * result contains only discovered rows. Packaged fallback rows are kept separate by the snapshot layer.
  *
  * The cache-file parser ({@link parseClaudeCodePickerCache}) is shared with
  * `scripts/check-model-fallback-freshness.ts` so the freshness guard and the runtime can never
@@ -39,9 +40,8 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 
-import { createCommandInvocation } from '@jini-ai/platform';
+import { createCommandInvocation } from '@jini-ai/platform/command';
 
-import { mergeLiveModels } from './anthropic-live-models.js';
 import { sanitizeCustomModel } from './models.js';
 import type { RuntimeEnv, RuntimeModelOption } from './types.js';
 
@@ -140,7 +140,7 @@ function initializeEntryRows(entry: InitializeModelEntry): RuntimeModelOption[] 
   for (const raw of [entry.value, entry.resolvedModel]) {
     if (typeof raw !== 'string') continue;
     const id = normalizeClaudePickerModelId(raw);
-    if (id === 'default' || sanitizeCustomModel(id) !== id) continue;
+    if (id === 'default' || sanitizeCustomModel({ id: id }) !== id) continue;
     const isAlias = !id.startsWith('claude-');
     rows.push({ id, label: isAlias && displayName ? `${displayName} (alias)` : id });
   }
@@ -203,7 +203,7 @@ function runInitializeProbe(bin: string, env: RuntimeEnv): Promise<string | null
           windowsVerbatimArguments: invocation.windowsVerbatimArguments,
         },
         // A timeout or non-zero exit still hands back what was captured; the parser decides.
-        (_err, stdout) => resolve(typeof stdout === 'string' ? stdout : String(stdout ?? '')),
+        (_err, stdout) => resolve(stdout),
       );
       child.stdin?.on('error', () => {});
       child.stdin?.end(CLAUDE_CODE_INITIALIZE_REQUEST);
@@ -220,13 +220,10 @@ const defaultIo: ClaudeCodeModelIo = {
 
 let activeIo: ClaudeCodeModelIo = defaultIo;
 
-type CacheEntry = { expiresAt: number; value: Promise<readonly RuntimeModelOption[] | null> };
-const cache = new Map<string, CacheEntry>();
-
 /** Test-only: install fake I/O (or `null` to restore the real one) and clear the process cache. */
 export function setClaudeCodeModelIoForTesting(io: ClaudeCodeModelIo | null): void {
   activeIo = io ?? defaultIo;
-  cache.clear();
+  defaultRuntimeState.claudeModels.clear();
 }
 
 /** One cache slot per binary + config location + auth-affecting env, fingerprinted so no secret is
@@ -240,44 +237,76 @@ function cacheKeyFor(bin: string, env: RuntimeEnv): string {
 }
 
 /** Source (1), then source (2). Never rejects. */
-async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv): Promise<readonly RuntimeModelOption[] | null> {
+async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv, io: ClaudeCodeModelIo): Promise<readonly RuntimeModelOption[] | null> {
   try {
-    const stdout = await activeIo.runInitialize(bin, env);
+    const stdout = await io.runInitialize(bin, env);
     const fromCli = stdout ? parseClaudeInitializeModels(stdout) : null;
     if (fromCli) return fromCli;
-    const raw = await activeIo.readConfigFile(resolveClaudeConfigPath(env));
+    const raw = await io.readConfigFile(resolveClaudeConfigPath(env));
     const cached = raw === null ? null : parseClaudeCodePickerCache(raw);
     if (!cached?.ok) return null;
     return cached.ids
-      .filter((id) => sanitizeCustomModel(id) === id)
+      .filter((id) => sanitizeCustomModel({ id: id }) === id)
       .map((id) => ({ id, label: id }));
   } catch {
     return null;
   }
 }
 
+/** Options for the object call form of {@link loadClaudeCodeModels}. */
+export interface ClaudeCodeModelsOptions { state?: AgentRuntimeState; io?: ClaudeCodeModelIo; now?: () => number }
+
+type LoadClaudeCodeModelsRequired = { bin: string; env: RuntimeEnv; fallbackModels?: readonly RuntimeModelOption[] };
+
+/** Normalizes the object and the published positional call forms to one shape. */
+function normalizeLoadArgs(
+  required: string | LoadClaudeCodeModelsRequired,
+  optional: RuntimeEnv | ClaudeCodeModelsOptions,
+): { bin: string; env: RuntimeEnv; options: ClaudeCodeModelsOptions } {
+  if (typeof required === 'string') return { bin: required, env: optional as RuntimeEnv, options: {} };
+  return { bin: required.bin, env: required.env, options: optional as ClaudeCodeModelsOptions };
+}
+
+/** One in-flight-or-settled discovery per cache key and TTL window; a miss starts (and caches) a new one. */
+function cachedDiscovery(required: {
+  bin: string;
+  env: RuntimeEnv;
+  cache: AgentRuntimeState['claudeModels'];
+  io: ClaudeCodeModelIo;
+  now: () => number;
+}): Promise<readonly RuntimeModelOption[] | null> {
+  const { bin, env, cache, io, now } = required;
+  const key = cacheKeyFor(bin, env);
+  const cached = cache.get(key);
+  const pending = cached && cached.expiresAt > now() ? cached.value : null;
+  const value = pending ?? discoverClaudeCodeModels(bin, env, io);
+  if (!pending) cache.set(key, { expiresAt: now() + CLAUDE_CODE_MODEL_CACHE_TTL_MS, value });
+  return value;
+}
+
 /**
- * Returns the `claude` model list with the CLI's own picker catalog merged in, or `null` when there
- * is nothing to merge. Needs no API key.
+ * Returns the `claude` model list from the CLI's own picker catalog, or `null` when discovery fails. Needs no API key.
  *
  * @param bin - The resolved `claude` (or fork) binary detection found.
  * @param env - The composed environment for the agent — what a spawn would actually see.
- * @param fallbackModels - The def's static list; always fully present, in order, in a non-null result.
+ * @param _fallbackModels - Compatibility argument; packaged rows are offline fallback only.
  * @param now - Injectable clock for TTL tests.
  * @complexity O(f + l) plus, at most once per {@link CLAUDE_CODE_MODEL_CACHE_TTL_MS} per cache key,
  * one CLI spawn bounded by {@link CLAUDE_CODE_INIT_TIMEOUT_MS} and one file read.
  */
+export function loadClaudeCodeModels(required: { bin: string; env: RuntimeEnv; fallbackModels?: readonly RuntimeModelOption[] }, optional?: ClaudeCodeModelsOptions): Promise<RuntimeModelOption[] | null>;
+/** Published positional form remains additive compatibility. */
+export function loadClaudeCodeModels(bin: string, env: RuntimeEnv, fallbackModels: readonly RuntimeModelOption[], now?: () => number): Promise<RuntimeModelOption[] | null>;
 export async function loadClaudeCodeModels(
-  bin: string,
-  env: RuntimeEnv,
-  fallbackModels: readonly RuntimeModelOption[],
-  now: () => number = Date.now,
+  required: string | { bin: string; env: RuntimeEnv; fallbackModels?: readonly RuntimeModelOption[] },
+  optional: RuntimeEnv | ClaudeCodeModelsOptions = {},
+  _fallbackModels: readonly RuntimeModelOption[] = [],
+  clock: () => number = Date.now,
 ): Promise<RuntimeModelOption[] | null> {
-  const key = cacheKeyFor(bin, env);
-  const cached = cache.get(key);
-  const pending = cached && cached.expiresAt > now() ? cached.value : null;
-  const value = pending ?? discoverClaudeCodeModels(bin, env);
-  if (!pending) cache.set(key, { expiresAt: now() + CLAUDE_CODE_MODEL_CACHE_TTL_MS, value });
-  const live = await value;
-  return live && live.length > 0 ? mergeLiveModels(fallbackModels, live) : null;
+  const { bin, env, options } = normalizeLoadArgs(required, optional);
+  const state = options.state ?? defaultRuntimeState;
+  // The test-installed I/O only applies to the shared default state; an injected state gets real I/O.
+  const io = options.io ?? (state === defaultRuntimeState ? activeIo : defaultIo);
+  const live = await cachedDiscovery({ bin, env, cache: state.claudeModels, io, now: options.now ?? clock });
+  return live && live.length > 0 ? [...live] : null;
 }

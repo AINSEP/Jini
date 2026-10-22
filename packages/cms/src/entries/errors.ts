@@ -1,3 +1,5 @@
+import type { OwningContentType } from "./types.js";
+
 /**
  * @file Typed error surface for the `entries` package.
  *
@@ -10,57 +12,73 @@
  */
 
 export class ForbiddenError extends Error {
-  constructor(message: string) {
+  constructor({ message }: { message: string }, _optional: Record<string, never> = {}) {
     super(message);
     this.name = "ForbiddenError";
   }
 }
 
 export class EntryNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ENTRY_NOT_FOUND";
   }
 }
 
-/** REQ-29/AC-29 — the owning content type does not exist, or (INV-01) exists only in a different workspace. */
+/** — the owning content type does not exist, or exists only in a different workspace. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class ContentTypeNotFoundError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "CONTENT_TYPE_NOT_FOUND";
   }
 }
 
-/** REQ-10 (create) / REQ-28 (update/publish/unpublish) — the owning content type's status forbids this write. */
+/** (create) / (update/publish/unpublish) — the owning content type's status forbids this write. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class ContentTypeNotActiveError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ContentTypeNotActiveError";
   }
 }
 
-/** AC-21 — a second entry submitted with an identical `(workspaceId, type, slug)`. */
+/** — a second entry submitted with an identical `(workspaceId, type, slug)`. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class EntrySlugConflictError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "ENTRY_SLUG_CONFLICT";
   }
 }
 
 export class VersionConflictError extends Error {
-  constructor(message: string) {
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
     super(message);
     this.name = "VersionConflictError";
   }
 }
 
-/** REQ-14/15 — `fieldsJson` failed `validateFieldsAgainstSchema` against the owning type's current schema. */
+/** The compare-and-set loss every `EntryRepoPort.save` adapter throws (one wording for all of them).
+ *  `expectedVersion: null` is a create that found the id taken. */
+export function entryVersionConflictError(required: { id: string; expectedVersion: number | null; found: number | null }): VersionConflictError {
+  const expected = required.expectedVersion === null ? "no entry" : `version ${required.expectedVersion} for entry`;
+  return new VersionConflictError({ message: `expected ${expected} '${required.id}', found ${required.found ?? "none"}` });
+}
+
+/** — `fieldsJson` failed `validateFieldsAgainstSchema` against the owning type's current schema. See docs/decisions/DR-002-content-lifecycle-and-cleanup.md. */
 export class EntryFieldValidationError extends Error {
   readonly fieldErrors: Array<{ field: string; reason: string }>;
+  /** Complete declared field schema and its owning namespace, for one-turn correction. */
+  readonly entitySchema: { type: string; owner: string; fields: OwningContentType["fields"] } | undefined;
 
-  constructor(fieldErrors: Array<{ field: string; reason: string }>) {
-    super(`fieldsJson failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}`);
+  constructor(requiredArgs: { fieldErrors: Array<{ field: string; reason: string }>; entitySchema?: { type: string; owner: string; fields: OwningContentType["fields"] } }, optionalArgs: Record<string, never> = {}) {
+    const { fieldErrors, entitySchema } = requiredArgs;
+    super(`fieldsJson failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}${entitySchema ? `. Entity schema: ${JSON.stringify(entitySchema)}` : ""}`);
     this.name = "EntryFieldValidationError";
     this.fieldErrors = fieldErrors;
+    this.entitySchema = entitySchema;
   }
 }

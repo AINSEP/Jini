@@ -16,7 +16,12 @@ export type {
   ChatPaneRuntimeAccess,
   ChatPaneVariant,
   ChatPaneWorkingDirectoryAccess,
+  DeliverMidRunMessage,
+  DeliverTypedAnswer,
+  MidRunMessageDelivery,
   RuntimePickerPlacement,
+  TypedAnswerDelivery,
+  TypedAnswerNotice,
 } from './types.js';
 export {
   CHAT_PANE_AGENT_TOOLS,
@@ -38,6 +43,14 @@ export {
   type CreateMcpUiToolCallerOptions,
   type McpUiToolCallRequest,
 } from './create-mcp-ui-tool-caller.js';
+export {
+  createMidRunMessagePoster,
+  type CreateMidRunMessagePosterOptions,
+} from './create-mid-run-message-poster.js';
+export {
+  createTypedAnswerPoster,
+  type CreateTypedAnswerPosterOptions,
+} from './create-typed-answer-poster.js';
 export {
   useChatPane,
   type UseChatPaneOptions,

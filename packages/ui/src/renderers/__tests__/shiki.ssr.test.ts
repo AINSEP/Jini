@@ -7,7 +7,7 @@
 // Splitting this assertion into its own `node`-environment file (matching
 // this package's own `features/sketch-editor/dom.ssr.test.ts` precedent) exercises
 // the real SSR guard instead of a source change or a suppression comment.
-// See `packages/ui/src/renderers/source-map.md`.
+// See `packages/ui/src/renderers/archived provenance ledger`.
 import { describe, expect, it } from 'vitest';
 import { highlightCode } from '../shiki.js';
 

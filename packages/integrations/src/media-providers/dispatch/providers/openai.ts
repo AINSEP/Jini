@@ -2,7 +2,7 @@
  * Provider: OpenAI Images API (gpt-image-2, gpt-image-1.5, dall-e-3, ...)
  * and text-to-speech via `/v1/audio/speech`. Ported near-verbatim from
  * Open Design's `apps/daemon/src/media/index.ts` `renderOpenAIImage`/
- * `renderOpenAISpeech` — see `source-map.md`.
+ * `renderOpenAISpeech` — see `archived provenance ledger`.
  *
  * 2026-07-21: migrated onto the generic vendor-adapter dispatch engine
  * (`vendor-adapter.ts`/`vendor-registry.ts`). External behavior is
@@ -43,8 +43,7 @@
  * integration already excluded from `providers.ts`'s catalogue, not a REST
  * credential shape any other Jini consumer could use.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
-import { Agent as UndiciAgent } from 'undici';
+import { assertAndFetchExternalAsset } from '../ssrf-guard.js';
 import {
   buildOpenAIImageUrl,
   buildOpenAISpeechUrl,
@@ -58,35 +57,79 @@ import { createRawBytesParser } from '../response-parsers.js';
 import type { MediaSpeechFormat, ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
-import { mediaVendorRegistry } from '../vendor-registry.js';
+import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
 // Image generation can legitimately take minutes (gpt-image-2 4K renders
-// especially). A generous default headers/body timeout dispatcher is
-// applied so a caller-configured global fetch default doesn't cut a
-// legitimately-slow-but-succeeding generation short; a caller can still
-// override via `requestInit.dispatcher`.
-const OPENAI_IMAGE_HEADERS_TIMEOUT_MS = 10 * 60 * 1000;
-const OPENAI_IMAGE_BODY_TIMEOUT_MS = 10 * 60 * 1000;
-const openAIImageDispatcher = new UndiciAgent({
-  headersTimeout: OPENAI_IMAGE_HEADERS_TIMEOUT_MS,
-  bodyTimeout: OPENAI_IMAGE_BODY_TIMEOUT_MS,
-});
+// especially). The guarded client owns the socket and deadline budgets,
+// so a caller-configured global fetch default cannot cut a legitimately
+// slow-but-succeeding generation short. Pooling belongs to the injected guarded client.
+// (Formerly two equal headers/body constants combined with `Math.max`; one
+// ceiling covers both since the request carries a single abort signal.)
+const OPENAI_IMAGE_TIMEOUT_MS = 10 * 60 * 1000;
+
+const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const OPENAI_DEFAULT_SPEECH_VOICE = 'alloy';
 
 const OPENAI_IMAGE_NO_CREDENTIAL_MESSAGE = 'no OpenAI credential — configure an API key or set OPENAI_API_KEY.';
 const OPENAI_SPEECH_NO_CREDENTIAL_MESSAGE = 'no OpenAI credential — configure an API key or set OPENAI_API_KEY';
 
+type OpenAITag = 'openai' | 'azure-openai';
+
+/** Where an OpenAI-family request goes and how it authenticates; shared by the image and speech adapters. */
+interface OpenAITarget {
+  readonly rawBase: string;
+  readonly azure: boolean;
+  readonly tag: OpenAITag;
+  readonly headers: Record<string, string>;
+}
+
+/**
+ * Resolves the base URL (default OpenAI endpoint), Azure detection, error tag
+ * and auth headers from already-validated credentials.
+ * @throws never — `requireCredential` has already rejected a missing API key.
+ */
+function resolveOpenAITarget({ credentials }: { credentials: ProviderCredentials }): OpenAITarget {
+  const apiKey = credentials.apiKey!; // requireCredential already validated this.
+  const rawBase = credentials.baseUrl || OPENAI_DEFAULT_BASE_URL;
+  const azure = detectAzureEndpoint(rawBase);
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${apiKey}`,
+    'content-type': 'application/json',
+  };
+  if (azure) {
+    // Azure's canonical auth header. Some deployments accept Bearer too,
+    // but api-key is what their docs document, so both are sent. OpenAI
+    // ignores unknown headers, so this is harmless on the standard
+    // endpoint too.
+    headers['api-key'] = apiKey;
+  }
+  return { rawBase, azure, tag: azure ? 'azure-openai' : 'openai', headers };
+}
+
+/**
+ * Splits the caller's `voice` into a concrete OpenAI voice id or free-form
+ * speaking-style instructions. A blank voice falls through to the default
+ * voice with empty instructions (no voice id is the empty string).
+ */
+function resolveSpeechVoice({ voice }: { voice: string | undefined }): { voiceId: string; instructions: string } {
+  const requestedVoice = voice?.trim() || '';
+  if (OPENAI_TTS_VOICES.has(requestedVoice)) return { voiceId: requestedVoice, instructions: '' };
+  // gpt-4o-mini-tts accepts free-form speaking-style instructions. If
+  // the caller passed prose rather than a concrete voice id, preserve
+  // it here instead of surfacing a provider error.
+  return { voiceId: OPENAI_DEFAULT_SPEECH_VOICE, instructions: requestedVoice };
+}
+
 interface OpenAIImageMeta {
-  readonly tag: 'openai' | 'azure-openai';
+  readonly tag: OpenAITag;
   readonly wireModel: string;
 }
 
 const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
-  requireCredential: requireApiKey(OPENAI_IMAGE_NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: OPENAI_IMAGE_NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<OpenAIImageMeta> {
-    const apiKey = credentials.apiKey!; // requireCredential already validated this.
-    const rawBase = credentials.baseUrl || 'https://api.openai.com/v1';
-    const azure = detectAzureEndpoint(rawBase);
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<OpenAIImageMeta> {
+    const { rawBase, azure, tag, headers } = resolveOpenAITarget({ credentials });
     const url = buildOpenAIImageUrl(rawBase, azure);
 
     const body: Record<string, unknown> = {
@@ -112,32 +155,19 @@ const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
       body.quality = 'high';
     }
 
-    const headers: Record<string, string> = {
-      authorization: `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-    };
-    if (azure) {
-      // Azure's canonical auth header. Some deployments accept Bearer too,
-      // but api-key is what their docs document, so both are sent. OpenAI
-      // ignores unknown headers, so this is harmless on the standard
-      // endpoint too.
-      headers['api-key'] = apiKey;
-    }
-
     return {
       url,
       init: withRequestInit(ctx, {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
-        dispatcher: ctx.requestInit.dispatcher ?? (openAIImageDispatcher as unknown as NonNullable<RequestInit['dispatcher']>),
-        signal: AbortSignal.timeout(Math.max(OPENAI_IMAGE_HEADERS_TIMEOUT_MS, OPENAI_IMAGE_BODY_TIMEOUT_MS)),
+        signal: AbortSignal.timeout(OPENAI_IMAGE_TIMEOUT_MS),
       }),
-      meta: { tag: azure ? 'azure-openai' : 'openai', wireModel: ctx.wireModel },
+      meta: { tag, wireModel: ctx.wireModel },
     };
   },
 
-  async parseResponse(resp: Response, ctx: RenderContext, request: VendorRequest<OpenAIImageMeta>): Promise<RenderResult> {
+  async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<OpenAIImageMeta> }): Promise<RenderResult> {
     const text = await resp.text();
     if (!resp.ok) {
       throw new Error(`${request.meta.tag} ${resp.status}: ${truncate(text, 240)}`);
@@ -158,7 +188,7 @@ const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
     } else if (entry.url) {
       // Downloading already-generated bytes, not waiting on generation — UPLOAD-class (2min), not
       // the 10-minute GENERATE-class timeout the generation call itself uses above.
-      const imgResp = await fetchWithTimeout(entry.url, withRequestInit(ctx), { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD });
+      const imgResp = await assertAndFetchExternalAsset({ url: entry.url }, { ...ctx, init: withRequestInit(ctx) });
       if (!imgResp.ok) throw new Error(`openai image fetch ${imgResp.status}`);
       const arr = await imgResp.arrayBuffer();
       bytes = Buffer.from(arr);
@@ -174,14 +204,12 @@ const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
   },
 };
 
-mediaVendorRegistry.register('openai', 'image', openAIImageAdapter);
-
-export async function renderOpenAIImage(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(openAIImageAdapter, ctx, credentials);
+export async function renderOpenAIImage({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: openAIImageAdapter, ctx, credentials });
 }
 
 interface OpenAISpeechMeta {
-  readonly tag: 'openai' | 'azure-openai';
+  readonly tag: OpenAITag;
   readonly wireModel: string;
   readonly voiceId: string;
   readonly format: MediaSpeechFormat;
@@ -189,29 +217,14 @@ interface OpenAISpeechMeta {
 }
 
 const openAISpeechAdapter: VendorAdapter<OpenAISpeechMeta> = {
-  requireCredential: requireApiKey(OPENAI_SPEECH_NO_CREDENTIAL_MESSAGE),
+  requireCredential: requireApiKey({ message: OPENAI_SPEECH_NO_CREDENTIAL_MESSAGE }),
 
-  buildRequest(ctx: RenderContext, credentials: ProviderCredentials): VendorRequest<OpenAISpeechMeta> {
-    const apiKey = credentials.apiKey!; // requireCredential already validated this.
-    const rawBase = credentials.baseUrl || 'https://api.openai.com/v1';
-    const azure = detectAzureEndpoint(rawBase);
+  buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<OpenAISpeechMeta> {
+    const { rawBase, azure, tag, headers } = resolveOpenAITarget({ credentials });
     const url = buildOpenAISpeechUrl(rawBase, azure);
     const format = ctx.speechFormat;
-    const text = (ctx.prompt && ctx.prompt.trim()) || 'This is a test.';
-
-    let voiceId = 'alloy';
-    let instructions = '';
-    const requestedVoice = (ctx.voice && ctx.voice.trim()) || '';
-    if (requestedVoice) {
-      if (OPENAI_TTS_VOICES.has(requestedVoice)) {
-        voiceId = requestedVoice;
-      } else {
-        // gpt-4o-mini-tts accepts free-form speaking-style instructions. If
-        // the caller passed prose rather than a concrete voice id, preserve
-        // it here instead of surfacing a provider error.
-        instructions = requestedVoice;
-      }
-    }
+    const text = ctx.prompt?.trim() || 'This is a test.';
+    const { voiceId, instructions } = resolveSpeechVoice({ voice: ctx.voice });
 
     const body: Record<string, unknown> = {
       input: text,
@@ -225,14 +238,6 @@ const openAISpeechAdapter: VendorAdapter<OpenAISpeechMeta> = {
       body.instructions = instructions;
     }
 
-    const headers: Record<string, string> = {
-      authorization: `Bearer ${apiKey}`,
-      'content-type': 'application/json',
-    };
-    if (azure) {
-      headers['api-key'] = apiKey;
-    }
-
     return {
       url,
       init: withRequestInit(ctx, {
@@ -240,26 +245,33 @@ const openAISpeechAdapter: VendorAdapter<OpenAISpeechMeta> = {
         headers,
         body: JSON.stringify(body),
       }),
-      meta: { tag: azure ? 'azure-openai' : 'openai', wireModel: ctx.wireModel, voiceId, format, instructions },
+      meta: { tag, wireModel: ctx.wireModel, voiceId, format, instructions },
     };
   },
 
   parseResponse: createRawBytesParser<OpenAISpeechMeta>({
-    errorTag: (meta) => `${meta.tag} speech`,
+    errorTag: ({ meta }) => `${meta.tag} speech`,
     // Deliberately not azure-tag-aware — matches the origin exactly (see
     // this module's doc comment).
     zeroBytesMessage: 'openai speech returned zero bytes',
-    note: (bytes, meta) => {
+    note: ({ bytes, meta }) => {
       const noteBits = [`${meta.tag}/${meta.wireModel}`, meta.voiceId, meta.format, `${bytes.length} bytes`];
       if (meta.instructions) noteBits.splice(2, 0, 'styled');
       return noteBits.join(' · ');
     },
-    suggestedExt: (_bytes, meta) => (meta.format === 'opus' ? '.ogg' : `.${meta.format}`),
+    suggestedExt: ({ meta }) => (meta.format === 'opus' ? '.ogg' : `.${meta.format}`),
   }),
 };
 
-mediaVendorRegistry.register('openai', 'audio:speech', openAISpeechAdapter);
+export async function renderOpenAISpeech({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): Promise<RenderResult> {
+  return dispatchVendorRequest({ adapter: openAISpeechAdapter, ctx, credentials });
+}
 
-export async function renderOpenAISpeech(ctx: RenderContext, credentials: ProviderCredentials): Promise<RenderResult> {
-  return dispatchVendorRequest(openAISpeechAdapter, ctx, credentials);
+/** Explicit composition: importing a renderer never changes another module's registry. */
+export function registerVendorAdapters(
+  { registry }: { registry: Pick<VendorAdapterRegistry, 'register'> },
+  _optional: Record<string, never> = {},
+): void {
+  registry.register({ providerId: 'openai', routeKey: 'image', adapter: openAIImageAdapter });
+  registry.register({ providerId: 'openai', routeKey: 'audio:speech', adapter: openAISpeechAdapter });
 }

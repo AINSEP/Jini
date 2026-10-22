@@ -17,6 +17,22 @@
     return event.source === host && event.origin === hostOrigin;
   }
 
+  var openLinkSeq = 0;
+  function forwardLinkClick(event) {
+    if (event.defaultPrevented || event.button !== 0) return;
+    var target = event.target;
+    var link = target && target.closest ? target.closest("a[href]") : null;
+    if (!link || link.hasAttribute("download")) return;
+    var href = link.getAttribute("href");
+    if (!href || href.charAt(0) === "#" || /^\s*javascript:/i.test(href)) return;
+    event.preventDefault();
+    openLinkSeq += 1;
+    host.postMessage(
+      { jsonrpc: "2.0", id: "jini-proxy-open-link-" + openLinkSeq, method: "ui/open-link", params: { url: link.href } },
+      hostOrigin
+    );
+  }
+
   window.addEventListener("message", function (event) {
     if (!isFromHost(event)) return;
     var data = event.data;
@@ -27,6 +43,7 @@
     document.open();
     document.write(html);
     document.close();
+    window.addEventListener("click", forwardLinkClick);
   });
 
   host.postMessage({ method: "ui/notifications/sandbox-proxy-ready", params: {} }, hostOrigin);

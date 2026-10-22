@@ -8,6 +8,7 @@
  * canonical pattern for chunk-load failures: a missing static bundle
  * chunk results in a non-functional app with no JS exception.
  */
+import { telemetryUrl } from './telemetry-url.js';
 import { noopSafetyEventReporter, type SafetyEventReporter } from './ports.js';
 
 const RESOURCE_TAGS = new Set(['SCRIPT', 'LINK', 'IMG', 'IFRAME', 'AUDIO', 'VIDEO', 'SOURCE', 'TRACK']);
@@ -35,8 +36,8 @@ export function installResourceErrorObserver(
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (!RESOURCE_TAGS.has(target.tagName)) return;
-    const src = readSrc(target);
-    if (src == null) return;
+    const src = telemetryUrl({ value: readSrc(target) });
+    if (typeof src !== 'string' || src.length === 0) return;
     reporter('client_resource_error', {
       tag: target.tagName.toLowerCase(),
       // async/defer/crossorigin are useful signals for diagnosing
@@ -58,15 +59,12 @@ export function installResourceErrorObserver(
 }
 
 function readSrc(el: Element): string | null {
-  const value =
-    el instanceof HTMLLinkElement ? el.href :
-    el instanceof HTMLScriptElement ? el.src :
-    el instanceof HTMLImageElement ? el.src :
-    el instanceof HTMLIFrameElement ? el.src :
-    el instanceof HTMLSourceElement ? el.src :
-    el instanceof HTMLTrackElement ? el.src :
-    el instanceof HTMLMediaElement ? el.src :
-    (el.getAttribute('src') ?? el.getAttribute('href'));
-  if (typeof value !== 'string' || value.length === 0) return null;
-  return value;
+  if (el instanceof HTMLLinkElement) return el.href;
+  if (el instanceof HTMLScriptElement) return el.src;
+  if (el instanceof HTMLImageElement) return el.src;
+  if (el instanceof HTMLIFrameElement) return el.src;
+  if (el instanceof HTMLSourceElement) return el.src;
+  if (el instanceof HTMLTrackElement) return el.src;
+  if (el instanceof HTMLMediaElement) return el.src;
+  return el.getAttribute('src') ?? el.getAttribute('href');
 }

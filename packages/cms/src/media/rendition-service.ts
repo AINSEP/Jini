@@ -1,3 +1,6 @@
+import { sanitizeSvg } from "./sanitize-svg.js";
+import { sniffContentType } from "./content-type-sniffer.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file Rendition resolution service — "serve-if-exists +
  * bounded generate-if-defined", the read path behind the frozen public URL
@@ -30,7 +33,7 @@
  */
 import { createHash } from "node:crypto";
 
-import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, TransformDefinitionRepoPort } from "./ports.js";
 import type { AssetRenditionRecord } from "./types.js";
 import { findMediaByIdOrSlug } from "./media-service.js";
@@ -46,8 +49,8 @@ export interface ResolveMediaRenditionDeps {
   transformRepo: TransformDefinitionRepoPort;
   blobStore: BlobStorePort;
   imageTransformer: ImageTransformerPort;
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
 }
 
 export interface ResolveMediaRenditionInput {
@@ -83,6 +86,27 @@ export type ResolveMediaRenditionResult =
   | { outcome: "gone" }
   | { outcome: "not-found" };
 
+/** Stored renditions are served as-is, except SVG bytes, which are re-sanitized on every read. */
+async function serveStoredRendition(
+  { deps, storageKey, format }: { deps: ResolveMediaRenditionRequired["deps"]; storageKey: string; format: Parameters<typeof mimeForTransformFormat>[0]["format"] },
+): Promise<ResolveMediaRenditionResult> {
+  const bytes = await deps.blobStore.get({ storageKey });
+  if (sniffContentType({ bytes }) === "image/svg+xml") {
+    return { outcome: "ok", bytes: await sanitizeSvg({ bytes }), contentType: "image/svg+xml" };
+  }
+  return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format }) };
+}
+
+async function isGenerationAllowed(
+  { deps, input }: Pick<ResolveMediaRenditionRequired, "deps" | "input">,
+): Promise<boolean> {
+  return isReferencedByPublishedContent({ workspaceId: input.workspaceId, name: input.transformName, version: input.version }) ||
+    (await isLatestTransformVersion({
+      deps: { transformRepo: deps.transformRepo },
+      input: { workspaceId: input.workspaceId, name: input.transformName, version: input.version },
+    }));
+}
+
 /**
  * DISCLOSED SIMPLIFICATION: the original design says a *purged* asset should 410. This
  * build's `purgeMedia` (`media-service.ts`) hard-deletes the `MediaRecord`
@@ -113,6 +137,7 @@ export async function resolveMediaRendition(
 
   const media = await findMediaByIdOrSlug({ deps: { mediaRepo: deps.mediaRepo }, input: { workspaceId: input.workspaceId, idOrSlug: input.assetId } });
   if (!media) return { outcome: "not-found" };
+  if (media.kind === "document") return { outcome: "not-found" };
   if (media.status === "trashed") return { outcome: "gone" };
   // From here on, every `asset_renditions`/blob operation keys on the RESOLVED record's own `id` —
   // never the raw `input.assetId`, which may have been a slug. `asset_renditions.assetId` is a FK to
@@ -133,18 +158,9 @@ export async function resolveMediaRendition(
     transformName: input.transformName,
     version: input.version,
   });
-  if (existing) {
-    const bytes = await deps.blobStore.get({ storageKey: existing.storageKey });
-    return { outcome: "ok", bytes, contentType: mimeForTransformFormat(definition.params.format) };
-  }
+  if (existing) return serveStoredRendition({ deps, storageKey: existing.storageKey, format: definition.params.format });
 
-  const generationAllowed =
-    isReferencedByPublishedContent({ workspaceId: input.workspaceId, name: input.transformName, version: input.version }) ||
-    (await isLatestTransformVersion({
-      deps: { transformRepo: deps.transformRepo },
-      input: { workspaceId: input.workspaceId, name: input.transformName, version: input.version },
-    }));
-  if (!generationAllowed) return { outcome: "not-found" };
+  if (!(await isGenerationAllowed({ deps, input }))) return { outcome: "not-found" };
 
   const sourceBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 });
   if (!sourceBlob) {
@@ -155,8 +171,14 @@ export async function resolveMediaRendition(
     throw new Error(`media '${media.id}': source blob for sha256 '${media.source.sha256}' was not found`);
   }
 
+  const sourceBytes = await deps.blobStore.get({ storageKey: sourceBlob.storageKey });
+  // SVG remains vector media even when an embed requests a raster transform URL.
+  if (sniffContentType({ bytes: sourceBytes }) === "image/svg+xml") {
+    return { outcome: "ok", bytes: await sanitizeSvg({ bytes: sourceBytes }), contentType: "image/svg+xml" };
+  }
+
   const lockKey = `${media.source.sha256}:${input.transformName}:${input.version}`;
-  const renditionRow = await withRenditionLock(lockKey, async () => {
+  const renditionRow = await withRenditionLock({ key: lockKey, criticalSection: async () => {
     // Double-checked: another caller may have finished generating this exact rendition while we
     // were queued for the lock (single-flight) — reuse it instead of calling
     // `imageTransformer.transform` a second time.
@@ -168,7 +190,6 @@ export async function resolveMediaRendition(
     });
     if (racedExisting) return racedExisting;
 
-    const sourceBytes = await deps.blobStore.get({ storageKey: sourceBlob.storageKey });
     const { bytes: outputBytes } = await deps.imageTransformer.transform({
       bytes: sourceBytes,
       params: definition.params,
@@ -187,12 +208,12 @@ export async function resolveMediaRendition(
       transformName: input.transformName,
       version: input.version,
       storageKey,
-      createdAt: deps.clock.nowIso(),
+      createdAt: kernelNowIso({ clock: deps.clock }),
     };
     await deps.renditionRepo.save(row);
     return row;
-  });
+  } });
 
   const bytes = await deps.blobStore.get({ storageKey: renditionRow.storageKey });
-  return { outcome: "ok", bytes, contentType: mimeForTransformFormat(definition.params.format) };
+  return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format: definition.params.format }) };
 }

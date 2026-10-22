@@ -13,6 +13,7 @@ import {
   listMedia,
   purgeMedia,
   resolveWriteOnceSource,
+  rollbackUploadedMedia,
   trashMedia,
   updateMediaMetadata,
   uploadMedia,
@@ -37,13 +38,14 @@ function makeDeps() {
   let counter = 0;
   let currentNow = "2026-07-10T00:00:00.000Z";
   const deps = {
-    clock: { nowIso: () => currentNow },
+    clock: { nowMs: () => Date.parse(currentNow)},
     idGen: { newId: () => `id-${(counter += 1)}` },
-    mediaRepo: new InMemoryMediaRepo(),
-    blobRepo: new InMemoryAssetBlobRepo(),
-    renditionRepo: new InMemoryAssetRenditionRepo(),
+    mediaRepo: new InMemoryMediaRepo({}),
+    blobRepo: new InMemoryAssetBlobRepo({}),
+    renditionRepo: new InMemoryAssetRenditionRepo({}),
     blobStore: new InMemoryBlobStore(),
-    journalRepo: new InMemoryBlobGcJournalRepo(),
+    journalRepo: new InMemoryBlobGcJournalRepo({}),
+    referenceCheck: { findReferences: async (): Promise<readonly string[]> => [] },
   };
   return { deps, setNow: (iso: string) => (currentNow = iso) };
 }
@@ -51,6 +53,25 @@ function makeDeps() {
 function bytesFrom(content: string): Uint8Array {
   return new TextEncoder().encode(content);
 }
+
+test("SVG upload stores sanitized bytes under their own hash, deduplicates, and refuses SVG fonts", async () => {
+  const { deps } = makeDeps();
+  const { createHash } = await import("node:crypto");
+  const malicious = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script><path d="M0 0h10v10z"/></svg>';
+  const input = { workspaceId: WORKSPACE_ID, filename: "logo.svg", contentType: "image/svg+xml", bytes: bytesFrom(malicious), createdByPrincipal: "owner" };
+  const { media } = await uploadMedia({ deps, input });
+  const blob = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 });
+  assert.ok(blob);
+  const bytes = await deps.blobStore.get({ storageKey: blob.storageKey });
+  assert.doesNotMatch(new TextDecoder().decode(bytes), /script|onload|alert/);
+  assert.equal(media.source.sha256, createHash("sha256").update(bytes).digest("hex"));
+  assert.notEqual(media.source.sha256, createHash("sha256").update(input.bytes).digest("hex"));
+  const repeated = await uploadMedia({ deps, input: { ...input, bytes } });
+  assert.equal(repeated.media.source.sha256, media.source.sha256);
+  assert.equal((await deps.blobRepo.list({ workspaceId: WORKSPACE_ID })).length, 1);
+  await assert.rejects(() => uploadMedia({ deps, input: { ...input, bytes: bytesFrom('<svg xmlns="http://www.w3.org/2000/svg"><font/></svg>') } }), /SVG fonts are not allowed/);
+  assert.equal((await deps.mediaRepo.list({ workspaceId: WORKSPACE_ID })).length, 2);
+});
 
 test("uploadMedia stores bytes, a media row, and an 'original' rendition", async () => {
   const { deps } = makeDeps();
@@ -619,7 +640,7 @@ test("purgeMedia removes the media row immediately but only TOMBSTONES an unshar
   await assert.rejects(() => getMediaById({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } }), MediaNotFoundError);
 
   // The blob is only TOMBSTONED by purge — row and bytes both still exist
-  // (INV-1a: unlink only happens after a completed delete-pass, never as a
+  // (: unlink only happens after a completed delete-pass, never as a. See docs/decisions/DR-004-journaled-blob-gc.md.
   // side effect of removing the media row).
   const blobAfterPurge = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256 });
   assert.ok(blobAfterPurge);
@@ -736,13 +757,11 @@ test("uploadMedia accepts image/avif", async () => {
 
 /**
  * The allowlist stays an allowlist: widening it for AVIF must not turn it into "any image/*".
- * `image/svg+xml` is the durable negative case (it needs an ingest sanitizer this build does not
- * have), and `image/heic` is the second — the installed libvips cannot decode HEIC, so accepting
- * it would store bytes no transform could ever render.
+ * HEIC remains unsupported by the installed decoder; PDF is not image media.
  */
 test("uploadMedia still rejects types outside the allowlist, with the exact operator-facing message", async () => {
   const { deps } = makeDeps();
-  for (const contentType of ["image/svg+xml", "image/heic", "application/pdf"]) {
+  for (const contentType of ["image/heic", "application/pdf"]) {
     await assert.rejects(
       () =>
         uploadMedia({
@@ -810,10 +829,10 @@ test("findMediaByIdOrSlug resolves the ID first — a row claiming another asset
 
 test("isValidMediaSlugFormat — exported so hosts can decide whether a stored value is safe to emit as a URL", () => {
   for (const slug of ["abc-123-def", "2026-09-07-launch-clip", "deadbeef", "a"]) {
-    assert.equal(isValidMediaSlugFormat(slug), true, `expected ${JSON.stringify(slug)} to be valid`);
+    assert.equal(isValidMediaSlugFormat({ slug: slug }), true, `expected ${JSON.stringify(slug)} to be valid`);
   }
   for (const slug of ["..", "a/b", "A", "", UUID_SHAPED]) {
-    assert.equal(isValidMediaSlugFormat(slug), false, `expected ${JSON.stringify(slug)} to be invalid`);
+    assert.equal(isValidMediaSlugFormat({ slug: slug }), false, `expected ${JSON.stringify(slug)} to be invalid`);
   }
 });
 
@@ -850,4 +869,132 @@ test("updateMediaMetadata rejects a trashed row with ENTITY_IN_TRASH and leaves 
   const { media: stillTrashed } = await getMediaById({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
   assert.equal(stillTrashed.version, trashed.version);
   assert.equal(stillTrashed.status, "trashed");
+});
+
+
+for (const contentType of ["audio/wav", "audio/mpeg", "audio/flac", "audio/mp4"]) {
+  test(`mediawidget uploads accept ${contentType} through the existing media owner`, async () => {
+    const { deps } = makeDeps();
+    const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom(contentType), filename: "sound", contentType, createdByPrincipal: "user-1" } });
+    assert.equal(media.status, "active");
+    assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id }))[0]?.transformName, "original");
+  });
+}
+
+// Trash is a prerequisite, never evidence that current references are absent.
+test('purge refuses referenced trashed media and leaves rows, renditions and blob active', async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom('referenced'), filename: 'photo.png', contentType: 'image/png', createdByPrincipal: 'owner' } });
+  await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  deps.referenceCheck.findReferences = async () => ['post-1:bodyHtml', 'widget-1:config.items'];
+  const input = { workspaceId: WORKSPACE_ID, id: media.id };
+  await assert.rejects(purgeMedia({ deps, input }), (error: unknown) => {
+    assert.ok(error instanceof MediaStillReferencedError);
+    assert.deepEqual(error.referencing, ['post-1:bodyHtml', 'widget-1:config.items']);
+    return true;
+  });
+  assert.equal((await deps.mediaRepo.findById(input))?.status, 'trashed');
+  assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).length, 1);
+  assert.equal((await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 }))?.status, 'active');
+});
+
+test('a failing or absent reference checker refuses purge before removal', async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom('lookup-fails'), filename: 'photo.png', contentType: 'image/png', createdByPrincipal: 'owner' } });
+  await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  const input = { workspaceId: WORKSPACE_ID, id: media.id };
+  deps.referenceCheck.findReferences = async () => { throw new Error('reference store unavailable'); };
+  await assert.rejects(purgeMedia({ deps, input }), /reference store unavailable/);
+  assert.ok(await deps.mediaRepo.findById(input));
+  const { referenceCheck: _omitted, ...withoutChecker } = deps;
+  // @ts-expect-error untyped hosts must fail closed too.
+  await assert.rejects(purgeMedia({ deps: withoutChecker, input }));
+  assert.ok(await deps.mediaRepo.findById(input));
+});
+
+test("uploadMedia refuses an unknown kind and trims upload-time alt, caption and credit", async () => {
+  const { deps } = makeDeps();
+  const base = { workspaceId: WORKSPACE_ID, filename: "a.png", contentType: "image/png", bytes: bytesFrom("png"), createdByPrincipal: "owner" };
+  await assert.rejects(uploadMedia({ deps, input: { ...base, kind: "video" as "media" } }), /invalid media kind/);
+  const { media } = await uploadMedia({ deps, input: { ...base, alt: " Alt ", caption: " Cap ", credit: " Cred " } });
+  assert.deepEqual([media.alt, media.caption, media.credit], ["Alt", "Cap", "Cred"]);
+});
+
+test("uploadMedia re-checks the size cap after SVG sanitizing changes the bytes", async () => {
+  const { deps } = makeDeps();
+  // The serializer escapes each raw ">" in text as "&gt;", so clean bytes can outgrow the upload.
+  const svg = bytesFrom(`<svg xmlns="http://www.w3.org/2000/svg"><text>${">".repeat(50)}</text></svg>`);
+  await assert.rejects(uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "a.svg", contentType: "image/svg+xml", bytes: svg, createdByPrincipal: "owner" } }, { maxUploadBytes: svg.byteLength }), /size cap/);
+});
+
+test("updateMediaMetadata validates document titles and applies dimension, class and blank-title edits", async () => {
+  const { deps } = makeDeps();
+  const doc = (await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "notes.md", kind: "document", contentType: "text/markdown", bytes: bytesFrom("# Notes\n"), createdByPrincipal: "owner" } })).media;
+  for (const title of ["   ", "x".repeat(241), "a/b", "a\u0001"]) {
+    await assert.rejects(updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: doc.id, title } }), /document title must be/);
+  }
+  assert.equal((await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: doc.id, title: " Plan " } })).media.title, "Plan");
+  const image = (await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, filename: "pic.png", contentType: "image/png", bytes: bytesFrom("png"), createdByPrincipal: "owner" } })).media;
+  const sized = (await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, title: "   ", width: 10, height: 20, cssClass: " wide " } })).media;
+  assert.deepEqual([sized.title, sized.width, sized.height, sized.cssClass], [image.title, 10, 20, "wide"]);
+  const kept = (await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, alt: "x" } })).media;
+  assert.deepEqual([kept.width, kept.height, kept.cssClass], [10, 20, "wide"]);
+  const cleared = (await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, width: null, height: null, cssClass: null } })).media;
+  assert.deepEqual([cleared.width, cleared.height, cleared.cssClass], [null, null, null]);
+  assert.equal((await updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, cssClass: "  " } })).media.cssClass, null);
+  await assert.rejects(updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: image.id, width: 0 } }), MediaValidationError);
+});
+
+test("uploadMedia's size-cap message keeps one decimal for a cap that is not a whole number of MB", async () => {
+  const { deps } = makeDeps();
+  await assert.rejects(
+    uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: new Uint8Array(2 * 1024 * 1024), filename: "big.png", contentType: "image/png", createdByPrincipal: "user-1" } },
+      { maxUploadBytes: 1.5 * 1024 * 1024 }),
+    (error: unknown) => {
+      assert.ok(error instanceof MediaValidationError);
+      assert.equal(error.message, "uploaded file exceeds the 1.5 MB size cap");
+      return true;
+    },
+  );
+});
+
+test("uploadMedia titles an extension-only filename 'Untitled' rather than storing an empty title", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadWithTitle(deps, ".png");
+  assert.equal(media.title, "Untitled");
+  assert.equal(media.slug, "untitled");
+});
+
+test("listMedia treats a legacy row with no kind as ordinary media, never as a document", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadWithTitle(deps, "legacy.png");
+  const { kind: _kind, ...legacy } = media;
+  await deps.mediaRepo.save({ ...legacy, id: "legacy-1", slug: "legacy-1" });
+  const all = await listMedia({ deps, input: { workspaceId: WORKSPACE_ID } });
+  assert.deepEqual(all.media.map(row => row.id).sort(), [media.id, "legacy-1"].sort());
+  const documents = await listMedia({ deps, input: { workspaceId: WORKSPACE_ID, kind: "document" } });
+  assert.deepEqual(documents.media, []);
+});
+
+test("trashMedia throws MediaNotFoundError for a missing id", async () => {
+  const { deps } = makeDeps();
+  await assert.rejects(trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: "missing" } }), (error: unknown) => {
+    assert.ok(error instanceof MediaNotFoundError);
+    assert.equal(error.message, "media 'missing' was not found");
+    return true;
+  });
+});
+
+test("rollbackUploadedMedia without an injected clock still tombstones the blob, stamped from the system clock", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadWithTitle(deps, "rolled-back.png");
+  const { clock: _clock, ...withoutClock } = deps;
+  const before = Date.now();
+  await rollbackUploadedMedia({ deps: withoutClock, input: { workspaceId: WORKSPACE_ID, media } }, {});
+  const after = Date.now();
+  assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }), null);
+  const blob = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 });
+  assert.equal(blob?.status, "tombstoned");
+  const stamped = Date.parse(blob!.tombstonedAt!);
+  assert.ok(stamped >= before && stamped <= after, `tombstonedAt ${blob!.tombstonedAt} within the call`);
 });

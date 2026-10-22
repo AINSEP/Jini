@@ -16,7 +16,7 @@ export function PresentMenu({ disabled, onPresentInline, onPresentFullscreen, on
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  useDismissOnOutsideOrEscape(() => setOpen(false), { enabled: open, containerRef: wrapRef });
+  useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: wrapRef });
 
   function select(action: () => void) {
     setOpen(false);

@@ -9,7 +9,8 @@ import type { ChildProcess } from 'node:child_process';
 /** A JSON-RPC 2.0 request or response identifier. May be a numeric integer or a string. */
 export type JsonRpcId = string | number;
 /** An arbitrary JSON object with string keys and unknown values. Used as a loose type for parsed RPC frames. */
-export type JsonObject = Record<string, unknown>;
+/** ACP records may contain unvalidated provider values; this does not assert JSON safety. */
+export type UnknownRecord = Record<string, unknown>;
 /** Minimal writable interface required to send JSON-RPC newline-delimited frames to an ACP agent's stdin. */
 export type RpcWritable = Pick<Writable, 'write' | 'end'>;
 /** The Node `ChildProcess` handle for a spawned ACP agent subprocess. */
@@ -22,6 +23,6 @@ export type TimerHandle = ReturnType<typeof setTimeout>;
  * (`'text_artifact'`). Inlined here rather than imported from an external
  * contracts package — the upstream type is a trivial two-value literal union
  * with no product-specific branding, so importing a whole package for it
- * would be the tail wagging the dog. See source-map.md.
+ * would be the tail wagging the dog. See archived provenance ledger.
  */
 export type ExecutionProfile = 'filesystem' | 'text_artifact';

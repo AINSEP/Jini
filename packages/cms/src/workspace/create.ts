@@ -1,4 +1,6 @@
-import type { ClockPort, DomainEvent, IdGeneratorPort, OutboxPort, UUID } from "../core/ports.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
+import type { DomainEvent, OutboxPort } from "../core/ports.js";
 
 /**
  * @file Workspace creation vertical slice (domain logic).
@@ -35,8 +37,8 @@ export interface WorkspaceRecord {
  */
 export interface WorkspaceRepoPort {
   insert(record: WorkspaceRecord): Promise<void>;
-  findBySlug(slug: string): Promise<WorkspaceRecord | null>;
-  findById(id: UUID): Promise<WorkspaceRecord | null>;
+  findBySlug({ slug }: { slug: string }): Promise<WorkspaceRecord | null>;
+  findById({ id }: { id: UUID }): Promise<WorkspaceRecord | null>;
   /** A v1 install always has exactly one row (see `delete.ts`'s header);
    * the port itself is not limited to one. */
   list(): Promise<WorkspaceRecord[]>;
@@ -45,7 +47,11 @@ export interface WorkspaceRepoPort {
   update(record: WorkspaceRecord): Promise<void>;
   /** Callers (see `delete.ts`) must apply the last-workspace guard
    * themselves — this port method performs the row deletion only, no business rule. */
-  delete(id: UUID): Promise<void>;
+  delete({ id }: { id: UUID }): Promise<void>;
+  /** Optional for existing adapters; deletion needs this or an injected transaction.
+   * Serializes the entire count/guard/delete operation against competing deletions,
+   * rolling back on rejection. Durable adapters must cover all workspace writers. */
+  transaction?<T>(required: { fn: () => Promise<T> }): Promise<T>;
 }
 
 /**
@@ -64,9 +70,9 @@ export function validateWorkspaceNameAndSlug(input: { name: string; slug: string
   const name = input.name.trim();
   const slug = input.slug.trim().toLowerCase();
 
-  if (!name) throw new WorkspaceValidationError("name is required");
+  if (!name) throw new WorkspaceValidationError({ message: "name is required" });
   if (!slug.match(/^[a-z0-9-]+$/)) {
-    throw new WorkspaceValidationError("slug must use lowercase letters, numbers, and dashes");
+    throw new WorkspaceValidationError({ message: "slug must use lowercase letters, numbers, and dashes" });
   }
 
   return { name, slug };
@@ -80,8 +86,8 @@ export interface CreateWorkspaceInput {
 
 /** Dependencies required by the create-workspace slice. */
 export interface CreateWorkspaceDeps {
-  idGen: IdGeneratorPort;
-  clock: ClockPort;
+  idGen: IdGenerator;
+  clock: Clock;
   repo: WorkspaceRepoPort;
   outbox: OutboxPort;
 }
@@ -96,13 +102,25 @@ export interface CreateWorkspaceRequired {
 export interface CreateWorkspaceOptional {}
 
 /** Thrown when incoming command data is invalid. */
-export class WorkspaceValidationError extends Error {}
+export class WorkspaceValidationError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /** Thrown when uniqueness constraints are violated. */
-export class WorkspaceConflictError extends Error {}
+export class WorkspaceConflictError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /** Thrown when a `:workspaceId` does not resolve to a row. */
-export class WorkspaceNotFoundError extends Error {}
+export class WorkspaceNotFoundError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /**
  * Thrown when `deleteWorkspace` (`delete.ts`) would remove the install's
@@ -111,7 +129,11 @@ export class WorkspaceNotFoundError extends Error {}
  * string-matching the message — mirrors this codebase's `GrantExceedsIssuerError` being kept distinct
  * from `IdentityForbiddenError` for the identical reason (typed-reason clarity).
  */
-export class WorkspaceLastRemainingError extends Error {}
+export class WorkspaceLastRemainingError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /**
  * Execute create-workspace command.
@@ -131,10 +153,10 @@ export async function createWorkspace(
   const { deps, input } = required;
   const { name, slug } = validateWorkspaceNameAndSlug(input);
 
-  const existing = await deps.repo.findBySlug(slug);
-  if (existing) throw new WorkspaceConflictError(`slug '${slug}' already exists`);
+  const existing = await deps.repo.findBySlug({ slug: slug });
+  if (existing) throw new WorkspaceConflictError({ message: `slug '${slug}' already exists` });
 
-  const now = deps.clock.nowIso();
+  const now = kernelNowIso({ clock: deps.clock });
   const id = deps.idGen.newId();
 
   await deps.repo.insert({ id, name, slug, createdAt: now });

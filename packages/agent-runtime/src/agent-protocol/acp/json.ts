@@ -4,7 +4,7 @@
  * performs no I/O; depends only on acp/types and acp/constants.
  * Consumed by acp/rpc.ts, acp/session.ts, acp/models.ts, and acp/updates.ts.
  */
-import type { JsonObject } from './types.js';
+import type { UnknownRecord } from './types.js';
 import { MAX_TIMEOUT_MS } from './constants.js';
 
 /** Default environment variable name `resolveAcpTimeoutMs` reads when the
@@ -45,15 +45,15 @@ export function resolveAcpTimeoutMs(
   return Math.min(MAX_TIMEOUT_MS, Math.max(0, Math.floor(raw)));
 }
 /**
- * Coerces an unknown value to a `JsonObject` if it is a non-null, non-array
+ * Coerces an unknown value to a `UnknownRecord` if it is a non-null, non-array
  * plain object, or returns `null` otherwise. The primary guard used throughout
  * the ACP layer before accessing named properties on parsed JSON frames.
  *
  * @param value - Any value from a JSON parse result.
- * @returns The value cast as `JsonObject`, or `null` when the cast is unsafe.
+ * @returns The value cast as `UnknownRecord`, or `null` when the cast is unsafe.
  */
-export function asObject(value: unknown): JsonObject | null {
-  return value && typeof value === 'object' ? value as JsonObject : null;
+export function asObject(value: unknown): UnknownRecord | null {
+  return value && typeof value === 'object' ? value as UnknownRecord : null;
 }
 /**
  * Returns a short diagnostic string describing the JSON kind of `value`:
@@ -69,7 +69,7 @@ export function acpValueKind(value: unknown): string {
 }
 /**
  * Returns a sorted array of own string keys from `value` if it is a
- * `JsonObject`, or an empty array otherwise. Used to snapshot object
+ * `UnknownRecord`, or an empty array otherwise. Used to snapshot object
  * structure for diagnostic payloads without risking a throw.
  *
  * @param value - Any value from a parsed ACP update object.
@@ -93,28 +93,60 @@ export function objectKeys(value: unknown): string[] {
 export function extractAcpTextValue(value: unknown, depth = 0): string | null {
   if (depth > 4) return null;
   if (typeof value === 'string') return value.length > 0 ? value : null;
-  if (Array.isArray(value)) {
-    const text = value
-      .map((item) => extractAcpTextValue(item, depth + 1))
-      .filter((part): part is string => typeof part === 'string' && part.length > 0)
-      .join('');
-    return text.length > 0 ? text : null;
-  }
+  if (Array.isArray(value)) return joinAcpArrayText({ items: value, depth });
   const obj = asObject(value);
   if (!obj) return null;
-  for (const key of [
-    'text',
-    'delta',
-    'content',
-    'message',
-    'output',
-    'answer',
-    'value',
-    'body',
-    'parts',
-    'choices',
-  ]) {
-    const text = extractAcpTextValue(obj[key], depth + 1);
+  return firstAcpKeyText({ obj, keys: NESTED_TEXT_KEYS, depth: depth + 1 });
+}
+/** Key order `extractAcpTextValue` probes on nested objects. */
+const NESTED_TEXT_KEYS = [
+  'text',
+  'delta',
+  'content',
+  'message',
+  'output',
+  'answer',
+  'value',
+  'body',
+  'parts',
+  'choices',
+] as const;
+/** Key order `extractAcpUpdateText` probes on the top-level update object
+ * (`content` first, unlike the nested order). */
+const UPDATE_TEXT_KEYS = [
+  'content',
+  'text',
+  'delta',
+  'message',
+  'output',
+  'answer',
+  'value',
+  'body',
+  'parts',
+  'choices',
+] as const;
+/** Concatenates the non-empty text of every array item (one level deeper),
+ * or `null` when the joined text is empty. */
+function joinAcpArrayText({ items, depth }: { items: unknown[]; depth: number }): string | null {
+  const text = items
+    .map((item) => extractAcpTextValue(item, depth + 1))
+    .filter((part): part is string => typeof part === 'string' && part.length > 0)
+    .join('');
+  return text.length > 0 ? text : null;
+}
+/** Returns the first non-empty text found under `keys` of `obj`, traversing
+ * each value at `depth`. */
+function firstAcpKeyText({
+  obj,
+  keys,
+  depth,
+}: {
+  obj: UnknownRecord;
+  keys: readonly string[];
+  depth: number;
+}): string | null {
+  for (const key of keys) {
+    const text = extractAcpTextValue(obj[key], depth);
     if (text) return text;
   }
   return null;
@@ -128,21 +160,6 @@ export function extractAcpTextValue(value: unknown, depth = 0): string | null {
  * @param update - A parsed ACP `session/update` params object.
  * @returns The first non-empty text string, or `null` when none is present.
  */
-export function extractAcpUpdateText(update: JsonObject): string | null {
-  for (const key of [
-    'content',
-    'text',
-    'delta',
-    'message',
-    'output',
-    'answer',
-    'value',
-    'body',
-    'parts',
-    'choices',
-  ]) {
-    const text = extractAcpTextValue(update[key]);
-    if (text) return text;
-  }
-  return null;
+export function extractAcpUpdateText(update: UnknownRecord): string | null {
+  return firstAcpKeyText({ obj: update, keys: UPDATE_TEXT_KEYS, depth: 0 });
 }

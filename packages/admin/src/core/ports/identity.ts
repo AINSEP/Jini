@@ -52,13 +52,13 @@ export interface AdminPolicy {
 }
 
 export interface AdminIdentityPort {
-  listUsers(): Promise<readonly AdminIdentityUser[]>;
-  createUser(input: { username: string; password: string; email?: string }): Promise<AdminIdentityUser>;
-  updateUser(id: string, patch: { email?: string }): Promise<AdminIdentityUser>;
+  listUsers(requiredArgs: Record<string, never>): Promise<readonly AdminIdentityUser[]>;
+  createUser(requiredArgs: { username: string; password: string }, optionalArgs?: { email?: string }): Promise<AdminIdentityUser>;
+  updateUser(requiredArgs: { id: string }, optionalArgs?: { email?: string }): Promise<AdminIdentityUser>;
   /** Reversible; the audited alternative to deletion. See the file header. */
-  disableUser(id: string): Promise<AdminIdentityUser>;
-  enableUser(id: string): Promise<AdminIdentityUser>;
-  resetUserPassword(id: string, input: { password: string }): Promise<{ ok: boolean }>;
+  disableUser(requiredArgs: { id: string }): Promise<AdminIdentityUser>;
+  enableUser(requiredArgs: { id: string }): Promise<AdminIdentityUser>;
+  resetUserPassword(requiredArgs: { id: string; password: string }): Promise<{ ok: boolean }>;
 
   /**
    * Grants a role.
@@ -68,23 +68,22 @@ export interface AdminIdentityPort {
    * the check is server-side. A panel must not pre-filter the role list as if that were the
    * boundary; it may hide options as an affordance, but the rejection is authoritative.
    */
-  assignRole(userId: string, roleId: string): Promise<{ ok: boolean }>;
-  attachPolicy(userId: string, policyId: string): Promise<{ ok: boolean }>;
+  assignRole(requiredArgs: { userId: string; roleId: string }): Promise<{ ok: boolean }>;
+  attachPolicy(requiredArgs: { userId: string; policyId: string }): Promise<{ ok: boolean }>;
 
-  listRoles(): Promise<readonly AdminRole[]>;
-  createRole(input: { name: string; description?: string }): Promise<AdminRole>;
-  updateRole(id: string, patch: { name?: string; description?: string }): Promise<AdminRole>;
+  listRoles(requiredArgs: Record<string, never>): Promise<readonly AdminRole[]>;
+  createRole(requiredArgs: { name: string }, optionalArgs?: { description?: string }): Promise<AdminRole>;
+  updateRole(requiredArgs: { id: string }, optionalArgs?: { name?: string; description?: string }): Promise<AdminRole>;
   /** Expect a conflict rejection when the role is still referenced by a principal. */
-  deleteRole(id: string): Promise<{ ok: boolean }>;
+  deleteRole(requiredArgs: { id: string }): Promise<{ ok: boolean }>;
 
-  listPolicies(): Promise<readonly AdminPolicy[]>;
-  createPolicy(input: { name: string; description?: string }): Promise<AdminPolicy>;
-  updatePolicy(id: string, patch: { name?: string; description?: string }): Promise<AdminPolicy>;
-  deletePolicy(id: string): Promise<{ ok: boolean }>;
+  listPolicies(requiredArgs: Record<string, never>): Promise<readonly AdminPolicy[]>;
+  createPolicy(requiredArgs: { name: string }, optionalArgs?: { description?: string }): Promise<AdminPolicy>;
+  updatePolicy(requiredArgs: { id: string }, optionalArgs?: { name?: string; description?: string }): Promise<AdminPolicy>;
+  deletePolicy(requiredArgs: { id: string }): Promise<{ ok: boolean }>;
   /** Adds or removes a single permission string on a policy. Granular by design: a whole-array
    *  replace makes two concurrent editors silently clobber each other. */
   writePolicyPermission(
-    policyId: string,
-    input: { permission: string; granted: boolean },
+    requiredArgs: { policyId: string; permission: string; granted: boolean },
   ): Promise<AdminPolicy>;
 }

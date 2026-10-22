@@ -1,22 +1,8 @@
 /**
  * @module prompt-augmenter
- *
- * Port replacing OD's `apps/daemon/src/runtimes/chat-prompt-inputs.ts` (design-system
- * selection resolution — `resolveEffectiveDesignSystemSelection`,
- * `designSystemIdFromPluginSnapshot`, `formatDesignFilesWorkspaceHint`,
- * Codex image-generation prompt overrides, comment-attachment rendering,
- * research-command-contract composition — all genuinely OD-product prompt
- * content) and the workspace-context-kind half of OD's
- * `runtimes/chat-run-context.ts` (not present on this branch as a separate
- * file, but the same `'design-system'`-as-a-context-kind concept lives
- * inline in `chat-prompt-inputs.ts`).
- *
- * None of that OD logic is ported — per the task charter, this file defines
- * only the injection seam. The shape below is r1b §1's proposed
- * `PromptAugmenter` signature, used as-is (it matched the real source: the
- * engine composes a base prompt and a generic `RunContextSelection`, then
- * calls out to the host for product-specific augmentation and an optional
- * system-prompt overlay).
+ * Product context, artifact conventions, research contracts and system overlays are host-owned.
+ * The engine composes a base prompt and generic RunContextSelection, then calls this port rather
+ * than depending on a product's design/annotation/workspace model.
  */
 
 /** A single item in the run's attached/selected workspace context. `kind` is host-defined — the engine treats it as an opaque string. */

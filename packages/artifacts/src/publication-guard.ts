@@ -17,7 +17,6 @@
  * (scan a guarded-kind body for any configured marker, throw before
  * publish) is what this module owns.
  */
-import { Buffer } from 'node:buffer';
 
 export const ARTIFACT_PUBLICATION_BLOCKED_CODE = 'ARTIFACT_PUBLICATION_BLOCKED' as const;
 
@@ -38,36 +37,37 @@ export class ArtifactPublicationBlockedError extends Error {
   readonly code = ARTIFACT_PUBLICATION_BLOCKED_CODE;
   readonly placeholders: readonly string[];
 
-  constructor(placeholders: readonly string[]) {
-    super(buildArtifactPublicationBlockedMessage(placeholders));
+  constructor({ placeholders }: { placeholders: readonly string[] }) {
+    super(buildArtifactPublicationBlockedMessage({ placeholders }));
     this.name = 'ArtifactPublicationBlockedError';
     this.placeholders = [...placeholders];
   }
 }
 
-export function isPublicationGuardedKind(kind: unknown, config: PublicationGuardConfig): boolean {
+export function isPublicationGuardedKind({ kind, config }: { kind: unknown; config: PublicationGuardConfig }): boolean {
   return typeof kind === 'string' && config.guardedKinds.has(kind);
 }
 
 function stringifyArtifactContent(value: unknown): string {
   if (typeof value === 'string') return value;
-  if (Buffer.isBuffer(value)) return value.toString('utf8');
-  if (value instanceof Uint8Array) return Buffer.from(value).toString('utf8');
+  // Buffer is a Uint8Array too. Preserve its UTF-8 replacement semantics and leading BOM without
+  // importing a Node built-in into the universal entry; decode only the supplied view's bytes.
+  if (value instanceof Uint8Array) return new TextDecoder('utf-8', { ignoreBOM: true }).decode(value);
   return '';
 }
 
 /** Returns every configured placeholder marker found in `value`'s stringified content, in declaration order. */
-export function findBlockedPlaceholders(value: unknown, config: PublicationGuardConfig): string[] {
+export function findBlockedPlaceholders({ value, config }: { value: unknown; config: PublicationGuardConfig }): string[] {
   const text = stringifyArtifactContent(value);
   if (!text) return [];
   return config.blockedPlaceholders.filter((placeholder) => text.includes(placeholder));
 }
 
-export function shouldBlockPublication(value: unknown, config: PublicationGuardConfig): boolean {
-  return findBlockedPlaceholders(value, config).length > 0;
+export function shouldBlockPublication({ value, config }: { value: unknown; config: PublicationGuardConfig }): boolean {
+  return findBlockedPlaceholders({ value, config }).length > 0;
 }
 
-export function buildArtifactPublicationBlockedMessage(placeholders: readonly string[]): string {
+export function buildArtifactPublicationBlockedMessage({ placeholders }: { placeholders: readonly string[] }): string {
   const list = placeholders.length > 0 ? placeholders.join(', ') : 'unknown placeholders';
   return `Artifact still contains unresolved placeholders: ${list}. Resolve them before publishing.`;
 }
@@ -80,13 +80,11 @@ export function buildArtifactPublicationBlockedMessage(placeholders: readonly st
  * where the same substrings could be legitimate.
  */
 export function assertArtifactPublicationAllowed(
-  kind: unknown,
-  value: unknown,
-  config: PublicationGuardConfig,
+  { kind, value, config }: { kind: unknown; value: unknown; config: PublicationGuardConfig },
 ): void {
-  if (!isPublicationGuardedKind(kind, config)) return;
-  const placeholders = findBlockedPlaceholders(value, config);
+  if (!isPublicationGuardedKind({ kind, config })) return;
+  const placeholders = findBlockedPlaceholders({ value, config });
   if (placeholders.length > 0) {
-    throw new ArtifactPublicationBlockedError(placeholders);
+    throw new ArtifactPublicationBlockedError({ placeholders });
   }
 }

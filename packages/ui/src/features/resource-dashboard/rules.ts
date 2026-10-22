@@ -1,6 +1,6 @@
 /**
  * Pure logic shared by `ResourceBoard` and `ResourceRowList`. No React, no
- * transport, no DOM. See `packages/ui/source-map.md` for full provenance.
+ * transport, no DOM. See `packages/ui/archived provenance ledger` for full provenance.
  */
 import { DEFAULT_STATUS_TONE, UNMATCHED_STATUS_BUCKET } from './constants.js';
 import type { ResourceBoardItem, ResourceStatusTone, ResourceStatusToneMap } from './types.js';
@@ -12,7 +12,7 @@ export function statusToneFor(status: string, toneMap: ResourceStatusToneMap | u
   return toneMap?.[status] ?? DEFAULT_STATUS_TONE;
 }
 
-/** Stable per-(id, kind) key used to track in-flight per-item actions independently, so one item's busy action never disables an unrelated item — same pattern already established by `features/source-config-list`'s `pendingActionKey`, re-derived fresh here (deliberately not imported cross-feature; see `packages/ui/source-map.md`'s "share only what correctness forces" note). */
+/** Stable per-(id, kind) key used to track in-flight per-item actions independently, so one item's busy action never disables an unrelated item — same pattern already established by `features/source-config-list`'s `pendingActionKey`, re-derived fresh here (deliberately not imported cross-feature; see `packages/ui/archived provenance ledger`'s "share only what correctness forces" note). */
 export function pendingActionKey(id: string, kind: string): string {
   return `${kind}:${id}`;
 }
@@ -61,13 +61,8 @@ export function groupItemsByStatus<TItem extends { status?: string }>(
   const unmatched: TItem[] = [];
   for (const item of items) {
     const raw = item.status ?? fallback;
-    const normalized = raw === undefined ? undefined : normalize(raw);
-    const bucket = normalized !== undefined && columns.has(normalized) ? columns.get(normalized) : undefined;
-    if (bucket) {
-      bucket.push(item);
-    } else {
-      unmatched.push(item);
-    }
+    const bucket = raw === undefined ? undefined : columns.get(normalize(raw));
+    (bucket ?? unmatched).push(item);
   }
   if (unmatched.length > 0) columns.set(UNMATCHED_STATUS_BUCKET, unmatched);
   return columns;

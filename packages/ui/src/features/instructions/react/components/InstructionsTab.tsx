@@ -60,7 +60,7 @@ export function InstructionsTab({
           aria-label={resolvedTitle}
           value={value}
           onChange={(event) => onChange(event.target.value || undefined)}
-          {...agentHandleProps(agentHandle, { role: 'field', label: resolvedTitle })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ role: 'field', label: resolvedTitle }) })}
         />
       </div>
     </section>

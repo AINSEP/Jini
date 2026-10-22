@@ -11,13 +11,22 @@ import { createJsonEventStreamHandler } from '../json-event-stream.js';
  */
 function feed(kind: string, lines: unknown[]) {
   const events: Record<string, unknown>[] = [];
-  const handler = createJsonEventStreamHandler(kind, (event) => events.push(event));
-  for (const line of lines) handler.feed(`${JSON.stringify(line)}\n`);
+  const handler = createJsonEventStreamHandler({ kind: kind, onEvent: (event) => events.push(event) });
+  for (const line of lines) handler.feed({ chunk: `${JSON.stringify(line)}\n` });
   handler.flush();
   return events;
 }
 
 describe('createJsonEventStreamHandler (codex)', () => {
+  it('surfaces direct file patches as one native tool event, with paths and no diff content', () => {
+    const patch = { type: 'item.completed', item: { id: 'patch-1', type: 'file_change', status: 'completed',
+      changes: [{ path: '/tmp/a', kind: 'update', diff: '+private file body' }] } };
+    const events = feed('codex', [patch, patch]);
+    expect(events.filter(event => event.type === 'tool_use')).toEqual([
+      { type: 'tool_use', id: 'patch-1', name: 'apply_patch', input: { paths: ['/tmp/a'] } },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('private file body');
+  });
   it('replays a thread-start → command execution → agent message → usage trace', () => {
     const events = feed('codex', [
       { type: 'thread.started', thread_id: 'thread_abc' },
@@ -235,6 +244,114 @@ describe('createJsonEventStreamHandler (codex)', () => {
       content: [{ type: 'text', text: 'PROBE_OK: received "hello-readonly"' }],
       structured_content: null,
     });
+  });
+
+  // Source-shaped fixtures, not captured logs: installed Codex 0.161.0's exec schema and mapper
+  // preserve result.content/structured_content independently of error and status.
+  // https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/exec/src/exec_events.rs#L243
+  it.each([
+    {
+      name: 'result text when the error is null',
+      error: null,
+      result: { content: [{ type: 'text', text: 'TOOL_OPERATION_DENIED: Write access required.' }], structured_content: null },
+      expected: 'TOOL_OPERATION_DENIED: Write access required.',
+    },
+    {
+      name: 'all text blocks while ignoring image blocks and metadata',
+      error: null,
+      result: { content: [{ type: 'image', data: 'private-image', mimeType: 'image/png' },
+        { type: 'text', text: 'Permission denied.' }, { type: 'text', text: 'Request write access.' }],
+        structured_content: null, _meta: { trace: 'private-metadata' } },
+      expected: 'Permission denied.\nRequest write access.',
+    },
+    {
+      name: 'JSON text with its error code and recovery hint intact',
+      error: null,
+      result: { content: [{ type: 'text', text: '{"error":{"code":"DEFINITION_NOT_FOUND","message":"List forms first."}}' }], structured_content: null },
+      expected: '{"error":{"code":"DEFINITION_NOT_FOUND","message":"List forms first."}}',
+    },
+    {
+      name: 'structured errors with their code when there are no text blocks',
+      error: null,
+      result: { content: [], structured_content: { error: { code: 'TOOL_OPERATION_DENIED', message: 'Write access required.' } } },
+      expected: 'TOOL_OPERATION_DENIED: Write access required.',
+    },
+    {
+      name: 'explicit errors before result diagnostics',
+      error: { message: 'Approval denied.' },
+      result: { content: [{ type: 'text', text: 'Result diagnostic.' }], structured_content: null },
+      expected: 'Approval denied.',
+    },
+    {
+      name: 'result diagnostics when the explicit error message is blank',
+      error: { message: ' \n ' },
+      result: { content: [{ type: 'text', text: 'Permission denied.' }], structured_content: null },
+      expected: 'Permission denied.',
+    },
+    {
+      name: 'numeric codes in JSON encoded transport errors',
+      error: { message: '{"error":{"code":-32602,"message":"Invalid arguments."}}' },
+      result: null,
+      expected: '-32602: Invalid arguments.',
+    },
+    {
+      name: 'code-only errors in JSON encoded transport errors',
+      error: { message: '{"error":{"code":"TOOL_OPERATION_DENIED"}}' },
+      result: null,
+      expected: 'TOOL_OPERATION_DENIED',
+    },
+    {
+      name: 'the fallback when result and error are null',
+      error: null,
+      result: null,
+      expected: 'MCP tool call failed',
+    },
+    {
+      name: 'the fallback when result contains no diagnostic',
+      error: {},
+      result: { content: [{ type: 'text', text: ' \n ' }, { type: 'image', data: 'private-image' }], structured_content: {} },
+      expected: 'MCP tool call failed',
+    },
+  ])('reports $name for a failed MCP call', ({ error, result, expected }) => {
+    const events = feed('codex', [{ type: 'item.completed', item: {
+      id: 'mcp-failed', type: 'mcp_tool_call', server: 'probe', tool: 'probe_tool',
+      arguments: {}, error, result, status: 'failed',
+    } }]);
+    expect(events).toEqual([
+      // External MCP tools retain their server namespace to prevent built-in tool impersonation.
+      { type: 'tool_use', id: 'mcp-failed', name: 'mcp__probe__probe_tool', input: {} },
+      { type: 'tool_result', toolUseId: 'mcp-failed', content: expected, isError: true },
+    ]);
+  });
+
+  it.each(['error', 'text', 'structured'])('sanitizes failed MCP diagnostics from %s', source => {
+    const secret = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
+    const escape = String.fromCharCode(27);
+    const message = `${escape}[31mTOOL_OPERATION_DENIED api_key=${secret}${escape}[0m`;
+    const events = feed('codex', [{ type: 'item.completed', item: {
+      id: 'mcp-secret', type: 'mcp_tool_call', server: 'probe', tool: 'probe_tool', arguments: {},
+      error: source === 'error' ? { message } : null,
+      result: { content: source === 'text' ? [{ type: 'text', text: message }] : [],
+        structured_content: source === 'structured' ? { error: { message } } : null },
+      status: 'failed',
+    } }]);
+    expect(events.find(event => event.type === 'tool_result')).toEqual({
+      type: 'tool_result', toolUseId: 'mcp-secret',
+      content: 'TOOL_OPERATION_DENIED api_key=[redacted]', isError: true,
+    });
+    expect(JSON.stringify(events)).not.toContain(secret);
+    expect(JSON.stringify(events)).not.toContain('\\u001b');
+  });
+
+  it('bounds failed MCP diagnostics with the shared sanitizer', () => {
+    const events = feed('codex', [{ type: 'item.completed', item: {
+      id: 'mcp-long', type: 'mcp_tool_call', server: 'probe', tool: 'probe_tool', arguments: {},
+      error: null, result: { content: [{ type: 'text', text: 'denied '.repeat(200) }], structured_content: null },
+      status: 'failed',
+    } }]);
+    const content = events.find(event => event.type === 'tool_result')?.content as string;
+    expect(content).toHaveLength(500);
+    expect(content).toMatch(/^denied .*… \[truncated\]$/u);
   });
 
   it('emits a TodoWrite tool_use for an item.started todo_list', () => {
@@ -534,7 +651,7 @@ describe('createJsonEventStreamHandler (opencode)', () => {
 
 describe('createJsonEventStreamHandler (gemini)', () => {
   it('replays an init → user message (swallowed) → assistant text → tool_use → tool_result → usage result trace', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'init', model: 'gemini-2.5-pro' },
       { type: 'message', role: 'user', content: 'hello' },
       { type: 'message', role: 'assistant', content: 'Looking into it.' },
@@ -565,24 +682,24 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('emits an init status with an undefined model when init has no model field', () => {
-    const events = feed('gemini', [{ type: 'init' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'init' }]);
     expect(events[0]).toEqual({ type: 'status', label: 'initializing', model: undefined });
   });
 
   it('emits a null-input tool_use when a gemini tool_use has no parameters field at all', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_use', tool_id: 'tool_noparams', tool_name: 'list_dir' },
     ]);
     expect(events[0]).toEqual({ type: 'tool_use', id: 'tool_noparams', name: 'list_dir', input: null });
   });
 
   it('falls through to raw for an assistant message with empty content', () => {
-    const events = feed('gemini', [{ type: 'message', role: 'assistant', content: '' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'message', role: 'assistant', content: '' }]);
     expect(events).toEqual([{ type: 'raw', line: JSON.stringify({ type: 'message', role: 'assistant', content: '' }) }]);
   });
 
   it('emits a native TodoWrite tool_use for a write_todos tool call', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_2',
@@ -601,7 +718,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('falls back to a plain tool_use for write_todos when the parsed input has no usable todo list', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_3',
@@ -613,7 +730,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('suppresses the very next assistant text once a file-write tool_use has fired', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_4',
@@ -632,7 +749,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('recovers a partial artifact-open tag split across two assistant-text chunks', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_5',
@@ -647,7 +764,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('passes assistant text through unmodified when suppressNextArtifactText has no tag to find', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_6',
@@ -661,7 +778,7 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('does not suppress a file-write tool_use for a tool name outside the write set', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_7',
@@ -675,53 +792,53 @@ describe('createJsonEventStreamHandler (gemini)', () => {
   });
 
   it('surfaces a tool_result error using the error object message and flags isError', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_result', tool_id: 'tool_8', error: { message: 'permission denied' } },
     ]);
     expect(events[0]).toEqual({ type: 'tool_result', toolUseId: 'tool_8', content: 'permission denied', isError: true });
   });
 
   it('stringifies a non-string tool_result output', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_result', tool_id: 'tool_9', output: { rows: 3 }, status: 'ok' },
     ]);
     expect(events[0]).toEqual({ type: 'tool_result', toolUseId: 'tool_9', content: JSON.stringify({ rows: 3 }), isError: false });
   });
 
   it('flags a tool_result as an error via status=error even with no error object', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_result', tool_id: 'tool_10', output: 'nope', status: 'error' },
     ]);
     expect(events[0]).toMatchObject({ isError: true });
   });
 
   it('downgrades a warning-severity error frame to a status event', () => {
-    const events = feed('gemini', [{ type: 'error', severity: 'WARNING', message: 'quota nearing limit' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'error', severity: 'WARNING', message: 'quota nearing limit' }]);
     expect(events[0]).toEqual({ type: 'status', label: 'warning', detail: 'quota nearing limit' });
   });
 
   it('emits a fatal error event for a non-warning error frame using the default message', () => {
-    const events = feed('gemini', [{ type: 'error' }]);
-    expect(events[0]).toMatchObject({ type: 'error', message: 'Gemini CLI error' });
+    const events = feed('legacy-google-stream-json', [{ type: 'error' }]);
+    expect(events[0]).toMatchObject({ type: 'error', message: 'Google stream error' });
   });
 
   it('surfaces a result with an error status as an error event', () => {
-    const events = feed('gemini', [{ type: 'result', status: 'error', error: { message: 'ran out of quota' } }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'result', status: 'error', error: { message: 'ran out of quota' } }]);
     expect(events[0]).toEqual({ type: 'error', message: 'ran out of quota', raw: JSON.stringify({ type: 'result', status: 'error', error: { message: 'ran out of quota' } }) });
   });
 
   it('swallows a result event with no stats object', () => {
-    const events = feed('gemini', [{ type: 'result', status: 'ok' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'result', status: 'ok' }]);
     expect(events).toEqual([]);
   });
 
-  it('falls through to raw for an unrecognized gemini event shape', () => {
-    const events = feed('gemini', [{ type: 'session.summary' }]);
+  it('falls through to raw for an unrecognized legacy Google stream event shape', () => {
+    const events = feed('legacy-google-stream-json', [{ type: 'session.summary' }]);
     expect(events).toEqual([{ type: 'raw', line: JSON.stringify({ type: 'session.summary' }) }]);
   });
 
   it('flushes pending artifact text still buffered when the stream ends mid-tag', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_11',
@@ -896,8 +1013,8 @@ describe('createJsonEventStreamHandler (cursor-agent)', () => {
 describe('createJsonEventStreamHandler (dispatch/plumbing)', () => {
   it('emits a raw event for a malformed JSON line instead of throwing', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
-    handler.feed('{not valid json\n');
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '{not valid json\n' });
     handler.flush();
     expect(events).toEqual([{ type: 'raw', line: '{not valid json' }]);
   });
@@ -909,30 +1026,30 @@ describe('createJsonEventStreamHandler (dispatch/plumbing)', () => {
 
   it('skips blank lines within a chunk instead of emitting an event for them', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
-    handler.feed('\n   \n' + `${JSON.stringify({ type: 'turn.started' })}\n` + '\n');
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '\n   \n' + `${JSON.stringify({ type: 'turn.started' })}\n` + '\n' });
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'thinking' }]);
   });
 
   it('flush() is a no-op when there is no buffered remainder and nothing pending', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
     handler.flush();
     expect(events).toEqual([]);
   });
 
   it('processes a final unterminated line on flush()', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createJsonEventStreamHandler('codex', (event) => events.push(event));
-    handler.feed(JSON.stringify({ type: 'turn.started' })); // no trailing newline
+    const handler = createJsonEventStreamHandler({ kind: 'codex', onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: JSON.stringify({ type: 'turn.started' }) }); // no trailing newline
     expect(events).toEqual([]); // not processed until flush
     handler.flush();
     expect(events).toEqual([{ type: 'status', label: 'thinking' }]);
   });
 
   it('treats a non-record top-level JSON value (e.g. a bare array) as unhandled and falls back to raw', () => {
-    const events = feed('gemini', [[] as unknown]);
+    const events = feed('legacy-google-stream-json', [[] as unknown]);
     expect(events).toEqual([{ type: 'raw', line: '[]' }]);
   });
 });
@@ -1160,7 +1277,7 @@ describe('normalizeTodoStatus / todoWriteInputFromItems (via codex todo_list ite
 
 describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
   it('accepts a top-level array of todos directly, without a wrapping object', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_arr',
@@ -1179,7 +1296,7 @@ describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
   });
 
   it('accepts the singular `todo` key as an alternate to `todos`', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_singular',
@@ -1198,7 +1315,7 @@ describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
   });
 
   it('falls back to a plain tool_use when the parsed parameters are neither an array nor a record', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_string_params',
@@ -1214,7 +1331,7 @@ describe('todoWriteInputFromParsedValue (via gemini write_todos)', () => {
 
 describe('isFileWriteToolUse fallback path (via gemini tool_use)', () => {
   it('still suppresses artifact echo text for a write tool whose path has no recognized extension but a string content field', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_noext',
@@ -1227,7 +1344,7 @@ describe('isFileWriteToolUse fallback path (via gemini tool_use)', () => {
   });
 
   it('does not suppress artifact echo text for a write tool with neither a recognized extension nor string content/new_string', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_nomatch',
@@ -1246,14 +1363,14 @@ describe('remaining narrow branch closures across handlers', () => {
     // gemini tool_use `parameters` as a bare number: safeParseJson(42) hits its
     // `typeof value !== 'string'` true branch and returns null, then the `??`
     // chain falls back to the raw numeric parameters value.
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'tool_use', tool_id: 'tool_num', tool_name: 'inspect', parameters: 42 },
     ]);
     expect(events).toEqual([{ type: 'tool_use', id: 'tool_num', name: 'inspect', input: 42 }]);
   });
 
   it('stringifyContent returns empty string for a null/undefined tool_result output with no error', () => {
-    const events = feed('gemini', [{ type: 'tool_result', tool_id: 'tool_nothing' }]);
+    const events = feed('legacy-google-stream-json', [{ type: 'tool_result', tool_id: 'tool_nothing' }]);
     expect(events).toEqual([{ type: 'tool_result', toolUseId: 'tool_nothing', content: '', isError: false }]);
   });
 
@@ -1299,7 +1416,7 @@ describe('remaining narrow branch closures across handlers', () => {
   });
 
   it('omits durationMs on a gemini usage result when stats has no duration_ms', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       { type: 'result', status: 'ok', stats: { input_tokens: 1 } },
     ]);
     expect(events[0]).toEqual({ type: 'usage', usage: { input_tokens: 1 }, durationMs: undefined });
@@ -1352,7 +1469,7 @@ describe('remaining narrow branch closures across handlers', () => {
   });
 
   it('withholds artifact text across a chunk boundary that falls between the open tag and the close tag', () => {
-    const events = feed('gemini', [
+    const events = feed('legacy-google-stream-json', [
       {
         type: 'tool_use',
         tool_id: 'tool_split_close',
@@ -1415,5 +1532,204 @@ describe('remaining narrow branch closures across handlers', () => {
       { type: 'tool_use', id: 'cmd_bare', name: 'Bash', input: { command: '' } },
       { type: 'tool_result', toolUseId: 'cmd_bare', content: '', isError: false },
     ]);
+  });
+});
+
+it('Codex native collaboration is reported once, and external MCP named Bash stays distinguishable from the shell', () => {
+  const item = { id: 'agent-1', type: 'collab_tool_call', tool: 'spawn_agent', prompt: 'private delegation' };
+  const events = feed('codex', [{ type: 'item.started', item }, { type: 'item.completed', item },
+    { type: 'item.completed', item: { id: 'mcp-1', type: 'mcp_tool_call', server: 'chrome', tool: 'Bash', arguments: {}, status: 'completed' } }]);
+  expect(events.filter(event => event.type === 'tool_use')).toEqual([
+    { type: 'tool_use', id: 'agent-1', name: 'spawn_agent', input: {} },
+    { type: 'tool_use', id: 'mcp-1', name: 'mcp__chrome__Bash', input: {} },
+  ]);
+  expect(JSON.stringify(events)).not.toContain('private delegation');
+});
+describe('pinned behaviour before the complexity refactor', () => {
+  it('emits model receipts from message.updated assistant info, with and without a provider prefix', () => {
+    const events = feed('opencode', [
+      { type: 'message.updated', properties: { info: { role: 'assistant', modelID: 'm1', providerID: 'p1' } } },
+      { type: 'message.updated', properties: { info: { role: 'assistant', modelID: 'm2' } } },
+      { type: 'message.updated', properties: { info: { role: 'user', modelID: 'm3' } } },
+      { type: 'message.updated', properties: { info: { role: 'assistant', modelID: 4 } } },
+      { type: 'other', properties: { info: { role: 'assistant', modelID: 'm5' } } },
+      { type: 'message.updated' },
+    ]);
+    expect(events.filter(event => event.label === 'model')).toEqual([
+      { type: 'status', label: 'model', model: 'p1/m1' },
+      { type: 'status', label: 'model', model: 'm2' },
+    ]);
+  });
+
+  it('emits a frame.model receipt only for the session/thread/turn/model-change frame types', () => {
+    const events = feed('codex', [
+      { type: 'thread.started', thread_id: 't1', model: 'gpt-x' },
+      { type: 'model.changed', model: 'gpt-y' },
+      { type: 'session.created', model: 'gpt-z' },
+      { type: 'item.started', model: 'not-a-receipt' },
+      { type: 'model.changed', model: 7 },
+    ]);
+    expect(events.filter(event => event.label === 'model').map(event => event.model)).toEqual(['gpt-x', 'gpt-y', 'gpt-z']);
+    expect(events[1]).toEqual({ type: 'status', label: 'initializing', sessionId: 't1' });
+  });
+
+  it('falls back to String(value) when stringifying a tool payload throws', async () => {
+    const { vi } = await import('vitest');
+    const events: Record<string, unknown>[] = [];
+    const handler = createJsonEventStreamHandler({ kind: 'opencode', onEvent: event => events.push(event) });
+    const spy = vi.spyOn(JSON, 'stringify').mockImplementationOnce(() => { throw new Error('boom'); });
+    handler.feed({ chunk: '{"type":"error","message":"bad"}\n' });
+    spy.mockRestore();
+    expect(events).toEqual([{ type: 'error', message: 'bad', raw: '[object Object]' }]);
+  });
+
+  it('names codex MCP tool uses for jini, external and nameless servers', () => {
+    const events = feed('codex', [
+      { type: 'item.started', item: { id: 'a', type: 'mcp_tool_call', server: 'jini', tool: '' } },
+      { type: 'item.started', item: { id: 'b', type: 'mcp_tool_call', server: 'jini', tool: 'search_tools', arguments: { q: 1 } } },
+      { type: 'item.started', item: { id: 'c', type: 'mcp_tool_call', tool: 'x' } },
+      { type: 'item.started', item: { id: 'd', type: 'mcp_tool_call', server: 'chrome' } },
+      { type: 'item.started', item: { id: 'd', type: 'mcp_tool_call', server: 'chrome' } },
+    ]);
+    expect(events).toEqual([
+      { type: 'tool_use', id: 'a', name: 'mcp_tool_call', input: {} },
+      { type: 'tool_use', id: 'b', name: 'search_tools', input: { q: 1 } },
+      { type: 'tool_use', id: 'c', name: 'mcp__external__x', input: {} },
+      { type: 'tool_use', id: 'd', name: 'mcp__chrome__call', input: {} },
+    ]);
+  });
+
+  it('treats an id-less codex mcp_tool_call as raw but still resets the agent-message boundary on item.started', () => {
+    const message = (text: string) => ({ type: 'item.completed', item: { type: 'agent_message', text } });
+    const noId = { type: 'item.started', item: { type: 'mcp_tool_call', server: 'jini' } };
+    const events = feed('codex', [message('one'), noId, message('two'),
+      { type: 'item.completed', item: { type: 'mcp_tool_call', status: 'completed' } }, message('three')]);
+    expect(events).toEqual([
+      { type: 'text_delta', delta: 'one' },
+      { type: 'raw', line: JSON.stringify(noId) },
+      { type: 'text_delta', delta: 'two' },
+      { type: 'raw', line: JSON.stringify({ type: 'item.completed', item: { type: 'mcp_tool_call', status: 'completed' } }) },
+      { type: 'text_delta', delta: '\nthree' },
+    ]);
+  });
+
+  it('falls back to raw for codex item frames it does not recognise', () => {
+    const frames = [
+      { type: 'item.started', item: { id: 'r', type: 'reasoning' } },
+      { type: 'item.started', item: 'not-a-record' },
+      { type: 'item.updated', item: { id: 'r', type: 'reasoning' } },
+      { type: 'item.updated', item: { type: 'todo_list', items: [{ text: 'x' }] } },
+      { type: 'item.completed', item: { type: 'file_change' } },
+      { type: 'item.completed', item: { id: 't', type: 'todo_list', items: [] } },
+      { type: 'item.completed', item: { type: 'agent_message', text: '' } },
+      { type: 'item.completed', item: { type: 'collab_tool_call' } },
+      { type: 'turn.completed' },
+      { type: 'something.else' },
+      { type: 7 },
+    ];
+    expect(feed('codex', frames)).toEqual(frames.map(frame => ({ type: 'raw', line: JSON.stringify(frame) })));
+  });
+
+  it('defaults a nameless collab tool, reports its failure once, and lists no paths for change-less patches', () => {
+    const collab = { id: 'c1', type: 'collab_tool_call', status: 'failed' };
+    const events = feed('codex', [
+      { type: 'item.updated', item: collab },
+      { type: 'item.completed', item: collab },
+      { type: 'item.completed', item: collab },
+      { type: 'item.completed', item: { id: 'p1', type: 'file_change', changes: 'nope', status: 'failed' } },
+      { type: 'item.completed', item: { id: 'p2', type: 'file_change', changes: [{ path: 1 }, 'x', { path: 'ok' }] } },
+    ]);
+    expect(events).toEqual([
+      { type: 'tool_use', id: 'c1', name: 'collab_tool_call', input: {} },
+      { type: 'tool_result', toolUseId: 'c1', content: 'Native agent action completed.', isError: true },
+      { type: 'tool_use', id: 'p1', name: 'apply_patch', input: { paths: [] } },
+      { type: 'tool_result', toolUseId: 'p1', content: 'File change reported by Codex.', isError: true },
+      { type: 'tool_use', id: 'p2', name: 'apply_patch', input: { paths: ['ok'] } },
+      { type: 'tool_result', toolUseId: 'p2', content: 'File change reported by Codex.', isError: false },
+    ]);
+  });
+
+  it('suppresses a connector-tool error after an earlier codex error, and the reverse', () => {
+    const connectorOutput = JSON.stringify({ error: { code: 'CONNECTOR_TOOL_NOT_FOUND', details: { toolName: 't' } } });
+    const command = { type: 'item.completed', item: { id: 'k', type: 'command_execution', aggregated_output: connectorOutput, exit_code: 1 } };
+    const first = feed('codex', [{ type: 'error', message: 'first' }, command]);
+    expect(first.filter(event => event.type === 'error')).toEqual([{ type: 'error', message: 'first' }]);
+    const second = feed('codex', [command, { type: 'turn.failed', error: { message: 'later' } }]);
+    expect(second.filter(event => event.type === 'error')).toHaveLength(1);
+    expect(second.at(-1)).toEqual({ type: 'error',
+      message: 'Connector tool t is not allowed. Re-list the connector catalog and choose one of the currently allowed read-only tools.' });
+  });
+
+  it('maps todo statuses through every alias and prefix, and picks the first string-typed content field', () => {
+    const statuses = ['Completed', 'complete', 'done', 'completed-yesterday', 'In Progress', 'doing', 'active', 'in-progress-now',
+      'stopped', 'failed', 'blocked', 'canceled', 'cancelled', 'failed_hard', 'blocked by x', 'completely', 'todo', 7];
+    const items = statuses.map((status, index) => ({ text: `t${index}`, status }));
+    const events = feed('codex', [
+      { type: 'item.started', item: { id: 'todo', type: 'todo_list', items } },
+      { type: 'item.started', item: { id: 'todo2', type: 'todo_list', items: [
+        { content: '', label: 'skipped because content is a string' }, { label: 7, description: 'd' }, { completed: true, text: 'x', status: 'failed' }] } },
+    ]);
+    expect((events[0]?.input as { todos: { status: string }[] }).todos.map(todo => todo.status)).toEqual([
+      'completed', 'completed', 'completed', 'completed', 'in_progress', 'in_progress', 'in_progress', 'in_progress',
+      'stopped', 'stopped', 'stopped', 'stopped', 'stopped', 'stopped', 'stopped', 'pending', 'pending', 'pending']);
+    expect(events[1]?.input).toEqual({ todos: [{ content: 'd', status: 'pending' }, { content: 'x', status: 'completed' }] });
+  });
+
+  it('extracts error messages through detail, nested message, error, data and name, in that order', () => {
+    const message = (error: unknown) => feed('opencode', [{ type: 'error', error }])[0]?.message;
+    expect(message({ detail: 'd', message: 'm' })).toBe('d');
+    expect(message({ detail: '', message: '{"detail":"inner"}' })).toBe('inner');
+    expect(message({ message: '', error: 'e' })).toBe('e');
+    expect(message({ error: ['array'] , name: 'n' })).toBe('OpenCode error');
+    expect(message({ error: { name: 'nested-name' } })).toBe('nested-name');
+    expect(message({ data: { message: 'from-data' }, name: 'n' })).toBe('from-data');
+    expect(message({ data: ['x'], name: 'n' })).toBe('n');
+    expect(message({ data: {}, name: '' })).toBe('OpenCode error');
+    expect(message('[1,2]')).toBe('[1,2]');
+    expect(message(42)).toBe('OpenCode error');
+  });
+
+  it('handles kimi tool calls with blank ids or names, trimmed values and string arguments', () => {
+    const events = feed('kimi', [
+      { role: 'assistant', tool_calls: [
+        { id: ' a ', function: { name: ' read ', arguments: '{"p":1}' } },
+        { id: '  ', function: { name: 'x' } },
+        { id: 'b', function: { name: '' } },
+        { id: 'c' },
+        'junk',
+        { id: 'd', function: { name: 'w', arguments: 'not json' } },
+      ] },
+      { role: 'assistant', tool_calls: 'nope', content: 'hello' },
+      { role: 'assistant', content: '' },
+      { role: 'tool', tool_call_id: '   ', content: 'x' },
+      { role: 'tool', tool_call_id: ' t1 ', content: { ok: true } },
+      { role: 'meta', type: 'session.resume_hint' },
+      { role: 'meta', type: 'other' },
+    ]);
+    expect(events).toEqual([
+      { type: 'tool_use', id: 'a', name: 'read', input: { p: 1 } },
+      { type: 'tool_use', id: 'd', name: 'w', input: 'not json' },
+      { type: 'text_delta', delta: 'hello' },
+      { type: 'raw', line: JSON.stringify({ role: 'assistant', content: '' }) },
+      { type: 'raw', line: JSON.stringify({ role: 'tool', tool_call_id: '   ', content: 'x' }) },
+      { type: 'tool_result', toolUseId: 't1', content: '{"ok":true}', isError: false },
+      { type: 'raw', line: JSON.stringify({ role: 'meta', type: 'other' }) },
+    ]);
+  });
+
+  it('falls back to raw for opencode and gemini frames whose required fields are missing', () => {
+    const openCodeFrames = [
+      { type: 'text', part: { text: '' } },
+      { type: 'tool_use', part: { tool: 'x' } },
+      { type: 'unknown' },
+    ];
+    expect(feed('opencode', openCodeFrames)).toEqual(openCodeFrames.map(frame => ({ type: 'raw', line: JSON.stringify(frame) })));
+    const geminiFrames = [
+      { type: 'message', role: 'assistant', content: '' },
+      { type: 'tool_use', tool_id: 'x' },
+      { type: 'tool_result' },
+      { type: 'unknown' },
+    ];
+    expect(feed('legacy-google-stream-json', geminiFrames)).toEqual(geminiFrames.map(frame => ({ type: 'raw', line: JSON.stringify(frame) })));
   });
 });

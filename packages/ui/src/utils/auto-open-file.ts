@@ -42,67 +42,63 @@ function basenameOf(p: string): string {
   return p.split('/').pop() as string;
 }
 
+type AutoOpenDecision = { shouldOpen: boolean; fileName: string | null };
+
+function decline(): AutoOpenDecision {
+  return { shouldOpen: false, fileName: null };
+}
+
+function relPathOf(file: CandidateFile): string {
+  return file.path ?? file.name;
+}
+
+// Does the agent's `filePath` positively identify the project file at `rel`?
+function isPathSuffixMatch({ filePath, rel }: { filePath: string; rel: string }): boolean {
+  if (!rel) return false;
+  // Require segment alignment: filePath ends with "/${rel}" so that
+  // "subdir/App.jsx" matches ".../subdir/App.jsx" but not
+  // ".../notsubdir/App.jsx".
+  return filePath === rel || filePath.endsWith('/' + rel);
+}
+
+// Resolve a positive identification into an open decision, declining files
+// that are modules of a multi-file HTML entry rather than standalone pages.
+// More than one match means multiple project files plausibly correspond to
+// this path — refuse rather than open the wrong one.
+function resolveUniqueMatch({ matches, moduleFileNames }: {
+  matches: ReadonlyArray<CandidateFile>;
+  moduleFileNames: ReadonlySet<string>;
+}): AutoOpenDecision {
+  if (matches.length !== 1) return decline();
+  const fileName = matches[0]!.name;
+  return moduleFileNames.has(fileName) ? decline() : { shouldOpen: true, fileName };
+}
+
 export function decideAutoOpenAfterWrite(
   filePath: string,
   nextFiles: ReadonlyArray<CandidateFile>,
   options: AutoOpenOptions = {},
-): { shouldOpen: boolean; fileName: string | null } {
+): AutoOpenDecision {
   const moduleFileNames = options.moduleFileNames ?? NO_MODULES;
-  // Resolve a positive identification into an open decision, declining files
-  // that are modules of a multi-file HTML entry rather than standalone pages.
-  const resolve = (fileName: string): { shouldOpen: boolean; fileName: string | null } =>
-    moduleFileNames.has(fileName)
-      ? { shouldOpen: false, fileName: null }
-      : { shouldOpen: true, fileName };
-
-  if (!filePath) return { shouldOpen: false, fileName: null };
+  if (!filePath) return decline();
 
   // 1) Path-suffix match against full project-relative paths.
-  const suffixMatches: CandidateFile[] = [];
-  for (const f of nextFiles) {
-    const rel = f.path ?? f.name;
-    if (!rel) continue;
-    if (filePath === rel) {
-      suffixMatches.push(f);
-      continue;
-    }
-    // Require segment alignment: filePath ends with "/${rel}" so that
-    // "subdir/App.jsx" matches ".../subdir/App.jsx" but not
-    // ".../notsubdir/App.jsx".
-    if (filePath.length > rel.length && filePath.endsWith('/' + rel)) {
-      suffixMatches.push(f);
-    }
-  }
-  if (suffixMatches.length === 1) {
-    return resolve(suffixMatches[0]!.name);
-  }
-  if (suffixMatches.length > 1) {
-    // Multiple project files plausibly correspond to this path — refuse
-    // rather than open the wrong one.
-    return { shouldOpen: false, fileName: null };
-  }
+  const suffixMatches = nextFiles.filter((f) => isPathSuffixMatch({ filePath, rel: relPathOf(f) }));
+  if (suffixMatches.length > 0) return resolveUniqueMatch({ matches: suffixMatches, moduleFileNames });
 
   // 2) Basename fallback only when filePath itself is just a basename.
   // If filePath contains a slash but didn't path-suffix-match anything,
   // it's an external edit that happens to share a basename — declining
   // is the whole point of the guard.
-  if (filePath.includes('/')) {
-    return { shouldOpen: false, fileName: null };
-  }
+  if (filePath.includes('/')) return decline();
 
-  const basenameMatches = nextFiles.filter((f) => {
-    const rel = f.path ?? f.name;
-    return rel ? basenameOf(rel) === filePath : false;
-  });
-  if (basenameMatches.length === 1) {
-    return resolve(basenameMatches[0]!.name);
-  }
-  return { shouldOpen: false, fileName: null };
+  // A blank rel's basename is '' and can never equal the non-empty filePath.
+  const basenameMatches = nextFiles.filter((f) => basenameOf(relPathOf(f)) === filePath);
+  return resolveUniqueMatch({ matches: basenameMatches, moduleFileNames });
 }
 
 function isHtmlPreviewFile(file: CandidateFile): boolean {
-  const path = file.path ?? file.name;
-  return file.kind === 'html' || /\.html?$/i.test(path);
+  return file.kind === 'html' || /\.html?$/i.test(relPathOf(file));
 }
 
 // Markdown documents (plan.md, report.md, DESIGN.md, …) often render inline
@@ -111,8 +107,7 @@ function isHtmlPreviewFile(file: CandidateFile): boolean {
 // whose backend maps both `.md` and `.txt` to the same generic text kind
 // still opens markdown while deliberately leaving plain `.txt` alone.
 function isMarkdownPreviewFile(file: CandidateFile): boolean {
-  const path = file.path ?? file.name;
-  return /\.(md|markdown)$/i.test(path);
+  return /\.(md|markdown)$/i.test(relPathOf(file));
 }
 
 // Auto-open priority for a turn's produced files. Higher wins. HTML is the
@@ -131,7 +126,7 @@ function autoOpenPreviewRank(file: CandidateFile): number {
 // files. Depth orders competing entries so the site root wins over a locale
 // or section subtree's own index.
 function siteEntryDepth(file: CandidateFile): number | null {
-  const path = file.path ?? file.name;
+  const path = relPathOf(file);
   if (!/(^|\/)index\.html?$/i.test(path)) return null;
   return path.split('/').length;
 }
@@ -147,6 +142,42 @@ export interface SelectAutoOpenOptions {
   readonly preferSiteEntry?: boolean;
 }
 
+// Missing or non-finite mtimes count as 0 for the newest-wins tie-break.
+function finiteMtime(file: CandidateFile): number {
+  return typeof file.mtime === 'number' && Number.isFinite(file.mtime) ? file.mtime : 0;
+}
+
+// The file with the highest `score` (null = not a candidate); equal scores
+// break to the newest mtime, and an mtime tie goes to the later file.
+function pickHighestScoring({ files, score }: {
+  files: ReadonlyArray<CandidateFile>;
+  score: (file: CandidateFile) => number | null;
+}): CandidateFile | null {
+  let best: { file: CandidateFile; score: number } | null = null;
+  for (const file of files) {
+    const fileScore = score(file);
+    if (fileScore === null) continue;
+    const beatsBest =
+      best === null ||
+      fileScore > best.score ||
+      (fileScore === best.score && finiteMtime(file) >= finiteMtime(best.file));
+    if (beatsBest) best = { file, score: fileScore };
+  }
+  return best?.file ?? null;
+}
+
+// Every site entry is an `index.html`/`.htm`, so it is always an HTML preview
+// file too; the shallower entry scores higher.
+function siteEntryScore(file: CandidateFile): number | null {
+  const depth = siteEntryDepth(file);
+  return depth === null ? null : -depth;
+}
+
+function previewRankScore(file: CandidateFile): number | null {
+  const rank = autoOpenPreviewRank(file);
+  return rank === 0 ? null : rank;
+}
+
 // Pick which of a turn's produced files to auto-open in the viewer. Among
 // previewable files, a higher-priority kind always beats a lower one; ties
 // break to the most recently written file (newest mtime). Returns null when
@@ -156,40 +187,8 @@ export function selectAutoOpenProducedArtifact(
   options: SelectAutoOpenOptions = {},
 ): string | null {
   if (options.preferSiteEntry) {
-    let entry: CandidateFile | null = null;
-    let entryDepth = Number.POSITIVE_INFINITY;
-    for (const file of producedFiles) {
-      if (!isHtmlPreviewFile(file)) continue;
-      const depth = siteEntryDepth(file);
-      if (depth === null) continue;
-      if (depth < entryDepth) {
-        entry = file;
-        entryDepth = depth;
-        continue;
-      }
-      if (depth > entryDepth || !entry) continue;
-      const nextMtime = typeof file.mtime === 'number' && Number.isFinite(file.mtime) ? file.mtime : 0;
-      const entryMtime =
-        typeof entry.mtime === 'number' && Number.isFinite(entry.mtime) ? entry.mtime : 0;
-      if (nextMtime >= entryMtime) entry = file;
-    }
+    const entry = pickHighestScoring({ files: producedFiles, score: siteEntryScore });
     if (entry) return entry.name;
   }
-  let selected: CandidateFile | null = null;
-  let selectedRank = 0;
-  for (const file of producedFiles) {
-    const rank = autoOpenPreviewRank(file);
-    if (rank === 0) continue;
-    if (!selected || rank > selectedRank) {
-      selected = file;
-      selectedRank = rank;
-      continue;
-    }
-    if (rank < selectedRank) continue;
-    const nextMtime = typeof file.mtime === 'number' && Number.isFinite(file.mtime) ? file.mtime : 0;
-    const selectedMtime =
-      typeof selected.mtime === 'number' && Number.isFinite(selected.mtime) ? selected.mtime : 0;
-    if (nextMtime >= selectedMtime) selected = file;
-  }
-  return selected?.name ?? null;
+  return pickHighestScoring({ files: producedFiles, score: previewRankScore })?.name ?? null;
 }

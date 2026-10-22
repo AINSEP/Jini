@@ -8,3 +8,8 @@ export type { CanvasEmbedPlaceholderDescriptor } from './canvas-embed-placeholde
 
 export { hasAttributeOnAnyNodeShape } from './dom.js';
 export { prettifyCss } from './css.js';
+export { detectEditorBlocks, prepareEditorSource, findEditorBlockOpening } from './editor-blocks.js';
+export type { EditorHtmlTarget, RequestEditHtml, EditorSourcePlan, PreparedEditorSource } from './editor-blocks.js';
+export { EditorSourceError, isEditorSourceError, registerProtectedElementType, protectTextAncestors } from './protected-elements.js';
+export { serializeEditorSource } from './editor-serialization.js';
+export type { DirtyTextEdit } from './editor-serialization.js';

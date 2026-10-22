@@ -1,14 +1,17 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/kilo.ts` (import path adjusted only). See `source-map.md`. */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const kiloAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('kilo', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => kiloAgentDef.fallbackModels }),
     id: 'kilo',
     name: 'Kilo',
     bin: 'kilo',
     versionArgs: ['--version'],
-    fetchModels: async (resolvedBin, env) =>
-      detectAcpModels({
+    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
+      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
+        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
         bin: resolvedBin,
         args: ['acp'],
         env,

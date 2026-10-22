@@ -23,5 +23,6 @@ export * from './early-message-buffer.js';
 export * from './escape.js';
 export * from './protocol.js';
 export * from './resource.js';
+export * from './secret-card.js';
 export * from './sandbox-proxy.js';
 export * from './surfaces/index.js';

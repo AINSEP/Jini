@@ -31,10 +31,10 @@ export interface AdminMember {
 }
 
 export interface AdminMembersPort {
-  listMembers(): Promise<readonly AdminMember[]>;
-  getMember(id: string): Promise<AdminMember>;
+  listMembers(requiredArgs: Record<string, never>): Promise<readonly AdminMember[]>;
+  getMember(requiredArgs: { id: string }): Promise<AdminMember>;
   /** No `enableMember` counterpart — see the file header. */
-  disableMember(id: string): Promise<AdminMember>;
+  disableMember(requiredArgs: { id: string }): Promise<AdminMember>;
   /**
    * Sends a passwordless sign-in link to the given address. Always resolves `{ delivered: true }`
    * regardless of whether the address belongs to a real member — an enumeration-safe response, not

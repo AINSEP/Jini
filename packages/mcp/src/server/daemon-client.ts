@@ -1,32 +1,14 @@
 /**
  * @module @jini-ai/mcp/server/daemon-client
+ * Bounded-I/O JSON GET/POST against a caller-resolved trusted daemon base URL.
+ * A long-lived MCP server must report a failed call and keep serving, so this transport throws
+ * redacted errors for handleToolCall to convert rather than using the CLI transport's process.exit.
+ * Bounded reads, timeouts and redaction follow CR-004/SEC-RB-009.
  *
- * Bounded-I/O JSON GET/POST against a trusted daemon base URL — the transport
- * primitive every proxy tool `createMcpToolServer` hosts is built on
- * (`../client/client.js`'s `createMcpIdleExitController` is the other half of
- * the mechanism; this module is the network half).
- *
- * Deliberately NOT `@jini-ai/cli`'s `getJsonFromDaemon`/`postJsonToDaemon`
- * (`packages/cli/src/http.ts`): those map a failure onto `process.exit`,
- * which is the right contract for a one-shot CLI invocation but wrong here —
- * a stdio MCP server is a long-lived process serving many tool calls, and one
- * failed call must return an MCP `{isError:true}` result and keep serving the
- * next call, not terminate the process. This module ports the same
- * bounded-read / timeout / redaction posture `http.ts` established
- * (CR-004/SEC-RB-009 — see `ADS-memory/reports/code-review/CR-remaining-backend-audit-2026-07-21.md`,
- * `ADS-memory/reports/security/SEC-remaining-backend-audit-2026-07-21.md`) as
- * a throw-based primitive instead: a failed request throws a plain,
- * already-redacted `Error` whose message a tool handler's caller
- * (`handleToolCall` in `./tool-protocol.js`) turns into that MCP error result.
- *
- * No SSRF hardening here (unlike `../core/oauth.ts`'s `safeOAuthFetch`): the
- * target is a caller-resolved, typically-loopback daemon the user already
- * trusts enough to run — not an attacker- or server-metadata-controlled
- * remote URL the way a configured external MCP server's OAuth endpoints are.
- * This mirrors `@jini-ai/cli/http.ts`'s own posture for the identical "fetch my
- * own daemon" concern (no `assertSafePublicUrl` there either).
+ * This is a trusted, typically-loopback daemon URL, not attacker-controlled server metadata or
+ * an external MCP OAuth endpoint; public-URL SSRF validation is therefore outside this contract.
  */
-import { sanitizeUntrustedText } from '@jini-ai/cli';
+import { sanitizeUntrustedText } from '@jini-ai/core/text';
 
 /** Request deadline. Generous enough for a slow tool call, short enough that a stalled daemon doesn't hang a stdio server turn forever. */
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -34,26 +16,31 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
 /**
- * Thrown for a non-2xx daemon response. The message is unchanged from the plain `Error` this used to
- * be; `status` is what lets a tool tell "this daemon does not serve the route" (404) apart from any
- * other failure instead of pattern-matching the message.
+ * Thrown for a non-2xx daemon response. `status` lets a tool distinguish an unsupported route (404)
+ * from other failures without pattern-matching the public error message.
  */
 export class DaemonHttpError extends Error {
-  constructor(message: string, public readonly status: number) {
+  readonly status: number;
+  constructor({ message, status }: { message: string; status: number }) {
     super(message);
+    this.status = status;
     this.name = 'DaemonHttpError';
   }
 }
 
 /** Thrown internally when a response exceeds its byte cap; always translated to a plain `Error` before it crosses this module's public functions. */
 export class DaemonResponseTooLargeError extends Error {
-  constructor(public readonly limitBytes: number) {
+  readonly limitBytes: number;
+  constructor({ limitBytes }: { limitBytes: number }) {
     super(`daemon response exceeded the ${limitBytes}-byte limit`);
+    this.limitBytes = limitBytes;
     this.name = 'DaemonResponseTooLargeError';
   }
 }
 
 export interface DaemonRequestOptions {
+  /** Exact host-registered IDs that may appear in diagnostics; credentials are always redacted. */
+  diagnosticToolIds?: readonly string[];
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   headers?: Record<string, string>;
@@ -78,6 +65,39 @@ function parseJsonLoose(text: string): unknown {
   }
 }
 
+/** Rejects up front when a declared `content-length` already exceeds the cap; a missing or non-numeric header defers to the byte-counted read. */
+function assertDeclaredLengthWithinLimit(resp: Response, maxBytes: number): void {
+  // `headers?.get?.` tolerates response-like doubles; a missing header becomes NaN (Number(null) would be 0).
+  const declared = Number(resp.headers?.get?.('content-length') ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+}
+
+/** Decodes a body stream chunk by chunk, rejecting as soon as the running byte total passes `maxBytes`. Always releases the reader lock. */
+async function readStreamWithLimit(reader: ReadableStreamDefaultReader<Uint8Array>, maxBytes: number): Promise<string> {
+  const decoder = new TextDecoder();
+  let text = '';
+  let total = 0;
+  try {
+    for (let step = await reader.read(); !step.done; step = await reader.read()) {
+      // A reader double may yield a step without bytes; count it as empty.
+      const chunk = step.value ?? new Uint8Array();
+      total += chunk.byteLength;
+      if (total > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+      text += decoder.decode(chunk, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/** `resp.text()` fallback for response-like doubles with no reader, byte-checked (UTF-8) before it is parsed. */
+async function readTextWithLimit(resp: Response, maxBytes: number): Promise<string> {
+  const text = await resp.text();
+  if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new DaemonResponseTooLargeError({ limitBytes: maxBytes });
+  return text;
+}
+
 /**
  * Read `resp`'s body as JSON without ever buffering past `maxBytes`. Prefers streaming via
  * `resp.body`'s reader (what a real `fetch()` `Response` provides), rejecting mid-stream once the
@@ -87,66 +107,96 @@ function parseJsonLoose(text: string): unknown {
  * surface as a normal non-2xx/shape mismatch to the caller, not an opaque parse exception.
  */
 async function readJsonWithLimit(resp: Response, maxBytes: number): Promise<unknown> {
-  const contentLength = resp.headers?.get?.('content-length');
-  if (contentLength !== null && contentLength !== undefined) {
-    const declared = Number(contentLength);
-    if (Number.isFinite(declared) && declared > maxBytes) throw new DaemonResponseTooLargeError(maxBytes);
-  }
-
+  assertDeclaredLengthWithinLimit(resp, maxBytes);
   const body = resp.body;
-  if (body != null && typeof body.getReader === 'function') {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let text = '';
-    let total = 0;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value !== undefined) {
-          total += value.byteLength;
-          if (total > maxBytes) throw new DaemonResponseTooLargeError(maxBytes);
-          text += decoder.decode(value, { stream: true });
-        }
-      }
-      text += decoder.decode();
-    } finally {
-      reader.releaseLock();
-    }
-    return parseJsonLoose(text);
-  }
-
-  const text = await resp.text();
-  if (Buffer.byteLength(text, 'utf8') > maxBytes) throw new DaemonResponseTooLargeError(maxBytes);
+  const text = body != null && typeof body.getReader === 'function'
+    ? await readStreamWithLimit(body.getReader(), maxBytes)
+    : await readTextWithLimit(resp, maxBytes);
   return parseJsonLoose(text);
 }
 
 /** Formats a `fetch()` rejection (network-unreachable) into a message safe to surface as an MCP tool error. */
-function formatConnectionFailure(err: unknown, baseUrl: string): string {
+function formatConnectionFailure(err: unknown, baseUrl: string, options: DaemonRequestOptions): string {
   const cause = err !== null && typeof err === 'object' ? (err as { cause?: unknown }).cause : null;
   const code =
     cause !== null && typeof cause === 'object' && typeof (cause as { code?: unknown }).code === 'string'
       ? (cause as { code: string }).code
       : null;
   if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
-    return `cannot reach the daemon at ${baseUrl}. Is it running?`;
+    return safeDiagnostic({ text: `cannot reach the daemon at ${baseUrl}. Is it running?` }, options);
   }
   const message = err instanceof Error ? err.message : String(err);
-  return sanitizeUntrustedText(message);
+  return safeDiagnostic({ text: message }, options);
+}
+
+/** Remove URL credentials, queries and fragments before ordinary secret/control redaction.
+ * Even short query tokens are secrets; token-length heuristics cannot protect them.
+ * @complexity O(n) in diagnostic text, plus URL parsing for each URL.
+ */
+function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions): string {
+  const redacted = text.replace(/https?:\/\/[^\s<>"']+/gi, url => {
+    try {
+      const parsed = new URL(url);
+      if (!parsed.username && !parsed.password && !parsed.search && !parsed.hash) return url;
+      parsed.username = '';
+      parsed.password = '';
+      parsed.search = '';
+      parsed.hash = '';
+      return parsed.toString();
+    } catch {
+      return '[redacted URL]';
+    }
+  });
+  return sanitizeUntrustedText({ text: redacted }, options.diagnosticToolIds === undefined ? {} : { diagnosticToolIds: options.diagnosticToolIds });
 }
 
 /** Formats a non-2xx daemon response into a message safe to surface as an MCP tool error. */
-function formatDaemonHttpError(status: number, url: string, data: unknown): string {
+function formatDaemonHttpError({ status, data }: { status: number; data: unknown }, options: DaemonRequestOptions): string {
   const envelope = data as DaemonErrorEnvelope;
-  const code = typeof envelope.error?.code === 'string' ? envelope.error.code : undefined;
-  const rawMessage = typeof envelope.error?.message === 'string' ? envelope.error.message : undefined;
-  const detail = rawMessage !== undefined ? sanitizeUntrustedText(rawMessage) : `HTTP ${status}`;
-  return code !== undefined ? `daemon ${status} on ${url}: ${code}: ${detail}` : `daemon ${status} on ${url}: ${detail}`;
+  const code = typeof envelope?.error?.code === 'string' ? envelope.error.code : undefined;
+  const rawMessage = typeof envelope?.error?.message === 'string' ? envelope.error.message : undefined;
+  const detail = [code, rawMessage].filter(value => value !== undefined).join(': ');
+  return safeDiagnostic({ text: detail ? `HTTP ${status}: ${detail}` : `HTTP ${status}` }, options);
 }
 
 interface DaemonRequestInit {
   readonly method: 'GET' | 'POST';
   readonly body?: unknown;
+}
+
+/**
+ * Arms the request deadline and combines it with the caller's signal, so either one aborts the
+ * request. `clear` must run once the request settles.
+ */
+function startDeadline({ route, timeoutMs }: { route: string; timeoutMs: number }, { signal }: { signal?: AbortSignal | undefined }): { signal: AbortSignal; clear: () => void } {
+  const timeoutController = new AbortController();
+  const timeoutHandle = setTimeout(() => {
+    timeoutController.abort(new Error(`request to ${route} timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  // A stdio server turn shouldn't be kept alive purely by this timer.
+  (timeoutHandle as unknown as { unref?: () => void }).unref?.();
+  return {
+    signal: signal !== undefined ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal,
+    clear: () => clearTimeout(timeoutHandle),
+  };
+}
+
+/** Builds the `fetch` init: POST carries a JSON body (default `{}`) and a content-type the caller's headers may override; GET carries neither. */
+function buildFetchInit(init: DaemonRequestInit, { headers, signal }: { headers: Record<string, string> | undefined; signal: AbortSignal }): RequestInit {
+  if (init.method === 'GET') return { method: 'GET', headers: { ...headers }, signal };
+  return { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(init.body ?? {}), signal };
+}
+
+/** Reads the body under the byte cap, converting a cap overrun into a redacted `Error`; any other read failure propagates unchanged. */
+async function readBodyOrExplain({ resp, url, maxResponseBytes }: { resp: Response; url: string; maxResponseBytes: number }, options: DaemonRequestOptions): Promise<unknown> {
+  try {
+    return await readJsonWithLimit(resp, maxResponseBytes);
+  } catch (err) {
+    if (err instanceof DaemonResponseTooLargeError) {
+      throw new Error(safeDiagnostic({ text: `response from ${url} exceeded the ${err.limitBytes}-byte limit` }, options));
+    }
+    throw err;
+  }
 }
 
 /**
@@ -162,56 +212,33 @@ async function requestDaemonJson(
   options: DaemonRequestOptions = {},
 ): Promise<unknown> {
   const fetchImpl = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const maxResponseBytes = options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   const url = `${baseUrl}${route}`;
-
-  const timeoutController = new AbortController();
-  const timeoutHandle = setTimeout(() => {
-    timeoutController.abort(new Error(`request to ${route} timed out after ${timeoutMs}ms`));
-  }, timeoutMs);
-  // A stdio server turn shouldn't be kept alive purely by this timer.
-  (timeoutHandle as unknown as { unref?: () => void }).unref?.();
-  const signal = options.signal !== undefined ? AbortSignal.any([options.signal, timeoutController.signal]) : timeoutController.signal;
+  const deadline = startDeadline({ route, timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }, { signal: options.signal });
 
   try {
     let resp: Response;
     try {
-      resp = await fetchImpl(url, {
-        method: init.method,
-        headers: init.method === 'POST' ? { 'content-type': 'application/json', ...options.headers } : { ...options.headers },
-        ...(init.method === 'POST' ? { body: JSON.stringify(init.body ?? {}) } : {}),
-        signal,
-      });
+      resp = await fetchImpl(url, buildFetchInit(init, { headers: options.headers, signal: deadline.signal }));
     } catch (err) {
-      throw new Error(formatConnectionFailure(err, baseUrl));
+      throw new Error(formatConnectionFailure(err, baseUrl, options));
     }
 
-    let data: unknown;
-    try {
-      data = await readJsonWithLimit(resp, maxResponseBytes);
-    } catch (err) {
-      if (err instanceof DaemonResponseTooLargeError) {
-        throw new Error(`response from ${url} exceeded the ${err.limitBytes}-byte limit`);
-      }
-      throw err;
-    }
-
+    const data = await readBodyOrExplain({ resp, url, maxResponseBytes: options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES }, options);
     if (!resp.ok) {
-      throw new DaemonHttpError(formatDaemonHttpError(resp.status, url, data), resp.status);
+      throw new DaemonHttpError({ message: formatDaemonHttpError({ status: resp.status, data }, options), status: resp.status });
     }
     return data;
   } finally {
-    clearTimeout(timeoutHandle);
+    deadline.clear();
   }
 }
 
 /** `GET <baseUrl><route>` and return the parsed JSON response, throwing on network failure or a non-2xx status. */
-export async function getDaemonJson<T = unknown>(baseUrl: string, route: string, options?: DaemonRequestOptions): Promise<T> {
+export async function getDaemonJson<T = unknown>({ baseUrl, route }: { baseUrl: string; route: string }, options?: DaemonRequestOptions): Promise<T> {
   return requestDaemonJson(baseUrl, route, { method: 'GET' }, options) as Promise<T>;
 }
 
 /** `POST body` (JSON-serialized) to `<baseUrl><route>` and return the parsed JSON response, throwing on network failure or a non-2xx status. */
-export async function postDaemonJson<T = unknown>(baseUrl: string, route: string, body: unknown, options?: DaemonRequestOptions): Promise<T> {
+export async function postDaemonJson<T = unknown>({ baseUrl, route, body }: { baseUrl: string; route: string; body: unknown }, options?: DaemonRequestOptions): Promise<T> {
   return requestDaemonJson(baseUrl, route, { method: 'POST', body }, options) as Promise<T>;
 }

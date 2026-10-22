@@ -24,7 +24,7 @@ export type StreamTextEvent = { readonly type: 'text_delta'; readonly delta: str
 export type StreamEventSink = (event: StreamTextEvent) => void;
 
 export interface ArtifactTextSuppressor {
-  strip(text: string): string;
+  strip(required: { text: string }): string;
   flush(): string;
   isSuppressing(): boolean;
   hasPendingCandidate(): boolean;
@@ -54,8 +54,8 @@ const MAX_CANDIDATE_LENGTH = 512;
 export function createTaggedTextSuppressor(args: {
   openRe: RegExp;
   closeRe: RegExp;
-  isPossibleOpen: (text: string) => boolean;
-  isPossibleClose: (text: string) => boolean;
+  isPossibleOpen: (required: { text: string }) => boolean;
+  isPossibleClose: (required: { text: string }) => boolean;
 }): ArtifactTextSuppressor {
   let suppressing = false;
   let candidate = '';
@@ -70,7 +70,7 @@ export function createTaggedTextSuppressor(args: {
     suppressedChunks += 1;
   }
 
-  function strip(text: string): string {
+  function strip({ text }: { text: string }): string {
     const current = `${candidate}${text}`;
     candidate = '';
 
@@ -90,7 +90,7 @@ export function createTaggedTextSuppressor(args: {
       const end = close.index + close[0].length;
       closedBlocks += 1;
       noteSuppressed(current.slice(0, end));
-      return strip(current.slice(end));
+      return strip({ text: current.slice(end) });
     }
 
     const open = args.openRe.exec(current);
@@ -100,7 +100,7 @@ export function createTaggedTextSuppressor(args: {
       const prefix = current.slice(0, open.index);
       const tail = current.slice(open.index + open[0].length);
       noteSuppressed(open[0]);
-      return `${prefix}${strip(tail)}`;
+      return `${prefix}${strip({ text: tail })}`;
     }
 
     const candidateStart = possibleTagStart(current, args.isPossibleOpen);
@@ -140,22 +140,20 @@ export function createTaggedTextSuppressor(args: {
 
 /** Feeds `text` through `suppressor` and emits a `text_delta` on `onEvent` only when something survives. Returns whether an event was emitted. */
 export function emitWithTextSuppressor(
-  suppressor: ArtifactTextSuppressor,
-  onEvent: StreamEventSink,
-  text: string,
+  { suppressor, onEvent, text }: { suppressor: ArtifactTextSuppressor; onEvent: StreamEventSink; text: string },
 ): boolean {
-  const delta = suppressor.strip(text);
+  const delta = suppressor.strip({ text });
   if (!delta) return false;
   onEvent({ type: 'text_delta', delta });
   return true;
 }
 
-function possibleTagStart(text: string, predicate: (tail: string) => boolean): number {
+function possibleTagStart(text: string, predicate: (required: { text: string }) => boolean): number {
   const min = Math.max(0, text.length - MAX_CANDIDATE_LENGTH);
   let index = text.lastIndexOf('<');
   while (index >= min) {
     const tail = text.slice(index);
-    if (predicate(tail)) return index;
+    if (predicate({ text: tail })) return index;
     if (index === 0) break;
     index = text.lastIndexOf('<', index - 1);
   }
@@ -175,7 +173,7 @@ function compactTagCandidate(text: string, stripChars: RegExp): string | null {
  * case-insensitively against any of `tagNames`. Replaces the origin's
  * hardcoded "DSML" tag-name family with a caller-supplied vocabulary.
  */
-export function createXmlTagTextSuppressor(tagNames: readonly string[]): ArtifactTextSuppressor {
+export function createXmlTagTextSuppressor({ tagNames }: { tagNames: readonly string[] }): ArtifactTextSuppressor {
   const canonicals = tagNames.map((t) => t.toLowerCase());
   const namesPattern = canonicals.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   const openRe = new RegExp(`(?:<\\s*\\|?\\s*(?:${namesPattern})\\b[^>]*>)`, 'i');
@@ -193,7 +191,7 @@ export function createXmlTagTextSuppressor(tagNames: readonly string[]): Artifac
     return compact.length === 0 || canonicals.some((c) => c.startsWith(compact) || compact.startsWith(c));
   }
 
-  return createTaggedTextSuppressor({ openRe, closeRe, isPossibleOpen, isPossibleClose });
+  return createTaggedTextSuppressor({ openRe, closeRe, isPossibleOpen: ({ text }) => isPossibleOpen(text), isPossibleClose: ({ text }) => isPossibleClose(text) });
 }
 
 const TOOL_CALL_OPEN_RE = /(?:<\s*tool_call\b[^>]*>|<\s*edit\s*>)/i;
@@ -215,11 +213,11 @@ function isPossibleToolCallClose(text: string): boolean {
 }
 
 /** Suppresses a `<tool_call>...</tool_call>` or `<edit>...</edit>` block — a generic agent-protocol convention, not product-branded. */
-export function createToolCallTextSuppressor(): ArtifactTextSuppressor {
+export function createToolCallTextSuppressor(_required: Record<string, never>): ArtifactTextSuppressor {
   return createTaggedTextSuppressor({
     openRe: TOOL_CALL_OPEN_RE,
     closeRe: TOOL_CALL_CLOSE_RE,
-    isPossibleOpen: isPossibleToolCallOpen,
-    isPossibleClose: isPossibleToolCallClose,
+    isPossibleOpen: ({ text }) => isPossibleToolCallOpen(text),
+    isPossibleClose: ({ text }) => isPossibleToolCallClose(text),
   });
 }

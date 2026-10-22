@@ -16,28 +16,31 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const SRC_DIR = dirname(fileURLToPath(import.meta.url));
+const SRC_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const SELF_FILE = fileURLToPath(import.meta.url);
 
 const FORBIDDEN_PATTERNS: RegExp[] = [/projectId/, /conversationId/, /project_id/, /conversation_id/];
 
 function listSourceFiles(dir: string): string[] {
-  const entries = readdirSync(dir, { withFileTypes: true });
   const files: string[] = [];
-  for (const entry of entries) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listSourceFiles(path));
-    } else if (/\.tsx?$/.test(entry.name)) {
-      files.push(path);
-    }
+    if (entry.isDirectory() && entry.name !== '__tests__') files.push(...listSourceFiles(path));
+    else if (entry.isFile() && /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) files.push(path);
   }
   return files;
 }
 
-describe('identifier-neutrality lint — packages/daemon/src/**', () => {
+// The gate applies to kernel services; session coordination and HTTP adapters have
+// their own published conversation/project contracts and do not key kernel runs.
+const KERNEL_FILES = ['run-lifecycle.ts', 'event-log.ts', 'tool-executor.ts', 'agent-executor.ts', 'tokens.ts'];
+
+describe('identifier-neutrality lint — daemon kernel services', () => {
   it('contains no projectId/conversationId/project_id/conversation_id noun outside this lint file', () => {
-    const files = listSourceFiles(SRC_DIR).filter((path) => path !== SELF_FILE);
+    const files = [
+      ...KERNEL_FILES.map((name) => join(SRC_DIR, name)),
+      ...listSourceFiles(join(SRC_DIR, 'agent-executor')),
+    ].filter((path) => path !== SELF_FILE);
     expect(files.length).toBeGreaterThan(0);
 
     const violations: { file: string; pattern: string }[] = [];

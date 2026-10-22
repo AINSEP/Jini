@@ -322,4 +322,92 @@ describe('SkillsTab', () => {
     );
     expect(await screen.findByText('Nouvelle compétence')).toBeInTheDocument();
   });
+
+  const FAILING_LIST_PORT: SkillsPort = {
+    listSkills: () => Promise.reject(new Error('registry unreachable')),
+    fetchSkillDetail: () => Promise.reject(new Error('n/a')),
+    fetchSkillFiles: () => Promise.resolve([]),
+    createSkill: () => Promise.reject(new Error('n/a')),
+    updateSkill: () => Promise.reject(new Error('n/a')),
+    deleteSkill: () => Promise.reject(new Error('n/a')),
+  };
+
+  it('prefixes the default load error with "Could not load skills:"', async () => {
+    renderTab(FAILING_LIST_PORT);
+    expect(await screen.findByText('Could not load skills: registry unreachable')).toBeInTheDocument();
+  });
+
+  it('shows a host loadErrorLabel verbatim, dropping the underlying error text (reported, not fixed)', async () => {
+    render(
+      <SkillsTab
+        port={FAILING_LIST_PORT}
+        disabledSkillIds={new Set()}
+        onToggleEnabled={vi.fn()}
+        labels={{ loadErrorLabel: 'Custom load error: {error}' }}
+      />,
+    );
+    expect(await screen.findByText('Custom load error: {error}')).toBeInTheDocument();
+    expect(screen.queryByText(/registry unreachable/)).toBeNull();
+  });
+
+  it('labels each filter "All (n)" and each option "value (count)", humanizing categories', async () => {
+    const port = createFakeSkillsPort({ skills: [BUILT_IN, USER_SKILL] });
+    renderTab(port);
+    await screen.findByText('Summarize');
+    const category = within(screen.getByTestId('skills-category-filters')).getByRole('combobox');
+    expect([...category.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['All (2)', 'Productivity (1)']);
+    const [source, mode] = screen.getAllByRole('combobox');
+    expect([...(source as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['All (2)', 'built-in (1)', 'user (1)']);
+    expect([...(mode as HTMLSelectElement).options].map((o) => o.textContent)).toEqual(['All (2)', 'assistant (2)']);
+  });
+
+  it('uses a host allLabel for every filter', async () => {
+    const port = createFakeSkillsPort({ skills: [BUILT_IN] });
+    render(<SkillsTab port={port} disabledSkillIds={new Set()} onToggleEnabled={vi.fn()} labels={{ allLabel: 'Every' }} />);
+    await screen.findByText('Summarize');
+    expect(screen.getAllByText('Every (1)')).toHaveLength(3);
+  });
+
+  it('renders the default "no results" message when nothing matches', async () => {
+    const port = createFakeSkillsPort({ skills: [] });
+    renderTab(port);
+    expect(await screen.findByText('No skills match these filters.')).toBeInTheDocument();
+    expect(screen.queryByTestId('skills-list')).toBeNull();
+  });
+
+  it('renders the (empty) list rather than "no results" while still loading', () => {
+    const port: SkillsPort = { ...FAILING_LIST_PORT, listSkills: () => new Promise(() => {}) };
+    renderTab(port);
+    expect(screen.getByTestId('skills-list')).toBeEmptyDOMElement();
+    expect(screen.queryByText('No skills match these filters.')).toBeNull();
+  });
+
+  it('derives every control handle and a per-skill row handle from the tab handle', async () => {
+    const port = createFakeSkillsPort({ skills: [BUILT_IN, USER_SKILL] });
+    render(<SkillsTab port={port} disabledSkillIds={new Set()} onToggleEnabled={vi.fn()} agentHandle="skills" />);
+    await screen.findByText('Summarize');
+    const handles = [...document.querySelectorAll('[data-agent-element]')].map((el) => el.getAttribute('data-agent-element'));
+    expect(handles).toEqual(
+      expect.arrayContaining([
+        'skills-search',
+        'skills-new',
+        'skills-filter-source',
+        'skills-filter-mode',
+        'skills-filter-category',
+        'skills-skill-skill-summarize-expand',
+        'skills-skill-skill-custom-expand',
+      ]),
+    );
+    await userEvent.click(screen.getByTestId('skills-new'));
+    expect(screen.getByPlaceholderText('my-skill')).toHaveAttribute('data-agent-element', 'skills-create-form-name');
+  });
+
+  it('publishes no agent handles without a tab handle', async () => {
+    const port = createFakeSkillsPort({ skills: [BUILT_IN] });
+    renderTab(port);
+    await screen.findByText('Summarize');
+    await userEvent.click(screen.getByTestId('skills-new'));
+    expect(document.querySelector('[data-agent-element]')).toBeNull();
+  });
 });
+

@@ -10,7 +10,7 @@
  * - `fs`         — filesystem containment, atomic copy, removal, log tails.
  * - `http`       — HTTP readiness polling.
  * - `fetch-with-timeout` — the shared `AbortSignal`-timeout wrapper every outbound `fetch()` call
- *   in this monorepo is meant to go through (2026-08-16 failure-mode audit, Finding 2).
+ *   in this monorepo is meant to go through.
  * - `toolchain`  — user-level toolchain bin discovery.
  * - `asset-cache` — SSRF-safe same-origin cache/proxy for sandboxed content's
  *   external media references.
@@ -26,12 +26,16 @@
  * - `blob-storage` — a backend-agnostic blob storage port + local-disk and
  *   S3-compatible implementations.
  *
- * The set of names exported here is intentionally identical to the pre-split
- * public surface; importers see no change.
+
+ * Blob storage uses opaque namespace scoping rather than a product's project model. Hosts supply
+ * configuration/credentials explicitly instead of inheriting product-prefixed environment names.
+ * Filesystem/network storage and its SigV4 signing belong here, with no kernel SQL-port dependency.
  */
 
 export type { CommandInvocation, CommandInvocationRequest } from "./command.js";
 export { createCommandInvocation, createPackageManagerInvocation } from "./command.js";
+
+export { omitEnvironmentKeys } from "./child-environment.js";
 
 export type { ResolveSystemProxyEnvOptions, SystemProxyCommandRunner } from "./proxy-env.js";
 export {
@@ -93,9 +97,9 @@ export {
   assetCacheKey,
   assetCacheRewriteUrl,
   createAssetCache,
+  createAssetCacheDispatcher,
   createValidatingLookup,
   isCacheableExternalUrl,
-  isPrivateAddress,
 } from "./asset-cache.js";
 
 export { expandHomePrefix, resolveProjectRelativePath } from "./home-expansion.js";
@@ -172,3 +176,16 @@ export { encodeS3PathSegment, signSigV4 } from "./aws-sigv4.js";
 
 export type { BlobFileMeta, BlobStorage, S3BlobStorageOptions } from "./blob-storage.js";
 export { LocalBlobStorage, S3BlobStorage, StorageError } from "./blob-storage.js";
+
+// Cohesive subpaths remain available as namespaced APIs without colliding with legacy names.
+export * as filesystem from "./fs/index.js";
+export * as guardedHttp from "./http/guarded/index.js";
+export * as mail from "./mail/index.js";
+export * as smtp from "./mail/smtp.js";
+export * as secrets from "./secrets/index.js";
+export * as credentialSets from "./secrets/credential-sets/index.js";
+
+export { isPrivateAddress } from "./net/address.js";
+
+export { defaultPlatformMessages } from "./messages.js";
+export type { PlatformMessages } from "./messages.js";

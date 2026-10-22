@@ -34,7 +34,6 @@
  *   {@link FrontendSessionBridge.bindToken} answers "what is valid now", and only the latter
  *   belongs in a run request.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { CHAT_CAPABILITIES } from '../../core/index.js';
 import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini-ai/agentic';
 
@@ -44,8 +43,6 @@ import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../feat
 const EXECUTED_MEMORY = 256;
 
 export interface FrontendSessionBridgeOptions {
-  /** Daemon origin. Defaults to same-origin, which is how the dev server proxies `/api`. */
-  readonly baseUrl?: string;
   /** Supplying one claims the six `page.*` verbs. Omit for a chat-only surface. */
   readonly pageDriver?: PageDriver;
   /**
@@ -57,6 +54,15 @@ export interface FrontendSessionBridgeOptions {
   readonly onInvocation?: (action: ChatPaneAgentToolAction) => void;
   /** Reported for failures that are nobody's tool call: stream errors, malformed frames. */
   readonly onError?: (error: unknown) => void;
+}
+
+/** The host supplies its origin and stream transport; native fetch defaults may be overridden. */
+export interface FrontendSessionBridgeArgs {
+  /** Pass an empty string for the same-origin proxy used by a browser host. */
+  readonly baseUrl: string;
+  readonly openStream: (args: { url: string }) => EventSource;
+  readonly fetch?: typeof globalThis.fetch;
+  readonly request?: (args: { url: string; init: RequestInit; timeoutMs: number }) => Promise<Response>;
 }
 
 export interface FrontendSessionBridge {
@@ -83,14 +89,74 @@ function claimedCapabilities(options: FrontendSessionBridgeOptions): readonly st
   if (options.pageDriver !== undefined) {
     claims.push(...PAGE_CAPABILITIES.map((capability) => capability.id));
   }
-  for (const [prefix, _executor] of Object.entries(options.executors ?? {})) {
-    claims.push(prefix);
-  }
+  claims.push(...Object.keys(options.executors ?? {}));
   return claims;
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** What one server-sent frame means to this surface, decided without touching any state. */
+type FrameReading =
+  | { readonly kind: 'attached'; readonly sessionId: string; readonly bindToken: string }
+  | { readonly kind: 'refused'; readonly message: string }
+  | { readonly kind: 'invocation'; readonly action: ChatPaneAgentToolAction }
+  | { readonly kind: 'malformed'; readonly error: unknown }
+  | { readonly kind: 'ignored' };
+
+/** Parses a frame's data into an object, or says why it is not one. */
+function parseFrameObject(data: string): { frame: Record<string, unknown> } | { error: unknown } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(data);
+  } catch (error) {
+    return { error };
+  }
+  // `JSON.parse` succeeds on any valid JSON value, not just objects — a bare `null`, number,
+  // string or boolean parses cleanly and would throw *outside* this try/catch on the very next
+  // `frame['type']` read (`null` is the one of those that actually throws; the others just read
+  // back `undefined` harmlessly). Guarding here routes every one of those through the same
+  // `onError` path as an unparseable frame, rather than only some of them crashing the listener.
+  if (parsed === null || typeof parsed !== 'object') {
+    return { error: new Error(`malformed frame: expected a JSON object, got ${JSON.stringify(parsed)}`) };
+  }
+  return { frame: parsed as Record<string, unknown> };
+}
+
+/** Reads an `invocation` frame into the pane's action shape, refusing one with no usable id. */
+function readInvocation(frame: Record<string, unknown>): FrameReading {
+  const rawInvocationId = frame['invocationId'];
+  if (typeof rawInvocationId !== 'string' || rawInvocationId.length === 0) {
+    return { kind: 'malformed', error: new Error('invocation frame missing invocationId') };
+  }
+  return {
+    kind: 'invocation',
+    action: {
+      invocationId: rawInvocationId,
+      capabilityId: String(frame['capabilityId']),
+      input: (frame['input'] ?? {}) as Record<string, unknown>,
+    },
+  };
+}
+
+/** Classifies one frame's raw data; the listener only applies the result. */
+function readFrame(data: string): FrameReading {
+  const parsed = parseFrameObject(data);
+  if ('error' in parsed) return { kind: 'malformed', error: parsed.error };
+  const { frame } = parsed;
+  switch (frame['type']) {
+    case 'attached':
+      return { kind: 'attached', sessionId: String(frame['sessionId']), bindToken: String(frame['bindToken']) };
+    case 'error':
+      return { kind: 'refused', message: String(frame['message']) };
+    case 'invocation':
+      return readInvocation(frame);
+    default:
+      // Unknown frame types are ignored rather than treated as errors, so the daemon's event
+      // vocabulary can grow without every deployed surface needing to ship first.
+      return { kind: 'ignored' };
+  }
 }
 
 /**
@@ -99,9 +165,14 @@ function errorMessage(error: unknown): string {
  * @param options - What this page can serve and where the daemon is.
  * @returns The pane's bridge, the attach result, and a teardown.
  */
-export function createFrontendSessionBridge(options: FrontendSessionBridgeOptions = {}): FrontendSessionBridge {
-  const base = options.baseUrl ?? '';
+export function createFrontendSessionBridge(
+  { baseUrl: base, openStream, request, fetch }: FrontendSessionBridgeArgs,
+  options: FrontendSessionBridgeOptions = {},
+): FrontendSessionBridge {
   const capabilities = claimedCapabilities(options);
+  // The only caller (`respond`) never passes its own signal, so the deadline is the whole signal.
+  const send = request ?? (({ url, init, timeoutMs }: { url: string; init: RequestInit; timeoutMs: number }) =>
+    (fetch ?? globalThis.fetch)(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }));
 
   let sessionId: string | undefined;
   /** Replaced on every reattach; a promise resolved once could never carry this. */
@@ -122,15 +193,15 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
   const executed = new Set<string>();
 
   const query = capabilities.map((id) => `capability=${encodeURIComponent(id)}`).join('&');
-  const source = new EventSource(`${base}/api/frontend-sessions/stream?${query}`);
+  const source = openStream({ url: `${base}/api/frontend-sessions/stream?${query}` });
 
   async function respond(invocationId: string, body: Record<string, unknown>): Promise<void> {
     if (sessionId === undefined) throw new Error('the surface is not attached yet');
-    const response = await fetchWithTimeout(
-      `${base}/api/frontend-sessions/${encodeURIComponent(sessionId)}/responses`,
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId, ...body }) },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-    );
+    const response = await send({
+      url: `${base}/api/frontend-sessions/${encodeURIComponent(sessionId)}/responses`,
+      init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId, ...body }) },
+      timeoutMs: 15_000,
+    });
     if (!response.ok) throw new Error(`answering "${invocationId}" failed: ${response.status}`);
   }
 
@@ -144,7 +215,7 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
     let output: unknown;
     try {
       if (options.pageDriver !== undefined && action.capabilityId.startsWith('page.')) {
-        output = await executePageCapability(options.pageDriver, action.capabilityId, action.input);
+        output = await executePageCapability({ driver: options.pageDriver, capabilityId: action.capabilityId, input: action.input });
       } else {
         const entry = Object.entries(options.executors ?? {})
           .find(([prefix]) => action.capabilityId.startsWith(prefix));
@@ -166,51 +237,8 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
     }
   }
 
-  source.addEventListener('message', (event: MessageEvent<string>) => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(event.data);
-    } catch (error) {
-      options.onError?.(error);
-      return;
-    }
-    // `JSON.parse` succeeds on any valid JSON value, not just objects — a bare `null`, number,
-    // string or boolean parses cleanly and would throw *outside* this try/catch on the very next
-    // `frame['type']` read (`null` is the one of those that actually throws; the others just read
-    // back `undefined` harmlessly). Guarding here routes every one of those through the same
-    // `onError` path as an unparseable frame, rather than only some of them crashing the listener.
-    if (parsed === null || typeof parsed !== 'object') {
-      options.onError?.(new Error(`malformed frame: expected a JSON object, got ${JSON.stringify(parsed)}`));
-      return;
-    }
-    const frame = parsed as Record<string, unknown>;
-
-    if (frame['type'] === 'attached') {
-      sessionId = String(frame['sessionId']);
-      currentBindToken = String(frame['bindToken']);
-      // A no-op after the first attach — which is exactly why `currentBindToken` exists.
-      resolveReady({ sessionId, bindToken: currentBindToken });
-      return;
-    }
-    if (frame['type'] === 'error') {
-      rejectReady(new Error(String(frame['message'])));
-      return;
-    }
-    // Unknown frame types are ignored rather than treated as errors, so the daemon's event
-    // vocabulary can grow without every deployed surface needing to ship first.
-    if (frame['type'] !== 'invocation') return;
-
-    const rawInvocationId = frame['invocationId'];
-    if (typeof rawInvocationId !== 'string' || rawInvocationId.length === 0) {
-      options.onError?.(new Error('invocation frame missing invocationId'));
-      return;
-    }
-    const action: ChatPaneAgentToolAction = {
-      invocationId: rawInvocationId,
-      capabilityId: String(frame['capabilityId']),
-      input: (frame['input'] ?? {}) as Record<string, unknown>,
-    };
-
+  /** Runs one well-formed invocation: replay check, announcement, then pane or local serving. */
+  function handleInvocation(action: ChatPaneAgentToolAction): void {
     // A redelivery after a dropped answer must not re-run the side effect.
     if (executed.has(action.invocationId)) {
       void respondError(action.invocationId, 'already executed on this surface').catch(() => undefined);
@@ -224,6 +252,29 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
       return;
     }
     void serveLocally(action);
+  }
+
+  source.addEventListener('message', (event: MessageEvent<string>) => {
+    const frame = readFrame(event.data);
+    switch (frame.kind) {
+      case 'attached':
+        sessionId = frame.sessionId;
+        currentBindToken = frame.bindToken;
+        // A no-op after the first attach — which is exactly why `currentBindToken` exists.
+        resolveReady({ sessionId, bindToken: currentBindToken });
+        return;
+      case 'refused':
+        rejectReady(new Error(frame.message));
+        return;
+      case 'malformed':
+        options.onError?.(frame.error);
+        return;
+      case 'invocation':
+        handleInvocation(frame.action);
+        return;
+      case 'ignored':
+        return;
+    }
   });
 
   source.addEventListener('error', (event) => {

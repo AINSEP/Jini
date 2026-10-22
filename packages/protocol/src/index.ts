@@ -1,5 +1,6 @@
 export * from './agent-catalog.js';
 export * from './common.js';
+export type { JsonPrimitive, JsonValue } from './json.js';
 export * from './errors.js';
 export * from './event-log.js';
 export * from './events.js';

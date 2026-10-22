@@ -18,8 +18,8 @@ function makeDeps(overrides: Partial<VersionCommandDeps> = {}): VersionCommandDe
   const errWritten: string[] = [];
   return {
     resolveBaseUrl: () => 'http://d.example',
-    write: (text: string) => { written.push(text); },
-    writeErr: (text: string) => { errWritten.push(text); },
+    write: ({ text }: { text: string }) => { written.push(text); },
+    writeErr: ({ text }: { text: string }) => { errWritten.push(text); },
     written,
     errWritten,
     ...overrides,
@@ -28,7 +28,7 @@ function makeDeps(overrides: Partial<VersionCommandDeps> = {}): VersionCommandDe
 
 function exitingDeps(overrides: Partial<VersionCommandDeps> = {}) {
   const deps = makeDeps(overrides);
-  const exit = vi.fn((code: number): never => { throw new ExitSentinel(code); });
+  const exit = vi.fn(({ code }: { code: number }): never => { throw new ExitSentinel(code); });
   return { ...deps, exit };
 }
 
@@ -36,7 +36,7 @@ describe('versionCommand', () => {
   it('prints --help usage via process.stdout.write when no write is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await versionCommand(['--help'], { resolveBaseUrl: () => 'http://d.example' });
+      await versionCommand({ args: ['--help'], resolveBaseUrl: () => 'http://d.example' });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -46,7 +46,7 @@ describe('versionCommand', () => {
   it('prints usage and returns for --help without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await versionCommand(['--help'], { ...deps, fetchImpl });
+    await versionCommand({ args: ['--help'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(deps.written.join('')).toContain('Usage:');
   });
@@ -54,7 +54,7 @@ describe('versionCommand', () => {
   it('prints usage and returns for -h without making a request', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await versionCommand(['-h'], { ...deps, fetchImpl });
+    await versionCommand({ args: ['-h'], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(deps.written.join('')).toContain('Usage:');
   });
@@ -65,7 +65,7 @@ describe('versionCommand', () => {
       expect(String(url)).toBe('http://d.example/api/daemon/status');
       return jsonResponse(200, { ok: true, version: '1.2.3', host: '127.0.0.1', port: 7456, dataDir: '/data', shuttingDown: false, pid: 42 });
     });
-    await versionCommand([], { ...deps, fetchImpl });
+    await versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(deps.written[0]).toBe('1.2.3\n');
   });
@@ -74,50 +74,50 @@ describe('versionCommand', () => {
     const resolveBaseUrl = vi.fn(() => 'http://d.example');
     const deps = makeDeps({ resolveBaseUrl });
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: '1.0.0' }));
-    await versionCommand([], { ...deps, fetchImpl });
-    await versionCommand([], { ...deps, fetchImpl });
+    await versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
+    await versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(resolveBaseUrl).toHaveBeenCalledTimes(2);
   });
 
   it('exits through the structured-error path on a non-2xx daemon response', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(500, {}));
-    await expect(versionCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
+    await expect(versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
   });
 
   it('exits with daemon-not-running when the response has no version field', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { ok: true }));
-    await expect(versionCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['daemon-not-running']);
+    await expect(versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['daemon-not-running'] });
   });
 
   it('exits with daemon-not-running when version is present but not a string', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: 42 }));
-    await expect(versionCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['daemon-not-running']);
+    await expect(versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['daemon-not-running'] });
   });
 
   it('exits with daemon-not-running when version is an empty string', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: '' }));
-    await expect(versionCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['daemon-not-running']);
+    await expect(versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['daemon-not-running'] });
   });
 
   it('exits with daemon-not-running when the response body is not an object (e.g. a bare string)', async () => {
     const deps = exitingDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, 'not-an-object' as unknown as Record<string, unknown>));
-    await expect(versionCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['daemon-not-running']);
+    await expect(versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['daemon-not-running'] });
   });
 
   it('honors a caller-supplied exitCodes table on the missing-version path', async () => {
     const deps = exitingDeps({ exitCodes: { 'daemon-not-running': 88 } });
     const fetchImpl = vi.fn(async () => jsonResponse(200, {}));
-    await expect(versionCommand([], { ...deps, fetchImpl })).rejects.toThrow(ExitSentinel);
-    expect(deps.exit).toHaveBeenCalledWith(88);
+    await expect(versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } })).rejects.toThrow(ExitSentinel);
+    expect(deps.exit).toHaveBeenCalledWith({ code: 88 });
   });
 
   it('defaults writeErr/exit to process.stderr/process.exit on a structured error when nothing is injected', async () => {
@@ -127,7 +127,7 @@ describe('versionCommand', () => {
     }) as never);
     const fetchImpl = vi.fn(async () => jsonResponse(500, {}));
     try {
-      await expect(versionCommand([], { resolveBaseUrl: () => 'http://d.example', fetchImpl })).rejects.toThrow(ExitSentinel);
+      await expect(versionCommand({ args: [], resolveBaseUrl: ({ resolveBaseUrl: () => 'http://d.example', fetchImpl }).resolveBaseUrl }, { ...{ resolveBaseUrl: () => 'http://d.example', fetchImpl } })).rejects.toThrow(ExitSentinel);
       expect(stderrSpy).toHaveBeenCalled();
     } finally {
       stderrSpy.mockRestore();
@@ -146,7 +146,7 @@ describe('versionCommand', () => {
     }) as never);
     const fetchImpl = vi.fn(async () => jsonResponse(200, { ok: true }));
     try {
-      await expect(versionCommand([], { resolveBaseUrl: () => 'http://d.example', fetchImpl })).rejects.toThrow(ExitSentinel);
+      await expect(versionCommand({ args: [], resolveBaseUrl: ({ resolveBaseUrl: () => 'http://d.example', fetchImpl }).resolveBaseUrl }, { ...{ resolveBaseUrl: () => 'http://d.example', fetchImpl } })).rejects.toThrow(ExitSentinel);
       expect(stderrSpy).toHaveBeenCalled();
       expect(exitSpy).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['daemon-not-running']);
     } finally {
@@ -159,7 +159,7 @@ describe('versionCommand', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(200, { version: '9.9.9' }) as Response);
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await versionCommand([], { resolveBaseUrl: () => 'http://d.example' });
+      await versionCommand({ args: [], resolveBaseUrl: () => 'http://d.example' });
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       expect(stdoutSpy).toHaveBeenCalledWith('9.9.9\n');
     } finally {
@@ -171,7 +171,7 @@ describe('versionCommand', () => {
   it('passes exit/exitCodes through transportOptions on a success path when both are set', async () => {
     const deps = makeDeps({ exit: vi.fn() as never, exitCodes: { custom: 5 } });
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: '1.0.0' }));
-    await versionCommand([], { ...deps, fetchImpl });
+    await versionCommand({ args: [], resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
@@ -181,16 +181,16 @@ describe('registerVersionCommand', () => {
     const registry = new CommandRegistry();
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: '1.2.3' }));
-    registerVersionCommand(registry, { ...deps, fetchImpl });
+    registerVersionCommand({ registry, resolveBaseUrl: ({ ...deps, fetchImpl }).resolveBaseUrl }, { ...{ ...deps, fetchImpl } });
 
-    await registry.dispatch(['version']);
+    await registry.dispatch({ argv: ['version'] });
     expect(fetchImpl).toHaveBeenCalledWith('http://d.example/api/daemon/status', expect.anything());
     expect(deps.written[0]).toBe('1.2.3\n');
   });
 
   it('registers usage text against the registry', () => {
     const registry = new CommandRegistry();
-    registerVersionCommand(registry, makeDeps());
-    expect(registry.usageFor('version')).toContain('Usage:');
+    registerVersionCommand({ registry, resolveBaseUrl: (makeDeps()).resolveBaseUrl }, { ...makeDeps() });
+    expect(registry.usageFor({ name: 'version' })).toContain('Usage:');
   });
 });

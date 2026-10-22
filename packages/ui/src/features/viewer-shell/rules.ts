@@ -110,26 +110,10 @@ export function visibleSelectedCommentIds<TComment extends ViewerCommentBase>(
  *  `number`. When true, callers should display the original text verbatim
  *  instead of a "prettified" re-stringify. */
 export function hasPrecisionSensitiveJsonNumberText(text: string): boolean {
-  let inString = false;
-  let escaped = false;
   const numberTokenPattern = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
   for (let i = 0; i < text.length; ) {
-    const char = text[i];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === '\\') {
-        escaped = true;
-      } else if (char === '"') {
-        inString = false;
-      }
-      i += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = true;
-      i += 1;
+    if (text[i] === '"') {
+      i = indexAfterJsonString(text, i + 1);
       continue;
     }
 
@@ -140,12 +124,25 @@ export function hasPrecisionSensitiveJsonNumberText(text: string): boolean {
       continue;
     }
 
-    const token = match[0];
-    if (isSignedNegativeZeroJsonNumberToken(token)) return true;
-    if (/[.eE]/.test(token) && isPrecisionSensitiveJsonNumberToken(token)) return true;
+    if (isPrecisionSensitiveNumberLiteral(match[0])) return true;
     i = numberTokenPattern.lastIndex;
   }
   return false;
+}
+
+/** Index just past the closing quote of the JSON string whose body starts at
+ *  `start` (honouring `\` escapes), or `text.length` when it is unterminated. */
+function indexAfterJsonString(text: string, start: number): number {
+  for (let i = start; i < text.length; i += 1) {
+    if (text[i] === '\\') i += 1;
+    else if (text[i] === '"') return i + 1;
+  }
+  return text.length;
+}
+
+function isPrecisionSensitiveNumberLiteral(token: string): boolean {
+  if (isSignedNegativeZeroJsonNumberToken(token)) return true;
+  return /[.eE]/.test(token) && isPrecisionSensitiveJsonNumberToken(token);
 }
 
 function isSignedNegativeZeroJsonNumberToken(token: string): boolean {

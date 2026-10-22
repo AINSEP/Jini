@@ -4,7 +4,7 @@
  * `{descriptor, handler, policy}` triples; the registry's *public* surface
  * (this file's `ToolRegistry` interface, and everything re-exported from
  * this package's root `index.ts`) exposes only `ToolDescriptor`s —
- * `register`/`has`/`list`. It never exposes a way to retrieve a `handler`
+ * `register`/`has`/`list`. Revocable host scopes add replacement without retrieval. It never exposes a way to retrieve a `handler`
  * or `policy` back out.
  *
  * That's the load-bearing invariant this task is named after: "handlers
@@ -13,8 +13,8 @@
  * available and check membership, but the only way to actually *run* a
  * tool is through `@jini-ai/daemon`'s `ToolExecutor`, which is the sole
  * consumer of {@link authorizeToolInvocation} — a function deliberately
- * exported from `./internal.js` (a package-internal entry point, see this
- * package's `package.json` `exports` map and `source-map.md`) rather than
+ * exported from `./composition.js` (a package-internal entry point, see this
+ * package's `package.json` `exports` map and `archived provenance ledger`) rather than
  * from the public `index.ts` barrel. Every other caller of
  * `@jini-ai/core`'s default entry point gets descriptors only.
  * `authorizeToolInvocation` itself runs the tool's `ToolPolicy` (and an
@@ -23,9 +23,12 @@
  * authorization — the earlier design (a separate `getToolRegistration`
  * that returned the handler unconditionally) let any caller of this
  * package-internal entry point skip the gate entirely; see this package's
- * `source-map.md` for the 2026-07-29 hardening note.
+ * `archived provenance ledger` for the 2026-07-29 hardening note.
  */
 import type { Principal } from './principal.js';
+import type { AgentToolSideEffect } from './agent-tools.js';
+import type { ToolMetadata } from './tool-metadata-types.js';
+import { normalizeToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
 
 /** A structural run reference — anything with a stable `id` satisfies this (e.g. `@jini-ai/protocol`'s `RunStatus`). No import needed to satisfy it; see the module doc. */
 export interface RunRef {
@@ -37,15 +40,17 @@ export interface RunRef {
  * handler or policy — those are only reachable via {@link authorizeToolInvocation}.
  */
 export interface ToolDescriptor {
+  /** Domain-owned discovery and approval metadata; grants no execution authority. */
+  readonly metadata?: ToolMetadata;
   readonly id: string;
   readonly description?: string;
   /**
    * JSON-Schema-shaped description of this tool's accepted input, carried as `unknown` because the
-   * kernel neither parses nor validates it — a schema dialect is a consumer concern, and taking a
-   * validator dependency here would put one in every package that touches a registry.
+   * gate reads common property/type fields for input normalization but leaves validation and
+   * schema dialects to the handler; no validator dependency belongs in every registry consumer.
    *
    * It exists because *every* discovery mechanism needs it and nothing else in the kernel can
-   * supply it: a caller that can enumerate `ToolRegistry.list()` still cannot tell an agent what
+   * supply it: a caller that can enumerate `ToolRegistry.list({})` still cannot tell an agent what
    * arguments a tool takes, which reduces discovery to guess-and-check against an opaque id.
    * Optional and additive, so no existing registration changes shape.
    */
@@ -73,6 +78,8 @@ export interface ToolDescriptor {
    * would admit every unclassified write, which is the exact failure the flag exists to prevent.
    */
   readonly readOnly?: boolean;
+  /** Independently checked domain risk, retained for discovery; never grants permission. */
+  readonly sideEffects?: AgentToolSideEffect;
 }
 
 /**
@@ -83,12 +90,24 @@ export interface ToolDescriptor {
  * so the rule lives in exactly one place — a change to what counts as read-only is a change to this
  * body, not a sweep across transports.
  *
- * @param descriptor - The registered descriptor, or `undefined` for an id that resolved to nothing.
+ * @param required.descriptor - The registered descriptor, or `undefined` for an id that resolved to nothing.
  * @returns `true` only for a descriptor that explicitly declares `readOnly: true`.
  * @complexity O(1).
  */
-export function isReadOnlyTool(descriptor: ToolDescriptor | undefined): boolean {
+export function isReadOnlyTool({ descriptor }: { descriptor: ToolDescriptor | undefined }): boolean {
   return descriptor?.readOnly === true;
+}
+
+/** Project registration risk for discovery using the same read-only decision as execution.
+ * Missing classification stays unknown; discovery never grants execution authority.
+ * @returns Explicit readOnly and sideEffects fields for a registry descriptor.
+ * @complexity O(1); no effects.
+ */
+export function toolDiscoveryMetadata({ descriptor }: { descriptor: Pick<ToolDescriptor, 'id' | 'readOnly' | 'sideEffects'> | undefined }, _options = {}): {
+  readOnly: boolean; sideEffects: AgentToolSideEffect | 'unknown';
+} {
+  const readOnly = isReadOnlyTool({ descriptor });
+  return { readOnly, sideEffects: descriptor?.sideEffects ?? (readOnly ? 'none' : 'unknown') };
 }
 
 /**
@@ -144,32 +163,23 @@ export interface ToolExecutionContext {
   readonly run: RunRef;
   readonly input: unknown;
   readonly signal: AbortSignal;
-  /** Present only when the invoking transport owns a run event stream — see {@link SurfaceEmitter}. */
+}
+
+/** Optional handler ports supplied by the invoking transport. */
+export interface ToolExecutionOptions {
   readonly emitSurface?: SurfaceEmitter;
+  /** Invoke through the same executor, retaining this call's principal, run, cancellation and
+   * transport gates. Rejects on denial, failed confirmation, validation or execution failure.
+   * A composition-owned registry may retain a source registration behind a derived catalog card.
+   * Batch wrappers use this port for each final merged input; every supplied registry is gated.
+   */
+  readonly invokeTool?: (required: { toolId: string; input: unknown }, optional?: { registry?: ToolRegistry }) => Promise<unknown>;
 }
 
 /** Runs the tool's actual side effect. Only ever invoked by `ToolExecutor`, never called directly by a route/agent holding the registry. */
-export type ToolHandler = (ctx: ToolExecutionContext) => Promise<unknown>;
+export type ToolHandler = (required: ToolExecutionContext, optional?: ToolExecutionOptions) => Promise<unknown>;
 
-/**
- * Thrown by a `ToolHandler` (or a validator it calls, e.g. `@jini-ai/cms`'s `registration-kit.ts`
- * `requireString`/`requireInputRecord`/etc.) to mean "the caller's input was malformed or missing a
- * required field" — a fact about the CALL, not the server. `@jini-ai/daemon`'s `ToolExecutor.execute`
- * tags a handler rejection's `ToolExecutionResult.errorKind` as `'validation'` when the thrown error
- * is `instanceof ToolInputError`, and every HTTP-facing mapping of a `'failed'` execution (today:
- * `@jini-ai/http-kit`'s `delegated-tools.ts`) uses that tag to answer with a 4xx instead of folding
- * it into the same redacted 500 an actual internal/infrastructure failure gets.
- *
- * Deliberately a plain marker with no extra fields: the message itself is already caller-actionable
- * (`withSchemaOnRejection` appends the tool's own input schema to it), so nothing beyond "this IS one
- * of these" needs to survive the `instanceof` check.
- */
-export class ToolInputError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ToolInputError';
-  }
-}
+export { ToolInputError } from './tool-input-errors.js';
 
 export type AuthorizationDecision = 'allow' | 'deny';
 
@@ -193,6 +203,11 @@ export interface ToolPolicy {
 }
 
 export interface ToolRegistration {
+  /** Optional execution-only schema, e.g. authenticated form callbacks. Never published by discovery;
+   * the handler must retain callback authentication and authorization. Defaults to descriptor.inputSchema. */
+  readonly invocationSchema?: unknown;
+  /** Domain-owned aliases, read by the single execution gate before validation/authorization. */
+  readonly normalizeInput?: ToolInputNormalizer;
   readonly descriptor: ToolDescriptor;
   readonly handler: ToolHandler;
   readonly policy: ToolPolicy;
@@ -200,14 +215,65 @@ export interface ToolRegistration {
 
 /** The public registration/enumeration surface. See the module doc for why `handler`/`policy` never appear here. */
 export interface ToolRegistry {
-  /** @throws If `registration.descriptor.id` is already registered — re-registration must be explicit (unregister is not exposed; this registry is append-only by design, matching the kernel's "tools are registered once at composition time" model). */
+  /** @throws If the policy has no callable `authorize` or `registration.descriptor.id` is already registered — re-registration must be explicit (unregister is not exposed; this registry is append-only by design, matching the kernel's "tools are registered once at composition time" model). */
   register(registration: ToolRegistration): void;
-  has(toolId: string): boolean;
+  has(required: { toolId: string }): boolean;
   /** Descriptors only, in registration order. Never the underlying handlers/policies. */
-  list(): readonly ToolDescriptor[];
+  list(_required: Record<string, never>): readonly ToolDescriptor[];
 }
 
 const registrationsByRegistry = new WeakMap<ToolRegistry, Map<string, ToolRegistration>>();
+/** Refuse malformed runtime contributions before either registration path changes the registry. */
+function assertAuthorizationPolicy({ registration }: { registration: ToolRegistration }, _optional: Record<string, never> = {}): void {
+  if (typeof registration.policy?.authorize !== 'function') {
+    throw new Error(`ToolRegistry: tool "${registration.descriptor.id}" must declare an authorization policy`);
+  }
+}
+// Static register() remains append-only; scoped host contributions below explicitly own removal.
+const registryRevisions = new WeakMap<object, number>();
+/** Advance a core registry's revision. `createToolRegistry` seeds 0 together with the registry's
+ * `registrationsByRegistry` entry, and only such registries reach `register()` or a scope's
+ * `replace()` (a scope refuses any other registry), so the seeded entry is always present. */
+function bumpRegistryRevision(registry: object): void {
+  registryRevisions.set(registry, registryRevisions.get(registry)! + 1);
+}
+/** A host can invalidate its disposable discovery snapshot without exposing handlers. */
+export function toolRegistryRevision(required: { registry: object }, _optional: Record<string, never> = {}): number | undefined {
+  return registryRevisions.get(required.registry);
+}
+/** Revocable registration scope on the SAME registry the executor owns. Collision validation
+ * completes before mutation, so a failed replacement cannot lose the working generation.
+ * Only this closure may remove its own registrations; native and other scopes remain protected.
+ * Already-authorized closures are revoked too: confirmation can await a human across disable. */
+export function createToolRegistrationScope(required: { registry: ToolRegistry }, _optional: Record<string, never> = {}) {
+  const registrations = registrationsByRegistry.get(required.registry);
+  if (!registrations) throw new Error('registration scopes require a core ToolRegistry');
+  let owned = new Set<string>();
+  let generation = 0;
+  return {
+    replace({ registrations: next }: { registrations: readonly ToolRegistration[] }, _optional: Record<string, never> = {}) {
+      const ids = new Set<string>();
+      for (const registration of next) {
+        assertAuthorizationPolicy({ registration });
+        const id = registration.descriptor.id;
+        if (ids.has(id) || (registrations.has(id) && !owned.has(id))) throw new Error(`ToolRegistry: tool "${id}" is already registered`);
+        ids.add(id);
+      }
+      generation++;
+      const current = generation;
+      for (const id of owned) registrations.delete(id);
+      for (const registration of next) registrations.set(registration.descriptor.id, { ...registration,
+        handler: (input, options) => {
+          if (generation !== current) throw new Error('tool registration was revoked');
+          return registration.handler(input, options);
+        },
+      });
+      owned = ids;
+      bumpRegistryRevision(required.registry);
+    },
+  };
+}
+
 
 /**
  * Creates an empty, append-only `ToolRegistry`.
@@ -219,25 +285,28 @@ const registrationsByRegistry = new WeakMap<ToolRegistry, Map<string, ToolRegist
  * @complexity `register`/`has` O(1); `list` O(n) in registered tool count.
  * @overallScore 100/100
  */
-export function createToolRegistry(): ToolRegistry {
+export function createToolRegistry(_required: Record<string, never>): ToolRegistry {
   const registrations = new Map<string, ToolRegistration>();
 
   const registry: ToolRegistry = {
     register(registration: ToolRegistration): void {
+      assertAuthorizationPolicy({ registration });
       if (registrations.has(registration.descriptor.id)) {
         throw new Error(`ToolRegistry: tool "${registration.descriptor.id}" is already registered`);
       }
       registrations.set(registration.descriptor.id, registration);
+      bumpRegistryRevision(registry);
     },
-    has(toolId: string): boolean {
+    has({ toolId }: { toolId: string }): boolean {
       return registrations.has(toolId);
     },
-    list(): readonly ToolDescriptor[] {
+    list(_required: Record<string, never>): readonly ToolDescriptor[] {
       return Array.from(registrations.values(), (r) => r.descriptor);
     },
   };
 
   registrationsByRegistry.set(registry, registrations);
+  registryRevisions.set(registry, 0);
   return registry;
 }
 
@@ -256,14 +325,19 @@ export interface ToolAuthorizationDelegate {
  * to use it after checking the decision.
  */
 export type ToolInvocationAuthorization =
-  | { readonly descriptor: ToolDescriptor; readonly decision: 'allow'; readonly handler: ToolHandler }
+  | { readonly descriptor: ToolDescriptor; readonly decision: 'allow'; readonly handler: ToolHandler; readonly input: unknown; readonly normalizationNotes: readonly string[] }
   | { readonly descriptor: ToolDescriptor; readonly decision: 'deny' };
+
+/** Whether a registration has no schema or domain input-normalization hook. O(1), no effects. */
+function isSchemaFreeRegistration({ descriptor, registration }: { descriptor: ToolDescriptor; registration: ToolRegistration }, _options: Record<string, never> = {}): boolean {
+  return descriptor.inputSchema === undefined && registration.invocationSchema === undefined && registration.normalizeInput === undefined;
+}
 
 /**
  * Package-internal escape hatch: resolves `toolId` in `registry` and runs
  * its authorization gate — the tool's own {@link ToolPolicy}, then an
  * optional transport-level `delegate.onAuthorize` veto — before ever
- * exposing the handler. Exported only from `./internal.js` (see this
+ * exposing the handler. Exported only from `./composition.js` (see this
  * package's `package.json` `exports` map) — `@jini-ai/daemon`'s
  * `ToolExecutor` is the one and only intended caller. Not re-exported from
  * `index.ts`, so it never reaches `@jini-ai/core`'s public consumers.
@@ -271,7 +345,7 @@ export type ToolInvocationAuthorization =
  * Replaces an earlier `getToolRegistration` that returned the full
  * `{descriptor, handler, policy}` triple unconditionally — since a
  * package.json `exports` subpath is not an access modifier (see this
- * package's `source-map.md`), that let any consumer able to `import` this
+ * package's `archived provenance ledger`), that let any consumer able to `import` this
  * package-internal entry point retrieve a live handler closure without
  * ever calling a policy. Bundling resolution with authorization here means
  * the handler itself is now unobtainable without already having passed the
@@ -281,21 +355,24 @@ export type ToolInvocationAuthorization =
  * @internal
  */
 export async function authorizeToolInvocation(
-  registry: ToolRegistry,
-  toolId: string,
-  principal: Principal,
-  run: RunRef,
-  input: unknown,
-  delegate?: ToolAuthorizationDelegate,
+  { registry, toolId, principal, run, input }: {
+    registry: ToolRegistry; toolId: string; principal: Principal; run: RunRef; input: unknown;
+  },
+  { delegate }: { delegate?: ToolAuthorizationDelegate } = {},
 ): Promise<ToolInvocationAuthorization | undefined> {
   const registration = registrationsByRegistry.get(registry)?.get(toolId);
   if (!registration) {
     return undefined;
   }
   const { descriptor, handler, policy } = registration;
+  // Schema-free tools have nothing to normalize; preserve their authorization/confirmation timing.
+  const normalized = isSchemaFreeRegistration({ descriptor, registration })
+    ? { input, notes: [] }
+    : await normalizeToolInput({ input, registration });
+  input = normalized.input;
   let decision = await policy.authorize({ principal, run, tool: descriptor, input });
   if (decision === 'allow' && delegate?.onAuthorize) {
     decision = await delegate.onAuthorize({ principal, run, tool: descriptor, input });
   }
-  return decision === 'allow' ? { descriptor, decision, handler } : { descriptor, decision: 'deny' };
+  return decision === 'allow' ? { descriptor, decision, handler, input, normalizationNotes: normalized.notes } : { descriptor, decision: 'deny' };
 }

@@ -12,9 +12,9 @@ export { shadcnRadioGroupManifest, shadcnRadioGroupPropsSchema } from './provide
 export { shadcnTextInputManifest, shadcnTextInputPropsSchema } from './providers/shadcn/text-input-field.manifest.js';
 export { shadcnSelectManifest, shadcnSelectPropsSchema } from './providers/shadcn/select-field.manifest.js';
 export { shadcnCardManifest, shadcnCardPropsSchema } from './providers/shadcn/content-card.manifest.js';
-export { rechartsBarChartManifest, rechartsBarChartPropsSchema } from './providers/recharts/bar-chart.manifest.js';
-export { rechartsLineChartManifest, rechartsLineChartPropsSchema } from './providers/recharts/line-chart.manifest.js';
-export { rechartsPieChartManifest, rechartsPieChartPropsSchema } from './providers/recharts/pie-chart.manifest.js';
+export { rechartsBarChartManifest, rechartsBarChartPropsSchema } from '../charts/wire.js';
+export { rechartsLineChartManifest, rechartsLineChartPropsSchema } from '../charts/wire.js';
+export { rechartsPieChartManifest, rechartsPieChartPropsSchema } from '../charts/wire.js';
 
 import type { InteractiveComponentManifest } from './types.js';
 import { nativeDataTableManifest } from './providers/native/data-table.manifest.js';
@@ -25,9 +25,9 @@ import { shadcnRadioGroupManifest } from './providers/shadcn/radio-group-field.m
 import { shadcnTextInputManifest } from './providers/shadcn/text-input-field.manifest.js';
 import { shadcnSelectManifest } from './providers/shadcn/select-field.manifest.js';
 import { shadcnCardManifest } from './providers/shadcn/content-card.manifest.js';
-import { rechartsBarChartManifest } from './providers/recharts/bar-chart.manifest.js';
-import { rechartsLineChartManifest } from './providers/recharts/line-chart.manifest.js';
-import { rechartsPieChartManifest } from './providers/recharts/pie-chart.manifest.js';
+import { rechartsBarChartManifest } from '../charts/wire.js';
+import { rechartsLineChartManifest } from '../charts/wire.js';
+import { rechartsPieChartManifest } from '../charts/wire.js';
 
 /** Every registered manifest, for search/describe tooling that needs to list them all. Order is preference order — see `index.ts`'s `DEFAULT_INTERACTIVE_UI_REGISTRY` for where that's load-bearing. */
 export const ALL_MANIFESTS: readonly InteractiveComponentManifest[] = [

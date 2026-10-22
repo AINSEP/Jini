@@ -16,6 +16,6 @@
  *  any single quotes it already contains. The command name itself is not quoted by callers —
  *  only arguments — since it is expected to be a trusted program name, not caller-controlled
  *  data. */
-export function shellQuote(value: string): string {
+export function shellQuote({ value }: { value: string }): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }

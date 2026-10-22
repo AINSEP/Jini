@@ -16,13 +16,14 @@
  */
 import path from 'node:path';
 import type { ExecutionProfile } from './types.js';
+import type { RuntimeBuildOptions } from '../../types.js';
 import {
   createDsmlArtifactTextSuppressor,
   createToolCallTextSuppressor,
   type ArtifactTextSuppressor,
 } from './text-suppression.js';
 import { createJsonLineStream } from '../core/index.js';
-import type { JsonRpcId, JsonObject, TimerHandle, AcpChildProcess } from './types.js';
+import type { JsonRpcId, UnknownRecord, TimerHandle, AcpChildProcess } from './types.js';
 import {
   ACP_PROTOCOL_VERSION,
   DEFAULT_STAGE_TIMEOUT_MS,
@@ -40,6 +41,7 @@ import {
   rpcErrorRetryable,
   promotedOpenCodeSessionErrorPayload,
   formatUsage,
+  choosePermissionOutcome,
 } from './rpc.js';
 import {
   acpRawEventShape,
@@ -68,6 +70,11 @@ export interface AcpPermissionOption {
   readonly [key: string]: unknown;
 }
 
+/** ACP `PermissionOptionKind` values; other offered options are ignored. */
+const ACP_PERMISSION_OPTION_KINDS: readonly string[] = ['allow_once', 'allow_always', 'reject_once', 'reject_always'];
+/** ACP `ToolKind` values; anything else is logged as `other`. */
+const ACP_TOOL_KINDS: readonly string[] = ['read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'switch_mode', 'other'];
+
 /**
  * The complete, host-auditable context for an ACP agent's request to perform
  * one of *its own* tool calls. Selecting an option authorizes or rejects the
@@ -77,10 +84,10 @@ export interface AcpPermissionOption {
 export interface AcpPermissionRequest {
   readonly requestId: JsonRpcId;
   readonly sessionId: string | null;
-  readonly toolCall: JsonObject | null;
+  readonly toolCall: UnknownRecord | null;
   readonly options: readonly AcpPermissionOption[];
   /** Original ACP request parameters for forward-compatible audit storage. */
-  readonly rawParams: JsonObject;
+  readonly rawParams: UnknownRecord;
 }
 
 /** A host's response to an {@link AcpPermissionRequest}. */
@@ -109,6 +116,8 @@ export interface AcpSessionController {
  * `send` are optional and carry sensible defaults.
  */
 export interface AttachAcpSessionOptions {
+  /** Host-authorized parity: bypass native permission requests; disable silence watchdog. */
+  cliParity?: boolean;
   child: AcpChildProcess;
   prompt: string;
   cwd?: string;
@@ -117,14 +126,15 @@ export interface AttachAcpSessionOptions {
   mcpServers?: AcpMcpServerInput[];
   // Passed through to buildAcpSessionNewParams — see AcpSessionOptions.
   envFormat?: 'array' | 'map';
-  send: (event: string, payload: unknown) => void;
+  send: (requiredArgs: { event: string; payload: unknown }) => void;
   /**
    * Receives every native ACP tool-permission request before the agent can
-   * execute it. Omit it only when the host intends the session to fail closed
-   * on its first permission request; a runnable ACP host injects a policy
-   * that records and selects an offered option.
+   * execute it. Omit it to answer by `permissionMode`; a handler that throws
+   * or picks an unoffered option cancels the request instead of failing the run.
    */
   onPermissionRequest?: AcpPermissionHandler;
+  /** Default policy when no handler is injected: bypass allows once; otherwise reject. */
+  permissionMode?: RuntimeBuildOptions['permissionMode'];
   clientName?: string;
   clientVersion?: string;
   stageTimeoutMs?: number;
@@ -141,6 +151,10 @@ export interface AttachAcpSessionOptions {
   // captured from a prior run via `getDurableSessionId()`) rather than
   // `session/new`. The agent verifies the session and, if it is gone, returns a
   // structured `resume_failed` error the caller maps to its reseed path.
+  // Every failure before session/load acknowledgement has
+  // `error.details.kind: 'resume_failed'`, including transport/timeouts.
+  // The original error code is retained, with prior details under `cause`.
+  // Once load succeeds, later model/prompt failures are ordinary run errors.
   resumeSessionId?: string | null;
   // Subsegment timing markers for spawn->first-token attribution.
   // `onCliReady` fires once on the first well-formed ACP JSON-RPC message
@@ -234,12 +248,12 @@ export function createAcpSessionState(): AcpSessionState {
  * construct a fake one with `vi.fn()` stubs for the callbacks.
  */
 export interface AcpSessionEffects {
-  send: (event: string, payload: unknown) => void;
+  send: (requiredArgs: { event: string; payload: unknown }) => void;
   fail: (
     message: string,
     options?: { forceModelUnavailable?: boolean; details?: unknown; retryable?: boolean },
   ) => void;
-  failWithPayload: (payload: unknown) => void;
+  failWithPayload: (payload: UnknownRecord) => void;
   writeRpc: (id: JsonRpcId, method: string, params: unknown, timeoutLabel: string) => void;
   sendPrompt: () => void;
   recoverFromModelSelectionError: () => void;
@@ -247,7 +261,7 @@ export interface AcpSessionEffects {
   emitVisibleTextDelta: (delta: string) => void;
   noteArtifactTextSuppression: (reason: string) => void;
   noteToolCallTextSuppression: (reason: string) => void;
-  emitAcpRawShapeDiagnostic: (update: JsonObject) => void;
+  emitAcpRawShapeDiagnostic: (update: UnknownRecord) => void;
   toolCallTextSuppressor: ArtifactTextSuppressor;
   runStartedAt: number;
   modelUnavailableErrorCode?: 'AMR_MODEL_UNAVAILABLE' | undefined;
@@ -258,6 +272,36 @@ export interface AcpSessionEffects {
   effectiveCwd: string;
   mcpServers?: AcpMcpServerInput[] | undefined;
   envFormat: 'array' | 'map';
+}
+
+/** The well-formed options of a permission request: a non-empty `optionId`
+ * and an ACP `PermissionOptionKind`; anything else offered is ignored. */
+function offeredPermissionOptions(params: UnknownRecord | null): AcpPermissionOption[] {
+  if (!Array.isArray(params?.options)) return [];
+  return params.options.filter((option): option is AcpPermissionOption => {
+    const record = asObject(option);
+    return typeof record?.optionId === 'string' && record.optionId !== '' &&
+      typeof record.kind === 'string' && ACP_PERMISSION_OPTION_KINDS.includes(record.kind);
+  });
+}
+
+/** The tool call's ACP `ToolKind` for permission logging, `other` when absent or unknown. */
+function permissionToolKind(toolCall: UnknownRecord | null): string {
+  return typeof toolCall?.kind === 'string' && ACP_TOOL_KINDS.includes(toolCall.kind) ? toolCall.kind : 'other';
+}
+
+/** The permission decision used when no `onPermissionRequest` handler is
+ * injected: the option `choosePermissionOutcome` picks under the run's
+ * `permissionMode` / `cliParity`, or a cancellation when it picks none. */
+function defaultPermissionDecision(
+  { optionRecords }: { optionRecords: AcpPermissionOption[] },
+  {
+    permissionMode,
+    cliParity,
+  }: { permissionMode?: AttachAcpSessionOptions['permissionMode']; cliParity?: boolean | undefined } = {},
+): AcpPermissionDecision {
+  const optionId = choosePermissionOutcome(optionRecords, { ...(permissionMode ? { permissionMode } : {}), ...(cliParity ? { cliParity: true } : {}) });
+  return optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' };
 }
 
 /** `typeof value === 'string' ? value : null` as a named predicate — too trivial to export on its own. */
@@ -291,21 +335,52 @@ export function handleRpcError({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  obj: JsonObject;
-  error: JsonObject | null;
+  obj: UnknownRecord;
+  error: UnknownRecord | null;
   rpcErr: string;
 }): void {
-  if (
-    obj.id === state.setModelRequestId &&
-    modelSelectionErrorIsRecoverable(error?.code) &&
-    state.promptRequestId === null
-  ) {
+  if (isRecoverableModelSelectionError({ state, effects, obj, error })) {
     effects.recoverFromModelSelectionError();
     return;
   }
   if (error?.code === -32603 && obj.id !== state.expectedId) {
     return;
   }
+  failWithRpcError({ effects, obj, rpcErr });
+}
+
+/** True when `obj` is a recoverable error answering our own `session/set_model`
+ * request, sent before any prompt, for a run that asked for no specific model. */
+function isRecoverableModelSelectionError({
+  state,
+  effects,
+  obj,
+  error,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  obj: UnknownRecord;
+  error: UnknownRecord | null;
+}): boolean {
+  return (
+    obj.id === state.setModelRequestId &&
+    modelSelectionErrorIsRecoverable(error?.code) &&
+    state.promptRequestId === null &&
+    (!effects.model || effects.model === 'default')
+  );
+}
+
+/** Fails the run for a real RPC error, promoting a known OpenCode session error
+ * payload when present and carrying the RPC `data` details and retryability. */
+function failWithRpcError({
+  effects,
+  obj,
+  rpcErr,
+}: {
+  effects: AcpSessionEffects;
+  obj: UnknownRecord;
+  rpcErr: string;
+}): void {
   const details = rpcErrorData(obj);
   const promotedPayload = promotedOpenCodeSessionErrorPayload(details, rpcErr);
   if (promotedPayload) {
@@ -325,7 +400,7 @@ export function tryPromoteAmrRetryStatus({
   update,
 }: {
   effects: AcpSessionEffects;
-  update: JsonObject;
+  update: UnknownRecord;
 }): boolean {
   const promotedPayload = promotedAmrRetryStatusPayload(update, effects.accountFailureClassifier);
   if (!promotedPayload) return false;
@@ -341,16 +416,16 @@ export function handleThoughtChunkUpdate({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  update: JsonObject;
+  update: UnknownRecord;
 }): void {
   effects.emitAcpRawShapeDiagnostic(update);
   const text = extractAcpUpdateText(update);
   if (!text) return;
   if (!state.emittedThinkingStart) {
     state.emittedThinkingStart = true;
-    effects.send('agent', { type: 'thinking_start' });
+    effects.send({ event: 'agent', payload: { type: 'thinking_start' } });
   }
-  effects.send('agent', { type: 'thinking_delta', delta: text });
+  effects.send({ event: 'agent', payload: { type: 'thinking_delta', delta: text } });
 }
 
 /** Strips tool-call XML from a raw message delta via the session's tool-call text suppressor, noting the suppression reason. */
@@ -490,7 +565,7 @@ export function handleMessageChunkUpdate({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  update: JsonObject;
+  update: UnknownRecord;
 }): void {
   effects.emitAcpRawShapeDiagnostic(update);
   const text = extractAcpUpdateText(update);
@@ -545,7 +620,7 @@ export function mirrorArtifactWriteToolEvent({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  update: JsonObject;
+  update: UnknownRecord;
   toolCallId: string | null;
 }): void {
   if (!toolCallId) return;
@@ -561,13 +636,13 @@ export function mirrorArtifactWriteToolEvent({
   const shouldEmit = !st.emitted && (failed || isAcpCompletedStatus(update));
   if (!shouldEmit) return;
   st.emitted = true;
-  effects.send('agent', {
+  effects.send({ event: 'agent', payload: {
     type: 'tool_use',
     id: toolCallId,
     name: 'Write',
     input: { file_path: st.path ?? toolCallId },
-  });
-  effects.send('agent', { type: 'tool_result', toolUseId: toolCallId, isError: failed });
+  } });
+  effects.send({ event: 'agent', payload: { type: 'tool_result', toolUseId: toolCallId, isError: failed } });
   state.emittedConcreteToolEvent = true;
 }
 
@@ -578,7 +653,7 @@ export function updateDsmlSuppressorForToolCall({
   toolCallId,
 }: {
   state: AcpSessionState;
-  update: JsonObject;
+  update: UnknownRecord;
   toolCallId: string | null;
 }): void {
   if (isAcpArtifactWriteUpdate(update, state.acpArtifactWriteToolCallIds)) {
@@ -609,7 +684,7 @@ export function handleToolCallUpdate({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  update: JsonObject;
+  update: UnknownRecord;
 }): void {
   // The turn did real work (a tool call / file edit), which is valid output even
   // when the model emits no closing assistant text. Track it so the prompt-complete
@@ -631,17 +706,56 @@ export function handleSessionUpdate({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  update: JsonObject;
+  update: UnknownRecord;
 }): void {
+  applyModelChangeUpdate({ state, effects, update });
   if (effects.modelUnavailableErrorCode && tryPromoteAmrRetryStatus({ effects, update })) return;
   if (update.sessionUpdate !== 'agent_message_chunk' && update.sessionUpdate !== 'agent_thought_chunk') {
-    effects.send('agent', {
+    effects.send({ event: 'agent', payload: {
       type: 'status',
       label: String(update.sessionUpdate || 'session_update'),
       elapsedMs: Date.now() - effects.runStartedAt,
-    });
+    } });
     effects.emitAcpRawShapeDiagnostic(update);
   }
+  routeSessionUpdateKind({ state, effects, update });
+}
+
+/** Tracks a model switch reported by a `session/update` and emits a `model` status when it changes. */
+function applyModelChangeUpdate({
+  state,
+  effects,
+  update,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  update: UnknownRecord;
+}): void {
+  // Model/config updates are authoritative protocol metadata, not assistant self-report.
+  const changedModel = currentModelFromSessionResult(update) ?? currentModelUpdateId(update);
+  if (changedModel && changedModel !== state.activeModel) {
+    state.activeModel = changedModel;
+    effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: changedModel } });
+  }
+}
+
+/** The `currentModelId` of a `current_model_update` notification, else `null`. */
+function currentModelUpdateId(update: UnknownRecord): string | null {
+  return update.sessionUpdate === 'current_model_update' && typeof update.currentModelId === 'string'
+    ? update.currentModelId
+    : null;
+}
+
+/** Routes a `session/update` to its streaming-kind handler (thought, message, tool call). */
+function routeSessionUpdateKind({
+  state,
+  effects,
+  update,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  update: UnknownRecord;
+}): void {
   if (update.sessionUpdate === 'agent_thought_chunk') {
     handleThoughtChunkUpdate({ state, effects, update });
     return;
@@ -670,9 +784,7 @@ export function handleInitializeAck({ state, effects }: { state: AcpSessionState
     effects.writeRpc(
       state.nextId,
       'session/new',
-      buildAcpSessionNewParams(
-        effects.effectiveCwd,
-        effects.mcpServers ? { mcpServers: effects.mcpServers, envFormat: effects.envFormat } : { envFormat: effects.envFormat },
+      buildAcpSessionNewParams({ cwd: effects.effectiveCwd }, effects.mcpServers ? { mcpServers: effects.mcpServers, envFormat: effects.envFormat } : { envFormat: effects.envFormat }
       ),
       'session/new',
     );
@@ -689,6 +801,10 @@ export function triggerSetModelIfNeeded({
   effects: AcpSessionEffects;
 }): boolean {
   if (!state.sessionId || !effects.model || effects.model === 'default') return false;
+  // Hosts now pin the concrete starting model on every run. When session/new already reports that
+  // model, a set_model round-trip is redundant, and a CLI without set_model support would turn it
+  // into a fatal explicit-model rejection.
+  if (state.activeModel === effects.model) return false;
   state.setModelRequestId = state.nextId;
   state.expectedId = state.nextId;
   const setModelMethod = state.modelConfigId ? 'session/set_config_option' : 'session/set_model';
@@ -709,7 +825,7 @@ export function handleSessionNewAck({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  result: JsonObject;
+  result: UnknownRecord;
   rawLine: string;
 }): void {
   state.sessionId = asOptionalString(result.sessionId);
@@ -719,8 +835,8 @@ export function handleSessionNewAck({
   if (state.sessionId) notifySessionInit(effects);
   state.modelConfigId = resolveModelConfigId(findModelConfigOption(result.configOptions));
   state.activeModel = currentModelFromSessionResult(result);
-  if (state.sessionId && state.activeModel) {
-    effects.send('agent', { type: 'status', label: 'model', model: state.activeModel });
+  if (state.sessionId && state.activeModel && (!effects.model || effects.model === state.activeModel)) {
+    effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
   }
   if (triggerSetModelIfNeeded({ state, effects })) return;
   if (!state.sessionId) {
@@ -738,7 +854,7 @@ export function handlePromptResult({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  result: JsonObject;
+  result: UnknownRecord;
 }): void {
   const usage = formatUsage(result.usage);
   if (!state.emittedVisibleTextChunk && !state.emittedConcreteToolEvent && effects.modelUnavailableErrorCode) {
@@ -776,7 +892,7 @@ export function isModelSetAckExpected({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  obj: JsonObject;
+  obj: UnknownRecord;
 }): boolean {
   return Boolean(state.sessionId && effects.model && effects.model !== 'default' && obj.id === state.expectedId);
 }
@@ -789,14 +905,14 @@ export function handleModelSetAck({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  result: JsonObject;
+  result: UnknownRecord;
 }): void {
   // `isModelSetAckExpected` already confirmed `effects.model` is a truthy
   // string before this runs; the assertion is only to carry that narrowing
   // across the function boundary for the type checker (it doesn't survive
   // the call), not a behavior change.
   state.activeModel = currentModelFromSessionResult(result) ?? (effects.model as string);
-  effects.send('agent', { type: 'status', label: 'model', model: state.activeModel });
+  effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
   effects.sendPrompt();
 }
 
@@ -810,8 +926,8 @@ export function routeResultById({
 }: {
   state: AcpSessionState;
   effects: AcpSessionEffects;
-  obj: JsonObject;
-  result: JsonObject | null;
+  obj: UnknownRecord;
+  result: UnknownRecord | null;
   rawLine: string;
 }): void {
   if (obj.id !== state.expectedId || !result) return;
@@ -849,7 +965,7 @@ function resolveAcpSessionOptionDefaults(options: AttachAcpSessionOptions): Reso
     envFormat: options.envFormat ?? 'array',
     clientName: options.clientName ?? 'agent-runtime',
     clientVersion: options.clientVersion ?? 'runtime-adapter',
-    stageTimeoutMs: options.stageTimeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS,
+    stageTimeoutMs: options.cliParity && options.permissionMode === 'bypass' ? 0 : options.stageTimeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS,
     executionProfile: options.executionProfile ?? 'filesystem',
     accountFailureClassifier: options.accountFailureClassifier ?? noopAccountFailureClassifier,
   };
@@ -880,7 +996,8 @@ function resolveAcpSessionOptionDefaults(options: AttachAcpSessionOptions): Reso
  * @returns A controller with `hasFatalError`, `getDurableSessionId`,
  *   `completedSuccessfully`, and `abort` methods.
  */
-export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionController {
+export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "child" | "prompt" | "send">, optionalArgs: Omit<AttachAcpSessionOptions, "child" | "prompt" | "send"> = {}): AcpSessionController {
+  const options: AttachAcpSessionOptions = { ...optionalArgs, ...requiredArgs };
   const {
     child,
     prompt,
@@ -891,6 +1008,7 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     modelUnavailableErrorCode,
     resumeSessionId,
     onPermissionRequest,
+    permissionMode,
     onCliReady,
     onSessionInit,
   } = options;
@@ -906,7 +1024,11 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
   const runStartedAt = Date.now();
   const effectiveCwd = path.resolve(cwd || process.cwd());
   if (!child.stdin || !child.stdout) {
-    throw new Error('ACP child process must expose stdin and stdout streams');
+    const error = new Error('ACP child process must expose stdin and stdout streams');
+    if (resumeSessionId) Object.assign(error, {
+      details: { kind: 'resume_failed', sessionId: resumeSessionId },
+    });
+    throw error;
   }
   const stdin = child.stdin;
   const stdout = child.stdout;
@@ -919,7 +1041,7 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
   let fatal = false;
   let aborted = false;
   let stageTimer: TimerHandle | null = null;
-  const pendingPermissionRequestIds = new Set<JsonRpcId>();
+  const pendingPermissionRequests = new Map<JsonRpcId, () => void>();
   const toolCallTextSuppressor = createToolCallTextSuppressor();
   let toolCallTextSuppressorLastSuppressedChars = 0;
   const artifactTextSuppressionSummary = {
@@ -973,6 +1095,35 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     );
   };
 
+  /** Emits a failure, tagging an unacknowledged resume without losing its cause.
+   * The session id is only set by a valid load acknowledgement, so the same
+   * boundary covers initialize/load RPC errors, watchdogs, and transport loss.
+   * Fresh sessions and errors after load keep their existing payloads.
+   * @complexity O(1), excluding the host's event sink.
+   */
+  const sendFailure = ({ payload }: { payload: UnknownRecord }): void => {
+    if (!resumeSessionId || state.sessionId) {
+      send({ event: 'error', payload });
+      return;
+    }
+    const original = payload;
+    const originalError = asObject(original.error);
+    send({ event: 'error', payload: {
+      ...original,
+      error: {
+        code: 'AGENT_EXECUTION_FAILED',
+        message: original.message,
+        retryable: false,
+        ...originalError,
+        details: {
+          kind: 'resume_failed',
+          sessionId: resumeSessionId,
+          ...(originalError?.details === undefined ? {} : { cause: originalError.details }),
+        },
+      },
+    } });
+  };
+
   // Both call sites below (the session/update retry-status promotion and the
   // stderr promotion) are already nested inside a scope gated by `finished`
   // at their own entry point (the parser callback's own `if (aborted ||
@@ -982,12 +1133,12 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
   // second time once `finished` is true. The origin file carried its own
   // `if (finished) return;` re-entry guard here anyway; removed per this
   // package's coverage-driven dead-branch discipline (verified unreachable
-  // by tracing every call site — see source-map.md), not suppressed.
-  const failWithPayload = (payload: unknown) => {
+  // by tracing every call site — see archived provenance ledger), not suppressed.
+  const failWithPayload = (payload: UnknownRecord) => {
     finished = true;
     fatal = true;
     clearStageTimer();
-    send('error', payload);
+    sendFailure({ payload });
     if (!child.killed) child.kill('SIGTERM');
   };
 
@@ -1002,9 +1153,7 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     const useModelUnavailable =
       modelUnavailableErrorCode &&
       (options.forceModelUnavailable || isModelUnavailableError(message));
-    send(
-      'error',
-      useModelUnavailable
+    sendFailure({ payload: useModelUnavailable
         ? amrModelUnavailablePayload(message)
         : options.details === undefined && options.retryable === undefined
           ? { message }
@@ -1023,10 +1172,10 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
                 // unconditionally (rather than conditionally omitting the
                 // key) is behaviorally identical for every real caller;
                 // simplified per this package's coverage-driven
-                // dead-branch discipline. See source-map.md.
+                // dead-branch discipline. See archived provenance ledger.
                 details: options.details,
               },
-            },
+            } }
     );
     if (!child.killed) child.kill('SIGTERM');
   };
@@ -1040,17 +1189,17 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     }
   };
 
-  const emitAcpRawShapeDiagnostic = (update: JsonObject) => {
+  const emitAcpRawShapeDiagnostic = (update: UnknownRecord) => {
     if (!modelUnavailableErrorCode) return;
     if (rawAcpShapeDiagnosticCount >= ACP_RAW_EVENT_SHAPE_DIAGNOSTIC_LIMIT) return;
     rawAcpShapeDiagnosticCount += 1;
-    send('agent', {
+    send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_raw_event_shape',
       source: 'acp-json-rpc',
       elapsedMs: Date.now() - runStartedAt,
       shape: acpRawEventShape(update),
-    });
+    } });
   };
 
   // All three call sites guard against an empty `delta` before calling this
@@ -1060,18 +1209,18 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
   // origin file's own `if (!delta) return;` guard here can never actually
   // fire. Removed per this package's coverage-driven dead-branch
   // discipline (verified unreachable by tracing every call site — see
-  // source-map.md), not suppressed.
+  // archived provenance ledger), not suppressed.
   const emitVisibleTextDelta = (delta: string) => {
     state.emittedVisibleTextChunk = true;
     if (!emittedFirstTokenStatus) {
       emittedFirstTokenStatus = true;
-      send('agent', {
+      send({ event: 'agent', payload: {
         type: 'status',
         label: 'streaming',
         ttftMs: Date.now() - runStartedAt,
-      });
+      } });
     }
-    send('agent', { type: 'text_delta', delta });
+    send({ event: 'agent', payload: { type: 'text_delta', delta } });
   };
 
   const noteArtifactTextSuppression = (reason: string) => {
@@ -1086,7 +1235,7 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     artifactTextSuppressionSummary.closedBlocks = stats.closedBlocks;
     if (artifactSuppressionDiagnosticCount >= ACP_RAW_EVENT_SHAPE_DIAGNOSTIC_LIMIT) return;
     artifactSuppressionDiagnosticCount += 1;
-    send('agent', {
+    send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_artifact_text_suppression',
       source: 'acp-json-rpc',
@@ -1098,13 +1247,13 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
       closedBlocks: artifactTextSuppressionSummary.closedBlocks,
       pendingCandidateChars: stats.pendingCandidateChars,
       suppressing: stats.suppressing,
-    });
+    } });
   };
 
   const emitArtifactTextSuppressionSummary = () => {
     if (artifactTextSuppressionSummary.suppressedChars <= 0) return;
     if (executionProfile === 'filesystem') {
-      send('agent', {
+      send({ event: 'agent', payload: {
         type: 'diagnostic',
         name: 'unexpected_text_artifact_in_filesystem_run',
         source: 'acp-json-rpc',
@@ -1113,15 +1262,15 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
         suppressedChunks: artifactTextSuppressionSummary.suppressedChunks,
         openedBlocks: artifactTextSuppressionSummary.openedBlocks,
         closedBlocks: artifactTextSuppressionSummary.closedBlocks,
-      });
+      } });
     }
-    send('agent', {
+    send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_artifact_text_suppression_summary',
       source: 'acp-json-rpc',
       elapsedMs: Date.now() - runStartedAt,
       ...artifactTextSuppressionSummary,
-    });
+    } });
   };
 
   const noteToolCallTextSuppression = (reason: string) => {
@@ -1135,7 +1284,7 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     toolCallTextSuppressionSummary.closedBlocks = stats.closedBlocks;
     if (artifactSuppressionDiagnosticCount >= ACP_RAW_EVENT_SHAPE_DIAGNOSTIC_LIMIT) return;
     artifactSuppressionDiagnosticCount += 1;
-    send('agent', {
+    send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_tool_call_text_suppression',
       source: 'acp-json-rpc',
@@ -1147,18 +1296,18 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
       closedBlocks: toolCallTextSuppressionSummary.closedBlocks,
       pendingCandidateChars: stats.pendingCandidateChars,
       suppressing: stats.suppressing,
-    });
+    } });
   };
 
   const emitToolCallTextSuppressionSummary = () => {
     if (toolCallTextSuppressionSummary.suppressedChars <= 0) return;
-    send('agent', {
+    send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_tool_call_text_suppression_summary',
       source: 'acp-json-rpc',
       elapsedMs: Date.now() - runStartedAt,
       ...toolCallTextSuppressionSummary,
-    });
+    } });
   };
 
   const sendPrompt = () => {
@@ -1173,11 +1322,11 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
       },
       'session/prompt',
     );
-    send('agent', {
+    send({ event: 'agent', payload: {
       type: 'status',
       label: 'waiting_for_first_output',
       elapsedMs: Date.now() - runStartedAt,
-    });
+    } });
     state.nextId += 1;
   };
 
@@ -1187,7 +1336,7 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
   // (aborted || finished) return;` guard at entry — so this function can
   // never actually be invoked once `finished` is true. The origin file
   // carried its own re-entry guard here anyway; removed per this package's
-  // coverage-driven dead-branch discipline. See source-map.md.
+  // coverage-driven dead-branch discipline. See archived provenance ledger.
   const finishCleanPrompt = (usageSource?: unknown) => {
     const flushedToolText = toolCallTextSuppressor.flush();
     noteToolCallTextSuppression('tool_call_xml_flush');
@@ -1202,11 +1351,11 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     emitArtifactTextSuppressionSummary();
     const usage = formatUsage(usageSource);
     if (usage) {
-      send('agent', {
+      send({ event: 'agent', payload: {
         type: 'usage',
         usage,
         durationMs: Date.now() - runStartedAt,
-      });
+      } });
     }
     finished = true;
     clearStageTimer();
@@ -1220,73 +1369,79 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     child.once('close', () => clearTimeout(cleanExitTimer));
   };
 
-  const replyPermission = (raw: JsonObject) => {
+  const replyPermission = (raw: UnknownRecord) => {
     const params = asObject(raw.params);
-    if (!params || !isJsonRpcId(raw.id)) {
-      fail(`unhandled ACP permission request: ${JSON.stringify(raw)}`);
+    const toolCall = asObject(params?.toolCall);
+    const optionRecords = offeredPermissionOptions(params);
+
+    // One status event per request. Only protocol categories leave this
+    // boundary: titles, names, option ids and raw arguments can contain
+    // commands, paths or credentials.
+    const logDecision = (selected?: AcpPermissionOption) => {
+      try {
+        const tool = permissionToolKind(toolCall);
+        send({ event: 'agent', payload: { type: 'status', label: 'acp_permission', detail: `tool=${tool} decision=${selected?.kind ?? 'cancelled'}` } });
+      } catch {
+        // Host telemetry must not turn a handled request into a run failure.
+      }
+    };
+
+    if (!isJsonRpcId(raw.id)) {
+      // No response can be correlated without a valid id; drop it rather
+      // than failing the run.
+      logDecision();
       return;
     }
     const requestId = raw.id;
 
-    const optionRecords = Array.isArray(params.options)
-      ? params.options.filter(
-          (option): option is AcpPermissionOption =>
-            Boolean(asObject(option)) && typeof asObject(option)?.optionId === 'string',
-        )
-      : [];
-    const request: AcpPermissionRequest = {
-      requestId,
-      sessionId: typeof params.sessionId === 'string' ? params.sessionId : null,
-      toolCall: asObject(params.toolCall) ?? null,
-      options: optionRecords,
-      rawParams: params,
-    };
-
     const respond = (decision: AcpPermissionDecision) => {
-      pendingPermissionRequestIds.delete(requestId);
+      pendingPermissionRequests.delete(requestId);
       if (aborted || finished) return;
-      if (
-        decision.outcome === 'selected' &&
-        !optionRecords.some((option) => option.optionId === decision.optionId)
-      ) {
-        fail(`ACP permission handler selected an unavailable option: ${decision.optionId}`);
-        return;
-      }
+      // Anything but an offered option (including an invalid handler result) cancels.
+      const choice = asObject(decision);
+      const selected = choice?.outcome === 'selected'
+        ? optionRecords.find((option) => option.optionId === choice.optionId)
+        : undefined;
       resetStageTimer('session/request_permission');
       try {
         sendRpcResult(stdin, requestId, {
-          outcome:
-            decision.outcome === 'selected'
-              ? { outcome: 'selected', optionId: decision.optionId }
-              : { outcome: 'cancelled' },
+          outcome: selected ? { outcome: 'selected', optionId: selected.optionId } : { outcome: 'cancelled' },
         });
-      } catch (err) {
-        fail(`stdin write failed: ${errorMessage(err)}`);
+      } catch {
+        // A broken pipe cannot carry a response; ordinary transport lifecycle
+        // handling still owns process failure, not the permission decision.
       }
+      logDecision(selected);
     };
+    const cancel = () => respond({ outcome: 'cancelled' });
 
-    const rejectHandlerFailure = (err: unknown) => {
-      pendingPermissionRequestIds.delete(requestId);
-      fail(`ACP permission handler failed: ${errorMessage(err)}`);
-    };
-
-    pendingPermissionRequestIds.add(requestId);
-    if (!onPermissionRequest) {
-      pendingPermissionRequestIds.delete(requestId);
-      fail('ACP permission request received without an injected permission handler');
+    if (!params) {
+      cancel();
       return;
     }
+    pendingPermissionRequests.set(requestId, () => logDecision());
     try {
-      Promise.resolve(onPermissionRequest(request)).then(respond, rejectHandlerFailure);
-    } catch (err) {
-      rejectHandlerFailure(err);
+      if (!onPermissionRequest) {
+        respond(defaultPermissionDecision({ optionRecords }, { permissionMode, cliParity: options.cliParity }));
+        return;
+      }
+      const request: AcpPermissionRequest = {
+        requestId,
+        sessionId: asOptionalString(params.sessionId),
+        toolCall: toolCall ?? null,
+        options: optionRecords,
+        rawParams: params,
+      };
+      Promise.resolve(onPermissionRequest(request)).then(respond, cancel);
+    } catch {
+      cancel();
     }
   };
 
   const recoverFromModelSelectionError = () => {
     state.setModelRequestId = null;
     state.activeModel = state.activeModel || 'default';
-    send('agent', { type: 'status', label: 'model', model: state.activeModel });
+    send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
     sendPrompt();
   };
 
@@ -1314,7 +1469,7 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
     envFormat,
   };
 
-  const parser = createJsonLineStream((raw, rawLine) => {
+  const parser = createJsonLineStream({ onMessage: ({ message: raw, rawLine }) => {
     if (aborted || finished) return;
     resetStageTimer('response');
     const obj = asObject(raw);
@@ -1340,9 +1495,9 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
       return;
     }
     routeResultById({ state, effects, obj, result, rawLine });
-  });
+  } });
 
-  stdout.on('data', (chunk: string) => parser.feed(chunk));
+  stdout.on('data', (chunk: string) => parser.feed({ chunk: chunk }));
   child.stderr?.setEncoding('utf8');
   child.stderr?.on('data', (chunk: string) => {
     if (!modelUnavailableErrorCode || finished) return;
@@ -1373,14 +1528,15 @@ export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionCo
   // closing stdin, which may otherwise make the response impossible to
   // deliver.
   const cancelPendingPermissionRequests = (): void => {
-    for (const requestId of pendingPermissionRequestIds) {
+    for (const [requestId, logCancellation] of pendingPermissionRequests) {
       try {
         sendRpcResult(stdin, requestId, { outcome: { outcome: 'cancelled' } });
       } catch {
         // Closing stdin/process signalling below remains the fallback.
       }
+      logCancellation();
     }
-    pendingPermissionRequestIds.clear();
+    pendingPermissionRequests.clear();
   };
 
   // Only cancel an established session; before session/new resolves there is

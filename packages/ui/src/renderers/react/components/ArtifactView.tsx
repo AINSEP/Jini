@@ -34,7 +34,7 @@ export interface ArtifactViewSlots {
 export interface ArtifactViewProps {
   file: ArtifactFile;
   registry: RendererRegistry;
-  /** Passed through to `registry.resolve({ file, hints })`. */
+  /** Passed through to `registry.resolve({ file }, { hints })`. */
   hints?: Record<string, unknown> | undefined;
   /** Passed through to `SrcDocSandbox` for the built-in `html`/`svg` rendering. */
   srcDocOptions?: BuildSrcDocOptions | undefined;
@@ -53,7 +53,7 @@ export interface ArtifactViewProps {
 
 export function ArtifactView({ file, registry, hints, srcDocOptions, slots, className, annotation }: ArtifactViewProps) {
   const t = useT();
-  const match = useMemo(() => registry.resolve({ file, hints }), [registry, file, hints]);
+  const match = useMemo(() => registry.resolve({ file }, { hints }), [registry, file, hints]);
 
   const wrap = (node: ReactNode): ReactNode => (annotation ? <AnnotationCanvas {...annotation}>{node}</AnnotationCanvas> : node);
 
@@ -68,31 +68,33 @@ export function ArtifactView({ file, registry, hints, srcDocOptions, slots, clas
   const slotRenderer = slots?.renderers?.[match.renderer.id];
   if (slotRenderer) return wrap(<>{slotRenderer({ file, match })}</>);
 
+  return wrap(renderBuiltIn({ file, match, t }, { className, srcDocOptions }));
+}
+
+type Translate = ReturnType<typeof useT>;
+
+/** Built-in rendering for the renderer ids this package ships; any other id gets the "supply a slot" fallback message. */
+function renderBuiltIn(
+  { file, match, t }: { file: ArtifactFile; match: ArtifactRenderMatch; t: Translate },
+  { className, srcDocOptions }: { className?: string | undefined; srcDocOptions?: BuildSrcDocOptions | undefined },
+): ReactNode {
+  const content = file.content ?? '';
   switch (match.renderer.id) {
     case 'html':
     case 'svg':
-      return wrap(
-        <SrcDocSandbox
-          className={className}
-          html={file.content ?? ''}
-          options={srcDocOptions}
-          title={match.manifest.title}
-        />,
-      );
+      return <SrcDocSandbox className={className} html={content} options={srcDocOptions} title={match.manifest.title} />;
     case 'markdown': {
-      const html = match.renderer.renderPartial
-        ? match.renderer.renderPartial(file.content ?? '')
-        : renderMarkdownToSafeHtml(file.content ?? '');
+      const html = match.renderer.renderPartial ? match.renderer.renderPartial(content) : renderMarkdownToSafeHtml(content);
       // eslint-disable-next-line react/no-danger -- html is produced by renderMarkdownToSafeHtml, which escapes/allow-lists links; see markdown.ts.
-      return wrap(<div className={className} dangerouslySetInnerHTML={{ __html: html }} />);
+      return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
     }
     default:
-      return wrap(
+      return (
         <div className={className} role="status">
           {t('No renderer registered for "{rendererId}" — supply one via slots.renderers.', {
             rendererId: match.renderer.id,
           })}
-        </div>,
+        </div>
       );
   }
 }

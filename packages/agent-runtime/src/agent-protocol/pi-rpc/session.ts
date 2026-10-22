@@ -31,6 +31,8 @@ export type PiRpcSessionOptions = {
   imagePaths?: string[];
   uploadRoot?: string;
   parentSession?: string;
+  /** Explicit post-completion grace period before SIGTERM. Native hosts resolve env defaults. */
+  gracefulShutdownMs?: number;
 };
 /** Handle returned by `attachPiRpcSession` for querying run state and requesting abort. */
 export type PiRpcSession = {
@@ -209,8 +211,10 @@ export function tryReadImagePayload(
       payload: { type: 'image', data: buf.toString('base64'), mimeType: piImageMimeType(ext) },
       size: stat.size,
     };
-  } catch (_err: unknown) {
+  } catch {
     // Skip unreadable images rather than failing the entire run.
+    // Filesystem errors can contain private paths; report only the fixed diagnostic.
+    console.warn('[pi-rpc] Image attachment could not be read; skipping it.');
     return null;
   }
 }
@@ -298,7 +302,8 @@ export function handlePiResponseMessage({
  *                  parent session path for conversation resume.
  * @returns A `PiRpcSession` handle with `hasFatalError`, `getLastSessionPath`, and `abort`.
  */
-export function attachPiRpcSession({
+export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "child" | "prompt" | "send">, optionalArgs: Omit<PiRpcSessionOptions, "child" | "prompt" | "send"> = {}): PiRpcSession {
+  const {
   child,
   prompt,
   cwd,
@@ -307,7 +312,8 @@ export function attachPiRpcSession({
   imagePaths,
   uploadRoot,
   parentSession,
-}: PiRpcSessionOptions): PiRpcSession {
+  gracefulShutdownMs = 5000,
+}: PiRpcSessionOptions = { ...optionalArgs, ...requiredArgs };
   const stdin = child.stdin;
   const stdout = child.stdout;
   if (stdin === null) {
@@ -344,17 +350,17 @@ export function attachPiRpcSession({
     if (finished) return;
     finished = true;
     fatal = true;
-    send('error', { message, ...(code ? { code } : {}) });
+    send({ event: 'error', payload: { message, ...(code ? { code } : {}) } });
     if (!child.killed) child.kill('SIGTERM');
   };
 
   // Emit initial status with model name immediately — before pi even
   // responds — so the UI header shows the model name at session start.
-  send('agent', {
+  send({ event: 'agent', payload: {
     type: 'status',
     label: 'initializing',
     model: typeof model === 'string' && model ? model : null,
-  });
+  } });
 
   // ---- Outbound: send new_session (if parentSession provided) then prompt via RPC ----
   stdin.on('error', (err: unknown) => {
@@ -408,16 +414,15 @@ export function attachPiRpcSession({
     } catch (err: unknown) {
       fail(`stdin close: ${errorMessage(err)}`);
     }
-    // Grace period before SIGTERM. Configurable via PI_GRACEFUL_SHUTDOWN_MS
-    // for resource-constrained machines where the event loop drains slowly.
-    const shutdownMs = Number(process.env.PI_GRACEFUL_SHUTDOWN_MS) || 5000;
+    // Grace period before SIGTERM lets resource-constrained machines drain a slow event loop.
+    // The host supplies timing explicitly, resolving PI_GRACEFUL_SHUTDOWN_MS at composition.
     setTimeout(() => {
       if (!child.killed) child.kill('SIGTERM');
-    }, shutdownMs);
+    }, gracefulShutdownMs);
   };
 
   // ---- Inbound: parse stdout events ----
-  const parser = createJsonLineStream((raw: unknown) => {
+  const parser = createJsonLineStream({ onMessage: ({ message: raw }: { message: unknown }) => {
     if (!isRecord(raw)) return;
     // Once finished (agent_end or abort), stop processing — the run is
     // over, so no more agent events should be emitted. We still drain
@@ -437,15 +442,15 @@ export function attachPiRpcSession({
     }
 
     // Agent events: delegate to the pure mapper.
-    const result = mapPiRpcEvent(raw, send, { runStartedAt, sentFirstToken });
+    const result = mapPiRpcEvent({ raw: raw, send: send, ctx: { runStartedAt, sentFirstToken } });
     if (result === 'agent_end') {
       handlePiAgentEnd();
     }
-  });
+  } });
 
   stdout.on('data', (chunk: Buffer | string) => {
     try {
-      parser.feed(typeof chunk === 'string' ? chunk : chunk.toString('utf8'));
+      parser.feed({ chunk: typeof chunk === 'string' ? chunk : chunk.toString('utf8') });
     } catch (err) {
       fail(`parser: ${errorMessage(err)}`);
     }

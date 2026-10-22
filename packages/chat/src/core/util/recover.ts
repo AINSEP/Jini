@@ -53,7 +53,7 @@ function lastIndexOfRegex(re: RegExp, text: string): number {
  */
 export function recoverHtmlArtifactFromPrecedingDocument({ artifactHtml, identifier, sourceText }: RecoverHtmlArtifactInput): string | null {
   if (!sourceText) return null;
-  if (validateHtmlArtifact(artifactHtml).ok) return null;
+  if (validateHtmlArtifact({ content: artifactHtml }).ok) return null;
 
   const artifactOpen = findLastArtifactOpen(sourceText, identifier);
   if (artifactOpen === -1) return null;
@@ -78,7 +78,7 @@ export function recoverHtmlArtifactFromPrecedingDocument({ artifactHtml, identif
   const htmlStart = adjacentDoctype ? htmlOpenStart - adjacentDoctype[0].length : htmlOpenStart;
 
   const candidate = beforeArtifact.slice(htmlStart, htmlClose + closeMatch[0].length).trim();
-  return validateHtmlArtifact(candidate).ok ? candidate : null;
+  return validateHtmlArtifact({ content: candidate }).ok ? candidate : null;
 }
 
 /**
@@ -97,10 +97,10 @@ export function resolvePersistedArtifactHtml(input: RecoverHtmlArtifactInput): s
 }
 
 /** Recover a complete `<html>…</html>` document that IS the entire (trimmed) `sourceText`, or `null` otherwise. */
-export function recoverStandaloneHtmlDocument(sourceText: string | null | undefined): string | null {
+export function recoverStandaloneHtmlDocument({ sourceText }: { sourceText: string | null | undefined }): string | null {
   const candidate = String(sourceText || '').replace(/^﻿/, '').trim();
   if (!/<\/html\s*>$/i.test(candidate)) return null;
-  return validateHtmlArtifact(candidate).ok ? candidate : null;
+  return validateHtmlArtifact({ content: candidate }).ok ? candidate : null;
 }
 
 /**
@@ -110,7 +110,7 @@ export function recoverStandaloneHtmlDocument(sourceText: string | null | undefi
  * candidates are ambiguous about which one is "the" artifact, so none is
  * chosen automatically.
  */
-export function recoverHtmlDocumentFromMarkdownFence(sourceText: string | null | undefined): string | null {
+export function recoverHtmlDocumentFromMarkdownFence({ sourceText }: { sourceText: string | null | undefined }): string | null {
   const text = String(sourceText || '');
   HTML_FENCE_RE.lastIndex = 0;
   let recovered: string | null = null;
@@ -119,7 +119,7 @@ export function recoverHtmlDocumentFromMarkdownFence(sourceText: string | null |
   while ((match = HTML_FENCE_RE.exec(text)) !== null) {
     const candidate = (match[1] || '').replace(/^﻿/, '').trim();
     if (!/<\/html\s*>$/i.test(candidate)) continue;
-    if (!validateHtmlArtifact(candidate).ok) continue;
+    if (!validateHtmlArtifact({ content: candidate }).ok) continue;
     recovered = candidate;
     count += 1;
   }

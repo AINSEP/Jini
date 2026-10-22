@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat/core';
 import { ChatFab, ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat/react';
@@ -88,6 +89,14 @@ const LOG_EVENT_INPUT_SCHEMA = {
 
 const WEBMCP_LAB_CHAT_TRANSPORT = createDaemonChatTransport();
 
+// The host supplies browser globals; Jini adapts the native API and preserves its receiver.
+const WEBMCP_LAB_HOST = {
+  candidates: () => [
+    'modelContext' in document ? document.modelContext : undefined,
+    'modelContext' in navigator ? navigator.modelContext : undefined,
+  ],
+};
+
 const WEBMCP_LAB_INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 'webmcp-lab-welcome',
@@ -130,10 +139,10 @@ export function WebMcpLab() {
    * trusting the WebMCP wrapper's check to cover both paths, is the same defense-in-depth
    * `page-executor.ts` applies for `page.*`.
    */
-  const executeWebMcpLabCapability = async (id: string, args: Record<string, unknown>): Promise<unknown> => {
+  const executeWebMcpLabCapability = async ({ id, args }: { id: string; args: Record<string, unknown> }): Promise<unknown> => {
     const capability = WEBMCP_LAB_CAPABILITIES.find((entry) => entry.id === id);
     if (capability === undefined) throw new Error(`unknown webmcp lab capability: ${id}`);
-    const inputError = findCapabilityInputError(capability, args);
+    const inputError = findCapabilityInputError({ capability, input: args });
     if (inputError !== null) {
       throw new Error(`${id}: ${inputError}. Expected input: ${JSON.stringify(capability.inputSchema)}`);
     }
@@ -188,20 +197,20 @@ export function WebMcpLab() {
   // whole batch unregisters together when the page leaves, exactly as a real page's teardown would.
   useEffect(() => {
     installWebMcpLabPolyfill();
-    const modelContext = getAgentModelContext();
+    const modelContext = getAgentModelContext({ host: WEBMCP_LAB_HOST });
     if (!modelContext) {
       appendLog('document.modelContext is unavailable even after installing the polyfill — nothing registered.');
       return;
     }
 
     const controller = new AbortController();
-    const registrations = toWebMcpTools(WEBMCP_LAB_CAPABILITIES, executeWebMcpLabCapability, {
+    const registrations = toWebMcpTools({ capabilities: WEBMCP_LAB_CAPABILITIES, execute: executeWebMcpLabCapability }, {
       requestUserInteraction: askForConfirmation,
       signal: controller.signal,
     });
     for (const registration of registrations) {
       void modelContext
-        .registerTool(registration, registration.registerOptions)
+        .registerTool({ tool: registration }, registration.registerOptions)
         .then(() => appendLog(`registered "${registration.name}"`))
         .catch((error: unknown) => appendLog(`FAILED to register "${registration.name}": ${String(error)}`));
     }
@@ -210,13 +219,15 @@ export function WebMcpLab() {
     void modelContext
       .registerTool(
         {
-          name: 'webmcp.log_event',
-          title: 'Log a structured event',
-          description: 'Records one structured, arbitrarily nested event. Not backed by a Jini capability.',
-          inputSchema: LOG_EVENT_INPUT_SCHEMA,
-          execute: async (args: Record<string, unknown>) => {
-            appendLog(`log_event ${JSON.stringify(args)}`);
-            return { logged: true };
+          tool: {
+            name: 'webmcp.log_event',
+            title: 'Log a structured event',
+            description: 'Records one structured, arbitrarily nested event. Not backed by a Jini capability.',
+            inputSchema: LOG_EVENT_INPUT_SCHEMA,
+            execute: async (args: Record<string, unknown>) => {
+              appendLog(`log_event ${JSON.stringify(args)}`);
+              return { logged: true };
+            },
           },
         },
         { signal: controller.signal },
@@ -239,8 +250,8 @@ export function WebMcpLab() {
   // The daemon-relay half: claims the whole `webmcp.` prefix, so a real agent run (bound to this
   // tab via runContext below) reaches the exact same executeWebMcpLabCapability function above.
   useEffect(() => {
-    const session = createFrontendSessionBridge({
-      executors: { 'webmcp.': executeWebMcpLabCapability },
+    const session = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), request: ({ url, init, timeoutMs }) => fetchWithTimeout(url, init, { timeoutMs }) }, {
+      executors: { 'webmcp.': (id, args) => executeWebMcpLabCapability({ id, args }) },
       onInvocation: (action) => appendLog(`daemon → ${action.capabilityId}`),
       onError: (error) => appendLog(`bridge error: ${String(error)}`),
     });
@@ -263,7 +274,7 @@ export function WebMcpLab() {
   }, []);
 
   const toggleEphemeral = () => {
-    const modelContext = getAgentModelContext();
+    const modelContext = getAgentModelContext({ host: WEBMCP_LAB_HOST });
     if (!modelContext) return;
     if (ephemeralOn) {
       ephemeralControllerRef.current?.abort();
@@ -282,11 +293,11 @@ export function WebMcpLab() {
       risk: 'read',
       surface: 'session',
     };
-    const registration = toWebMcpTool(ephemeralCapability, async () => ({ pong: Date.now() }), {
+    const registration = toWebMcpTool({ capability: ephemeralCapability, execute: async () => ({ pong: Date.now() }) }, {
       signal: controller.signal,
     });
     void modelContext
-      .registerTool(registration, registration.registerOptions)
+      .registerTool({ tool: registration }, registration.registerOptions)
       .then(() => {
         appendLog('registered "webmcp.ping_ephemeral"');
         setEphemeralOn(true);
@@ -296,7 +307,7 @@ export function WebMcpLab() {
   };
 
   const toggleLateTool = () => {
-    const modelContext = getAgentModelContext();
+    const modelContext = getAgentModelContext({ host: WEBMCP_LAB_HOST });
     if (!modelContext) return;
     if (lateToolOn) {
       lateToolControllerRef.current?.abort();
@@ -314,11 +325,11 @@ export function WebMcpLab() {
       risk: 'read',
       surface: 'session',
     };
-    const registration = toWebMcpTool(lateCapability, async () => ({ arrived: true }), {
+    const registration = toWebMcpTool({ capability: lateCapability, execute: async () => ({ arrived: true }) }, {
       signal: controller.signal,
     });
     void modelContext
-      .registerTool(registration, registration.registerOptions)
+      .registerTool({ tool: registration }, registration.registerOptions)
       .then(() => {
         appendLog('registered "webmcp.late_arrival" (mid-session)');
         setLateToolOn(true);

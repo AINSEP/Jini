@@ -60,14 +60,52 @@ body {
   color: var(--jini-mcpui-text-strong);
 }
 .mcpui-description { margin: 6px 0 0; color: var(--jini-mcpui-text-muted); }
+/* fit-content(40%), not max-content: one long label used to take the whole row and squeeze every
+   value to one character per line. Labels wrap at 40% instead. */
 .mcpui-details {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
   gap: 4px 14px;
   margin: 14px 0 0;
 }
-.mcpui-details dt { color: var(--jini-mcpui-text-soft); font-weight: 500; }
+.mcpui-details dt { color: var(--jini-mcpui-text-soft); font-weight: 500; overflow-wrap: anywhere; }
 .mcpui-details dd { margin: 0; overflow-wrap: anywhere; color: var(--jini-mcpui-text); }
+.mcpui-details-outcome { display: flex; flex-direction: column; gap: 8px; }
+.mcpui-outcome-row { display: flex; align-items: flex-start; gap: 14px; }
+.mcpui-outcome-row dt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mcpui-outcome-row dt .mcpui-hint { display: block; font-weight: 400; }
+.mcpui-outcome-row dd { flex: 1; min-width: 0; }
+/* Capped so a long status cannot squeeze the label back to one character per line; the full text
+   stays in the cell's title. */
+.mcpui-outcome-row dd.mcpui-detail-status {
+  flex: 0 1 auto; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Frames up to 480px: stack each label above its value so the value gets the full width.
+   Outcome lists keep their own row layout. */
+@media (max-width: 480px) {
+  .mcpui-details:not(.mcpui-details-outcome) { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+  .mcpui-details:not(.mcpui-details-outcome) dd { margin-bottom: 8px; }
+}
+/* The iframe has 16px body padding on each side: 352px viewport = 320px card. Stacked, the value
+   has the full width, so it wraps between words instead of truncating. */
+@media (max-width: 352px) {
+  .mcpui-outcome-row { flex-direction: column; gap: 2px; }
+  .mcpui-outcome-row dd.mcpui-detail-status { max-width: 100%; white-space: normal; overflow-wrap: normal; }
+}
+.mcpui-code {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 16em;
+  overflow: auto;
+  font-family: var(--jini-mcpui-font-mono);
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 6px 8px;
+  border: 1px solid var(--jini-mcpui-border);
+  border-radius: var(--jini-mcpui-radius-sm);
+  background: var(--jini-mcpui-bg);
+}
 .mcpui-warning {
   margin: 14px 0 0;
   padding: 9px 11px;
@@ -118,7 +156,7 @@ body {
 .mcpui-button-primary {
   background: var(--jini-mcpui-accent);
   border-color: var(--jini-mcpui-accent);
-  color: var(--jini-mcpui-panel);
+  color: var(--jini-mcpui-accent-ink);
 }
 .mcpui-button-primary:hover:not([disabled]) { background: var(--jini-mcpui-accent-hover); border-color: var(--jini-mcpui-accent-hover); }
 .mcpui-button-danger {
@@ -227,20 +265,39 @@ export function renderSurfaceHeader(spec: { title: string; description?: string 
 export interface SurfaceDetail {
   readonly label: string;
   readonly value: string;
+  /** Optional secondary context beneath the label, using the shared muted hint style. */
+  readonly description?: string;
+  /**
+   * `code` renders the value in a monospace `<pre>` that keeps its line breaks and scrolls inside
+   * its own box past a fixed height, so a long SQL statement or JSON argument stays readable without
+   * stretching the dialog past its frame. `status` reserves one line for a short outcome value.
+   * Omitted (or `text`) keeps the plain inline value.
+   */
+  readonly format?: 'text' | 'code' | 'status';
 }
 
 /**
  * Renders a `label: value` description list.
  *
+ * @param options.layout - Outcome rows size independently and stack in narrow cards.
  * @returns The `<dl>`, or `''` for an empty list — an empty `<dl>` is announced by screen readers
  * as a list with no items, which is worse than no list.
+ * @complexity O(n) in the rendered length; no effects or input mutation.
  */
-export function renderDetailList(details: readonly SurfaceDetail[]): string {
+export function renderDetailList(details: readonly SurfaceDetail[], options: { layout?: 'outcome' } = {}): string {
   if (details.length === 0) return '';
+  const outcome = options.layout === 'outcome';
   const rows = details
-    .map((detail) => `  <dt>${escapeHtml(detail.label)}</dt><dd>${escapeHtml(detail.value)}</dd>`)
+    .map((detail) => {
+      const value = escapeHtml(detail.value);
+      const body = detail.format === 'code' ? `<pre class="mcpui-code">${value}</pre>` : value;
+      const description = detail.description === undefined ? '' : `<span class="mcpui-hint">${escapeHtml(detail.description)}</span>`;
+      const valueClass = detail.format === 'status' ? ` class="mcpui-detail-status" title="${value}"` : '';
+      const pair = `<dt>${escapeHtml(detail.label)}${description}</dt><dd${valueClass}>${body}</dd>`;
+      return outcome ? `  <div class="mcpui-outcome-row">${pair}</div>` : `  ${pair}`;
+    })
     .join('\n');
-  return `<dl class="mcpui-details">\n${rows}\n</dl>`;
+  return `<dl class="mcpui-details${outcome ? ' mcpui-details-outcome' : ''}">\n${rows}\n</dl>`;
 }
 
 /** Renders the polite live region every surface reports outcomes through. Its id is fixed so surface scripts can find it. */

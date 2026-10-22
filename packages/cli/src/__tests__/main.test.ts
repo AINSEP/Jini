@@ -21,8 +21,8 @@ function makeDeps(overrides: Partial<MainDeps> = {}): MainDeps & { written: stri
   const written: string[] = [];
   const errWritten: string[] = [];
   return {
-    write: (text: string) => { written.push(text); },
-    writeErr: (text: string) => { errWritten.push(text); },
+    write: ({ text }: { text: string }) => { written.push(text); },
+    writeErr: ({ text }: { text: string }) => { errWritten.push(text); },
     written,
     errWritten,
     ...overrides,
@@ -31,7 +31,7 @@ function makeDeps(overrides: Partial<MainDeps> = {}): MainDeps & { written: stri
 
 function exitingDeps(overrides: Partial<MainDeps> = {}) {
   const deps = makeDeps(overrides);
-  const exit = vi.fn((code: number): never => { throw new ExitSentinel(code); });
+  const exit = vi.fn(({ code }: { code: number }): never => { throw new ExitSentinel(code); });
   return { ...deps, exit };
 }
 
@@ -52,7 +52,7 @@ afterEach(async () => {
 describe('main: no-command / help', () => {
   it('prints root usage for an empty argv', async () => {
     const deps = makeDeps();
-    await main([], deps);
+    await main({ argv: [] }, deps);
     expect(deps.written.join('')).toContain('Usage:');
     expect(deps.written.join('')).toContain('jini <command>');
   });
@@ -60,21 +60,21 @@ describe('main: no-command / help', () => {
   it('prints root usage for --help', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await main(['--help'], { ...deps, fetchImpl });
+    await main({ argv: ['--help'] }, { ...deps, fetchImpl });
     expect(deps.written.join('')).toContain('Usage:');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('prints root usage for -h', async () => {
     const deps = makeDeps();
-    await main(['-h'], deps);
+    await main({ argv: ['-h'] }, deps);
     expect(deps.written.join('')).toContain('Usage:');
   });
 
   it('prints root usage when only global flags are given, with no command at all', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn();
-    await main(['--daemon-url', 'http://d.example'], { ...deps, fetchImpl });
+    await main({ argv: ['--daemon-url', 'http://d.example'] }, { ...deps, fetchImpl });
     expect(deps.written.join('')).toContain('Usage:');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -82,7 +82,7 @@ describe('main: no-command / help', () => {
   it('defaults write to process.stdout.write when nothing is injected', async () => {
     const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     try {
-      await main([]);
+      await main({ argv: [] });
       expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     } finally {
       stdoutSpy.mockRestore();
@@ -97,7 +97,7 @@ describe('main: dispatching to registered commands', () => {
       expect(String(url)).toBe('http://d.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', 'list', '--daemon-url', 'http://d.example'], { ...deps, fetchImpl });
+    await main({ argv: ['run', 'list', '--daemon-url', 'http://d.example'] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(deps.written[0]).toBe(`${JSON.stringify({ runs: [] })}\n`);
   });
@@ -108,7 +108,7 @@ describe('main: dispatching to registered commands', () => {
       expect(String(url)).toBe('http://d.example/api/runs/run-1');
       return jsonResponse(200, { run: { id: 'run-1' } });
     });
-    await main(['run', 'get', 'run-1', '--daemon-url', 'http://d.example'], { ...deps, fetchImpl });
+    await main({ argv: ['run', 'get', 'run-1', '--daemon-url', 'http://d.example'] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -118,36 +118,36 @@ describe('main: dispatching to registered commands', () => {
       expect(String(url)).toBe('http://d.example/api/daemon/status');
       return jsonResponse(200, { ok: true, version: '1.2.3' });
     });
-    await main(['daemon', 'status', '--daemon-url', 'http://d.example'], { ...deps, fetchImpl });
+    await main({ argv: ['daemon', 'status', '--daemon-url', 'http://d.example'] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('dispatches "version"', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: '1.2.3' }));
-    await main(['version', '--daemon-url', 'http://d.example'], { ...deps, fetchImpl });
+    await main({ argv: ['version', '--daemon-url', 'http://d.example'] }, { ...deps, fetchImpl });
     expect(deps.written[0]).toBe('1.2.3\n');
   });
 
   it('treats a leading --version as an alias for "jini version"', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: '9.9.9' }));
-    await main(['--version', '--daemon-url', 'http://d.example'], { ...deps, fetchImpl });
+    await main({ argv: ['--version', '--daemon-url', 'http://d.example'] }, { ...deps, fetchImpl });
     expect(deps.written[0]).toBe('9.9.9\n');
   });
 
   it('treats a leading -v as an alias for "jini version"', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { version: '9.9.9' }));
-    await main(['-v', '--daemon-url', 'http://d.example'], { ...deps, fetchImpl });
+    await main({ argv: ['-v', '--daemon-url', 'http://d.example'] }, { ...deps, fetchImpl });
     expect(deps.written[0]).toBe('9.9.9\n');
   });
 
   it('exits with invalid-flag for an unrecognized top-level command', async () => {
     const deps = exitingDeps();
-    await expect(main(['frobnicate'], deps)).rejects.toThrow(ExitSentinel);
+    await expect(main({ argv: ['frobnicate'] }, deps)).rejects.toThrow(ExitSentinel);
     expect(deps.exit).toHaveBeenCalledTimes(1);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['invalid-flag'] });
     expect(deps.errWritten.join('')).toContain('unknown command');
     expect(deps.errWritten.join('')).toContain('frobnicate');
   });
@@ -160,7 +160,7 @@ describe('main: daemon-url resolution', () => {
       expect(String(url)).toBe('http://custom.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['--daemon-url', 'http://custom.example', 'run', 'list'], { ...deps, fetchImpl });
+    await main({ argv: ['--daemon-url', 'http://custom.example', 'run', 'list'] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -170,7 +170,7 @@ describe('main: daemon-url resolution', () => {
       expect(String(url)).toBe('http://custom.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', 'list', '--daemon-url', 'http://custom.example'], { ...deps, fetchImpl });
+    await main({ argv: ['run', 'list', '--daemon-url', 'http://custom.example'] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -180,7 +180,7 @@ describe('main: daemon-url resolution', () => {
       expect(String(url)).toBe('http://custom.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', '--daemon-url', 'http://custom.example', 'list'], { ...deps, fetchImpl });
+    await main({ argv: ['run', '--daemon-url', 'http://custom.example', 'list'] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -190,7 +190,7 @@ describe('main: daemon-url resolution', () => {
       expect(String(url)).toBe('http://custom.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', 'list', '--daemon-url=http://custom.example'], { ...deps, fetchImpl });
+    await main({ argv: ['run', 'list', '--daemon-url=http://custom.example'] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -200,7 +200,7 @@ describe('main: daemon-url resolution', () => {
       expect(String(url)).toBe('http://env.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', 'list'], { ...deps, fetchImpl, env: { JINI_DAEMON_URL: 'http://env.example' } });
+    await main({ argv: ['run', 'list'] }, { ...deps, fetchImpl, env: { JINI_DAEMON_URL: 'http://env.example' } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -210,7 +210,7 @@ describe('main: daemon-url resolution', () => {
       expect(String(url)).toBe('http://flag.example/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', 'list', '--daemon-url', 'http://flag.example'], {
+    await main({ argv: ['run', 'list', '--daemon-url', 'http://flag.example'] }, {
       ...deps,
       fetchImpl,
       env: { JINI_DAEMON_URL: 'http://env.example' },
@@ -221,19 +221,19 @@ describe('main: daemon-url resolution', () => {
   it('resolves a locally running daemon via --data-dir, backed by a real on-disk registry record', async () => {
     const dataDir = await makeTempDataDir();
     const { resolveDaemonRegistryPath } = await import('@jini-ai/sidecar');
-    await writeDaemonRegistryRecord(resolveDaemonRegistryPath(dataDir), {
+    await writeDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
       url: 'http://127.0.0.1:54213',
       host: '127.0.0.1',
       port: 54213,
       pid: process.pid,
       startedAt: new Date().toISOString(),
-    });
+    } });
     const deps = makeDeps();
     const fetchImpl = vi.fn(async (url: string | URL | Request) => {
       expect(String(url)).toBe('http://127.0.0.1:54213/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', 'list', '--data-dir', dataDir], { ...deps, fetchImpl });
+    await main({ argv: ['run', 'list', '--data-dir', dataDir] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -241,42 +241,42 @@ describe('main: daemon-url resolution', () => {
     const dataDir = await makeTempDataDir();
     const customDir = await makeTempDataDir();
     const registryPath = join(customDir, 'custom.json');
-    await writeDaemonRegistryRecord(registryPath, {
+    await writeDaemonRegistryRecord({ registryPath, record: {
       url: 'http://127.0.0.1:9999',
       host: '127.0.0.1',
       port: 9999,
       pid: process.pid,
       startedAt: new Date().toISOString(),
-    });
+    } });
     const deps = makeDeps();
     const fetchImpl = vi.fn(async (url: string | URL | Request) => {
       expect(String(url)).toBe('http://127.0.0.1:9999/api/runs');
       return jsonResponse(200, { runs: [] });
     });
-    await main(['run', 'list', '--data-dir', dataDir, '--registry-path', registryPath], { ...deps, fetchImpl });
+    await main({ argv: ['run', 'list', '--data-dir', dataDir, '--registry-path', registryPath] }, { ...deps, fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('exits cleanly with no daemon URL resolved when nothing is configured at all', async () => {
     const deps = exitingDeps({ env: {} });
-    await expect(main(['daemon', 'status'], deps)).rejects.toThrow(ExitSentinel);
+    await expect(main({ argv: ['daemon', 'status'] }, deps)).rejects.toThrow(ExitSentinel);
     expect(deps.exit).toHaveBeenCalledTimes(1);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['invalid-flag'] });
     expect(deps.errWritten.join('')).toContain('no daemon URL resolved');
   });
 
   it('warns (via writeErr) when the resolved daemon URL is neither loopback nor HTTPS', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async () => jsonResponse(200, { runs: [] }));
-    await main(['run', 'list', '--daemon-url', 'http://example.com'], { ...deps, fetchImpl });
+    await main({ argv: ['run', 'list', '--daemon-url', 'http://example.com'] }, { ...deps, fetchImpl });
     expect(deps.errWritten.join('')).toContain('neither loopback nor HTTPS');
   });
 
   it('exits with invalid-flag when --daemon-url is the last token with no value', async () => {
     const deps = exitingDeps();
-    await expect(main(['run', 'list', '--daemon-url'], deps)).rejects.toThrow(ExitSentinel);
+    await expect(main({ argv: ['run', 'list', '--daemon-url'] }, deps)).rejects.toThrow(ExitSentinel);
     expect(deps.exit).toHaveBeenCalledTimes(1);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['invalid-flag'] });
     expect(deps.errWritten.join('')).toContain('flag --daemon-url requires a value');
   });
 });
@@ -284,18 +284,18 @@ describe('main: daemon-url resolution', () => {
 describe('main: error boundary', () => {
   it('converts a raw error from a nested command\'s own flag parsing into a clean structured error, not a raw throw', async () => {
     const deps = exitingDeps();
-    await expect(main(['run', 'start', '--bogus-flag', '--daemon-url', 'http://d.example'], deps)).rejects.toThrow(ExitSentinel);
+    await expect(main({ argv: ['run', 'start', '--bogus-flag', '--daemon-url', 'http://d.example'] }, deps)).rejects.toThrow(ExitSentinel);
     expect(deps.exit).toHaveBeenCalledTimes(1);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['invalid-flag'] });
     expect(deps.errWritten.join('')).toContain('unknown flag: --bogus-flag');
   });
 
   it('propagates a nested command\'s own structured-error exit untouched, without re-wrapping it', async () => {
     const deps = exitingDeps();
-    await expect(main(['run', 'start', '--daemon-url', 'http://d.example'], deps)).rejects.toThrow(ExitSentinel);
+    await expect(main({ argv: ['run', 'start', '--daemon-url', 'http://d.example'] }, deps)).rejects.toThrow(ExitSentinel);
     // missing --context-ref => run-command.ts's own "missing-input" exit, not this file's generic "invalid-flag" wrap.
     expect(deps.exit).toHaveBeenCalledTimes(1);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['missing-input']);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['missing-input'] });
     expect(deps.errWritten.join('')).toContain('--context-ref is required');
   });
 
@@ -315,9 +315,9 @@ describe('main: error boundary', () => {
       },
     ) as NodeJS.ProcessEnv;
     const fetchImpl = vi.fn();
-    await expect(main(['run', 'list'], { ...deps, env: throwingEnv, fetchImpl })).rejects.toThrow(ExitSentinel);
+    await expect(main({ argv: ['run', 'list'] }, { ...deps, env: throwingEnv, fetchImpl })).rejects.toThrow(ExitSentinel);
     expect(deps.exit).toHaveBeenCalledTimes(1);
-    expect(deps.exit).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
+    expect(deps.exit).toHaveBeenCalledWith({ code: DEFAULT_CLI_EXIT_CODES['invalid-flag'] });
     expect(deps.errWritten.join('')).toContain('raw string failure');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -328,7 +328,7 @@ describe('main: error boundary', () => {
       throw new ExitSentinel(code ?? 0);
     }) as never);
     try {
-      await expect(main(['frobnicate'])).rejects.toThrow(ExitSentinel);
+      await expect(main({ argv: ['frobnicate'] })).rejects.toThrow(ExitSentinel);
       expect(stderrSpy).toHaveBeenCalled();
       expect(exitSpy).toHaveBeenCalledWith(DEFAULT_CLI_EXIT_CODES['invalid-flag']);
     } finally {

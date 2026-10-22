@@ -43,3 +43,5 @@ export {
 } from './question-form/scan.js';
 export { isRenderableColor } from './question-form/normalize.js';
 export { formatFormAnswers, formOptionLabelForValue, formOptionValueForLabel } from './question-form/format.js';
+
+export { isSecretQuestion, redactQuestionAnswers, withoutSecretQuestionDefaults, questionTextInputProps, questionTextareaProps } from './question-form/secret-answers.js';

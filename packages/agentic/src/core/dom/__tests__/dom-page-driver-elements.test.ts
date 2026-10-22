@@ -56,13 +56,13 @@ const TEXTUAL_TYPES: ReadonlyArray<[type: string, value: string]> = [
 describe('fill across every textual input type', () => {
   it.each(TEXTUAL_TYPES)('fills an <input type="%s">', async (type, value) => {
     mount(`<input data-agent-element="target" data-agent-role="field" type="${type}" name="f" />`);
-    await makeDriver().fill('target', value);
+    await makeDriver().fill({ handle: 'target', text: value });
     expect((root.querySelector('[data-agent-element="target"]') as HTMLInputElement).value).toBe(value);
   });
 
   it('fills a textarea', async () => {
     mount('<textarea data-agent-element="target" data-agent-role="field" name="f"></textarea>');
-    await makeDriver().fill('target', 'multi\nline');
+    await makeDriver().fill({ handle: 'target', text: 'multi\nline' });
     expect((root.querySelector('[data-agent-element="target"]') as HTMLTextAreaElement).value).toBe('multi\nline');
   });
 });
@@ -71,7 +71,7 @@ describe('elements the driver reports as fields, and what that implies', () => {
   it('describes every textual type as a field, so the fill guard gets to judge it', async () => {
     for (const [type] of TEXTUAL_TYPES) {
       mount(`<input data-agent-element="target" data-agent-role="field" type="${type}" name="f" />`);
-      expect(await makeDriver().describeField('target')).toMatchObject({ type });
+      expect(await makeDriver().describeField({ handle: 'target' })).toMatchObject({ type });
     }
   });
 
@@ -79,7 +79,7 @@ describe('elements the driver reports as fields, and what that implies', () => {
     // The refusal lives in `findFieldFillRefusal` ('file' is a denied type); the driver's job is
     // only to report the type truthfully.
     mount('<input data-agent-element="target" data-agent-role="field" type="file" name="f" />');
-    expect(await makeDriver().describeField('target')).toMatchObject({ type: 'file' });
+    expect(await makeDriver().describeField({ handle: 'target' })).toMatchObject({ type: 'file' });
   });
 
   it('reports a button, link, and plain region as not-a-field', async () => {
@@ -89,7 +89,7 @@ describe('elements the driver reports as fields, and what that implies', () => {
       '<div data-agent-element="target">text</div>',
     ]) {
       mount(html);
-      expect(await makeDriver().describeField('target')).toBeNull();
+      expect(await makeDriver().describeField({ handle: 'target' })).toBeNull();
     }
   });
 });
@@ -107,13 +107,13 @@ describe('click across the activatable elements', () => {
     const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
     const seen = vi.fn();
     target.addEventListener('click', seen);
-    await makeDriver().click('target');
+    await makeDriver().click({ handle: 'target' });
     expect(seen).toHaveBeenCalledOnce();
   });
 
   it('reaches the control inside a wrapper that carries the handle', async () => {
     mount('<li data-agent-element="target"><label><input type="checkbox" /> Item</label></li>');
-    await makeDriver().click('target');
+    await makeDriver().click({ handle: 'target' });
     expect((root.querySelector('input') as HTMLInputElement).checked).toBe(true);
   });
 
@@ -121,7 +121,7 @@ describe('click across the activatable elements', () => {
     // Clicking the <details> element itself dispatches an event the platform ignores, so the
     // disclosure would never open while the caller was told the click landed.
     mount('<details data-agent-element="target"><summary>More</summary><p>body</p></details>');
-    await makeDriver().click('target');
+    await makeDriver().click({ handle: 'target' });
     expect((root.querySelector('details') as HTMLDetailsElement).open).toBe(true);
   });
 
@@ -132,7 +132,7 @@ describe('click across the activatable elements', () => {
       <details id="inner"><summary>inner</summary><p>inner body</p></details>
       <summary>own</summary>
     </details>`);
-    await makeDriver().click('outer');
+    await makeDriver().click({ handle: 'outer' });
     expect((root.querySelector('[data-agent-element="outer"]') as HTMLDetailsElement).open).toBe(true);
     expect((root.querySelector('#inner') as HTMLDetailsElement).open).toBe(false);
   });
@@ -143,13 +143,13 @@ describe('click across the activatable elements', () => {
     mount('<details data-agent-element="target"><p>body</p></details>');
     const seen = vi.fn();
     (root.querySelector('[data-agent-element="target"]') as HTMLElement).addEventListener('click', seen);
-    await makeDriver().click('target');
+    await makeDriver().click({ handle: 'target' });
     expect(seen).toHaveBeenCalledOnce();
   });
 
   it('addresses an editable region itself rather than a link inside it', async () => {
     mount('<div data-agent-element="target" contenteditable="true"><a href="#x">link</a></div>');
-    await makeDriver().fill('target', 'replaced');
+    await makeDriver().fill({ handle: 'target', text: 'replaced' });
     expect((root.querySelector('[data-agent-element="target"]') as HTMLElement).textContent).toBe('replaced');
   });
 
@@ -159,7 +159,7 @@ describe('click across the activatable elements', () => {
     mount('<div data-agent-element="target"><span>just text</span></div>');
     const seen = vi.fn();
     (root.querySelector('[data-agent-element="target"]') as HTMLElement).addEventListener('click', seen);
-    await makeDriver().click('target');
+    await makeDriver().click({ handle: 'target' });
     expect(seen).toHaveBeenCalledOnce();
   });
 });
@@ -167,9 +167,9 @@ describe('click across the activatable elements', () => {
 describe('state readback across element kinds', () => {
   it('reports checked for both a checkbox and a radio', async () => {
     mount('<input data-agent-element="target" type="checkbox" checked />');
-    expect(await makeDriver().describeState?.('target')).toMatchObject({ checked: true });
+    expect(await makeDriver().describeState?.({ handle: 'target' })).toMatchObject({ checked: true });
     mount('<input data-agent-element="target" type="radio" name="r" />');
-    expect(await makeDriver().describeState?.('target')).toMatchObject({ checked: false });
+    expect(await makeDriver().describeState?.({ handle: 'target' })).toMatchObject({ checked: false });
   });
 
   it('reports disabled for every control that has the notion', async () => {
@@ -180,20 +180,20 @@ describe('state readback across element kinds', () => {
       '<select data-agent-element="target" disabled></select>',
     ]) {
       mount(html);
-      expect(await makeDriver().describeState?.('target')).toMatchObject({ disabled: true });
+      expect(await makeDriver().describeState?.({ handle: 'target' })).toMatchObject({ disabled: true });
     }
   });
 
   it('reads the live text of output, progress and meter elements', async () => {
     mount('<output data-agent-element="target">42</output>');
-    expect((await makeDriver().describeState?.('target'))?.text).toBe('42');
+    expect((await makeDriver().describeState?.({ handle: 'target' }))?.text).toBe('42');
     mount('<progress data-agent-element="target" value="30" max="100">30%</progress>');
-    expect((await makeDriver().describeState?.('target'))?.text).toBe('30%');
+    expect((await makeDriver().describeState?.({ handle: 'target' }))?.text).toBe('30%');
   });
 
   it('reads a whole table as text, which is how a caller sees tabular data today', async () => {
     mount('<table data-agent-element="target"><tr><td>a</td><td>b</td></tr></table>');
-    expect((await makeDriver().describeState?.('target'))?.text).toContain('a');
+    expect((await makeDriver().describeState?.({ handle: 'target' }))?.text).toContain('a');
   });
 });
 
@@ -209,8 +209,8 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     target.addEventListener('input', () => events.push('input'));
     target.addEventListener('change', () => events.push('change'));
 
-    expect(await makeDriver().describeField('target')).toMatchObject({ type: 'contenteditable' });
-    await makeDriver().fill('target', 'hello');
+    expect(await makeDriver().describeField({ handle: 'target' })).toMatchObject({ type: 'contenteditable' });
+    await makeDriver().fill({ handle: 'target', text: 'hello' });
     expect(target.textContent).toBe('hello');
     // `input` only: `change` is a form-control event the platform never fires for this element.
     expect(events).toEqual(['input']);
@@ -220,7 +220,7 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     // Rich-text surfaces are still fields — a contenteditable named for a card number must be
     // refused exactly as an <input> of that name would be.
     mount('<div data-agent-element="target" data-agent-role="field" contenteditable="true" name="card_number"></div>');
-    expect(await makeDriver().describeField('target')).toMatchObject({ name: 'card_number' });
+    expect(await makeDriver().describeField({ handle: 'target' })).toMatchObject({ name: 'card_number' });
   });
 
   it('reports the same guard signals for a contenteditable as for an input', async () => {
@@ -228,7 +228,7 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     // other refuses `name="card_number"` while accepting `autocomplete="cc-number"` — the same
     // field, spelled the way the denied-token list actually recognises.
     mount('<div data-agent-element="target" contenteditable="true" autocomplete="cc-number" aria-readonly="true"></div>');
-    expect(await makeDriver().describeField('target')).toMatchObject({
+    expect(await makeDriver().describeField({ handle: 'target' })).toMatchObject({
       autocomplete: 'cc-number',
       readOnly: true,
     });
@@ -242,8 +242,8 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     const button = root.querySelector('[data-agent-element="save"]') as HTMLElement;
     Object.defineProperty(button, 'isContentEditable', { value: true, configurable: true });
 
-    expect(await makeDriver().describeField('save')).toBeNull();
-    await expect(makeDriver().fill('save', 'pwned')).rejects.toThrow(/not a fillable field/);
+    expect(await makeDriver().describeField({ handle: 'save' })).toBeNull();
+    await expect(makeDriver().fill({ handle: 'save', text: 'pwned' })).rejects.toThrow(/not a fillable field/);
     expect(button.textContent).toBe('Save');
   });
 
@@ -254,7 +254,7 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     const para = root.querySelector('[data-agent-element="para"]') as HTMLElement;
     Object.defineProperty(para, 'isContentEditable', { value: true, configurable: true });
 
-    await makeDriver().fill('para', 'new');
+    await makeDriver().fill({ handle: 'para', text: 'new' });
     expect(para.textContent).toBe('new');
   });
 
@@ -263,8 +263,8 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
       <option value="a">Alpha</option><option value="b">Beta</option>
     </select>`);
     const driver = makeDriver();
-    await driver.selectOption('target', 'Alpha');
-    await driver.selectOption('target', 'Beta');
+    await driver.selectOption({ handle: 'target', option: 'Alpha' });
+    await driver.selectOption({ handle: 'target', option: 'Beta' });
     const select = root.querySelector('[data-agent-element="target"]') as HTMLSelectElement;
     expect(Array.from(select.selectedOptions).map((option) => option.value)).toEqual(['a', 'b']);
   });
@@ -274,8 +274,8 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
       <option value="a">Alpha</option><option value="b">Beta</option>
     </select>`);
     const driver = makeDriver();
-    await driver.selectOption('target', 'Alpha');
-    await driver.selectOption('target', 'Beta');
+    await driver.selectOption({ handle: 'target', option: 'Alpha' });
+    await driver.selectOption({ handle: 'target', option: 'Beta' });
     expect((root.querySelector('[data-agent-element="target"]') as HTMLSelectElement).value).toBe('b');
   });
 
@@ -285,7 +285,7 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
       <optgroup label="EU"><option value="fr">France</option></optgroup>
       <optgroup label="NA"><option value="ca">Canada</option></optgroup>
     </select>`);
-    await makeDriver().selectOption('target', 'Canada');
+    await makeDriver().selectOption({ handle: 'target', option: 'Canada' });
     expect((root.querySelector('[data-agent-element="target"]') as HTMLSelectElement).value).toBe('ca');
   });
 
@@ -293,7 +293,7 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     mount(`<select data-agent-element="target">
       <option value="a">Alpha</option><option value="b" disabled>Beta</option>
     </select>`);
-    await expect(makeDriver().selectOption('target', 'Beta'))
+    await expect(makeDriver().selectOption({ handle: 'target', option: 'Beta' }))
       .rejects.toThrow(/"Beta" is not an option of "target"\. Available: Alpha/);
   });
 });
@@ -328,7 +328,7 @@ describe('fill on a contenteditable: driving it via execCommand where the platfo
     vi.spyOn(window, 'getSelection').mockReturnValue(selection as unknown as Selection);
     const rangeSpy = vi.spyOn(document, 'createRange');
 
-    await makeDriver().fill('target', 'new text');
+    await makeDriver().fill({ handle: 'target', text: 'new text' });
 
     expect(focusSpy).toHaveBeenCalledOnce();
     expect(rangeSpy).toHaveBeenCalledOnce();
@@ -344,7 +344,7 @@ describe('fill on a contenteditable: driving it via execCommand where the platfo
     const events: string[] = [];
     target.addEventListener('input', () => events.push('input'));
 
-    await makeDriver().fill('target', 'new text');
+    await makeDriver().fill({ handle: 'target', text: 'new text' });
 
     // A real browser's execCommand would update the DOM and fire input/beforeinput itself; this
     // mock does neither, so an unchanged DOM and no synthetic event together prove the driver took
@@ -356,7 +356,7 @@ describe('fill on a contenteditable: driving it via execCommand where the platfo
   it('issues delete rather than insertText for an empty replacement', async () => {
     mount('<div data-agent-element="target" contenteditable="true">old</div>');
     const execCommand = mockExecCommand(true);
-    await makeDriver().fill('target', '');
+    await makeDriver().fill({ handle: 'target', text: '' });
     expect(execCommand).toHaveBeenCalledWith('delete');
     expect(execCommand).not.toHaveBeenCalledWith('insertText', expect.anything(), expect.anything());
   });
@@ -368,7 +368,7 @@ describe('fill on a contenteditable: driving it via execCommand where the platfo
     const events: string[] = [];
     target.addEventListener('input', () => events.push('input'));
 
-    await makeDriver().fill('target', 'fallback text');
+    await makeDriver().fill({ handle: 'target', text: 'fallback text' });
 
     expect(target.textContent).toBe('fallback text');
     expect(events).toEqual(['input']);
@@ -377,7 +377,7 @@ describe('fill on a contenteditable: driving it via execCommand where the platfo
   it('falls back the same way when the platform has no execCommand at all, as jsdom does not', async () => {
     mount('<div data-agent-element="target" contenteditable="true">old</div>');
     expect(typeof document.execCommand).toBe('undefined');
-    await makeDriver().fill('target', 'hello');
+    await makeDriver().fill({ handle: 'target', text: 'hello' });
     const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
     expect(target.textContent).toBe('hello');
   });

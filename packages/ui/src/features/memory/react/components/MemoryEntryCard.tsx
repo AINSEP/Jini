@@ -45,7 +45,7 @@ export function MemoryEntryCard({
           className="library-card-expand"
           onClick={() => onOpenPreview(entry.id)}
           title={t('Preview')}
-          {...agentHandleProps(agentHandle, { action: 'preview', role: 'button', label: t('Preview') })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'preview', role: 'button', label: t('Preview') }) })}
         >
           <Icon name={previewId === entry.id ? 'chevron-down' : 'chevron-right'} size={14} />
         </button>
@@ -54,7 +54,7 @@ export function MemoryEntryCard({
           className="ghost library-card-action"
           onClick={() => onStartEdit(entry.id)}
           title={t('Edit')}
-          {...agentHandleProps(agentHandle, { action: 'edit', role: 'button', label: t('Edit') })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'edit', role: 'button', label: t('Edit') }) })}
         >
           <Icon name="edit" size={14} />
         </button>
@@ -63,7 +63,7 @@ export function MemoryEntryCard({
           className="ghost library-card-action"
           onClick={() => onDelete(entry.id)}
           title={t('Delete')}
-          {...agentHandleProps(agentHandle, { action: 'delete', role: 'button', label: t('Delete') })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete', role: 'button', label: t('Delete') }) })}
         >
           <Icon name="close" size={14} />
         </button>

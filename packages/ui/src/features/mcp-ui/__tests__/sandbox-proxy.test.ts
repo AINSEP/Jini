@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildIsolatedSandboxProxyHtml, buildSandboxProxyDataUrl, SANDBOX_PROXY_HTML } from '../sandbox-proxy.js';
+import { PROXY_LINK_FORWARDER_JS } from '../sandbox-proxy-link-forwarder.js';
 
 describe('SANDBOX_PROXY_HTML', () => {
   it('accepts a resource message only from the embedding window, on the serving origin', () => {
@@ -68,5 +69,86 @@ describe('buildIsolatedSandboxProxyHtml / buildSandboxProxyDataUrl', () => {
 
     const encoded = url.slice('data:text/html;charset=utf-8,'.length);
     expect(decodeURIComponent(encoded)).toBe(buildIsolatedSandboxProxyHtml(hostOrigin));
+  });
+});
+
+/**
+ * A View is untrusted HTML in a sandbox without `allow-popups`/`allow-top-navigation`, so a plain
+ * `<a href>` inside it either navigates the card's own frame away (same-tab) or is silently blocked
+ * (`target="_blank"`). Owner 2026-10-08: every chat link opens a new tab. The proxy forwards link
+ * clicks to the Host as `ui/open-link` — the one channel a sandboxed View has to open anything —
+ * and these tests run the exact forwarder source the proxy page embeds.
+ */
+describe('proxy link forwarding', () => {
+  type Posted = { message: { jsonrpc: string; id: string; method: string; params: { url: string } }; origin: string };
+
+  function loadForwarder() {
+    const posted: Posted[] = [];
+    const host = { postMessage: (message: Posted['message'], origin: string) => posted.push({ message, origin }) };
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs the embedded page source verbatim.
+    const forward = new Function('host', 'hostOrigin', `${PROXY_LINK_FORWARDER_JS}\nreturn forwardLinkClick;`)(
+      host,
+      'https://admin.example.com',
+    ) as (event: MouseEvent) => void;
+    return { posted, forward };
+  }
+
+  function clickOn(element: Element, init: MouseEventInit = {}): MouseEvent {
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init });
+    Object.defineProperty(event, 'target', { value: element });
+    return event;
+  }
+
+  function anchor(attrs: Record<string, string>, text = 'x'): HTMLAnchorElement {
+    const a = document.createElement('a');
+    for (const [k, v] of Object.entries(attrs)) a.setAttribute(k, v);
+    a.textContent = text;
+    return a;
+  }
+
+  it('turns a link click into a ui/open-link request to the host origin and cancels the in-frame navigation', () => {
+    const { posted, forward } = loadForwarder();
+    const link = anchor({ href: 'https://example.com/docs' });
+    const span = document.createElement('span');
+    link.appendChild(span);
+    const event = clickOn(span);
+    forward(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(posted).toEqual([{
+      origin: 'https://admin.example.com',
+      message: { jsonrpc: '2.0', id: 'jini-proxy-open-link-1', method: 'ui/open-link', params: { url: 'https://example.com/docs' } },
+    }]);
+  });
+
+  it('forwards a target=_blank link too — the sandbox would block its popup', () => {
+    const { posted, forward } = loadForwarder();
+    forward(clickOn(anchor({ href: 'https://example.com/a', target: '_blank' })));
+    forward(clickOn(anchor({ href: 'https://example.com/b' })));
+    expect(posted.map((p) => p.message.id)).toEqual(['jini-proxy-open-link-1', 'jini-proxy-open-link-2']);
+  });
+
+  it('leaves hash, empty, javascript:, download links, cancelled and non-primary clicks alone', () => {
+    const { posted, forward } = loadForwarder();
+    const cases = [
+      clickOn(anchor({ href: '#top' })),
+      clickOn(anchor({ href: '' })),
+      clickOn(anchor({ href: ' javascript:void(0)' })),
+      clickOn(anchor({ href: '/file.csv', download: '' })),
+      clickOn(anchor({ href: 'https://example.com' }), { button: 1 }),
+      clickOn(document.createElement('button')),
+    ];
+    const handled = clickOn(anchor({ href: 'https://example.com' }));
+    handled.preventDefault();
+    for (const event of [...cases, handled]) forward(event);
+    expect(posted).toEqual([]);
+  });
+
+  it('is installed after the guest HTML is written, in both proxy variants', () => {
+    const install = 'document.close();\n    window.addEventListener("click", forwardLinkClick);';
+    expect(SANDBOX_PROXY_HTML).toContain(install);
+    expect(SANDBOX_PROXY_HTML).toContain(PROXY_LINK_FORWARDER_JS);
+    const isolated = buildIsolatedSandboxProxyHtml('https://admin.example.com');
+    expect(isolated).toContain(install);
+    expect(isolated).toContain(PROXY_LINK_FORWARDER_JS);
   });
 });

@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_FA: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "متنی را که شبیه کلید بود از پیامتان حذف کردم. اگر واقعی بود، آن را تعویض کنید. برای ذخیره از فرم امن استفاده کنید.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "برای ذخیره کلیدها، توکن‌ها، گذرواژه‌ها و اطلاعات محرمانه از فرم امن استفاده کنید. پاسخ‌های گفتگو به دستیار فرستاده می‌شوند.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# مهارت من\n\n1. گردش کار را توضیح دهید.\n2. ورودی‌ها و خروجی‌ها را شرح دهید.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'مسیر سفارشی جایگزین کار نکرد، بنابراین به‌جای آن از فایل اجرایی شناسایی‌شده به‌طور خودکار استفاده شد.',
   'API key': 'کلید API',
   'About': 'درباره',
   'Accent color': 'رنگ تأکیدی',
   'Account': 'حساب کاربری',
+  'Advanced': 'پیشرفته',
   'Advanced: proxy & custom paths': 'پیشرفته: پراکسی و مسیرهای سفارشی',
   'Agent check failed': 'بررسی عامل ناموفق بود',
   'Agent is ready.': 'عامل آماده است.',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_FA: SettingsDialogDict = {
   'Copy': 'کپی',
   'Copy to clipboard': 'کپی در کلیپ‌بورد',
   'Could not load live models: {message}': 'بارگذاری مدل‌های زنده ممکن نشد: {message}',
-  'No API key — connection test needs the key from this browser.': 'کلید API وجود ندارد — آزمون اتصال به کلید از همین مرورگر نیاز دارد.',
-  'No API key — model discovery needs the key from this browser.': 'کلید API وجود ندارد — کشف مدل‌ها به کلید از همین مرورگر نیاز دارد.',
+  'No API key saved. Save one to test the connection.': 'هیچ کلید API ذخیره نشده است. برای آزمون اتصال یک کلید ذخیره کنید.',
+  'No API key saved. Save one to load models.': 'هیچ کلید API ذخیره نشده است. برای بارگیری مدل‌ها یک کلید ذخیره کنید.',
   'Could not load skills: {error}': 'بارگذاری مهارت‌ها ممکن نشد: {error}',
   'Could not reach the daemon: {error}': 'ارتباط با دیمون برقرار نشد: {error}',
   'Could not reach the server. Showing local changes only.': 'ارتباط با سرور برقرار نشد. فقط تغییرات محلی نمایش داده می‌شود.',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_FA: SettingsDialogDict = {
   'Not available for this daemon.': 'برای این دیمون در دسترس نیست.',
   'Not configured': 'پیکربندی‌نشده',
   'Not installed': 'نصب‌نشده',
+  'Show {count} not installed': 'نمایش {count} مورد نصب‌نشده',
+  'Hide not installed': 'پنهان کردن موارد نصب‌نشده',
+  'Show not-installed CLIs': 'نمایش CLIهای نصب‌نشده',
   'Not sharing': 'اشتراک‌گذاری نمی‌شود',
   'Nothing is shared unless you opt in.': 'تا زمانی که خودتان فعال نکنید، چیزی به اشتراک گذاشته نمی‌شود.',
   'Off': 'خاموش',

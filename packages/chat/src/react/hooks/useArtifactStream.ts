@@ -33,14 +33,37 @@ export interface UseArtifactStreamResult {
   current: ArtifactStreamItem | null;
 }
 
-function toFile(item: Omit<ArtifactStreamItem, 'file' | 'match'>): ArtifactFile {
-  return { name: item.identifier || item.title || 'artifact', kind: item.artifactType, content: item.content };
+type ArtifactStreamBase = Omit<ArtifactStreamItem, 'file' | 'match'>;
+type ArtifactMeta = Pick<ArtifactStreamItem, 'identifier' | 'artifactType' | 'title'>;
+
+function toItem(base: ArtifactStreamBase, { registry }: { registry?: RendererRegistry | undefined }): ArtifactStreamItem {
+  const file: ArtifactFile = { name: base.identifier || base.title || 'artifact', kind: base.artifactType, content: base.content };
+  return { ...base, file, match: registry?.resolve({ file }) ?? null };
 }
 
-export function useArtifactStream(content: string, registry?: RendererRegistry): UseArtifactStreamResult {
-  return useMemo(() => {
-    const items: ArtifactStreamItem[] = [];
+/**
+ * Completed artifacts in `head`, oldest first. Only `artifact:start` (for the
+ * metadata) and `artifact:end` (whose `fullContent` is the whole body) are
+ * needed — `artifact:chunk` deltas are already folded into `fullContent`.
+ * `createArtifactParser` never nests and always emits an `artifact:end` with
+ * the same identifier right after its `artifact:start`'s chunks, so `meta` is
+ * always set when an end arrives.
+ */
+function collectCompleted(head: string, { registry }: { registry?: RendererRegistry | undefined }): ArtifactStreamItem[] {
+  const items: ArtifactStreamItem[] = [];
+  let meta: ArtifactMeta | null = null;
+  for (const ev of parseArtifacts({ content: head })) {
+    if (ev.type === 'artifact:start') {
+      meta = { identifier: ev.identifier, artifactType: ev.artifactType, title: ev.title };
+    } else if (ev.type === 'artifact:end') {
+      items.push(toItem({ ...meta!, content: ev.fullContent, status: 'complete' }, { registry }));
+    }
+  }
+  return items;
+}
 
+export function useArtifactStream({ content }: { content: string }, { registry }: { registry?: (RendererRegistry) | undefined } = {}): UseArtifactStreamResult {
+  return useMemo(() => {
     // `splitStreamingArtifact` is the authority on "is there a trailing,
     // still-open artifact": split first so `parseArtifacts` (a one-shot
     // feed+flush that synthesizes an `artifact:end` for whatever is still
@@ -49,28 +72,13 @@ export function useArtifactStream(content: string, registry?: RendererRegistry):
     // Running it on the raw `content` would double-count a live artifact:
     // once (wrongly) as "complete" via the synthetic flush, and again (correctly)
     // as "streaming" below.
-    const { head, live } = splitStreamingArtifact(content);
-
-    let current: { identifier: string; artifactType: string; title: string; content: string } | null = null;
-    for (const ev of parseArtifacts(head)) {
-      if (ev.type === 'artifact:start') {
-        current = { identifier: ev.identifier, artifactType: ev.artifactType, title: ev.title, content: '' };
-      } else if (ev.type === 'artifact:chunk' && current && current.identifier === ev.identifier) {
-        current.content += ev.delta;
-      } else if (ev.type === 'artifact:end' && current && current.identifier === ev.identifier) {
-        const finished = { ...current, content: ev.fullContent, status: 'complete' as const };
-        items.push({ ...finished, file: toFile(finished), match: registry?.resolve({ file: toFile(finished) }) ?? null });
-        current = null;
-      }
-    }
+    const { head, live } = splitStreamingArtifact({ content: content });
+    const items = collectCompleted(head, { registry });
 
     // A trailing artifact whose close tag hasn't streamed in yet — surfaced
     // separately so a live preview can render mid-generation.
-    if (live) {
-      const streaming = { identifier: live.identifier, artifactType: live.artifactType, title: live.title, content: live.content, status: 'streaming' as const };
-      items.push({ ...streaming, file: toFile(streaming), match: registry?.resolve({ file: toFile(streaming) }) ?? null });
-    }
+    if (live) items.push(toItem({ ...live, status: 'streaming' }, { registry }));
 
-    return { items, current: items.length > 0 ? items[items.length - 1]! : null };
+    return { items, current: items.at(-1) ?? null };
   }, [content, registry]);
 }

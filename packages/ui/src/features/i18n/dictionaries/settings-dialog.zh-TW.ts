@@ -19,12 +19,17 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_ZH_TW: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "我已從你的訊息中移除疑似金鑰的內容。如果是真實金鑰，請更換它。請使用安全表單儲存。",
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- Translation of user-facing credential-safety guidance; the value is prose, not a password.
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "請使用安全表單儲存金鑰、權杖、密碼和機密資訊。聊天回答會傳送給助理。",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# 我的技能\n\n1. 說明工作流程。\n2. 描述輸入與輸出。',
   'A custom path override did not work, so this used the automatically detected binary instead.': '自訂路徑覆寫未生效，因此改用自動偵測到的二進位檔。',
   'API key': 'API 金鑰',
   'About': '關於',
   'Accent color': '強調色',
   'Account': '帳戶',
+  'Advanced': '進階',
   'Advanced: proxy & custom paths': '進階：代理伺服器與自訂路徑',
   'Agent check failed': '代理程式檢查失敗',
   'Agent is ready.': '代理程式已就緒。',
@@ -68,8 +73,8 @@ export const SETTINGS_DIALOG_ZH_TW: SettingsDialogDict = {
   'Copy': '複製',
   'Copy to clipboard': '複製到剪貼簿',
   'Could not load live models: {message}': '無法載入即時模型清單：{message}',
-  'No API key — connection test needs the key from this browser.': '沒有 API 金鑰——連線測試需要來自此瀏覽器的金鑰。',
-  'No API key — model discovery needs the key from this browser.': '沒有 API 金鑰——模型探索需要來自此瀏覽器的金鑰。',
+  'No API key saved. Save one to test the connection.': '尚未儲存 API 金鑰。請先儲存金鑰再測試連線。',
+  'No API key saved. Save one to load models.': '尚未儲存 API 金鑰。請先儲存金鑰再載入模型。',
   'Could not load skills: {error}': '無法載入技能：{error}',
   'Could not reach the daemon: {error}': '無法連上背景程序：{error}',
   'Could not reach the server. Showing local changes only.': '無法連上伺服器，僅顯示本機變更。',
@@ -149,6 +154,9 @@ export const SETTINGS_DIALOG_ZH_TW: SettingsDialogDict = {
   'Not available for this daemon.': '此背景程序不支援此功能。',
   'Not configured': '尚未設定',
   'Not installed': '尚未安裝',
+  'Show {count} not installed': '顯示 {count} 個尚未安裝',
+  'Hide not installed': '隱藏尚未安裝',
+  'Show not-installed CLIs': '顯示尚未安裝的 CLI',
   'Not sharing': '未共享',
   'Nothing is shared unless you opt in.': '除非你主動選擇加入，否則不會共享任何內容。',
   'Off': '關閉',

@@ -94,7 +94,7 @@ function asImageBlock(block: unknown): ToolResultImageBlock | undefined {
  * plain JSON) pass through untouched with no media.
  * @complexity O(n) in the number of content blocks.
  */
-export function extractResultMedia(output: unknown): ExtractResultMedia {
+export function extractResultMedia({ output }: { readonly output: unknown }): ExtractResultMedia {
   if (!isRecord(output)) return { remainder: output, media: [] };
   const content = output['content'];
   if (!Array.isArray(content)) return { remainder: output, media: [] };

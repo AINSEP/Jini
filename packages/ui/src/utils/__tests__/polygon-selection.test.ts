@@ -103,6 +103,26 @@ describe('pathIntersectsRect', () => {
   it('is false when the path never comes near the rect', () => {
     expect(pathIntersectsRect([{ x: 0, y: 0 }, { x: 1, y: 1 }], rect)).toBe(false);
   });
+
+  it('counts a point lying exactly on the rect border as inside', () => {
+    expect(pathIntersectsRect([{ x: 30, y: 30 }], rect)).toBe(true);
+  });
+
+  it('is false for a single point outside the rect', () => {
+    expect(pathIntersectsRect([{ x: 31, y: 15 }], rect)).toBe(false);
+  });
+
+  it('is true when a vertical segment crosses the top and bottom edges', () => {
+    expect(pathIntersectsRect([{ x: 15, y: 0 }, { x: 15, y: 40 }], rect)).toBe(true);
+  });
+
+  it('is true when a segment only grazes the bottom-left corner', () => {
+    expect(pathIntersectsRect([{ x: 5, y: 25 }, { x: 15, y: 35 }], rect)).toBe(true);
+  });
+
+  it('is true when a later segment of a longer path crosses the rect', () => {
+    expect(pathIntersectsRect([{ x: 0, y: 0 }, { x: 0, y: 15 }, { x: 40, y: 15 }], rect)).toBe(true);
+  });
 });
 
 describe('lassoSelectionHitsRect', () => {
@@ -130,6 +150,16 @@ describe('lassoSelectionHitsRect', () => {
       { x: 0, y: 0 }, { x: 105, y: 0 }, { x: 105, y: 105 }, { x: 0, y: 105 }, { x: 0, y: 0 },
     ];
     expect(lassoSelectionHitsRect({ points, rect, closedLoop: true })).toBe(true);
+  });
+
+  it('is true for a closed loop whose closing edge cuts a corner the stroke itself never touches', () => {
+    const points = [{ x: 115, y: 90 }, { x: 90, y: 90 }, { x: 90, y: 115 }];
+    expect(lassoSelectionHitsRect({ points, rect, closedLoop: true })).toBe(true);
+  });
+
+  it('is false for the same corner-cutting stroke when it is not a closed loop', () => {
+    const points = [{ x: 115, y: 90 }, { x: 90, y: 90 }, { x: 90, y: 115 }];
+    expect(lassoSelectionHitsRect({ points, rect, closedLoop: false })).toBe(false);
   });
 
   it('is false for a closed loop entirely elsewhere', () => {

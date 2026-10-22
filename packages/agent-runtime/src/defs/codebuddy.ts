@@ -1,5 +1,5 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/codebuddy.ts` (import path adjusted only). See `source-map.md`. */
-import { agentCapabilities } from '../capabilities.js';
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { addDirArgs, nonDefaultFlag, permissionModeArgs, resolveCapabilities, sessionArgs } from './claude-compatible-args.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -46,6 +46,8 @@ const CODEBUDDY_FALLBACK_MODELS = [
 ];
 
 export const codebuddyAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('codebuddy', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codebuddyAgentDef.fallbackModels }),
     id: 'codebuddy',
     name: 'Codebuddy Code',
     bin: 'codebuddy',
@@ -80,52 +82,34 @@ export const codebuddyAgentDef = {
       { id: 'xhigh', label: 'XHigh' },
       { id: 'max', label: 'Max' },
     ],
-    buildArgs: (_prompt, _imagePaths, extraAllowedDirs = [], options = {}, runtimeContext = {}) => {
-      const caps = agentCapabilities.get('codebuddy') || {};
-      // Same stdin strategy as Claude Code: `--input-format stream-json`
-      // enables JSONL stdin so the daemon can answer AskUserQuestion tool
-      // calls. `--output-format stream-json` gives us SSE-style events.
-      const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose'];
-      // `--include-partial-messages` lands richer streaming deltas. Gate on
-      // the help-text probe to avoid "unknown option" errors on older builds.
-      if (caps.partialMessages) {
-        args.push('--include-partial-messages');
-      }
-      if (options.model && options.model !== 'default') {
-        args.push('--model', options.model);
-      }
-      // Reasoning effort control — Codebuddy supports `--effort <level>`.
-      // The `default` sentinel means "let Codebuddy pick" — omit the flag.
-      if (options.reasoning && options.reasoning !== 'default') {
-        args.push('--effort', options.reasoning);
-      }
-      const dirs = (extraAllowedDirs || []).filter(
-        (d) => typeof d === 'string' && d.length > 0,
-      );
-      if (dirs.length > 0 && caps.addDir !== false) {
-        args.push('--add-dir', ...dirs);
-      }
-      // Session continuity: Codebuddy supports `--resume <id>` and
-      // `--session-id <uuid>` identically to Claude Code.
-      if (typeof runtimeContext.resumeSessionId === 'string' && runtimeContext.resumeSessionId) {
-        args.push('--resume', runtimeContext.resumeSessionId);
-      } else if (typeof runtimeContext.newSessionId === 'string' && runtimeContext.newSessionId) {
-        args.push('--session-id', runtimeContext.newSessionId);
-      }
-      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
-      // behavior) unless a caller explicitly opts into a restricted run.
-      if (options.permissionMode !== 'restricted') {
-        args.push('--permission-mode', 'bypassPermissions');
-      }
-      // Same explicit staged-config delivery as the claude def, through the same shared helper —
-      // see `buildClaudeMcpConfigArgs`'s doc. Without this, declaring
-      // `externalMcpInjection: 'claude-mcp-json'` (below) only got the file *written*; Codebuddy
-      // then had to auto-discover it, which is exactly the headless-trust-prompt hang the claude
-      // fix was built to avoid. Both flags are documented on Codebuddy's own CLI reference
-      // (`--mcp-config <fileOrString>`, `--strict-mcp-config`), so the strict-isolation guarantee
-      // is not silently degraded here relative to claude.
-      args.push(...buildClaudeMcpConfigArgs(runtimeContext));
-      return args;
+    buildArgs: (_requiredArgs, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
+      const caps = resolveCapabilities({ agentId: 'codebuddy', options });
+      return [
+        // Same stdin strategy as Claude Code: `--input-format stream-json`
+        // enables JSONL stdin so the daemon can answer AskUserQuestion tool
+        // calls. `--output-format stream-json` gives us SSE-style events.
+        '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose',
+        // `--include-partial-messages` lands richer streaming deltas. Gate on
+        // the help-text probe to avoid "unknown option" errors on older builds.
+        ...(caps.partialMessages ? ['--include-partial-messages'] : []),
+        ...nonDefaultFlag({ flag: '--model', value: options.model }),
+        // Reasoning effort control — Codebuddy supports `--effort <level>`.
+        // The `default` sentinel means "let Codebuddy pick" — omit the flag.
+        ...nonDefaultFlag({ flag: '--effort', value: options.reasoning }),
+        ...addDirArgs({ extraAllowedDirs, caps }),
+        // Session continuity: Codebuddy supports `--resume <id>` and
+        // `--session-id <uuid>` identically to Claude Code.
+        ...sessionArgs(runtimeContext),
+        ...permissionModeArgs(options),
+        // Same explicit staged-config delivery as the claude def, through the same shared helper —
+        // see `buildClaudeMcpConfigArgs`'s doc. Without this, declaring
+        // `externalMcpInjection: 'claude-mcp-json'` (below) only got the file *written*; Codebuddy
+        // then had to auto-discover it, which is exactly the headless-trust-prompt hang the claude
+        // fix was built to avoid. Both flags are documented on Codebuddy's own CLI reference
+        // (`--mcp-config <fileOrString>`, `--strict-mcp-config`), so the strict-isolation guarantee
+        // is not silently degraded here relative to claude.
+        ...buildClaudeMcpConfigArgs(runtimeContext, options),
+      ];
     },
     promptViaStdin: true,
     promptInputFormat: 'stream-json',

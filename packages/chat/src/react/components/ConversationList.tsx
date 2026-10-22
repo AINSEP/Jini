@@ -1,11 +1,11 @@
 /**
  * @module ConversationList
  *
- * The conversation switcher: new / select / delete / search / rename-on-double-click. Drop it
+ * The conversation switcher: new / select / delete / search / inline rename. Drop it
  * into `ChatPane`'s `leadingAccessory` slot — it needs no changes to `ChatPane` itself.
  *
  * Storage-agnostic by construction. It takes data and callbacks and owns nothing durable, so a
- * host backs it with `@jini-ai/sqlite`'s `ChatHistoryStore`, an HTTP endpoint, or an in-memory
+ * host backs it with `@jini-ai/sqlite-chat`'s `ChatHistoryStore`, an HTTP endpoint, or an in-memory
  * array without this file knowing the difference.
  *
  * Search is a **client-side filter by default**, and delegates to `onSearch` when a host provides
@@ -14,8 +14,7 @@
  * when to swap is concrete — a client filter over a *paginated* list silently searches only the
  * loaded page, so the moment a host paginates, it must provide `onSearch`.
  *
- * Rename is double-click, restoring parity with Open Design's original `ConversationsMenu`; its
- * own newer in-pane menu dropped the affordance, which is a regression rather than a decision.
+ * Rename has an explicit keyboard-accessible action as well as the legacy double-click shortcut.
  *
  * Unstyled semantic markup with `jini-conv-*` class names, matching every other component in this
  * package — a host supplies the CSS.
@@ -23,15 +22,16 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
+import { useConversationListTitles } from './ConversationList.hooks.js';
+import { conversationTriggerAttributes } from './ConversationList.rules.js';
+import { ConversationTitleEditor } from './ConversationTitleEditor.js';
 
 /**
  * How long a click waits to see whether it is really the first half of a double-click.
  *
- * Chosen below the ~500ms OS double-click threshold on purpose: this only has to disambiguate
- * two clicks a user made deliberately in quick succession, and a longer wait would make ordinary
- * conversation switching feel sticky.
+ * Covers the common OS double-click window, including deliberate clicks 300ms apart.
  */
-const DOUBLE_CLICK_GRACE_MS = 220;
+const DOUBLE_CLICK_GRACE_MS = 500;
 
 /** The minimum a row needs to render. Mirrors `@jini-ai/chat/core`'s `ChatConversation`. */
 export interface ConversationListItem {
@@ -62,6 +62,13 @@ export interface ConversationListProps {
   /** Disables the "New" action — e.g. while the current conversation is still empty. */
   createDisabled?: boolean;
   emptyState?: React.ReactNode;
+  /** Replaces the trigger's accessible name (default "Conversations — {active title}"). */
+  triggerLabel?: string;
+  /**
+   * `false` drops the trigger's native `title` tooltip, for a host that draws its own tooltip over
+   * the icon (the browser's dark tip would otherwise show on top of it). Defaults to true.
+   */
+  nativeTitle?: boolean;
 }
 
 function reportConversationListHostEffectFailure(effectName: string, error: unknown) {
@@ -94,7 +101,7 @@ function relativeTime(updatedAt: number | undefined, now: number): string {
 }
 
 export function ConversationList({
-  conversations,
+  conversations: savedConversations,
   activeConversationId,
   onSelect,
   onCreate,
@@ -104,13 +111,15 @@ export function ConversationList({
   confirmDelete,
   createDisabled = false,
   emptyState,
+  triggerLabel,
+  nativeTitle = true,
 }: ConversationListProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [serverResults, setServerResults] = useState<ConversationListItem[] | null>(null);
+  const [savedServerResults, setServerResults] = useState<ConversationListItem[] | null>(null);
+  const { conversations, serverResults, rawTitles } = useConversationListTitles({ conversations: savedConversations, serverResults: savedServerResults });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
   const deferredQuery = useDeferredValue(query);
   /**
@@ -136,7 +145,7 @@ export function ConversationList({
    * Closing the switcher also abandons a click that has not yet resolved into a selection.
    *
    * The grace window exists so a double-click can become a rename rather than a selection, which
-   * means a single click stays pending for 220ms. Press Escape (or click outside) inside that window
+   * means a single click stays pending for the grace window. Press Escape (or click outside) inside it
    * and the menu closes while the timer survives, so the row is selected anyway — and if the pending
    * click was on Delete, it selects an id that no longer exists.
    */
@@ -148,8 +157,12 @@ export function ConversationList({
   // nothing on every document event.
   useEffect(() => {
     if (!open) return;
+    // The root div is committed before any effect runs, so it is never null here. Capturing it
+    // (rather than reading the ref per event) keeps a late event during unmount, after React has
+    // detached the ref but before this cleanup runs, measured against the real node.
+    const root = rootRef.current as HTMLDivElement;
     function onPointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!root.contains(event.target as Node)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') setOpen(false);
@@ -205,28 +218,28 @@ export function ConversationList({
   const now = Date.now();
 
   const commitRename = useCallback(
-    (id: string) => {
-      const next = draft.trim();
+    (id: string, next: string) => {
       setEditingId(null);
-      // An empty rename is a cancel, not a request to erase the title — a user who selects all
-      // and hits Enter has almost certainly changed their mind.
-      //
       // No optimistic title update happens here — the row keeps rendering `item.title` from
       // props until the host's own state updates, so a rejection cannot leave the UI showing a
       // title the server didn't accept. Reporting the failure is what closes the remaining gap.
-      if (next) runConversationListHostEffect('onRename', () => onRename(id, next));
+      runConversationListHostEffect('onRename', () => onRename(id, next));
     },
-    [draft, onRename],
+    [onRename],
   );
+
+  const startRename = (id: string) => {
+    cancelPendingSelect();
+    setEditingId(id);
+  };
 
   const requestDelete = useCallback(
     (item: ConversationListItem) => {
       const confirmer =
         confirmDelete ??
+        // Only ever called from a click handler, so a browser `window` always exists here.
         ((c: ConversationListItem) =>
-          typeof window === 'undefined'
-            ? true
-            : window.confirm(t('Delete "{title}"? This cannot be undone.').replace('{title}', c.title ?? t('Untitled'))));
+          window.confirm(t('Delete "{title}"? This cannot be undone.').replace('{title}', c.title ?? t('Untitled'))));
       // No optimistic removal — the row stays in `conversations` until the host's own state
       // drops it — so a rejected confirmer or `onDelete` cannot leave a deleted-looking row
       // behind; it only means the item silently never disappears. `onDelete` is the effect name
@@ -251,8 +264,7 @@ export function ConversationList({
         className={`jini-conv-trigger${open ? ' jini-conv-trigger-open' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={active?.title ? `${t('Conversations')} — ${active.title}` : t('Conversations')}
-        title={active?.title ?? t('Conversations')}
+        {...conversationTriggerAttributes({ activeTitle: active?.title, t }, { label: triggerLabel, nativeTitle })}
         data-testid="conversation-trigger"
         onClick={() => setOpen((v) => !v)}
       >
@@ -275,8 +287,8 @@ export function ConversationList({
               className="jini-conv-new"
               disabled={createDisabled}
               data-testid="conversation-new"
+              // `disabled` alone guards this: a disabled button never dispatches a click.
               onClick={() => {
-                if (createDisabled) return;
                 // No optimistic row is inserted — the list still comes straight from props — so a
                 // rejection here cannot leave a phantom conversation on screen; it only means the
                 // switcher closed without one actually being created. Reporting the failure closes
@@ -314,17 +326,11 @@ export function ConversationList({
                   data-testid={`conversation-item-${item.id}`}
                 >
                   {editingId === item.id ? (
-                    <input
-                      autoFocus
-                      className="jini-conv-rename"
-                      value={draft}
+                    <ConversationTitleEditor
+                      title={rawTitles.get(item.id) ?? null}
                       data-testid={`conversation-rename-${item.id}`}
-                      onChange={(event) => setDraft(event.currentTarget.value)}
-                      onBlur={() => commitRename(item.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') commitRename(item.id);
-                        else if (event.key === 'Escape') setEditingId(null);
-                      }}
+                      onCommit={(next) => commitRename(item.id, next)}
+                      onCancel={() => setEditingId(null)}
                     />
                   ) : (
                     <button
@@ -340,11 +346,7 @@ export function ConversationList({
                           setOpen(false);
                         }, DOUBLE_CLICK_GRACE_MS);
                       }}
-                      onDoubleClick={() => {
-                        cancelPendingSelect();
-                        setEditingId(item.id);
-                        setDraft(item.title ?? '');
-                      }}
+                      onDoubleClick={() => startRename(item.id)}
                     >
                       <span className="jini-conv-item-title">{item.title ?? t('Untitled')}</span>
                       <span className="jini-conv-item-meta">
@@ -353,6 +355,15 @@ export function ConversationList({
                       </span>
                     </button>
                   )}
+                  {editingId !== item.id ? <button
+                    type="button"
+                    className="jini-conv-item-rename"
+                    aria-label={t('Rename chat')}
+                    data-testid={`conversation-rename-button-${item.id}`}
+                    onClick={() => startRename(item.id)}
+                  >
+                    <Icon name="pencil" size={12} />
+                  </button> : null}
                   <button
                     type="button"
                     className="jini-conv-item-delete"

@@ -8,13 +8,13 @@ import { createToolExecutor, type ToolExecutionResult, type ToolExecutor } from 
 
 async function collectEvents(lifecycle: ReturnType<typeof createRunLifecycle>, runId: string): Promise<RunProtocolEvent[]> {
   const events: RunProtocolEvent[] = [];
-  await lifecycle.stream(runId, (event) => events.push(event));
+  await lifecycle.stream({ runId: runId, onEvent: (event) => events.push(event) });
   return events;
 }
 
 describe('DelegatedToolBridge', () => {
   it('routes one allowed and one denied delegated call through ToolExecutor with matching run events and audits', async () => {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     const allowedHandler = vi.fn(async (input: { input: unknown }) => ({ echoed: input.input }));
     const deniedHandler = vi.fn(async () => 'must not run');
     registry.register({
@@ -28,37 +28,25 @@ describe('DelegatedToolBridge', () => {
       policy: { authorize: () => 'deny' },
     });
     const toolExecutor = createToolExecutor({ registry });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
-    const allowed = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-allow',
-      toolId: 'echo',
-      principal: { id: 'user-1' },
-      input: { greeting: 'hello' },
-    });
-    const denied = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-deny',
-      toolId: 'blocked',
-      principal: { id: 'user-1' },
-      input: { destructive: true },
-    });
+    const allowed = await bridge.execute({ runId: run.id, toolUseId: 'call-allow', toolId: 'echo', principal: { id: 'user-1' }, input: { greeting: 'hello' } });
+    const denied = await bridge.execute({ runId: run.id, toolUseId: 'call-deny', toolId: 'blocked', principal: { id: 'user-1' }, input: { destructive: true } });
     await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
 
     expect(allowed.status).toBe('completed');
     expect(denied.status).toBe('denied');
     expect(allowedHandler).toHaveBeenCalledTimes(1);
     expect(deniedHandler).not.toHaveBeenCalled();
-    expect(toolExecutor.getAuditRecord(allowed.executionId)?.events.map((event) => event.phase)).toEqual([
+    expect(toolExecutor.getAuditRecord({ executionId: allowed.executionId })?.events.map((event) => event.phase)).toEqual([
       'requested',
       'authorized',
       'started',
       'completed',
     ]);
-    expect(toolExecutor.getAuditRecord(denied.executionId)?.events.map((event) => event.phase)).toEqual([
+    expect(toolExecutor.getAuditRecord({ executionId: denied.executionId })?.events.map((event) => event.phase)).toEqual([
       'requested',
       'denied',
     ]);
@@ -82,34 +70,28 @@ describe('DelegatedToolBridge', () => {
   it('serializes non-string tool output without throwing on circular values', () => {
     const circular: { self?: unknown } = {};
     circular.self = circular;
-    expect(serializeDelegatedToolOutput({ ok: true })).toBe('{"ok":true}');
-    expect(serializeDelegatedToolOutput(undefined)).toBe('');
-    expect(serializeDelegatedToolOutput(circular)).toBe('[object Object]');
+    expect(serializeDelegatedToolOutput({ output: { ok: true } })).toBe('{"ok":true}');
+    expect(serializeDelegatedToolOutput({ output: undefined })).toBe('');
+    expect(serializeDelegatedToolOutput({ output: circular })).toBe('[object Object]');
   });
 
   it('passes an already-string tool output through untouched', () => {
-    expect(serializeDelegatedToolOutput('already a string')).toBe('already a string');
+    expect(serializeDelegatedToolOutput({ output: 'already a string' })).toBe('already a string');
   });
 
   it('falls back to String() when JSON.stringify itself produces undefined (e.g. a function value)', () => {
     const fn = () => 'unused';
-    expect(serializeDelegatedToolOutput(fn)).toBe(String(fn));
+    expect(serializeDelegatedToolOutput({ output: fn })).toBe(String(fn));
   });
 
   it('rethrows and records an error tool_result when ToolExecutor.execute throws before producing a result', async () => {
-    const toolExecutor = createToolExecutor({ registry: createToolRegistry() });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const toolExecutor = createToolExecutor({ registry: createToolRegistry({}) });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
     await expect(
-      bridge.execute({
-        runId: run.id,
-        toolUseId: 'call-missing',
-        toolId: 'missing',
-        principal: { id: 'user-1' },
-        input: {},
-      }),
+      bridge.execute({ runId: run.id, toolUseId: 'call-missing', toolId: 'missing', principal: { id: 'user-1' }, input: {} }),
     ).rejects.toThrow(/unknown tool "missing"/);
 
     const agentEvents = (await collectEvents(lifecycle, run.id))
@@ -127,24 +109,18 @@ describe('DelegatedToolBridge', () => {
   });
 
   it('reports the confirmation-denied result content when the delegate declines confirmation', async () => {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     registry.register({
       descriptor: { id: 'confirm-me', requiresConfirmation: true },
       handler: async () => 'should not run',
       policy: { authorize: () => 'allow' },
     });
-    const toolExecutor = createToolExecutor({ registry, delegate: { onConfirm: () => 'deny' } });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const toolExecutor = createToolExecutor({ registry }, { delegate: { onConfirm: () => 'deny' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-1',
-      toolId: 'confirm-me',
-      principal: { id: 'user-1' },
-      input: {},
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'confirm-me', principal: { id: 'user-1' }, input: {} });
 
     expect(result.status).toBe('confirmation-denied');
     const agentEvents = (await collectEvents(lifecycle, run.id))
@@ -162,7 +138,7 @@ describe('DelegatedToolBridge', () => {
   });
 
   it('reports the timed-out result content when the tool outlives its timeout', async () => {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     registry.register({
       descriptor: { id: 'slow', timeoutMs: 10 },
       handler: (ctx: { signal: AbortSignal }) =>
@@ -176,17 +152,11 @@ describe('DelegatedToolBridge', () => {
       policy: { authorize: () => 'allow' },
     });
     const toolExecutor = createToolExecutor({ registry });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-1',
-      toolId: 'slow',
-      principal: { id: 'user-1' },
-      input: {},
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'slow', principal: { id: 'user-1' }, input: {} });
 
     expect(result.status).toBe('timed-out');
     const agentEvents = (await collectEvents(lifecycle, run.id))
@@ -201,7 +171,7 @@ describe('DelegatedToolBridge', () => {
   });
 
   it('reports the failed result content using the handler error message, without throwing', async () => {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     registry.register({
       descriptor: { id: 'flaky' },
       handler: async () => {
@@ -210,17 +180,11 @@ describe('DelegatedToolBridge', () => {
       policy: { authorize: () => 'allow' },
     });
     const toolExecutor = createToolExecutor({ registry });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-1',
-      toolId: 'flaky',
-      principal: { id: 'user-1' },
-      input: {},
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'flaky', principal: { id: 'user-1' }, input: {} });
 
     expect(result.status).toBe('failed');
     const agentEvents = (await collectEvents(lifecycle, run.id))
@@ -235,7 +199,7 @@ describe('DelegatedToolBridge', () => {
   });
 
   it('aborts immediately when the invocation-supplied transport signal is already aborted before execute() runs', async () => {
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     registry.register({
       descriptor: { id: 'cancellable' },
       handler: (ctx: { signal: AbortSignal }) =>
@@ -249,20 +213,13 @@ describe('DelegatedToolBridge', () => {
       policy: { authorize: () => 'allow' },
     });
     const toolExecutor = createToolExecutor({ registry });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
     const controller = new AbortController();
     controller.abort();
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-1',
-      toolId: 'cancellable',
-      principal: { id: 'user-1' },
-      input: {},
-      signal: controller.signal,
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'cancellable', principal: { id: 'user-1' }, input: {} }, { signal: controller.signal });
 
     expect(result.status).toBe('cancelled');
   });
@@ -279,7 +236,7 @@ describe('DelegatedToolBridge', () => {
     // time the outer `transportController.abort()` call returns, the
     // handler's own `ctx.signal` is already aborted.
     const transportController = new AbortController();
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     registry.register({
       descriptor: { id: 'cancellable' },
       handler: () =>
@@ -290,18 +247,11 @@ describe('DelegatedToolBridge', () => {
       policy: { authorize: () => 'allow' },
     });
     const toolExecutor = createToolExecutor({ registry });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-1',
-      toolId: 'cancellable',
-      principal: { id: 'user-1' },
-      input: {},
-      signal: transportController.signal,
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'cancellable', principal: { id: 'user-1' }, input: {} }, { signal: transportController.signal });
 
     expect(result.status).toBe('cancelled');
 
@@ -318,14 +268,14 @@ describe('DelegatedToolBridge', () => {
     // auto-removes a listener that actually fired. This test instruments addEventListener/
     // removeEventListener directly and exercises the path where `{once:true}` never fires at
     // all — normal completion — which is the only path where the explicit cleanup matters.
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     registry.register({
       descriptor: { id: 'ok-tool' },
       handler: async () => 'done',
       policy: { authorize: () => 'allow' },
     });
     const toolExecutor = createToolExecutor({ registry });
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
@@ -333,14 +283,7 @@ describe('DelegatedToolBridge', () => {
     const addEventListenerSpy = vi.spyOn(transportController.signal, 'addEventListener');
     const removeEventListenerSpy = vi.spyOn(transportController.signal, 'removeEventListener');
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-1',
-      toolId: 'ok-tool',
-      principal: { id: 'user-1' },
-      input: {},
-      signal: transportController.signal,
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {} }, { signal: transportController.signal });
 
     expect(result.status).toBe('completed');
     expect(addEventListenerSpy).toHaveBeenCalledTimes(1);
@@ -363,18 +306,12 @@ describe('DelegatedToolBridge', () => {
       cancel: vi.fn(),
       getAuditRecord: vi.fn(() => null),
     };
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: failingExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
     await expect(
-      bridge.execute({
-        runId: run.id,
-        toolUseId: 'call-1',
-        toolId: 'whatever',
-        principal: { id: 'user-1' },
-        input: {},
-      }),
+      bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'whatever', principal: { id: 'user-1' }, input: {} }),
     ).rejects.toBe('raw string failure');
 
     const agentEvents = (await collectEvents(lifecycle, run.id))
@@ -394,7 +331,7 @@ describe('DelegatedToolBridge', () => {
     // itself throw — RunLifecycle refuses to emit on an already-terminal run. `finally` must
     // still run its cleanup (unsubscribe, listener removal), and it's this *second* emit
     // failure — not the original tool error — that ultimately propagates to the caller.
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
     const doubleFaultExecutor: ToolExecutor = {
       execute: vi.fn(async () => {
@@ -408,13 +345,7 @@ describe('DelegatedToolBridge', () => {
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: doubleFaultExecutor });
 
     await expect(
-      bridge.execute({
-        runId: run.id,
-        toolUseId: 'call-1',
-        toolId: 'whatever',
-        principal: { id: 'user-1' },
-        input: {},
-      }),
+      bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'whatever', principal: { id: 'user-1' }, input: {} }),
     ).rejects.toThrow(/cannot emit "agent" on terminal run/);
   });
 
@@ -430,17 +361,11 @@ describe('DelegatedToolBridge', () => {
       cancel: vi.fn(),
       getAuditRecord: vi.fn(() => null),
     };
-    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: bareFailureExecutor });
     const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
 
-    const result = await bridge.execute({
-      runId: run.id,
-      toolUseId: 'call-1',
-      toolId: 'whatever',
-      principal: { id: 'user-1' },
-      input: {},
-    });
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'whatever', principal: { id: 'user-1' }, input: {} });
 
     expect(result).toBe(failedResult);
     const agentEvents = (await collectEvents(lifecycle, run.id))
@@ -453,4 +378,130 @@ describe('DelegatedToolBridge', () => {
       isError: true,
     });
   });
+
+  it('aborts the in-flight handler when the owning run is cancelled, reporting a cancelled tool_result', async () => {
+    const registry = createToolRegistry({});
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    registry.register({
+      descriptor: { id: 'waits' },
+      handler: (ctx) => new Promise((_resolve, reject) => {
+        ctx.signal.addEventListener('abort', () => reject(new Error('aborted by run cancel')), { once: true });
+        void lifecycle.cancel({ runId: run.id });
+      }),
+      policy: { authorize: () => 'allow' },
+    });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'waits', principal: { id: 'user-1' }, input: {} });
+
+    expect(result.status).toBe('cancelled');
+    const results = (await collectEvents(lifecycle, run.id))
+      .filter((event) => event.kind === 'agent')
+      .map((event) => event.payload as RunAgentPayload)
+      .filter((payload) => payload.type === 'tool_result');
+    expect(results).toEqual([{ type: 'tool_result', toolUseId: 'call-1', content: 'Tool execution cancelled.', isError: true }]);
+  });
+
+  it('unsubscribes its run-cancel listener once the call settles, on both the result and the throw path', async () => {
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'ok-tool' }, handler: async () => 'done', policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const unsubscribes: Array<ReturnType<typeof vi.fn>> = [];
+    const original = lifecycle.onCancelRequested.bind(lifecycle);
+    vi.spyOn(lifecycle, 'onCancelRequested').mockImplementation((args) => {
+      const unsubscribe = vi.fn(original(args));
+      unsubscribes.push(unsubscribe);
+      return unsubscribe;
+    });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+
+    await bridge.execute({ runId: run.id, toolUseId: 'call-ok', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {} });
+    await expect(bridge.execute({ runId: run.id, toolUseId: 'call-missing', toolId: 'missing', principal: { id: 'user-1' }, input: {} }))
+      .rejects.toThrow('ToolExecutor: unknown tool "missing"');
+
+    expect(unsubscribes).toHaveLength(2);
+    expect(unsubscribes.map((unsubscribe) => unsubscribe.mock.calls.length)).toEqual([1, 1]);
+  });
+
+  it('reports an emit failure on the result path as an error tool_result carrying that emit error, then rethrows it', async () => {
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'ok-tool' }, handler: async () => 'done', policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const originalEmit = lifecycle.emit.bind(lifecycle);
+    const emitted: RunAgentPayload[] = [];
+    vi.spyOn(lifecycle, 'emit').mockImplementation(async (args) => {
+      const data = (args.input as { data: RunAgentPayload }).data;
+      emitted.push(data);
+      if (data.type === 'tool_result' && !('isError' in data)) throw new Error('event log unavailable');
+      return originalEmit(args);
+    });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    await expect(bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {} }))
+      .rejects.toThrow('event log unavailable');
+    expect(emitted.slice(1)).toEqual([
+      { type: 'tool_result', toolUseId: 'call-1', content: 'done' },
+      { type: 'tool_result', toolUseId: 'call-1', content: 'event log unavailable', isError: true },
+    ]);
+  });
+
+  it('re-arms the slow-run notice only after the tool_result is emitted, when a mid-call surface suspended it', async () => {
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const registry = createToolRegistry({});
+    registry.register({
+      descriptor: { id: 'form' },
+      handler: async (_ctx, options) => { await options?.emitSurface?.({ channel: 'a2ui', payload: { message: {} } }); return 'answered'; },
+      policy: { authorize: () => 'allow' },
+    });
+    const order: string[] = [];
+    const originalEmit = lifecycle.emit.bind(lifecycle);
+    vi.spyOn(lifecycle, 'emit').mockImplementation(async (args) => {
+      order.push(`emit:${(args.input as { data: RunAgentPayload }).data.type}`);
+      return originalEmit(args);
+    });
+    const originalSuspend = lifecycle.suspendSlowRunNotice.bind(lifecycle);
+    vi.spyOn(lifecycle, 'suspendSlowRunNotice').mockImplementation((args) => { order.push('suspend'); originalSuspend(args); });
+    const originalResume = lifecycle.resumeSlowRunNotice.bind(lifecycle);
+    vi.spyOn(lifecycle, 'resumeSlowRunNotice').mockImplementation((args) => { order.push('resume'); originalResume(args); });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+
+    await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'form', principal: { id: 'user-1' }, input: {} });
+
+    expect(order).toEqual(['emit:tool_use', 'suspend', 'emit:a2ui', 'emit:tool_result', 'resume']);
+  });
+
+  it('honours a transport signal passed inside the first argument object, as the delegated-tools route does', async () => {
+    const registry = createToolRegistry({});
+    const handler = vi.fn(async () => 'must not run');
+    registry.register({ descriptor: { id: 'ok-tool' }, handler, policy: { authorize: () => 'allow' } });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+    const transport = new AbortController();
+    transport.abort();
+    // Malformed-by-type on purpose: `signal` is declared on the optional object, but the route spreads it into the first.
+    const required = { runId: run.id, toolUseId: 'call-1', toolId: 'ok-tool', principal: { id: 'user-1' }, input: {}, signal: transport.signal };
+
+    const result = await bridge.execute(required);
+
+    expect(result.status).toBe('cancelled');
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+it('a mixed batch emits a failed tool_result with all per-item evidence', async () => {
+  const output = { batch: true, outcome: 'partial_failure', results: [{ index: 0, ok: true, result: 'edited' }, { index: 1, ok: false, error: 'missing' }] };
+  const registry = createToolRegistry({});
+  registry.register({ descriptor: { id: 'edit_batch' }, policy: { authorize: () => 'allow' }, handler: async () => output });
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const { run } = await lifecycle.start({ contextRef: 'batch' });
+  const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
+  await bridge.execute({ runId: run.id, toolUseId: 'batch-1', toolId: 'edit_batch', principal: { id: 'human' }, input: {} });
+  await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+  const events = (await collectEvents(lifecycle, run.id)).filter(event => event.kind === 'agent').map(event => event.payload);
+  expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'batch-1', content: JSON.stringify(output), isError: true });
 });

@@ -1,40 +1,51 @@
 /**
- * `@jini-ai/chat/core` — framework-free chat vocabulary + pure parsers.
- *
- * Zero React, zero DOM/browser globals, zero Node built-ins, zero imports
- * from any product package's scope. See ADS-memory/reports/jini-port/extraction-plan.md
- * §12 C2/C3 and ADS-memory/reports/jini-port/recon/r4b-webui-design.md §1 for the design
- * this package targets, and source-map.md for exact provenance.
- *
- * Was `@jini-ai/chat-core` (its own top-level package, one entry point) through npm 0.1.2 —
- * consolidated 2026-08-03 into `@jini-ai/chat`'s `./core` subpath alongside `./react` (formerly
- * `@jini-ai/ui`'s `./chat` export), following `@jini-ai/admin`'s umbrella-with-subpaths precedent.
- * `@jini-ai/chat-core` is retired, not deprecated-and-kept — its published npm versions
- * (0.1.0–0.1.2) go end-of-life as-is; `@jini-ai/chat` supersedes it.
+ * @jini-ai/chat/core — framework-free chat vocabulary and pure parsers.
+ * No React, DOM/browser globals, Node built-ins or product-package imports (extraction-plan §12
+ * C2/C3). Hosts can implement the transport port without importing a browser component graph.
  */
 export * from './events.js';
 export * from './messages.js';
+export * from './conversation-title.js';
 export * from './partial-json.js';
 export * from './tool-events.js';
+export * from './tool-output.js';
+export * from './tool-call-detail.js';
 export * from './transport.js';
 export * from './tools.js';
 export * from './todos.js';
 export * from './question-form.js';
 export * from './util/index.js';
 export * from './transcript.js';
-/**
- * The chat pane's own capability manifest (`CHAT_CAPABILITIES`). The framework-free agent-control
- * vocabulary this used to sit alongside — `CapabilityDef`, `PAGE_CAPABILITIES`, the
- * `data-agent-*` convention, the policy gate, the protocol projections — moved to `@jini-ai/agentic`
- * on 2026-07-26; import it directly rather than through this package. See
- * `packages/agentic/source-map.md` and this package's own source-map.md for the extraction.
- */
+export * from './run-activity.js';
+export * from './surface-expiry.js';
+export * from './assistant-content.js';
+export * from './compact-events.js';
+/** Chat-pane capability manifest. Generic agent-control vocabulary, markup and projections are
+ * owned by @jini-ai/agentic; import them there so non-chat callers stay independent of chat. */
 export * from './agentic/index.js';
 /**
  * Durable chat history — the storage-neutral `ChatHistoryStore` port and the local title
  * heuristic. Types and pure functions only, so this package stays framework-free and
- * `runtime: universal`; the SQLite implementation lives in `@jini-ai/sqlite`'s `chat-history`
+ * `runtime: universal`; the SQLite implementation lives in `@jini-ai/sqlite-chat`'s `chat-history`
  * module, and a host binds it to its own authentication.
  */
 export * from './persistence/index.js';
 
+
+export { recoveredRunEvents } from './durable-projection.js';
+
+export {
+  composerHistoryKeyAction,
+  createComposerHistoryState,
+  mergeComposerHistory,
+  normalizeComposerHistory,
+  transitionComposerHistory,
+} from './composer-history.js';
+export type { ComposerHistoryKeyInput, ComposerHistoryState, ComposerHistoryStoragePort } from './composer-history.js';
+
+export * from './user-text-redaction.js';
+export * from './history-tool-metadata.js';
+export { turnUsage, conversationUsage, replySegments, isReplyBoundary, MID_RUN_USER_MESSAGE_EVENT_NAME, type ChatUsageSummary } from './turn-usage.js';
+export { formatUsageCost } from './usage-format.js';
+
+export * from './accepted-input.js';

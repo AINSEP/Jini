@@ -16,6 +16,22 @@ export interface UseAssetGridLiveUpdatesParams<TAsset extends AssetGridItem> {
   coalesceMs?: number | undefined;
 }
 
+/** Drains pending deletes and cancels matching ingests before the pass can fetch.
+ * Mutates the pending sets and schedules the asset update. @complexity O(d + a) deletes and assets. */
+function applyPendingDeletes<TAsset extends AssetGridItem>({ pendingDelete, pendingIngest, setAssets }: {
+  pendingDelete: Set<string>;
+  pendingIngest: Set<string>;
+  setAssets: UseAssetGridLiveUpdatesParams<TAsset>['setAssets'];
+}, _options: Record<string, never> = {}): void {
+  // Deletes are free (no fetch); apply them first.
+  if (pendingDelete.size) {
+    const del = new Set(pendingDelete);
+    pendingDelete.clear();
+    for (const id of del) pendingIngest.delete(id);
+    setAssets((prev) => prev.filter((a) => !del.has(a.id)));
+  }
+}
+
 /**
  * Subscribes to a live-update transport and reconciles incremental
  * ingest/delete events into the current asset list. Events are coalesced
@@ -23,8 +39,10 @@ export interface UseAssetGridLiveUpdatesParams<TAsset extends AssetGridItem> {
  * changed ids, drop the deleted ids) instead of one full reload per event.
  * A burst of many events, a filtered view, or an event with no resolvable
  * id all fall back to a single full reload for that window — see
- * `packages/ui/source-map.md` for why (the original OD comment: "a filtered
+ * `packages/ui/archived provenance ledger` for why (the original OD comment: "a filtered
  * view can't predict membership client-side").
+ * Disposed subscriptions discard in-flight incremental reads. Failed passes report a
+ * fixed diagnostic and request a full reconciliation on the next live event.
  */
 export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
   params: UseAssetGridLiveUpdatesParams<TAsset>,
@@ -51,19 +69,18 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
 
   useEffect(() => {
     if (!active || !liveUpdates) return;
+    let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const pendingIngest = new Set<string>();
     const pendingDelete = new Set<string>();
     let pendingFull = false;
 
+    // No `disposed` check on entry: a pass only ever starts from `flush`, whose first pass runs
+    // synchronously from a timer that cleanup cancels, and whose later passes are gated by the loop's
+    // own `!disposed` condition — so a pass can never begin after disposal. The post-fetch check
+    // below still matters, because disposal can land while a pass is awaiting.
     const runFlushPass = async () => {
-      // Deletes are free (no fetch); apply them first.
-      if (pendingDelete.size) {
-        const del = new Set(pendingDelete);
-        pendingDelete.clear();
-        for (const id of del) pendingIngest.delete(id);
-        setAssets((prev) => prev.filter((a) => !del.has(a.id)));
-      }
+      applyPendingDeletes({ pendingDelete, pendingIngest, setAssets });
       if (pendingFull || filtersActiveRef.current) {
         pendingFull = false;
         pendingIngest.clear();
@@ -79,6 +96,8 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
           return;
         }
         const fetched = await Promise.all(ids.map((id) => fetchById(id)));
+        // The same state setter can outlive this subscription (for example after deactivation).
+        if (disposed) return;
         // A missing fetch is ambiguous (filtered out? race?) — reload instead.
         if (fetched.some((a) => a === null)) {
           await reloadRef.current();
@@ -125,15 +144,22 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
       try {
         do {
           rerun = false;
-          await runFlushPass();
-        } while (rerun);
+          try {
+            await runFlushPass();
+          } catch {
+            if (!disposed) {
+              pendingFull = true;
+              console.error('[asset-grid] Live update failed.');
+            }
+          }
+        } while (rerun && !disposed);
       } finally {
         flushing = false;
       }
     };
 
     const schedule = () => {
-      if (timer) return;
+      if (disposed || timer) return;
       timer = setTimeout(() => void flush(), coalesceMs);
     };
 
@@ -153,6 +179,7 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
     });
 
     return () => {
+      disposed = true;
       if (timer) clearTimeout(timer);
       unsubscribe();
     };

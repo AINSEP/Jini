@@ -462,6 +462,15 @@ describe('@jini-ai/platform — process — listProcessSnapshots (Windows)', () 
 });
 
 describe('@jini-ai/platform — process — collectProcessTreePids', () => {
+  it('orders numeric PIDs descending even when a child has a lower PID than its parent', () => {
+    expect(collectProcessTreePids([
+      { command: 'parent', pid: 900, ppid: 0 },
+      { command: 'child', pid: 5, ppid: 900 },
+      { command: 'grandchild', pid: 3, ppid: 5 },
+      { command: 'unrelated', pid: 1000, ppid: 0 },
+    ], [900, 5, 900])).toEqual([900, 5, 3]);
+  });
+
   it('returns nothing for an empty or all-invalid root list', () => {
     expect(collectProcessTreePids([{ command: 'x', pid: 1, ppid: 0 }], [])).toEqual([]);
     expect(collectProcessTreePids([], [null, undefined])).toEqual([]);

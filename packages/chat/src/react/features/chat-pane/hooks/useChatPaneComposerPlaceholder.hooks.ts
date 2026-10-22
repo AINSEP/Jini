@@ -44,9 +44,7 @@ function usePrefersReducedMotion(): boolean {
  * @complexity Time/space: O(1) per render; the rotation timer is a single `setInterval`.
  * @overallScore 100/100
  */
-export function useChatPaneComposerPlaceholder(
-  placeholder: string | undefined,
-  placeholders: readonly string[] | undefined,
+export function useChatPaneComposerPlaceholder({ placeholder, placeholders }: { placeholder: string | undefined; placeholders: readonly string[] | undefined }
 ): string | undefined {
   const reducedMotion = usePrefersReducedMotion();
   const [index, setIndex] = useState(0);

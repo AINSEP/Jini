@@ -5,18 +5,30 @@
  * `useConversation`'s `scrollIntent` flag (see
  * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4: "message array, optimistic
  * user message, scroll-intent flag") — auto-scrolls to the newest content
- * whenever `scrollIntent` is true, calling `onScrolled` once it has. Pure
- * DOM scroll-anchoring via a ref lives here (a presentational component),
- * not in the headless `useConversation` hook, per that hook's own
- * "transport-agnostic hooks never touch DOM" contract.
+ * whenever `scrollIntent` is true, calling `onScrolled` once it has. The
+ * scroll-anchoring state lives in `useMessageListAutoScroll`
+ * (`MessageList.hooks.ts`); see that file for why it is presentational.
  */
-import { useEffect, useRef } from 'react';
-import type { ChatMessage } from '../../core/index.js';
+import { memo, useMemo } from 'react';
+import { projectAcceptedInputMessages } from '../../core/accepted-input.js';
+import type { ChatAttachment, ChatMessage } from '../../core/index.js';
 import { isTerminalRunStatus } from '../../core/index.js';
+import type { ChatUsageSummary } from '../../core/turn-usage.js';
 import { useT } from '../hooks/context.js';
+import { useMessageListAutoScroll, useConversationUsage } from './MessageList.hooks.js';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
+import { SentAttachmentButton } from './SentAttachment.js';
+import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
+import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
 
-export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment'> {
+interface PendingPrompt {
+  id?: string;
+  text: string;
+  attachments?: ChatAttachment[];
+  onCancel: () => void;
+}
+
+export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment' | 'showUsageTotal' | 'showUsageLine' | 'toolCallDisplay' | 'showThinking'> {
   messages: ChatMessage[];
   isStreaming?: boolean;
   /** Mirrors `useConversation().scrollIntent` — when `true`, this component scrolls to the bottom on mount/update. */
@@ -27,139 +39,133 @@ export interface MessageListProps extends Pick<MessageRowProps, 'projectFileName
   questionFormSubmittedAnswersByMessageId?: Record<string, Record<string, string | string[]>>;
   onQuestionFormSubmit?: (messageId: string, text: string, answers: Record<string, string | string[]>) => void;
   /**
-   * A composer-driven turn typed while a run is in flight, mirroring `useChatPane().queuedPrompt` —
-   * rendered as the newest transcript entry (like Claude Code/ChatGPT's own pending-turn UI)
-   * instead of a banner bolted above the composer. Deliberately NOT a `ChatMessage`: it has no
-   * persisted id (nothing here could mint one without risking collision with a real message once
-   * this prompt is actually sent) and is never written to `messages`/storage — purely a rendering
-   * of `useChatPane`'s own in-memory queue slot. `null`/omitted renders nothing, matching the old
-   * strip's "shown only once something is actually queued" behavior.
+   * MOVE: Pending inputs render as the newest transcript entries, never persisted ChatMessages.
+   * Their accepted ids identify cancellations; the singular prop remains a host compatibility seam.
    */
-  pendingPrompt?: { text: string; onCancel: () => void } | null;
+  pendingPrompt?: PendingPrompt | null;
+  pendingPrompts?: readonly PendingPrompt[];
 }
 
-/** Slack, in px, for treating "close enough to the bottom" as "at the bottom" — a fractional
- * scrollHeight/clientHeight rounding difference should not by itself stop the sticky-follow below. */
-const AT_BOTTOM_THRESHOLD_PX = 4;
-
-function isScrolledToBottom(el: HTMLElement): boolean {
-  return el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD_PX;
+function renderMessageRow(
+  { message, isLast, isStreaming, usageSummary }: {
+    message: ChatMessage;
+    isLast: boolean;
+    isStreaming: boolean;
+    usageSummary: ChatUsageSummary | undefined;
+  },
+  { activeQuestionFormMessageId, questionFormSubmittedAnswersByMessageId, onQuestionFormSubmit, ...rowProps }: Omit<MessageListProps, 'messages' | 'isStreaming' | 'scrollIntent' | 'onScrolled' | 'pendingPrompt' | 'pendingPrompts'> = {},
+) {
+  const runStreaming = isLast && isStreaming && !isTerminalRunStatus({ status: message.runStatus });
+  return (
+    <MessageRow
+      key={message.id}
+      message={message}
+      // MessageRow owns the display defaults; forward host overrides without duplicating them here.
+      {...rowProps}
+      {...(usageSummary === undefined ? {} : { usageSummary })}
+      runStreaming={runStreaming}
+      runSucceeded={message.runStatus === 'succeeded'}
+      questionFormInteractive={message.id === activeQuestionFormMessageId}
+      {...(questionFormSubmittedAnswersByMessageId?.[message.id] !== undefined ? { questionFormSubmittedAnswers: questionFormSubmittedAnswersByMessageId[message.id] } : {})}
+      {...(onQuestionFormSubmit !== undefined ? { onQuestionFormSubmit: (text: string, answers: Record<string, string | string[]>) => onQuestionFormSubmit(message.id, text, answers) } : {})}
+    />
+  );
 }
 
-export function MessageList({
-  messages,
+/**
+ * Memoized: the pane re-renders on every composer keystroke, and re-rendering a long transcript
+ * (hundreds of tool rows, MCP-UI cards, markdown) per key made typing lag (owner report
+ * 2026-10-08). Callers must pass stable props — `ChatPane` memoizes `pendingPrompts` and
+ * `projectFileNames` for exactly this.
+ */
+export const MessageList = memo(function MessageList({
+  messages: sourceMessages,
   isStreaming = false,
   scrollIntent = false,
   onScrolled,
-  activeQuestionFormMessageId = null,
-  questionFormSubmittedAnswersByMessageId,
-  onQuestionFormSubmit,
-  projectFileNames,
-  onRequestOpenFile,
-  renderAttachment,
-  pendingPrompt = null,
+  pendingPrompt,
+  pendingPrompts,
+  ...rowProps
 }: MessageListProps) {
-  const t = useT();
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  // Whether the transcript was scrolled to its bottom as of the last user scroll or programmatic
-  // scroll-to-bottom — read by the ResizeObserver effect below, which only ever sees the DOM AFTER a
-  // resize already happened and so cannot recompute "was this at the bottom" from current values.
-  // Starts true: a freshly mounted pane opens on the latest turn, same as scrollIntent's own default.
-  const stickToBottomRef = useRef(true);
-
-  useEffect(() => {
-    if (!scrollIntent) return;
-    const el = containerRef.current;
-    // Gated on `stickToBottomRef`, same as the ResizeObserver effect below: `scrollIntent` turns
-    // true on EVERY streamed event (tool-call chatter included, not just a finished reply — see
-    // `useConversation.applyRunToAssistantMessage`), so scrolling unconditionally here yanked a user
-    // who had deliberately scrolled up to read history back to the bottom on the very next chunk
-    // (owner-reported, 2026-08-30). `stickToBottomRef` already reflects the user's own last scroll
-    // gesture via the `onScroll` handler below, captured BEFORE this content change, so it is safe
-    // to trust here.
-    if (el && stickToBottomRef.current) {
-      el.scrollTop = el.scrollHeight;
-    }
-    onScrolled?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollIntent, messages]);
-
-  // Re-sticks to the bottom when a message ROW grows after mount with no accompanying `messages`
-  // change — the exact case an embedded MCP-UI/A2UI surface hits: it mounts at an initial guessed
-  // height (`preferredFrameSize` or `DEFAULT_INITIAL_HEIGHT`), then reports its real, often much
-  // taller content height asynchronously via `ui/notifications/size-changed`, entirely inside that
-  // surface's own React state (`McpUiHost`). The effect above never re-runs for that, so without this
-  // a surface which grows after the one-shot scroll leaves its own action buttons — or, once it
-  // resolves, the assistant's next reply — below the stale "bottom" with nothing to bring them back
-  // into view. Observes each direct child (one per message row) rather than the scroll container
-  // itself: the container's own box is held fixed by its flex/overflow layout, so only its CONTENT
-  // grows, which `ResizeObserver` only reports for the element whose box is actually changing.
-  // Re-created per `messages` change so a newly mounted row is observed too. Gated on
-  // `stickToBottomRef` so a human who scrolled up to read history is never yanked back down by an
-  // unrelated row resizing elsewhere in the transcript.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof ResizeObserver !== 'function') return;
-    const observer = new ResizeObserver(() => {
-      if (!stickToBottomRef.current) return;
-      el.scrollTop = el.scrollHeight;
-    });
-    for (const child of Array.from(el.children)) observer.observe(child);
-    return () => observer.disconnect();
-  }, [messages]);
+  const messages = useMemo(() => projectAcceptedInputMessages({ messages: sourceMessages }), [sourceMessages]);
+  const usageByMessage = useConversationUsage({ messages });
+  const { containerRef, onScroll, awayFromLatest, jumpToLatest } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
   return (
     <div
       className="jini-message-list"
       ref={containerRef}
-      onScroll={(event) => {
-        stickToBottomRef.current = isScrolledToBottom(event.currentTarget);
-      }}
+      onScroll={onScroll}
       data-agent-element="chat-transcript"
       data-agent-role="list"
       data-agent-label="The conversation transcript, oldest message first"
     >
-      {messages.map((message) => {
-        const isLast = message.id === messages[messages.length - 1]?.id;
-        const runStreaming = isLast && isStreaming && !isTerminalRunStatus(message.runStatus);
-        return (
-          <MessageRow
-            key={message.id}
-            message={message}
-            runStreaming={runStreaming}
-            runSucceeded={message.runStatus === 'succeeded'}
-            questionFormInteractive={message.id === activeQuestionFormMessageId}
-            {...(questionFormSubmittedAnswersByMessageId?.[message.id] !== undefined ? { questionFormSubmittedAnswers: questionFormSubmittedAnswersByMessageId[message.id] } : {})}
-            {...(onQuestionFormSubmit !== undefined ? { onQuestionFormSubmit: (text: string, answers: Record<string, string | string[]>) => onQuestionFormSubmit(message.id, text, answers) } : {})}
-            {...(projectFileNames !== undefined ? { projectFileNames } : {})}
-            {...(onRequestOpenFile !== undefined ? { onRequestOpenFile } : {})}
-            {...(renderAttachment !== undefined ? { renderAttachment } : {})}
-          />
-        );
-      })}
-      {pendingPrompt ? (
-        <div
-          className="jini-chat-pane__queued"
-          role="status"
-          aria-label={t('Message queued — not yet sent, will send once the current run finishes')}
-          data-testid="chat-pane-queued"
-          data-agent-element="chat-message-pending"
-          data-agent-role="region"
-          data-agent-label="A message queued to send once the current run finishes"
+      {messages.map((message) => renderMessageRow({
+        message,
+        isLast: message.id === messages[messages.length - 1]?.id,
+        isStreaming,
+        usageSummary: usageByMessage.get(message.id),
+      }, rowProps))}
+      {(pendingPrompts ?? (pendingPrompt ? [pendingPrompt] : [])).map((prompt, index) => (
+        <QueuedMessage key={prompt.id ?? index} prompt={prompt} renderAttachment={rowProps.renderAttachment} />
+      ))}
+      {awayFromLatest && <JumpToLatest onJump={jumpToLatest} />}
+    </div>
+  );
+});
+
+/**
+ * Sticky, zero-height last child of the scroll container, so the button floats centred just above
+ * the composer without a wrapper element changing the pane's flex layout.
+ */
+function JumpToLatest({ onJump }: { onJump: () => void }) {
+  const t = useT();
+  return (
+    <div className="jini-message-list__jump">
+      <button type="button" className="jini-message-list__jump-btn" onClick={onJump}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 5v14" /><path d="m19 12-7 7-7-7" />
+        </svg>
+        {t('Jump to latest')}
+      </button>
+    </div>
+  );
+}
+
+/** One cancelable queue receipt; attachment rendering reuses the sent-message preview owner. */
+function QueuedMessage({ prompt, renderAttachment }: {
+  prompt: PendingPrompt; renderAttachment: MessageRowProps['renderAttachment'];
+}) {
+  const t = useT();
+  const attachments = prompt.attachments ?? [];
+  const gallery = useAttachmentGallery({ attachments });
+  return (
+    <div
+      className="jini-chat-pane__queued"
+      role="status"
+      aria-label={t('Message queued — not yet sent, will send once the current run finishes')}
+      data-testid="chat-pane-queued"
+      data-agent-element="chat-message-pending"
+      data-agent-role="region"
+      data-agent-label="A message queued to send once the current run finishes"
+    >
+      <div>{t('Queued — sends when this reply finishes')}</div>
+      <div className="jini-chat-pane__queued-text">{prompt.text}</div>
+      {attachments.length > 0 && <div className="jini-message-attachments">
+        {attachments.map(attachment => <SentAttachmentButton key={attachment.path} attachment={attachment}
+          onOpen={gallery.open} renderAttachment={renderAttachment} />)}
+      </div>}
+      {gallery.opened !== null && <AttachmentPreviewModal attachment={gallery.opened} onClose={gallery.close} navigation={gallery.navigation} />}
+      <div className="jini-chat-pane__queued-actions">
+        <button
+          type="button"
+          className="jini-chat-pane__queued-cancel"
+          onClick={() => prompt.onCancel()}
+          title={t('Cancel queued message')}
         >
-          <div className="jini-chat-pane__queued-text">{pendingPrompt.text}</div>
-          <div className="jini-chat-pane__queued-actions">
-            <button
-              type="button"
-              className="jini-chat-pane__queued-cancel"
-              onClick={pendingPrompt.onCancel}
-              title={t('Cancel queued message')}
-            >
-              {t('Cancel')}
-            </button>
-          </div>
-        </div>
-      ) : null}
+          {t('Cancel')}
+        </button>
+      </div>
     </div>
   );
 }

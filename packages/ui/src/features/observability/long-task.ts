@@ -10,6 +10,7 @@
  * the browser already filters at 50 ms; bumping to 100 ms here halves the
  * event volume while still catching every task a human notices.
  */
+import { telemetryUrl } from './telemetry-url.js';
 import { noopSafetyEventReporter, type SafetyEventReporter } from './ports.js';
 
 const DEFAULT_MIN_DURATION_MS = 100;
@@ -61,21 +62,14 @@ export function installLongTaskObserver(options: LongTaskObserverOptions = {}): 
         container_type: attribution?.containerType,
         container_name: attribution?.containerName,
         // containerSrc can carry a query string; trimmed to origin+pathname.
-        container_src_origin: stripUrlQuery(attribution?.containerSrc),
+        container_src_origin: telemetryUrl({ value: attribution?.containerSrc }),
       });
     }
   });
 
-  try {
-    observer.observe({ type: 'longtask', buffered: true });
-  } catch {
-    // Older engines sometimes throw when `buffered` is requested.
-    try {
-      observer.observe({ type: 'longtask' });
-    } catch {
-      observer = null;
-      return () => undefined;
-    }
+  if (!observeLongTasks({ observe: (options) => observer!.observe(options) })) {
+    observer = null;
+    return () => undefined;
   }
 
   return () => {
@@ -84,12 +78,19 @@ export function installLongTaskObserver(options: LongTaskObserverOptions = {}): 
   };
 }
 
-function stripUrlQuery(value: string | undefined): string | undefined {
-  if (typeof value !== 'string' || value.length === 0) return undefined;
+function observeLongTasks(
+  { observe }: Pick<PerformanceObserver, 'observe'>,
+  _options: Record<string, never> = {},
+): boolean {
   try {
-    const parsed = new URL(value);
-    return `${parsed.origin}${parsed.pathname}`;
+    observe({ type: 'longtask', buffered: true });
   } catch {
-    return value;
+    // Older engines sometimes throw when `buffered` is requested.
+    try {
+      observe({ type: 'longtask' });
+    } catch {
+      return false;
+    }
   }
+  return true;
 }

@@ -21,7 +21,7 @@
  *    thrown non-Error). Panels layer their own per-code copy on top and fall through to this.
  */
 
-/** A failed admin API call that reached the server and came back non-2xx. */
+/** A failed admin API call: a non-2xx response, or a network/timeout failure with status 0. */
 export class AdminApiError extends Error {
   readonly status: number;
 
@@ -35,7 +35,10 @@ export class AdminApiError extends Error {
   /** Raw parsed JSON error body, when present. See decision 1 in the file header. */
   readonly body?: Record<string, unknown> | undefined;
 
-  constructor(message: string, status: number, code?: string, body?: Record<string, unknown>) {
+  constructor(
+    { message, status }: { readonly message: string; readonly status: number },
+    { code, body }: { readonly code?: string | undefined; readonly body?: Record<string, unknown> | undefined } = {},
+  ) {
     super(message);
     this.name = 'AdminApiError';
     this.status = status;
@@ -54,13 +57,13 @@ export class AdminApiError extends Error {
  * ```ts
  * function describe(e: unknown, fallback: string): string {
  *   if (e instanceof AdminApiError && e.code === 'PANEL_SPECIFIC_CODE') return '...';
- *   return describeApiError(e, fallback);
+ *   return describeApiError({ e, fallback });
  * }
  * ```
  *
  * @complexity O(1) — two `instanceof` checks, no iteration.
  */
-export function describeApiError(e: unknown, fallback: string): string {
+export function describeApiError({ e, fallback }: { readonly e: unknown; readonly fallback: string }): string {
   if (e instanceof AdminApiError) return e.message || fallback;
   return e instanceof Error ? e.message : fallback;
 }

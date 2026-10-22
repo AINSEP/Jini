@@ -1,10 +1,11 @@
 export * from './token.js';
+export * from './tool-metadata.js';
 export * from './pack.js';
 export * from './bindings.js';
 // Named (not `export *`) deliberately: `daemon.ts` also exports `AnyPack`/`RequiredTokenIds`/
-// `MissingTokenIds`, which stay package-internal (see `internal.ts`'s module doc) — a wildcard
+// `MissingTokenIds`, which stay package-internal (see `composition.ts`'s module doc) — a wildcard
 // re-export here would leak them onto this public entry point.
-export type { Daemon, DaemonConfig } from './daemon.js';
+export type { Daemon, DaemonConfig, DaemonOptions } from './daemon.js';
 export { createDaemon } from './daemon.js';
 export type { PackDisposalFailure } from './pack-lifecycle.js';
 export { disposePacks, registerPackTools } from './pack-lifecycle.js';
@@ -12,6 +13,7 @@ export * from './redact.js';
 export * from './api-token-auth.js';
 export * from './origin-validation.js';
 export * from './principal.js';
+export * from './surface-exchanges.js';
 export type {
   AuthorizationDecision,
   RunRef,
@@ -20,10 +22,43 @@ export type {
   ToolAuthorizationContext,
   ToolDescriptor,
   ToolExecutionContext,
+  ToolExecutionOptions,
   ToolHandler,
   ToolPolicy,
   ToolRegistration,
   ToolRegistry,
 } from './tool-registry.js';
-export { createToolRegistry, isReadOnlyTool, ToolInputError } from './tool-registry.js';
+export { createToolRegistrationScope, toolRegistryRevision, createToolRegistry, isReadOnlyTool, toolDiscoveryMetadata, ToolInputError } from './tool-registry.js';
 export * from './tool-tokens.js';
+export * from './tool-exposure.js';
+
+export * from './gated-mutations.js';
+export * from './model-facing-tool-errors.js';
+export * from './contribution-registry.js';
+export * from './provider-registry.js';
+export * from './object-store.js';
+export * from './naming.js';
+
+export type { AgentToolSideEffect, AgentToolActorClassRule, AgentToolDefinition } from './agent-tools.js';
+
+export * from "./registration-kit.js";
+export * from "./approval.js";
+export * from './target-scope.js';
+
+export * from "./native-regexp.js";
+
+export {
+  ForbiddenError as ToolPermissionDeniedError,
+  requireToolPermission,
+  adaptLegacyAuthorize,
+  type LegacyToolAuthorizeFn,
+  type AuthorizationPort as ToolPermissionAuthorizationPort,
+  type RequireToolPermissionRequired,
+  type RequireToolPermissionOptional,
+} from "./tool-permissions.js";
+
+export { evaluateFeatureFlag, type FeatureFlagDecision } from './feature-flags.js';
+export { normalizeToolInput, withNormalizationNotes, ToolInputNormalizationError, type NormalizedToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
+export { applyBatchInputs, BATCH_GUIDANCE_MARKER, withoutBatchGuidance, batchOutcomeFor, batchDescriptorFor, batchEligibilityFor, defaultBatchableTools, withBatchInput, DEFAULT_MAX_BATCH_ITEMS, type BatchableTool, type BatchEligibility, type BatchOptOut, type BatchResult, type BatchItemResult } from './batch-tool-inputs.js';
+
+export type { MediaProviderCatalogPolicy, MediaProviderOption, ProviderPreset, ProviderPresetKind } from './provider-catalog.js';

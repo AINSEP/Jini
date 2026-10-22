@@ -1,16 +1,8 @@
 /**
  * @module diagnostics
- *
- * Builds the `AgentDiagnostic` explaining why a CLI isn't invocable, for
- * the three failure classes detection distinguishes: not resolvable at
- * all, resolved but not invocable, and invocable but not authenticated.
- *
- * Ported verbatim from OD's
- * `apps/daemon/src/runtimes/detection/diagnostics.ts`, with `AgentDiagnostic`
- * / `AgentFixIntent` now imported from this package's own `types.ts`
- * (vendored from OD's contracts workspace package, not a dependency on it).
+ * Explain three detection failures: unresolved executable, uninvocable executable or missing authentication.
  */
-import { agentBinEnvKey, agentSearchDirs } from './executables.js';
+import { agentBinEnvKey, agentSearchDirs, type ExecutableResolutionOptions } from './executables.js';
 import type { AgentLaunchResolution } from './launch.js';
 import type { AgentAuthProbeResult } from './auth.js';
 import type { AgentDiagnostic, AgentFixIntent, RuntimeAgentDef } from './types.js';
@@ -22,7 +14,7 @@ import type { AgentDiagnostic, AgentFixIntent, RuntimeAgentDef } from './types.j
 const MAX_SEARCHED_DIRS = 24;
 
 function setEnvIntent(agentId: string): AgentFixIntent[] {
-  const envKey = agentBinEnvKey(agentId);
+  const envKey = agentBinEnvKey({ agentId: agentId });
   return envKey ? [{ kind: 'setEnv', envKey }] : [];
 }
 
@@ -30,11 +22,9 @@ function setEnvIntent(agentId: string): AgentFixIntent[] {
 // user-supplied `*_BIN` override points at a missing/invalid file. The two
 // cases get different copy + fix affordances because the remedy differs
 // (install / point us at the binary vs. fix or clear the override).
-export function buildExecutableDiagnostic(
-  def: Pick<RuntimeAgentDef, 'id' | 'name' | 'bin'>,
-  configuredEnv: Record<string, string> = {},
+export function buildExecutableDiagnostic({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'name' | 'bin'> }, { configuredEnv = {}, ...options }: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): AgentDiagnostic {
-  const envKey = agentBinEnvKey(def.id);
+  const envKey = agentBinEnvKey({ agentId: def.id });
   const overrideRaw = envKey ? configuredEnv?.[envKey]?.trim() : '';
   if (envKey && overrideRaw) {
     return {
@@ -49,7 +39,7 @@ export function buildExecutableDiagnostic(
     reason: 'not-on-path',
     severity: 'error',
     message: `${def.name} (\`${def.bin}\`) was not found on your PATH.`,
-    searchedDirs: agentSearchDirs().slice(0, MAX_SEARCHED_DIRS),
+    searchedDirs: agentSearchDirs({}, options).slice(0, MAX_SEARCHED_DIRS),
     fixActions: [{ kind: 'openInstall' }, ...setEnvIntent(def.id), { kind: 'rescan' }],
   };
 }
@@ -60,10 +50,7 @@ export type NotInvocableCause = 'not-executable' | 'missing-target';
 // are real binaries that need their executable bit restored; missing-target
 // failures are usually leftover npm/nvm/mise shims whose underlying target
 // was uninstalled.
-export function buildNotInvocableDiagnostic(
-  def: Pick<RuntimeAgentDef, 'id' | 'name'>,
-  launch: Pick<AgentLaunchResolution, 'selectedPath' | 'launchPath'>,
-  cause: NotInvocableCause,
+export function buildNotInvocableDiagnostic({ def, launch, cause }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; launch: Pick<AgentLaunchResolution, 'selectedPath' | 'launchPath'>; cause: NotInvocableCause }
 ): AgentDiagnostic {
   if (cause === 'not-executable') {
     return {
@@ -88,9 +75,7 @@ export function buildNotInvocableDiagnostic(
 // for adapters that declare a cheap, side-effect-free authProbe; until an
 // adapter also declares a spawn-safe OAuth producer, diagnostics point at
 // docs.
-export function buildAuthDiagnostic(
-  def: Pick<RuntimeAgentDef, 'id' | 'name'>,
-  auth: AgentAuthProbeResult,
+export function buildAuthDiagnostic({ def, auth }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; auth: AgentAuthProbeResult }
 ): AgentDiagnostic | null {
   if (auth.status === 'ok') return null;
   const signInIntent: AgentFixIntent = { kind: 'openDocs' };

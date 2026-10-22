@@ -15,7 +15,7 @@
 /** Clipboard write, abstracted so the feature's rename/copy-local-path flows stay testable without touching `navigator.clipboard`. */
 export interface AssetTreeClipboardPort {
   /** @returns `true` on a successful copy, `false` if every copy strategy failed. */
-  copyToClipboard(text: string): Promise<boolean>;
+  copyToClipboard(requiredArgs: { text: string }): Promise<boolean>;
 }
 
 /**

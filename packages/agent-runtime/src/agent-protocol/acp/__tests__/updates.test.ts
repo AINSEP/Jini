@@ -147,7 +147,7 @@ describe('acpUpdateDiagnosticText', () => {
 });
 
 const matchingClassifier: AccountFailureClassifier = {
-  classify: (text) =>
+  classify: ({ text }) =>
     text.includes('insufficient')
       ? { code: 'INSUFFICIENT_BALANCE', message: 'Please recharge.', action: 'recharge', actionUrl: 'https://example.com/wallet' }
       : null,

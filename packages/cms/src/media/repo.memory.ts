@@ -1,3 +1,4 @@
+import { matchesRecordFields } from "@jini-ai/core/records";
 /**
  * @file In-memory adapters for the `media` library's three record types:
  * the bespoke `MediaRecord` table (see `types.ts` file header
@@ -9,7 +10,8 @@
  * Adapters only — dumb collections scoped by `workspaceId`. No
  * validation or business rules live here (that's `media-service.ts`'s job).
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
+import { preserveMediaCreator } from "./created-by.js";
 import type {
   AssetBlobRepoPort,
   AssetRenditionRepoPort,
@@ -23,7 +25,8 @@ import type { TransformDefinitionRecord } from "./transform-types.js";
 export class InMemoryMediaRepo implements MediaRepoPort {
   private rows: MediaRecord[];
 
-  constructor(initialRows: MediaRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: MediaRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -53,20 +56,19 @@ export class InMemoryMediaRepo implements MediaRepoPort {
       this.rows.push(record);
       return;
     }
-    this.rows[index] = record;
+    this.rows[index] = preserveMediaCreator({ record, original: this.rows[index]! });
   }
 
   async remove(required: { workspaceId: UUID; id: UUID }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 
 export class InMemoryAssetBlobRepo implements AssetBlobRepoPort {
   private rows: AssetBlobRecord[];
 
-  constructor(initialRows: AssetBlobRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: AssetBlobRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -90,7 +92,8 @@ export class InMemoryAssetBlobRepo implements AssetBlobRepoPort {
       this.rows.push(record);
       return;
     }
-    this.rows[index] = record;
+    // A stale lifecycle write must not erase document ownership after purge.
+    this.rows[index] = this.rows[index]!.documentOwned ? { ...record, documentOwned: true } : record;
   }
 
   async remove(required: { workspaceId: UUID; sha256: string }): Promise<void> {
@@ -103,7 +106,8 @@ export class InMemoryAssetBlobRepo implements AssetBlobRepoPort {
 export class InMemoryAssetRenditionRepo implements AssetRenditionRepoPort {
   private rows: AssetRenditionRecord[];
 
-  constructor(initialRows: AssetRenditionRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: AssetRenditionRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -147,16 +151,18 @@ export class InMemoryAssetRenditionRepo implements AssetRenditionRepoPort {
 }
 
 /**
- * In-memory `blob_gc_journal` adapter (INV-1 two-phase protocol —
+ * In-memory `blob_gc_journal` adapter ( two-phase protocol —
  * see `blob-gc.ts`). Same disclosed limit as every other repo in this file:
  * rows do not survive a process restart, so a real crash between the
  * delete-pass and unlink-pass loses the journal entry in this build (a real
  * database-backed table would not).
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
   private rows: BlobGcJournalEntry[];
 
-  constructor(initialRows: BlobGcJournalEntry[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: BlobGcJournalEntry[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
@@ -174,9 +180,7 @@ export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
   }
 
   async remove(required: { workspaceId: UUID; id: UUID }): Promise<void> {
-    this.rows = this.rows.filter(
-      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
-    );
+    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 
@@ -190,7 +194,8 @@ export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
 export class InMemoryTransformDefinitionRepo implements TransformDefinitionRepoPort {
   private rows: TransformDefinitionRecord[];
 
-  constructor(initialRows: TransformDefinitionRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: TransformDefinitionRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 

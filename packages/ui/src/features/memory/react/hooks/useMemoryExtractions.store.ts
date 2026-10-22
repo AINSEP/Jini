@@ -216,42 +216,29 @@ export function createExtractionHistoryStore(
     tombstones.add(id);
   }
 
-  function applyFrame(ev: MemoryExtractionEvent): void {
-    if (!ev || !ev.id) return;
-    // Pseudo-phases: the daemon emits these synthetically when a row is
-    // dropped from the buffer, by the per-row delete button or the "Clear"
-    // affordance at the top (possibly in another client).
-    if (ev.phase === 'cleared') {
-      // A remote clear removed every attempt the daemon knew about, which
-      // covers everything this client has observed: visible rows, ids hidden
-      // by a pending local delete, and buffered frames. Tombstone them all
-      // (rule C) so delayed frames cannot recreate discarded attempts.
-      const owned = new Set([...rows.map((row) => row.id), ...pendingDeletes.keys(), ...deferred.keys()]);
-      for (const id of owned) tombstone(id);
-      deferred.clear();
-      clearStamp = commit([]);
-      return;
-    }
-    if (ev.phase === 'deleted') {
-      deferred.delete(ev.id);
-      tombstone(ev.id);
-      commit(rows.filter((row) => row.id !== ev.id));
-      return;
-    }
-    // Rule C: a confirmed-removed id never comes back. A delayed frame on
-    // the SSE connection may have been emitted before the DELETE response
-    // won the fetch race.
-    if (tombstones.has(ev.id)) return;
-    // A running extraction is user-deletable and the list-level clear is
-    // available while it runs, so frames can race an in-flight destructive
-    // operation for their id. Buffer them (content-merged, rule B) so they
-    // cannot visibly undo the optimistic removal; the settle path replays
-    // the best buffered frame on failure and tombstones it on success.
-    if (pendingDeletes.has(ev.id) || pendingClears > 0) {
-      const prior = deferred.get(ev.id);
-      deferred.set(ev.id, prior ? mergeSameAttempt(prior, ev) : ev);
-      return;
-    }
+  function applyClearedFrame(): void {
+    // A remote clear removed every attempt the daemon knew about, which
+    // covers everything this client has observed: visible rows, ids hidden
+    // by a pending local delete, and buffered frames. Tombstone them all
+    // (rule C) so delayed frames cannot recreate discarded attempts.
+    const owned = new Set([...rows.map((row) => row.id), ...pendingDeletes.keys(), ...deferred.keys()]);
+    for (const id of owned) tombstone(id);
+    deferred.clear();
+    clearStamp = commit([]);
+  }
+
+  function applyDeletedFrame({ id }: { id: string }): void {
+    deferred.delete(id);
+    tombstone(id);
+    commit(rows.filter((row) => row.id !== id));
+  }
+
+  function deferFrame(ev: MemoryExtractionEvent): void {
+    const prior = deferred.get(ev.id);
+    deferred.set(ev.id, prior ? mergeSameAttempt(prior, ev) : ev);
+  }
+
+  function upsertFrame(ev: MemoryExtractionEvent): void {
     // Merge by id (rule B): phase transitions for an in-flight attempt
     // collapse onto a single row instead of stacking N entries. New ids are
     // unshifted so the latest appears at the top.
@@ -264,6 +251,26 @@ export function createExtractionHistoryStore(
       next = [ev, ...rows].slice(0, MAX_ROWS);
     }
     rowStamp.set(ev.id, commit(next));
+  }
+
+  function applyFrame(ev: MemoryExtractionEvent): void {
+    if (!ev || !ev.id) return;
+    // Pseudo-phases: the daemon emits these synthetically when a row is
+    // dropped from the buffer, by the per-row delete button or the "Clear"
+    // affordance at the top (possibly in another client).
+    if (ev.phase === 'cleared') return applyClearedFrame();
+    if (ev.phase === 'deleted') return applyDeletedFrame({ id: ev.id });
+    // Rule C: a confirmed-removed id never comes back. A delayed frame on
+    // the SSE connection may have been emitted before the DELETE response
+    // won the fetch race.
+    if (tombstones.has(ev.id)) return;
+    // A running extraction is user-deletable and the list-level clear is
+    // available while it runs, so frames can race an in-flight destructive
+    // operation for their id. Buffer them (content-merged, rule B) so they
+    // cannot visibly undo the optimistic removal; the settle path replays
+    // the best buffered frame on failure and tombstones it on success.
+    if (pendingDeletes.has(ev.id) || pendingClears > 0) return deferFrame(ev);
+    upsertFrame(ev);
   }
 
   function commitSnapshot(confirmed: MemoryExtractionRecord[], sinceClock: number): MemoryExtractionRecord[] {

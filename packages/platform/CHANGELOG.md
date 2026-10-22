@@ -1,5 +1,135 @@
 # @jini-ai/platform
 
+## Unreleased
+
+- `./mail`: email provider contract v1. `MailProviderModule` (id, credentialKeys, capabilities incl. rate limit, optional Svix-style feedback parser, `domainRequirements`/`domainStatus` → shared `DomainRequirement`) on the shared `createProviderRegistry`; `smtp` + `console` built-ins; explicit `mail.provider.{transactional,bulk}` setting with `initialMailProviderSetting` (keeps the effective provider on first boot; console/none = `unconfigured`) and `computeMailStatus`. `createMailDeliveryPolicy`: attachments/bulk-unsubscribe (RFC 8058) refusals, suppression by lane (hard bounce = all, complaint = bulk), test redirect/capture mode, per-provider token bucket with reserved transactional capacity, atomic reserve → send → mark ledger with an `unknown` outcome. `createMailFeedbackIngest`: body cap, unverified rate limit, rotating secrets, (provider, event) inbox dedup, one suppression writer. Breaking (unimplemented ports only): `MailSuppressionRepoPort` scopes are `all|bulk` keyed by lane; `MailSendDedupRepoPort` deprecated for `MailSendLedgerPort`. Additive: `MailerSendResult` failure `unknown`/`retryAfterMs`, feedback `eventId`/`recipient`.
+
+## 0.5.9 — 2026-10-16
+
+- `fs`: best-effort directory fsync, so Windows site creation stops failing with EPERM (87720117).
+- `./web` fetch default window is 20,000 characters so one result fits an MCP budget (939300e3).
+
+## 0.5.8 — 2026-10-15
+
+- SECURITY: the guarded HTTP client forwards only `accept`, `accept-language` and `user-agent` on a cross-origin redirect (4de69b67). It used to strip only Authorization/Cookie, so custom credential headers (`x-api-key`, `X-Shopify-Access-Token`, …) followed a redirect to another origin. Same-origin hops keep all headers.
+- `./web` page fetch applies `maxChars` to the readable text, not the raw HTML (0625844e): raw HTML uses the fixed 1,000,000-char parser ceiling, and the result says `truncated: true` when cut. A page with a large script/style head no longer returns almost no text.
+
+## 0.5.7 — 2026-10-14
+
+- The asset cache's optional `undici` load moves behind `asset-cache.adapter.ts` (64eafe35); injected dispatchers, DNS validation and the MODULE_NOT_FOUND message are unchanged. No API change.
+
+## 0.5.6 — 2026-10-13
+
+- `undici` and `hast-util-from-parse5`, `hast-util-to-mdast`, `mdast-util-to-markdown`, `mdast-util-gfm-table` (with `parse5`) are now optional peers instead of dependencies. Only `./web` needs the HTML/Markdown set; only the default `createAssetCacheDispatcher` needs undici, loaded lazily (a missing peer throws `AssetCacheError` 500; a host-supplied dispatcher needs none). Hosts using those must list the packages themselves.
+- New `./asset-cache` subpath (node) exporting the asset cache without the root barrel.
+- New universal `./secrets/credential-sets/contracts` leaf (vault contracts without the vault runtime); `@jini-ai/db` 0.3.4's SQL vault repo imports it.
+
+## 0.5.5 — 2026-10-13
+
+- New narrow subpaths for the existing OS helpers: `./command`, `./process`, `./toolchain`, `./proxy-env`, `./shell`, `./child-environment`. Importing one loads 1-2 modules instead of the root barrel's 181 (incl. undici). The root still exports everything; no signature change.
+
+## 0.5.4 — 2026-10-12
+
+- Removed unused exports: `SecretsVaultService.commitPrepared`, `VaultCommitPreparedInput`, `VaultCopyInput.targetRevisions`, the pre-vault `InMemoryVendorCredentialSetRepo` and `buildVendorCredentialAad`. No known consumer; prepared records are committed through the vault repository's `put`/`applyBatch`.
+
+## 0.5.2
+
+### Patch Changes
+
+- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.5.1).
+
+## 0.5.1 — 2026-10-04
+
+- `./secrets` exports the canonical site-key names (`SiteKeyHandle`, `FixedSiteKeyKeyring`, `UnusableSiteKeyError`, `SiteKeyFileAlreadyExistsError`, `parseSiteKeyHex`, `fingerprintSiteKeyHex`, `inspectSiteKeyMaterial`, `revealSiteKeyMaterial`, `generateFileSiteKey`, `deriveFromSiteKey`, `deriveSigningSecretFromSiteKey` and the matching types). Every `RootKey*` name stays exported as a `@deprecated` alias of the same binding, to be removed on or after 2026-11-01. Additive: no behavior or signature change.
+
+## 0.5.0 — 2026-10-02
+
+### BREAKING
+
+- Use canonical core ports and platform ./net and ./fs/file-lock. Analytics and trash moved to their domain packages; credential scope and durable filesystem contracts changed.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- New `./object-store` (node): `createLocalFsObjectStore({ rootDir })` and `createLocalFsObjectStoreProvider()` — the default `local` provider for `@jini-ai/core/object-store`. Path formula `join(rootDir, key)`, byte-identical to cms `LocalFsBlobStore`; atomic `ifAbsent` via `wx`; keys escaping the root are refused.
+### Compilation fixes
+
+- Omit an absent guarded HTTP abort signal to satisfy the canonical request contract.
+- Import the mail adapter's HTTP port from core primitives and type the key-rotation test
+  fake against `KeyringPort`, preserving its assertions and behavior.
+
+### Breaking domain extraction
+
+- Remove `./analytics` and the analytics root namespace; import the standalone `@jini-ai/analytics` package.
+- Remove `./trash` and the trash root namespace; import `@jini-ai/cms/trash`.
+- Move both capabilities' behavior tests with their source; platform retains only generic OS/transport capabilities.
+
+
+### Shared platform primitives
+
+- BREAKING: HTTP primitive types now come from `@jini-ai/core/primitives`; guarded HTTP exports
+  `GuardedClock` with `nowMs()` and `timeoutSignal({ timeoutMs })`. Mail uses the kernel clock.
+  Analytics primitive declarations also come from core. Add core as a regular dependency.
+- BREAKING: address classifiers move from asset-cache.ts to `./net`; `isPrivateAddress` and
+  `expandIpv6` take `{ address }`. The root IP-classifier export points to the canonical module.
+- Add `./fs/file-lock` async/sync token-and-inode-owned locks sharing one stale decision.
+  Durable JSON retains its lock budgets, user copy, read/quarantine behavior and JSON bytes.
+- BREAKING: the synchronous atomic filesystem seam owns descriptors and exposes open/sync/close/
+  lstat as well as existing mode/rename/remove effects. Add file and directory fsync and owned-temp
+  failure cleanup; move `tempName` into argument two as an optional token factory with the native pid.UUID default. Add async file/JSON
+  writers, secret-mode verification, optional symlink refusal, and sidecar newline/parent support.
+  Durable JSON delegates to the canonical writer, retains its temp layout/new-file mode, and gains
+  exclusive temp creation, cleanup on failure, and directory fsync.
+- Add exported `defaultPlatformMessages` with host replacement seams. Egress refusal and invalid
+  root-key recovery warnings use neutral defaults. Keyring source-permission flags and derivation
+  formats are unchanged. Tests and builds are deferred by the owner.
+
+- Security defaults: purpose-gated mail validates runtime modes at composition; only explicit local mode bypasses readiness. Root-key adapters require an injected environment reader and explicit fallback/generation booleans. Fresh inspection/reveal also require that reader. Existing wire derivation is unchanged.
+
+- Guarded HTTP restores per-socket inactivity timeouts. Requests accept explicit
+  `idleTimeoutMs`, with `timeoutMs` retained as its legacy alias and the historical
+  `connectTimeoutMs` policy ceiling applied per socket. Optional `totalDeadlineMs`
+  bounds DNS, all redirects and decoded body reads independently; it is off by default.
+  Idle failures retain `Error("request timed out after …ms")`; explicit deadline failures
+  use `FetchTimeoutError`. Slow but progressing transfers are no longer cut off by
+  an implicit total deadline. Verification is deferred by owner directive.
+
+### Integration finish pass
+
+- Complete Node runtime metadata for every export, the filesystem barrel, and additive root
+  namespaces for `./http/guarded`, `./mail`, `./mail/smtp`, `./fs`, `./fs/guarded-reader`,
+  `./fs/durable-json`, `./analytics`, `./trash`, `./secrets`, `./secrets/credential-sets`,
+  and `./secrets/testing`. No version change or dependency addition.
+- BREAKING (new extraction APIs): native factories and transport/memory constructors take `{}`;
+  keyring `activeKey`, mailer `capabilities`, clock/random methods and durable JSON `read` take
+  `{}`. SMTP transport `sendMail` takes `{ mail }`; the native nodemailer payload remains
+  behind `NativeSmtpTransport`. Analytics/trash policy errors take `{ message }` and optional
+  `{ cause }`. Existing legacy root functions retain their compatibility signatures.
+- Reconcile the export-map contract test and remove application names from analytics fixtures.
+  Verification of this finish pass is deferred by owner directive.
+
+- Add privacy analytics ingest with required HKDF context and privacy policy, injectable hash/hook seams, and a recent-hit memory sink.
+- Add trash write/sweep orchestration with required retention/entity policy, reentrant transaction ports, host scheduler, record-store adapter, and optional follow-ups in arg 2.
+- Add `./fs` with mode-preserving atomic file/JSON writes, narrow env-text transforms, and strict lexical containment; keep all existing filesystem exports unchanged.
+
+- Add guarded outbound HTTP with injected DNS, pinned transport, clock, policy, and required user agent. Reuse existing address validation and timeout errors. Preserve redirect refusal and response-byte contracts.
+- Add mail contracts, a purpose/readiness gate, delivery capability checks, and an optional SMTP subpath over a host-supplied transport/module; no new dependency.
+- Add contained and bounded file readers with caller-owned deny rules/limits, and durable JSON file operations with injectable filesystem, time, liveness, sleep, randomness, and notices.
+- Convert the unpublished secrets surface to required-object/optional-object signatures; preserve pinned derivation, AAD, ciphertext, and envelope bytes.
+
+## 0.4.0
+
+### Minor Changes
+
+- Add `./secrets` with AES-256-GCM sealing, root-key ports, explicit env/file and fixed-key
+  adapters, HKDF helpers, and root-key validation, status, reveal, and exclusive generation.
+  Env names, key paths, and HKDF salts are caller-supplied, with no defaults. New seals require
+  AAD; opening historical ciphertext without AAD remains supported. The ciphertext envelope
+  and derivation labels are preserved and covered by pinned vectors.
+- Add `./secrets/credential-sets` with generic vendor credential records, repository contracts,
+  the stable v1 AAD builder, and a memory repository. Add `./secrets/testing` with ephemeral and
+  fixed root-key adapters and the memory repository. Existing exports and dependencies are unchanged.
+
 ## 0.1.2
 
 ### Patch Changes

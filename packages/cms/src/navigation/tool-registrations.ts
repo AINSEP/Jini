@@ -1,3 +1,6 @@
+import type { IdGenerator } from "@jini-ai/core/primitives";
+import { adaptLegacyAuthorize } from "../core/tools/index.js";
+import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @file Navigation's (Menus') half of the agent-tool authorization wiring: maps `agent-tools.ts`'s five
  * catalog entries onto `menu-service.ts`'s read/create/update/assign operations, as
@@ -12,41 +15,38 @@
 import { ToolInputError } from "@jini-ai/core";
 import type { AuthorizeFn } from "../core/commands/command.js";
 import type { OutboxPort } from "../core/ports.js";
-import {
-  buildDomainRegistrations,
-  indexCatalogById,
-  requireInputRecord,
-  requireNumber,
-  requireString,
-  requireToolPermission,
-  withSchemaOnRejection,
-  type AgentToolSideEffect,
-  type DerivedRiskByToolId,
-  type ToolHandler,
-  type ToolRegistration,
-} from "../core/tools/registration-kit.js";
+import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNumber, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { requireToolPermission } from "../core/tools/index.js";
 import { menusAgentToolCatalog } from "./agent-tools.js";
 import { assignLocation, createMenu, MenuNotFoundError, MenuValidationError, updateMenuTree } from "./menu-service.js";
+import { isMenuHtmlAuthoring, type MenuHtmlNormalizer } from "./menu-html.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
-import type { NavItemNode, NavMenuEntry } from "./types.js";
+import type { NavItemNode, NavMenuEntry, NavMenuMode } from "./types.js";
 
-const CATALOG_BY_ID = indexCatalogById(menusAgentToolCatalog);
+const CATALOG_BY_ID = indexCatalogById({ catalog: menusAgentToolCatalog });
 
 /**
  * The exact slice of the route-deps bag Menus' tool handlers read. Declared structurally (rather
  * than importing a host's own `RouteDeps`) so this module carries no back-edge into any host's
  * composition root. A host's `server/routes/*` satisfies this structurally by passing its existing
- * route-deps object; nothing there needs to change shape.
+ * route-deps object after binding the kernel clock/ID contracts.
  */
 export interface MenusToolDeps {
+  /** Environment-owned fragment normalizer, forwarded to the audited menu write services. */
+  normalizeMenuHtml?: MenuHtmlNormalizer | undefined;
   authorize: AuthorizeFn;
   workspaceId: string;
-  clock: { nowIso(): string };
-  idGen: { newId(): string };
+  clock: Clock;
+  idGen: IdGenerator;
   outbox: OutboxPort;
   menuRepo: MenuRepoPort;
   navLocationBindingRepo: NavLocationBindingRepoPort;
+  /**
+   * The host's raw-HTML permission (host example: `pages.edit_html`, the one HTML-mode forms use). A write
+   * carrying menu HTML is checked against it on top of the menu permission; unset, HTML menus are refused.
+   */
+  rawHtmlPermission?: string | undefined;
 }
 
 /**
@@ -81,6 +81,8 @@ interface MenuToolView {
   title: string;
   status: NavMenuEntry["status"];
   items: NavItemNode[];
+  mode?: NavMenuMode | undefined;
+  html?: string | undefined;
   locations: string[];
   version: number;
 }
@@ -100,79 +102,133 @@ function toMenuToolView(menu: NavMenuEntry): MenuToolView {
     title: menu.title,
     status: menu.status,
     items: JSON.parse(JSON.stringify(menu.doc.items)) as NavItemNode[],
+    ...(menu.doc.mode !== undefined ? { mode: menu.doc.mode } : {}),
+    ...(menu.doc.html !== undefined ? { html: menu.doc.html } : {}),
     locations: [...menu.locations],
     version: menu.version,
   };
 }
 
+/** A write's HTML-mode fields as sent; `menu-service.ts` validates their values. */
+function htmlAuthoring(input: Record<string, unknown>): { mode?: NavMenuMode; html?: string } {
+  return {
+    ...(input.mode !== undefined ? { mode: input.mode as NavMenuMode } : {}),
+    ...(input.html !== undefined ? { html: input.html as string } : {}),
+  };
+}
+
+/**
+ * Raw HTML is the host's trust boundary (HTML Pages, HTML-mode forms), so a write that authors menu
+ * HTML also needs that permission. Checked before the write, like forms' `prepareFormAuthoring`.
+ */
+async function requireHtmlAuthoringPermission(
+  { routeDeps, principalId, authoring, menuId }: { routeDeps: MenusToolDeps; principalId: string; authoring: { mode?: NavMenuMode; html?: string }; menuId?: string },
+): Promise<void> {
+  if (!isMenuHtmlAuthoring(authoring)) return;
+  if (!routeDeps.rawHtmlPermission) throw new ToolInputError({ message: "HTML menus are not enabled on this site" });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId, permission: routeDeps.rawHtmlPermission }, { entityType: "menu", ...(menuId ? { entityId: menuId } : {}) });
+}
+
 function menusDeps(routeDeps: MenusToolDeps) {
-  return { repo: routeDeps.menuRepo, clock: routeDeps.clock, idGen: routeDeps.idGen, outbox: routeDeps.outbox };
+  return { repo: routeDeps.menuRepo, clock: routeDeps.clock, idGen: routeDeps.idGen, outbox: routeDeps.outbox, normalizeMenuHtml: routeDeps.normalizeMenuHtml };
+}
+
+/**
+ * Normalize the update target's legacy menuId to id before the executor's schema/policy gates.
+ * Retain menuId for 90 days from the coordinated release, including the key spellings the shared
+ * normalizer previously accepted. Read selectors and assignment references keep their own ABI.
+ * Direct handler callers use this same adapter to retain their legacy input contract.
+ * @returns Canonical input and value-free rewrite notes; never mutates the caller's record.
+ * @throws {ToolInputError} If more than one spelling supplies the update target, even if equal.
+ * @complexity O(k) time and space for k top-level input keys; no I/O.
+ */
+function normalizeMenuUpdateInput(
+  { input }: { input: Readonly<Record<string, unknown>> },
+  _options: Record<string, never> = {},
+): { input: Readonly<Record<string, unknown>>; notes: readonly string[] } {
+  const aliases = Object.keys(input).filter((key) => key.replace(/[_-]/g, "").toLowerCase() === "menuid");
+  const alias = aliases[0];
+  if (alias === undefined) return { input, notes: [] };
+  if (Object.hasOwn(input, "id") || aliases.length > 1) {
+    throw new ToolInputError({ message: "Conflicting inputs for the menu target. Send only 'id', not multiple id/menuId spellings." });
+  }
+  const { [alias]: menuId, ...rest } = input;
+  return { input: { ...rest, id: menuId }, notes: [`${alias}→id`] };
 }
 
 export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     menus_list_menus: async (ctx) => {
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "admin.menus.read", entityType: "menu" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.read" }, { entityType: "menu" });
       const menus = await routeDeps.menuRepo.list({ workspaceId: routeDeps.workspaceId });
       return { menus: menus.map(toMenuToolView) };
     },
 
     menus_get_menu: async (ctx) => {
-      const menuId = requireString(requireInputRecord(ctx.input), "menuId");
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "admin.menus.read", entityType: "menu", entityId: menuId });
+      const menuId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "menuId" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.read" }, { entityType: "menu", entityId: menuId });
       const menu = await routeDeps.menuRepo.findById({ workspaceId: routeDeps.workspaceId, id: menuId });
-      if (!menu) throw new MenuNotFoundError(`menu '${menuId}' was not found`);
+      if (!menu) throw new MenuNotFoundError({ message: `menu '${menuId}' was not found` });
       return { menu: toMenuToolView(menu) };
     },
 
     menus_create_menu: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "admin.menus.create", entityType: "menu" });
+      const input = requireInputRecord({ input: ctx.input });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.create" }, { entityType: "menu" });
       if (input.items !== undefined && !Array.isArray(input.items)) {
-        throw new ToolInputError("'items' must be an array of nav items");
+        throw new ToolInputError({ message: "'items' must be an array of nav items" });
       }
-      return withSchemaOnRejection({ toolId: "menus_create_menu", catalog: CATALOG_BY_ID, isShapeRejection: isMenusShapeRejection }, async () => {
+      const authoring = htmlAuthoring(input);
+      await requireHtmlAuthoringPermission({ routeDeps, principalId: ctx.principal.id, authoring });
+      return withSchemaOnRejection({ toolId: "menus_create_menu", catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => isMenusShapeRejection(error), fn: async () => {
         const { menu } = await createMenu({
           deps: menusDeps(routeDeps),
           input: {
             workspaceId: routeDeps.workspaceId,
-            title: requireString(input, "title"),
-            slug: requireString(input, "slug"),
+            title: requireString({ input: input, key: "title" }),
+            slug: requireString({ input: input, key: "slug" }),
             items: Array.isArray(input.items) ? (input.items as NavItemNode[]) : undefined,
+            ...authoring,
           },
         });
         return { menu: toMenuToolView(menu) };
-      });
+      } });
     },
 
     menus_update_menu_tree: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      const menuId = requireString(input, "menuId");
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "admin.menus.update", entityType: "menu", entityId: menuId });
-      if (!Array.isArray(input.items)) throw new Error("'items' (array) is required");
-      return withSchemaOnRejection({ toolId: "menus_update_menu_tree", catalog: CATALOG_BY_ID, isShapeRejection: isMenusShapeRejection }, async () => {
+      const { input } = normalizeMenuUpdateInput({ input: requireInputRecord({ input: ctx.input }) });
+      const menuId = requireString({ input: input, key: "id" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.update" }, { entityType: "menu", entityId: menuId });
+      const authoring = htmlAuthoring(input);
+      if (input.items === undefined && authoring.mode === undefined && authoring.html === undefined) {
+        throw new Error("'items' (array), 'html' or 'mode' is required");
+      }
+      if (input.items !== undefined && !Array.isArray(input.items)) throw new Error("'items' must be an array of nav items");
+      await requireHtmlAuthoringPermission({ routeDeps, principalId: ctx.principal.id, authoring, menuId });
+      return withSchemaOnRejection({ toolId: "menus_update_menu_tree", catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => isMenusShapeRejection(error), fn: async () => {
         const { menu } = await updateMenuTree({
           deps: menusDeps(routeDeps),
           input: {
             workspaceId: routeDeps.workspaceId,
             id: menuId,
-            expectedVersion: requireNumber(input, "expectedVersion"),
+            expectedVersion: requireNumber({ input: input, key: "expectedVersion" }),
             title: typeof input.title === "string" ? input.title : undefined,
             slug: typeof input.slug === "string" ? input.slug : undefined,
-            items: input.items as NavItemNode[],
+            items: input.items as NavItemNode[] | undefined,
+            ...authoring,
           },
         });
         return { menu: toMenuToolView(menu) };
-      });
+      } });
     },
 
     menus_assign_location: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
-      const menuId = requireString(input, "menuId");
-      await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "admin.menus.assign", entityType: "menu", entityId: menuId });
+      const input = requireInputRecord({ input: ctx.input });
+      const menuId = requireString({ input: input, key: "menuId" });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.assign" }, { entityType: "menu", entityId: menuId });
       const { menu, binding, displacedMenu } = await assignLocation({
         deps: { ...menusDeps(routeDeps), bindingRepo: routeDeps.navLocationBindingRepo },
-        input: { workspaceId: routeDeps.workspaceId, menuId, locationKey: requireString(input, "locationKey") },
+        input: { workspaceId: routeDeps.workspaceId, menuId, locationKey: requireString({ input: input, key: "locationKey" }) },
       });
       return {
         menu: toMenuToolView(menu),
@@ -188,6 +244,7 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
     catalogModule: "navigation/agent-tools.ts",
     catalog: CATALOG_BY_ID,
     handlers,
+    inputNormalizers: { menus_update_menu_tree: normalizeMenuUpdateInput },
     derivedRisk: menusDerivedRisk,
   });
 }

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   applyInputJsonDelta,
@@ -46,14 +47,14 @@ function freshTaskRegistry(): TaskRegistry {
  */
 function feedLines(handler: ReturnType<typeof createClaudeStreamHandler>, lines: unknown[]) {
   for (const line of lines) {
-    handler.feed(`${JSON.stringify(line)}\n`);
+    handler.feed({ chunk: `${JSON.stringify(line)}\n` });
   }
   handler.flush();
 }
 
 function run(lines: unknown[], options?: Parameters<typeof createClaudeStreamHandler>[1]) {
   const events: Record<string, unknown>[] = [];
-  const handler = createClaudeStreamHandler((event) => events.push(event), options);
+  const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) }, options);
   feedLines(handler, lines);
   return events;
 }
@@ -68,7 +69,7 @@ function taskToolUse(id: string, name: string, input: Record<string, unknown>) {
 describe('createClaudeStreamHandler', () => {
   it('replays a representative claude-code stream-json trace', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createClaudeStreamHandler((event) => events.push(event));
+    const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
 
     feedLines(handler, [
       { type: 'system', subtype: 'init', model: 'claude-sonnet-4-5', session_id: 'sess_abc' },
@@ -169,13 +170,15 @@ describe('createClaudeStreamHandler', () => {
 
     const usage = events[7]!;
     expect(usage.usage).toEqual({ input_tokens: 120, output_tokens: 40 });
-    expect(usage.costUsd).toBe(0.002);
+    expect(usage.costUsd).toBeNull();
+    expect(usage.cumulativeCostUsd).toBe(0.002);
+    expect(usage.costSessionId).toBe('sess_abc');
     expect(usage.stopReason).toBe('end_turn');
   });
 
   it('does not duplicate a tool_use already streamed via input_json_delta when the final assistant wrapper repeats it', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createClaudeStreamHandler((event) => events.push(event));
+    const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
 
     feedLines(handler, [
       {
@@ -325,8 +328,8 @@ describe('createClaudeStreamHandler', () => {
 
   it('emits a raw event for a malformed JSON line instead of throwing', () => {
     const events: Record<string, unknown>[] = [];
-    const handler = createClaudeStreamHandler((event) => events.push(event));
-    handler.feed('{not valid json\n');
+    const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
+    handler.feed({ chunk: '{not valid json\n' });
     handler.flush();
     expect(events).toEqual([{ type: 'raw', line: '{not valid json' }]);
   });
@@ -334,40 +337,40 @@ describe('createClaudeStreamHandler', () => {
   describe('flush() / feed() line handling', () => {
     it('flush() emits a raw event for a malformed trailing line with no newline', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createClaudeStreamHandler((event) => events.push(event));
-      handler.feed('{still bad');
+      const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: '{still bad' });
       handler.flush();
       expect(events).toEqual([{ type: 'raw', line: '{still bad' }]);
     });
 
     it('flush() is a no-op when the buffer is empty', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createClaudeStreamHandler((event) => events.push(event));
+      const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
       handler.flush();
       expect(events).toEqual([]);
     });
 
     it('flush() parses a well-formed trailing line with no newline', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createClaudeStreamHandler((event) => events.push(event));
-      handler.feed(JSON.stringify({ type: 'system', subtype: 'status', status: 'working' }));
+      const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: JSON.stringify({ type: 'system', subtype: 'status', status: 'working' }) });
       handler.flush();
       expect(events).toEqual([{ type: 'status', label: 'working' }]);
     });
 
     it('ignores a top-level JSON value that parses but is not a record', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createClaudeStreamHandler((event) => events.push(event));
-      handler.feed('42\n');
+      const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: '42\n' });
       handler.flush();
       expect(events).toEqual([]);
     });
 
     it('ignores literal blank lines fed directly', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createClaudeStreamHandler((event) => events.push(event));
-      handler.feed('\n\n');
-      handler.feed(`${JSON.stringify({ type: 'system', subtype: 'status', status: 'busy' })}\n`);
+      const handler = createClaudeStreamHandler({ onEvent: (event) => events.push(event) });
+      handler.feed({ chunk: '\n\n' });
+      handler.feed({ chunk: `${JSON.stringify({ type: 'system', subtype: 'status', status: 'busy' })}\n` });
       handler.flush();
       expect(events).toEqual([{ type: 'status', label: 'busy' }]);
     });
@@ -1030,34 +1033,31 @@ describe('createClaudeStreamHandler', () => {
 
     it('handles an artifact echo whose open tag is split across two text deltas', () => {
       const events: Record<string, unknown>[] = [];
-      const handler = createClaudeStreamHandler((e) => events.push(e));
+      const handler = createClaudeStreamHandler({ onEvent: (e) => events.push(e) });
       feedLines(handler, [
         {
           type: 'assistant',
           message: { id: 'ms1', content: [{ type: 'tool_use', id: 'wsplit', name: 'Write', input: { file_path: 'index.html', content: 'split body' } }] },
         },
       ]);
-      handler.feed(
-        `${JSON.stringify({
+      handler.feed({ chunk: `${JSON.stringify({
           type: 'stream_event',
           event: { type: 'message_start', message: { id: 'ms1' } },
-        })}\n`,
+        })}\n` }
       );
-      handler.feed(
-        `${JSON.stringify({
+      handler.feed({ chunk: `${JSON.stringify({
           type: 'stream_event',
           event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'before <arti' } },
-        })}\n`,
+        })}\n` }
       );
-      handler.feed(
-        `${JSON.stringify({
+      handler.feed({ chunk: `${JSON.stringify({
           type: 'stream_event',
           event: {
             type: 'content_block_delta',
             index: 0,
             delta: { type: 'text_delta', text: 'fact type="text/html">\nsplit body\n</artifact> after' },
           },
-        })}\n`,
+        })}\n` }
       );
       handler.flush();
       const combined = events.filter((e) => e.type === 'text_delta').map((e) => e.delta as string).join('');
@@ -1745,6 +1745,42 @@ describe('handleSystemMessage', () => {
     const onEvent = vi.fn();
     handleSystemMessage({ type: 'system', subtype: 'other' }, onEvent);
     expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  // The init frame Claude Code 2.1.286 really sent from the packaged desktop app on 2026-10-01 (run
+  // e52afb36; local paths redacted). The bridge had timed out, and nothing downstream could tell,
+  // because this handler dropped `mcp_servers`.
+  it('reports each MCP server status from a real init frame whose jini bridge failed', () => {
+    const line = readFileSync(new URL('./fixtures/claude-init-jini-bridge-failed.jsonl', import.meta.url), 'utf8');
+    const onEvent = vi.fn();
+    handleSystemMessage(JSON.parse(line) as Record<string, unknown>, onEvent);
+    expect(onEvent).toHaveBeenCalledTimes(1);
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'status',
+      label: 'initializing',
+      model: 'claude-opus-5-5',
+      sessionId: 'ad315341-7b38-42cd-813f-1d9afdf0b287',
+      mcpServers: [{ name: 'jini', status: 'failed' }],
+    });
+  });
+
+  it('reports an empty server list as empty, and skips entries without a string name and status', () => {
+    const onEvent = vi.fn();
+    handleSystemMessage(
+      { type: 'system', subtype: 'init', mcp_servers: [{ name: 'jini' }, 'jini', { name: 'x', status: 'connected' }] },
+      onEvent,
+    );
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'status',
+      label: 'initializing',
+      model: null,
+      sessionId: null,
+      mcpServers: [{ name: 'x', status: 'connected' }],
+    });
+
+    onEvent.mockClear();
+    handleSystemMessage({ type: 'system', subtype: 'init', mcp_servers: [] }, onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: null, sessionId: null, mcpServers: [] });
   });
 });
 

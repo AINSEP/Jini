@@ -29,7 +29,7 @@ import type { CanvasContentWrapperNode } from './canvas-style.js';
 /** Marks the outermost wrapper element this module inserts, so a second call (defensive — the
  *  caller's `load` handler should fire once per mount, but re-entrancy here would otherwise nest a
  *  second copy around the first) detects the existing wrapper and no-ops instead of double-wrapping. */
-const WRAPPER_ROOT_MARKER = 'data-tovu-canvas-wrapper-root';
+const WRAPPER_ROOT_MARKER = 'data-jini-canvas-wrapper-root';
 
 /**
  * Builds one chain level's element and applies its attributes verbatim via `setAttribute` — plain
@@ -59,23 +59,24 @@ function buildWrapperElement(doc: Document, node: CanvasContentWrapperNode): HTM
  *   (each moved once, no copying).
  */
 export function applyCanvasContentWrapper(body: HTMLElement, chain: readonly CanvasContentWrapperNode[] | undefined): void {
-  if (!chain || chain.length === 0) return;
+  if (!chain) return;
+  // `[]` is the same no-op as `undefined`; reading the innermost node here doubles as that length check.
+  const innermostNode = chain[chain.length - 1];
+  if (!innermostNode) return;
   // Re-entrancy guard — see WRAPPER_ROOT_MARKER's own doc.
   if (body.querySelector(`[${WRAPPER_ROOT_MARKER}]`)) return;
 
   const doc = body.ownerDocument;
-  // Built innermost-first via `reduceRight` (each level's element wraps the previous result), which
-  // also hands back a reference to the innermost level in the same pass — avoids indexing into a
-  // built array by position, which `chain`'s `readonly T[]` (not a fixed-length tuple) type cannot
-  // statically prove is in bounds even though the length guard above makes it always true here.
-  let innermost: HTMLElement | undefined;
-  const outermost = chain.reduceRight<HTMLElement | undefined>((child, node) => {
+  // Built innermost-first via `reduceRight` over the remaining ancestors (each level's element wraps
+  // the previous result), seeded with the innermost level itself — so both ends of the chain are
+  // plain `HTMLElement`s with no "maybe undefined" result to guard. (The old seed was `undefined`,
+  // which forced an `if (!outermost || !innermost) return` the length guard above made unreachable.)
+  const innermost = buildWrapperElement(doc, innermostNode);
+  const outermost = chain.slice(0, -1).reduceRight<HTMLElement>((child, node) => {
     const el = buildWrapperElement(doc, node);
-    if (child) el.appendChild(child);
-    innermost ??= el;
+    el.appendChild(child);
     return el;
-  }, undefined);
-  if (!outermost || !innermost) return; // Unreachable given the `chain.length === 0` guard above.
+  }, innermost);
   outermost.setAttribute(WRAPPER_ROOT_MARKER, '');
 
   // Move body's existing children into the innermost wrapper level, preserving order. Snapshotted

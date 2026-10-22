@@ -24,6 +24,8 @@ export interface ConnectorCatalogController {
  * fetch (so already-configured connectors render immediately), then a lazy
  * enrichment pass gated on `unlocked` — heavier, only worth it once the
  * host's provider is actually configured.
+ * Failed reads retain the current catalog, settle their loading state and
+ * report a fixed diagnostic; host/provider errors may contain credentials.
  */
 export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCatalogOptions): ConnectorCatalogController {
   const { unlocked, refreshKey = 0 } = options;
@@ -36,11 +38,15 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
     let cancelled = false;
     setLoading(true);
     setEnriched(false);
-    (async () => {
-      const next = await port.fetchConnectors();
-      if (cancelled) return;
-      setConnectors((curr) => mergeConnectors(curr, next));
-      setLoading(false);
+    void (async () => {
+      try {
+        const next = await port.fetchConnectors();
+        if (!cancelled) setConnectors((curr) => mergeConnectors(curr, next));
+      } catch {
+        if (!cancelled) console.error('[connectors] Catalog load failed.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -58,12 +64,17 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
 
     let cancelled = false;
     setEnriching(true);
-    (async () => {
-      const next = await port.fetchConnectorEnrichment!({ refresh: true });
-      if (cancelled) return;
-      setConnectors((curr) => mergeConnectors(curr, next));
-      setEnriched(true);
-      setEnriching(false);
+    void (async () => {
+      try {
+        const next = await port.fetchConnectorEnrichment!({ refresh: true });
+        if (cancelled) return;
+        setConnectors((curr) => mergeConnectors(curr, next));
+        setEnriched(true);
+      } catch {
+        if (!cancelled) console.error('[connectors] Catalog enrichment failed.');
+      } finally {
+        if (!cancelled) setEnriching(false);
+      }
     })();
     return () => {
       cancelled = true;

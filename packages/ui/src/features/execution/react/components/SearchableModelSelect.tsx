@@ -95,7 +95,7 @@ export function SearchableModelSelect({
   };
 
   return (
-    <div className="jini-searchable-select" data-testid={testId} {...agentHandleProps(agentHandle, { role: 'field', label: ariaLabel })}>
+    <div className="jini-searchable-select" data-testid={testId} {...agentHandleProps({}, { base: agentHandle, ...({ role: 'field', label: ariaLabel }) })}>
       <CustomSelect
         value={value}
         options={visibleOptions}

@@ -1,8 +1,9 @@
+import { isLoopbackHostname } from '@jini-ai/platform/net';
 /**
  * @module daemon-url
  *
  * Generic daemon-URL resolution, generalized from OD's
- * `apps/daemon/src/daemon-url.ts` (see `source-map.md`). The *order* —
+ * `apps/daemon/src/daemon-url.ts` (see `archived provenance ledger`). The *order* —
  * explicit flag, then an env var, then an injected discovery probe, then a
  * caller-supplied default — is the reusable part. OD's own implementation
  * hardcodes its sidecar IPC protocol and a `pnpm exec tools-dev status`
@@ -27,7 +28,7 @@ export interface ResolveDaemonUrlOptions {
    * `null` when nothing was discovered so resolution falls through to
    * `defaultUrl`.
    */
-  discover?: (env: NodeJS.ProcessEnv, timeoutMs: number) => Promise<string | null>;
+  discover?: (requiredArgs: { env: NodeJS.ProcessEnv }, optionalArgs: { timeoutMs: number }) => Promise<string | null>;
   /** Discovery timeout in ms. Defaults to 800ms so an absent daemon doesn't stall CLI startup. */
   timeoutMs?: number;
   /** Returned when the flag, env, and discovery steps all come up empty. */
@@ -37,7 +38,7 @@ export interface ResolveDaemonUrlOptions {
    * succeeds. Defaults to a no-op. A user's own daemon may legitimately run
    * on a remote, non-HTTPS host, so this only warns — it never rejects.
    */
-  warn?: (message: string) => void;
+  warn?: (requiredArgs: { message: string }) => void;
 }
 
 /**
@@ -49,35 +50,42 @@ export interface ResolveDaemonUrlOptions {
  * `http://127.0.0.1:0`-style fallback would be worse than a clear error,
  * and this package has no locked default port to fall back to on its own.
  */
-export async function resolveDaemonUrl(options: ResolveDaemonUrlOptions = {}): Promise<string> {
+export async function resolveDaemonUrl(_requiredArgs: Record<string, never>, options: ResolveDaemonUrlOptions = {}): Promise<string> {
   const env = options.env ?? process.env;
-  const warn = options.warn ?? ((): void => {});
-
-  const report = (url: string): string => {
-    const warning = daemonUrlPolicyWarning(url);
-    if (warning !== null) warn(warning);
-    return url;
-  };
-
-  const flagUrl = options.flagUrl ?? null;
-  if (flagUrl !== null && flagUrl.length > 0) return report(flagUrl);
-
-  if (options.envVarName !== undefined) {
-    const envUrl = env[options.envVarName];
-    if (envUrl !== undefined && envUrl.length > 0) return report(envUrl);
+  // `??` short-circuits, so discover() is only probed when flag and env both came up empty.
+  // defaultUrl is taken as-is (even `''`): only `undefined` skips it.
+  const url =
+    nonEmpty(options.flagUrl ?? null) ??
+    envCandidate({ env }, options) ??
+    (await discoverCandidate({ env }, options)) ??
+    options.defaultUrl;
+  if (url === undefined) {
+    throw new Error(
+      'no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, ' +
+        'supply a discover() probe, or provide defaultUrl.',
+    );
   }
+  const warning = daemonUrlPolicyWarning({ url });
+  if (warning !== null) options.warn?.({ message: warning });
+  return url;
+}
 
-  if (options.discover !== undefined) {
-    const discovered = await options.discover(env, options.timeoutMs ?? 800);
-    if (discovered !== null && discovered.length > 0) return report(discovered);
-  }
+/** `value` when it is a non-empty string, else `undefined` (`null` and `''` both mean "unset"). */
+function nonEmpty(value: string | null): string | undefined {
+  return value !== null && value.length > 0 ? value : undefined;
+}
 
-  if (options.defaultUrl !== undefined) return report(options.defaultUrl);
+/** The env step: `env[envVarName]`, skipped entirely when no `envVarName` was given. */
+function envCandidate({ env }: { env: NodeJS.ProcessEnv }, { envVarName }: ResolveDaemonUrlOptions): string | undefined {
+  return envVarName === undefined ? undefined : nonEmpty(env[envVarName] ?? null);
+}
 
-  throw new Error(
-    'no daemon URL resolved: pass flagUrl, set envVarName on a populated env var, ' +
-      'supply a discover() probe, or provide defaultUrl.',
-  );
+/** The discovery step: one `discover()` probe with the caller timeout (default 800ms), when a probe was given. */
+async function discoverCandidate(
+  { env }: { env: NodeJS.ProcessEnv },
+  { discover, timeoutMs }: ResolveDaemonUrlOptions,
+): Promise<string | undefined> {
+  return discover === undefined ? undefined : nonEmpty(await discover({ env }, { timeoutMs: timeoutMs ?? 800 }));
 }
 
 // Matches a scheme + userinfo prefix (`scheme://user:pass@`) on a URL string that failed to
@@ -93,7 +101,7 @@ const USERINFO_PREFIX_RE = /^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)[^/@]*@/;
  * reach stderr/stdout verbatim. Returns `url` unchanged when it has no userinfo, so normal URLs
  * are never reformatted/normalized as a side effect of display-sanitizing them.
  */
-export function sanitizeDaemonUrlForDisplay(url: string): string {
+export function sanitizeDaemonUrlForDisplay({ url }: { url: string }): string {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -106,12 +114,6 @@ export function sanitizeDaemonUrlForDisplay(url: string): string {
   return parsed.toString();
 }
 
-const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
-
-function isLoopbackHostname(hostname: string): boolean {
-  return LOOPBACK_HOSTNAMES.has(hostname.toLowerCase());
-}
-
 /**
  * Non-fatal policy check for a resolved daemon URL: warn (never throw or reject) when it is
  * neither loopback nor HTTPS, since that combination sends CLI traffic — including whatever
@@ -119,16 +121,16 @@ function isLoopbackHostname(hostname: string): boolean {
  * `null` when the URL looks safe or doesn't parse (a parse failure is reported elsewhere, by
  * whatever code actually tries to use the URL).
  */
-export function daemonUrlPolicyWarning(url: string): string | null {
+export function daemonUrlPolicyWarning({ url }: { url: string }): string | null {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return null;
   }
-  if (parsed.protocol === 'https:' || isLoopbackHostname(parsed.hostname)) return null;
+  if (parsed.protocol === 'https:' || isLoopbackHostname({ hostname: parsed.hostname })) return null;
   return (
-    `daemon URL ${sanitizeDaemonUrlForDisplay(url)} is neither loopback nor HTTPS; ` +
+    `daemon URL ${sanitizeDaemonUrlForDisplay({ url: url })} is neither loopback nor HTTPS; ` +
     'traffic to a remote, non-HTTPS daemon is not encrypted.'
   );
 }

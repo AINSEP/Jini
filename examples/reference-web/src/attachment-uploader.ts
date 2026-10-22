@@ -13,4 +13,4 @@ import { createDaemonAttachmentUploader } from '@jini-ai/chat/react';
  * page is held to one per-turn quota — the same behavior the previous module-level implementation
  * had.
  */
-export const PLAYGROUND_ATTACHMENT_UPLOADER = createDaemonAttachmentUploader('');
+export const PLAYGROUND_ATTACHMENT_UPLOADER = createDaemonAttachmentUploader({ baseUrl: '', fetch: (input, init) => globalThis.fetch(input, init) });

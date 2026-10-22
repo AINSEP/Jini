@@ -1,4 +1,4 @@
-/** Ported from OD's `apps/daemon/src/runtimes/defs/amr.ts` (two de-branded comments; see `source-map.md`). */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { execAgentFile } from './shared.js';
 import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
 
@@ -19,7 +19,7 @@ const PREFERRED_AMR_CHAT_MODEL_RANK: ReadonlyMap<string, number> = new Map(
 
 // AMR is the vela CLI's ACP stdio mode. `vela agent run --runtime opencode`
 // starts a private OpenCode server and forwards stream-json over ACP JSON-RPC.
-// Required env (set on the daemon process or via Settings → CLI env):
+// Required env (supplied by the host process environment):
 //   VELA_RUNTIME_KEY  — OpenRouter (or compatible) API key
 //   VELA_LINK_URL     — OpenAI-compatible endpoint, e.g. https://openrouter.ai/api/v1
 //   VELA_OPENCODE_BIN — optional; absolute path to opencode when not on PATH
@@ -38,25 +38,26 @@ const PREFERRED_AMR_CHAT_MODEL_RANK: ReadonlyMap<string, number> = new Map(
 //      the link-facing slug (`deepseek-v3.2` / `glm-5.1`), so this adapter
 //      normalizes those public ids at the spawn boundary until Vela exposes
 //      canonical ACP ids directly.
-export function normalizeVelaModelId(rawId: string): string | null {
-  const trimmed = rawId.trim();
-  if (!trimmed) return null;
-  const withoutProvider = trimmed.startsWith('vela/')
-    ? trimmed.slice('vela/'.length)
-    : trimmed;
-  const withoutPrefix = withoutProvider.startsWith('public_model_')
-    ? withoutProvider.slice('public_model_'.length)
-    : withoutProvider;
+export function normalizeVelaModelId({ rawId }: { rawId: string }): string | null {
+  const withoutPrefix = stripPrefix({ value: stripPrefix({ value: rawId.trim(), prefix: 'vela/' }), prefix: 'public_model_' });
   if (!withoutPrefix) return null;
-  if (/^deepseek_v3_2$/i.test(withoutPrefix)) return 'deepseek-v3.2';
-  if (/^deepseek-v3-2$/i.test(withoutPrefix)) return 'deepseek-v3.2';
-  if (/^kimi_k2_6$/i.test(withoutPrefix)) return 'kimi-k2.6';
-  if (/^kimi_k2_7_code$/i.test(withoutPrefix)) return 'kimi-k2.7-code';
-  if (/^glm_5_1$/i.test(withoutPrefix)) return 'glm-5.1';
-  if (/^glm_5$/i.test(withoutPrefix)) return 'glm-5';
-  const versioned = normalizeKnownVelaVersionId(withoutPrefix);
-  if (versioned) return versioned;
-  return withoutPrefix.replace(/_/g, '-');
+  const alias = VELA_MODEL_ID_ALIASES.find(([pattern]) => pattern.test(withoutPrefix));
+  if (alias) return alias[1];
+  return normalizeKnownVelaVersionId(withoutPrefix) ?? withoutPrefix.replace(/_/g, '-');
+}
+
+/** Compact Vela public ids whose link-facing slug is not a plain underscore-to-dash rewrite. */
+const VELA_MODEL_ID_ALIASES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^deepseek_v3_2$/i, 'deepseek-v3.2'],
+  [/^deepseek-v3-2$/i, 'deepseek-v3.2'],
+  [/^kimi_k2_6$/i, 'kimi-k2.6'],
+  [/^kimi_k2_7_code$/i, 'kimi-k2.7-code'],
+  [/^glm_5_1$/i, 'glm-5.1'],
+  [/^glm_5$/i, 'glm-5'],
+];
+
+function stripPrefix({ value, prefix }: { value: string; prefix: string }): string {
+  return value.startsWith(prefix) ? value.slice(prefix.length) : value;
 }
 
 // Every capture group below is a mandatory (non-optional) part of its
@@ -109,32 +110,37 @@ function isVelaChatModelId(modelId: string): boolean {
   return true;
 }
 
-export function parseVelaModels(stdout: string): RuntimeModelOption[] {
-  const seen = new Set<string>();
-  const models: RuntimeModelOption[] = [];
+export function parseVelaModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
+  const ids: Array<string | null> = [];
   for (const line of String(stdout || '').split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     // `trimmed` is already non-empty and has no leading whitespace (checked
     // above), so its first whitespace-split token is always non-empty too.
     const rawId = trimmed.split(/\s+/)[0]!;
-    const id = normalizeVelaModelId(rawId);
-    if (!id || seen.has(id) || !isVelaChatModelId(id)) continue;
-    seen.add(id);
-    models.push({ id, label: id });
+    ids.push(normalizeVelaModelId({ rawId: rawId }));
   }
-  return orderAmrChatModels(models);
+  return collectChatModels(ids);
 }
 
-export function parseVelaModelJson(
-  stdout: string,
-  expectedSource: VelaModelJsonSource,
+export function parseVelaModelJson({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }
 ): RuntimeModelOption[] {
+  const data = parseVelaModelJsonData({ stdout, expectedSource });
+  return collectChatModels(data.map((item) => {
+    const rawId = item && typeof item === 'object'
+      ? (item as { id?: unknown }).id
+      : null;
+    return typeof rawId === 'string' ? rawId.trim() : '';
+  }));
+}
+
+/** Validates the `{ source, data: [...] }` envelope and returns its `data` array. */
+function parseVelaModelJsonData({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }): unknown[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stdout);
   } catch (error) {
-    throw new Error(`Invalid vela model JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Invalid vela model JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Invalid vela model JSON: expected object');
@@ -147,13 +153,14 @@ export function parseVelaModelJson(
   if (!Array.isArray(data)) {
     throw new Error('Invalid vela model JSON: expected data array');
   }
+  return data;
+}
+
+/** First occurrence of each non-empty chat model id, in preferred AMR chat order. */
+function collectChatModels(ids: ReadonlyArray<string | null>): RuntimeModelOption[] {
   const seen = new Set<string>();
   const models: RuntimeModelOption[] = [];
-  for (const item of data) {
-    const rawId = item && typeof item === 'object'
-      ? (item as { id?: unknown }).id
-      : null;
-    const id = typeof rawId === 'string' ? rawId.trim() : '';
+  for (const id of ids) {
     if (!id || seen.has(id) || !isVelaChatModelId(id)) continue;
     seen.add(id);
     models.push({ id, label: id });
@@ -202,62 +209,40 @@ function isRetriableVelaModelsError(error: unknown): boolean {
   ].some((pattern) => message.includes(pattern));
 }
 
-export async function fetchVelaPresetModels(
-  resolvedBin: string,
-  env: NodeJS.ProcessEnv,
+export async function fetchVelaPresetModels({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
 ): Promise<RuntimeModelOption[]> {
-  const { stdout } = await execAgentFile(resolvedBin, ['model', 'preset', '--format', 'json'], {
+  const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'preset', '--format', 'json'] }, { options: {
     env,
     timeout: AMR_MODELS_TIMEOUT_MS,
     maxBuffer: 1024 * 1024,
-  });
-  return parseVelaModelJson(String(stdout), 'preset');
+  } });
+  return parseVelaModelJson({ stdout: String(stdout), expectedSource: 'preset' });
 }
 
-export async function fetchVelaRemoteModelsWithRetry(
-  resolvedBin: string,
-  env: NodeJS.ProcessEnv,
+export async function fetchVelaRemoteModelsWithRetry({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
 ): Promise<RuntimeModelOption[]> {
-  // The internal exhaustion check below (`attempt === AMR_MODELS_RETRY_DELAYS_MS.length`)
-  // always throws on the last allowed attempt — strictly before the `for`
-  // condition itself would ever end the loop — so there's no way to fall
-  // through normally; no trailing fallback throw is needed. That same check
-  // also means `attempt` is always a valid in-bounds index into
-  // `AMR_MODELS_RETRY_DELAYS_MS` whenever we reach the `sleep()` call below
-  // (the assertion just satisfies `noUncheckedIndexedAccess`).
-  //
-  // Coverage note (re-derived, not merely restated from the paragraph
-  // above): `for (let attempt = 0; ; attempt += 1)` has an empty middle
-  // clause — an unconditional, infinite loop — and its body contains no
-  // `break` (grepped: none). The only two ways out are the `return` on a
-  // successful parse and the `throw` in the catch arm, and the `throw` is
-  // unconditionally forced once `attempt === AMR_MODELS_RETRY_DELAYS_MS.length`
-  // (`AMR_MODELS_RETRY_DELAYS_MS` is the literal 2-element `[250, 750]`
-  // above, so that's guaranteed after at most 3 attempts). So this
-  // function's implicit end-of-body statement (the closing `}` two lines
-  // below) can never execute — v8/istanbul still instruments it because
-  // it can't prove an arbitrary `for(;;)` terminates, but the real control
-  // flow genuinely never reaches it. Documented here (and in
-  // `source-map.md`'s 2026-07-22 entry) instead of forced via a test,
-  // per this repo's no-`/* v8 ignore */` standard.
-  for (let attempt = 0; ; attempt += 1) {
+  // One attempt per retry delay, each followed by that delay when it fails with a retriable
+  // error; a non-retriable error (including a malformed catalog) is thrown at once. The final
+  // attempt after the last delay is not retried, so whatever it throws propagates as-is.
+  for (const delayMs of AMR_MODELS_RETRY_DELAYS_MS) {
     try {
-      const { stdout } = await execAgentFile(resolvedBin, ['model', 'list', '--format', 'json'], {
-        env,
-        timeout: AMR_MODELS_TIMEOUT_MS,
-        maxBuffer: 1024 * 1024,
-      });
-      return parseVelaModelJson(String(stdout), 'remote');
+      return await fetchVelaRemoteModelsOnce({ resolvedBin, env });
     } catch (error) {
-      if (
-        attempt === AMR_MODELS_RETRY_DELAYS_MS.length ||
-        !isRetriableVelaModelsError(error)
-      ) {
-        throw error;
-      }
-      await sleep(AMR_MODELS_RETRY_DELAYS_MS[attempt]!);
+      if (!isRetriableVelaModelsError(error)) throw error;
     }
+    await sleep(delayMs);
   }
+  return fetchVelaRemoteModelsOnce({ resolvedBin, env });
+}
+
+async function fetchVelaRemoteModelsOnce({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
+): Promise<RuntimeModelOption[]> {
+  const { stdout } = await execAgentFile({ command: resolvedBin, args: ['model', 'list', '--format', 'json'] }, { options: {
+    env,
+    timeout: AMR_MODELS_TIMEOUT_MS,
+    maxBuffer: 1024 * 1024,
+  } });
+  return parseVelaModelJson({ stdout: String(stdout), expectedSource: 'remote' });
 }
 
 /** Live account fields parsed from `vela billing summary --format json`. */
@@ -274,15 +259,9 @@ export interface VelaBillingSummary {
  * contract rather than a separate HTTP call. Returns total available balance
  * and the real membership tier.
  */
-export async function fetchVelaBillingSummary(
-  resolvedBin: string,
-  env: NodeJS.ProcessEnv,
+export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }
 ): Promise<VelaBillingSummary> {
-  const { stdout } = await execAgentFile(
-    resolvedBin,
-    ['billing', 'summary', '--format', 'json'],
-    { env, timeout: AMR_MODELS_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
-  );
+  const { stdout } = await execAgentFile({ command: resolvedBin, args: ['billing', 'summary', '--format', 'json'] }, { options: { env, timeout: AMR_MODELS_TIMEOUT_MS, maxBuffer: 1024 * 1024 } });
   const data = JSON.parse(String(stdout)) as {
     balanceUsd?: unknown;
     totalAvailableCreditsUsd?: unknown;
@@ -310,6 +289,8 @@ export async function fetchVelaBillingSummary(
 }
 
 export const amrAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('amr', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => amrAgentDef.fallbackModels, parse: ({ stdout }) => parseVelaModelJson({ stdout, expectedSource: 'remote' }) }),
   id: 'amr',
   name: 'AMR',
   bin: 'vela',

@@ -1,8 +1,7 @@
 /**
  * Generic wrapper for surfacing filesystem-read failures (e.g. from a
  * drag-and-drop file/folder read) with a consistent, identifiable error
- * shape. Origin: `utils/fileSystemErrors.ts` — ported verbatim, no OD
- * coupling found (zero imports, zero product-identity strings).
+ * shape.
  */
 
 function errorSummary(error: unknown): string {

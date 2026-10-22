@@ -7,7 +7,7 @@
  * was copied from the real JSON Schema `$defs`, not guessed). A2UI is a real, versioned,
  * actively-maintained spec (v1.0 is a release candidate at the time this was written) for agents
  * to stream a declarative, catalog-whitelisted component tree + JSON-Pointer-bound data model to a
- * renderer. See `../source-map.md` for provenance, what was verified against the primary source,
+ * renderer. See `../archived provenance ledger` for provenance, what was verified against the primary source,
  * and — importantly — why this was hand-rolled from the JSON Schemas rather than built on the
  * official `@a2ui/web_core` npm package (materially version-drifted: see that doc).
  *
@@ -174,9 +174,11 @@ export type Action = z.infer<typeof ActionSchema>;
 export type AgentEventAction = Extract<Action, { event: AgentActionEvent }>;
 export type LocalFunctionAction = Extract<Action, { functionCall: FunctionCall }>;
 
-export function isAgentEventAction(action: Action): action is AgentEventAction {
+export function isAgentEventAction(required: { action: Action }, _optional: Record<string, never> = {}): required is { action: AgentEventAction } {
+  const { action } = required;
   return 'event' in action;
 }
-export function isLocalFunctionAction(action: Action): action is LocalFunctionAction {
+export function isLocalFunctionAction(required: { action: Action }, _optional: Record<string, never> = {}): required is { action: LocalFunctionAction } {
+  const { action } = required;
   return 'functionCall' in action;
 }

@@ -14,7 +14,7 @@
  * `media-service.ts` file header). A future epoch-aware rewrite would change
  * this function's output shape, not its callers' contract.
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 
 /**
  * Derives `ws/{workspaceId}/blobs/{sha256[0..1]}/{sha256}`.

@@ -11,10 +11,12 @@ interface BoundOne {
  * `Exclude<RequiredTokenIds<Packs>, BoundIds>` at compile time (see daemon.ts).
  */
 export class Bindings<BoundIds extends string = never> {
+  constructor(_required: Record<string, never>) {}
+
   private readonly one = new Map<string, BoundOne>();
   private readonly many = new Map<string, unknown[]>();
 
-  bind<T, Id extends string>(t: Token<T, Id>, impl: T): Bindings<BoundIds | Id> {
+  bind<T, Id extends string>({ token: t, impl }: { token: Token<T, Id>; impl: T }): Bindings<BoundIds | Id> {
     if (this.one.has(t.id)) {
       throw new Error(`duplicate binding: ${t.id} is already bound (a singleton token accepts exactly one binding)`);
     }
@@ -22,7 +24,7 @@ export class Bindings<BoundIds extends string = never> {
     return this as unknown as Bindings<BoundIds | Id>;
   }
 
-  bindMany<T, Id extends string>(t: ManyToken<T, Id>, impl: T): Bindings<BoundIds | Id> {
+  bindMany<T, Id extends string>({ token: t, impl }: { token: ManyToken<T, Id>; impl: T }): Bindings<BoundIds | Id> {
     const list = this.many.get(t.id) ?? [];
     list.push(impl);
     this.many.set(t.id, list);
@@ -30,7 +32,7 @@ export class Bindings<BoundIds extends string = never> {
   }
 
   /** @internal */
-  resolveOne<T>(t: Token<T, string>): T {
+  resolveOne<T>({ token: t }: { token: Token<T, string> }): T {
     const entry = this.one.get(t.id);
     if (!entry) {
       throw new Error(`missing binding: ${t.id}`);
@@ -42,11 +44,11 @@ export class Bindings<BoundIds extends string = never> {
   }
 
   /** @internal */
-  resolveMany<T>(t: ManyToken<T, string>): T[] {
+  resolveMany<T>({ token: t }: { token: ManyToken<T, string> }): T[] {
     return (this.many.get(t.id) ?? []) as T[];
   }
 }
 
-export function bindings(): Bindings<never> {
-  return new Bindings<never>();
+export function bindings(required: Record<string, never>): Bindings<never> {
+  return new Bindings<never>(required);
 }

@@ -1,11 +1,12 @@
 # `@jini-ai/diagnostics`
 
+> **Current API:** the root functions use required-argument objects, separate optional settings and injected host ports. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/diagnostics/API.md) for all signatures, current examples and the five new subpaths. The descriptions and Usage example retained below document the earlier positional API; use the migration guide for the current source. Root export names and the version remain unchanged, but the old call signatures require migration.
+
 Builds a redacted support bundle: collect a list of log sources off disk, strip anything
 secret-shaped out of them, add a manifest describing the machine and the app that produced them, and
 zip the whole thing. Meant for the "export diagnostics" button in a desktop app or the
 `/api/diagnostics/export` route in a daemon — the two surfaces that otherwise reimplement the same
-redaction pass and get it subtly different. Zero `@jini-ai/*` dependencies; its only runtime
-dependency is `jszip`.
+redaction pass and get it subtly different. Shared clocks and credential patterns come from `@jini-ai/core`; archive creation uses `jszip`.
 
 ## Install
 
@@ -101,5 +102,13 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0,
+See the archived provenance ledger for per-file provenance and scope decisions. Apache-2.0,
 inherited from Open Design — see the repo `NOTICE`.
+
+See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/diagnostics/API.md) for the additive redaction, observability, web-evidence and domain-dns subpaths and host adapter contracts.
+
+## Design decisions
+
+- [Build evidence URLs from verified host configuration](docs/decisions/DR-001-trusted-evidence-addresses.md).
+
+Bundle collection, inbound request hooks and web evidence share `Clock` from `@jini-ai/core/primitives` (`nowMs()` with no empty argument); the old package-local clock types are removed. Credential regexes come only from core's eleven-entry `SECRET_SHAPE_PATTERNS`; diagnostics keeps its own redaction policies and existing scanner/redactor export names. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/diagnostics/API.md) for migration details.

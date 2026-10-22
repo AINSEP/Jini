@@ -1,9 +1,13 @@
 #!/usr/bin/env node
+// Module shape: importing this file has no side effects. The CLI edge at the
+// bottom runs `main` only when the file is executed directly; `main` takes fs,
+// console and cwd as an optional ports object and returns the exit code.
 import fs from "node:fs";
 import path from "node:path";
+import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 
-function usage() {
-  console.log(`Usage:
+export function usage(log) {
+  log(`Usage:
   node scripts/init-clone.mjs <slug> [--url <url>] [--mode <mode>] [--level <L1-L6>] [--root <dir>] [--in-place]
 
 Creates:
@@ -15,23 +19,31 @@ With --in-place, creates NOTES.md and RECON/screenshots/ in <root> itself.
 `);
 }
 
-function parseArgs(argv) {
-  const out = { slug: null, url: "", mode: "", level: "", root: process.cwd(), inPlace: false };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (arg === "--help" || arg === "-h") out.help = true;
-    else if (arg === "--url") out.url = argv[++i] || "";
-    else if (arg === "--mode") out.mode = argv[++i] || "";
-    else if (arg === "--level") out.level = argv[++i] || "";
-    else if (arg === "--root") out.root = argv[++i] || process.cwd();
-    else if (arg === "--in-place") out.inPlace = true;
-    else if (!out.slug) out.slug = arg;
-    else throw new Error(`Unexpected argument: ${arg}`);
-  }
-  return out;
+// `root` is resolved against the cwd port, so "." means the cwd (the
+// historical default, also used when --root has no value). The first
+// positional argument is the slug; a second one is an error.
+const ARG_SPEC = {
+  defaults: { slug: null, url: "", mode: "", level: "", root: ".", inPlace: false },
+  flags: {
+    "--help": flag("help"),
+    "-h": flag("help"),
+    "--url": { key: "url", read: text() },
+    "--mode": { key: "mode", read: text() },
+    "--level": { key: "level", read: text() },
+    "--root": { key: "root", read: text(".") },
+    "--in-place": flag("inPlace"),
+  },
+  onOther: (arg, out) => {
+    if (out.slug) rejectUnknown(arg);
+    out.slug = arg;
+  },
+};
+
+export function parseArgs(argv) {
+  return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-function cleanSlug(input) {
+export function cleanSlug(input) {
   return input
     .trim()
     .toLowerCase()
@@ -40,7 +52,7 @@ function cleanSlug(input) {
     .replace(/^-+|-+$/g, "");
 }
 
-function notesTemplate({ name, url, mode, level }) {
+export function notesTemplate({ name, url, mode, level }) {
   return `# ${name} · 克隆笔记
 
 ## 源信息
@@ -102,37 +114,42 @@ python3 -m http.server 8123
 `;
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
+function init(argv, io) {
+  const args = parseArgs(argv);
   if (args.help || !args.slug) {
-    usage();
-    process.exit(args.help ? 0 : 1);
+    usage(io.log);
+    return args.help ? 0 : 1;
   }
 
   const slug = cleanSlug(args.slug);
   if (!slug) throw new Error("Slug is empty after normalization.");
   const name = slug.endsWith("-clone") ? slug : `${slug}-clone`;
-  const root = path.resolve(args.root || process.cwd());
+  const root = path.resolve(io.cwd(), args.root);
   const project = args.inPlace ? root : path.join(root, name);
 
-  if (!args.inPlace && fs.existsSync(project)) {
+  if (!args.inPlace && io.fs.existsSync(project)) {
     throw new Error(`Project already exists: ${project}`);
   }
 
-  fs.mkdirSync(path.join(project, "RECON", "screenshots"), { recursive: true });
-  fs.writeFileSync(
-    path.join(project, "NOTES.md"),
-    notesTemplate({
-      name,
-      url: args.url,
-      mode: args.mode,
-      level: args.level,
-    })
-  );
-  fs.writeFileSync(path.join(project, ".gitignore"), "node_modules/\n.DS_Store\n");
-
-  console.log(project);
-} catch (error) {
-  console.error(`init-clone failed: ${error.message}`);
-  process.exit(1);
+  io.fs.mkdirSync(path.join(project, "RECON", "screenshots"), { recursive: true });
+  io.fs.writeFileSync(path.join(project, "NOTES.md"), notesTemplate({ name, url: args.url, mode: args.mode, level: args.level }));
+  io.fs.writeFileSync(path.join(project, ".gitignore"), "node_modules/\n.DS_Store\n");
+  io.log(project);
+  return 0;
 }
+
+const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+
+/** CLI entry: scaffolds the clone folder; returns 0 ok/help, 1 on usage error or failure. */
+export function main({ argv }, deps = {}) {
+  const io = { ...DEFAULT_DEPS, ...deps };
+  let code = 1;
+  try {
+    code = init(argv, io);
+  } catch (error) {
+    io.error(`init-clone failed: ${error.message}`);
+  }
+  return code;
+}
+
+await runIfMain({ moduleUrl: import.meta.url, main });

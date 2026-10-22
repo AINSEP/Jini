@@ -3,9 +3,9 @@ import { accountFailureDetails, noopAccountFailureClassifier } from '../account-
 
 describe('noopAccountFailureClassifier', () => {
   it('always returns null, regardless of input', () => {
-    expect(noopAccountFailureClassifier.classify('insufficient balance')).toBeNull();
-    expect(noopAccountFailureClassifier.classify('')).toBeNull();
-    expect(noopAccountFailureClassifier.classify('auth required')).toBeNull();
+    expect(noopAccountFailureClassifier.classify({ text: 'insufficient balance' })).toBeNull();
+    expect(noopAccountFailureClassifier.classify({ text: '' })).toBeNull();
+    expect(noopAccountFailureClassifier.classify({ text: 'auth required' })).toBeNull();
   });
 });
 

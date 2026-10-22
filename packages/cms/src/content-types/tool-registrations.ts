@@ -1,3 +1,5 @@
+import type { IdGenerator } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @file Content-types' half of the agent-tool authorization wiring: maps `agent-tools.ts`'s catalog entries onto the
  * `write-service.ts`/`lifecycle.ts` functions the admin HTTP routes call, as `ToolRegistration`s.
@@ -32,45 +34,34 @@
  */
 import type { AuthorizeFn } from "../core/commands/command.js";
 import type { OutboxPort } from "../core/ports.js";
-import {
-  AGENT_TOOL_PRINCIPAL_KIND,
-  buildDomainRegistrations,
-  decorateWithSchema,
-  fromResult,
-  indexCatalogById,
-  requireInputRecord,
-  requireNoInput,
-  requireNumber,
-  requireString,
-  requireToolPermission,
-  type AgentToolSideEffect,
-  type DerivedRiskByToolId,
-  type ToolHandler,
-  type ToolRegistration,
-} from "../core/tools/registration-kit.js";
+import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, decorateWithSchema, fromResult, indexCatalogById, requireInputRecord, requireNoInput, requireNumber, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { contentTypesAgentToolCatalog } from "./agent-tools.js";
 import { parseContentTypeFieldDefs } from "./field-defs.js";
 import { listContentTypes, type ContentTypeListPort } from "./list.js";
 import { deprecateContentType, reactivateContentType, tombstoneContentType, type TeardownIndexProvisionerPort } from "./lifecycle.js";
+import { toContentTypeOutbox } from "./repo.memory.js";
 import type { ContentTypeFieldDef, ContentTypeRecord } from "./types.js";
 import { registerContentType, updateContentTypeFields, type ContentTypeRepoPort, type IndexProvisionerPort } from "./write-service.js";
 
-const CATALOG_BY_ID = indexCatalogById(contentTypesAgentToolCatalog);
+const CATALOG_BY_ID = indexCatalogById({ catalog: contentTypesAgentToolCatalog });
 
 /**
  * The exact slice of the route-deps bag Content-Types' tool handlers read. Declared structurally
  * (rather than importing `server/routes/types`'s `RouteDeps`) so this module carries no back-edge
  * into the composition root. `server/routes/*` satisfies this structurally by passing its existing
- * `RouteDeps` object; nothing there changes.
+ * `RouteDeps` object with the kernel clock/ID contracts.
  */
 export interface ContentTypesToolDeps {
   authorize: AuthorizeFn;
   workspaceId: string;
-  clock: { nowIso(): string };
-  idGen: { newId(): string };
+  clock: Clock;
+  idGen: IdGenerator;
   outbox: OutboxPort;
   contentTypeRepo: ContentTypeRepoPort & ContentTypeListPort;
   contentTypeIndexProvisioner: IndexProvisionerPort & TeardownIndexProvisionerPort;
+  /** The same host route policy applied to direct content-type registration. */
+  reservedContentTypeKeys?: ReadonlySet<string>;
 }
 
 /** Descriptors for the 2 cleanup tools this pass does not wire — see file header. */
@@ -109,7 +100,7 @@ export const contentTypesDerivedRisk: DerivedRiskByToolId = new Map<string, Agen
  * @overallScore 100
  */
 function requireFields(input: Record<string, unknown>, toolId: string): ContentTypeFieldDef[] {
-  const parsed = parseContentTypeFieldDefs(input.fields);
+  const parsed = parseContentTypeFieldDefs({ value: input.fields });
   if (parsed.ok) return parsed.value;
   throw decorateWithSchema({ toolId, catalog: CATALOG_BY_ID, message: parsed.error.message });
 }
@@ -158,7 +149,7 @@ function toContentTypeView(record: ContentTypeRecord): ContentTypeToolView {
 function fromContentTypeResult(
   fn: () => Promise<{ ok: true; value: { contentType: ContentTypeRecord } } | { ok: false; error: Error }>,
 ): Promise<{ contentType: ContentTypeToolView }> {
-  return fromResult(fn).then(({ contentType }) => ({ contentType: toContentTypeView(contentType) }));
+  return fromResult({ fn: fn }).then(({ contentType }) => ({ contentType: toContentTypeView(contentType) }));
 }
 
 function contentTypesDeps(routeDeps: ContentTypesToolDeps) {
@@ -166,26 +157,27 @@ function contentTypesDeps(routeDeps: ContentTypesToolDeps) {
     repo: routeDeps.contentTypeRepo,
     clock: routeDeps.clock,
     ids: routeDeps.idGen,
-    authorize: routeDeps.authorize,
-    outbox: routeDeps.outbox,
+    authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }),
+    // Widened through `toContentTypeOutbox`, as `entries/tool-registrations.ts` does: the domain
+    // enqueues only `{name,payload}`, but `routeDeps.outbox` is the real `core/ports` port whose
+    // `DomainEvent` requires `id`/`workspaceId`/`occurredAt`. Passing it through raw typechecked (method
+    // bivariance) yet delivered events with none of the three.
+    outbox: toContentTypeOutbox(routeDeps),
     indexProvisioner: routeDeps.contentTypeIndexProvisioner,
+    ...(routeDeps.reservedContentTypeKeys !== undefined ? { reservedKeys: routeDeps.reservedContentTypeKeys } : {}),
   };
 }
 
 export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     collections_content_type_list: async (ctx) => {
-      requireNoInput(ctx.input);
-      await requireToolPermission(routeDeps, {
-        principalId: ctx.principal.id,
-        permission: "admin.collections.read",
-        entityType: "content-type",
-      });
+      requireNoInput({ input: ctx.input });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "content-type" });
       const { items } = await listContentTypes({ repo: routeDeps.contentTypeRepo, workspaceId: routeDeps.workspaceId });
       return { contentTypes: items.map(toContentTypeView) };
     },
     collections_content_type_define: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
+      const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
         registerContentType({
           deps: contentTypesDeps(routeDeps),
@@ -193,15 +185,15 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
             actorId: ctx.principal.id,
             principalKind: AGENT_TOOL_PRINCIPAL_KIND,
             workspaceId: routeDeps.workspaceId,
-            key: requireString(input, "key"),
-            label: requireString(input, "label"),
+            key: requireString({ input, key: "key" }),
+            label: requireString({ input, key: "label" }),
             fields: requireFields(input, "collections_content_type_define"),
           },
         }),
       );
     },
     collections_content_type_update_fields: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
+      const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
         updateContentTypeFields({
           deps: contentTypesDeps(routeDeps),
@@ -209,15 +201,15 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
             actorId: ctx.principal.id,
             principalKind: AGENT_TOOL_PRINCIPAL_KIND,
             workspaceId: routeDeps.workspaceId,
-            key: requireString(input, "key"),
+            key: requireString({ input, key: "key" }),
             fields: requireFields(input, "collections_content_type_update_fields"),
-            expectedVersion: requireNumber(input, "expectedVersion"),
+            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
         }),
       );
     },
     collections_content_type_deprecate: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
+      const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
         deprecateContentType({
           deps: contentTypesDeps(routeDeps),
@@ -225,14 +217,14 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
             actorId: ctx.principal.id,
             principalKind: AGENT_TOOL_PRINCIPAL_KIND,
             workspaceId: routeDeps.workspaceId,
-            key: requireString(input, "key"),
-            expectedVersion: requireNumber(input, "expectedVersion"),
+            key: requireString({ input, key: "key" }),
+            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
         }),
       );
     },
     collections_content_type_reactivate: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
+      const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
         reactivateContentType({
           deps: contentTypesDeps(routeDeps),
@@ -240,14 +232,14 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
             actorId: ctx.principal.id,
             principalKind: AGENT_TOOL_PRINCIPAL_KIND,
             workspaceId: routeDeps.workspaceId,
-            key: requireString(input, "key"),
-            expectedVersion: requireNumber(input, "expectedVersion"),
+            key: requireString({ input, key: "key" }),
+            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
         }),
       );
     },
     collections_content_type_tombstone: async (ctx) => {
-      const input = requireInputRecord(ctx.input);
+      const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
         tombstoneContentType({
           deps: contentTypesDeps(routeDeps),
@@ -255,8 +247,8 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
             actorId: ctx.principal.id,
             principalKind: AGENT_TOOL_PRINCIPAL_KIND,
             workspaceId: routeDeps.workspaceId,
-            key: requireString(input, "key"),
-            expectedVersion: requireNumber(input, "expectedVersion"),
+            key: requireString({ input, key: "key" }),
+            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
         }),
       );
@@ -269,6 +261,5 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
     catalog: CATALOG_BY_ID,
     handlers,
     derivedRisk: contentTypesDerivedRisk,
-    unwiredToolIds: UNWIRED_CONTENT_TYPES_TOOL_IDS,
-  });
+  }, { unwiredToolIds: UNWIRED_CONTENT_TYPES_TOOL_IDS });
 }

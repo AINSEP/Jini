@@ -14,7 +14,7 @@
  * would either leak raw, potentially untrusted agent bytes into the public
  * run-event stream or force widening `RunProtocolEvent` itself. A caller
  * supplies its own `EventLog` instance here — reusing the exact same port
- * type and, for a durable deployment, the exact same `@jini-ai/sqlite` adapter
+ * type and, for a durable deployment, the exact same `@jini-ai/daemon/store/event-log/sqlite` adapter
  * — so the journal gets the identical durability/replay guarantees without
  * touching the run-protocol vocabulary at all.
  */
@@ -25,10 +25,10 @@ import type { EventLog } from '../event-log.js';
 const JOURNAL_EVENT_NAME = 'journal';
 
 export interface RunByteJournal {
-  /** Durably appends one journal entry for `runId`. Never rejects into caller code — see {@link createRunByteJournal}. */
-  record(runId: string, entry: JournalEntry): Promise<void>;
+  /** Durably appends one journal entry for `runId`. Propagates append failures so the driver can report journal durability loss; see {@link createRunByteJournal}. */
+  record(args: { readonly runId: string; readonly entry: JournalEntry }): Promise<void>;
   /** Replays every journal entry recorded for `runId`, oldest first. */
-  read(runId: string): Promise<readonly JournalEntry[]>;
+  read(args: { readonly runId: string }): Promise<readonly JournalEntry[]>;
 }
 
 /**
@@ -38,13 +38,13 @@ export interface RunByteJournal {
  * @complexity Both methods are exactly as expensive as the underlying `EventLog`'s `append`/`replay`.
  * @overallScore 100/100
  */
-export function createRunByteJournal(eventLog: EventLog): RunByteJournal {
+export function createRunByteJournal({ eventLog }: { readonly eventLog: EventLog }): RunByteJournal {
   return {
-    async record(runId: string, entry: JournalEntry): Promise<void> {
+    async record({ runId, entry }: { readonly runId: string; readonly entry: JournalEntry }): Promise<void> {
       await eventLog.append<JournalEntry>({ runId, event: JOURNAL_EVENT_NAME, data: entry });
     },
-    async read(runId: string): Promise<readonly JournalEntry[]> {
-      const replay = await eventLog.replay(runId, null);
+    async read({ runId }: { readonly runId: string }): Promise<readonly JournalEntry[]> {
+      const replay = await eventLog.replay({ runId: runId, afterCursor: null });
       if (replay.kind !== 'ok') return [];
       return replay.entries.map((entry) => entry.data as JournalEntry);
     },

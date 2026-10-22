@@ -21,17 +21,12 @@
  * solves the identical "who registered this, extensibly" problem for the
  * permission catalog.
  */
-import type { ISODateTime, UUID } from "../core/ports.js";
+import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
+import { MIME_BY_TRANSFORM_FORMAT, type TransformFormat } from "../core/transform-format.js";
+export { mimeForTransformFormat, type TransformFormat } from "../core/transform-format.js";
 
 /** Resize behavior, mirrors `sharp`'s `fit` vocabulary (a deliberately small subset). */
 export type TransformFit = "cover" | "contain" | "fill" | "inside" | "outside";
-
-/**
- * Output re-encode format. Matches `media-service.ts`'s
- * `DEFAULT_ALLOWED_MIME_TYPES` image set minus SVG (never a transform output —
- * SVG has no raster pixels to resize).
- */
-export type TransformFormat = "jpeg" | "png" | "webp" | "gif";
 
 /**
  * Declarative transform parameters (named definitions only, never
@@ -44,6 +39,8 @@ export interface TransformParams {
   height?: number | undefined;
   fit?: TransformFit | undefined;
   format: TransformFormat;
+  /** Encoder quality, 1–100; omitted preserves the codec default. */
+  quality?: number | undefined;
 }
 
 /**
@@ -64,22 +61,10 @@ export interface TransformDefinitionRecord {
   createdAt: ISODateTime;
 }
 
-export class TransformValidationError extends Error {}
-
-/** Maps a {@link TransformFormat} to the MIME type served on the rendition response. */
-const MIME_BY_TRANSFORM_FORMAT: Record<TransformFormat, string> = {
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  gif: "image/gif",
-};
-
-/**
- * @complexity O(1).
- * @overallScore 100
- */
-export function mimeForTransformFormat(format: TransformFormat): string {
-  return MIME_BY_TRANSFORM_FORMAT[format];
+export class TransformValidationError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
 }
 
 /** Upper bound on a requested resize dimension — an output-side resource-use guard (not the
@@ -88,6 +73,22 @@ export function mimeForTransformFormat(format: TransformFormat): string {
  * absurd target canvas). */
 export const MAX_TRANSFORM_DIMENSION_PX = 8000;
 
+const isIntegerInRange = (value: number, min: number, max: number) => Number.isInteger(value) && value >= min && value <= max;
+
+function assertTransformFormat(format: TransformParams["format"]): void {
+  if (!format || !(format in MIME_BY_TRANSFORM_FORMAT)) {
+    throw new TransformValidationError({ message: `transform params.format must be one of ${Object.keys(MIME_BY_TRANSFORM_FORMAT).join(", ")}` }
+    );
+  }
+}
+
+function assertTransformDimension(key: "width" | "height", value: number | undefined): void {
+  if (value !== undefined && !isIntegerInRange(value, 1, MAX_TRANSFORM_DIMENSION_PX)) {
+    throw new TransformValidationError({ message: `transform params.${key} must be an integer between 1 and ${MAX_TRANSFORM_DIMENSION_PX}` }
+    );
+  }
+}
+
 /**
  * Validates a {@link TransformParams} value at registration time. Throws
  * {@link TransformValidationError} on the first violation found.
@@ -95,24 +96,15 @@ export const MAX_TRANSFORM_DIMENSION_PX = 8000;
  * @complexity O(1).
  * @overallScore 100
  */
-export function assertValidTransformParams(params: TransformParams): void {
-  if (!params.format || !(params.format in MIME_BY_TRANSFORM_FORMAT)) {
-    throw new TransformValidationError(
-      `transform params.format must be one of ${Object.keys(MIME_BY_TRANSFORM_FORMAT).join(", ")}`
-    );
-  }
-  for (const [key, value] of [
-    ["width", params.width],
-    ["height", params.height],
-  ] as const) {
-    if (value === undefined) continue;
-    if (!Number.isInteger(value) || value < 1 || value > MAX_TRANSFORM_DIMENSION_PX) {
-      throw new TransformValidationError(
-        `transform params.${key} must be an integer between 1 and ${MAX_TRANSFORM_DIMENSION_PX}`
-      );
-    }
+export function assertValidTransformParams(required: Pick<TransformParams, "format">, optional: Omit<TransformParams, "format"> = {}): void {
+  const params: TransformParams = { format: required.format, ...optional };
+  assertTransformFormat(params.format);
+  assertTransformDimension("width", params.width);
+  assertTransformDimension("height", params.height);
+  if (params.quality !== undefined && !isIntegerInRange(params.quality, 1, 100)) {
+    throw new TransformValidationError({ message: "transform params.quality must be an integer between 1 and 100" });
   }
   if (params.fit !== undefined && !(params.width && params.height)) {
-    throw new TransformValidationError("transform params.fit requires both width and height");
+    throw new TransformValidationError({ message: "transform params.fit requires both width and height" });
   }
 }

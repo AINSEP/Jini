@@ -10,9 +10,9 @@
  * drops the three OD-self-referential entries the origin had for `amr`,
  * `pi`, and `hermes` (an install URL and two docs URLs that pointed at
  * OD's own site/fork rather than at the third-party CLI vendor — see
- * `source-map.md` for the exact original URLs), so they don't belong in a
+ * `archived provenance ledger` for the exact original URLs), so they don't belong in a
  * product-neutral default. Every other agent's real third-party vendor
- * link is unchanged. See `source-map.md`.
+ * link is unchanged. See `archived provenance ledger`.
  */
 export type AgentInstallMeta = { installUrl?: string; docsUrl?: string };
 
@@ -92,6 +92,26 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://www.codebuddy.cn',
     docsUrl: 'https://www.codebuddy.cn/docs/workbuddy/Overview',
   },
+  cline: {
+    installUrl: 'https://cline.bot/cli',
+    docsUrl: 'https://docs.cline.bot/cline-cli/overview',
+  },
+  goose: {
+    installUrl: 'https://github.com/block/goose',
+    docsUrl: 'https://block.github.io/goose/',
+  },
+  auggie: {
+    installUrl: 'https://github.com/augmentcode/auggie',
+    docsUrl: 'https://docs.augmentcode.com/cli/overview',
+  },
+  crush: {
+    installUrl: 'https://github.com/charmbracelet/crush',
+    docsUrl: 'https://github.com/charmbracelet/crush',
+  },
+  droid: {
+    installUrl: 'https://factory.ai/product/cli',
+    docsUrl: 'https://docs.factory.ai/droid-exec/overview',
+  },
 };
 
 function sanitizeHttpsUrl(value: string | undefined): string | undefined {
@@ -104,9 +124,7 @@ function sanitizeHttpsUrl(value: string | undefined): string | undefined {
   }
 }
 
-export function installMetaForAgent(
-  agentId: string,
-  table: Record<string, AgentInstallMeta> = DEFAULT_AGENT_INSTALL_LINKS,
+export function installMetaForAgent({ agentId }: { agentId: string }, { table = DEFAULT_AGENT_INSTALL_LINKS }: { table?: Record<string, AgentInstallMeta> } = {}
 ): AgentInstallMeta {
   const meta = table[agentId];
   if (!meta) return {};

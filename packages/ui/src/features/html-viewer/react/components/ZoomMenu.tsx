@@ -16,7 +16,7 @@ export function ZoomMenu({ zoom, levels, isOpen, onToggle, onClose, onSelect }: 
   const t = useT();
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
-  useDismissOnOutsideOrEscape(onClose, { enabled: isOpen, containerRef: wrapRef });
+  useDismissOnOutsideOrEscape({ onDismiss: onClose }, { enabled: isOpen, containerRef: wrapRef });
 
   return (
     <div className="jini-zoom-menu" ref={wrapRef}>

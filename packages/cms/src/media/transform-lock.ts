@@ -1,21 +1,22 @@
 /**
  * @file Generic in-process keyed mutex factory, extracted from
- * `blob-gc-lock.ts`'s `withSha256Lock` shape (INV-1's
+ * `blob-gc-lock.ts`'s `withSha256Lock` shape (
  * "Serialization" clause) so the same FIFO-per-key critical-section pattern
  * can back two independent lock namespaces this domain needs:
  *
- *  - `withTransformRegistryLock` — serializes `registerTransform`'s
- *    read-max-version-then-insert-next-version sequence per `(workspaceId,
- *    name)`, so two concurrent registrations of the same name can't both
- *    read the same "current max" and mint a colliding version.
- *  - `withRenditionLock` — serializes lazy rendition generation per
- *    `(sha256, transformName, version)` ("single-flight"), so two
- *    concurrent requests for the same not-yet-generated rendition never run
- *    the image transformer twice.
+ * - `withTransformRegistryLock` — serializes `registerTransform`'s
+ * read-max-version-then-insert-next-version sequence per `(workspaceId,
+ * name)`, so two concurrent registrations of the same name can't both
+ * read the same "current max" and mint a colliding version.
+ * - `withRenditionLock` — serializes lazy rendition generation per
+ * `(sha256, transformName, version)` ("single-flight"), so two
+ * concurrent requests for the same not-yet-generated rendition never run
+ * the image transformer twice.
  *
  * `blob-gc-lock.ts` itself is untouched — this is a separate module, not a
  * modification of that file's exports (its shape is deliberately mirrored
  * here, not imported, so `blob-gc-lock.ts`'s own signature stays untouched).
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 
 /**
@@ -29,10 +30,10 @@
  * by the number of other calls currently queued for the same key.
  * @overallScore 100
  */
-export function createKeyedLock(): <T>(key: string, criticalSection: () => Promise<T>) => Promise<T> {
+export function createKeyedLock(_required: Record<string, never>, _optional: Record<string, never> = {}): <T>(required: { key: string; criticalSection: () => Promise<T> }, optional?: Record<string, never>) => Promise<T> {
   const lockTails = new Map<string, Promise<void>>();
 
-  return function withLock<T>(key: string, criticalSection: () => Promise<T>): Promise<T> {
+  return function withLock<T>({ key, criticalSection }: { key: string; criticalSection: () => Promise<T> }, _optional: Record<string, never> = {}): Promise<T> {
     const priorTail = lockTails.get(key) ?? Promise.resolve();
     const run = priorTail.then(criticalSection, criticalSection);
     const settledTail: Promise<void> = run.then(
@@ -50,7 +51,7 @@ export function createKeyedLock(): <T>(key: string, criticalSection: () => Promi
 }
 
 /** Keyed on `${workspaceId}:${name}` — see file header. */
-export const withTransformRegistryLock = createKeyedLock();
+export const withTransformRegistryLock = createKeyedLock({});
 
 /** Keyed on `${sha256}:${transformName}:${version}` — see file header. */
-export const withRenditionLock = createKeyedLock();
+export const withRenditionLock = createKeyedLock({});

@@ -1,0 +1,825 @@
+{
+  "named_functions_and_classes": [
+    "AgentExecutorError",
+    "AgentSessionStoreError",
+    "LegacyMigrationError",
+    "RoutineService",
+    "RunContextNotBoundError",
+    "ScheduledRunPersistenceError",
+    "agentAcceptsHostMintedSessionId",
+    "agentCarriesOwnMemory",
+    "appendToolCatalogAttempt",
+    "applyAgentTranslationSideEffects",
+    "applyImagePromptDelivery",
+    "armHandoffWatcher",
+    "armSlowRunWatchdogIfConfigured",
+    "armWatchdogIfConfigured",
+    "askOnce",
+    "askThenReport",
+    "assessAgentExecutorCompatibility",
+    "augmentPromptWithImageAttachments",
+    "authorizeDaemonRequest",
+    "authorizeRunOwnership",
+    "buildAcpMcpBridgeServers",
+    "buildAgentBuildArgsOptions",
+    "buildCodexHomeConfigToml",
+    "buildCodexMcpServerToml",
+    "buildMcpJsonServerEntry",
+    "buildRunArgs",
+    "buildStartPayload",
+    "classifyConfirmationAnswer",
+    "classifyProcessExitFailure",
+    "classifyRunCloseStatus",
+    "clearAgentSession",
+    "clearIdempotencyIndexEntryIfMatching",
+    "collectStderrTailSummary",
+    "collectStdoutTailSummary",
+    "computeChildEnv",
+    "computeRetentionDelayMs",
+    "computeRetryBackoffMs",
+    "computeRuntimeContext",
+    "confirmChildSpawned",
+    "createAgentExecutor",
+    "createConversationStartLock",
+    "createFrontendCapabilityRegistrations",
+    "createFrontendSessionRegistry",
+    "createInMemoryAgentSessionStore",
+    "createInMemoryEventLog",
+    "createInMemoryRoutineStore",
+    "createLiveRunTracker",
+    "createNodeCredentialCrypto",
+    "createRouteAccessPolicy",
+    "createRunByteJournal",
+    "createRunLifecycle",
+    "createRunOwnerRegistry",
+    "createRunScopedCredentials",
+    "createSqlAgentSessionStore",
+    "createSqliteEventLog",
+    "createSurfaceExchangeStore",
+    "createTerminalSessionManager",
+    "createTerminalToolRegistrations",
+    "createToolExecutor",
+    "dataDirHasExistingPayload",
+    "dataDirIsEmptyOrFresh",
+    "decideSafeRunRetry",
+    "deliverReplayedEvents",
+    "deliverUndeliveredEvents",
+    "deriveImageAllowedDirs",
+    "deriveRunErrorCode",
+    "describeInput",
+    "describeToolAuditDetail",
+    "ensureAgentDaemonToken",
+    "extractResultMedia",
+    "extractSessionRefFromEndEvent",
+    "extractUsageTokens",
+    "failRunBeforeStart",
+    "finishStreamSubscription",
+    "getAgentSession",
+    "getAgentSessionRecord",
+    "guardWindowsCommandLineBudget",
+    "isAgentExecutorSupported",
+    "isStdinDrivenFormat",
+    "isSupportedStreamFormat",
+    "isValidTimezone",
+    "isValidWallTime",
+    "latestCompletedAssistantMessageId",
+    "legacyDirHasPayload",
+    "listOwnedRuns",
+    "loadRealSpawnPty",
+    "mergeEnvContentInstructions",
+    "mergeEnvContentMcpConfig",
+    "mergeMcpJsonContent",
+    "migrateLegacyDataDirSync",
+    "nextHourlyRunAt",
+    "nextRunAtForSchedule",
+    "nextWallTimeMatching",
+    "openSqliteEventLog",
+    "partsInTimezone",
+    "prepareClaudeConfigDirIfNeeded",
+    "prepareCodexHomeIfNeeded",
+    "prepareSystemPromptOverlayFileIfNeeded",
+    "promoteStaged",
+    "registerIdempotencyKeyIfPresent",
+    "resolveConfirmationDecision",
+    "resolveContinuationTransport",
+    "resolveDefAndStreamFormat",
+    "resolveHostMintedSessionId",
+    "resolveIdempotentReplayRunId",
+    "resolveImageDeliveryAndArgvBudget",
+    "resolveLaunch",
+    "resolveMcpBridgeForRun",
+    "resolveNewSessionField",
+    "resolveResumeSessionField",
+    "resolveRunEnv",
+    "resolveSourceClaudeConfigDir",
+    "resolveSourceCodexHomeDir",
+    "resolveTimeoutMs",
+    "resultContent",
+    "resumableFromProcessExit",
+    "runAcpDispatch",
+    "runPiRpcDispatch",
+    "runResultFromStatus",
+    "searchToolsAuditDetail",
+    "serializeDelegatedToolOutput",
+    "shouldClearSessionOnFailedResume",
+    "spawnAgentChildProcess",
+    "splitToolResultSurfaces",
+    "stageLogFile",
+    "stagePromptFile",
+    "stderrLineCountBucket",
+    "summarizeLastRun",
+    "translateAgentRuntimeEvent",
+    "translateErrorEvent",
+    "translateStatusEvent",
+    "translateToolResultEvent",
+    "translateTurnEndEvent",
+    "tzWallToUtcCandidates",
+    "tzWallToUtcGapFallback",
+    "unavailableJiniBridgeStatus",
+    "updateAgentSessionStableHash",
+    "upsertAgentSession",
+    "validateSchedule",
+    "validateSessionKernel",
+    "validateTarget",
+    "waitForStoppingRuns",
+    "withToolAttemptAudit",
+    "withToolCatalogAudit",
+    "wouldForcedColdStartLoseConversationContext",
+    "writeMcpJsonIfNeeded"
+  ],
+  "method_names": [
+    "attach",
+    "bind",
+    "bindRun",
+    "bindRunByToken",
+    "cancel",
+    "capabilitiesFor",
+    "clearSessionId",
+    "close",
+    "create",
+    "delete",
+    "detach",
+    "emit",
+    "execute",
+    "finish",
+    "get",
+    "getAuditRecord",
+    "getLatestRun",
+    "getSessionId",
+    "has",
+    "insertRun",
+    "invoke",
+    "kill",
+    "list",
+    "listRuns",
+    "nextRunAt",
+    "noteActivity",
+    "onAuthorize",
+    "onCancelRequested",
+    "onConfirm",
+    "patchRun",
+    "read",
+    "record",
+    "recordRun",
+    "recordToolResult",
+    "recordToolUse",
+    "rehydrate",
+    "rescheduleAll",
+    "rescheduleOne",
+    "resize",
+    "resolve",
+    "resume",
+    "resumeConfirmation",
+    "resumeSlowRunNotice",
+    "run",
+    "runNow",
+    "sessionFor",
+    "setRunHandler",
+    "setSessionId",
+    "settle",
+    "shutdownActive",
+    "start",
+    "stop",
+    "stream",
+    "suspendSlowRunNotice",
+    "unschedule",
+    "update",
+    "updateRun",
+    "waitForTerminal",
+    "write"
+  ],
+  "split_objects": {
+    "AgentExecutor.run": {
+      "type": "AgentExecutorRunInput",
+      "props": [
+        {
+          "name": "runId",
+          "optional": false
+        },
+        {
+          "name": "agentId",
+          "optional": false
+        },
+        {
+          "name": "prompt",
+          "optional": false
+        },
+        {
+          "name": "cwd",
+          "optional": false
+        },
+        {
+          "name": "model",
+          "optional": true
+        },
+        {
+          "name": "reasoning",
+          "optional": true
+        },
+        {
+          "name": "permissionMode",
+          "optional": true
+        },
+        {
+          "name": "imagePaths",
+          "optional": true
+        },
+        {
+          "name": "extraAllowedDirs",
+          "optional": true
+        },
+        {
+          "name": "uploadRoot",
+          "optional": true
+        },
+        {
+          "name": "credentialEnv",
+          "optional": true
+        },
+        {
+          "name": "env",
+          "optional": true
+        },
+        {
+          "name": "resumeSessionId",
+          "optional": true
+        },
+        {
+          "name": "newSessionId",
+          "optional": true
+        },
+        {
+          "name": "disallowedTools",
+          "optional": true
+        },
+        {
+          "name": "allowedTools",
+          "optional": true
+        },
+        {
+          "name": "settingSources",
+          "optional": true
+        },
+        {
+          "name": "settings",
+          "optional": true
+        }
+      ],
+      "local": "input",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/agent-executor.ts",
+      "method": true
+    },
+    "createAgentExecutor": {
+      "type": "CreateAgentExecutorOptions",
+      "props": [
+        {
+          "name": "lifecycle",
+          "optional": false
+        },
+        {
+          "name": "getAgentDef",
+          "optional": true
+        },
+        {
+          "name": "resolveAgentLaunch",
+          "optional": true
+        },
+        {
+          "name": "ensureAgentCapabilities",
+          "optional": true
+        },
+        {
+          "name": "applyAgentLaunchEnv",
+          "optional": true
+        },
+        {
+          "name": "createCommandInvocation",
+          "optional": true
+        },
+        {
+          "name": "spawn",
+          "optional": true
+        },
+        {
+          "name": "attachAcpSession",
+          "optional": true
+        },
+        {
+          "name": "acpPermissionHandler",
+          "optional": true
+        },
+        {
+          "name": "attachPiRpcSession",
+          "optional": true
+        },
+        {
+          "name": "preparePromptFileForAgent",
+          "optional": true
+        },
+        {
+          "name": "prepareAgentLogFile",
+          "optional": true
+        },
+        {
+          "name": "listProcessSnapshots",
+          "optional": true
+        },
+        {
+          "name": "collectProcessTreePids",
+          "optional": true
+        },
+        {
+          "name": "stopProcesses",
+          "optional": true
+        },
+        {
+          "name": "onCleanupFailure",
+          "optional": true
+        },
+        {
+          "name": "journal",
+          "optional": true
+        },
+        {
+          "name": "continuation",
+          "optional": true
+        },
+        {
+          "name": "classifyFailure",
+          "optional": true
+        },
+        {
+          "name": "mcpJsonInjection",
+          "optional": true
+        },
+        {
+          "name": "claudeConfigDirIsolation",
+          "optional": true
+        },
+        {
+          "name": "claudeConfigDirIsolationEnabled",
+          "optional": true
+        },
+        {
+          "name": "bufferedStdoutMaxBytes",
+          "optional": true
+        },
+        {
+          "name": "promptAugmenter",
+          "optional": true
+        }
+      ],
+      "local": "options",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/agent-executor.ts",
+      "method": false
+    },
+    "classifyRunCloseStatus": {
+      "type": "CloseStatusInput",
+      "props": [
+        {
+          "name": "cancelRequested",
+          "optional": false
+        },
+        {
+          "name": "code",
+          "optional": false
+        },
+        {
+          "name": "signal",
+          "optional": true
+        }
+      ],
+      "local": "input",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/close-status.ts",
+      "method": false
+    },
+    "resolveTimeoutMs": {
+      "type": "ResolveTimeoutMsInput",
+      "props": [
+        {
+          "name": "envVar",
+          "optional": true
+        },
+        {
+          "name": "agentDefaultMs",
+          "optional": true
+        },
+        {
+          "name": "defaultMs",
+          "optional": false
+        },
+        {
+          "name": "maxMs",
+          "optional": false
+        },
+        {
+          "name": "env",
+          "optional": true
+        }
+      ],
+      "local": "input",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/close-status.ts",
+      "method": false
+    },
+    "DelegatedToolBridge.execute": {
+      "type": "DelegatedToolInvocation",
+      "props": [
+        {
+          "name": "runId",
+          "optional": false
+        },
+        {
+          "name": "toolUseId",
+          "optional": false
+        },
+        {
+          "name": "toolId",
+          "optional": false
+        },
+        {
+          "name": "principal",
+          "optional": false
+        },
+        {
+          "name": "input",
+          "optional": false
+        },
+        {
+          "name": "signal",
+          "optional": true
+        }
+      ],
+      "local": "invocation",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/delegated-tool-bridge.ts",
+      "method": true
+    },
+    "createFrontendCapabilityRegistrations": {
+      "type": "CreateFrontendCapabilityRegistrationsOptions",
+      "props": [
+        {
+          "name": "registry",
+          "optional": false
+        },
+        {
+          "name": "capabilities",
+          "optional": false
+        },
+        {
+          "name": "policy",
+          "optional": true
+        },
+        {
+          "name": "timeoutMs",
+          "optional": true
+        },
+        {
+          "name": "maxOutputBytes",
+          "optional": true
+        }
+      ],
+      "local": "options",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/frontend-capability-tools.ts",
+      "method": false
+    },
+    "createFrontendSessionRegistry": {
+      "type": "CreateFrontendSessionRegistryOptions",
+      "props": [
+        {
+          "name": "newInvocationId",
+          "optional": true
+        },
+        {
+          "name": "newBindToken",
+          "optional": true
+        }
+      ],
+      "local": "options",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/frontend-session-registry.ts",
+      "method": false
+    },
+    "migrateLegacyDataDirSync": {
+      "type": "MigrateLegacyDataDirOptions",
+      "props": [
+        {
+          "name": "legacyDir",
+          "optional": false
+        },
+        {
+          "name": "dataDir",
+          "optional": false
+        },
+        {
+          "name": "logger",
+          "optional": true
+        },
+        {
+          "name": "writeMarker",
+          "optional": true
+        }
+      ],
+      "local": "options",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/legacy-data-migration.ts",
+      "method": false
+    },
+    "decideSafeRunRetry": {
+      "type": "RunRetryPolicyInput",
+      "props": [
+        {
+          "name": "result",
+          "optional": false
+        },
+        {
+          "name": "failure",
+          "optional": true
+        },
+        {
+          "name": "attemptCount",
+          "optional": false
+        },
+        {
+          "name": "maxAttempts",
+          "optional": true
+        },
+        {
+          "name": "sideEffects",
+          "optional": true
+        },
+        {
+          "name": "random",
+          "optional": true
+        }
+      ],
+      "local": "input",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/run/core/retry.ts",
+      "method": false
+    },
+    "RunLifecycle.start": {
+      "type": "StartRunInput",
+      "props": [
+        {
+          "name": "contextRef",
+          "optional": false
+        },
+        {
+          "name": "agentId",
+          "optional": true
+        },
+        {
+          "name": "idempotencyKey",
+          "optional": true
+        },
+        {
+          "name": "runId",
+          "optional": true
+        },
+        {
+          "name": "inactivityTimeoutMs",
+          "optional": true
+        }
+      ],
+      "local": "input",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/run-lifecycle.ts",
+      "method": true
+    },
+    "RunLifecycle.finish": {
+      "type": "FinishRunInput",
+      "props": [
+        {
+          "name": "runId",
+          "optional": false
+        },
+        {
+          "name": "status",
+          "optional": false
+        },
+        {
+          "name": "code",
+          "optional": false
+        },
+        {
+          "name": "signal",
+          "optional": false
+        },
+        {
+          "name": "resumable",
+          "optional": false
+        },
+        {
+          "name": "sessionRef",
+          "optional": true
+        }
+      ],
+      "local": "input",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/run-lifecycle.ts",
+      "method": true
+    },
+    "createRunLifecycle": {
+      "type": "CreateRunLifecycleInput",
+      "props": [
+        {
+          "name": "eventLog",
+          "optional": false
+        },
+        {
+          "name": "onInternalError",
+          "optional": true
+        },
+        {
+          "name": "terminalRetentionMs",
+          "optional": true
+        },
+        {
+          "name": "maxTerminalRuns",
+          "optional": true
+        },
+        {
+          "name": "slowRunThresholdMs",
+          "optional": true
+        }
+      ],
+      "local": "input",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/run-lifecycle.ts",
+      "method": false
+    },
+    "createTerminalSessionManager": {
+      "type": "CreateTerminalSessionManagerOptions",
+      "props": [
+        {
+          "name": "terminalService",
+          "optional": true
+        },
+        {
+          "name": "loadSpawnPty",
+          "optional": true
+        },
+        {
+          "name": "maxEvents",
+          "optional": true
+        },
+        {
+          "name": "maxBufferBytes",
+          "optional": true
+        },
+        {
+          "name": "exitTailBytes",
+          "optional": true
+        },
+        {
+          "name": "flushIntervalMs",
+          "optional": true
+        },
+        {
+          "name": "flushThresholdBytes",
+          "optional": true
+        },
+        {
+          "name": "ttlMs",
+          "optional": true
+        },
+        {
+          "name": "shutdownGraceMs",
+          "optional": true
+        }
+      ],
+      "local": "options",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/terminal-session.ts",
+      "method": false
+    },
+    "createTerminalToolRegistrations": {
+      "type": "CreateTerminalToolRegistrationsOptions",
+      "props": [
+        {
+          "name": "manager",
+          "optional": false
+        },
+        {
+          "name": "policy",
+          "optional": true
+        },
+        {
+          "name": "requiresConfirmation",
+          "optional": true
+        },
+        {
+          "name": "timeoutMs",
+          "optional": true
+        }
+      ],
+      "local": "options",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/terminal-session.ts",
+      "method": false
+    },
+    "createToolExecutor": {
+      "type": "CreateToolExecutorOptions",
+      "props": [
+        {
+          "name": "registry",
+          "optional": false
+        },
+        {
+          "name": "delegate",
+          "optional": true
+        },
+        {
+          "name": "now",
+          "optional": true
+        }
+      ],
+      "local": "options",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/tool-executor.ts",
+      "method": false
+    },
+    "SurfaceExchangeStore.deliver": {
+      "type": "SurfaceDeliverySpec",
+      "props": [
+        {
+          "name": "exchangeId",
+          "optional": false
+        },
+        {
+          "name": "params",
+          "optional": false
+        },
+        {
+          "name": "principalId",
+          "optional": false
+        },
+        {
+          "name": "toolId",
+          "optional": true
+        },
+        {
+          "name": "channel",
+          "optional": true
+        }
+      ],
+      "local": "args",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/w11c/surface-exchanges.ts",
+      "method": true
+    },
+    "ToolAttemptAuditSink.append": {
+      "type": "ToolAttemptEvent",
+      "props": [
+        {
+          "name": "attemptId",
+          "optional": false
+        },
+        {
+          "name": "executionId",
+          "optional": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false
+        },
+        {
+          "name": "runId",
+          "optional": false
+        },
+        {
+          "name": "toolId",
+          "optional": false
+        },
+        {
+          "name": "principalId",
+          "optional": false
+        },
+        {
+          "name": "phase",
+          "optional": false
+        },
+        {
+          "name": "at",
+          "optional": false
+        },
+        {
+          "name": "detail",
+          "optional": true
+        }
+      ],
+      "local": "event",
+      "file": "/Users/la/Programming/Jini/packages/daemon/src/w11c/tool-audit.ts",
+      "method": true
+    }
+  }
+}

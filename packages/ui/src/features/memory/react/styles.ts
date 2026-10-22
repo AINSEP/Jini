@@ -14,6 +14,6 @@ export const FIELD_LABEL_STYLE: CSSProperties = {
   fontWeight: 600,
   letterSpacing: 0.5,
   textTransform: 'uppercase',
-  color: 'var(--text-muted, #888)',
+  color: 'var(--jini-text-muted)',
   marginBottom: 4,
 };

@@ -16,12 +16,16 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_TH: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "ฉันลบข้อความที่ดูเหมือนคีย์ออกจากข้อความของคุณแล้ว หากเป็นคีย์จริง ให้เปลี่ยนคีย์ใหม่ ใช้แบบฟอร์มที่ปลอดภัยเพื่อบันทึก",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "ใช้แบบฟอร์มที่ปลอดภัยเพื่อบันทึกคีย์ โทเค็น รหัสผ่าน และข้อมูลลับ คำตอบในแชตจะถูกส่งไปยังผู้ช่วย",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# ทักษะของฉัน\n\n1. อธิบายขั้นตอนการทำงาน\n2. อธิบายข้อมูลนำเข้าและผลลัพธ์',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'การกำหนดพาธที่กำหนดเองไม่สำเร็จ จึงใช้ไบนารีที่ตรวจพบโดยอัตโนมัติแทน',
   'API key': 'คีย์ API',
   'About': 'เกี่ยวกับ',
   'Accent color': 'สีเน้น',
   'Account': 'บัญชี',
+  'Advanced': 'ขั้นสูง',
   'Advanced: proxy & custom paths': 'ขั้นสูง: พร็อกซีและพาธที่กำหนดเอง',
   'Agent check failed': 'ตรวจสอบเอเจนต์ไม่สำเร็จ',
   'Agent is ready.': 'เอเจนต์พร้อมใช้งานแล้ว',
@@ -65,8 +69,8 @@ export const SETTINGS_DIALOG_TH: SettingsDialogDict = {
   'Copy': 'คัดลอก',
   'Copy to clipboard': 'คัดลอกไปยังคลิปบอร์ด',
   'Could not load live models: {message}': 'ไม่สามารถโหลดโมเดลแบบเรียลไทม์ได้: {message}',
-  'No API key — connection test needs the key from this browser.': 'ไม่มีคีย์ API — การทดสอบการเชื่อมต่อต้องใช้คีย์จากเบราว์เซอร์นี้',
-  'No API key — model discovery needs the key from this browser.': 'ไม่มีคีย์ API — การค้นหาโมเดลต้องใช้คีย์จากเบราว์เซอร์นี้',
+  'No API key saved. Save one to test the connection.': 'ยังไม่ได้บันทึกคีย์ API บันทึกคีย์ก่อนเพื่อทดสอบการเชื่อมต่อ',
+  'No API key saved. Save one to load models.': 'ยังไม่ได้บันทึกคีย์ API บันทึกคีย์ก่อนเพื่อโหลดโมเดล',
   'Could not load skills: {error}': 'ไม่สามารถโหลดทักษะได้: {error}',
   'Could not reach the daemon: {error}': 'ไม่สามารถติดต่อดีมอนได้: {error}',
   'Could not reach the server. Showing local changes only.': 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้ กำลังแสดงเฉพาะการเปลี่ยนแปลงในเครื่อง',
@@ -146,6 +150,9 @@ export const SETTINGS_DIALOG_TH: SettingsDialogDict = {
   'Not available for this daemon.': 'ใช้ไม่ได้กับดีมอนนี้',
   'Not configured': 'ยังไม่ได้กำหนดค่า',
   'Not installed': 'ยังไม่ได้ติดตั้ง',
+  'Show {count} not installed': 'แสดงที่ยังไม่ได้ติดตั้ง {count} รายการ',
+  'Hide not installed': 'ซ่อนที่ยังไม่ได้ติดตั้ง',
+  'Show not-installed CLIs': 'แสดง CLI ที่ยังไม่ได้ติดตั้ง',
   'Not sharing': 'ไม่ได้แชร์',
   'Nothing is shared unless you opt in.': 'จะไม่มีการแชร์สิ่งใดจนกว่าคุณจะเปิดใช้งานเอง',
   'Off': 'ปิด',

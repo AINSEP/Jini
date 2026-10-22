@@ -1,5 +1,53 @@
 # @jini-ai/diagnostics
 
+## 0.5.3 — 2026-10-15
+
+- The public-page browser capture uses a fixed 1,000,000-char raw-HTML cap instead of `maxChars * 4` (0625844e), so a large style head no longer eats the readable-text budget; `maxChars` still caps the text.
+
+## 0.5.1
+
+### Patch Changes
+
+- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.5.0).
+
+## 0.5.0 — 2026-10-05
+
+### BREAKING (for hosts that implement the observability ports themselves)
+
+- `ObservabilityPort` gains `trackDbQuery`, `trackOutboundCall` and `trackAgentRun`; `TraceSpanPort` gains `addEvent`, and `setStatus` takes an optional `description`; `TracerPort.startSpan` takes `kind: 'server' | 'client' | 'internal'` and an optional `{ parent }`. Ports built with `createObservabilityPort`/`createOtelObservabilityPort` or the no-op port need no change. `RequestTracker.run` is optional, so request trackers written before scoping still satisfy the port.
+
+### Added
+
+- DB, outbound and agent-run signals: `instrumentStorageKernel` (in place, via a Kysely capture plugin; no SQL text crosses the port), `trackHttpClient`, and `trackFetch` (one outbound span per call of any fetch-shaped function; identity for the no-op port). The OTel adapter redacts: outbound URLs keep scheme/host/port only, inbound targets drop the query and blank secret shapes, errors are exported by type only.
+- `isNoopObservabilityPort` and shared frozen no-op trackers, so decorators skip wrapping when observability is off.
+- New `./observability/node` entry with `createAsyncLocalSpanScope` (`SpanScopePort` on `AsyncLocalStorage`); without a span scope every span is a root.
+
+### Fixed
+
+- The OTel adapter's `trackRequest` records the `requestId` option as the `http.request.id` span attribute (it was ignored) and returns it on the tracker.
+- Internal `@jini-ai/core` dependency is a caret range (`workspace:^`) instead of an exact pin.
+
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Observability clocks and conservative secret patterns come from core; evidence copy is neutral and adapters remain isolated.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- The OTel adapter's `trackRequest` now honors `{ requestId }`: the id is recorded as the `http.request.id` span attribute and returned on the tracker. It was previously dropped.
+- **BREAKING:** Remove local `ClockPort`/`DiagnosticsClockPort`; all clocks use `Clock.nowMs()` from `@jini-ai/core/primitives`. Add core as a package dependency.
+- Share the eleven byte-pinned credential patterns with core while retaining all redaction/scanner export names and diagnostics-specific policy. Bundle text and JSON redaction also mask standalone provider credential shapes; ordinary IDs, hashes and paths stay readable.
+- Off-origin evidence copy now says "the inspected origin".
+
+
+- **BREAKING:** All 12 existing root functions now take a required-argument object and, when applicable, a separate optional-settings object. Filesystem, clock, machine snapshot and archive creation use injected ports. `createNodeDiagnosticsPorts({})` supplies the Node/JSZip adapter. Previous positional signatures have no compatibility wrappers; export names and the package version remain unchanged.
+- Complete publication metadata for `./redaction/secrets-only`, `./observability`, `./web-evidence`, `./web-evidence/playwright` and `./domain-dns`, with per-entry runtime declarations. The first three subpaths are universal; the root, browser adapter and DNS checks require Node. Existing exports are retained.
+- Add current API migration documentation and package-wide source-neutrality and export/barrel contract tests. Application-key redaction rules, telemetry SDK adapters, authorization and transport policy remain caller-owned. The earlier integration step required no new dependency; shared kernel adoption above adds core.
+
+- Add secret-only redaction, explicitly configured observability, bounded browser evidence with an optional Playwright subpath, and public DNS/TLS checks. New APIs use required-argument and optional-argument objects with injected ports; existing root exports and version stay unchanged.
+
 ## 0.1.2
 
 ### Patch Changes

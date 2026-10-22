@@ -17,6 +17,7 @@
  * comparison can't do this — `start()`'s handlers must exist before the
  * transport's promise resolves with the real id).
  */
+import { mergeRunEvents } from '../../core/durable-projection.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentEvent } from '../../core/index.js';
 import type { ChatTransport, RunHandlers, StartRunInput } from '../../core/index.js';
@@ -78,8 +79,11 @@ const INITIAL_STATE: RunStreamState = {
   toolInputDeltas: {},
 };
 
-export function useRunStream(transport: ChatTransport): UseRunStreamResult {
+export function useRunStream({ transport }: { transport: ChatTransport }): UseRunStreamResult {
   const [state, setState] = useState<RunStreamState>(INITIAL_STATE);
+  // Acceptance/checkpoints can precede React's next commit. Cancellation needs the live id,
+  // even when the Stop handler still belongs to the render that showed a pending start.
+  const runIdRef = useRef<string | null>(null);
   const subscriptionAbortRef = useRef<AbortController | null>(null);
   const cancelAbortRef = useRef<AbortController | null>(null);
   // Bumped on every start/reattach/reset. A handler closes over the
@@ -110,6 +114,15 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
   const makeHandlers = useCallback((generation: number): RunHandlers => {
     const isStale = () => generationRef.current !== generation;
     return {
+      onCheckpoint: (message) => {
+        if (isStale()) return;
+        runIdRef.current = message.runId ?? runIdRef.current;
+        const statuses = { queued: 'streaming', running: 'streaming', succeeded: 'done', failed: 'error', canceled: 'canceled' } as const;
+        setState((prev) => ({ ...prev, runId: message.runId ?? prev.runId,
+          status: message.runStatus ? statuses[message.runStatus] : prev.status,
+          events: mergeRunEvents({ saved: prev.events, incoming: message.events ?? [] }, {}),
+        }));
+      },
       onEvent: (ev: AgentEvent) => {
         if (isStale()) return;
         setState((prev) => ({ ...prev, status: 'streaming', events: [...prev.events, ev] }));
@@ -123,11 +136,11 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
       },
       onError: (err: Error) => {
         if (isStale()) return;
-        setState((prev) => ({ ...prev, status: 'error', error: err }));
+        setState((prev) => ({ ...prev, status: 'error', error: err, events: [...prev.events, { kind: 'status', code: 'run_terminal', label: err.message }] }));
       },
       onDone: (finalEvents: AgentEvent[]) => {
         if (isStale()) return;
-        setState((prev) => ({ ...prev, status: prev.status === 'error' ? prev.status : 'done', events: finalEvents }));
+        setState((prev) => ({ ...prev, status: prev.status === 'error' || prev.status === 'canceled' ? prev.status : 'done', events: mergeRunEvents({ saved: prev.events, incoming: finalEvents }, {}) }));
       },
     };
   }, []);
@@ -136,6 +149,7 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
     async (input: StartRunOptions): Promise<{ runId: string } | null> => {
       teardownSubscription();
       const generation = ++generationRef.current;
+      runIdRef.current = null;
       const subscriptionAbort = new AbortController();
       const cancelAbort = new AbortController();
       subscriptionAbortRef.current = subscriptionAbort;
@@ -153,6 +167,7 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
           }
           return { runId };
         }
+        runIdRef.current = runId;
         setState((prev) => ({ ...prev, runId }));
         return { runId };
       } catch (err) {
@@ -171,6 +186,7 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
     async (runId: string, initialEvents: AgentEvent[] = []): Promise<void> => {
       teardownSubscription();
       const generation = ++generationRef.current;
+      runIdRef.current = runId;
       const subscriptionAbort = new AbortController();
       const cancelAbort = new AbortController();
       subscriptionAbortRef.current = subscriptionAbort;
@@ -192,7 +208,7 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
 
   const cancel = useCallback(() => {
     cancelAbortRef.current?.abort();
-    const runId = state.runId;
+    const runId = runIdRef.current;
     // Recorded BEFORE the bump, so it names the generation currently in flight. When `runId` is
     // already known the `stopRun` below does the work and this entry is simply never consumed;
     // when it is not, this is the only thing that will ever stop that run.
@@ -201,10 +217,11 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
     teardownSubscription();
     setState((prev) => ({ ...prev, status: 'canceled' }));
     if (runId) runStopRunHostEffect('transport.stopRun (cancel)', () => transport.stopRun(runId));
-  }, [state.runId, teardownSubscription, transport]);
+  }, [teardownSubscription, transport]);
 
   const reset = useCallback(() => {
     generationRef.current += 1;
+    runIdRef.current = null;
     teardownSubscription();
     setState(INITIAL_STATE);
   }, [teardownSubscription]);

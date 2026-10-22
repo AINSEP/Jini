@@ -9,7 +9,7 @@
  * Ported from OD's `integrations/xai-oauth-server.ts`, de-branded: the
  * origin hardcoded xAI's fixed callback port/host/path as module constants
  * and had the origin product's own name baked into the result-page HTML
- * (see `source-map.md` for the exact original strings). Both are now
+ * (see `archived provenance ledger` for the exact original strings). Both are now
  * caller-supplied — `host`/`port`/
  * `path` are required input fields instead of defaulted constants (a
  * provider whose OAuth client_id is locked to a specific redirect URI, like
@@ -50,9 +50,9 @@ export interface OAuthCallbackListener {
  * via `onCallback`. The listener self-closes after the first matching
  * callback OR after `timeoutMs` (default 30 min), whichever comes first.
  */
-export async function startOAuthCallbackListener(
-  input: StartOAuthCallbackListenerInput,
+export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCallbackListenerInput, "host" | "port" | "path" | "expectedState" | "onCallback">, optionalArgs: Omit<StartOAuthCallbackListenerInput, "host" | "port" | "path" | "expectedState" | "onCallback"> = {}
 ): Promise<OAuthCallbackListener> {
+  const input: StartOAuthCallbackListenerInput = { ...optionalArgs, ...requiredArgs };
   const { host, port, path: callbackPath } = input;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
@@ -120,40 +120,8 @@ export async function startOAuthCallbackListener(
       return;
     }
 
-    const code = parsed.searchParams.get('code') ?? '';
-    const state = parsed.searchParams.get('state') ?? '';
-    const errorParam = parsed.searchParams.get('error') ?? '';
-
-    let outcome: OAuthCallbackOutcome;
-    if (errorParam) {
-      outcome = state
-        ? { kind: 'error', error: errorParam, state }
-        : { kind: 'error', error: errorParam };
-    } else if (!code || !state) {
-      outcome = { kind: 'error', error: 'missing code or state' };
-    } else if (state !== input.expectedState) {
-      outcome = { kind: 'error', error: 'state mismatch', state };
-    } else {
-      outcome = { kind: 'ok', code, state };
-    }
-
-    // Decide whether this hit *consumes* the listener. A stray browser tab
-    // replaying an old `?state=...` (or `?error=...&state=...`) would
-    // otherwise close a shared fixed-port listener before the real redirect
-    // can arrive. Keep the listener open on stale/malformed requests; the
-    // real callback will still find it. Consume on:
-    //   - ok callback (matched state, code present)
-    //   - explicit ?error= without a state (the server rejected before
-    //     issuing state, so there's nothing to match against — safe to
-    //     consume)
-    //   - explicit ?error= with state matching expectedState (the server
-    //     told the user the dance failed; propagate now instead of waiting
-    //     for the timeout)
-    // An ?error= with a *mismatched* state is treated like the stale
-    // success replay above: 400 the browser, leave the listener live.
-    const errorConsumes =
-      Boolean(errorParam) && (!state || state === input.expectedState);
-    const consumesListener = outcome.kind === 'ok' || errorConsumes;
+    const outcome = callbackOutcome({ params: parsed.searchParams, expectedState: input.expectedState });
+    const consumesListener = callbackConsumesListener({ params: parsed.searchParams, expectedState: input.expectedState, outcome });
     if (consumesListener) {
       consumed = true;
     }
@@ -253,4 +221,46 @@ function escapeHtml(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function callbackOutcome(
+  { params, expectedState }: { params: URLSearchParams; expectedState: string },
+  _options = {},
+): OAuthCallbackOutcome {
+  const code = params.get('code') ?? '';
+  const state = params.get('state') ?? '';
+  const errorParam = params.get('error') ?? '';
+  if (errorParam) {
+    return state
+      ? { kind: 'error', error: errorParam, state }
+      : { kind: 'error', error: errorParam };
+  }
+  if (!code || !state) return { kind: 'error', error: 'missing code or state' };
+  if (state !== expectedState) return { kind: 'error', error: 'state mismatch', state };
+  return { kind: 'ok', code, state };
+}
+
+function callbackConsumesListener(
+  { params, expectedState, outcome }: { params: URLSearchParams; expectedState: string; outcome: OAuthCallbackOutcome },
+  _options = {},
+): boolean {
+  const state = params.get('state') ?? '';
+  const errorParam = params.get('error') ?? '';
+  // Decide whether this hit *consumes* the listener. A stray browser tab
+  // replaying an old `?state=...` (or `?error=...&state=...`) would
+  // otherwise close a shared fixed-port listener before the real redirect
+  // can arrive. Keep the listener open on stale/malformed requests; the
+  // real callback will still find it. Consume on:
+  //   - ok callback (matched state, code present)
+  //   - explicit ?error= without a state (the server rejected before
+  //     issuing state, so there's nothing to match against — safe to
+  //     consume)
+  //   - explicit ?error= with state matching expectedState (the server
+  //     told the user the dance failed; propagate now instead of waiting
+  //     for the timeout)
+  // An ?error= with a *mismatched* state is treated like the stale
+  // success replay above: 400 the browser, leave the listener live.
+  const errorConsumes =
+    Boolean(errorParam) && (!state || state === expectedState);
+  return outcome.kind === 'ok' || errorConsumes;
 }

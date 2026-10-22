@@ -5,7 +5,7 @@
  * a React tree.
  *
  * Origin: `i18n/index.tsx`'s `resolveSystemLocale`/`detectInitialLocale` in
- * the vendored OD web tree. Genericized — see `packages/ui/source-map.md`
+ * the vendored OD web tree. Genericized — see `packages/ui/archived provenance ledger`
  * for the full accounting of what was dropped (OD's hard-coded 19-locale
  * list, the desktop-host OS-locale bridge, the manual-vs-auto-detected
  * localStorage tagging).
@@ -38,28 +38,36 @@ export function resolveSystemLocale(
     const normalized = raw.trim();
     if (!normalized) continue;
 
-    const exact = supportedLocales.find(
-      (locale) => locale.toLowerCase() === normalized.toLowerCase(),
-    );
-    if (exact) return exact;
-
-    const [language, regionOrScript] = normalized.toLowerCase().split('-');
-    if (language === 'zh') {
-      const isTraditionalScript =
-        regionOrScript === 'hant' ||
-        regionOrScript === 'tw' ||
-        regionOrScript === 'hk' ||
-        regionOrScript === 'mo';
-      const candidate = isTraditionalScript ? 'zh-TW' : 'zh-CN';
-      if (supportedLocales.includes(candidate)) return candidate;
-    }
-
-    const baseMatch = supportedLocales.find(
-      (locale) => locale.toLowerCase().split('-')[0] === language,
-    );
-    if (baseMatch) return baseMatch;
+    const match = matchPreferredLocale({ normalized, supportedLocales });
+    if (match) return match;
   }
   return null;
+}
+
+function matchPreferredLocale(
+  { normalized, supportedLocales }: { normalized: string; supportedLocales: readonly Locale[] },
+  _options: Record<string, never> = {},
+): Locale | null {
+  const exact = supportedLocales.find(
+    (locale) => locale.toLowerCase() === normalized.toLowerCase(),
+  );
+  if (exact) return exact;
+
+  const [language, regionOrScript] = normalized.toLowerCase().split('-');
+  if (language === 'zh') {
+    const isTraditionalScript =
+      regionOrScript === 'hant' ||
+      regionOrScript === 'tw' ||
+      regionOrScript === 'hk' ||
+      regionOrScript === 'mo';
+    const candidate = isTraditionalScript ? 'zh-TW' : 'zh-CN';
+    if (supportedLocales.includes(candidate)) return candidate;
+  }
+
+  const baseMatch = supportedLocales.find(
+    (locale) => locale.toLowerCase().split('-')[0] === language,
+  );
+  return baseMatch || null;
 }
 
 /** Reads `navigator.languages` (falling back to `navigator.language`). */

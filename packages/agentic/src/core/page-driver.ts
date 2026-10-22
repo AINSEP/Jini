@@ -54,7 +54,7 @@ export interface PageDriver {
    * @param filter - Optional role/substring narrowing.
    * @returns Descriptors. `label` may be raw page text; the executor normalizes it.
    */
-  findElements(filter: FindElementsFilter): Promise<readonly AgentElementDescriptor[]>;
+  findElements(_required: Record<string, never>, filter?: FindElementsFilter): Promise<readonly AgentElementDescriptor[]>;
 
   /**
    * The pages this host can navigate to.
@@ -62,7 +62,7 @@ export interface PageDriver {
    * An allowlist, so `page.navigate` refuses anything the host has not published rather than
    * accepting a caller-supplied URL.
    */
-  listPages(): Promise<readonly PageSummary[]>;
+  listPages(_required: Record<string, never>, _optional?: Record<string, never>): Promise<readonly PageSummary[]>;
 
   /**
    * The attributes of a field, for the fill guard.
@@ -70,17 +70,17 @@ export interface PageDriver {
    * @param handle - A validated element handle.
    * @returns The field's attributes, or `null` when the handle does not resolve to an input.
    */
-  describeField(handle: string): Promise<FieldDescriptor | null>;
+  describeField(required: { handle: string }, _optional?: Record<string, never>): Promise<FieldDescriptor | null>;
 
   /** Draws a transient marker. The executor has already clamped `durationMs`. */
-  highlight(handle: string, durationMs: number): Promise<void>;
+  highlight(required: { handle: string; durationMs: number }, _optional?: Record<string, never>): Promise<void>;
 
-  scrollTo(handle: string): Promise<void>;
+  scrollTo(required: { handle: string }, _optional?: Record<string, never>): Promise<void>;
 
-  click(handle: string): Promise<void>;
+  click(required: { handle: string }, _optional?: Record<string, never>): Promise<void>;
 
   /** Called only after the fill guard has passed. */
-  fill(handle: string, text: string): Promise<void>;
+  fill(required: { handle: string; text: string }, _optional?: Record<string, never>): Promise<void>;
 
   /**
    * Chooses — or, in a multi-select, removes — an option in a dropdown, matching visible text
@@ -99,10 +99,10 @@ export interface PageDriver {
    * @throws When the handle is not a dropdown, when no option matches, or when `selected: false`
    * is requested on a single-select.
    */
-  selectOption(handle: string, option: string, selected?: boolean): Promise<void>;
+  selectOption(required: { handle: string; option: string }, optional?: { selected?: boolean | undefined }): Promise<void>;
 
   /** Called only after `page` has been checked against {@link PageDriver.listPages}. */
-  navigate(page: string): Promise<void>;
+  navigate(required: { page: string }, _optional?: Record<string, never>): Promise<void>;
 
   /**
    * What the element currently is: its live text, a field's contents, checked/disabled/visible.
@@ -115,7 +115,7 @@ export interface PageDriver {
    * @returns The raw state, or `null` when the handle no longer resolves — which is itself an
    * observation (a click that removed its own target), not an error.
    */
-  describeState?(handle: string): Promise<AgentElementRawState | null>;
+  describeState?(required: { handle: string }, _optional?: Record<string, never>): Promise<AgentElementRawState | null>;
 
   /**
    * Resolves once the surface has finished reacting to the write that just happened.
@@ -128,5 +128,5 @@ export interface PageDriver {
    * Implementations must be bounded: a hidden tab suspends animation frames indefinitely, so a
    * naive "wait for the next frame" never resolves for exactly the background agent this is for.
    */
-  settle?(): Promise<void>;
+  settle?(_required: Record<string, never>, _optional?: Record<string, never>): Promise<void>;
 }

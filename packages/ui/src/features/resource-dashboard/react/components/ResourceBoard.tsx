@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { useWiredResourceBoard } from '../hooks/useResourceBoard.js';
 import { ResourceBoardView } from './ResourceBoardView.js';
-import { UNMATCHED_STATUS_BUCKET } from '../../constants.js';
-import type { ResourceKanbanColumn } from './ResourceKanbanBoard.js';
+import { boardCreateProps, buildKanbanColumns, createItemActionHandler, resourceBoardHookParams, statusLabelFor } from './resourceBoardProps.js';
+import { translatedErrorLabelProps } from './translatedErrorLabelProps.js';
 import type { ResourceBoardDependencies } from '../../ports.js';
 import type { ResourceBoardItem, ResourceBoardViewMode, ResourceSortOption, ResourceStatusOption, ResourceStatusToneMap } from '../../types.js';
 
@@ -63,61 +63,21 @@ export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = un
   useWiredResourceBoard: useWiredResourceBoardHook = useWiredResourceBoard,
 }: ResourceBoardProps<TItem, TBody>) {
   const t = useT();
-  const board = useWiredResourceBoardHook<TItem>({
-    dependencies,
-    statusOrder: statusOptions.map((option) => option.value),
-    ...(defaultStatus !== undefined ? { defaultStatus } : {}),
-    ...(normalizeStatus !== undefined ? { normalizeStatus } : {}),
-    ...(initialSort !== undefined ? { initialSort } : {}),
-    ...(storageScopeKey !== undefined ? { storageScopeKey } : {}),
-    ...(defaultViewMode !== undefined ? { defaultViewMode } : {}),
-    ...(refreshToken !== undefined ? { refreshToken } : {}),
-  });
-
-  const kanbanColumns: ResourceKanbanColumn<TBody>[] = statusOptions.map((option) => ({
-    status: option.value,
-    label: t(option.label),
-    // Non-null: `useWiredResourceBoard` above is called with `statusOrder:
-    // statusOptions.map(option => option.value)`, and `groupItemsByStatus`
-    // (rules.ts) always seeds one Map entry per `statusOrder` value before
-    // placing any item — so every `option.value` here is guaranteed present.
-    items: board.kanbanColumns.get(option.value)!,
-  }));
-  const unmatched = board.kanbanColumns.get(UNMATCHED_STATUS_BUCKET);
-  if (unmatched && unmatched.length > 0) {
-    kanbanColumns.push({ status: UNMATCHED_STATUS_BUCKET, label: t('Other'), items: unmatched });
-  }
-
-  const handleItemAction = (id: string, kind: string) => {
-    if (kind === 'delete') {
-      void board.remove(id);
-      return;
-    }
-    if (kind === 'duplicate') {
-      void board.duplicate(id);
-      return;
-    }
-    if (kind === 'rename') {
-      board.closeMenu();
-      // Non-null: `id` only ever reaches this handler via a menu-action
-      // click closure `ResourceBoardView` builds per rendered item (from
-      // this SAME render's `board.visibleItems`), so the item is always
-      // still present in the array at lookup time.
-      const current = board.visibleItems.find((item) => item.id === id)!;
-      onRenameRequest?.(id, current.title);
-      return;
-    }
-    board.closeMenu();
-    onCustomItemAction?.(id, kind);
-  };
+  const board = useWiredResourceBoardHook<TItem>(
+    resourceBoardHookParams<TItem>(
+      { dependencies, statusOptions },
+      { defaultStatus, normalizeStatus, initialSort, storageScopeKey, defaultViewMode, refreshToken },
+    ),
+  );
+  const kanbanColumns = buildKanbanColumns<TItem, TBody>({ statusOptions, columns: board.kanbanColumns, t });
+  const handleItemAction = createItemActionHandler({ board }, { onRenameRequest, onCustomItemAction });
 
   return (
     <ResourceBoardView
       loading={board.loading}
       error={board.error}
-      {...(board.error ? { errorLabel: t(board.error) } : {})}
       actionError={board.actionError}
-      {...(board.actionError ? { actionErrorLabel: t(board.actionError) } : {})}
+      {...translatedErrorLabelProps({ t, error: board.error, actionError: board.actionError })}
       hasAnyItems={board.totalCount > 0}
       items={board.visibleItems}
       kanbanColumns={kanbanColumns}
@@ -144,8 +104,7 @@ export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = un
       selectedCountLabel={(n) => t('{n} selected', { n })}
       deleteSelectedLabel={t('Delete selected')}
       cancelSelectLabel={t('Cancel')}
-      {...(createLabel !== undefined || onCreate ? { createLabel: createLabel ?? t('New') } : {})}
-      {...(onCreate ? { onCreate } : {})}
+      {...boardCreateProps({ t }, { createLabel, onCreate })}
       openMenuId={board.openMenuId}
       menuContainerRef={board.menuContainerRef}
       onToggleMenu={board.toggleMenu}
@@ -154,7 +113,7 @@ export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = un
       onOpenItem={onOpenItem}
       onToggleSelected={board.toggleSelected}
       onKanbanDelete={(id) => void board.remove(id)}
-      statusLabel={(status) => t(statusOptions.find((option) => option.value === status)?.label ?? status)}
+      statusLabel={statusLabelFor({ t, statusOptions })}
       {...(toneMap ? { toneMap } : {})}
       menuActionLabel={(_kind, fallback) => t(fallback)}
       moreLabel={t('More')}

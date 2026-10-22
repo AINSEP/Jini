@@ -36,7 +36,8 @@
  * **Also exported as its own subpath, `@jini-ai/platform/fetch-with-timeout`, deliberately.** This
  * module has zero imports of its own — no `node:*` builtin, no `undici` — unlike the package's root
  * barrel (`index.ts`), which re-exports sibling modules (`process.ts`, `fs.ts`, `terminal.ts`,
- * `asset-cache.ts`, …) that import `node:child_process`, `node:fs`, `undici`'s `Agent`, etc.
+ * `asset-cache.ts`, …) that import `node:child_process`, `node:fs`, etc.; the asset-cache
+ * dispatcher loads the optional `undici` peer only when its synchronous factory is called.
  * Importing from the root barrel in browser-bundled code is silently fine in a *production* build
  * through Vite/Rollup — tree-shaking (this package sets `sideEffects: false`) proves the Node-only
  * re-exports are unused and drops them before the `node:*` imports are ever resolved — but it is

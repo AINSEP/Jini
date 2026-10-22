@@ -38,7 +38,7 @@ describe('createSseResponse', () => {
 
   it('writes text/event-stream headers immediately', () => {
     const { req, res } = makeReqRes();
-    createSseResponse(req as any, res as any);
+    createSseResponse({ req: req as any, res: res as any });
     expect(res.writeHead).toHaveBeenCalledWith(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
@@ -48,14 +48,14 @@ describe('createSseResponse', () => {
 
   it('send() writes one JSON-serialized data: event', () => {
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any);
-    connection.send({ hello: 'world' });
+    const connection = createSseResponse({ req: req as any, res: res as any });
+    connection.send({ data: { hello: 'world' } });
     expect(res.write).toHaveBeenCalledWith('data: {"hello":"world"}\n\n');
   });
 
   it('close() ends the response and marks the connection closed', () => {
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any);
+    const connection = createSseResponse({ req: req as any, res: res as any });
     expect(connection.closed).toBe(false);
     connection.close();
     expect(connection.closed).toBe(true);
@@ -64,7 +64,7 @@ describe('createSseResponse', () => {
 
   it('close() is idempotent — a second call does nothing further', () => {
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any);
+    const connection = createSseResponse({ req: req as any, res: res as any });
     connection.close();
     connection.close();
     expect(res.end).toHaveBeenCalledTimes(1);
@@ -72,16 +72,16 @@ describe('createSseResponse', () => {
 
   it('send() after close() is a no-op', () => {
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any);
+    const connection = createSseResponse({ req: req as any, res: res as any });
     connection.close();
     res.write.mockClear();
-    connection.send({ x: 1 });
+    connection.send({ data: { x: 1 } });
     expect(res.write).not.toHaveBeenCalled();
   });
 
   it('the keepalive interval writes a ping comment line at the configured cadence', () => {
     const { req, res } = makeReqRes();
-    createSseResponse(req as any, res as any, { keepAliveMs: 1000 });
+    createSseResponse({ req: req as any, res: res as any }, { keepAliveMs: 1000 });
     res.write.mockClear();
     vi.advanceTimersByTime(1000);
     expect(res.write).toHaveBeenCalledWith(': ping\n\n');
@@ -92,7 +92,7 @@ describe('createSseResponse', () => {
 
   it('the keepalive interval stops writing once the connection is closed', () => {
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any, { keepAliveMs: 1000 });
+    const connection = createSseResponse({ req: req as any, res: res as any }, { keepAliveMs: 1000 });
     connection.close();
     res.write.mockClear();
     vi.advanceTimersByTime(5000);
@@ -101,7 +101,7 @@ describe('createSseResponse', () => {
 
   it('defaults keepAliveMs to 15000 when not supplied', () => {
     const { req, res } = makeReqRes();
-    createSseResponse(req as any, res as any);
+    createSseResponse({ req: req as any, res: res as any });
     res.write.mockClear();
     vi.advanceTimersByTime(14_999);
     expect(res.write).not.toHaveBeenCalled();
@@ -109,10 +109,36 @@ describe('createSseResponse', () => {
     expect(res.write).toHaveBeenCalledWith(': ping\n\n');
   });
 
-  it("the client disconnecting (the raw request's 'close' event) closes the connection", () => {
+  it('keeps streaming after the request completes until the response closes', () => {
+    const onClose = vi.fn();
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any);
-    (req as EventEmitter).emit('close');
+    const connection = createSseResponse({ req: req as any, res: res as any }, { keepAliveMs: 1000, onClose });
+
+    // A completed POST body closes its request while the streaming response is still live.
+    req.emit('close');
+    expect(connection.closed).toBe(false);
+    expect(res.end).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    connection.send({ data: { afterRequest: true } });
+    expect(res.write.mock.calls).toEqual([['data: {"afterRequest":true}\n\n']]);
+    vi.advanceTimersByTime(1000);
+    expect(res.write.mock.calls).toEqual([['data: {"afterRequest":true}\n\n'], [': ping\n\n']]);
+
+    res.emit('close');
+    res.emit('close');
+    expect(connection.closed).toBe(true);
+    expect(res.end).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    res.write.mockClear();
+    vi.advanceTimersByTime(1000);
+    connection.send({ data: { afterDisconnect: true } });
+    expect(res.write).not.toHaveBeenCalled();
+  });
+
+  it("the client disconnecting (the raw response's 'close' event) closes the connection", () => {
+    const { req, res } = makeReqRes();
+    const connection = createSseResponse({ req: req as any, res: res as any });
+    (res as EventEmitter).emit('close');
     expect(connection.closed).toBe(true);
     expect(res.end).toHaveBeenCalledTimes(1);
   });
@@ -120,15 +146,15 @@ describe('createSseResponse', () => {
   it('invokes onClose exactly once, whether triggered by an explicit close() or a client disconnect', () => {
     const onClose = vi.fn();
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any, { onClose });
+    const connection = createSseResponse({ req: req as any, res: res as any }, { onClose });
     connection.close();
-    (req as EventEmitter).emit('close');
+    (res as EventEmitter).emit('close');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('onClose is optional — closing without one does not throw', () => {
     const { req, res } = makeReqRes();
-    const connection = createSseResponse(req as any, res as any);
+    const connection = createSseResponse({ req: req as any, res: res as any });
     expect(() => connection.close()).not.toThrow();
   });
 });
@@ -155,12 +181,12 @@ describe('createSseResponse — backpressure', () => {
   it('stops writing once the socket reports backpressure, queueing instead', () => {
     const req = new EventEmitter();
     const res = makeBackpressuredRes(1);
-    const connection = createSseResponse(req as any, res as any);
+    const connection = createSseResponse({ req: req as any, res: res as any });
     res.write.mockClear();
 
-    connection.send({ n: 1 });
-    connection.send({ n: 2 });
-    connection.send({ n: 3 });
+    connection.send({ data: { n: 1 } });
+    connection.send({ data: { n: 2 } });
+    connection.send({ data: { n: 3 } });
 
     // The first write is what discovers the stall; nothing after it may reach the socket.
     expect(res.write).toHaveBeenCalledTimes(1);
@@ -171,10 +197,10 @@ describe('createSseResponse — backpressure', () => {
   it("flushes the queue in order once the socket emits 'drain'", () => {
     const req = new EventEmitter();
     const res = makeBackpressuredRes(1);
-    const connection = createSseResponse(req as any, res as any);
-    connection.send({ n: 1 });
-    connection.send({ n: 2 });
-    connection.send({ n: 3 });
+    const connection = createSseResponse({ req: req as any, res: res as any });
+    connection.send({ data: { n: 1 } });
+    connection.send({ data: { n: 2 } });
+    connection.send({ data: { n: 3 } });
     res.write.mockClear();
     res.write.mockReturnValue(true);
 
@@ -190,9 +216,9 @@ describe('createSseResponse — backpressure', () => {
     const req = new EventEmitter();
     const res = makeBackpressuredRes(1);
     const onClose = vi.fn();
-    const connection = createSseResponse(req as any, res as any, { onClose });
+    const connection = createSseResponse({ req: req as any, res: res as any }, { onClose });
 
-    for (let i = 0; i < DEFAULT_MAX_QUEUED_SSE_MESSAGES + 5; i += 1) connection.send({ i });
+    for (let i = 0; i < DEFAULT_MAX_QUEUED_SSE_MESSAGES + 5; i += 1) connection.send({ data: { i } });
 
     expect(connection.closed).toBe(true);
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -202,21 +228,21 @@ describe('createSseResponse — backpressure', () => {
   it('honours an explicit maxQueuedMessages cap', () => {
     const req = new EventEmitter();
     const res = makeBackpressuredRes(1);
-    const connection = createSseResponse(req as any, res as any, { maxQueuedMessages: 3 });
+    const connection = createSseResponse({ req: req as any, res: res as any }, { maxQueuedMessages: 3 });
 
-    connection.send({ n: 1 }); // written, discovers the stall
-    connection.send({ n: 2 }); // queued 1
-    connection.send({ n: 3 }); // queued 2
-    connection.send({ n: 4 }); // queued 3
+    connection.send({ data: { n: 1 } }); // written, discovers the stall
+    connection.send({ data: { n: 2 } }); // queued 1
+    connection.send({ data: { n: 3 } }); // queued 2
+    connection.send({ data: { n: 4 } }); // queued 3
     expect(connection.closed).toBe(false);
-    connection.send({ n: 5 }); // would be queued 4 — over the cap
+    connection.send({ data: { n: 5 } }); // would be queued 4 — over the cap
     expect(connection.closed).toBe(true);
   });
 
   it('does not let the keepalive ping accumulate while the socket is stalled', () => {
     const req = new EventEmitter();
     const res = makeBackpressuredRes(1);
-    createSseResponse(req as any, res as any, { keepAliveMs: 1000, maxQueuedMessages: 2 });
+    createSseResponse({ req: req as any, res: res as any }, { keepAliveMs: 1000, maxQueuedMessages: 2 });
     res.write.mockClear();
 
     // 50 keepalive ticks against a socket that never drains must not become 50 buffered writes.
@@ -231,14 +257,10 @@ describe('createSseResponse — backpressure', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * Finding 8 claimed `req.on('close')` fires as soon as a bodyless SSE `GET` is *received* (rather
- * than when the peer actually disconnects), which would tear every stream down immediately. It does
- * not, on any Node this package supports — `IncomingMessage`'s `'close'` fires when the
- * request/response cycle ends or the connection drops, which is precisely the cleanup signal wanted
- * here. A fake `EventEmitter` request cannot tell the difference, so these two drive a real server
- * over a real socket: one proves the stream survives a live idle client, the other proves the
- * disconnect is still detected. Together they are the regression guard that would catch the bug had
- * it been real.
+ * Fake emitters alone cannot establish Node's client-disconnect lifecycle, so these two drive a
+ * real server over a real socket: one proves the stream survives a live idle client, the other
+ * proves disconnect cleanup runs. The unit regression above separately pins request completion
+ * versus response closure, including the POST lifecycle these bodyless GET cases do not exercise.
  */
 describe('createSseResponse — client-disconnect detection over a real socket', () => {
   it('keeps the stream open while a bodyless GET client stays connected', async () => {
@@ -267,13 +289,13 @@ describe('createSseResponse — client-disconnect detection over a real socket',
 async function withLiveSseClient(drive: (socket: import('node:net').Socket) => void): Promise<boolean> {
   let onCloseFired = false;
   const server = createServer((req, res) => {
-    const connection = createSseResponse(req, res, {
+    const connection = createSseResponse({ req, res }, {
       keepAliveMs: 50,
       onClose: () => {
         onCloseFired = true;
       },
     });
-    connection.send({ hello: 'world' });
+    connection.send({ data: { hello: 'world' } });
   });
 
   try {

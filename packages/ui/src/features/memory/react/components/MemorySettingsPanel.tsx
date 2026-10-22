@@ -84,7 +84,7 @@ export function MemorySettingsPanel({
               aria-selected={topTab === 'memories'}
               className={'jini-seg-btn' + (topTab === 'memories' ? ' active' : '')}
               onClick={() => onTopTabChange('memories')}
-              {...agentHandleProps(agentHandle, { action: 'view-memories', role: 'button', label: t('Memories') })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'view-memories', role: 'button', label: t('Memories') }) })}
             >
               <span className="jini-seg-title">{t('Memories')}</span>
             </button>
@@ -94,7 +94,7 @@ export function MemorySettingsPanel({
               aria-selected={topTab === 'how'}
               className={'jini-seg-btn' + (topTab === 'how' ? ' active' : '')}
               onClick={() => onTopTabChange('how')}
-              {...agentHandleProps(agentHandle, { action: 'view-how', role: 'button', label: t('How it works') })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'view-how', role: 'button', label: t('How it works') }) })}
             >
               <span className="jini-seg-title">{t('How it works')}</span>
             </button>
@@ -106,7 +106,7 @@ export function MemorySettingsPanel({
             disabled={!onAdd}
             aria-label={t('Add memory')}
             title={t('Add memory')}
-            {...agentHandleProps(agentHandle, { action: 'add', role: 'button', label: t('Add memory') })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'add', role: 'button', label: t('Add memory') }) })}
           >
             <Icon name="plus" size={14} />
           </button>
@@ -117,7 +117,7 @@ export function MemorySettingsPanel({
             disabled={!onOpenAdvanced}
             aria-label={t('Advanced')}
             title={t('Advanced')}
-            {...agentHandleProps(agentHandle, { action: 'advanced', role: 'button', label: t('Advanced') })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'advanced', role: 'button', label: t('Advanced') }) })}
           >
             <Icon name="settings" size={14} />
           </button>
@@ -127,7 +127,7 @@ export function MemorySettingsPanel({
               aria-label={t('Enable memory')}
               checked={enabled}
               onChange={(event) => onToggleEnabled(event.target.checked)}
-              {...agentHandleProps(agentHandle, { action: 'enabled', role: 'checkbox', label: t('Enable memory') })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'enabled', role: 'checkbox', label: t('Enable memory') }) })}
             />
             <span className="toggle-slider" />
           </label>
@@ -135,9 +135,9 @@ export function MemorySettingsPanel({
       </section>
 
       {topTab === 'memories' ? (
-        <MemoryList sectionRef={sectionRef} {...savedMemory} {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'saved') } : {})} />
+        <MemoryList sectionRef={sectionRef} {...savedMemory} {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'saved' }) } : {})} />
       ) : (
-        <MemoryHowPanel {...howItWorks} {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'how') } : {})} />
+        <MemoryHowPanel {...howItWorks} {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'how' }) } : {})} />
       )}
     </div>
   );

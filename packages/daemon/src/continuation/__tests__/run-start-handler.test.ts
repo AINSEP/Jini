@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentExecutor, AgentExecutorRunInput } from '../../agent-executor.js';
+import type { AgentExecutor, AgentExecutorRunInput } from '../../agent-executor/index.js';
 import { createDefaultRunStartHandler, type ResolveRunInputContext } from '../run-start-handler.js';
 
 function fakeExecutor(): { executor: AgentExecutor; calls: AgentExecutorRunInput[] } {
@@ -7,9 +7,10 @@ function fakeExecutor(): { executor: AgentExecutor; calls: AgentExecutorRunInput
   return {
     calls,
     executor: {
-      run: async (input) => {
-        calls.push(input);
+      run: async (required, optional) => {
+        calls.push({ ...required, ...optional });
       },
+      sendUserMessage: async () => 'not-running',
     },
   };
 }
@@ -64,6 +65,7 @@ describe('createDefaultRunStartHandler', () => {
       run: async () => {
         throw new Error('spawn failed');
       },
+      sendUserMessage: async () => 'not-running',
     };
     const resolveRunInput = () => ({ agentId: 'a', prompt: 'p', cwd: '/work' });
     const handler = createDefaultRunStartHandler({ agentExecutor: executor, resolveRunInput });

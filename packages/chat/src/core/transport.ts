@@ -31,6 +31,8 @@ import type { ChatAttachment, ChatMessage, ChatRunStatus } from './messages.js';
  * via `extends`.
  */
 export interface RunHandlers {
+  /** Authoritative saved projection; may advance an attempt without ending its message. */
+  onCheckpoint?: (message: ChatMessage) => void;
   /** Fired once per renderable unit of agent output. */
   onEvent: (ev: AgentEvent) => void;
   /**
@@ -53,6 +55,8 @@ export interface RunHandlers {
 export type RunContext = Record<string, unknown>;
 
 export interface StartRunInput {
+  /** The logical assistant message identity, allocated before acceptance. */
+  assistantMessageId?: string;
   history: ChatMessage[];
   agentId?: string;
   conversationId?: string | null;

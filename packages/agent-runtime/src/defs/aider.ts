@@ -1,8 +1,10 @@
-/** Ported from OD's `apps/daemon/src/runtimes/defs/aider.ts` (one de-branded comment; see `source-map.md`). */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const aiderAgentDef = {
+  // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
+  ...createAgentModelDiscovery('aider', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => aiderAgentDef.fallbackModels }),
     id: 'aider',
     name: 'Aider',
     bin: 'aider',
@@ -32,7 +34,7 @@ export const aiderAgentDef = {
     // Aider's one-shot mode requires the prompt as `--message <text>` on
     // argv; neither `--message` nor `--message-file` accept `-` as a stdin
     // sentinel (it is treated as a literal filename), so we cannot pipe
-    // the prompt in the way qwen/gemini do. Mirror the DeepSeek TUI
+    // the prompt in the way qwen does. Mirror the DeepSeek TUI
     // pattern: ship the prompt as argv with a conservative byte budget so
     // the /api/chat spawn path emits an actionable error before hitting
     // Windows' ~32 KB CreateProcess limit or Linux MAX_ARG_STRLEN.
@@ -42,7 +44,7 @@ export const aiderAgentDef = {
     //   --yes-always                       — skip per-action confirmation
     //   --no-pretty                        — strip ANSI so stdout parses as plain text
     //   --no-stream                        — left as default (streaming on)
-    //   --no-git / --no-auto-commits       — the host spawns aider inside a
+    //   --no-git / --no-auto-commits       — outside trusted CLI parity, the host uses a
     //                                        managed project workspace that
     //                                        is not the user's git repo, so
     //                                        the commit machinery has
@@ -51,7 +53,7 @@ export const aiderAgentDef = {
     //   --no-show-model-warnings           — suppresses model-compat banners
     //                                        that would otherwise prefix every
     //                                        run with noise
-    buildArgs: (prompt, _imagePaths, _extra, options = {}) => {
+    buildArgs: ({ prompt, imagePaths: _imagePaths }, { extraAllowedDirs: _extra, options = {} } = {}) => {
       const args = [
         // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
         // behavior) unless a caller explicitly opts into a restricted run. Without
@@ -60,9 +62,8 @@ export const aiderAgentDef = {
         // which is the conservative outcome restricted mode is asking for.
         ...(options.permissionMode !== 'restricted' ? ['--yes-always'] : []),
         '--no-pretty',
-        '--no-git',
-        '--no-auto-commits',
-        '--no-suggest-shell-commands',
+        // Managed scratch workspaces suppress git/shell; trusted parity uses Aider's own settings.
+        ...(options.cliParity && options.permissionMode === 'bypass' && options.nativeToolAccess !== false ? [] : ['--no-git', '--no-auto-commits', '--no-suggest-shell-commands']),
         '--no-show-model-warnings',
       ];
       if (options.model && options.model !== 'default') {

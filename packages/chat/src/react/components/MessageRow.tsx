@@ -1,3 +1,8 @@
+import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
+import { MidRunUserMessage, MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './MidRunUserMessage.js';
+import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-projection.js';
+import type { ChatUsageSummary } from '../../core/turn-usage.js';
+import { usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } from './MessageRow.usage.js';
 /**
  * @module MessageRow
  *
@@ -48,24 +53,45 @@
  * not appear until the whole message is done, not merely until its current
  * chunk stopped arriving.
  */
-import React, { useState, type ReactNode } from 'react';
-import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
-import { isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
+import React, { memo, useMemo, type ReactNode } from 'react';
+import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus, IsAnsweredCard } from '../../core/index.js';
+import { isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
-import { interleaveMessageBlocks } from '../message-blocks.js';
-import { useT } from '../hooks/context.js';
-import { getExtEventRenderer } from '../ext-event-renderer-registry.js';
+import { useRunActivity } from '../hooks/useRunActivity.js';
+import { useAnsweredCards } from '../hooks/useAnsweredCards.js';
+import { interleaveMessageBlocks, type MessageBlock } from '../message-blocks.js';
+import { useT, useExtEventRendererRegistry } from '../hooks/context.js';
+import type { ExtEventRendererRegistry } from '../ext-event-renderer-registry.js';
 import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
+import { SentAttachmentButton } from './SentAttachment.js';
+import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
 import { Icon } from './Icon.js';
 import { Markdown } from './Markdown.js';
 import { ToolCard } from './ToolCard.js';
 import { QuestionForm } from './QuestionForm.js';
+import { ToolCallGroup } from './ToolCallGroup.js';
+import { applyToolCallDisplay, toolRowsForDisplay, type ToolCallDisplay } from '../tool-call-display.js';
 
 export interface MessageRowProps {
   message: ChatMessage;
+  /** Per-turn charge and prefix total derived from the complete conversation's persisted events. */
+  usageSummary?: ChatUsageSummary;
+  /** Append the chat's running total as of each reply ("· total $3.95") to its Done line. On by default
+   * (owner, 2026-10-10: keep the total); pass `false` to show only each turn's own cost. */
+  showUsageTotal?: boolean;
+  /** Show the "Done · time · cost" line(s) at all. On by default; `false` hides every one, total
+   * included (a host's "Done line" display choice, 2026-10-11). */
+  showUsageLine?: boolean;
+  /** How tool calls show (`../tool-call-display.ts`): every card (`'show'`, the default), one
+   * fold-up line per turn (`'collapsed'`), or only failed ones (`'hidden'`). */
+  toolCallDisplay?: ToolCallDisplay;
+  /** Show the model's reasoning (`thinking` events) as a fold-up block where it happened. Off by
+   * default — the transcript never showed it before this option. Needs the interleaved layout; a
+   * message that falls back to the flat layout shows none. */
+  showThinking?: boolean;
   /** Whether this message's own run is still streaming. */
   runStreaming?: boolean;
   runSucceeded?: boolean;
@@ -77,15 +103,6 @@ export interface MessageRowProps {
   onRequestOpenFile?: (name: string) => void;
   /** Host-supplied renderer for a `ChatAttachment` chip. Falls back to a plain filename chip. */
   renderAttachment?: (attachment: ChatAttachment) => ReactNode;
-}
-
-type UsageEvent = Extract<AgentEvent, { kind: 'usage' }>;
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
 /**
@@ -123,21 +140,20 @@ function isPendingWithNoContent(message: ChatMessage, visibleContent: string, to
  * @complexity O(1) — one comparison plus a set lookup via `isTerminalRunStatus`.
  */
 function isRunInProgress(runStatus: ChatRunStatus | undefined): boolean {
-  return runStatus !== undefined && !isTerminalRunStatus(runStatus);
+  return runStatus !== undefined && !isTerminalRunStatus({ status: runStatus });
 }
 
-/** One "Done · 6m 29s · 2612 out · $0.4028" summary line, from the run's own `kind:'usage'` event — never estimated client-side. Renders only the fields the event actually carries, so a transport that supplies partial usage data degrades gracefully instead of showing fabricated zeros. */
-function UsageSummary({ usage }: { usage: UsageEvent }) {
+/** One "Done · 6m 29s · $0.41 · total $2.50" line from reported usage, never estimated (the total is
+ * left off when `showTotal` is false). Partial usage stays partial; output tokens are available to
+ * assistive technology and in the tooltip. */
+function UsageSummary({ usage, showTotal }: { usage: ChatUsageSummary; showTotal: boolean }) {
   const t = useT();
-  const parts: string[] = [];
-  if (usage.durationMs !== undefined) parts.push(formatDuration(usage.durationMs));
-  if (usage.outputTokens !== undefined) parts.push(t('{n} out', { n: usage.outputTokens }));
-  if (usage.costUsd !== undefined) parts.push(`$${usage.costUsd.toFixed(4)}`);
-  if (parts.length === 0) return null;
+  const { text, title, ariaLabel } = useUsageSummary({ usage }, { showTotal });
+  if (!text) return null;
   return (
-    <div className="jini-message-usage">
+    <div className="jini-message-usage" title={title} role="note" aria-label={ariaLabel}>
       <span className="jini-message-usage-dot" aria-hidden>●</span>
-      {t('Done')} · {parts.join(' · ')}
+      {t('Done')} · {text}
     </div>
   );
 }
@@ -147,6 +163,65 @@ interface CopyMessageButtonProps {
   text: string;
   /** Accessible name while idle; swaps to a "Copied" label once the copy lands. */
   label: string;
+}
+
+function messageBlocks(
+  { visibleContent, message, rows, registry }: { visibleContent: string; message: ChatMessage; rows: ToolTimelineRow[]; registry: ExtEventRendererRegistry },
+  { toolCallDisplay = 'show', includeThinking = false }: { toolCallDisplay?: ToolCallDisplay; includeThinking?: boolean } = {},
+) {
+  // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
+  // whole string and trims, so the surviving text no longer lines up with the per-run offsets the
+  // event walk produces, and an artifact block could legitimately span a tool call. Rather than
+  // reason about partial overlaps, an artifact-bearing message keeps the flat layout — those
+  // messages are dominated by the artifact panel anyway, so the ordering matters least there.
+  if (visibleContent !== message.content) return null;
+  const blocks = interleaveMessageBlocks<ToolTimelineRow>(
+    { events: message.events, content: message.content, rows },
+    { slotOf: (ev) => registry.slot({ name: ev.name, data: ev.data }), includeThinking },
+  );
+  return blocks ? applyToolCallDisplay({ blocks, mode: toolCallDisplay }) : null;
+}
+
+/** The model's reasoning, folded under a "Thinking" summary so it never crowds the answer. */
+function ThinkingBlock({ text }: { text: string }) {
+  const t = useT();
+  if (!text.trim()) return null;
+  return (
+    <details className="jini-message-thinking">
+      <summary>{t('Thinking')}</summary>
+      <div className="jini-message-thinking__text">{text}</div>
+    </details>
+  );
+}
+
+function messageAwaitingAnswer(
+  { runStreaming, runInProgress, events }: { runStreaming?: boolean; runInProgress: boolean; events: AgentEvent[] | undefined },
+  { isAnsweredCard }: { isAnsweredCard?: IsAnsweredCard } = {},
+): boolean {
+  return runStreaming === true && runInProgress && isAwaitingAnswer({ events }, { isAnsweredCard });
+}
+
+function AssistantMessageFooter(
+  { message, usageEvent, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, visibleContent, isAnsweredCard }: {
+    message: ChatMessage; usageEvent: ChatUsageSummary | undefined; showUsageTotal: boolean; terminalNotice: string | null;
+    pending: boolean; runInProgress: boolean; runStreaming?: boolean; visibleContent: string; isAnsweredCard: IsAnsweredCard;
+  }, _optional = {},
+) {
+  const t = useT();
+  return <>
+      {usageEvent ? <UsageSummary usage={usageEvent} showTotal={showUsageTotal} /> : null}
+      {terminalNotice ? <div className="jini-message-error" role="status">{t(terminalNotice)}</div> : null}
+      {!pending && !runInProgress ? (
+        <div className="jini-message-actions jini-message-actions--assistant">
+          <CopyMessageButton text={visibleContent} label={t('Copy message')} />
+          {/* Extension seam: branch/thumbs-up/thumbs-down join here next, as siblings after copy,
+              same .jini-message-action-btn ghost icon-button shape and fixed left-to-right order
+              (copy, branch, thumbs-up, thumbs-down) — left unbuilt per this task's module doc
+              above until their backends (conversation branching, feedback storage) exist. */}
+        </div>
+      ) : null}
+      {runInProgress ? <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} isAnsweredCard={isAnsweredCard} /> : null}
+  </>;
 }
 
 /**
@@ -182,74 +257,101 @@ function CopyMessageButton({ text, label }: CopyMessageButtonProps) {
   );
 }
 
-export function MessageRow({
-  message,
+/** Stable empty list for a message with no attachments. */
+const NO_ATTACHMENTS: readonly ChatAttachment[] = [];
+
+/** The display props `MessageRow` defaults, resolved — what `AssistantMessageRow` renders from. */
+type ResolvedMessageRowProps = MessageRowProps
+  & Required<Pick<MessageRowProps, 'showUsageTotal' | 'showUsageLine' | 'toolCallDisplay' | 'showThinking' | 'runStreaming' | 'runSucceeded' | 'questionFormInteractive'>>;
+
+type AssistantBlock = MessageBlock<ToolTimelineRow>;
+
+/**
+ * Memoized so a transcript re-render (a streaming update to the newest message, or a parent that
+ * re-renders per composer keystroke) only re-renders rows whose props actually changed. Messages
+ * are replaced, never mutated, so identity is a sound change signal.
+ */
+export const MessageRow = memo(function MessageRow({
+  showUsageTotal = true,
+  showUsageLine = true,
+  toolCallDisplay = 'show',
+  showThinking = false,
   runStreaming = false,
   runSucceeded = false,
   questionFormInteractive = false,
+  ...props
+}: MessageRowProps) {
+  const message = useMemo(() => props.message.events === undefined ? props.message : {
+    ...props.message, events: projectAcceptedInputEvents({ events: props.message.events }),
+  }, [props.message]);
+  if (message.role === 'user') return <UserMessageRow {...props} message={message} />;
+  return <AssistantMessageRow {...props} message={message} {...{ showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSucceeded, questionFormInteractive }} />;
+});
+
+function UserMessageRow({ message, renderAttachment }: Pick<MessageRowProps, 'message' | 'renderAttachment'>) {
+  const t = useT();
+  // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
+  // module-level: two attachments in the same message can never be "open" at once, but two
+  // different messages opening their own attachments independently is fine and expected.
+  // Previous/next steps through this message's images only.
+  const gallery = useAttachmentGallery({ attachments: message.attachments ?? NO_ATTACHMENTS });
+  return (
+    <div
+      className="jini-message jini-message-user"
+      data-message-id={message.id}
+      data-agent-element={`chat-message-${message.id}`}
+      data-agent-role="region"
+      data-agent-label="A message from the user"
+    >
+      {message.attachments && message.attachments.length > 0 ? (
+        <div className="jini-message-attachments">
+          {/* Images this browser still holds draw as thumbnails; everything else is a filename chip. */}
+          {message.attachments.map((a) => (
+            <SentAttachmentButton key={a.path} attachment={a} onOpen={gallery.open} renderAttachment={renderAttachment} />
+          ))}
+        </div>
+      ) : null}
+      <div className="jini-message-content">{message.content}</div>
+      <div className="jini-message-actions jini-message-actions--user">
+        <CopyMessageButton text={message.content} label={t('Copy message')} />
+      </div>
+      {gallery.opened ? (
+        <AttachmentPreviewModal attachment={gallery.opened} onClose={gallery.close} navigation={gallery.navigation} />
+      ) : null}
+    </div>
+  );
+}
+
+function AssistantMessageRow({
+  message,
+  usageSummary,
+  showUsageTotal,
+  showUsageLine,
+  toolCallDisplay,
+  showThinking,
+  runStreaming,
+  runSucceeded,
+  questionFormInteractive,
   questionFormSubmittedAnswers,
   onQuestionFormSubmit,
   projectFileNames,
   onRequestOpenFile,
-  renderAttachment,
-}: MessageRowProps) {
-  const t = useT();
-  const timeline = useToolTimeline(message.events, { runStreaming, runSucceeded });
-  const extGroups = useExtEventGroups(message.events);
-  // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
-  // module-level: two attachments in the same message can never be "open" at once, but two
-  // different messages opening their own attachments independently is fine and expected.
-  const [openAttachment, setOpenAttachment] = useState<ChatAttachment | null>(null);
+}: ResolvedMessageRowProps) {
+  const registry = useExtEventRendererRegistry();
+  const messageUsage = useMessageUsage({ message, ...(usageSummary === undefined ? {} : { summary: usageSummary }) });
+  const timeline = useToolTimeline({ events: message.events }, { runStreaming, runSucceeded });
+  const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
+  const answeredCards = useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups, runStreaming, runStatus: message.runStatus });
 
-  if (message.role === 'user') {
-    return (
-      <div
-        className="jini-message jini-message-user"
-        data-message-id={message.id}
-        data-agent-element={`chat-message-${message.id}`}
-        data-agent-role="region"
-        data-agent-label="A message from the user"
-      >
-        {message.attachments && message.attachments.length > 0 ? (
-          <div className="jini-message-attachments">
-            {message.attachments.map((a) => (
-              <button
-                key={a.path}
-                type="button"
-                className="jini-message-attachment-chip"
-                onClick={() => setOpenAttachment(a)}
-                title={t('Open {name}', { name: a.name })}
-                aria-label={t('Open {name}', { name: a.name })}
-              >
-                {renderAttachment ? renderAttachment(a) : a.name}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <div className="jini-message-content">{message.content}</div>
-        <div className="jini-message-actions jini-message-actions--user">
-          <CopyMessageButton text={message.content} label={t('Copy message')} />
-        </div>
-        {openAttachment ? (
-          <AttachmentPreviewModal attachment={openAttachment} onClose={() => setOpenAttachment(null)} />
-        ) : null}
-      </div>
-    );
-  }
+  const terminalNotice = terminalMessageNotice({ message }, {});
+  const visibleContent = stripArtifact({ content: message.content });
 
-  const visibleContent = stripArtifact(message.content);
-  const segments = splitOnQuestionForms(visibleContent);
-  const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
-
-  // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
-  // whole string and trims, so the surviving text no longer lines up with the per-run offsets the
-  // event walk produces, and an artifact block could legitimately span a tool call. Rather than
-  // reason about partial overlaps, an artifact-bearing message keeps the flat layout — those
-  // messages are dominated by the artifact panel anyway, so the ordering matters least there.
-  const blocks =
-    visibleContent === message.content ? interleaveMessageBlocks<ToolTimelineRow>(message.events, message.content, timeline.rows) : null;
+  const blocks = messageBlocks({ visibleContent, message, rows: timeline.rows, registry }, { toolCallDisplay, includeThinking: showThinking });
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
+  const awaitingAnswer = messageAwaitingAnswer({ runStreaming, runInProgress, events: message.events }, { isAnsweredCard: answeredCards.isAnsweredCard });
+  const usage = usageLayout({ usage: messageUsage, interleaved: blocks !== null, runInProgress }, { runStreaming });
+  const footerUsage = showUsageLine ? usage.footer : undefined;
 
   const renderToolCard = (row: ToolTimelineRow) => (
     <ToolCard
@@ -263,23 +365,44 @@ export function MessageRow({
     />
   );
 
+  // One turn's cards: a fold-up line when collapsed, the plain card list otherwise.
+  const renderTools = (rows: readonly ToolTimelineRow[], key?: string) => (toolCallDisplay === 'collapsed'
+    ? <ToolCallGroup key={key} rows={rows} renderRow={renderToolCard} />
+    : <div className="jini-message-tools" key={key}>{rows.map(renderToolCard)}</div>);
+  const flatToolRows = toolRowsForDisplay({ rows: timeline.rows, mode: toolCallDisplay });
+
   const renderExtGroup = (group: ExtEventGroup) => {
-    const renderer = getExtEventRenderer(group.name);
+    const renderer = registry.get({ name: group.name });
+    if (!renderer && group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME) return <MidRunUserMessage events={group.events} />;
     if (!renderer) return null;
-    const node = renderer({ name: group.name, events: group.events, runStreaming, runSucceeded, runId: message.runId });
+    const answerText = answeredCards.answerText(group.slot);
+    const node = renderer({
+      name: group.name,
+      events: group.events,
+      runStreaming: answeredCards.runStreaming,
+      runSucceeded,
+      awaitingAnswer,
+      runId: message.runId,
+      ...(group.call === undefined ? {} : { call: group.call }),
+      answered: answeredCards.isAnswered(group.slot),
+      onAnswered: () => answeredCards.markAnswered(group.slot),
+      onAnswerText: (text) => answeredCards.markAnswered(group.slot, text),
+      ...(answeredCards.isRecorded(group.slot) ? { answerRecorded: true } : {}),
+      ...(answerText === undefined ? {} : { answerText }),
+    });
     if (!node) return null;
     return (
       // `key` includes the event count so a group that failed on an earlier, shorter event list
       // gets a fresh boundary instance (not the still-tripped one) once a new event actually
       // arrives for it, instead of staying tombstoned for the message's whole lifetime.
-      <ExtEventErrorBoundary key={`${group.name}:${group.events.length}`} name={group.name}>
+      <ExtEventErrorBoundary key={`${group.slot}:${group.events.length}`} name={group.name}>
         <div>{node}</div>
       </ExtEventErrorBoundary>
     );
   };
 
   const renderTextSegments = (text: string, keyPrefix: string): ReactNode =>
-    splitOnQuestionForms(text).map((segment, i) =>
+    splitOnQuestionForms({ input: text }).map((segment, i) =>
       segment.kind === 'text' ? (
         segment.text.trim() ? (
           <div className="jini-message-content" key={`${keyPrefix}-${i}`}>
@@ -297,9 +420,30 @@ export function MessageRow({
       ),
     );
 
+  const renderBlock = (block: AssistantBlock): ReactNode => {
+    if (block.kind === 'text') {
+      return <React.Fragment key={block.key}>{renderTextSegments(block.text, block.key)}</React.Fragment>;
+    }
+    if (block.kind === 'reply-end') {
+      const reply = usage.replies[block.index];
+      return reply && showUsageLine ? <UsageSummary key={block.key} usage={reply} showTotal={showUsageTotal} /> : null;
+    }
+    if (block.kind === 'tools') return renderTools(block.rows, block.key);
+    if (block.kind === 'thinking') return <ThinkingBlock key={block.key} text={block.text} />;
+    const group = extGroups.find((g) => g.slot === block.slot);
+    if (!group) return null;
+    return (
+      <div className="jini-message-ext-events" key={block.key}>
+        {renderExtGroup(group)}
+      </div>
+    );
+  };
+
   return (
     <div
-      className="jini-message jini-message-assistant"
+      className={usageLineMeetsActions({ footer: footerUsage, terminalNotice, pending, runInProgress }, { showTotal: showUsageTotal })
+        ? 'jini-message jini-message-assistant jini-message-assistant--usage-actions'
+        : 'jini-message jini-message-assistant'}
       data-message-id={message.id}
       data-run-status={message.runStatus}
       data-agent-element={`chat-message-${message.id}`}
@@ -308,66 +452,31 @@ export function MessageRow({
     >
       {message.agentName ? <div className="jini-message-agent">{message.agentName}</div> : null}
       {blocks
-        ? blocks.map((block) => {
-            if (block.kind === 'text') {
-              return <React.Fragment key={block.key}>{renderTextSegments(block.text, block.key)}</React.Fragment>;
-            }
-            if (block.kind === 'tools') {
-              return (
-                <div className="jini-message-tools" key={block.key}>
-                  {block.rows.map(renderToolCard)}
-                </div>
-              );
-            }
-            const group = extGroups.find((g) => g.name === block.name);
-            if (!group) return null;
-            return (
-              <div className="jini-message-ext-events" key={block.key}>
-                {renderExtGroup(group)}
-              </div>
-            );
-          })
+        ? blocks.map(renderBlock)
         : (
           <>
-            {segments.map((segment, i) =>
-              segment.kind === 'text' ? (
-                segment.text.trim() ? (
-                  <div className="jini-message-content" key={i}>
-                    <Markdown>{segment.text}</Markdown>
-                  </div>
-                ) : null
-              ) : (
-                <QuestionForm
-                  key={i}
-                  form={segment.form}
-                  interactive={questionFormInteractive}
-                  {...(questionFormSubmittedAnswers !== undefined ? { submittedAnswers: questionFormSubmittedAnswers } : {})}
-                  {...(onQuestionFormSubmit !== undefined ? { onSubmit: onQuestionFormSubmit } : {})}
-                />
-              ),
-            )}
-            {timeline.rows.length > 0 ? (
-              <div className="jini-message-tools">{timeline.rows.map(renderToolCard)}</div>
-            ) : null}
+            {renderTextSegments(visibleContent, 'text')}
+            {flatToolRows.length > 0 ? renderTools(flatToolRows) : null}
             {extGroups.length > 0 ? <div className="jini-message-ext-events">{extGroups.map(renderExtGroup)}</div> : null}
           </>
         )}
-      {usageEvent ? <UsageSummary usage={usageEvent} /> : null}
-      {message.runStatus === 'failed' ? <div className="jini-message-error">{t('This turn failed.')}</div> : null}
-      {!pending && !runInProgress ? (
-        <div className="jini-message-actions jini-message-actions--assistant">
-          <CopyMessageButton text={visibleContent} label={t('Copy message')} />
-          {/* Extension seam: branch/thumbs-up/thumbs-down join here next, as siblings after copy,
-              same .jini-message-action-btn ghost icon-button shape and fixed left-to-right order
-              (copy, branch, thumbs-up, thumbs-down) — left unbuilt per this task's module doc
-              above until their backends (conversation branching, feedback storage) exist. */}
-        </div>
-      ) : null}
-      {pending ? (
-        <div className="jini-message-pending" aria-live="polite">
-          {t('Thinking…')}
-        </div>
-      ) : null}
+      <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />
+    </div>
+  );
+}
+
+/**
+ * The live "what is it doing" line under a running reply (see `core/run-activity.ts`). Replaces the
+ * old "Thinking…" placeholder, which vanished for good as soon as the first tool row appeared.
+ * Kept a separate component so its one-second tick re-renders only this line, not the whole row.
+ */
+function RunActivityLine({ events, active, isAnsweredCard }: { events: AgentEvent[] | undefined; active: boolean; isAnsweredCard: IsAnsweredCard }) {
+  const activityLabel = useRunActivity({ events: events, active: active }, { isAnsweredCard });
+  const label = continuingRunNotice({ events, active }, {}) ?? activityLabel;
+  if (label === null) return null;
+  return (
+    <div className="jini-message-pending jini-run-activity" aria-live="off">
+      {label}
     </div>
   );
 }

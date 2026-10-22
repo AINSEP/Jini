@@ -62,14 +62,17 @@ export type {
 
 export type {
   AdminSeoAnalysis,
+  AdminSeoEntryChoice,
   AdminSeoIssue,
   AdminSeoMeta,
   AdminSeoOpenGraph,
   AdminSeoOverrides,
+  AdminSeoOverridesPatch,
   AdminSeoPort,
   AdminSeoRobotsDirective,
   AdminSeoRobotsRule,
   AdminSeoSettings,
+  AdminSeoSettingsPatch,
   AdminSeoTwitterCard,
   SeoIssueSeverity,
   SeoOpenGraphType,
@@ -123,3 +126,22 @@ export type {
   FormDefinitionStatus,
   FormFieldType,
 } from './forms.js';
+
+export type {
+  AdminEntityDescriptor,
+  AdminEntityField,
+  AdminEntityFieldKind,
+  AdminEntityFilter,
+  AdminEntityJsonField,
+  AdminEntityListQuery,
+  AdminEntityPage,
+  AdminEntityPort,
+  AdminEntityRegistry,
+  AdminEntityRelationField,
+  AdminEntityRow,
+  AdminEntityRowData,
+  AdminEntityScalarField,
+  AdminErasedEntityPort,
+} from './entities.js';
+
+export type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, AdminShellSessionPort } from './shell.js';

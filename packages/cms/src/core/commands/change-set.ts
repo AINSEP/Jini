@@ -1,4 +1,5 @@
-import type { DomainEvent, ISODateTime, JsonObject, UUID } from "../ports.js";
+import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
+import type { DomainEvent } from "../ports.js";
 
 /**
  * @file Change-set vocabulary and persistence contract.
@@ -16,7 +17,7 @@ import type { DomainEvent, ISODateTime, JsonObject, UUID } from "../ports.js";
  * This is the storage shape required to land with the first persistent
  * schema. SQLite/Postgres adapters must satisfy `ChangeSetRepoPort` unchanged.
  *
- * `insert()`'s optional third argument lets the caller pass the fully-formed outbox event through
+ * `insert()`'s optional event in its second object lets the caller pass the fully-formed outbox event through
  * the SAME call, so a durable adapter can co-persist it inside the same transaction as the header
  * + items. This does NOT bring the domain write (`mutation.execute()`) into the transaction — that
  * remains covered by `executeCommand()`'s existing compensating-rollback path. See
@@ -63,10 +64,11 @@ export interface ChangeSetItemRecord {
    */
   inversePayload?: JsonObject | undefined;
   /**
-   * Entity version *after* the mutation (REQ-08 guard input). Revert refuses
+   * Entity version *after* the mutation ( guard input). Revert refuses
    * unless the entity's current version still equals this — otherwise the entity
    * has moved on since. Undefined for entity types without a version.
-   */
+ * See docs/decisions/DR-006-mutation-audit-atomicity.md.
+ */
   entityVersionAtApply?: number | undefined;
   /** Apply order; revert walks positions in reverse. */
   position: number;
@@ -81,12 +83,13 @@ export interface ChangeSetWithItems {
 /** Persistence contract for change sets. */
 export interface ChangeSetRepoPort {
   /**
-   * `event`, when present, must be durably recorded atomically with `record`/`items` (BR-04 —
+   * `event`, when present, must be durably recorded atomically with `record`/`items` ( —
    * see this file's header). A SQLite adapter co-persists it inside the same transaction; the
    * in-memory adapter forwards it to its injected event bus/outbox. Omit `event` for a change set
    * that has no associated domain event to deliver.
-   */
-  insert(record: ChangeSetRecord, items: ChangeSetItemRecord[], event?: DomainEvent): Promise<void>;
+ * See docs/decisions/DR-006-mutation-audit-atomicity.md.
+ */
+  insert(required: { record: ChangeSetRecord; items: ChangeSetItemRecord[] }, optional?: { event?: DomainEvent | undefined }): Promise<void>;
   findById(required: { workspaceId: UUID; id: UUID }): Promise<ChangeSetWithItems | null>;
   findByIdempotencyKey(required: {
     workspaceId: UUID;

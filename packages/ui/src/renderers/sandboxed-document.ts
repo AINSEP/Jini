@@ -1,3 +1,4 @@
+import { buildFocusScript, buildStorageScript } from './sandbox-scripts.js';
 import { escapeHtmlAttribute, injectAfterHeadOpen, injectBeforeHeadEnd } from './html-utils.js';
 import type { SandboxedDocumentOptions, SandboxedDocumentResult } from './types.js';
 
@@ -37,61 +38,7 @@ export function injectBaseHref(doc: string, baseHref: string): string {
  * (instead of being silently blocked by the iframe sandbox).
  */
 export function buildStorageShimScript(): string {
-  return `<script data-jini-sandbox-shim>(function(){
-  function makeStore(){
-    var data = {};
-    var api = {
-      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
-      setItem: function(k, v){ data[k] = String(v); },
-      removeItem: function(k){ delete data[k]; },
-      clear: function(){ data = {}; },
-      key: function(i){ return Object.keys(data)[i] || null; }
-    };
-    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
-    return api;
-  }
-  function tryShim(name){
-    var works = false;
-    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
-    catch (_) { works = false; }
-    if (works) return;
-    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
-    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
-  }
-  tryShim('localStorage');
-  tryShim('sessionStorage');
-  document.addEventListener('click', function(e){
-    if (!e.target || !(e.target instanceof Element)) return;
-    var link = e.target.closest('a[href]');
-    if (!link) return;
-    var href = link.getAttribute('href');
-    if (href === null) return;
-    var isAnchor = href.indexOf('#') === 0 || href === '';
-    if (isAnchor) {
-      e.preventDefault();
-      if (href === '' || href === '#') {
-        window.scrollTo({ top: 0 });
-        history.replaceState(null, '', ' ');
-      } else {
-        var targetId = href.slice(1);
-        var target = targetId ? document.getElementById(targetId) : null;
-        if (target) {
-          target.scrollIntoView();
-          location.hash === href && history.replaceState(null, '', ' ');
-          location.hash = href;
-        }
-      }
-    } else if (link.getAttribute('target') === '_blank') {
-      e.preventDefault();
-      var safe = false;
-      try {
-        var url = new URL(href, location.href);
-        safe = url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'mailto:';
-      } catch (_) {}
-      safe && window.open(href, '_blank', 'noopener,noreferrer');
-    }
-  });
-})();</script>`;
+  return buildStorageScript({ format: 'sandbox' });
 }
 
 /**
@@ -101,37 +48,7 @@ export function buildStorageShimScript(): string {
  * the host page around it.
  */
 export function buildFocusGuardScript(): string {
-  return `<script data-jini-focus-guard>(function(){
-  var lastTrustedInputAt = 0;
-  function userActivated(){
-    return Date.now() - lastTrustedInputAt < 1000;
-  }
-  function markTrustedInput(event){
-    if (event && event.isTrusted) lastTrustedInputAt = Date.now();
-  }
-  document.addEventListener('pointerdown', markTrustedInput, true);
-  document.addEventListener('keydown', markTrustedInput, true);
-  try {
-    var nativeWindowFocus = window.focus && window.focus.bind(window);
-    Object.defineProperty(window, 'focus', {
-      configurable: true,
-      writable: true,
-      value: function(){
-        if (userActivated() && nativeWindowFocus) return nativeWindowFocus();
-      }
-    });
-  } catch (_) {}
-  try {
-    var nativeElementFocus = HTMLElement.prototype.focus;
-    Object.defineProperty(HTMLElement.prototype, 'focus', {
-      configurable: true,
-      writable: true,
-      value: function(options){
-        if (userActivated()) return nativeElementFocus.call(this, options);
-      }
-    });
-  } catch (_) {}
-})();</script>`;
+  return buildFocusScript({ format: 'sandbox' });
 }
 
 /**

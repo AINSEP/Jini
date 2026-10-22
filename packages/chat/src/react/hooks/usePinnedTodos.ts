@@ -27,11 +27,11 @@ export interface UsePinnedTodosResult {
   dismiss: () => void;
 }
 
-export function usePinnedTodos(messages: ReadonlyArray<ChatMessage> | undefined): UsePinnedTodosResult {
+export function usePinnedTodos({ messages }: { messages: ReadonlyArray<ChatMessage> | undefined }): UsePinnedTodosResult {
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
 
-  const rawInput = useMemo(() => latestTodoWriteInputForPinnedCard(messages), [messages]);
-  const todos = useMemo(() => parseTodoWriteInput(rawInput), [rawInput]);
+  const rawInput = useMemo(() => latestTodoWriteInputForPinnedCard({ messages: messages }), [messages]);
+  const todos = useMemo(() => parseTodoWriteInput({ input: rawInput }), [rawInput]);
   const key = useMemo(() => (rawInput === null ? null : safeStableKey(rawInput)), [rawInput]);
 
   const total = todos.length;

@@ -53,33 +53,33 @@ describe('data-agent-private', () => {
   });
 
   it('leaves a private subtree out of a published ancestor\'s state text', async () => {
-    const state = await makeDriver().describeState?.('token-card');
+    const state = await makeDriver().describeState?.({ handle: 'token-card' });
     expect(state?.text).toContain('Fingerprint: abc123');
     expect(state?.text).not.toContain(SECRET);
   });
 
   it('leaves a private subtree out of the text-content label fallback', async () => {
-    const found = await makeDriver().findElements({});
+    const found = await makeDriver().findElements({}, {});
     const card = found.find((element) => element.handle === 'unlabelled-card');
     expect(card?.label).toContain('Visible words');
     expect(card?.label).not.toContain(SECRET);
   });
 
   it('cannot be found by querying for the private text', async () => {
-    expect(await makeDriver().findElements({ query: SECRET.slice(0, 16) })).toEqual([]);
+    expect(await makeDriver().findElements({}, { query: SECRET.slice(0, 16) })).toEqual([]);
   });
 
   it('does not publish an element tagged inside a private subtree, or one that is itself private', async () => {
-    const handles = (await makeDriver().findElements({})).map((element) => element.handle);
+    const handles = (await makeDriver().findElements({}, {})).map((element) => element.handle);
     expect(handles).not.toContain('inside-private');
     expect(handles).not.toContain('self-private');
-    expect(await makeDriver().describeState?.('inside-private')).toBeNull();
-    expect(await makeDriver().describeState?.('self-private')).toBeNull();
-    await expect(makeDriver().click('inside-private')).rejects.toThrow('no element published as "inside-private" on this page');
+    expect(await makeDriver().describeState?.({ handle: 'inside-private' })).toBeNull();
+    expect(await makeDriver().describeState?.({ handle: 'self-private' })).toBeNull();
+    await expect(makeDriver().click({ handle: 'inside-private' })).rejects.toThrow('no element published as "inside-private" on this page');
   });
 
   it('never adopts a control inside a private subtree as a wrapper\'s control', async () => {
-    const state = await makeDriver().describeState?.('wrapper-with-private-input');
+    const state = await makeDriver().describeState?.({ handle: 'wrapper-with-private-input' });
     expect(state).not.toHaveProperty('value');
     expect(JSON.stringify(state)).not.toContain(SECRET);
   });

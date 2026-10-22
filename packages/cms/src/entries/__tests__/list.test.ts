@@ -28,14 +28,14 @@ function makeEntry(overrides: Partial<EntryRecord> = {}): EntryRecord {
 
 function fakeListPort(rows: EntryRecord[]) {
   return {
-    listByWorkspace: async (params: { workspaceId: string; type?: string }) =>
-      rows.filter((r) => r.workspaceId === params.workspaceId && (!params.type || r.type === params.type)),
+    listByWorkspace: async (required: { workspaceId: string }, optional: { type?: string | undefined } = {}) =>
+      rows.filter((r) => r.workspaceId === required.workspaceId && (!optional.type || r.type === optional.type)),
   };
 }
 
 test("listEntries: narrows to one content type when 'type' is supplied", async () => {
   const repo = fakeListPort([makeEntry({ id: "e1", type: "recipe" }), makeEntry({ id: "e2", type: "product" })]);
-  const result = await listEntries({ repo, workspaceId: "ws-1", type: "recipe" });
+  const result = await listEntries({ repo, workspaceId: "ws-1" }, { type: "recipe" });
 
   assert.deepEqual(
     result.items.map((e) => e.id),

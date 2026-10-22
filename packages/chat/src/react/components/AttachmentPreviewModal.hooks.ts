@@ -36,10 +36,11 @@
  * fallback that `onError` can retract - never a second, competing source of truth for a format the
  * server already classified.
  */
-import { useEffect, useRef, useState, type MouseEvent, type RefObject, type SyntheticEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent, type MouseEvent, type RefCallback, type SyntheticEvent } from 'react';
 import type { ChatAttachment } from '../../core/index.js';
 import { getAttachmentPreviewSource } from '../hooks/attachment-preview-cache.js';
-import { formatAttachmentSize } from './AttachmentTray.js';
+import { formatAttachmentSize } from './attachment-size.js';
+import type { AttachmentPreviewNavigation } from './AttachmentGallery.hooks.js';
 
 export type AttachmentPreviewStatus = 'image' | 'text' | 'unsupported';
 
@@ -58,8 +59,15 @@ function extensionOf(name: string): string {
 }
 
 /** Exported for the component's own render branch, which needs the same answer without re-deriving it from `status`. */
-export function looksLikeImageAttachment(attachment: Pick<ChatAttachment, 'kind' | 'name'>): boolean {
+export function looksLikeImageAttachment({ attachment }: { attachment: Pick<ChatAttachment, 'kind' | 'name'> }): boolean {
   return attachment.kind === 'image' || IMAGE_PREVIEW_EXTENSIONS.has(extensionOf(attachment.name));
+}
+
+/** The image step an arrow key asks for in the preview (`-1`/`1`), or `0` for any other key. */
+export function galleryStepForKey({ key }: { key: string }): number {
+  if (key === 'ArrowLeft') return -1;
+  if (key === 'ArrowRight') return 1;
+  return 0;
 }
 
 function looksLikeTextAttachment(name: string): boolean {
@@ -74,9 +82,12 @@ function looksLikeTextAttachment(name: string): boolean {
  * environment can actually exercise avoids a test-only monkeypatch of a browser primitive whose
  * production behavior isn't in question - only its jsdom coverage was.
  */
-function readFileAsText(file: File): Promise<string> {
+export function readFileAsText(
+  { file }: { file: File },
+  { createReader = () => new FileReader() }: { createReader?: () => FileReader } = {},
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+    const reader = createReader();
     reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
     reader.onerror = () => reject(reader.error ?? new Error('Failed to read attachment as text'));
     reader.readAsText(file);
@@ -89,8 +100,44 @@ function readFileAsText(file: File): Promise<string> {
  * package cannot assume every embedding host is a browser tab. Feature-detected the same way this
  * file already feature-detects `<dialog>`'s `showModal`/`close`, rather than assumed.
  */
-function canCreateObjectUrl(): boolean {
+export function canCreateObjectUrl(): boolean {
   return typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
+}
+
+/**
+ * Opens `dialog` as a modal and returns the matching close, which also restores focus to whatever
+ * was focused when it opened — see this module's doc on why the restore is explicit rather than left
+ * to the browser's own (jsdom-absent) default.
+ */
+function openModalDialog(dialog: HTMLDialogElement): () => void {
+  const trigger = document.activeElement;
+  if (typeof dialog.showModal === 'function') {
+    if (!dialog.open) dialog.showModal();
+  } else {
+    dialog.setAttribute('open', '');
+  }
+  return () => {
+    if (typeof dialog.close === 'function') {
+      if (dialog.open) dialog.close();
+    } else {
+      dialog.removeAttribute('open');
+    }
+    if (trigger instanceof HTMLElement) trigger.focus();
+  };
+}
+
+/**
+ * The `<dialog>`'s callback ref: open on attach, close + restore focus on detach. A callback ref
+ * rather than an effect reading a ref object, so the element is always in hand — there is no
+ * "not attached" case to guard. React 18 and 19 both call it with the element on mount and `null`
+ * on unmount, and attach always precedes detach, so `close` is set by the time it is called.
+ */
+function createDialogRef(): (dialog: HTMLDialogElement | null) => void {
+  let close: () => void;
+  return (dialog) => {
+    if (dialog) close = openModalDialog(dialog);
+    else close();
+  };
 }
 
 export interface AttachmentTextPreview {
@@ -99,7 +146,7 @@ export interface AttachmentTextPreview {
 }
 
 export interface AttachmentPreviewController {
-  dialogRef: RefObject<HTMLDialogElement | null>;
+  dialogRef: RefCallback<HTMLDialogElement>;
   status: AttachmentPreviewStatus;
   imageUrl: string | undefined;
   onImageError: () => void;
@@ -108,6 +155,8 @@ export interface AttachmentPreviewController {
   sizeLabel: string | null;
   handleNativeCancel: (event: SyntheticEvent<HTMLDialogElement>) => void;
   handleBackdropClick: (event: MouseEvent<HTMLDialogElement>) => void;
+  /** ←/→ step through `navigation`'s images; a no-op without it. */
+  handleKeyDown: (event: KeyboardEvent<HTMLDialogElement>) => void;
 }
 
 /**
@@ -119,19 +168,25 @@ export interface AttachmentPreviewController {
  * {@link MAX_TEXT_PREVIEW_CHARS} for what actually renders).
  */
 export function useAttachmentPreviewModal(
-  attachment: ChatAttachment,
-  onClose: () => void,
+  { attachment, onClose, navigation }: { attachment: ChatAttachment; onClose: () => void; navigation?: AttachmentPreviewNavigation | undefined },
+  { readText = readFileAsText }: { readText?: (required: { file: File }) => Promise<string> } = {},
 ): AttachmentPreviewController {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const triggerRef = useRef<Element | null>(null);
-  const [imageFailed, setImageFailed] = useState(false);
+  // Lazy state, not `useCallback`: a new ref identity would make React detach and re-attach it,
+  // closing and reopening the dialog. The caller mounts a fresh instance per opened attachment (never
+  // reuses one instance across two different open attachments), so there is no "attachment changed
+  // while still open" transition for the ref to react to. Previous/next is the one exception: it swaps
+  // `attachment` under the same open dialog, keeping focus on the button pressed, so the failure flag
+  // below is keyed by path rather than a boolean that would carry over to the next image.
+  const [dialogRef] = useState(createDialogRef);
+  const [failedImagePath, setFailedImagePath] = useState<string | null>(null);
+  const imageFailed = failedImagePath === attachment.path;
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   const [text, setText] = useState<AttachmentTextPreview | undefined>(undefined);
   const [textLoading, setTextLoading] = useState(false);
 
-  const cachedFile = getAttachmentPreviewSource(attachment.path);
+  const cachedFile = getAttachmentPreviewSource({ path: attachment.path });
   const attemptImage =
-    !imageFailed && cachedFile !== undefined && looksLikeImageAttachment(attachment) && canCreateObjectUrl();
+    !imageFailed && cachedFile !== undefined && looksLikeImageAttachment({ attachment: attachment }) && canCreateObjectUrl();
   const attemptText = !attemptImage && cachedFile !== undefined && looksLikeTextAttachment(attachment.name);
   const status: AttachmentPreviewStatus = attemptImage ? 'image' : attemptText ? 'text' : 'unsupported';
 
@@ -156,7 +211,7 @@ export function useAttachmentPreviewModal(
     }
     let canceled = false;
     setTextLoading(true);
-    readFileAsText(cachedFile)
+    readText({ file: cachedFile })
       .then((full) => {
         if (canceled) return;
         const truncated = full.length > MAX_TEXT_PREVIEW_CHARS;
@@ -176,31 +231,6 @@ export function useAttachmentPreviewModal(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptText, cachedFile]);
 
-  // Open on mount, close + restore focus on unmount — see this module's doc on why the restore is
-  // explicit rather than left to the browser's own (jsdom-absent) default.
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return undefined;
-    triggerRef.current = document.activeElement;
-    if (typeof dialog.showModal === 'function') {
-      if (!dialog.open) dialog.showModal();
-    } else {
-      dialog.setAttribute('open', '');
-    }
-    return () => {
-      if (typeof dialog.close === 'function') {
-        if (dialog.open) dialog.close();
-      } else {
-        dialog.removeAttribute('open');
-      }
-      if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
-    };
-    // Mount/unmount only: the caller mounts a fresh instance per opened attachment (never reuses one
-    // instance across two different open attachments), so there is no "attachment changed while
-    // still open" transition for this effect to react to.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   function handleNativeCancel(event: SyntheticEvent<HTMLDialogElement>): void {
     // Always prevented, same reasoning as `ConfirmDialog.hooks.tsx`: the effect above is the single
     // source of truth for open/closed, so Escape still closes — it just does so through `onClose`
@@ -212,18 +242,28 @@ export function useAttachmentPreviewModal(
   function handleBackdropClick(event: MouseEvent<HTMLDialogElement>): void {
     // A `<dialog>` element's own box is sized to its content; a click landing on the `<dialog>`
     // element itself (rather than a descendant) is a click on the backdrop area outside that box.
-    if (event.target === dialogRef.current) onClose();
+    // The handler is bound on the `<dialog>`, so `currentTarget` is that element.
+    if (event.target === event.currentTarget) onClose();
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDialogElement>): void {
+    const step = navigation ? galleryStepForKey({ key: event.key }) : 0;
+    if (step === 0 || !navigation) return;
+    event.preventDefault();
+    if (step < 0) navigation.onPrevious();
+    else navigation.onNext();
   }
 
   return {
     dialogRef,
     status,
     imageUrl,
-    onImageError: () => setImageFailed(true),
+    onImageError: () => setFailedImagePath(attachment.path),
     textLoading,
     text,
-    sizeLabel: formatAttachmentSize(attachment.size),
+    sizeLabel: formatAttachmentSize({ size: attachment.size }),
     handleNativeCancel,
     handleBackdropClick,
+    handleKeyDown,
   };
 }

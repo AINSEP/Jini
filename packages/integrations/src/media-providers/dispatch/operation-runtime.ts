@@ -1,3 +1,5 @@
+import type { RequiredArgs, OptionalArgs } from '../../args.js';
+import { partitionArgs } from '../../args.js';
 /**
  * The submit-then-poll runtime: the piece that turns a `PollingVendorAdapter` plus an
  * `AsyncOperationStore` into an operation that survives a restart.
@@ -21,9 +23,12 @@
  *
  * No scheduler. `pollDueOperations` is a single leased tick a host drives from whatever timer or
  * queue it already runs — this package performs no I/O of its own beyond the vendor calls it is
- * handed a `fetchImpl` for, a standing invariant across `@jini-ai/integrations/media-providers`.
+ * handed a guarded `httpClient` for, a standing invariant across `@jini-ai/integrations/media-providers`.
  */
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+
+import { fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
+import type { MediaOutboundOptions } from './outbound.js';
 
 import type {
   AsyncOperationError,
@@ -31,7 +36,7 @@ import type {
   AsyncOperationRecord,
   AsyncOperationStore,
 } from './async-operation-store.js';
-import type { AnyPollingVendorAdapter, PollingVendorAdapter, RequestSigner, SubmitOutcome, UnsignedVendorRequest } from './polling-adapter.js';
+import type { AnyPollingVendorAdapter, PollingVendorAdapter, PollOutcome, RequestSigner, SubmitOutcome, UnsignedVendorRequest } from './polling-adapter.js';
 import type { RenderContext, RenderResult } from './types.js';
 
 /** Interactive budget for the inline attempt. Deliberately NOT `FETCH_TIMEOUT_MS.GENERATE` (10min) — that is the backstop for the *request*, this is the ceiling on making a human wait. */
@@ -49,11 +54,10 @@ export const DEFAULT_PERSIST_RETRY_DELAYS_MS: readonly number[] = [50, 150, 400]
 /** The lease identity used by boot recovery's claim-then-release read, distinct from any real worker. */
 const RECOVERY_LEASE_OWNER = '__recovery__';
 
-export interface OperationRuntimeDeps {
+export interface OperationRuntimeDeps extends MediaOutboundOptions {
   readonly store: AsyncOperationStore;
   readonly signer: RequestSigner;
-  readonly fetchImpl?: typeof fetch;
-  readonly now?: () => number;
+  readonly clock?: () => number;
   readonly newId?: () => string;
   /** Overrides `DEFAULT_PERSIST_RETRY_DELAYS_MS`. Tests pass a short/empty array to avoid real delays. */
   readonly persistRetryDelaysMs?: readonly number[];
@@ -91,10 +95,20 @@ async function performSigned(
   request: UnsignedVendorRequest<unknown>,
   timeoutMs: number,
 ): Promise<Response> {
-  const signed = await deps.signer(request);
-  const doFetch = deps.fetchImpl;
-  if (doFetch) return doFetch(signed.url, signed.init);
-  return fetchWithTimeout(signed.url, signed.init, { timeoutMs });
+  const signed = await deps.signer({ request: request });
+  return fetchMediaOutbound({ url: signed.url, timeoutMs }, { ...deps, httpClient: requireMediaHttpClient(deps), init: signed.init });
+}
+
+/** Thread only the outbound capability into parsers; stores and signers remain runtime-private.
+ *  Both callers parse a response that `performSigned` just fetched through the client, so the client
+ *  is always present here; `requireMediaHttpClient` states that invariant instead of branching on it. */
+function withRuntimeOutbound({ ctx, deps }: { ctx: RenderContext; deps: OperationRuntimeDeps }): RenderContext {
+  return {
+    ...ctx,
+    httpClient: requireMediaHttpClient(deps),
+    ...(deps.allowPrivateNetwork === undefined ? {} : { allowPrivateNetwork: deps.allowPrivateNetwork }),
+    ...(deps.outboundMessages === undefined ? {} : { outboundMessages: deps.outboundMessages }),
+  };
 }
 
 /** Issues the submit call and parses it. Isolated from persistence so callers can tell "nothing was obtained from the vendor" apart from "a handle was obtained but recording it failed" — only the former is safe to treat as terminal. */
@@ -103,9 +117,9 @@ async function submitAndParse<Meta>(
   params: StartOperationParams<Meta>,
 ): Promise<{ readonly ok: true; readonly outcome: SubmitOutcome } | { readonly ok: false; readonly error: unknown }> {
   try {
-    const request = params.adapter.buildSubmitRequest(params.ctx);
+    const request = params.adapter.buildSubmitRequest({ ctx: params.ctx });
     const resp = await performSigned(deps, request as UnsignedVendorRequest<unknown>, FETCH_TIMEOUT_MS.GENERATE);
-    const outcome = await params.adapter.parseSubmitResponse(resp, params.ctx, request);
+    const outcome = await params.adapter.parseSubmitResponse({ resp: resp, ctx: withRuntimeOutbound({ ctx: params.ctx, deps }), request: request });
     return { ok: true, outcome };
   } catch (error) {
     return { ok: false, error };
@@ -131,7 +145,7 @@ async function persistWithRetry(
 ): Promise<boolean> {
   for (let attempt = 0; attempt <= retryDelaysMs.length; attempt += 1) {
     try {
-      await store.update(operationId, patch);
+      await store.update({ id: operationId, patch: patch });
       return true;
     } catch {
       if (attempt === retryDelaysMs.length) return false;
@@ -148,17 +162,17 @@ async function persistWithRetry(
  *   `{done: false, operationId}` — the row is already durable in both cases.
  * @complexity O(1) plus one vendor round trip.
  */
-export async function startOperation<Meta>(
-  deps: OperationRuntimeDeps,
-  params: StartOperationParams<Meta>,
+export async function startOperation<Meta>(required: RequiredArgs<OperationRuntimeDeps> & RequiredArgs<StartOperationParams<Meta>>, optional: OptionalArgs<OperationRuntimeDeps> & OptionalArgs<StartOperationParams<Meta>> = {}
 ): Promise<StartOperationOutcome> {
-  const now = deps.now ?? Date.now;
+  const deps: OperationRuntimeDeps = { ...required, ...optional };
+  const params: StartOperationParams<Meta> = { ...required, ...optional };
+  const now = deps.clock ?? Date.now;
   const newId = deps.newId ?? (() => `op_${Math.random().toString(36).slice(2, 10)}_${now()}`);
   const startedAt = now();
   const operationId = newId();
 
   // Before any HTTP call — this ordering IS the crash-safety mechanism.
-  await deps.store.create({
+  await deps.store.create(...partitionArgs({
     id: operationId,
     providerId: params.providerId,
     routeKey: params.routeKey,
@@ -166,37 +180,33 @@ export async function startOperation<Meta>(
     maxAttempts: params.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
     deadlineAt: startedAt + (params.deadlineMs ?? DEFAULT_DEADLINE_MS),
     nextPollAt: startedAt,
-  });
+}, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
 
   const settle = (async (): Promise<StartOperationOutcome> => {
     const submitted = await submitAndParse(deps, params);
-
     if (!submitted.ok) {
-      // Nothing was obtained from the vendor — no job handle exists to protect, so a single
-      // terminal write is safe. Best-effort even here: a write failure at this point must not
-      // reject `settle` (see the `finally` below) and leaves the row `'submitted'`, which is at
-      // least as safe as `'failed'` would have been.
-      await deps.store.update(operationId, { status: 'failed', error: toOperationError(submitted.error) }).catch(() => undefined);
-      return { done: false, operationId };
+        // Nothing was obtained from the vendor — no job handle exists to protect, so a single
+        // terminal write is safe. Best-effort even here: a write failure at this point must not
+        // reject `settle` (see the `finally` below) and leaves the row `'submitted'`, which is at
+        // least as safe as `'failed'` would have been.
+        await deps.store.update({ id: operationId, patch: { status: 'failed', error: toOperationError(submitted.error) } }).catch(() => undefined);
+        return { done: false, operationId };
     }
-
     const { outcome } = submitted;
     // Past this point a vendor job handle exists (or the job already finished) — losing either
     // to a transient store write is strictly worse than the failure it would otherwise record,
     // so the write is retried before anything is allowed to fall back to a `'failed'` label.
-    const patch: AsyncOperationPatch =
-      outcome.kind === 'complete'
+    const patch: AsyncOperationPatch = outcome.kind === 'complete'
         ? { status: 'succeeded', result: resultToPayload(outcome.result) }
         : { status: 'polling', state: outcome.state, nextPollAt: now() + (outcome.retryAfterMs ?? DEFAULT_POLL_INTERVAL_MS) };
-
     await persistWithRetry(deps.store, operationId, patch, deps.persistRetryDelaysMs ?? DEFAULT_PERSIST_RETRY_DELAYS_MS);
     // Even on exhausted retries there is nothing safer left to do here: the row stays exactly as
     // `create()` left it (`'submitted'`), and `recoverAfterRestart`'s crash-gap handling exists
     // precisely for a row whose outcome could not be confirmed durable.
-
-    if (outcome.kind === 'complete') return { done: true, operationId, result: outcome.result };
+    if (outcome.kind === 'complete')
+        return { done: true, operationId, result: outcome.result };
     return { done: false, operationId };
-  })();
+})();
 
   const graceMs = params.graceMs ?? DEFAULT_GRACE_MS;
   // A `'slow'` vendor is not worth making anyone wait on: the race is still the same single code
@@ -222,7 +232,7 @@ export async function startOperation<Meta>(
 
 export interface PollDueParams {
   /** Resolves the adapter registered for a row's `(providerId, routeKey)`. */
-  readonly adapters: (providerId: string, routeKey: string) => AnyPollingVendorAdapter | undefined;
+  readonly adapters: (required: { providerId: string; routeKey: string }) => AnyPollingVendorAdapter | undefined;
   /** Rehydrates the render context for a row. The row deliberately does not persist the context — it can hold reference-image data URLs, and none of it is needed to identify the vendor-side job. */
   readonly resolveContext: (row: AsyncOperationRecord) => RenderContext;
   readonly leaseOwner: string;
@@ -248,137 +258,151 @@ export interface PollDueStats {
  *
  * @complexity O(k) vendor round trips for k claimed operations.
  */
-export async function pollDueOperations(deps: OperationRuntimeDeps, params: PollDueParams): Promise<PollDueStats> {
-  const now = deps.now ?? Date.now;
-  const claimed = await deps.store.claimDue({
+export async function pollDueOperations(required: RequiredArgs<OperationRuntimeDeps> & RequiredArgs<PollDueParams>, optional: OptionalArgs<OperationRuntimeDeps> & OptionalArgs<PollDueParams> = {}): Promise<PollDueStats> {
+  const deps: OperationRuntimeDeps = { ...required, ...optional };
+  const params: PollDueParams = { ...required, ...optional };
+  const now = deps.clock ?? Date.now;
+  const claimed = await deps.store.claimDue(...partitionArgs({
     now: now(),
     leaseOwner: params.leaseOwner,
     leaseMs: params.leaseMs,
     ...(params.limit !== undefined ? { limit: params.limit } : {}),
-  });
+}, ["now", "leaseOwner", "leaseMs"]));
 
-  let completed = 0;
-  let failed = 0;
-  let pending = 0;
-  let unknown = 0;
-
+  const tally: Record<PollBucket, number> = { completed: 0, failed: 0, pending: 0, unknown: 0 };
   for (const row of claimed) {
-    try {
-      const at = now();
+    tally[await advanceClaimedRow({ row, deps, params, now })] += 1;
+  }
+  return { claimed: claimed.length, ...tally };
+}
 
-      if (row.deadlineAt <= at) {
-        await deps.store.update(
-          row.id,
-          {
-            status: 'unknown',
-            error: {
-              message: 'async operation passed its absolute deadline — vendor-side effect is undetermined',
-              code: 'DEADLINE_EXPIRED',
-            },
-          },
-          { leaseOwner: params.leaseOwner },
-        );
-        unknown += 1;
-        continue;
-      }
+/** The `PollDueStats` counter a single claimed row lands in. */
+type PollBucket = 'completed' | 'failed' | 'pending' | 'unknown';
 
-      if (row.attempts >= row.maxAttempts) {
-        await deps.store.update(
-          row.id,
-          {
-            status: 'failed',
-            error: {
-              message: `async operation exhausted its ${row.maxAttempts} poll attempts without a terminal answer`,
-              code: 'ATTEMPTS_EXHAUSTED',
-            },
-          },
-          { leaseOwner: params.leaseOwner },
-        );
-        failed += 1;
-        continue;
-      }
+/** What one tick decided for one row: the patch to write and the counter it lands in. */
+interface RowVerdict {
+  readonly bucket: PollBucket;
+  readonly patch: AsyncOperationPatch;
+}
 
-      const adapter = params.adapters(row.providerId, row.routeKey);
-      if (!adapter) {
-        await deps.store.update(
-          row.id,
-          {
-            status: 'failed',
-            error: { message: `no polling adapter registered for "${row.providerId}" / "${row.routeKey}"`, code: 'NO_ADAPTER' },
-          },
-          { leaseOwner: params.leaseOwner },
-        );
-        failed += 1;
-        continue;
-      }
+interface ClaimedRowArgs {
+  readonly row: AsyncOperationRecord;
+  readonly deps: OperationRuntimeDeps;
+  readonly params: PollDueParams;
+}
 
-      const ctx = params.resolveContext(row);
-      const request = adapter.buildPollRequest(row.state ?? {}, ctx);
-      // Credentials are resolved here, on this tick — never read from the row.
-      const resp = await performSigned(deps, request as UnsignedVendorRequest<unknown>, FETCH_TIMEOUT_MS.QUICK);
-      const outcome = await adapter.parsePollResponse(resp, ctx, row.state ?? {});
+/**
+ * Advances one claimed row by one tick, writes the verdict, and always releases the lease.
+ * Any throw — vendor transport, adapter, or the verdict write itself — becomes a pollable retry.
+ */
+async function advanceClaimedRow(required: ClaimedRowArgs & { now: () => number }): Promise<PollBucket> {
+  const { row, deps, params, now } = required;
+  // Every write below is fenced on the lease this tick claimed: if it expired and another
+  // worker has since reclaimed (or finished) the row, this write must not clobber that newer
+  // outcome — see `AsyncOperationUpdateOptions`.
+  const fence = { options: { leaseOwner: params.leaseOwner } };
+  let bucket: PollBucket;
+  try {
+    const verdict = await decideRow({ row, deps, params, at: now() });
+    await deps.store.update({ id: row.id, patch: verdict.patch }, fence);
+    bucket = verdict.bucket;
+  } catch (error) {
+    // A transport failure is not a vendor verdict: keep the row pollable and let the attempt cap
+    // or the deadline end it, rather than reporting a definitive failure we cannot support.
+    await deps.store.update({ id: row.id, patch: {
+      status: 'polling',
+      attempts: row.attempts + 1,
+      nextPollAt: now() + DEFAULT_POLL_INTERVAL_MS,
+      error: toOperationError(error),
+    } }, fence);
+    bucket = 'pending';
+  } finally {
+    await deps.store.releaseLease({ id: row.id, leaseOwner: params.leaseOwner });
+  }
+  return bucket;
+}
 
-      // Every write below is fenced on the lease this tick claimed: if it expired and another
-      // worker has since reclaimed (or finished) the row, this write must not clobber that newer
-      // outcome — see `AsyncOperationUpdateOptions`.
-      if (outcome.kind === 'complete') {
-        await deps.store.update(
-          row.id,
-          {
-            status: 'succeeded',
-            attempts: row.attempts + 1,
-            result: resultToPayload(outcome.result),
-          },
-          { leaseOwner: params.leaseOwner },
-        );
-        completed += 1;
-      } else if (outcome.kind === 'failed') {
-        await deps.store.update(
-          row.id,
-          {
-            status: 'failed',
-            attempts: row.attempts + 1,
-            error: { message: outcome.message, ...(outcome.code !== undefined ? { code: outcome.code } : {}) },
-          },
-          { leaseOwner: params.leaseOwner },
-        );
-        failed += 1;
-      } else {
-        await deps.store.update(
-          row.id,
-          {
-            status: 'polling',
-            attempts: row.attempts + 1,
-            nextPollAt: at + (outcome.retryAfterMs ?? DEFAULT_POLL_INTERVAL_MS),
-          },
-          { leaseOwner: params.leaseOwner },
-        );
-        pending += 1;
-      }
-    } catch (error) {
-      // A transport failure is not a vendor verdict: keep the row pollable and let the attempt cap
-      // or the deadline end it, rather than reporting a definitive failure we cannot support.
-      await deps.store.update(
-        row.id,
-        {
-          status: 'polling',
-          attempts: row.attempts + 1,
-          nextPollAt: now() + DEFAULT_POLL_INTERVAL_MS,
-          error: toOperationError(error),
-        },
-        { leaseOwner: params.leaseOwner },
-      );
-      pending += 1;
-    } finally {
-      await deps.store.releaseLease(row.id, params.leaseOwner);
-    }
+/**
+ * Both bounds are checked before any vendor call, and in this order: the absolute deadline (a
+ * blown deadline must not cost another request), then the attempt cap, then the adapter lookup.
+ */
+async function decideRow(required: ClaimedRowArgs & { at: number }): Promise<RowVerdict> {
+  const { row, deps, params, at } = required;
+  const bound = boundsVerdict({ row, at });
+  if (bound) return bound;
+
+  const adapter = params.adapters({ providerId: row.providerId, routeKey: row.routeKey });
+  if (!adapter) {
+    return {
+      bucket: 'failed',
+      patch: {
+        status: 'failed',
+        error: { message: `no polling adapter registered for "${row.providerId}" / "${row.routeKey}"`, code: 'NO_ADAPTER' },
+      },
+    };
   }
 
-  return { claimed: claimed.length, completed, failed, pending, unknown };
+  const ctx = params.resolveContext(row);
+  const state = row.state ?? {};
+  const request = adapter.buildPollRequest({ state, ctx });
+  // Credentials are resolved here, on this tick — never read from the row.
+  const resp = await performSigned(deps, request as UnsignedVendorRequest<unknown>, FETCH_TIMEOUT_MS.QUICK);
+  const outcome = await adapter.parsePollResponse({ resp, ctx: withRuntimeOutbound({ ctx, deps }), state });
+  return pollOutcomeVerdict({ outcome, attempts: row.attempts + 1, at });
+}
+
+/** The deadline / attempt-cap verdict for a row, or `undefined` when it is still within both bounds. */
+function boundsVerdict({ row, at }: { row: AsyncOperationRecord; at: number }): RowVerdict | undefined {
+  if (row.deadlineAt <= at) {
+    return {
+      bucket: 'unknown',
+      patch: {
+        status: 'unknown',
+        error: {
+          message: 'async operation passed its absolute deadline — vendor-side effect is undetermined',
+          code: 'DEADLINE_EXPIRED',
+        },
+      },
+    };
+  }
+  if (row.attempts >= row.maxAttempts) {
+    return {
+      bucket: 'failed',
+      patch: {
+        status: 'failed',
+        error: {
+          message: `async operation exhausted its ${row.maxAttempts} poll attempts without a terminal answer`,
+          code: 'ATTEMPTS_EXHAUSTED',
+        },
+      },
+    };
+  }
+  return undefined;
+}
+
+/** Maps a vendor poll answer to the row patch, counting this poll as attempt number `attempts`. */
+function pollOutcomeVerdict({ outcome, attempts, at }: { outcome: PollOutcome; attempts: number; at: number }): RowVerdict {
+  if (outcome.kind === 'complete') {
+    return { bucket: 'completed', patch: { status: 'succeeded', attempts, result: resultToPayload(outcome.result) } };
+  }
+  if (outcome.kind === 'failed') {
+    return {
+      bucket: 'failed',
+      patch: {
+        status: 'failed',
+        attempts,
+        error: { message: outcome.message, ...(outcome.code !== undefined ? { code: outcome.code } : {}) },
+      },
+    };
+  }
+  return {
+    bucket: 'pending',
+    patch: { status: 'polling', attempts, nextPollAt: at + (outcome.retryAfterMs ?? DEFAULT_POLL_INTERVAL_MS) },
+  };
 }
 
 export interface RecoverParams {
-  readonly adapters: (providerId: string, routeKey: string) => AnyPollingVendorAdapter | undefined;
+  readonly adapters: (required: { providerId: string; routeKey: string }) => AnyPollingVendorAdapter | undefined;
   readonly now?: number;
 }
 
@@ -395,6 +419,7 @@ export interface RecoverResult {
  * Boot-time recovery. Releases dead leases and expires blown deadlines via the store, then handles
  * the one case the store cannot decide alone: a row still at `submitted`, meaning the process died
  * between persisting the row and learning whether the vendor accepted the submit.
+ * Run before polling workers start: recovery enumerates through claims, not a concurrent read.
  *
  * Retry safety is gated on idempotency, not assumed. An adapter that has not declared
  * `submitIsIdempotent` sends that row to `unknown` for reconciliation — media generation is billed
@@ -402,26 +427,28 @@ export interface RecoverResult {
  *
  * @complexity O(n) in stored operations.
  */
-export async function recoverAfterRestart(deps: OperationRuntimeDeps, params: RecoverParams): Promise<RecoverResult> {
-  const at = params.now ?? (deps.now ?? Date.now)();
+export async function recoverAfterRestart(required: RequiredArgs<OperationRuntimeDeps> & RequiredArgs<RecoverParams>, optional: OptionalArgs<OperationRuntimeDeps> & OptionalArgs<RecoverParams> = {}): Promise<RecoverResult> {
+  const deps: OperationRuntimeDeps = { ...required, ...optional };
+  const params: RecoverParams = { ...required, ...optional };
+  const at = params.now ?? (deps.clock ?? Date.now)();
   const reconciled = await deps.store.reconcileOnBoot({ now: at });
 
   const resubmittable: string[] = [];
   let unknownCrashGap = 0;
 
   for (const row of await collectSubmitted(deps.store)) {
-    const adapter = params.adapters(row.providerId, row.routeKey);
+    const adapter = params.adapters({ providerId: row.providerId, routeKey: row.routeKey });
     if (adapter?.submitIsIdempotent === true) {
       resubmittable.push(row.id);
       continue;
     }
-    await deps.store.update(row.id, {
-      status: 'unknown',
-      error: {
-        message: 'process died before the vendor submit was confirmed, and this adapter does not declare the submit idempotent — reconcile manually rather than risk a duplicate charge',
-        code: 'CRASH_GAP_NOT_IDEMPOTENT',
-      },
-    });
+    await deps.store.update({ id: row.id, patch: {
+        status: 'unknown',
+        error: {
+            message: 'process died before the vendor submit was confirmed, and this adapter does not declare the submit idempotent — reconcile manually rather than risk a duplicate charge',
+            code: 'CRASH_GAP_NOT_IDEMPOTENT',
+        },
+    } });
     unknownCrashGap += 1;
   }
 
@@ -429,14 +456,16 @@ export async function recoverAfterRestart(deps: OperationRuntimeDeps, params: Re
 }
 
 /**
- * The `submitted` rows a restart orphaned. Uses the store's own claim-free read path so recovery
- * never competes with a live worker for a lease.
+ * The `submitted` rows a restart orphaned. The store has no claim-free, all-owner read path,
+ * so recovery enumerates non-terminal rows through zero-duration `claimDue` leases at the
+ * maximum time horizon and releases every claim, including rows already polling. This can
+ * supersede live leases; the host must run boot recovery before starting polling workers.
  */
 async function collectSubmitted(store: AsyncOperationStore): Promise<AsyncOperationRecord[]> {
   const seen = new Map<string, AsyncOperationRecord>();
-  for (const row of await store.claimDue({ now: Number.MAX_SAFE_INTEGER, leaseOwner: RECOVERY_LEASE_OWNER, leaseMs: 0, limit: Number.MAX_SAFE_INTEGER })) {
+  for (const row of await store.claimDue(...partitionArgs({ now: Number.MAX_SAFE_INTEGER, leaseOwner: RECOVERY_LEASE_OWNER, leaseMs: 0, limit: Number.MAX_SAFE_INTEGER }, ["now", "leaseOwner", "leaseMs"]))) {
     if (row.status === 'submitted') seen.set(row.id, row);
-    await store.releaseLease(row.id, RECOVERY_LEASE_OWNER);
+    await store.releaseLease({ id: row.id, leaseOwner: RECOVERY_LEASE_OWNER });
   }
   return [...seen.values()];
 }

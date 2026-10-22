@@ -53,6 +53,19 @@ export interface ConfirmationToolAction {
   readonly params: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * A further affirmative button beside confirm, such as "Allow for this chat" next to "Allow" — see
+ * {@link ConfirmationSurfaceSpec.alternatives}.
+ */
+export interface ConfirmationAlternative extends ConfirmationToolAction {
+  /**
+   * The button's `data-mcpui-action` handle. A lowercase `[a-z0-9]+(-[a-z0-9]+)*` handle, unique,
+   * and never `confirm` or `cancel`: the script dispatches on it, and an agent driving the frame
+   * finds the button by it (`mcpui-action-<id>`).
+   */
+  readonly id: string;
+}
+
 /** One row of an optional per-item checkbox list — see {@link ConfirmationSurfaceSpec.choices}. */
 export interface ConfirmationChoice {
   /**
@@ -90,6 +103,14 @@ export interface ConfirmationSurfaceSpec {
   /** Styles the affirmative button as destructive. Affects presentation only; it changes no behavior. */
   readonly danger?: boolean;
   readonly confirm: ConfirmationToolAction;
+  /**
+   * Further affirmative buttons, rendered after confirm and before cancel, each calling its own tool
+   * with its own params. Every one is held to exactly what confirm is held to: disabled until the
+   * dwell has run, only a trusted click counts, one call locks the whole dialog, and ticked
+   * {@link choices} ride along on it the way they ride on confirm. With none, the dialog renders and
+   * behaves exactly as the two-button one does.
+   */
+  readonly alternatives?: readonly ConfirmationAlternative[];
   /** Omit for a dialog whose cancel only dismisses. Give it a tool to burn a pending token server-side. */
   readonly cancel?: ConfirmationToolAction | { readonly label: string };
   /** Runtime strings. Partially overridable; anything omitted keeps its English default. */
@@ -110,6 +131,21 @@ export interface ConfirmationSurfaceSpec {
 export const CONFIRM_DWELL_MS = 1500;
 
 const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-confirmation', appVersion: '1' };
+
+const ALTERNATIVE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** Refuses an alternative id the script or a driver could confuse with another button. */
+function assertAlternativeIds(alternatives: readonly ConfirmationAlternative[]): void {
+  const seen = new Set<string>(['confirm', 'cancel']);
+  for (const alternative of alternatives) {
+    if (!ALTERNATIVE_ID_PATTERN.test(alternative.id) || seen.has(alternative.id)) {
+      throw new Error(
+        `Confirmation alternative ids must be unique lowercase handles other than "confirm" and "cancel"; ${JSON.stringify(alternative.id)} is not.`,
+      );
+    }
+    seen.add(alternative.id);
+  }
+}
 
 function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is ConfirmationToolAction {
   return action !== undefined && 'toolName' in action;
@@ -167,23 +203,35 @@ function renderChoices(choices: readonly ConfirmationChoice[]): string {
 function confirmationActions(spec: ConfirmationSurfaceSpec): SurfaceAction[] {
   const actions: SurfaceAction[] = [
     { id: 'confirm', label: spec.confirm.label, variant: spec.danger === true ? 'danger' : 'primary' },
+    ...(spec.alternatives ?? []).map((alternative): SurfaceAction => ({ id: alternative.id, label: alternative.label, variant: 'neutral' })),
   ];
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
   return actions;
 }
 
-export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string {
-  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
-  const choicesParam = spec.choicesParam ?? 'overwrite';
-  // The ticked ids are merged into confirm.params at click time; a key already there (the token,
-  // say) would be silently replaced by an array.
-  if ((spec.choices ?? []).length > 0 && Object.prototype.hasOwnProperty.call(spec.confirm.params, choicesParam)) {
+type ConfirmationPlan = Record<string, { toolName: string; params: Readonly<Record<string, unknown>> } | null>;
+
+/** The ticked ids are merged into confirm.params at click time; a key already there (the token,
+ * say) would be silently replaced by an array.
+ * @complexity O(a) in the alternative count. @throws Error naming the colliding param (and alternative). */
+function assertChoicesParamFree(spec: ConfirmationSurfaceSpec, required: { choicesParam: string }): void {
+  const { choicesParam } = required;
+  if ((spec.choices ?? []).length === 0) return;
+  if (Object.prototype.hasOwnProperty.call(spec.confirm.params, choicesParam)) {
     throw new Error(`choicesParam ${JSON.stringify(choicesParam)} collides with a key already in confirm.params.`);
   }
-  const actions = confirmationActions(spec);
+  for (const alternative of spec.alternatives ?? []) {
+    if (Object.prototype.hasOwnProperty.call(alternative.params, choicesParam)) {
+      throw new Error(`choicesParam ${JSON.stringify(choicesParam)} collides with a key already in the params of alternative ${JSON.stringify(alternative.id)}.`);
+    }
+  }
+}
 
+/** Header, context, choices, warning, actions and the status region. @complexity O(n) in the rendered length. */
+function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirmative: ReadonlySet<string> }): string {
+  const { affirmative } = required;
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
-  const bodyHtml = [
+  return [
     renderSurfaceHeader(
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
@@ -191,31 +239,48 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
     renderChoices(spec.choices ?? []),
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
-    renderActions(actions.map((action) => (action.id === 'confirm' ? { ...action, disabled: true } : action))),
+    renderActions(confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action))),
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
     .join('\n');
+}
 
-  // A map from button id to what that button does. `null` means "dismiss locally, call nothing" —
-  // the shape a cancel-without-a-tool takes, kept as an explicit null rather than an absent key so
-  // the script can tell "this button dismisses" from "this button is unknown to me".
-  const plan: Record<string, { toolName: string; params: Readonly<Record<string, unknown>> } | null> = {
+/** A map from button id to what that button does. `null` means "dismiss locally, call nothing" —
+ * the shape a cancel-without-a-tool takes, kept as an explicit null rather than an absent key so
+ * the script can tell "this button dismisses" from "this button is unknown to me".
+ * @complexity O(a) in the alternative count. */
+function confirmationPlan(spec: ConfirmationSurfaceSpec, required: { alternatives: readonly ConfirmationAlternative[] }): ConfirmationPlan {
+  const plan: ConfirmationPlan = {
     confirm: { toolName: spec.confirm.toolName, params: spec.confirm.params },
   };
+  for (const alternative of required.alternatives) {
+    plan[alternative.id] = { toolName: alternative.toolName, params: alternative.params };
+  }
   if (spec.cancel !== undefined) {
     plan['cancel'] = isToolAction(spec.cancel)
       ? { toolName: spec.cancel.toolName, params: spec.cancel.params }
       : null;
   }
+  return plan;
+}
 
-  const script = `(function () {
+/** The inline runtime script: dwell, visibility, locking and tool calls. @complexity O(s) in the script length. */
+function confirmationScript(required: {
+  plan: ConfirmationPlan; text: SurfaceStatusText; choicesParam: string; affirmative: ReadonlySet<string>;
+}): string {
+  const { plan, text, choicesParam, affirmative } = required;
+  return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
   var PLAN = ${escapeJsValue(plan)};
   var TEXT = ${escapeJsValue(text)};
   var DWELL_MS = ${CONFIRM_DWELL_MS};
   var CHOICES_PARAM = ${escapeJsValue(choicesParam)};
+  var AFFIRMATIVE = ${escapeJsValue([...affirmative])};
+  function isAffirmative(action) {
+    return AFFIRMATIVE.indexOf(action) !== -1;
+  }
 
   // Monotonic where available: a wall clock set backwards would otherwise stretch the dwell.
   function now() {
@@ -229,14 +294,18 @@ ${SURFACE_SCRIPT_PRELUDE}
   // has not been seen, so its dwell starts when it is shown, and restarts each time it is shown again.
   var visibleSince = null;
   var dwellTimer = null;
-  var confirmButton = document.querySelector('[data-mcpui-action="confirm"]');
+  var affirmativeButtons = actionButtons.filter(function (node) {
+    return isAffirmative(node.getAttribute("data-mcpui-action"));
+  });
 
   function dwellDone() {
     return visibleSince !== null && now() - visibleSince >= DWELL_MS;
   }
-  // Confirm is enabled exactly when the dwell has run out and no call holds the dialog.
+  // Confirm (and every alternative) is enabled exactly when the dwell has run out and no call holds
+  // the dialog.
   function syncConfirm() {
-    if (confirmButton !== null && !locked) confirmButton.disabled = !dwellDone();
+    if (locked) return;
+    for (var b = 0; b < affirmativeButtons.length; b++) affirmativeButtons[b].disabled = !dwellDone();
   }
   // Re-checks rather than trusts the timer: setTimeout and now() are different clocks, and a timer
   // that fired a hair early must not leave confirm disabled for good.
@@ -256,6 +325,11 @@ ${SURFACE_SCRIPT_PRELUDE}
   }
   onVisibilityChange();
   document.addEventListener("visibilitychange", onVisibilityChange);
+  // Published Jini started the dwell during document.write. If the iframe is hidden then, no
+  // timer is armed; becoming visible by sandbox initialization need not send visibilitychange
+  // to that new document. Re-check at the bridge ready boundary, preserving the original
+  // visibility, dwell, trusted-click and single-call gates. whenReady is already in every bridge.
+  api.whenReady(onVisibilityChange);
 
   for (var i = 0; i < actionButtons.length; i++) {
     actionButtons[i].addEventListener("click", onClick);
@@ -310,7 +384,7 @@ ${SURFACE_SCRIPT_PRELUDE}
     var step = PLAN[action];
     if (step === undefined) return;
     // Cancel is exempt: backing out early is never the harm this guards against.
-    if (action === "confirm" && !dwellDone()) return;
+    if (isAffirmative(action) && !dwellDone()) return;
     locked = true;
     setChoicesDisabled(true);
     if (step === null) {
@@ -322,7 +396,7 @@ ${SURFACE_SCRIPT_PRELUDE}
     // Choices ride only on confirm, and only when this document has any -- with none, \`params\` stays
     // the exact \`step.params\` reference PLAN was built from, byte-identical to before this existed.
     var params = step.params;
-    if (action === "confirm" && choiceInputs.length > 0) {
+    if (isAffirmative(action) && choiceInputs.length > 0) {
       var merged = {};
       var key;
       for (key in step.params) if (Object.prototype.hasOwnProperty.call(step.params, key)) merged[key] = step.params[key];
@@ -345,11 +419,21 @@ ${SURFACE_SCRIPT_PRELUDE}
     });
   }
 }());`;
+}
+
+export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string {
+  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+  const choicesParam = spec.choicesParam ?? 'overwrite';
+  assertChoicesParamFree(spec, { choicesParam });
+  const alternatives = spec.alternatives ?? [];
+  assertAlternativeIds(alternatives);
+  // Every affirmative button starts disabled and waits out the dwell; only cancel is live at once.
+  const affirmative = new Set(['confirm', ...alternatives.map((alternative) => alternative.id)]);
 
   return renderSurfaceDocument({
     title: spec.title,
-    bodyHtml,
-    script,
+    bodyHtml: confirmationBodyHtml(spec, { affirmative }),
+    script: confirmationScript({ plan: confirmationPlan(spec, { alternatives }), text, choicesParam, affirmative }),
     app: spec.app ?? DEFAULT_APP,
     ...(spec.lang === undefined ? {} : { lang: spec.lang }),
     ...(spec.tokens === undefined ? {} : { tokens: spec.tokens }),
@@ -362,18 +446,22 @@ ${SURFACE_SCRIPT_PRELUDE}
  * @param spec.uri - The `ui://` identifier. Key it by entity and version, never by the confirmation
  * token: a URI is something a host may log, cache, or show in devtools.
  * @param spec.preferredFrameSize - `[width, height]` hint for hosts that honor it.
+ * @param spec.expiresAtMs - When the server stops waiting for an answer (epoch ms), so a host can
+ * count it down and close the card when it passes. Omit for a dialog with no deadline.
  * @complexity O(n) in the rendered length.
  */
 export function buildConfirmationSurface(
   spec: ConfirmationSurfaceSpec & {
     uri: UIResourceUri;
     preferredFrameSize?: readonly [string, string];
+    expiresAtMs?: number;
   },
 ): UIResource {
   return createUIResource({
     uri: spec.uri,
     htmlString: renderConfirmationDocument(spec),
     ...(spec.preferredFrameSize === undefined ? {} : { preferredFrameSize: spec.preferredFrameSize }),
+    ...(spec.expiresAtMs === undefined ? {} : { expiresAtMs: spec.expiresAtMs }),
     // Same title/actions the frame itself renders (via confirmationActions) — see that function's
     // doc for why this must never be a second, independently-maintained mapping. A host reads this
     // to build a parent-DOM mirror discoverable by page.find_elements; see MCP_UI_ACTION_PLAN_META_KEY.

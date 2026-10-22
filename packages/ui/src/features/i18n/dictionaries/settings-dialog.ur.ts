@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_UR: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "میں نے آپ کے پیغام سے وہ متن ہٹا دیا جو کلید جیسا لگ رہا تھا۔ اگر وہ حقیقی تھی تو اسے تبدیل کریں۔ محفوظ کرنے کے لیے محفوظ فارم استعمال کریں۔",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "کلیدیں، ٹوکن، پاس ورڈ اور راز محفوظ کرنے کے لیے محفوظ فارم استعمال کریں۔ چیٹ کے جوابات اسسٹنٹ کو بھیجے جاتے ہیں۔",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# میری اسکل\n\n1. ورک فلو کی وضاحت کریں۔\n2. ان پٹس اور آؤٹ پٹس بیان کریں۔',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'ایک کسٹم پاتھ اوور رائیڈ کام نہیں کر سکا، اس لیے اس کے بجائے خودکار طور پر شناخت شدہ بائنری استعمال کی گئی۔',
   'API key': 'API کلید',
   'About': 'تعارف',
   'Accent color': 'نمایاں رنگ',
   'Account': 'اکاؤنٹ',
+  'Advanced': 'اعلیٰ درجے کی ترتیبات',
   'Advanced: proxy & custom paths': 'ایڈوانسڈ: پراکسی اور کسٹم پاتھز',
   'Agent check failed': 'ایجنٹ چیک ناکام ہو گیا',
   'Agent is ready.': 'ایجنٹ تیار ہے۔',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_UR: SettingsDialogDict = {
   'Copy': 'کاپی کریں',
   'Copy to clipboard': 'کلپ بورڈ پر کاپی کریں',
   'Could not load live models: {message}': 'لائیو ماڈلز لوڈ نہیں ہو سکے: {message}',
-  'No API key — connection test needs the key from this browser.': 'کوئی API کلید نہیں — کنکشن ٹیسٹ کے لیے اسی براؤزر سے کلید درکار ہے۔',
-  'No API key — model discovery needs the key from this browser.': 'کوئی API کلید نہیں — ماڈلز کی دریافت کے لیے اسی براؤزر سے کلید درکار ہے۔',
+  'No API key saved. Save one to test the connection.': 'کوئی API کلید محفوظ نہیں ہے۔ کنکشن ٹیسٹ کرنے کے لیے ایک کلید محفوظ کریں۔',
+  'No API key saved. Save one to load models.': 'کوئی API کلید محفوظ نہیں ہے۔ ماڈلز لوڈ کرنے کے لیے ایک کلید محفوظ کریں۔',
   'Could not load skills: {error}': 'اسکلز لوڈ نہیں ہو سکیں: {error}',
   'Could not reach the daemon: {error}': 'ڈیمن تک رسائی نہیں ہو سکی: {error}',
   'Could not reach the server. Showing local changes only.': 'سرور تک رسائی نہیں ہو سکی۔ صرف مقامی تبدیلیاں دکھائی جا رہی ہیں۔',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_UR: SettingsDialogDict = {
   'Not available for this daemon.': 'اس ڈیمن کے لیے دستیاب نہیں۔',
   'Not configured': 'کنفیگر نہیں ہے',
   'Not installed': 'انسٹال نہیں ہے',
+  'Show {count} not installed': '{count} غیر انسٹال شدہ دکھائیں',
+  'Hide not installed': 'غیر انسٹال شدہ چھپائیں',
+  'Show not-installed CLIs': 'غیر انسٹال شدہ CLI دکھائیں',
   'Not sharing': 'شیئر نہیں کیا جا رہا',
   'Nothing is shared unless you opt in.': 'جب تک آپ خود شامل نہ ہوں، کچھ بھی شیئر نہیں کیا جاتا۔',
   'Off': 'بند',

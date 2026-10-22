@@ -1,6 +1,6 @@
 /**
  * A fresh, neutral `postMessage` protocol for deck navigation — deliberately
- * NOT OD's `od:slide`/`od:slide-state` (see `packages/ui/source-map.md`'s
+ * NOT OD's `od:slide`/`od:slide-state` (see `packages/ui/archived provenance ledger`'s
  * `html-viewer` classification: the real bridge's 31 message types across 3
  * naming conventions need a redesign, not a rename). Any sandboxed deck
  * content this feature drives must speak this protocol:

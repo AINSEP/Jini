@@ -1,0 +1,115 @@
+/* Both providers share this presentation contract; native never depends on shadcn utility classes. */
+.jini-data-table-frame {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg);
+  color: var(--jini-text);
+}
+
+.jini-data-table-scroll,
+.jini-data-table-frame > [data-slot="table-container"] {
+  width: 100%;
+  max-height: 28rem;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+}
+
+.jini-data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--jini-font-body);
+  font-size: var(--jini-font-size-sm);
+  line-height: var(--jini-line-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+.jini-data-table th,
+.jini-data-table td {
+  height: 2.5rem;
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--jini-border);
+}
+
+.jini-data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--jini-surface);
+  color: var(--jini-muted);
+  font-size: var(--jini-font-size-xs);
+  font-weight: var(--jini-font-weight-semibold);
+}
+
+.jini-data-table tbody tr:last-child td { border-bottom: 0; }
+.jini-data-table tbody tr:nth-child(even) { background: var(--jini-bg-subtle); }
+.jini-data-table tbody tr:hover,
+.jini-data-table tbody tr:focus-visible { background: var(--jini-surface); }
+.jini-data-table tbody tr[role="button"] { cursor: pointer; }
+.jini-data-table [data-numeric="true"] { text-align: right; }
+
+.jini-data-table-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 1.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.jini-data-table [data-numeric="true"] .jini-data-table-sort { justify-content: flex-end; }
+.jini-data-table th[aria-sort="ascending"],
+.jini-data-table th[aria-sort="descending"] { color: var(--jini-text); }
+.jini-data-table-sort:hover { color: var(--jini-text); }
+
+.jini-data-table td.jini-data-table-empty {
+  height: 8rem;
+  color: var(--jini-muted);
+  text-align: center;
+}
+
+.jini-data-table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-top: 1px solid var(--jini-border);
+  color: var(--jini-muted);
+  font-size: var(--jini-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.jini-data-table-pagination-controls { display: flex; gap: 0.5rem; }
+.jini-data-table-pagination button {
+  min-height: 2rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg);
+  color: var(--jini-text);
+  font: inherit;
+  cursor: pointer;
+}
+.jini-data-table-pagination button:hover:not(:disabled) { background: var(--jini-surface); }
+.jini-data-table-pagination button:disabled { opacity: 0.5; cursor: default; }
+.jini-data-table-sort:focus-visible,
+.jini-data-table-pagination button:focus-visible,
+.jini-data-table tr[role="button"]:focus-visible {
+  outline: 2px solid var(--jini-primary);
+  outline-offset: -2px;
+}

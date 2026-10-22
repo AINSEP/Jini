@@ -5,14 +5,15 @@
  * the flattened text a host sends to an agent as prior-turn context.
  *
  * Adapted from OD's `providers/daemon.ts` transcript section (see
- * source-map.md). The OD original also owned SSE/fetch transport
+ * archived provenance ledger). The OD original also owned SSE/fetch transport
  * (`streamViaDaemon`, `DaemonStreamHandlers`) — none of that is ported here;
  * only the pure string-assembly helpers. It also hard-coded OD's BYOK/
  * OpenCode agent-family policy and an `agent-browser`-tool-specific
  * context-warning heuristic; both are OD product policy, not generic
  * transcript assembly, so they are generalized into caller-supplied hooks
- * (or dropped) below — see source-map.md for the full accounting.
+ * (or dropped) below — see archived provenance ledger for the full accounting.
  */
+import { redactUserMessage, type UserTextRedactionOptions } from './user-text-redaction.js';
 import type { ChatMessage } from './messages.js';
 import type { PersistedArtifactFileRef } from './util/strip.js';
 import { summarizeArtifactsForTranscript } from './util/strip.js';
@@ -22,10 +23,10 @@ const DEFAULT_LARGE_TOOL_RESULT_CHARS = 8_000;
 const DEFAULT_HIGH_INPUT_TOKEN_WARNING_THRESHOLD = 200_000;
 
 /** The most recent `user`-authored message's content, or `''` if there isn't one. */
-export function latestUserPromptFromHistory(history: ChatMessage[]): string {
+export function latestUserPromptFromHistory({ history }: { history: ChatMessage[] }, options: UserTextRedactionOptions = {}): string {
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const message = history[i];
-    if (message?.role === 'user') return message.content;
+    if (message?.role === 'user') return redactUserMessage({ message }, options).message.content;
   }
   return '';
 }
@@ -49,20 +50,7 @@ function escapeTranscriptRoleDelimiters(content: string): string {
  * @complexity O(n) across all messages' events.
  */
 function buildPriorRunContextWarning(history: ChatMessage[], largeToolResultChars: number, highInputTokenWarningThreshold: number): string | null {
-  let highestInputTokens = 0;
-  let largeToolResults = 0;
-
-  for (const message of history) {
-    for (const event of message.events ?? []) {
-      if (event.kind === 'usage' && typeof event.inputTokens === 'number') {
-        highestInputTokens = Math.max(highestInputTokens, event.inputTokens);
-      }
-      if (event.kind === 'tool_result' && event.content.length > largeToolResultChars) {
-        largeToolResults += 1;
-      }
-    }
-  }
-
+  const { highestInputTokens, largeToolResults } = scanPriorRunTelemetry({ history, largeToolResultChars });
   const notes: string[] = [];
   if (highestInputTokens >= highInputTokenWarningThreshold) {
     notes.push(`a previous run reported ${highestInputTokens} input tokens`);
@@ -75,6 +63,24 @@ function buildPriorRunContextWarning(history: ChatMessage[], largeToolResultChar
   return ['## context warning', `Detected ${notes.join(', ')}.`, 'Keep this turn compact: summarize prior tool output, read large references from temp files, and quote only task-relevant lines.'].join('\n');
 }
 
+/** The highest reported input-token count and the number of oversized tool results across all events. */
+function scanPriorRunTelemetry(
+  { history, largeToolResultChars }: { history: ChatMessage[]; largeToolResultChars: number },
+  _optional: {} = {},
+): { highestInputTokens: number; largeToolResults: number } {
+  let highestInputTokens = 0;
+  let largeToolResults = 0;
+  for (const event of history.flatMap((message) => message.events ?? [])) {
+    if (event.kind === 'usage' && typeof event.inputTokens === 'number') {
+      highestInputTokens = Math.max(highestInputTokens, event.inputTokens);
+    }
+    if (event.kind === 'tool_result' && event.content.length > largeToolResultChars) {
+      largeToolResults += 1;
+    }
+  }
+  return { highestInputTokens, largeToolResults };
+}
+
 function scopeHistoryToAgent(history: ChatMessage[], targetAgentId: string | undefined, isSameAgentFamily: (agentId: string, targetAgentId: string) => boolean): ChatMessage[] {
   if (!targetAgentId) return history;
   for (let i = history.length - 1; i >= 0; i -= 1) {
@@ -84,6 +90,44 @@ function scopeHistoryToAgent(history: ChatMessage[], targetAgentId: string | und
     }
   }
   return history;
+}
+
+type QuestionFormTag = { name: string; start: number; end: number; closing: boolean };
+
+/** Scan tag boundaries once, including malformed openers, without retrying an unterminated tag. */
+function questionFormTags({ content }: { content: string }): QuestionFormTag[] {
+  const matcher = /<(question-form|ask-question)\b|<\/(question-form|ask-question)>/g;
+  const tags: QuestionFormTag[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = matcher.exec(content))) {
+    const closing = match[2] !== undefined;
+    const end = closing ? matcher.lastIndex : content.indexOf('>', matcher.lastIndex) + 1;
+    if (!end) break;
+    tags.push({ name: (match[1] ?? match[2])!, start: match.index, end, closing });
+    matcher.lastIndex = end;
+  }
+  return tags;
+}
+
+/** Find matched form ranges in reverse source order without retrying unmatched openers.
+ * Keep the first following close of the same name, matching the former non-greedy replacement.
+ * Matching by name (formerly a `\1` backreference) means a `<question-form>…</ask-question>`
+ * mismatch is never spliced.
+ * @complexity O(n) time and space in content length; each tag and source character is scanned once.
+ */
+function questionFormRanges({ content }: { content: string }): Array<{ start: number; end: number }> {
+  const tags = questionFormTags({ content });
+  const nextClose = new Map<string, number>();
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (let i = tags.length - 1; i >= 0; i--) {
+    const tag = tags[i]!;
+    if (tag.closing) nextClose.set(tag.name, tag.end);
+    else {
+      const end = nextClose.get(tag.name);
+      if (end !== undefined) ranges.push({ start: tag.start, end });
+    }
+  }
+  return ranges;
 }
 
 /**
@@ -105,13 +149,16 @@ function scopeHistoryToAgent(history: ChatMessage[], targetAgentId: string | und
  * @complexity O(n) in `content.length` (a small fixed number of regex
  *   passes) plus {@link summarizeArtifactsForTranscript}'s cost.
  */
-export function sanitizePriorAssistantTurn(content: string, persistedArtifactFiles: ReadonlyArray<PersistedArtifactFileRef> = []): string {
-  let sanitized = content.replace(
-    // `\1` backreference keeps the open/close tag names matched so this never
-    // splices across a `<question-form>…</ask-question>` mismatch.
-    /<(question-form|ask-question)\b[^>]*>[\s\S]*?<\/\1>/g,
-    '[question-form was emitted here on a prior turn; the user already answered, see their reply below.]',
-  );
+export function sanitizePriorAssistantTurn({ content }: { content: string }, { persistedArtifactFiles = [] }: { persistedArtifactFiles?: (ReadonlyArray<PersistedArtifactFileRef>) | undefined } = {}): string {
+  const chunks: string[] = [];
+  let copiedTo = 0;
+  for (const range of questionFormRanges({ content }).reverse()) {
+    if (range.start < copiedTo) continue;
+    chunks.push(content.slice(copiedTo, range.start), '[question-form was emitted here on a prior turn; the user already answered, see their reply below.]');
+    copiedTo = range.end;
+  }
+  chunks.push(content.slice(copiedTo));
+  let sanitized = chunks.join('');
   // Strip ```json (or plain ```) fenced blocks whose body matches the form
   // schema shape — `"questions": [` is the strongest tell. A generic JSON
   // snippet without that key is left intact.
@@ -124,11 +171,11 @@ export function sanitizePriorAssistantTurn(content: string, persistedArtifactFil
   // Replace prior-turn `<artifact>` HTML with a one-line summary for
   // artifacts CONFIRMED persisted (see summarizeArtifactsForTranscript's own
   // doc for why an unconfirmed save is left verbatim).
-  sanitized = summarizeArtifactsForTranscript(sanitized, persistedArtifactFiles);
+  sanitized = summarizeArtifactsForTranscript({ content: sanitized, persistedFiles: persistedArtifactFiles });
   return sanitized;
 }
 
-export interface BuildTranscriptOptions {
+export interface BuildTranscriptOptions extends UserTextRedactionOptions {
   /**
    * Scope the transcript to messages from this agent's family onward,
    * dropping any older history from a different agent. Omit to include the
@@ -169,7 +216,7 @@ export interface BuildTranscriptOptions {
  *   scope, one to sanitize/truncate/join each message, one to scan events
  *   for the warning.
  */
-export function buildTranscript(history: ChatMessage[], options: BuildTranscriptOptions = {}): string {
+export function buildTranscript({ history }: { history: ChatMessage[] }, options: BuildTranscriptOptions = {}): string {
   const maxMessageChars = options.maxMessageChars ?? DEFAULT_MAX_TRANSCRIPT_MESSAGE_CHARS;
   const largeToolResultChars = options.largeToolResultChars ?? DEFAULT_LARGE_TOOL_RESULT_CHARS;
   const highInputTokenWarningThreshold = options.highInputTokenWarningThreshold ?? DEFAULT_HIGH_INPUT_TOKEN_WARNING_THRESHOLD;
@@ -179,8 +226,8 @@ export function buildTranscript(history: ChatMessage[], options: BuildTranscript
   const scopedHistory = scopeHistoryToAgent(history, options.targetAgentId, isSameAgentFamily);
   const transcript = scopedHistory
     .map((m) => {
-      const trimmed = m.content.trim();
-      const sanitized = m.role === 'assistant' ? sanitizePriorAssistantTurn(trimmed, resolvePersistedArtifactFiles(m)) : trimmed;
+      const trimmed = redactUserMessage({ message: m }, options).message.content.trim();
+      const sanitized = m.role === 'assistant' ? sanitizePriorAssistantTurn({ content: trimmed }, { persistedArtifactFiles: resolvePersistedArtifactFiles(m) }) : trimmed;
       return `## ${m.role}\n${escapeTranscriptRoleDelimiters(truncateForTranscript(sanitized, maxMessageChars))}`;
     })
     .join('\n\n');

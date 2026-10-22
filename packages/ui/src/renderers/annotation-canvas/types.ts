@@ -4,7 +4,7 @@
  * `children`), with a send/draft/queue submit-action picker.
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx` (the origin
- * project, 2,158 lines). See `../source-map.md` for the full port writeup.
+ * project, 2,158 lines). See `../archived provenance ledger` for the full port writeup.
  */
 export interface Point {
   x: number;

@@ -1,3 +1,4 @@
+import { isLoopbackHostname } from '@jini-ai/platform/net';
 /**
  * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
@@ -23,8 +24,8 @@
 import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { pathContains } from '@jini-ai/platform';
-import { writeSecretFileAtomic } from './secure-write.js';
+import { pathContains } from '@jini-ai/core/primitives';
+import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
 
 /** Wire-level transport discriminator for how the daemon connects to an external MCP server. */
 export type McpTransport = 'stdio' | 'sse' | 'http';
@@ -53,6 +54,42 @@ export interface McpConfig {
   servers: McpServerConfig[];
 }
 
+/** Text I/O boundary; secret writes must be atomic and owner-only from creation. */
+export interface McpConfigFilesystemPort {
+  readText(args: { filePath: string }): Promise<string>;
+  writeSecretText(args: { filePath: string; contents: string }): Promise<void>;
+}
+
+/** Shared atomic secret persistence (CR-006 / SEC-RB-002).
+ * The previous pattern in each of those stores wrote the temp file with
+ * default permissions and either never restricted it (config, OAuth client
+ * cache) or `chmod(0600)`'d it *after* the atomic rename and silently
+ * continued when the chmod failed (tokens) — both leave a window where the
+ * file exists world/group-readable, and the latter makes the "protection"
+ * advisory rather than enforced. The platform writer instead:
+ *
+ *   1. Creates the temp file *exclusively* (`wx`) with mode 0600 supplied to
+ *      the same `open()`/`writeFile()` call that creates it — POSIX applies
+ *      the requested mode atomically at creation time, so there is no
+ *      window where the file exists with a broader mode. Creation-mode enforcement
+ *      follows the existing prompt-file precedent; the shared writer also reapplies
+ *      0600 before checking the mode and flushing the file, never after rename.
+ *   2. On POSIX platforms, verifies the on-disk mode actually landed as
+ *      owner-only before renaming into place, and fails closed — removing
+ *      the temp file and throwing — if it did not (e.g. an unusual umask or
+ *      a filesystem that doesn't honor `mode`).
+ *   3. Skips that verification on `win32`: Windows has no POSIX permission-
+ *      bit model (`mode` there only toggles the read-only attribute), so
+ *      there is nothing meaningful to enforce or fail closed on.
+ *   4. Flushes file content before rename and the parent directory after it. A directory
+ *      flush can fail after replacement; it is reported rather than silently ignored.
+ *
+ */
+const defaultFilesystem: McpConfigFilesystemPort = {
+  readText: ({ filePath }) => readFile(filePath, 'utf8'),
+  writeSecretText: ({ filePath, contents }) => writeFileAtomicAsync({ filePath, content: contents }, { mode: 0o600, verifyOwnerOnly: true, createParent: true }),
+};
+
 const VALID_TRANSPORTS: ReadonlySet<McpTransport> = new Set([
   'stdio',
   'sse',
@@ -73,23 +110,27 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 }
 
+function isKeepableMapEntry(entry: [string, unknown]): entry is [string, string] {
+  const [k, v] = entry;
+  if (k === '__proto__' || k === 'constructor' || !k.trim()) return false;
+  // Drop empty / whitespace-only values. Persisting them is worse than
+  // omitting them: the spawn-time merge treats a present header as
+  // "user pinned this", which would block our daemon-issued OAuth
+  // Bearer from being injected. The UI also has placeholder fields
+  // (e.g. an "Authorization=" template row) the user can leave blank
+  // — those should never make it into the saved config.
+  return typeof v === 'string' && v.trim() !== '';
+}
+
 function sanitizeStringMap(raw: unknown): Record<string, string> | undefined {
   if (!isPlainObject(raw)) return undefined;
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw)) {
-    if (k === '__proto__' || k === 'constructor') continue;
-    if (!k.trim()) continue;
-    if (typeof v !== 'string') continue;
-    // Drop empty / whitespace-only values. Persisting them is worse than
-    // omitting them: the spawn-time merge treats a present header as
-    // "user pinned this", which would block our daemon-issued OAuth
-    // Bearer from being injected. The UI also has placeholder fields
-    // (e.g. an "Authorization=" template row) the user can leave blank
-    // — those should never make it into the saved config.
-    if (v.trim() === '') continue;
-    out[k] = v;
-  }
+  for (const [k, v] of Object.entries(raw).filter(isKeepableMapEntry)) out[k] = v;
   return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function nonBlankTrimmed(raw: unknown): string | undefined {
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined;
 }
 
 function sanitizeStringArray(raw: unknown): string[] | undefined {
@@ -98,22 +139,8 @@ function sanitizeStringArray(raw: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
-function normalizeHost(hostname: string): string {
-  return hostname
-    .replace(/^\[|\]$/g, '')
-    .toLowerCase()
-    .replace(/\.+$/g, '');
-}
-
-function isLoopbackHost(hostname: string): boolean {
-  const host = normalizeHost(hostname);
-  if (host === 'localhost' || host === '::1') return true;
-  // Note: IPv4-mapped IPv6 loopback (`::ffff:127.0.0.1`) is not special-cased —
-  // the WHATWG URL parser compresses it to `::ffff:7f00:1` before it reaches
-  // here, so a dotted-quad match is unreachable through `inferMcpAuthModeForUrl`.
-  return /^127(?:\.\d{1,3}){3}$/.test(host);
-}
-
+// The shared classifier receives the URL parser's canonical hostname; IPv4-mapped
+// IPv6 is deliberately not a loopback exception for default authentication.
 /**
  * Infer the appropriate `McpAuthMode` for a given server URL.
  * Returns `'none'` for loopback targets (localhost, 127.x.x.x, ::1)
@@ -121,10 +148,10 @@ function isLoopbackHost(hostname: string): boolean {
  * @param rawUrl The server URL string to inspect, if any.
  * @returns The inferred `McpAuthMode`.
  */
-export function inferMcpAuthModeForUrl(rawUrl: string | undefined): McpAuthMode {
+export function inferMcpAuthModeForUrl({ rawUrl }: { rawUrl: string | undefined }): McpAuthMode {
   if (!rawUrl) return 'oauth';
   try {
-    return isLoopbackHost(new URL(rawUrl).hostname) ? 'none' : 'oauth';
+    return isLoopbackHostname({ hostname: new URL(rawUrl).hostname }) ? 'none' : 'oauth';
   } catch {
     return 'oauth';
   }
@@ -140,7 +167,7 @@ function sanitizeMcpAuthMode(raw: unknown): McpAuthMode | undefined {
 // there is no stdio short-circuit here — the token merge just needs the
 // effective auth mode for a remote server.
 function effectiveMcpAuthMode(server: McpServerConfig): McpAuthMode {
-  return server.authMode ?? inferMcpAuthModeForUrl(server.url);
+  return server.authMode ?? inferMcpAuthModeForUrl({ rawUrl: server.url });
 }
 
 /**
@@ -148,46 +175,57 @@ function effectiveMcpAuthMode(server: McpServerConfig): McpAuthMode {
  * one server doesn't tank the whole config. Returns null when the entry is
  * unsalvageable (no id, or no transport-required fields).
  */
-export function sanitizeMcpServer(raw: unknown): McpServerConfig | null {
+export function sanitizeMcpServer({ raw }: { raw: unknown }): McpServerConfig | null {
   if (!isPlainObject(raw)) return null;
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   if (!SERVER_ID_PATTERN.test(id)) return null;
-  const transport = typeof raw.transport === 'string' ? (raw.transport as McpTransport) : 'stdio';
-  if (!VALID_TRANSPORTS.has(transport)) return null;
+  const transport = sanitizeTransport(raw.transport);
+  if (!transport) return null;
+  if (raw.authMode !== undefined && sanitizeMcpAuthMode(raw.authMode) === undefined) return null;
 
   const next: McpServerConfig = {
     id,
     transport,
     enabled: raw.enabled !== false,
   };
-  if (typeof raw.label === 'string' && raw.label.trim()) {
-    next.label = raw.label.trim();
-  }
+  const label = nonBlankTrimmed(raw.label);
+  if (label) next.label = label;
+  const fields = transport === 'stdio' ? sanitizeStdioFields(raw) : sanitizeRemoteFields(raw);
+  return fields ? { ...next, ...fields } : null;
+}
 
-  if (transport === 'stdio') {
-    if (typeof raw.command !== 'string' || !raw.command.trim()) return null;
-    next.command = raw.command.trim();
-    const args = sanitizeStringArray(raw.args);
-    if (args) next.args = args;
-    const env = sanitizeStringMap(raw.env);
-    if (env) next.env = env;
-  } else {
-    if (typeof raw.url !== 'string' || !raw.url.trim()) return null;
-    // Reject anything that isn't an http(s) URL — protects against accidental
-    // `file://` / `javascript:` slipping into a config file.
-    let parsed: URL;
-    try {
-      parsed = new URL(raw.url.trim());
-    } catch {
-      return null;
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    next.url = parsed.toString();
-    next.authMode = sanitizeMcpAuthMode(raw.authMode) ?? inferMcpAuthModeForUrl(next.url);
-    const headers = sanitizeStringMap(raw.headers);
-    if (headers) next.headers = headers;
-  }
-  return next;
+// Absence preserves the legacy stdio default; a supplied invalid discriminator must not
+// silently select a different transport or authentication policy.
+function sanitizeTransport(raw: unknown): McpTransport | null {
+  if (raw === undefined) return 'stdio';
+  return typeof raw === 'string' && VALID_TRANSPORTS.has(raw as McpTransport) ? (raw as McpTransport) : null;
+}
+
+type TransportFields = Pick<McpServerConfig, 'command' | 'args' | 'env' | 'url' | 'authMode' | 'headers'>;
+
+function sanitizeStdioFields(raw: Record<string, unknown>): TransportFields | null {
+  const command = nonBlankTrimmed(raw.command);
+  if (!command) return null;
+  const out: TransportFields = { command };
+  const args = sanitizeStringArray(raw.args);
+  if (args) out.args = args;
+  const env = sanitizeStringMap(raw.env);
+  if (env) out.env = env;
+  return out;
+}
+
+function sanitizeRemoteFields(raw: Record<string, unknown>): TransportFields | null {
+  const rawUrl = nonBlankTrimmed(raw.url);
+  if (!rawUrl) return null;
+  // Reject anything that isn't an http(s) URL — protects against accidental
+  // `file://` / `javascript:` slipping into a config file.
+  const parsed = URL.canParse(rawUrl) ? new URL(rawUrl) : null;
+  if (parsed?.protocol !== 'http:' && parsed?.protocol !== 'https:') return null;
+  const url = parsed.toString();
+  const out: TransportFields = { url, authMode: sanitizeMcpAuthMode(raw.authMode) ?? inferMcpAuthModeForUrl({ rawUrl: url }) };
+  const headers = sanitizeStringMap(raw.headers);
+  if (headers) out.headers = headers;
+  return out;
 }
 
 /**
@@ -197,13 +235,13 @@ export function sanitizeMcpServer(raw: unknown): McpServerConfig | null {
  * @param raw The raw parsed JSON to sanitize.
  * @returns A clean `McpConfig` guaranteed to have only valid, unique server entries.
  */
-export function sanitizeMcpConfig(raw: unknown): McpConfig {
+export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
   if (!isPlainObject(raw)) return { servers: [] };
   const list = Array.isArray(raw.servers) ? raw.servers : [];
   const seen = new Set<string>();
   const out: McpServerConfig[] = [];
   for (const entry of list) {
-    const ok = sanitizeMcpServer(entry);
+    const ok = sanitizeMcpServer({ raw: entry });
     if (!ok) continue;
     if (seen.has(ok.id)) continue; // de-dupe by id
     seen.add(ok.id);
@@ -218,11 +256,11 @@ export function sanitizeMcpConfig(raw: unknown): McpConfig {
  * @param dataDir The resolved runtime data directory.
  * @returns The sanitized `McpConfig`, never rejects on missing-file or corrupt-JSON.
  */
-export async function readMcpConfig(dataDir: string): Promise<McpConfig> {
+export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {}): Promise<McpConfig> {
   try {
-    const raw = await readFile(configFile(dataDir), 'utf8');
+    const raw = await filesystem.readText({ filePath: configFile(dataDir) });
     const parsed: unknown = JSON.parse(raw);
-    return sanitizeMcpConfig(parsed);
+    return sanitizeMcpConfig({ raw: parsed });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
@@ -243,18 +281,18 @@ const writeLocks = new Map<string, Promise<unknown>>();
  * being written. This file may carry environment variables and
  * `Authorization` header values (API keys, bearer tokens — see
  * `McpServerConfig.env`/`.headers`), so it is written with owner-only
- * (0600) permissions from the very first byte via `writeSecretFileAtomic`
+ * (0600) permissions from the very first byte via `writeFileAtomicAsync`
  * rather than a post-rename chmod (CR-006 / SEC-RB-002).
  * @param dataDir The resolved runtime data directory.
  * @param body The raw config body to sanitize and persist.
  * @returns The sanitized `McpConfig` that was written to disk.
  */
 export async function writeMcpConfig(
-  dataDir: string,
-  body: unknown,
+  { dataDir, body }: { dataDir: string; body: unknown },
+  { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {},
 ): Promise<McpConfig> {
   const prev = writeLocks.get(dataDir) ?? Promise.resolve();
-  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body));
+  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body, filesystem));
   writeLocks.set(dataDir, task);
   try {
     return await task;
@@ -263,9 +301,9 @@ export async function writeMcpConfig(
   }
 }
 
-async function doWrite(dataDir: string, body: unknown): Promise<McpConfig> {
-  const next = sanitizeMcpConfig(body);
-  await writeSecretFileAtomic(configFile(dataDir), JSON.stringify(next, null, 2));
+async function doWrite(dataDir: string, body: unknown, filesystem: McpConfigFilesystemPort): Promise<McpConfig> {
+  const next = sanitizeMcpConfig({ raw: body });
+  await filesystem.writeSecretText({ filePath: configFile(dataDir), contents: JSON.stringify(next, null, 2) });
   return next;
 }
 
@@ -278,7 +316,7 @@ async function doWrite(dataDir: string, body: unknown): Promise<McpConfig> {
  * falls back to lexical `path.resolve` (still normalizing `..`/`.`
  * segments) when it does not exist yet, or the platform can't resolve it.
  */
-function resolveRealOrLexical(p: string): string {
+function resolveRealOrLexical({ filePath: p }: { filePath: string }): string {
   try {
     return realpathSync.native(p);
   } catch {
@@ -296,20 +334,20 @@ function resolveRealOrLexical(p: string): string {
  * Both `cwd` and `projectsDir` are realpath-resolved before the containment
  * check (falling back to lexical `path.resolve` normalization for a path
  * that doesn't exist on disk yet), and containment is decided with
- * `@jini-ai/platform`'s separator-aware `pathContains` rather than a raw
+ * `@jini-ai/core/primitives`' separator-aware `pathContains` rather than a raw
  * string-prefix check — a `..`-containing path or a symlinked descendant
  * can defeat a plain `startsWith` (CR-006 / SEC-RB-011).
  */
 export function isManagedProjectCwd(
-  cwd: string | null | undefined,
-  projectsDir: string,
+  { cwd, projectsDir }: { cwd: string | null | undefined; projectsDir: string },
+  { resolvePath = resolveRealOrLexical }: { resolvePath?: (args: { filePath: string }) => string } = {},
 ): boolean {
   if (!cwd || typeof cwd !== 'string') return false;
   if (typeof projectsDir !== 'string' || projectsDir.length === 0) return false;
-  const resolvedProjectsDir = resolveRealOrLexical(projectsDir);
-  const resolvedCwd = resolveRealOrLexical(cwd);
+  const resolvedProjectsDir = resolvePath({ filePath: projectsDir });
+  const resolvedCwd = resolvePath({ filePath: cwd });
   if (resolvedCwd === resolvedProjectsDir) return false; // projects root, not a project
-  return pathContains(resolvedProjectsDir, resolvedCwd);
+  return pathContains({ root: resolvedProjectsDir, target: resolvedCwd }, { caseSensitive: path.sep !== '\\', separator: path.sep });
 }
 
 /**
@@ -327,32 +365,30 @@ export function isManagedProjectCwd(
  * conflict so they can pin a specific token if they really want to.
  */
 export function buildClaudeMcpJson(
-  servers: McpServerConfig[],
-  tokens: Record<string, string> = {},
+  { servers }: { servers: McpServerConfig[] },
+  { tokens = {} }: { tokens?: Record<string, string> } = {},
 ): unknown | null {
   const enabled = servers.filter((s) => s.enabled);
   if (enabled.length === 0) return null;
   const out: Record<string, Record<string, unknown>> = {};
   for (const s of enabled) {
-    if (s.transport === 'stdio') {
-      const entry: Record<string, unknown> = { command: s.command };
-      if (s.args && s.args.length > 0) entry.args = s.args;
-      if (s.env && Object.keys(s.env).length > 0) entry.env = s.env;
-      out[s.id] = entry;
-    } else {
-      const entry: Record<string, unknown> = {
-        type: s.transport, // 'sse' | 'http'
-        url: s.url,
-      };
-      const headers = mergeAuthHeader(
-        s.headers,
-        effectiveMcpAuthMode(s) === 'oauth' ? tokens[s.id] : undefined,
-      );
-      if (headers && Object.keys(headers).length > 0) entry.headers = headers;
-      out[s.id] = entry;
-    }
+    out[s.id] = s.transport === 'stdio'
+      ? { command: s.command, ...nonEmptyField({ key: 'args', value: s.args }), ...nonEmptyField({ key: 'env', value: s.env }) }
+      // type: 'sse' | 'http'
+      : { type: s.transport, url: s.url, ...remoteHeadersField({ server: s, tokens }) };
   }
   return { mcpServers: out };
+}
+
+/** `{ [key]: value }` when `value` has at least one element/key, else `{}` — for spreading optional fields. */
+function nonEmptyField({ key, value }: { key: string; value: object | undefined }): Record<string, unknown> {
+  return value && Object.keys(value).length > 0 ? { [key]: value } : {};
+}
+
+/** `{ headers }` for a remote server (user headers + daemon OAuth bearer when in oauth mode), or `{}` when empty. */
+function remoteHeadersField({ server, tokens }: { server: McpServerConfig; tokens: Record<string, string> }): Record<string, unknown> {
+  const bearer = effectiveMcpAuthMode(server) === 'oauth' ? tokens[server.id] : undefined;
+  return nonEmptyField({ key: 'headers', value: mergeAuthHeader(server.headers, bearer) });
 }
 
 /** Build a headers object that includes the daemon-issued bearer token when
@@ -368,22 +404,18 @@ function mergeAuthHeader(
   bearer: string | undefined,
 ): Record<string, string> | undefined {
   const merged: Record<string, string> = {};
-  let userAuth: string | null = null;
+  let userAuth = false;
   for (const [k, v] of Object.entries(existing ?? {})) {
-    if (k.toLowerCase() === 'authorization') {
-      if (typeof v === 'string' && v.trim() !== '') {
-        userAuth = v;
-        merged[k] = v;
-      }
-      // empty / whitespace authorization is ignored, NOT carried through
-      continue;
-    }
+    const isAuth = k.toLowerCase() === 'authorization';
+    // empty / whitespace authorization is ignored, NOT carried through
+    if (isAuth && (typeof v !== 'string' || v.trim() === '')) continue;
+    userAuth ||= isAuth;
     merged[k] = v;
   }
   if (bearer && !userAuth) {
     merged['Authorization'] = `Bearer ${bearer}`;
   }
-  return Object.keys(merged).length > 0 ? merged : undefined;
+  return merged;
 }
 
 /**
@@ -406,26 +438,18 @@ export interface AcpMcpServer {
  * @param servers The full server list from `McpConfig`.
  * @returns ACP-shaped server entries for all enabled stdio servers.
  */
-export function buildAcpMcpServers(servers: McpServerConfig[]): AcpMcpServer[] {
-  const enabled = servers.filter((s) => s.enabled && s.transport === 'stdio');
-  const out: AcpMcpServer[] = [];
-  for (const s of enabled) {
-    const envEntries: Array<{ name: string; value: string }> = [];
-    if (s.env) {
-      for (const [name, value] of Object.entries(s.env)) {
-        if (typeof value !== 'string') continue;
-        envEntries.push({ name, value });
-      }
-    }
-    out.push({
+export function buildAcpMcpServers({ servers }: { servers: McpServerConfig[] }): AcpMcpServer[] {
+  return servers
+    .filter((s) => s.enabled && s.transport === 'stdio')
+    .map((s) => ({
       type: 'stdio',
       name: s.id,
       command: s.command ?? '',
       args: Array.isArray(s.args) ? [...s.args] : [],
-      env: envEntries,
-    });
-  }
-  return out;
+      env: Object.entries(s.env ?? {})
+        .filter(([, value]) => typeof value === 'string')
+        .map(([name, value]) => ({ name, value })),
+    }));
 }
 
 /**
@@ -451,6 +475,10 @@ export function buildAcpMcpServers(servers: McpServerConfig[]): AcpMcpServer[] {
  */
 /** Options for `buildOpenCodeMcpConfigContent`. */
 export interface OpenCodeConfigBuildOptions {
+  /** Access tokens keyed by server id. */
+  tokens?: Record<string, string>;
+  /** Resolves symlinks for permission allowlists. */
+  resolvePath?: (args: { filePath: string }) => string;
   /** Absolute filesystem paths OpenCode's `external_directory` permission should allow. */
   allowedDirectories?: string[];
   /** Additional top-level keys merged into the emitted config object (e.g. `provider`). */
@@ -458,75 +486,58 @@ export interface OpenCodeConfigBuildOptions {
 }
 
 export function buildOpenCodeMcpConfigContent(
-  servers: McpServerConfig[],
-  tokens: Record<string, string> = {},
+  { servers }: { servers: McpServerConfig[] },
   options: OpenCodeConfigBuildOptions = {},
 ): string | null {
-  const enabled = servers.filter((s) => s.enabled);
+  const tokens = options.tokens ?? {};
+  const resolvePath = options.resolvePath ?? (({ filePath }: { filePath: string }) => realpathSync.native(filePath));
   const mcp: Record<string, Record<string, unknown>> = {};
-  for (const s of enabled) {
-    if (s.transport === 'stdio') {
-      const cmd = typeof s.command === 'string' ? s.command.trim() : '';
-      if (!cmd) continue;
-      const entry: Record<string, unknown> = {
-        type: 'local',
-        command: [cmd, ...(Array.isArray(s.args) ? s.args : [])],
-      };
-      if (s.env && Object.keys(s.env).length > 0) {
-        entry.environment = { ...s.env };
-      }
-      entry.enabled = true;
-      mcp[s.id] = entry;
-    } else {
-      const url = typeof s.url === 'string' ? s.url.trim() : '';
-      if (!url) continue;
-      const entry: Record<string, unknown> = {
-        type: 'remote',
-        url: s.url,
-      };
-      const headers = mergeAuthHeader(
-        s.headers,
-        effectiveMcpAuthMode(s) === 'oauth' ? tokens[s.id] : undefined,
-      );
-      if (headers && Object.keys(headers).length > 0) entry.headers = headers;
-      entry.enabled = true;
-      mcp[s.id] = entry;
-    }
+  for (const s of servers.filter((server) => server.enabled)) {
+    const entry = buildOpenCodeServerEntry({ server: s, tokens });
+    if (entry) mcp[s.id] = entry;
   }
   const externalDirectory = buildOpenCodeExternalDirectoryAllowlist(
-    options.allowedDirectories,
+    options.allowedDirectories, resolvePath,
   );
-  const extraConfig = options.extraConfig ?? {};
-  if (
-    Object.keys(mcp).length === 0 &&
-    !externalDirectory &&
-    Object.keys(extraConfig).length === 0
-  ) return null;
-
-  const config: Record<string, unknown> = { ...extraConfig };
-  if (Object.keys(mcp).length > 0) config.mcp = mcp;
+  const config: Record<string, unknown> = { ...options.extraConfig, ...nonEmptyField({ key: 'mcp', value: mcp }) };
   if (externalDirectory) {
-    const priorPermission =
-      config.permission && typeof config.permission === 'object' && !Array.isArray(config.permission)
-        ? config.permission as Record<string, unknown>
-        : {};
+    const priorPermission = isPlainObject(config.permission) ? config.permission : {};
     config.permission = {
       ...priorPermission,
       external_directory: externalDirectory,
     };
   }
-  return JSON.stringify(config);
+  return Object.keys(config).length === 0 ? null : JSON.stringify(config);
+}
+
+/** One OpenCode `mcp` entry, or null when the server lacks its transport-required command/url. */
+function buildOpenCodeServerEntry(
+  { server: s, tokens }: { server: McpServerConfig; tokens: Record<string, string> },
+): Record<string, unknown> | null {
+  if (s.transport === 'stdio') {
+    const cmd = typeof s.command === 'string' ? s.command.trim() : '';
+    if (!cmd) return null;
+    return {
+      type: 'local',
+      command: [cmd, ...(Array.isArray(s.args) ? s.args : [])],
+      ...nonEmptyField({ key: 'environment', value: { ...s.env } }),
+      enabled: true,
+    };
+  }
+  if (typeof s.url !== 'string' || !s.url.trim()) return null;
+  return { type: 'remote', url: s.url, ...remoteHeadersField({ server: s, tokens }), enabled: true };
 }
 
 function buildOpenCodeExternalDirectoryAllowlist(
   directories: string[] | undefined,
+  resolvePath: (args: { filePath: string }) => string,
 ): Record<string, 'allow'> | null {
   const normalized = Array.from(
     new Set(
       (directories ?? [])
         .filter((dir) => typeof dir === 'string' && dir.trim().length > 0)
         .filter((dir) => path.isAbsolute(dir))
-        .flatMap((dir) => normalizeAllowedDirectoryVariants(dir)),
+        .flatMap((dir) => normalizeAllowedDirectoryVariants(dir, resolvePath)),
     ),
   );
   if (normalized.length === 0) return null;
@@ -547,11 +558,11 @@ function normalizeAllowedDirectory(dir: string): string {
   return resolved.replace(/[\\/]+$/, '');
 }
 
-function normalizeAllowedDirectoryVariants(dir: string): string[] {
+function normalizeAllowedDirectoryVariants(dir: string, resolvePath: (args: { filePath: string }) => string): string[] {
   const normalized = normalizeAllowedDirectory(dir);
   let real: string | null = null;
   try {
-    real = normalizeAllowedDirectory(realpathSync.native(dir));
+    real = normalizeAllowedDirectory(resolvePath({ filePath: dir }));
   } catch {
     real = null;
   }

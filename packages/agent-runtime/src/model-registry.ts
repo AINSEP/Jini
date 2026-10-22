@@ -1,41 +1,10 @@
 /**
  * @module model-registry
- *
- * The provider/model/agent vocabulary that any Jini consumer picking "which
- * model" or "which coding agent" to run needs, plus the handful of pure
- * helpers (credential-status resolution, model-list merging, a stable cache
- * key, model-choice normalization against a live catalogue) those pickers
- * all independently re-derive today.
- *
- * Ported and generified from OD's `apps/web/src/state/config.ts`
- * (`KnownProvider`/`KNOWN_PROVIDERS`), `packages/contracts/src/api/registry.ts`
- * (`AgentInfo`/`AgentDiagnostic`/`AgentFixIntent`/`AgentModelOption`),
- * `packages/contracts/src/api/providerModels.ts` (`ProviderModelOption`),
- * `packages/contracts/src/api/app-config.ts` (`AgentModelPrefs`),
- * `apps/web/src/components/providerModelsCache.ts`, and
- * `apps/web/src/components/agentModelSelection.ts` — see
- * `packages/agent-runtime/source-map.md` for the full per-symbol mapping.
- * No OD product-identity strings or OD-specific gating (e.g. the original's
- * hardcoded `agent.id === 'amr'` carve-out) survived the port.
- *
- * Named `model-registry.ts`, not `registry.ts`: this package already has a
- * `registry.ts` (the `BASE_AGENT_DEFS` static CLI-adapter catalog +
- * `getAgentDef(id)`) — a different concept that happens to share the word
- * "registry". `AgentDiagnostic`/`AgentDiagnosticSeverity`/`AgentFixIntent`
- * are NOT redefined here either, for the same reason `ModelOption` isn't:
- * this package already has real, more complete versions of all three
- * (`./types.js`, vendored from the same OD `packages/contracts/src/api/
- * registry.ts` source this module cites above — main's `AgentFixIntent`
- * adds a `launchOAuth` case this port's copy lacked, and its
- * `AgentDiagnostic.reason` is the specific `AgentDiagnosticReason` literal
- * union rather than a bare `string`). Reusing them keeps one canonical
- * diagnostic shape in the package instead of two divergent ones under the
- * same names. `ModelOption` alone is renamed (to `ModelCatalogOption`)
- * rather than reused, because the package's existing `ModelOption`
- * (`agent-protocol/acp/models.ts`, `{ id, label }`) is a narrower,
- * genuinely different shape for ACP model-probe results, not a compatible
- * version of this module's `{ id, label, hint, providerId, default, caps }`
- * model-catalogue entry.
+ * Provider/model/agent picker vocabulary and credential-status, merge, cache and choice helpers.
+ * registry.ts owns the CLI-adapter catalog, a distinct concept. Reuse the canonical protocol
+ * catalog types and runtime diagnostic types rather than redefining looser copies.
+ * ModelCatalogOption carries provider/hint/default/capability data; the protocol ACP ModelOption
+ * is a narrower id/label probe shape, so their names and contracts stay separate.
  */
 import type { AgentDefinition, CredentialStatus, ModelCatalogOption, ModelProvider } from '@jini-ai/protocol';
 
@@ -50,9 +19,7 @@ export interface AgentModelChoice {
  * doesn't require credentials is always `available`; otherwise the status
  * depends on whether a credential has actually been stored.
  */
-export function resolveCredentialStatus(
-  provider: Pick<ModelProvider, 'credentialsRequired'>,
-  hasStoredCredential: boolean,
+export function resolveCredentialStatus({ provider, hasStoredCredential }: { provider: Pick<ModelProvider, 'credentialsRequired'>; hasStoredCredential: boolean }
 ): CredentialStatus {
   if (provider.credentialsRequired === false) return 'available';
   return hasStoredCredential ? 'configured' : 'unconfigured';
@@ -63,9 +30,7 @@ export function resolveCredentialStatus(
  * fetched entries first and deduping by id (first write wins). Blank ids are
  * dropped; blank labels fall back to the id.
  */
-export function mergeModelOptions(
-  fetchedModels: readonly ModelCatalogOption[],
-  suggestedModels: readonly ModelCatalogOption[],
+export function mergeModelOptions({ fetchedModels, suggestedModels }: { fetchedModels: readonly ModelCatalogOption[]; suggestedModels: readonly ModelCatalogOption[] }
 ): ModelCatalogOption[] {
   const seen = new Set<string>();
   const merged: ModelCatalogOption[] = [];
@@ -81,7 +46,7 @@ export function mergeModelOptions(
 }
 
 /** Deterministic, non-reversible fingerprint — never persist or transmit the raw credential. */
-export function fingerprintCredential(value: string): string {
+export function fingerprintCredential({ value }: { value: string }): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i += 1) {
     hash ^= value.charCodeAt(i);
@@ -96,17 +61,15 @@ export function fingerprintCredential(value: string): string {
  * misses the cache instead of silently reusing another provider's list.
  * `variant` covers protocols that key on more than credential + endpoint
  * (e.g. an API version).
+ * @throws {TypeError} When a supplied variant is not a string.
  */
-export function modelCatalogCacheKey(
-  providerId: string,
-  baseUrl: string,
-  credential: string,
-  variant = '',
+export function modelCatalogCacheKey({ providerId, baseUrl, credential }: { providerId: string; baseUrl: string; credential: string }, { variant = '' }: { variant?: unknown } = {}
 ): string {
+  if (typeof variant !== 'string') throw new TypeError('Model catalog variant must be a string');
   return [
     providerId,
     baseUrl.trim().replace(/\/+$/, ''),
-    fingerprintCredential(credential.trim()),
+    fingerprintCredential({ value: credential.trim() }),
     variant.trim(),
   ].join('\n');
 }
@@ -117,9 +80,7 @@ export function modelCatalogCacheKey(
  * normalization is needed (nothing to change) or possible (no configured
  * model, or the agent has no models to fall back to).
  */
-export function normalizeAgentModelChoice(
-  agent: Pick<AgentDefinition, 'models'> | null | undefined,
-  choice: AgentModelChoice | undefined,
+export function normalizeAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }
 ): AgentModelChoice | null {
   const configuredModel = typeof choice?.model === 'string' && choice.model ? choice.model : null;
   if (!configuredModel) return null;
@@ -133,11 +94,9 @@ export function normalizeAgentModelChoice(
 }
 
 /** `normalizeAgentModelChoice`'s result if normalization applied, else the original choice. */
-export function effectiveAgentModelChoice(
-  agent: Pick<AgentDefinition, 'models'> | null | undefined,
-  choice: AgentModelChoice | undefined,
+export function effectiveAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }
 ): AgentModelChoice | undefined {
-  return normalizeAgentModelChoice(agent, choice) ?? choice;
+  return normalizeAgentModelChoice({ agent: agent, choice: choice }) ?? choice;
 }
 
 /**

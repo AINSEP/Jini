@@ -3,12 +3,12 @@ import type { InteractiveUiRegistry } from '../interactive-ui/registry.js';
 
 export interface BuildA2uiCatalogFromRegistryOptions {
   /**
-   * A catalog to merge registry components into — typically `createLabCatalog()`, so the result
+   * A catalog to merge registry components into — typically `createLabCatalog({})`, so the result
    * has both the 18 basic layout/text primitives (`Row`/`Column`/`Card`/`Text`/`Button`/etc.) AND
    * registry-sourced components (`native.data-table`, `shadcn.data-table`). Without a `base`, the
    * result has only registry components, which is enough to validate/resolve one in isolation but
    * cannot compose a tree — a table alone isn't a page, it needs a container to sit in. Omitted
-   * entirely (not defaulted to `createLabCatalog()` here) so a caller that only ever wants
+   * entirely (not defaulted to `createLabCatalog({})` here) so a caller that only ever wants
    * registry components — the manifests-only MCP search path, for one — doesn't pull in basic-type
    * schemas it will never use. `functions` come from `base` unchanged; registry components don't
    * define any of their own.
@@ -29,8 +29,7 @@ export interface BuildA2uiCatalogFromRegistryOptions {
  * against the registry, so this is a documented simplification, not a load-bearing choice.
  */
 export function buildA2uiCatalogFromRegistry(
-  registry: InteractiveUiRegistry,
-  catalogId: string,
+  { registry, catalogId }: { registry: Pick<InteractiveUiRegistry, 'list'>; catalogId: string },
   options: BuildA2uiCatalogFromRegistryOptions = {},
 ): Catalog {
   const registryComponents = registry.list().map(

@@ -24,7 +24,7 @@ interface JsonRpcish {
 interface SurfaceApi {
   callTool(name: string, args?: Record<string, unknown>): Promise<unknown>;
   notify(method: string, params?: Record<string, unknown>): void;
-  openLink(url: string): void;
+  openLink(url: string): Promise<unknown>;
   requestTeardown(): void;
   whenReady(fn: () => void): void;
   hostContext(): unknown;
@@ -36,6 +36,8 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
   const listeners: ((event: { data: unknown }) => void)[] = [];
   const setAttribute = vi.fn();
   const observe = vi.fn();
+  let resize = () => {};
+  let contentHeight = 240;
 
   const fakeWindow: Record<string, unknown> = {
     parent: { postMessage: (message: JsonRpcish) => posted.push(message) },
@@ -43,6 +45,7 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
   };
   const fakeDocument = {
     documentElement: { scrollWidth: 360, scrollHeight: 240, setAttribute },
+    body: { getBoundingClientRect: () => ({ height: contentHeight }) },
   };
 
   const source = renderBridgeScript({ appName: 'test-surface', appVersion: '2' });
@@ -52,7 +55,7 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
     fakeDocument,
     options.resizeObserver ?? (class {
       constructor(callback: () => void) {
-        void callback;
+        resize = callback;
       }
       observe = observe;
     }),
@@ -62,6 +65,8 @@ function runBridge(options: { resizeObserver?: unknown } = {}) {
     posted,
     setAttribute,
     observe,
+    document: fakeDocument,
+    resizeContent(height: number) { contentHeight = height; resize(); },
     api: fakeWindow[SURFACE_BRIDGE_GLOBAL] as SurfaceApi,
     deliver(data: unknown) {
       for (const listener of listeners) listener({ data });
@@ -98,9 +103,21 @@ describe('renderBridgeScript', () => {
       'ui/notifications/initialized',
       'ui/notifications/size-changed',
     ]);
-    expect(bridge.posted[2]?.params).toEqual({ width: 360, height: 240 });
+    expect(bridge.posted[2]?.params).toEqual({ height: 240 });
     expect(bridge.api.isReady()).toBe(true);
     expect(bridge.api.hostContext()).toEqual({ theme: 'dark' });
+  });
+
+  it('never reports a width, so the Host never pins the frame to the width it had at mount', async () => {
+    // `@mcp-ui/client`'s AppFrame writes any reported width straight onto the iframe as a fixed
+    // `style.width = Npx`. A surface that reported its own `scrollWidth` while mounting in a hidden
+    // or narrow pane (a reload mid-run) froze at that min-content width for good — owner bug
+    // 2026-10-08: the ask-choice card stuck at 192px inside a ~540px assistant panel.
+    const bridge = runBridge();
+    await bridge.handshake();
+    const sizeReports = bridge.posted.filter((message) => message.method === 'ui/notifications/size-changed');
+    expect(sizeReports.length).toBeGreaterThan(0);
+    for (const report of sizeReports) expect(report.params).not.toHaveProperty('width');
   });
 
   it('exposes a null hostContext when the Host response carries none', async () => {
@@ -110,10 +127,23 @@ describe('renderBridgeScript', () => {
     expect(bridge.api.hostContext()).toBeNull();
   });
 
-  it('observes the document for resizes when ResizeObserver exists', async () => {
+  it('observes the content body for resizes when ResizeObserver exists', async () => {
     const bridge = runBridge();
     await bridge.handshake();
     expect(bridge.observe).toHaveBeenCalledTimes(1);
+    expect(bridge.observe).toHaveBeenCalledWith(bridge.document.body);
+  });
+
+  it('fits short content below the viewport and follows content shrinking and growing', async () => {
+    const bridge = runBridge();
+    bridge.document.documentElement.scrollHeight = 377;
+    bridge.resizeContent(212);
+    await bridge.handshake();
+    expect(bridge.posted.at(-1)?.params).toEqual({ height: 212 });
+    bridge.resizeContent(165.2);
+    expect(bridge.posted.at(-1)?.params).toEqual({ height: 166 });
+    bridge.resizeContent(480);
+    expect(bridge.posted.at(-1)?.params).toEqual({ height: 480 });
   });
 
   it('skips the observer rather than throwing when ResizeObserver is unavailable', async () => {
@@ -242,17 +272,39 @@ describe('renderBridgeScript', () => {
     expect(afterFailure).not.toHaveBeenCalled();
   });
 
-  it('exposes open-link, teardown-request and raw notify as spec-named notifications', async () => {
+  it('exposes teardown-request and raw notify as spec-named notifications', async () => {
     const bridge = runBridge();
     await bridge.handshake();
-    bridge.api.openLink('https://example.test/docs');
     bridge.api.requestTeardown();
     bridge.api.notify('notifications/message', { level: 'info', data: 'hi' });
-    expect(bridge.posted.slice(-3)).toEqual([
-      { jsonrpc: '2.0', method: 'ui/open-link', params: { url: 'https://example.test/docs' } },
+    expect(bridge.posted.slice(-2)).toEqual([
       { jsonrpc: '2.0', method: 'ui/notifications/request-teardown' },
       { jsonrpc: '2.0', method: 'notifications/message', params: { level: 'info', data: 'hi' } },
     ]);
+  });
+
+  // `@mcp-ui/client`'s AppBridge registers `ui/open-link` with setRequestHandler, so a message
+  // without an `id` is a notification nothing handles and is dropped silently — the dead
+  // "Connect →" button. It must be a request, and its promise must settle on the Host's answer.
+  it('sends open-link as a JSON-RPC request (with an id) and resolves with the Host answer', async () => {
+    const bridge = runBridge();
+    await bridge.handshake();
+    const pending = bridge.api.openLink('https://example.test/docs');
+    const open = bridge.posted.find((message) => message.method === 'ui/open-link');
+    expect(open).toEqual({ jsonrpc: '2.0', id: expect.any(String), method: 'ui/open-link', params: { url: 'https://example.test/docs' } });
+    bridge.deliver({ jsonrpc: '2.0', id: open?.id, result: {} });
+    await expect(pending).resolves.toEqual({});
+  });
+
+  it('holds an open-link made before the handshake, then sends it as a request', async () => {
+    const bridge = runBridge();
+    const pending = bridge.api.openLink('https://example.test/early');
+    expect(bridge.posted).toHaveLength(1);
+    await bridge.handshake();
+    const open = bridge.posted.find((message) => message.method === 'ui/open-link');
+    expect(open?.id).toBeTypeOf('string');
+    bridge.deliver({ jsonrpc: '2.0', id: open?.id, result: {} });
+    await expect(pending).resolves.toEqual({});
   });
 
   it('touches no storage API, which would throw SecurityError in an opaque origin', () => {

@@ -104,9 +104,8 @@ export async function atomicCopyFile(
   );
   try {
     await copyFile(source, tempPath);
-    if (options.overwrite === true) {
-      await rm(destination, { force: true });
-    }
+    // Rename replaces the old file atomically. Removing it first opens a
+    // missing-file window and loses the previous contents if rename fails.
     await rename(tempPath, destination);
     const copied = await stat(destination);
     return { bytesCopied: copied.size, replaced: existing != null };

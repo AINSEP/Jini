@@ -5,7 +5,7 @@
 // down on change. Not tied to any one feature domain — feature-local hooks
 // live inside their own `features/<domain>/react/hooks/` instead.
 import { useEffect, useMemo } from 'react';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { requestWithTimeout } from '../../utils/browser-request.js';
 
 export interface BrandFontManifestFile {
   family: string;
@@ -20,20 +20,32 @@ export interface BrandFontManifest {
 }
 
 export interface UseBrandFontsOptions {
+  projectId?: string;
   /**
    * Builds the URL for a project asset path (e.g. `fonts/manifest.json`).
    * Omit to skip the self-hosted-font-manifest stage entirely — this hook
    * never hardcodes a font-service URL of its own.
    */
-  resolveProjectAssetUrl?: (projectId: string, path: string) => string;
+  resolveProjectAssetUrl?: (requiredArgs: { projectId: string; path: string }) => string;
+  manifest?: BrandFontManifestPort;
+  /** Native fetch port used by the default manifest loader. */
+  fetch?: typeof globalThis.fetch;
+  document?: Document;
+}
+
+export interface BrandFontManifestPort {
+  load(requiredArgs: { url: string }): Promise<Pick<Response, 'ok' | 'json'>>;
 }
 
 export function useBrandFonts(
-  projectId: string | undefined,
-  fonts: { googleFontsUrl?: string }[],
+  { fonts }: { fonts: { googleFontsUrl?: string }[] },
   options: UseBrandFontsOptions = {},
 ): void {
-  const { resolveProjectAssetUrl } = options;
+  const { projectId, resolveProjectAssetUrl, fetch, manifest: suppliedManifest } = options;
+  const manifest = useMemo<BrandFontManifestPort>(() => suppliedManifest ?? {
+    load: ({ url }) => requestWithTimeout({ url, timeoutMs: 15_000 }, { ...(fetch === undefined ? {} : { fetch }), init: { cache: 'no-store' } }),
+  }, [suppliedManifest, fetch]);
+  const document = options.document ?? globalThis.document;
 
   const googleUrls = useMemo(() => {
     const urls = fonts
@@ -53,7 +65,7 @@ export function useBrandFonts(
     return () => {
       for (const link of links) link.remove();
     };
-  }, [googleUrls]);
+  }, [googleUrls, document]);
 
   useEffect(() => {
     if (!projectId || !resolveProjectAssetUrl) return;
@@ -61,18 +73,14 @@ export function useBrandFonts(
     let styleEl: HTMLStyleElement | null = null;
     void (async () => {
       try {
-        const resp = await fetchWithTimeout(
-          resolveProjectAssetUrl(projectId, 'fonts/manifest.json'),
-          { cache: 'no-store' },
-          { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-        );
+        const resp = await manifest.load({ url: resolveProjectAssetUrl({ projectId, path: 'fonts/manifest.json' }) });
         if (!resp.ok) return;
         const data = (await resp.json()) as BrandFontManifest;
         const files = Array.isArray(data?.files) ? data.files : [];
         if (cancelled || files.length === 0) return;
         const css = files
           .map((f) => {
-            const url = resolveProjectAssetUrl(projectId, `fonts/${f.file}`);
+            const url = resolveProjectAssetUrl({ projectId, path: `fonts/${f.file}` });
             return [
               '@font-face {',
               `  font-family: '${f.family.replace(/'/g, '')}';`,
@@ -96,5 +104,5 @@ export function useBrandFonts(
       cancelled = true;
       if (styleEl) styleEl.remove();
     };
-  }, [projectId, resolveProjectAssetUrl]);
+  }, [projectId, resolveProjectAssetUrl, manifest, document]);
 }

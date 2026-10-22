@@ -130,6 +130,19 @@ describe('tryReadImagePayload / buildPiImagePayloads', () => {
     expect(tryReadImagePayload(path.join(dir, 'missing.png'), dir, 0)).toBeNull();
   });
 
+  it('reports unreadable attachments without exposing a path or interrupting the remaining images', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const good = writeImage('readable.png', 3);
+      expect(buildPiImagePayloads([path.join(dir, 'private-missing.png'), good], dir)).toEqual([
+        { type: 'image', data: Buffer.alloc(3, 1).toString('base64'), mimeType: 'image/png' },
+      ]);
+      expect(warning.mock.calls).toEqual([['[pi-rpc] Image attachment could not be read; skipping it.']]);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
   it('returns null when the resolved path escapes uploadRoot', () => {
     const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pi-rpc-outside-'));
     try {

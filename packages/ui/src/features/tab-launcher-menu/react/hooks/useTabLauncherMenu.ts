@@ -92,7 +92,7 @@ export function useTabLauncherMenu<TActionCtx = void>(
     };
   }, [anchor]);
 
-  useDismissOnOutsideOrEscape(onClose, { containerRef });
+  useDismissOnOutsideOrEscape({ onDismiss: onClose }, { containerRef });
 
   const kinds = useMemo(() => presentKinds(files), [files]);
   const fileResults = useMemo(() => filterFiles(files, query, kindFilter), [files, query, kindFilter]);
@@ -144,24 +144,23 @@ export function useTabLauncherMenu<TActionCtx = void>(
       setSelected((current) => nextSelected(current, selectableCount, -1));
       return;
     }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      if (selectableCount > 0) {
-        const resolved = resolveSelection(selected, fileResults.length);
-        if (resolved.zone === 'file') {
-          const file = fileResults[resolved.index];
-          if (file) selectFile(file);
-        } else {
-          const tab = tabResults[resolved.index];
-          if (tab) selectTab(tab);
-        }
-        return;
-      }
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    if (selectableCount === 0) {
       // No file/tab matches the query but "create new" actions exist —
       // Enter triggers the first one so the keyboard path is never a dead end.
       const firstAction = actions[0];
       if (firstAction) runAction(firstAction);
+      return;
     }
+    const resolved = resolveSelection(selected, fileResults.length);
+    if (resolved.zone === 'file') {
+      const file = fileResults[resolved.index];
+      if (file) selectFile(file);
+      return;
+    }
+    const tab = tabResults[resolved.index];
+    if (tab) selectTab(tab);
   }, [selectableCount, selected, fileResults, tabResults, actions, selectFile, selectTab, runAction]);
 
   return {

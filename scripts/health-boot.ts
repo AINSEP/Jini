@@ -27,7 +27,6 @@ import { buildAndPackClosure, jiniDependencyNames, readPackageJson } from './lib
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
-const packagesDir = join(repoRoot, 'packages');
 const minimalHostDir = join(repoRoot, 'examples', 'minimal-host');
 
 /** Recursively asserts that nothing under a directory is a symlink — the actual proof that installed `@jini-ai/*` packages are real copies, not workspace links back into this repo. */
@@ -58,7 +57,7 @@ async function main(): Promise<void> {
   try {
     // 1-3: build every package in the closure, dependency-first, pack each, rewrite @jini-ai/* deps
     // to file: sibling tarball paths — the shared core both this file and pack-for-external-use.ts use.
-    const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, packagesDir, rootDeps, packDestDir);
+    const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, rootDeps, packDestDir);
     const packedTarballs = closure.map((name) => tarballPathByName.get(name)!);
 
     // 4. Copy examples/minimal-host into a scratch directory and rewrite its own @jini-ai/* deps to

@@ -1,7 +1,7 @@
 /**
  * Syntax-highlighted code fragments for artifact rendering. Verbatim port of
  * `apps/web/src/runtime/shiki.ts` in the origin project — no product-specific
- * logic in the original. See `source-map.md`.
+ * logic in the original. See `archived provenance ledger`.
  */
 import type { BundledLanguage, BundledTheme, HighlighterGeneric } from 'shiki/bundle/web';
 
@@ -14,7 +14,7 @@ const CACHE_MAX = 128;
 // 'toml', 'dockerfile' — this package's pinned `shiki` version's
 // `bundle/web` (a deliberately size-trimmed, browser-focused subset) does
 // not ship grammars for those, so they're dropped here rather than typed
-// around with a cast that would fail at runtime. See `source-map.md`.
+// around with a cast that would fail at runtime. See `archived provenance ledger`.
 function getHighlighter(): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> {
   if (!highlighterPromise) {
     highlighterPromise = import('shiki/bundle/web').then(({ createHighlighter }) =>

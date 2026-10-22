@@ -17,28 +17,22 @@ const PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk
 
 async function collectEvents(lifecycle: ReturnType<typeof createRunLifecycle>, runId: string): Promise<RunProtocolEvent[]> {
   const events: RunProtocolEvent[] = [];
-  await lifecycle.stream(runId, (event) => events.push(event));
+  await lifecycle.stream({ runId: runId, onEvent: (event) => events.push(event) });
   return events;
 }
 
 async function runImageTool(output: unknown) {
-  const registry = createToolRegistry();
+  const registry = createToolRegistry({});
   registry.register({
     descriptor: { id: 'demo_image' },
     handler: async () => output,
     policy: { authorize: () => 'allow' },
   });
-  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: createToolExecutor({ registry }) });
   const { run } = await lifecycle.start({ contextRef: 'media' });
 
-  const result = await bridge.execute({
-    runId: run.id,
-    toolUseId: 'call-1',
-    toolId: 'demo_image',
-    principal: { id: 'user-1' },
-    input: {},
-  });
+  const result = await bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'demo_image', principal: { id: 'user-1' }, input: {} });
 
   return { result, events: await collectEvents(lifecycle, run.id) };
 }

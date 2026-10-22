@@ -1,47 +1,13 @@
 /**
  * @module acp-model-probe
- *
- * Port replacing OD's `detectAcpModels` import
- * (`apps/daemon/src/acp.js`) inside `defs/shared.ts`. Eight of this
- * package's def literals (devin, hermes, kilo, kimi, kiro, reasonix,
- * trae-cli, vibe) fetch their live model list by speaking a session/new →
- * session/list_models-shaped ACP JSON-RPC handshake to the spawned CLI.
- *
- * That handshake lives in OD's `acp.ts` (1744 lines) — the full ACP
- * subprocess transport, which r1's recon classifies as its own separate
- * GENERIC-ENGINE zone (`agent-protocol/`, 17 files) and a *later*
- * extraction task, not this one. Porting it here would blow this task's
- * scope far past "harvest wholesale" for what is genuinely a large,
- * separate subsystem.
- *
- * So `detectAcpModels` becomes an injectable port: an `AcpModelProbe` with
- * a single `detectModels(request)` method, matching the real call shape
- * every ACP-based def literal already uses. The default implementation is
- * a no-op that resolves to `[]`, which makes `detection.ts`'s `fetchModels`
- * step treat the live-fetch as "returned nothing" and fall back to the
- * def's static `fallbackModels` — the same behavior OD gets when the vela
- * probe times out or errors. A future task that ports the ACP transport
- * (or the OD adapter, sooner) calls `setAcpModelProbe()` once at startup to
- * wire in the real implementation; every def literal that calls
- * `detectAcpModels(...)` picks it up automatically, no per-def changes
- * needed.
+ * Replaceable live-model probe for ACP-based runtime defs. The default uses the native,
+ * prompt-free initialize/session-new handshake; setAcpModelProbe installs a host implementation
+ * and null restores native transport. noopAcpModelProbe is an explicit opt-out that returns no
+ * live models, allowing detection to fall back to the def's static catalog.
  */
-import type { RuntimeEnv, RuntimeModelOption } from './types.js';
-
-export interface AcpModelProbeRequest {
-  bin: string;
-  args: string[];
-  cwd?: string;
-  env?: RuntimeEnv;
-  timeoutMs?: number;
-  clientName?: string;
-  clientVersion?: string;
-  defaultModelOption?: RuntimeModelOption;
-}
-
-export interface AcpModelProbe {
-  detectModels(request: AcpModelProbeRequest): Promise<RuntimeModelOption[]>;
-}
+import type { AcpModelProbe, AcpModelProbeRequest, RuntimeModelOption } from './types.js';
+export type { AcpModelProbeRequest, AcpModelProbe } from './types.js';
+import { detectAcpModels as probeNativeModels, detectAcpModelMetadata } from './agent-protocol/acp/models.js';
 
 export const noopAcpModelProbe: AcpModelProbe = {
   async detectModels() {
@@ -49,14 +15,21 @@ export const noopAcpModelProbe: AcpModelProbe = {
   },
 };
 
-let activeAcpModelProbe: AcpModelProbe = noopAcpModelProbe;
+/** Native adapter selected once by each host composition; independent of the compatibility setter. */
+export const nativeAcpModelProbe: AcpModelProbe = {
+  detectModels: (required, optional = {}) => probeNativeModels(required, optional),
+  detectMetadata: (required, optional = {}) => detectAcpModelMetadata(required, optional),
+};
+let activeAcpModelProbe: AcpModelProbe = nativeAcpModelProbe;
 
-/** Install the real ACP transport (or a test double). Pass `null` to restore the no-op default. */
-export function setAcpModelProbe(probe: AcpModelProbe | null): void {
-  activeAcpModelProbe = probe ?? noopAcpModelProbe;
+/** Compatibility setter for unbound definitions. Owned hosts keep their selected transport.
+ * Pass `null` to restore the native transport for the legacy wrapper. */
+export function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }): void {
+  activeAcpModelProbe = probe ?? nativeAcpModelProbe;
 }
 
-/** Drop-in replacement for OD's `detectAcpModels` — delegates to whatever probe is currently installed. */
-export async function detectAcpModels(request: AcpModelProbeRequest): Promise<RuntimeModelOption[]> {
-  return activeAcpModelProbe.detectModels(request);
+/** Delegate to an explicit host probe, or the currently installed compatibility probe. */
+export async function detectAcpModels(requiredArgs: Pick<AcpModelProbeRequest, "bin" | "args">, optionalArgs: Omit<AcpModelProbeRequest, "bin" | "args"> & { probe?: AcpModelProbe } = {}): Promise<RuntimeModelOption[]> {
+  const { probe = activeAcpModelProbe, ...request } = optionalArgs;
+  return probe.detectModels(requiredArgs, request);
 }

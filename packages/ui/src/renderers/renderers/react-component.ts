@@ -11,7 +11,7 @@ export const ReactComponentRenderer: ArtifactRenderer = {
   id: 'react-component',
   supportsStreaming: false,
   canRender: ({ file }) => {
-    const manifest = resolveArtifactManifest(file);
+    const manifest = resolveArtifactManifest({ file: file });
     if (!manifest) return false;
     return manifest.kind === 'react-component' || manifest.renderer === 'react-component';
   },

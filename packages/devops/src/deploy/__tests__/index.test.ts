@@ -31,12 +31,12 @@ describe('@jini-ai/deploy barrel', () => {
       checkReachability: async () => ({ reachable: true }),
     };
     const input: DeployPublishToolInput = { targetId: 'fixture', files: [], projectName: 'p' };
-    const result = await publishDeploy(input, [target]);
+    const result = await publishDeploy({ ...input, targets: [target] });
     expect(result).toMatchObject({ targetId: 'fixture', url: 'https://example.test', status: 'ready' });
   });
 
   it('publishDeploy throws a DeployError for an unknown target id', async () => {
     const input: DeployPublishToolInput = { targetId: 'missing', files: [], projectName: 'p' };
-    await expect(publishDeploy(input, [])).rejects.toThrow(DeployError);
+    await expect(publishDeploy({ ...input, targets: [] })).rejects.toThrow(DeployError);
   });
 });

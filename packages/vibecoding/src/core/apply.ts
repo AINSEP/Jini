@@ -32,19 +32,21 @@ function toError(thrown: unknown): Error {
 /**
  * Validate one proposed edit and, if the host accepts it, commit it.
  *
- * @param target - the host's artifact port.
- * @param edit - the model's proposed replacement.
- * @returns what happened — applied, rejected by `validate`, or failed while writing.
+ * @param requiredArgs - the host's artifact port and the model's proposed replacement.
+ * @returns what happened — applied, rejected by `validate`, or failed while validating or writing.
  * @complexity 3
  */
-export async function applyEdit(target: EditTarget, edit: ProposedEdit): Promise<ApplyOutcome> {
-  const verdict = await target.validate({ id: edit.id, content: edit.content });
-  if (!verdict.ok) {
-    return { status: "rejected", id: edit.id, reason: verdict.reason };
-  }
-
+export async function applyEdit(
+  { target, edit }: { readonly target: EditTarget; readonly edit: ProposedEdit }
+): Promise<ApplyOutcome> {
   try {
-    await target.replacePart(edit.id, edit.content);
+    // Validation is a host port too: a failed parser/read must produce an outcome so the batch
+    // can continue, and must never reach the write for this proposal.
+    const verdict = await target.validate({ id: edit.id, content: edit.content });
+    if (!verdict.ok) {
+      return { status: "rejected", id: edit.id, reason: verdict.reason };
+    }
+    await target.replacePart({ id: edit.id, content: edit.content });
   } catch (thrown) {
     return { status: "failed", id: edit.id, error: toError(thrown) };
   }
@@ -60,18 +62,16 @@ export async function applyEdit(target: EditTarget, edit: ProposedEdit): Promise
  * failed edit does **not** halt the rest — every proposal gets an outcome, so the caller can report
  * precisely which parts landed rather than abandoning the batch at the first problem.
  *
- * @param target - the host's artifact port.
- * @param edits - proposals, applied in the given order.
+ * @param requiredArgs - the host's artifact port and proposals, applied in the given order.
  * @returns one outcome per proposal, positionally aligned with `edits`.
  * @complexity 2
  */
 export async function applyEdits(
-  target: EditTarget,
-  edits: readonly ProposedEdit[]
+  { target, edits }: { readonly target: EditTarget; readonly edits: readonly ProposedEdit[] }
 ): Promise<readonly ApplyOutcome[]> {
   const outcomes: ApplyOutcome[] = [];
   for (const edit of edits) {
-    outcomes.push(await applyEdit(target, edit));
+    outcomes.push(await applyEdit({ target, edit }));
   }
   return outcomes;
 }
@@ -83,12 +83,12 @@ export async function applyEdits(
  * things the model can act on, and neither reaches it unless the host asks for them here — which
  * is what closes the loop between validation and correction.
  *
- * @param outcomes - results from `applyEdits`.
+ * @param requiredArgs - results from `applyEdits`.
  * @returns one `{ id, reason }` per non-applied outcome, in input order.
  * @complexity 3
  */
 export function correctionsFor(
-  outcomes: readonly ApplyOutcome[]
+  { outcomes }: { readonly outcomes: readonly ApplyOutcome[] }
 ): readonly { readonly id: PartId; readonly reason: string }[] {
   const corrections: { id: PartId; reason: string }[] = [];
   for (const outcome of outcomes) {

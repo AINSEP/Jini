@@ -118,6 +118,15 @@ describe('ArtifactView', () => {
     expect(screen.queryByRole('toolbar')).not.toBeInTheDocument();
   });
 
+  it('renders svg artifacts through the same sandboxed iframe as html, titled by the manifest', () => {
+    const svgManifest: ArtifactManifest = { version: 1, kind: 'svg', title: 'Logo', entry: 'logo.svg', renderer: 'svg', exports: [] };
+    const file: ArtifactFile = { name: 'logo.svg', kind: 'text', content: '<svg><circle r="1"/></svg>', manifest: svgManifest };
+    render(<ArtifactView file={file} registry={registry} />);
+    const iframe = document.querySelector('iframe');
+    expect(iframe?.getAttribute('title')).toBe('Logo');
+    expect(iframe?.srcdoc).toContain('<circle r="1"/>');
+  });
+
   it('treats a missing `content` as an empty document for the sandboxed html/svg renderer', () => {
     const file: ArtifactFile = { name: 'index.html', kind: 'html', manifest: htmlManifest };
     render(<ArtifactView file={file} registry={registry} />);
@@ -139,11 +148,11 @@ describe('ArtifactView', () => {
     // change canRender/supportsStreaming) without also supplying a
     // renderPartial — ArtifactView must still safely convert the content
     // itself rather than passing raw markdown through unconverted.
-    const customRegistry = registry.register({
+    const customRegistry = registry.register({ renderer: {
       id: 'markdown',
       supportsStreaming: false,
       canRender: ({ file }) => file.name.endsWith('.md'),
-    });
+    } });
     const file: ArtifactFile = { name: 'notes.md', kind: 'text', content: '# Fallback works', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={customRegistry} />);
     expect(container.querySelector('h1')).toHaveTextContent('Fallback works');
@@ -155,11 +164,11 @@ describe('ArtifactView', () => {
     // has one), so they never exercise the `file.content ?? ''` fallback on
     // the *other* branch of that ternary — the one taken when the resolved
     // renderer has no renderPartial of its own.
-    const customRegistry = registry.register({
+    const customRegistry = registry.register({ renderer: {
       id: 'markdown',
       supportsStreaming: false,
       canRender: ({ file }) => file.name.endsWith('.md'),
-    });
+    } });
     const file: ArtifactFile = { name: 'notes.md', kind: 'text', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={customRegistry} />);
     expect(container.textContent).not.toContain('undefined');

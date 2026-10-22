@@ -12,13 +12,56 @@ import { useChatPane } from '../../hooks/useChatPane.hooks.js';
 
 const agents: ChatPaneAgent[] = [
   { id: 'codex', name: 'Codex CLI', available: true },
-  { id: 'gemini', name: 'Gemini CLI', available: true },
+  { id: 'antigravity', name: 'Antigravity', available: true },
 ];
 
 describe('useChatPane', () => {
   beforeEach(() => {
     __resetComposerDraftCacheForTests();
     __resetAttachmentPreviewCacheForTests();
+  });
+
+  it('dispatches the discovered concrete Claude default through the host run-context boundary', async () => {
+    const transport = createFakeChatTransport();
+    const onSelectionChange = vi.fn();
+    const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true, models: [
+      { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+      { id: 'claude-opus-5-5[1m]', label: 'Default (recommended)' },
+    ], defaultModelResolution: { status: 'resolved', id: 'claude-opus-5-5[1m]', source: 'rpc', resolvedAt: '2026-10-08T00:00:00.000Z', launchFingerprint: 'fixture' } };
+    const { result, rerender } = renderHook(() => useChatPane({
+      transport, agents: [claude], selection: { agentId: 'claude' }, initialDraft: 'Hello',
+      onSelectionChange,
+      runContext: ({ selection }) => ({ model: selection.model }),
+    }));
+    expect(result.current.selection).toEqual({ agentId: 'claude', model: 'claude-opus-5-5[1m]' });
+    const normalizedSelection = result.current.selection;
+    // The controlled request still omits its model after normalization; ordinary renders must
+    // neither normalize it again nor write a fresh object into composer state indefinitely.
+    act(() => result.current.composer.setDraft('Hello again'));
+    rerender();
+    expect(result.current.selection).toBe(normalizedSelection);
+    expect(result.current.composer.agent).toEqual(normalizedSelection);
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionChange).toHaveBeenCalledWith(normalizedSelection);
+    await act(() => result.current.send());
+    expect(transport.calls).toHaveLength(1);
+    expect(transport.calls[0]?.input.agentId).toBe('claude');
+    expect(transport.calls[0]?.input.context).toEqual({ model: 'claude-opus-5-5[1m]' });
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a concrete choice when discovery supplies only unresolved aliases', async () => {
+    const transport = createFakeChatTransport();
+    const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true,
+      models: [{ id: 'sonnet', label: 'Sonnet', identityKind: 'alias' }],
+      defaultModelResolution: { status: 'unresolved', reason: 'Native metadata did not resolve a default.' },
+      modelCatalog: { source: 'offline-fallback', freshness: 'offline-fallback', fetchedAt: '2026-10-08T00:00:00.000Z', expiresAt: '2026-10-08T00:15:00.000Z', coverage: 'configured', launchFingerprint: 'fixture' },
+    };
+    const { result } = renderHook(() => useChatPane({ transport, agents: [claude], initialDraft: 'Hello' }));
+    expect(result.current.selection).toEqual({ agentId: 'claude' });
+    expect(result.current.sendBlocker).toBe('model-unresolved');
+    await act(() => result.current.send());
+    expect(transport.calls).toHaveLength(0);
   });
 
   it('threads conversationId into the composer so a draft round-trips a conversation switch', () => {
@@ -50,10 +93,10 @@ describe('useChatPane', () => {
     await act(() => result.current.send());
     expect(transport.calls).toHaveLength(0);
 
-    act(() => result.current.setSelection({ agentId: 'gemini' }));
-    expect(result.current.selection).toEqual({ agentId: 'gemini' });
-    expect(result.current.composer.agent).toEqual({ agentId: 'gemini' });
-    expect(onSelectionChange).toHaveBeenCalledWith({ agentId: 'gemini' });
+    act(() => result.current.setSelection({ agentId: 'antigravity' }));
+    expect(result.current.selection).toEqual({ agentId: 'antigravity' });
+    expect(result.current.composer.agent).toEqual({ agentId: 'antigravity' });
+    expect(onSelectionChange).toHaveBeenCalledWith({ agentId: 'antigravity' });
   });
 
   it('sends staged attachments with controlled selection and resets empty state', async () => {
@@ -155,7 +198,7 @@ describe('useChatPane', () => {
     const file = new File(['hello'], 'notes.txt', { type: 'text/plain' });
     await act(() => result.current.addAttachments([file]));
 
-    expect(getAttachmentPreviewSource('attachment:0')).toBe(file);
+    expect(getAttachmentPreviewSource({ path: 'attachment:0' })).toBe(file);
   });
 
   it('blocks send while a directory is pending/invalid and supports attachment-only send', async () => {
@@ -280,7 +323,7 @@ describe('useChatPane', () => {
     expect(transport.calls).toHaveLength(0);
   });
 
-  it('queues an Enter sent while streaming, clearing only the draft and keeping staged attachments', async () => {
+  it('queues an Enter sent while streaming, capturing attachments and clearing the composer', async () => {
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useChatPane({
       transport,
@@ -301,9 +344,10 @@ describe('useChatPane', () => {
 
     expect(result.current.queuedPrompt).toBe('second turn');
     expect(result.current.composer.draft).toBe('');
-    // `send()` uses `composer.setDraft('')`, NOT `composer.reset()` — a reset would also wipe the
-    // attachment this queued turn still needs when it finally goes out.
-    expect(result.current.composer.attachments).toEqual([{ path: '/tmp/b.txt', name: 'b.txt', kind: 'file' }]);
+    // MOVE: The queue owns this file until flush; the next composer message starts without it.
+    expect(result.current.composer.attachments).toEqual([]);
+    expect(result.current.queuedMessages).toMatchObject([{ text: 'second turn',
+      attachments: [{ path: '/tmp/b.txt', name: 'b.txt', kind: 'file' }] }]);
     // Nothing was sent yet — the second turn is only queued while the first is still streaming.
     expect(transport.calls).toHaveLength(1);
   });
@@ -383,6 +427,55 @@ describe('useChatPane', () => {
     await waitFor(() => expect(transport.calls).toHaveLength(2));
     expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('second turn');
     expect(result.current.queuedPrompt).toBeNull();
+  });
+
+  // host stuck-chat investigation, 2026-09-27: a queued prompt that flushes in the SAME commit its
+  // run finished in replaced the transcript with the pre-terminal render's snapshot, so the finished
+  // assistant turn kept `runStatus: 'running'` forever. Hosts persist only terminal turns, so its
+  // answer never reached durable storage and the row reloaded as an endless spinner.
+  it('keeps the finished turn succeeded, with its answer, when a queued prompt flushes as the run ends', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useChatPane({ transport, agents, selection: { agentId: 'codex' }, initialDraft: 'first turn' }));
+
+    await act(() => result.current.send());
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    await act(async () => {
+      transport.emit({ kind: 'text', text: 'answer one' });
+    });
+    act(() => result.current.composer.setDraft('second turn'));
+    await act(() => result.current.send());
+    expect(result.current.queuedPrompt).toBe('second turn');
+
+    await act(async () => {
+      transport.finish();
+    });
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+
+    const messages = result.current.conversation.messages;
+    expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    expect(messages[1]?.runStatus).toBe('succeeded');
+    expect(messages[1]?.content).toBe('answer one');
+    expect(messages[1]?.runId).toBe('run-1');
+    expect(messages[3]?.runStatus).toBe('running');
+  });
+
+  it('marks the interrupted turn canceled, not running, when interruptSend flushes the next prompt', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useChatPane({ transport, agents, selection: { agentId: 'codex' }, initialDraft: 'first turn' }));
+
+    await act(() => result.current.send());
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    await act(async () => {
+      transport.emit({ kind: 'text', text: 'partial' });
+    });
+    act(() => result.current.composer.setDraft('next turn'));
+    act(() => result.current.interruptSend());
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+
+    const messages = result.current.conversation.messages;
+    expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    expect(messages[1]?.runStatus).toBe('canceled');
+    expect(messages[1]?.content).toBe('partial');
   });
 
   it('interruptSend cancels the in-flight run and queues the draft — held behind any remaining blocker exactly like a plain queued send', async () => {
@@ -560,4 +653,547 @@ describe('useChatPane', () => {
     expect(result.current.attachmentError).toBeNull();
     expect(result.current.composer.attachments).toEqual([{ path: '/tmp/b', name: 'b.txt', kind: 'file' }]);
   });
+
+  describe('attachment batch id follows the staged attachments it belongs to', () => {
+    // The daemon refuses a turn whose attachments span batch directories ("Attachments must belong
+    // to one batch", 2026-10-06): a restored attachment from an earlier batch plus a fresh upload
+    // under a new batch id made every such turn fail before the agent started.
+    function recordingUploader() {
+      const batchIds: string[] = [];
+      const uploadAttachments = async (
+        files: File[],
+        options?: { signal?: AbortSignal; batchId?: string },
+      ) => {
+        batchIds.push(options!.batchId!);
+        return files.map((file) => ({ path: `/uploads/${options!.batchId}/${file.name}`, name: file.name, kind: 'image' as const }));
+      };
+      return { batchIds, uploadAttachments };
+    }
+    // Liveness check that keeps every reference: restoration is on, nothing is pruned.
+    const validateAttachments = async (attachments: readonly import('@jini-ai/chat').ChatAttachment[]) => attachments;
+
+    it('reuses the restored attachments\' batch id after the pane remounts', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const options = { transport, agents, conversationId: 'chat-1', uploadAttachments, validateAttachments };
+
+      const first = renderHook(() => useChatPane(options));
+      await act(() => first.result.current.addAttachments([new File(['a'], 'a.png')]));
+      expect(first.result.current.composer.attachments).toHaveLength(1);
+      first.unmount();
+
+      const second = renderHook(() => useChatPane(options));
+      await waitFor(() => expect(second.result.current.composer.attachments).toHaveLength(1));
+      await act(() => second.result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(second.result.current.composer.attachments.map((attachment) => attachment.name)).toEqual(['a.png', 'b.png']);
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).toBe(batchIds[0]);
+    });
+
+    it('reuses the restored attachments\' batch id after a page reload', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const options = { transport, agents, conversationId: 'chat-1', uploadAttachments, validateAttachments };
+
+      const first = renderHook(() => useChatPane(options));
+      await act(() => first.result.current.addAttachments([new File(['a'], 'a.png')]));
+      first.unmount();
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const second = renderHook(() => useChatPane(options));
+      await waitFor(() => expect(second.result.current.composer.attachments).toHaveLength(1));
+      await act(() => second.result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).toBe(batchIds[0]);
+    });
+
+    it('switches to each conversation\'s own batch on an in-place conversation switch', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const { result, rerender } = renderHook(
+        ({ conversationId }: { conversationId: string }) => useChatPane({
+          transport,
+          agents,
+          selection: { agentId: 'codex' },
+          conversationId,
+          uploadAttachments,
+          validateAttachments,
+        }),
+        { initialProps: { conversationId: 'chat-1' } },
+      );
+      await act(() => result.current.addAttachments([new File(['a'], 'a.png')]));
+
+      rerender({ conversationId: 'chat-2' });
+      await waitFor(() => expect(result.current.composer.attachments).toEqual([]));
+      await act(() => result.current.addAttachments([new File(['b'], 'b.png')]));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+
+      rerender({ conversationId: 'chat-1' });
+      await waitFor(() => expect(result.current.composer.attachments).toHaveLength(1));
+      await act(() => result.current.addAttachments([new File(['c'], 'c.png')]));
+
+      expect(batchIds).toHaveLength(3);
+      // chat-2 never shares chat-1's batch: the agent is granted the whole batch directory.
+      expect(batchIds[1]).not.toBe(batchIds[0]);
+      expect(batchIds[2]).toBe(batchIds[0]);
+    });
+
+    it('keeps the batch when a new conversation is first given its id', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const { result, rerender } = renderHook(
+        ({ conversationId }: { conversationId: string | null }) => useChatPane({
+          transport,
+          agents,
+          conversationId,
+          initialDraft: 'look at these',
+          uploadAttachments,
+          validateAttachments,
+        }),
+        { initialProps: { conversationId: null as string | null } },
+      );
+      await act(() => result.current.addAttachments([new File(['a'], 'a.png')]));
+
+      rerender({ conversationId: 'chat-new' });
+      await act(() => result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(result.current.composer.attachments.map((attachment) => attachment.name)).toEqual(['a.png', 'b.png']);
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).toBe(batchIds[0]);
+    });
+
+    it('starts a fresh batch for the next turn once the staged attachments are sent', async () => {
+      const { batchIds, uploadAttachments } = recordingUploader();
+      const transport = createFakeChatTransport();
+      const options = {
+        transport,
+        agents,
+        selection: { agentId: 'codex' },
+        conversationId: 'chat-1',
+        uploadAttachments,
+        validateAttachments,
+      };
+
+      const first = renderHook(() => useChatPane(options));
+      await act(() => first.result.current.addAttachments([new File(['a'], 'a.png')]));
+      await act(() => first.result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      first.unmount();
+
+      const second = renderHook(() => useChatPane(options));
+      expect(second.result.current.composer.attachments).toEqual([]);
+      await act(() => second.result.current.addAttachments([new File(['b'], 'b.png')]));
+
+      expect(batchIds).toHaveLength(2);
+      expect(batchIds[1]).not.toBe(batchIds[0]);
+    });
+  });
+
+  describe('typed answers to a question the running agent is waiting on', () => {
+    type Delivery = 'delivered' | 'not-pending' | 'failed';
+
+    type Deliver = ((input: { text: string }) => Promise<Delivery>) & { readonly toolName: string };
+
+    /** A hand-written `deliverTypedAnswer` fake for the `assistant_ask_choice` tool: records each text and answers with `outcome`. */
+    function fakeDeliverer(outcome: () => Promise<Delivery>) {
+      const texts: string[] = [];
+      const deliver: Deliver = Object.assign((input: { text: string }) => {
+        texts.push(input.text);
+        return outcome();
+      }, { toolName: 'assistant_ask_choice' });
+      return { texts, deliver };
+    }
+
+    /**
+     * Starts a run and has it raise a surface inside a still-open tool call — by default the
+     * question tool; `surfaceToolName` raises it from another tool instead (e.g. a delete confirm).
+     */
+    async function startRunAwaitingAnswer(options: {
+      deliverTypedAnswer?: Deliver;
+      settled?: boolean;
+      surfaceToolName?: string;
+    }) {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport,
+        agents,
+        selection: { agentId: 'codex' },
+        initialDraft: 'ship the post',
+        ...(options.deliverTypedAnswer === undefined ? {} : { deliverTypedAnswer: options.deliverTypedAnswer }),
+      }));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      act(() => {
+        transport.emit({ kind: 'tool_use', id: 'ask-1', name: options.surfaceToolName ?? 'assistant_ask_choice', input: {} });
+        transport.emit({ kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } });
+        if (options.settled) {
+          transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Answered: Draft', isError: false });
+        }
+      });
+      expect(result.current.conversation.isStreaming).toBe(true);
+      return { transport, result };
+    }
+
+    it('delivers the typed text to the waiting question exactly once, and never starts a second run', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('  publish it now  '));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual(['publish it now']);
+      expect(result.current.queuedPrompt).toBeNull();
+      expect(result.current.composer.draft).toBe('');
+      expect(result.current.typedAnswerNotice).toBeNull();
+
+      await act(async () => {
+        transport.finish();
+      });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+      expect(transport.calls).toHaveLength(1);
+    });
+
+    it('automatically queues a not-pending answer once as a normal message', async () => {
+      const deliverer = fakeDeliverer(async () => 'not-pending');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => result.current.composer.setDraft('publish it now'));
+      await act(async () => { await Promise.all([result.current.send(), result.current.send()]); });
+      expect(deliverer.texts).toEqual(['publish it now']);
+      expect(result.current.queuedPrompt).toBe('publish it now');
+      expect(result.current.typedAnswerNotice).toBeNull();
+      expect(result.current.composer.draft).toBe('');
+      act(() => transport.finish());
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('publish it now');
+      expect(result.current.conversation.messages.filter(m => m.role === 'user' && m.content === 'publish it now')).toHaveLength(1);
+    });
+
+    it('reports a failed or throwing delivery without queueing the text behind the run', async () => {
+      for (const outcome of [async (): Promise<Delivery> => 'failed', async (): Promise<Delivery> => { throw new Error('offline'); }]) {
+        const deliverer = fakeDeliverer(outcome);
+        const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+        act(() => result.current.composer.setDraft('publish it now'));
+        await act(() => result.current.send());
+
+        expect(result.current.queuedPrompt).toBeNull();
+        expect(result.current.typedAnswerNotice).toBe('failed');
+        expect(result.current.composer.draft).toBe('publish it now');
+        expect(transport.calls).toHaveLength(1);
+      }
+    });
+
+    it('ignores a second Enter while the first delivery is still in flight', async () => {
+      let release!: (outcome: Delivery) => void;
+      const deliverer = fakeDeliverer(() => new Promise<Delivery>((resolve) => { release = resolve; }));
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('publish it now'));
+      let first!: Promise<void>;
+      act(() => {
+        first = result.current.send();
+      });
+      await act(() => result.current.send());
+      await act(async () => {
+        release('delivered');
+        await first;
+      });
+
+      expect(deliverer.texts).toEqual(['publish it now']);
+      expect(result.current.queuedPrompt).toBeNull();
+    });
+
+    it('clears a failed delivery notice on the next send and on reset', async () => {
+      let outcome: Delivery = 'failed';
+      const deliverer = fakeDeliverer(async () => outcome);
+      const { result, transport } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => result.current.composer.setDraft('publish it now'));
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBe('failed');
+      outcome = 'delivered';
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBeNull();
+      outcome = 'failed';
+      act(() => {
+        transport.emit({ kind: 'tool_use', id: 'ask-2', name: 'assistant_ask_choice', input: {} });
+        transport.emit({ kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/2' } });
+        result.current.composer.setDraft('again');
+      });
+      await act(() => result.current.send());
+      expect(result.current.typedAnswerNotice).toBe('failed');
+      act(() => result.current.reset());
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it.each(['succeeded', 'failed', 'canceled'] as const)('sends a normal message after reloading an unanswered %s run', async (runStatus) => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, initialDraft: 'new request', deliverTypedAnswer: deliverer.deliver,
+        initialMessages: [{ id: 'saved', role: 'assistant', content: '', runId: 'finished', runStatus, events: [
+          { kind: 'tool_use', id: 'ask-1', name: deliverer.deliver.toolName, input: {} },
+          { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } },
+        ] }],
+      }));
+      await act(() => result.current.send());
+      expect(deliverer.texts).toEqual([]);
+      expect(transport.reattachCalls).toEqual([]);
+      expect(transport.calls).toHaveLength(1);
+      expect(transport.calls[0]?.input.history.at(-1)?.content).toBe('new request');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it('queues as before when no question is waiting: the surface call already returned', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver, settled: true });
+
+      act(() => result.current.composer.setDraft('one more thing'));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('one more thing');
+    });
+
+    it('queues as before when the turn carries attachments, which a typed answer cannot', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => {
+        result.current.composer.setDraft('see attached');
+        result.current.composer.addAttachment({ path: '/tmp/a.txt', name: 'a.txt', kind: 'file' });
+      });
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('see attached');
+    });
+
+    it('queues as before when the pending card belongs to another tool (a delete confirm): the poster is never called, no notice', async () => {
+      const deliverer = fakeDeliverer(async () => 'not-pending');
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver, surfaceToolName: 'content_post_delete' });
+
+      act(() => result.current.composer.setDraft('actually, keep it'));
+      await act(() => result.current.send());
+
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('actually, keep it');
+      expect(result.current.typedAnswerNotice).toBeNull();
+      expect(result.current.composer.draft).toBe('');
+    });
+
+    it('sends normally when a run ends with an unanswered question and an existing draft', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => result.current.composer.setDraft('a new message'));
+      act(() => transport.finish());
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+      await act(() => result.current.send());
+      expect(deliverer.texts).toEqual([]);
+      expect(transport.calls).toHaveLength(2);
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('a new message');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it('queues text normally when the question closes while the person is typing', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => result.current.composer.setDraft('use opt'));
+      act(() => transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false }));
+      act(() => result.current.composer.setDraft('use option B'));
+      await act(() => result.current.send());
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('use option B');
+      expect(result.current.typedAnswerNotice).toBeNull();
+      act(() => transport.finish());
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use option B');
+    });
+
+    it('preserves newer draft text when a late 409 falls back after the run finishes', async () => {
+      let release!: (outcome: Delivery) => void;
+      const deliverer = fakeDeliverer(() => new Promise<Delivery>(resolve => { release = resolve; }));
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => result.current.composer.setDraft('use option B'));
+      let pending!: Promise<void>;
+      act(() => { pending = result.current.send(); });
+      act(() => { result.current.composer.setDraft('next draft'); transport.finish(); });
+      await waitFor(() => expect(result.current.conversation.isStreaming).toBe(false));
+      await act(async () => { release('not-pending'); await pending; });
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use option B');
+      expect(result.current.composer.draft).toBe('next draft');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it('sends a fresh draft normally after a question closes', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { transport, result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('use option B'));
+      act(() => {
+        transport.emit({ kind: 'tool_result', toolUseId: 'ask-1', content: 'Expired', isError: false });
+      });
+      act(() => result.current.composer.setDraft(''));
+      act(() => result.current.composer.setDraft('one more thing'));
+      await act(() => result.current.send());
+
+      expect(result.current.queuedPrompt).toBe('one more thing');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+
+    it('a successful delivery keeps text typed while it was in flight', async () => {
+      let release!: (outcome: Delivery) => void;
+      const deliverer = fakeDeliverer(() => new Promise<Delivery>((resolve) => { release = resolve; }));
+      const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+      act(() => result.current.composer.setDraft('publish it'));
+      let first!: Promise<void>;
+      act(() => {
+        first = result.current.send();
+      });
+      act(() => result.current.composer.setDraft('also update the homepage'));
+      await act(async () => {
+        release('delivered');
+        await first;
+      });
+
+      expect(deliverer.texts).toEqual(['publish it']);
+      expect(result.current.composer.draft).toBe('also update the homepage');
+    });
+
+    it('ignores a delivery that settles after reset: the fresh draft and notice stay as they are', async () => {
+      for (const outcome of ['delivered', 'not-pending'] as const) {
+        let release!: (value: Delivery) => void;
+        const deliverer = fakeDeliverer(() => new Promise<Delivery>((resolve) => { release = resolve; }));
+        const { result } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+
+        act(() => result.current.composer.setDraft('publish it'));
+        let first!: Promise<void>;
+        act(() => {
+          first = result.current.send();
+        });
+        act(() => result.current.reset());
+        act(() => result.current.composer.setDraft('publish it'));
+        await act(async () => {
+          release(outcome);
+          await first;
+        });
+
+        expect(result.current.composer.draft).toBe('publish it');
+        expect(result.current.typedAnswerNotice).toBeNull();
+      }
+    });
+
+    it('routes a message normally after a decline receipt, before tool_result', async () => {
+      const deliverer = fakeDeliverer(async () => 'delivered');
+      const { result, transport } = await startRunAwaitingAnswer({ deliverTypedAnswer: deliverer.deliver });
+      act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'answer:ask-1', text: 'Declined', toolUseId: 'ask-1' } }));
+      act(() => result.current.composer.setDraft('use this instead'));
+      await act(() => result.current.send());
+      expect(deliverer.texts).toEqual([]);
+      expect(result.current.queuedPrompt).toBe('use this instead');
+      expect(result.current.typedAnswerNotice).toBeNull();
+      act(() => transport.finish());
+      await waitFor(() => expect(transport.calls).toHaveLength(2));
+      expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('use this instead');
+    });
+
+    it('queues as before when the host supplies no deliverTypedAnswer', async () => {
+      const { result } = await startRunAwaitingAnswer({});
+
+      act(() => result.current.composer.setDraft('publish it now'));
+      await act(() => result.current.send());
+
+      expect(result.current.queuedPrompt).toBe('publish it now');
+      expect(result.current.typedAnswerNotice).toBeNull();
+    });
+  });
+
+  describe('pane state and guarded entry points', () => {
+    it('reports activity failed when the run fails', async () => {
+      const transport = createFakeChatTransport();
+      const onActivityChange = vi.fn();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, selection: { agentId: 'codex' }, initialDraft: 'ship it', onActivityChange,
+      }));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      await act(async () => { transport.fail(new Error('run crashed')); });
+
+      await waitFor(() => expect(result.current.activity).toBe('failed'));
+      expect(onActivityChange).toHaveBeenLastCalledWith('failed');
+    });
+
+    it('lets a configured API mode send with no CLI agent selected', () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({ transport, agents: [], apiModeConfigured: true }));
+      expect(result.current.sendBlocker).toBeNull();
+    });
+
+    it('refuses an agent-driven send while a blocker stands, naming the blocker', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({ transport, agents: [] }));
+      await expect(result.current.sendPrompt('ship it')).rejects.toThrow('cannot send: no agent is selected');
+      expect(transport.calls).toHaveLength(0);
+    });
+
+    it('sendAsNewMessage does nothing for an empty draft', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({ transport, agents, selection: { agentId: 'codex' } }));
+      await act(() => result.current.sendAsNewMessage());
+      expect(transport.calls).toHaveLength(0);
+    });
+
+    it('sendAsNewMessage sends an ordinary turn when no answer is held', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, selection: { agentId: 'codex' }, initialDraft: 'ship it',
+      }));
+      await act(() => result.current.sendAsNewMessage());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      expect(transport.calls[0]?.input.history.at(-1)?.content).toBe('ship it');
+    });
+
+    it('interruptSend leaves the running turn alone when there is nothing to send', async () => {
+      const transport = createFakeChatTransport();
+      const { result } = renderHook(() => useChatPane({
+        transport, agents, selection: { agentId: 'codex' }, initialDraft: 'ship it',
+      }));
+      await act(() => result.current.send());
+      await waitFor(() => expect(transport.calls).toHaveLength(1));
+      act(() => result.current.interruptSend());
+      expect(transport.stoppedRunIds).toEqual([]);
+      expect(result.current.conversation.isStreaming).toBe(true);
+      expect(result.current.queuedPrompt).toBeNull();
+    });
+  });
+});
+
+
+it('clears the adopted conversation draft only after its first run is accepted', async () => {
+  const transport = createFakeChatTransport();
+  const start = transport.startRun;
+  let accept!: () => void;
+  const accepted = new Promise<void>(resolve => { accept = resolve; });
+  transport.startRun = async (input, handlers) => { const receipt = await start(input, handlers); await accepted; return receipt; };
+  let saved: readonly string[] = [];
+  const storage = { read: async () => saved, write: async ({ entries }: { entries: readonly string[] }) => { saved = [...entries]; } };
+  const hook = renderHook(({ conversationId }: { conversationId: string | null }) => useChatPane({
+    transport, agents, selection: { agentId: 'codex' }, conversationId, initialDraft: 'first accepted prompt', composerHistoryStorage: storage,
+  }), { initialProps: { conversationId: null as string | null } });
+  let sending!: Promise<void>;
+  act(() => { sending = hook.result.current.send(); });
+  hook.rerender({ conversationId: 'adopted-during-acceptance' });
+  expect(hook.result.current.composer.draft).toBe('first accepted prompt');
+  expect(saved).toEqual([]);
+  await act(async () => { accept(); await sending; });
+  expect(hook.result.current.composer.draft).toBe('');
+  await waitFor(() => expect(saved).toEqual(['first accepted prompt']));
+  hook.unmount();
+  const remounted = renderHook(() => useChatPane({ transport: createFakeChatTransport(), agents, conversationId: 'adopted-during-acceptance', composerHistoryStorage: storage }));
+  expect(remounted.result.current.composer.draft).toBe('');
+  remounted.unmount();
 });

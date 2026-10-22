@@ -84,13 +84,12 @@ const LATIN_NEVER_TRAILING: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Strips the parts of a prompt that are never a good title: fenced and inline code, URLs, and
+ * Strips the parts of a prompt that are never a good title: fenced code, URLs, and
  * `@handle`/`#tag` tokens. Each of these is high-entropy and low-meaning in a six-word summary.
+ * Inline code keeps its label with delimiters removed, so a filename can still name the task.
  */
 function cleanPrompt(prompt: string): string {
-  return prompt
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`]*`/g, ' ')
+  return stripConversationTitleMarkdown({ text: prompt })
     .replace(/https?:\/\/\S+/g, ' ')
     .replace(/[@#][\w.-]+/g, ' ')
     .replace(/[“”"']/g, '')
@@ -98,11 +97,50 @@ function cleanPrompt(prompt: string): string {
     .trim();
 }
 
-function toTitleCase(word: string): string {
-  return word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : word;
+/** Remove presentation markup from title text while preserving link labels and inline code.
+ * Shared by prompt derivation, stored-title display and product naming adapters; no DOM or I/O.
+ * Fenced programs and reference definitions are not titles. Only paired emphasis is stripped:
+ * glob stars and identifier underscores are meaningful text. Older saved titles may already have
+ * been cut through a markdown span; cut links keep their partial label, unpaired emphasis stays.
+ * @param input.text - A prompt or a previously saved title.
+ * @returns Plain text with whitespace collapsed; identifiers keep their internal underscores.
+ * @complexity O(n²) worst-case regex time for unmatched spans; O(n) space in title/prompt length.
+ */
+export function stripConversationTitleMarkdown({ text }: { text: string }, _options = {}): string {
+  return text
+    .replace(/```[\s\S]*?(?:```|$)/g, ' ')
+    .replace(/^\s{0,3}\[[^\]\n]+\]:[^\n]*(?:\n|$)/gm, ' ')
+    .replace(/!?\[([^\[\]\n]+)\]\((?:[^()[\]\n]|\([^()[\]\n]*\))*(?:\)|$)/g, '$1')
+    .replace(/\[([^\[\]\n]+)\]\[[^\[\]\n]*(?:\]|$)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+|[ \t]+#+[ \t]*$/gm, '')
+    .replace(/(?<![\w\\*])(\*\*|\*)(?=[^\s*])([^*\n]*?[^\s*\\])\1(?![\w*])/g, '$2')
+    .replace(/(?<![\w\\_])(__|_)(?=[^\s_])([^\n]*?[^\s\\])\1(?![\w_])/g, '$2')
+    .replace(/`|~~/g, '')
+    .replace(/!?\[([^\]\n]*)(?=\n|$)/g, '$1')
+    // Unescape after markup removal so an escaped literal marker cannot become emphasis.
+    .replace(/\\([\\`*_[\]~])/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-function trimLatinTitle(input: string): string {
+/** Keep complete words at the display ceiling. A single oversized token still gets a bounded
+ * prefix: pasted blobs must never become megabyte-sized stored/listed titles.
+ * @complexity O(n) time/space, bounded by the title ceiling after the initial length check.
+ */
+function truncateTitle(title: string): string {
+  if (title.length <= MAX_TITLE_CHARS) return title;
+  const prefix = title.slice(0, MAX_TITLE_CHARS);
+  if (/\s/.test(title.charAt(MAX_TITLE_CHARS))) return prefix.trimEnd();
+  const lastSpace = prefix.lastIndexOf(' ');
+  return (lastSpace > 0 ? prefix.slice(0, lastSpace) : prefix).trimEnd();
+}
+
+/** Callers pass only non-empty words (`trimLatinTitle` filters blanks before mapping). */
+function toTitleCase(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+function trimLatinTitle(input: string, { casing }: { casing: 'title' | 'sentence' }): string {
   const words = input
     .replace(LEADING_LATIN_FILLER, '')
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
@@ -114,7 +152,8 @@ function trimLatinTitle(input: string): string {
   while (words.length > 0 && LATIN_NEVER_TRAILING.has(words[words.length - 1]!.toLowerCase())) {
     words.pop();
   }
-  return words.map(toTitleCase).join(' ');
+  const title = casing === 'title' ? words.map(toTitleCase).join(' ') : words.join(' ');
+  return title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
 }
 
 function trimCjkTitle(input: string): string {
@@ -133,13 +172,29 @@ function trimCjkTitle(input: string): string {
  *
  * @complexity O(n) in prompt length; no allocation beyond the intermediate strings.
  */
-export function deriveConversationTitle(prompt: string): string {
+export function deriveConversationTitle({ prompt }: { prompt: string }, { casing = 'title' }: { casing?: 'title' | 'sentence' } = {}): string {
   const cleaned = cleanPrompt(prompt);
   if (!cleaned) return '';
-  const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]?.trim() ?? cleaned;
+  // `split` always yields a first element, even for a string that starts with a separator.
+  const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]!.trim();
   if (!firstClause) return '';
-  const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause);
+  const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause, { casing });
   // Truncated without an ellipsis: this is a working title, not prose, and a `…` would end up stored
   // and shown as if the author wrote it.
-  return title.length > MAX_TITLE_CHARS ? title.slice(0, MAX_TITLE_CHARS).trimEnd() : title;
+  return truncateTitle(title);
+}
+
+/** Sentence-case only a known heuristic title using the original prompt's proper names/acronyms.
+ * Manual names, model-authored names and unloaded transcripts keep their saved wording, with
+ * presentation markup removed and the display ceiling applied; no writes.
+ * @complexity O(n) time/space in the first prompt's length, using the existing bounded heuristic.
+ */
+export function conversationTitleForDisplay({ title, titleSource, firstPrompt }: {
+  title: string | null; titleSource: 'fallback' | 'generated' | 'manual'; firstPrompt?: string | undefined;
+}, _options = {}): string | null {
+  if (!title) return title;
+  if (titleSource === 'generated' && firstPrompt && title === deriveConversationTitle({ prompt: firstPrompt })) {
+    return deriveConversationTitle({ prompt: firstPrompt }, { casing: 'sentence' });
+  }
+  return truncateTitle(stripConversationTitleMarkdown({ text: title })) || null;
 }

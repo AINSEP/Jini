@@ -15,7 +15,7 @@ export type PiModelOption = { id: string; label: string };
  * @param stdout - Raw stdout captured from `pi --list-models`, as a string or Buffer.
  * @returns Parsed model array (at least 2 entries), or `null` when nothing is found.
  */
-export function parsePiModels(stdout: unknown): PiModelOption[] | null {
+export function parsePiModels({ stdout }: { stdout: unknown }): PiModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((l) => l.trim())

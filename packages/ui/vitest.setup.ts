@@ -1,13 +1,17 @@
-import { afterEach } from 'vitest';
+import { afterEach, expect } from 'vitest';
 import { cleanup } from '@testing-library/react';
 // Registers jest-dom's DOM matchers (toBeInTheDocument, toHaveAttribute,
 // etc.) on vitest's `expect` — added alongside `features/viewer-shell`
 // (2026-07-17), the first task in this package to want those matchers;
 // prior feature tests asserted against raw DOM/text-content instead. See
-// `packages/ui/source-map.md`. (Independently re-added for the
+// `packages/ui/archived provenance ledger`. (Independently re-added for the
 // settings-dialog feature's tests too, same reasoning — this augments
 // `expect` globally, so it's harmless either way.)
-import '@testing-library/jest-dom/vitest';
+import * as matchers from '@testing-library/jest-dom/matchers';
+import type {} from '@testing-library/jest-dom/vitest';
+// Register on this runner's expect: the adapter's runtime Vitest import can resolve
+// through shared/symlinked dependencies to a second, uninitialized snapshot client.
+expect.extend(matchers);
 
 // Unmounts every React tree rendered by @testing-library/react between
 // tests so DOM assertions (getByTestId, etc.) never see leftover markup

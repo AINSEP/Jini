@@ -3,19 +3,19 @@ import { parsePiModels } from '../models.js';
 
 describe('parsePiModels', () => {
   it('returns null for empty/whitespace-only stdout', () => {
-    expect(parsePiModels('')).toBeNull();
-    expect(parsePiModels('   \n  ')).toBeNull();
-    expect(parsePiModels(undefined)).toBeNull();
-    expect(parsePiModels(null)).toBeNull();
+    expect(parsePiModels({ stdout: '' })).toBeNull();
+    expect(parsePiModels({ stdout: '   \n  ' })).toBeNull();
+    expect(parsePiModels({ stdout: undefined })).toBeNull();
+    expect(parsePiModels({ stdout: null })).toBeNull();
   });
 
   it('always includes the default sentinel first', () => {
-    const result = parsePiModels('PROVIDER MODEL\nopenai gpt-4');
+    const result = parsePiModels({ stdout: 'PROVIDER MODEL\nopenai gpt-4' });
     expect(result?.[0]).toEqual({ id: 'default', label: 'Default (CLI config)' });
   });
 
   it('parses provider/model rows, skipping the header line', () => {
-    const result = parsePiModels('PROVIDER MODEL\nopenai gpt-4\nanthropic claude-3');
+    const result = parsePiModels({ stdout: 'PROVIDER MODEL\nopenai gpt-4\nanthropic claude-3' });
     expect(result).toEqual([
       { id: 'default', label: 'Default (CLI config)' },
       { id: 'openai/gpt-4', label: 'openai/gpt-4' },
@@ -27,17 +27,17 @@ describe('parsePiModels', () => {
     // '# a comment' is filtered out before header-skipping, so 'PROVIDER
     // MODEL' becomes line[0] (the header, skipped) and 'openai gpt-4'
     // becomes the first data row.
-    const result = parsePiModels('# a comment\nPROVIDER MODEL\nopenai gpt-4');
+    const result = parsePiModels({ stdout: '# a comment\nPROVIDER MODEL\nopenai gpt-4' });
     expect(result?.map((m) => m.id)).toEqual(['default', 'openai/gpt-4']);
   });
 
   it('skips rows with fewer than 2 whitespace-separated fields', () => {
-    const result = parsePiModels('PROVIDER MODEL\nsoloProvider');
+    const result = parsePiModels({ stdout: 'PROVIDER MODEL\nsoloProvider' });
     expect(result).toBeNull();
   });
 
   it('deduplicates identical provider/model pairs', () => {
-    const result = parsePiModels('PROVIDER MODEL\nopenai gpt-4\nopenai gpt-4');
+    const result = parsePiModels({ stdout: 'PROVIDER MODEL\nopenai gpt-4\nopenai gpt-4' });
     expect(result).toEqual([
       { id: 'default', label: 'Default (CLI config)' },
       { id: 'openai/gpt-4', label: 'openai/gpt-4' },
@@ -45,15 +45,15 @@ describe('parsePiModels', () => {
   });
 
   it('returns null when only the header line is present (no data rows)', () => {
-    expect(parsePiModels('PROVIDER MODEL')).toBeNull();
+    expect(parsePiModels({ stdout: 'PROVIDER MODEL' })).toBeNull();
   });
 
   it('handles extra whitespace between columns', () => {
-    const result = parsePiModels('PROVIDER   MODEL\nopenai     gpt-4   extra-column');
+    const result = parsePiModels({ stdout: 'PROVIDER   MODEL\nopenai     gpt-4   extra-column' });
     expect(result?.[1]).toEqual({ id: 'openai/gpt-4', label: 'openai/gpt-4' });
   });
 
   it('coerces a non-string stdout value via String()', () => {
-    expect(parsePiModels(123)).toBeNull();
+    expect(parsePiModels({ stdout: 123 })).toBeNull();
   });
 });

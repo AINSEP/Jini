@@ -40,9 +40,12 @@ import {
 import { renderFieldControl, toFieldReadSpecs, type SurfaceField } from './fields.js';
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
+import { DEFAULT_SECRET_INPUT_TEXT, type SecretInputText } from './text-input.js';
 
 export interface FormSurfaceSpec {
   readonly title: string;
+  /** Resource framing carried through host form projections; ignored by HTML rendering. */
+  readonly preferredFrameSize?: readonly [string, string];
   readonly description?: string;
   /** Read-only context shown above the fields — what the input is *about*. */
   readonly details?: readonly SurfaceDetail[];
@@ -52,6 +55,8 @@ export interface FormSurfaceSpec {
   /** Styles the submit button as destructive. */
   readonly danger?: boolean;
   readonly submitLabel: string;
+  /** Alternative submit buttons collect the same fields, with explicit action params. */
+  readonly additionalSubmitActions?: readonly { readonly id: string; readonly label: string; readonly params: Readonly<Record<string, unknown>> }[];
   /** The tool the collected values are sent to. */
   readonly toolName: string;
   /**
@@ -61,7 +66,7 @@ export interface FormSurfaceSpec {
   readonly baseParams?: Readonly<Record<string, unknown>>;
   /** Omit for a form with no cancel button. Give it a tool name to notify the server of the dismissal. */
   readonly cancel?: { readonly label: string; readonly toolName?: string; readonly params?: Readonly<Record<string, unknown>> };
-  readonly text?: Partial<SurfaceStatusText>;
+  readonly text?: Partial<SurfaceStatusText & SecretInputText>;
   readonly app?: BridgeScriptSpec;
   readonly lang?: string;
   readonly tokens?: Partial<Record<SurfaceTokenName, string>>;
@@ -72,49 +77,120 @@ const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-form', appVersion:
 /** The form element's id, fixed so the emitted script can find it without a fragile selector. */
 const FORM_ELEMENT_ID = 'mcpui-form';
 
-/**
- * Renders the form dialog as a complete, self-contained HTML document.
- *
- * @param spec - See {@link FormSurfaceSpec}.
- * @returns The full HTML string.
- * @complexity O(n) in the number of fields plus the rendered length.
- */
-export function renderFormDocument(spec: FormSurfaceSpec): string {
-  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+type FormText = SurfaceStatusText & SecretInputText;
+
+/** A base param with a secret field's name would leak the same value through the emitted script,
+ * even though the collected value overrides it at submit time. Reject that hidden prefill too.
+ * @complexity O(n) in the field count. @throws Error with fixed text, never the field name or value. */
+function assertNoSecretBaseParam(spec: FormSurfaceSpec): void {
+  for (const field of spec.fields) {
+    if (field.kind === 'string' && field.secret === true && spec.baseParams?.[field.name] !== undefined) {
+      throw new Error('Secret fields cannot have a pre-filled value. Omit value.');
+    }
+  }
+}
+
+/** Submit, any alternative submits, then cancel. @complexity O(a) in the action count. */
+function formActions(spec: FormSurfaceSpec): SurfaceAction[] {
   // Not `type: 'submit'` — see the runtime script below for why a submit-typed button inside this
   // particular `<form>` cannot work at all in production.
   const actions: SurfaceAction[] = [
     { id: 'submit', label: spec.submitLabel, variant: spec.danger === true ? 'danger' : 'primary' },
   ];
+  for (const action of spec.additionalSubmitActions ?? []) actions.push({ id: `submit:${action.id}`, label: action.label, variant: 'neutral' });
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
+  return actions;
+}
 
-  const controls = spec.fields.map(renderFieldControl).join('\n');
+/** Header, context, the `<form>` itself and the status region. @complexity O(n) in the rendered length. */
+function formBodyHtml(spec: FormSurfaceSpec, text: FormText): string {
+  const controls = spec.fields
+    .map((field) => renderFieldControl(field, { showSecret: text.showSecret, hideSecret: text.hideSecret }))
+    .join('\n');
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
-  const bodyHtml = [
+  return [
     renderSurfaceHeader(
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
     renderDetailList(spec.details ?? []),
-    `<form id="${FORM_ELEMENT_ID}" novalidate>\n<fieldset class="mcpui-fields">\n${controls}\n</fieldset>\n${warning}\n${renderActions(actions)}\n</form>`,
+    `<form id="${FORM_ELEMENT_ID}" novalidate>\n<fieldset class="mcpui-fields">\n${controls}\n</fieldset>\n${warning}\n${renderActions(formActions(spec))}\n</form>`,
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
     .join('\n');
+}
 
-  const cancelPlan =
-    spec.cancel?.toolName === undefined
-      ? null
-      : { toolName: spec.cancel.toolName, params: spec.cancel.params ?? {} };
+/** The cancel tool call, or null for a cancel that only tears the surface down. @complexity O(1). */
+function cancelPlanOf(spec: FormSurfaceSpec): { toolName: string; params: Readonly<Record<string, unknown>> } | null {
+  return spec.cancel?.toolName === undefined
+    ? null
+    : { toolName: spec.cancel.toolName, params: spec.cancel.params ?? {} };
+}
 
-  const script = `(function () {
+/** The inline runtime script that reads, validates and submits the fields. @complexity O(n) in the field count plus the script length. */
+function formScript(spec: FormSurfaceSpec, text: FormText): string {
+  const cancelPlan = cancelPlanOf(spec);
+  return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
   var FIELDS = ${escapeJsValue(toFieldReadSpecs(spec.fields))};
   var TOOL = ${escapeJsValue(spec.toolName)};
   var BASE_PARAMS = ${escapeJsValue(spec.baseParams ?? {})};
   var CANCEL = ${escapeJsValue(cancelPlan)};
+  var SUBMIT_ACTIONS = ${escapeJsValue(Object.fromEntries((spec.additionalSubmitActions ?? []).map(action => [`submit:${action.id}`, action.params])))};
   var TEXT = ${escapeJsValue(text)};
   var form = document.getElementById(${escapeJsValue(FORM_ELEMENT_ID)});
+
+  // A textarea normalizes CRLF/CR to LF even on .value assignment. Keep the original trusted paste
+  // privately, outside DOM/HTML, so multiline credentials reach the tool with their original bytes.
+  // An edit that changes the DOM value makes the snapshot ineligible; typed text then follows the
+  // native textarea value. Offsets count CRLF as one visible newline when a second paste replaces
+  // a selection, otherwise the original raw string would be spliced at the wrong position.
+  var secretPastes = new WeakMap();
+  function rawOffset(raw, visibleOffset) {
+    var rawIndex = 0;
+    var visibleIndex = 0;
+    while (rawIndex < raw.length && visibleIndex < visibleOffset) {
+      if (raw.charCodeAt(rawIndex) === 13 && raw.charCodeAt(rawIndex + 1) === 10) rawIndex++;
+      rawIndex++;
+      visibleIndex++;
+    }
+    return rawIndex;
+  }
+  form.addEventListener("paste", function (event) {
+    var control = event.target;
+    if (event.isTrusted !== true || !control || control.tagName !== "TEXTAREA" || !control.hasAttribute("data-mcpui-secret") || !event.clipboardData) return;
+    var pasted = event.clipboardData.getData("text/plain");
+    if (!pasted) return;
+    var snapshot = secretPastes.get(control);
+    var raw = snapshot && snapshot.normalized === control.value ? snapshot.raw : control.value;
+    var start = control.selectionStart;
+    var end = control.selectionEnd;
+    var next = raw.slice(0, rawOffset(raw, start)) + pasted + raw.slice(rawOffset(raw, end));
+    event.preventDefault();
+    control.value = next;
+    // Caret offsets use the displayed newline representation, independent of the saved raw text.
+    var caret = start + pasted.replace(/\\r\\n?/g, "\\n").length;
+    control.setSelectionRange(caret, caret);
+    secretPastes.set(control, { raw: next, normalized: control.value });
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
+  // A reveal button only changes presentation: replacing a textarea with a password input would
+  // discard line breaks. Listen on the form so clicks on the button's contents work too.
+  form.addEventListener("click", function (event) {
+    if (event.isTrusted !== true) return;
+    var target = event.target;
+    if (!target || typeof target.closest !== "function") return;
+    var button = target.closest("button[data-mcpui-secret-toggle]");
+    if (!button || button.disabled) return;
+    var control = document.getElementById(button.getAttribute("data-mcpui-secret-toggle"));
+    if (!control) return;
+    var reveal = button.getAttribute("aria-pressed") !== "true";
+    control.setAttribute("style", "-webkit-text-security: " + (reveal ? "none" : "disc") + ";");
+    button.setAttribute("aria-pressed", reveal ? "true" : "false");
+    button.textContent = button.getAttribute(reveal ? "data-mcpui-hide-secret" : "data-mcpui-show-secret");
+  });
 
   // form.elements[name] yields a RadioNodeList when several controls share a name and the BARE
   // element when only one does. A one-option checklist would otherwise read as "no options" —
@@ -135,7 +211,8 @@ ${SURFACE_SCRIPT_PRELUDE}
     if (field.kind === "multi-enum") return checkedValues(control);
     // Covers a radio-presented enum too: a RadioNodeList's own .value is the checked radio's
     // value, or "" when none is checked — the same shape a <select> reports.
-    return control.value;
+    var snapshot = secretPastes.get(control);
+    return snapshot && snapshot.normalized === control.value ? snapshot.raw : control.value;
   }
 
   function isBlank(field, value) {
@@ -171,7 +248,7 @@ ${SURFACE_SCRIPT_PRELUDE}
   // says the dialog is no longer pending, where a retry cannot succeed (see reportCallFailure).
   var pending = false;
 
-  function runSubmit() {
+  function runSubmit(actionParams) {
     if (pending) return;
     var params = {};
     var key;
@@ -186,6 +263,7 @@ ${SURFACE_SCRIPT_PRELUDE}
       setStatus(TEXT.missingPrefix + missing.join(", "), "invalid");
       return;
     }
+    for (key in actionParams) if (Object.prototype.hasOwnProperty.call(actionParams, key)) params[key] = actionParams[key];
     pending = true;
     setBusy(true);
     setStatus(TEXT.working, "pending");
@@ -210,14 +288,14 @@ ${SURFACE_SCRIPT_PRELUDE}
     var type = (target.getAttribute("type") || "text").toLowerCase();
     if (type === "checkbox" || type === "radio") return;
     event.preventDefault();
-    runSubmit();
+    runSubmit({});
   });
 
   for (var b = 0; b < actionButtons.length; b++) {
     var action = actionButtons[b].getAttribute("data-mcpui-action");
-    if (action === "submit") {
+    if (action === "submit" || Object.prototype.hasOwnProperty.call(SUBMIT_ACTIONS, action)) {
       actionButtons[b].addEventListener("click", function (event) {
-        if (event.isTrusted === true) runSubmit();
+        if (event.isTrusted === true) runSubmit(SUBMIT_ACTIONS[event.currentTarget.getAttribute("data-mcpui-action")] || {});
       });
       continue;
     }
@@ -241,11 +319,22 @@ ${SURFACE_SCRIPT_PRELUDE}
     });
   }
 }());`;
+}
 
+/**
+ * Renders the form dialog as a complete, self-contained HTML document.
+ *
+ * @param spec - See {@link FormSurfaceSpec}.
+ * @returns The full HTML string.
+ * @complexity O(n) in the number of fields plus the rendered length.
+ */
+export function renderFormDocument(spec: FormSurfaceSpec): string {
+  assertNoSecretBaseParam(spec);
+  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...DEFAULT_SECRET_INPUT_TEXT, ...spec.text };
   return renderSurfaceDocument({
     title: spec.title,
-    bodyHtml,
-    script,
+    bodyHtml: formBodyHtml(spec, text),
+    script: formScript(spec, text),
     app: spec.app ?? DEFAULT_APP,
     ...(spec.lang === undefined ? {} : { lang: spec.lang }),
     ...(spec.tokens === undefined ? {} : { tokens: spec.tokens }),

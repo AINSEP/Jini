@@ -8,12 +8,12 @@
  * layer (a config file, a vault, a project-scoped override var) should
  * build the credentials map itself instead of using this.
  */
-import { PROVIDER_CREDENTIAL_ENV_VARS } from '../providers.js';
+import { canonicalMediaProviderId, PROVIDER_CREDENTIAL_ENV_VARS } from '../providers.js';
 import type { ProviderCredentials } from './types.js';
 
 /** Resolves `{ apiKey }` for `providerId` from the first set environment variable in its priority list, or `{}` if none are set / the provider has no known env vars. */
-export function resolveProviderCredentialsFromEnv(providerId: string, env: NodeJS.ProcessEnv = process.env): ProviderCredentials {
-  const candidates = PROVIDER_CREDENTIAL_ENV_VARS[providerId];
+export function resolveProviderCredentialsFromEnv({ providerId, env }: { providerId: string; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): ProviderCredentials {
+  const candidates = PROVIDER_CREDENTIAL_ENV_VARS[canonicalMediaProviderId({ id: providerId })];
   if (!candidates) return {};
   for (const name of candidates) {
     const value = env[name];

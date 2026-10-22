@@ -39,7 +39,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selected = clients.find((c) => c.id === selectedClientId) ?? clients[0];
   const optionHandles = agentHandle
-    ? buildAgentListHandles(agentSubHandle(agentHandle, 'option'), clients.map((c) => c.id))
+    ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'option' }), ids: clients.map((c) => c.id) })
     : undefined;
 
   // Close on outside click or Escape — routed through the shared
@@ -49,7 +49,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
   // popover/dropdown call site — see that hook's own doc comment), a
   // behaviorally-equivalent upgrade for this same dismiss-on-outside-click
   // pattern.
-  useDismissOnOutsideOrEscape(() => setOpen(false), { enabled: open, containerRef: rootRef });
+  useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: rootRef });
 
   return (
     <div className="jini-picker" ref={rootRef}>
@@ -59,7 +59,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        {...agentHandleProps(agentHandle, { action: 'trigger', role: 'button', label: selected ? t(selected.label) : t('Client') })}
+        {...agentHandleProps({}, { base: agentHandle, ...({ action: 'trigger', role: 'button', label: selected ? t(selected.label) : t('Client') }) })}
       >
         <span className="jini-picker-meta">
           <span className="jini-picker-title">{selected ? t(selected.label) : ''}</span>
@@ -83,7 +83,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
                     onSelect(client.id);
                     setOpen(false);
                   }}
-                  {...agentHandleProps(optionHandles?.[index], { role: 'button', label: t(client.label) })}
+                  {...agentHandleProps({}, { base: optionHandles?.[index], ...({ role: 'button', label: t(client.label) }) })}
                 >
                   <span className="jini-picker-item-title">{t(client.label)}</span>
                   {methodLabels?.[client.id] ? (

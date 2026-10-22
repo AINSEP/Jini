@@ -4,13 +4,26 @@
 // `features/<domain>/react/hooks/` instead.
 import { useEffect, useState } from 'react';
 
-export function useDebouncedValue<T>(value: T, delayMs: number): T {
+export interface DebounceSchedulerPort {
+  schedule(requiredArgs: { callback: () => void; delayMs: number }): () => void;
+}
+
+const browserScheduler: DebounceSchedulerPort = {
+  schedule: ({ callback, delayMs }) => {
+    const timer = setTimeout(callback, delayMs);
+    return () => clearTimeout(timer);
+  },
+};
+
+export function useDebouncedValue<T>(
+  { value, delayMs }: { value: T; delayMs: number },
+  { scheduler = browserScheduler }: { scheduler?: DebounceSchedulerPort } = {},
+): T {
   const [debounced, setDebounced] = useState(value);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
+    return scheduler.schedule({ callback: () => setDebounced(value), delayMs });
+  }, [value, delayMs, scheduler]);
 
   return debounced;
 }

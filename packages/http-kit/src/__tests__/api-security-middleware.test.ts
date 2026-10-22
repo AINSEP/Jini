@@ -1,3 +1,4 @@
+import type { Express } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import {
   bearerTokenFromHeader,
@@ -6,6 +7,15 @@ import {
   requireStrictBearerToken,
   timingSafeTokenMatch,
 } from '../api-security-middleware.js';
+
+const ORIGIN_CONFIG = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
+
+// PARITY: core's UTF-8 encoding preserves the former Buffer-based Node comparison semantics.
+it('binds token comparison without changing UTF-8 replacement or multibyte matching', () => {
+  expect(timingSafeTokenMatch({ presented: '\ud800', expected: '\ufffd' })).toBe(true);
+  expect(timingSafeTokenMatch({ presented: '🙂', expected: '🙂' })).toBe(true);
+  expect(timingSafeTokenMatch({ presented: '🙂', expected: '🙃' })).toBe(false);
+});
 
 type MiddlewareHandler = (req: any, res: any, next: any) => void;
 
@@ -23,9 +33,9 @@ function makeReq(overrides: {
   authorization?: string;
   origin?: string;
   host?: string;
-  extraHeaders?: Record<string, string>;
+  extraHeaders?: Record<string, string | string[]>;
 } = {}) {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string | string[]> = {};
   if (overrides.authorization !== undefined) headers.authorization = overrides.authorization;
   if (overrides.origin !== undefined) headers.origin = overrides.origin;
   if (overrides.host !== undefined) headers.host = overrides.host;
@@ -41,6 +51,13 @@ function makeReq(overrides: {
   };
 }
 
+/** The bearer gate registered on the minimal app fake (it implements only `use`, hence the cast). */
+function loopbackTrustingBearerGate(): MiddlewareHandler {
+  const { app, middlewares } = makeApp();
+  registerApiBearerAuthMiddleware({ app: app as unknown as Express, env: { JINI_API_TOKEN: 'secret' }, tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
+  return middlewares[0]!;
+}
+
 function makeRes() {
   return {
     status: vi.fn().mockReturnThis(),
@@ -51,27 +68,25 @@ function makeRes() {
 describe('registerApiBearerAuthMiddleware', () => {
   it('registers no middleware at all when no token is configured', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: {} });
+    registerApiBearerAuthMiddleware({ app: app as any , env: {} , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     expect(middlewares).toHaveLength(0);
   });
 
   it('registers no middleware when a token is configured but auth is disabled', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, {
-      env: { JINI_API_TOKEN: 'secret', JINI_DISABLE_API_AUTH: '1' },
-    });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret', JINI_DISABLE_API_AUTH: '1' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     expect(middlewares).toHaveLength(0);
   });
 
   it('registers a middleware once a token is configured and auth is not disabled', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     expect(middlewares).toHaveLength(1);
   });
 
   it('lets a matching bearer token through', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ authorization: 'Bearer secret', remoteAddress: '203.0.113.9' }), res, next);
@@ -81,7 +96,7 @@ describe('registerApiBearerAuthMiddleware', () => {
 
   it('rejects a missing Authorization header with 401 API_TOKEN_REQUIRED', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ remoteAddress: '203.0.113.9' }), res, next);
@@ -94,7 +109,7 @@ describe('registerApiBearerAuthMiddleware', () => {
 
   it('rejects a mismatched bearer token with 401', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ authorization: 'Bearer wrong-token', remoteAddress: '203.0.113.9' }), res, next);
@@ -104,7 +119,7 @@ describe('registerApiBearerAuthMiddleware', () => {
 
   it('rejects a malformed Authorization header (no Bearer prefix) with 401', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ authorization: 'Basic secret', remoteAddress: '203.0.113.9' }), res, next);
@@ -114,7 +129,7 @@ describe('registerApiBearerAuthMiddleware', () => {
 
   it('exempts a loopback peer even with no Authorization header', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     middlewares[0]!(makeReq({ remoteAddress: '127.0.0.1' }), makeRes(), next);
     expect(next).toHaveBeenCalledOnce();
@@ -133,7 +148,7 @@ describe('registerApiBearerAuthMiddleware', () => {
     ['forwarded', 'for=203.0.113.9;proto=https'],
   ])('refuses the loopback exemption to a request carrying %s', (header, value) => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ remoteAddress: '127.0.0.1', extraHeaders: { [header]: value } }), res, next);
@@ -141,9 +156,32 @@ describe('registerApiBearerAuthMiddleware', () => {
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
+  // Node's IncomingHttpHeaders type allows a list value for any header; a host adapter or an
+  // upstream framework that keeps repeated headers as a list must not slip past the proxy check.
+  it('refuses the loopback exemption when a forwarding header arrives as a non-empty list', () => {
+    const gate = loopbackTrustingBearerGate();
+    const next = vi.fn();
+    const res = makeRes();
+    gate(makeReq({ remoteAddress: '127.0.0.1', extraHeaders: { forwarded: ['for=203.0.113.9', 'for=198.51.100.7'] } }), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it.each([
+    ['an empty string', ''],
+    ['an empty list', []],
+  ])('keeps the loopback exemption when a forwarding header is present but carries %s', (_label, value) => {
+    const gate = loopbackTrustingBearerGate();
+    const next = vi.fn();
+    const res = makeRes();
+    gate(makeReq({ remoteAddress: '127.0.0.1', extraHeaders: { 'x-forwarded-for': value } }), res, next);
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
   it('still lets a proxied loopback request through when it forwards a valid bearer token', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(
@@ -161,10 +199,7 @@ describe('registerApiBearerAuthMiddleware', () => {
 
   it('drops the loopback exemption entirely when trustLoopbackPeers is false', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, {
-      env: { JINI_API_TOKEN: 'secret' },
-      trustLoopbackPeers: false,
-    });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } }, { trustLoopbackPeers: false });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ remoteAddress: '127.0.0.1' }), res, next);
@@ -176,7 +211,7 @@ describe('registerApiBearerAuthMiddleware', () => {
     'exempts the open probe path %s with no Authorization header',
     (path) => {
       const { app, middlewares } = makeApp();
-      registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+      registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
       const next = vi.fn();
       middlewares[0]!(makeReq({ path, remoteAddress: '203.0.113.9' }), makeRes(), next);
       expect(next).toHaveBeenCalledOnce();
@@ -185,7 +220,7 @@ describe('registerApiBearerAuthMiddleware', () => {
 
   it('does not exempt a non-probe path for a non-loopback peer', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    registerApiBearerAuthMiddleware({ app: app as any , env: { JINI_API_TOKEN: 'secret' } , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ path: '/runs', remoteAddress: '203.0.113.9' }), res, next);
@@ -194,21 +229,19 @@ describe('registerApiBearerAuthMiddleware', () => {
 
   it('honors a custom tokenConfig env var pair', () => {
     const { app, middlewares } = makeApp();
-    registerApiBearerAuthMiddleware(app as any, {
-      tokenConfig: { tokenEnvVar: 'CUSTOM_TOKEN', disableEnvVar: 'CUSTOM_DISABLE' },
-      env: { CUSTOM_TOKEN: 'xyz' },
-    });
+    registerApiBearerAuthMiddleware({ app: app as any , tokenConfig: { tokenEnvVar: 'CUSTOM_TOKEN', disableEnvVar: 'CUSTOM_DISABLE' }, env: { CUSTOM_TOKEN: 'xyz' } });
     const next = vi.fn();
     middlewares[0]!(makeReq({ authorization: 'Bearer xyz', remoteAddress: '203.0.113.9' }), makeRes(), next);
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('defaults env to real process.env when omitted entirely', () => {
+  // REGRESSION: fails if registerApiBearerAuthMiddleware reads env from argument two or ambient state.
+  it('uses an explicit empty env despite real process.env values', () => {
     const original = process.env.JINI_API_TOKEN;
     try {
-      delete process.env.JINI_API_TOKEN;
+      process.env.JINI_API_TOKEN = 'ambient-secret';
       const { app, middlewares } = makeApp();
-      registerApiBearerAuthMiddleware(app as any);
+      registerApiBearerAuthMiddleware({ app: app as any , tokenConfig: { tokenEnvVar: 'JINI_API_TOKEN', disableEnvVar: 'JINI_DISABLE_API_AUTH' } , env: {} });
       expect(middlewares).toHaveLength(0);
     } finally {
       if (original === undefined) delete process.env.JINI_API_TOKEN;
@@ -218,17 +251,18 @@ describe('registerApiBearerAuthMiddleware', () => {
 });
 
 describe('registerApiOriginGuardMiddleware', () => {
-  const baseDeps = { host: '127.0.0.1', getResolvedPort: () => 7456, env: {} };
+  const baseDeps = {
+    ...ORIGIN_CONFIG, host: '127.0.0.1', getResolvedPort: () => 7456, env: {} };
 
   it('always registers exactly one middleware (no disabled state)', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     expect(middlewares).toHaveLength(1);
   });
 
   it('allows a non-browser client (no Origin header) through, any method', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     const next = vi.fn();
     middlewares[0]!(makeReq({ method: 'POST' }), makeRes(), next);
     expect(next).toHaveBeenCalledOnce();
@@ -236,7 +270,7 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('rejects Origin: null with 403, regardless of method or path', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(makeReq({ origin: 'null', method: 'GET' }), res, next);
@@ -247,7 +281,7 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('fails closed with 403 "Server initializing" while the port has not resolved yet', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, { ...baseDeps, getResolvedPort: () => 0 });
+    registerApiOriginGuardMiddleware({ app: app as any, deps: { ...baseDeps, getResolvedPort: () => 0 } });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(
@@ -262,7 +296,7 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('allows a loopback origin matching the resolved port and Host header', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     const next = vi.fn();
     middlewares[0]!(
       makeReq({ origin: 'http://127.0.0.1:7456', host: '127.0.0.1:7456' }),
@@ -274,9 +308,11 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('allows an origin present in extraAllowedOrigins even if it would not otherwise match', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, {
-      ...baseDeps,
-      extraAllowedOrigins: ['https://proxy.example.com'],
+    registerApiOriginGuardMiddleware({
+      app: app as any, deps: {
+        ...baseDeps,
+        extraAllowedOrigins: ['https://proxy.example.com'],
+      }
     });
     const next = vi.fn();
     middlewares[0]!(
@@ -289,7 +325,7 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('rejects a disallowed non-GET cross-origin request with 403', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(
@@ -304,7 +340,7 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('rejects a disallowed GET cross-origin request that is not a portless-loopback origin', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(
@@ -318,7 +354,7 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('falls back to allowing a disallowed-but-portless-loopback origin on GET only', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     const next = vi.fn();
     middlewares[0]!(
       makeReq({ method: 'GET', origin: 'http://127.0.0.1', host: '127.0.0.1:7456' }),
@@ -330,7 +366,7 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('does not extend the portless-loopback fallback to non-GET methods', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, baseDeps);
+    registerApiOriginGuardMiddleware({ app: app as any, deps: baseDeps });
     const next = vi.fn();
     const res = makeRes();
     middlewares[0]!(
@@ -344,10 +380,13 @@ describe('registerApiOriginGuardMiddleware', () => {
 
   it('reads JINI_WEB_PORT from the injected env, not real process.env', () => {
     const { app, middlewares } = makeApp();
-    registerApiOriginGuardMiddleware(app as any, {
-      host: '127.0.0.1',
-      getResolvedPort: () => 7456,
-      env: { JINI_WEB_PORT: '4321' },
+    registerApiOriginGuardMiddleware({
+      app: app as any, deps: {
+        ...ORIGIN_CONFIG,
+        host: '127.0.0.1',
+        getResolvedPort: () => 7456,
+        env: { JINI_WEB_PORT: '4321' },
+      }
     });
     const next = vi.fn();
     middlewares[0]!(
@@ -358,12 +397,12 @@ describe('registerApiOriginGuardMiddleware', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('defaults env to real process.env when omitted entirely', () => {
+  it('uses an explicit empty env despite real process.env values', () => {
     const original = process.env.JINI_WEB_PORT;
     try {
       delete process.env.JINI_WEB_PORT;
       const { app, middlewares } = makeApp();
-      registerApiOriginGuardMiddleware(app as any, { host: '127.0.0.1', getResolvedPort: () => 7456 });
+      registerApiOriginGuardMiddleware({ app: app as any, deps: { ...ORIGIN_CONFIG, env: {}, host: '127.0.0.1', getResolvedPort: () => 7456 } });
       const next = vi.fn();
       middlewares[0]!(
         makeReq({ origin: 'http://127.0.0.1:7456', host: '127.0.0.1:7456' }),
@@ -380,41 +419,41 @@ describe('registerApiOriginGuardMiddleware', () => {
 
 describe('bearerTokenFromHeader', () => {
   it('extracts the token from a well-formed header, scheme case-insensitively', () => {
-    expect(bearerTokenFromHeader('Bearer abc123')).toBe('abc123');
-    expect(bearerTokenFromHeader('bearer abc123')).toBe('abc123');
-    expect(bearerTokenFromHeader('BEARER abc123')).toBe('abc123');
+    expect(bearerTokenFromHeader({ header: 'Bearer abc123' })).toBe('abc123');
+    expect(bearerTokenFromHeader({ header: 'bearer abc123' })).toBe('abc123');
+    expect(bearerTokenFromHeader({ header: 'BEARER abc123' })).toBe('abc123');
   });
 
   it('tolerates extra surrounding whitespace', () => {
-    expect(bearerTokenFromHeader('Bearer   abc123  ')).toBe('abc123');
+    expect(bearerTokenFromHeader({ header: 'Bearer   abc123  ' })).toBe('abc123');
   });
 
   it('returns null for an absent, empty, or non-bearer header', () => {
-    expect(bearerTokenFromHeader(undefined)).toBeNull();
-    expect(bearerTokenFromHeader('')).toBeNull();
-    expect(bearerTokenFromHeader('Basic abc123')).toBeNull();
-    expect(bearerTokenFromHeader('Bearer')).toBeNull();
-    expect(bearerTokenFromHeader('Bearer ')).toBeNull();
+    expect(bearerTokenFromHeader({ header: undefined })).toBeNull();
+    expect(bearerTokenFromHeader({ header: '' })).toBeNull();
+    expect(bearerTokenFromHeader({ header: 'Basic abc123' })).toBeNull();
+    expect(bearerTokenFromHeader({ header: 'Bearer' })).toBeNull();
+    expect(bearerTokenFromHeader({ header: 'Bearer ' })).toBeNull();
   });
 });
 
 describe('timingSafeTokenMatch', () => {
   it('matches only an exact token', () => {
-    expect(timingSafeTokenMatch('secret', 'secret')).toBe(true);
-    expect(timingSafeTokenMatch('secreT', 'secret')).toBe(false);
+    expect(timingSafeTokenMatch({ presented: 'secret', expected: 'secret' })).toBe(true);
+    expect(timingSafeTokenMatch({ presented: 'secreT', expected: 'secret' })).toBe(false);
   });
 
   // A length mismatch must return false rather than propagating `timingSafeEqual`'s throw.
   it('returns false rather than throwing on a length mismatch', () => {
-    expect(timingSafeTokenMatch('short', 'a-much-longer-secret')).toBe(false);
-    expect(timingSafeTokenMatch('', 'secret')).toBe(false);
-    expect(timingSafeTokenMatch('secret', '')).toBe(false);
+    expect(timingSafeTokenMatch({ presented: 'short', expected: 'a-much-longer-secret' })).toBe(false);
+    expect(timingSafeTokenMatch({ presented: '', expected: 'secret' })).toBe(false);
+    expect(timingSafeTokenMatch({ presented: 'secret', expected: '' })).toBe(false);
   });
 
   it('handles multi-byte characters by comparing bytes, not code points', () => {
-    expect(timingSafeTokenMatch('café', 'café')).toBe(true);
+    expect(timingSafeTokenMatch({ presented: 'café', expected: 'café' })).toBe(true);
     // 'é' is 2 bytes, 'e' is 1 — different byte lengths, so no match and no throw.
-    expect(timingSafeTokenMatch('café', 'cafe')).toBe(false);
+    expect(timingSafeTokenMatch({ presented: 'café', expected: 'cafe' })).toBe(false);
   });
 });
 
@@ -424,7 +463,7 @@ describe('requireStrictBearerToken', () => {
   it('fails closed with 503 when the token env var is unset', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: {} })(
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: {} })(
       makeReq({ authorization: 'Bearer anything' }) as any,
       res as any,
       next,
@@ -436,14 +475,14 @@ describe('requireStrictBearerToken', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  // Every other case in this block injects `env`, so the real-`process.env` default this gate uses in
-  // production was never exercised. It matters here more than for the other two middlewares: this is
-  // the fail-closed gate, so "which env did it actually read" decides between 503 and serving.
-  it('defaults env to real process.env when omitted entirely', () => {
+  // The fail-closed gate's explicit environment decides between 503 and serving.
+  // A host may deliberately inject its live environment to observe later token rotation.
+  // PARITY: the host may explicitly inject the live environment.
+  it('uses a live environment when the host explicitly injects it', () => {
     const original = process.env[TOKEN_ENV_VAR];
     try {
       process.env[TOKEN_ENV_VAR] = 'from-real-process-env';
-      const gate = requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR });
+      const gate = requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: process.env });
 
       const okRes = makeRes();
       const okNext = vi.fn();
@@ -465,7 +504,7 @@ describe('requireStrictBearerToken', () => {
   it('fails closed with 503 when the token env var is set but empty', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: { [TOKEN_ENV_VAR]: '' } })(
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: '' } })(
       makeReq({ authorization: 'Bearer anything' }) as any,
       res as any,
       next,
@@ -477,7 +516,7 @@ describe('requireStrictBearerToken', () => {
   it('rejects a missing bearer header with 401', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: { [TOKEN_ENV_VAR]: 'right' } })(
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right' } })(
       makeReq() as any,
       res as any,
       next,
@@ -490,7 +529,7 @@ describe('requireStrictBearerToken', () => {
     for (const authorization of ['Bearer wrong', 'Basic right', 'right', 'Bearer']) {
       const res = makeRes();
       const next = vi.fn();
-      requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: { [TOKEN_ENV_VAR]: 'right' } })(
+      requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right' } })(
         makeReq({ authorization }) as any,
         res as any,
         next,
@@ -503,7 +542,7 @@ describe('requireStrictBearerToken', () => {
   it('calls next() on an exact token match', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: { [TOKEN_ENV_VAR]: 'right' } })(
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right' } })(
       makeReq({ authorization: 'Bearer right' }) as any,
       res as any,
       next,
@@ -520,7 +559,7 @@ describe('requireStrictBearerToken', () => {
     for (const remoteAddress of ['127.0.0.1', '::1', '::ffff:127.0.0.1']) {
       const res = makeRes();
       const next = vi.fn();
-      requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: { [TOKEN_ENV_VAR]: 'right' } })(
+      requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right' } })(
         makeReq({ remoteAddress }) as any,
         res as any,
         next,
@@ -534,10 +573,7 @@ describe('requireStrictBearerToken', () => {
   it('has no disable flag — a truthy disable-shaped env var does not open the gate', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({
-      tokenEnvVar: TOKEN_ENV_VAR,
-      env: { [TOKEN_ENV_VAR]: 'right', JINI_DISABLE_API_AUTH: '1' },
-    })(makeReq({ authorization: 'Bearer wrong' }) as any, res as any, next);
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right', JINI_DISABLE_API_AUTH: '1' } })(makeReq({ authorization: 'Bearer wrong' }) as any, res as any, next);
     expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
   });
@@ -545,11 +581,7 @@ describe('requireStrictBearerToken', () => {
   it('lets an exactly-matching exempt path through without a token', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({
-      tokenEnvVar: TOKEN_ENV_VAR,
-      env: { [TOKEN_ENV_VAR]: 'right' },
-      exemptPaths: ['/api/delegated-tool-calls'],
-    })(makeReq({ path: '/api/delegated-tool-calls' }) as any, res as any, next);
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right' } }, { exemptPaths: ['/api/delegated-tool-calls'] })(makeReq({ path: '/api/delegated-tool-calls' }) as any, res as any, next);
     expect(next).toHaveBeenCalledOnce();
     expect(res.status).not.toHaveBeenCalled();
   });
@@ -558,11 +590,7 @@ describe('requireStrictBearerToken', () => {
   it('still gates a longer path that only starts with an exempt one', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({
-      tokenEnvVar: TOKEN_ENV_VAR,
-      env: { [TOKEN_ENV_VAR]: 'right' },
-      exemptPaths: ['/api/delegated-tool-calls'],
-    })(makeReq({ path: '/api/delegated-tool-calls/extra' }) as any, res as any, next);
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right' } }, { exemptPaths: ['/api/delegated-tool-calls'] })(makeReq({ path: '/api/delegated-tool-calls/extra' }) as any, res as any, next);
     expect(res.status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
   });
@@ -570,7 +598,7 @@ describe('requireStrictBearerToken', () => {
   it('exempts nothing by default', () => {
     const res = makeRes();
     const next = vi.fn();
-    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR, env: { [TOKEN_ENV_VAR]: 'right' } })(
+    requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR , env: { [TOKEN_ENV_VAR]: 'right' } })(
       makeReq({ path: '/api/delegated-tool-calls' }) as any,
       res as any,
       next,

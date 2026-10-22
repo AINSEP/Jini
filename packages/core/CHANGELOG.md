@@ -1,5 +1,115 @@
 # @jini-ai/core
 
+## Unreleased
+
+- New `./object-store` (also on the root): the one `ObjectStore` contract (put with atomic `ifAbsent` / get→null / head / delete, optional `publicAccess`), `ObjectStoreProvider.create()` returning `ProviderResult`, and `createObjectStoreRegistry()` (contract `object_store`, default `local`). Absorbs cms `BlobStorePort`, capability-providers `StorageProvider`, devops `ArtifactStorePort` and platform `BlobStorage` as views.
+- New `./provider-registry` (also on the root): `createProviderRegistry<T>()` — keyed register/get/has/list/getDefault, frozen entries, core registrations throw while plugin contributions are recorded in `refusals()` — plus shared `ProviderResult<T>`, `ProviderContext` and `DomainRequirement` types. Frozen contract: `docs/provider-registry.md`. `contribute()` turns a throwing validator or provider/id getter into an `invalid_provider` refusal; every public method and the `providerOk`/`providerRejected`/`providerUnknown` factories take the reserved optional object.
+
+## 0.4.8 — 2026-10-16
+
+- `applyTargetScope`: one optional `site` input on read-only tools; the host resolves the target and a peer handler/principal, writes refuse a foreign target (3786c8f0).
+
+## 0.4.7 — 2026-10-16
+
+- `requireString`, `requireNumber` and `requireObject` errors list the keys the call actually received and flag unsupported `items[]` batching (a6ac9d7e, c7557838).
+
+## 0.4.6 — 2026-10-14
+
+- Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
+
+## 0.4.5 — 2026-10-13
+
+- `FetchQueryCache`: a `replace()` that lands after a read's transport resolves but before publication now wins; arbitration and publication share one continuation.
+
+## 0.4.4 — 2026-10-12
+
+- New `./records` subpath exports `isRecord` and `isNonArrayRecord` without loading the core barrel; the root and `registration-kit` keep re-exporting both.
+
+## 0.4.2 — pending release
+
+- Add source-backed `./plugin-directory` publisher identity and live metadata lookup. Warn and omit invalid advisory keywords; scope legacy `unknown/<name>` IDs to each plugin family, with optional family selection for ambiguous lookups.
+
+- Own generic settings at `./settings` and its optional Express adapter at `./settings/express`; keep both out of the root runtime closure. Move the existing permission helper into core, preserving the CMS command denial class through re-export.
+
+- Own the shared surface-exchange interfaces and reserved parameter constants, formerly declared in daemon. Add the `SurfaceAskThenReport` port so UI can consume the existing daemon lifecycle without depending on its runtime.
+
+## 0.4.1 — 2026-10-05
+
+- New `readToolLimit({ input, max, fallback }, { key })`: an absent limit is `fallback`, one above `max` is capped at `max`, and a non-integer or one below 1 throws `ToolInputError` ("'limit' must be an integer between 1 and <max>").
+- New `optionalOneOf({ input, key, values })`: a value outside `values` throws `ToolInputError` ("'<key>' must be one of: ..."). Both are additive.
+
+## 0.4.0 — 2026-10-02
+
+### BREAKING
+
+- Canonical primitive ports, JSON/time/HTTP types and tool contracts now live in core; use ./composition instead of ./internal and ./text for untrusted-text handling.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+## Unreleased
+
+- Add browser-safe `pathContains` to `./primitives` for absolute lexical paths, with host-selected case sensitivity and complete directory-segment boundaries.
+
+### Shared registration wiring
+
+- Move the domain-independent catalog/input/schema/risk/confirmation registration kit into the root entry, with its behavior contracts. Domain-specific authorization and denial errors remain outside the kernel.
+- Use the existing named argument surface directly; primitive, Result and tool catalog types remain canonical in core.
+
+
+### Shared kernel
+
+- Add `./primitives` with canonical time, ID, JSON, HTTP, logger and result contracts,
+  system/crypto/console default adapters, and UTC time helpers. No runtime dependencies.
+- Add root agent-tool catalog types, preserving delete as a distinct risk classification.
+- Add `./text` with the unchanged bounded terminal sanitizer and its behavior tests.
+- Expand telemetry redaction to the union of core, CLI and provider rules, with literal
+  exact-secret masking and named extra patterns. Export the eleven diagnostics credential
+  regexes unchanged. Broader opaque/short bearer/header/query rules can mask more input;
+  union vectors and existing category tests document the behavior.
+- Add UTF-8 `timingSafeTokenMatch` with a required injected native comparison port so the
+  kernel stays universal. Both original native comparators have identical results.
+
+### BREAKING — shared kernel
+
+- Rename `./internal` to `./composition` without an alias. Authorized tool invocation and
+  pack binding derivation keep their implementation and security boundary.
+- Gated mutations now require `Clock.nowMs()` and `IdGenerator.newId()` from primitives,
+  replacing the local `ClockPort.nowIso({})` and `IdGeneratorPort.newId({})`. Format clock
+  samples with `nowIso({ clock })`; approval order, TTL and wire timestamps are unchanged.
+- Origin diagnostics use `Pick<Logger, 'warn'>` rather than a duplicate logger interface.
+  The alias name `OriginValidationLoggerPort` remains available with the shared shape.
+
+
+- Add transport-neutral gated mutations with required token generation/TTL and async
+  authorization, identity and token-store ports; preserve verified-plan handoff and
+  single-use redemption, with atomic explicit expiry and duplicate-issuance rejection.
+- Add domain-owned model-facing error allowlists, an instance-owned contribution
+  registry, and bounded naming with required collision, suffix and message policies.
+- Add generalized approval, disclosure, registry and naming contract tests plus a
+  package-wide source-neutrality guard. Verification is deferred by owner directive;
+  the four subpath manifest exports are listed in `extraction-w4a.md` for coordination.
+
+### Extraction integration
+
+- Publish `./gated-mutations`, `./model-facing-tool-errors`, `./contribution-registry`
+  and `./naming`, with universal runtime metadata and matching root barrel exports.
+  These entries implement the earlier manifest follow-ups in `extraction-w4a.md`;
+  no runtime dependency or version change is required.
+- BREAKING: Existing core APIs now accept a required-args object and a separate
+  optional-args object. Tokens, bindings, registry lookups, pack callbacks/lifecycle,
+  redaction, auth/origin helpers, ToolInputError and internal authorization changed
+  shape with no compatibility adapters. Environment snapshots are explicit, origin
+  logging uses a supplied port, and optional handler emitSurface moved to the second
+  argument. Update consumers before adopting this release. Version unchanged.
+- BREAKING: New extraction APIs follow the same convention: contribution
+  `list({})`/`clear({})`, `new InMemoryTokenStore({})`/`count({})`, approval
+  `computePlan({})`, `nowIso({})`, `newId({})` and `generateToken({})`, and marker-error
+  constructors `new ErrorClass({ message }, { cause? })`. `ForbiddenError` additionally
+  requires `reasonCode`; naming exhaustion callbacks receive `{ base, maxAttempts }`.
+  `AuthorizeFn` moves optional `entityType`/`entityId` selectors to its second object.
+- Add package-entry identity, manifest/runtime, approval-port, error-cause and
+  convention contract tests. Extend the source-neutrality guard to the manifest.
+  All verification remains not run (owner directive).
+
 ## 0.1.2
 
 ### Patch Changes

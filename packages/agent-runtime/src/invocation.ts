@@ -7,15 +7,17 @@
  * `createCommandInvocation` now comes from `@jini-ai/platform` instead of the
  * OD workspace package it originally shipped from — the two are the same
  * function (platform was already verbatim-lifted into `@jini-ai/platform`,
- * see its `source-map.md`).
+ * see its `archived provenance ledger`).
  */
 import { execFile } from 'node:child_process';
+import { scheduleProbeProcess } from './probe-scheduler.js';
 import os from 'node:os';
 import { promisify } from 'node:util';
-import { createCommandInvocation } from '@jini-ai/platform';
+import { createCommandInvocation } from '@jini-ai/platform/command';
 import type { RuntimeExecOptions } from './types.js';
 
 const execFileP = promisify(execFile);
+type ProbeExecPort = (input: { command: string; args: string[]; options: RuntimeExecOptions & { windowsVerbatimArguments?: boolean | undefined } }, optional: Record<string, never>) => ReturnType<typeof execFileP>;
 
 // Agent probes (model-list / version / help / auth-status) are short
 // read-only metadata calls that never need the caller's project files.
@@ -30,10 +32,7 @@ const execFileP = promisify(execFile);
 // running dev server. A probe writing a stray lockfile under the OS temp
 // dir is harmless. Actual agent runs spawn elsewhere with an explicit
 // project cwd and are unaffected.
-export function execAgentFile(
-  command: string,
-  args: string[],
-  options: RuntimeExecOptions = {},
+export function execAgentFile({ command, args }: { command: string; args: string[] }, { options = {}, execute = (input) => execFileP(input.command, input.args, input.options) }: { options?: RuntimeExecOptions; execute?: ProbeExecPort } = {}
 ) {
   const invocation = createCommandInvocation(
     options.env
@@ -47,9 +46,18 @@ export function execAgentFile(
           args,
         },
   );
-  return execFileP(invocation.command, invocation.args, {
-    ...options,
-    cwd: options.cwd ?? os.tmpdir(),
-    windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-  });
+  return scheduleProbeProcess({ work: async () => {
+    const pending = execute({ command: invocation.command, args: invocation.args, options: {
+      killSignal: 'SIGKILL', ...options, cwd: options.cwd ?? os.tmpdir(),
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+    } }, {});
+    try { return await pending; }
+    finally {
+      // AbortError can precede close. Hold the shared slot until the child actually exits.
+      const child = pending.child;
+      if (child?.pid && child.exitCode === null && child.signalCode === null) {
+        await new Promise<void>(resolve => { child.once('close', () => resolve()); });
+      }
+    }
+  } }, { priority: args.includes('--version') ? 'version' : 'metadata', signal: options.signal });
 }

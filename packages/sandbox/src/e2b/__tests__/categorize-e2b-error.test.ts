@@ -12,23 +12,23 @@ function errorNamed(name: string): Error {
 
 describe('categorizeE2bError', () => {
   it('maps known E2B SDK error names to their category', () => {
-    expect(categorizeE2bError(errorNamed('AuthenticationError'))).toBe('permission-denied');
-    expect(categorizeE2bError(errorNamed('FileNotFoundError'))).toBe('not-found');
-    expect(categorizeE2bError(errorNamed('NotFoundError'))).toBe('not-found');
-    expect(categorizeE2bError(errorNamed('SandboxNotFoundError'))).toBe('not-found');
-    expect(categorizeE2bError(errorNamed('TimeoutError'))).toBe('timeout');
-    expect(categorizeE2bError(errorNamed('RateLimitError'))).toBe('unavailable');
-    expect(categorizeE2bError(errorNamed('NotEnoughSpaceError'))).toBe('unavailable');
+    expect(categorizeE2bError({ error: errorNamed('AuthenticationError') })).toBe('permission-denied');
+    expect(categorizeE2bError({ error: errorNamed('FileNotFoundError') })).toBe('not-found');
+    expect(categorizeE2bError({ error: errorNamed('NotFoundError') })).toBe('not-found');
+    expect(categorizeE2bError({ error: errorNamed('SandboxNotFoundError') })).toBe('not-found');
+    expect(categorizeE2bError({ error: errorNamed('TimeoutError') })).toBe('timeout');
+    expect(categorizeE2bError({ error: errorNamed('RateLimitError') })).toBe('unavailable');
+    expect(categorizeE2bError({ error: errorNamed('NotEnoughSpaceError') })).toBe('unavailable');
   });
 
   it('falls through to unknown for an Error whose name is not in the known set', () => {
-    expect(categorizeE2bError(errorNamed('InvalidArgumentError'))).toBe('unknown');
-    expect(categorizeE2bError(new Error('plain error, default name'))).toBe('unknown');
+    expect(categorizeE2bError({ error: errorNamed('InvalidArgumentError') })).toBe('unknown');
+    expect(categorizeE2bError({ error: new Error('plain error, default name') })).toBe('unknown');
   });
 
   it('falls through to unknown for a thrown value that is not an Error at all', () => {
-    expect(categorizeE2bError('a plain string throw')).toBe('unknown');
-    expect(categorizeE2bError({ name: 'AuthenticationError' })).toBe('unknown');
-    expect(categorizeE2bError(undefined)).toBe('unknown');
+    expect(categorizeE2bError({ error: 'a plain string throw' })).toBe('unknown');
+    expect(categorizeE2bError({ error: { name: 'AuthenticationError' } })).toBe('unknown');
+    expect(categorizeE2bError({ error: undefined })).toBe('unknown');
   });
 });

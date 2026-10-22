@@ -34,7 +34,7 @@ describe('useDismissOnOutsideOrEscape', () => {
     document.body.append(container, outside);
     const onDismiss = vi.fn();
 
-    renderHook(() => useDismissOnOutsideOrEscape(onDismiss, { containerRef: refTo(container) }));
+    renderHook(() => useDismissOnOutsideOrEscape({ onDismiss }, { containerRef: refTo(container) }));
 
     outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -47,7 +47,7 @@ describe('useDismissOnOutsideOrEscape', () => {
     document.body.append(container);
     const onDismiss = vi.fn();
 
-    renderHook(() => useDismissOnOutsideOrEscape(onDismiss, { containerRef: refTo(container) }));
+    renderHook(() => useDismissOnOutsideOrEscape({ onDismiss }, { containerRef: refTo(container) }));
 
     inside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     expect(onDismiss).not.toHaveBeenCalled();
@@ -58,7 +58,7 @@ describe('useDismissOnOutsideOrEscape', () => {
     document.body.append(container);
     const onDismiss = vi.fn();
 
-    renderHook(() => useDismissOnOutsideOrEscape(onDismiss, { containerRef: refTo(container) }));
+    renderHook(() => useDismissOnOutsideOrEscape({ onDismiss }, { containerRef: refTo(container) }));
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -72,7 +72,7 @@ describe('useDismissOnOutsideOrEscape', () => {
     document.body.append(outside);
     const onDismiss = vi.fn();
 
-    renderHook(() => useDismissOnOutsideOrEscape(onDismiss));
+    renderHook(() => useDismissOnOutsideOrEscape({ onDismiss }));
 
     outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     expect(onDismiss).not.toHaveBeenCalled();
@@ -85,7 +85,7 @@ describe('useDismissOnOutsideOrEscape', () => {
     const addSpy = vi.spyOn(document, 'addEventListener');
     const onDismiss = vi.fn();
 
-    renderHook(() => useDismissOnOutsideOrEscape(onDismiss, { enabled: false, containerRef: refTo(null) }));
+    renderHook(() => useDismissOnOutsideOrEscape({ onDismiss }, { enabled: false, containerRef: refTo(null) }));
 
     expect(addSpy).not.toHaveBeenCalled();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -100,7 +100,7 @@ describe('useDismissOnOutsideOrEscape', () => {
     document.body.append(container);
     const onDismiss = vi.fn();
 
-    const { unmount } = renderHook(() => useDismissOnOutsideOrEscape(onDismiss, { containerRef: refTo(container) }));
+    const { unmount } = renderHook(() => useDismissOnOutsideOrEscape({ onDismiss }, { containerRef: refTo(container) }));
     unmount();
 
     outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
@@ -115,7 +115,7 @@ describe('useDismissOnOutsideOrEscape', () => {
     const second = vi.fn();
 
     const { rerender } = renderHook(
-      ({ onDismiss }) => useDismissOnOutsideOrEscape(onDismiss, { containerRef: refTo(container) }),
+      ({ onDismiss }) => useDismissOnOutsideOrEscape({ onDismiss }, { containerRef: refTo(container) }),
       { initialProps: { onDismiss: first } },
     );
     rerender({ onDismiss: second });

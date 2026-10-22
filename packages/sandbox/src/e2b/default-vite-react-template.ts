@@ -6,7 +6,7 @@
  * Python-heredoc plumbing that wrote them. That plumbing existed because open-lovable's E2B
  * usage wrote files by executing a Python script inside the sandbox; the real
  * `@e2b/code-interpreter` filesystem API this adapter uses (`files.write`) takes a plain string
- * directly; a caller mounts this template with one `session.mountFiles(DEFAULT_VITE_REACT_TEMPLATE)`
+ * directly; a caller mounts this template with one `session.mountFiles({ files: DEFAULT_VITE_REACT_TEMPLATE })`
  * call and no code execution is needed to place it.
  *
  * Architectural role:

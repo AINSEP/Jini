@@ -1,4 +1,7 @@
-import type { EntryRepoPort, EntryRevisionInput, OutboxPort } from "./write-service.js";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
+import { entryVersionConflictError } from "./errors.js";
+import type { EntryRepoPort, EntryRevisionInput, EntrySaveOptions, OutboxPort } from "./write-service.js";
 import type { EntryListPort } from "./list.js";
 import type { EntryRecord, EntryStatus } from "./types.js";
 
@@ -9,7 +12,7 @@ import type { EntryRecord, EntryStatus } from "./types.js";
  */
 export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
   private readonly byId = new Map<string, EntryRecord>();
-  private readonly revisions: EntryRevisionInput[] = [];
+  private revisions: EntryRevisionInput[] = [];
 
   private static slugKey(workspaceId: string, type: string, slug: string): string {
     return `${workspaceId}::${type}::${slug}`;
@@ -28,7 +31,14 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
     return row && row.workspaceId === params.workspaceId ? { ...row } : null;
   }
 
-  async save(row: EntryRecord): Promise<void> {
+  async save(row: EntryRecord, options: EntrySaveOptions = {}): Promise<void> {
+    if (options.expectedVersion !== undefined) {
+      const stored = this.byId.get(row.id);
+      // A create (`null`) needs the id free in every workspace: the id is the key here, as the
+      // primary key is in a SQL adapter, so a foreign row with it would be overwritten.
+      const found = stored && (options.expectedVersion === null || stored.workspaceId === row.workspaceId) ? stored.version : null;
+      if (found !== options.expectedVersion) throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found });
+    }
     this.byId.set(row.id, { ...row });
   }
 
@@ -36,29 +46,37 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
     this.revisions.push(revision);
   }
 
-  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+  /** Memory-only purge seam: removes the scoped entry and its revision history. Missing or foreign
+   * entries are unchanged. @complexity O(r) time and space over stored revisions. */
+  async hardDelete(required: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<void> {
+    const row = this.byId.get(required.id);
+    if (!row || row.workspaceId !== required.workspaceId) return;
+    this.byId.delete(required.id);
+    this.revisions = this.revisions.filter(revision => revision.workspaceId !== required.workspaceId || revision.entryId !== required.id);
+  }
+
+  async transaction<T>({ fn }: { fn: () => Promise<T> }): Promise<T> {
     return fn();
   }
 
-  async listByWorkspace(params: {
-    workspaceId: string;
-    type?: string;
-    status?: EntryStatus;
-    orderBy?: "updatedAt";
-    orderDirection?: "asc" | "desc";
-    limit?: number;
-  }): Promise<EntryRecord[]> {
+  async listByWorkspace(required: { workspaceId: string }, optional: {
+    type?: string | undefined;
+    status?: EntryStatus | undefined;
+    orderBy?: "updatedAt" | undefined;
+    orderDirection?: "asc" | "desc" | undefined;
+    limit?: number | undefined;
+  } = {}): Promise<EntryRecord[]> {
     let rows = [...this.byId.values()]
-      .filter((row) => row.workspaceId === params.workspaceId)
-      .filter((row) => !params.type || row.type === params.type)
-      .filter((row) => !params.status || row.status === params.status);
+      .filter((row) => row.workspaceId === required.workspaceId)
+      .filter((row) => !optional.type || row.type === optional.type)
+      .filter((row) => !optional.status || row.status === optional.status);
 
-    if (params.orderBy === "updatedAt") {
-      const dir = params.orderDirection === "asc" ? 1 : -1;
+    if (optional.orderBy === "updatedAt") {
+      const dir = optional.orderDirection === "asc" ? 1 : -1;
       rows = rows.sort((a, b) => (a.updatedAt < b.updatedAt ? -dir : a.updatedAt > b.updatedAt ? dir : 0));
     }
-    if (typeof params.limit === "number") {
-      rows = rows.slice(0, params.limit);
+    if (typeof optional.limit === "number") {
+      rows = rows.slice(0, optional.limit);
     }
     return rows.map((row) => ({ ...row }));
   }
@@ -86,7 +104,7 @@ export function toEntryOutbox(deps: {
       payload: Record<string, unknown>;
     }): Promise<void>;
   };
-  clock: { nowIso(): string };
+  clock: Clock;
   idGen: { newId(): string };
   workspaceId: string;
 }): OutboxPort {
@@ -96,7 +114,7 @@ export function toEntryOutbox(deps: {
         id: deps.idGen.newId(),
         workspaceId: deps.workspaceId,
         name: event.name,
-        occurredAt: deps.clock.nowIso(),
+        occurredAt: kernelNowIso({ clock: deps.clock }),
         payload: event.payload,
       });
     },

@@ -12,7 +12,7 @@ const SHORT_MODELS = [
 const LONG_MODELS = Array.from({ length: 9 }, (_, i) => ({ id: `model-${i}`, label: `Model ${i}` }));
 
 describe('SearchableModelSelect', () => {
-  it('shows the selected model on the trigger', () => {
+  it('shows the selected model on the combobox when a host supplies input styling', () => {
     render(
       <SearchableModelSelect
         models={SHORT_MODELS}
@@ -20,6 +20,7 @@ describe('SearchableModelSelect', () => {
         onChange={vi.fn()}
         ariaLabel="Model"
         searchPlaceholder="Search models"
+        className="jini-input"
       />,
     );
     expect(screen.getByRole('combobox').textContent).toContain('Model Two');

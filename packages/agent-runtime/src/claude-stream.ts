@@ -1,10 +1,6 @@
 /**
  * @module claude-stream
  *
- * Ported verbatim from OD's `apps/daemon/src/runtimes/claude-stream.ts`
- * (only the `role-marker-guard` import path changed — it now resolves
- * within this package instead of two directories up). See `source-map.md`.
- *
  * Parses Claude Code's `--output-format stream-json --verbose` JSONL stream
  * (with or without `--include-partial-messages`) into a small set of
  * UI-friendly events. With partial messages on, text arrives as
@@ -42,6 +38,7 @@
  */
 
 import { createRoleMarkerGuard, type RoleMarkerGuard, type RoleMarkerWarningEvent } from './role-marker-guard.js';
+import { createClaudeSegmentUsage } from './claude-segment-usage.js';
 
 /**
  * Every event `createClaudeStreamHandler` can emit, discriminated on `type`. Exported (via
@@ -54,14 +51,22 @@ import { createRoleMarkerGuard, type RoleMarkerGuard, type RoleMarkerWarningEven
  * enforce.
  */
 export type ClaudeStreamEvent =
-  | { type: 'status'; label: string; model?: unknown; sessionId?: unknown; ttftMs?: number }
+  | {
+      type: 'status';
+      label: string;
+      model?: unknown;
+      sessionId?: unknown;
+      ttftMs?: number;
+      /** Init frames only: each MCP server's connection state as the CLI reported it (see {@link initMcpServers}). */
+      mcpServers?: McpServerStatus[];
+    }
   | { type: 'text_delta' | 'thinking_delta'; delta: string }
   | { type: 'thinking_start' }
   | { type: 'tool_use'; id: unknown; name: unknown; input: unknown }
   | { type: 'tool_input_delta'; id: string; name: string; delta: string }
   | { type: 'tool_result'; toolUseId: unknown; content: string; isError: boolean }
   | { type: 'turn_end'; stopReason: string }
-  | { type: 'usage'; usage: unknown; costUsd: unknown; durationMs: unknown; stopReason: string | null }
+  | { type: 'usage'; usage: unknown; costUsd: unknown; cumulativeCostUsd?: number; costSessionId?: string; durationMs: unknown; stopReason: string | null }
   | { type: 'error'; message: string; code: string }
   | { type: 'raw'; line: string }
   | RoleMarkerWarningEvent;
@@ -154,7 +159,7 @@ function nextGeneratedRuntimeTaskId(counter: RuntimeTaskIdCounter): string {
   // increases, it can never equal an id already present in the map at
   // this point. Removed per the coverage skill's Phase 6.5 "dead
   // branch" classification rather than fake a test for an unreachable
-  // loop; see source-map.md.
+  // loop; see archived provenance ledger.
   const id = String(counter.next);
   counter.next += 1;
   return id;
@@ -237,7 +242,7 @@ export function emitCanonicalTaskSnapshot(
   // reaching here (so the "changed" flag those returns guarded was
   // always true here). Removed the dead double-guard per the coverage
   // skill's Phase 6.5 "dead branch" classification rather than fake a
-  // test for an unreachable condition; see source-map.md.
+  // test for an unreachable condition; see archived provenance ledger.
   registry.seenToolUseIds.add(toolUseId);
   onEvent({
     type: 'tool_use',
@@ -272,7 +277,7 @@ export function isFileWriteToolUse(name: unknown, input: unknown): boolean {
 // already made. Removed the runtime early-return per the coverage
 // skill's Phase 6.5 "dead branch" classification rather than fake a
 // test with a non-record `input` neither function can ever actually
-// receive (see source-map.md), replaced by a one-line type assertion
+// receive (see archived provenance ledger), replaced by a one-line type assertion
 // (classification 4: TS-required, no real runtime path) so the
 // parameter can stay `unknown` without disturbing the call sites.
 export function fileWriteContent(input: unknown): string | null {
@@ -347,13 +352,37 @@ export function isUnstreamedThinkingBlock(
   );
 }
 
+/** One MCP server's state from an init frame's `mcp_servers`, e.g. `{ name: 'jini', status: 'failed' }`. */
+export interface McpServerStatus {
+  readonly name: string;
+  readonly status: string;
+}
+
+/**
+ * The init frame's `mcp_servers`, reduced to `{name, status}`, or `undefined` when the frame has no
+ * such list. Kept on the event so a host can tell "its bridge did not connect" from "no bridge was
+ * configured": Claude Code times a dead MCP server out, reports it `failed` here, and carries on
+ * without its tools (the 2026-10-01 desktop incident). Entries without a string name and status are
+ * dropped rather than guessed at.
+ */
+export function initMcpServers(obj: Record<string, unknown>): McpServerStatus[] | undefined {
+  if (!Array.isArray(obj.mcp_servers)) return undefined;
+  return obj.mcp_servers.flatMap((server) =>
+    isRecord(server) && typeof server.name === 'string' && typeof server.status === 'string'
+      ? [{ name: server.name, status: server.status }]
+      : [],
+  );
+}
+
 export function handleSystemMessage(obj: Record<string, unknown>, onEvent: EventSink): void {
   if (obj.subtype === 'init') {
+    const mcpServers = initMcpServers(obj);
     onEvent({
       type: 'status',
       label: 'initializing',
       model: obj.model ?? null,
       sessionId: obj.session_id ?? null,
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
     });
     return;
   }
@@ -413,17 +442,23 @@ export function emitAssistantErrorIfPresent(obj: Record<string, unknown>, conten
 
 interface ClaudeStreamHandlerOptions {
   suppressHtmlArtifactsAfterFileWrite?: boolean;
+  /** Clock used only when an interrupted segment omits its duration. */
+  nowMs?: () => number;
+  /** Claude's results span a session; compatible CLIs can retain per-run cost semantics. */
+  costBasis?: 'session' | 'run';
 }
 
-export function createClaudeStreamHandler(
-  onEvent: EventSink,
-  options: ClaudeStreamHandlerOptions = {},
+export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, options: ClaudeStreamHandlerOptions = {}
 ) {
   let buffer = '';
+  const segmentUsage = createClaudeSegmentUsage({}, {
+    ...(options.nowMs === undefined ? {} : { nowMs: options.nowMs }),
+    ...(options.costBasis === undefined ? {} : { costBasis: options.costBasis }),
+  });
 
   // Per-content-block scratch, keyed by `${messageId}:${blockIndex}`.
   const blocks = new Map<string, BlockState>();
-  // Tool uses already emitted from streamed `input_json_delta` data.
+  // Tool uses already emitted from streamed `input_json_delta` data OR full wrappers.
   // Claude Code still repeats them in the final assistant wrapper, often with
   // empty `{}` inputs, so we suppress that duplicate emission.
   const streamedToolUseIds = new Set<string>();
@@ -488,6 +523,10 @@ export function createClaudeStreamHandler(
   }
 
   function emitToolUse(id: unknown, name: unknown, input: unknown): void {
+    if (typeof id === 'string') {
+      if (streamedToolUseIds.has(id)) return;
+      streamedToolUseIds.add(id);
+    }
     if (emitCanonicalTaskSnapshot(id, name, input, taskRegistry, onEvent)) return;
     if (isFileWriteToolUse(name, input)) {
       suppressNextArtifactText = true;
@@ -527,7 +566,7 @@ export function createClaudeStreamHandler(
   function getOrCreateRoleGuard(msgId: string): RoleMarkerGuard {
     let guard = roleGuards.get(msgId);
     if (!guard) {
-      guard = createRoleMarkerGuard(msgId);
+      guard = createRoleMarkerGuard({ messageId: msgId });
       roleGuards.set(msgId, guard);
     }
     return guard;
@@ -545,7 +584,7 @@ export function createClaudeStreamHandler(
     const guard = getOrCreateRoleGuard(msgId);
     if (guard.contaminated) return;
 
-    const safe = guard.feedText(text);
+    const safe = guard.feedText({ text: text });
     if (safe.length > 0) {
       onEvent({ type: eventType, delta: safe });
     }
@@ -624,7 +663,7 @@ export function createClaudeStreamHandler(
     return startDuplicateArtifactCandidate(current, openIndex);
   }
 
-  function feed(chunk: string) {
+  function feed({ chunk }: { chunk: string }) {
     buffer += chunk;
     let nl;
     while ((nl = buffer.indexOf('\n')) !== -1) {
@@ -653,6 +692,8 @@ export function createClaudeStreamHandler(
       }
     }
     flushPendingArtifactText();
+    // A hard cancel has no result frame. Flush only counters actually observed, once.
+    if (segmentUsage.hasObserved()) onEvent({ type: 'usage', ...segmentUsage.finish({ result: {}, interrupted: true }), stopReason: null });
   }
 
   function handleToolUseBlock(block: Record<string, unknown>): void {
@@ -721,8 +762,10 @@ export function createClaudeStreamHandler(
   function handleAssistantMessage(obj: Record<string, unknown>): void {
     const message = obj.message;
     if (!isRecord(message) || !Array.isArray(message.content)) return;
+    if (typeof message.model === 'string') onEvent({ type: 'status', label: 'model', model: message.model });
     const { textMsgId, thinkingMsgId, textAlreadyStreamed, thinkingAlreadyStreamed } =
       resolveAssistantMessageIds(message);
+    segmentUsage.observe({ messageId: usageMessageKey(), usage: message.usage });
     // Per-turn `stop_reason` is emitted as `turn_end` AFTER the content
     // blocks have been processed (see below). When `--include-partial-
     // messages` is unsupported, tool_use events surface only from the
@@ -766,15 +809,14 @@ export function createClaudeStreamHandler(
     }
     onEvent({
       type: 'usage',
-      usage: obj.usage ?? null,
-      costUsd: obj.total_cost_usd ?? null,
-      durationMs: obj.duration_ms ?? null,
+      ...segmentUsage.finish({ result: obj, interrupted: stopReason?.startsWith('aborted') === true }),
       stopReason,
     });
   }
 
   function handleObject(obj: unknown) {
     if (!isRecord(obj)) return;
+    segmentUsage.setSession({ id: obj.session_id });
     switch (obj.type) {
       case 'system':
         handleSystemMessage(obj, onEvent);
@@ -795,12 +837,14 @@ export function createClaudeStreamHandler(
   }
 
   function handleMessageStart(ev: Record<string, unknown>): void {
+    if (isRecord(ev.message) && typeof ev.message.model === 'string') onEvent({ type: 'status', label: 'model', model: ev.message.model });
     flushPendingArtifactText();
     // Clean up per-message role-marker guard from the previous message.
     if (currentMessageId) roleGuards.delete(currentMessageId);
     currentMessageId = isRecord(ev.message) && typeof ev.message.id === 'string' ? ev.message.id : null;
     // New message boundary — see `anonymousMessageEpoch`'s declaration.
     if (currentMessageId === null) anonymousMessageEpoch += 1;
+    segmentUsage.observe({ messageId: usageMessageKey(), usage: isRecord(ev.message) ? ev.message.usage : undefined });
     currentMessageStreamedText = false;
     currentMessageStreamedThinking = false;
     if (typeof ev.ttft_ms === 'number') {
@@ -865,6 +909,16 @@ export function createClaudeStreamHandler(
     blocks.delete(key);
   }
 
+  // Usage is keyed per message; an id-less message is keyed by its epoch.
+  function usageMessageKey(): string {
+    return currentMessageId ?? `anon${anonymousMessageEpoch}`;
+  }
+
+  function handleMessageDeltaStreamEvent(ev: Record<string, unknown>): void {
+    segmentUsage.observe({ messageId: usageMessageKey(), usage: ev.usage ?? (isRecord(ev.delta) ? ev.delta.usage : undefined) });
+    if (isRecord(ev.delta)) handleMessageDeltaEvent(ev.delta);
+  }
+
   function handleMessageDeltaEvent(delta: Record<string, unknown>): void {
     const stopReason = typeof delta.stop_reason === 'string' ? delta.stop_reason : null;
     if (stopReason) emitTurnEnd(stopReason);
@@ -885,7 +939,7 @@ export function createClaudeStreamHandler(
         handleContentBlockStop(ev);
         return;
       case 'message_delta':
-        if (isRecord(ev.delta)) handleMessageDeltaEvent(ev.delta);
+        handleMessageDeltaStreamEvent(ev);
         return;
     }
   }

@@ -20,6 +20,7 @@ import {
   migrateLegacyDataDirSync,
   promoteStaged,
   type LegacyDataMigrationConfig,
+  type LegacyFilesystemPort,
 } from '../legacy-data-migration.js';
 
 const config: LegacyDataMigrationConfig = {
@@ -28,7 +29,7 @@ const config: LegacyDataMigrationConfig = {
 };
 
 interface SilentLogger {
-  info(message: string): void;
+  info(args: { message: string }): void;
   warn(message: string): void;
   readonly entries: { level: 'info' | 'warn'; message: string }[];
 }
@@ -37,7 +38,7 @@ function makeLogger(): SilentLogger {
   const entries: { level: 'info' | 'warn'; message: string }[] = [];
   return {
     entries,
-    info: (m) => entries.push({ level: 'info', message: m }),
+    info: ({ message: m }) => entries.push({ level: 'info', message: m }),
     warn: (m) => entries.push({ level: 'warn', message: m }),
   };
 }
@@ -82,23 +83,23 @@ describe('migrateLegacyDataDirSync', () => {
 
   it('returns noop when legacyDir is not set', () => {
     const log = makeLogger();
-    expect(migrateLegacyDataDirSync({ ...config, legacyDir: undefined, dataDir, logger: log })).toMatchObject({ status: 'noop' });
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir: undefined, dataDir }, { ...config, logger: log })).toMatchObject({ status: 'noop' });
     expect(log.entries).toHaveLength(0);
   });
 
   it('returns noop when legacyDir is the empty string', () => {
-    expect(migrateLegacyDataDirSync({ ...config, legacyDir: '', dataDir, logger: makeLogger() })).toMatchObject({ status: 'noop' });
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir: '', dataDir }, { ...config, logger: makeLogger() })).toMatchObject({ status: 'noop' });
   });
 
   it('returns noop when legacyDir equals dataDir', () => {
-    expect(migrateLegacyDataDirSync({ ...config, legacyDir: dataDir, dataDir, logger: makeLogger() })).toMatchObject({ status: 'noop' });
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir: dataDir, dataDir }, { ...config, logger: makeLogger() })).toMatchObject({ status: 'noop' });
   });
 
   it('throws LegacyMigrationError when legacyDir has no proof entry', () => {
     writeFile(path.join(legacyDir, 'README.txt'), 'unrelated');
     let captured: unknown;
     try {
-      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     } catch (err) {
       captured = err;
     }
@@ -112,7 +113,7 @@ describe('migrateLegacyDataDirSync', () => {
 
     let captured: unknown;
     try {
-      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     } catch (err) {
       captured = err;
     }
@@ -127,7 +128,7 @@ describe('migrateLegacyDataDirSync', () => {
 
     let captured: unknown;
     try {
-      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     } catch (err) {
       captured = err;
     }
@@ -139,7 +140,7 @@ describe('migrateLegacyDataDirSync', () => {
   it('migrates payload to a fresh dataDir', () => {
     seedLegacyDir(legacyDir);
     const log = makeLogger();
-    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: log });
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: log });
 
     expect(result.status).toBe('migrated');
     expect(result.copied).toEqual(expect.arrayContaining(['app.sqlite', 'app-config.json', 'media-config.json', 'projects', 'artifacts']));
@@ -152,7 +153,7 @@ describe('migrateLegacyDataDirSync', () => {
 
   it('writes a marker after success, using the configured marker file name', () => {
     seedLegacyDir(legacyDir);
-    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, markerFile: '.custom-marker', logger: makeLogger() });
+    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, markerFile: '.custom-marker', logger: makeLogger() });
     const marker = JSON.parse(fs.readFileSync(path.join(dataDir, '.custom-marker'), 'utf8'));
     expect(marker.legacyDir).toBe(path.resolve(legacyDir));
     expect(typeof marker.migratedAt).toBe('string');
@@ -160,7 +161,7 @@ describe('migrateLegacyDataDirSync', () => {
 
   it('defaults the marker file name to .migrated-from', () => {
     seedLegacyDir(legacyDir);
-    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     expect(fs.existsSync(path.join(dataDir, '.migrated-from'))).toBe(true);
   });
 
@@ -168,7 +169,7 @@ describe('migrateLegacyDataDirSync', () => {
     seedLegacyDir(legacyDir);
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir });
+      const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config });
       expect(result.status).toBe('migrated');
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('migrating legacy data'));
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('migration complete'));
@@ -181,22 +182,22 @@ describe('migrateLegacyDataDirSync', () => {
     seedLegacyDir(legacyDir);
     let captured: unknown;
     try {
-      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, markerFile: 'missing-subdir/marker.json', logger: makeLogger() });
+      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, markerFile: 'missing-subdir/marker.json', logger: makeLogger() });
     } catch (err) {
       captured = err;
     }
     expect(captured).toBeInstanceOf(Error);
     // The default writeMarker's own catch cleans up its temp file and
     // rethrows, and the outer rollback then removes every promoted entry.
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual([]);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual([]);
   });
 
   it('idempotent: a second call after success returns skipped without re-copying', () => {
     seedLegacyDir(legacyDir);
-    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     fs.rmSync(path.join(dataDir, 'app.sqlite'));
 
-    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     expect(result.status).toBe('skipped');
     expect(result.reason).toMatch(/marker/);
     expect(fs.existsSync(path.join(dataDir, 'app.sqlite'))).toBe(false);
@@ -204,12 +205,12 @@ describe('migrateLegacyDataDirSync', () => {
 
   it('marker beats a missing legacyDir on the next call', async () => {
     seedLegacyDir(legacyDir);
-    const first = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    const first = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     expect(first.status).toBe('migrated');
 
     await rm(legacyDir, { recursive: true, force: true });
 
-    const second = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    const second = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     expect(second.status).toBe('skipped');
     expect(second.reason).toMatch(/marker/);
   });
@@ -218,7 +219,7 @@ describe('migrateLegacyDataDirSync', () => {
     seedLegacyDir(legacyDir);
     await rm(dataDir, { recursive: true, force: true });
 
-    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     expect(result.status).toBe('migrated');
     expect(fs.existsSync(path.join(dataDir, 'app.sqlite'))).toBe(true);
   });
@@ -226,7 +227,7 @@ describe('migrateLegacyDataDirSync', () => {
   it('uses singular "entry" phrasing in the completion log when exactly one entry is copied', () => {
     writeFile(path.join(legacyDir, 'app.sqlite'), 'fake');
     const log = makeLogger();
-    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: log });
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: log });
     expect(result.copied).toEqual(['app.sqlite']);
     expect(log.entries.some((e) => e.message.includes('copied 1 entry ('))).toBe(true);
   });
@@ -235,7 +236,7 @@ describe('migrateLegacyDataDirSync', () => {
     writeFile(path.join(legacyDir, 'app.sqlite'), 'fake');
     writeFile(path.join(legacyDir, 'projects', 'only', 'page.html'), '<x/>');
 
-    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     expect(result.status).toBe('migrated');
     expect(result.copied).toContain('app.sqlite');
     expect(result.copied).toContain('projects');
@@ -256,7 +257,7 @@ describe('migrateLegacyDataDirSync', () => {
 
     let captured: unknown;
     try {
-      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     } catch (err) {
       captured = err;
     }
@@ -277,7 +278,7 @@ describe('migrateLegacyDataDirSync', () => {
       return;
     }
 
-    expect(() => migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() })).toThrowError(LegacyMigrationError);
+    expect(() => migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() })).toThrowError(LegacyMigrationError);
 
     const parent = path.dirname(dataDir);
     const base = path.basename(dataDir);
@@ -301,12 +302,12 @@ describe('migrateLegacyDataDirSync', () => {
 
     let captured: unknown;
     try {
-      promoteStaged(stagingDir, dataDir, ['app.sqlite', 'app-config.json']);
+      promoteStaged({ stagingDir: stagingDir, dataDir: dataDir, entries: ['app.sqlite', 'app-config.json'] });
     } catch (err) {
       captured = err;
     }
     expect(captured).toBeInstanceOf(Error);
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual([]);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual([]);
 
     fs.rmSync(stagingDir, { recursive: true, force: true });
   });
@@ -316,26 +317,20 @@ describe('migrateLegacyDataDirSync', () => {
 
     let captured: unknown;
     try {
-      migrateLegacyDataDirSync({
-        ...config,
-        legacyDir,
-        dataDir,
-        logger: makeLogger(),
-        writeMarker: (markerDataDir, _legacyDir, markerFile) => {
+      migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger(), writeMarker: ({ dataDir: markerDataDir, legacyDir: _legacyDir, markerFile }) => {
           fs.writeFileSync(path.join(markerDataDir, markerFile), 'partial bytes before crash', 'utf8');
           const e = new Error('synthetic ENOSPC writing marker') as NodeJS.ErrnoException;
           e.code = 'ENOSPC';
           throw e;
-        },
-      });
+        } });
     } catch (err) {
       captured = err;
     }
     expect(captured).toBeInstanceOf(Error);
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual([]);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual([]);
     expect(fs.existsSync(path.join(dataDir, '.migrated-from'))).toBe(false);
 
-    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir, logger: makeLogger() });
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { ...config, logger: makeLogger() });
     expect(result.status).toBe('migrated');
     expect(fs.existsSync(path.join(dataDir, 'app.sqlite'))).toBe(true);
     expect(fs.existsSync(path.join(dataDir, '.migrated-from'))).toBe(true);
@@ -353,21 +348,21 @@ describe('dataDirIsEmptyOrFresh', () => {
 
   it('treats a missing directory as fresh', async () => {
     await rm(dataDir, { recursive: true, force: true });
-    expect(dataDirIsEmptyOrFresh(dataDir, config)).toBe(true);
+    expect(dataDirIsEmptyOrFresh({ dataDir: dataDir, config: config })).toBe(true);
   });
 
   it('treats an empty directory as fresh', () => {
-    expect(dataDirIsEmptyOrFresh(dataDir, config)).toBe(true);
+    expect(dataDirIsEmptyOrFresh({ dataDir: dataDir, config: config })).toBe(true);
   });
 
   it('treats a directory with arbitrary scratch but no proof entry as fresh', () => {
     writeFile(path.join(dataDir, 'lockfile'), '');
-    expect(dataDirIsEmptyOrFresh(dataDir, config)).toBe(true);
+    expect(dataDirIsEmptyOrFresh({ dataDir: dataDir, config: config })).toBe(true);
   });
 
   it('treats a directory with the proof entry as not fresh', () => {
     writeFile(path.join(dataDir, 'app.sqlite'), 'real-data');
-    expect(dataDirIsEmptyOrFresh(dataDir, config)).toBe(false);
+    expect(dataDirIsEmptyOrFresh({ dataDir: dataDir, config: config })).toBe(false);
   });
 });
 
@@ -382,17 +377,17 @@ describe('legacyDirHasPayload', () => {
 
   it('returns false when the directory is missing', async () => {
     await rm(legacyDir, { recursive: true, force: true });
-    expect(legacyDirHasPayload(legacyDir, config)).toBe(false);
+    expect(legacyDirHasPayload({ legacyDir: legacyDir, config: config })).toBe(false);
   });
 
   it('returns false when the directory exists but has no proof entry', () => {
     writeFile(path.join(legacyDir, 'README.md'), 'unrelated');
-    expect(legacyDirHasPayload(legacyDir, config)).toBe(false);
+    expect(legacyDirHasPayload({ legacyDir: legacyDir, config: config })).toBe(false);
   });
 
   it('returns true when the directory contains the proof entry', () => {
     writeFile(path.join(legacyDir, 'app.sqlite'), 'real');
-    expect(legacyDirHasPayload(legacyDir, config)).toBe(true);
+    expect(legacyDirHasPayload({ legacyDir: legacyDir, config: config })).toBe(true);
   });
 });
 
@@ -407,29 +402,109 @@ describe('dataDirHasExistingPayload', () => {
 
   it('returns an empty list when the directory is missing', async () => {
     await rm(dataDir, { recursive: true, force: true });
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual([]);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual([]);
   });
 
   it('returns an empty list when the directory holds only foreign files', () => {
     writeFile(path.join(dataDir, 'unrelated.log'), 'logs');
     writeFile(path.join(dataDir, '.DS_Store'), '');
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual([]);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual([]);
   });
 
   it('detects the proof entry alone', () => {
     writeFile(path.join(dataDir, 'app.sqlite'), 'real');
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual(['app.sqlite']);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual(['app.sqlite']);
   });
 
   it('detects a directory-shaped payload entry alone', () => {
     writeFile(path.join(dataDir, 'projects', 'p1', 'index.html'), '<x/>');
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual(['projects']);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual(['projects']);
   });
 
   it('returns every payload entry that exists, in declared order', () => {
     writeFile(path.join(dataDir, 'app.sqlite'), 'real');
     writeFile(path.join(dataDir, 'media-config.json'), '{"providers":{}}');
     writeFile(path.join(dataDir, 'artifacts', 'a1', 'final.html'), '<x/>');
-    expect(dataDirHasExistingPayload(dataDir, config)).toEqual(['app.sqlite', 'media-config.json', 'artifacts']);
+    expect(dataDirHasExistingPayload({ dataDir: dataDir, config: config })).toEqual(['app.sqlite', 'media-config.json', 'artifacts']);
+  });
+});
+
+// Characterization pins taken on the pre-refactor migrator (code-health wave 3): exact outcome
+// reasons and log lines, so splitting migrateLegacyDataDirSync cannot drift them.
+describe('migrateLegacyDataDirSync outcome pins', () => {
+  let legacyDir: string;
+  let dataDir: string;
+
+  beforeEach(() => {
+    legacyDir = mkdtempSync(path.join(os.tmpdir(), 'jini-legacy-pin-'));
+    dataDir = mkdtempSync(path.join(os.tmpdir(), 'jini-data-pin-'));
+  });
+
+  afterEach(async () => {
+    await rm(legacyDir, { recursive: true, force: true });
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  it('reports the unconfigured noop reason', () => {
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir: undefined, dataDir }, { logger: makeLogger() }))
+      .toEqual({ status: 'noop', reason: 'legacy data dir not configured' });
+  });
+
+  it('reports the same-dir noop reason after resolving relative spellings', () => {
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir: path.join(dataDir, 'x', '..'), dataDir }, { logger: makeLogger() }))
+      .toEqual({ status: 'noop', reason: 'legacy data dir equals current data dir' });
+  });
+
+  it('reports the marker skip reason with a custom marker file even when the legacy dir is unusable', () => {
+    writeFile(path.join(dataDir, '.custom-marker'), '{}');
+    expect(migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger(), markerFile: '.custom-marker' }))
+      .toEqual({ status: 'skipped', reason: 'migration marker already present' });
+  });
+
+  it('refuses an unusable legacy dir with legacy_dir_invalid naming the proof entry', () => {
+    let caught: unknown;
+    try { migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger() }); } catch (error) { caught = error; }
+    expect(caught).toBeInstanceOf(LegacyMigrationError);
+    expect(caught).toMatchObject({ code: 'legacy_dir_invalid', message: `legacy data dir "${path.resolve(legacyDir)}" is not a usable legacy data dir (expected "app.sqlite" directly inside it).` });
+  });
+
+  it('refuses a populated data dir with data_dir_not_empty listing the clashing entries', () => {
+    seedLegacyDir(legacyDir);
+    writeFile(path.join(dataDir, 'app-config.json'), '{}');
+    writeFile(path.join(dataDir, 'artifacts', 'x'), 'x');
+    let caught: unknown;
+    try { migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger() }); } catch (error) { caught = error; }
+    expect(caught).toMatchObject({ code: 'data_dir_not_empty', message: expect.stringContaining('already contains payload entries (app-config.json, artifacts); refusing') });
+  });
+
+  it('logs start and plural completion lines, writes the default marker and removes the staging dir', () => {
+    seedLegacyDir(legacyDir);
+    const target = path.join(dataDir, 'nested-root');
+    const log = makeLogger();
+    const result = migrateLegacyDataDirSync({ ...config, legacyDir, dataDir: target }, { logger: log });
+    expect(result).toEqual({ status: 'migrated', reason: 'copied legacy payload', copied: config.payloadEntries });
+    expect(log.entries.map((e) => e.message)).toEqual([
+      `migrating legacy data from "${path.resolve(legacyDir)}" to "${target}"`,
+      `migration complete: copied 5 entries (${config.payloadEntries.join(', ')})`,
+    ]);
+    expect(JSON.parse(fs.readFileSync(path.join(target, '.migrated-from'), 'utf8'))).toMatchObject({ legacyDir: path.resolve(legacyDir) });
+    expect(fs.readdirSync(dataDir)).toEqual(['nested-root']);
+  });
+
+  it('passes the resolved dirs and marker name to an injected writeMarker', () => {
+    writeFile(path.join(legacyDir, 'app.sqlite'), 'fake');
+    const calls: { dataDir: string; legacyDir: string; markerFile: string }[] = [];
+    migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger(), markerFile: '.m', writeMarker: (args) => { calls.push(args); } });
+    expect(calls).toEqual([{ dataDir: path.resolve(dataDir), legacyDir: path.resolve(legacyDir), markerFile: '.m' }]);
+    expect(fs.existsSync(path.join(dataDir, '.m'))).toBe(false);
+  });
+
+  it('on a staging failure removes the staging dir and leaves the data dir untouched', () => {
+    seedLegacyDir(legacyDir);
+    const failing: LegacyFilesystemPort = { ...fs, cpSync: () => { throw new Error('copy failed'); } };
+    expect(() => migrateLegacyDataDirSync({ ...config, legacyDir, dataDir }, { logger: makeLogger(), filesystem: failing }))
+      .toThrow('copy failed');
+    expect(fs.readdirSync(path.dirname(dataDir)).filter((name) => name.startsWith(`${path.basename(dataDir)}.migrate-`))).toEqual([]);
+    expect(fs.readdirSync(dataDir)).toEqual([]);
   });
 });

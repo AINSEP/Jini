@@ -63,7 +63,7 @@ async function allocateForcedPort(port: number, label: string, host: string, res
  * @internal Probes one ephemeral port via a real bind(0)-listen-then-close cycle — the OS
  * hands back whatever port it currently considers free.
  */
-async function probeEphemeralPort(host: string): Promise<number> {
+async function probeEphemeralPort({ host }: { host: string }): Promise<number> {
   const server = await listenOnPort(0, host);
   const address = server.address();
   await closeServer(server);
@@ -82,13 +82,11 @@ async function probeEphemeralPort(host: string): Promise<number> {
  * scenario. `allocatePort` always calls this with the real {@link probeEphemeralPort}.
  */
 export async function allocateDynamicPort(
-  label: string,
-  host: string,
-  reserved: Set<number>,
-  probe: (host: string) => Promise<number> = probeEphemeralPort,
+  { label, host, reserved }: { label: string; host: string; reserved: Set<number> },
+  { probe = probeEphemeralPort }: { probe?: (requiredArgs: { host: string }) => Promise<number> } = {},
 ): Promise<PortAllocation> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const port = await probe(host);
+    const port = await probe({ host });
     if (!reserved.has(port)) {
       reserved.add(port);
       return { port, source: "dynamic" };
@@ -102,7 +100,7 @@ export async function allocateDynamicPort(
  * recording it in the `reserved` set to avoid double-allocation.
  * @returns The port allocation (port + how it was chosen).
  */
-export async function allocatePort({
+export async function allocatePort(_requiredArgs: Record<string, never>, {
   host = "127.0.0.1",
   label = "runtime",
   port,
@@ -110,6 +108,6 @@ export async function allocatePort({
 }: PortRequest = {}): Promise<PortAllocation> {
   const forcedPort = parsePort(port, label);
   return forcedPort == null
-    ? await allocateDynamicPort(label, host, reserved)
+    ? await allocateDynamicPort({ label, host, reserved })
     : await allocateForcedPort(forcedPort, label, host, reserved);
 }

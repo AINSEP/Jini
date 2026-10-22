@@ -1,3 +1,4 @@
+import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
 /**
  * @file The Navigation (Menus) agent-tool catalog — this domain's instance of the
  * per-domain `agent-tools.ts` convention `forms/agent-tools.ts` and `identity/agent-tools.ts`
@@ -58,33 +59,39 @@
 
 import { ALLOWED_HREF_SHAPES_DESCRIPTION } from "./menu-service.js";
 
-export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
-export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "user-only" | "none";
 
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  sideEffects: AgentToolSideEffect;
-  authorization: { permission: string };
-  actorClassRule?: AgentToolActorClassRule;
-  /**
+
+
+/**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
    * (a host's own tool-registration layer, which refuses to wire any tool lacking one).
    *
    * Deliberately not widened to `| undefined` (unlike most optional fields in this port) — this
-   * type flows into `core/tools/registration-kit.ts`'s `WirableToolDefinition`, which declares both
+   * type flows into `@jini-ai/core`'s `registration-kit.ts`'s `AgentToolDefinition`, which declares both
    * this field and `actorClassRule` below without `| undefined`. Widening only this catalog's copy
    * would make it structurally incompatible with that shared interface under
    * `exactOptionalPropertyTypes`, which is exactly what identity's own `agent-tools.ts` avoids for
    * the same reason.
    */
-  inputSchema?: Readonly<Record<string, unknown>>;
-}
 
 const MENU_ID_SCHEMA = {
   type: "string",
   description: "The menu's id, as returned by menus_list_menus, menus_get_menu, or menus_create_menu.",
+} as const;
+
+/** HTML mode (2026-10-08, `menu-html.ts`): the same two fields on create and update. */
+const MENU_MODE_SCHEMA = {
+  type: "string",
+  enum: ["items", "html"],
+  description: "What the site renders for this menu: 'items' (the item tree, the default) or 'html' (the menu's own 'html'). Switching keeps the other mode's data. Omit to leave unchanged.",
+} as const;
+
+const MENU_HTML_SCHEMA = {
+  type: "string",
+  maxLength: 200000,
+  description: "The menu's own HTML for 'html' mode — any markup and classes, e.g. '<ul class=\"nav\"><li><a href=\"/\">Home</a></li></ul>'. " +
+    "Rendered inside the theme element that holds the menu's marker. Needs raw-HTML permission (admins/owners). Omit to leave unchanged.",
 } as const;
 
 /**
@@ -100,7 +107,15 @@ const NAV_TARGET_SCHEMA = {
       type: "object",
       additionalProperties: false,
       required: ["kind", "entryId"],
-      properties: { kind: { const: "entryRef" }, entryId: { type: "string", description: "Target entry id (e.g. a page or post)." } },
+      properties: {
+        kind: { const: "entryRef" },
+        entryId: { type: "string", description: "Target entry id (e.g. a page or post)." },
+        // Declared so a read can be echoed back unchanged: these were stored on page links but absent
+        // here, so every agent save dropped them (dry run 2026-10-05). The save also keeps the stored
+        // value when omitted for the same item id + entryId (`carryForwardEntryHints`).
+        entryType: { type: "string", description: "Content-type hint, e.g. 'page' or 'post'. Copy it unchanged from the read; omit for a new link." },
+        lastKnownHref: { type: "string", description: "The entry's last known public URL, e.g. '/about'. Copy it unchanged from the read; omit for a new link." },
+      },
     },
     {
       type: "object",
@@ -176,13 +191,13 @@ const ITEMS_TREE_SCHEMA = {
  * (`server/routes/admin/menus/*.ts`) exposes that are safe to wrap, out of its 6 total (see file
  * header for why `delete` is the one exclusion).
  *
- * Ordered read-first, matching `identity/agent-tools.ts`'s convention: a model needs a `menuId`
+ * Ordered read-first, matching `identity/agent-tools.ts`'s convention: a model needs a menu's id
  * before it can update or assign one, and `menus_list_menus` is how it learns one for an existing menu.
  */
 export const menusAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "menus_list_menus",
-    description: "Lists every menu in the workspace (id, slug, title, status, item tree, locations, version). Read-only.",
+    description: "Lists every menu in the workspace (id, slug, title, status, item tree, locations, version). Read-only. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "none",
     authorization: { permission: "admin.menus.read" },
     inputSchema: {
@@ -208,7 +223,8 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
     name: "menus_create_menu",
     description:
       "Creates a new menu in 'draft' status with no location assigned yet — it has no effect on the live site until " +
-      "menus_assign_location binds it somewhere. Rejects a duplicate slug within the workspace.",
+      "menus_assign_location binds it somewhere. Rejects a duplicate slug within the workspace. " +
+      "To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.menus.create" },
     inputSchema: {
@@ -219,6 +235,8 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
         title: { type: "string", minLength: 1, description: "Human-readable menu name." },
         slug: { type: "string", pattern: "^[a-z0-9-]+$", description: "Stable machine handle. Lowercase letters, digits, and hyphens only." },
         items: { ...ITEMS_TREE_SCHEMA, description: "Optional initial item tree. Defaults to an empty menu if omitted." },
+        mode: MENU_MODE_SCHEMA,
+        html: MENU_HTML_SCHEMA,
       },
     },
   },
@@ -227,19 +245,22 @@ export const menusAgentToolCatalog: AgentToolDefinition[] = [
     description:
       "Replaces an existing menu's whole item tree (and optionally its title/slug) in one version-guarded write. " +
       "Always a whole-tree replace — there is no per-item patch operation, so the submitted tree must include every " +
-      "item the menu keeps.",
+      "item the menu keeps, each with its fields copied unchanged from the read. For a hand-written HTML menu, send " +
+      "'html' (and 'mode': 'html') and omit 'items' to keep the stored tree. To delete a menu, use trash_item with entityType 'menu' (it moves to the Trash and can be restored).",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.menus.update" },
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["menuId", "expectedVersion", "items"],
+      required: ["id", "expectedVersion"],
       properties: {
-        menuId: MENU_ID_SCHEMA,
+        id: MENU_ID_SCHEMA,
         expectedVersion: { type: "integer", description: "The menu's current 'version', as last returned by a read or write on it — the optimistic-concurrency guard. A stale value is rejected with a conflict naming the current version." },
         title: { type: "string", description: "New title. Omit to leave unchanged." },
         slug: { type: "string", pattern: "^[a-z0-9-]+$", description: "New slug. Omit to leave unchanged. Must not collide with another menu's slug." },
-        items: ITEMS_TREE_SCHEMA,
+        items: { ...ITEMS_TREE_SCHEMA, description: "The full replacement item tree. Omit to keep the stored tree (e.g. an HTML-only edit); send at least one of items, html or mode." },
+        mode: MENU_MODE_SCHEMA,
+        html: MENU_HTML_SCHEMA,
       },
     },
   },

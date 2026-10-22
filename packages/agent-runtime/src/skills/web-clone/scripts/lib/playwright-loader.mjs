@@ -8,14 +8,19 @@ import { createRequire } from "node:module";
 //      staged under `.od-skills/<plugin>/scripts/` but run from the project
 //      root);
 //   3. AGENT_PLAYWRIGHT_PATH — an explicit package-dir escape hatch.
-export function loadPlaywright() {
-  const requireFromScript = createRequire(import.meta.url);
-  const requireFromCwd = createRequire(path.join(process.cwd(), "noop.js"));
+// The resolvers and env are injectable ports (defaults: the real `require`
+// relative to this file / the cwd, and `process.env`) so the fallback order
+// can be verified without Playwright installed.
+export function loadPlaywright({
+  requireFromScript = createRequire(import.meta.url),
+  requireFromCwd = createRequire(path.join(process.cwd(), "noop.js")),
+  env = process.env,
+} = {}) {
   const attempts = [
     () => requireFromScript("playwright"),
     () => requireFromCwd("playwright"),
     () => {
-      const p = process.env.AGENT_PLAYWRIGHT_PATH;
+      const p = env.AGENT_PLAYWRIGHT_PATH;
       if (!p) throw new Error("AGENT_PLAYWRIGHT_PATH unset");
       return requireFromScript(p);
     },

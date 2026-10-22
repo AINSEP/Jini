@@ -50,9 +50,9 @@ export type NavSectionState = Readonly<Record<string, boolean>>;
  * Non-boolean entries are dropped individually rather than rejecting the whole map, so one bad key
  * cannot discard a user's other sections.
  */
-function readPersisted(storageKey: string): NavSectionState {
+function readPersisted(storageKey: string, storage: Pick<Storage, 'getItem'>): NavSectionState {
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = storage.getItem(storageKey);
     if (raw === null) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
@@ -66,9 +66,9 @@ function readPersisted(storageKey: string): NavSectionState {
   }
 }
 
-function writePersisted(storageKey: string, state: NavSectionState): void {
+function writePersisted(storageKey: string, state: NavSectionState, storage: Pick<Storage, 'setItem'>): void {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(state));
+    storage.setItem(storageKey, JSON.stringify(state));
   } catch {
     // Best-effort, exactly as in `use-sidebar-rail.ts`: a user who cannot persist still gets a
     // working accordion for this tab, and failing loudly would break the nav over a preference.
@@ -77,8 +77,8 @@ function writePersisted(storageKey: string, state: NavSectionState): void {
 
 export interface NavSections {
   /** `true` when the section should render its items. Any label with no stored preference is open. */
-  isOpen: (groupLabel: string) => boolean;
-  toggle: (groupLabel: string) => void;
+  isOpen: (requiredArgs: { readonly groupLabel: string }) => boolean;
+  toggle: (requiredArgs: { readonly groupLabel: string }) => void;
 }
 
 /**
@@ -91,23 +91,26 @@ export interface NavSections {
  * handful, fixed by the host's panel manifest, never user-variable.
  * @overallScore 100
  */
-export function useNavSections(storageKey: string = DEFAULT_NAV_SECTIONS_STORAGE_KEY): NavSections {
-  const [state, setState] = useState<NavSectionState>(() => readPersisted(storageKey));
+export function useNavSections(
+  { storage, events }: { readonly storage: Pick<Storage, 'getItem' | 'setItem'>; readonly events: Pick<Window, 'addEventListener' | 'removeEventListener'> },
+  { storageKey = DEFAULT_NAV_SECTIONS_STORAGE_KEY }: { readonly storageKey?: string } = {},
+): NavSections {
+  const [state, setState] = useState<NavSectionState>(() => readPersisted(storageKey, storage));
 
-  const isOpen = useCallback((groupLabel: string) => state[groupLabel] ?? true, [state]);
+  const isOpen = useCallback(({ groupLabel }: { readonly groupLabel: string }) => state[groupLabel] ?? true, [state]);
 
   const toggle = useCallback(
-    (groupLabel: string) => {
+    ({ groupLabel }: { readonly groupLabel: string }) => {
       setState((current) => {
         // `?? true` here and in `isOpen` must agree: toggling a section that has never been stored
         // has to close it (it is currently rendered open), not open an already-open section — which
         // is what a bare `!current[label]` would do on the `undefined` first press.
         const next = { ...current, [groupLabel]: !(current[groupLabel] ?? true) };
-        writePersisted(storageKey, next);
+        writePersisted(storageKey, next, storage);
         return next;
       });
     },
-    [storageKey],
+    [storageKey, storage],
   );
 
   /** Cross-tab sync — two admin tabs should agree on the layout rather than diverging the moment
@@ -117,11 +120,11 @@ export function useNavSections(storageKey: string = DEFAULT_NAV_SECTIONS_STORAGE
   useEffect(() => {
     function onStorage(event: StorageEvent) {
       if (event.key !== storageKey) return;
-      setState(event.newValue === null ? {} : readPersisted(storageKey));
+      setState(event.newValue === null ? {} : readPersisted(storageKey, storage));
     }
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, [storageKey]);
+    events.addEventListener('storage', onStorage);
+    return () => events.removeEventListener('storage', onStorage);
+  }, [storageKey, storage, events]);
 
   return { isOpen, toggle };
 }

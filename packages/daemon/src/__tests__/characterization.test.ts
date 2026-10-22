@@ -11,7 +11,7 @@
  * `apps/daemon/src/runtimes/chat-run-lifecycle.ts`, and
  * `apps/daemon/src/run-failure-classification.ts`, all read at
  * `git show fork/server-endgame:<path>` on the closed/unmerged
- * `arch/server-startserver-endgame` branch — see `source-map.md`). It proves
+ * `arch/server-startserver-endgame` branch — see `archived provenance ledger`). It proves
  * `@jini-ai/daemon` reproduces those cited invariants faithfully:
  *
  *  1. `'start'` is emitted exactly once, and always first (`start-chat-run.ts`
@@ -45,17 +45,17 @@ import { createRunLifecycle } from '../run-lifecycle.js';
 
 describe('characterization — ordered event sequence parity with OD\'s documented run-engine invariants', () => {
   it('reproduces the exact start -> agent* -> end -> (resume) -> agent* -> end ordering', async () => {
-    const eventLog = createInMemoryEventLog();
+    const eventLog = createInMemoryEventLog({});
     const lifecycle = createRunLifecycle({ eventLog });
 
-    const { run } = await lifecycle.start({ contextRef: 'ctx-characterization', agentId: 'claude-code' });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-characterization' }, { agentId: 'claude-code' });
 
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'status', label: 'Thinking' } });
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'text_delta', delta: 'Sure, ' } });
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'text_delta', delta: "I'll check that." } });
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'tool_use', id: 'tu-1', name: 'Read', input: { path: 'a.ts' } } });
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'tool_result', toolUseId: 'tu-1', content: 'file contents' } });
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'usage', usage: { input_tokens: 100, output_tokens: 40 } } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'Thinking' } } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'Sure, ' } } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: "I'll check that." } } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'tool_use', id: 'tu-1', name: 'Read', input: { path: 'a.ts' } } } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'tool_result', toolUseId: 'tu-1', content: 'file contents' } } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'usage', usage: { input_tokens: 100, output_tokens: 40 } } } });
 
     const firstFinish = await lifecycle.finish({ runId: run.id, status: 'failed', code: null, signal: 'SIGTERM', resumable: true });
     expect(firstFinish.state).toBe('failed');
@@ -64,14 +64,14 @@ describe('characterization — ordered event sequence parity with OD\'s document
     // before resume(), must not append a second 'end' for this segment.
     await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
 
-    const resumeResult = await lifecycle.resume(run.id);
+    const resumeResult = await lifecycle.resume({ runId: run.id });
     expect(resumeResult.resumed).toBe(true);
 
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'status', label: 'Retrying' } });
-    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'text_delta', delta: 'Done.' } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'Retrying' } } });
+    await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'Done.' } } });
     await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
 
-    const replay = await eventLog.replay(run.id, null);
+    const replay = await eventLog.replay({ runId: run.id, afterCursor: null });
     expect(replay.kind).toBe('ok');
     if (replay.kind !== 'ok') return;
 

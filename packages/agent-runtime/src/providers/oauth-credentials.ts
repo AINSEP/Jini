@@ -33,15 +33,11 @@ export interface ResolvedOAuthCredential {
  * the refresh call fails. Callers should treat null as "no OAuth available,
  * fall back to API key / re-login UI".
  */
-export async function resolveOAuthBearer(
-  config: OAuthPkceProviderConfig,
-  tokenFileName: string,
-  dataDir: string,
-  fetchImpl?: typeof fetch,
+export async function resolveOAuthBearer({ config, tokenFileName, dataDir }: { config: OAuthPkceProviderConfig; tokenFileName: string; dataDir: string }, { fetchImpl }: { fetchImpl?: typeof fetch } = {}
 ): Promise<ResolvedOAuthCredential | null> {
-  const stored = await getStoredOAuthToken(dataDir, tokenFileName);
+  const stored = await getStoredOAuthToken({ dataDir: dataDir, fileName: tokenFileName });
   if (!stored) return null;
-  if (!isOAuthTokenExpired(stored)) {
+  if (!isOAuthTokenExpired({ token: stored })) {
     return { accessToken: stored.accessToken, source: 'stored' };
   }
 
@@ -51,28 +47,12 @@ export async function resolveOAuthBearer(
   if (!stored.refreshToken) return null;
 
   try {
-    const fresh = await refreshOAuthPkceToken({
-      config,
-      refreshToken: stored.refreshToken,
-      ...(fetchImpl ? { fetchImpl } : {}),
-    });
-    const next: StoredOAuthToken = {
-      accessToken: fresh.access_token,
-      tokenType: fresh.token_type ?? 'Bearer',
-      savedAt: Date.now(),
-    };
-    // Preserves the existing refresh_token when the token endpoint omits
-    // one in its response. RFC 6749 §6 lets a server skip refresh_token
-    // rotation and keep the old one valid; dropping it here would leave the
-    // next expiry with nothing to refresh against, forcing the user back
-    // through a full sign-in even though their grant is still good.
-    const carriedRefresh = fresh.refresh_token ?? stored.refreshToken;
-    if (carriedRefresh) next.refreshToken = carriedRefresh;
-    if (typeof fresh.expires_in === 'number') {
-      next.expiresAt = Date.now() + fresh.expires_in * 1000;
-    }
-    if (fresh.scope) next.scope = fresh.scope;
-    await setStoredOAuthToken(dataDir, tokenFileName, next);
+    const fresh = await refreshOAuthPkceToken(
+      { config, refreshToken: stored.refreshToken },
+      fetchImpl ? { fetchImpl } : {},
+    );
+    const next = refreshedStoredToken({ fresh, stored });
+    await setStoredOAuthToken({ dataDir: dataDir, fileName: tokenFileName, token: next });
     return { accessToken: next.accessToken, source: 'refreshed' };
   } catch {
     // Refresh failed (network blip, revoked refresh_token, server error).
@@ -80,4 +60,27 @@ export async function resolveOAuthBearer(
     // surfaces a re-login prompt if everything is empty.
     return null;
   }
+}
+
+function refreshedStoredToken(
+  { fresh, stored }: { fresh: Awaited<ReturnType<typeof refreshOAuthPkceToken>>; stored: StoredOAuthToken },
+  _options = {},
+): StoredOAuthToken {
+  const next: StoredOAuthToken = {
+    accessToken: fresh.access_token,
+    tokenType: fresh.token_type ?? 'Bearer',
+    savedAt: Date.now(),
+  };
+  // Preserves the existing refresh_token when the token endpoint omits
+  // one in its response. RFC 6749 §6 lets a server skip refresh_token
+  // rotation and keep the old one valid; dropping it here would leave the
+  // next expiry with nothing to refresh against, forcing the user back
+  // through a full sign-in even though their grant is still good.
+  const carriedRefresh = fresh.refresh_token ?? stored.refreshToken;
+  if (carriedRefresh) next.refreshToken = carriedRefresh;
+  if (typeof fresh.expires_in === 'number') {
+    next.expiresAt = Date.now() + fresh.expires_in * 1000;
+  }
+  if (fresh.scope) next.scope = fresh.scope;
+  return next;
 }

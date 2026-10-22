@@ -35,7 +35,7 @@ function nameOf(error: unknown): string | undefined {
   return error instanceof Error ? error.name : undefined;
 }
 
-export function categorizeE2bError(error: unknown): SandboxErrorCategory {
+export function categorizeE2bError({ error }: { error: unknown }): SandboxErrorCategory {
   const name = nameOf(error);
   if (name === undefined) return 'unknown';
   return KNOWN_ERROR_NAMES[name] ?? 'unknown';

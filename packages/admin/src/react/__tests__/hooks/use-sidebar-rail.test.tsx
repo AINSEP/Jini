@@ -9,18 +9,18 @@ beforeEach(() => {
 
 describe('useSidebarRail', () => {
   it('defaults to expanded on a first-run visitor', () => {
-    const { result } = renderHook(() => useSidebarRail());
+    const { result } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }));
     expect(result.current.collapsed).toBe(false);
   });
 
   it('reads the persisted value on mount', () => {
     localStorage.setItem(DEFAULT_SIDEBAR_RAIL_STORAGE_KEY, '1');
-    const { result } = renderHook(() => useSidebarRail());
+    const { result } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }));
     expect(result.current.collapsed).toBe(true);
   });
 
   it('persists on toggle', () => {
-    const { result } = renderHook(() => useSidebarRail());
+    const { result } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }));
     act(() => result.current.toggle());
     expect(result.current.collapsed).toBe(true);
     expect(localStorage.getItem(DEFAULT_SIDEBAR_RAIL_STORAGE_KEY)).toBe('1');
@@ -33,7 +33,7 @@ describe('useSidebarRail', () => {
   it('uses a host-supplied key instead of the package default', () => {
     // The migration path for a host that already persisted this preference under its own key.
     localStorage.setItem('host-rail-key', '1');
-    const { result } = renderHook(() => useSidebarRail('host-rail-key'));
+    const { result } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }, { storageKey: 'host-rail-key' }));
     expect(result.current.collapsed).toBe(true);
 
     act(() => result.current.toggle());
@@ -42,7 +42,7 @@ describe('useSidebarRail', () => {
   });
 
   it('syncs across tabs via the storage event, ignoring other keys', () => {
-    const { result } = renderHook(() => useSidebarRail());
+    const { result } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }));
 
     act(() => {
       window.dispatchEvent(new StorageEvent('storage', { key: 'something-else', newValue: '1' }));
@@ -58,7 +58,7 @@ describe('useSidebarRail', () => {
   });
 
   it('stops listening once unmounted', () => {
-    const { result, unmount } = renderHook(() => useSidebarRail());
+    const { result, unmount } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }));
     unmount();
     expect(() =>
       window.dispatchEvent(
@@ -73,7 +73,7 @@ describe('useSidebarRail', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
       throw new Error('access denied');
     });
-    const { result } = renderHook(() => useSidebarRail());
+    const { result } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }));
     expect(result.current.collapsed).toBe(false);
   });
 
@@ -81,7 +81,7 @@ describe('useSidebarRail', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota');
     });
-    const { result } = renderHook(() => useSidebarRail());
+    const { result } = renderHook(() => useSidebarRail({ storage: localStorage, events: window }));
     act(() => result.current.toggle());
     expect(result.current.collapsed).toBe(true);
   });

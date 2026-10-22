@@ -33,12 +33,12 @@ describe('AttachmentTray', () => {
   });
 
   it('formats byte counts without inventing invalid metadata', () => {
-    expect(formatAttachmentSize(undefined)).toBeNull();
-    expect(formatAttachmentSize(Number.NaN)).toBeNull();
-    expect(formatAttachmentSize(-1)).toBeNull();
-    expect(formatAttachmentSize(12)).toBe('12 B');
-    expect(formatAttachmentSize(10 * 1_024)).toBe('10 KB');
-    expect(formatAttachmentSize(1.5 * 1_024 * 1_024)).toBe('1.5 MB');
+    expect(formatAttachmentSize({ size: undefined })).toBeNull();
+    expect(formatAttachmentSize({ size: Number.NaN })).toBeNull();
+    expect(formatAttachmentSize({ size: -1 })).toBeNull();
+    expect(formatAttachmentSize({ size: 12 })).toBe('12 B');
+    expect(formatAttachmentSize({ size: 10 * 1_024 })).toBe('10 KB');
+    expect(formatAttachmentSize({ size: 1.5 * 1_024 * 1_024 })).toBe('1.5 MB');
   });
 
   it('tags the tray container and each chip with stable E2E hooks', () => {

@@ -3,7 +3,7 @@
  *
  * Covers every literal `t()` key actually called by the 13 tabs the reference
  * implementation (the first host to adopt this) mounts in its admin settings panel, plus every
- * component those tabs compose (see `packages/ui/source-map.md` companion
+ * component those tabs compose (see `packages/ui/archived provenance ledger` companion
  * note in `dictionaries/README` for the enumeration method: a full read of
  * each mounted component's source, cross-checked with a regex extraction
  * pass over every `t('...')`/`t("...")` call site, plus manual tracing of
@@ -32,12 +32,16 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_EN: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'A custom path override did not work, so this used the automatically detected binary instead.',
   'API key': 'API key',
   'About': 'About',
   'Accent color': 'Accent color',
   'Account': 'Account',
+  'Advanced': 'Advanced',
   'Advanced: proxy & custom paths': 'Advanced: proxy & custom paths',
   'Agent check failed': 'Agent check failed',
   'Agent is ready.': 'Agent is ready.',
@@ -81,8 +85,8 @@ export const SETTINGS_DIALOG_EN: SettingsDialogDict = {
   'Copy': 'Copy',
   'Copy to clipboard': 'Copy to clipboard',
   'Could not load live models: {message}': 'Could not load live models: {message}',
-  'No API key — connection test needs the key from this browser.': 'No API key — connection test needs the key from this browser.',
-  'No API key — model discovery needs the key from this browser.': 'No API key — model discovery needs the key from this browser.',
+  'No API key saved. Save one to test the connection.': 'No API key saved. Save one to test the connection.',
+  'No API key saved. Save one to load models.': 'No API key saved. Save one to load models.',
   'Could not load skills: {error}': 'Could not load skills: {error}',
   'Could not reach the daemon: {error}': 'Could not reach the daemon: {error}',
   'Could not reach the server. Showing local changes only.': 'Could not reach the server. Showing local changes only.',
@@ -162,6 +166,9 @@ export const SETTINGS_DIALOG_EN: SettingsDialogDict = {
   'Not available for this daemon.': 'Not available for this daemon.',
   'Not configured': 'Not configured',
   'Not installed': 'Not installed',
+  'Show {count} not installed': 'Show {count} not installed',
+  'Hide not installed': 'Hide not installed',
+  'Show not-installed CLIs': 'Show not-installed CLIs',
   'Not sharing': 'Not sharing',
   'Nothing is shared unless you opt in.': 'Nothing is shared unless you opt in.',
   'Off': 'Off',

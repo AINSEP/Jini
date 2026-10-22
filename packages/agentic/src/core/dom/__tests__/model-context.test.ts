@@ -18,6 +18,12 @@ import { getAgentModelContext, type AgentModelContextLike } from '../model-conte
  * approach makes v8 coverage report the SSR guards as uncovered even though both sides run.
  */
 
+const host = { candidates: () => {
+  const globals = globalThis as unknown as { document?: { modelContext?: unknown }; navigator?: { modelContext?: unknown } };
+  return [globals.document?.modelContext, globals.navigator?.modelContext];
+} };
+const adapted = (surface: AgentModelContextLike) => getAgentModelContext({ host: { candidates: () => [surface] } });
+
 function fakeSurface(tag: string): AgentModelContextLike & { tag: string } {
   return { tag, registerTool: async () => undefined };
 }
@@ -30,7 +36,7 @@ describe('getAgentModelContext', () => {
   it('returns document.modelContext when the page carries a valid surface there', () => {
     const surface = fakeSurface('document');
     vi.stubGlobal('document', { modelContext: surface });
-    expect(getAgentModelContext()).toBe(surface);
+    expect(getAgentModelContext({ host })).toBe(adapted(surface));
   });
 
   it('prefers document.modelContext over the deprecated navigator alias when both are installed', () => {
@@ -41,14 +47,14 @@ describe('getAgentModelContext', () => {
     const onNavigator = fakeSurface('navigator');
     vi.stubGlobal('document', { modelContext: onDocument });
     vi.stubGlobal('navigator', { modelContext: onNavigator });
-    expect(getAgentModelContext()).toBe(onDocument);
+    expect(getAgentModelContext({ host })).toBe(adapted(onDocument));
   });
 
   it('falls back to navigator.modelContext when document carries no surface', () => {
     const surface = fakeSurface('navigator');
     vi.stubGlobal('document', {});
     vi.stubGlobal('navigator', { modelContext: surface });
-    expect(getAgentModelContext()).toBe(surface);
+    expect(getAgentModelContext({ host })).toBe(adapted(surface));
   });
 
   it('rejects a document.modelContext that is not a WebMCP surface and falls through to navigator', () => {
@@ -58,25 +64,25 @@ describe('getAgentModelContext', () => {
     const surface = fakeSurface('navigator');
     vi.stubGlobal('document', { modelContext: { registerTool: 'not a function' } });
     vi.stubGlobal('navigator', { modelContext: surface });
-    expect(getAgentModelContext()).toBe(surface);
+    expect(getAgentModelContext({ host })).toBe(adapted(surface));
   });
 
   it('returns undefined when navigator.modelContext is also the wrong shape', () => {
     vi.stubGlobal('document', { modelContext: {} });
     vi.stubGlobal('navigator', { modelContext: 42 });
-    expect(getAgentModelContext()).toBeUndefined();
+    expect(getAgentModelContext({ host })).toBeUndefined();
   });
 
   it('returns undefined for a null modelContext, which is an object but not a surface', () => {
     vi.stubGlobal('document', { modelContext: null });
     vi.stubGlobal('navigator', { modelContext: null });
-    expect(getAgentModelContext()).toBeUndefined();
+    expect(getAgentModelContext({ host })).toBeUndefined();
   });
 
   it('returns undefined on a page with neither property installed', () => {
     vi.stubGlobal('document', {});
     vi.stubGlobal('navigator', {});
-    expect(getAgentModelContext()).toBeUndefined();
+    expect(getAgentModelContext({ host })).toBeUndefined();
   });
 
   it('returns undefined with no document or navigator global at all, rather than throwing', () => {
@@ -84,7 +90,7 @@ describe('getAgentModelContext', () => {
     // missing global must be an "unavailable" answer, not a crash.
     vi.stubGlobal('document', undefined);
     vi.stubGlobal('navigator', undefined);
-    expect(getAgentModelContext()).toBeUndefined();
+    expect(getAgentModelContext({ host })).toBeUndefined();
   });
 
   it('accepts a surface that also exposes the non-spec unregisterTool escape hatch', () => {
@@ -92,6 +98,6 @@ describe('getAgentModelContext', () => {
     // path); it is tolerated so a polyfill that happens to ship one is still usable.
     const surface: AgentModelContextLike = { registerTool: async () => undefined, unregisterTool: () => undefined };
     vi.stubGlobal('document', { modelContext: surface });
-    expect(getAgentModelContext()).toBe(surface);
+    expect(getAgentModelContext({ host })).toBe(adapted(surface));
   });
 });

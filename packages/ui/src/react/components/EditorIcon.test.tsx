@@ -9,7 +9,7 @@ describe('EditorIcon', () => {
     const span = container.querySelector('span.editor-icon');
     expect(span).not.toBeNull();
     expect((span as HTMLElement).style.width).toBe('16px');
-    expect((span as HTMLElement).style.background).toBe('rgb(0, 122, 204)');
+    expect((span as HTMLElement).style.background).toBe('var(--jini-primary)');
     const svg = container.querySelector('svg');
     expect(svg?.getAttribute('width')).toBe(String(16 * 0.76));
   });
@@ -32,7 +32,7 @@ describe('EditorIcon', () => {
   it('falls back to a neutral folder tile for an unregistered id', () => {
     const { container } = render(<EditorIcon editorId="some-unknown-editor" size={24} />);
     const span = container.querySelector('span.editor-icon');
-    expect((span as HTMLElement).style.background).toBe('rgb(156, 163, 175)');
+    expect((span as HTMLElement).style.background).toBe('var(--jini-muted)');
     const svg = container.querySelector('svg');
     expect(svg?.getAttribute('width')).toBe(String(24 * 0.6));
     expect(svg?.getAttribute('stroke')).toBe('currentColor');

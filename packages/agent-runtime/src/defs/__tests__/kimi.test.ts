@@ -5,20 +5,21 @@ import { kimiAgentDef } from '../kimi.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
 
 afterEach(() => {
-  setAcpModelProbe(null);
+  setAcpModelProbe({ probe: null });
 });
 
 describe('kimiAgentDef.fetchModels', () => {
   it('delegates to detectAcpModels with the ACP handshake args for the resolved binary', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'kimi-k2-turbo-preview', label: 'kimi-k2-turbo-preview' }];
       },
     };
-    setAcpModelProbe(stub);
-    const models = await kimiAgentDef.fetchModels!('kimi', {});
+    setAcpModelProbe({ probe: stub });
+    const models = await kimiAgentDef.fetchModels!({ resolvedBin: 'kimi', env: {} });
     expect(models).toEqual([{ id: 'kimi-k2-turbo-preview', label: 'kimi-k2-turbo-preview' }]);
     expect(seen).toEqual([{ bin: 'kimi', args: ['acp'] }]);
   });
@@ -27,7 +28,7 @@ describe('kimiAgentDef.fetchModels', () => {
 describe('kimiAgentDef.buildArgs', () => {
   it('always returns the ACP argv, ignoring any input params', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = kimiAgentDef.buildArgs;
-    expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x' }, { cwd: '/a' })).toEqual(['acp']);
+    expect(buildArgs({ prompt: 'prompt', imagePaths: ['img.png'] }, { extraAllowedDirs: ['/extra'], options: { model: 'x' }, runtimeContext: { cwd: '/a' } })).toEqual(['acp']);
   });
 });
 

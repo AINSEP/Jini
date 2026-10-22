@@ -12,9 +12,9 @@ import {
 
 describe('@jini-ai/registry — barrel', () => {
   it('re-exports the versioning helpers and every backend class', () => {
-    expect(parseRegistrySpecifier('vendor/name')).toEqual({ name: 'vendor/name' });
+    expect(parseRegistrySpecifier({ input: 'vendor/name' })).toEqual({ name: 'vendor/name' });
     expect(
-      resolveRegistryEntryVersion({ name: 'vendor/name', version: '1.0.0', source: 's' }),
+      resolveRegistryEntryVersion({ entry: { name: 'vendor/name', version: '1.0.0', source: 's' } }),
     ).toMatchObject({ version: '1.0.0', source: 's' });
     expect(StaticRegistryBackend).toBeTypeOf('function');
     expect(GithubRegistryBackend).toBeTypeOf('function');

@@ -6,7 +6,7 @@ describe('toArrayBuffer', () => {
   it('converts a Uint8Array that owns its whole buffer', () => {
     const bytes = new Uint8Array([1, 2, 3, 4]);
 
-    const buffer = toArrayBuffer(bytes);
+    const buffer = toArrayBuffer({ bytes });
 
     expect(new Uint8Array(buffer)).toEqual(new Uint8Array([1, 2, 3, 4]));
   });
@@ -18,7 +18,7 @@ describe('toArrayBuffer', () => {
     const backing = new Uint8Array([0xff, 1, 2, 3, 4, 0xff]);
     const view = backing.subarray(1, 5); // exactly [1, 2, 3, 4], byteOffset 1
 
-    const buffer = toArrayBuffer(view);
+    const buffer = toArrayBuffer({ bytes: view });
 
     expect(new Uint8Array(buffer)).toEqual(new Uint8Array([1, 2, 3, 4]));
     expect(buffer.byteLength).toBe(4);
@@ -27,13 +27,13 @@ describe('toArrayBuffer', () => {
   it('produces a fresh buffer, not a live view over the original', () => {
     const bytes = new Uint8Array([1, 2, 3]);
 
-    const buffer = toArrayBuffer(bytes);
+    const buffer = toArrayBuffer({ bytes });
     bytes[0] = 99;
 
     expect(new Uint8Array(buffer)[0]).toBe(1);
   });
 
   it('converts an empty Uint8Array to a zero-length buffer', () => {
-    expect(toArrayBuffer(new Uint8Array([])).byteLength).toBe(0);
+    expect(toArrayBuffer({ bytes: new Uint8Array([]) }).byteLength).toBe(0);
   });
 });

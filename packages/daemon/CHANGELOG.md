@@ -1,3 +1,82 @@
+## 0.6.8 — 2026-10-16
+
+- An unknown tool on the read-only gateway points to discovery, never a mutation 409 (75d37c32).
+
+## 0.6.7 — 2026-10-15
+
+- An unknown tool id is a `400 BAD_REQUEST`, not a redacted `500 INTERNAL_ERROR` (b4a3abad): `ToolExecutor` throws `ToolInputError` naming up to eight registered ids the unknown id prefixes (e.g. `content_read` → `content_read.menu`), and the delegated-tools route returns that message.
+
+## 0.6.6 — 2026-10-14
+
+- A failed jini MCP bridge now says why (8bc0f07d): the run still stops at once, but a disposable credential-free copy of the bridge is spawned, sent MCP `initialize`, and its exit code + stderr tail (e.g. `ERR_MODULE_NOT_FOUND`) go into the `MCP_BRIDGE_UNAVAILABLE` message and `error.details`, emitted before the run's end event. `probeMcpBridge` is exported so hosts can run the same check at boot; `mcpJsonInjection.probeOnFailure: false` opts out. The baseline agent env moves to `agent-env.ts` so probe and launch share one allowlist.
+
+## 0.6.5 — 2026-10-14
+
+- Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.
+
+## 0.6.4 — 2026-10-13
+
+- ACP runs forward the run's `permissionMode` to `attachAcpSession`, so a `bypass` run allows each ACP tool request once and a restricted run rejects it, instead of failing on the first permission request. Peer `@jini-ai/agent-runtime` floor is now `^0.4.10`.
+
+## 0.6.3 — 2026-10-13
+
+- `createAgentExecutor` accepts `codexDisablePlugins` and `piGracefulShutdownMs`; absent, they resolve once from `hostEnv` (`CODEX_DISABLE_PLUGINS`, `PI_GRACEFUL_SHUTDOWN_MS`). Peer `@jini-ai/agent-runtime` floor is now `^0.4.7`.
+
+## 0.6.2 — 2026-10-13
+
+- Agent executor and host tools import `@jini-ai/platform/command` and `/process` instead of the platform root; peer `@jini-ai/platform` floor is now `^0.5.5`. No behavior change.
+
+## 0.5.4 — pending release
+
+- Re-export the canonical core surface-exchange contracts and parameter constants. Store and ask/report behavior are unchanged; requires core 0.4.2.
+
+## 0.5.3 — 2026-10-06
+
+- Message attachments reach every runtime: new `prepareMessageAttachments` / `messageContentWithImages` (+ `MessageAttachmentImage`, `MessageAttachmentSource`, `MessageAttachmentReader`) turn claimed refs into image pixels for providers and a file notice for non-images.
+- `AttachmentStore.listPendingForOwner({ ownerId }, { runId })`: with the claiming `runId`, that run's own claimed attachments stay discoverable (owner match still required); without it, behavior is unchanged.
+- The agent executor reports the CLI session id on an early `status` event so hosts can checkpoint a run before it ends; run lifecycle carries it through.
+- Requires `@jini-ai/protocol` ^0.4.1 and `@jini-ai/agent-runtime` ^0.4.1.
+
+## 0.5.2 — 2026-10-06
+
+- No slow-run notice while a delegated tool waits on a surface: the first `emitSurface` of a call suspends the notice and the call's end resumes it. Suspensions are counted, so with two calls in flight the first to finish does not re-arm the notice over the other's open form; `resume()` drops suspensions left by an ended run.
+
+## 0.5.1 — 2026-10-05
+
+- The `@jini-ai/db` peer range is `^0.2.0 || ^0.3.0` (daemon uses only db's kernel and store entries, which 0.3.0 leaves unchanged), so a host on db 0.3.0 installs without a peer conflict.
+- Internal `@jini-ai/*` runtime dependencies are caret ranges (`workspace:^`) instead of exact pins.
+
+## Unreleased (shipped in 0.5.0)
+
+### Fixes
+
+- Keep packed session-store test fixtures within daemon's source root, use the SQLite driver's zero-argument close API, and declare PostgreSQL test types with `@types/pg`.
+
+- Align parser feeds, event sinks, run streams, attachment matchers and OAuth cache construction with current dependency APIs.
+- Omit absent optional arguments under strict TypeScript checking; restore lifecycle event input, terminal options and the delegated `tool_result` discriminant.
+- Compile tests alongside source and update test fixtures to current callback and argument contracts without removing assertions.
+
+## 0.5.0 — 2026-10-02
+
+### BREAKING
+
+- Daemon HTTP route packs and read-only tools now belong to this package. Run services use concept subpaths, optional HTTP peers and canonical core contracts.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+### BREAKING — HTTP and run coordination ownership
+
+- Add optional `./http` with route packs moved from HTTP kit, plus `./read-only-tools`.
+- Remove delegated policy facades; use real policy exports with host messages and core IDs.
+- Run coordination modules use concept paths. Surface exchanges take core Clock/IdGenerator;
+  the Node credential adapter uses core token comparison. Database-lane object APIs reconciled.
+- HTTP kit and Express are optional HTTP peers; chat is test-only.
+
+- BREAKING: All three session-store factories and SQLite event logs accept optional core `Clock` through `{ clock }` instead of `{ now }`, preserving system-time defaults.
+
+## 0.4.0 (unpublished release candidate)
+
+- Session-id adapters and the SQLite event log move to dedicated store subpaths; all database connections are injected.
+
 # @jini-ai/daemon
 
 ## 0.2.1
@@ -77,3 +156,12 @@
   - @jini-ai/core@0.1.1
   - @jini-ai/platform@0.1.1
   - @jini-ai/agent-runtime@0.2.0
+
+## Unreleased — C2 concern ownership
+
+- Add audit, held surface-exchange, session-coordination, live-run credential and ownership subpaths; convert daemon calls to required/optional object arguments and inject host ports.
+- Make watchdog cancellation permanent and agent permission defaults restricted, with explicit bypass and invalid-mode rejection.
+
+- Added isolated SQLite event-log and rich legacy session entries with host injection.
+- Added neutral session-id port, in-memory store and shared-kernel SQLite/PGlite/Postgres adapters.
+- Preserved durable cursor validation, default cap 2000, dedupe/restart/media semantics.

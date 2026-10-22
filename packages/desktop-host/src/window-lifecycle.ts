@@ -14,13 +14,13 @@
  */
 
 export interface WindowHandle {
-  loadUrl(url: string): Promise<void>;
+  loadUrl({ url }: { url: string }): Promise<void>;
   show(): void;
   hide(): void;
   focus(): void;
   close(): void;
   isDestroyed(): boolean;
-  onClosed(listener: () => void): void;
+  onClosed({ listener }: { listener: () => void }): void;
 }
 
 export interface WindowCreateOptions {
@@ -31,7 +31,7 @@ export interface WindowCreateOptions {
 }
 
 export interface WindowLifecyclePort {
-  createWindow(options: WindowCreateOptions): Promise<WindowHandle>;
+  createWindow(requiredArgs: Pick<WindowCreateOptions, 'url'>, optionalArgs?: Omit<WindowCreateOptions, 'url'>): Promise<WindowHandle>;
   getMainWindow(): WindowHandle | null;
   showMainWindow(): void;
 }
@@ -42,18 +42,17 @@ export interface WindowLifecyclePort {
  * Electron/Tauri adapters supply `createWindow`; this wraps it with the
  * single-main-window tracking every packaged desktop app needs.
  */
-export function withMainWindowTracking(
-  createWindowImpl: (options: WindowCreateOptions) => Promise<WindowHandle>,
+export function withMainWindowTracking({ createWindowImpl }: { createWindowImpl: (requiredArgs: Pick<WindowCreateOptions, 'url'>, optionalArgs?: Omit<WindowCreateOptions, 'url'>) => Promise<WindowHandle> }
 ): WindowLifecyclePort {
   let mainWindow: WindowHandle | null = null;
 
   return {
-    async createWindow(options) {
-      const handle = await createWindowImpl(options);
+    async createWindow(requiredArgs, optionalArgs = {}) {
+      const handle = await createWindowImpl(requiredArgs, optionalArgs);
       mainWindow = handle;
-      handle.onClosed(() => {
+      handle.onClosed({ listener: () => {
         if (mainWindow === handle) mainWindow = null;
-      });
+      } });
       return handle;
     },
     getMainWindow() {

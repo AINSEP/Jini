@@ -1,3 +1,4 @@
+import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
 /**
  * @file The Taxonomy agent-tool catalog — this domain's instance of the per-domain
  * `agent-tools.ts` convention `features/content-types/agent-tools.ts`,
@@ -17,21 +18,21 @@
  * execute ceremony through `core/gated-mutations` rather than an ordinary authorize-then-write.
  * Reading `core/gated-mutations/gateway.ts` directly settles what is and is not safe to hand an
  * agent:
- *   - `plan()` "Never invokes `hooks.executeMutation()` — a plan is read-only by construction
- *     (AC-10)" (`gateway.ts`'s own doc comment). It authorizes `admin.taxonomy.manage`, recomputes
- *     the live overlap-loss disclosure, and returns a plan. Persists nothing. Safe to wire as a
- *     READ, mirroring `features/database/agent-tools.ts`'s identical `database_plan_migrate_forward`
- *     precedent (same file's own comment: "the step that actually redeems a plan into a mutation
- *     (confirm()) can never be reached by an agent principal at all").
- *   - `confirm()` structurally refuses an agent: `gateway.ts`'s own body — "if (principalKind ===
- *     'agent') throw new ForbiddenError('agent principals may not confirm a gated mutation', ...)"
- *     — before any permission check even runs. No `taxonomy_confirm_merge_term`-equivalent tool
- *     exists in this catalog.
- *   - `taxonomy_execute_merge_term` (2026-09-24) asks the human in chat before it runs: the host
- *     wires it with the kit's `humanConfirmedHandler`, which shows a confirm dialog and only on the
- *     human's own click confirms as that human (`kind='user'`) and executes as the agent acting for
- *     them — the `confirmer-must-equal-own-delegatedBy` rule. The model never sees or supplies a
- *     token. A merge deletes the source term's assignments with no Trash or undo, so it is gated.
+ * - `plan` "Never invokes `hooks.executeMutation` — a plan is read-only by construction
+ * " (`gateway.ts`'s own doc comment). It authorizes `admin.taxonomy.manage`, recomputes
+ * the live overlap-loss disclosure, and returns a plan. Persists nothing. Safe to wire as a
+ * READ, mirroring `features/database/agent-tools.ts`'s identical `database_plan_migrate_forward`
+ * precedent (same file's own comment: "the step that actually redeems a plan into a mutation
+ * (confirm) can never be reached by an agent principal at all").
+ * - `confirm` structurally refuses an agent: `gateway.ts`'s own body — "if (principalKind ===
+ * 'agent') throw new ForbiddenError('agent principals may not confirm a gated mutation',...)"
+ * — before any permission check even runs. No `taxonomy_confirm_merge_term`-equivalent tool
+ * exists in this catalog.
+ * - `taxonomy_execute_merge_term` (2026-09-24) asks the human in chat before it runs: the host
+ * wires it with the kit's `humanConfirmedHandler`, which shows a confirm dialog and only on the
+ * human's own click confirms as that human (`kind='user'`) and executes as the agent acting for
+ * them — the `confirmer-must-equal-own-delegatedBy` rule. The model never sees or supplies a
+ * token. A merge deletes the source term's assignments with no Trash or undo, so it is gated.
  *
  * Naming: `taxonomy_*`, matching this package's own name — distinct from `features/content-types`'
  * `collections_*` prefix (a different pairing) and from `features/entries`' own
@@ -46,6 +47,7 @@
  * `write-service.ts` — `contentType` is published as an open string (see `CONTENT_TYPE_SCHEMA`
  * below), since Collections entries widened the set of legal values past the fixed `post`/`page`
  * allow-list this file used to mirror as an `enum`.
+ * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
 
 // A2 (taxonomy plan) — no longer imported: `CONTENT_TYPE_SCHEMA` used to build its `enum` from
@@ -53,23 +55,15 @@
 // the agent's own input-schema validation, before the write-service's `contentTypeTaxonomyPolicy`
 // ever gets a chance to decide eligibility. See `CONTENT_TYPE_SCHEMA`'s doc comment below.
 
-export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
-export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "user-only" | "none";
 
-export interface AgentToolDefinition {
-  name: string;
-  description: string;
-  sideEffects: AgentToolSideEffect;
-  authorization: { permission: string };
-  actorClassRule?: AgentToolActorClassRule;
-  /**
+
+
+/**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
-   * (`assistant/tool-registration-kit.ts`'s `buildDomainRegistrations`, which refuses to wire any
+   * (`@jini-ai/core`'s `registration-kit.ts`'s `buildDomainRegistrations`, which refuses to wire any
    * tool lacking one).
    */
-  inputSchema?: Readonly<Record<string, unknown>>;
-}
 
 const TAXONOMY_ID_SCHEMA = {
   type: "string",

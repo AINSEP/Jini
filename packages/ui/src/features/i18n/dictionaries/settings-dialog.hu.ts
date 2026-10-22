@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_HU: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Eltávolítottam az üzenetedből azt, ami kulcsnak tűnt. Ha valódi volt, cseréld le. A biztonságos űrlapon mentsd el.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "A kulcsokat, tokeneket, jelszavakat és titkokat a biztonságos űrlapon mentsd el. A chatválaszokat elküldjük az asszisztensnek.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# Saját képességem\n\n1. Írd le a munkafolyamatot.\n2. Írd le a bemeneteket és a kimeneteket.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'Az egyéni útvonal felülbírálása nem működött, ezért ez az automatikusan felismert binárist használta helyette.',
   'API key': 'API-kulcs',
   'About': 'Névjegy',
   'Accent color': 'Kiemelőszín',
   'Account': 'Fiók',
+  'Advanced': 'Speciális',
   'Advanced: proxy & custom paths': 'Speciális: proxy és egyéni útvonalak',
   'Agent check failed': 'Az ügynök ellenőrzése sikertelen',
   'Agent is ready.': 'Az ügynök készen áll.',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_HU: SettingsDialogDict = {
   'Copy': 'Másolás',
   'Copy to clipboard': 'Másolás vágólapra',
   'Could not load live models: {message}': 'Nem sikerült betölteni az élő modelleket: {message}',
-  'No API key — connection test needs the key from this browser.': 'Nincs API-kulcs — a kapcsolati teszthez a kulcs szükséges ebből a böngészőből.',
-  'No API key — model discovery needs the key from this browser.': 'Nincs API-kulcs — a modellek felderítéséhez a kulcs szükséges ebből a böngészőből.',
+  'No API key saved. Save one to test the connection.': 'Nincs mentett API-kulcs. Mentsen egyet a kapcsolat teszteléséhez.',
+  'No API key saved. Save one to load models.': 'Nincs mentett API-kulcs. Mentsen egyet a modellek betöltéséhez.',
   'Could not load skills: {error}': 'Nem sikerült betölteni a képességeket: {error}',
   'Could not reach the daemon: {error}': 'Nem sikerült elérni a démont: {error}',
   'Could not reach the server. Showing local changes only.': 'Nem sikerült elérni a szervert. Csak a helyi módosítások jelennek meg.',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_HU: SettingsDialogDict = {
   'Not available for this daemon.': 'Ehhez a démonhoz nem érhető el.',
   'Not configured': 'Nincs beállítva',
   'Not installed': 'Nincs telepítve',
+  'Show {count} not installed': '{count} nem telepített megjelenítése',
+  'Hide not installed': 'Nem telepítettek elrejtése',
+  'Show not-installed CLIs': 'Nem telepített CLI-k megjelenítése',
   'Not sharing': 'Nincs megosztás',
   'Nothing is shared unless you opt in.': 'Semmi sem kerül megosztásra, amíg nem járulsz hozzá.',
   'Off': 'Ki',

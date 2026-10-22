@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_HI: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "मैंने आपके संदेश से कुंजी जैसा दिखने वाला हिस्सा हटा दिया है। अगर वह असली कुंजी थी, तो उसे बदलें। उसे सहेजने के लिए सुरक्षित फ़ॉर्म का उपयोग करें।",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "कुंजियाँ, टोकन, पासवर्ड और गोपनीय जानकारी सहेजने के लिए सुरक्षित फ़ॉर्म का उपयोग करें। चैट के उत्तर सहायक को भेजे जाते हैं।",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# मेरी स्किल\n\n1. वर्कफ़्लो के बारे में बताएं।\n2. इनपुट और आउटपुट के बारे में बताएं।',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'एक कस्टम पाथ ओवरराइड काम नहीं कर सका, इसलिए इसके बजाय स्वचालित रूप से पहचानी गई बाइनरी का उपयोग किया गया।',
   'API key': 'API कुंजी',
   'About': 'परिचय',
   'Accent color': 'हाइलाइट रंग',
   'Account': 'खाता',
+  'Advanced': 'उन्नत',
   'Advanced: proxy & custom paths': 'उन्नत: प्रॉक्सी और कस्टम पाथ',
   'Agent check failed': 'एजेंट जांच विफल रही',
   'Agent is ready.': 'एजेंट तैयार है।',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_HI: SettingsDialogDict = {
   'Copy': 'कॉपी करें',
   'Copy to clipboard': 'क्लिपबोर्ड पर कॉपी करें',
   'Could not load live models: {message}': 'लाइव मॉडल लोड नहीं हो सके: {message}',
-  'No API key — connection test needs the key from this browser.': 'कोई API कुंजी नहीं — कनेक्शन परीक्षण के लिए इस ब्राउज़र से कुंजी चाहिए।',
-  'No API key — model discovery needs the key from this browser.': 'कोई API कुंजी नहीं — मॉडल खोजने के लिए इस ब्राउज़र से कुंजी चाहिए।',
+  'No API key saved. Save one to test the connection.': 'कोई API कुंजी सहेजी नहीं गई है। कनेक्शन जाँचने के लिए एक कुंजी सहेजें।',
+  'No API key saved. Save one to load models.': 'कोई API कुंजी सहेजी नहीं गई है। मॉडल लोड करने के लिए एक कुंजी सहेजें।',
   'Could not load skills: {error}': 'स्किल्स लोड नहीं हो सकीं: {error}',
   'Could not reach the daemon: {error}': 'डेमन तक नहीं पहुंच सके: {error}',
   'Could not reach the server. Showing local changes only.': 'सर्वर तक नहीं पहुंच सके। केवल स्थानीय बदलाव दिखाए जा रहे हैं।',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_HI: SettingsDialogDict = {
   'Not available for this daemon.': 'इस डेमन के लिए उपलब्ध नहीं है।',
   'Not configured': 'कॉन्फ़िगर नहीं किया गया',
   'Not installed': 'इंस्टॉल नहीं है',
+  'Show {count} not installed': '{count} इंस्टॉल नहीं किए गए दिखाएँ',
+  'Hide not installed': 'इंस्टॉल नहीं किए गए छिपाएँ',
+  'Show not-installed CLIs': 'इंस्टॉल नहीं किए गए CLI दिखाएँ',
   'Not sharing': 'साझा नहीं किया जा रहा',
   'Nothing is shared unless you opt in.': 'जब तक आप इसे सक्रिय नहीं करते, तब तक कुछ भी साझा नहीं किया जाता।',
   'Off': 'बंद',

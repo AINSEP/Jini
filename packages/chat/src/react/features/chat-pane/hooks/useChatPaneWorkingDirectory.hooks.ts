@@ -51,7 +51,7 @@ export function useChatPaneWorkingDirectory(
   const [workingDirectoryInvalid, setWorkingDirectoryInvalid] = useState(false);
   const [workingDirectoryPending, setWorkingDirectoryPending] = useState(false);
   const [workingDirectoryError, setWorkingDirectoryError] = useState<Error | null>(null);
-  const operation = useLatestOperation();
+  const operation = useLatestOperation({});
   const observedDirectoryRef = useRef<string | null | undefined>(undefined);
   const workingDirectory = controlled
     ? options.workingDirectory ?? null
@@ -82,8 +82,7 @@ export function useChatPaneWorkingDirectory(
     }
     let validationSettled = false;
     setWorkingDirectoryPending(true);
-    void operation.run(
-      async (token) => {
+    void operation.run({ body: async (token) => {
         const normalized = access.normalizeWorkingDirectory
           ? await access.normalizeWorkingDirectory(workingDirectory)
           : workingDirectory;
@@ -100,12 +99,11 @@ export function useChatPaneWorkingDirectory(
         validationSettled = true;
         setWorkingDirectoryInvalid(!exists);
         setWorkingDirectoryPending(false);
-      },
-      (error) => {
+      }, onError: (error) => {
         validationSettled = true;
         setWorkingDirectoryInvalid(true);
         reportFailure(error);
-      },
+      } }
     );
     return () => {
       operation.supersede();
@@ -133,7 +131,7 @@ export function useChatPaneWorkingDirectory(
     if (!access) return;
     setWorkingDirectoryError(null);
     setWorkingDirectoryPending(true);
-    await operation.run(async (token) => {
+    await operation.run({ body: async (token) => {
       const [recent, exists] = await Promise.all([
         access.recentDirectories(),
         workingDirectory === null
@@ -144,7 +142,7 @@ export function useChatPaneWorkingDirectory(
       setRecentDirectories([...recent]);
       setWorkingDirectoryInvalid(!exists);
       setWorkingDirectoryPending(false);
-    }, reportFailure);
+    }, onError: reportFailure });
   }, [operation, options.workingDirectoryAccess, reportFailure, workingDirectory]);
 
   const pickWorkingDirectory = useCallback(async () => {
@@ -152,7 +150,7 @@ export function useChatPaneWorkingDirectory(
     if (!access) return;
     setWorkingDirectoryError(null);
     setWorkingDirectoryPending(true);
-    await operation.run(async (token) => {
+    await operation.run({ body: async (token) => {
       const selected = await access.pickWorkingDirectory(workingDirectory ?? undefined);
       token.ensureCurrent();
       if (selected === null) {
@@ -168,7 +166,7 @@ export function useChatPaneWorkingDirectory(
       setWorkingDirectoryInvalid(!exists);
       setRecentDirectories([...recent]);
       setWorkingDirectoryPending(false);
-    }, reportFailure);
+    }, onError: reportFailure });
   }, [
     operation,
     options.workingDirectoryAccess,
@@ -186,13 +184,13 @@ export function useChatPaneWorkingDirectory(
       return;
     }
     setWorkingDirectoryPending(true);
-    await operation.run(async (token) => {
+    await operation.run({ body: async (token) => {
       const exists = await access.directoryExists(directory);
       token.ensureCurrent();
       reportWorkingDirectory(directory);
       setWorkingDirectoryInvalid(!exists);
       setWorkingDirectoryPending(false);
-    }, reportFailure);
+    }, onError: reportFailure });
   }, [operation, options.workingDirectoryAccess, reportFailure, reportWorkingDirectory]);
 
   const clearWorkingDirectory = useCallback(() => {

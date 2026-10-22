@@ -1,19 +1,10 @@
 /**
  * @module amr-model-cache
- *
- * A live-model-catalog cache that returns a cached remote list instantly
- * while refreshing in the background, falling back to a static preset
- * list on cold start. Ported verbatim from OD's
- * `apps/daemon/src/runtimes/amr/amr-model-cache.ts` with one change: the
- * `AmrModelsResponse` return type is now vendored locally (a small,
- * self-contained shape) instead of imported from OD's contracts workspace
- * package.
- *
- * Named for its origin use (the AMR/vela agent's live model list), but the
- * caching pattern itself is generic to any agent with a similarly-shaped
- * "cheap static preset + slower authoritative remote list" catalog.
+ * Return cached remote models while refreshing, with static presets on cold start. This caching
+ * pattern also serves other agents with cheap presets and slower authoritative remote catalogs.
  */
 import type { RuntimeModelOption } from './types.js';
+import { coalesceModelLoad } from './model-loading-state.js';
 
 export type AmrModelsResponse = {
   source: 'remote' | 'preset';
@@ -56,9 +47,13 @@ function errorMessage(error: unknown): string {
 export class AmrModelLoadingCache {
   private readonly states = new Map<string, CacheState>();
 
-  constructor(private readonly refreshIntervalMs = DEFAULT_REMOTE_REFRESH_INTERVAL_MS) {}
+  private readonly refreshIntervalMs: number;
 
-  async get(cacheKey: string, fetchers: Fetchers): Promise<AmrModelsResponse> {
+  constructor(_requiredArgs: Record<string, never> = {}, { refreshIntervalMs = DEFAULT_REMOTE_REFRESH_INTERVAL_MS }: { refreshIntervalMs?: number } = {}) {
+    this.refreshIntervalMs = refreshIntervalMs;
+  }
+
+  async get({ cacheKey, fetchers }: { cacheKey: string; fetchers: Fetchers }): Promise<AmrModelsResponse> {
     const state = this.stateFor(cacheKey);
     const now = Date.now();
     if (state.remote) {
@@ -83,7 +78,7 @@ export class AmrModelLoadingCache {
     };
   }
 
-  warm(cacheKey: string, fetchRemote: () => Promise<RuntimeModelOption[]>): void {
+  warm({ cacheKey, fetchRemote }: { cacheKey: string; fetchRemote: () => Promise<RuntimeModelOption[]> }): void {
     this.startRefresh(this.stateFor(cacheKey), fetchRemote);
   }
 
@@ -100,8 +95,7 @@ export class AmrModelLoadingCache {
   }
 
   private startRefresh(state: CacheState, fetchRemote: () => Promise<RuntimeModelOption[]>): void {
-    if (state.inFlight) return;
-    state.inFlight = (async () => {
+    void coalesceModelLoad({ state, load: async () => {
       try {
         const models = await fetchRemote();
         if (models.length === 0) {
@@ -111,10 +105,8 @@ export class AmrModelLoadingCache {
         state.lastRemoteError = null;
       } catch (error) {
         state.lastRemoteError = errorMessage(error);
-      } finally {
-        state.inFlight = null;
       }
-    })();
+    } });
   }
 }
 

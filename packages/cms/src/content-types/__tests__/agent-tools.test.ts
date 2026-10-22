@@ -8,10 +8,11 @@ import { buildContentTypesRegistrations, type ContentTypesToolDeps } from "../to
 import { InMemoryContentTypeRepo, NoopContentTypeIndexProvisioner } from "../repo.memory.js";
 
 /**
- * @file REQ-22 — Collections' content-types agent-tool catalog contract (C-406).
+ * @file Collections' content-types agent-tool catalog contract.
  *
- * Covers: AC-35 (collections_plan_cleanup + collections_execute_cleanup present and
- * agent-callable; no collections_confirm_cleanup tool or any confirm()-performing tool exists).
+ * Covers: (collections_plan_cleanup + collections_execute_cleanup present and
+ * agent-callable; no collections_confirm_cleanup tool or any confirm-performing tool exists).
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 
 test("AC-35: collections_plan_cleanup and collections_execute_cleanup are present and agent-callable", () => {
@@ -76,7 +77,7 @@ function fakeContentTypesDeps(): ContentTypesToolDeps {
   return {
     authorize: async () => ({ allowed: true, reason: "matched" }),
     workspaceId: "ws-1",
-    clock: { nowIso: () => "2026-09-24T00:00:00.000Z" },
+    clock: { nowMs: () => Date.parse("2026-09-24T00:00:00.000Z")},
     idGen: { newId: () => "id-1" },
     outbox: { enqueue: async () => {}, claimPending: async () => [], markDelivered: async () => {}, markFailed: async () => {} },
     contentTypeRepo: new InMemoryContentTypeRepo(),

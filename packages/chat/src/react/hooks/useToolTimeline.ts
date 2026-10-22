@@ -3,14 +3,15 @@
  *
  * Per-tool lifecycle rows for a message's events: pairs each `tool_use` with
  * its `tool_result` (deduped by id via `@jini-ai/chat/core`'s
- * `dedupeToolUsesById`), derives a four-state status via
+ * `dedupeToolUsesById`, delegated wrapper calls folded onto their canonical
+ * rows via `foldDelegatedWrapperCalls`), derives a four-state status via
  * `deriveToolStatus`, and tracks per-row expand/collapse UI state. Pure over
  * `AgentEvent[]` — zero I/O. Per
  * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4.
  */
 import { useCallback, useMemo, useState } from 'react';
 import type { AgentEvent, ToolRenderProps, ToolStatus } from '../../core/index.js';
-import { dedupeToolUsesById, deriveToolStatus } from '../../core/index.js';
+import { dedupeToolUsesById, deriveToolStatus, foldDelegatedWrapperCalls } from '../../core/index.js';
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
 type ToolResultEvent = Extract<AgentEvent, { kind: 'tool_result' }>;
@@ -41,18 +42,20 @@ export interface UseToolTimelineResult {
   collapseAll: () => void;
 }
 
-export function useToolTimeline(events: AgentEvent[] | undefined, options: UseToolTimelineOptions = {}): UseToolTimelineResult {
+export function useToolTimeline({ events }: { events: AgentEvent[] | undefined }, options: UseToolTimelineOptions = {}): UseToolTimelineResult {
   const { runStreaming = false, runSucceeded = false, defaultExpanded = false } = options;
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
-  const deduped = useMemo(() => dedupeToolUsesById(events), [events]);
+  // A delegated call's wrapper row and the daemon's canonical row have different ids, so dedupe
+  // alone leaves both; the fold keeps the canonical one (see `foldDelegatedWrapperCalls`).
+  const deduped = useMemo(() => foldDelegatedWrapperCalls({ events: dedupeToolUsesById({ events: events }) }), [events]);
 
   const rows = useMemo<ToolTimelineRow[]>(() => {
     const out: ToolTimelineRow[] = [];
     for (const ev of deduped) {
       if (ev.kind !== 'tool_use') continue;
       const result = deduped.find((r): r is ToolResultEvent => r.kind === 'tool_result' && r.toolUseId === ev.id);
-      const status = deriveToolStatus(result, runStreaming, runSucceeded);
+      const status = deriveToolStatus({ result: result, runStreaming: runStreaming }, { runSucceeded: runSucceeded });
       out.push({
         id: ev.id,
         name: ev.name,

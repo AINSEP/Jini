@@ -28,7 +28,7 @@ export interface RunStatusForAnalytics {
  * @param status - Raw status string from the run record (e.g. 'succeeded', 'canceled').
  * @returns 'success', 'cancelled', or 'failed'.
  */
-export function runResultFromStatus(status: string | undefined): RunResult {
+export function runResultFromStatus({ status }: { readonly status: string | undefined }): RunResult {
   if (status === 'succeeded') return 'success';
   if (status === 'canceled') return 'cancelled';
   return 'failed';
@@ -41,10 +41,9 @@ export function runResultFromStatus(status: string | undefined): RunResult {
  * @param status - Run status fields including any stamped error code, exit code, and signal.
  * @returns An error code string, or `undefined` when the run succeeded.
  */
-export function deriveRunErrorCode(
-  status: RunStatusForAnalytics,
+export function deriveRunErrorCode({ status }: { readonly status: RunStatusForAnalytics }
 ): string | undefined {
-  const result = runResultFromStatus(status.status);
+  const result = runResultFromStatus({ status: status.status });
   if (result === 'success') return undefined;
   // Cancellation usually carries no error; only forward an explicit one
   // when the daemon stamped it (e.g. cancel during error recovery).

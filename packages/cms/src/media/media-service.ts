@@ -1,3 +1,10 @@
+import { validateDocumentIngress, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
+import { sanitizeSvg } from "./sanitize-svg.js";
+import { sniffContentType } from "./content-type-sniffer.js";
+import { isValidMediaSlugFormat } from "./slug.js";
+export { isValidMediaSlugFormat } from "./slug.js";
+import { createSystemClock } from "@jini-ai/core/primitives";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file `media` write/read service — walking-skeleton build.
  *
@@ -35,15 +42,14 @@
  *     origin/process, and signed mint-URLs (a `media.download_original`
  *     permission would reserve that capability for a future route).
  *     `Content-Disposition` rules DO now exist, but only the one such a route
- *     needs (forcing `attachment` when the sniffed bytes are HTML/SVG-shaped).
+ *     needs (forcing `attachment` for HTML and sanitizing SVG before serving).
  *  4. **`MediaIngressPolicy`** — no SSRF guards, IP pinning, redirect
  *     handling, pixel-bomb caps, or magic-byte sniffing. Only a byte-size cap
  *     and an advisory `contentType` allowlist (see `DEFAULT_ALLOWED_MIME_TYPES`
- *     below) — an attacker-controlled `contentType` header is trusted, which
- *     the real ingress policy would never do.
- *  5. **Where-used / `entry_refs`** — no real index exists because posts don't
- *     reference media by id in `bodyJson` yet. `purgeMedia`'s 409 guard uses
- *     "not yet trashed" as a stand-in for "referenced" (see its doc comment).
+ *     below), plus mandatory SVG sanitization before hashing/storage. Hosts still
+ *     validate sniffed types independently of client declarations.
+ *  5. **Where-used** — `purgeMedia` requires the host's current-reference checker. The host
+ *     owns content formats and must include references not maintained in `entry_refs`.
  *  6. Virus scanning, remote-URL upload, video pipeline, S3 adapter — all
  *     explicitly deferred by design.
  *
@@ -53,7 +59,7 @@
 import { createHash } from "node:crypto";
 
 import { assertEntityLive } from "../core/entity-liveness.js";
-import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
+import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import {
   MediaConflictError,
   MediaNotFoundError,
@@ -61,10 +67,11 @@ import {
   MediaStillReferencedError,
   MediaValidationError,
   type MediaRecord,
+  type MediaKind,
   type MediaSource,
   type MediaStatus,
 } from "./types.js";
-import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
+import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, MediaReferenceCheckPort } from "./ports.js";
 import { withSha256Lock } from "./blob-gc-lock.js";
 import { tombstoneBlobIfUnreferenced } from "./blob-gc.js";
 import { describeMediaHtmlAttributeError, parseMediaHtmlAttributes } from "./html-attributes.js";
@@ -83,7 +90,7 @@ export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
 /**
  * Renders a byte count as a human-readable MB figure for the size-cap rejection below (2026-09-21).
  * Every real caller passes a MiB-scale `maxUploadBytes` (10 MiB default, or a host override such as
- * Tovu's 50 MiB), so one decimal place is enough precision without ever showing a raw byte count —
+ * a host's 50 MiB), so one decimal place is enough precision without ever showing a raw byte count —
  * the whole point of this fix (see `uploadMedia`'s size-cap check, and `agent-tools.ts`'s file header
  * for why the catalog description can no longer state a specific number either). `toFixed(1)`'s
  * trailing `.0` is trimmed so a clean multiple of 1 MB (the common case) reads as `10 MB`, not `10.0
@@ -98,10 +105,8 @@ function formatMaxUploadBytesAsMb(bytes: number): string {
 }
 
 /**
- * Advisory MIME allowlist. SVG is deliberately EXCLUDED (not "TODO, forgot") —
- * SVG must be sanitized at ingest before it's safe to store;
- * that sanitizer is not built in this pass, so SVG upload is rejected rather
- * than accepted unsanitized.
+ * Advisory MIME allowlist. SVG is sanitized by sanitizeSvg before hashing and storage;
+ * hosts serve its original without requesting raster transforms.
  *
  * `image/avif` (owner-directed, 2026-09-06): a fifth still-image type, on the
  * same footing as the four above — `content-type-sniffer.ts` identifies it by
@@ -120,6 +125,10 @@ function formatMaxUploadBytesAsMb(bytes: number): string {
  * `routes/site/media-rendition.ts`). This widens the SAME advisory,
  * client-declared-string check item 4 above already discloses as untrusted —
  * no new ingress hardening was added for video.
+ *
+ * Audio (owner-approved mediawidget, 2026-10-10/11) follows that same original-byte
+ * lifecycle. Only formats recognized by the shared sniffer are allowed; no image
+ * transform is requested for them.
  */
 export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/jpeg",
@@ -127,8 +136,13 @@ export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   "image/webp",
   "image/gif",
   "image/avif",
+  "image/svg+xml",
   "video/mp4",
   "video/webm",
+  "audio/wav",
+  "audio/mpeg",
+  "audio/flac",
+  "audio/mp4",
 ]);
 
 /**
@@ -153,8 +167,7 @@ export function resolveWriteOnceSource(
 ): MediaSource {
   const { existing, requestedSha256 } = required;
   if (existing && existing.sha256 !== requestedSha256) {
-    throw new MediaSourceImmutableError(
-      `source.sha256 is write-once: cannot change '${existing.sha256}' to '${requestedSha256}'`
+    throw new MediaSourceImmutableError({ message: `source.sha256 is write-once: cannot change '${existing.sha256}' to '${requestedSha256}'` }
     );
   }
   return { sha256: requestedSha256 };
@@ -164,30 +177,6 @@ function deriveTitleFromFilename(filename: string): string {
   const base = filename.trim().replace(/\.[^./\\]+$/, "");
   return base.trim() || "Untitled";
 }
-
-/** Shared slug-format rule (2026-09-07) — same shape as `post`'s `SLUG_FORMAT_PATTERN`: lowercase
- *  letters, digits, and dashes only. Media slugs have no reserved-word list (`post`'s `admin`/`api`
- *  exclusions exist because a post slug can become a literal URL path segment a route dispatches
- *  on; a media slug is only ever a lookup key, never a route itself, so that hazard doesn't apply). */
-const MEDIA_SLUG_FORMAT_PATTERN = /^[a-z0-9-]+$/;
-
-/**
- * Slugs that spell a UUID are refused outright (2026-09-07 fix).
- *
- * A lowercase UUID is `[a-z0-9-]+` character for character, so {@link MEDIA_SLUG_FORMAT_PATTERN}
- * happily accepted one — and {@link findMediaByIdOrSlug} used to resolve SLUG FIRST, so pointing one
- * asset's slug at another asset's `id` silently took over every reference already authored against
- * that id (every `/m/{id}/…` URL a host's renderer has ever emitted for the victim). That resolution
- * order is now id-first, which closes the hijack for rows that already carry such a slug; this rule
- * is the write-path half — a slug that can only ever shadow an id is not a slug anyone wants, so it
- * is refused where a human can still see why rather than silently shadowed at read time.
- *
- * Shape-based, not a lookup: it rejects EVERY UUID-shaped value, not only ones that currently
- * collide, so a slug cannot become a hijack later when some future upload happens to mint that id.
- * Ordinary hex-and-dash slugs (`abc-123-def`, `2026-09-07-launch-clip`) are unaffected — nothing but
- * the exact 8-4-4-4-12 hex grouping matches.
- */
-const MEDIA_SLUG_UUID_SHAPE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Shared slug max-length rule (2026-09-07) — same bound as `post.ts`'s `MAX_SLUG_LENGTH`, reused
  *  rather than inventing a second number. `post.ts` only enforces this on its EXPLICIT/caller-
@@ -200,18 +189,18 @@ const MEDIA_SLUG_UUID_SHAPE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
  *  "coerce, don't fail" convention `deriveTitleFromFilename`/`slugifyMediaTitle` already use. */
 const MEDIA_MAX_SLUG_LENGTH = 120;
 
-export function isValidMediaSlugFormat(slug: string): boolean {
-  return MEDIA_SLUG_FORMAT_PATTERN.test(slug) && !MEDIA_SLUG_UUID_SHAPE_PATTERN.test(slug);
-}
-
 /** Truncates a slug candidate to `maxLength`, stripping a trailing dash the cut can introduce (so a
- *  truncation never leaves a slug ending mid-word with a dangling "-"), falling back to `"untitled"`
- *  if nothing legible survives (only reachable when `maxLength` itself is tiny, e.g. while reserving
- *  room for a long numeric suffix — see {@link deriveUniqueMediaSlug}). A no-op when `candidate` is
- *  already within bounds. */
+ *  truncation never leaves a slug ending mid-word with a dangling "-"). A no-op when `candidate` is
+ *  already within bounds.
+ *
+ *  The cut can never leave an empty string, so there is no fallback here: every candidate
+ *  {@link deriveUniqueMediaSlug} passes starts with an alphanumeric (`slugifyMediaTitle` trims
+ *  leading dashes and an empty slug was already replaced by `"untitled"`), and `maxLength` is
+ *  {@link MEDIA_MAX_SLUG_LENGTH} minus a `-N` suffix, which stays positive for any suffix below
+ *  10^119 collisions. Keeping the first character therefore always keeps something legible. */
 function capSlugCandidate(candidate: string, maxLength: number): string {
   if (candidate.length <= maxLength) return candidate;
-  return candidate.slice(0, Math.max(maxLength, 0)).replace(/-+$/, "") || "untitled";
+  return candidate.slice(0, Math.max(maxLength, 0)).replace(/-+$/, "");
 }
 
 /** Turns free text into a slug candidate: lowercase, non-alphanumeric runs collapsed to one dash,
@@ -273,6 +262,7 @@ async function deriveUniqueMediaSlug(mediaRepo: MediaRepoPort, workspaceId: UUID
 // ---------------------------------------------------------------------------
 
 export interface UploadMediaInput {
+  kind?: MediaKind | undefined;
   workspaceId: UUID;
   bytes: Uint8Array;
   filename: string;
@@ -280,17 +270,18 @@ export interface UploadMediaInput {
   alt?: string | undefined;
   caption?: string | undefined;
   credit?: string | undefined;
-  /** Attributed on the `asset_blobs` row (required attribution). */
+  /** Acting principal, stamped on each media row and on a newly created asset_blobs row. */
   createdByPrincipal: string;
 }
 
 export interface UploadMediaDeps {
-  clock: ClockPort;
-  idGen: IdGeneratorPort;
+  clock: Clock;
+  idGen: IdGenerator;
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
   blobStore: BlobStorePort;
+  documentArchiveReader?: DocumentArchiveReaderPort | undefined;
 }
 
 export interface UploadMediaRequired {
@@ -305,7 +296,7 @@ export interface UploadMediaOptional {
 
 /**
  * Validates, hashes, dedups by `(workspaceId, sha256)`, and writes a new media
- * asset. Ordering (INV-1a): bytes are written (or found already
+ * asset. Ordering : bytes are written (or found already
  * present via dedup) BEFORE the media row is saved — a media row never exists
  * without corresponding bytes.
  *
@@ -324,71 +315,108 @@ export interface UploadMediaOptional {
  * overhead, not a scan) — plus {@link deriveUniqueMediaSlug}'s own O(n) in the number of prior
  * same-base-slug collisions (see that function's doc).
  * @overallScore 100
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
+/** Upload-time text fields are trimmed; omitted ones start empty. */
+const uploadText = ({ alt, caption, credit }: UploadMediaRequired["input"]) => ({ alt: alt?.trim() ?? "", caption: caption?.trim() ?? "", credit: credit?.trim() ?? "" });
+
+type UploadKind = "media" | "document";
+
+function resolveUploadKind(input: UploadMediaRequired["input"]): UploadKind {
+  const kind = input.kind ?? "media";
+  if (kind !== "media" && kind !== "document") throw new MediaValidationError({ message: "invalid media kind" });
+  return kind;
+}
+
+function assertWithinUploadCap(byteLength: number, maxUploadBytes: number): void {
+  if (byteLength > maxUploadBytes) {
+    throw new MediaValidationError({ message: `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap` });
+  }
+}
+
+/** Applies the MIME, empty-file and size policy for this kind; returns the cap that applied. */
+function assertUploadAdmissible({ input, kind }: { input: UploadMediaRequired["input"]; kind: UploadKind }, optional: UploadMediaOptional): number {
+  const maxUploadBytes = kind === "document" ? MAX_DOCUMENT_BYTES : optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
+  const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
+  if (kind === "media" && !allowedMimeTypes.has(input.contentType)) {
+    throw new MediaValidationError({ message: `content type '${input.contentType}' is not allowed for upload` });
+  }
+  if (input.bytes.byteLength === 0) {
+    throw new MediaValidationError({ message: "uploaded file is empty" });
+  }
+  assertWithinUploadCap(input.bytes.byteLength, maxUploadBytes);
+  return maxUploadBytes;
+}
+
+async function storedUploadBytes({ input, kind }: { input: UploadMediaRequired["input"]; kind: UploadKind }): Promise<Uint8Array> {
+  // Inspect the bytes too: a mislabeled SVG must never bypass sanitization.
+  const isSvg = kind === "media" && (input.contentType === "image/svg+xml" || sniffContentType({ bytes: input.bytes }) === "image/svg+xml");
+  return isSvg ? await sanitizeSvg({ bytes: input.bytes }) : input.bytes;
+}
+
+/** Dedup check-then-act; must run inside the sha256 lock. Returns the blob's storage key. */
+async function claimUploadBlob(
+  { deps, input, kind, sha256, bytes, nowIso }: { deps: UploadMediaRequired["deps"]; input: UploadMediaRequired["input"]; kind: UploadKind; sha256: string; bytes: Uint8Array; nowIso: string },
+): Promise<string> {
+  const documentOwnership = kind === "document" ? { documentOwned: true } : {};
+  const existingBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256 });
+  if (existingBlob) {
+    if (existingBlob.status === "tombstoned" || (kind === "document" && !existingBlob.documentOwned)) {
+      // Record ownership before saving the editorial row: purge must never declassify bytes.
+      // Resurrect: cancel the pending GC in the same locked section rather
+      // than writing a duplicate blob ( dedup rule). See docs/decisions/DR-004-journaled-blob-gc.md.
+      await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined, ...documentOwnership });
+    }
+    return existingBlob.storageKey;
+  }
+
+  const written = await deps.blobStore.put({
+    workspaceId: input.workspaceId,
+    sha256,
+    bytes,
+  });
+  await deps.blobRepo.save({
+    id: deps.idGen.newId(),
+    workspaceId: input.workspaceId,
+    sha256,
+    storageKey: written.storageKey,
+    ...documentOwnership,
+    status: "active",
+    createdByPrincipal: input.createdByPrincipal,
+    createdAt: nowIso,
+  });
+  return written.storageKey;
+}
+
 export async function uploadMedia(
   required: UploadMediaRequired,
   optional: UploadMediaOptional = {}
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
-  const maxUploadBytes = optional.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
-  const allowedMimeTypes = optional.allowedMimeTypes ?? DEFAULT_ALLOWED_MIME_TYPES;
+  const kind = resolveUploadKind(input);
+  // Document policy is mandatory even if a host overrides the ordinary media MIME/size policy.
+  if (kind === "document") await validateDocumentIngress({ filename: input.filename, bytes: input.bytes }, { archiveReader: deps.documentArchiveReader });
+  const maxUploadBytes = assertUploadAdmissible({ input, kind }, optional);
 
-  if (!allowedMimeTypes.has(input.contentType)) {
-    throw new MediaValidationError(
-      `content type '${input.contentType}' is not allowed for upload`
-    );
-  }
-  if (input.bytes.byteLength === 0) {
-    throw new MediaValidationError("uploaded file is empty");
-  }
-  if (input.bytes.byteLength > maxUploadBytes) {
-    throw new MediaValidationError(
-      `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap`
-    );
-  }
+  const bytes = await storedUploadBytes({ input, kind });
+  assertWithinUploadCap(bytes.byteLength, maxUploadBytes);
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const nowIso = kernelNowIso({ clock: deps.clock });
 
-  const sha256 = createHash("sha256").update(input.bytes).digest("hex");
-  const nowIso = deps.clock.nowIso();
-
-  const storageKey = await withSha256Lock(sha256, async () => {
-    const existingBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256 });
-    if (existingBlob) {
-      if (existingBlob.status === "tombstoned") {
-        // Resurrect: cancel the pending GC in the same locked section rather
-        // than writing a duplicate blob (INV-1 dedup rule).
-        await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined });
-      }
-      return existingBlob.storageKey;
-    }
-
-    const written = await deps.blobStore.put({
-      workspaceId: input.workspaceId,
-      sha256,
-      bytes: input.bytes,
-    });
-    await deps.blobRepo.save({
-      id: deps.idGen.newId(),
-      workspaceId: input.workspaceId,
-      sha256,
-      storageKey: written.storageKey,
-      status: "active",
-      createdByPrincipal: input.createdByPrincipal,
-      createdAt: nowIso,
-    });
-    return written.storageKey;
-  });
+  const storageKey = await withSha256Lock({ key: sha256, criticalSection: () => claimUploadBlob({ deps, input, kind, sha256, bytes, nowIso }) });
 
   const title = deriveTitleFromFilename(input.filename);
   const slug = await deriveUniqueMediaSlug(deps.mediaRepo, input.workspaceId, title);
 
   const media: MediaRecord = {
+    kind,
+    originalFilename: kind === "document" ? input.filename : null,
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,
+    createdBy: input.createdByPrincipal,
     title,
     slug,
-    alt: input.alt?.trim() ?? "",
-    caption: input.caption?.trim() ?? "",
-    credit: input.credit?.trim() ?? "",
+    ...uploadText(input),
     source: resolveWriteOnceSource({ existing: undefined, requestedSha256: sha256 }),
     status: "active",
     createdAt: nowIso,
@@ -422,11 +450,11 @@ export async function uploadMedia(
 
 export interface ListMediaRequired {
   deps: { mediaRepo: MediaRepoPort };
-  input: { workspaceId: UUID };
+  input: { workspaceId: UUID; kind?: MediaKind | undefined };
 }
 
 /**
- * Lists all media in a workspace (all statuses — active + trashed; admin sees
+ * Lists one kind in a workspace (media by default; all statuses — active + trashed; admin sees
  * everything, mirrors an admin post listing). Purged assets are absent by
  * construction (`purgeMedia` removes the row), not filtered here.
  *
@@ -440,7 +468,7 @@ export async function listMedia(
   _optional: Record<string, never> = {}
 ): Promise<{ media: MediaRecord[] }> {
   const media = await required.deps.mediaRepo.list({ workspaceId: required.input.workspaceId });
-  return { media };
+  return { media: media.filter(row => (row.kind ?? "media") === (required.input.kind ?? "media")) };
 }
 
 export interface GetMediaByIdRequired {
@@ -460,7 +488,7 @@ export async function getMediaById(
 ): Promise<{ media: MediaRecord }> {
   const { workspaceId, id } = required.input;
   const media = await required.deps.mediaRepo.findById({ workspaceId, id });
-  if (!media) throw new MediaNotFoundError(`media '${id}' was not found`);
+  if (!media) throw new MediaNotFoundError({ message: `media '${id}' was not found` });
   return { media };
 }
 
@@ -486,11 +514,12 @@ export interface FindMediaByIdOrSlugRequired {
  * falls through.
  *
  * Never throws (unlike {@link getMediaById}): every call site that needs this (an embed resolver, a
- * public rendition route) already has its own REQ-27-style non-throwing-miss contract, so this
+ * public rendition route) already has its own -style non-throwing-miss contract, so this
  * returns `null` on failure and lets the caller apply its own not-found handling rather than forcing
  * one shape on every caller.
  *
  * @complexity O(1) — at most two indexed repo lookups, short-circuited on the first hit.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export async function findMediaByIdOrSlug(
   required: FindMediaByIdOrSlugRequired,
@@ -547,7 +576,7 @@ export interface UpdateMediaMetadataInput {
 }
 
 export interface UpdateMediaMetadataDeps {
-  clock: ClockPort;
+  clock: Clock;
   mediaRepo: MediaRepoPort;
 }
 
@@ -572,7 +601,7 @@ export interface UpdateMediaMetadataRequired {
  *  `undefined` (leave unchanged) both bypass this — only a real provided number is checked. */
 function assertPositiveIntegerOrThrow(value: number, field: "width" | "height"): void {
   if (!Number.isInteger(value) || value <= 0) {
-    throw new MediaValidationError(`media.${field} must be a positive integer, got ${value}`);
+    throw new MediaValidationError({ message: `media.${field} must be a positive integer, got ${value}` });
   }
 }
 
@@ -589,20 +618,19 @@ function assertPositiveIntegerOrThrow(value: number, field: "width" | "height"):
  */
 async function resolveSlugForUpdate(mediaRepo: MediaRepoPort, workspaceId: UUID, id: UUID, rawSlug: string): Promise<string> {
   const slug = rawSlug.trim().toLowerCase();
-  if (!slug || !isValidMediaSlugFormat(slug)) {
-    throw new MediaValidationError(
-      "slug must use lowercase letters, numbers, and dashes, and must not be shaped like a UUID"
+  if (!slug || !isValidMediaSlugFormat({ slug: slug })) {
+    throw new MediaValidationError({ message: "slug must use lowercase letters, numbers, and dashes, and must not be shaped like a UUID" }
     );
   }
   // Same bound and rejection style as `post.ts`'s `resolveExplicitSlug` — a human typed this value,
   // so it is refused with a clear reason rather than silently truncated (unlike the derived-on-
   // upload path, see `MEDIA_MAX_SLUG_LENGTH`'s doc).
   if (slug.length > MEDIA_MAX_SLUG_LENGTH) {
-    throw new MediaValidationError(`slug must be ${MEDIA_MAX_SLUG_LENGTH} characters or fewer`);
+    throw new MediaValidationError({ message: `slug must be ${MEDIA_MAX_SLUG_LENGTH} characters or fewer` });
   }
   const duplicate = await mediaRepo.findBySlug({ workspaceId, slug });
   if (duplicate && duplicate.id !== id) {
-    throw new MediaConflictError(`slug '${slug}' is already used by media '${duplicate.id}'`);
+    throw new MediaConflictError({ message: `slug '${slug}' is already used by media '${duplicate.id}'` });
   }
   return slug;
 }
@@ -620,11 +648,54 @@ async function resolveSlugForUpdate(mediaRepo: MediaRepoPort, workspaceId: UUID,
 function resolveHtmlAttributesForUpdate(rawValue: string): string | null {
   const trimmed = rawValue.trim();
   if (trimmed === "") return null;
-  const parsed = parseMediaHtmlAttributes(trimmed);
+  const parsed = parseMediaHtmlAttributes({ text: trimmed });
   if (parsed.error) {
-    throw new MediaValidationError(`media.htmlAttributes: ${describeMediaHtmlAttributeError(parsed.error)}`);
+    throw new MediaValidationError({ message: `media.htmlAttributes: ${describeMediaHtmlAttributeError(parsed.error)}` });
   }
   return trimmed;
+}
+
+function assertDocumentTitle(existing: MediaRecord, title: string | undefined): void {
+  if (existing.kind !== "document" || title === undefined) return;
+  if (!title.trim() || title.trim().length > 240 || /[\\/\u0000-\u001f\u007f]/u.test(title)) {
+    throw new MediaValidationError({ message: "document title must be a non-empty display stem of at most 240 characters" });
+  }
+}
+
+const trimmedEdit = (value: string | undefined, current: string): string => (value !== undefined ? value.trim() : current);
+/** `undefined` keeps the stored value; `null` is a real edit that clears it. */
+const editedOr = <T>(value: T | undefined, current: T): T => (value !== undefined ? value : current);
+
+function resolveHtmlAttributesEdit(value: string | null | undefined, current: string | null): string | null {
+  if (value === undefined) return current;
+  return value === null ? null : resolveHtmlAttributesForUpdate(value);
+}
+
+function resolveCssClassEdit(value: string | null | undefined, current: string | null): string | null {
+  if (value === undefined) return current;
+  return value === null ? null : value.trim() || null;
+}
+
+/** Builds the edited record from already-validated edits. */
+function applyMetadataEdits(
+  { existing, input, slug, htmlAttributes, updatedAt }: { existing: MediaRecord; input: UpdateMediaMetadataRequired["input"]; slug: string; htmlAttributes: string | null; updatedAt: string },
+): MediaRecord {
+  return {
+    ...existing,
+    // `title` and `slug` are deliberately independent (see `MediaRecord.slug`'s doc): renaming the
+    // title never recomputes `slug`, and editing `slug` never touches `title`.
+    title: trimmedEdit(input.title, existing.title) || existing.title,
+    slug,
+    alt: trimmedEdit(input.alt, existing.alt),
+    caption: trimmedEdit(input.caption, existing.caption),
+    credit: trimmedEdit(input.credit, existing.credit),
+    width: editedOr(input.width, existing.width),
+    height: editedOr(input.height, existing.height),
+    cssClass: resolveCssClassEdit(input.cssClass, existing.cssClass),
+    htmlAttributes,
+    updatedAt,
+    version: existing.version + 1,
+  };
 }
 
 export async function updateMediaMetadata(
@@ -633,8 +704,9 @@ export async function updateMediaMetadata(
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
   const existing = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
+  if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
   assertEntityLive({ entityType: "media", entityId: input.id, state: existing.status === "trashed" ? "trashed" : "live" });
+  assertDocumentTitle(existing, input.title);
 
   if (input.width !== undefined && input.width !== null) assertPositiveIntegerOrThrow(input.width, "width");
   if (input.height !== undefined && input.height !== null) assertPositiveIntegerOrThrow(input.height, "height");
@@ -644,29 +716,9 @@ export async function updateMediaMetadata(
       : existing.slug;
   // Validated BEFORE the record is built (same "fail before any write" discipline `assertPositive
   // IntegerOrThrow` above already follows) — an invalid value must never reach `save()`.
-  const htmlAttributes =
-    input.htmlAttributes !== undefined
-      ? input.htmlAttributes === null
-        ? null
-        : resolveHtmlAttributesForUpdate(input.htmlAttributes)
-      : existing.htmlAttributes;
+  const htmlAttributes = resolveHtmlAttributesEdit(input.htmlAttributes, existing.htmlAttributes);
 
-  const media: MediaRecord = {
-    ...existing,
-    // `title` and `slug` are deliberately independent (see `MediaRecord.slug`'s doc): renaming the
-    // title never recomputes `slug`, and editing `slug` never touches `title`.
-    title: input.title !== undefined ? input.title.trim() || existing.title : existing.title,
-    slug,
-    alt: input.alt !== undefined ? input.alt.trim() : existing.alt,
-    caption: input.caption !== undefined ? input.caption.trim() : existing.caption,
-    credit: input.credit !== undefined ? input.credit.trim() : existing.credit,
-    width: input.width !== undefined ? input.width : existing.width,
-    height: input.height !== undefined ? input.height : existing.height,
-    cssClass: input.cssClass !== undefined ? (input.cssClass === null ? null : input.cssClass.trim() || null) : existing.cssClass,
-    htmlAttributes,
-    updatedAt: deps.clock.nowIso(),
-    version: existing.version + 1,
-  };
+  const media = applyMetadataEdits({ existing, input, slug, htmlAttributes, updatedAt: kernelNowIso({ clock: deps.clock }) });
   await deps.mediaRepo.save(media);
   return { media };
 }
@@ -676,7 +728,7 @@ export async function updateMediaMetadata(
 // ---------------------------------------------------------------------------
 
 export interface TrashMediaDeps {
-  clock: ClockPort;
+  clock: Clock;
   mediaRepo: MediaRepoPort;
 }
 
@@ -698,13 +750,13 @@ export async function trashMedia(
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
   const existing = await deps.mediaRepo.findById(input);
-  if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
+  if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
   if (existing.status === "trashed") return { media: existing };
 
   const media: MediaRecord = {
     ...existing,
     status: "trashed" as MediaStatus,
-    updatedAt: deps.clock.nowIso(),
+    updatedAt: kernelNowIso({ clock: deps.clock }),
     version: existing.version + 1,
   };
   await deps.mediaRepo.save(media);
@@ -712,6 +764,7 @@ export async function trashMedia(
 }
 
 export interface PurgeMediaDeps {
+  referenceCheck: MediaReferenceCheckPort;
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
@@ -723,7 +776,7 @@ export interface PurgeMediaDeps {
    * that doesn't wire a clock into `PurgeMediaDeps` keeps compiling and
    * behaving correctly unchanged.
    */
-  clock?: ClockPort | undefined;
+  clock?: Clock | undefined;
 }
 
 export interface PurgeMediaRequired {
@@ -736,14 +789,9 @@ export interface PurgeMediaRequired {
  * rejected with `MediaStillReferencedError` (409-style) unless the asset has
  * already been trashed first.
  *
- * SIMPLIFICATION (disclosed): the real design's guard checks the derived
- * `entry_refs` where-used index (any live reference from published content).
- * That index doesn't exist — posts don't reference media by id in `bodyJson`
- * yet — so this build uses "not yet trashed" as the stand-in referenced-check.
- * This is strictly weaker than the real invariant: a media asset that IS
- * trashed but still referenced by a post would purge here without complaint,
- * whereas the real system would keep blocking it. Do not read this function's
- * 409 as evidence the where-used index exists.
+ * The host must check current content through `referenceCheck`, including slug-based references.
+ * The trashed status is a separate prerequisite, never proof that no content references the asset.
+ * Lookup errors propagate before any removal. Hosts without a checker fail closed.
  *
  * Once past the guard: rendition rows are removed, then the media row is
  * removed. After that removal commits, the blob-GC tombstone-pass
@@ -769,16 +817,18 @@ export async function purgeMedia(
 ): Promise<{ purged: true }> {
   const { deps, input } = required;
   const existing = await deps.mediaRepo.findById(input);
-  if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
+  if (!existing) throw new MediaNotFoundError({ message: `media '${input.id}' was not found` });
 
   if (existing.status !== "trashed") {
-    throw new MediaStillReferencedError(
-      `media '${input.id}' must be trashed before it can be purged`,
-      [
-        `media '${input.id}' is still active (stand-in for the real entry_refs ` +
-          `where-used index, which is not implemented — see purgeMedia's doc comment)`,
-      ]
+    throw new MediaStillReferencedError({ message: `media '${input.id}' must be trashed before it can be purged`, referencing: [
+        `media '${input.id}' is still active`,
+      ] }
     );
+  }
+
+  const referencing = await deps.referenceCheck.findReferences({ workspaceId: input.workspaceId, media: existing });
+  if (referencing.length > 0) {
+    throw new MediaStillReferencedError({ message: `media '${input.id}' is still referenced`, referencing: [...referencing] });
   }
 
   await removeMediaRowsAndTombstoneBlob(deps, {
@@ -798,7 +848,7 @@ export interface MediaRowCleanupDeps {
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
   /** Optional — see `PurgeMediaDeps.clock`'s identical doc. */
-  clock?: ClockPort | undefined;
+  clock?: Clock | undefined;
 }
 
 /**
@@ -818,7 +868,7 @@ async function removeMediaRowsAndTombstoneBlob(
   await deps.renditionRepo.removeByAsset({ workspaceId: input.workspaceId, assetId: input.id });
   await deps.mediaRepo.remove({ workspaceId: input.workspaceId, id: input.id });
 
-  const clock = deps.clock ?? { nowIso: () => new Date().toISOString() };
+  const clock = deps.clock ?? createSystemClock();
   await tombstoneBlobIfUnreferenced({
     deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.blobRepo, clock },
     input: { workspaceId: input.workspaceId, sha256: input.sha256 },

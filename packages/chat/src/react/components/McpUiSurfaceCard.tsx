@@ -3,8 +3,8 @@
  *
  * Renders MCP-UI Views inline in a chat transcript, fed by a message's `kind: 'ext', name: 'mcp-ui'`
  * events — the same extensibility seam `A2uiSurfaceCard.tsx` uses, and registered the same way: a
- * host calls {@link registerMcpUiSurfaceRenderer} once at module scope and every `ChatPane` that
- * surfaces a matching event renders through it thereafter.
+ * host calls {@link registerMcpUiSurfaceRenderer} with its owned registry (or the compatibility
+ * default) and matching events in that registry's chat tree render through it.
  *
  * Each event's `data` is expected to be an MCP `EmbeddedResource` carrying UI — exactly the object a
  * tool result's `content` array holds, unwrapped. One shape, deliberately: accepting several
@@ -60,18 +60,23 @@
  * `visible` field in per-element STATE when a caller opts into it — see the regression tests added
  * against the real driver in `@jini-ai/agentic`.
  */
+import { questionAnswerFromResult } from '../../core/question-answer.js';
+import { MidRunUserMessage } from './MidRunUserMessage.js';
 import { Fragment, useMemo } from 'react';
 import {
   McpUiHost,
   parseUIResource,
   readActionPlan,
+  readExpiresAt,
   readPreferredFrameSize,
   type McpUiActionPlan,
   type McpUiToolCallHandler,
   type UIResource,
 } from '@jini-ai/ui/mcp-ui';
-import { registerExtEventRenderer, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
+import { defaultExtEventRendererRegistry, type ExtEventRendererRegistry, type ExtEventCall, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
+import { useSurfaceExpiry, type SurfaceExpiryClock } from '../hooks/useSurfaceExpiry.js';
+import { closedSurfaceLabel, reportDeliveredAnswer } from './mcp-ui-surface-state.js';
 
 /** The `kind: 'ext'` event name this renderer claims. */
 export const MCP_UI_EXT_EVENT_NAME = 'mcp-ui';
@@ -95,7 +100,12 @@ export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
    * scrolling for content taller than its `preferredFrameSize` guess. A host embedding this card in
    * a fixed-width sidebar should pass a cap sized to its own viewport.
    */
-  maxHeight?: number;
+  maxHeight?: number | undefined;
+  /**
+   * Time source for a card's answer deadline (`MCP_UI_EXPIRES_AT_META_KEY`). Omit for the wall clock;
+   * a test injects a fake one to step through the countdown.
+   */
+  expiryClock?: SurfaceExpiryClock;
 }
 
 /** Collapses the event stream to the newest resource per `ui://` URI, in first-appearance order. */
@@ -118,12 +128,14 @@ function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[]
  * handle that does not, which would take down the whole surface card's render for an otherwise
  * perfectly valid resource), this sanitizes unconditionally: lowercase, collapse every run of
  * disallowed characters to one hyphen, trim the ends. A URI already shaped like
- * `ui://tovu/deployment-execute-static-publish/<uuid>` survives this close to verbatim; this only
+ * `ui://host/deployment-execute-static-publish/<uuid>` survives this close to verbatim; this only
  * has teeth for a producer whose id scheme this package has never seen.
  */
 function pendingMirrorHandle(uri: string): string {
+  // Never empty: only resources whose URI starts with `ui://` reach a card (`@jini-ai/ui/mcp-ui`'s
+  // resource parser rejects every other scheme), so the sanitized handle always keeps at least `ui`.
   const sanitized = uri.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return `mcp-ui-pending-${sanitized === '' ? 'surface' : sanitized}`;
+  return `mcp-ui-pending-${sanitized}`;
 }
 
 /** The one label a mirror region carries — what is pending, and what an agent could report or wait on. */
@@ -154,10 +166,79 @@ function PendingSurfaceMirror({ uri, plan, t }: { uri: string; plan: McpUiAction
   );
 }
 
+/** A closed card: the question's title, when the call gave one, and why it is closed. */
+function ClosedSurface({ call, label }: { call: ExtEventCall | undefined; label: string }) {
+  const title = (call?.input as { title?: unknown } | undefined)?.title;
+  return (
+    <div className="mcpui-surface-card mcpui-surface-card-closed" role="status">
+      {typeof title === 'string' && title.trim() !== '' ? `${title}: ${label}` : label}
+    </div>
+  );
+}
+
+/** The live card's answer lifecycle: its deadline and delivery notification, using their existing owners. */
+function surfaceInteraction(
+  { resource, answered, onToolCall, onAnswered, onAnswerText, call }: {
+    resource: UIResource | undefined;
+    answered: boolean | undefined;
+    onToolCall: McpUiToolCallHandler | undefined;
+    onAnswered: (() => void) | undefined;
+    onAnswerText: ((answerText: string) => void) | undefined;
+    call: ExtEventCall | undefined;
+  },
+  _options: Record<string, never> = {},
+) {
+  // An answered card has no deadline left: its countdown goes, and the deadline passing while the
+  // answer's work still runs must not relabel it "This question expired".
+  const expiresAtMs = resource === undefined || answered === true ? undefined : readExpiresAt(resource);
+  // Reports the person's delivered answer to the row, which stops the "Waiting for your answer" line.
+  const toolCall = onToolCall === undefined || onAnswered === undefined ? onToolCall : reportDeliveredAnswer({ onToolCall, onAnswered, onAnswerText, input: call?.input });
+  return { expiresAtMs, toolCall };
+}
+
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight }: McpUiSurfaceCardProps) {
+export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered, onAnswerText, answerText, answerRecorded }: McpUiSurfaceCardProps) {
   const t = useT();
   const resources = useMemo(() => latestResourcesByUri(events), [events]);
+  // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
+  // that card. A group holding several URIs has no single call to judge them by, and stays live.
+  const single = resources.length === 1 ? resources[0] : undefined;
+  const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall, onAnswered, onAnswerText, call });
+  const expiry = useSurfaceExpiry(
+    { expiresAtMs },
+    expiryClock === undefined ? {} : { clock: expiryClock },
+  );
+  const closed = single === undefined
+    ? undefined
+    : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
+  const answer = answerText ?? questionAnswerFromResult({ result: call?.result, input: call?.input });
+  return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
+    answer={answer} closed={closed} call={call} t={t} sandboxProxyUrl={sandboxProxyUrl}
+    toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
+}
+
+/** Rendering priority stays receipt, answer, closure, then the live documents. */
+function SurfaceCardContent({ resources, single, answerRecorded, answer, closed, call, t,
+  sandboxProxyUrl, toolCall, onOpenLink, maxHeight, expiry }: {
+  resources: readonly UIResource[];
+  single: UIResource | undefined;
+  answerRecorded: McpUiSurfaceCardProps['answerRecorded'];
+  answer: string | undefined;
+  closed: string | undefined;
+  call: McpUiSurfaceCardProps['call'];
+  t: ReturnType<typeof useT>;
+  sandboxProxyUrl: URL;
+  toolCall: McpUiToolCallHandler | undefined;
+  onOpenLink: McpUiSurfaceCardProps['onOpenLink'];
+  maxHeight: number | undefined;
+  expiry: ReturnType<typeof useSurfaceExpiry>;
+}) {
+  // MOVE: The accepted-input receipt owns its bubble; rendering the closed card too duplicates typed answers.
+  if (single !== undefined && answerRecorded) return null;
+  if (single !== undefined && answer !== undefined) {
+    return <MidRunUserMessage events={[{ text: answer === 'Declined' ? t('Declined') : answer }]} />;
+  }
+  if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
 
   if (resources.length === 0) {
     // Visible rather than silent: an `ext` event named `mcp-ui` that carries no parseable resource
@@ -191,17 +272,31 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
               // the OLD document's state. The URI stays in the key because it is real identity; the
               // length was never a substitute for content.
               sessionKey={`${resource.resource.uri}:${resource.resource.text}`}
-              {...(onToolCall === undefined ? {} : { onToolCall })}
+              {...(toolCall === undefined ? {} : { onToolCall: toolCall })}
               {...(onOpenLink === undefined ? {} : { onOpenLink })}
               {...(height === undefined || Number.isNaN(height) ? {} : { initialHeight: height })}
-              {...(maxHeight === undefined ? {} : { maxHeight })}
+              maxHeight={maxHeight}
             />
             {plan !== undefined && <PendingSurfaceMirror uri={resource.resource.uri} plan={plan} t={t} />}
           </Fragment>
         );
       })}
+      {expiry?.expired === false && (
+        <p className="mcpui-surface-expiry" role="timer">{t('Expires in {time}', { time: expiry.remaining })}</p>
+      )}
     </div>
   );
+}
+
+/**
+ * The ext-event slot key for MCP-UI: one slot per `ui://` URI. Each resource is its own card, so a
+ * run's second card renders where it arrived instead of inside the first card's slot, while a
+ * re-emitted resource with the same URI still updates its card in place. Pass it as
+ * `registerExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME, renderer }, { slotKey: mcpUiSurfaceSlotKey })`
+ * when registering a custom MCP-UI renderer; {@link registerMcpUiSurfaceRenderer} already does.
+ */
+export function mcpUiSurfaceSlotKey({ data }: { data: unknown }): string | undefined {
+  return parseUIResource(data)?.resource.uri;
 }
 
 /**
@@ -218,6 +313,7 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
  * @param options.maxHeight - See {@link McpUiSurfaceCardProps.maxHeight}. A host with a fixed-width
  * pane (a docked sidebar rather than a full-width transcript) should set this once here instead of
  * accepting the library's full-width-oriented 720px default.
+ * @param options.registry - Owned registry bound to JiniChatProvider; omitted for the global default.
  * @returns An unregister handle, so a test or a hot reload can dispose cleanly.
  */
 export function registerMcpUiSurfaceRenderer(options: {
@@ -226,14 +322,16 @@ export function registerMcpUiSurfaceRenderer(options: {
   onOpenLink?: (url: string) => void;
   name?: string;
   maxHeight?: number;
+  /** Register in owned state when supplied; otherwise preserve the global API. */
+  registry?: ExtEventRendererRegistry;
 }): () => void {
-  return registerExtEventRenderer(options.name ?? MCP_UI_EXT_EVENT_NAME, (props) => (
+  return (options.registry ?? defaultExtEventRendererRegistry).register({ name: options.name ?? MCP_UI_EXT_EVENT_NAME, renderer: (props) => (
     <McpUiSurfaceCard
       {...props}
       sandboxProxyUrl={options.sandboxProxyUrl}
       {...(options.onToolCall === undefined ? {} : { onToolCall: options.onToolCall })}
       {...(options.onOpenLink === undefined ? {} : { onOpenLink: options.onOpenLink })}
-      {...(options.maxHeight === undefined ? {} : { maxHeight: options.maxHeight })}
+      maxHeight={options.maxHeight}
     />
-  ));
+  ) }, { slotKey: mcpUiSurfaceSlotKey });
 }

@@ -1,3 +1,4 @@
+import { createNodeDiagnosticsPorts } from "../node-ports.js";
 import { mkdir, mkdtemp, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5,6 +6,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { collectLogSource, collectLogSources, findMacOSCrashReports } from "../sources.js";
+
+const ports = createNodeDiagnosticsPorts({});
 
 let tempDir: string;
 
@@ -21,7 +24,7 @@ describe("collectLogSource / collectLogSources", () => {
     const filePath = join(tempDir, "whole.log");
     await writeFile(filePath, "hello world", "utf8");
 
-    const collected = await collectLogSource({ name: "whole.log", absolutePath: filePath, kind: "text" });
+    const collected = await collectLogSource({ source: { name: "whole.log", absolutePath: filePath, kind: "text" }, filesystem: ports.filesystem });
 
     expect(collected.content).toBe("hello world");
     expect(collected.bytes).toBe(11);
@@ -32,13 +35,13 @@ describe("collectLogSource / collectLogSources", () => {
     const filePath = join(tempDir, "zero-tail.log");
     await writeFile(filePath, "full content", "utf8");
 
-    const zero = await collectLogSource({ name: "zero-tail.log", absolutePath: filePath, kind: "text", tailBytes: 0 });
-    const negative = await collectLogSource({
+    const zero = await collectLogSource({ source: { name: "zero-tail.log", absolutePath: filePath, kind: "text", tailBytes: 0 }, filesystem: ports.filesystem });
+    const negative = await collectLogSource({ source: {
       name: "zero-tail.log",
       absolutePath: filePath,
       kind: "text",
       tailBytes: -5,
-    });
+    }, filesystem: ports.filesystem });
 
     expect(zero.content).toBe("full content");
     expect(negative.content).toBe("full content");
@@ -48,7 +51,7 @@ describe("collectLogSource / collectLogSources", () => {
     const filePath = join(tempDir, "small.log");
     await writeFile(filePath, "short", "utf8");
 
-    const collected = await collectLogSource({ name: "small.log", absolutePath: filePath, kind: "text", tailBytes: 1024 });
+    const collected = await collectLogSource({ source: { name: "small.log", absolutePath: filePath, kind: "text", tailBytes: 1024 }, filesystem: ports.filesystem });
 
     expect(collected.content).toBe("short");
     expect(collected.bytes).toBe(5);
@@ -59,7 +62,7 @@ describe("collectLogSource / collectLogSources", () => {
     const content = "0123456789".repeat(50); // 500 bytes
     await writeFile(filePath, content, "utf8");
 
-    const collected = await collectLogSource({ name: "big.log", absolutePath: filePath, kind: "text", tailBytes: 20 });
+    const collected = await collectLogSource({ source: { name: "big.log", absolutePath: filePath, kind: "text", tailBytes: 20 }, filesystem: ports.filesystem });
 
     expect(collected.content).toBe(content.slice(-20));
     expect(collected.bytes).toBe(20);
@@ -69,7 +72,7 @@ describe("collectLogSource / collectLogSources", () => {
     const filePath = join(tempDir, "data.json");
     await writeFile(filePath, JSON.stringify({ token: "shh", note: "ok" }), "utf8");
 
-    const collected = await collectLogSource({ name: "data.json", absolutePath: filePath, kind: "json" });
+    const collected = await collectLogSource({ source: { name: "data.json", absolutePath: filePath, kind: "json" }, filesystem: ports.filesystem });
 
     const parsed = JSON.parse(collected.content ?? "{}");
     expect(parsed.token).toBe("[REDACTED]");
@@ -77,11 +80,11 @@ describe("collectLogSource / collectLogSources", () => {
   });
 
   it("returns a null-content entry with the error message when the file cannot be read", async () => {
-    const collected = await collectLogSource({
+    const collected = await collectLogSource({ source: {
       name: "missing.log",
       absolutePath: join(tempDir, "does-not-exist.log"),
       kind: "text",
-    });
+    }, filesystem: ports.filesystem });
 
     expect(collected.content).toBeNull();
     expect(collected.bytes).toBe(0);
@@ -94,47 +97,24 @@ describe("collectLogSource / collectLogSources", () => {
     await writeFile(a, "a-content", "utf8");
     await writeFile(b, "b-content", "utf8");
 
-    const collected = await collectLogSources([
+    const collected = await collectLogSources({ sources: [
       { name: "a.log", absolutePath: a, kind: "text" },
       { name: "b.log", absolutePath: b, kind: "text" },
-    ]);
+    ], filesystem: ports.filesystem });
 
     expect(collected.map((entry) => entry.content)).toEqual(["a-content", "b-content"]);
   });
 });
 
-/**
- * The scan logic in `findMacOSCrashReports` only runs on darwin (it early-
- * returns `[]` for every other platform — see sources.ts). Running this
- * suite on a non-darwin CI host (Linux, in this repo) means the real
- * scan branches are never reached unless the test stubs `process.platform`
- * for its own duration, the same way the "non-darwin" test below stubs it
- * to `"linux"`. Without this stub these tests either fail (the crash-report
- * assertions expect real matches) or pass vacuously (an assertion of `[]`
- * is trivially satisfied by the platform guard alone, never exercising the
- * scan). This helper makes every darwin-only test genuinely run the darwin
- * code path regardless of host OS.
- */
-async function withDarwinPlatform<T>(fn: () => Promise<T>): Promise<T> {
-  const originalDescriptor = Object.getOwnPropertyDescriptor(process, "platform")!;
-  Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
-  try {
-    return await fn();
-  } finally {
-    Object.defineProperty(process, "platform", originalDescriptor);
-  }
-}
-
 describe("findMacOSCrashReports", () => {
+  // Supply darwin through the system port for scan cases even on Linux CI. Otherwise the
+  // platform guard returns [] before scanning, letting empty-result assertions pass vacuously.
   it("returns [] immediately on non-darwin platforms", async () => {
-    const originalDescriptor = Object.getOwnPropertyDescriptor(process, "platform")!;
-    Object.defineProperty(process, "platform", { value: "linux", configurable: true });
-    try {
-      const result = await findMacOSCrashReports({ matchSubstrings: ["anything"], searchDirs: [tempDir] });
-      expect(result).toEqual([]);
-    } finally {
-      Object.defineProperty(process, "platform", originalDescriptor);
-    }
+    const result = await findMacOSCrashReports({
+      matchSubstrings: ["anything"], filesystem: ports.filesystem, clock: ports.clock,
+      system: { ...ports.system, platform: () => "linux" },
+    }, { searchDirs: [tempDir] });
+    expect(result).toEqual([]);
   });
 
   it("filters by substring/recency/file-type, sorts newest first, and honors maxReports", async () => {
@@ -155,28 +135,16 @@ describe("findMacOSCrashReports", () => {
     await mkdir(dirLikeMatch, { recursive: true });
     await symlink(join(tempDir, "does-not-exist-target"), brokenLink);
 
-    await withDarwinPlatform(async () => {
-      const all = await findMacOSCrashReports({
-        matchSubstrings: ["MyApp"],
-        searchDirs: [tempDir, join(tempDir, "does-not-exist-subdir")],
-        withinDays: 7,
-        maxReports: 5,
-      });
-      expect(all.map((entry) => entry.name)).toEqual([
-        "crash-reports/MyApp-2024-report.crash",
-        "crash-reports/myapp-older.crash",
-      ]);
-      expect(all[0]?.kind).toBe("text");
+    const all = await findMacOSCrashReports({ matchSubstrings: ["MyApp"], filesystem: ports.filesystem, clock: ports.clock, system: { ...ports.system, platform: () => "darwin" } }, { searchDirs: [tempDir, join(tempDir, "does-not-exist-subdir")], withinDays: 7, maxReports: 5 });
+    expect(all.map((entry) => entry.name)).toEqual([
+      "crash-reports/MyApp-2024-report.crash",
+      "crash-reports/myapp-older.crash",
+    ]);
+    expect(all[0]?.kind).toBe("text");
 
-      const limited = await findMacOSCrashReports({
-        matchSubstrings: ["MyApp"],
-        searchDirs: [tempDir],
-        withinDays: 7,
-        maxReports: 1,
-      });
-      expect(limited).toHaveLength(1);
-      expect(limited[0]?.name).toBe("crash-reports/MyApp-2024-report.crash");
-    });
+    const limited = await findMacOSCrashReports({ matchSubstrings: ["MyApp"], filesystem: ports.filesystem, clock: ports.clock, system: { ...ports.system, platform: () => "darwin" } }, { searchDirs: [tempDir], withinDays: 7, maxReports: 1 });
+    expect(limited).toHaveLength(1);
+    expect(limited[0]?.name).toBe("crash-reports/MyApp-2024-report.crash");
   });
 
   it("derives ~/Library/Logs/DiagnosticReports from homeDir and uses default withinDays/maxReports", async () => {
@@ -185,18 +153,14 @@ describe("findMacOSCrashReports", () => {
     await mkdir(reportsDir, { recursive: true });
     await writeFile(join(reportsDir, "HomeApp-crash.crash"), "log", "utf8");
 
-    await withDarwinPlatform(async () => {
-      const result = await findMacOSCrashReports({ matchSubstrings: ["homeapp"], homeDir });
+    const result = await findMacOSCrashReports({ matchSubstrings: ["homeapp"], filesystem: ports.filesystem, clock: ports.clock, system: { ...ports.system, platform: () => "darwin" } }, { homeDir });
 
-      expect(result).toHaveLength(1);
-      expect(result[0]?.absolutePath).toBe(join(reportsDir, "HomeApp-crash.crash"));
-    });
+    expect(result).toHaveLength(1);
+    expect(result[0]?.absolutePath).toBe(join(reportsDir, "HomeApp-crash.crash"));
   });
 
   it("uses only the built-in default darwin dirs when neither homeDir nor searchDirs is given", async () => {
-    await withDarwinPlatform(async () => {
-      const result = await findMacOSCrashReports({ matchSubstrings: ["no-such-app-xyz-shouldnt-match"] });
-      expect(result).toEqual([]);
-    });
+    const result = await findMacOSCrashReports({ matchSubstrings: ["no-such-app-xyz-shouldnt-match"], filesystem: ports.filesystem, clock: ports.clock, system: { ...ports.system, platform: () => "darwin" } });
+    expect(result).toEqual([]);
   });
 });

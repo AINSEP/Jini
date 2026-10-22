@@ -1,15 +1,24 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AgentEvent, ChatMessage } from '../../../../core/index.js';
 import {
+  appendQueuedTurn,
   defaultChatPaneSelection,
+  describeChatPaneSendBlocker,
+  describeTypedAnswerNotice,
+  findAwaitedTypedAnswerId,
   findChatPaneSendBlocker,
+  findMidRunMessageRunId,
+  isAwaitingTypedAnswer,
+  isTypedAnswerTurn,
   isChatPaneApiModeConfigured,
+  isChatPaneFileDropEnabled,
   isChatPaneQueueableBlocker,
   orderChatPaneAgents,
   resolveChatPaneSelection,
 } from '../rules.js';
 import type { ChatPaneSendability, ChatPaneSendBlocker } from '../rules.js';
-import type { ByokRuntimeSummary, ChatPaneAgent } from '../types.js';
+import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection } from '../types.js';
 
 const agents: ChatPaneAgent[] = [
   {
@@ -29,7 +38,7 @@ const agents: ChatPaneAgent[] = [
     id: 'claude',
     name: 'Claude Code',
     available: true,
-    models: [{ id: 'sonnet', label: 'Sonnet' }],
+    models: [{ id: 'claude-sonnet-5', label: 'Claude Sonnet 5' }],
   },
   {
     id: 'missing',
@@ -39,46 +48,76 @@ const agents: ChatPaneAgent[] = [
 ];
 
 describe('chat-pane selection rules', () => {
-  it('uses explicit default options before first-listed fallbacks', () => {
-    expect(defaultChatPaneSelection(agents[0]!)).toEqual({
+  const claudeCatalog = {
+    models: [
+      { id: 'opus', label: 'Opus', identityKind: 'alias' as const },
+      { id: 'sonnet', label: 'Sonnet', identityKind: 'alias' as const },
+      { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+    ],
+    defaultSelectionId: 'opus[1m]',
+    source: 'rpc' as const, freshness: 'fresh' as const, coverage: 'account' as const,
+    fetchedAt: '2026-10-17T00:00:00.000Z', expiresAt: '2026-10-17T00:15:00.000Z', launchFingerprint: 'fixture',
+  };
+  const claude: ChatPaneAgent = {
+    id: 'claude', name: 'Claude Code', available: true,
+    models: claudeCatalog.models, modelCatalog: claudeCatalog,
+    defaultModelResolution: { status: 'unresolved', selectionId: 'opus[1m]', reason: 'The configured selection has no concrete model evidence.' },
+  };
+
+  it.each<ChatPaneAgentSelection>([
+    { agentId: 'claude' },
+    { agentId: 'claude', model: 'retired-model' },
+  ])('resolves an off-list native default to a sendable model for selection %j', (requested) => {
+    const selection = resolveChatPaneSelection({ agents: [claude], requested });
+    expect(defaultChatPaneSelection({ agent: claude })).toEqual({ agentId: 'claude', model: 'claude-opus-5-5' });
+    expect(selection).toEqual({ agentId: 'claude', model: 'claude-opus-5-5' });
+    expect(findChatPaneSendBlocker({
+      selectedAgent: claude, model: selection.model!, isStreaming: false, activeUploadCount: 0,
+      workingDirectoryPending: false, workingDirectoryInvalid: false, workingDirectoryError: null,
+    })).toBeNull();
+  });
+
+  it('ignores synthetic defaults and chooses a concrete entry for legacy inventories', () => {
+    expect(defaultChatPaneSelection({ agent: agents[0]! })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
-    expect(defaultChatPaneSelection(agents[1]!)).toEqual({
+    expect(defaultChatPaneSelection({ agent: agents[1]! })).toEqual({
       agentId: 'claude',
-      model: 'sonnet',
+      model: 'claude-sonnet-5',
     });
-    expect(defaultChatPaneSelection({
+    expect(defaultChatPaneSelection({ agent: {
       id: 'reasoning-only',
       name: 'Reasoning only',
       reasoningOptions: [{ id: 'high', label: 'High' }],
-    })).toEqual({
+    } })).toEqual({
       agentId: 'reasoning-only',
       reasoning: 'high',
     });
   });
 
   it('resolves an absent or unavailable selection to the first available agent', () => {
-    expect(resolveChatPaneSelection(agents, { agentId: '' })).toEqual({
+    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: '' } })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection(agents, { agentId: 'missing' })).toEqual({
+    expect(resolveChatPaneSelection({ agents: agents, requested: { agentId: 'missing' } })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection([], { agentId: 'codex' })).toEqual({ agentId: '' });
+    expect(resolveChatPaneSelection({ agents: [], requested: { agentId: 'codex' } })).toEqual({ agentId: '' });
   });
 
   it('preserves valid explicit model/reasoning choices for an available agent', () => {
-    expect(resolveChatPaneSelection(agents, {
+    expect(resolveChatPaneSelection({ agents: agents, requested: {
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'high',
-    })).toEqual({
+    } })).toEqual({
       agentId: 'codex',
       model: 'gpt-5.6-terra',
       reasoning: 'high',
@@ -86,34 +125,34 @@ describe('chat-pane selection rules', () => {
   });
 
   it('rejects stale catalog values unless custom models are explicitly supported', () => {
-    expect(resolveChatPaneSelection(agents, {
+    expect(resolveChatPaneSelection({ agents: agents, requested: {
       agentId: 'codex',
       model: 'forged-model',
       reasoning: 'forged-reasoning',
-    })).toEqual({
+    } })).toEqual({
       agentId: 'codex',
-      model: 'default',
+      model: 'gpt-5.6-terra',
       reasoning: 'default',
     });
-    expect(resolveChatPaneSelection([
+    expect(resolveChatPaneSelection({ agents: [
       {
         id: 'custom',
         name: 'Custom runtime',
         supportsCustomModel: true,
         models: [{ id: 'default', label: 'Default' }],
       },
-    ], {
+    ], requested: {
       agentId: 'custom',
       model: 'host/custom-model',
       reasoning: 'forged',
-    })).toEqual({
+    } })).toEqual({
       agentId: 'custom',
       model: 'host/custom-model',
     });
   });
 
   it('orders available agents first and then sorts names', () => {
-    expect(orderChatPaneAgents(agents).map((agent) => agent.id)).toEqual([
+    expect(orderChatPaneAgents({ agents: agents }).map((agent) => agent.id)).toEqual([
       'claude',
       'codex',
       'missing',
@@ -170,6 +209,21 @@ describe('chat-pane selection rules', () => {
       .toBe('working-directory-invalid');
     expect(findChatPaneSendBlocker({ ...ready, workingDirectoryError: new Error('disk unavailable') }))
       .toBe('working-directory-error');
+  });
+
+  describe('isChatPaneFileDropEnabled', () => {
+    const open = { canUpload: true, disabled: false, unavailable: false, uploading: false };
+
+    it('accepts drops whenever an uploader exists and nothing blocks attaching (a running run does not)', () => {
+      expect(isChatPaneFileDropEnabled(open)).toBe(true);
+    });
+
+    it('refuses drops with no uploader, a disabled or agent-less pane, or an upload in progress', () => {
+      expect(isChatPaneFileDropEnabled({ ...open, canUpload: false })).toBe(false);
+      expect(isChatPaneFileDropEnabled({ ...open, disabled: true })).toBe(false);
+      expect(isChatPaneFileDropEnabled({ ...open, unavailable: true })).toBe(false);
+      expect(isChatPaneFileDropEnabled({ ...open, uploading: true })).toBe(false);
+    });
   });
 
   describe('isChatPaneApiModeConfigured', () => {
@@ -240,7 +294,7 @@ describe('chat-pane selection rules', () => {
 
   describe('isChatPaneQueueableBlocker', () => {
     it('is true only for the streaming blocker', () => {
-      expect(isChatPaneQueueableBlocker('streaming')).toBe(true);
+      expect(isChatPaneQueueableBlocker({ blocker: 'streaming' })).toBe(true);
     });
 
     it('is false for null (nothing to queue behind) and every other named blocker', () => {
@@ -252,10 +306,264 @@ describe('chat-pane selection rules', () => {
         'working-directory-invalid',
         'working-directory-error',
       ];
-      expect(isChatPaneQueueableBlocker(null)).toBe(false);
+      expect(isChatPaneQueueableBlocker({ blocker: null })).toBe(false);
       for (const blocker of otherBlockers) {
-        expect(isChatPaneQueueableBlocker(blocker)).toBe(false);
+        expect(isChatPaneQueueableBlocker({ blocker: blocker })).toBe(false);
       }
     });
+  });
+});
+
+describe('isAwaitingTypedAnswer', () => {
+  const toolName = 'assistant_ask_choice';
+  const surface: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } };
+  const askCall: AgentEvent = { kind: 'tool_use', id: 'call-1', name: toolName, input: {} };
+  const confirmCall: AgentEvent = { kind: 'tool_use', id: 'call-2', name: 'content_post_delete', input: {} };
+  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', runStatus: 'running', events });
+  const user: ChatMessage = { id: 'u1', role: 'user', content: 'hi' };
+
+  it('is true while a surface raised inside a tool call is still waiting on that call', () => {
+    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface])], toolName })).toBe(true);
+  });
+
+  it('is false once the call that raised the surface has returned (answered or expired)', () => {
+    const result: AgentEvent = { kind: 'tool_result', toolUseId: 'call-1', content: 'expired', isError: false };
+    expect(isAwaitingTypedAnswer({ messages: [user, assistant([askCall, surface, result])], toolName })).toBe(false);
+  });
+
+  it('attributes the surface to the NEWEST open call, so an older call returning does not settle it', () => {
+    const older: AgentEvent = { kind: 'tool_use', id: 'call-0', name: 'content_post_search', input: {} };
+    const olderResult: AgentEvent = { kind: 'tool_result', toolUseId: 'call-0', content: '[]', isError: false };
+    expect(isAwaitingTypedAnswer({ messages: [assistant([older, askCall, surface, olderResult])], toolName })).toBe(true);
+  });
+
+  it('ignores a surface that arrived outside any tool call, and a call that raised no surface', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([surface])], toolName })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall])], toolName })).toBe(false);
+  });
+
+  it('reads only the newest message, and only when the assistant wrote it', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, surface]), user], toolName })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [{ id: 'a2', role: 'assistant', content: 'no events' }], toolName })).toBe(false);
+    expect(isAwaitingTypedAnswer({ messages: [], toolName })).toBe(false);
+  });
+
+  it('is false for a card raised by any OTHER tool — a delete confirm, an approval — so typing there is a next turn', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([confirmCall, surface])], toolName })).toBe(false);
+    const a2ui: AgentEvent = { kind: 'ext', name: 'a2ui', data: {} };
+    expect(isAwaitingTypedAnswer({ messages: [assistant([confirmCall, a2ui])], toolName })).toBe(false);
+  });
+
+  it('is false when the newest open call owning the surface is another tool, even with the question tool still open', () => {
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, confirmCall, surface])], toolName })).toBe(false);
+  });
+
+  it('counts a call as the question tool when ANY tool_use for its id names it (vendor wrapper plus canonical row, either order)', () => {
+    const wrapper: AgentEvent = { kind: 'tool_use', id: 'call-1', name: 'mcp__jini__execute_delegated_tool', input: { toolId: toolName } };
+    expect(isAwaitingTypedAnswer({ messages: [assistant([wrapper, askCall, surface])], toolName })).toBe(true);
+    expect(isAwaitingTypedAnswer({ messages: [assistant([askCall, wrapper, surface])], toolName })).toBe(true);
+  });
+});
+
+describe('findAwaitedTypedAnswerId', () => {
+  const toolName = 'assistant_ask_choice';
+  const surface: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://ask/1' } };
+  const ask = (id: string): AgentEvent => ({ kind: 'tool_use', id, name: toolName, input: {} });
+  const assistant = (events: AgentEvent[]): ChatMessage => ({ id: 'a1', role: 'assistant', content: '', runStatus: 'running', events });
+
+  it('names the waiting question while its run is active', () => {
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface])], toolName })).toBe('call-1');
+  });
+
+  it.each(['succeeded', 'failed', 'canceled'] as const)('closes unanswered questions on a %s run', (runStatus) => {
+    expect(findAwaitedTypedAnswerId({ messages: [{ ...assistant([ask('call-1'), surface]), runStatus }], toolName })).toBeNull();
+  });
+
+  it('finds nothing to await on a running assistant turn that has streamed no events yet', () => {
+    const justStarted: ChatMessage = { id: 'a1', role: 'assistant', content: '', runStatus: 'running' };
+    expect(findAwaitedTypedAnswerId({ messages: [justStarted], toolName })).toBeNull();
+  });
+
+  it('requires an active run and ignores a question superseded by a later turn', () => {
+    const unknownRun: ChatMessage = { id: 'unknown', role: 'assistant', content: '', events: [ask('call-1'), surface] };
+    expect(findAwaitedTypedAnswerId({ messages: [unknownRun], toolName })).toBeNull();
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface]), { id: 'next', role: 'user', content: 'next turn' }], toolName })).toBeNull();
+  });
+
+  it('closes on an accepted answer receipt before tool_result, even if the CLI repeats the call', () => {
+    const receipt: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'answer:call-1', text: 'Declined', toolUseId: 'call-1' } };
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, receipt, ask('call-1'), surface])], toolName })).toBeNull();
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, receipt, ask('call-2'), surface])], toolName })).toBe('call-2');
+  });
+
+  it('names the newest of two waiting questions, and null once nothing waits', () => {
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, ask('call-2'), surface])], toolName })).toBe('call-2');
+    const closed: AgentEvent = { kind: 'tool_result', toolUseId: 'call-1', content: 'expired', isError: false };
+    expect(findAwaitedTypedAnswerId({ messages: [assistant([ask('call-1'), surface, closed])], toolName })).toBeNull();
+  });
+});
+
+describe('isTypedAnswerTurn', () => {
+  const toolName = 'assistant_ask_choice';
+  const waiting: ChatMessage[] = [{
+    id: 'a1',
+    role: 'assistant',
+    content: '',
+    runStatus: 'running',
+    events: [
+      { kind: 'tool_use', id: 'call-1', name: toolName, input: {} },
+      { kind: 'ext', name: 'mcp-ui', data: {} },
+    ],
+  }];
+
+  it('is an answer only while streaming, with no attachments, and a question waiting', () => {
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: waiting, toolName })).toBe(true);
+    expect(isTypedAnswerTurn({ blocker: null, attachmentCount: 0, messages: waiting, toolName })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'uploads-pending', attachmentCount: 0, messages: waiting, toolName })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 1, messages: waiting, toolName })).toBe(false);
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: [], toolName })).toBe(false);
+  });
+
+  it('is not an answer when the waiting card belongs to a different tool than the configured one', () => {
+    expect(isTypedAnswerTurn({ blocker: 'streaming', attachmentCount: 0, messages: waiting, toolName: 'other_question' })).toBe(false);
+  });
+});
+
+describe('findMidRunMessageRunId', () => {
+  const running: ChatMessage[] = [
+    { id: 'u1', role: 'user', content: 'go' },
+    { id: 'a1', role: 'assistant', content: '', runId: 'run-1' },
+  ];
+
+  it('names the streaming run when the newest message is its assistant turn and nothing is attached', () => {
+    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 0, messages: running })).toBe('run-1');
+  });
+
+  it('keeps attachments eligible for live delivery, and requires a streaming assistant run', () => {
+    expect(findMidRunMessageRunId({ blocker: null, attachmentCount: 0, messages: running })).toBeNull();
+    expect(findMidRunMessageRunId({ blocker: 'uploads-pending', attachmentCount: 0, messages: running })).toBeNull();
+    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 1, messages: running })).toBe('run-1');
+    expect(findMidRunMessageRunId({ blocker: 'streaming', attachmentCount: 0, messages: running.slice(0, 1) })).toBeNull();
+    expect(findMidRunMessageRunId({
+      blocker: 'streaming', attachmentCount: 0, messages: [{ id: 'a1', role: 'assistant', content: '' }],
+    })).toBeNull();
+  });
+});
+
+describe('describeTypedAnswerNotice', () => {
+  it('names why a typed answer was not sent, distinctly for each outcome', () => {
+    expect(describeTypedAnswerNotice({ notice: 'not-pending' })).toBe(
+      'That question is no longer waiting for an answer, so your message was not sent.',
+    );
+    expect(describeTypedAnswerNotice({ notice: 'failed' })).toBe(
+      'Your answer could not be delivered. Try sending it again.',
+    );
+  });
+});
+
+describe('appendQueuedTurn — a second message behind the same run joins the queued turn', () => {
+  it('returns the message itself when nothing is queued', () => {
+    const next = { text: 'b', secretRedacted: false, count: 0 };
+    expect(appendQueuedTurn({ queued: null, next })).toBe(next);
+  });
+
+  it('appends rather than replaces, keeping either message\'s redaction signal', () => {
+    expect(appendQueuedTurn({
+      queued: { text: 'a [token removed]', secretRedacted: true, count: 1 },
+      next: { text: 'b', secretRedacted: false, count: 0 },
+    })).toEqual({ text: 'a [token removed]\n\nb', secretRedacted: true, count: 1 });
+  });
+
+  it('keeps the redaction signal when only the newer message was redacted', () => {
+    expect(appendQueuedTurn({
+      queued: { text: 'a', secretRedacted: false, count: 0 },
+      next: { text: 'b [token removed]', secretRedacted: true, count: 2 },
+    })).toEqual({ text: 'a\n\nb [token removed]', secretRedacted: true, count: 2 });
+  });
+});
+
+describe('findChatPaneSendBlocker: model resolution', () => {
+  const modelCatalog: NonNullable<ChatPaneAgent['modelCatalog']> = {
+    source: 'cli',
+    freshness: 'fresh',
+    fetchedAt: '2026-01-01T00:00:00.000Z',
+    expiresAt: '2026-01-02T00:00:00.000Z',
+    coverage: 'account',
+    launchFingerprint: 'fingerprint',
+  };
+  const ready: ChatPaneSendability = {
+    selectedAgent: { available: true, modelCatalog },
+    model: 'gpt-5.6-terra',
+    isStreaming: false,
+    activeUploadCount: 0,
+    workingDirectoryPending: false,
+    workingDirectoryInvalid: false,
+    workingDirectoryError: null,
+  };
+  const { model: _model, ...noModel } = ready;
+
+  it('allows a catalog agent with a concrete model', () => {
+    expect(findChatPaneSendBlocker(ready)).toBeNull();
+  });
+
+  it('blocks a catalog agent with no model chosen', () => {
+    expect(findChatPaneSendBlocker({ ...noModel })).toBe('model-unresolved');
+  });
+
+  it('blocks a catalog agent whose model is only an alias', () => {
+    expect(findChatPaneSendBlocker({ ...ready, model: 'default' })).toBe('model-unresolved');
+  });
+
+  it('blocks an agent that refuses concrete model selection even with a concrete model', () => {
+    expect(findChatPaneSendBlocker({
+      ...ready,
+      selectedAgent: { available: true, supportsConcreteModelSelection: false },
+    })).toBe('model-unresolved');
+  });
+
+  it('does not require a model from an agent without a catalog', () => {
+    expect(findChatPaneSendBlocker({ ...noModel, selectedAgent: { available: true } }))
+      .toBeNull();
+  });
+
+  it('skips model resolution once API mode is configured', () => {
+    expect(findChatPaneSendBlocker({ ...noModel, apiModeConfigured: true })).toBeNull();
+  });
+
+  it('reports a model problem ahead of streaming', () => {
+    expect(findChatPaneSendBlocker({ ...noModel, isStreaming: true })).toBe('model-unresolved');
+  });
+
+  it('still reports an unavailable selected agent when API mode is configured', () => {
+    expect(findChatPaneSendBlocker({
+      ...ready,
+      selectedAgent: { available: false },
+      apiModeConfigured: true,
+    })).toBe('agent-unavailable');
+  });
+});
+
+describe('describeChatPaneSendBlocker', () => {
+  it('explains each blocker in its own words', () => {
+    const blockers: ChatPaneSendBlocker[] = [
+      'no-agent-selected',
+      'agent-unavailable',
+      'model-unresolved',
+      'streaming',
+      'uploads-pending',
+      'working-directory-pending',
+      'working-directory-invalid',
+      'working-directory-error',
+    ];
+    expect(blockers.map(describeChatPaneSendBlocker)).toEqual([
+      'no agent is selected',
+      'the selected agent is unavailable',
+      'choose a concrete model before sending',
+      'a run is already streaming — cancel it first',
+      'attachment uploads are still in flight',
+      'the working directory is still being validated',
+      'the working directory is invalid',
+      'the working directory could not be read',
+    ]);
   });
 });

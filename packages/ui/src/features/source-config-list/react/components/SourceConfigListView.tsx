@@ -8,7 +8,7 @@ import type {
   SourceTrustOption,
   SourceUpdateInput,
 } from '../../types.js';
-import { SourceConfigAddForm, type SourceConfigAddFormProps } from './SourceConfigAddForm.js';
+import { SourceConfigAddForm, type SourceConfigAddFormBaseProps } from './SourceConfigAddForm.js';
 import { SourceConfigItemCard } from './SourceConfigItemCard.js';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
 
@@ -24,7 +24,7 @@ export interface SourceConfigListViewProps<TSource extends SourceConfigItem> {
   capabilities: SourceConfigListCapabilities;
   pendingKeys: ReadonlySet<string>;
   testResults: Record<string, SourceTestResult>;
-  addForm: Omit<SourceConfigAddFormProps, 'fieldSpecs' | 'trustOptions'>;
+  addForm: Omit<SourceConfigAddFormBaseProps, 'fieldSpecs'> & { onTrustChange: (value: string) => void };
   onRefresh: (id: string) => void;
   onRemove: (id: string) => void;
   onTrustChange: (id: string, trust: string) => void;
@@ -49,41 +49,13 @@ export interface SourceConfigListViewProps<TSource extends SourceConfigItem> {
  * wired orchestrator (`SourceConfigList.tsx`) supplies every prop from its
  * hooks.
  */
-export function SourceConfigListView<TSource extends SourceConfigItem>({
-  title,
-  subtitle,
-  emptyMessage,
-  fieldSpecs,
-  trustOptions,
-  sources,
-  loading,
-  loadError,
-  capabilities,
-  pendingKeys,
-  testResults,
-  addForm,
-  onRefresh,
-  onRemove,
-  onTrustChange,
-  onTest,
-  onUpdate,
-  agentHandle,
-}: SourceConfigListViewProps<TSource>) {
-  const t = useT();
-  // Positionally aligned with `sources` below — computed once per render rather than per card, so
-  // the O(n) suffix-search dedup in `buildAgentListHandles` runs once for the whole list, not once
-  // per item.
-  const itemHandles = agentHandle ? sourceConfigItemHandles(agentHandle, sources.map((source) => source.id)) : undefined;
+export function SourceConfigListView<TSource extends SourceConfigItem>(props: SourceConfigListViewProps<TSource>) {
+  const { title, subtitle, fieldSpecs, trustOptions, addForm, agentHandle } = props;
   const resolvedAddFormHandle = addForm.agentHandle ?? (agentHandle ? sourceConfigAddFormHandle(agentHandle) : undefined);
 
   return (
     <section className="source-config-list">
-      {title || subtitle ? (
-        <div className="source-config-list-head">
-          {title ? <h3>{t(title)}</h3> : null}
-          {subtitle ? <p className="source-config-list-subtitle">{t(subtitle)}</p> : null}
-        </div>
-      ) : null}
+      <SourceConfigListHead title={title} subtitle={subtitle} />
 
       <SourceConfigAddForm
         {...addForm}
@@ -92,43 +64,96 @@ export function SourceConfigListView<TSource extends SourceConfigItem>({
         {...(resolvedAddFormHandle ? { agentHandle: resolvedAddFormHandle } : {})}
       />
 
-      {loadError ? (
-        <div className="source-config-list-error" role="alert">
-          {t(loadError)}
-        </div>
-      ) : null}
+      <SourceConfigListError loadError={props.loadError} />
 
-      {loading ? (
-        <div className="source-config-list-loading" role="status">
-          {t('Loading…')}
-        </div>
-      ) : sources.length === 0 ? (
-        <div className="source-config-list-empty">{emptyMessage ? t(emptyMessage) : t('No sources configured yet.')}</div>
-      ) : (
-        <div className="source-config-list-items">
-          {sources.map((source, index) => (
-            <SourceConfigItemCard
-              key={source.id}
-              source={source}
-              fieldSpecs={fieldSpecs}
-              capabilities={capabilities}
-              removing={isActionPending(pendingKeys, source.id, 'remove')}
-              refreshing={isActionPending(pendingKeys, source.id, 'refresh')}
-              settingTrust={isActionPending(pendingKeys, source.id, 'trust')}
-              testing={isActionPending(pendingKeys, source.id, 'test')}
-              updating={isActionPending(pendingKeys, source.id, 'update')}
-              onRefresh={() => onRefresh(source.id)}
-              onRemove={() => onRemove(source.id)}
-              onTrustChange={(trust) => onTrustChange(source.id, trust)}
-              onTest={() => onTest(source.id)}
-              onUpdate={(patch) => onUpdate(source.id, patch)}
-              {...(trustOptions ? { trustOptions } : {})}
-              {...(testResults[source.id] ? { testResult: testResults[source.id] } : {})}
-              {...(itemHandles ? { agentHandle: itemHandles[index] } : {})}
-            />
-          ))}
-        </div>
-      )}
+      <SourceConfigListBody {...props} />
     </section>
+  );
+}
+
+/** The optional title/subtitle block — omitted entirely when neither is given. */
+function SourceConfigListHead({ title, subtitle }: { title?: string | undefined; subtitle?: string | undefined }) {
+  const t = useT();
+  if (!title && !subtitle) return null;
+  return (
+    <div className="source-config-list-head">
+      {title ? <h3>{t(title)}</h3> : null}
+      {subtitle ? <p className="source-config-list-subtitle">{t(subtitle)}</p> : null}
+    </div>
+  );
+}
+
+function SourceConfigListError({ loadError }: { loadError?: string | null | undefined }) {
+  const t = useT();
+  if (!loadError) return null;
+  return (
+    <div className="source-config-list-error" role="alert">
+      {t(loadError)}
+    </div>
+  );
+}
+
+/** The loading indicator, the empty message, or one item card per source — in that order of precedence. */
+function SourceConfigListBody<TSource extends SourceConfigItem>(props: SourceConfigListViewProps<TSource>) {
+  const t = useT();
+  const { sources, loading, emptyMessage, agentHandle } = props;
+  if (loading) {
+    return (
+      <div className="source-config-list-loading" role="status">
+        {t('Loading…')}
+      </div>
+    );
+  }
+  if (sources.length === 0) {
+    return <div className="source-config-list-empty">{emptyMessage ? t(emptyMessage) : t('No sources configured yet.')}</div>;
+  }
+  // Positionally aligned with `sources` below — computed once per render rather than per card, so
+  // the O(n) suffix-search dedup in `buildAgentListHandles` runs once for the whole list, not once
+  // per item.
+  const itemHandles = agentHandle ? sourceConfigItemHandles(agentHandle, sources.map((source) => source.id)) : undefined;
+  return (
+    <div className="source-config-list-items">
+      {sources.map((source, index) => (
+        <SourceConfigListItem key={source.id} {...props} source={source} {...(itemHandles ? { itemHandle: itemHandles[index] } : {})} />
+      ))}
+    </div>
+  );
+}
+
+/** One source's card, with the list-level per-id callbacks and pending state bound to that source. */
+function SourceConfigListItem<TSource extends SourceConfigItem>({
+  source,
+  itemHandle,
+  fieldSpecs,
+  trustOptions,
+  capabilities,
+  pendingKeys,
+  testResults,
+  onRefresh,
+  onRemove,
+  onTrustChange,
+  onTest,
+  onUpdate,
+}: SourceConfigListViewProps<TSource> & { source: TSource; itemHandle?: string | undefined }) {
+  const testResult = testResults[source.id];
+  return (
+    <SourceConfigItemCard
+      source={source}
+      fieldSpecs={fieldSpecs}
+      capabilities={capabilities}
+      removing={isActionPending(pendingKeys, source.id, 'remove')}
+      refreshing={isActionPending(pendingKeys, source.id, 'refresh')}
+      settingTrust={isActionPending(pendingKeys, source.id, 'trust')}
+      testing={isActionPending(pendingKeys, source.id, 'test')}
+      updating={isActionPending(pendingKeys, source.id, 'update')}
+      onRefresh={() => onRefresh(source.id)}
+      onRemove={() => onRemove(source.id)}
+      onTrustChange={(trust) => onTrustChange(source.id, trust)}
+      onTest={() => onTest(source.id)}
+      onUpdate={(patch) => onUpdate(source.id, patch)}
+      {...(trustOptions ? { trustOptions } : {})}
+      {...(testResult ? { testResult } : {})}
+      {...(itemHandle !== undefined ? { agentHandle: itemHandle } : {})}
+    />
   );
 }

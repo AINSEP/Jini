@@ -1,18 +1,49 @@
-// @jini-ai/ui — generic, product-neutral UI primitives.
-// See packages/ui/README.md for scope and packages/ui/source-map.md for
-// provenance (multiple porting tasks land content here in parallel; see
-// that file's per-section breakdown).
-//
-// Two feature domains with a heavy npm dependency are deliberately not re-exported here
-// (2026-07-29): `sketch-editor` (`@excalidraw/excalidraw`, ~47MB — removed from this barrel,
-// previously exported here and the reason any `@jini-ai/ui` import dragged Excalidraw in) and
-// `lexical-rich-text-editor` (`lexical`/`@lexical/react`/`@lexical/utils` — never wired into this
-// barrel at all, so it was actually unreachable dead code from outside this package until now).
-// Both get their own `@jini-ai/ui/sketch-editor` / `@jini-ai/ui/lexical-rich-text-editor` entry
-// points instead, so a consumer wanting e.g. `WorkingDirPicker`/`AgentIcon` never drags either
-// in — import the specific subpath when you actually want that editor.
-
+/**
+ * @module @jini-ai/ui — product-neutral UI primitives and feature surfaces.
+ *
+ * Presentation and ownership:
+ * - Progress-card copy is host-supplied because job kinds and branded messages
+ *   belong to the product. Neutral status defaults and accessibility labels are
+ *   translated; dynamic item labels are already host content and are not.
+ * - Progress supports determinate and indeterminate work. Adapters return full
+ *   lists; display caps belong to the component so source data stays complete.
+ *   Structural adapter inputs avoid a dependency on any product's DTO package.
+ * - ProgressCard and ListDetailPanel are presentational: hosts supply data,
+ *   selection, renderers, loading slots and visual styling. Transport ports
+ *   would have no behavior to abstract. Product analytics, filtering and actions
+ *   stay with the host. File-operation adapters classify tool names; shell-command
+ *   parsing is a separate concern, not part of the progress display.
+ * - Browser history has a real, SSR-safe storage default. Bridge registration
+ *   defaults to a no-op because only a host can define its external bridge.
+ *   Navigation-stack configuration is local state, so it needs no port wirer.
+ *   Outside-click/Escape subscriptions belong to the shared browser hooks.
+ * - Asset-tree root listings intentionally include nested files alongside
+ *   drill-down folders; non-root listings contain only the current directory.
+ *   This asymmetry is part of the existing tree contract, not an accidental
+ *   omission of root filtering.
+ * - Memory is a settings/data-management surface, not chat. Connector catalog
+ *   reconciliation and connector types belong to features/connectors; memory
+ *   adds only its own pending-authorization and single-item conveniences.
+ * - FileDropzone owns native browse/drop/paste interactions and their display
+ *   variants. Directory walking and file-transfer logic live in utils/file-transfer
+ *   so dropzones and asset trees share one implementation.
+ *
+ * Rendering contracts:
+ * - Hosts opt into real sandbox behavior for version-manager previews through
+ *   resolvePreviewDocument. Its identity fake is a dependency default, not a
+ *   claim that the renderer core is missing. Viewport toggles reuse viewer-shell.
+ * - sandboxed-document and srcdoc/build have distinct builder and bridge
+ *   contracts. The canonical splice helpers come from srcdoc/build and can fall
+ *   back to DOMParser; the StringOnly aliases preserve html-utils' prepend/append
+ *   fallback. Choosing one fallback for both would change public behavior.
+ *
+ * Heavy editors use dedicated @jini-ai/ui/sketch-editor and
+ * @jini-ai/ui/lexical-rich-text-editor entries so ordinary root imports do not
+ * load their editor dependencies. See packages/ui/README.md for package scope.
+ */
 export * from './features/i18n/index.js';
+export * from './features/admin-widgets/index.js';
+export * from './features/panel-kit/index.js';
 export * from './features/observability/index.js';
 export * from './features/connectors/index.js';
 export * from './features/progress-card/index.js';
@@ -83,7 +114,7 @@ export * from './browser/index.js';
 // Named (not `export *`): Icon.tsx also exports `ICON_RENDERERS`, a test
 // seam for asserting the name -> renderer lookup table directly. It must
 // not reach this published package's public surface.
-export { Icon, type IconName } from './react/components/Icon.js';
+export { Icon, ICON_PATH_DATA, type IconName } from './react/components/Icon.js';
 export * from './react/components/RemixIcon.js';
 export * from './react/components/AgentIcon.js';
 export * from './react/components/Toast.js';

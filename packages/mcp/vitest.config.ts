@@ -15,7 +15,7 @@ export default defineConfig({
         // `headers?` optional made required, since all three real internal call sites always
         // supplied it; `readCappedText`'s real-but-unused `controller` early-abort parameter
         // exported and directly unit-tested. See oauth.ts's own doc comment and this package's
-        // source-map.md dated entry). The 2026-07-21 note below about oauth.ts's 98.77% branches
+        // archived provenance ledger dated entry). The 2026-07-21 note below about oauth.ts's 98.77% branches
         // keeping the global aggregate under 100 no longer applies — genuine 100/100/100/100 across
         // every file in this package now, set at the real number, not a margin below it.
         statements: 100,

@@ -1,3 +1,5 @@
+import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+declare const open: SqliteSyncOpener;
 /**
  * Type-level proof that `createLocalNodeDaemon` preserves `createDaemon`'s compile-time
  * "missing binding" gate through its own `CreateLocalNodeDaemonConfig` wrapper — see that
@@ -14,17 +16,18 @@ interface Greeter {
   greeting: string;
 }
 
-const GreeterToken = token<Greeter>('test.greeter');
+const GreeterToken = token<Greeter, 'test.greeter'>({ id: 'test.greeter' });
 
 const greetPack = definePack({
   name: 'greet',
   deps: [GreeterToken],
-  services: (c) => ({ say: () => c.get(GreeterToken).greeting }),
+  services: (c) => ({ say: () => c.get({ token: GreeterToken }).greeting }),
 });
 
 // @ts-expect-error — `test.greeter` is required by `greetPack` but never bound (no `bindings`
 // customizer was supplied, so only the two kernel tokens are considered bound).
 void createLocalNodeDaemon({
+  open,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
 });
@@ -33,6 +36,7 @@ void createLocalNodeDaemon({
 // `test.greeter` (it's the identity function) — the gate must still catch an under-binding
 // customizer, not just a fully-omitted one.
 void createLocalNodeDaemon({
+  open,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
   bindings: (b) => b,
@@ -40,15 +44,17 @@ void createLocalNodeDaemon({
 
 // Typechecks once the required token is bound via the `bindings` customizer callback.
 void createLocalNodeDaemon({
+  open,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
-  bindings: (b) => b.bind(GreeterToken, { greeting: 'hi' }),
+  bindings: (b) => b.bind({ token: GreeterToken, impl: { greeting: 'hi' } }),
 });
 
 // Also typechecks with a pack that declares no extra deps at all — only the two kernel tokens
 // are ever required, so omitting `bindings` entirely is legal.
 const noDepsPack = definePack({ name: 'noDeps', deps: [], services: () => ({}) });
 void createLocalNodeDaemon({
+  open,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [noDepsPack],
 });

@@ -40,6 +40,14 @@ describe('clampCodexReasoning', () => {
     expect(clampCodexReasoning('openai/gpt-5.2-foo', 'minimal')).toBe('low');
   });
 
+  it('treats a provider prefix with an empty model segment (e.g. "openai/") as the empty-id late family', () => {
+    expect(clampCodexReasoning('openai/', 'minimal')).toBe('low');
+  });
+
+  it('uses only the last path segment of a multi-slash id', () => {
+    expect(clampCodexReasoning('a/b/gpt-5.1', 'xhigh')).toBe('high');
+  });
+
   it('clamps minimal to low for each late gpt-5.x family member (5.2 through 5.5)', () => {
     expect(clampCodexReasoning('gpt-5.2', 'minimal')).toBe('low');
     expect(clampCodexReasoning('gpt-5.3', 'minimal')).toBe('low');
@@ -82,14 +90,14 @@ describe('clampCodexReasoning', () => {
 
 describe('parseLineSeparatedModels', () => {
   it('returns just the default option for empty/nullish stdout', () => {
-    expect(parseLineSeparatedModels('')).toEqual([DEFAULT_MODEL_OPTION]);
-    expect(parseLineSeparatedModels(null as unknown as string)).toEqual([DEFAULT_MODEL_OPTION]);
-    expect(parseLineSeparatedModels(undefined as unknown as string)).toEqual([DEFAULT_MODEL_OPTION]);
+    expect(parseLineSeparatedModels({ stdout: '' })).toEqual([DEFAULT_MODEL_OPTION]);
+    expect(parseLineSeparatedModels({ stdout: null as unknown as string })).toEqual([DEFAULT_MODEL_OPTION]);
+    expect(parseLineSeparatedModels({ stdout: undefined as unknown as string })).toEqual([DEFAULT_MODEL_OPTION]);
   });
 
   it('parses one id per line, trims whitespace, skips blank lines and comment lines', () => {
     const stdout = 'anthropic/claude-sonnet-4-5\n# a comment\n\n  openai/gpt-5  \n';
-    expect(parseLineSeparatedModels(stdout)).toEqual([
+    expect(parseLineSeparatedModels({ stdout: stdout })).toEqual([
       DEFAULT_MODEL_OPTION,
       { id: 'anthropic/claude-sonnet-4-5', label: 'anthropic/claude-sonnet-4-5' },
       { id: 'openai/gpt-5', label: 'openai/gpt-5' },
@@ -98,7 +106,7 @@ describe('parseLineSeparatedModels', () => {
 
   it('de-dupes repeated ids while preserving first-seen order', () => {
     const stdout = 'a/b\nc/d\na/b';
-    expect(parseLineSeparatedModels(stdout)).toEqual([
+    expect(parseLineSeparatedModels({ stdout: stdout })).toEqual([
       DEFAULT_MODEL_OPTION,
       { id: 'a/b', label: 'a/b' },
       { id: 'c/d', label: 'c/d' },
@@ -123,6 +131,30 @@ describe('buildClaudeMcpConfigArgs', () => {
     expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '' })).toEqual([]);
   });
 
+  it('emits only --strict-mcp-config without a staged path when native tool access is off', () => {
+    expect(buildClaudeMcpConfigArgs({}, { nativeToolAccess: false })).toEqual(['--strict-mcp-config']);
+  });
+
+  it('emits only --strict-mcp-config without a staged path when user MCP is locked', () => {
+    expect(buildClaudeMcpConfigArgs({}, { nativeCapabilities: { userMcp: false } })).toEqual(['--strict-mcp-config']);
+  });
+
+  it('drops --strict-mcp-config for a trusted cli-parity bypass run with a staged path', () => {
+    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'bypass' })).toEqual(['--mcp-config', '/p/.mcp.json']);
+  });
+
+  it('keeps --strict-mcp-config for cli parity outside bypass mode', () => {
+    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'default' })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
+  });
+
+  it('keeps --strict-mcp-config for a cli-parity bypass run whose native tool access is off', () => {
+    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'bypass', nativeToolAccess: false })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
+  });
+
+  it('keeps --strict-mcp-config for a cli-parity bypass run whose user MCP is locked', () => {
+    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/p/.mcp.json' }, { cliParity: true, permissionMode: 'bypass', nativeCapabilities: { userMcp: false } })).toEqual(['--strict-mcp-config', '--mcp-config', '/p/.mcp.json']);
+  });
+
   it('emits nothing for a non-string path a loosely-typed caller might pass', () => {
     expect(buildClaudeMcpConfigArgs({ mcpJsonPath: 42 as unknown as string })).toEqual([]);
   });
@@ -133,8 +165,8 @@ describe('buildClaudeMcpConfigArgs', () => {
   it('gives both claude-mcp-json defs byte-identical MCP argv for the same staged path', () => {
     const runtimeContext = { mcpJsonPath: '/work/proj/.mcp.json' };
     const mcpArgvOf = (args: string[]): string[] => args.slice(args.indexOf('--strict-mcp-config'));
-    const claudeArgs = claudeAgentDef.buildArgs('hi', [], [], {}, runtimeContext);
-    const codebuddyArgs = codebuddyAgentDef.buildArgs('hi', [], [], {}, runtimeContext);
+    const claudeArgs = claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: runtimeContext });
+    const codebuddyArgs = codebuddyAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: runtimeContext });
     expect(mcpArgvOf(claudeArgs)).toEqual(buildClaudeMcpConfigArgs(runtimeContext));
     expect(mcpArgvOf(codebuddyArgs)).toEqual(mcpArgvOf(claudeArgs));
   });

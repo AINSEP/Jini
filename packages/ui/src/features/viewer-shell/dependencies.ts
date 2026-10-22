@@ -7,7 +7,7 @@ import type { ViewerClipboardPort, ViewerShellDependencies } from './ports.js';
  *  `features/connectors/`'s `createBrowserConnectorAuthPendingStorage`. */
 export function createBrowserViewerClipboard(): ViewerClipboardPort {
   return {
-    copyText: (text: string) => copyToClipboard(text),
+    copyText: (text: string) => copyToClipboard({ text }),
   };
 }
 

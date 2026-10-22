@@ -10,21 +10,21 @@ import { CONTENT_TYPE_LIFECYCLE_OPS, parseContentTypeLifecycleOp } from "../life
  */
 
 test("parseContentTypeLifecycleOp: accepts exactly the 3 closed ops", () => {
-  assert.equal(parseContentTypeLifecycleOp("deprecate"), "deprecate");
-  assert.equal(parseContentTypeLifecycleOp("reactivate"), "reactivate");
-  assert.equal(parseContentTypeLifecycleOp("tombstone"), "tombstone");
+  assert.equal(parseContentTypeLifecycleOp({ op: "deprecate" }), "deprecate");
+  assert.equal(parseContentTypeLifecycleOp({ op: "reactivate" }), "reactivate");
+  assert.equal(parseContentTypeLifecycleOp({ op: "tombstone" }), "tombstone");
 });
 
 test("parseContentTypeLifecycleOp: rejects an arbitrary/unknown string", () => {
-  assert.equal(parseContentTypeLifecycleOp("delete"), null);
-  assert.equal(parseContentTypeLifecycleOp(""), null);
-  assert.equal(parseContentTypeLifecycleOp("__proto__"), null);
+  assert.equal(parseContentTypeLifecycleOp({ op: "delete" }), null);
+  assert.equal(parseContentTypeLifecycleOp({ op: "" }), null);
+  assert.equal(parseContentTypeLifecycleOp({ op: "__proto__" }), null);
 });
 
 test("parseContentTypeLifecycleOp: rejects non-string input without throwing", () => {
-  assert.equal(parseContentTypeLifecycleOp(undefined), null);
-  assert.equal(parseContentTypeLifecycleOp(42), null);
-  assert.equal(parseContentTypeLifecycleOp({ toString: () => "deprecate" }), null);
+  assert.equal(parseContentTypeLifecycleOp({ op: undefined }), null);
+  assert.equal(parseContentTypeLifecycleOp({ op: 42 }), null);
+  assert.equal(parseContentTypeLifecycleOp({ op: { toString: () => "deprecate" } }), null);
 });
 
 test("CONTENT_TYPE_LIFECYCLE_OPS: a prototype-chain key (e.g. 'toString') never resolves a handler", () => {

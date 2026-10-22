@@ -73,7 +73,7 @@ export function MemoryExtractionCard({
           onClick={() => onDelete(record.id)}
           title={t('Remove')}
           aria-label={t('Remove')}
-          {...agentHandleProps(agentHandle, { action: 'delete', role: 'button', label: t('Remove') })}
+          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete', role: 'button', label: t('Remove') }) })}
         >
           <Icon name="close" size={14} />
         </button>

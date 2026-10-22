@@ -9,7 +9,7 @@ import { createApiError, type ApiError } from '@jini-ai/protocol';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson, statusForError } from './response.js';
 import { guardSameOrigin, type OriginContext } from './origin.js';
-import type { JsonRouteSpec } from './types.js';
+import type { JsonRouteAuthorize, JsonRouteSpec, Result } from './types.js';
 
 export interface AdapterInternalErrorContext {
   /** HTTP method of the route whose handler threw. */
@@ -62,7 +62,7 @@ function defaultInternalErrorSink(context: AdapterInternalErrorContext): void {
 export class ClientFacingError extends Error {
   readonly apiError: ApiError;
 
-  constructor(apiError: ApiError) {
+  constructor({ apiError }: { readonly apiError: ApiError }, _optional: Record<string, never> = {}) {
     super(apiError.message);
     this.name = 'ClientFacingError';
     this.apiError = apiError;
@@ -70,29 +70,32 @@ export class ClientFacingError extends Error {
 }
 
 /**
- * Identity function that pins a route spec's generic parameters at the definition site so
- * callers do not have to repeat them. The returned spec is consumed by `mountJsonRoute` (live)
+ * Combines required route fields and optional settings into a fresh spec while pinning its generic
+ * parameters at the definition site so callers do not have to repeat them. Optional settings take
+ * precedence. The returned spec is consumed by `mountJsonRoute` (live)
  * and by tests (direct invocation of `route.parse` / `route.handle`).
+ * @param optionalArgs - Origin/success policy and optional injected host ports.
+ * @returns A fresh route spec; never mutates either argument.
+ * @complexity O(1) time/space for the fixed spec fields.
  */
-export function defineJsonRoute<Input, Output, Deps>(
-  spec: JsonRouteSpec<Input, Output, Deps>,
-): JsonRouteSpec<Input, Output, Deps> {
-  return spec;
+export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'> = {}
+): JsonRouteSpec<Input, Output, Deps, Context> {
+  return { ...requiredArgs, ...optionalArgs };
 }
 
 /**
  * Mounts one JsonRouteSpec on an Express app. The Adapter is the only code here that knows
  * about req/res; the route's parse and handle functions operate on `RouteInputContext` and
- * `Deps` respectively, so they are unit testable without Express.
+ * `Deps` respectively, so they are unit testable without Express. Optional host ports preserve
+ * workspace/auth/error policy without coupling this toolkit to a domain. An origin context is
+ * required only for routes that opt into the same-origin guard.
+ * @returns Void; registers one handler, without starting a listener.
+ * @complexity O(1) setup and per-request overhead, plus parsing, host ports and handling.
  */
-export function mountJsonRoute<Input, Output, Deps>(
-  app: Express,
-  spec: JsonRouteSpec<Input, Output, Deps>,
-  deps: Deps,
-  adapter: AdapterContext,
+export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: AdapterContext }, _optional: Record<string, never> = {}
 ): void {
   app[spec.method](spec.path, async (req: Request, res: Response) => {
-    // The client-disconnect signal a `handle` can opt into via its 3rd param. Observed on `res`,
+    // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
     // not `req` — `sse.ts` already established why for this exact "detect a disconnect before
     // ever writing a response" shape (its own doc: safe to register "before `open` is ever
     // called"). `req`'s own `'close'` was tried first here and reverted: on a REAL socket, a
@@ -110,51 +113,93 @@ export function mountJsonRoute<Input, Output, Deps>(
     // which is the correct behavior for a double that never fires `close` anyway.
     res.on?.('close', onResponseClose);
     try {
-      if (spec.requireSameOrigin) {
-        const origin = guardSameOrigin(req, adapter);
-        if (!origin.ok) {
-          sendApiError(res, statusForError(origin.error), origin.error);
-          return;
-        }
-      }
-      const parsed = spec.parse(rawInput(req));
+      const raw = rawInput({ req });
+      if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
+      if (!allowRouteOrigin({ req, res, spec, adapter })) return;
+      let context: Context | undefined;
+      if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
+      const parsed = spec.parse(raw);
       if (!parsed.ok) {
-        sendApiError(res, statusForError(parsed.error), parsed.error);
+        sendApiError({ res, status: statusForError({ error: parsed.error }), error: parsed.error });
         return;
       }
-      const result = await spec.handle(parsed.value, deps, abortController.signal);
-      // `abortController.signal` can only have been aborted by `onResponseClose` firing while the
-      // `await` above was pending — nothing here runs concurrently with it — so this unambiguously
-      // means the client was already gone before any response was sent. Writing one now would be
-      // wasted work at best and, worse, would route a benign disconnect into the SEC-005 catch
-      // below as a false internal error if the socket rejects the write.
-      if (abortController.signal.aborted) return;
-      if (!result.ok) {
-        sendApiError(res, statusForError(result.error), result.error);
-        return;
-      }
-      sendJson(res, spec.successStatus ?? 200, result.value);
+      // The route chooses where authorization occurs: reads may authorize before validation,
+      // while writes must reject an inconsistent tenant target before asking for a permission.
+      const authorize: JsonRouteAuthorize = async ({ permission, entityType }) => {
+        if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
+        await spec.ports.authorize({ context, deps, permission, entityType });
+      };
+      const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: abortController.signal });
+      sendRouteResult({ res, result, spec, signal: abortController.signal });
     } catch (e) {
-      // A route (or something it called) already classified this failure as safe to disclose —
-      // see `ClientFacingError`'s own doc. Sent verbatim, at its own status; never routed to the
-      // SEC-005 sink below, because nothing unanticipated happened.
-      if (e instanceof ClientFacingError) {
-        sendApiError(res, statusForError(e.apiError), e.apiError);
-        return;
-      }
-      // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely
-      // the path most likely to be holding something private: a driver error naming a database
-      // file, a connection string, a credential a provider echoed back. Serializing `e.message`
-      // into the response handed all of that to the caller — and because `health.ts`'s probes are
-      // mounted ahead of the security middleware and exempted from the bearer gate, an unauthorized
-      // caller could read it too, simply by getting a readiness dependency to fail. The real error
-      // still reaches the operator through the sink, correlated to what the caller was told.
-      const correlationId = randomUUID();
-      const sink = adapter.onInternalError ?? defaultInternalErrorSink;
-      sink({ method: spec.method, path: spec.path, correlationId, error: e });
-      sendApiError(res, 500, createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
+      sendRouteException({ res, spec, adapter, error: e });
     } finally {
       res.off?.('close', onResponseClose);
     }
   });
+}
+
+function allowRouteOrigin({ req, res, spec, adapter }: {
+  readonly req: Request;
+  readonly res: Response;
+  readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'requireSameOrigin'>;
+  readonly adapter: AdapterContext | undefined;
+}, _optional: Record<string, never> = {}): boolean {
+  if (!spec.requireSameOrigin) return true;
+  if (!adapter) throw new Error('same-origin adapter context is required');
+  const origin = guardSameOrigin({ req, origin: adapter });
+  if (origin.ok) return true;
+  sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
+  return false;
+}
+
+function sendRouteResult<Output>({ res, result, spec, signal }: {
+  readonly res: Response;
+  readonly result: Result<Output>;
+  readonly spec: Pick<JsonRouteSpec<unknown, Output, unknown>, 'successStatus'>;
+  readonly signal: AbortSignal;
+}, _optional: Record<string, never> = {}): void {
+  // `signal` can only have been aborted by `onResponseClose` firing while the
+  // `await spec.handle` in the request handler was pending — nothing here runs concurrently
+  // with it — so this unambiguously means the client was already gone before any response was
+  // sent. Writing one now would be wasted work at best and, worse, would route a benign
+  // disconnect into the SEC-005 catch as a false internal error if the socket rejects the write.
+  if (signal.aborted) return;
+  if (!result.ok) {
+    sendApiError({ res, status: statusForError({ error: result.error }), error: result.error });
+    return;
+  }
+  sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
+}
+
+function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
+  readonly res: Response;
+  readonly spec: Pick<JsonRouteSpec<unknown, unknown, Deps, Context>, 'method' | 'path' | 'ports'>;
+  readonly adapter: AdapterContext | undefined;
+  readonly error: unknown;
+}, _optional: Record<string, never> = {}): void {
+  // An explicit host error port owns exception classification and serialization, including
+  // its guard rejections. Hosts without it retain the SEC-005 policy below unchanged.
+  if (spec.ports?.onError) {
+    spec.ports.onError({ res, error: e });
+    return;
+  }
+  // A route (or something it called) already classified this failure as safe to disclose —
+  // see `ClientFacingError`'s own doc. Sent verbatim, at its own status; never routed to the
+  // SEC-005 sink below, because nothing unanticipated happened.
+  if (e instanceof ClientFacingError) {
+    sendApiError({ res, status: statusForError({ error: e.apiError }), error: e.apiError });
+    return;
+  }
+  // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely
+  // the path most likely to be holding something private: a driver error naming a database
+  // file, a connection string, a credential a provider echoed back. Serializing `e.message`
+  // into the response handed all of that to the caller — and because `health.ts`'s probes are
+  // mounted ahead of the security middleware and exempted from the bearer gate, an unauthorized
+  // caller could read it too, simply by getting a readiness dependency to fail. The real error
+  // still reaches the operator through the sink, correlated to what the caller was told.
+  const correlationId = randomUUID();
+  const sink = adapter?.onInternalError ?? defaultInternalErrorSink;
+  sink({ method: spec.method, path: spec.path, correlationId, error: e });
+  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
 }

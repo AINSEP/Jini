@@ -31,13 +31,12 @@ export function VersionPromptPopover({ prompt, disabled, copied, onCopy, onOpenC
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverId = useId();
 
-  useDismissOnOutsideOrEscape(
-    () => {
+  useDismissOnOutsideOrEscape({
+    onDismiss: () => {
       setOpen(false);
       onOpenChange?.(false);
     },
-    { enabled: open, containerRef: wrapRef },
-  );
+  }, { enabled: open, containerRef: wrapRef });
 
   return (
     <div className="jini-version-prompt-popover-wrap" ref={wrapRef}>

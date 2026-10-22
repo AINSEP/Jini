@@ -1,7 +1,6 @@
 import type { ReactNode, RefObject } from 'react';
-import { ResourceBoardToolbar } from './ResourceBoardToolbar.js';
-import { ResourceCard } from './ResourceCard.js';
-import { ResourceKanbanBoard, type ResourceKanbanColumn } from './ResourceKanbanBoard.js';
+import { ResourceBoardAlerts, ResourceBoardContent, ResourceBoardViewToolbar } from './ResourceBoardViewParts.js';
+import type { ResourceKanbanColumn } from './ResourceKanbanBoard.js';
 import type { ResourceBoardItem, ResourceBoardViewMode, ResourceSortOption, ResourceStatusToneMap } from '../../types.js';
 
 export interface ResourceBoardViewProps<TBody = unknown> {
@@ -72,141 +71,14 @@ export interface ResourceBoardViewProps<TBody = unknown> {
  * state, the card grid, or the kanban board — DesignsTab's own
  * `filtered.length === 0 ? empty : view === "grid" ? grid : kanban` branch.
  */
-export function ResourceBoardView<TBody = unknown>({
-  loading,
-  error,
-  errorLabel,
-  actionError,
-  actionErrorLabel,
-  hasAnyItems,
-  items,
-  kanbanColumns,
-  sortOptions,
-  activeSort,
-  onSortChange,
-  sortAriaLabel,
-  query,
-  onQueryChange,
-  searchPlaceholder,
-  viewMode,
-  onViewModeChange,
-  viewToggleAriaLabel,
-  gridViewLabel,
-  kanbanViewLabel,
-  enableBulkDelete,
-  selectMode,
-  selected,
-  bulkDeleteBusy,
-  onEnterSelectMode,
-  onExitSelectMode,
-  onBulkDelete,
-  selectModeLabel,
-  selectedCountLabel,
-  deleteSelectedLabel,
-  cancelSelectLabel,
-  createLabel,
-  onCreate,
-  openMenuId,
-  menuContainerRef,
-  onToggleMenu,
-  onItemAction,
-  isItemBusy,
-  onOpenItem,
-  onToggleSelected,
-  onKanbanDelete,
-  statusLabel,
-  toneMap,
-  menuActionLabel,
-  moreLabel,
-  deleteLabel,
-  deleteAriaLabel,
-  emptyColumnLabel,
-  emptyStateTitle,
-  emptyStateNoMatch,
-  renderBody,
-}: ResourceBoardViewProps<TBody>) {
-  const isEmpty = !loading && !error && items.length === 0;
-
+export function ResourceBoardView<TBody = unknown>(props: ResourceBoardViewProps<TBody>) {
   return (
-    <div className={`resource-board${viewMode === 'kanban' ? ' is-kanban' : ''}`}>
-      <ResourceBoardToolbar
-        sortOptions={sortOptions}
-        {...(activeSort !== undefined ? { activeSort } : {})}
-        onSortChange={onSortChange}
-        sortAriaLabel={sortAriaLabel}
-        query={query}
-        onQueryChange={onQueryChange}
-        searchPlaceholder={searchPlaceholder}
-        viewMode={viewMode}
-        onViewModeChange={onViewModeChange}
-        viewToggleAriaLabel={viewToggleAriaLabel}
-        gridViewLabel={gridViewLabel}
-        kanbanViewLabel={kanbanViewLabel}
-        enableBulkDelete={enableBulkDelete}
-        selectMode={selectMode}
-        selectedCount={selected.size}
-        bulkDeleteBusy={bulkDeleteBusy}
-        onEnterSelectMode={onEnterSelectMode}
-        onExitSelectMode={onExitSelectMode}
-        onBulkDelete={onBulkDelete}
-        selectModeLabel={selectModeLabel}
-        selectedCountLabel={selectedCountLabel}
-        deleteSelectedLabel={deleteSelectedLabel}
-        cancelSelectLabel={cancelSelectLabel}
-        {...(createLabel !== undefined ? { createLabel } : {})}
-        {...(onCreate !== undefined ? { onCreate } : {})}
-      />
+    <div className={`resource-board${props.viewMode === 'kanban' ? ' is-kanban' : ''}`}>
+      <ResourceBoardViewToolbar {...props} />
 
-      {error ? (
-        <div className="resource-board-error" role="alert">
-          {errorLabel ?? error}
-        </div>
-      ) : null}
+      <ResourceBoardAlerts {...props} />
 
-      {actionError ? (
-        <div className="resource-board-action-error" role="alert">
-          {actionErrorLabel ?? actionError}
-        </div>
-      ) : null}
-
-      {loading ? (
-        <div className="resource-board-loading" role="status" />
-      ) : isEmpty ? (
-        <div className="resource-board-empty">{hasAnyItems ? emptyStateNoMatch : emptyStateTitle}</div>
-      ) : viewMode === 'grid' ? (
-        <div className="resource-board-grid" data-testid="resource-board-grid">
-          {items.map((item) => (
-            <ResourceCard
-              key={item.id}
-              item={item}
-              selectMode={selectMode}
-              selected={selected.has(item.id)}
-              menuOpen={openMenuId === item.id}
-              busy={isItemBusy(item.id)}
-              {...(item.status ? { statusLabel: statusLabel(item.status) } : {})}
-              {...(toneMap ? { toneMap } : {})}
-              {...(menuActionLabel ? { menuActionLabel } : {})}
-              moreLabel={moreLabel}
-              {...(menuContainerRef ? { menuContainerRef } : {})}
-              {...(renderBody ? { renderBody } : {})}
-              onOpen={() => onOpenItem(item.id)}
-              onToggleSelected={() => onToggleSelected(item.id)}
-              onToggleMenu={() => onToggleMenu(item.id)}
-              onAction={(kind) => onItemAction(item.id, kind)}
-            />
-          ))}
-        </div>
-      ) : (
-        <ResourceKanbanBoard
-          columns={kanbanColumns}
-          emptyColumnLabel={emptyColumnLabel}
-          deleteLabel={deleteLabel}
-          deleteAriaLabel={deleteAriaLabel}
-          isBusy={isItemBusy}
-          onOpen={onOpenItem}
-          {...(onKanbanDelete ? { onDelete: onKanbanDelete } : {})}
-        />
-      )}
+      <ResourceBoardContent {...props} />
     </div>
   );
 }

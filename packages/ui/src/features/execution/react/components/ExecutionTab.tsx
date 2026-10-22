@@ -1,7 +1,7 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
-import { DEFAULT_AGENT_CLI_ENV_FIELDS, DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
+import { DEFAULT_AGENT_CLI_ENV_FIELDS } from '../../constants.js';
 import type { ExecutionPort } from '../../ports.js';
 import {
   groupPresets,
@@ -31,8 +31,7 @@ export interface ExecutionTabProps {
   config: ExecutionConfig;
   onConfigChange: (config: ExecutionConfig) => void;
   port: ExecutionPort;
-  /** Endpoint catalog. Defaults to this package's small starter set — a host
-   *  with its own provider list passes it here rather than editing ours. */
+  /** Host-owned endpoint catalog. Omitted means manual endpoint entry. */
   presets?: readonly ProviderPreset[];
   /** Per-agent CLI env-var catalog (proxy URLs, custom config dirs, a
    *  binary-path override). Defaults to this package's starter set for the
@@ -113,7 +112,7 @@ export function ExecutionTab({
   config,
   onConfigChange,
   port,
-  presets = DEFAULT_PROVIDER_PRESETS,
+  presets = [],
   cliEnvFields = DEFAULT_AGENT_CLI_ENV_FIELDS,
   localCliUnavailableReason,
   renderAgentIcon,
@@ -129,24 +128,12 @@ export function ExecutionTab({
   agentHandle,
 }: ExecutionTabProps) {
   const t = useT();
-  const {
-    agents,
-    scan,
-    connectionTest,
-    modelDiscovery,
-    agentTest,
-    rescan,
-    testConnection,
-    testAgent,
-    loadModels,
-    resetModelDiscovery,
-    canRescan,
-    canTestAgent,
-  } = useExecutionTab({
+  const tab = useExecutionTab({
     port,
     autoDetect: autoDetect && config.mode === 'local-cli',
     ...(describeProbeError ? { describeProbeError } : {}),
   });
+  const { loadModels, resetModelDiscovery } = tab;
 
   const selectedPreset = resolveSelectedPreset(presets, config.byok);
 
@@ -190,18 +177,12 @@ export function ExecutionTab({
   useEffect(() => {
     if (!canDiscoverModels) resetModelDiscovery();
   }, [canDiscoverModels, resetModelDiscovery]);
-  const { protocols, gateways } = groupPresets(presets);
-  const configuredPresetIds = new Set(
-    presets.filter((preset) => isProviderConfigured(config.byok, preset)).map((preset) => preset.id),
-  );
-
-  const localCliDisabled = Boolean(localCliUnavailableReason);
+  // No "local-cli while unavailable" guard here: `ExecutionModeSwitch` renders that tab `disabled`
+  // whenever `localCliUnavailableReason` is set, and React never dispatches `onClick` for a disabled
+  // button, so `setMode('local-cli')` cannot be reached in that state.
   const setMode = (mode: ExecutionMode) => {
-    if (mode === 'local-cli' && localCliDisabled) return;
     onConfigChange(nextConfigForModeChange(config, mode));
   };
-  const selectPreset = (preset: ProviderPreset) =>
-    onConfigChange({ ...config, byok: nextConfigForPresetSelect(config.byok, preset) });
 
   const modes: ReadonlyArray<{ id: ExecutionMode; title: string; meta: string }> = [
     { id: 'local-cli', title: t('Local CLI'), meta: t('Run an agent installed on this machine') },
@@ -210,112 +191,204 @@ export function ExecutionTab({
 
   return (
     <div className="jini-settings-execution" aria-label={ariaLabel ?? t('Execution mode')}>
-      <div
-        className="jini-seg-control"
-        role="tablist"
-        aria-label={t('Execution mode')}
-        style={{ '--seg-cols': modes.length } as CSSProperties}
-      >
-        {modes.map((mode) => {
-          const disabled = mode.id === 'local-cli' && localCliDisabled;
-          return (
-            <button
-              key={mode.id}
-              type="button"
-              role="tab"
-              aria-selected={config.mode === mode.id}
-              disabled={disabled}
-              title={disabled ? localCliUnavailableReason : undefined}
-              className={'jini-seg-btn' + (config.mode === mode.id ? ' active' : '')}
-              onClick={() => setMode(mode.id)}
-              {...agentHandleProps(agentHandle, { action: `mode-${mode.id}`, role: 'button', label: mode.title })}
-            >
-              <span className="jini-seg-title">{mode.title}</span>
-              <span className="jini-seg-meta">
-                {disabled ? localCliUnavailableReason : mode.meta}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <ExecutionModeSwitch
+        modes={modes}
+        activeMode={config.mode}
+        localCliUnavailableReason={localCliUnavailableReason}
+        onSelect={setMode}
+        agentHandle={agentHandle}
+      />
 
       {config.mode === 'local-cli' ? (
-        <LocalCliAgentList
-          agents={agents}
-          config={config.localCli}
-          scan={scan}
-          agentTest={agentTest}
-          onSelect={(agentId) => onConfigChange(nextConfigForAgentSelect(config, agentId))}
-          onModelChange={(agentId, model) =>
-            onConfigChange(nextConfigForAgentModel(config, agentId, model))
-          }
-          onReasoningChange={(agentId, reasoning) =>
-            onConfigChange(nextConfigForAgentReasoning(config, agentId, reasoning))
-          }
-          onEnvChange={(agentId, envKey, value) =>
-            onConfigChange(nextConfigForAgentCliEnvChange(config, agentId, envKey, value))
-          }
+        <LocalCliPane
+          config={config}
+          onConfigChange={onConfigChange}
+          tab={tab}
           cliEnvFields={cliEnvFields}
-          onRescan={canRescan ? rescan : undefined}
-          onTest={
-            canTestAgent
-              ? (agent) => testAgent(agent.id, selectedAgentModel(config.localCli, agent) || undefined)
-              : undefined
-          }
           renderAgentIcon={renderAgentIcon}
-          scopeLabel={localCliScopeLabel}
-          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'local-cli') } : {})}
+          localCliScopeLabel={localCliScopeLabel}
+          agentHandle={agentHandle}
         />
       ) : (
-        <section className="jini-settings-section jini-settings-byok">
-          <ProviderChipGroup
-            label={t('Protocols')}
-            presets={protocols}
-            selectedPresetId={selectedPreset?.id ?? null}
-            configuredPresetIds={configuredPresetIds}
-            onSelect={selectPreset}
-            configuredLabel={t('Configured')}
-            unsetLabel={t('Not configured')}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'protocol') } : {})}
-          />
-          <ProviderChipGroup
-            label={t('Gateways')}
-            presets={gateways}
-            selectedPresetId={selectedPreset?.id ?? null}
-            configuredPresetIds={configuredPresetIds}
-            onSelect={selectPreset}
-            configuredLabel={t('Configured')}
-            unsetLabel={t('Not configured')}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'gateway') } : {})}
-          />
-          <ByokProviderForm
-            config={config.byok}
-            onConfigChange={(byok) => onConfigChange({ ...config, byok })}
-            preset={selectedPreset}
-            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'byok') } : {})}
-            // The WHOLE catalog, not the `protocols`/`gateways` halves the chip rows take: the card
-            // only reads it to recognise a pasted key as some other row's, and a key pasted from a
-            // gateway into a protocol field is exactly the mistake worth naming.
-            presets={presets}
-            modelDiscovery={modelDiscovery}
-            connectionTest={connectionTest}
-            // Also re-runs discovery with the CURRENT byok config, not just the
-            // connectivity probe — see this file's model-discovery effect above
-            // for why that matters: a stale "could not load live models" error
-            // from before this key existed (or from any earlier transient
-            // failure) would otherwise never clear, even once Test Connection
-            // itself goes green with the same config.
-            onTestConnection={() => {
-              testConnection(config.byok);
-              if (canDiscoverModels && typeof port.listModels === 'function') loadModels(config.byok);
-            }}
-            {...(apiKeyFooter !== undefined ? { apiKeyFooter } : {})}
-            {...(formFooter !== undefined ? { formFooter } : {})}
-            {...(apiKeyStoredExternally !== undefined ? { apiKeyStoredExternally } : {})}
-            {...(apiKeyPlaceholder !== undefined ? { apiKeyPlaceholder } : {})}
-          />
-        </section>
+        <ByokPane
+          config={config}
+          onConfigChange={onConfigChange}
+          presets={presets}
+          selectedPreset={selectedPreset}
+          tab={tab}
+          canDiscoverModels={canDiscoverModels}
+          canListModels={typeof port.listModels === 'function'}
+          formProps={{ apiKeyFooter, formFooter, apiKeyStoredExternally, apiKeyPlaceholder }}
+          agentHandle={agentHandle}
+        />
       )}
     </div>
   );
+}
+
+/** The Local CLI ↔ BYOK segmented control. Local CLI is disabled, with the host's reason as its
+ *  tooltip and caption, while the host says it is unavailable. */
+function ExecutionModeSwitch({ modes, activeMode, localCliUnavailableReason, onSelect, agentHandle }: {
+  modes: ReadonlyArray<{ id: ExecutionMode; title: string; meta: string }>;
+  activeMode: ExecutionMode;
+  localCliUnavailableReason: string | undefined;
+  onSelect: (mode: ExecutionMode) => void;
+  agentHandle: string | undefined;
+}) {
+  const t = useT();
+  const localCliDisabled = Boolean(localCliUnavailableReason);
+  return (
+    <div
+      className="jini-seg-control"
+      role="tablist"
+      aria-label={t('Execution mode')}
+      style={{ '--seg-cols': modes.length } as CSSProperties}
+    >
+      {modes.map((mode) => {
+        const disabled = mode.id === 'local-cli' && localCliDisabled;
+        return (
+          <button
+            key={mode.id}
+            type="button"
+            role="tab"
+            aria-selected={activeMode === mode.id}
+            disabled={disabled}
+            title={disabled ? localCliUnavailableReason : undefined}
+            className={'jini-seg-btn' + (activeMode === mode.id ? ' active' : '')}
+            onClick={() => onSelect(mode.id)}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: `mode-${mode.id}`, role: 'button', label: mode.title }) })}
+          >
+            <span className="jini-seg-title">{mode.title}</span>
+            <span className="jini-seg-meta">
+              {disabled ? localCliUnavailableReason : mode.meta}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The BYOK half of the tab: protocol and gateway chip rows over the credential card. */
+function ByokPane({
+  config, onConfigChange, presets, selectedPreset, tab, canDiscoverModels, canListModels, formProps, agentHandle,
+}: {
+  config: ExecutionConfig;
+  onConfigChange: (config: ExecutionConfig) => void;
+  presets: readonly ProviderPreset[];
+  selectedPreset: ProviderPreset | null;
+  tab: ReturnType<typeof useExecutionTab>;
+  canDiscoverModels: boolean;
+  canListModels: boolean;
+  formProps: {
+    apiKeyFooter: ReactNode;
+    formFooter: ReactNode;
+    apiKeyStoredExternally: boolean | undefined;
+    apiKeyPlaceholder: string | undefined;
+  };
+  agentHandle: string | undefined;
+}) {
+  const t = useT();
+  const { protocols, gateways } = groupPresets(presets);
+  const configuredPresetIds = new Set(
+    presets.filter((preset) => isProviderConfigured(config.byok, preset)).map((preset) => preset.id),
+  );
+  const selectPreset = (preset: ProviderPreset) =>
+    onConfigChange({ ...config, byok: nextConfigForPresetSelect(config.byok, preset) });
+  const selectedPresetId = selectedPreset?.id ?? null;
+  return (
+    <section className="jini-settings-section jini-settings-byok">
+      <ProviderChipGroup
+        label={t('Protocols')}
+        presets={protocols}
+        selectedPresetId={selectedPresetId}
+        configuredPresetIds={configuredPresetIds}
+        onSelect={selectPreset}
+        configuredLabel={t('Configured')}
+        unsetLabel={t('Not configured')}
+        {...subHandleProps(agentHandle, 'protocol')}
+      />
+      <ProviderChipGroup
+        label={t('Gateways')}
+        presets={gateways}
+        selectedPresetId={selectedPresetId}
+        configuredPresetIds={configuredPresetIds}
+        onSelect={selectPreset}
+        configuredLabel={t('Configured')}
+        unsetLabel={t('Not configured')}
+        {...subHandleProps(agentHandle, 'gateway')}
+      />
+      <ByokProviderForm
+        config={config.byok}
+        onConfigChange={(byok) => onConfigChange({ ...config, byok })}
+        preset={selectedPreset}
+        {...subHandleProps(agentHandle, 'byok')}
+        // The WHOLE catalog, not the `protocols`/`gateways` halves the chip rows take: the card
+        // only reads it to recognise a pasted key as some other row's, and a key pasted from a
+        // gateway into a protocol field is exactly the mistake worth naming.
+        presets={presets}
+        modelDiscovery={tab.modelDiscovery}
+        connectionTest={tab.connectionTest}
+        // Also re-runs discovery with the CURRENT byok config, not just the
+        // connectivity probe — see this file's model-discovery effect above
+        // for why that matters: a stale "could not load live models" error
+        // from before this key existed (or from any earlier transient
+        // failure) would otherwise never clear, even once Test Connection
+        // itself goes green with the same config.
+        onTestConnection={() => {
+          tab.testConnection(config.byok);
+          if (canDiscoverModels && canListModels) tab.loadModels(config.byok);
+        }}
+        {...(formProps.apiKeyFooter !== undefined ? { apiKeyFooter: formProps.apiKeyFooter } : {})}
+        {...(formProps.formFooter !== undefined ? { formFooter: formProps.formFooter } : {})}
+        {...(formProps.apiKeyStoredExternally !== undefined ? { apiKeyStoredExternally: formProps.apiKeyStoredExternally } : {})}
+        {...(formProps.apiKeyPlaceholder !== undefined ? { apiKeyPlaceholder: formProps.apiKeyPlaceholder } : {})}
+      />
+    </section>
+  );
+}
+
+/** The Local CLI half of the tab: detected agents, wired to the config's next-state rules. */
+function LocalCliPane({ config, onConfigChange, tab, cliEnvFields, renderAgentIcon, localCliScopeLabel, agentHandle }: {
+  config: ExecutionConfig;
+  onConfigChange: (config: ExecutionConfig) => void;
+  tab: ReturnType<typeof useExecutionTab>;
+  cliEnvFields: readonly AgentCliEnvFieldSpec[];
+  renderAgentIcon: ExecutionTabProps['renderAgentIcon'];
+  localCliScopeLabel: ExecutionTabProps['localCliScopeLabel'];
+  agentHandle: string | undefined;
+}) {
+  return (
+    <LocalCliAgentList
+      agents={tab.agents}
+      config={config.localCli}
+      scan={tab.scan}
+      agentTest={tab.agentTest}
+      onSelect={(agentId) => onConfigChange(nextConfigForAgentSelect(config, agentId))}
+      onModelChange={(agentId, model) =>
+        onConfigChange(nextConfigForAgentModel(config, agentId, model))
+      }
+      onReasoningChange={(agentId, reasoning) =>
+        onConfigChange(nextConfigForAgentReasoning(config, agentId, reasoning))
+      }
+      onEnvChange={(agentId, envKey, value) =>
+        onConfigChange(nextConfigForAgentCliEnvChange(config, agentId, envKey, value))
+      }
+      cliEnvFields={cliEnvFields}
+      onRescan={tab.canRescan ? tab.rescan : undefined}
+      onTest={
+        tab.canTestAgent
+          ? (agent) => tab.testAgent(agent.id, selectedAgentModel(config.localCli, agent) || undefined)
+          : undefined
+      }
+      renderAgentIcon={renderAgentIcon}
+      scopeLabel={localCliScopeLabel}
+      {...subHandleProps(agentHandle, 'local-cli')}
+    />
+  );
+}
+
+/** `{ agentHandle }` for a child's sub-handle under this tab's base, or nothing when no base is set. */
+function subHandleProps(agentHandle: string | undefined, action: string): { agentHandle?: string } {
+  return agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action }) } : {};
 }

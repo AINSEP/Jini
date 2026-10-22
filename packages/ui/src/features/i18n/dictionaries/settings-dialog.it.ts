@@ -16,12 +16,16 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_IT: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Ho rimosso dal messaggio ciò che sembrava una chiave. Se era reale, sostituiscila. Usa il modulo sicuro per salvarla.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Usa il modulo sicuro per salvare chiavi, token, password e segreti. Le risposte nella chat vengono inviate all’assistente.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# La mia competenza\n\n1. Spiega il flusso di lavoro.\n2. Descrivi gli input e gli output.',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'Il percorso personalizzato specificato non ha funzionato, quindi è stato usato il binario rilevato automaticamente.',
   'API key': 'Chiave API',
   'About': 'Informazioni',
   'Accent color': 'Colore di accento',
   'Account': 'Account',
+  'Advanced': 'Avanzate',
   'Advanced: proxy & custom paths': 'Avanzate: proxy e percorsi personalizzati',
   'Agent check failed': 'Verifica dell\'agente non riuscita',
   'Agent is ready.': 'L\'agente è pronto.',
@@ -65,8 +69,8 @@ export const SETTINGS_DIALOG_IT: SettingsDialogDict = {
   'Copy': 'Copia',
   'Copy to clipboard': 'Copia negli appunti',
   'Could not load live models: {message}': 'Impossibile caricare i modelli in tempo reale: {message}',
-  'No API key — connection test needs the key from this browser.': 'Nessuna chiave API — il test di connessione richiede la chiave da questo browser.',
-  'No API key — model discovery needs the key from this browser.': 'Nessuna chiave API — il rilevamento dei modelli richiede la chiave da questo browser.',
+  'No API key saved. Save one to test the connection.': 'Nessuna chiave API salvata. Salvane una per testare la connessione.',
+  'No API key saved. Save one to load models.': 'Nessuna chiave API salvata. Salvane una per caricare i modelli.',
   'Could not load skills: {error}': 'Impossibile caricare le competenze: {error}',
   'Could not reach the daemon: {error}': 'Impossibile contattare il daemon: {error}',
   'Could not reach the server. Showing local changes only.': 'Impossibile contattare il server. Vengono mostrate solo le modifiche locali.',
@@ -146,6 +150,9 @@ export const SETTINGS_DIALOG_IT: SettingsDialogDict = {
   'Not available for this daemon.': 'Non disponibile per questo daemon.',
   'Not configured': 'Non configurato',
   'Not installed': 'Non installato',
+  'Show {count} not installed': 'Mostra {count} non installati',
+  'Hide not installed': 'Nascondi non installati',
+  'Show not-installed CLIs': 'Mostra CLI non installati',
   'Not sharing': 'Nessuna condivisione',
   'Nothing is shared unless you opt in.': 'Non viene condiviso nulla a meno che tu non lo attivi.',
   'Off': 'Disattivato',

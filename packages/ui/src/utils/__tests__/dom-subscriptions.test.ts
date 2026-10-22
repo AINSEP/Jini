@@ -7,7 +7,7 @@
 // task) always defines both globally. The "with window/document stubbed"
 // block doesn't need real DOM either (it stubs its own minimal doubles via
 // `vi.stubGlobal`), so running this whole file under `node` costs nothing.
-// See `packages/ui/source-map.md`.
+// See `packages/ui/archived provenance ledger`.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getDocumentBody,

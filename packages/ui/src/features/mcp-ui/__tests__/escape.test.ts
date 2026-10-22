@@ -54,3 +54,7 @@ describe('escapeJsString', () => {
     expect(escapeJsString('a<b')).toBe(escapeJsValue('a<b'));
   });
 });
+
+it('escapes inline script delimiters and separators through the two-object contract', () => {
+  expect(escapeJsString({ value: '</script>\u2028\u2029' }, {})).toBe('"\\u003c/script>\\u2028\\u2029"');
+});

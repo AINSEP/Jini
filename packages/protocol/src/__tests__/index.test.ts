@@ -39,7 +39,7 @@ describe('@jini-ai/protocol', () => {
   });
 
   it('carries a generic ApiError without any product-specific error code', () => {
-    const error: ApiError = createApiError('VALIDATION_FAILED', 'missing field', {
+    const error: ApiError = createApiError({ code: 'VALIDATION_FAILED', message: 'missing field' }, {
       details: { field: 'name' },
       retryable: false,
     });
@@ -49,19 +49,19 @@ describe('@jini-ai/protocol', () => {
   });
 
   it('wraps an ApiError in the standard { error } response envelope', () => {
-    const error = createApiError('NOT_FOUND', 'run "run_1" was not found');
-    expect(createApiErrorResponse(error)).toEqual({ error });
+    const error = createApiError({ code: 'NOT_FOUND', message: 'run "run_1" was not found' });
+    expect(createApiErrorResponse({ error })).toEqual({ error });
   });
 
   it('tracks a run through queued -> running -> succeeded', () => {
     const run: RunStatus = { id: 'run_1', state: 'queued' };
-    expect(isTerminalRunState(run.state)).toBe(false);
+    expect(isTerminalRunState({ state: run.state })).toBe(false);
 
     const running: RunStatus = { ...run, state: 'running', startedAt: 1 };
-    expect(isTerminalRunState(running.state)).toBe(false);
+    expect(isTerminalRunState({ state: running.state })).toBe(false);
 
     const done: RunStatus = { ...running, state: 'succeeded', endedAt: 2 };
-    expect(isTerminalRunState(done.state)).toBe(true);
+    expect(isTerminalRunState({ state: done.state })).toBe(true);
   });
 
   it('models a cancellation request against a run id, not a transport detail', () => {

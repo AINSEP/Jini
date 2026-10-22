@@ -110,6 +110,8 @@
  * URL — and neither touches the single-hop `document.write` shape the section above depends on.
  */
 
+import { PROXY_LINK_FORWARDER_JS } from './sandbox-proxy-link-forwarder.js';
+
 /**
  * The sandbox proxy page's complete, self-contained source — see this module's own doc for the
  * protocol it implements and the security tradeoff serving it makes.
@@ -128,6 +130,10 @@
  * survives `document.open()` and would then apply to the guest HTML written in below, silently
  * breaking any UIResource whose HTML this package did not build. Surfaces built by
  * `surfaces/document.ts` already carry their own `SURFACE_CSP` meta tag for exactly that job.
+ *
+ * Once the guest HTML is written, the page also forwards the View's link clicks to the Host as
+ * `ui/open-link` (`sandbox-proxy-link-forwarder.ts`) — registered after `document.close()` because
+ * `document.open()` erases every listener registered before it.
  */
 export const SANDBOX_PROXY_HTML = `<!doctype html>
 <html>
@@ -148,6 +154,8 @@ export const SANDBOX_PROXY_HTML = `<!doctype html>
     return event.source === host && event.origin === hostOrigin;
   }
 
+  ${PROXY_LINK_FORWARDER_JS}
+
   window.addEventListener("message", function (event) {
     if (!isFromHost(event)) return;
     var data = event.data;
@@ -158,6 +166,7 @@ export const SANDBOX_PROXY_HTML = `<!doctype html>
     document.open();
     document.write(html);
     document.close();
+    window.addEventListener("click", forwardLinkClick);
   });
 
   host.postMessage({ method: "ui/notifications/sandbox-proxy-ready", params: {} }, hostOrigin);
@@ -222,6 +231,8 @@ export function buildIsolatedSandboxProxyHtml(hostOrigin: string): string {
     return event.source === host && event.origin === hostOrigin;
   }
 
+  ${PROXY_LINK_FORWARDER_JS}
+
   window.addEventListener("message", function (event) {
     if (!isFromHost(event)) return;
     var data = event.data;
@@ -232,6 +243,7 @@ export function buildIsolatedSandboxProxyHtml(hostOrigin: string): string {
     document.open();
     document.write(html);
     document.close();
+    window.addEventListener("click", forwardLinkClick);
   });
 
   host.postMessage({ method: "ui/notifications/sandbox-proxy-ready", params: {} }, hostOrigin);

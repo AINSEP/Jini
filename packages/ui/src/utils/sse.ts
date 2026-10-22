@@ -7,6 +7,31 @@ export type ParsedSseFrame =
   | { kind: 'comment'; comment: string }
   | { kind: 'empty' };
 
+interface SseFrameFields {
+  event: string;
+  id: string | undefined;
+  comments: string[];
+  dataLines: string[];
+}
+
+/** Fold one frame line (any trailing `\r` already stripped) into the accumulated fields. */
+function applySseLine({ fields, line }: { fields: SseFrameFields; line: string }): void {
+  if (line.startsWith(':')) {
+    fields.comments.push(line.slice(1).trimStart());
+  } else if (line.startsWith('event: ')) {
+    fields.event = line.slice(7).trim();
+  } else if (line.startsWith('id: ')) {
+    fields.id = line.slice(4).trim();
+  } else if (line.startsWith('data: ')) {
+    fields.dataLines.push(line.slice(6));
+  }
+}
+
+/** Build the result for a frame that carried no `data:` lines. */
+function dataLessFrame({ comments }: { comments: string[] }): ParsedSseFrame {
+  return comments.length > 0 ? { kind: 'comment', comment: comments.join('\n') } : { kind: 'empty' };
+}
+
 /**
  * Parse one SSE frame (the text between two `\n\n` boundaries) into its
  * `event` name, JSON-decoded `data`, and optional `id`, per the SSE wire
@@ -20,35 +45,17 @@ export type ParsedSseFrame =
  *   are present but do not parse as JSON.
  * @complexity O(n) in the frame's line count — one linear scan.
  */
-export function parseSseFrame(frame: string): ParsedSseFrame | null {
-  const lines = frame.split('\n');
-  const comments: string[] = [];
-  let event = 'message';
-  let id: string | undefined;
-  const dataLines: string[] = [];
-
-  for (const rawLine of lines) {
-    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
-    if (line.startsWith(':')) {
-      comments.push(line.slice(1).trimStart());
-    } else if (line.startsWith('event: ')) {
-      event = line.slice(7).trim();
-    } else if (line.startsWith('id: ')) {
-      id = line.slice(4).trim();
-    } else if (line.startsWith('data: ')) {
-      dataLines.push(line.slice(6));
-    }
+export function parseSseFrame({ frame }: { frame: string }): ParsedSseFrame | null {
+  const fields: SseFrameFields = { event: 'message', id: undefined, comments: [], dataLines: [] };
+  for (const rawLine of frame.split('\n')) {
+    applySseLine({ fields, line: rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine });
   }
 
-  if (dataLines.length === 0) {
-    if (comments.length > 0) {
-      return { kind: 'comment', comment: comments.join('\n') };
-    }
-    return { kind: 'empty' };
-  }
+  if (fields.dataLines.length === 0) return dataLessFrame({ comments: fields.comments });
 
+  const { event, id } = fields;
   try {
-    return { kind: 'event', event, data: JSON.parse(dataLines.join('\n')), ...(id ? { id } : {}) };
+    return { kind: 'event', event, data: JSON.parse(fields.dataLines.join('\n')), ...(id ? { id } : {}) };
   } catch {
     return null;
   }

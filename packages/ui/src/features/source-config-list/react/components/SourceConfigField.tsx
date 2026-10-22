@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import type { AgentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { sourceConfigAgentProps } from '../../agent-handles.js';
 import { maskFieldValue } from '../../rules.js';
@@ -67,6 +68,69 @@ export interface SourceConfigFieldProps {
  */
 export function SourceConfigField({ spec, value, error, disabled = false, idPrefix = 'source-config-field', agentHandle, onChange }: SourceConfigFieldProps) {
   const t = useT();
+  const { revealed, toggleRevealed, isLockedSecret } = useSecretReveal({ kind: spec.kind, value });
+  const inputId = `${idPrefix}-${spec.key}`;
+  const errorId = error ? `${inputId}-error` : undefined;
+  const fieldLabel = t(spec.label);
+  const shared: SharedControlProps = {
+    disabled,
+    'aria-invalid': Boolean(error) || undefined,
+    'aria-describedby': errorId,
+    ...sourceConfigAgentProps(agentHandle, { role: 'field', label: fieldLabel }),
+    onChange: (event) => onChange(event.target.value),
+  };
+  // Labelled by the field it reveals, not by the live "Show"/"Hide" on its face: an agent label is
+  // stable page ontology, so it must not flip every time the toggle is clicked.
+  const revealAgentProps = sourceConfigAgentProps(agentHandle, {
+    role: 'button',
+    label: t('Show or hide {label}', { label: fieldLabel }),
+    action: 'reveal',
+  });
+  const reveal: RevealToggleProps = { revealed, disabled, agentProps: revealAgentProps, onToggle: toggleRevealed };
+
+  return (
+    <label className="source-config-field" htmlFor={inputId}>
+      <span className="source-config-field-label">
+        {fieldLabel}
+        {spec.required ? (
+          <span className="source-config-field-required" aria-label={t('required')}>
+            *
+          </span>
+        ) : null}
+      </span>
+      <SourceConfigFieldControl spec={spec} value={value} inputId={inputId} shared={shared} reveal={reveal} isLockedSecret={isLockedSecret} />
+      {error ? (
+        <span id={errorId} className="source-config-field-error" role="alert">
+          {error}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+type ControlChangeEvent = ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>;
+
+/** The props every control kind shares, in the attribute order each control has always rendered them. */
+type SharedControlProps = {
+  disabled: boolean;
+  'aria-invalid': true | undefined;
+  'aria-describedby': string | undefined;
+  onChange: (event: ControlChangeEvent) => void;
+} & Partial<AgentHandleProps>;
+
+interface RevealToggleProps {
+  revealed: boolean;
+  disabled: boolean;
+  agentProps: ReturnType<typeof sourceConfigAgentProps>;
+  onToggle: () => void;
+}
+
+/**
+ * The `password`/`secret-textarea` show-hide state. The toggle is small local
+ * disclosure state (per the vertical-slice guardrail allowing that in a leaf
+ * component).
+ */
+function useSecretReveal({ kind, value }: { kind: SourceFieldSpec['kind']; value: string }) {
   const [revealed, setRevealed] = useState(false);
 
   // Whether THIS mount ever had a pre-existing secret to protect, captured
@@ -78,7 +142,7 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
   // up. A ref survives across renders without itself triggering one, so it
   // can be flipped on (below, in the empty-value effect) without disturbing
   // in-progress typing.
-  const hadStoredSecretRef = useRef(spec.kind === 'secret-textarea' && Boolean(value));
+  const hadStoredSecretRef = useRef(kind === 'secret-textarea' && Boolean(value));
 
   // Re-hide as soon as the field empties. The add form clears its values after a
   // successful submit but keeps this component mounted, so a `revealed` left on
@@ -97,131 +161,103 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
       hadStoredSecretRef.current = false;
     }
   }, [value]);
-  const inputId = `${idPrefix}-${spec.key}`;
-  const errorId = error ? `${inputId}-error` : undefined;
-  const placeholder = spec.placeholder ? t(spec.placeholder) : undefined;
+
   // Gate (mask + block direct typing) only when there is an actual stored
   // secret still un-revealed. A field with nothing to protect — first-time
   // entry, or one already cleared out — is immediately editable, no
   // "Show"/reveal click required.
-  const isLockedSecret = spec.kind === 'secret-textarea' && hadStoredSecretRef.current && !revealed;
+  const isLockedSecret = kind === 'secret-textarea' && hadStoredSecretRef.current && !revealed;
+  return { revealed, toggleRevealed: () => setRevealed((current) => !current), isLockedSecret };
+}
 
-  const fieldLabel = t(spec.label);
-  const controlAgentProps = sourceConfigAgentProps(agentHandle, { role: 'field', label: fieldLabel });
-  // Labelled by the field it reveals, not by the live "Show"/"Hide" on its face: an agent label is
-  // stable page ontology, so it must not flip every time the toggle is clicked.
-  const revealAgentProps = sourceConfigAgentProps(agentHandle, {
-    role: 'button',
-    label: t('Show or hide {label}', { label: fieldLabel }),
-    action: 'reveal',
-  });
+interface FieldControlProps {
+  spec: SourceFieldSpec;
+  value: string;
+  inputId: string;
+  shared: SharedControlProps;
+  reveal: RevealToggleProps;
+  isLockedSecret: boolean;
+}
 
+/** Picks the control for `spec.kind`: a select, a (secret-)textarea, a password input, or a plain text/url input. */
+function SourceConfigFieldControl(props: FieldControlProps) {
+  const t = useT();
+  const { spec, value, inputId, shared } = props;
+  const placeholder = spec.placeholder ? t(spec.placeholder) : undefined;
+  if (spec.kind === 'select') return <SelectControl spec={spec} value={value} inputId={inputId} shared={shared} placeholder={placeholder} />;
+  if (spec.kind === 'textarea' || spec.kind === 'secret-textarea') return <TextareaControl {...props} placeholder={placeholder} />;
+  if (spec.kind === 'password') return <PasswordControl {...props} placeholder={placeholder} />;
+  return <input id={inputId} type={spec.kind === 'url' ? 'url' : 'text'} value={value} placeholder={placeholder} {...shared} />;
+}
+
+function SelectControl({
+  spec,
+  value,
+  inputId,
+  shared,
+  placeholder,
+}: Pick<FieldControlProps, 'spec' | 'value' | 'inputId' | 'shared'> & { placeholder: string | undefined }) {
+  const t = useT();
   return (
-    <label className="source-config-field" htmlFor={inputId}>
-      <span className="source-config-field-label">
-        {fieldLabel}
-        {spec.required ? (
-          <span className="source-config-field-required" aria-label={t('required')}>
-            *
-          </span>
-        ) : null}
-      </span>
-      {spec.kind === 'select' ? (
-        <select
-          id={inputId}
-          value={value}
-          disabled={disabled}
-          aria-invalid={Boolean(error) || undefined}
-          aria-describedby={errorId}
-          {...controlAgentProps}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          <option value="" disabled hidden>
-            {placeholder ?? t('Select…')}
-          </option>
-          {(spec.options ?? []).map((option) => (
-            <option key={option.value} value={option.value}>
-              {t(option.label)}
-            </option>
-          ))}
-        </select>
-      ) : spec.kind === 'textarea' || spec.kind === 'secret-textarea' ? (
-        <span className="source-config-field-row">
-          <textarea
-            id={inputId}
-            value={isLockedSecret ? maskFieldValue(spec.kind, value) : value}
-            placeholder={placeholder}
-            // A masked textarea must not be typed into — the visible text is not
-            // the real value, so an edit would commit the mask characters.
-            // Revealing is the way in, exactly like the password field. Only
-            // applies when there is a stored secret to protect — see
-            // `isLockedSecret`.
-            readOnly={isLockedSecret}
-            disabled={disabled}
-            aria-invalid={Boolean(error) || undefined}
-            aria-describedby={errorId}
-            {...controlAgentProps}
-            onChange={(event) => onChange(event.target.value)}
-          />
-          {spec.kind === 'secret-textarea' ? (
-            <button
-              type="button"
-              className="source-config-field-toggle"
-              disabled={disabled}
-              {...revealAgentProps}
-              onClick={() => setRevealed((current) => !current)}
-              title={revealed ? t('Hide') : t('Show')}
-            >
-              {revealed ? t('Hide') : t('Show')}
-            </button>
-          ) : null}
-        </span>
-      ) : spec.kind === 'password' ? (
-        <span className="source-config-field-row">
-          <input
-            id={inputId}
-            type={revealed ? 'text' : 'password'}
-            // `new-password`, NOT `off`: Chrome deliberately ignores `off` and fills a saved site
-            // login into the first password input it finds (and the text input above it as the
-            // username). A source's credential is never the operator's own login.
-            autoComplete="new-password"
-            value={value}
-            placeholder={placeholder}
-            disabled={disabled}
-            aria-invalid={Boolean(error) || undefined}
-            aria-describedby={errorId}
-            {...controlAgentProps}
-            onChange={(event) => onChange(event.target.value)}
-          />
-          <button
-            type="button"
-            className="source-config-field-toggle"
-            disabled={disabled}
-            {...revealAgentProps}
-            onClick={() => setRevealed((current) => !current)}
-            title={revealed ? t('Hide') : t('Show')}
-          >
-            {revealed ? t('Hide') : t('Show')}
-          </button>
-        </span>
-      ) : (
-        <input
-          id={inputId}
-          type={spec.kind === 'url' ? 'url' : 'text'}
-          value={value}
-          placeholder={placeholder}
-          disabled={disabled}
-          aria-invalid={Boolean(error) || undefined}
-          aria-describedby={errorId}
-          {...controlAgentProps}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )}
-      {error ? (
-        <span id={errorId} className="source-config-field-error" role="alert">
-          {error}
-        </span>
-      ) : null}
-    </label>
+    <select id={inputId} value={value} {...shared}>
+      <option value="" disabled hidden>
+        {placeholder ?? t('Select…')}
+      </option>
+      {(spec.options ?? []).map((option) => (
+        <option key={option.value} value={option.value}>
+          {t(option.label)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TextareaControl({ spec, value, inputId, shared, reveal, isLockedSecret, placeholder }: FieldControlProps & { placeholder: string | undefined }) {
+  return (
+    <span className="source-config-field-row">
+      <textarea
+        id={inputId}
+        value={isLockedSecret ? maskFieldValue(spec.kind, value) : value}
+        placeholder={placeholder}
+        // A masked textarea must not be typed into — the visible text is not
+        // the real value, so an edit would commit the mask characters.
+        // Revealing is the way in, exactly like the password field. Only
+        // applies when there is a stored secret to protect — see
+        // `isLockedSecret`.
+        readOnly={isLockedSecret}
+        {...shared}
+      />
+      {spec.kind === 'secret-textarea' ? <RevealToggle {...reveal} /> : null}
+    </span>
+  );
+}
+
+function PasswordControl({ value, inputId, shared, reveal, placeholder }: FieldControlProps & { placeholder: string | undefined }) {
+  return (
+    <span className="source-config-field-row">
+      <input
+        id={inputId}
+        type={reveal.revealed ? 'text' : 'password'}
+        // `new-password`, NOT `off`: Chrome deliberately ignores `off` and fills a saved site
+        // login into the first password input it finds (and the text input above it as the
+        // username). A source's credential is never the operator's own login.
+        autoComplete="new-password"
+        value={value}
+        placeholder={placeholder}
+        {...shared}
+      />
+      <RevealToggle {...reveal} />
+    </span>
+  );
+}
+
+/** The `password`/`secret-textarea` Show/Hide button. */
+function RevealToggle({ revealed, disabled, agentProps, onToggle }: RevealToggleProps) {
+  const t = useT();
+  const label = revealed ? t('Hide') : t('Show');
+  return (
+    <button type="button" className="source-config-field-toggle" disabled={disabled} {...agentProps} onClick={onToggle} title={label}>
+      {label}
+    </button>
   );
 }

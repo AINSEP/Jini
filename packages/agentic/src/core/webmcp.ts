@@ -27,7 +27,7 @@
  *    tool. Neither belongs on the `ModelContextTool` dict itself, so they are not fields of
  *    {@link WebMcpToolRegistration} — they ride along on its optional `registerOptions`, computed
  *    from {@link ToWebMcpToolOptions}, so a caller has exactly one object to destructure:
- *    `modelContext.registerTool(reg, reg.registerOptions)`.
+ *    `modelContext.registerTool({ tool: reg }, reg.registerOptions)`.
  * 2. **`title`/`annotations`** — real `ModelContextTool` dict fields (`USVString title`,
  *    `ToolAnnotations annotations`), now on {@link WebMcpToolRegistration}. `annotations.readOnlyHint`
  *    defaults from {@link CapabilityDef.risk} (`'read'` → `true`) since Jini's manifests already
@@ -69,7 +69,7 @@ export interface WebMcpToolRegistration {
    * `ModelContextRegisterToolOptions`, not part of the `ModelContextTool` dict this object
    * otherwise models. Present only when `options.signal` or `options.exposedTo` was supplied.
    * Bundled here rather than returned as a second value so `toWebMcpTool`'s output stays a single
-   * object a caller can pass straight through: `modelContext.registerTool(reg, reg.registerOptions)`.
+   * object a caller can pass straight through: `modelContext.registerTool({ tool: reg }, reg.registerOptions)`.
    */
   readonly registerOptions?: WebMcpRegisterToolOptions;
 }
@@ -151,12 +151,16 @@ export interface ToWebMcpToolOptions {
 
 /** Thrown in place of executing, when a call needed confirmation and did not get it. */
 export class WebMcpConfirmationRequiredError extends Error {
-  constructor(readonly capabilityId: string, readonly reason: 'declined' | 'no-handler') {
+  readonly capabilityId: string;
+  readonly reason: 'declined' | 'no-handler';
+  constructor({ capabilityId, reason }: { capabilityId: string; reason: 'declined' | 'no-handler' }, _optional: Record<string, never> = {}) {
     super(
       reason === 'declined'
         ? `WebMCP: "${capabilityId}" was declined by the user`
         : `WebMCP: "${capabilityId}" requires confirmation, but no requestUserInteraction handler was supplied`,
     );
+    this.capabilityId = capabilityId;
+    this.reason = reason;
     this.name = 'WebMcpConfirmationRequiredError';
   }
 }
@@ -170,7 +174,7 @@ export class WebMcpConfirmationRequiredError extends Error {
 const WEBMCP_TOOL_NAME_PATTERN = /^[A-Za-z0-9_.-]{1,128}$/;
 
 /** Whether `name` satisfies the spec's tool-name rule. Exported so a caller can pre-check a manifest without registering anything. */
-export function isValidWebMcpToolName(name: string): boolean {
+export function isValidWebMcpToolName({ name }: { name: string }, _optional: Record<string, never> = {}): boolean {
   return WEBMCP_TOOL_NAME_PATTERN.test(name);
 }
 
@@ -180,12 +184,14 @@ export function isValidWebMcpToolName(name: string): boolean {
  * defect caught before any registration is attempted, not a runtime refusal of a call.
  */
 export class InvalidWebMcpToolNameError extends Error {
-  constructor(readonly capabilityId: string) {
+  readonly capabilityId: string;
+  constructor({ capabilityId }: { capabilityId: string }, _optional: Record<string, never> = {}) {
     super(
       `WebMCP: capability id "${capabilityId}" is not a valid tool name — the spec requires 1-128 `
       + 'ASCII alphanumeric characters plus "_", "-", "." '
       + '(https://webmachinelearning.github.io/webmcp/#dom-modelcontext-registertool)',
     );
+    this.capabilityId = capabilityId;
     this.name = 'InvalidWebMcpToolNameError';
   }
 }
@@ -204,7 +210,7 @@ export class InvalidWebMcpToolNameError extends Error {
  * capability reaching the page with nothing in front of it — not the authorization gap.
  *
  * @param capability - The capability to expose.
- * @param execute - Runs the capability. Receives the raw argument object, already checked against
+ * @param execute - Runs the capability. Receives `{ id, args }`, with args already checked against
  * `capability.inputSchema` — a caller-supplied value that fails validation never reaches this.
  * @param options - Optional confirmation handler, title/annotations, and registration options
  * (`signal`/`exposedTo`); required in practice for any capability declaring `requiresConfirmation`.
@@ -214,13 +220,10 @@ export class InvalidWebMcpToolNameError extends Error {
  * @throws {@link WebMcpConfirmationRequiredError} from `execute`, when confirmation is required
  * and is either declined or unobtainable.
  */
-export function toWebMcpTool(
-  capability: CapabilityDef,
-  execute: (id: string, args: Record<string, unknown>) => Promise<unknown>,
-  options: ToWebMcpToolOptions = {},
+export function toWebMcpTool({ capability, execute }: { capability: CapabilityDef; execute: (required: { id: string; args: Record<string, unknown> }) => Promise<unknown> }, options: ToWebMcpToolOptions = {}
 ): WebMcpToolRegistration {
-  if (!isValidWebMcpToolName(capability.id)) {
-    throw new InvalidWebMcpToolNameError(capability.id);
+  if (!isValidWebMcpToolName({ name: capability.id })) {
+    throw new InvalidWebMcpToolNameError({ capabilityId: capability.id });
   }
   const { title, annotations, signal, exposedTo } = options;
   const resolvedAnnotations: WebMcpToolAnnotations = {
@@ -243,7 +246,7 @@ export function toWebMcpTool(
       // Schema-on-error, matching page-executor.ts's discipline for page.* — WebMCP defines no
       // input validation of its own, so a wrong-schema call would otherwise reach `execute` (or a
       // confirmation prompt for one) with bad arguments instead of a same-turn correctable error.
-      const inputError = findCapabilityInputError(capability, input);
+      const inputError = findCapabilityInputError({ capability, input });
       if (inputError !== null) {
         throw new Error(`${capability.id}: ${inputError}. Expected input: ${JSON.stringify(capability.inputSchema)}`);
       }
@@ -251,14 +254,14 @@ export function toWebMcpTool(
       if (capability.requiresConfirmation === true) {
         const { requestUserInteraction } = options;
         if (!requestUserInteraction) {
-          throw new WebMcpConfirmationRequiredError(capability.id, 'no-handler');
+          throw new WebMcpConfirmationRequiredError({ capabilityId: capability.id, reason: 'no-handler' });
         }
         const approved = await requestUserInteraction({ capability, args: input });
         if (approved !== true) {
-          throw new WebMcpConfirmationRequiredError(capability.id, 'declined');
+          throw new WebMcpConfirmationRequiredError({ capabilityId: capability.id, reason: 'declined' });
         }
       }
-      return execute(capability.id, input);
+      return execute({ id: capability.id, args: input });
     },
     annotations: resolvedAnnotations,
     ...(registerOptions !== undefined ? { registerOptions } : {}),
@@ -279,10 +282,7 @@ export function toWebMcpTool(
  * @throws {@link InvalidWebMcpToolNameError} synchronously, for the first capability whose `id`
  * cannot be a WebMCP tool name.
  */
-export function toWebMcpTools(
-  capabilities: readonly CapabilityDef[],
-  execute: (id: string, args: Record<string, unknown>) => Promise<unknown>,
-  options: ToWebMcpToolOptions = {},
+export function toWebMcpTools({ capabilities, execute }: { capabilities: readonly CapabilityDef[]; execute: (required: { id: string; args: Record<string, unknown> }) => Promise<unknown> }, options: ToWebMcpToolOptions = {}
 ): readonly WebMcpToolRegistration[] {
-  return capabilities.map((capability) => toWebMcpTool(capability, execute, options));
+  return capabilities.map((capability) => toWebMcpTool({ capability, execute }, options));
 }

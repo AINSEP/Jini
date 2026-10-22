@@ -8,7 +8,8 @@
  * call (`getManifest()` override) — simple and correct for the entry counts a
  * registry realistically holds; `publish`/`yank` write straight to the table.
  */
-import type Database from 'better-sqlite3';
+import type { Clock } from '@jini-ai/core/primitives';
+import type { RegistryDatabasePort } from './ports.js';
 import {
   RegistryEntrySchema,
   type RegistryEntry,
@@ -21,12 +22,11 @@ import {
 import { assertValidPublishRequest, StaticRegistryBackend } from './static-backend.js';
 import type { RegistryTrustRoot } from './trust.js';
 
-type SqliteDb = Database.Database;
+type SqliteDb = RegistryDatabasePort;
 
 export interface DatabaseRegistryBackendOptions {
-  id: string;
   trust?: RegistryTrust;
-  db: SqliteDb;
+  clock?: Clock;
   /** Optional `github-oidc` signature trust root — see `StaticRegistryBackendOptions.trustRoot`'s doc comment for what configuring (or omitting) this does. */
   trustRoot?: RegistryTrustRoot | undefined;
 }
@@ -34,26 +34,24 @@ export interface DatabaseRegistryBackendOptions {
 export class DatabaseRegistryBackend extends StaticRegistryBackend {
   readonly db: SqliteDb;
 
-  constructor(options: DatabaseRegistryBackendOptions) {
-    ensureRegistryTables(options.db);
+  constructor(required: { id: string; db: SqliteDb }, options: DatabaseRegistryBackendOptions = {}) {
+    ensureRegistryTables({ db: required.db });
     super({
-      id: options.id,
-      kind: 'db',
+      id: required.id,
       trust: options.trust ?? 'restricted',
-      manifest: manifestFromDb(options.db, options.id),
-      trustRoot: options.trustRoot,
-    });
-    this.db = options.db;
+      manifest: manifestFromDb(required.db, required.id),
+    }, { kind: 'db', trustRoot: options.trustRoot, ...(options.clock ? { clock: options.clock } : {}) });
+    this.db = required.db;
   }
 
-  async publish(request: RegistryPublishRequest): Promise<RegistryPublishOutcome> {
+  async publish(required: Pick<RegistryPublishRequest, 'entry'>, optional: Omit<RegistryPublishRequest, 'entry'> = {}): Promise<RegistryPublishOutcome> {
     // Validate the whole request against the wire schema before writing
     // anything: `manifestFromDb()`/`parseStoredEntry()` throw on read for
     // any row that fails `RegistryEntrySchema`, so an unvalidated publish
     // could write a row that permanently breaks every future
     // `list`/`search`/`resolve`/`doctor` call for this backend (see CR-009 /
     // `assertValidPublishRequest`'s docs in `static-backend.ts`).
-    const parsed = assertValidPublishRequest(request);
+    const parsed = assertValidPublishRequest(required, optional);
     const [vendor, name] = parsed.entry.name.split('/');
     const changedFiles = [
       `db://${this.id}/entries/${vendor}/${name}`,
@@ -64,11 +62,11 @@ export class DatabaseRegistryBackend extends StaticRegistryBackend {
     if (parsed.dryRun) {
       return { ok: true, dryRun: true, changedFiles, warnings: [] };
     }
-    upsertRegistryEntry(this.db, this.id, parsed.entry);
+    upsertRegistryEntry({ db: this.db, backendId: this.id, entry: parsed.entry }, { now: this.clock.nowMs() });
     return { ok: true, dryRun: false, changedFiles, warnings: [] };
   }
 
-  async yank(name: string, version: string, reason: string): Promise<RegistryYankOutcome> {
+  async yank({ name, version, reason }: { name: string; version: string; reason: string }): Promise<RegistryYankOutcome> {
     // Read-then-write: run as a single `IMMEDIATE` transaction rather than
     // two separate auto-committing statements. Two bare statements leave a
     // window — between the SELECT and the later UPSERT — where a concurrent
@@ -96,13 +94,13 @@ export class DatabaseRegistryBackend extends StaticRegistryBackend {
         return { ok: false, name, version, reason, warnings: [`${name}@${version} not found`] };
       }
       const nextVersions = versions.map((item) =>
-        item.version === version ? { ...item, yanked: true, yankedAt: new Date().toISOString(), yankReason: reason } : item,
+        item.version === version ? { ...item, yanked: true, yankedAt: new Date(this.clock.nowMs()).toISOString(), yankReason: reason } : item,
       );
-      upsertRegistryEntry(this.db, this.id, {
+      upsertRegistryEntry({ db: this.db, backendId: this.id, entry: {
         ...entry,
         versions: nextVersions,
-        ...(entry.version === version ? { yanked: true, yankedAt: new Date().toISOString(), yankReason: reason } : {}),
-      });
+        ...(entry.version === version ? { yanked: true, yankedAt: new Date(this.clock.nowMs()).toISOString(), yankReason: reason } : {}),
+      } }, { now: this.clock.nowMs() });
       return { ok: true, name, version, reason, warnings: [] };
     });
     return runYank.immediate();
@@ -118,7 +116,7 @@ export class DatabaseRegistryBackend extends StaticRegistryBackend {
  *
  * @param db - The sqlite connection to migrate.
  */
-export function ensureRegistryTables(db: SqliteDb): void {
+export function ensureRegistryTables({ db }: { db: SqliteDb }): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS registry_entries (
       backend_id TEXT NOT NULL,
@@ -139,7 +137,10 @@ export function ensureRegistryTables(db: SqliteDb): void {
  * @param entry - The entry to store (serialized as JSON).
  * @param now - Timestamp to record as `updated_at` (defaults to `Date.now()`).
  */
-export function upsertRegistryEntry(db: SqliteDb, backendId: string, entry: RegistryEntry, now = Date.now()): void {
+export function upsertRegistryEntry(
+  { db, backendId, entry }: { db: SqliteDb; backendId: string; entry: RegistryEntry },
+  { now = Date.now() }: { now?: number } = {},
+): void {
   db.prepare(`
     INSERT INTO registry_entries (backend_id, name, version, entry_json, updated_at)
     VALUES (?, ?, ?, ?, ?)

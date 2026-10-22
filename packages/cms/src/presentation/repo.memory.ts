@@ -3,11 +3,12 @@ import type { PresentationSettingsRecord, PresentationSettingsRepoPort } from ".
 export class InMemoryPresentationSettingsRepo implements PresentationSettingsRepoPort {
   private rows: PresentationSettingsRecord[];
 
-  constructor(initialRows: PresentationSettingsRecord[] = []) {
+  constructor(requiredArgs: Record<string, never>, optionalArgs: { initialRows?: PresentationSettingsRecord[] } = {}) {
+    const { initialRows = [] } = optionalArgs;
     this.rows = [...initialRows];
   }
 
-  async findByWorkspaceId(workspaceId: string): Promise<PresentationSettingsRecord | null> {
+  async findByWorkspaceId({ workspaceId }: { workspaceId: string }): Promise<PresentationSettingsRecord | null> {
     return this.rows.find((row) => row.workspaceId === workspaceId) ?? null;
   }
 

@@ -8,7 +8,7 @@
  * chrome. `SettingsDialogShell` now composes this module and supplies its own
  * settings-flavoured label defaults (`t('Settings')`, `t('Settings sections')`, …) — see
  * that component's doc comment. Original provenance: `SettingsDialog.tsx` (8,538 lines) in
- * the vendored OD reference tree — see `packages/ui/source-map.md`.
+ * the vendored OD reference tree — see `packages/ui/archived provenance ledger`.
  *
  * Only the dialog SHELL (sidebar nav + active-panel switching + modal chrome) is modeled
  * here; a host supplies its own tabs as tab entries.

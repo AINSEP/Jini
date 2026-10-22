@@ -32,46 +32,50 @@ import { ToolInputError } from "@jini-ai/core";
  */
 
 export class ForbiddenError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor({ message }: { message: string }, _optional: Record<string, never> = {}) {
+    super({ message });
     this.name = "ForbiddenError";
   }
 }
 
-/** CIC U-002-B1 guard 1 — `key`/field-name grammar gate `^[a-z][a-z0-9_]{0,63}$` (U-001-B2). */
+/** guard 1 — `key`/field-name grammar gate `^[a-z][a-z0-9_]{0,63}$`. See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class InvalidKeyGrammarError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "InvalidKeyGrammarError";
   }
 }
 
-/** CIC U-002-B1 guard 2 — `key` is one of the permanently reserved legacy `posts` keys. */
+/** guard 2 — `key` is one of the permanently reserved legacy `posts` keys. See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class ReservedContentTypeKeyError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "ReservedContentTypeKeyError";
   }
 }
 
-/** CIC U-002-B1 guard 3 — a field name fails the identifier grammar gate. */
+/** guard 3 — a field name fails the identifier grammar gate. See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class InvalidFieldNameGrammarError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "InvalidFieldNameGrammarError";
   }
 }
 
-/** CIC U-001-B1 / U-002-B1 guard 4 — a field `kind` is not one of the closed field-kind enum. */
+/** guard 4 — a field `kind` is not one of the closed field-kind enum. See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class InvalidFieldKindError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "InvalidFieldKindError";
   }
 }
 
 /**
- * CIC U-002-B1 guard 4b — a field declares a STORAGE-ONLY `kind` (`json`) together with
+ * guard 4b — a field declares a STORAGE-ONLY `kind` (`json`) together with
  * `queryable: true`. The kind itself is legal and the field may be declared and written; what is
  * rejected is the pairing, because a storage-only kind has no `CAST` target and therefore no index
  * to provision.
@@ -84,10 +88,12 @@ export class InvalidFieldKindError extends ToolInputError {
  * `400 VALIDATION_ERROR` with no coordinated change, and the relationship is honest — this IS a
  * rejection of the field's kind, in the context the kind was used. `.name` still distinguishes it
  * for any caller that wants the finer signal.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 export class StorageOnlyFieldNotQueryableError extends InvalidFieldKindError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "StorageOnlyFieldNotQueryableError";
   }
 }
@@ -97,7 +103,7 @@ export class StorageOnlyFieldNotQueryableError extends InvalidFieldKindError {
  * shape the `ContentTypeFieldDef[]` contract does not describe at all (a non-array, a non-object
  * element, a missing/mistyped `name`/`required`/`queryable`, or an unrecognized key).
  *
- * Distinct from the five CIC U-002-B1 guard errors on purpose: those judge a well-formed field
+ * Distinct from the five guard errors on purpose: those judge a well-formed field
  * definition against a domain rule, and they remain the sole owners of the grammar, kind-enum and
  * queryable-cap decisions. This one fires strictly earlier, at the untrusted-input boundary
  * (`field-defs.ts`), for payloads the guards could not have judged without either crashing or
@@ -105,37 +111,41 @@ export class StorageOnlyFieldNotQueryableError extends InvalidFieldKindError {
  *
  * `violation.received` names the offending value's TYPE, never the value — a field payload can
  * carry operator content, and this message reaches both an HTTP client and a model.
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 export class InvalidFieldShapeError extends ToolInputError {
   readonly code = "VALIDATION_ERROR" as const;
   readonly violation: { path: string; expected: string; received: string };
 
   constructor(violation: { path: string; expected: string; received: string }) {
-    super(`${violation.path} must be ${violation.expected}, received ${violation.received}`);
+    super({ message: `${violation.path} must be ${violation.expected}, received ${violation.received}` });
     this.name = "InvalidFieldShapeError";
     this.violation = violation;
   }
 }
 
-/** CIC U-002-B1 guard 5 — more than the per-type cap of `queryable` fields were submitted. */
+/** guard 5 — more than the per-type cap of `queryable` fields were submitted. See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class QueryableFieldCapExceededError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "QueryableFieldCapExceededError";
   }
 }
 
-/** CIC U-004-B1 — `expectedVersion` did not match the current row's version (OCC conflict). */
+/** — `expectedVersion` did not match the current row's version (OCC conflict). See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class VersionConflictError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "VersionConflictError";
   }
 }
 
 export class ContentTypeNotFoundError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "CONTENT_TYPE_NOT_FOUND";
   }
 }
@@ -144,19 +154,22 @@ export class ContentTypeNotFoundError extends ToolInputError {
  * Row 7 (web-high fix plan, 2026-09-24) — `registerContentType` loaded no existing row before
  * saving, so two concurrent first-widget creates (or a caller retrying an existing key) could
  * silently overwrite the current fields, and registering a tombstoned key could resurrect it
- * (INV-06 forbids any transition out of tombstone, including via a fresh register). Thrown when
+ * ( forbids any transition out of tombstone, including via a fresh register). Thrown when
  * `deps.repo.findByKey` already returns a row for the key, whether that row is active/deprecated
  * or tombstoned — `tombstoned` distinguishes the two so a caller/HTTP route can give the right
  * guidance (retry with update-fields, vs. the key is permanently gone).
+ * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
 export class ContentTypeAlreadyExistsError extends ToolInputError {
   readonly tombstoned: boolean;
 
-  constructor(key: string, tombstoned: boolean) {
+  constructor(requiredArgs: { key: string; tombstoned: boolean }, optionalArgs: Record<string, never> = {}) {
+    const { key, tombstoned } = requiredArgs;
     super(
-      tombstoned
-        ? `content type '${key}' was permanently deleted; its key can't be reused (INV-06)`
-        : `content type '${key}' already exists; use collections_content_type_update_fields to change its fields`
+      { message: tombstoned
+        // See docs/decisions/DR-001-safe-schema-and-index-transitions.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
+        ? `content type '${key}' was permanently deleted; its key can't be reused`
+        : `content type '${key}' already exists; use collections_content_type_update_fields to change its fields` }
     );
     this.name = "ContentTypeAlreadyExistsError";
     this.tombstoned = tombstoned;
@@ -168,26 +181,30 @@ export class ValidationError extends ToolInputError {
   readonly code = "VALIDATION_ERROR" as const;
   readonly details: { reason: string };
 
-  constructor(message: string, reason: string) {
-    super(message);
+  constructor(requiredArgs: { message: string; reason: string }, optionalArgs: Record<string, never> = {}) {
+    const { message, reason } = requiredArgs;
+    super({ message: message });
     this.name = "VALIDATION_ERROR";
     this.details = { reason };
   }
 }
 
-/** REQ-09..12 lifecycle state-machine guard rejection (INV-06 terminal-tombstone, EC-09 deprecate-first). */
+/**..12 lifecycle state-machine guard rejection ( terminal-tombstone, deprecate-first). See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class ContentTypeLifecycleError extends ToolInputError {
-  constructor(message: string) {
-    super(message);
+  constructor(requiredArgs: { message: string }, optionalArgs: Record<string, never> = {}) {
+    const { message } = requiredArgs;
+    super({ message: message });
     this.name = "ContentTypeLifecycleError";
   }
 }
 
-/** REQ-20 `planCleanup` eligibility-gate rejection; `reason` is one of a closed, ordered set. */
+/** `planCleanup` eligibility-gate rejection; `reason` is one of a closed, ordered set. See docs/decisions/DR-001-safe-schema-and-index-transitions.md. */
 export class CleanupNotEligibleError extends Error {
   readonly reason: string;
 
-  constructor(reason: string, message?: string) {
+  constructor(requiredArgs: { reason: string }, optionalArgs: { message?: string } = {}) {
+    const { reason } = requiredArgs;
+    const { message } = optionalArgs;
     super(message ?? `cleanup is not eligible: ${reason}`);
     this.name = "CleanupNotEligibleError";
     this.reason = reason;

@@ -41,6 +41,27 @@ export interface UseProjectLocationsTabResult {
   setDefaultLocationId: (id: string) => void;
 }
 
+/** Scan a saved location; disposed callers cannot publish success or failure. */
+export async function scanAddedLocation(
+  { port, alive, setResult }: {
+    port: ProjectLocationsPort;
+    alive: { readonly current: boolean };
+    setResult: (result: ProjectLocationsActionResult) => void;
+  },
+  _options = {},
+): Promise<void> {
+  const scan = port.scanLocations;
+  if (!scan) return;
+  try {
+    const scanResult = await scan.call(port);
+    if (!alive.current) return;
+    setResult({ status: 'scan-complete', imported: scanResult.imported.length, existing: scanResult.existing.length });
+  } catch (error: unknown) {
+    if (!alive.current) return;
+    setResult({ status: 'scan-error', message: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 /**
  * Owns the tab's async edges: the initial locations fetch, the add-folder ->
  * duplicate-check -> save -> (optional) scan sequence, and removal. Origin:
@@ -103,10 +124,7 @@ export function useProjectLocationsTab({
   }, [port]);
 
   const persist = useCallback(async (nextDrafts: readonly ProjectLocationDraft[]): Promise<readonly ProjectLocation[] | null> => {
-    setSaving(true);
-    try {
-      const saved = await portRef.current.saveLocations(saveableDrafts(nextDrafts));
-      if (!alive.current) return null;
+    const applySaved = (saved: readonly ProjectLocation[]): readonly ProjectLocation[] => {
       setLocations(saved);
       setDrafts(externalLocations(saved));
       setResult({ status: 'saved' });
@@ -117,13 +135,20 @@ export function useProjectLocationsTab({
       const effective = resolveDefaultLocationId(configured, saved);
       if (effective !== configured) onDefaultLocationIdChangeRef.current?.(effective);
       return saved;
+    };
+    setSaving(true);
+    // One return after the try statement (null unless a still-mounted save succeeded), so no
+    // unreachable continuation follows a try and a catch that both return.
+    let persisted: readonly ProjectLocation[] | null = null;
+    try {
+      const saved = await portRef.current.saveLocations(saveableDrafts(nextDrafts));
+      if (alive.current) persisted = applySaved(saved);
     } catch (error: unknown) {
-      if (!alive.current) return null;
-      setResult({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
-      return null;
+      if (alive.current) setResult({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
     } finally {
       if (alive.current) setSaving(false);
     }
+    return persisted;
   }, []);
 
   const addFolder = useCallback(() => {
@@ -151,16 +176,7 @@ export function useProjectLocationsTab({
         if (alive.current) setDrafts(previous);
         return;
       }
-      const scan = portRef.current.scanLocations;
-      if (!scan) return;
-      try {
-        const scanResult = await scan.call(portRef.current);
-        if (!alive.current) return;
-        setResult({ status: 'scan-complete', imported: scanResult.imported.length, existing: scanResult.existing.length });
-      } catch (error: unknown) {
-        if (!alive.current) return;
-        setResult({ status: 'scan-error', message: error instanceof Error ? error.message : String(error) });
-      }
+      await scanAddedLocation({ port: portRef.current, alive, setResult });
     })();
   }, [persist]);
 

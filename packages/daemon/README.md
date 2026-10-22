@@ -9,6 +9,9 @@ running process: a `RunLifecycle` you can `start`/`emit`/`cancel`/`resume`/`stre
 `ToolExecutor` that is the *only* thing allowed to invoke a registered tool's handler, and an
 `AgentExecutor` that spawns and streams a real agent CLI into that lifecycle.
 
+Package `typecheck` and `build` compile source and tests together; runtime test execution remains a separate command.
+Packed-consumer fixtures are local to this package. PostgreSQL test declarations come from the development dependency `@types/pg`.
+
 ## Install
 
 ```sh
@@ -26,11 +29,11 @@ spawn — needs `node-pty` installed; everything else has no native-addon depend
   (`start`/`get`/`list`/`cancel`/`onCancelRequested`/`emit`/`finish`/`resume`/`waitForTerminal`/
   `stream`/`rehydrate`), keyed on an opaque `contextRef`, backed by an injected `EventLog`.
 - **Event log** — `createInMemoryEventLog`, the reference `EventLog` implementation (the port
-  types themselves live in `@jini-ai/protocol` so a storage adapter like `@jini-ai/sqlite` can
+  types themselves live in `@jini-ai/protocol` so a storage adapter like `@jini-ai/daemon/store/event-log/sqlite` can
   implement them without depending on this package).
 - **Tool-execution boundary** — `createToolExecutor`, the `ToolExecutor` interface
   (`execute`/`resumeConfirmation`/`cancel`/`getAuditRecord`). It is the sole caller of
-  `@jini-ai/core/internal`'s `authorizeToolInvocation` — routes and agents only ever see
+  `@jini-ai/core/composition`'s `authorizeToolInvocation` — routes and agents only ever see
   `ToolRegistry` descriptors, never a handler, and this is the one path that can run one, gated by
   an injected `ExecutionDelegate` (authorize/confirm) with a resumable confirmation flow.
 - **Agent executor** — `createAgentExecutor`, `AgentExecutorError` — wires
@@ -62,20 +65,20 @@ spawn — needs `node-pty` installed; everything else has no native-addon depend
 import { createToolRegistry } from '@jini-ai/core';
 import { createInMemoryEventLog, createRunLifecycle, createToolExecutor } from '@jini-ai/daemon';
 
-const eventLog = createInMemoryEventLog();
+const eventLog = createInMemoryEventLog({});
 const lifecycle = createRunLifecycle({ eventLog });
-const registry = createToolRegistry();
+const registry = createToolRegistry({});
 const executor = createToolExecutor({ registry });
 
 const { run } = await lifecycle.start({ contextRef: 'workspace-42' });
-await lifecycle.emit(run.id, { event: 'stdout', data: { chunk: 'hello' } });
-await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null });
+await lifecycle.emit({ runId: run.id, input: { event: 'stdout', data: { chunk: 'hello' } } });
+await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
 ```
 
 ## What's swappable
 
 `EventLog` and `RunLifecycle` are consumed as ports — this package ships the reference in-memory
-implementations, but a host wires `@jini-ai/sqlite`'s durable `EventLog` for persistence, or its
+implementations, but a host wires `@jini-ai/daemon/store/event-log/sqlite`'s durable `EventLog` for persistence, or its
 own `RunLifecycle`, as long as it satisfies the same `@jini-ai/protocol`/interface shapes.
 `ExecutionDelegate` (authorize/confirm UI) is a transport-supplied seam on `createToolExecutor` —
 omit it for a headless caller. `PtySpawn` (terminal sessions) and `RoutineStore` (routine
@@ -89,4 +92,43 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and scope decisions. Apache-2.0.
+See the archived provenance ledger for per-file provenance and scope decisions. Apache-2.0.
+
+## Storage concern subpaths
+
+The root remains driver-free. `./store/event-log/sqlite` exports the unchanged cursor/dedupe/replay
+adapter. `createSqliteEventLog({ db }, { maxEntriesPerRun, clock })` borrows the host handle, ensures
+its dedicated schema idempotently, never changes pragmas, and has a harmless `close({})`.
+`openSqliteEventLog({ file, open }, options)` owns a host-acquired handle, sets WAL, cleans up failed
+setup, and closes once. Owned acquisition uses only `openSqliteEventLog`; borrowed creation takes `{ db }`. No ambient driver is loaded.
+
+`./store/agent-sessions` exports `AgentSessionStore`, `AgentSessionStoreError` and
+`createInMemoryAgentSessionStore`. `./store/agent-sessions/{sqlite,pglite,postgres}` export the named
+`createSqliteAgentSessionStore`, `createPgliteAgentSessionStore` and `createPostgresAgentSessionStore`
+factories with `{ kernel }` plus optional `{ clock }` (`Clock.nowMs()` from core, defaulting to system wall time). They borrow an already-migrated kernel, join its
+transactions, and use the unchanged `assistant_agent_sessions` mapping. PGlite supports embedded
+and owner-socket kernels. Extra host tables are accepted. No schema/bootstrap/pragma/close occurs
+at construction. SQL failures retain a cause under `AgentSessionStoreError({ code: 'unavailable' })`.
+
+The SQLite entry also preserves rich legacy `agent_sessions` functions and exports
+`LEGACY_AGENT_SESSIONS_DDL`. These records include hashes/model/cwd/message cursors and belong to
+the local legacy model; they are separate from the simple session-id port.
+
+Database/Kysely/drivers are optional peers and are needed only by the selected concern. Hosts import
+and inject their own drivers. Real Postgres session tests require `JINI_DAEMON_TEST_POSTGRES_URL`
+targeting a disposable `jini_daemon_test_*` database; `pnpm run test:postgres` fails when it is unavailable.
+
+## Design decisions
+
+- [Remote tool execution records into the owning run](docs/decisions/DR-001-remote-tool-event-recording.md).
+
+- [Agent subprocess environment is an explicit allowlist](docs/decisions/DR-002-explicit-subprocess-environment.md).
+
+## Optional HTTP surface
+
+`@jini-ai/daemon/http` exports daemon route packs, attachment storage, frontend control,
+workspace-root resolution and the live route manifest. Install `@jini-ai/http-kit` and
+`express` only when using this entry. `@jini-ai/daemon/read-only-tools` owns the fail-closed
+execution gate; compose it around the bare executor, beneath recovery decorators, since an
+outer wrapper cannot intercept references those decorators already hold.
+See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) for route, credential, audit, surface and session contracts.

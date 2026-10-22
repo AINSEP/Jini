@@ -13,17 +13,19 @@
  *
  * `BlobStorePort`'s surface is deliberately narrower than the full
  * design: no `capabilities()`/`createPresignedUpload()` (the presign surface is
- * explicitly deferred by this task's scope). It has one method beyond the
- * task's stated minimal 3 (`put`/`get`/`exists`): `remove()`. That addition is
+ * explicitly deferred by this task's scope). It extends the original minimal
+ * 3 (`put`/`get`/`exists`) with `remove()`. That addition is
  * necessary to implement `purgeMedia`'s explicitly-requested "best-effort blob
  * unlink" (see `media-service.ts`) — without a way to delete bytes, purge could
  * only ever delete rows, never reclaim storage. This is disclosed here, not
  * silently smuggled in: it is still far short of the real journaled
  * GC protocol (no epochs, no `BEGIN IMMEDIATE`, no crash-safety guarantee).
+ * `putIfAbsent` adds atomic create-only writes; optional `sizeOf` reports original bytes
+ * without reading payloads (successful filesystem sizes are cached by content-addressed key).
  *
  * Interfaces only — no feature logic.
  */
-import type { UUID } from "../core/ports.js";
+import type { UUID } from "@jini-ai/core/primitives";
 import type { AssetBlobRecord, AssetRenditionRecord, BlobGcJournalEntry, MediaRecord } from "./types.js";
 import type { TransformDefinitionRecord } from "./transform-types.js";
 
@@ -43,13 +45,15 @@ export interface AssetBlobRepoPort {
   findByHash(required: { workspaceId: UUID; sha256: string }): Promise<AssetBlobRecord | null>;
   /** All blob rows in a workspace — used by `blob-gc.ts`'s batch cycle to find tombstoned candidates. */
   list(required: { workspaceId: UUID }): Promise<AssetBlobRecord[]>;
+  /** Preserve documentOwned once true, including saves from stale lifecycle snapshots. */
   save(record: AssetBlobRecord): Promise<void>;
   remove(required: { workspaceId: UUID; sha256: string }): Promise<void>;
 }
 
 /**
- * `blob_gc_journal` repo (INV-1 two-phase protocol). See
+ * `blob_gc_journal` repo ( two-phase protocol). See
  * {@link BlobGcJournalEntry} for what a row represents.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export interface BlobGcJournalRepoPort {
   save(entry: BlobGcJournalEntry): Promise<void>;
@@ -104,6 +108,9 @@ export interface PutBlobInput {
  * workspace-prefixed and sha256-sharded: `ws/{workspaceId}/blobs/{sha256[0..1]}/{sha256}`
  * (see `blob-key.ts`). No per-generation epoch in this build (that machinery
  * belongs to the deferred journaled-GC protocol — see `media-service.ts`).
+ *
+ * Media's content-addressed view over `@jini-ai/core/object-store`: hosts build it with
+ * `blobStoreFromObjectStore({ store })` so the bytes go to any object-store provider.
  */
 export interface BlobStorePort {
   put(input: PutBlobInput): Promise<{ storageKey: string }>;
@@ -128,7 +135,18 @@ export interface BlobStorePort {
    */
   putIfAbsent(input: PutBlobInput): Promise<{ storageKey: string; written: boolean }>;
   get(input: { storageKey: string }): Promise<Uint8Array>;
+  /**
+   * Original byte count without reading the payload; null only when the key is absent.
+   * Other storage failures reject. Optional for older/custom adapters; consumers must report
+   * unknown size when unavailable, never download an entire blob just to count bytes.
+   */
+  sizeOf?(required: { storageKey: string }, optional?: Record<string, never>): Promise<number | null>;
   exists(input: { storageKey: string }): Promise<boolean>;
   /** Idempotent — removing an already-absent key is not an error. */
   remove(input: { storageKey: string }): Promise<void>;
+}
+
+/** Host-owned current content references. A failed lookup must reject the purge. */
+export interface MediaReferenceCheckPort {
+  findReferences(required: { workspaceId: UUID; media: MediaRecord }, optional?: Record<string, never>): Promise<readonly string[]>;
 }

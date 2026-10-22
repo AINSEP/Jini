@@ -18,7 +18,7 @@ describe('useAssetTreeCopyLocalPath', () => {
     const clipboard: AssetTreeClipboardPort = { copyToClipboard: vi.fn().mockResolvedValue(true) };
     const { result } = renderHook(() => useAssetTreeCopyLocalPath(clipboard, 100));
     await act(async () => result.current.copyLocalPath('a.txt', '/Users/me/a.txt'));
-    expect(clipboard.copyToClipboard).toHaveBeenCalledWith('/Users/me/a.txt');
+    expect(clipboard.copyToClipboard).toHaveBeenCalledWith({ text: '/Users/me/a.txt' });
     expect(result.current.copiedPath).toBe('a.txt');
     act(() => vi.advanceTimersByTime(100));
     expect(result.current.copiedPath).toBeNull();

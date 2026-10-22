@@ -12,12 +12,10 @@
 import { NotImplementedError } from './not-implemented.js';
 import type { ProtocolHandlerPort } from '../protocol.js';
 
-export function createTauriProtocolHandlerPort(): ProtocolHandlerPort {
+export function createTauriProtocolHandlerPort(_requiredArgs: Record<string, never>): ProtocolHandlerPort {
   return {
     registerSchemeProxy() {
-      throw new NotImplementedError(
-        'ProtocolHandlerPort.registerSchemeProxy is not implemented by the Tauri adapter — custom scheme registration is a Rust/tauri.conf.json-time concern with no JS-callable equivalent, and is out of scope for the C7 narrow spike',
-      );
+      throw new NotImplementedError({ message: 'ProtocolHandlerPort.registerSchemeProxy is not implemented by the Tauri adapter — custom scheme registration is a Rust/tauri.conf.json-time concern with no JS-callable equivalent, and is out of scope for the C7 narrow spike' });
     },
   };
 }

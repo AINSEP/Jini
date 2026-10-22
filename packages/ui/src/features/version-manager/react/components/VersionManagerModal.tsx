@@ -81,9 +81,6 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
 
   const versionCountLabel =
     versions.length === 1 ? t('1 version') : t('{count} versions', { count: versions.length });
-  const selectedPrompt = selectedVersion?.prompt?.trim() ?? '';
-  const selectedDate = selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileRef.name;
-  const selectedRestoredFrom = selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null;
 
   // Layered Escape handling: close the modal only when neither popover is
   // consuming the keystroke — each popover owns its own Escape dismissal
@@ -131,7 +128,7 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
           loading={loading}
           versions={versions}
           visibleVersions={visibleVersions}
-          selectedVersionId={selectedVersion?.id ?? null}
+          selectedVersionId={selectedVersion ? selectedVersion.id : null}
           onSelect={selectVersion}
           onPrefetch={prefetchVersion}
           formatDate={(version) => formatVersionDateTime(version.createdAt, locale)}
@@ -141,33 +138,16 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
         />
         <div className="jini-version-main">
           <header className="jini-version-head">
-            <div className="jini-version-meta">
-              <div className="jini-version-meta-row">
-                {selectedVersion?.current ? (
-                  <span className="jini-version-current-badge">{t('Current')}</span>
-                ) : null}
-                {selectedVersion ? (
-                  <span className={`jini-version-source-badge ${versionSourceClassName(selectedVersion.source)}`}>
-                    {t(versionSourceLabel(selectedVersion.source))}
-                  </span>
-                ) : null}
-                <span className="jini-version-selected-date">{selectedDate}</span>
-                {selectedRestoredFrom ? (
-                  <span className="jini-version-restored-from">
-                    {t('Restored from v{version}', { version: selectedRestoredFrom.version })}
-                  </span>
-                ) : null}
-                <VersionPromptPopover
-                  prompt={selectedPrompt}
-                  disabled={!selectedVersion}
-                  copied={copied}
-                  onCopy={(text) => void copy(text)}
-                  onOpenChange={(open) => {
-                    promptOpenRef.current = open;
-                  }}
-                />
-              </div>
-            </div>
+            <VersionMetadata
+              selectedVersion={selectedVersion}
+              versionById={versionById}
+              fileName={fileRef.name}
+              copied={copied}
+              onCopy={(text) => void copy(text)}
+              onOpenChange={(open) => {
+                promptOpenRef.current = open;
+              }}
+            />
             <div className="jini-version-actions">
               {selectedVersion && !selectedVersion.current ? (
                 <VersionRestoreControl disabled={restoreDisabled} restoring={restoring} onRestore={() => void restore()} />
@@ -211,5 +191,56 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
       </div>
     </div>,
     document.body,
+  );
+}
+
+interface VersionMetadataProps<TVersion extends VersionRecord> {
+  selectedVersion: TVersion | null;
+  versionById: ReadonlyMap<string, TVersion>;
+  fileName: string;
+  copied: boolean;
+  onCopy: (text: string) => void;
+  onOpenChange: (open: boolean) => void;
+}
+
+function VersionMetadata<TVersion extends VersionRecord>({
+  selectedVersion,
+  versionById,
+  fileName,
+  copied,
+  onCopy,
+  onOpenChange,
+}: VersionMetadataProps<TVersion>) {
+  const { t, locale } = useI18n();
+  const selectedPrompt = selectedVersion?.prompt?.trim() ?? '';
+  const selectedDate = selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileName;
+  const selectedRestoredFrom = selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null;
+
+  return (
+    <div className="jini-version-meta">
+      <div className="jini-version-meta-row">
+        {selectedVersion?.current ? (
+          <span className="jini-version-current-badge">{t('Current')}</span>
+        ) : null}
+        {selectedVersion ? (
+          <span className={`jini-version-source-badge ${versionSourceClassName(selectedVersion.source)}`}>
+            {t(versionSourceLabel(selectedVersion.source))}
+          </span>
+        ) : null}
+        <span className="jini-version-selected-date">{selectedDate}</span>
+        {selectedRestoredFrom ? (
+          <span className="jini-version-restored-from">
+            {t('Restored from v{version}', { version: selectedRestoredFrom.version })}
+          </span>
+        ) : null}
+        <VersionPromptPopover
+          prompt={selectedPrompt}
+          disabled={!selectedVersion}
+          copied={copied}
+          onCopy={onCopy}
+          onOpenChange={onOpenChange}
+        />
+      </div>
+    </div>
   );
 }

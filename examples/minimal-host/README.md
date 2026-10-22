@@ -1,6 +1,6 @@
 # examples/minimal-host
 
-The **neutrality proof + CI gate**. It imports **only** `@jini-ai/*`, boots
+The **neutrality proof + CI gate**. It uses `@jini-ai/*` with host-owned `better-sqlite3` and `express` (plus the optional `@jini-ai/*` peers the server imports), boots
 `createLocalNodeDaemon` with no product packs, and drives a real HTTP lifecycle
 scenario: create, SSE stream, reconnect with a cursor, cancel, process restart,
 and durable replay. It also launches a portable Node-based ACP fixture through

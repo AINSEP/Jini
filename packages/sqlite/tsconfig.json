@@ -2,7 +2,50 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "paths": {
+      "@jini-ai/chat/store/legacy/sqlite": [
+        "../chat/dist/store/legacy/sqlite/index.d.ts"
+      ],
+      "@jini-ai/chat/store/legacy": [
+        "../chat/dist/store/legacy/index.d.ts"
+      ],
+      "@jini-ai/chat/store/sqlite": [
+        "../chat/dist/store/sqlite/index.d.ts"
+      ],
+      "@jini-ai/daemon/store/event-log/sqlite": [
+        "../daemon/dist/store/event-log/sqlite.d.ts"
+      ],
+      "@jini-ai/daemon/store/agent-sessions/sqlite": [
+        "../daemon/dist/store/agent-sessions/sqlite.d.ts"
+      ],
+      "@jini-ai/db/sqlite": [
+        "../db/dist/sqlite/index.d.ts"
+      ],
+      "@jini-ai/db/core": [
+        "../db/dist/core/index.d.ts"
+      ],
+      "@jini-ai/server/storage": [
+        "../server/dist/storage/index.d.ts"
+      ],
+      "@jini-ai/server/storage/legacy/sqlite": [
+        "../server/dist/storage/legacy/sqlite.d.ts"
+      ],
+      "@jini-ai/server/store/projects/sqlite": [
+        "../server/dist/store/projects/sqlite.d.ts"
+      ],
+      "@jini-ai/registry/tool-catalog": [
+        "../registry/dist/tool-catalog/index.d.ts"
+      ],
+      "@jini-ai/registry/tool-catalog/sqlite": [
+        "../registry/dist/tool-catalog/sqlite.d.ts"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/__tests__/**"
+  ]
 }

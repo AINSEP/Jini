@@ -6,12 +6,16 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_KO: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "메시지에서 키로 보이는 내용을 제거했습니다. 실제 키였다면 교체하세요. 저장하려면 보안 양식을 사용하세요.",
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "키, 토큰, 비밀번호, 비밀 정보를 저장하려면 보안 양식을 사용하세요. 채팅 답변은 어시스턴트에게 전송됩니다.",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# 내 스킬\n\n1. 워크플로를 설명하세요.\n2. 입력과 출력을 설명하세요.',
   'A custom path override did not work, so this used the automatically detected binary instead.': '사용자 지정 경로 재정의가 작동하지 않아 자동으로 감지된 바이너리를 대신 사용했습니다.',
   'API key': 'API 키',
   'About': '정보',
   'Accent color': '강조 색상',
   'Account': '계정',
+  'Advanced': '고급',
   'Advanced: proxy & custom paths': '고급: 프록시 및 사용자 지정 경로',
   'Agent check failed': '에이전트 확인 실패',
   'Agent is ready.': '에이전트가 준비되었습니다.',
@@ -55,8 +59,8 @@ export const SETTINGS_DIALOG_KO: SettingsDialogDict = {
   'Copy': '복사',
   'Copy to clipboard': '클립보드에 복사',
   'Could not load live models: {message}': '실시간 모델을 불러올 수 없습니다: {message}',
-  'No API key — connection test needs the key from this browser.': 'API 키가 없습니다 — 연결 테스트에는 이 브라우저의 키가 필요합니다.',
-  'No API key — model discovery needs the key from this browser.': 'API 키가 없습니다 — 모델 검색에는 이 브라우저의 키가 필요합니다.',
+  'No API key saved. Save one to test the connection.': '저장된 API 키가 없습니다. 연결을 테스트하려면 키를 저장하세요.',
+  'No API key saved. Save one to load models.': '저장된 API 키가 없습니다. 모델을 불러오려면 키를 저장하세요.',
   'Could not load skills: {error}': '스킬을 불러올 수 없습니다: {error}',
   'Could not reach the daemon: {error}': '데몬에 연결할 수 없습니다: {error}',
   'Could not reach the server. Showing local changes only.': '서버에 연결할 수 없습니다. 로컬 변경 사항만 표시합니다.',
@@ -136,6 +140,9 @@ export const SETTINGS_DIALOG_KO: SettingsDialogDict = {
   'Not available for this daemon.': '이 데몬에서는 사용할 수 없습니다.',
   'Not configured': '구성되지 않음',
   'Not installed': '설치되지 않음',
+  'Show {count} not installed': '설치되지 않은 {count}개 표시',
+  'Hide not installed': '설치되지 않은 항목 숨기기',
+  'Show not-installed CLIs': '설치되지 않은 CLI 표시',
   'Not sharing': '공유하지 않음',
   'Nothing is shared unless you opt in.': '직접 동의하지 않는 한 아무것도 공유되지 않습니다.',
   'Off': '끄기',

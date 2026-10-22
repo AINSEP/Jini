@@ -12,11 +12,8 @@
  * ``ui://${string}`` URI scheme and the wider MIME union reproduced in
  * {@link UIResourceMimeType}.
  *
- * Ported from the reference implementation's `mcp-ui.ts`, minus that file's hand-rolled copy of the
- * JSON-RPC envelope and its `UIActionResult` union: the reference implementation declared those
- * because its tsconfig's
- * `moduleResolution: "Node"` cannot read a modern package's `exports` map, and this package has no
- * such constraint — the envelope comes from `protocol.ts`'s re-exports instead. See
+ * The envelope comes from protocol.ts's re-exports, so this resource layer has no parallel
+ * JSON-RPC or UIActionResult definition. See
  * `surfaces/bridge.ts` for why the legacy `{type:'tool', payload}` action shape is not emitted.
  */
 
@@ -88,6 +85,17 @@ export const JINI_MCP_UI_METADATA_PREFIX = 'x-jini-mcp-ui/';
  */
 export const MCP_UI_ACTION_PLAN_META_KEY = `${JINI_MCP_UI_METADATA_PREFIX}action-plan`;
 
+/**
+ * The `_meta` key a host reads to count down how long a surface can still be answered.
+ *
+ * A held-open question (a confirmation the tool waits on) stops being answerable when the server
+ * gives up waiting, but nothing in the document said when that would be, so a person could read a
+ * card that had already expired. The value is the deadline in epoch milliseconds on the PRODUCER's
+ * clock: a host whose clock runs ahead of the server's closes the card early by that skew, never late.
+ * See `McpUiSurfaceCard` in `@jini-ai/chat` for the host-side consumer.
+ */
+export const MCP_UI_EXPIRES_AT_META_KEY = `${JINI_MCP_UI_METADATA_PREFIX}expires-at`;
+
 /** One action in a surface's plan — the `_meta`-safe subset of `surfaces/document.ts`'s `SurfaceAction` (no `type`: that field only affects in-frame `<form>` submission, which has no parent-DOM equivalent). */
 export interface McpUiActionPlanAction {
   readonly id: string;
@@ -150,8 +158,9 @@ export interface UIToolResult {
  * @param spec.preferredFrameSize - `[width, height]` CSS lengths, written to the `_meta` key mcp-ui
  * hosts read.
  * @param spec.actionPlan - See {@link McpUiActionPlan}, written to {@link MCP_UI_ACTION_PLAN_META_KEY}.
- * @param spec.meta - Extra `_meta` entries, merged after `preferredFrameSize`/`actionPlan` so a
- * caller can override either.
+ * @param spec.expiresAtMs - When the surface stops being answerable, written to {@link MCP_UI_EXPIRES_AT_META_KEY}.
+ * @param spec.meta - Extra `_meta` entries, merged after `preferredFrameSize`/`actionPlan`/`expiresAtMs`
+ * so a caller can override any of them.
  * @returns The `EmbeddedResource` to place in a tool result's `content` array.
  * @complexity O(1).
  */
@@ -160,13 +169,15 @@ export function createUIResource(spec: {
   htmlString: string;
   preferredFrameSize?: readonly [string, string];
   actionPlan?: McpUiActionPlan;
+  expiresAtMs?: number;
   meta?: Readonly<Record<string, unknown>>;
-}): UIResource {
+}, _optional = {}): UIResource {
   const meta: Record<string, unknown> = {
     ...(spec.preferredFrameSize === undefined
       ? {}
       : { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: [...spec.preferredFrameSize] }),
     ...(spec.actionPlan === undefined ? {} : { [MCP_UI_ACTION_PLAN_META_KEY]: spec.actionPlan }),
+    ...(spec.expiresAtMs === undefined ? {} : { [MCP_UI_EXPIRES_AT_META_KEY]: spec.expiresAtMs }),
     ...spec.meta,
   };
   return {
@@ -175,7 +186,7 @@ export function createUIResource(spec: {
       uri: spec.uri,
       mimeType: MCP_UI_MIME_TYPE,
       text: spec.htmlString,
-      ...(Object.keys(meta).length === 0 ? {} : { _meta: meta }),
+      ...(Object.keys(meta).length === 0 && spec.meta === undefined ? {} : { _meta: meta }),
     },
   };
 }
@@ -193,7 +204,7 @@ export function buildUIToolResult(spec: {
   modelText: string;
   ui: UIResource;
   meta?: Readonly<Record<string, unknown>>;
-}): UIToolResult {
+}, _optional = {}): UIToolResult {
   return {
     content: [{ type: 'text', text: spec.modelText }, spec.ui],
     ...(spec.meta === undefined ? {} : { _meta: spec.meta }),
@@ -303,3 +314,35 @@ export function readActionPlan(resource: UIResource): McpUiActionPlan | undefine
   }
   return { title, ...(description === undefined ? {} : { description }), actions };
 }
+
+/**
+ * Reads the answer deadline a resource's `_meta` may carry — see {@link MCP_UI_EXPIRES_AT_META_KEY}.
+ *
+ * @returns Epoch milliseconds, or `undefined` when absent or not a finite number — a host that gets
+ * `undefined` shows no countdown rather than one built on a malformed value.
+ * @complexity O(1).
+ */
+export function readExpiresAt(resource: UIResource): number | undefined {
+  const raw = resource.resource._meta?.[MCP_UI_EXPIRES_AT_META_KEY];
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+}
+
+/** Legacy host action vocabulary retained for consumers that negotiate pre-Apps messages. */
+export type UIActionType = "tool" | "prompt" | "link" | "intent" | "notify";
+
+/**
+ * mcp-ui's `UIActionResult` union — the `postMessage` payload an iframe sends to the host.
+ *
+ * `messageId` is what makes the round trip observable: mcp-ui's client answers a message carrying
+ * one with `ui-message-received` and then `ui-message-response` (same `messageId`). A host's
+ * confirmation dialog sets one so the rendered UI can show "deleted" or an error instead of
+ * silently appearing to do nothing.
+ */
+export type UIActionResult =
+  | { messageId?: string; type: "tool"; payload: { toolName: string; params: Record<string, unknown> } }
+  | { messageId?: string; type: "prompt"; payload: { prompt: string } }
+  | { messageId?: string; type: "link"; payload: { url: string } }
+  | { messageId?: string; type: "intent"; payload: { intent: string; params: Record<string, unknown> } }
+  | { messageId?: string; type: "notify"; payload: { message: string } };
+
+

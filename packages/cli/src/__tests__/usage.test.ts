@@ -11,23 +11,20 @@ describe('renderUsage', () => {
   });
 
   it('includes a description block when given', () => {
-    expect(renderUsage({ usage: ['cmd'], description: 'Does a thing.' })).toBe(
+    expect(renderUsage({ usage: ['cmd'] }, { description: 'Does a thing.' })).toBe(
       'Usage:\n  cmd\n\nDoes a thing.',
     );
   });
 
   it('omits the description block when it is an empty string', () => {
-    expect(renderUsage({ usage: ['cmd'], description: '' })).toBe('Usage:\n  cmd');
+    expect(renderUsage({ usage: ['cmd'] }, { description: '' })).toBe('Usage:\n  cmd');
   });
 
   it('renders an aligned options list when given', () => {
-    const result = renderUsage({
-      usage: ['cmd'],
-      options: [
+    const result = renderUsage({ usage: ['cmd'] }, { options: [
         { flag: '--json', description: 'Emit JSON.' },
         { flag: '--daemon-url <url>', description: 'Override the daemon URL.' },
-      ],
-    });
+      ] });
     const longest = '--daemon-url <url>'.length;
     const expected = [
       'Usage:',
@@ -41,15 +38,11 @@ describe('renderUsage', () => {
   });
 
   it('omits the options block when the list is empty', () => {
-    expect(renderUsage({ usage: ['cmd'], options: [] })).toBe('Usage:\n  cmd');
+    expect(renderUsage({ usage: ['cmd'] }, { options: [] })).toBe('Usage:\n  cmd');
   });
 
   it('renders description and options together', () => {
-    const result = renderUsage({
-      usage: ['cmd'],
-      description: 'Prose.',
-      options: [{ flag: '--json', description: 'Emit JSON.' }],
-    });
+    const result = renderUsage({ usage: ['cmd'] }, { description: 'Prose.', options: [{ flag: '--json', description: 'Emit JSON.' }] });
     expect(result).toBe('Usage:\n  cmd\n\nProse.\n\nOptions:\n  --json  Emit JSON.');
   });
 });

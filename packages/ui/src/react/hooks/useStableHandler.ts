@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef } from 'react';
  * result during render).
  */
 export function useStableHandler<Args extends unknown[], Result>(
-  handler: (...args: Args) => Result,
+  { handler }: { handler: (...args: Args) => Result },
 ): (...args: Args) => Result {
   const ref = useRef(handler);
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { createNodeMediaHttpClient } from '../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   bytesFromOpenAICompatibleData,
@@ -65,6 +66,42 @@ describe('sniffImageExt', () => {
   it('defaults to png for unrecognized bytes', () => {
     expect(sniffImageExt(Buffer.from([1, 2, 3]))).toBe('.png');
   });
+
+  it('detects jpeg from exactly the three magic bytes', () => {
+    expect(sniffImageExt(Buffer.from([0xff, 0xd8, 0xff]))).toBe('.jpg');
+  });
+
+  it('does not detect jpeg from a two-byte prefix (defaults to png)', () => {
+    expect(sniffImageExt(Buffer.from([0xff, 0xd8]))).toBe('.png');
+  });
+
+  it('does not detect jpeg when the third byte differs', () => {
+    expect(sniffImageExt(Buffer.from([0xff, 0xd8, 0x00]))).toBe('.png');
+  });
+
+  it('defaults to png for an empty buffer', () => {
+    expect(sniffImageExt(Buffer.alloc(0))).toBe('.png');
+  });
+
+  it('does not treat a RIFF header shorter than 12 bytes as webp', () => {
+    const bytes = Buffer.concat([Buffer.from('RIFF', 'ascii'), Buffer.from([0, 0, 0, 0]), Buffer.from('WEB', 'ascii')]);
+    expect(sniffImageExt(bytes)).toBe('.png');
+  });
+
+  it('does not treat RIFF....WEBX as webp', () => {
+    const bytes = Buffer.concat([Buffer.from('RIFF', 'ascii'), Buffer.from([0, 0, 0, 0]), Buffer.from('WEBX', 'ascii')]);
+    expect(sniffImageExt(bytes)).toBe('.png');
+  });
+
+  it('does not treat RIFX....WEBP as webp', () => {
+    const bytes = Buffer.concat([Buffer.from('RIFX', 'ascii'), Buffer.from([0, 0, 0, 0]), Buffer.from('WEBP', 'ascii')]);
+    expect(sniffImageExt(bytes)).toBe('.png');
+  });
+
+  it('detects jpeg ahead of any other signature check', () => {
+    const bytes = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(9)]);
+    expect(sniffImageExt(bytes)).toBe('.jpg');
+  });
 });
 
 describe('resolveSpeechFormat', () => {
@@ -123,6 +160,32 @@ describe('normalizeOpenAICompatiblePath', () => {
 
   it('videos already ending in /videos/generations with edits mode falls through to the unchanged path (no edits suffix to rewrite to)', () => {
     expect(normalizeOpenAICompatiblePath('/v1/videos/generations', 'videos', 'edits')).toBe('/v1/videos/generations');
+  });
+});
+
+describe('normalizeOpenAICompatiblePath edge cases', () => {
+  it('strips every trailing slash before matching a suffix', () => {
+    expect(normalizeOpenAICompatiblePath('/v1/images/generations///', 'images', 'generations')).toBe('/v1/images/generations');
+  });
+
+  it('appends /images/edits to a bare path in edits mode', () => {
+    expect(normalizeOpenAICompatiblePath('/v1/', 'images', 'edits')).toBe('/v1/images/edits');
+  });
+
+  it('appends /images/generations to an empty path', () => {
+    expect(normalizeOpenAICompatiblePath('', 'images', 'generations')).toBe('/images/generations');
+  });
+
+  it('keeps an /images/edits path in edits mode', () => {
+    expect(normalizeOpenAICompatiblePath('/v1/images/edits/', 'images', 'edits')).toBe('/v1/images/edits');
+  });
+
+  it('does not treat /images/edits as a known suffix for the videos endpoint', () => {
+    expect(normalizeOpenAICompatiblePath('/v1/images/edits', 'videos', 'generations')).toBe('/v1/images/edits/videos/generations');
+  });
+
+  it('keeps a /videos/generations path in generations mode', () => {
+    expect(normalizeOpenAICompatiblePath('/v1/videos/generations', 'videos', 'generations')).toBe('/v1/videos/generations');
   });
 });
 
@@ -202,6 +265,23 @@ describe('openaiSizeFor', () => {
   it('dall-e-2 only supports the square size', () => {
     expect(openaiSizeFor('dall-e-2', '16:9')).toBe('1024x1024');
   });
+
+  it('gpt-image-* falls back to the square size for an unlisted aspect', () => {
+    expect(openaiSizeFor('gpt-image-1', '21:9')).toBe('1024x1024');
+  });
+
+  it('dall-e-3 does not use the gpt-image 4:3 / 3:4 sizes', () => {
+    expect(openaiSizeFor('dall-e-3', '4:3')).toBe('1024x1024');
+    expect(openaiSizeFor('dall-e-3', '3:4')).toBe('1024x1024');
+  });
+
+  it('matches the gpt-image- family by prefix only (a non-prefixed id gets the square size)', () => {
+    expect(openaiSizeFor('my-gpt-image-2', '16:9')).toBe('1024x1024');
+  });
+
+  it('matches dall-e-3 exactly (a suffixed id gets the square size)', () => {
+    expect(openaiSizeFor('dall-e-3-hd', '16:9')).toBe('1024x1024');
+  });
 });
 
 describe('parseOpenAICompatibleJson', () => {
@@ -224,24 +304,24 @@ describe('parseOpenAICompatibleJson', () => {
 describe('bytesFromOpenAICompatibleData', () => {
   it('decodes a plain base64 b64_json entry', async () => {
     const b64 = Buffer.from('hello').toString('base64');
-    const bytes = await bytesFromOpenAICompatibleData({ data: [{ b64_json: b64 }] }, 'test');
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: b64 }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) });
     expect(bytes.toString('utf8')).toBe('hello');
   });
 
   it('strips a data-URL prefix from b64_json before decoding', async () => {
     const b64 = Buffer.from('hello').toString('base64');
-    const bytes = await bytesFromOpenAICompatibleData({ data: [{ b64_json: `data:image/png;base64,${b64}` }] }, 'test');
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: `data:image/png;base64,${b64}` }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) });
     expect(bytes.toString('utf8')).toBe('hello');
   });
 
   it('fetches from a url entry when b64_json is absent', async () => {
     const fetchMock = vi.fn(async () => new Response(Buffer.from('bytes-from-url'), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    const bytes = await bytesFromOpenAICompatibleData({ data: [{ url: 'https://example.com/x.png' }] }, 'test');
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://example.com/x.png' }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) });
     expect(bytes.toString('utf8')).toBe('bytes-from-url');
-    // Not an exact-equality match on the whole init object: fetchWithTimeout (2026-08-16, Finding 2
-    // of the failure-mode audit) always adds its own `signal` even when the caller passed none, so
-    // asserting on the URL plus the signal's presence is what actually matters here.
+    // Not an exact-equality match on the whole init object: the guarded client forwards its
+    // deadline `signal` even when the caller passed none, preserving the backstop introduced by
+    // the 2026-08-16 failure-mode audit (Finding 2). Assert URL plus signal presence here.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const call = fetchMock.mock.calls[0] as [string, RequestInit] | undefined;
     if (!call) throw new Error('expected fetch to have been called');
@@ -252,15 +332,81 @@ describe('bytesFromOpenAICompatibleData', () => {
 
   it('throws when the url fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 502 })));
-    await expect(bytesFromOpenAICompatibleData({ data: [{ url: 'https://example.com/x.png' }] }, 'test')).rejects.toThrow(/media fetch 502/);
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://example.com/x.png' }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/media fetch 502/);
   });
 
   it('throws when data[0] is missing', async () => {
-    await expect(bytesFromOpenAICompatibleData({ data: [] }, 'test')).rejects.toThrow(/no data\[0\]/);
-    await expect(bytesFromOpenAICompatibleData({}, 'test')).rejects.toThrow(/no data\[0\]/);
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/no data\[0\]/);
+    await expect(bytesFromOpenAICompatibleData({ data: {}, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/no data\[0\]/);
   });
 
   it('throws when the entry has neither b64_json nor url', async () => {
-    await expect(bytesFromOpenAICompatibleData({ data: [{}] }, 'test')).rejects.toThrow(/neither b64_json nor url/);
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [{}] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/neither b64_json nor url/);
   });
+
+  it('throws no data[0] for a null response body', async () => {
+    await expect(bytesFromOpenAICompatibleData({ data: null, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/^test response had no data\[0\]$/);
+  });
+
+  it('throws no data[0] when `data` is not an array', async () => {
+    await expect(bytesFromOpenAICompatibleData({ data: { data: { b64_json: 'aGk=' } }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/^test response had no data\[0\]$/);
+  });
+
+  it('throws no data[0] when data[0] is null', async () => {
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [null] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/^test response had no data\[0\]$/);
+  });
+
+  it('throws no data[0] for a non-object response body', async () => {
+    await expect(bytesFromOpenAICompatibleData({ data: 'oops', providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/^test response had no data\[0\]$/);
+  });
+
+  it('falls through to url when b64_json is an empty string', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(Buffer.from('via-url'), { status: 200 })));
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: '', url: 'https://example.com/x.png' }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) });
+    expect(bytes.toString('utf8')).toBe('via-url');
+  });
+
+  it('prefers b64_json over url when both are present', async () => {
+    const fetchMock = vi.fn(async () => new Response(Buffer.from('via-url'), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const b64 = Buffer.from('inline').toString('base64');
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: b64, url: 'https://example.com/x.png' }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) });
+    expect(bytes.toString('utf8')).toBe('inline');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('strips only up to the first comma of a b64_json data URL', async () => {
+    const bytes = await bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: 'data:x,aGk=,aGk=' }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) });
+    expect(bytes).toEqual(Buffer.from('aGk=,aGk=', 'base64'));
+  });
+
+  it('treats a non-string b64_json and an empty url as neither', async () => {
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [{ b64_json: 42, url: '' }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/^test response had neither b64_json nor url$/);
+  });
+
+  it('treats a non-string url as neither', async () => {
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [{ url: 42 }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/^test response had neither b64_json nor url$/);
+  });
+
+  it('reports the tagged media-fetch status when the url fetch is not ok', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 404 })));
+    await expect(bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://example.com/x.png' }] }, providerTag: 'acme' }, { httpClient: createNodeMediaHttpClient({}) })).rejects.toThrow(/^acme media fetch 404$/);
+  });
+
+  it('refuses a caller requestInit dispatcher for the url fetch before any request is made', async () => {
+    const fetchMock = vi.fn(async () => new Response(Buffer.from('ok'), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    // Opaque marker object: the guarded outbound client refuses any dispatcher, so no real undici Dispatcher is needed.
+    const dispatcher = {} as NonNullable<RequestInit['dispatcher']>;
+    await expect(
+      bytesFromOpenAICompatibleData({ data: { data: [{ url: 'https://example.com/x.png' }] }, providerTag: 'test' }, { httpClient: createNodeMediaHttpClient({}), ...{ requestInit: { dispatcher } } }),
+    ).rejects.toThrow('Configure media connection pooling on the guarded HTTP client');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+vi.mock('@jini-ai/platform/http/guarded', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@jini-ai/platform/http/guarded')>();
+  const { testNodeGuardedHttpPorts } = await import('./outbound-fixtures.js');
+  return { ...original, createNodeGuardedHttpPorts: testNodeGuardedHttpPorts };
 });

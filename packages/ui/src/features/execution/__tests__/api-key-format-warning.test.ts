@@ -1,8 +1,8 @@
+import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
 import { describe, expect, it } from 'vitest';
 import {
   API_KEY_CROSS_VENDOR_WARNING,
   API_KEY_TOO_SHORT_WARNING,
-  DEFAULT_PROVIDER_PRESETS,
   MIN_PLAUSIBLE_API_KEY_LENGTH,
 } from '../constants.js';
 import { apiKeyFormatWarning, missingRequiredFields, resolveSelectedPreset } from '../rules.js';

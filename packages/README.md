@@ -33,7 +33,7 @@ is a historical record of that removed mechanism, not something `pnpm guard` enf
 `./internal`, `./dom`, …), and most of the time they all share the same runtime — nothing to
 declare. The one case that doesn't fit is a package with a universal root and a browser-only (or
 otherwise differently-targeted) secondary entry point, e.g. `@jini-ai/agentic`'s DOM-free `.` plus its
-browser-only `./dom` (see `packages/agentic/source-map.md`'s "The DOM split"). For that case, add
+browser-only `./dom` (see the archived provenance ledger's "The DOM split"). For that case, add
 an optional `jini.entries` map alongside `runtime`:
 
 ```json
@@ -60,12 +60,12 @@ matching prebuild for the exact Node ABI they run under — inside an Electron/T
 that means an `electron-rebuild` (or equivalent) step whenever the shell's bundled Node/Electron
 version changes, not just a plain `npm install`. This table is the map of where each one actually
 shows up, and what shape that dependency takes (audited 2026-07-29 as part of a broader
-consumer-adoption pass — see each package's own `source-map.md` for the day-by-day history):
+consumer-adoption pass — see each package's own the archived provenance ledger for the day-by-day history):
 
 | Package | Native dep | Shape | What it means for a consumer |
 |---|---|---|---|
-| `@jini-ai/sqlite` | `better-sqlite3` | Hard `dependencies`, real value import (`createSqliteEventLog` opens the DB itself) | Always needs a working prebuild — this package's whole job is being the SQLite adapter. |
-| `@jini-ai/server` (ex-`node-host`) | `better-sqlite3` | Transitive, via its `@jini-ai/sqlite` dependency | Same requirement as `@jini-ai/sqlite`, inherited. |
+| `@jini-ai/sqlite` | None | Deprecated concern re-export shim; no driver hard dependency/autoload | Inject host handles/openers; use concern subpaths. |
+| `@jini-ai/server` (ex-`node-host`) | Host-injected `better-sqlite3` | Optional peer, no driver value import | Memory needs no SQLite; durable host supplies its opener. |
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |
 | `@jini-ai/integrations` (`./media-providers`) | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `./media-providers` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
@@ -88,6 +88,10 @@ barrel then costs nothing extra, and the subpath tells you exactly what to add i
 | `@jini-ai/capability-providers` | `better-sqlite3` | `./adapters/sqlite` (`SqliteDbProvider`) |
 | `@jini-ai/ui` | `@excalidraw/excalidraw` | `./sketch-editor` |
 | `@jini-ai/ui` | `lexical`, `@lexical/react`, `@lexical/utils` | `./lexical-rich-text-editor` |
+| `@jini-ai/ui` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot` | `./interactive-ui` (shadcn provider components) |
+| `@jini-ai/ui` | `recharts` | `./interactive-ui` (chart provider components) |
+| `@jini-ai/ui` | `@mcp-ui/client` | `./mcp-ui` (`McpUiHost`) |
+| `@jini-ai/chat` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot`, `recharts`, `@mcp-ui/client` | `./react*` surface cards (reachable through `./react`; `./react/chat-pane` and `./react/embed` do not import these cards) |
 | `@jini-ai/registry` | `better-sqlite3` | `DatabaseRegistryBackend` |
 | `@jini-ai/daemon` | `node-pty` | Terminal sessions (`loadRealSpawnPty`) |
 
@@ -110,8 +114,67 @@ oversight in any one package.
 
 - `description` — every package carries a real one-line description. Keep it accurate when scope
   changes; it is the first thing an adopter reads on npm.
-- `sideEffects` — `false` on every package except `@jini-ai/integrations`, which lists the exact
-  files (`./dist/media-providers/dispatch/engine.js`, `./dist/media-providers/dispatch/providers/*.js`)
-  whose module-eval vendor self-registration a bundler must not tree-shake away.
+- `sideEffects` — JavaScript modules declare `false`; packages shipping styles retain CSS-only
+  allowlists. `@jini-ai/integrations` registers its built-in vendors on first registry use,
+  so importing its JavaScript no longer requires a vendor-registration allowlist.
 - `jini.admission` — **removed 2026-07-28.** The locked/incubating/admitted tier is gone and
   nothing validates the field; do not reintroduce it.
+
+| Storage concern | Entry | Connection ownership |
+|---|---|---|
+| Chat | `@jini-ai/chat/store/*` | Borrowed host kernels/handles |
+| Daemon | `@jini-ai/daemon/store/*` | Borrowed session kernels; explicit owned event-log opener |
+| Tool catalog | `@jini-ai/registry/tool-catalog/sqlite` | Borrowed host handle |
+| Generic SQL | `@jini-ai/db/{core,sqlite,kernel/*}` | Injected host drivers |
+
+## Subpath runtime and installation isolation
+
+`pnpm guard` and `pnpm guard:drift` include `checkSubpathIsolation`. Every Jini
+package's `exports` map participates automatically. The check resolves compiled
+export targets back to source, expands wildcard exports, checks all runtime
+conditions, and follows relative and `@jini-ai/*` imports with the shared import
+extractor. Type-only imports do not form runtime edges. Use explicit `import type`
+for a wholly type-only clause: with `verbatimModuleSyntax`, inline `type` specifiers
+alone can otherwise leave an empty runtime import in emitted JavaScript.
+
+A subpath may reach its domain and the package's shared core. Its runtime closure
+must not reach a sibling domain. A dependency used by a subset of distinct source
+closures must be an optional peer, with `peerDependenciesMeta[name].optional: true`,
+and remain in `devDependencies` for workspace development. A mandatory peer or an
+`optionalDependencies` entry still attempts installation and cannot substitute for
+an optional peer. A dependency required by every closure through always-loaded
+core may remain regular. Compatibility aggregate barrels remain available; using
+one does not exempt its independent subpaths from either rule.
+
+The optional `jini.isolation` map records source ownership when an export's first
+segment alone does not express it:
+
+```json
+{
+  "jini": {
+    "isolation": {
+      "entries": { "./domain-adapter": "domain", ".": "$aggregate" },
+      "domains": { "domain": ["src/domain"] },
+      "shared": ["src/shared-core-leaf.ts"],
+      "forbidden": { "universal": ["node:", "express", "react"] }
+    }
+  }
+}
+```
+
+`entries` overrides domain identity; nested exports otherwise keep their first
+segment's domain. `domains` adds source roots without creating another public API.
+`src/core` and `src/contracts` are shared by default; `shared` names existing
+foundation leaves or compatibility bridges. These maps record actual ownership,
+not waivers for unrelated features. `forbidden` can be keyed by a specific export
+or its `jini.entries` runtime and constrains the full closure, including imports
+inside Jini dependencies. CMS should register its runtime restrictions and any
+adapter ownership here rather than add a second CMS import walker. Missing code
+export targets and unresolved runtime Jini edges fail closed. CSS-only `sideEffects`
+allowlists remain necessary for stylesheet retention; JavaScript initialization
+effects are recorded by the audit for review.
+
+`@jini-ai/commerce` is registered at composition layer L6: its opt-in tools compose CMS
+authorization and its opt-in React entry composes UI translation. Its canonical metadata is
+`domain: capability`, `kind: commerce`, with a universal root and explicit node/browser entries.
+Subpath isolation still enforces each entry's source and installation boundaries.

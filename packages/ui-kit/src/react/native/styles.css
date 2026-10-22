@@ -1,0 +1,4 @@
+/* Native views expose jini- classes; hosts own all visual rules. */
+  /* Scoped hidden wins over native-kit display rules without resetting the host page. */
+  [data-jini-part][hidden] { display: none; }
+

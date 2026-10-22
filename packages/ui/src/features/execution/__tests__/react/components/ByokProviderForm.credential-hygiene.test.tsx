@@ -1,3 +1,4 @@
+import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentCliEnvFields } from '../../../react/components/AgentCliEnvFields.js';
@@ -71,6 +72,7 @@ function configWith(preset: ProviderPreset, apiKey: string): ByokConfig {
 function renderForm(preset: ProviderPreset, apiKey: string) {
   return render(
     <ByokProviderForm
+        presets={DEFAULT_PROVIDER_PRESETS}
       config={configWith(preset, apiKey)}
       onConfigChange={vi.fn()}
       preset={preset}

@@ -15,7 +15,7 @@ import { loadMmdRouteLaunchEnv, loadMmdRouteModels, resolveMmdRoutesFile } from 
 
 describe('mmd-routes when no home directory can be resolved at all', () => {
   it('resolveMmdRoutesFile returns null with no HOME env and a falsy os.homedir()', () => {
-    expect(resolveMmdRoutesFile({})).toBeNull();
+    expect(resolveMmdRoutesFile({ env: {} })).toBeNull();
   });
 
   it('resolveMmdRoutesFile returns the (falsy) resolveHome() result unchecked for a bare "~" override', () => {
@@ -23,18 +23,18 @@ describe('mmd-routes when no home directory can be resolved at all', () => {
     // returns resolveHome(env) directly with no truthiness guard — so an
     // empty-string home (this test's simulated no-homedir case) comes back
     // as '' rather than null. Verbatim upstream behavior, not a bug.
-    expect(resolveMmdRoutesFile({ MMD_MODEL_ROUTES_FILE: '~' })).toBe('');
+    expect(resolveMmdRoutesFile({ env: { MMD_MODEL_ROUTES_FILE: '~' } })).toBe('');
   });
 
   it('resolveMmdRoutesFile returns null for a "~/" override with no resolvable home', () => {
-    expect(resolveMmdRoutesFile({ MMD_MODEL_ROUTES_FILE: '~/routes.json' })).toBeNull();
+    expect(resolveMmdRoutesFile({ env: { MMD_MODEL_ROUTES_FILE: '~/routes.json' } })).toBeNull();
   });
 
   it('loadMmdRouteModels returns null when the routes file path cannot be resolved', async () => {
-    expect(await loadMmdRouteModels({}, [])).toBeNull();
+    expect(await loadMmdRouteModels({ env: {}, fallbackModels: [] })).toBeNull();
   });
 
   it('loadMmdRouteLaunchEnv returns null when the routes file path cannot be resolved', async () => {
-    expect(await loadMmdRouteLaunchEnv({}, 'model-1')).toBeNull();
+    expect(await loadMmdRouteLaunchEnv({ env: {}, modelId: 'model-1' })).toBeNull();
   });
 });

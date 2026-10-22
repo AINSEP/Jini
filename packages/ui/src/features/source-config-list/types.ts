@@ -2,7 +2,7 @@
  * Generic "add a source by URL/key, set trust, list, per-item test/refresh/
  * remove" domain types. This shape recurs independently at least 4 times in
  * the origin product's `apps/web/src/components/` tree — see
- * `packages/ui/source-map.md`'s `features/source-config-list/` section for
+ * `packages/ui/archived provenance ledger`'s `features/source-config-list/` section for
  * full per-source provenance (which behaviors came from which file, and what
  * did NOT make it into this generic primitive).
  *
@@ -66,6 +66,17 @@ export interface SourceTrustOption {
   value: string;
   label: string;
 }
+
+/**
+ * The trust selector's two inputs, bound together. The selector only renders when `trustOptions` is
+ * non-empty, so its change handler is required exactly when options can be present and may be
+ * omitted when they are not — a host whose sources have no trust concept passes neither, instead of a
+ * no-op `onTrustChange` that can never fire. Passing options (even possibly-undefined ones) still
+ * requires the handler, so every pre-existing caller type-checks unchanged.
+ */
+export type SourceTrustSelectorProps =
+  | { trustOptions?: readonly SourceTrustOption[] | undefined; onTrustChange: (trust: string) => void }
+  | { trustOptions?: undefined; onTrustChange?: undefined };
 
 export type SourceConnectionStatus = 'idle' | 'testing' | 'connected' | 'error';
 

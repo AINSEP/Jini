@@ -59,7 +59,7 @@ function ToggleRow({ label, hint, checked, onChange, agentHandle }: ToggleRowPro
       className={`jini-toggle-row${checked ? ' on' : ''}`}
       onClick={() => onChange(!checked)}
       aria-pressed={checked}
-      {...agentHandleProps(agentHandle, { role: 'checkbox', label })}
+      {...agentHandleProps({}, { base: agentHandle, ...({ role: 'checkbox', label }) })}
     >
       <div className="jini-toggle-row-text">
         <span className="jini-toggle-row-label">{label}</span>
@@ -68,6 +68,35 @@ function ToggleRow({ label, hint, checked, onChange, agentHandle }: ToggleRowPro
       <span className="jini-toggle-row-switch" aria-hidden />
     </button>
   );
+}
+
+function resolveConsentLabels(
+  { labels }: { labels: PrivacyTabLabels },
+  { t }: { t: ReturnType<typeof useT> },
+) {
+  return {
+    consentKicker: labels.consentKicker ?? t('Help improve this product'),
+    consentLead: labels.consentLead ?? t('Choose what you share. You can change this anytime.'),
+    consentFooter: labels.consentFooter ?? t('Nothing is shared unless you opt in.'),
+    declineLabel: labels.declineLabel ?? t("Don't share"),
+    shareLabel: labels.shareLabel ?? t('Share usage'),
+    metricsLabel: labels.metricsLabel ?? t('Anonymous metrics'),
+    metricsHint: labels.metricsHint ?? t('Feature usage and performance data, with no personal content.'),
+    contentLabel: labels.contentLabel ?? t('Conversation and tool content'),
+    contentHint: labels.contentHint ?? t('Helps improve model quality. Off by default.'),
+  };
+}
+
+function resolveInstallationLabels(
+  { labels }: { labels: PrivacyTabLabels },
+  { t }: { t: ReturnType<typeof useT> },
+) {
+  return {
+    installationIdLabel: labels.installationIdLabel ?? t('Installation ID'),
+    installationIdHint: labels.installationIdHint ?? t('An anonymous id used to group your shared data.'),
+    optedOutLabel: labels.optedOutLabel ?? t('Not sharing'),
+    deleteMyDataLabel: labels.deleteMyDataLabel ?? t('Delete my data'),
+  };
 }
 
 /**
@@ -84,19 +113,14 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
   const decided = hasMadeConsentDecision(state);
   const sharing = decided ? isSharingEnabled(state.telemetry) : undefined;
 
-  const consentKicker = labels?.consentKicker ?? t('Help improve this product');
-  const consentLead = labels?.consentLead ?? t('Choose what you share. You can change this anytime.');
-  const consentFooter = labels?.consentFooter ?? t('Nothing is shared unless you opt in.');
-  const declineLabel = labels?.declineLabel ?? t("Don't share");
-  const shareLabel = labels?.shareLabel ?? t('Share usage');
-  const metricsLabel = labels?.metricsLabel ?? t('Anonymous metrics');
-  const metricsHint = labels?.metricsHint ?? t('Feature usage and performance data, with no personal content.');
-  const contentLabel = labels?.contentLabel ?? t('Conversation and tool content');
-  const contentHint = labels?.contentHint ?? t('Helps improve model quality. Off by default.');
-  const installationIdLabel = labels?.installationIdLabel ?? t('Installation ID');
-  const installationIdHint = labels?.installationIdHint ?? t('An anonymous id used to group your shared data.');
-  const optedOutLabel = labels?.optedOutLabel ?? t('Not sharing');
-  const deleteMyDataLabel = labels?.deleteMyDataLabel ?? t('Delete my data');
+  const labelOverrides = labels ?? {};
+  const {
+    consentKicker, consentLead, consentFooter, declineLabel, shareLabel,
+    metricsLabel, metricsHint, contentLabel, contentHint,
+  } = resolveConsentLabels({ labels: labelOverrides }, { t });
+  const {
+    installationIdLabel, installationIdHint, optedOutLabel, deleteMyDataLabel,
+  } = resolveInstallationLabels({ labels: labelOverrides }, { t });
 
   return (
     <section className="jini-settings-section jini-settings-privacy">
@@ -127,7 +151,7 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
             className={`jini-privacy-consent-action${sharing === false ? ' is-active' : ''}`}
             aria-pressed={sharing === false}
             onClick={() => onChange(nextStateForDeclineAll(state, now()))}
-            {...agentHandleProps(agentHandle, { action: 'decline', role: 'button', label: declineLabel })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'decline', role: 'button', label: declineLabel }) })}
           >
             {declineLabel}
           </button>
@@ -136,7 +160,7 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
             className={`jini-privacy-consent-action jini-privacy-consent-action--primary${sharing === true ? ' is-active' : ''}`}
             aria-pressed={sharing === true}
             onClick={() => onChange(nextStateForShareAll(state, now()))}
-            {...agentHandleProps(agentHandle, { action: 'share', role: 'button', label: shareLabel })}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'share', role: 'button', label: shareLabel }) })}
           >
             {shareLabel}
           </button>
@@ -151,14 +175,14 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
               hint={metricsHint}
               checked={state.telemetry.metrics === true}
               onChange={(v) => onChange(nextStateForTelemetryPatch(state, { metrics: v }, now()))}
-              {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'metrics-toggle') } : {})}
+              {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'metrics-toggle' }) } : {})}
             />
             <ToggleRow
               label={contentLabel}
               hint={contentHint}
               checked={state.telemetry.content === true}
               onChange={(v) => onChange(nextStateForTelemetryPatch(state, { content: v }, now()))}
-              {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'content-toggle') } : {})}
+              {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'content-toggle' }) } : {})}
             />
           </div>
 
@@ -175,14 +199,14 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
                 readOnly
                 value={state.installationId ?? optedOutLabel}
                 aria-label={installationIdLabel}
-                {...agentHandleProps(agentHandle, { action: 'installation-id', role: 'field', label: installationIdLabel })}
+                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'installation-id', role: 'field', label: installationIdLabel }) })}
               />
             </div>
             <button
               type="button"
               className="jini-button jini-button-ghost"
               onClick={() => onChange(nextStateForDeleteMyData(state, now()))}
-              {...agentHandleProps(agentHandle, { action: 'delete-my-data', role: 'button', label: deleteMyDataLabel })}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete-my-data', role: 'button', label: deleteMyDataLabel }) })}
             >
               <Icon name="trash" size={13} />
               <span>{deleteMyDataLabel}</span>

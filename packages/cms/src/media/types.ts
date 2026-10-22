@@ -22,10 +22,11 @@
  * the original design describes — they were always meant to be core-owned tables
  * independent of the entries model, so no scope adjustment was needed there.
  */
-import type { ISODateTime, UUID } from "../core/ports.js";
+import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 
 /** Deletion ladder status (mirrored from `navigation`'s menu ladder). */
 export type MediaStatus = "active" | "trashed";
+export type MediaKind = "media" | "document";
 
 /**
  * Write-once source binding — the edge from a media record to its bytes.
@@ -42,8 +43,16 @@ export interface MediaSource {
 }
 
 export interface MediaRecord {
+  /** Absent only in legacy callers/serialized records; persistent adapters default to media. */
+  kind?: MediaKind | undefined;
+  /** Immutable upload name; editable title is the display stem. Never a storage path. */
+  originalFilename?: string | null | undefined;
   id: UUID;
   workspaceId: UUID;
+  /** Acting principal at asset creation, independent of the producer/model and editable credit.
+   * Optional/null for records written before attribution existed. Never inferred from a shared
+   * blob's owner: identical bytes may have been uploaded by different principals. */
+  createdBy?: string | null | undefined;
   title: string;
   /**
    * Human-memorable, unique-per-workspace lookup key (owner-directed, 2026-09-07) — an ADDITIONAL
@@ -95,13 +104,14 @@ export interface MediaRecord {
 }
 
 /**
- * Blob-GC lifecycle status (INV-1's two-phase journaled protocol,
+ * Blob-GC lifecycle status ( two-phase journaled protocol,
  * implemented in `blob-gc.ts`). `active` — has at least one live reference as
  * of the last check (or has never been checked). `tombstoned` — the
  * tombstone-pass found it unreferenced and is waiting out `gc_grace` before
  * the delete-pass may remove the row; a dedup upload observing `tombstoned`
  * resurrects it back to `active` in the same locked section instead of
  * writing a duplicate blob.
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export type AssetBlobStatus = "active" | "tombstoned";
 
@@ -122,10 +132,13 @@ export interface AssetBlobRecord {
   status: AssetBlobStatus;
   /** Set only while `status === "tombstoned"`; cleared (undefined) on resurrect. */
   tombstonedAt?: ISODateTime | undefined;
+  /** Sticky ownership until blob GC: purge deletes editorial rows before deleting bytes.
+   * Absent/false means no recorded document owner; saves must never clear a true value. */
+  documentOwned?: boolean | undefined;
 }
 
 /**
- * `blob_gc_journal` sidecar (INV-1's two-phase protocol,
+ * `blob_gc_journal` sidecar ( two-phase protocol,
  * `blob-gc.ts`): written by the delete-pass in the same locked step as the
  * `asset_blobs` row deletion, drained by the unlink-pass. This is what makes
  * the unlink crash-safe/retriable instead of "delete row, hope the unlink
@@ -134,6 +147,7 @@ export interface AssetBlobRecord {
  * in-memory table like every other `media` repo in this pass — it does not
  * survive a process restart; see `repo.memory.ts` file header for the
  * standing disclosed precedent.)
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 export interface BlobGcJournalEntry {
   id: UUID;
@@ -159,15 +173,31 @@ export interface AssetRenditionRecord {
   createdAt: ISODateTime;
 }
 
-export class MediaNotFoundError extends Error {}
-export class MediaValidationError extends Error {}
-export class MediaConflictError extends Error {}
+export class MediaNotFoundError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
+export class MediaValidationError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
+export class MediaConflictError extends Error {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super(message, optionalArgs);
+  }
+}
 
 /**
  * The write-once source guard rejected an attempt to change an
  * already-set `source.sha256` ("settable-once-from-absent").
  */
-export class MediaSourceImmutableError extends MediaValidationError {}
+export class MediaSourceImmutableError extends MediaValidationError {
+  constructor({ message }: { message: string }, optionalArgs: ErrorOptions = {}) {
+    super({ message }, optionalArgs);
+  }
+}
 
 /**
  * The 409-style purge rejection (deletion ladder, mirrors
@@ -178,8 +208,9 @@ export class MediaSourceImmutableError extends MediaValidationError {}
 export class MediaStillReferencedError extends MediaConflictError {
   readonly referencing: readonly string[];
 
-  constructor(message: string, referencing: readonly string[]) {
-    super(message);
+  constructor(requiredArgs: { message: string; referencing: readonly string[] }, optionalArgs: Record<string, never> = {}) {
+    const { message, referencing } = requiredArgs;
+    super({ message: message });
     this.referencing = referencing;
   }
 }

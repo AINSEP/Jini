@@ -53,8 +53,8 @@ test("AC-27 / REQ-18: onContentDeleted removes every entry_terms row for the del
 });
 
 test("AC-28 / REQ-19 / INV-07: a reverse lookup silently omits an orphaned entry_terms row rather than erroring, when cleanup was missed (best-effort event, backstopped by reconciliation)", async () => {
-  // Simulates EC-07: content deleted OUTSIDE the taxonomy chokepoint (the cleanup event was never
-  // fired), leaving an orphaned row. The read path (listByTerm here stands in for C-205's
+  // Simulates : content deleted OUTSIDE the taxonomy chokepoint (the cleanup event was never. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
+  // fired), leaving an orphaned row. The read path (listByTerm here stands in for. See docs/decisions/DR-005-ordered-taxonomy-validation.md.
   // listContentForTerm) must not surface it as an error.
   const entryTerms = fakeEntryTermsStore([{ workspaceId: "ws-1", contentType: "post", contentId: "deleted-post", termId: "term-a" }]);
 

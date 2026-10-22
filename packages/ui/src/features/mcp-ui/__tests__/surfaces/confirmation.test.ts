@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   CONFIRM_DWELL_MS,
   buildConfirmationSurface,
   renderConfirmationDocument,
 } from '../../surfaces/confirmation.js';
-import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
 import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 
@@ -535,6 +536,109 @@ describe('choices', () => {
   });
 });
 
+describe('alternatives', () => {
+  const APPROVE = {
+    title: 'Run execute_sql on Supabase?',
+    details: [{ label: 'query', value: 'select 1' }],
+    confirm: { label: 'Allow', toolName: 'mcp__supabase__execute_sql', params: { __exchangeId: 'x1', decision: 'confirm' } },
+    alternatives: [
+      {
+        id: 'allow-chat',
+        label: 'Allow for this chat',
+        toolName: 'mcp__supabase__execute_sql',
+        params: { __exchangeId: 'x1', decision: 'confirm', remember: 'chat' },
+      },
+      {
+        id: 'allow-always',
+        label: 'Always allow',
+        toolName: 'mcp__supabase__execute_sql',
+        params: { __exchangeId: 'x1', decision: 'confirm', remember: 'always' },
+      },
+    ],
+    cancel: { label: 'Cancel', toolName: 'mcp__supabase__execute_sql', params: { __exchangeId: 'x1', decision: 'cancel' } },
+  } as const;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders the buttons in order: confirm, each alternative, then cancel', () => {
+    const { doc } = mountSurface(renderConfirmationDocument(APPROVE));
+    expect([...doc.querySelectorAll('button[data-mcpui-action]')].map((node) => [node.getAttribute('data-mcpui-action'), node.textContent])).toEqual([
+      ['confirm', 'Allow'],
+      ['allow-chat', 'Allow for this chat'],
+      ['allow-always', 'Always allow'],
+      ['cancel', 'Cancel'],
+    ]);
+  });
+
+  it('holds every alternative behind the same dwell as confirm, and leaves cancel usable throughout', () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    expect(surface.disabledActions()).toEqual([true, true, true, false]);
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    surface.trustedClick('allow-always');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(surface.disabledActions()).toEqual([false, false, false, false]);
+  });
+
+  it('sends exactly the clicked alternative’s own params, once', () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    humanClick(surface, 'allow-chat');
+    surface.trustedClick('allow-always');
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+    expect(surface.api.callTool).toHaveBeenCalledWith('mcp__supabase__execute_sql', { __exchangeId: 'x1', decision: 'confirm', remember: 'chat' });
+    expect(surface.disabledActions()).toEqual([true, true, true, true]);
+  });
+
+  it('sends nothing for a synthetic alternative click, however late it lands', () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 4);
+    surface.click('allow-always');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+  });
+
+  it('keeps the alternatives disabled after a failed early cancel until the dwell has run out', async () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    surface.trustedClick('cancel');
+    await surface.settle('reject', new Error('offline'));
+    expect(surface.disabledActions()).toEqual([true, true, true, false]);
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([false, false, false, false]);
+  });
+
+  it('writes the alternatives into the action plan in the same order the frame renders them', () => {
+    const resource = buildConfirmationSurface({ ...APPROVE, uri: 'ui://example-host/x/3' });
+    const plan = resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY] as { actions: unknown[] };
+    expect(plan.actions).toEqual([
+      { id: 'confirm', label: 'Allow', variant: 'primary' },
+      { id: 'allow-chat', label: 'Allow for this chat', variant: 'neutral' },
+      { id: 'allow-always', label: 'Always allow', variant: 'neutral' },
+      { id: 'cancel', label: 'Cancel', variant: 'neutral' },
+    ]);
+  });
+
+  it('refuses an alternative id that is reserved, repeated or not a plain handle', () => {
+    for (const id of ['confirm', 'cancel', 'Allow Chat', '']) {
+      expect(() => renderConfirmationDocument({ ...APPROVE, alternatives: [{ ...APPROVE.alternatives[0], id }] })).toThrow(
+        `Confirmation alternative ids must be unique lowercase handles other than "confirm" and "cancel"; ${JSON.stringify(id)} is not.`,
+      );
+    }
+    expect(() => renderConfirmationDocument({ ...APPROVE, alternatives: [APPROVE.alternatives[0], APPROVE.alternatives[0]] })).toThrow(
+      'Confirmation alternative ids must be unique lowercase handles other than "confirm" and "cancel"; "allow-chat" is not.',
+    );
+  });
+
+  it('renders exactly the two-button dialog when alternatives is omitted or empty', () => {
+    const { alternatives: _alternatives, ...plain } = APPROVE;
+    expect(renderConfirmationDocument({ ...plain, alternatives: [] })).toBe(renderConfirmationDocument(plain));
+  });
+});
+
 describe('buildConfirmationSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource', () => {
     const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://example-host/content-post-delete/p1/3' });
@@ -568,10 +672,61 @@ describe('buildConfirmationSurface', () => {
     expect(resource.resource._meta).toHaveProperty(MCP_UI_ACTION_PLAN_META_KEY);
   });
 
+  it('carries the answer deadline a caller gives, so a host can count it down', () => {
+    const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://example-host/x/4', expiresAtMs: 1_700_000_300_000 });
+    expect(resource.resource._meta?.[MCP_UI_EXPIRES_AT_META_KEY]).toBe(1_700_000_300_000);
+  });
+
   it('omits a cancel action from the plan when the spec has none, matching the rendered document', () => {
     const { cancel: _cancel, ...noCancel } = DELETE_POST;
     const resource = buildConfirmationSurface({ ...noCancel, uri: 'ui://example-host/x/2' });
     const plan = resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY] as { actions: unknown[] };
     expect(plan.actions).toEqual([{ id: 'confirm', label: 'Delete post', variant: 'danger' }]);
+  });
+});
+
+describe('renderConfirmationDocument choicesParam collisions with alternatives', () => {
+  it('refuses an alternative whose params already carry the choices param, naming the alternative', () => {
+    expect(() => renderConfirmationDocument({
+      ...DELETE_POST,
+      choices: [{ id: 'c1', label: 'C1' }],
+      alternatives: [{ id: 'keep-both', label: 'Keep both', toolName: 't', params: { overwrite: [] } }],
+    })).toThrow(new Error('choicesParam "overwrite" collides with a key already in the params of alternative "keep-both".'));
+  });
+
+  it('allows that same key on an alternative when there are no choices to merge', () => {
+    expect(() => renderConfirmationDocument({
+      ...DELETE_POST,
+      alternatives: [{ id: 'keep-both', label: 'Keep both', toolName: 't', params: { overwrite: [] } }],
+    })).not.toThrow();
+  });
+});
+
+// Exact hashes include the intended detail-layout fix (c4c19234); all other emitted bytes stay pinned.
+describe('renderConfirmationDocument exact output', () => {
+  const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const FULL = {
+    ...DELETE_POST,
+    choices: [{ id: 'a.txt', label: 'a.txt', hint: 'exists' }, { id: 'b', label: 'B' }],
+    choicesParam: 'replace',
+    alternatives: [{ id: 'keep-both', label: 'Keep both', toolName: 'alt_tool', params: { mode: 'both' } }],
+    text: { working: 'W' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
+  } as const;
+  const cases: ReadonlyArray<readonly [string, Parameters<typeof renderConfirmationDocument>[0], string]> = [
+    ['tool-routed cancel', DELETE_POST, 'f8dff6cc6e7b6a2412c5376ebc97ed128996049ae82bdedfb4b982aa797eb9f8'],
+    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, 'addeeb377caf61ab1fe8cc40484414214445e0a02ed0d3c4226bd1ad73d4b356'],
+    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, '335a191e179cfcd4469262d09cb818d6f5a8f53bf2e53fc5c68fabc81475dc1f'],
+    ['choices, alternatives and every option', FULL, 'baf80ab6817f10d1eb3d015ff7dddbf91ae04d628a911a84d7067fdd541aa9e8'],
+  ];
+  it.each(cases)('%s', (_name, spec, expected) => {
+    expect(digest(renderConfirmationDocument(spec))).toBe(expected);
+  });
+
+  it('pins the framed, expiring resource wrapper and its action plan', () => {
+    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('0df5d6175caeee5583e723acf42a9211a63e57e7febe7da4bec0d28541c68da3');
+  });
+
+  it('pins the bare resource wrapper', () => {
+    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('7c3fd74e155bf5893e1ef036cf03c131f4e6fac8b3d25bd66335a2b02cb0016a');
   });
 });

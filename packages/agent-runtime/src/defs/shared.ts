@@ -7,10 +7,6 @@
  * `../pi-models.ts` for why these are ports, not direct lifts), and two
  * small generic parsers (`clampCodexReasoning`, `parseLineSeparatedModels`).
  *
- * Ported from OD's `apps/daemon/src/runtimes/defs/shared.ts` — the origin
- * imported `detectAcpModels` from `../../acp.js` and `parsePiModels` from
- * `../../pi-rpc.js` directly; here they come from this package's own
- * port/vendor modules instead. See `source-map.md`.
  */
 import { detectAcpModels } from '../acp-model-probe.js';
 import { parsePiModels } from '../pi-models.js';
@@ -30,12 +26,11 @@ export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
  * surface, which is why it declared the strategy at all. Both current declarers (`claude`,
  * `codebuddy`) call this; a third would too, instead of copying the branch.
  *
- * Why explicit rather than auto-discovery: confirmed live (2026-07-30) that auto-discovery of a
- * project `.mcp.json` requires an interactive trust prompt a headless daemon-spawned child has no
- * TTY to answer — the MCP server connection sat at `"pending"` forever and none of its tools ever
- * reached the model. The identical config passed via `--mcp-config` connected immediately.
+ * Explicit config bypasses project .mcp.json auto-discovery's interactive trust prompt: a
+ * headless daemon child has no TTY to answer it, leaving the MCP connection pending indefinitely.
+ * Passing the staged file via --mcp-config makes it available without that prompt.
  *
- * `--strict-mcp-config` is paired with it deliberately, not for symmetry: it makes the CLI load
+ * Unless a trusted host grants CLI parity, `--strict-mcp-config` makes the CLI load
  * ONLY this config, closing the separate "spawned CLI inherits the interactive developer's own
  * global/project MCP servers" leak. Both flags are documented for both current declarers
  * (Claude Code's own CLI reference; CodeBuddy's CLI reference documents `--mcp-config
@@ -45,28 +40,35 @@ export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
  * @param runtimeContext - The def's own `buildArgs` `runtimeContext`. Only `mcpJsonPath` is read;
  * it is present only when the caller is actually staging that file for this run (see
  * `RuntimeContext.mcpJsonPath`'s own doc), so an unconfigured host gets `[]` and no argv change.
- * @returns `['--strict-mcp-config', '--mcp-config', <path>]`, or `[]` when no path was staged.
+ * Trusted bypass parity omits strict isolation so user MCP/Chrome settings remain available.
+ * Explicit --mcp-config still avoids a headless trust prompt. A locked run without a staged
+ * config gets --strict-mcp-config alone, exposing no auto-discovered MCP servers.
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext): string[] {
+export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options: { cliParity?: boolean; permissionMode?: string; nativeToolAccess?: boolean; nativeCapabilities?: { userMcp?: boolean } } = {}): string[] {
   const mcpJsonPath = runtimeContext.mcpJsonPath;
-  if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return [];
-  return ['--strict-mcp-config', '--mcp-config', mcpJsonPath];
+  const userMcpLocked = options.nativeToolAccess === false || options.nativeCapabilities?.userMcp === false;
+  if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return userMcpLocked ? ['--strict-mcp-config'] : [];
+  // Explicit config still avoids headless trust prompts. Only a trusted bypass run inherits MCP.
+  const trustedBypass = Boolean(options.cliParity) && options.permissionMode === 'bypass' && !userMcpLocked;
+  return [...(trustedBypass ? [] : ['--strict-mcp-config']), '--mcp-config', mcpJsonPath];
+}
+
+/** Model-id prefixes of the late gpt-5.x family, which rejects `minimal` effort. */
+const GPT5_LATE_FAMILY_PREFIXES = ['gpt-5.2', 'gpt-5.3', 'gpt-5.4', 'gpt-5.5'];
+
+/** True for the empty/`default` id (the CLI's own default model) or a late gpt-5.x id. */
+function isGpt5LateFamily(id: string): boolean {
+  return id === '' || id === 'default' || GPT5_LATE_FAMILY_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
 export function clampCodexReasoning(modelId: string | null | undefined, effort: string | null | undefined) {
   if (!effort) return effort;
   const raw = String(modelId ?? '').trim();
-  const id = raw.includes('/') ? raw.split('/').pop() : raw;
-  const isGpt5LateFamily =
-    !id ||
-    id === 'default' ||
-    id.startsWith('gpt-5.2') ||
-    id.startsWith('gpt-5.3') ||
-    id.startsWith('gpt-5.4') ||
-    id.startsWith('gpt-5.5');
-  if (isGpt5LateFamily && effort === 'minimal') return 'low';
+  // Strip any provider prefix ("openai/gpt-5.2" -> "gpt-5.2"); a trailing "/" leaves "".
+  const id = raw.slice(raw.lastIndexOf('/') + 1);
+  if (isGpt5LateFamily(id) && effort === 'minimal') return 'low';
   if (id === 'gpt-5.1' && effort === 'xhigh') return 'high';
   if (id === 'gpt-5.1-codex-mini') {
     return effort === 'high' || effort === 'xhigh' ? 'high' : 'medium';
@@ -76,7 +78,7 @@ export function clampCodexReasoning(modelId: string | null | undefined, effort: 
 
 // Parse one-id-per-line stdout from `<cli> models` and prepend the synthetic
 // default option. Used by opencode / cursor-agent.
-export function parseLineSeparatedModels(stdout: string): RuntimeModelOption[] {
+export function parseLineSeparatedModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
   const ids = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())

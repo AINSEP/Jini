@@ -1,11 +1,31 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/opencode.ts` (import path adjusted only). See `source-map.md`. */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION, parseLineSeparatedModels } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext } from '../types.js';
 
 const SKIP_PERMISSIONS_FLAG = '--dangerously-skip-permissions';
 
+// Gated on two independent things: whether this OpenCode build even supports the flag
+// (`skipPermissions`, probed from `--help` text) AND whether the caller wants it — see
+// `RuntimeBuildOptions.permissionMode`'s doc. Bypass remains the default (unchanged
+// behavior) unless a caller explicitly opts into a restricted run.
+function skipsPermissions(options: RuntimeBuildOptions): boolean {
+  return Boolean((options.capabilities ?? agentCapabilities.get('opencode'))?.skipPermissions) && options.permissionMode !== 'restricted';
+}
+
+// Capture-style resume: OpenCode mints its own session id (reported on
+// the stream as `sessionID`, e.g. `ses_...`). On a follow-up turn the
+// daemon continues that session with `-s <id>` instead of re-sending the
+// flattened transcript, so the first upstream call reuses the warm prefix
+// cache. `-s` continues an EXISTING session (the create turn passes no id
+// and we capture the one OpenCode generated), mirroring codex.
+function resumeArgs(runtimeContext: RuntimeContext): string[] {
+  const resumeSessionId = runtimeContext.resumeSessionId;
+  return typeof resumeSessionId === 'string' && resumeSessionId.length > 0 ? ['-s', resumeSessionId] : [];
+}
+
 export const opencodeAgentDef = {
+  ...createAgentModelDiscovery('opencode', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => opencodeAgentDef.fallbackModels, args: ['models'], parse: parseLineSeparatedModels }),
     id: 'opencode',
     name: 'OpenCode',
     bin: 'opencode-cli',
@@ -50,38 +70,14 @@ export const opencodeAgentDef = {
     // avoid Windows `spawn ENAMETOOLONG` while preserving OpenCode's
     // structured stream. A literal `-` is parsed as a positional message by
     // OpenCode 1.14.x and can surface as "Session not found".
-    buildArgs: (_prompt, _imagePaths, _extra, options = {}, runtimeContext = {}) => {
-      const args = [
-        'run',
-        '--format',
-        'json',
-      ];
-      // Gated on two independent things: whether this OpenCode build even supports the flag
-      // (`skipPermissions`, probed from `--help` text) AND whether the caller wants it — see
-      // `RuntimeBuildOptions.permissionMode`'s doc. Bypass remains the default (unchanged
-      // behavior) unless a caller explicitly opts into a restricted run.
-      if (agentCapabilities.get('opencode')?.skipPermissions && options.permissionMode !== 'restricted') {
-        args.push(SKIP_PERMISSIONS_FLAG);
-      }
-      // Capture-style resume: OpenCode mints its own session id (reported on
-      // the stream as `sessionID`, e.g. `ses_...`). On a follow-up turn the
-      // daemon continues that session with `-s <id>` instead of re-sending the
-      // flattened transcript, so the first upstream call reuses the warm prefix
-      // cache. `-s` continues an EXISTING session (the create turn passes no id
-      // and we capture the one OpenCode generated), mirroring codex.
-      const resumeSessionId =
-        typeof runtimeContext.resumeSessionId === 'string' &&
-        runtimeContext.resumeSessionId.length > 0
-          ? runtimeContext.resumeSessionId
-          : null;
-      if (resumeSessionId) {
-        args.push('-s', resumeSessionId);
-      }
-      if (options.model && options.model !== 'default') {
-        args.push('-m', options.model);
-      }
-      return args;
-    },
+    buildArgs: (_requiredArgs, { options = {}, runtimeContext = {} } = {}) => [
+      'run',
+      '--format',
+      'json',
+      ...(skipsPermissions(options) ? [SKIP_PERMISSIONS_FLAG] : []),
+      ...resumeArgs(runtimeContext),
+      ...(options.model && options.model !== 'default' ? ['-m', options.model] : []),
+    ],
     promptViaStdin: true,
     // OpenCode's CLI carries its own session across spawns: on a follow-up turn
     // the daemon resumes the captured session id (`-s <id>`) instead of

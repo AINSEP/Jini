@@ -1,5 +1,34 @@
 # `@jini-ai/artifacts`
 
+## Integration update (2026-10-01)
+
+This section supersedes the deferred-conversion notes and positional examples below. All public
+callables now accept required/optional objects, including the store and manifest APIs.
+
+```ts
+const store = createInMemoryArtifactStore({}, {
+  taxonomy,
+  inferManifest: ({ entry }) => entry.endsWith('.md')
+    ? { kind: 'document', renderer: 'markdown', exports: ['md'] } : null,
+  now: () => new Date().toISOString(),
+});
+await store.get({ name: 'report.md' });
+resolveArtifactManifest({ input, taxonomy, inferManifest }, { now });
+validateArtifactManifestInput({ manifest, entry, taxonomy }, { preserveUpdatedAt: true });
+noopManifestInferrer({ entry });
+```
+
+`ArtifactRecord.content` is typed as `Uint8Array`; decode text with `new TextDecoder().decode(content)`.
+Node still produces Buffer instances by default. Browser/edge runtimes use native UTF-8/base64
+primitives without a Buffer polyfill; custom decoders are injected as `contentCodec.decode({ content },
+{ encoding })`. Validation precedes decoding. Manifest metadata size remains bounded in UTF-8 bytes.
+The existing root (universal) and `./node` (Node) export maps remain unchanged; the existing barrel
+exposes `ArtifactContentCodecPort`. Verification is not run (owner directive); see INTEGRATION-REPORT.md.
+
+
+The 2026-10-01 breaking argument conversion is documented in [API-CONVERSION.md](./API-CONVERSION.md). Required values use the first object; optional settings use the second. Pre-existing dirty APIs remain deferred and are explicitly listed there.
+
+
 A store for the files an agent produces during a run — an HTML page, a Markdown doc, an SVG — with the
 guard rails that make those files safe to show and safe to publish. Every artifact carries a validated
 manifest, so a renderer knows what it is looking at; a publication guard refuses to ship content still
@@ -15,14 +44,15 @@ npm install @jini-ai/artifacts
 ```
 
 No peer dependencies. `@jini-ai/core` is a regular dependency (for the DI token), installed
-automatically.
+automatically. `ArtifactStoreToken` uses core's object-based token factory and has the ID
+`jini.artifactStore`, version `1` and singleton cardinality.
 
 ## What you get
 
 **The store port** — `ArtifactStore` (`create` / `get` / `list`) with `CreateArtifactInput`
 (`{ name, content, encoding?, artifactManifest? }`) and `ArtifactRecord`, plus
 `ArtifactStoreToken` for binding one into a `@jini-ai/core` composition, and
-`createInMemoryArtifactStore(options)` as the reference implementation. `create` throws
+`createInMemoryArtifactStore({}, options)` as the reference implementation. `create` throws
 `ArtifactManifestRequiredError` when no manifest was supplied and the inferrer produced none, and
 `ArtifactManifestInvalidError` when the resolved manifest fails taxonomy validation.
 
@@ -44,7 +74,7 @@ about your content.
 `DEFAULT_ARTIFACT_STUB_GUARD_CONFIG`, `PriorArtifactSibling`, `ArtifactStubGuardWarning`,
 `EvaluateArtifactStubGuardResult`, `ArtifactRegressionError`.
 
-**Text suppression** — `createTaggedTextSuppressor`, `createXmlTagTextSuppressor(tagNames)`,
+**Text suppression** — `createTaggedTextSuppressor`, `createXmlTagTextSuppressor({ tagNames })`,
 `createToolCallTextSuppressor`, and `emitWithTextSuppressor`, with `ArtifactTextSuppressor` /
 `ArtifactTextSuppressorStats` / `StreamTextEvent` / `StreamEventSink`.
 
@@ -72,9 +102,9 @@ const taxonomy: ArtifactManifestTaxonomy = {
   allowedExports: new Set(['md', 'html', 'pdf']),
 };
 
-const store = createInMemoryArtifactStore({
+const store = createInMemoryArtifactStore({}, {
   taxonomy,
-  inferManifest: (entry) =>
+  inferManifest: ({ entry }) =>
     entry.endsWith('.md') ? { kind: 'document', renderer: 'markdown', exports: ['md'] } : null,
 });
 
@@ -90,14 +120,18 @@ const record = await store.create({
 });
 
 // Refuse to publish content still full of placeholders.
-assertArtifactPublicationAllowed('document', record.content.toString('utf8'), {
+assertArtifactPublicationAllowed({ kind: 'document', value: record.content, config: {
   guardedKinds: new Set(['document']),
   blockedPlaceholders: ['TODO', 'Lorem ipsum'],
-});
+} });
 
 // Keep artifact markup out of the visible stream while it streams.
-const suppressor = createXmlTagTextSuppressor(['artifact']);
-emitWithTextSuppressor(suppressor, (ev) => process.stdout.write(ev.delta), 'hello <artifact>');
+const suppressor = createXmlTagTextSuppressor({ tagNames: ['artifact'] });
+emitWithTextSuppressor({
+  suppressor,
+  onEvent: (ev) => process.stdout.write(ev.delta),
+  text: 'hello <artifact>',
+});
 ```
 
 For the disk-backed regression check, import the Node half explicitly:
@@ -135,5 +169,5 @@ ESM only — ships `"type": "module"` with no CommonJS `require` build.
 
 ## Provenance
 
-See [source-map.md](./source-map.md) for per-file provenance and the design decisions behind each
+See the archived provenance ledger for per-file provenance and the design decisions behind each
 generalization. Apache-2.0, inherited from Open Design — see the repo `NOTICE`.

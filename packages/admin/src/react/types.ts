@@ -20,7 +20,7 @@ export type ConfirmTone = 'default' | 'warning' | 'danger';
 
 /** Maps a tone onto the class name the host stylesheet is expected to define. `"default"` yields
  *  `undefined` — the plain button, no class. */
-export function toneClassName(tone: ConfirmTone): string | undefined {
+export function toneClassName({ tone }: { readonly tone: ConfirmTone }): string | undefined {
   if (tone === 'danger') return 'btn-danger';
   if (tone === 'warning') return 'btn-warning';
   return undefined;
@@ -28,6 +28,9 @@ export function toneClassName(tone: ConfirmTone): string | undefined {
 
 /** `tone` wins when both `tone` and the deprecated `destructive` are passed; `destructive: true`
  *  alone still maps to `"danger"` (its only prior meaning) for callers that haven't migrated. */
-export function resolveTone(source: { tone?: ConfirmTone; destructive?: boolean }): ConfirmTone {
+export function resolveTone(
+  _requiredArgs: Record<string, never>,
+  source: { tone?: ConfirmTone | undefined; destructive?: boolean | undefined } = {},
+): ConfirmTone {
   return source.tone ?? (source.destructive ? 'danger' : 'default');
 }

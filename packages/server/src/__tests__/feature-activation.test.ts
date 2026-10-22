@@ -325,3 +325,53 @@ describe('capability overrides', () => {
     expect(plan.grantedCapabilities).toContain('net:egress');
   });
 });
+
+
+describe('L039a activation ordering and result pins', () => {
+  it('preserves all selection reasons, denied order, and undefined overrides together', () => {
+    const plan = resolveFeatureActivation({
+      profile: CORE_ONLY,
+      features: [feature('default', []), feature('opted', ['host:exec']),
+        feature('off', ['db:admin']), feature('denied', ['net:egress', 'db:admin']),
+        feature('permitted', ['host:exec'])],
+      capabilities: { 'host:exec': true, 'run:transport': undefined, 'tool:delegated': false },
+      featureOverrides: { default: undefined, opted: true, off: false },
+    });
+    expect(plan).toEqual({
+      active: [{ id: 'default', provides: [], reason: 'default' },
+        { id: 'opted', provides: ['host:exec'], reason: 'opt-in' }],
+      inactive: [{ id: 'off', provides: ['db:admin'], reason: 'opt-out', deniedCapabilities: [] },
+        { id: 'denied', provides: ['net:egress', 'db:admin'], reason: 'capability-denied', deniedCapabilities: ['net:egress', 'db:admin'] },
+        { id: 'permitted', provides: ['host:exec'], reason: 'not-default', deniedCapabilities: [] }],
+      grantedCapabilities: ['run:transport', 'host:exec'], deniedCapabilities: ['db:admin', 'net:egress'],
+    });
+  });
+  it('keeps duplicate, feature-key, capability-key, and dependency errors in that precedence', () => {
+    const capabilities: Record<string, boolean> = { typo: false };
+    const input = { profile: CORE_ONLY, features: [feature('dup', []), feature('dup', [])],
+      capabilities, featureOverrides: { unknown: undefined } };
+    expect(() => resolveFeatureActivation(input)).toThrow('duplicate feature id "dup"');
+    expect(() => resolveFeatureActivation({ ...input, features: [feature('dup', [])] }))
+      .toThrow('unknown feature "unknown"');
+    expect(() => resolveFeatureActivation({ ...input, features: [feature('dup', [])], featureOverrides: {} }))
+      .toThrow('unknown capability "typo"');
+    expect(() => resolveFeatureActivation({ profile: CORE_ONLY,
+      features: [feature('dependent', [], ['missing'])] })).toThrow('which is not a known feature');
+    expect(() => resolveFeatureActivation({ profile: CORE_ONLY,
+      features: [feature('dependent', [], ['off']), feature('off', ['host:exec'])] }))
+      .toThrow('which is not active');
+  });
+  it.each([{ provides: ['host:exec'] }, { provides: ['host:exec', 'db:admin'] }] satisfies { provides: CapabilityId[] }[])(
+    'rejects explicit enabling under a denied ceiling (%j)', ({ provides: denied }) => {
+      expect(() => resolveFeatureActivation({ profile: CORE_ONLY,
+        features: [feature('blocked', denied)], featureOverrides: { blocked: true } }))
+        .toThrow(`requires denied capabilit${denied.length > 1 ? 'ies' : 'y'} [${denied.join(', ')}]`);
+    },
+  );
+  it('selects every permitted feature under all-permitted and checks dependencies after selection', () => {
+    expect(resolveFeatureActivation({ profile: ALL_PERMITTED,
+      features: [feature('dependent', ['host:exec'], ['later']), feature('later', [])] }).active)
+      .toEqual([{ id: 'dependent', provides: ['host:exec'], reason: 'default' },
+        { id: 'later', provides: [], reason: 'default' }]);
+  });
+});

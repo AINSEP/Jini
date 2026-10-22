@@ -2,7 +2,7 @@
  * Origin: `AppearanceSection` in `SettingsDialog.tsx` (theme segmented
  * control + accent-color swatch grid + custom color picker), GENERIC per
  * `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md` §1.3. See
- * `packages/ui/source-map.md` for the full provenance note.
+ * `packages/ui/archived provenance ledger` for the full provenance note.
  */
 
 /** `'system'` in addition to this package's `AppearanceTheme` ('light' |

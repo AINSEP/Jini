@@ -10,12 +10,14 @@
  * This port owns the type since `createDatabaseRestorePoint` is where a restore point actually
  * comes into being; `recovery.ts` imports it rather than redeclaring it.
  *
- * ## `migrateForward` satisfies `GatedOperation`; see `recovery.ts` for the triad that doesn't
+ * ## Both migration and restore satisfy `GatedOperation`, with different input needs
  *
  * The reference implementation's `planMigrateForward` takes no input and `executeMigrateForward` takes only the
  * confirmation token — no operation-specific extra fields on any of the three calls. That means
- * this triad is a clean, direct instance of `../gated/types.js`'s `GatedOperation`, unlike
- * Recovery's restore ceremony (see that file's header for why restore is different). A
+ * this triad is a clean, direct instance of `../gated/types.js`'s `GatedOperation` using its
+ * default confirm/execute inputs. Recovery's restore ceremony uses the same abstraction with operation-specific
+ * confirm/execute inputs to record disclosure consent and bind the restore target (see that
+ * file's header for why those extra fields matter). A
  * compile-time assertion of that fact lives in `../__tests__/database-gated.test.ts`.
  */
 import type { GatedConfirmResult, GatedOperation, GatedPlanResult } from '../gated/types.js';
@@ -74,7 +76,7 @@ export interface AdminDatabasePort {
    * `outcome` and bounded by `fromDate`/`toDate`. Keyset-paginated via `cursor`/`nextCursor`, not
    * offset-paginated — do not compute a page number from `limit`.
    */
-  getDatabaseTimeline(options?: {
+  getDatabaseTimeline(requiredArgs: Record<string, never>, optionalArgs?: {
     kind?: string;
     outcome?: string;
     fromDate?: string;
@@ -82,23 +84,24 @@ export interface AdminDatabasePort {
     cursor?: string;
     limit?: number;
   }): Promise<{ items: readonly AdminLedgerRow[]; nextCursor: string | null }>;
-  listDatabaseRestorePoints(): Promise<readonly AdminRestorePoint[]>;
+  listDatabaseRestorePoints(requiredArgs: Record<string, never>): Promise<readonly AdminRestorePoint[]>;
   /**
    * Captures a new restore point on demand. `costAck` should be `true` once the operator has
    * acknowledged a shown cost warning for a `RestorePointCostClass` of `"expensive"` — a host may
    * reject the call without it rather than silently proceeding.
    */
-  createDatabaseRestorePoint(options?: {
+  createDatabaseRestorePoint(requiredArgs: Record<string, never>, optionalArgs?: {
     trigger?: string;
     costAck?: boolean;
   }): Promise<AdminRestorePointSummary>;
   /**
    * The forward-migration ceremony (schema/data migration to the host's current expected state),
-   * as a `GatedOperation` — see the file header for why this triad, unlike Recovery's restore, fits
-   * the generic shape directly. `plan` takes no meaningful input beyond the ceremony trigger; the
-   * plan is computed entirely from the site's current migration state server-side.
+   * as a `GatedOperation` — see the file header for why this triad uses the default confirm/execute
+   * inputs while Recovery's restore supplies operation-specific ones. `plan` takes no meaningful
+   * input beyond the ceremony trigger; the plan is computed entirely from the site's current
+   * migration state server-side.
    */
-  readonly migrateForward: GatedOperation<void, unknown, MigrateForwardResult>;
+  readonly migrateForward: GatedOperation<Record<string, never>, unknown, MigrateForwardResult>;
 }
 
 // Re-exported for callers that want the gated-protocol types alongside this port's own, without a

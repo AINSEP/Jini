@@ -4,7 +4,7 @@
  *
  * Ported from OD's `apps/daemon/src/media/models.ts` (catalogue
  * shape) and `apps/daemon/src/media-adapters/types.ts` (capability +
- * request-builder shape) — see `source-map.md` for the full provenance.
+ * request-builder shape) — see `archived provenance ledger` for the full provenance.
  * Neither origin file carries any OD domain noun; this is a product-neutral
  * multi-vendor media-generation type system, not an OD concept.
  */
@@ -48,7 +48,7 @@ export interface MediaModel {
   readonly label: string;
   readonly hint: string;
   readonly provider: string;
-  /** Capability tags, e.g. `t2i`/`i2i`/`inpaint`/`t2v`/`i2v`/`tts`. Open-ended by design — see `source-map.md`. */
+  /** Capability tags, e.g. `t2i`/`i2i`/`inpaint`/`t2v`/`i2v`/`tts`. Open-ended by design — see `archived provenance ledger`. */
   readonly caps: readonly string[];
   readonly default?: boolean;
 }
@@ -58,7 +58,7 @@ export interface MediaModel {
 /**
  * Request-shape family, keyed off the resolved upstream model name. Each
  * family is a distinct wire shape a real vendor gateway expects — see
- * `video-request.ts` for the branching logic and `source-map.md` for the
+ * `video-request.ts` for the branching logic and `archived provenance ledger` for the
  * vendor-verification notes this was ported with.
  */
 export type MediaFamily = 'seedance' | 'wan' | 'veo' | 'generic';
@@ -77,7 +77,7 @@ export interface ExtraBodyParamDef {
  * Per-model capability description — the data a `CapabilityRegistry` holds.
  * Field names deliberately align with OpenRouter's `GET /api/v1/videos/models`
  * shape so a future remote-fetched catalogue is a data-source swap, not a
- * reshape (see `source-map.md`).
+ * reshape (see `archived provenance ledger`).
  */
 export interface ModelCapability {
   /** Catalogue id (vendor-aggregator prefixes stripped — see `normalizeModelId`). */

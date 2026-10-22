@@ -21,9 +21,6 @@
  *      single local session, so cryptographic uniqueness isn't required —
  *      just enough entropy to avoid collisions in normal use.
  *
- * Origin: `utils/uuid.ts` — ported verbatim; only the doc comment's
- * product-identity reference was reworded generically.
- *
  * @overallScore 100
  */
 export function randomUUID(): string {

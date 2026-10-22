@@ -44,15 +44,14 @@ export interface LatestOperation {
    * superseded or unmounted one is discarded silently, which is what the hand-written guards did.
    */
   run(
-    body: (token: OperationToken) => Promise<void>,
-    onError: (error: Error) => void,
+    args: { body: (token: OperationToken) => Promise<void>; onError: (error: Error) => void },
   ): Promise<void>;
   /** Supersedes whatever is in flight without starting a new operation. */
   supersede(): void;
 }
 
 /** Preserves native Error objects while normalizing opaque host-bridge rejections. */
-export function normalizeOperationError(error: unknown): Error {
+export function normalizeOperationError({ error }: { error: unknown }): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
@@ -63,7 +62,7 @@ export function normalizeOperationError(error: unknown): Error {
  *
  * @complexity Time/space: O(1).
  */
-export function useLatestOperation(): LatestOperation {
+export function useLatestOperation(_requiredArgs: Record<string, never>): LatestOperation {
   const mountedRef = useRef(true);
   const generationRef = useRef(0);
 
@@ -80,8 +79,7 @@ export function useLatestOperation(): LatestOperation {
   }, []);
 
   const run = useCallback(async (
-    body: (token: OperationToken) => Promise<void>,
-    onError: (error: Error) => void,
+    { body, onError }: { body: (token: OperationToken) => Promise<void>; onError: (error: Error) => void },
   ): Promise<void> => {
     const generation = ++generationRef.current;
     const isCurrent = () => mountedRef.current && generation === generationRef.current;
@@ -98,7 +96,7 @@ export function useLatestOperation(): LatestOperation {
       await body(token);
     } catch (error) {
       if (!isCurrent()) return;
-      onError(normalizeOperationError(error));
+      onError(normalizeOperationError({ error: error }));
     }
   }, []);
 

@@ -2,7 +2,7 @@
  * @module minimal-host entry point
  *
  * The neutrality-proof entry point (README.md; ADS-memory/reports/jini-port/extraction-plan.md §2.4/§7):
- * imports ONLY `@jini-ai/*` packages, boots a real `createLocalNodeDaemon` daemon (the "host
+ * uses `@jini-ai/*` engine packages with a host-owned SQLite driver, boots a real `createLocalNodeDaemon` daemon (the "host
  * preset" — zero product concepts, zero interfaces implemented) with no feature packs, then
  * exercises its complete run vertical slice over real HTTP: create, stream, reconnect with a
  * cursor, cancel, restart and replay. `scripts/health-boot.ts` runs this file from a scratch copy
@@ -12,8 +12,11 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
+// health-boot runs this file with plain `node`, whose type stripping never maps .js to .ts.
+import { acpFixtureDef } from './acp-fixture.ts';
 import { createAgentExecutor } from '@jini-ai/daemon';
-import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { createNativeAgentRuntime, type AgentLaunchResolution } from '@jini-ai/agent-runtime';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import { createLocalNodeDaemon } from '@jini-ai/server';
 
@@ -25,68 +28,6 @@ interface DaemonStatusBody {
 interface RunResponse {
   run?: { id?: string; state?: string };
   started?: boolean;
-}
-
-/**
- * A portable ACP subprocess fixture. It requires no vendor binary or account,
- * but exercises the real Node spawn + ACP handshake + permission path used by
- * registered ACP agents in the engine.
- */
-const ACP_FIXTURE = String.raw`
-let buffered = '';
-function send(frame) { process.stdout.write(JSON.stringify(frame) + '\n'); }
-function handle(frame) {
-  if (frame.method === 'initialize') {
-    send({ jsonrpc: '2.0', id: frame.id, result: {} });
-    return;
-  }
-  if (frame.method === 'session/new') {
-    send({ jsonrpc: '2.0', id: frame.id, result: { sessionId: 'minimal-host-acp' } });
-    return;
-  }
-  if (frame.method === 'session/prompt') {
-    send({
-      jsonrpc: '2.0', id: 91, method: 'session/request_permission',
-      params: {
-        sessionId: 'minimal-host-acp',
-        toolCall: { toolCallId: 'minimal-host-call', title: 'fixture operation' },
-        options: [{ optionId: 'allow', kind: 'allow_once' }]
-      }
-    });
-    return;
-  }
-  if (frame.id === 91 && frame.result && frame.result.outcome && frame.result.outcome.optionId === 'allow') {
-    send({
-      jsonrpc: '2.0', method: 'session/update',
-      params: { update: { sessionUpdate: 'agent_message_chunk', text: 'minimal-host ACP completed run' } }
-    });
-    send({ jsonrpc: '2.0', id: 3, result: {} });
-  }
-}
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk) => {
-  buffered += chunk;
-  for (;;) {
-    const newline = buffered.indexOf('\n');
-    if (newline < 0) return;
-    const line = buffered.slice(0, newline);
-    buffered = buffered.slice(newline + 1);
-    if (line) handle(JSON.parse(line));
-  }
-});
-process.stdin.on('end', () => process.exit(0));
-`;
-
-function acpFixtureDef(): RuntimeAgentDef {
-  return {
-    id: 'acp-fixture',
-    name: 'ACP Fixture',
-    bin: process.execPath,
-    versionArgs: ['--version'],
-    fallbackModels: [],
-    buildArgs: () => ['-e', ACP_FIXTURE],
-    streamFormat: 'acp-json-rpc',
-  };
 }
 
 function assertOk(response: Response, operation: string): Promise<Response> {
@@ -103,25 +44,32 @@ function sseEventIds(body: string): string[] {
 async function main(): Promise<void> {
   const dataDir = mkdtempSync(join(tmpdir(), 'jini-minimal-host-'));
   const cancellationCompletions = new Map<string, Promise<unknown>>();
-  const startDaemon = () =>
-    createLocalNodeDaemon({
+  const startDaemon = () => {
+    const runtime = createNativeAgentRuntime({ env: process.env });
+    const runtimeExecutorOptions = { runtimeState: runtime.state, hostEnv: runtime.hostEnv,
+      codexDisablePlugins: runtime.codexDisablePlugins, piGracefulShutdownMs: runtime.piGracefulShutdownMs };
+    return createLocalNodeDaemon({
       dataDir,
+      // The host supplies the SQLite driver; Jini never autoloads it.
+      open: (file, options) => new Database(file, options),
+      agentExecutor: runtimeExecutorOptions,
+      onShutdown: () => runtime.dispose({}),
       packs: [],
       onRunStarted: async ({ request, run, lifecycle }) => {
         if (request.agentId === 'wait-for-cancel') {
-          lifecycle.onCancelRequested(run.id, () => {
+          lifecycle.onCancelRequested({ runId: run.id, listener: () => {
             cancellationCompletions.set(
               run.id,
               lifecycle.finish({ runId: run.id, status: 'cancelled', code: null, signal: null, resumable: false }),
             );
-          });
+          } });
           return;
         }
 
         if (request.agentId === 'acp-fixture') {
-          const executor = createAgentExecutor({
-            lifecycle,
-            getAgentDef: (agentId) => (agentId === 'acp-fixture' ? acpFixtureDef() : null),
+          const executor = createAgentExecutor({ lifecycle }, {
+            ...runtimeExecutorOptions,
+            getAgentDef: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null),
             resolveAgentLaunch: () =>
               ({
                 selectedPath: process.execPath,
@@ -132,7 +80,7 @@ async function main(): Promise<void> {
                 childPathPrepend: [],
                 diagnostic: null,
               }) as AgentLaunchResolution,
-            applyAgentLaunchEnv: (env) => env,
+            applyAgentLaunchEnv: ({ env }) => env,
             acpPermissionHandler: () => ({ outcome: 'selected', optionId: 'allow' }),
           });
           await executor.run({
@@ -144,10 +92,11 @@ async function main(): Promise<void> {
           return;
         }
 
-        await lifecycle.emit(run.id, { event: 'stdout', data: { chunk: 'minimal-host completed run' } });
+        await lifecycle.emit({ runId: run.id, input: { event: 'stdout', data: { chunk: 'minimal-host completed run' } } });
         await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
       },
     });
+  };
 
   let daemon = await startDaemon();
   try {

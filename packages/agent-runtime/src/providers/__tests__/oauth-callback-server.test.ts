@@ -12,15 +12,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('accepts a matching callback, invokes onCallback, and self-closes', async () => {
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const { status, body } = await get(`${base}/callback?code=abc&state=state-1`);
     expect(status).toBe(200);
@@ -35,15 +29,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('rejects a state mismatch without consuming the listener, then still accepts the real callback', async () => {
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const mismatch = await get(`${base}/callback?code=abc&state=WRONG`);
     expect(mismatch.status).toBe(400);
@@ -60,15 +48,9 @@ describe('startOAuthCallbackListener', () => {
     // policy this does not consume the listener or notify onCallback — the
     // real callback (or a later retry) can still land.
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const result = await get(`${base}/callback`);
     expect(result.status).toBe(400);
@@ -82,15 +64,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('consumes on an explicit provider error with no state', async () => {
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const result = await get(`${base}/callback?error=access_denied`);
     expect(result.status).toBe(400);
@@ -102,15 +78,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('consumes on an explicit provider error with a matching state', async () => {
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const result = await get(`${base}/callback?error=access_denied&state=state-1`);
     expect(result.status).toBe(400);
@@ -120,15 +90,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('does not consume the listener on an error with a mismatched state', async () => {
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const result = await get(`${base}/callback?error=access_denied&state=OTHER`);
     expect(result.status).toBe(400);
@@ -140,15 +104,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('ignores requests to any path other than the configured callback path', async () => {
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const favicon = await get(`${base}/favicon.ico`);
     expect(favicon.status).toBe(404);
@@ -158,15 +116,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('logs and continues when onCallback itself throws', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: () => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {
         throw new Error('handler boom');
-      },
-    });
+      } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const result = await get(`${base}/callback?code=abc&state=state-1`);
     expect(result.status).toBe(200);
@@ -175,13 +127,7 @@ describe('startOAuthCallbackListener', () => {
   });
 
   it('can be stopped early before any callback arrives', async () => {
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: () => {},
-    });
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {} });
     await listener.stop();
     await expect(get(`http://${listener.address.host}:${listener.address.port}/callback?code=x&state=state-1`)).rejects.toThrow();
     // stop() is idempotent.
@@ -196,13 +142,7 @@ describe('startOAuthCallbackListener', () => {
       .mockImplementation(() => {
         throw new Error('boom');
       });
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: () => {},
-    });
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {} });
     const stopping = listener.stop();
     // Advance past the 100ms reaper timeout that calls closeAllConnections().
     await vi.advanceTimersByTimeAsync(150);
@@ -213,16 +153,9 @@ describe('startOAuthCallbackListener', () => {
 
   it('times out and reports an error after timeoutMs', async () => {
     const outcomes: OAuthCallbackOutcome[] = [];
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      timeoutMs: 20,
-      onCallback: (outcome) => {
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: (outcome) => {
         outcomes.push(outcome);
-      },
-    });
+      } }, { timeoutMs: 20 });
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(outcomes).toEqual([{ kind: 'error', error: 'OAuth timed out — sign in again' }]);
     await expect(
@@ -231,33 +164,15 @@ describe('startOAuthCallbackListener', () => {
   });
 
   it('rejects with a descriptive error when the port is already in use', async () => {
-    const first = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 's1',
-      onCallback: () => {},
-    });
+    const first = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 's1', onCallback: () => {} });
     await expect(
-      startOAuthCallbackListener({
-        host: '127.0.0.1',
-        port: first.address.port,
-        path: '/callback',
-        expectedState: 's2',
-        onCallback: () => {},
-      }),
+      startOAuthCallbackListener({ host: '127.0.0.1', port: first.address.port, path: '/callback', expectedState: 's2', onCallback: () => {} }),
     ).rejects.toThrow(/already in use/);
     await first.stop();
   });
 
   it('rejects a malformed request URL without crashing the listener', async () => {
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: () => {},
-    });
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {} });
     // Node's HTTP parser accepts an absolute-form request-target (normally
     // for proxies, but not rejected by a plain server either) - an invalid
     // bracketed host inside it makes `new URL(req.url, base)` throw once it
@@ -280,13 +195,7 @@ describe('startOAuthCallbackListener', () => {
   });
 
   it('serves a 410 for a request that arrives after the listener already consumed itself', async () => {
-    const listener = await startOAuthCallbackListener({
-      host: '127.0.0.1',
-      port: 0,
-      path: '/callback',
-      expectedState: 'state-1',
-      onCallback: () => {},
-    });
+    const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {} });
     // Two full HTTP/1.1 requests pipelined on one keep-alive socket, sent in
     // a single write: the server processes them in order on the same
     // connection, so the second is handled after `consumed` has already
@@ -317,13 +226,7 @@ describe('startOAuthCallbackListener', () => {
 
   it('rejects with the raw listen error when it is not EADDRINUSE', async () => {
     await expect(
-      startOAuthCallbackListener({
-        host: '256.256.256.256',
-        port: 12345,
-        path: '/callback',
-        expectedState: 's1',
-        onCallback: () => {},
-      }),
+      startOAuthCallbackListener({ host: '256.256.256.256', port: 12345, path: '/callback', expectedState: 's1', onCallback: () => {} }),
     ).rejects.toThrow();
   });
 });

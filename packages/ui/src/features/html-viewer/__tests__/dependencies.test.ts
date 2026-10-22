@@ -13,12 +13,12 @@
 // rather than leaving a real, tested branch looking untested.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../renderers/index.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../renderers/index.js')>('../../../renderers/index.js');
+vi.mock('../../../renderers/new-tab-preview.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../renderers/new-tab-preview.js')>('../../../renderers/new-tab-preview.js');
   return { ...actual, openSandboxedPreviewInNewTab: vi.fn() };
 });
 
-import { openSandboxedPreviewInNewTab } from '../../../renderers/index.js';
+import { openSandboxedPreviewInNewTab } from '../../../renderers/new-tab-preview.js';
 import {
   createBrowserFullscreenPort,
   createBrowserNewTabPreviewPort,
@@ -106,7 +106,7 @@ describe('createBrowserFullscreenPort', () => {
 });
 
 describe('createBrowserNewTabPreviewPort', () => {
-  it("delegates to @jini-ai/ui's ./renderers subpath's openSandboxedPreviewInNewTab", () => {
+  it("delegates to the sandboxed new-tab preview owner", () => {
     createBrowserNewTabPreviewPort().openInNewTab('<p>hi</p>', 'My Title');
     expect(openSandboxedPreviewInNewTab).toHaveBeenCalledWith('<p>hi</p>', 'My Title');
   });

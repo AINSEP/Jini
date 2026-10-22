@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/core",
-  "version": "0.3.0",
+  "version": "0.4.8",
   "description": "The Jini kernel: typed DI tokens, pack composition and lifecycle, the tool registry, redaction, and origin/API-token auth primitives. Zero dependencies.",
   "license": "Apache-2.0",
   "repository": {
@@ -11,7 +11,70 @@
   "jini": {
     "domain": "engine",
     "kind": "kernel",
-    "runtime": "universal"
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./composition": "universal",
+      "./gated-mutations": "universal",
+      "./model-facing-tool-errors": "universal",
+      "./contribution-registry": "universal",
+      "./provider-registry": "universal",
+      "./object-store": "universal",
+      "./naming": "universal",
+      "./records": "universal",
+      "./primitives": "universal",
+      "./fetch": "universal",
+      "./text": "universal",
+      "./settings": "universal",
+      "./settings/express": "node",
+      "./plugin-directory": "universal"
+    },
+    "isolation": {
+      "entries": {
+        "./primitives": "core",
+        "./fetch": "fetch",
+        "./settings": "settings",
+        "./settings/express": "settings",
+        "./provider-registry": "providers",
+        "./object-store": "providers"
+      },
+      "domains": {
+        "fetch": [
+          "src/fetch"
+        ],
+        "settings": [
+          "src/settings"
+        ],
+        "providers": [
+          "src/provider-registry.ts",
+          "src/object-store.ts"
+        ]
+      },
+      "shared": [
+        "src/tool-permissions.ts",
+        "src/records.ts"
+      ],
+      "forbidden": {
+        "universal": [
+          "node:",
+          "express",
+          "react",
+          "@jini-ai/cms"
+        ],
+        ".": [
+          "node:",
+          "express",
+          "react",
+          "@jini-ai/cms",
+          "@jini-ai/core/settings",
+          "./settings",
+          "../settings"
+        ],
+        "./settings/express": [
+          "@jini-ai/cms"
+        ]
+      }
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -23,20 +86,91 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./internal": {
-      "types": "./dist/internal.d.ts",
-      "import": "./dist/internal.js",
-      "default": "./dist/internal.js"
+    "./composition": {
+      "types": "./dist/composition.d.ts",
+      "import": "./dist/composition.js",
+      "default": "./dist/composition.js"
+    },
+    "./gated-mutations": {
+      "types": "./dist/gated-mutations.d.ts",
+      "import": "./dist/gated-mutations.js",
+      "default": "./dist/gated-mutations.js"
+    },
+    "./model-facing-tool-errors": {
+      "types": "./dist/model-facing-tool-errors.d.ts",
+      "import": "./dist/model-facing-tool-errors.js",
+      "default": "./dist/model-facing-tool-errors.js"
+    },
+    "./contribution-registry": {
+      "types": "./dist/contribution-registry.d.ts",
+      "import": "./dist/contribution-registry.js",
+      "default": "./dist/contribution-registry.js"
+    },
+    "./provider-registry": {
+      "types": "./dist/provider-registry.d.ts",
+      "import": "./dist/provider-registry.js",
+      "default": "./dist/provider-registry.js"
+    },
+    "./object-store": {
+      "types": "./dist/object-store.d.ts",
+      "import": "./dist/object-store.js",
+      "default": "./dist/object-store.js"
+    },
+    "./naming": {
+      "types": "./dist/naming.d.ts",
+      "import": "./dist/naming.js",
+      "default": "./dist/naming.js"
+    },
+    "./records": {
+      "types": "./dist/records.d.ts",
+      "import": "./dist/records.js",
+      "default": "./dist/records.js"
+    },
+    "./primitives": {
+      "types": "./dist/primitives/index.d.ts",
+      "import": "./dist/primitives/index.js",
+      "default": "./dist/primitives/index.js"
+    },
+    "./fetch": {
+      "types": "./dist/fetch/index.d.ts",
+      "import": "./dist/fetch/index.js",
+      "default": "./dist/fetch/index.js"
+    },
+    "./text": {
+      "types": "./dist/text/index.d.ts",
+      "import": "./dist/text/index.js",
+      "default": "./dist/text/index.js"
+    },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
+    },
+    "./settings/express": {
+      "types": "./dist/settings/express/index.d.ts",
+      "import": "./dist/settings/express/index.js",
+      "default": "./dist/settings/express/index.js"
+    },
+    "./plugin-directory": {
+      "types": "./plugin-directory.d.ts",
+      "import": "./plugin-directory.js",
+      "default": "./plugin-directory.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
-    "!dist/**/*.map"
+    "!dist/**/*.typecheck.*",
+    "!dist/**/*.map",
+    "plugin-directory.js",
+    "plugin-directory.d.ts"
   ],
   "publishConfig": {
     "access": "public",
@@ -49,6 +183,16 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "express": "^4.21.0",
+    "@types/express": "^4.17.21"
+  },
+  "peerDependencies": {
+    "express": "^4.21.0 || ^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
   }
 }

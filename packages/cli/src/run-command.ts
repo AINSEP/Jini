@@ -14,15 +14,16 @@
  * Every network call goes through this package's already-hardened
  * `postJsonToDaemon`/`getJsonFromDaemon` (bounded timeout, response-size cap,
  * structured-error mapping, redaction) — nothing here re-implements that.
- * `run watch`'s SSE consumption is new (this package's own `source-map.md`
+ * `run watch`'s SSE consumption is new (this package's own `archived provenance ledger`
  * calls the mechanics — GET an SSE endpoint, translate frames to one NDJSON
  * line per event on stdout, stop at a terminal `'end'` event — a clean
  * pattern that had no route to call until now).
  */
+import { decodeSseFrames } from '@jini-ai/core/primitives';
 import { parseFlags, positionalArgs } from './flags.js';
 import { exitWithStructuredError, structuredHttpFailure, type ExitCodeTable } from './errors.js';
 import { getJsonFromDaemon, postJsonToDaemon } from './http.js';
-import { sanitizeUntrustedText, stripControlSequences } from './redact.js';
+import { sanitizeUntrustedText, stripControlSequences } from '@jini-ai/core/text';
 import { renderUsage } from './usage.js';
 import type { CommandRegistry } from './command-registry.js';
 
@@ -30,68 +31,46 @@ export interface RunCommandDeps {
   /** Resolves the daemon HTTP base URL once per command invocation (e.g. wraps `resolveDaemonUrl`). */
   resolveBaseUrl: () => Promise<string> | string;
   /** Defaults to `process.stdout.write`; inject for tests. Used for successful command output. */
-  write?: (text: string) => void;
+  write?: (requiredArgs: { text: string }) => void;
   /** Defaults to `process.stderr.write`; inject for tests. Used for usage/validation errors. */
-  writeErr?: (text: string) => void;
+  writeErr?: (requiredArgs: { text: string }) => void;
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   /** Defaults to `process.exit`; inject for tests (must not return). */
-  exit?: (code: number) => never;
+  exit?: (requiredArgs: { code: number }) => never;
   /** Extra/overriding `code -> exitCode` entries layered on the package default table. */
   exitCodes?: ExitCodeTable;
 }
 
-function defaultWrite(text: string): void {
+function defaultWrite({ text }: { text: string }): void {
   process.stdout.write(text);
 }
 
-function defaultWriteErr(text: string): void {
+function defaultWriteErr({ text }: { text: string }): void {
   process.stderr.write(text);
 }
 
-const RUN_START_USAGE = renderUsage({
-  usage: ['run start --context-ref <ref> [--agent-id <id>] [--idempotency-key <key>]'],
-  description: 'Starts a new run for the given contextRef.',
-  options: [
+const RUN_START_USAGE = renderUsage({ usage: ['run start --context-ref <ref> [--agent-id <id>] [--idempotency-key <key>]'] }, { description: 'Starts a new run for the given contextRef.', options: [
     { flag: '--context-ref', description: 'Opaque caller-supplied identity the run belongs to (required).' },
     { flag: '--agent-id', description: 'Which registered agent should drive this run.' },
     { flag: '--idempotency-key', description: 'Starting twice with the same key returns the original run.' },
-  ],
-});
+  ] });
 
-const RUN_LIST_USAGE = renderUsage({
-  usage: ['run list [--context-ref <ref>]'],
-  description: 'Lists runs, optionally scoped to a contextRef.',
-  options: [{ flag: '--context-ref', description: 'Only list runs belonging to this contextRef.' }],
-});
+const RUN_LIST_USAGE = renderUsage({ usage: ['run list [--context-ref <ref>]'] }, { description: 'Lists runs, optionally scoped to a contextRef.', options: [{ flag: '--context-ref', description: 'Only list runs belonging to this contextRef.' }] });
 
-const RUN_GET_USAGE = renderUsage({
-  usage: ['run get <runId>'],
-  description: 'Fetches a single run by id.',
-});
+const RUN_GET_USAGE = renderUsage({ usage: ['run get <runId>'] }, { description: 'Fetches a single run by id.' });
 
-const RUN_CANCEL_USAGE = renderUsage({
-  usage: ['run cancel <runId> [--reason <text>]'],
-  description: 'Requests cancellation of an in-progress run. A no-op on an already-terminal run.',
-  options: [{ flag: '--reason', description: 'Optional human-readable cancellation reason.' }],
-});
+const RUN_CANCEL_USAGE = renderUsage({ usage: ['run cancel <runId> [--reason <text>]'] }, { description: 'Requests cancellation of an in-progress run. A no-op on an already-terminal run.', options: [{ flag: '--reason', description: 'Optional human-readable cancellation reason.' }] });
 
-const RUN_WATCH_USAGE = renderUsage({
-  usage: ['run watch <runId> [--after-cursor <cursor>]'],
-  description: 'Streams a run\'s protocol events as one NDJSON line per event on stdout until a terminal event arrives.',
-  options: [{ flag: '--after-cursor', description: 'Resume streaming after this event cursor (reconnect support).' }],
-});
+const RUN_WATCH_USAGE = renderUsage({ usage: ['run watch <runId> [--after-cursor <cursor>]'] }, { description: 'Streams a run\'s protocol events as one NDJSON line per event on stdout until a terminal event arrives.', options: [{ flag: '--after-cursor', description: 'Resume streaming after this event cursor (reconnect support).' }] });
 
-const RUN_USAGE = renderUsage({
-  usage: ['run <start|list|get|cancel|watch> ...'],
-  description: 'Manage runs against a Jini daemon over HTTP.',
-});
+const RUN_USAGE = renderUsage({ usage: ['run <start|list|get|cancel|watch> ...'] }, { description: 'Manage runs against a Jini daemon over HTTP.' });
 
 /** Builds `{write, exit, exitCodes?}` for `errors.ts`'s structured-error helpers, never assigning `exitCodes` when unset (required under `exactOptionalPropertyTypes`). */
-function errorOptions(deps: RunCommandDeps): { write: (text: string) => void; exit: (code: number) => never; exitCodes?: ExitCodeTable } {
+function errorOptions(deps: Omit<RunCommandDeps, "resolveBaseUrl">): { write: (requiredArgs: { text: string }) => void; exit: (requiredArgs: { code: number }) => never; exitCodes?: ExitCodeTable } {
   return {
     write: deps.writeErr ?? defaultWriteErr,
-    exit: deps.exit ?? ((code: number) => process.exit(code)),
+    exit: deps.exit ?? (({ code }: { code: number }) => process.exit(code)),
     ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
   };
 }
@@ -99,8 +78,8 @@ function errorOptions(deps: RunCommandDeps): { write: (text: string) => void; ex
 /** Builds the transport-call options object for `postJsonToDaemon`/`getJsonFromDaemon`, only ever including a key when its value is actually set. */
 function transportOptions(deps: RunCommandDeps): {
   fetchImpl?: typeof fetch;
-  write?: (text: string) => void;
-  exit?: (code: number) => never;
+  write?: (requiredArgs: { text: string }) => void;
+  exit?: (requiredArgs: { code: number }) => never;
   exitCodes?: ExitCodeTable;
 } {
   return {
@@ -120,20 +99,21 @@ function invalidFlag(deps: RunCommandDeps, message: string): never {
 }
 
 function printJsonResult(deps: RunCommandDeps, value: unknown): void {
-  (deps.write ?? defaultWrite)(`${JSON.stringify(value)}\n`);
+  (deps.write ?? defaultWrite)({ text: `${JSON.stringify(value)}\n` });
 }
 
-async function resolveBaseUrl(deps: RunCommandDeps): Promise<string> {
-  return deps.resolveBaseUrl();
+/** Prints `usage` and reports `true` when `args` asks for help (`--help`/`-h` anywhere), so the command returns before touching the daemon. */
+function printUsageIfHelp({ args, usage }: { args: readonly string[]; usage: string }, deps: RunCommandDeps): boolean {
+  if (!args.includes('--help') && !args.includes('-h')) return false;
+  (deps.write ?? defaultWrite)({ text: `${usage}\n` });
+  return true;
 }
 
 /** `run start --context-ref <ref> [--agent-id <id>] [--idempotency-key <key>]` */
-export async function runStartCommand(args: readonly string[], deps: RunCommandDeps): Promise<void> {
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${RUN_START_USAGE}\n`);
-    return;
-  }
-  const flags = parseFlags(args, { string: new Set(['context-ref', 'agent-id', 'idempotency-key']) });
+export async function runStartCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
+  if (printUsageIfHelp({ args, usage: RUN_START_USAGE }, deps)) return;
+  const flags = parseFlags({ argv: args }, { string: new Set(['context-ref', 'agent-id', 'idempotency-key']) });
   const contextRef = flags['context-ref'];
   if (typeof contextRef !== 'string' || contextRef.length === 0) {
     missingInput(deps, '--context-ref is required');
@@ -142,65 +122,59 @@ export async function runStartCommand(args: readonly string[], deps: RunCommandD
   if (typeof flags['agent-id'] === 'string') body.agentId = flags['agent-id'];
   if (typeof flags['idempotency-key'] === 'string') body.idempotencyKey = flags['idempotency-key'];
 
-  const baseUrl = await resolveBaseUrl(deps);
-  const result = await postJsonToDaemon(baseUrl, '/api/runs', body, transportOptions(deps));
+  const baseUrl = await deps.resolveBaseUrl();
+  const result = await postJsonToDaemon({ base: baseUrl, route: '/api/runs', body }, transportOptions(deps));
   printJsonResult(deps, result);
 }
 
 /** `run list [--context-ref <ref>]` */
-export async function runListCommand(args: readonly string[], deps: RunCommandDeps): Promise<void> {
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${RUN_LIST_USAGE}\n`);
-    return;
-  }
-  const flags = parseFlags(args, { string: new Set(['context-ref']) });
+export async function runListCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
+  if (printUsageIfHelp({ args, usage: RUN_LIST_USAGE }, deps)) return;
+  const flags = parseFlags({ argv: args }, { string: new Set(['context-ref']) });
   const contextRef = flags['context-ref'];
   const route = typeof contextRef === 'string' && contextRef.length > 0
     ? `/api/runs?contextRef=${encodeURIComponent(contextRef)}`
     : '/api/runs';
 
-  const baseUrl = await resolveBaseUrl(deps);
-  const result = await getJsonFromDaemon(baseUrl, route, transportOptions(deps));
+  const baseUrl = await deps.resolveBaseUrl();
+  const result = await getJsonFromDaemon({ base: baseUrl, route }, transportOptions(deps));
   printJsonResult(deps, result);
 }
 
 /** `run get <runId>` */
-export async function runGetCommand(args: readonly string[], deps: RunCommandDeps): Promise<void> {
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${RUN_GET_USAGE}\n`);
-    return;
-  }
-  const runId = positionalArgs(args)[0];
+export async function runGetCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
+  if (printUsageIfHelp({ args, usage: RUN_GET_USAGE }, deps)) return;
+  const runId = positionalArgs({ argv: args })[0];
   if (typeof runId !== 'string' || runId.length === 0) {
     missingInput(deps, 'runId is required: run get <runId>');
   }
 
-  const baseUrl = await resolveBaseUrl(deps);
-  const result = await getJsonFromDaemon(baseUrl, `/api/runs/${encodeURIComponent(runId)}`, transportOptions(deps));
+  const baseUrl = await deps.resolveBaseUrl();
+  const result = await getJsonFromDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}` }, transportOptions(deps));
   printJsonResult(deps, result);
 }
 
 /** `run cancel <runId> [--reason <text>]` */
-export async function runCancelCommand(args: readonly string[], deps: RunCommandDeps): Promise<void> {
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${RUN_CANCEL_USAGE}\n`);
-    return;
-  }
-  const flags = parseFlags(args, { string: new Set(['reason']) });
-  const runId = positionalArgs(args, { string: new Set(['reason']) })[0];
+export async function runCancelCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
+  if (printUsageIfHelp({ args, usage: RUN_CANCEL_USAGE }, deps)) return;
+  const flags = parseFlags({ argv: args }, { string: new Set(['reason']) });
+  const runId = positionalArgs({ argv: args }, { string: new Set(['reason']) })[0];
   if (typeof runId !== 'string' || runId.length === 0) {
     missingInput(deps, 'runId is required: run cancel <runId>');
   }
   const body: Record<string, unknown> = {};
   if (typeof flags.reason === 'string') body.reason = flags.reason;
 
-  const baseUrl = await resolveBaseUrl(deps);
-  const result = await postJsonToDaemon(baseUrl, `/api/runs/${encodeURIComponent(runId)}/cancel`, body, transportOptions(deps));
+  const baseUrl = await deps.resolveBaseUrl();
+  const result = await postJsonToDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}/cancel`, body }, transportOptions(deps));
   printJsonResult(deps, result);
 }
 
-/** Cap on total buffered-but-not-yet-frame-terminated SSE bytes — a daemon that never sends a blank-line frame terminator must not grow this without bound (mirrors `http.ts`'s `readJsonWithLimit` byte cap). */
-const MAX_SSE_BUFFER_BYTES = 10 * 1024 * 1024;
+/** Cap on total buffered-but-not-yet-frame-terminated SSE text — a daemon that never sends a blank-line frame terminator must not grow this without bound (retains the historical 10 MiB-sized text cap; TextDecoder output is measured in UTF-16 units). */
+const MAX_SSE_BUFFER_CHARS = 10 * 1024 * 1024;
 
 /** One parsed SSE frame: the `data:` line(s) joined, plus optional `id`/`event` fields. */
 interface SseFrame {
@@ -209,39 +183,23 @@ interface SseFrame {
   readonly data: string;
 }
 
-function parseSseFrame(rawFrame: string): SseFrame | null {
-  let id: string | undefined;
-  let eventName: string | undefined;
-  const dataLines: string[] = [];
-  for (const line of rawFrame.split('\n')) {
-    if (line.startsWith('id: ')) id = line.slice(4);
-    else if (line.startsWith('event: ')) eventName = line.slice(7);
-    else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
-  }
-  if (dataLines.length === 0) return null;
-  return { ...(id !== undefined ? { id } : {}), ...(eventName !== undefined ? { event: eventName } : {}), data: dataLines.join('\n') };
-}
-
-/** Reads `body` as an SSE byte stream and yields one {@link SseFrame} per blank-line-terminated frame. */
+/** Reads complete records; this adapter releases the lock without canceling the host's body. */
 async function* readSseFrames(body: ReadableStream<Uint8Array>): AsyncGenerator<SseFrame> {
   const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  try {
+  async function* chunks(): AsyncGenerator<Uint8Array> {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
-      if (value !== undefined) buffer += decoder.decode(value, { stream: true });
-      if (buffer.length > MAX_SSE_BUFFER_BYTES) {
-        throw new Error(`SSE stream exceeded the ${MAX_SSE_BUFFER_BYTES}-byte unterminated-frame buffer limit`);
-      }
-      let sepIndex: number;
-      while ((sepIndex = buffer.indexOf('\n\n')) >= 0) {
-        const rawFrame = buffer.slice(0, sepIndex);
-        buffer = buffer.slice(sepIndex + 2);
-        const frame = parseSseFrame(rawFrame);
-        if (frame !== null) yield frame;
-      }
+      if (done) return;
+      if (value !== undefined) yield value;
+    }
+  }
+  try {
+    for await (const frame of decodeSseFrames({ source: chunks() }, {
+      flushFinalFrame: false, maxBufferChars: MAX_SSE_BUFFER_CHARS,
+    })) {
+      if (frame.dataLines.length === 0) continue;
+      yield { ...(frame.id !== undefined ? { id: frame.id } : {}),
+        ...(frame.event !== null ? { event: frame.event } : {}), data: frame.data };
     }
   } finally {
     reader.releaseLock();
@@ -267,72 +225,74 @@ function isTerminalEventFrame(frame: SseFrame): boolean {
  * the way a diagnostic error message is, since it is the run's actual event payload, not incidental
  * error detail.
  */
-export async function watchRunEvents(baseUrl: string, runId: string, args: readonly string[], deps: RunCommandDeps): Promise<void> {
-  const flags = parseFlags(args, { string: new Set(['after-cursor']) });
-  const afterCursor = flags['after-cursor'];
+export async function watchRunEvents({ baseUrl, runId, args }: { baseUrl: string; runId: string; args: readonly string[] }, deps: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const headers = resumeHeaders(args);
   const fetchImpl = deps.fetchImpl ?? fetch;
   const write = deps.write ?? defaultWrite;
 
-  const headers: Record<string, string> = {};
-  if (typeof afterCursor === 'string' && afterCursor.length > 0) headers['last-event-id'] = afterCursor;
-
   const resp = await fetchImpl(`${baseUrl}/api/runs/${encodeURIComponent(runId)}/events`, { headers });
   if (!resp.ok || resp.body === null) {
-    return structuredHttpFailure(resp, 'daemon-not-running', errorOptions(deps));
+    return structuredHttpFailure({ resp }, { fallbackCode: 'daemon-not-running', ...errorOptions(deps) });
   }
   try {
-    for await (const frame of readSseFrames(resp.body)) {
-      write(`${stripControlSequences(frame.data)}\n`);
-      if (isTerminalEventFrame(frame)) return;
-    }
+    await writeEventsUntilEnd({ body: resp.body, write });
   } catch (error) {
     // A broken/hostile stream (e.g. the unbounded-buffer guard above) must exit through the same
     // structured contract as every other failure here, not surface as an unhandled rejection.
     const message = error instanceof Error ? error.message : String(error);
-    return exitWithStructuredError({ code: 'daemon-not-running', message: sanitizeUntrustedText(message) }, errorOptions(deps));
+    return exitWithStructuredError({ code: 'daemon-not-running', message: sanitizeUntrustedText({ text: message }) }, errorOptions(deps));
+  }
+}
+
+/** `last-event-id` from a non-empty `--after-cursor`, so a reconnect resumes after that cursor; no header otherwise. */
+function resumeHeaders(args: readonly string[]): Record<string, string> {
+  const afterCursor = parseFlags({ argv: args }, { string: new Set(['after-cursor']) })['after-cursor'];
+  return typeof afterCursor === 'string' && afterCursor.length > 0 ? { 'last-event-id': afterCursor } : {};
+}
+
+/** Writes one control-sequence-stripped NDJSON line per SSE frame, stopping after the terminal `'end'` event or when the stream closes. */
+async function writeEventsUntilEnd({ body, write }: { body: ReadableStream<Uint8Array>; write: (requiredArgs: { text: string }) => void }): Promise<void> {
+  for await (const frame of readSseFrames(body)) {
+    write({ text: `${stripControlSequences({ text: frame.data })}\n` });
+    if (isTerminalEventFrame(frame)) return;
   }
 }
 
 /** `run watch <runId> [--after-cursor <cursor>]` */
-export async function runWatchCommand(args: readonly string[], deps: RunCommandDeps): Promise<void> {
-  if (args.includes('--help') || args.includes('-h')) {
-    (deps.write ?? defaultWrite)(`${RUN_WATCH_USAGE}\n`);
-    return;
-  }
-  const runId = positionalArgs(args, { string: new Set(['after-cursor']) })[0];
+export async function runWatchCommand({ args, resolveBaseUrl: resolveBaseUrlPort }: { args: readonly string[]; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): Promise<void> {
+  const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
+  if (printUsageIfHelp({ args, usage: RUN_WATCH_USAGE }, deps)) return;
+  const runId = positionalArgs({ argv: args }, { string: new Set(['after-cursor']) })[0];
   if (typeof runId !== 'string' || runId.length === 0) {
     missingInput(deps, 'runId is required: run watch <runId>');
   }
-  const baseUrl = await resolveBaseUrl(deps);
-  await watchRunEvents(baseUrl, runId, args, deps);
+  const baseUrl = await deps.resolveBaseUrl();
+  await watchRunEvents({ baseUrl, runId, args }, deps);
 }
 
 /** Registers `run` (dispatching `start`/`list`/`cancel`/`watch` on the first remaining token) against `registry`. */
-export function registerRunCommands(registry: CommandRegistry, deps: RunCommandDeps): void {
-  registry.add(
-    'run',
-    async (args) => {
+export function registerRunCommands({ registry, resolveBaseUrl: resolveBaseUrlPort }: { registry: CommandRegistry; resolveBaseUrl: RunCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<RunCommandDeps, "resolveBaseUrl"> = {}): void {
+  const deps: RunCommandDeps = { resolveBaseUrl: resolveBaseUrlPort, ...optionalArgs };
+  registry.add({ name: 'run', handler: async ({ args }) => {
       const [sub, ...rest] = args;
       switch (sub) {
         case 'start':
-          return runStartCommand(rest, deps);
+          return runStartCommand({ args: rest, resolveBaseUrl: resolveBaseUrlPort }, optionalArgs);
         case 'list':
-          return runListCommand(rest, deps);
+          return runListCommand({ args: rest, resolveBaseUrl: resolveBaseUrlPort }, optionalArgs);
         case 'get':
-          return runGetCommand(rest, deps);
+          return runGetCommand({ args: rest, resolveBaseUrl: resolveBaseUrlPort }, optionalArgs);
         case 'cancel':
-          return runCancelCommand(rest, deps);
+          return runCancelCommand({ args: rest, resolveBaseUrl: resolveBaseUrlPort }, optionalArgs);
         case 'watch':
-          return runWatchCommand(rest, deps);
+          return runWatchCommand({ args: rest, resolveBaseUrl: resolveBaseUrlPort }, optionalArgs);
         case undefined:
         case '--help':
         case '-h':
-          (deps.write ?? defaultWrite)(`${RUN_USAGE}\n`);
+          (deps.write ?? defaultWrite)({ text: `${RUN_USAGE}\n` });
           return;
         default:
           invalidFlag(deps, `unknown "run" subcommand: ${sub}`);
       }
-    },
-    { usage: RUN_USAGE },
-  );
+    } }, { usage: RUN_USAGE });
 }

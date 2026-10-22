@@ -44,19 +44,19 @@
  * constraint documented, rather than being narrowed to a shape that can't express a removal
  * attempt at all.
  *
- * ## Submissions are the one place with a real hard delete
+ * ## Submission deletion moves to Trash
  *
- * Unlike definitions, `FormSubmissionRepoPort` does expose a permanent delete — the reference repo
- * port's own doc comment calls this out as "the one asymmetry." `deleteFormSubmission` is
- * genuinely irreversible; do not offer it with "undo" affordances.
+ * `deleteFormSubmission` models the admin HTTP operation: reversible removal from active reads.
+ * The underlying repository's hard-delete primitive is not this admin contract. Restoration and
+ * permanent deletion belong to the generic Trash owner (Coordinator authorization, 2026-10-08).
  *
  * ## Open vs. closed unions
  *
  * `FormFieldType` and `FormDefinitionStatus` are reference-implementation-specific vocabularies — OPEN, via the
  * `T | (string & {})` idiom `seo.ts`'s file header introduces for this port set. `FormFieldType` in
- * particular is a small, deliberately-not-yet-exhaustive set on the reference implementation (four
- * field kinds today); a host offering a richer form builder needs room to add its own without this
- * contract standing in the way.
+ * particular names only the original four kinds; the reference implementation's field registry
+ * (`@jini-ai/cms/forms` `FIELD_TYPE_REGISTRY`) now owns the full vocabulary, and a host offering a
+ * richer form builder needs room to add its own without this contract standing in the way.
  */
 
 /** A form field's input kind — open, see file header. */
@@ -72,6 +72,22 @@ export interface AdminFormField {
   readonly type: FormFieldType;
   readonly required: boolean;
   readonly maxLength?: number | null;
+  readonly className?: string | undefined;
+  readonly attributes?: Readonly<Record<string, string>> | undefined;
+  // Optional descriptor settings of the reference field registry (2026-10-11). The wire carries
+  // them verbatim; a host that omits a setting simply never sends it.
+  readonly placeholder?: string | undefined;
+  readonly helpText?: string | undefined;
+  readonly default?: string | number | boolean | readonly string[] | undefined;
+  readonly options?: ReadonlyArray<{ readonly value: string; readonly label: string }> | undefined;
+  readonly minLength?: number | undefined;
+  readonly pattern?: string | undefined;
+  readonly min?: number | string | undefined;
+  readonly max?: number | string | undefined;
+  readonly step?: number | undefined;
+  readonly accept?: readonly string[] | undefined;
+  readonly maxFileSize?: number | undefined;
+  readonly checkboxValue?: string | undefined;
 }
 
 export interface AdminFormNotifyConfig {
@@ -88,6 +104,9 @@ export interface AdminFormDefinition {
   readonly status: FormDefinitionStatus;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** HTML authoring is explicit; absent mode means the existing Builder contract. */
+  readonly mode?: "builder" | "html" | undefined;
+  readonly html?: string | undefined;
 }
 
 export interface AdminFormSubmission {
@@ -97,6 +116,8 @@ export interface AdminFormSubmission {
   readonly data: Readonly<Record<string, string | boolean>>;
   readonly sourceIp: string;
   readonly submittedAt: string;
+  /** Missing means active for older wire records. Trash preserves the original submission data. */
+  readonly status?: "active" | "trash";
 }
 
 /** A keyset-paginated page of submissions, newest-first. */
@@ -109,12 +130,17 @@ export interface AdminFormCreateInput {
   readonly name: string;
   readonly slug: string;
   readonly fields: readonly AdminFormField[];
+  readonly mode?: "builder" | "html" | undefined;
+  readonly html?: string | undefined;
   readonly notify?: AdminFormNotifyConfig;
 }
 
 /** No `slug` — see file header. */
 export interface AdminFormUpdatePatch {
   readonly name?: string;
+  /** A mode/body patch uses the authoring route; an ordinary patch keeps the CRUD route. */
+  readonly mode?: "builder" | "html" | undefined;
+  readonly html?: string | undefined;
   /** Whole-array replace with an add/edit-only constraint — see file header. */
   readonly fields?: readonly AdminFormField[];
   readonly notify?: AdminFormNotifyConfig;
@@ -122,18 +148,21 @@ export interface AdminFormUpdatePatch {
 }
 
 export interface AdminFormsPort {
-  listFormDefinitions(): Promise<readonly AdminFormDefinition[]>;
-  getFormDefinition(id: string): Promise<AdminFormDefinition>;
-  createFormDefinition(input: AdminFormCreateInput): Promise<AdminFormDefinition>;
+  listFormDefinitions(requiredArgs: Record<string, never>): Promise<readonly AdminFormDefinition[]>;
+  getFormDefinition(requiredArgs: { id: string }): Promise<AdminFormDefinition>;
+  createFormDefinition(requiredArgs: Omit<AdminFormCreateInput, "notify">, optionalArgs?: Pick<AdminFormCreateInput, "notify">): Promise<AdminFormDefinition>;
   /** See file header: `patch.fields`, when supplied, may add or edit but never omit an existing
    *  field id. */
-  updateFormDefinition(id: string, patch: AdminFormUpdatePatch): Promise<AdminFormDefinition>;
+  updateFormDefinition(requiredArgs: { id: string }, optionalArgs?: AdminFormUpdatePatch): Promise<AdminFormDefinition>;
   listFormSubmissions(
-    formId: string,
-    options?: { limit?: number; cursor?: string },
+    requiredArgs: { formId: string },
+    optionalArgs?: { limit?: number; cursor?: string },
   ): Promise<AdminFormSubmissionPage>;
-  getFormSubmission(formId: string, submissionId: string): Promise<AdminFormSubmission>;
-  /** Permanent delete — the one hard delete in this port. See file header on why form
-   *  DEFINITIONS have no equivalent. */
-  deleteFormSubmission(formId: string, submissionId: string): Promise<void>;
+  getFormSubmission(requiredArgs: { formId: string; submissionId: string }): Promise<AdminFormSubmission>;
+  /** Move to Trash, preserving data while hiding it from active list/detail reads. The form must
+   * own this submission; restoration and permanent deletion remain with the generic Trash owner. */
+  deleteFormSubmission(requiredArgs: { formId: string; submissionId: string }, optionalArgs?: Record<string, never>): Promise<void>;
+  /** Download URL for a file answer's stored media. Optional: without it the view shows the
+   * filename as plain text. */
+  submissionFileUrl?(requiredArgs: { mediaId: string }, optionalArgs?: Record<string, never>): string;
 }

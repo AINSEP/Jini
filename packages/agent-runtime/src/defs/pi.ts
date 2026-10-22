@@ -1,9 +1,33 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/pi.ts` (import path adjusted only). See `source-map.md`. */
+import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION, execAgentFile, parsePiModels } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeModelOption } from '../types.js';
+
+function modelArgs({ options }: { options: RuntimeBuildOptions }): string[] {
+  // pi --model accepts patterns ("sonnet", "anthropic/claude-sonnet-4-5",
+  // "openai/gpt-5:high") so we pass the value through as-is.
+  return options.model && options.model !== 'default' ? ['--model', options.model] : [];
+}
+
+function thinkingArgs({ options }: { options: RuntimeBuildOptions }): string[] {
+  return options.reasoning && options.reasoning !== 'default' ? ['--thinking', options.reasoning] : [];
+}
+
+// extraAllowedDirs carries skill seed and design-system directories
+// that live outside the project cwd. pi doesn't have an --add-dir
+// sandbox flag (it uses OS cwd), so we use --append-system-prompt to
+// hint that these directories exist. The agent can then use its Read
+// tool to access files inside them. Without this, pi runs inside the
+// project cwd and has no way to discover or reach skill/design-system
+// assets that live elsewhere.
+function dirHintArgs({ extraAllowedDirs }: { extraAllowedDirs: readonly string[] | null | undefined }): string[] {
+  return (extraAllowedDirs || [])
+    .filter((d) => typeof d === 'string' && path.isAbsolute(d))
+    .flatMap((d) => ['--append-system-prompt', d]);
+}
 
 export const piAgentDef = {
+  ...createAgentModelDiscovery('pi', { fallbackModels: (): readonly RuntimeModelOption[] => piAgentDef.fallbackModels }),
     id: 'pi',
     name: 'Pi',
     bin: 'pi',
@@ -13,18 +37,17 @@ export const piAgentDef = {
     // every spawn). The default 3s version-probe timeout is too tight; raise it
     // so detection doesn't silently abort before reaching fetchModels.
     versionProbeTimeoutMs: 15_000,
-    // `pi --list-models` prints a TSV table to stderr (not stdout),
-    // so we use a custom fetchModels that reads stderr.
-    fetchModels: async (resolvedBin, env) => {
+    // `pi --list-models` prints a whitespace table to stdout (verified installed version);
+    // older versions wrote stderr, so retain that compatibility path.
+    fetchModels: async ({ resolvedBin, env }) => {
       try {
-        const { stderr } = await execAgentFile(resolvedBin, ['--list-models'], {
+        const { stdout, stderr } = await execAgentFile({ command: resolvedBin, args: ['--list-models'] }, { options: {
           env,
           timeout: 60_000, // Windows: 20s exceeded under parallel detection load
           maxBuffer: 8 * 1024 * 1024,
-        });
-        const parsed = parsePiModels(stderr);
-        if (!parsed || parsed.length === 0) return null;
-        return parsed;
+        } });
+        const parsed = parsePiModels({ stdout: stdout || stderr });
+        return parsed?.length ? parsed : null;
       } catch {
         return null;
       }
@@ -64,42 +87,14 @@ export const piAgentDef = {
     // pi's RPC mode drives the entire conversation over stdio JSON-RPC.
     // The daemon sends a `prompt` command and pi streams back typed events.
     // No prompt in argv — avoids ENAMETOOLONG and keeps the protocol clean.
-    buildArgs: (
-      _prompt,
-      _imagePaths,
-      extraAllowedDirs = [],
-      options = {},
-      runtimeContext = {},
-    ) => {
-      const args = ['--mode', 'rpc'];
-      if (options.model && options.model !== 'default') {
-        // pi --model accepts patterns ("sonnet", "anthropic/claude-sonnet-4-5",
-        // "openai/gpt-5:high") so we pass the value through as-is.
-        args.push('--model', options.model);
-      }
-      if (options.reasoning && options.reasoning !== 'default') {
-        args.push('--thinking', options.reasoning);
-      }
+    buildArgs: (_input, { extraAllowedDirs, options = {} } = {}) => {
       // pi supports --append-system-prompt for cwd and extra context. It's repeatable (pi merges
       // every occurrence), which is what lets this def push its own dir-hint values here AND the
       // caller's `systemPromptDelivery: 'append-flag'` overlay (declared below, dispatched
       // centrally by `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery`) push a separate
       // occurrence carrying the overlay text — the two never collide or need to be merged by hand.
-      //
-      // extraAllowedDirs carries skill seed and design-system directories
-      // that live outside the project cwd. pi doesn't have an --add-dir
-      // sandbox flag (it uses OS cwd), so we use --append-system-prompt to
-      // hint that these directories exist. The agent can then use its Read
-      // tool to access files inside them. Without this, pi runs inside the
-      // project cwd and has no way to discover or reach skill/design-system
-      // assets that live elsewhere.
-      const dirs = (extraAllowedDirs || []).filter(
-        (d) => typeof d === 'string' && path.isAbsolute(d),
-      );
-      for (const d of dirs) {
-        args.push('--append-system-prompt', d);
-      }
-      return args;
+      // Dir-hint rationale: see `dirHintArgs`.
+      return ['--mode', 'rpc', ...modelArgs({ options }), ...thinkingArgs({ options }), ...dirHintArgs({ extraAllowedDirs })];
     },
     // Prompt is sent via RPC `prompt` command on stdin, not as a CLI arg.
     promptViaStdin: true,

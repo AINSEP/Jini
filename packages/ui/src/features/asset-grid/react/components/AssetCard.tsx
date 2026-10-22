@@ -26,6 +26,25 @@ export interface AssetCardProps<TAsset extends AssetGridItem> {
   renderCardExtra?: ((asset: TAsset) => ReactNode) | undefined;
 }
 
+function renderCardActions<TAsset extends AssetGridItem>(
+  { asset, renderCardExtra, onDeleteAsset, t }: Pick<AssetCardProps<TAsset>, 'asset' | 'renderCardExtra' | 'onDeleteAsset'> & {
+    t: ReturnType<typeof useT>;
+  },
+  _options: Record<string, never> = {},
+) {
+  if (!renderCardExtra && !onDeleteAsset) return null;
+  return (
+    <div className="asset-grid-card-actions">
+      {renderCardExtra ? renderCardExtra(asset) : <span />}
+      {onDeleteAsset ? (
+        <button type="button" className="asset-grid-card-delete-btn" onClick={() => onDeleteAsset(asset.id)}>
+          {t('Remove')}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function AssetCard<TAsset extends AssetGridItem>({
   asset,
   index,
@@ -44,6 +63,7 @@ export function AssetCard<TAsset extends AssetGridItem>({
 }: AssetCardProps<TAsset>) {
   const t = useT();
   const { ref, inView } = useInView<HTMLDivElement>({ once: true, rootMargin: '300px' });
+  const selectionValue = selected ? 'true' : 'false';
 
   const handlePreviewClick = useCallback(
     (e: MouseEvent) => {
@@ -70,7 +90,7 @@ export function AssetCard<TAsset extends AssetGridItem>({
       // Must stay in sync with `ASSET_ID_ATTR` in ../../constants.ts — the
       // rubber-band hit-tester reads this literal attribute name.
       data-asset-grid-id={asset.id}
-      data-selected={selected ? 'true' : 'false'}
+      data-selected={selectionValue}
     >
       <div className="asset-grid-card-thumb">
         <div ref={ref} className="asset-grid-card-thumb-lazy">
@@ -92,7 +112,7 @@ export function AssetCard<TAsset extends AssetGridItem>({
         <button
           type="button"
           className="asset-grid-card-select-check"
-          data-checked={selected ? 'true' : 'false'}
+          data-checked={selectionValue}
           aria-pressed={selected}
           aria-label={selected ? t('Deselect asset') : t('Select asset')}
           onClick={handleCheckboxClick}
@@ -120,16 +140,7 @@ export function AssetCard<TAsset extends AssetGridItem>({
         </button>
         {subtitle ? <span className="asset-grid-card-subtitle">{subtitle}</span> : null}
       </figcaption>
-      {renderCardExtra || onDeleteAsset ? (
-        <div className="asset-grid-card-actions">
-          {renderCardExtra ? renderCardExtra(asset) : <span />}
-          {onDeleteAsset ? (
-            <button type="button" className="asset-grid-card-delete-btn" onClick={() => onDeleteAsset(asset.id)}>
-              {t('Remove')}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      {renderCardActions({ asset, renderCardExtra, onDeleteAsset, t })}
     </figure>
   );
 }

@@ -41,33 +41,34 @@ export interface UseQuestionFormsResult {
   buildSubmission: (form: QuestionForm, answers: QuestionFormAnswers) => string;
 }
 
-export function useQuestionForms(messages: ReadonlyArray<ChatMessage> | undefined): UseQuestionFormsResult {
-  const forms = useMemo<ParsedQuestionForm[]>(() => {
-    if (!messages || messages.length === 0) return [];
-    const out: ParsedQuestionForm[] = [];
-    for (let i = 0; i < messages.length; i += 1) {
-      const message = messages[i];
-      if (!message || message.role !== 'assistant') continue;
-      const found = findFirstQuestionForm(message.content);
-      if (!found) continue;
-      const nextMessage = messages[i + 1];
-      const submittedAnswers =
-        nextMessage && nextMessage.role === 'user' ? parseSubmittedAnswers(found.form, nextMessage.content) ?? undefined : undefined;
-      const interactive = submittedAnswers === undefined && i === messages.length - 1;
-      out.push({ form: found.form, raw: found.raw, messageId: message.id, interactive, submittedAnswers });
-    }
-    return out;
-  }, [messages]);
+/**
+ * The question-form on `messages[index]`, or `null` when that message is not
+ * an assistant message or carries no form. Answers come from the message right
+ * after it, and only when that one is a user reply.
+ */
+function parseFormAt(messages: ReadonlyArray<ChatMessage>, { index }: { index: number }): ParsedQuestionForm | null {
+  // Only called with an index `flatMap` is visiting (it skips holes), so the
+  // element is always defined.
+  const message = messages[index]!;
+  if (message.role !== 'assistant') return null;
+  const found = findFirstQuestionForm({ input: message.content });
+  if (!found) return null;
+  const nextMessage = messages[index + 1];
+  const submittedAnswers =
+    nextMessage?.role === 'user' ? parseSubmittedAnswers({ form: found.form, userMessageContent: nextMessage.content }) ?? undefined : undefined;
+  const interactive = submittedAnswers === undefined && index === messages.length - 1;
+  return { form: found.form, raw: found.raw, messageId: message.id, interactive, submittedAnswers };
+}
 
-  const activeForm = useMemo(() => {
-    for (let i = forms.length - 1; i >= 0; i -= 1) {
-      const form = forms[i];
-      if (form?.interactive) return form;
-    }
-    return null;
-  }, [forms]);
+export function useQuestionForms({ messages }: { messages: ReadonlyArray<ChatMessage> | undefined }): UseQuestionFormsResult {
+  const forms = useMemo<ParsedQuestionForm[]>(
+    () => (messages ?? []).flatMap((_, index, all) => parseFormAt(all, { index }) ?? []),
+    [messages],
+  );
 
-  const buildSubmission = useCallback((form: QuestionForm, answers: QuestionFormAnswers) => formatFormAnswers(form, answers), []);
+  const activeForm = useMemo(() => forms.findLast((form) => form.interactive) ?? null, [forms]);
+
+  const buildSubmission = useCallback((form: QuestionForm, answers: QuestionFormAnswers) => formatFormAnswers({ form: form, answers: answers }), []);
 
   return { forms, activeForm, buildSubmission };
 }
@@ -77,7 +78,7 @@ export function useQuestionForms(messages: ReadonlyArray<ChatMessage> | undefine
  * answered `form`, recover the answers map so the form can render in its
  * locked "answered" state with the user's picks visible.
  */
-export function parseSubmittedAnswers(form: QuestionForm, userMessageContent: string): QuestionFormAnswers | null {
+export function parseSubmittedAnswers({ form, userMessageContent }: { form: QuestionForm; userMessageContent: string }): QuestionFormAnswers | null {
   // `String.prototype.split` always returns an array of length >= 1 (even
   // `''.split('\n')` is `['']`), so `lines` can never be empty here — no
   // `lines.length === 0` guard is needed (removed as provably-dead). Index 0
@@ -119,9 +120,9 @@ function decodeAnswerValue(question: FormQuestion, value: string): string | stri
       .split(',')
       .map((s) => s.trim())
       .filter((s) => s.length > 0 && s.toLowerCase() !== '(skipped)')
-      .map((s) => formOptionValueForLabel(question, parseSubmittedOptionToken(s)));
+      .map((s) => formOptionValueForLabel({ question: question, labelOrValue: parseSubmittedOptionToken(s) }));
   }
-  return value.toLowerCase() === '(skipped)' ? '' : formOptionValueForLabel(question, parseSubmittedOptionToken(value));
+  return value.toLowerCase() === '(skipped)' ? '' : formOptionValueForLabel({ question: question, labelOrValue: parseSubmittedOptionToken(value) });
 }
 
 function parseSubmittedOptionToken(raw: string): string {

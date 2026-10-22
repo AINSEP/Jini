@@ -1,8 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { useDebouncedValue } from '../../../../react/hooks/useDebouncedValue.js';
-import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../constants.js';
-import { buildFacetLabelMap, dayKeyFromTimestamp, resolveFacetLabel } from '../../rules.js';
+import { dayKeyFromTimestamp, resolveFacetLabel } from '../../rules.js';
 import type { AssetGridDependencies } from '../../ports.js';
 import type { AssetGridFacetOption, AssetGridItem, AssetGridSelectors, AssetGridViewMode } from '../../types.js';
 import { useWiredAssetGridData } from '../hooks/useAssetGridData.js';
@@ -10,8 +8,9 @@ import { useWiredAssetGridLiveUpdates } from '../hooks/useAssetGridLiveUpdates.j
 import { useAssetGridSelection } from '../hooks/useAssetGridSelection.js';
 import { useRubberBandDrag } from '../hooks/useRubberBandDrag.js';
 import { useAssetGridKeyboardShortcuts } from '../hooks/useAssetGridKeyboardShortcuts.js';
+import { useAssetGridFilters } from './useAssetGridFilters.js';
 import { AssetCard } from './AssetCard.js';
-import { AssetGridBody } from './AssetGridBody.js';
+import { AssetGridBody, type AssetGridBodyProps } from './AssetGridBody.js';
 import { AssetGridToolbar } from './AssetGridToolbar.js';
 import { SelectionActionBar } from './SelectionActionBar.js';
 import { SelectionBand } from './SelectionBand.js';
@@ -51,6 +50,19 @@ export interface AssetGridProps<TAsset extends AssetGridItem> {
   useAssetGridSelection?: typeof useAssetGridSelection;
 }
 
+function renderGridContent<TAsset extends AssetGridItem>(
+  { loading, emptyState, t, ...bodyProps }: AssetGridBodyProps<TAsset> & {
+    loading: boolean;
+    emptyState: ReactNode;
+    t: ReturnType<typeof useT>;
+  },
+  _options: Record<string, never> = {},
+) {
+  if (loading && bodyProps.assets.length === 0) return <p className="asset-grid-empty">{t('Loading…')}</p>;
+  if (bodyProps.assets.length === 0) return emptyState ?? <div className="asset-grid-empty">{t('No assets yet.')}</div>;
+  return <AssetGridBody {...bodyProps} />;
+}
+
 /**
  * A live-updating, filterable, multi-selectable asset grid — the generic
  * pattern behind a photo library / DAM. See `packages/ui/source-map.md` for
@@ -60,8 +72,8 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   active = true,
   selectors,
   dependencies,
-  kindFacets = [],
-  sourceFacets = [],
+  kindFacets: configuredKindFacets,
+  sourceFacets: configuredSourceFacets,
   renderThumbnail,
   renderThumbnailPlaceholder,
   renderCardExtra,
@@ -73,7 +85,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   toolbarActions,
   emptyState,
   searchPlaceholder,
-  searchDebounceMs = DEFAULT_SEARCH_DEBOUNCE_MS,
+  searchDebounceMs,
   liveUpdateCoalesceMs,
   initialViewMode = 'grid',
   useWiredAssetGridData: useWiredAssetGridDataHook = useWiredAssetGridData,
@@ -81,15 +93,18 @@ export function AssetGrid<TAsset extends AssetGridItem>({
 }: AssetGridProps<TAsset>) {
   const t = useT();
 
-  const [kind, setKind] = useState('');
-  const [source, setSource] = useState('');
-  const [search, setSearch] = useState('');
+  const {
+    kind, setKind, source, setSource, search, setSearch,
+    debouncedSearch, filtersActive, kindFacets, sourceFacets, kindFacetLabels, sourceFacetLabels,
+  } = useAssetGridFilters({
+    kindFacets: configuredKindFacets,
+    sourceFacets: configuredSourceFacets,
+    searchDebounceMs,
+  });
   const [viewMode, setViewMode] = useState<AssetGridViewMode>(initialViewMode);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   /** Message from a delete the host rejected. Rendered inline — see `runDelete`. */
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const debouncedSearch = useDebouncedValue(search, searchDebounceMs);
-  const filtersActive = !!(kind || source || debouncedSearch.trim());
 
   // `dependencies` (host-supplied, or omitted to fall back to the package's
   // in-memory fake) is resolved by each wirer independently — neither this
@@ -167,12 +182,17 @@ export function AssetGrid<TAsset extends AssetGridItem>({
     });
   }, [selectedIds, onDeleteSelected, setAssets, setSelectedIds, runDelete]);
 
-  const handleDeleteAsset = useCallback(
-    async (id: string) => {
-      await runDelete(onDeleteAsset ? (batch) => onDeleteAsset(batch[0]!) : null, [id], () => {
-        setAssets((prev) => prev.filter((a) => a.id !== id));
-      });
-    },
+  // Built only when the host supplied `onDeleteAsset`: the card shows its per-asset delete control
+  // only when it receives a handler, so there is no "no handler" path to route through `runDelete`
+  // here (the old inline `onDeleteAsset ? … : null` could never see `null` from a rendered card).
+  const handleDeleteAsset = useMemo(
+    () => onDeleteAsset
+      ? async (id: string) => {
+        await runDelete((batch) => onDeleteAsset(batch[0]!), [id], () => {
+          setAssets((prev) => prev.filter((a) => a.id !== id));
+        });
+      }
+      : undefined,
     [onDeleteAsset, setAssets, runDelete],
   );
 
@@ -195,8 +215,6 @@ export function AssetGrid<TAsset extends AssetGridItem>({
     onRequestDeleteSelected: requestDeleteSelected,
   });
 
-  const kindFacetLabels = useMemo(() => buildFacetLabelMap(kindFacets), [kindFacets]);
-  const sourceFacetLabels = useMemo(() => buildFacetLabelMap(sourceFacets), [sourceFacets]);
   const getDayKey = useMemo(
     () => selectors.getDayKey ?? ((asset: TAsset) => dayKeyFromTimestamp(selectors.getTimestamp(asset))),
     [selectors],
@@ -221,7 +239,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
           onToggle={toggleOne}
           onRange={rangeTo}
           onPreview={handlePreview}
-          onDeleteAsset={onDeleteAsset ? handleDeleteAsset : undefined}
+          onDeleteAsset={handleDeleteAsset}
           renderCardExtra={renderCardExtra}
         />
       );
@@ -271,21 +289,18 @@ export function AssetGrid<TAsset extends AssetGridItem>({
         />
       ) : null}
 
-      {loading && assets.length === 0 ? (
-        <p className="asset-grid-empty">{t('Loading…')}</p>
-      ) : assets.length === 0 ? (
-        (emptyState ?? <div className="asset-grid-empty">{t('No assets yet.')}</div>)
-      ) : (
-        <AssetGridBody
-          viewMode={viewMode}
-          assets={assets}
-          getDayKey={getDayKey}
-          containerRef={containerRef}
-          onMouseDown={onMouseDown}
-          selecting={selectedIds.size > 0}
-          renderCard={renderCard}
-        />
-      )}
+      {renderGridContent({
+        loading,
+        emptyState,
+        t,
+        viewMode,
+        assets,
+        getDayKey,
+        containerRef,
+        onMouseDown,
+        selecting: selectedIds.size > 0,
+        renderCard,
+      })}
 
       <SelectionBand band={band} />
 

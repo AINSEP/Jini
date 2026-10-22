@@ -138,4 +138,41 @@ describe('MarkdownSplitPane', () => {
     expect(screen.getByRole('button', { name: 'Partagé' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aperçu' })).toBeInTheDocument();
   });
+  it('shows the host loading label while loading even when previewHtml is present', () => {
+    render(
+      <MarkdownSplitPane
+        mode="split"
+        onModeChange={() => {}}
+        sourceText="# Hi"
+        onSourceChange={() => {}}
+        previewHtml="<h1>Hi</h1>"
+        loading
+        loadingLabel="Fetching"
+      />,
+    );
+    expect(screen.getByText('Fetching')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('uses host-supplied tab and aria labels instead of the defaults', () => {
+    render(
+      <MarkdownSplitPane
+        mode="split"
+        onModeChange={() => {}}
+        sourceText="# Hi"
+        onSourceChange={() => {}}
+        previewHtml="<h1>Hi</h1>"
+        sourceLabel="Src"
+        splitLabel="Both"
+        previewLabel="View"
+        editorAriaLabel="Editor X"
+        previewAriaLabel="Preview X"
+        modeAriaLabel="Mode X"
+      />,
+    );
+    const modeGroup = screen.getByLabelText('Mode X');
+    expect(modeGroup.textContent).toBe('SrcBothView');
+    expect(screen.getByRole('textbox', { name: 'Editor X' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Preview X')).toHaveClass('markdown-preview-pane');
+  });
 });

@@ -16,7 +16,7 @@ export default defineConfig({
         // fix coverage pass. The one remaining branch (prompt.ts's `finish()` idempotency guard)
         // is documented-unreachable through this file's real `createReadStream` usage on a modern
         // Node runtime (Readable's 'end'/'error' mutual exclusivity contract); see that file's own
-        // inline comment and source-map.md's dated entry for the full re-verification record. No
+        // inline comment and archived provenance ledger's dated entry for the full re-verification record. No
         // `/* v8 ignore */` suppression — set below the measured real number instead, matching
         // this repo's established convention (e.g. `@jini-ai/registry`'s `trust.ts`).
         statements: 100,

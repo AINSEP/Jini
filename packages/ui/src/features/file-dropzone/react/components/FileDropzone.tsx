@@ -1,5 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
-import { Icon } from '../../../../react/components/Icon.js';
+import { useState } from 'react';
 import { useGlobalKeydown } from '../../../../browser/useGlobalKeydown.js';
 import { useT } from '../../../i18n/index.js';
 import { useFileDropzone } from '../hooks/useFileDropzone.js';
@@ -7,6 +6,8 @@ import { useFileDropzonePreviews } from '../hooks/useFileDropzonePreviews.js';
 import { FileDropzoneThumbnailGrid } from './FileDropzoneThumbnailGrid.js';
 import { FileDropzoneLightbox } from './FileDropzoneLightbox.js';
 import { FileDropzoneNameList } from './FileDropzoneNameList.js';
+import { FileDropzoneZone } from './FileDropzoneZone.js';
+import type { FileDropzonePreviewState } from '../../types.js';
 
 export interface FileDropzoneSecondaryAction {
   label: string;
@@ -78,7 +79,7 @@ export function FileDropzone({
   prompt,
   helper,
   accept,
-  directory = false,
+  directory,
   enablePaste = false,
   files,
   onRemove,
@@ -99,70 +100,29 @@ export function FileDropzone({
   const dropzone = useFileDropzoneHook({ onFiles, onZoneClick, onError, onProcessingStart, enablePaste });
   const previews = useFileDropzonePreviewsHook(files ?? NO_FILES);
 
-  useGlobalKeydown(
-    (event) => {
+  useGlobalKeydown({
+    handler: (event) => {
       if (event.key === 'Escape') setLightboxFile(null);
     },
-    { enabled: lightboxFile !== null },
-  );
+  }, { enabled: lightboxFile !== null });
 
-  function onZoneKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      dropzone.openPicker();
-    }
-  }
-
-  const defaultPrompt = enablePaste ? t('Drag & drop, paste, or browse') : t('Drag & drop or browse');
-  const promptText = prompt ? t(prompt) : defaultPrompt;
   const isSimpleVariant = names !== undefined;
-  const showNamesInZone = !!names && names.length > 0 && !onRemoveName;
-  const zoneText = showNamesInZone ? names!.join(', ') : promptText;
-  const directoryInputProps = directory ? ({ webkitdirectory: '', directory: '' } as Record<string, string>) : {};
+  // The helper renders inside the zone for the thumbnail-grid variant, and as a
+  // paragraph under the staged names for the simple (`names`) variant.
+  const helperText = helper ? t(helper) : undefined;
 
   return (
     <div className="jini-file-dropzone">
       {label ? <strong className="jini-file-dropzone__label">{t(label)}</strong> : null}
       <div className="jini-file-dropzone__wrap">
-        <div
-          className={`jini-file-dropzone__zone${dropzone.dragOver ? ' is-drag-over' : ''}`}
-          role="button"
-          tabIndex={0}
-          aria-label={t('Add files — drag and drop{paste}, or click to browse', {
-            paste: enablePaste ? t(', paste') : '',
-          })}
-          data-testid="file-dropzone-zone"
-          onClick={dropzone.openPicker}
-          onKeyDown={onZoneKeyDown}
-          onDragEnter={dropzone.onZoneDragEnter}
-          onDragOver={dropzone.onZoneDragOver}
-          onDragLeave={dropzone.onZoneDragLeave}
-          onDrop={dropzone.onZoneDrop}
-        >
-          <input
-            ref={dropzone.inputRef}
-            type="file"
-            multiple
-            accept={accept}
-            className="jini-file-dropzone__input"
-            onClick={(event) => {
-              // The input is nested inside the zone div so a real user
-              // click on it (e.g. via `openPicker`'s own `input.click()`
-              // call) would otherwise bubble straight back into the zone's
-              // own `onClick={dropzone.openPicker}`, re-triggering it and
-              // opening the file dialog a second time.
-              event.stopPropagation();
-              dropzone.onInputClick();
-            }}
-            onChange={dropzone.onInputChange}
-            {...directoryInputProps}
-          />
-          <span className="jini-file-dropzone__icon">
-            <Icon name="upload" size={19} />
-          </span>
-          <span className="jini-file-dropzone__prompt">{zoneText}</span>
-          {!isSimpleVariant && helper ? <span className="jini-file-dropzone__hint">{t(helper)}</span> : null}
-        </div>
+        <FileDropzoneZone
+          dropzone={dropzone}
+          zoneText={resolveZoneText({ t, enablePaste, names }, { prompt, onRemoveName })}
+          accept={accept}
+          directory={directory}
+          enablePaste={enablePaste}
+          hint={isSimpleVariant ? undefined : helperText}
+        />
         {onBrowseFolder ? (
           <button type="button" className="jini-file-dropzone__browse-folder" onClick={onBrowseFolder}>
             {t('Browse folder')}
@@ -170,6 +130,66 @@ export function FileDropzone({
         ) : null}
       </div>
 
+      <FileDropzoneStaged
+        previews={previews}
+        lightboxFile={lightboxFile}
+        setLightboxFile={setLightboxFile}
+        secondaryAction={secondaryAction}
+        label={label}
+        names={names}
+        onRemoveName={onRemoveName}
+        files={files}
+        onRemove={onRemove}
+        simpleHelper={isSimpleVariant ? helperText : undefined}
+      />
+    </div>
+  );
+}
+
+/**
+ * The zone's inner text: the staged names themselves for the simple variant
+ * when they can't be removed individually (no `onRemoveName` → no chip list),
+ * otherwise the host prompt or a default drag/drop(/paste)/browse prompt.
+ */
+function resolveZoneText(
+  { t, enablePaste, names }: { t: (key: string) => string; enablePaste: boolean; names: string[] | undefined },
+  { prompt, onRemoveName }: { prompt?: string | undefined; onRemoveName?: ((name: string) => void) | undefined },
+): string {
+  if (names && names.length > 0 && !onRemoveName) return names.join(', ');
+  if (prompt) return t(prompt);
+  return enablePaste ? t('Drag & drop, paste, or browse') : t('Drag & drop or browse');
+}
+
+interface FileDropzoneStagedProps {
+  previews: FileDropzonePreviewState;
+  lightboxFile: File | null;
+  setLightboxFile: (file: File | null) => void;
+  secondaryAction?: FileDropzoneSecondaryAction | undefined;
+  label?: string | undefined;
+  names?: string[] | undefined;
+  onRemoveName?: ((name: string) => void) | undefined;
+  files?: File[] | undefined;
+  onRemove?: ((file: File) => void) | undefined;
+  /** Already-translated helper paragraph for the simple variant. */
+  simpleHelper?: string | undefined;
+}
+
+/** Everything below the zone: the secondary action, the staged names/thumbnails, the simple-variant helper, and the lightbox. Empty `names`/`files` render nothing — `FileDropzoneNameList` and `FileDropzoneThumbnailGrid` both return `null` for an empty list. */
+function FileDropzoneStaged({
+  previews,
+  lightboxFile,
+  setLightboxFile,
+  secondaryAction,
+  label,
+  names,
+  onRemoveName,
+  files,
+  onRemove,
+  simpleHelper,
+}: FileDropzoneStagedProps) {
+  const t = useT();
+  return (
+    <>
       {secondaryAction ? (
         <div className="jini-file-dropzone__secondary">
           <button type="button" className="jini-file-dropzone__secondary-action" onClick={secondaryAction.onClick}>
@@ -178,7 +198,7 @@ export function FileDropzone({
         </div>
       ) : null}
 
-      {names && names.length > 0 && onRemoveName ? (
+      {names && onRemoveName ? (
         <FileDropzoneNameList
           names={names}
           onRemoveName={onRemoveName}
@@ -186,15 +206,15 @@ export function FileDropzone({
         />
       ) : null}
 
-      {files && files.length > 0 ? (
+      {files ? (
         <FileDropzoneThumbnailGrid files={files} previews={previews} onSelect={setLightboxFile} onRemove={onRemove} />
       ) : null}
 
-      {isSimpleVariant && helper ? <p className="jini-file-dropzone__helper">{t(helper)}</p> : null}
+      {simpleHelper ? <p className="jini-file-dropzone__helper">{simpleHelper}</p> : null}
 
       {lightboxFile ? (
         <FileDropzoneLightbox file={lightboxFile} previews={previews} onClose={() => setLightboxFile(null)} />
       ) : null}
-    </div>
+    </>
   );
 }

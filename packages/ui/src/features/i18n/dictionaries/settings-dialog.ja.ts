@@ -6,12 +6,17 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_JA: SettingsDialogDict = {
+  "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "メッセージからキーと思われる文字列を削除しました。本物のキーだった場合は再発行してください。保存には安全なフォームを使ってください。",
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- Translation of user-facing credential-safety guidance; the value is prose, not a password.
+  "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "キー、トークン、パスワード、シークレットの保存には安全なフォームを使ってください。チャットの回答はアシスタントに送信されます。",
+
   '# My skill\n\n1. Explain the workflow.\n2. Describe the inputs and outputs.': '# マイスキル\n\n1. ワークフローを説明してください。\n2. 入力と出力を説明してください。',
   'A custom path override did not work, so this used the automatically detected binary instead.': 'カスタムパスの上書きが機能しなかったため、自動検出されたバイナリを代わりに使用しました。',
   'API key': 'APIキー',
   'About': '概要',
   'Accent color': 'アクセントカラー',
   'Account': 'アカウント',
+  'Advanced': '詳細設定',
   'Advanced: proxy & custom paths': '詳細設定：プロキシとカスタムパス',
   'Agent check failed': 'エージェントの確認に失敗しました',
   'Agent is ready.': 'エージェントの準備ができました。',
@@ -55,8 +60,8 @@ export const SETTINGS_DIALOG_JA: SettingsDialogDict = {
   'Copy': 'コピー',
   'Copy to clipboard': 'クリップボードにコピー',
   'Could not load live models: {message}': 'ライブモデルを読み込めませんでした：{message}',
-  'No API key — connection test needs the key from this browser.': 'API キーがありません — 接続テストには、このブラウザーからのキーが必要です。',
-  'No API key — model discovery needs the key from this browser.': 'API キーがありません — モデルの検出には、このブラウザーからのキーが必要です。',
+  'No API key saved. Save one to test the connection.': 'API キーが保存されていません。接続をテストするにはキーを保存してください。',
+  'No API key saved. Save one to load models.': 'API キーが保存されていません。モデルを読み込むにはキーを保存してください。',
   'Could not load skills: {error}': 'スキルを読み込めませんでした：{error}',
   'Could not reach the daemon: {error}': 'デーモンに接続できませんでした：{error}',
   'Could not reach the server. Showing local changes only.': 'サーバーに接続できませんでした。ローカルの変更のみ表示しています。',
@@ -136,6 +141,9 @@ export const SETTINGS_DIALOG_JA: SettingsDialogDict = {
   'Not available for this daemon.': 'このデーモンでは利用できません。',
   'Not configured': '未設定',
   'Not installed': '未インストール',
+  'Show {count} not installed': '未インストールの {count} 件を表示',
+  'Hide not installed': '未インストールを隠す',
+  'Show not-installed CLIs': '未インストールの CLI を表示',
   'Not sharing': '共有していません',
   'Nothing is shared unless you opt in.': 'オプトインしない限り、何も共有されません。',
   'Off': 'オフ',

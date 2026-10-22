@@ -21,8 +21,8 @@ describe('media-providers tab barrel', () => {
     expect(typeof MediaProvidersBarrel.useMediaProvidersTab).toBe('function');
   });
 
-  it('exports the default provider catalog', () => {
+  it('retains the deprecated empty catalog export', () => {
     expect(Array.isArray(MediaProvidersBarrel.DEFAULT_MEDIA_PROVIDER_CATALOG)).toBe(true);
-    expect(MediaProvidersBarrel.DEFAULT_MEDIA_PROVIDER_CATALOG.length).toBeGreaterThan(0);
+    expect(MediaProvidersBarrel.DEFAULT_MEDIA_PROVIDER_CATALOG).toEqual([]);
   });
 });

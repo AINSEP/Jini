@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, afterEach } from 'vitest';
 import { setAcpModelProbe, noopAcpModelProbe, detectAcpModels, type AcpModelProbe } from '../acp-model-probe.js';
 import { noopAmrProfileResolver, type AmrProfileResolver } from '../amr-profile-resolver.js';
@@ -17,19 +20,22 @@ import { devinAgentDef } from '../defs/devin.js';
 
 describe('port satisfaction: AmrProfileResolver', () => {
   it('the no-op default resolves a constant scope', () => {
-    expect(noopAmrProfileResolver.resolveProfile({})).toBe('default');
+    expect(noopAmrProfileResolver.resolveProfile({ env: {} })).toBe('default');
   });
 
   it('a custom resolver satisfies the interface and can be threaded through detectAgents()', async () => {
     let calls = 0;
     const stub: AmrProfileResolver = {
-      resolveProfile: (env) => {
+      resolveProfile: ({ env }) => {
         calls += 1;
         return env.MY_PROFILE ?? 'unscoped';
       },
     };
-    // No agent CLIs are installed in this sandbox, so every def resolves
-    // to unavailable — this exercises the real detectAgents() code path
+    // PATH and the toolchain-dir search are scoped to an empty fake home
+    // (the same sandbox `detection.test.ts` uses), so every def resolves
+    // to unavailable on any machine — without it, a dev machine with real
+    // CLIs installed spawns their version/help/model probes and this test
+    // runs past its timeout. This exercises the real detectAgents() code path
     // (registry iteration, launch resolution, diagnostics) end-to-end
     // with the injected resolver wired in, without requiring a live vela
     // binary. `calls` may legitimately stay 0 here (the amr def's
@@ -37,10 +43,20 @@ describe('port satisfaction: AmrProfileResolver', () => {
     // returns zero models AND the agent is available) — the behavioral
     // claim under test is that passing a custom resolver does not throw
     // and every agent still gets classified.
-    const results = await detectAgents({}, stub);
-    expect(results.length).toBeGreaterThan(20);
-    expect(results.every((agent) => typeof agent.available === 'boolean')).toBe(true);
-    expect(calls).toBeGreaterThanOrEqual(0);
+    const dir = mkdtempSync(path.join(tmpdir(), 'ports-detect-'));
+    const originalPath = process.env.PATH;
+    process.env.AGENT_RUNTIME_HOME = dir;
+    process.env.PATH = dir;
+    try {
+      const results = await detectAgents({  }, { configuredEnvByAgent: {}, amrProfileResolver: stub });
+      expect(results.length).toBeGreaterThan(20);
+      expect(results.every((agent) => typeof agent.available === 'boolean')).toBe(true);
+      expect(calls).toBeGreaterThanOrEqual(0);
+    } finally {
+      process.env.PATH = originalPath;
+      delete process.env.AGENT_RUNTIME_HOME;
+      rmSync(dir, { recursive: true, force: true });
+    }
     // Explicit generous timeout: this exercises detectAgents() over the full
     // 24+ item registry (real PATH/launch-resolution work per def), which
     // takes ~3s in isolation but can exceed vitest's 5000ms default under
@@ -53,7 +69,7 @@ describe('port satisfaction: AmrProfileResolver', () => {
 
 describe('port satisfaction: AcpModelProbe', () => {
   afterEach(() => {
-    setAcpModelProbe(null);
+    setAcpModelProbe({ probe: null });
   });
 
   it('the no-op default resolves to an empty list', async () => {
@@ -63,12 +79,13 @@ describe('port satisfaction: AcpModelProbe', () => {
   it('a custom probe installed via setAcpModelProbe is reached by detectAcpModels() directly', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'stub-model', label: 'Stub Model' }];
       },
     };
-    setAcpModelProbe(stub);
+    setAcpModelProbe({ probe: stub });
     const models = await detectAcpModels({ bin: 'hermes', args: ['acp'] });
     expect(models).toEqual([{ id: 'stub-model', label: 'Stub Model' }]);
     expect(seen).toEqual([{ bin: 'hermes', args: ['acp'] }]);
@@ -77,26 +94,29 @@ describe('port satisfaction: AcpModelProbe', () => {
   it('a custom probe is reached transitively through a real def literal\'s fetchModels (devin)', async () => {
     const seen: Array<{ bin: string; args: string[] }> = [];
     const stub: AcpModelProbe = {
-      detectModels: async (request) => {
+      detectModels: async (required, optional = {}) => {
+        const request = { ...optional, ...required };
         seen.push({ bin: request.bin, args: request.args });
         return [{ id: 'adaptive', label: 'adaptive' }];
       },
     };
-    setAcpModelProbe(stub);
+    setAcpModelProbe({ probe: stub });
     // devinAgentDef.fetchModels calls detectAcpModels(...) internally (via
     // defs/shared.ts's re-export) — this proves the port is actually wired
     // through a def literal's closure, not just callable in isolation.
-    const models = await devinAgentDef.fetchModels!('devin', {});
+    const models = await devinAgentDef.fetchModels!({ resolvedBin: 'devin', env: {} });
     expect(models).toEqual([{ id: 'adaptive', label: 'adaptive' }]);
     expect(seen).toHaveLength(1);
     expect(seen[0]?.bin).toBe('devin');
     expect(seen[0]?.args).toContain('acp');
   });
 
-  it('restoring the default (setAcpModelProbe(null)) reverts to the no-op', async () => {
-    setAcpModelProbe({ detectModels: async () => [{ id: 'x', label: 'x' }] });
-    setAcpModelProbe(null);
-    await expect(detectAcpModels({ bin: 'x', args: [] })).resolves.toEqual([]);
+  it('restoring the default (setAcpModelProbe(null)) reverts to the native ACP transport', async () => {
+    setAcpModelProbe({ probe: { detectModels: async () => [{ id: 'x', label: 'x' }] } });
+    setAcpModelProbe({ probe: null });
+    // The default is no longer a no-op: the stub is gone and the real handshake spawns the bin,
+    // so a binary that does not exist fails at spawn instead of returning the stub's rows.
+    await expect(detectAcpModels({ bin: '/nonexistent/jini-acp-probe-fixture', args: [] })).rejects.toThrow(/spawn failed/);
   });
 });
 
@@ -132,17 +152,17 @@ describe('port satisfaction: PromptAugmenter', () => {
 
 describe('port satisfaction: ArtifactTaxonomy', () => {
   it('the no-op default classifies nothing as an artifact', () => {
-    expect(noopArtifactTaxonomy.isArtifact('index.html')).toBe(false);
+    expect(noopArtifactTaxonomy.isArtifact({ path: 'index.html' })).toBe(false);
   });
 
   it('a custom taxonomy satisfies the interface', () => {
     const stub: ArtifactTaxonomy = {
-      isArtifact: (path) => /\.(html|svg)$/i.test(path),
-      classify: (path) => (path.endsWith('.svg') ? 'sketch' : null),
+      isArtifact: ({ path }) => /\.(html|svg)$/i.test(path),
+      classify: ({ path }) => (path.endsWith('.svg') ? 'sketch' : null),
     };
-    expect(stub.isArtifact('deck/slide-1.html')).toBe(true);
-    expect(stub.isArtifact('notes.md')).toBe(false);
-    expect(stub.classify!('logo.svg')).toBe('sketch');
+    expect(stub.isArtifact({ path: 'deck/slide-1.html' })).toBe(true);
+    expect(stub.isArtifact({ path: 'notes.md' })).toBe(false);
+    expect(stub.classify!({ path: 'logo.svg' })).toBe('sketch');
   });
 });
 

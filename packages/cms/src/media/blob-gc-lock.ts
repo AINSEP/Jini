@@ -1,6 +1,6 @@
 /**
  * @file In-process, per-sha256 mutex for the blob-GC protocol
- * (INV-1's "Serialization" clause).
+ * ("Serialization" clause).
  *
  * Purpose:
  * The real protocol serializes every `asset_blobs` state transition
@@ -20,6 +20,7 @@
  * decorative comment. See `blob-gc.ts`'s file header for what this does NOT
  * cover (cross-process safety, which needs a real DB transaction — a host's
  * own SQLite adapter would supply that).
+ * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 
 /**
@@ -42,7 +43,8 @@ const lockTails = new Map<string, Promise<void>>();
  * by the number of other calls currently queued for the same key.
  * @overallScore 100
  */
-export function withSha256Lock<T>(key: string, criticalSection: () => Promise<T>): Promise<T> {
+export function withSha256Lock<T>(requiredArgs: { key: string; criticalSection: () => Promise<T> }, optionalArgs: Record<string, never> = {}): Promise<T> {
+  const { key, criticalSection } = requiredArgs;
   const priorTail = lockTails.get(key) ?? Promise.resolve();
   const run = priorTail.then(criticalSection, criticalSection);
   const settledTail: Promise<void> = run.then(

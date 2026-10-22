@@ -1,13 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatMessage } from '../../../core/index.js';
+import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import { assistantContentFromEvents } from '../../../core/index.js';
 import { clearExtEventRenderers, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';
 import {
   __resetAttachmentPreviewCacheForTests,
   cacheAttachmentPreviewSource,
 } from '../../hooks/attachment-preview-cache.js';
 import { MessageRow } from '../MessageRow.js';
+import { registerMidRunUserMessageRenderer } from '../MidRunUserMessage.js';
 
 describe('MessageRow', () => {
   it('renders a user message with its content and attachments', () => {
@@ -60,7 +62,34 @@ describe('MessageRow', () => {
   it('shows a pending indicator for a running message with no content yet', () => {
     const message: ChatMessage = { id: 'a5', role: 'assistant', content: '', runStatus: 'running' };
     render(<MessageRow message={message} runStreaming />);
-    expect(screen.getByText('Thinking…')).toBeInTheDocument();
+    expect(screen.getByText('Thinking… 0 s')).toBeInTheDocument();
+  });
+
+  it('keeps a live activity line after the first tool row appears, and drops it once the run ends', () => {
+    const events: ChatMessage['events'] = [
+      { kind: 'tool_use', id: 't1', name: 'mcp__jini__search_tools', input: {} },
+      { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      { kind: 'tool_use', id: 't2', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'content.post_list' } },
+    ];
+    const running: ChatMessage = { id: 'a5b', role: 'assistant', content: '', runStatus: 'running', events };
+    const { rerender } = render(<MessageRow message={running} runStreaming />);
+    expect(screen.getByText('Running Content Post List… 0 s')).toBeInTheDocument();
+    rerender(<MessageRow message={{ ...running, runStatus: 'succeeded' }} />);
+    expect(screen.queryByText(/Running Content Post List/)).not.toBeInTheDocument();
+  });
+
+  it('ticks the activity clock once a second', () => {
+    vi.useFakeTimers();
+    try {
+      const message: ChatMessage = { id: 'a5c', role: 'assistant', content: '', runStatus: 'running' };
+      render(<MessageRow message={message} runStreaming />);
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(screen.getByText('Thinking… 3 s')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('tags each message for agent inspection, distinctly per role and message id', () => {
@@ -135,7 +164,7 @@ describe('MessageRow', () => {
     });
 
     it('shows cached text content for a text-ish attachment', async () => {
-      cacheAttachmentPreviewSource('attachment:u6-1', new File(['{"ok":true}'], 'data.json'));
+      cacheAttachmentPreviewSource({ path: 'attachment:u6-1', file: new File(['{"ok":true}'], 'data.json') });
       const message: ChatMessage = {
         id: 'u6',
         role: 'user',
@@ -228,12 +257,97 @@ describe('MessageRow', () => {
     };
     const onRequestOpenFile = vi.fn();
     render(<MessageRow message={message} runSucceeded projectFileNames={new Set(['known.txt'])} onRequestOpenFile={onRequestOpenFile} />);
+    // A collapsed tool card mounts no panel, so the "Open" file button only exists once it is opened.
+    await userEvent.click(screen.getByRole('button', { expanded: false }));
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(onRequestOpenFile).toHaveBeenCalledWith('known.txt');
   });
 
   describe('usage summary line', () => {
-    it('renders duration, output tokens, and cost from the message\'s usage event', () => {
+    afterEach(() => clearExtEventRenderers());
+
+    const midRun = (id: string): AgentEvent => ({ kind: 'ext', name: 'user_message', data: { id, text: `prompt ${id}` } });
+    const reply = (id: string, events: AgentEvent[], runStatus: NonNullable<ChatMessage['runStatus']>): ChatMessage =>
+      ({ id, role: 'assistant', content: assistantContentFromEvents({ events }), runStatus, events });
+
+    it('gives each finished mid-run reply its own Done line where that reply ends, with the running total as of that reply', () => {
+      registerMidRunUserMessageRenderer();
+      render(<MessageRow message={reply('replies', [
+        { kind: 'text', text: 'First answer.' },
+        { kind: 'usage', inputTokens: 100, outputTokens: 995, costUsd: 0.03, durationMs: 13_000 },
+        midRun('u2'),
+        { kind: 'text', text: 'Second answer.' },
+        { kind: 'usage', inputTokens: 10, outputTokens: 5, costUsd: 0.0198, durationMs: 1_000 },
+      ], 'succeeded')} />);
+      const lines = [...document.querySelectorAll('.jini-message-usage')];
+      expect(lines.map((line) => line.textContent)).toEqual(['●Done · 13s · $0.03 · total $0.03', '●Done · 1s · $0.02 · total $0.05']);
+      expect(lines.map((line) => line.getAttribute('title'))).toEqual(['995 out', '5 out']);
+      expect(screen.getByRole('note', { name: 'Done · 13s · $0.03 · total $0.03 · 995 out' })).toBeInTheDocument();
+      const bubble = screen.getByText('prompt u2');
+      expect(lines[0]!.compareDocumentPosition(bubble) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(bubble.compareDocumentPosition(lines[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('shows no Done line for the reply still running, only for the finished replies before it', () => {
+      registerMidRunUserMessageRenderer();
+      render(<MessageRow runStreaming message={reply('running', [
+        { kind: 'text', text: 'First answer.' },
+        { kind: 'usage', costUsd: 0.03 },
+        midRun('u2'),
+        { kind: 'text', text: 'Second answer.' },
+        { kind: 'usage', costUsd: 0.02 },
+        midRun('u3'),
+        { kind: 'text', text: 'Still working on the third.' },
+      ], 'running')} />);
+      const lines = [...document.querySelectorAll('.jini-message-usage')];
+      expect(lines.map((line) => line.textContent)).toEqual(['●Done · $0.03 · total $0.03', '●Done · $0.02 · total $0.05']);
+      expect(lines[1]!.compareDocumentPosition(screen.getByText('prompt u3')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('holds a running turn\'s interim usage until the turn finishes', () => {
+      const events: AgentEvent[] = [{ kind: 'usage', costUsd: 0.5 }, { kind: 'text', text: 'still going' }];
+      const view = render(<MessageRow runStreaming message={reply('interim', events, 'running')} />);
+      expect(document.querySelector('.jini-message-usage')).toBeNull();
+      view.rerender(<MessageRow message={reply('interim', events, 'succeeded')} />);
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $0.50 · total $0.50');
+    });
+
+    it('leaves the running total off only when showUsageTotal is false', () => {
+      render(<MessageRow showUsageTotal={false} message={reply('total', [{ kind: 'usage', costUsd: 0.05 }], 'succeeded')} />);
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $0.05');
+    });
+
+    it('keeps each finished reply\'s Done line under that reply while a mid-run reply runs its tools', () => {
+      registerMidRunUserMessageRenderer();
+      render(<MessageRow runStreaming message={reply('live-tools', [
+        { kind: 'text', text: 'First answer.' },
+        { kind: 'usage', costUsd: 0.39, durationMs: 16_000 },
+        midRun('u2'),
+        { kind: 'text', text: 'Second answer.' },
+        { kind: 'usage', costUsd: 3.56, durationMs: 3_000 },
+        midRun('u3'),
+        { kind: 'text', text: 'Checking.' },
+        { kind: 'tool_use', id: 'live', name: 'Bash', input: { command: 'ls' } },
+      ], 'running')} />);
+      const lines = [...document.querySelectorAll('.jini-message-usage')];
+      expect(lines.map((line) => line.textContent)).toEqual(['●Done · 16s · $0.39 · total $0.39', '●Done · 3s · $3.56 · total $3.95']);
+      expect(lines[0]!.compareDocumentPosition(screen.getByText('prompt u2')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(lines[1]!.compareDocumentPosition(screen.getByText('prompt u3')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const liveTools = [...document.querySelectorAll('.jini-message-tools')].at(-1)!;
+      expect(liveTools.textContent).toContain('Bash');
+      for (const line of lines) expect(line.compareDocumentPosition(liveTools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('shows no Done line on a streaming row whose runStatus was never set', () => {
+      const message: ChatMessage = { id: 'no-status', role: 'assistant', content: 'still going',
+        events: [{ kind: 'usage', costUsd: 0.5 }, { kind: 'text', text: 'still going' }] };
+      const view = render(<MessageRow runStreaming message={message} />);
+      expect(document.querySelector('.jini-message-usage')).toBeNull();
+      view.rerender(<MessageRow message={message} />);
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $0.50 · total $0.50');
+    });
+
+    it('renders duration and upward-rounded cost, with output tokens in the tooltip', () => {
       const message: ChatMessage = {
         id: 'u1',
         role: 'assistant',
@@ -245,8 +359,10 @@ describe('MessageRow', () => {
       const usageText = document.querySelector('.jini-message-usage')?.textContent;
       expect(usageText).toContain('Done');
       expect(usageText).toContain('46s');
-      expect(usageText).toContain('2612 out');
-      expect(usageText).toContain('$0.4028');
+      expect(usageText).not.toContain('2612 out');
+      expect(screen.getByRole('note', { name: 'Done · 46s · $0.41 · total $0.41 · 2612 out' })).toBeInTheDocument();
+      expect(document.querySelector('.jini-message-usage')).toHaveAttribute('title', '2612 out');
+      expect(usageText).toContain('$0.41 · total $0.41');
     });
 
     it('formats a duration over a minute as "Xm Ys"', () => {
@@ -270,7 +386,7 @@ describe('MessageRow', () => {
         runStatus: 'succeeded',
       };
       render(<MessageRow message={message} runSucceeded />);
-      expect(screen.getByText(/\$0\.0100/)).toBeInTheDocument();
+      expect(screen.getByText(/\$0\.01$/)).toBeInTheDocument();
       expect(screen.queryByText(/out/)).not.toBeInTheDocument();
     });
 
@@ -286,7 +402,7 @@ describe('MessageRow', () => {
       expect(document.querySelector('.jini-message-usage')).toBeNull();
     });
 
-    it('uses the last usage event when more than one is present', () => {
+    it('sums costs from every usage event when more than one is present', () => {
       const message: ChatMessage = {
         id: 'u6',
         role: 'assistant',
@@ -298,8 +414,7 @@ describe('MessageRow', () => {
         runStatus: 'succeeded',
       };
       render(<MessageRow message={message} runSucceeded />);
-      expect(screen.getByText(/\$0\.9900/)).toBeInTheDocument();
-      expect(screen.queryByText(/\$0\.0100/)).not.toBeInTheDocument();
+      expect(document.querySelector('.jini-message-usage')?.textContent).toBe('●Done · $1.00 · total $1.00');
     });
   });
 
@@ -308,10 +423,10 @@ describe('MessageRow', () => {
 
     it('dispatches a kind:ext event group to its registered renderer, passing every event and runId', () => {
       const seen: unknown[] = [];
-      registerExtEventRenderer('a2ui', (props) => {
+      registerExtEventRenderer({ name: 'a2ui', renderer: (props) => {
         seen.push(props);
         return <div data-testid="a2ui-rendered">{props.events.length} events</div>;
-      });
+      } });
       const message: ChatMessage = {
         id: 'e1',
         role: 'assistant',
@@ -326,8 +441,94 @@ describe('MessageRow', () => {
       render(<MessageRow message={message} runStreaming runSucceeded={false} />);
       expect(screen.getByTestId('a2ui-rendered')).toHaveTextContent('2 events');
       expect(seen).toEqual([
-        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, runId: 'run-123' },
+        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, awaitingAnswer: false, runId: 'run-123', answered: false, onAnswered: expect.any(Function), onAnswerText: expect.any(Function) },
       ]);
+    });
+
+    // Owner, 2026-10-11: after Confirm on a "Confirm action?" card the card read "Done." but the line
+    // under it kept saying "Waiting for your answer above" (and the card kept counting down) until
+    // the confirmed publish finished, because the tool call stays open while that work runs.
+    it('stops saying Waiting for your answer the moment the card reports its answer delivered', () => {
+      const answeredSeen: boolean[] = [];
+      registerExtEventRenderer({ name: 'mcp-ui', renderer: (props) => {
+        answeredSeen.push(props.answered === true);
+        return <button type="button" onClick={props.onAnswered}>Confirm</button>;
+      } });
+      const message: ChatMessage = {
+        id: 'confirm-1',
+        role: 'assistant',
+        content: '',
+        runId: 'r',
+        events: [
+          { kind: 'tool_use', id: 't1', name: 'deployment_execute_static_publish', input: {} },
+          { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://confirm' } },
+        ],
+        runStatus: 'running',
+      };
+      render(<MessageRow message={message} runStreaming runSucceeded={false} />);
+      expect(document.querySelector('.jini-run-activity')?.textContent).toBe('Waiting for your answer above');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+      expect(document.querySelector('.jini-run-activity')?.textContent).toMatch(/^Running Deployment Execute Static Publish… \d+ s$/);
+      expect(answeredSeen[0]).toBe(false);
+      expect(answeredSeen[answeredSeen.length - 1]).toBe(true);
+    });
+
+    // Demo dry-run 2026-10-05: a "still working" notice rendered under an open credential form, so
+    // a run waiting on the person looked hung. Renderers learn the run is waiting on the person.
+    it('tells ext renderers the run is awaiting an answer while a card sits on an open tool call', () => {
+      const seen: boolean[] = [];
+      registerExtEventRenderer({ name: 'slow_running', renderer: (props) => {
+        seen.push(props.awaitingAnswer === true);
+        return null;
+      } });
+      const events: ChatMessage['events'] = [
+        { kind: 'tool_use', id: 't1', name: 'source_control_propose_credential', input: {} },
+        { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://form' } },
+        { kind: 'ext', name: 'slow_running', data: { type: 'slow_running' } },
+      ];
+      const message: ChatMessage = { id: 'w1', role: 'assistant', content: '', runId: 'r', events, runStatus: 'running' };
+      const { rerender } = render(<MessageRow message={message} runStreaming runSucceeded={false} />);
+      const answered: ChatMessage = { ...message, events: [...events, { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false }] };
+      rerender(<MessageRow message={answered} runStreaming runSucceeded={false} />);
+      expect(seen[0]).toBe(true);
+      expect(seen[seen.length - 1]).toBe(false);
+    });
+
+    // host stuck-chat investigation, 2026-09-27: the second choice card of a run rendered inside
+    // the FIRST surface's slot, far above the spinning tool row, so nobody could answer it.
+    it('renders a keyed surface at its own position and hands each slot only its own events', () => {
+      const seen: unknown[][] = [];
+      registerExtEventRenderer({ name: 'mcp-ui', renderer: (props) => {
+          seen.push([...props.events]);
+          const uris = props.events.map((e) => (e as { uri: string }).uri).join(',');
+          return <div data-testid={`surface ${uris}`}>{uris}</div>;
+        } }, { slotKey: ({ data }) => typeof data === 'object' && data !== null && 'uri' in data && typeof data.uri === 'string' ? data.uri : undefined });
+      const message: ChatMessage = {
+        id: 'e-slots',
+        role: 'assistant',
+        content: 'Connected. Making one.',
+        runId: 'run-9',
+        events: [
+          { kind: 'tool_use', id: 't1', name: 'connect', input: {} },
+          { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://connect' } },
+          { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+          { kind: 'text', text: 'Connected. ' },
+          { kind: 'text', text: 'Making one.' },
+          { kind: 'tool_use', id: 't2', name: 'ask', input: {} },
+          { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://choice-2' } },
+        ],
+        runStatus: 'running',
+      };
+      render(<MessageRow message={message} runStreaming runSucceeded={false} />);
+
+      const first = screen.getByTestId('surface ui://connect');
+      const second = screen.getByTestId('surface ui://choice-2');
+      const narration = screen.getByText('Connected. Making one.');
+      expect(first.compareDocumentPosition(narration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(narration.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(seen).toEqual([[{ uri: 'ui://connect' }], [{ uri: 'ui://choice-2' }]]);
     });
 
     it('renders nothing for an ext event whose name has no registered renderer', () => {
@@ -343,7 +544,7 @@ describe('MessageRow', () => {
     });
 
     it('renders nothing when the registered renderer itself returns null/false/undefined', () => {
-      registerExtEventRenderer('quiet', () => null);
+      registerExtEventRenderer({ name: 'quiet', renderer: () => null });
       const message: ChatMessage = {
         id: 'e3',
         role: 'assistant',
@@ -364,7 +565,7 @@ describe('MessageRow', () => {
       function ThrowingRenderer(): never {
         throw new Error('malformed data-model path');
       }
-      registerExtEventRenderer('a2ui', () => <ThrowingRenderer />);
+      registerExtEventRenderer({ name: 'a2ui', renderer: () => <ThrowingRenderer /> });
       const message: ChatMessage = {
         id: 'e4',
         role: 'assistant',
@@ -495,6 +696,70 @@ describe('MessageRow', () => {
       const message: ChatMessage = { id: 'a15', role: 'assistant', content: 'stopped early', runStatus: 'canceled' };
       render(<MessageRow message={message} />);
       expect(screen.getByRole('button', { name: 'Copy message' })).toBeInTheDocument();
+    });
+  });
+
+  describe('interleaved edge cases', () => {
+    afterEach(() => clearExtEventRenderers());
+
+    it('renders a question form that sits inside an interleaved text block', () => {
+      const form = '<question-form id="q1" title="Pick one">\n{"questions":[{"id":"x","label":"X","type":"text"}]}\n</question-form>';
+      const events: AgentEvent[] = [
+        { kind: 'text', text: `Before.\n${form}\n   ` },
+        { kind: 'tool_use', id: 't1', name: 'alpha', input: {} },
+        { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      ];
+      render(<MessageRow message={{ id: 'qi', role: 'assistant', content: assistantContentFromEvents({ events }), runStatus: 'succeeded', events }} />);
+      expect(screen.getByText('Pick one')).toBeInTheDocument();
+      expect(document.querySelectorAll('.jini-message-content')).toHaveLength(1);
+      expect(screen.getByText('Before.')).toBeInTheDocument();
+    });
+
+    const interleavedForm = (): ChatMessage => {
+      const form = '<question-form id="q1" title="Pick one">\n{"questions":[{"id":"x","label":"X","type":"text"}]}\n</question-form>';
+      const events: AgentEvent[] = [
+        { kind: 'text', text: form },
+        { kind: 'tool_use', id: 't1', name: 'alpha', input: {} },
+        { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      ];
+      return { id: 'qs', role: 'assistant', content: assistantContentFromEvents({ events }), runStatus: 'succeeded', events };
+    };
+
+    it('shows submitted answers on a question form in an interleaved text block', () => {
+      render(<MessageRow message={interleavedForm()} questionFormSubmittedAnswers={{ x: 'locked answer' }} />);
+      expect(screen.getByDisplayValue('locked answer')).toBeInTheDocument();
+    });
+
+    it('forwards the submit handler to a question form in an interleaved text block', async () => {
+      const onSubmit = vi.fn();
+      render(<MessageRow message={interleavedForm()} questionFormInteractive onQuestionFormSubmit={onSubmit} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders no thinking fold for whitespace-only reasoning', () => {
+      const events: AgentEvent[] = [
+        { kind: 'thinking', text: '   ' },
+        { kind: 'tool_use', id: 't1', name: 'alpha', input: {} },
+        { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+        { kind: 'text', text: 'Answer.' },
+      ];
+      render(<MessageRow message={{ id: 'th', role: 'assistant', content: 'Answer.', runStatus: 'succeeded', events }} showThinking />);
+      expect(document.querySelector('details.jini-message-thinking')).toBeNull();
+    });
+
+    it('drops an ext block whose slot no longer matches any event group (unstable host slot key)', () => {
+      let calls = 0;
+      registerExtEventRenderer({ name: 'flaky', renderer: () => <div data-testid="flaky">x</div> }, { slotKey: () => `slot-${calls++}` });
+      const events: AgentEvent[] = [{ kind: 'text', text: 'Hi.' }, { kind: 'ext', name: 'flaky', data: {} }];
+      render(<MessageRow message={{ id: 'fl', role: 'assistant', content: 'Hi.', runStatus: 'succeeded', events }} />);
+      expect(screen.queryByTestId('flaky')).toBeNull();
+      expect(document.querySelector('.jini-message-ext-events')).toBeNull();
+    });
+
+    it('shows no activity line for a running reply that is not streaming and already has content', () => {
+      render(<MessageRow message={{ id: 'ra', role: 'assistant', content: 'Partial.', runStatus: 'running', events: [{ kind: 'text', text: 'Partial.' }] }} />);
+      expect(document.querySelector('.jini-run-activity')).toBeNull();
     });
   });
 });

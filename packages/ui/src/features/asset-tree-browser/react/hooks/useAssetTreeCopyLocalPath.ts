@@ -21,7 +21,7 @@ export function useAssetTreeCopyLocalPath(
 
   const copyLocalPath = useCallback(
     async (path: string, localPath: string) => {
-      const copied = await clipboard.copyToClipboard(localPath);
+      const copied = await clipboard.copyToClipboard({ text: localPath });
       if (!copied) return;
       setCopiedPath(path);
       setTimeout(() => {

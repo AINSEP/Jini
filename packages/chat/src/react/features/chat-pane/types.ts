@@ -1,12 +1,17 @@
+import type { UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 
 import type { ComposerSlots } from '../../slots.js';
+import type { ToolCallDisplay } from '../../tool-call-display.js';
+import type { ComposerHistoryStoragePort } from '../../../core/composer-history.js';
 import type { ChatTransport, RunContext } from '@jini-ai/chat';
 
 export interface ChatPaneAgentOption {
   id: string;
   label: string;
+  identityKind?: 'concrete' | 'alias' | 'routing-mode';
+  resolvedId?: string;
 }
 
 /**
@@ -15,17 +20,31 @@ export interface ChatPaneAgentOption {
  * coupling the React package to `@jini-ai/http-kit`.
  */
 export interface ChatPaneAgent {
+  /** Read cached models now and refresh while the host finishes its background probe. */
+  discoveryPending?: boolean;
   id: string;
   name: string;
   available?: boolean;
   version?: string | null;
   authStatus?: 'ok' | 'missing' | 'unknown';
   models?: readonly ChatPaneAgentOption[];
+  modelCatalog?: {
+    source: 'cli' | 'rpc' | 'provider-api' | 'cli-cache' | 'config-file' | 'offline-fallback';
+    freshness: 'fresh' | 'stale' | 'offline-fallback';
+    fetchedAt: string;
+    expiresAt: string;
+    coverage: 'account' | 'provider' | 'configured' | 'observed';
+    launchFingerprint: string;
+  };
+  defaultModelResolution?:
+    | { status: 'resolved'; id: string; selectionId?: string; source: string; resolvedAt: string; launchFingerprint: string }
+    | { status: 'unresolved'; selectionId?: string; reason: string };
   reasoningOptions?: readonly ChatPaneAgentOption[];
   supportsCustomModel?: boolean;
+  supportsConcreteModelSelection?: boolean;
   diagnostic?: string;
   /**
-   * Whether this runtime can receive external MCP servers (Tovu/Jini tools) at all — mirrors
+   * Whether this runtime can receive external MCP servers (host/Jini tools) at all — mirrors
    * `@jini-ai/http-kit`'s `AgentSummary.supportsTools`, itself derived from
    * `@jini-ai/agent-runtime`'s `runtimeSupportsExternalTools(def)`. `AgentRuntimePicker` reads this
    * to show a "No tools" badge; `undefined` (a host on an older wire payload) is treated the same
@@ -43,12 +62,16 @@ export interface ChatPaneAgentSelection {
 /** Host I/O effects used by the package-owned runtime inventory controller. */
 export interface ChatPaneRuntimeAccess {
   listAgents: () => Promise<readonly ChatPaneAgent[]>;
+  /** Earliest time a cached inventory read can refresh (epoch ms); read after listAgents settles.
+   * Pending retries honor this deadline so a remounted pane does not spend its retry budget on
+   * cached answers. Omit for hosts without a cooldown. Example: () => cachedInventory.expiresAt. */
+  getAgentsRefreshAt?: () => number | undefined;
   rescanAgents: () => Promise<readonly ChatPaneAgent[]>;
   daemonOnline: () => Promise<boolean>;
 }
 
 export type ChatPaneActivity = 'unavailable' | 'ready' | 'queued' | 'streaming' | 'failed';
-export type ChatPaneVariant = 'workspace';
+export type ChatPaneVariant = 'workspace' | 'embed';
 export type RuntimePickerPlacement = 'up' | 'down';
 
 /**
@@ -136,7 +159,41 @@ export interface ChatPaneComposerHandle {
   insertText: (text: string) => void;
 }
 
-export interface ChatPaneProps {
+/**
+ * What happened to text typed while the running agent waits on a question (see
+ * {@link ChatPaneProps.deliverTypedAnswer}): `'delivered'` — the question took it as its answer;
+ * `'not-pending'` — nothing is waiting any more (already answered, expired, or never open);
+ * `'failed'` — the host could not tell (network error, unexpected status).
+ */
+export type TypedAnswerDelivery = 'delivered' | 'not-pending' | 'failed';
+
+/** Why the pane did not send a typed answer — shown to the human until the next send or reset. */
+export type TypedAnswerNotice = Exclude<TypedAnswerDelivery, 'delivered'>;
+
+/**
+ * Delivers text typed into the composer to the question the running agent is waiting on.
+ *
+ * Carries `toolName`, the host's question tool id, so the pane routes typed text here only while a
+ * card raised by THAT tool is open — any other pending card (a confirm, an approval) still queues the
+ * text behind the run. One value, so the tool the pane waits on and the tool the answer is posted to
+ * cannot drift apart; `createTypedAnswerPoster` sets it.
+ */
+export type DeliverTypedAnswer = ((input: { text: string }) => Promise<TypedAnswerDelivery>) & {
+  readonly toolName: string;
+};
+
+/**
+ * What happened to a message sent while a run streams (see {@link ChatPaneProps.deliverMidRunMessage}):
+ * `'delivered'` — the live agent took it into the running turn; `'unsupported'` — this agent cannot
+ * take input mid-run (it reads one prompt per turn); `'not-running'` — the run has no live process
+ * any more (it is ending); `'failed'` — the host could not tell (network error, unexpected status).
+ */
+export type MidRunMessageDelivery = 'delivered' | 'unsupported' | 'not-running' | 'failed';
+
+/** Delivers a complete turn to the live agent; unsupported attachments must reject the whole turn. */
+export type DeliverMidRunMessage = (input: { runId: string; text: string; attachments?: readonly ChatAttachment[] }) => Promise<MidRunMessageDelivery>;
+
+export interface ChatPaneProps extends UserTextRedactionOptions {
   transport: ChatTransport;
   agents?: readonly ChatPaneAgent[];
   /** Optional host effects for package-owned inventory, rescan, and health polling. */
@@ -145,6 +202,7 @@ export interface ChatPaneProps {
   title?: string;
   variant?: ChatPaneVariant;
   initialMessages?: ChatMessage[];
+  refreshSignal?: import('../../hooks/useConversation.js').UseConversationOptions['refreshSignal'];
   conversationId?: string | null;
   initialSelection?: ChatPaneAgentSelection;
   selection?: ChatPaneAgentSelection;
@@ -166,6 +224,12 @@ export interface ChatPaneProps {
   /** Passed straight through to the runtime picker. */
   onByokModelChange?: (model: string) => void;
   initialDraft?: string;
+  /** Principal-scoped recent prompt recall; defaults to the origin-local default scope. */
+  composerHistoryScope?: string;
+  /** Optional storage effects; omitted uses bounded browser storage with memory fallback. */
+  composerHistoryStorage?: ComposerHistoryStoragePort;
+  /** Recall retention; defaults to 100. */
+  composerHistoryCap?: number;
   /**
    * Confirms which previously staged attachments still exist, so a draft restored after a reload
    * never shows a chip for a file the backend has since garbage-collected — that looks intact and
@@ -186,6 +250,29 @@ export interface ChatPaneProps {
    * before the pane exists has nothing to call.
    */
   composerHandle?: RefObject<ChatPaneComposerHandle | null>;
+  /**
+   * Called instead of queueing when the human types while the running agent is holding a question
+   * open in the transcript (an interactive surface whose call to `deliverTypedAnswer.toolName` has
+   * not returned — `isAwaitingTypedAnswer`) and the turn carries no attachments. `'delivered'` clears the draft
+   * (only if unchanged since it went out). A definitive `'not-pending'` refusal falls back once to
+   * the ordinary message queue without a notice; a failure or throw retains the draft with a notice.
+   * Terminal runs and answered or superseded cards do not accept typed answers.
+   *
+   * Omit it and typing while a run streams queues exactly as before.
+   */
+  deliverTypedAnswer?: DeliverTypedAnswer;
+  /**
+   * Called instead of queueing when the human sends a message while a run streams, so
+   * the message reaches the running agent now rather than after it finishes. The draft clears at
+   * once. `'delivered'` leaves the run going; `'unsupported'` queues attachment turns until the
+   * reply finishes, or stops the run for a text-only turn (a resuming agent keeps its session).
+   * `'not-running'`, `'failed'` or a throw
+   * queue it behind the ending run. Never silently dropped. A held-open question still goes to
+   * {@link deliverTypedAnswer} first.
+   *
+   * Omit it and typing while a run streams queues exactly as before.
+   */
+  deliverMidRunMessage?: DeliverMidRunMessage;
   placeholder?: string;
   /**
    * Rotating composer suggestions, cycled every few seconds in place of one fixed `placeholder` —
@@ -196,6 +283,8 @@ export interface ChatPaneProps {
    */
   placeholders?: readonly string[];
   suggestions?: readonly string[];
+  /** Host greeting shown only while the transcript is empty; never persisted as a message. */
+  emptyState?: ReactNode;
   /** Controlled working-directory value. */
   workingDirectory?: string | null;
   /** Initial value used when `workingDirectory` is uncontrolled. */
@@ -226,6 +315,17 @@ export interface ChatPaneProps {
    */
   workingDirectoryControlPlacement?: 'below' | 'composer' | 'none';
   projectFileNames?: ReadonlySet<string>;
+  /**
+   * Transcript display choices (a host's chat settings, 2026-10-11), passed straight to
+   * `MessageList`: how tool calls show (`'show'` default, `'collapsed'` one line per turn, `'hidden'`
+   * all but failed ones — see `tool-call-display.ts`), whether the "Done · time · cost" lines show
+   * (default `true`), and whether the model's reasoning shows (default `false`).
+   */
+  toolCallDisplay?: ToolCallDisplay;
+  showUsageLine?: boolean;
+  showThinking?: boolean;
+  /** Hide prior automatic-usage chips immediately when the host selects Off. Loading policy stays server-owned. */
+  agentPluginsMode?: 'auto' | 'ask' | 'off';
   uploadAttachments?: (
     files: File[],
     options?: ChatPaneAttachmentUploadOptions,

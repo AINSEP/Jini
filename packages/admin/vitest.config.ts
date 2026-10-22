@@ -18,7 +18,7 @@ export default defineConfig({
     // other three layers, which is the one thing this config exists to hold. `packages/ui`'s
     // config is the same mechanism pointed the other way (jsdom default, `node` by glob for its
     // framework-free tree).
-    environmentMatchGlobs: [['src/react/**', 'jsdom']],
+    environmentMatchGlobs: [['src/**/react/**', 'jsdom']],
     // Loaded for every suite in the package, not just the React one — see the file's own comment
     // for why that does not weaken the no-DOM boundary above.
     setupFiles: ['./vitest.setup.ts'],

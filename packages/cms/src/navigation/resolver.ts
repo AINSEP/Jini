@@ -64,8 +64,8 @@ export interface ResolvedTargetHref {
  * today — no schema yet to resolve against).
  */
 export type ResolveTargetHrefFn = (
-  target: NavTarget,
-  context: NavResolveContext
+  required: { target: NavTarget; context: NavResolveContext },
+  optional?: Record<string, never>
 ) => Promise<ResolvedTargetHref | null>;
 
 export interface ResolveForLocationDeps {
@@ -219,7 +219,7 @@ async function resolveItem(
     // code. termRef in particular has no compatible entry_refs schema today
     // — a resolver with no term schema to
     // consult returns null here, same as any other "cannot resolve" outcome.
-    const result = await resolveTargetHref(node.target, context);
+    const result = await resolveTargetHref({ target: node.target, context });
     if (result === null) {
       href = null;
       available = false;

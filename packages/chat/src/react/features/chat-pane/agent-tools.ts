@@ -12,7 +12,7 @@
  * `@jini-ai/agentic` directly.
  */
 import { CHAT_CAPABILITIES } from '@jini-ai/chat';
-import { type CapabilityDef, type CapabilityInputSchema, type CapabilityRisk } from '@jini-ai/agentic';
+import type {  CapabilityDef,  CapabilityInputSchema,  CapabilityRisk } from '@jini-ai/agentic';
 
 /** @deprecated Use `CapabilityRisk` from `@jini-ai/agentic`. */
 export type ChatPaneAgentToolRisk = CapabilityRisk;

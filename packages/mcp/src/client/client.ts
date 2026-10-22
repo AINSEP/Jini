@@ -12,9 +12,20 @@
 // timer and never touch the network or filesystem, so they unit-test against
 // plain values.
 
+/** Scheduling boundary for hosts that manage their own timer lifecycle. */
+export interface McpIdleTimerPort {
+  schedule(args: { callback: () => void; delayMs: number }): ReturnType<typeof setTimeout>;
+  cancel(args: { handle: ReturnType<typeof setTimeout> }): void;
+}
+
+const defaultTimers: McpIdleTimerPort = {
+  schedule: ({ callback, delayMs }) => setTimeout(callback, delayMs),
+  cancel: ({ handle }) => clearTimeout(handle),
+};
+
 interface McpIdleExitControllerOptions {
   idleMs: number;
-  onIdle: () => void;
+  onIdle: (required: Record<string, never>) => void;
 }
 
 // SEC-RB-011: an unvalidated `idleMs` (negative, `NaN`, `Infinity`, or a
@@ -38,7 +49,7 @@ function normalizeIdleMs(idleMs: number): number {
 
 /**
  * Create an idle-exit controller that calls `onIdle` after `idleMs` of
- * inactivity. Activity is tracked via `noteActivity()` and `trackRequest()`;
+ * inactivity. Activity is tracked via `noteActivity({})` and `trackRequest({ fn })`;
  * in-flight requests defer the idle timer. Used to auto-close a long-running
  * stdio MCP server process after a period of no tool calls.
  * @param options Idle duration in ms (finite positive integer, clamped to a
@@ -48,7 +59,7 @@ function normalizeIdleMs(idleMs: number): number {
 export function createMcpIdleExitController({
   idleMs,
   onIdle,
-}: McpIdleExitControllerOptions) {
+}: McpIdleExitControllerOptions, { timers = defaultTimers }: { timers?: McpIdleTimerPort } = {}) {
   const effectiveIdleMs = normalizeIdleMs(idleMs);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlight = 0;
@@ -56,7 +67,7 @@ export function createMcpIdleExitController({
 
   const clear = () => {
     if (timer) {
-      clearTimeout(timer);
+      timers.cancel({ handle: timer });
       timer = null;
     }
   };
@@ -64,8 +75,8 @@ export function createMcpIdleExitController({
   const schedule = () => {
     if (disposed) return;
     clear();
-    timer = setTimeout(() => {
-      // `dispose()` always clears the pending timer and `schedule()` bails when
+    timer = timers.schedule({ callback: () => {
+      // `dispose({})` always clears the pending timer and `schedule()` bails when
       // already disposed, so this callback can only fire while live.
       timer = null;
       if (inFlight > 0) {
@@ -73,19 +84,19 @@ export function createMcpIdleExitController({
         return;
       }
       disposed = true;
-      onIdle();
-    }, effectiveIdleMs);
+      onIdle({});
+    }, delayMs: effectiveIdleMs });
   };
 
   schedule();
 
   return {
-    noteActivity() {
+    noteActivity(_required: Record<string, never>) {
       schedule();
     },
-    async trackRequest<T>(fn: () => T | Promise<T>): Promise<T> {
+    async trackRequest<T>({ fn }: { fn: (required: Record<string, never>) => T | Promise<T> }): Promise<T> {
       if (disposed) {
-        return fn();
+        return fn({});
       }
       inFlight += 1;
       // Deliberately does NOT call `schedule()` here (SEC-RB-011): a request
@@ -96,7 +107,7 @@ export function createMcpIdleExitController({
       // on every concurrent request start instead caused needless
       // clearTimeout/setTimeout churn under load with no behavioral benefit.
       try {
-        return await fn();
+        return await fn({});
       } finally {
         inFlight -= 1;
         if (inFlight === 0) {
@@ -104,7 +115,7 @@ export function createMcpIdleExitController({
         }
       }
     },
-    dispose() {
+    dispose(_required: Record<string, never>) {
       disposed = true;
       clear();
     },
@@ -131,7 +142,7 @@ const TEXTUAL_MIME_PATTERNS = [
  * @param mime The MIME type string to classify (undefined counts as non-textual).
  * @returns Whether the content should be treated as text.
  */
-export function isTextualMime(mime: string | undefined): boolean {
+export function isTextualMime({ mime }: { mime: string | undefined }): boolean {
   if (!mime) return false;
   return TEXTUAL_MIME_PATTERNS.some((re) => re.test(mime));
 }
@@ -179,6 +190,69 @@ function isHtmlLike(mime: string | undefined, fromPath: string): boolean {
   return /\.html?$/i.test(fromPath);
 }
 
+// Order matters: candidates are collected HTML → CSS → JS, so the returned
+// list keeps that first-seen order after dedupe.
+function selectRefPatterns(fromMime: string, fromPath: string, htmlLike: boolean): RegExp[] {
+  const runPatterns: RegExp[] = [];
+  if (htmlLike) runPatterns.push(...HTML_REF_PATTERNS, ...CSS_REF_PATTERNS);
+  if (isCssLike(fromMime, fromPath)) runPatterns.push(...CSS_REF_PATTERNS);
+  if (isJsLike(fromMime, fromPath)) runPatterns.push(...JS_REF_PATTERNS);
+  // Fallback for unknown textual files: only the safest pattern,
+  // url() in case it's a CSS-in-something we don't recognize.
+  return runPatterns.length === 0 ? [...CSS_REF_PATTERNS] : runPatterns;
+}
+
+function collectPatternCandidates(text: string, patterns: RegExp[]): string[] {
+  const candidates: string[] = [];
+  for (const re of patterns) {
+    for (const m of text.matchAll(re)) {
+      // The capture group is required in every pattern, so `m[1]` is always a
+      // matched string here (the `!` only satisfies noUncheckedIndexedAccess).
+      const ref = m[1]!.trim();
+      if (ref) candidates.push(ref);
+    }
+  }
+  return candidates;
+}
+
+// Pull every candidate URL out of any srcset attributes in HTML.
+function collectSrcsetCandidates(text: string): string[] {
+  const candidates: string[] = [];
+  for (const m of text.matchAll(SRCSET_PATTERN)) {
+    for (const part of m[1]!.split(',')) {
+      const url = part.trim().split(/\s+/)[0];
+      if (url) candidates.push(url);
+    }
+  }
+  return candidates;
+}
+
+// Collapse `.`/`..`/empty segments. Returns null when a `..` would climb
+// above the root (traversal escape) — such refs are dropped, never clamped.
+function collapseSegments(segs: string[]): string[] | null {
+  const out: string[] = [];
+  for (const s of segs) {
+    if (s === '' || s === '.') continue;
+    if (s !== '..') {
+      out.push(s);
+      continue;
+    }
+    if (out.length === 0) return null;
+    out.pop();
+  }
+  return out;
+}
+
+// Resolve one raw ref against the referencing file's directory. Returns null
+// for external refs (`https?:`, `//`, `data:`, `mailto:`, `tel:`, `#`), for
+// refs that escape the root; a ref that collapses to nothing yields ''.
+function normalizeRef(raw: string, dir: string): string | null {
+  if (/^(?:https?:|\/\/|data:|mailto:|tel:|#)/i.test(raw)) return null;
+  const resolved = raw.startsWith('/') ? raw.slice(1) : dir + raw;
+  const stripped = resolved.replace(/[?#].*$/, '');
+  return collapseSegments(stripped.split('/'))?.join('/') ?? null;
+}
+
 /**
  * Extract all relative (non-absolute, non-CDN, non-data-URI) file references from
  * the text content of a file, normalized to root-relative paths.
@@ -190,66 +264,17 @@ function isHtmlLike(mime: string | undefined, fromPath: string): boolean {
  * @param fromMime The MIME type of the file (used to select reference-extraction patterns).
  * @returns Deduplicated root-relative paths of all referenced files found.
  */
-export function extractRelativeRefs(text: string, fromPath: string, fromMime: string): string[] {
+export function extractRelativeRefs({ text, fromPath, fromMime }: { text: string; fromPath: string; fromMime: string }): string[] {
   if (!text) return [];
+  const htmlLike = isHtmlLike(fromMime, fromPath);
+  const candidates = collectPatternCandidates(text, selectRefPatterns(fromMime, fromPath, htmlLike));
+  if (htmlLike) candidates.push(...collectSrcsetCandidates(text));
+  // `lastIndexOf('/') + 1` is 0 for a root-level file, giving an empty dir.
+  const dir = fromPath.slice(0, fromPath.lastIndexOf('/') + 1);
   const refs = new Set<string>();
-  const runPatterns: RegExp[] = [];
-  if (isHtmlLike(fromMime, fromPath)) {
-    runPatterns.push(...HTML_REF_PATTERNS, ...CSS_REF_PATTERNS);
-  }
-  if (isCssLike(fromMime, fromPath)) {
-    runPatterns.push(...CSS_REF_PATTERNS);
-  }
-  if (isJsLike(fromMime, fromPath)) {
-    runPatterns.push(...JS_REF_PATTERNS);
-  }
-  // Fallback for unknown textual files: only the safest pattern,
-  // url() in case it's a CSS-in-something we don't recognize.
-  if (runPatterns.length === 0) {
-    runPatterns.push(...CSS_REF_PATTERNS);
-  }
-
-  const candidates: string[] = [];
-  for (const re of runPatterns) {
-    for (const m of text.matchAll(re)) {
-      // The capture group is required in every pattern, so `m[1]` is always a
-      // matched string here (the `!` only satisfies noUncheckedIndexedAccess).
-      const ref = m[1]!.trim();
-      if (ref) candidates.push(ref);
-    }
-  }
-  // Pull every candidate URL out of any srcset attributes in HTML.
-  if (isHtmlLike(fromMime, fromPath)) {
-    for (const m of text.matchAll(SRCSET_PATTERN)) {
-      const list = m[1]!;
-      for (const part of list.split(',')) {
-        const url = part.trim().split(/\s+/)[0];
-        if (url) candidates.push(url);
-      }
-    }
-  }
-
   for (const raw of candidates) {
-    if (/^(?:https?:|\/\/|data:|mailto:|tel:|#)/i.test(raw)) continue;
-    const dir = fromPath.includes('/')
-      ? fromPath.slice(0, fromPath.lastIndexOf('/') + 1)
-      : '';
-    const resolved = raw.startsWith('/') ? raw.slice(1) : dir + raw;
-    const stripped = resolved.replace(/[?#].*$/, '');
-    const segs = stripped.split('/').filter(Boolean);
-    const out: string[] = [];
-    let escaped = false;
-    for (const s of segs) {
-      if (s === '.') continue;
-      if (s === '..') {
-        if (out.length === 0) { escaped = true; break; }
-        out.pop();
-        continue;
-      }
-      out.push(s);
-    }
-    if (escaped || out.length === 0) continue;
-    refs.add(out.join('/'));
+    const ref = normalizeRef(raw, dir);
+    if (ref) refs.add(ref);
   }
   return [...refs];
 }

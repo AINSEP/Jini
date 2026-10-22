@@ -1,6 +1,7 @@
-import type { ServerResponse } from 'node:http';
+import { createServer, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
-import { createSseChannel, requestedAfterCursor, DEFAULT_MAX_QUEUED_SSE_EVENTS, type SseEvent } from '../sse.js';
+import { createSseChannel, requestedAfterCursor, sendRawApiError, DEFAULT_MAX_QUEUED_SSE_EVENTS, type SseEvent } from '../sse.js';
 
 interface TestEvent extends SseEvent {
   readonly payload?: string;
@@ -40,9 +41,9 @@ const event = (opaqueCursor: string, kind = 'data', payload?: string): TestEvent
 describe('@jini-ai/http-kit — sse — createSseChannel', () => {
   it('buffers enqueued events until open() is called, then flushes them in order', () => {
     const res = makeRes();
-    const channel = createSseChannel<TestEvent>(asResponse(res));
-    channel.enqueue(event('1'));
-    channel.enqueue(event('2'));
+    const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
+    channel.enqueue({ event: event('1') });
+    channel.enqueue({ event: event('2') });
     expect(res.write).not.toHaveBeenCalled();
 
     channel.open();
@@ -59,15 +60,15 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
   it('writes events live once already open', () => {
     const res = makeRes();
-    const channel = createSseChannel<TestEvent>(asResponse(res));
+    const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
     channel.open();
-    channel.enqueue(event('1'));
+    channel.enqueue({ event: event('1') });
     expect(res.write).toHaveBeenCalledTimes(1);
   });
 
   it('open() is idempotent', () => {
     const res = makeRes();
-    const channel = createSseChannel<TestEvent>(asResponse(res));
+    const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
     channel.open();
     channel.open();
     expect(res.statusCode).toBe(200);
@@ -76,9 +77,9 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
   it('a custom formatEvent overrides the default wire format', () => {
     const res = makeRes();
-    const channel = createSseChannel<TestEvent>(asResponse(res), { formatEvent: (e) => `custom:${e.opaqueCursor}\n\n` });
+    const channel = createSseChannel<TestEvent>({ res: asResponse(res) }, { formatEvent: ({ event: e }) => `custom:${e.opaqueCursor}\n\n` });
     channel.open();
-    channel.enqueue(event('42'));
+    channel.enqueue({ event: event('42') });
     expect(res.write).toHaveBeenCalledWith('custom:42\n\n');
   });
 
@@ -86,10 +87,10 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
     it('stops draining once res.write reports backpressure, and resumes on drain', () => {
       const res = makeRes();
       res.write.mockReturnValueOnce(false); // first write reports backpressure
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       channel.open();
-      channel.enqueue(event('1'));
-      channel.enqueue(event('2'));
+      channel.enqueue({ event: event('1') });
+      channel.enqueue({ event: event('2') });
       // Only the first event was written; the second is queued behind backpressure.
       expect(res.write).toHaveBeenCalledTimes(1);
 
@@ -101,12 +102,12 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
   describe('overflow (SEC-006)', () => {
     it('ends the channel once the queue exceeds maxQueuedEvents, without writing the excess', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res), { maxQueuedEvents: 2 });
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) }, { maxQueuedEvents: 2 });
       // Never opened — events accumulate unbounded-queue-guarded even pre-header.
-      channel.enqueue(event('1'));
-      channel.enqueue(event('2'));
+      channel.enqueue({ event: event('1') });
+      channel.enqueue({ event: event('2') });
       expect(channel.isClosed()).toBe(false);
-      channel.enqueue(event('3'));
+      channel.enqueue({ event: event('3') });
       expect(channel.isClosed()).toBe(true);
       expect(res.end).toHaveBeenCalledOnce();
     });
@@ -117,11 +118,11 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
     it('a further enqueue after closed-by-overflow is a silent no-op', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res), { maxQueuedEvents: 1 });
-      channel.enqueue(event('1'));
-      channel.enqueue(event('2')); // overflow, closes
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) }, { maxQueuedEvents: 1 });
+      channel.enqueue({ event: event('1') });
+      channel.enqueue({ event: event('2') }); // overflow, closes
       res.end.mockClear();
-      channel.enqueue(event('3'));
+      channel.enqueue({ event: event('3') });
       expect(res.end).not.toHaveBeenCalled();
     });
   });
@@ -129,10 +130,10 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
   describe('isEndEvent auto-close', () => {
     it('ends the channel immediately after writing an event isEndEvent flags, without draining events queued behind it', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res), { isEndEvent: (e) => e.kind === 'end' });
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) }, { isEndEvent: ({ event: e }) => e.kind === 'end' });
       channel.open();
-      channel.enqueue(event('1', 'end'));
-      channel.enqueue(event('2', 'data'));
+      channel.enqueue({ event: event('1', 'end') });
+      channel.enqueue({ event: event('2', 'data') });
       expect(res.write).toHaveBeenCalledTimes(1);
       expect(res.end).toHaveBeenCalledOnce();
       expect(channel.isClosed()).toBe(true);
@@ -140,9 +141,9 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
     it('never auto-closes when isEndEvent is omitted', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       channel.open();
-      channel.enqueue(event('1', 'end'));
+      channel.enqueue({ event: event('1', 'end') });
       expect(channel.isClosed()).toBe(false);
     });
   });
@@ -155,10 +156,10 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
         throw boom;
       });
       const onWriteError = vi.fn();
-      const channel = createSseChannel<TestEvent>(asResponse(res), { onWriteError });
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) }, { onWriteError });
       channel.open();
-      channel.enqueue(event('1'));
-      expect(onWriteError).toHaveBeenCalledWith(boom);
+      channel.enqueue({ event: event('1') });
+      expect(onWriteError).toHaveBeenCalledWith({ error: boom });
       expect(channel.isClosed()).toBe(true);
       expect(res.end).toHaveBeenCalledOnce();
     });
@@ -168,16 +169,16 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
       res.write.mockImplementationOnce(() => {
         throw new Error('boom');
       });
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       channel.open();
-      expect(() => channel.enqueue(event('1'))).not.toThrow();
+      expect(() => channel.enqueue({ event: event('1') })).not.toThrow();
     });
   });
 
   describe('client disconnect', () => {
     it("res's own 'close' event marks the channel closed without calling res.end()", () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       res.emitClose();
       expect(channel.isClosed()).toBe(true);
       expect(res.end).not.toHaveBeenCalled();
@@ -185,7 +186,7 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
     it('is observable via isClosed() before open() was ever called (e.g. disconnect during an async subscribe)', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       expect(channel.isClosed()).toBe(false);
       res.emitClose();
       expect(channel.isClosed()).toBe(true);
@@ -195,9 +196,9 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
   describe('abandon()', () => {
     it('marks the channel closed and runs onClose callbacks, without touching res at all', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       const onClose = vi.fn();
-      channel.onClose(onClose);
+      channel.onClose({ callback: onClose });
       channel.abandon();
       expect(channel.isClosed()).toBe(true);
       expect(onClose).toHaveBeenCalledOnce();
@@ -207,9 +208,9 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
     it('is idempotent, matching end()', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       const onClose = vi.fn();
-      channel.onClose(onClose);
+      channel.onClose({ callback: onClose });
       channel.abandon();
       channel.abandon();
       expect(onClose).toHaveBeenCalledOnce();
@@ -217,7 +218,7 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
     it('leaves res untouched even if the channel was already opened (a caller choosing to abandon after open is still safe, just unusual)', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       channel.open();
       channel.abandon();
       expect(res.end).not.toHaveBeenCalled();
@@ -228,7 +229,7 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
   describe('end()', () => {
     it('is idempotent and safe to call multiple times', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       channel.open();
       channel.end();
       channel.end();
@@ -237,7 +238,7 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
     it('does not call res.end() a second time if the response already ended itself', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       channel.open();
       res.writableEnded = true;
       channel.end();
@@ -249,11 +250,11 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
   describe('onClose', () => {
     it('invokes every registered callback exactly once when the channel closes', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       const cb1 = vi.fn();
       const cb2 = vi.fn();
-      channel.onClose(cb1);
-      channel.onClose(cb2);
+      channel.onClose({ callback: cb1 });
+      channel.onClose({ callback: cb2 });
       channel.end();
       channel.end();
       expect(cb1).toHaveBeenCalledOnce();
@@ -262,19 +263,19 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
 
     it('invokes a callback registered after the channel already closed immediately, synchronously', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       channel.end();
       const cb = vi.fn();
-      channel.onClose(cb);
+      channel.onClose({ callback: cb });
       expect(cb).toHaveBeenCalledOnce();
     });
 
     it('a callback that calls onClose again during the close sweep is not invoked twice and does not corrupt the sweep', () => {
       const res = makeRes();
-      const channel = createSseChannel<TestEvent>(asResponse(res));
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
       const late = vi.fn();
-      const reentrant = vi.fn(() => channel.onClose(late));
-      channel.onClose(reentrant);
+      const reentrant = vi.fn(() => channel.onClose({ callback: late }));
+      channel.onClose({ callback: reentrant });
       channel.end();
       expect(reentrant).toHaveBeenCalledOnce();
       expect(late).toHaveBeenCalledOnce();
@@ -306,5 +307,22 @@ describe('@jini-ai/http-kit — sse — requestedAfterCursor', () => {
   it('ignores a non-string or empty-string afterCursor query value', () => {
     expect(requestedAfterCursor({ get: () => undefined, query: { afterCursor: 42 } })).toBeNull();
     expect(requestedAfterCursor({ get: () => undefined, query: { afterCursor: '' } })).toBeNull();
+  });
+});
+
+describe('@jini-ai/http-kit — sse — sendRawApiError', () => {
+  it('writes the status and the standard { error } JSON envelope onto a raw Node response', async () => {
+    const error = { code: 'RUN_NOT_FOUND', message: 'No run with that id', retryable: false, details: { runId: 'run-9' } };
+    const server = createServer((_req, res) => { sendRawApiError({ res, status: 404, error }); });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const response = await fetch(`http://127.0.0.1:${port}/api/runs/run-9/events`);
+      expect(response.status).toBe(404);
+      expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+      expect(await response.json()).toEqual({ error });
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
   });
 });

@@ -18,6 +18,12 @@ coverage/
 .jini/
 .playwright-mcp/
 
+# Stale local AST cache from a code-graph tool (97MB as of 2026-09-05, ~3 weeks old). Left in
+# place pending a go-ahead on deletion; ignored so it stops showing as untracked in the meantime.
+cache/
+# Bare PID file with no referencing script found in the repo.
+.rebuild.lock
+
 # Written into a run's cwd at spawn by @jini/daemon's mcpJsonInjection (the jini-mcp bridge entry).
 # Per-run generated config, not project source — see packages/daemon/src/agent-executor.ts.
 .mcp.json
@@ -61,3 +67,23 @@ ADS-memory/tmp/
 
 # One-off scratch harnesses (hardcoded absolute paths, not runnable on another machine)
 examples/*/scratch-*.ts
+
+# Local release/session scratch and sensitive runtime files
+.metadata_never_index
+/ADS-memory/sessions/
+/ADS-memory/knowledge/mistakes/
+/ADS-memory/.local-artifacts/
+/CMS-BRIEFS/
+/seo-BEHAVIOUR-DIFF.md
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3

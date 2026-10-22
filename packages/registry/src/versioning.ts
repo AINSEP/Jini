@@ -32,7 +32,7 @@ export interface ResolvedRegistryEntryVersion {
  * @param input - The raw specifier string.
  * @returns The parsed `{ name, range? }`.
  */
-export function parseRegistrySpecifier(input: string): ParsedRegistrySpecifier {
+export function parseRegistrySpecifier({ input }: { input: string }): ParsedRegistrySpecifier {
   const trimmed = input.trim();
   const slash = trimmed.indexOf('/');
   const at = trimmed.lastIndexOf('@');
@@ -57,36 +57,67 @@ export function parseRegistrySpecifier(input: string): ParsedRegistrySpecifier {
  * @returns The resolved version's source/ref/integrity/digest, or `null`.
  */
 export function resolveRegistryEntryVersion(
-  entry: RegistryEntry,
-  requestedRange?: string,
+  { entry }: { entry: RegistryEntry },
+  { requestedRange }: { requestedRange?: string | undefined } = {},
 ): ResolvedRegistryEntryVersion | null {
   if (entry.yanked) return null;
 
   const versions = entry.versions ?? [];
-  const range = requestedRange?.trim();
-  const defaultVersion =
-    entry.distTags?.['latest'] ?? entry.version ?? versions.find((version) => !version.yanked)?.version;
-  const targetVersion = range && range !== 'latest' ? resolveRequestedVersion(entry, range) : defaultVersion;
-  if (!targetVersion) return null;
+  const targetVersion = pickTargetVersion(entry, versions, requestedRange?.trim());
+  return targetVersion ? resolveTargetVersion(entry, versions, targetVersion) : null;
+}
 
+type RegistryVersionRecord = NonNullable<RegistryEntry['versions']>[number];
+
+/** Attach source and optional fields to an already-chosen version; `null` when that version is yanked or has no source. */
+function resolveTargetVersion(
+  entry: RegistryEntry,
+  versions: RegistryVersionRecord[],
+  targetVersion: string,
+): ResolvedRegistryEntryVersion | null {
   const versionRecord = versions.find((version) => version.version === targetVersion);
   if (versionRecord?.yanked) return null;
 
   const source = versionRecord?.source ?? entry.source;
   if (!source) return null;
 
-  const resolved: ResolvedRegistryEntryVersion = { version: targetVersion, source };
-  const ref = versionRecord?.ref ?? entry.ref;
-  if (ref) resolved.ref = ref;
-  const manifestDigest =
-    versionRecord?.manifestDigest ?? versionRecord?.dist?.manifestDigest ?? entry.manifestDigest ?? entry.dist?.manifestDigest;
-  if (manifestDigest) resolved.manifestDigest = manifestDigest;
-  const archiveIntegrity =
-    versionRecord?.integrity ?? versionRecord?.dist?.integrity ?? entry.integrity ?? entry.dist?.integrity;
-  if (archiveIntegrity) resolved.archiveIntegrity = archiveIntegrity;
-  const deprecated = versionRecord?.deprecated ?? entry.deprecated;
-  if (deprecated !== undefined) resolved.deprecated = deprecated;
-  return resolved;
+  return { version: targetVersion, source, ...optionalVersionFields(versionRecord, entry) };
+}
+
+/** No range (or `latest`) resolves the entry's default version; anything else must be proven by {@link resolveRequestedVersion}. */
+function pickTargetVersion(
+  entry: RegistryEntry,
+  versions: RegistryVersionRecord[],
+  range: string | undefined,
+): string | null | undefined {
+  if (range && range !== 'latest') return resolveRequestedVersion(entry, range);
+  return entry.distTags?.['latest'] ?? entry.version ?? versions.find((version) => !version.yanked)?.version;
+}
+
+/** The resolved version's ref/digest/integrity/deprecation, preferring the version record over the entry; absent values are omitted. */
+function optionalVersionFields(
+  record: RegistryVersionRecord | undefined,
+  entry: RegistryEntry,
+): Omit<ResolvedRegistryEntryVersion, 'version' | 'source'> {
+  const fields: Omit<ResolvedRegistryEntryVersion, 'version' | 'source'> = {};
+  const ref = record?.ref ?? entry.ref;
+  if (ref) fields.ref = ref;
+  const manifestDigest = distField(record, entry, 'manifestDigest');
+  if (manifestDigest) fields.manifestDigest = manifestDigest;
+  const archiveIntegrity = distField(record, entry, 'integrity');
+  if (archiveIntegrity) fields.archiveIntegrity = archiveIntegrity;
+  const deprecated = record?.deprecated ?? entry.deprecated;
+  if (deprecated !== undefined) fields.deprecated = deprecated;
+  return fields;
+}
+
+/** First of record field, record `dist` field, entry field, entry `dist` field. */
+function distField(
+  record: RegistryVersionRecord | undefined,
+  entry: RegistryEntry,
+  key: 'manifestDigest' | 'integrity',
+): string | undefined {
+  return record?.[key] ?? record?.dist?.[key] ?? entry[key] ?? entry.dist?.[key];
 }
 
 /**
@@ -119,33 +150,13 @@ function resolveRequestedVersion(entry: RegistryEntry, range: string): string | 
 
   const base = parseSemver(range.slice(1));
   if (!base) return null;
+  const caret = range.startsWith('^');
   const candidates = versions
     .filter((version) => !version.yanked)
     .map((version) => version.version)
     .filter((version) => {
       const parsed = parseSemver(version);
-      if (!parsed) return false;
-      // npm excludes prerelease candidates from a range unless the range is
-      // itself a prerelease of the same major.minor.patch tuple (so `^0.2.0`
-      // never matches `0.2.1-beta.1`, but `^0.2.1-beta.1` matches 0.2.1-beta.2).
-      if (
-        parsed.prerelease &&
-        !(base.prerelease && parsed.major === base.major && parsed.minor === base.minor && parsed.patch === base.patch)
-      ) {
-        return false;
-      }
-      if (range.startsWith('^')) {
-        // npm caret locks the leftmost non-zero component: `^1.2.3` allows
-        // `<2.0.0`, but `^0.2.3` only `<0.3.0` and `^0.0.3` only `<0.0.4`.
-        // Locking major alone wrongly resolves `^0.2.0` to a breaking `0.3.0`.
-        if (parsed.major !== base.major) return false;
-        if (base.major === 0) {
-          if (parsed.minor !== base.minor) return false;
-          if (base.minor === 0 && parsed.patch !== base.patch) return false;
-        }
-        return compareSemver(parsed, base) >= 0;
-      }
-      return parsed.major === base.major && parsed.minor === base.minor && compareSemver(parsed, base) >= 0;
+      return parsed !== null && rangeAdmits(parsed, base, caret);
     })
     .sort((left, right) => compareSemver(parseSemver(right)!, parseSemver(left)!));
   return candidates[0] ?? null;
@@ -168,6 +179,32 @@ function versionExists(versions: NonNullable<RegistryEntry['versions']>, entry: 
   // — fall back to treating the entry's own top-level version as the one
   // version this entry has.
   return versions.length === 0 && entry.version === version;
+}
+
+/** True when `parsed` satisfies the `^`/`~` range whose base is `base`. */
+function rangeAdmits(parsed: SemverParts, base: SemverParts, caret: boolean): boolean {
+  // npm excludes prerelease candidates from a range unless the range is
+  // itself a prerelease of the same major.minor.patch tuple (so `^0.2.0`
+  // never matches `0.2.1-beta.1`, but `^0.2.1-beta.1` matches 0.2.1-beta.2).
+  if (parsed.prerelease && !(base.prerelease && sameCore(parsed, base))) return false;
+  const locked = caret ? caretLocked(parsed, base) : parsed.major === base.major && parsed.minor === base.minor;
+  return locked && compareSemver(parsed, base) >= 0;
+}
+
+/**
+ * npm caret locks the leftmost non-zero component: `^1.2.3` allows
+ * `<2.0.0`, but `^0.2.3` only `<0.3.0` and `^0.0.3` only `<0.0.4`.
+ * Locking major alone wrongly resolves `^0.2.0` to a breaking `0.3.0`.
+ */
+function caretLocked(parsed: SemverParts, base: SemverParts): boolean {
+  if (parsed.major !== base.major) return false;
+  if (base.major !== 0) return true;
+  if (parsed.minor !== base.minor) return false;
+  return base.minor !== 0 || parsed.patch === base.patch;
+}
+
+function sameCore(left: SemverParts, right: SemverParts): boolean {
+  return left.major === right.major && left.minor === right.minor && left.patch === right.patch;
 }
 
 interface SemverParts {
@@ -205,28 +242,23 @@ function compareSemver(left: SemverParts, right: SemverParts): number {
 // numeric ones numerically and ranked below alphanumeric, and a longer set of
 // identifiers wins when all preceding ones are equal.
 function comparePrerelease(left: string | null, right: string | null): number {
-  if (!left && !right) return 0;
-  if (!left) return 1;
-  if (!right) return -1;
+  // A missing prerelease (a normal release) ranks above any prerelease.
+  if (!left || !right) return Number(!left) - Number(!right);
   const a = left.split('.');
   const b = right.split('.');
-  for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
-    const x = a[i];
-    const y = b[i];
-    if (x === undefined) return -1;
-    if (y === undefined) return 1;
-    const xNum = /^\d+$/.test(x);
-    const yNum = /^\d+$/.test(y);
-    if (xNum && yNum) {
-      const d = Number(x) - Number(y);
-      if (d !== 0) return d < 0 ? -1 : 1;
-    } else if (xNum) {
-      return -1;
-    } else if (yNum) {
-      return 1;
-    } else if (x !== y) {
-      return x < y ? -1 : 1;
-    }
+  const shared = Math.min(a.length, b.length);
+  for (let i = 0; i < shared; i += 1) {
+    const order = compareIdentifier(a[i]!, b[i]!);
+    if (order !== 0) return order;
   }
-  return 0;
+  return Math.sign(a.length - b.length);
+}
+
+function compareIdentifier(x: string, y: string): number {
+  const xNum = /^\d+$/.test(x);
+  const yNum = /^\d+$/.test(y);
+  if (xNum && yNum) return Math.sign(Number(x) - Number(y));
+  if (xNum !== yNum) return xNum ? -1 : 1;
+  if (x === y) return 0;
+  return x < y ? -1 : 1;
 }

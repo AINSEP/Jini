@@ -22,7 +22,6 @@ import { buildAndPackClosure, discoverJiniPackages } from './lib/pack-jini-packa
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
-const packagesDir = join(repoRoot, 'packages');
 const outDir = join(repoRoot, 'dist-tarballs');
 
 function parseOnlyFlag(argv: readonly string[]): string[] | null {
@@ -34,21 +33,21 @@ function parseOnlyFlag(argv: readonly string[]): string[] | null {
 }
 
 async function main(): Promise<void> {
-  const registry = discoverJiniPackages(packagesDir);
+  const registry = discoverJiniPackages(repoRoot);
 
   const onlyShortNames = parseOnlyFlag(process.argv.slice(2));
   const rootNames = onlyShortNames
     ? onlyShortNames.map((short) => {
         const full = `@jini-ai/${short}`;
         if (!registry.has(full)) {
-          throw new Error(`pack-for-external-use: "${short}" (${full}) is not a real package under packages/*`);
+          throw new Error(`pack-for-external-use: "${short}" (${full}) is not a real workspace package`);
         }
         return full;
       })
     : [...registry.keys()];
 
   if (rootNames.length === 0) {
-    throw new Error('pack-for-external-use: no @jini-ai/* packages found under packages/*');
+    throw new Error('pack-for-external-use: no @jini-ai/* workspace packages found');
   }
 
   // Fresh output every run — a stale tarball for a package no longer in this run's closure would
@@ -57,7 +56,7 @@ async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true });
 
   console.log(`Packing ${rootNames.length} root package(s) and their @jini-ai/* closure into ${outDir}...`);
-  const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, packagesDir, rootNames, outDir);
+  const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, rootNames, outDir);
 
   console.log(`\nPacked ${closure.length} package(s):\n`);
   const usageLines: string[] = [];

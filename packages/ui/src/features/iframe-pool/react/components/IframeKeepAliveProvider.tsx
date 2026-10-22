@@ -13,7 +13,7 @@ interface IframeKeepAliveProviderProps {
 
 /**
  * Caps how many iframes stay mounted at once: attached iframes go live under
- * their host element; released ones are parked off-DOM (hidden, inert)
+ * their host element; released ones are parked in a mounted pool container (hidden, inert)
  * instead of destroyed, so revisiting the same key skips a reload; least-
  * recently-used parked entries are evicted once the pool exceeds
  * `maxMounted`. Active entries are never evicted.

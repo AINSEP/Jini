@@ -13,20 +13,20 @@ import { MODEL_VISIBLE_BLOCK_TYPES, splitToolResultSurfaces } from '../tool-resu
 describe('splitToolResultSurfaces', () => {
   it('passes a non-envelope value through by reference, with no surfaces', () => {
     const output = { posts: [{ id: 'p1' }], total: 1 };
-    const result = splitToolResultSurfaces(output);
+    const result = splitToolResultSurfaces({ output: output });
     expect(result.modelOutput).toBe(output);
     expect(result.surfaces).toEqual([]);
   });
 
   it.each([undefined, null, 'a string', 42, [1, 2, 3]])('passes through non-record output: %s', (output) => {
-    const result = splitToolResultSurfaces(output);
+    const result = splitToolResultSurfaces({ output: output });
     expect(result.modelOutput).toBe(output);
     expect(result.surfaces).toEqual([]);
   });
 
   it('leaves an all-text envelope untouched, same reference', () => {
     const output = { content: [{ type: 'text', text: 'done' }] };
-    const result = splitToolResultSurfaces(output);
+    const result = splitToolResultSurfaces({ output: output });
     expect(result.modelOutput).toBe(output);
     expect(result.surfaces).toEqual([]);
   });
@@ -42,7 +42,7 @@ describe('splitToolResultSurfaces', () => {
     };
     const output = { content: [{ type: 'text', text: 'A dialog is open.' }, uiResource] };
 
-    const { modelOutput, surfaces } = splitToolResultSurfaces(output);
+    const { modelOutput, surfaces } = splitToolResultSurfaces({ output: output });
 
     expect(modelOutput).toEqual({ content: [{ type: 'text', text: 'A dialog is open.' }] });
     expect(surfaces).toEqual([uiResource]);
@@ -56,7 +56,7 @@ describe('splitToolResultSurfaces', () => {
     const future = { type: 'mcp-ui-v2-widget', payload: { token: 'leaked-if-blacklisted' } };
     const output = { content: [{ type: 'text', text: 'ok' }, future] };
 
-    const { modelOutput, surfaces } = splitToolResultSurfaces(output);
+    const { modelOutput, surfaces } = splitToolResultSurfaces({ output: output });
 
     expect(surfaces).toEqual([future]);
     expect(JSON.stringify(modelOutput)).not.toContain('leaked-if-blacklisted');
@@ -64,14 +64,14 @@ describe('splitToolResultSurfaces', () => {
 
   it('withholds a block with no `type` at all', () => {
     const output = { content: [{ text: 'no type field' }] };
-    const { modelOutput, surfaces } = splitToolResultSurfaces(output);
+    const { modelOutput, surfaces } = splitToolResultSurfaces({ output: output });
     expect(surfaces).toEqual([{ text: 'no type field' }]);
     expect(modelOutput).toEqual({ content: [] });
   });
 
   it('withholds a non-record block, wrapping it so the surface stays inspectable', () => {
     const output = { content: ['a bare string', 7] };
-    const { modelOutput, surfaces } = splitToolResultSurfaces(output);
+    const { modelOutput, surfaces } = splitToolResultSurfaces({ output: output });
     expect(modelOutput).toEqual({ content: [] });
     expect(surfaces).toEqual([
       { type: 'unknown', value: 'a bare string' },
@@ -84,13 +84,13 @@ describe('splitToolResultSurfaces', () => {
       content: [{ type: 'text', text: 'hi' }, { type: 'resource', resource: { uri: 'ui://x' } }],
       _meta: { correlationId: 'c-1' },
     };
-    const { modelOutput } = splitToolResultSurfaces(output);
+    const { modelOutput } = splitToolResultSurfaces({ output: output });
     expect(modelOutput).toMatchObject({ _meta: { correlationId: 'c-1' } });
   });
 
   it('does not mutate the input', () => {
     const output = { content: [{ type: 'text', text: 'hi' }, { type: 'resource', resource: {} }] };
-    splitToolResultSurfaces(output);
+    splitToolResultSurfaces({ output: output });
     expect(output.content).toHaveLength(2);
   });
 
@@ -105,7 +105,7 @@ describe('splitToolResultSurfaces', () => {
     const imageBlock = { type: 'image', mimeType: 'image/png', data: 'AAAA' };
     const output = { content: [{ type: 'text', text: 'here is your image' }, imageBlock] };
 
-    const { modelOutput, surfaces } = splitToolResultSurfaces(output);
+    const { modelOutput, surfaces } = splitToolResultSurfaces({ output: output });
 
     expect(modelOutput).toEqual({ content: [{ type: 'text', text: 'here is your image' }, imageBlock] });
     expect(surfaces).toEqual([]);

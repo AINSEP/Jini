@@ -12,7 +12,7 @@ import { isAbsolute } from "node:path";
  * Detect whether a value is a Windows named-pipe path (`\\.\pipe\...`).
  * @returns `true` when `value` is such a pipe path.
  */
-export function isWindowsNamedPipePath(value: unknown): boolean {
+export function isWindowsNamedPipePath({ value }: { value: unknown }): boolean {
   return typeof value === "string" && value.startsWith("\\\\.\\pipe\\");
 }
 
@@ -21,12 +21,12 @@ export function isWindowsNamedPipePath(value: unknown): boolean {
  * any other value must be a non-empty, un-padded, null-byte-free absolute path.
  * @returns The validated IPC path.
  */
-export function normalizeIpcPath(ipc: unknown): string {
+export function normalizeIpcPath({ ipc }: { ipc: unknown }): string {
   if (typeof ipc !== "string") throw new Error("sidecar ipc path must be a string");
   if (ipc.length === 0) throw new Error("sidecar ipc path must not be empty");
   if (ipc.trim() !== ipc) throw new Error("sidecar ipc path must not contain leading or trailing whitespace");
   if (ipc.includes("\0")) throw new Error("sidecar ipc path must not contain null bytes");
-  if (isWindowsNamedPipePath(ipc)) return ipc;
+  if (isWindowsNamedPipePath({ value: ipc })) return ipc;
   if (!isAbsolute(ipc)) throw new Error(`sidecar ipc path must be absolute: ${ipc}`);
   return ipc;
 }
