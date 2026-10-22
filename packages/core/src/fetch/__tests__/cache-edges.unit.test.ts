@@ -125,6 +125,35 @@ describe('FetchQueryCache edges', () => {
     cache.dispose();
   });
 
+  it('lets a queued offline read whose replacement already finished during a connectivity flap resolve to the published data', async () => {
+    const { environment, connect } = connectivity({ online: false });
+    const cache = new FetchQueryCache({}, { environment, ...manualScheduler() });
+    cache.activate();
+    const entry = cache.entry({ key: ['flap'] });
+    const fetch = vi.fn(async () => 'fresh');
+    const first = cache.load({ entry, fetch, staleTime: 0 });
+    await flush();
+
+    // Reconnect resumes the queued read, but an invalidation starts its replacement in the same
+    // turn; the connection drops again before the queued read reaches its own invocation, so it
+    // re-queues while the replacement's transport (already started) settles offline.
+    connect(true);
+    cache.invalidate({ prefix: ['flap'] });
+    const second = entry.pending;
+    await Promise.resolve();
+    connect(false);
+    expect(await second).toBe('fresh');
+    expect(entry.pending).toBeUndefined();
+
+    // By the time the queued read runs nothing is pending: it adopts the published value
+    // rather than issuing a second request.
+    connect(true);
+    expect(await first).toBe('fresh');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(entry.state).toEqual({ data: 'fresh', error: null, status: 'success', isFetching: false });
+    cache.dispose();
+  });
+
   it('honours a refresh requested on the public entry while a request is in flight, once it settles', async () => {
     const cache = new FetchQueryCache({}, manualScheduler());
     const entry = cache.entry({ key: ['rows'] });
