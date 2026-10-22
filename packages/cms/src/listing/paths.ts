@@ -49,8 +49,9 @@ export function parseListingBatchPath({ path }: { path: string }, _optional: Rec
   return { pagePath: page === '' ? '/' : page, key, after, ...(json ? { format: 'json' as const } : {}) };
 }
 
-/** A page path holding a `.`/`..`/`_more` segment, or starting with an `admin`/`api` segment. @complexity O(n) over `page`. */
-function isRefusedPage({ page }: { page: string }, _optional: Record<string, never> = {}): boolean {
+/** A page path holding a `.`/`..`/`_more` segment, or starting with an `admin`/`api` segment; shared
+ *  by batch and page URLs (`paging.ts`). @complexity O(n) over `page`. */
+export function isRefusedPage({ page }: { page: string }, _optional: Record<string, never> = {}): boolean {
   const segments = page.split('/').filter(Boolean);
   return RESERVED_FIRST_SEGMENTS.has(segments[0] ?? '') || segments.some((segment) => REFUSED_SEGMENTS.has(segment));
 }
