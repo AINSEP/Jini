@@ -2,7 +2,7 @@ import { ToolInputError, ToolPermissionDeniedError, type ApprovalAnswer } from "
 import { describe, expect, it } from "vitest";
 
 import type { PaymentsPort } from "../../contract/payments-port.js";
-import { authorizedScripted, LIPAY, paidLipay, rejected, SCRIPTED, USD } from "../../ops/__tests__/harness.js";
+import { authorizedScripted, LIPAY, paidLipay, rejected, SCRIPTED, timedOut, USD } from "../../ops/__tests__/harness.js";
 import { PAYMENTS_TOOL_IDS } from "../index.js";
 import { toolWorld, type ToolWorld } from "./harness.js";
 
@@ -255,6 +255,22 @@ describe("commerce_payments_capture", () => {
     t.w.scripted.queue("capture", rejected());
     const result = await t.call(CAPTURE, { paymentId: payment.id, amount: USD(6_000) });
     expect(result).toMatchObject({ ok: false, reason: "payment-error", error: { code: "DECLINED" }, payment: { id: payment.id } });
+    // Not retryable: the text must not invite a same-key retry that can only replay this answer (C-1).
+    expect((result as { message: string }).message).toBe(
+      "the capture did not complete (DECLINED): provider said no. Retrying with the same idempotencyKey returns this same result."
+    );
+  });
+
+  it("invites a same-key retry only when the error is retryable", async () => {
+    const t = await toolWorld();
+    const payment = await authorizedScripted(t.w);
+    t.host.scope = SCRIPTED;
+    t.w.scripted.queue("capture", timedOut());
+    const result = await t.call(CAPTURE, { paymentId: payment.id, amount: USD(6_000) });
+    expect(result).toMatchObject({ ok: false, error: { code: "TRANSPORT_ERROR", retryable: true } });
+    expect((result as { message: string }).message).toBe(
+      "the capture did not complete (TRANSPORT_ERROR): timed out. Retrying with the same idempotencyKey is safe."
+    );
   });
 
   it("refuses a reason field (capture records none)", async () => {

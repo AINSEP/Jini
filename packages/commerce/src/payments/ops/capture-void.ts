@@ -25,7 +25,7 @@ import type { LedgerTx } from "../ledger/repo.js";
 import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/rows.js";
 import {
   NOT_ASSESSED_RISK, REPLAY_RISK, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied,
-  onUniqueRace, owned, readPayment, resolveContext, type Failure,
+  onUniqueRace, outcomeError, owned, readPayment, rejectedReplay, resolveContext, type Failure,
 } from "./common.js";
 import type { OpsDeps } from "./deps.js";
 import { paymentView, scopeOf } from "./view.js";
@@ -110,6 +110,8 @@ async function lookupOp({ tx, spec, required }: { tx: LedgerTx; spec: OpSpec; re
   if (!prior) return null;
   const payment = sameRequest({ prior, spec, required }) ? await readPayment({ tx, scope, paymentId: prior.paymentId }) : null;
   if (!payment) return { kind: "done", result: fail({ code: "IDEMPOTENCY_CONFLICT", message: `idempotency key already used for a different ${spec.op} request` }) };
+  const rejected = rejectedReplay({ attempt: prior });
+  if (rejected) return { kind: "done", result: { ...rejected, payment: paymentView(payment) } };
   return { kind: "done", result: { ok: true, payment: paymentView(payment), replayed: true, risk: REPLAY_RISK } };
 }
 
@@ -170,7 +172,7 @@ async function settleOp({ deps, opened, outcome }: { deps: OpsDeps; opened: Open
   } });
   const scope = scopeOf(payment);
   const view = paymentView((await deps.ledger.transaction({ fn: (tx) => readPayment({ tx, scope, paymentId: payment.id }) })) as PaymentRecord);
-  if (outcome.kind !== "ok") return { ok: false, error: outcome.error, payment: view };
+  if (outcome.kind !== "ok") return { ok: false, error: outcomeError({ outcome }), payment: view };
   // An ok outcome always went through applyPaymentEvidence above.
   if (!(await noteApplied({ deps, payment, result: result as ApplyResult }))) {
     return { ...fail({ code: "PROVIDER_ERROR", message: "the provider's response could not be applied and was quarantined for review" }), payment: view };

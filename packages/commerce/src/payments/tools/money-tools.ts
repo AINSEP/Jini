@@ -71,7 +71,9 @@ function failure(
   { op, error, idempotencyKey }: { op: MoneyOp; error: PaymentError; idempotencyKey: string },
   { payment }: { payment?: PaymentView | undefined } = {}
 ): MoneyToolResult {
-  const message = `the ${op} did not complete (${error.code}): ${error.message}. Retrying with the same idempotencyKey is safe.`;
+  // `retryable` = a retry under the SAME key may succeed; otherwise it can only return this answer again (C-1).
+  const retry = error.retryable ? "Retrying with the same idempotencyKey is safe." : "Retrying with the same idempotencyKey returns this same result.";
+  const message = `the ${op} did not complete (${error.code}): ${error.message}. ${retry}`;
   return { ok: false, reason: "payment-error", error, idempotencyKey, message, ...(payment ? { payment } : {}) };
 }
 
