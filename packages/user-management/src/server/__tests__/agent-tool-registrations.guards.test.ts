@@ -6,14 +6,14 @@ import { identityInput, requireIdentityCatalogEntry } from "../agent-tool-regist
 
 describe("identity tool catalog/handler drift guards", () => {
   it("names the missing tool when a handler asks for an id the catalog does not publish", () => {
-    expect(() => requireIdentityCatalogEntry("identity_not_a_tool")).toThrow(
+    expect(() => requireIdentityCatalogEntry({ toolId: "identity_not_a_tool" })).toThrow(
       "agent-tool-registrations: catalog has no entry named 'identity_not_a_tool' — @jini-ai/user-management/server catalog drifted",
     );
-    expect(requireIdentityCatalogEntry("identity_user_create").name).toBe("identity_user_create");
+    expect(requireIdentityCatalogEntry({ toolId: "identity_user_create" }).name).toBe("identity_user_create");
   });
 
   it("refuses a required read of a field the published schema leaves optional, and lets opt() report it absent", () => {
-    const input = identityInput("identity_user_create", { username: "ada", password: "correct horse battery" });
+    const input = identityInput({ toolId: "identity_user_create", input: { username: "ada", password: "correct horse battery" } });
     expect(input.req("username")).toBe("ada");
     expect(input.opt("email")).toBeUndefined();
     expect(() => input.req("email")).toThrow(
