@@ -118,6 +118,8 @@ export const claudeAgentDef = {
   ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
     supportsNativeToolAccess: true,
+    // Native Task/Agent subagent tool (see `native-tool-policy.ts`'s `subagents` dimension).
+    supportsSubagents: true,
     name: 'Claude Code',
     bin: 'claude',
     // Drop-in forks that ship a CLI argv-compatible with `claude`. Tried in

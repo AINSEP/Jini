@@ -116,3 +116,29 @@ export function getAgentDef({ id }: { id: string }): RuntimeAgentDef | null {
 export function runtimeSupportsExternalTools({ def }: { def: Pick<RuntimeAgentDef, 'externalMcpInjection'> }): boolean {
   return def.externalMcpInjection !== undefined;
 }
+
+/**
+ * Whether this def's CLI has a native subagent tool, per its own `supportsSubagents` declaration.
+ * The single seam a host reads before steering a run toward delegation or rendering a
+ * subagent preference toggle; never inferred from a runtime id list or model name.
+ *
+ * @complexity Time/space: O(1).
+ */
+export function runtimeSupportsSubagents({ def }: { def: Pick<RuntimeAgentDef, 'supportsSubagents'> }): boolean {
+  return def.supportsSubagents === true;
+}
+
+/**
+ * {@link runtimeSupportsSubagents} by agent id through the registry. An unknown id is unsupported.
+ * `getDef` defaults to this package's {@link getAgentDef}; a host with its own runtime registry
+ * passes its lookup so both resolve the same def.
+ *
+ * @complexity Time/space: O(n) for n registered defs (one lookup).
+ */
+export function agentSupportsSubagents(
+  { agentId }: { agentId: string },
+  { getDef = getAgentDef }: { getDef?: (input: { id: string }) => Pick<RuntimeAgentDef, 'supportsSubagents'> | null } = {},
+): boolean {
+  const def = getDef({ id: agentId });
+  return def !== null && runtimeSupportsSubagents({ def });
+}

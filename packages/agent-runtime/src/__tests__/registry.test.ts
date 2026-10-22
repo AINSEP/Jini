@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../capabilities.js';
-import { AGENT_DEFS, BASE_AGENT_DEFS, getAgentDef, runtimeSupportsExternalTools } from '../registry.js';
+import { AGENT_DEFS, BASE_AGENT_DEFS, agentSupportsSubagents, getAgentDef, runtimeSupportsExternalTools, runtimeSupportsSubagents } from '../registry.js';
 
 // `agentCapabilities` is process-global, so a probe result set by one test would
 // otherwise decide what argv a later one builds.
@@ -115,6 +115,32 @@ describe('registry', () => {
       // statically pre-registered and reached via inherited env (`'env-passthrough'`) — see
       // `defs/antigravity.ts`'s own doc for the live evidence behind the move.
       expect(toolCapable).toContain('antigravity');
+    });
+  });
+  describe('runtimeSupportsSubagents', () => {
+    it('is true only when the def declares supportsSubagents: true', () => {
+      expect(runtimeSupportsSubagents({ def: { supportsSubagents: true } })).toBe(true);
+      expect(runtimeSupportsSubagents({ def: { supportsSubagents: false } })).toBe(false);
+      expect(runtimeSupportsSubagents({ def: {} })).toBe(false);
+    });
+
+    // Derived from the real defs: only Claude Code's native Task/Agent tool is declared today.
+    it('declares native subagents on claude only among the built-in defs', () => {
+      expect(BASE_AGENT_DEFS.filter((def) => runtimeSupportsSubagents({ def })).map((def) => def.id)).toEqual(['claude']);
+    });
+
+    it('resolves by agent id through the registry, unknown ids unsupported', () => {
+      expect(agentSupportsSubagents({ agentId: 'claude' })).toBe(true);
+      expect(agentSupportsSubagents({ agentId: 'codex' })).toBe(false);
+      expect(agentSupportsSubagents({ agentId: 'no-such-agent' })).toBe(false);
+    });
+
+    it('uses an injected lookup instead of the package registry', () => {
+      const seen: string[] = [];
+      const getDef = ({ id }: { id: string }) => { seen.push(id); return id === 'host-cli' ? { supportsSubagents: true } : null; };
+      expect(agentSupportsSubagents({ agentId: 'host-cli' }, { getDef })).toBe(true);
+      expect(agentSupportsSubagents({ agentId: 'claude' }, { getDef })).toBe(false);
+      expect(seen).toEqual(['host-cli', 'claude']);
     });
   });
 });
