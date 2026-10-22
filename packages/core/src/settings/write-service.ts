@@ -10,6 +10,7 @@ import {
   PrincipalNotFoundError,
   RenameRetypeConflictError,
   ScopeNotAllowedError,
+  SettingsRevisionConflictError,
   ValueValidationFailedError,
 } from "./errors.js";
 import type { SettingsRepoPort } from "./ports.js";
@@ -284,8 +285,45 @@ async function assertTargetPrincipalInWorkspace(
   }
 }
 
-/** chokepoint write: authorize -> validate -> value + revision, same tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
-export async function set(required: SetValueRequired): Promise<{ value: JsonValue; revisionSeq: number }> {
+/** Optional concurrency guard shared by `set` and `clear`. */
+export interface SettingsValueWriteOptions {
+  /** Compare the addressed layer's stored seq, including cleared rows; 0 means no stored row.
+   * Omission preserves unconditional writes. Defaults, inherited values and definition revisions
+   * do not count. A mismatch throws SettingsRevisionConflictError and rolls back the write.
+   */
+  readonly expectedRevisionSeq?: number | undefined;
+}
+
+/**
+ * Check the addressed value after appendRevision has taken the ledger lock. On Postgres, a read
+ * before that lock can see the same old seq in two READ COMMITTED transactions and lose an update.
+ * The caller's enclosing transaction rolls the appended revision back on conflict.
+ * @complexity At most one scoped value read; no reads when the option is omitted.
+ */
+async function assertExpectedRevision(
+  required: { repo: SettingsRepoPort; settingId: UUID; input: Pick<SetValueRequired["input"], "scope" | "workspaceId" | "principalId" | "callerPrincipalId"> },
+  optional: SettingsValueWriteOptions = {},
+): Promise<void> {
+  if (optional.expectedRevisionSeq === undefined) return;
+  const { repo, settingId, input } = required;
+  const current = input.scope === "global"
+    ? await repo.getGlobalValue(settingId)
+    : input.scope === "workspace"
+      ? await repo.getWorkspaceValue({ workspaceId: input.workspaceId!, settingId })
+      : await repo.getUserValue({ workspaceId: input.workspaceId!, principalId: input.principalId ?? input.callerPrincipalId, settingId });
+  const actualRevisionSeq = current?.seq ?? 0;
+  if (actualRevisionSeq !== optional.expectedRevisionSeq) {
+    throw new SettingsRevisionConflictError({ expectedRevisionSeq: optional.expectedRevisionSeq, actualRevisionSeq });
+  }
+}
+
+/**
+ * Authorize -> validate -> value + revision in one transaction. An optional expectedRevisionSeq
+ * refuses a stale scoped value and rolls back its revision; omission keeps unconditional writes.
+ * @example await set({ deps, input }, { expectedRevisionSeq: snapshotSeq });
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
+ */
+export async function set(required: SetValueRequired, optional: SettingsValueWriteOptions = {}): Promise<{ value: JsonValue; revisionSeq: number }> {
   const { deps, input } = required;
 
   const permission =
@@ -336,6 +374,8 @@ export async function set(required: SetValueRequired): Promise<{ value: JsonValu
       changeSetId: null,
       createdAt: now,
     });
+
+    await assertExpectedRevision({ repo: deps.repo, settingId: definition.settingId, input }, optional);
 
     const base = {
       settingId: definition.settingId,
@@ -392,8 +432,14 @@ export interface ClearValueRequired {
   };
 }
 
-/** chokepoint write: authorize -> value + revision (state='cleared'), same tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
-export async function clear(required: ClearValueRequired): Promise<{ revisionSeq: number }> {
+/**
+ * Authorize -> cleared value + revision in one transaction; the optional concurrency guard has
+ * the same semantics as `set`. With skipTransaction, the enclosing caller must propagate errors
+ * so its transaction rolls back the appended revision on conflict.
+ * @example await clear({ deps, input }, { expectedRevisionSeq: snapshotSeq });
+ * See docs/decisions/DR-003-settings-ledger-invariants.md.
+ */
+export async function clear(required: ClearValueRequired, optional: SettingsValueWriteOptions = {}): Promise<{ revisionSeq: number }> {
   const { deps, input } = required;
 
   if (!input.skipAuthorize) {
@@ -437,6 +483,8 @@ export async function clear(required: ClearValueRequired): Promise<{ revisionSeq
       changeSetId: null,
       createdAt: now,
     });
+
+    await assertExpectedRevision({ repo: deps.repo, settingId: definition.settingId, input }, optional);
 
     const base = {
       settingId: definition.settingId,
