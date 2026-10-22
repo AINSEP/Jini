@@ -9,6 +9,7 @@ import * as sqlEntry from "../sql/index.js";
 import * as types from "../types.js";
 import * as ports from "../ports.js";
 import * as matcher from "../matcher.js";
+import * as pathKey from "../path-key.js";
 import * as order from "../order.js";
 import * as referrerAlias from "../referrer-alias.js";
 import * as reservedDestination from "../reserved-destination.js";
@@ -29,7 +30,7 @@ function expectReexports(barrel: object, owners: object[]) {
 }
 
 test("the redirects entry re-exports every runtime binding of its framework-free modules, and no SQL adapter", () => {
-  expectReexports(entry, [types, ports, matcher, order, referrerAlias, reservedDestination, repoMemory, capture, resolver, hitSink, redirects, targetGate]);
+  expectReexports(entry, [types, ports, matcher, pathKey, order, referrerAlias, reservedDestination, repoMemory, capture, resolver, hitSink, redirects, targetGate]);
   expect("SqlRedirectRepo" in entry).toBe(false);
 });
 

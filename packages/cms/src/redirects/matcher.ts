@@ -26,6 +26,7 @@
  * Architectural role: INTERNAL SEAM (not an ADR-006 port, see `ports.ts`'s
  * file header) — pure functions only, no I/O.
  */
+import { sameRedirectPath } from "./path-key.js";
 import type { RedirectMatcher } from "./ports.js";
 import type { RedirectMatchType, RedirectRecord, RedirectRequest, RedirectResolution } from "./types.js";
 
@@ -90,7 +91,8 @@ interface CandidateMatch {
 // Each matcher below is reached only from `matchOne`'s switch case for its own `matchType`, so none
 // re-checks the type (the switch is the single dispatch point).
 function matchExact(rule: RedirectRecord, path: string): CandidateMatch | null {
-  if (rule.fromPattern !== path) return null;
+  // Trailing slash and percent-encoding never decide a literal match (Bug A, see path-key.ts).
+  if (!sameRedirectPath({ a: rule.fromPattern, b: path }, {})) return null;
   return { rule, location: rule.toTarget, specificity: rule.fromPattern.length };
 }
 
