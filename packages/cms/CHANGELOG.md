@@ -1,4 +1,6 @@
-## Unreleased
+## 0.5.14 — 2026-10-22
+
+- 2026-10-22: Redirect matching and list fixes, numbered listing pages, post dates in the site time zone, comments honeypot fix, coverage.
 
 - `./consent/express`: new `readRequestConsentChoices({ ports, request }, { cookieName })` returns the categories a request's visitor allows (receipt, region and Sec-GPC, same rules as the page gate) for server-side decisions; disabled consent grants all, failures deny and never throw.
 

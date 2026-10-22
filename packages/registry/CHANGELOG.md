@@ -1,3 +1,7 @@
+## 0.5.3 — 2026-10-22
+
+- 2026-10-22: Model-facing tool errors keep diagnostic codes, complexity refactors, coverage.
+
 ## 0.5.2 — 2026-10-08
 
 - Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).

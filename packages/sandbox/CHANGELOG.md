@@ -1,5 +1,9 @@
 # @jini-ai/sandbox
 
+## 0.4.3 — 2026-10-22
+
+- 2026-10-22: Security queue fixes for the e2b provider, coverage.
+
 ## 0.4.1
 
 ### Patch Changes

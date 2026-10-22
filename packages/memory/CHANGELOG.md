@@ -1,5 +1,9 @@
 # @jini-ai/memory
 
+## 0.4.2 — 2026-10-22
+
+- 2026-10-22: BREAKING: integrations dependency dropped; callers pass the provider endpoint (config.baseUrl). Security fixes, coverage.
+
 ## 0.4.0 — 2026-10-02
 
 ### BREAKING

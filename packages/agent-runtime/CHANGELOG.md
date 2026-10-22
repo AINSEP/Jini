@@ -1,3 +1,7 @@
+## 0.4.12 — 2026-10-22
+
+- 2026-10-22: Probe-gated chromeIntegration build option, declarative supportsSubagents, network-capture and asset-harvest fixes, coverage.
+
 ## 0.4.11 — 2026-10-14
 
 - Gemini: `applyGoogleUsage` adds `input_tokens` (`promptTokenCount`) and `output_tokens` (`candidatesTokenCount` + `thoughtsTokenCount`) next to the raw `usageMetadata` fields, so usage reducers show Gemini token counts (024fe7e8).

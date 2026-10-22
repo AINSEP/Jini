@@ -1,3 +1,7 @@
+## 0.3.6 — 2026-10-22
+
+- 2026-10-22: Security queue fixes, testing helper reads os.userInfo() only when PGUSER is unset, complexity refactors, coverage.
+
 ## 0.3.5 — 2026-10-16
 
 - Store copy lets the host exclude retained restore tables from the catalog, emptiness check and copy (b0b13de4); copy only builds indexes for tables it created (d748cf67).

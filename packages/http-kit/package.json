@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/http-kit",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Generic Express transport primitives, request parsing, response serialization, origin guards and route-pack mounting.",
   "license": "Apache-2.0",
   "repository": {

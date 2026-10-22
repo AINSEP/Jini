@@ -1,6 +1,8 @@
 # @jini-ai/platform
 
-## Unreleased
+## 0.5.10 — 2026-10-22
+
+- 2026-10-22: Mail: sender-identity resolver, payload hash covers the full delivery, rate-limit fixes, console preview; coverage.
 
 - `./mail`: email provider contract v1. `MailProviderModule` (id, credentialKeys, capabilities incl. rate limit, optional Svix-style feedback parser, `domainRequirements`/`domainStatus` → shared `DomainRequirement`) on the shared `createProviderRegistry`; `smtp` + `console` built-ins; explicit `mail.provider.{transactional,bulk}` setting with `initialMailProviderSetting` (keeps the effective provider on first boot; console/none = `unconfigured`) and `computeMailStatus`. `createMailDeliveryPolicy`: attachments/bulk-unsubscribe (RFC 8058) refusals, suppression by lane (hard bounce = all, complaint = bulk), test redirect/capture mode, per-provider token bucket with reserved transactional capacity, atomic reserve → send → mark ledger with an `unknown` outcome. `createMailFeedbackIngest`: body cap, unverified rate limit, rotating secrets, (provider, event) inbox dedup, one suppression writer. Breaking (unimplemented ports only): `MailSuppressionRepoPort` scopes are `all|bulk` keyed by lane; `MailSendDedupRepoPort` deprecated for `MailSendLedgerPort`. Additive: `MailerSendResult` failure `unknown`/`retryAfterMs`, feedback `eventId`/`recipient`.
 

@@ -1,5 +1,9 @@
 # @jini-ai/desktop-host
 
+## 0.4.3 — 2026-10-22
+
+- 2026-10-22: Native Electron URL capture and private loopback render bridge, security fixes, coverage.
+
 ## 0.4.2
 
 ### Patch Changes

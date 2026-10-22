@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.5.6 — 2026-10-22
+
+- 2026-10-22: MCP-UI question cards follow dark hosts, optional useCachedLoader fetch, trust options, html-editor fallbacks removed, coverage.
+
 ## 0.5.5 — 2026-10-16
 
 - `admin-widgets` Select paints group headings and per-option badges (dc770a41) and is pane-aware; image fields name the file (bc1dbf0d).

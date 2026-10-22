@@ -1,5 +1,9 @@
 # @jini-ai/diagnostics
 
+## 0.5.4 — 2026-10-22
+
+- 2026-10-22: Security queue fixes, complexity refactors, coverage.
+
 ## 0.5.3 — 2026-10-15
 
 - The public-page browser capture uses a fixed 1,000,000-char raw-HTML cap instead of `maxChars * 4` (0625844e), so a large style head no longer eats the readable-text budget; `maxChars` still caps the text.

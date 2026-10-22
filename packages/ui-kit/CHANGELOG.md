@@ -1,5 +1,9 @@
 # @jini-ai/ui-kit
 
+## 0.1.5 — 2026-10-22
+
+- 2026-10-22: Complexity refactors, coverage.
+
 ## 0.1.4 — 2026-10-13
 
 - Break facade/native import cycles: native dialogs pick the provider's Button through a context-only lookup (`NativeButton` fallback; `nativeActions` still forces native), and `ToastRegion` creates its Toast elements. No API change.

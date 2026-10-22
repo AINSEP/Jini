@@ -1,3 +1,7 @@
+## 0.6.7 — 2026-10-22
+
+- 2026-10-22: Memory fixes (durable run store reads its own row, ledger parses events once), shared settings segmented control, Slack token rule restored, coverage.
+
 ## 0.6.6 — 2026-10-16
 
 - Staged attachment rows sit 8px apart so the top row's remove target stays 44px (4884cf15).

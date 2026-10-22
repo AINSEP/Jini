@@ -1,5 +1,9 @@
 # @jini-ai/agentic
 
+## 0.4.5 — 2026-10-22
+
+- 2026-10-22: Complexity refactors with characterization pins, coverage.
+
 ## 0.4.3
 
 ### Patch Changes

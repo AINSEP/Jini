@@ -1,5 +1,9 @@
 # @jini-ai/artifacts
 
+## 0.4.2 — 2026-10-22
+
+- 2026-10-22: Security queue fixes (stub guard), complexity refactors, coverage.
+
 ## 0.4.1
 
 ### Patch Changes

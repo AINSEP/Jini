@@ -1,3 +1,7 @@
+## 0.6.4 — 2026-10-22
+
+- 2026-10-22: Kernel composition and feature-activation updates, security fixes, complexity refactors, coverage.
+
 ## 0.6.3 — 2026-10-14
 
 - Express 5 accepted: the optional `express` peer is now `^4.21.0 || ^5.0.0` (1442d875), so an Express 5 host no longer hits ERESOLVE.

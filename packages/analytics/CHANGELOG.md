@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 — 2026-10-22
+
+- 2026-10-22: Vendor forwarder contract, keyed registry, fan-out sink and in-flight cap; provider-load TTL memo moved in from Tovu.
 
 ### Minor Changes
 

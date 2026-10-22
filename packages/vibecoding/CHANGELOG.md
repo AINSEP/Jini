@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3 — 2026-10-22
+
+- 2026-10-22: Region parser and session refactors, coverage.
+
 ## 0.4.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/infra",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Deprecated compatibility re-exports of @jini-ai/db/core and @jini-ai/db/sqlite. Import those directly.",
   "deprecated": "Compatibility shim: use @jini-ai/db/core and @jini-ai/db/sqlite directly.",
   "license": "Apache-2.0",

@@ -1,5 +1,9 @@
 # @jini-ai/oauth
 
+## 0.2.3 — 2026-10-22
+
+- 2026-10-22: Protocol handling rebased on openid-client/oauth4webapi behind the facade; device-flow and build fixes, coverage.
+
 ## 0.2.1
 
 ### Patch Changes

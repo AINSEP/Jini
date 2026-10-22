@@ -1,3 +1,7 @@
+## 0.6.9 — 2026-10-22
+
+- 2026-10-22: Memory fixes (bounded event log and tool-executor audit), chromeIntegration option, provider-plugin registration, coverage.
+
 ## 0.6.8 — 2026-10-16
 
 - An unknown tool on the read-only gateway points to discovery, never a mutation 409 (75d37c32).

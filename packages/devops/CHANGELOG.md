@@ -1,7 +1,9 @@
 # @jini-ai/devops
 
 
-## Unreleased
+## 0.5.6 — 2026-10-22
+
+- 2026-10-22: node:dns authoritative resolver (./dns/node), IPv6 canonicalization and RRset checks in DNS verification, coverage.
 
 - `./dns` (new): generic DNS contract kernel, lots D1–D3. RRset record model (structured MX/CAA, TXT 255-byte chunking, ALIAS, proxy flags, provider alias targets); `DnsProvider` with `capabilities.automatic`; pure `planDnsChanges` (preserve-by-default, only conflicting address records change, SPF merge never adds a second `v=spf1`, blockers for CNAME coexistence, apex CNAME without flattening, CAA excluding the target CA, partial/unknown inventory = zero changes) + sha-256 `fingerprintPlan`; `checkDelegation` (NS); authoritative-nameserver `verifyRequirements` with propagated/pending/mismatch/unknown and 30s→10min backoff, 48h cap; approval binding to workspace + provider account + zone + expiry (deletes human-only, apex/MX/delete non-rememberable); built-in `manual` provider with copyable instructions and delegated-subzone lookup; `createDnsProviderRegistry` on the shared provider registry. Apply engine/journal, vendor extraction = later lots.
 ## 0.5.5 — 2026-10-16

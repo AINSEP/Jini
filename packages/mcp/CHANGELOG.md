@@ -1,5 +1,9 @@
 # @jini-ai/mcp
 
+## 0.4.4 — 2026-10-22
+
+- 2026-10-22: Typed tools from the launched bridge, concrete describe schemas, list-changed, diagnostic error codes, coverage.
+
 ## 0.4.2
 
 ### Patch Changes

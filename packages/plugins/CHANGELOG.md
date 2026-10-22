@@ -1,5 +1,9 @@
 # @jini-ai/plugins
 
+## 0.5.2 — 2026-10-22
+
+- 2026-10-22: Optional declared effect on plugin tool contributions, security fixes, complexity refactors, coverage.
+
 ## 0.5.1 — 2026-10-13
 
 - The plugin manifest is `jini.plugin.json` and the plugin SDK specifier is `@jini-ai/plugin-sdk`. `tovu.plugin.json` and `@tovu/sdk` are still read as legacy aliases (the new name wins when both exist); installs and drafts write only the new name. `./host` exports `PLUGIN_MANIFEST_FILENAME`, `PLUGIN_MANIFEST_FILENAMES`, `LEGACY_PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SDK_SPECIFIER`, `PLUGIN_SDK_SPECIFIERS`, `LEGACY_PLUGIN_SDK_SPECIFIER` and `canonicalizePluginManifest`.

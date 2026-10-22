@@ -1,5 +1,9 @@
 # @jini-ai/capability-providers
 
+## 0.4.2 — 2026-10-22
+
+- 2026-10-22: Comments provider registry and ports; storage contracts marked as views of ObjectStore.
+
 ## 0.4.1
 
 ### Patch Changes

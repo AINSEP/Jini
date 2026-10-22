@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4 — 2026-10-22
+
+- 2026-10-22: Outbox: optional per-event retry-policy resolver.
+
 ## 0.5.3 — 2026-10-14
 
 - The `@jini-ai/db` optional peer is published as `^0.3.4` instead of a `workspace:` range (3fcc85e2).

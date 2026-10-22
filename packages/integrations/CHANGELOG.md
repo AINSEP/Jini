@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.3 — 2026-10-22
+
+- 2026-10-22: Webhook delivery deadlines, leases and fencing; media-provider model-id collision refusal; provider contributions.
 
 ### Minor Changes
 

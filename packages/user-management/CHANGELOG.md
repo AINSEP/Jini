@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4 — 2026-10-22
+
+- 2026-10-22: Named-argument identity guards, optional translate with a custom Users hook, cancellation kept across confirm-to-run, coverage.
+
 ## 0.3.3 — 2026-10-13
 
 - Accept UI ^0.5.0 for the chart contract extraction.

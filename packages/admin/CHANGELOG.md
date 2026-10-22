@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.13 — 2026-10-22
+
+- 2026-10-22: Consent banner editor sections and preview, redirect list fixes, media lightbox via @jini-ai/ui, media provider tab fixes, coverage.
+
 ## 0.4.12 — 2026-10-16
 
 - SEO: searchable entry picker and grouped per-entry form (6c128f9d); image fields name the file, styled analysis, slug for same-titled entries (bc1dbf0d); one Social preview section with an optional "Customize for X" (ff1a709f); X/Twitter labels, file names with extensions, muted inherited site-default image (4919371d); "Using image from page content" when the share image comes from the page (746457d9).
