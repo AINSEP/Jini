@@ -53,6 +53,24 @@ describe("tanstack adapter races", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(result.current.loader.peek()).toBe("after-write");
   });
+  it("rejects a loader that joined another loader's in-flight read when that read fails", async () => {
+    // The second load joins TanStack's in-flight request and so receives the raw transport envelope
+    // rather than going through the save boundary; the failure must still surface as a rejection.
+    const failure = new Error("transport down");
+    const gate = deferred<void>();
+    const fetch = vi.fn(async () => { await gate.promise; throw failure; });
+    const key = ["joined-loader-failure"] as const;
+    const { result } = renderHook(() => useCachedLoader({ key, fetch }), { wrapper: FetchQueryProvider });
+    const leader = result.current.load();
+    const joiner = result.current.load();
+    const settled = Promise.allSettled([leader, joiner]);
+    await act(async () => { gate.resolve(); });
+    const [leaderOutcome, joinerOutcome] = await settled;
+    expect(leaderOutcome).toEqual({ status: "rejected", reason: failure });
+    expect(joinerOutcome).toEqual({ status: "rejected", reason: failure });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result.current.peek()).toBeUndefined();
+  });
 });
 
 describe("tanstack adapter cold replacement", () => {
