@@ -94,3 +94,6 @@ export * from './continuation/index.js';
 export * from './routines/index.js';
 
 export * from './attachment-content.js';
+
+export * from './delegated-result-correlation.js';
+export type { StdoutJournalBlobPort } from './tool-result-diagnostics.js';

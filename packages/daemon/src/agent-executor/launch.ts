@@ -861,6 +861,13 @@ function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _opt
   return { ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}) };
 }
 
+/** Correlation projects retained stdout, so exact-byte journals need a separate blob writer. */
+function validateStdoutJournalOptions(options: Pick<CreateAgentExecutorOptions, 'delegatedResultCorrelation' | 'journal' | 'stdoutJournalBlobs'>, _options = {}): void {
+  if (options.delegatedResultCorrelation && options.journal && !options.stdoutJournalBlobs) {
+    throw new Error('delegated result correlation with a byte journal requires stdoutJournalBlobs');
+  }
+}
+
 /** Model discovery consumes the exact spawn environment and caller-supplied settings. */
 function launchModelContext({ input, launch, spawnEnv }: { input: AgentExecutorRunInput; launch: ConfirmedAgentLaunchResolution; spawnEnv: NodeJS.ProcessEnv }, _options = {}) {
   return {
@@ -902,7 +909,7 @@ function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
   // This native composition boundary resolves ambient defaults once, before allowlisting child env.
   const env = optionalArgs.hostEnv ?? process.env;
   const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
@@ -929,6 +936,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     stopProcesses: stopProcessesFn,
   } = resolveProcessDeps(options);
   const { onCleanupFailure: onCleanupFailureFn, bufferedStdoutMaxBytes } = resolveMiscExecutorDeps(options);
+  validateStdoutJournalOptions(options);
   const journal = options.journal;
   const continuation = options.continuation;
   const classifyFailure = options.classifyFailure;
@@ -1095,6 +1103,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           onCleanupFailure: onCleanupFailureFn,
           cleanupStagedFiles,
           journal,
+          ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}),
+          ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}),
           continuation,
           classifyFailure,
           bufferedStdoutMaxBytes,

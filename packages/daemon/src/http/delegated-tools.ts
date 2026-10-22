@@ -1,3 +1,4 @@
+import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 /**
  * @module delegated-tools
  *
@@ -83,6 +84,8 @@ export interface DelegatedToolsInternalErrorContext {
 }
 
 export interface DelegatedToolsHttpDeps {
+  /** The same negotiated digest store supplied to the run lifecycle and agent executor. */
+  readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly lifecycle: RunLifecycle;
   readonly toolExecutor: ToolExecutor;
   /** Host-owned: resolves the `Principal` a given delegated-tool-call request executes as. Mandatory — see module doc; there is no safe default identity this package could assume on a host's behalf. */
@@ -326,7 +329,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
         ? readOnlyTools.withReadOnlyToolConstraint({ inner: deps.toolExecutor, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly, idGenerator: { newId: randomUUID } })
         : deps.toolExecutor;
 
-    const bridge = createDelegatedToolBridge({ lifecycle: deps.lifecycle, toolExecutor });
+    const bridge = createDelegatedToolBridge({ lifecycle: deps.lifecycle, toolExecutor }, deps);
     try {
       // `signal` carries the caller's HTTP connection dropping — see `mountJsonRoute`
       // (`adapter.ts`). The bridge already combines it with the run's own cancellation

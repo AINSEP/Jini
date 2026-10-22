@@ -14,6 +14,7 @@
  * agent/stdout/stderr/error events, observes cancellation via
  * `onCancelRequested`, and calls `finish()` once it knows the real outcome.
  */
+import type { DelegatedResultCorrelation } from './delegated-result-correlation.js';
 import { randomUUID } from 'node:crypto';
 import type {
   RunAgentPayload,
@@ -517,6 +518,8 @@ function buildNewRunRecord(
 }
 
 export interface CreateRunLifecycleInput {
+  /** Share the negotiated bridge/executor digest store so run eviction also releases proofs. */
+  readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly eventLog: EventLog;
   /** Host-owned sink for asynchronous lifecycle failures that cannot be returned to a caller. Defaults to `console.error`. */
   readonly onInternalError?: (context: RunLifecycleInternalErrorContext) => void;
@@ -562,7 +565,7 @@ export interface RunLifecycleInternalErrorContext {
  * @complexity Per-call complexities documented on each method; the registry itself is a `Map` keyed by `runId` (O(1) lookup). Memory is bounded: non-terminal runs are O(n) in concurrently-live runs, and terminal runs are capped at `maxTerminalRuns` (each additionally bounded in retention time by `terminalRetentionMs`) rather than growing for the life of the process.
  * @overallScore 100/100
  */
-export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "eventLog">, optionalArgs: Pick<CreateRunLifecycleInput, "onInternalError" | "terminalRetentionMs" | "maxTerminalRuns" | "slowRunThresholdMs" | "dropEventsOnEviction"> = {}): RunLifecycle {
+export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "eventLog">, optionalArgs: Pick<CreateRunLifecycleInput, "onInternalError" | "terminalRetentionMs" | "maxTerminalRuns" | "slowRunThresholdMs" | "dropEventsOnEviction" | "delegatedResultCorrelation"> = {}): RunLifecycle {
   const input: CreateRunLifecycleInput = { ...requiredArgs, ...optionalArgs };
   const { eventLog } = input;
   const terminalRetentionMs = input.terminalRetentionMs ?? DEFAULT_TERMINAL_RETENTION_MS;
@@ -621,6 +624,7 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       record.startPromise = undefined;
     } catch (error) {
       runs.delete(runId);
+      input.delegatedResultCorrelation?.clearRun({ runId });
       clearIdempotencyIndexEntryIfMatching({ idempotencyIndex: idempotencyIndex, idempotencyKey: startInput.idempotencyKey, runId: runId });
       throw error;
     }
@@ -672,6 +676,7 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     if (!record) return;
     record.retentionTimer = undefined;
     runs.delete(runId);
+    input.delegatedResultCorrelation?.clearRun({ runId });
     clearIdempotencyIndexEntryIfMatching({ idempotencyIndex: idempotencyIndex, idempotencyKey: record.idempotencyKey, runId: runId });
     if (input.dropEventsOnEviction === true) void dropEvictedRunEvents(runId);
   }

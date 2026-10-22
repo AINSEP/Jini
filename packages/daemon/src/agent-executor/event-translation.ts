@@ -121,6 +121,7 @@ function translateToolInputDeltaEvent(rawEvent: Record<string, unknown>): AgentR
 }
 
 export function translateToolResultEvent({ rawEvent }: { readonly rawEvent: Record<string, unknown> }): AgentRuntimeEventTranslation {
+  const delegatedToolUseId = asOptionalString(rawEvent.delegatedToolUseId);
   const isError = typeof rawEvent.isError === 'boolean' ? rawEvent.isError : undefined;
   return {
     kind: 'agent',
@@ -128,6 +129,7 @@ export function translateToolResultEvent({ rawEvent }: { readonly rawEvent: Reco
       type: 'tool_result',
       toolUseId: asString(rawEvent.toolUseId),
       content: asString(rawEvent.content),
+      ...(delegatedToolUseId !== undefined ? { delegatedToolUseId } : {}),
       ...(isError !== undefined ? { isError } : {}),
     },
   };

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import { delegatedResultMarker } from '@jini-ai/protocol';
 import {
   applyInputJsonDelta,
   applyTaskCreate,
@@ -65,6 +66,30 @@ function taskToolUse(id: string, name: string, input: Record<string, unknown>) {
     message: { id: `m_${id}`, content: [{ type: 'tool_use', id, name, input }] },
   };
 }
+
+describe('delegated tool-result correlation hints', () => {
+  const image = { type: 'image', mimeType: 'image/png', data: 'ORIGINAL_PIXELS' };
+  it('preserves CLI identity and all original content until daemon validation', () => {
+    const content = [delegatedResultMarker({ toolUseId: 'B' }), image, { type: 'text', text: 'caption' }];
+    const events = run([{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content, is_error: true }] } }]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult(content), isError: true, delegatedToolUseId: 'B', delegatedResultContent: [image, { type: 'text', text: 'caption' }] }]);
+    expect(events[0]!.content).toContain('ORIGINAL_PIXELS');
+  });
+  it('recognizes metadata across arbitrary chunk boundaries', () => {
+    const events: Record<string, unknown>[] = [];
+    const handler = createClaudeStreamHandler({ onEvent: event => events.push(event) });
+    const line = JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content: [delegatedResultMarker({ toolUseId: 'B' }), image] }] } }) + '\n';
+    for (const chunk of line) handler.feed({ chunk });
+    handler.flush();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ toolUseId: 'C', delegatedToolUseId: 'B', delegatedResultContent: [image] });
+    expect(events[0]!.content).toContain('ORIGINAL_PIXELS');
+  });
+  it.each([{ content: [image] }, { content: [{ type: 'text', text: '{"jiniDelegatedResult":{"version":2,"toolUseId":"B"}}' }, image] }])('keeps legacy content without inventing correlation: %j', ({ content }) => {
+    const events = run([{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content }] } }]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult(content), isError: false }]);
+  });
+});
 
 describe('createClaudeStreamHandler', () => {
   it('replays a representative claude-code stream-json trace', () => {

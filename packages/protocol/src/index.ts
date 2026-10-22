@@ -8,3 +8,4 @@ export * from './journal.js';
 export * from './registry.js';
 export * from './run.js';
 export * from './run-context.js';
+export * from './delegated-result.js';

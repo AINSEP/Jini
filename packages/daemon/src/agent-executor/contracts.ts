@@ -1,3 +1,5 @@
+import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
+import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import type { MessageAttachmentImage } from '../attachment-content.js';
 import type { probeMcpBridge } from './mcp-bridge-probe.js';
 import type {
@@ -607,6 +609,10 @@ export interface FailureClassificationContext {
 export type ClassifyFailure = (context: FailureClassificationContext) => boolean | Promise<boolean>;
 
 export interface CreateAgentExecutorOptions {
+  /** Negotiated v1 only; share with bridge/lifecycle. Absent preserves legacy diagnostics/echoes. */
+  readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
+  /** Required with correlation + byte journal: exact stdout blobs and durable reference records. */
+  readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
   /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. */
   readonly hostEnv?: NodeJS.ProcessEnv;
   readonly runtimeState?: AgentRuntimeState;

@@ -8,6 +8,7 @@ vi.mock('../../daemon-client.js', () => hoisted);
 import {
   createExecuteDelegatedToolTool,
   createExecuteReadonlyDelegatedToolTool,
+  createTypedDelegatedToolTool,
   DEFAULT_DELEGATED_TOOL_TIMEOUT_MS,
 } from '../delegated-tool.js';
 import type { McpToolContext } from '../../tool-protocol.js';
@@ -16,6 +17,30 @@ const ctx: McpToolContext = { baseUrl: 'http://d.example', fetchImpl: fetch };
 
 beforeEach(() => {
   postDaemonJson.mockReset();
+});
+
+describe('opt-in delegated result metadata', () => {
+  const image = { type: 'image', mimeType: 'image/png', data: 'ORIGINAL_PIXELS' };
+  for (const factory of [createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool]) {
+    it(`${factory.name} defaults off and retains original MCP images`, async () => {
+      postDaemonJson.mockResolvedValue({ result: { status: 'completed', output: { content: [image] } } });
+      const tool = factory({ runId: 'trusted' }, { generateToolUseId: () => 'B' });
+      expect(await tool.handler({ args: { toolId: 'capture' }, ctx })).toEqual({ content: [image] });
+    });
+    it(`${factory.name} emits the generated id beside the original image when negotiated`, async () => {
+      postDaemonJson.mockResolvedValue({ result: { status: 'completed', output: { content: [image], isError: true } } });
+      const tool = factory({ runId: 'trusted' }, { generateToolUseId: () => 'B', delegatedResultMarkers: true });
+      const result = await tool.handler({ args: { toolId: 'capture', toolUseId: 'forged', runId: 'other' }, ctx });
+      expect(result).toEqual({ isError: true, content: [{ type: 'text', text: '{"jiniDelegatedResult":{"version":1,"toolUseId":"B"}}' }, image] });
+      expect(postDaemonJson.mock.calls[0]![0].body).toMatchObject({ runId: 'trusted', toolUseId: 'B' });
+      expect(JSON.stringify(result).split('ORIGINAL_PIXELS')).toHaveLength(2);
+    });
+  }
+  it('typed tools reuse the same negotiated gateway lifecycle', async () => {
+    postDaemonJson.mockResolvedValue({ result: { status: 'completed', output: { content: [image] } } });
+    const tool = createTypedDelegatedToolTool({ runId: 'trusted', tool: { wireName: 'capture', descriptor: { id: 'capture', inputSchema: { type: 'object', properties: {} } } } }, { generateToolUseId: () => 'B', delegatedResultMarkers: true });
+    expect(await tool.handler({ args: {}, ctx })).toEqual({ content: [{ type: 'text', text: '{"jiniDelegatedResult":{"version":1,"toolUseId":"B"}}' }, image] });
+  });
 });
 
 describe('createExecuteDelegatedToolTool', () => {

@@ -1,3 +1,6 @@
+import { batchOutcomeFor } from '@jini-ai/core';
+import type { ToolExecutionResult } from './tool-executor.js';
+
 /**
  * Extracts UI-renderable media blocks from a tool handler's raw MCP-style content envelope
  * (`{ content: [...] }`), for `delegated-tool-bridge.ts` and `agent-executor.ts` to attach to the
@@ -11,18 +14,9 @@
  * and is deliberately narrower: it recognizes exactly one block type today (`image`), and has no
  * withhold-from-model concept of its own.
  *
- * The two DO interact, though not by pipelining: `delegated-tool-bridge.ts`'s `execute()` calls both
- * of them against the SAME raw `executed.output`, not this module's `remainder` into
- * `splitToolResultSurfaces`. That used to be pipelined — this module removed recognized image
- * blocks from `content` before the surfaces pass ran, because `splitToolResultSurfaces`'s whitelist
- * used to recognize only `text`, and an image block left in place would have been swept into
- * `surfaces` and withheld from the model. Now that `image` is itself one of
- * `tool-result-surfaces.ts`'s `MODEL_VISIBLE_BLOCK_TYPES` (a deliberate addition — see that
- * constant's own doc), the surfaces pass classifies an image block correctly on its own, so there is
- * no misclassification left to prevent by removing it first. This module's `remainder` field is
- * therefore no longer read by that caller at all (kept for this module's own tests and any future
- * caller that wants a de-imaged copy); only `media` is used, to populate the `tool_result` event's
- * sibling `media` field for a UI that wants to render inline without re-parsing `content`.
+ * The surface whitelist runs on the original output first. Its model-visible result still
+ * contains images for MCP/model delivery. Only the event projection below serializes this
+ * module's de-imaged remainder, alongside one `media` array for rendering.
  *
  * ## Why only `image`, and why blocks are silently skipped rather than reported
  *
@@ -86,8 +80,7 @@ function asImageBlock(block: unknown): ToolResultImageBlock | undefined {
 
 /**
  * Splits a tool handler's raw return value into its recognized media blocks and the remainder,
- * ready to feed onward into `splitToolResultSurfaces` (see this module's doc for why that order
- * matters).
+ * without modifying the model-facing output. Run the surface whitelist on the original first.
  *
  * @param output - A tool handler's raw return value (`ToolExecutionResult.output` when
  * `status === 'completed'`). Non-envelope values (the overwhelming majority of tools, which return
@@ -109,4 +102,53 @@ export function extractResultMedia({ output }: { readonly output: unknown }): Ex
 
   if (media.length === 0) return { remainder: output, media: [] };
   return { remainder: { ...output, content: kept }, media };
+}
+
+/** Converts arbitrary registered-tool output into the string-bearing run protocol. */
+export function serializeDelegatedToolOutput({ output }: { readonly output: unknown }): string {
+  if (typeof output === 'string') return output;
+  if (output === undefined) return '';
+  try {
+    const serialized = JSON.stringify(output);
+    return serialized === undefined ? String(output) : serialized;
+  } catch {
+    return String(output);
+  }
+}
+
+/**
+ * Maps a `ToolExecutionResult`'s status to the string a delegated-tool caller (this bridge, or
+ * gap 3's stdin-tool-result injector in `agent-executor.ts`) reports back as the tool's visible
+ * output/failure reason. Exported so both real callers share one mapping rather than drifting.
+ */
+export function resultContent({ result }: { readonly result: ToolExecutionResult }): string {
+  switch (result.status) {
+    case 'completed':
+      return serializeDelegatedToolOutput({ output: result.output });
+    case 'denied':
+      return 'Tool execution denied by policy.';
+    case 'confirmation-denied':
+      return 'Tool execution denied during confirmation.';
+    case 'timed-out':
+      return 'Tool execution timed out.';
+    case 'cancelled':
+      return 'Tool execution cancelled.';
+    case 'failed':
+      return result.error ?? 'Tool execution failed.';
+  }
+}
+
+/** Projects a model-safe result into the saved event: pixels occur only in `media`.
+ * Uses the existing serializer and status mapping; callers keep the original for the model.
+ * @complexity O(n) output bytes, with O(n) transient serialization space. */
+export function projectToolResultEvent({ result }: { result: ToolExecutionResult }, _options = {}): { content: string; isError?: true; media?: readonly ToolResultMediaBlock[] } {
+  const { remainder, media } = extractResultMedia({ output: result.output });
+  const isError = result.status !== 'completed'
+    || (batchOutcomeFor({ output: result.output }) ?? 'completed') !== 'completed'
+    || (isRecord(result.output) && result.output.isError === true);
+  return {
+    content: resultContent({ result: { ...result, output: remainder } }),
+    ...(isError ? { isError: true } : {}),
+    ...(media.length > 0 ? { media } : {}),
+  };
 }

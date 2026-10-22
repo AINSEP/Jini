@@ -33,6 +33,7 @@
  * tool that could still reach writes would launder a write past its caller's own safety gate. See
  * {@link createExecuteReadonlyDelegatedToolTool} for the failure that motivated it.
  */
+import { delegatedResultMarker } from '@jini-ai/protocol';
 import { batchOutcomeFor, isReadOnlyTool, type ExposedToolDescriptor } from '@jini-ai/core';
 import { ToolSchema } from '@modelcontextprotocol/sdk/types.js';
 import { randomUUID } from 'node:crypto';
@@ -125,6 +126,8 @@ export interface CreateExecuteDelegatedToolToolOptions {
    * @default DEFAULT_DELEGATED_TOOL_TIMEOUT_MS (6 min)
    */
   readonly delegatedToolTimeoutMs?: number;
+  /** Emit v1 metadata only when the host has enabled daemon/runtime echo correlation. Default off. */
+  readonly delegatedResultMarkers?: boolean;
 }
 
 /**
@@ -203,9 +206,10 @@ function createDelegatedGateway(
     },
     handler: async ({ args, ctx }) => {
       const toolId = requireString({ value: args.toolId, name: 'toolId' });
+      const toolUseId = generateToolUseId({});
       const body: Record<string, unknown> = {
         runId,
-        toolUseId: generateToolUseId({}),
+        toolUseId,
         toolId: toolId,
         // The schema tells the model to omit `input` for a tool that takes none, but most tool
         // handlers refuse an absent input ("input must be an object"). Sending `{}` makes the
@@ -217,7 +221,10 @@ function createDelegatedGateway(
         ...daemonCallOptions({ ctx }),
         timeoutMs,
       });
-      return unwrapMcpContentEnvelope(data.result);
+      const output = unwrapMcpContentEnvelope(data.result);
+      // Only an unwrapped MCP envelope can correlate against the bridge's saved content digest.
+      if (!options.delegatedResultMarkers || !isRecord(output) || !Array.isArray(output.content)) return output;
+      return { ...output, content: [delegatedResultMarker({ toolUseId }), ...output.content] };
     },
   };
 }

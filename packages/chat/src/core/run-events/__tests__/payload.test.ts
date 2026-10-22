@@ -30,6 +30,16 @@ describe("translateRunAgentPayload — text and thinking deltas", () => {
 });
 
 describe("translateRunAgentPayload — tool lifecycle", () => {
+  test("reads old inline images and new media-only events after a saved JSON round trip", () => {
+    const image = { type: "image", mimeType: "image/png", data: "ORIGINAL_PIXELS" };
+    const legacy = { type: "tool_result", toolUseId: "old", content: JSON.stringify({ content: [image] }), media: [image] };
+    const current = { type: "tool_result", toolUseId: "B", content: '{"content":[]}', media: [image] };
+    const echo = { type: "tool_result", toolUseId: "C", content: "Result shown by delegated call B.", delegatedToolUseId: "B" };
+    const [oldEvent, saved, note] = JSON.parse(JSON.stringify([legacy, current, echo]));
+    expect(translateRunAgentPayload(oldEvent)).toEqual({ kind: "tool_result", toolUseId: "old", content: legacy.content, isError: false, media: [image] });
+    expect(translateRunAgentPayload(saved)).toEqual({ kind: "tool_result", toolUseId: "B", content: '{"content":[]}', isError: false, media: [image] });
+    expect(translateRunAgentPayload(note)).toEqual({ kind: "tool_result", toolUseId: "C", content: echo.content, isError: false });
+  });
   test("tool_use carries id, name, and the raw input value through untouched", () => {
     const input = { path: "/posts/1" };
     const translated = translateRunAgentPayload({ type: "tool_use", id: "t1", name: "open_post", input });
