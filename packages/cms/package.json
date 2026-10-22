@@ -34,6 +34,7 @@
       "./widgets/page-embed-types": "universal",
       "./widgets/html/html-embeds": "node",
       "./widgets/html/gallery-render": "universal",
+      "./widgets/date-label": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/node": "node",
@@ -247,6 +248,11 @@
       "types": "./dist/widgets/html/gallery-render.d.ts",
       "import": "./dist/widgets/html/gallery-render.js",
       "default": "./dist/widgets/html/gallery-render.js"
+    },
+    "./widgets/date-label": {
+      "types": "./dist/widgets/date-label.d.ts",
+      "import": "./dist/widgets/date-label.js",
+      "default": "./dist/widgets/date-label.js"
     },
     "./navigation/types": {
       "types": "./dist/navigation/types.d.ts",
