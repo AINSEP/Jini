@@ -159,7 +159,11 @@ export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
  */
 const IDENTITY_USER_LIST_MAX = 200;
 
-function requireIdentityCatalogEntry(toolId: string): IdentityAgentToolDefinition {
+/**
+ * Catalog lookup that fails loudly on drift between a handler's tool id and the published catalog.
+ * Exported for this module's tests only — the package entry does not re-export it.
+ */
+export function requireIdentityCatalogEntry(toolId: string): IdentityAgentToolDefinition {
   const entry = CATALOG_BY_ID.get(toolId);
   if (!entry) throw new Error(`agent-tool-registrations: catalog has no entry named '${toolId}' — @jini-ai/user-management/server catalog drifted`);
   return entry;
@@ -189,14 +193,18 @@ function requireIdentityCatalogEntry(toolId: string): IdentityAgentToolDefinitio
  * handler states which fields it is relying on, and a schema/handler disagreement throws at the
  * boundary naming the field.
  */
-interface ValidatedIdentityInput {
+export interface ValidatedIdentityInput {
   /** A field the tool's published `inputSchema` marks `required`. @throws {Error} If absent. */
   req(field: string): string;
   /** A field the schema leaves optional. `undefined` means the caller omitted it. */
   opt(field: string): string | undefined;
 }
 
-function identityInput(toolId: string, input: unknown): ValidatedIdentityInput {
+/**
+ * Parses `input` against `toolId`'s published schema and returns the split required/optional reader.
+ * Exported for this module's tests only — the package entry does not re-export it.
+ */
+export function identityInput(toolId: string, input: unknown): ValidatedIdentityInput {
   const entry = requireIdentityCatalogEntry(toolId);
   const parsed = parseIdentityToolInput({ schema: entry.inputSchema, input });
   if (!parsed.ok) {
