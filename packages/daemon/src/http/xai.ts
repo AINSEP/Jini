@@ -294,17 +294,28 @@ function redactError(error: unknown): Error {
   return new Error(redactSecrets({ input: message }));
 }
 
-async function persistToken(resolved: ResolvedXaiHttpDeps, tokenResp: OAuthTokenResponse): Promise<void> {
+/**
+ * Maps a token-endpoint response onto the persisted record. Pure (the save instant is a parameter)
+ * so the mapping is testable on its own. `token_type` is optional on the wire type; today's
+ * exchange path always supplies it (openid-client rejects a response without one), and an absent
+ * value is stored as RFC 6750's `Bearer`. Exported for this module's tests; not re-exported.
+ */
+export function toStoredOAuthToken({ tokenResp, nowMs }: { tokenResp: OAuthTokenResponse; nowMs: number }): StoredOAuthToken {
   const stored: StoredOAuthToken = {
     accessToken: tokenResp.access_token,
     tokenType: tokenResp.token_type ?? 'Bearer',
-    savedAt: Date.now(),
+    savedAt: nowMs,
   };
   if (tokenResp.refresh_token) stored.refreshToken = tokenResp.refresh_token;
   if (tokenResp.scope) stored.scope = tokenResp.scope;
   if (typeof tokenResp.expires_in === 'number') {
-    stored.expiresAt = Date.now() + tokenResp.expires_in * 1000;
+    stored.expiresAt = nowMs + tokenResp.expires_in * 1000;
   }
+  return stored;
+}
+
+async function persistToken(resolved: ResolvedXaiHttpDeps, tokenResp: OAuthTokenResponse): Promise<void> {
+  const stored = toStoredOAuthToken({ tokenResp, nowMs: Date.now() });
   await setStoredOAuthToken({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName, token: stored });
 }
 

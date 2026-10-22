@@ -15,6 +15,7 @@ import {
 } from '@jini-ai/agent-runtime';
 import {
   registerXaiRoutes,
+  toStoredOAuthToken,
   xaiAuthStatusRoute,
   xaiOauthCancelRoute,
   xaiOauthCompleteRoute,
@@ -452,6 +453,20 @@ describe('xaiOauthCompleteRoute — non-Error failures and token defaults', () =
 // ---------------------------------------------------------------------------
 // POST /api/xai/oauth/cancel
 // ---------------------------------------------------------------------------
+
+describe('toStoredOAuthToken', () => {
+  it('maps every token-endpoint field, deriving the absolute expiry from the save instant', () => {
+    expect(toStoredOAuthToken({
+      tokenResp: { access_token: 'atk', token_type: 'DPoP', refresh_token: 'rtk', scope: 'openid', expires_in: 60 },
+      nowMs: 1_000,
+    })).toEqual({ accessToken: 'atk', tokenType: 'DPoP', savedAt: 1_000, refreshToken: 'rtk', scope: 'openid', expiresAt: 61_000 });
+  });
+
+  it('stores a response without token_type as Bearer and omits the fields the server left out', () => {
+    expect(toStoredOAuthToken({ tokenResp: { access_token: 'atk' }, nowMs: 5 }))
+      .toEqual({ accessToken: 'atk', tokenType: 'Bearer', savedAt: 5 });
+  });
+});
 
 describe('xaiOauthCancelRoute', () => {
   it('parse requires no input', () => {
