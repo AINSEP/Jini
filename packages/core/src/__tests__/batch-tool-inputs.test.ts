@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  applyBatchInputs, batchDescriptorFor, batchOutcomeFor, DEFAULT_MAX_BATCH_ITEMS, withBatchInput,
+  applyBatchInputs, batchDescriptorFor, batchEligibilityFor, batchOutcomeFor, DEFAULT_MAX_BATCH_ITEMS, defaultBatchableTools, withBatchInput,
 } from '../batch-tool-inputs.js';
 import { ToolInputError } from '../tool-input-errors.js';
 import type { ToolExecutionContext, ToolHandler, ToolRegistration } from '../tool-registry.js';
@@ -256,5 +256,43 @@ describe('batchOutcomeFor', () => {
 
   it('counts only object items with ok:false as failures', () => {
     expect(batchOutcomeFor({ output: { batch: true, results: [null, 'x', { ok: true }] } })).toBe('completed');
+  });
+});
+
+describe('default-on batching', () => {
+  const objectSchema = (required: string[] = []) => ({ type: 'object', properties: { id: { type: 'string' } }, required });
+  const tool = (id: string, inputSchema: unknown, readOnly?: boolean) =>
+    registrationWith({ descriptor: { id, inputSchema: inputSchema as never, ...(readOnly === undefined ? {} : { readOnly }) } });
+
+  it.each([
+    ['a read-by-id tool', tool('get', objectSchema(['id']), true), 'batchable'],
+    ['a mutating tool with no required input', tool('touch', objectSchema(), false), 'batchable'],
+    ['a read-only list or search', tool('list', objectSchema(), true), 'list-read'],
+    ['a read-only tool whose required is not a list', tool('odd', { ...objectSchema(), required: 'id' }, true), 'list-read'],
+    ['a tool that already takes items', tool('menu', { type: 'object', properties: { items: { type: 'array' } } }), 'takes-items'],
+    ['a tool with no object schema', tool('raw', undefined), 'no-object-schema'],
+    ['a schema with no properties object', tool('bare', { type: 'object' }), 'no-object-schema'],
+  ])('classifies %s', (_label, registration, expected) => {
+    expect(batchEligibilityFor({ registration })).toBe(expected);
+  });
+
+  it('reports an opted-out tool before inspecting its schema', () => {
+    expect(batchEligibilityFor({ registration: tool('raw', undefined) }, { optOut: new Set(['raw']) })).toBe('opted-out');
+  });
+
+  it('lists every eligible tool in order, merges host settings, and never revives an ineligible one', () => {
+    const registrations = [
+      tool('get', objectSchema(['id']), true), tool('list', objectSchema(), true),
+      tool('deploy', objectSchema(['id'])), tool('tombstone', objectSchema(['id'])),
+    ];
+    const tools = defaultBatchableTools({ registrations }, {
+      optOut: [{ toolId: 'deploy', reason: 'leaves the site' }],
+      settings: [{ toolId: 'tombstone', maxItems: 100 }, { toolId: 'list', maxItems: 100 }],
+    });
+    expect(tools).toEqual([{ toolId: 'get' }, { toolId: 'tombstone', maxItems: 100 }]);
+  });
+
+  it('batches every eligible tool when the host names no opt-outs or settings', () => {
+    expect(defaultBatchableTools({ registrations: [tool('get', objectSchema(['id']), true)] })).toEqual([{ toolId: 'get' }]);
   });
 });

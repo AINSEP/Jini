@@ -1,5 +1,5 @@
 /** Shared sequential batching. Each merged item re-enters the invoking executor's gates. */
-import { createToolRegistry, type ToolHandler, type ToolRegistration } from './tool-registry.js';
+import { createToolRegistry, isReadOnlyTool, type ToolHandler, type ToolRegistration } from './tool-registry.js';
 import { ToolInputError } from './tool-input-errors.js';
 import { canonicalizeToolInputKeys, normalizeToolInput, withNormalizationNotes } from './tool-input-normalization.js';
 
@@ -252,4 +252,58 @@ export function applyBatchInputs(
     const tool = byId.get(registration.descriptor.id);
     return tool ? withBatchInput({ registration, tool }) : registration;
   });
+}
+
+/** A tool a host keeps single-call by default, with the one-line reason a reviewer reads. */
+export interface BatchOptOut {
+  readonly toolId: string;
+  readonly reason: string;
+}
+
+/** Why a registration is, or is not, batched by default. */
+export type BatchEligibility = 'batchable' | 'opted-out' | 'takes-items' | 'no-object-schema' | 'list-read';
+
+/**
+ * The default-on batch rule: every read-by-id and mutating tool takes `items` unless its host
+ * opts it out. Structural exclusions need no host entry: a tool with no object schema cannot take
+ * `items`, one that already has an `items` field would be shadowed by it, and a read-only tool with
+ * no required input (a list or search) has no per-item target to batch.
+ *
+ * @param required.registration - The registration to classify.
+ * @param optional.optOut - Host-owned tool ids kept single-call.
+ * @returns The first matching reason, or `batchable`.
+ * @complexity O(1) plus the schema's top-level `required` list; no effects.
+ */
+export function batchEligibilityFor(
+  { registration }: { registration: ToolRegistration },
+  { optOut = new Set<string>() }: { optOut?: ReadonlySet<string> } = {},
+): BatchEligibility {
+  const schema = registration.descriptor.inputSchema as ObjectSchema | undefined;
+  if (optOut.has(registration.descriptor.id)) return 'opted-out';
+  if (!isPlainObject(schema) || !isPlainObject(schema.properties)) return 'no-object-schema';
+  if (Object.hasOwn(schema.properties, 'items')) return 'takes-items';
+  const hasRequired = Array.isArray(schema.required) && schema.required.length > 0;
+  return hasRequired || !isReadOnlyTool({ descriptor: registration.descriptor }) ? 'batchable' : 'list-read';
+}
+
+/**
+ * Every registration {@link batchEligibilityFor} classifies as batchable, as {@link BatchableTool}
+ * entries. A host's per-tool `settings` (a raised `maxItems`, item defaults, item validation) are
+ * merged over the default entry; a settings entry never makes an ineligible tool batchable.
+ *
+ * @param required.registrations - The assembled registration list.
+ * @param optional.optOut - Host-owned tools kept single-call, each with its reason.
+ * @param optional.settings - Host-owned per-tool batch settings.
+ * @returns The batchable tools, in registration order.
+ * @complexity O(r + o + s) for r registrations, o opt-outs and s settings entries.
+ */
+export function defaultBatchableTools(
+  { registrations }: { registrations: readonly ToolRegistration[] },
+  { optOut = [], settings = [] }: { optOut?: readonly BatchOptOut[]; settings?: readonly BatchableTool[] } = {},
+): BatchableTool[] {
+  const optedOut = new Set(optOut.map((entry) => entry.toolId));
+  const settingsById = new Map(settings.map((tool) => [tool.toolId, tool]));
+  return registrations
+    .filter((registration) => batchEligibilityFor({ registration }, { optOut: optedOut }) === 'batchable')
+    .map((registration) => settingsById.get(registration.descriptor.id) ?? { toolId: registration.descriptor.id });
 }
