@@ -23,8 +23,11 @@ export function classifyIpAddress({ ip }: { ip: string }, _options: Record<strin
   // Kept as a real fail-closed guard (defense-in-depth against a future
   // change to either parser) rather than asserted away, so it stays
   // provably-unreachable-but-intentional instead of a forced test.
-  if (isIP(ip) === 0) return 'reserved';
-  return classifyAddressLiteral({ address: ip }) ?? 'reserved';
+  // Both rejections (Node's `isIP` and the shared classifier) funnel into one
+  // fail-closed default, so the `reserved` fallback is the single place an
+  // unclassifiable literal lands — exercised by every invalid input.
+  const addressClass = isIP(ip) === 0 ? null : classifyAddressLiteral({ address: ip });
+  return addressClass ?? 'reserved';
 }
 
 /** True for loopback, link-local, private, CGNAT, ULA, multicast or unspecified; invalid input fails closed. */
