@@ -8,6 +8,7 @@ export * from "./concurrency.js";
 export * from "./ports.js";
 export * from "./host-ports.js";
 export * from "./page-embed-types.js";
+export * from "./date-label.js";
 export * from "./authorize-helper.js";
 export * from "./where-used.js";
 export * from "./read-service.js";

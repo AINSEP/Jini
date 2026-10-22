@@ -37,6 +37,7 @@ import type { PageEmbedType } from "./page-embed-types.js";
 import type { WidgetRegionBindingRepoPort } from "./ports.js";
 import { resolveWidgetType } from "./resolvers/index.js";
 import { WIDGET_AREA_CONTENT_TYPE, WIDGET_CONTENT_TYPE } from "./types.js";
+import { resolveSiteTimeZoneSafely, type SiteTimeZonePort } from "./date-label.js";
 import type {
   WidgetInstanceView,
   WidgetPlacementNode,
@@ -367,6 +368,12 @@ export interface ResolveHtmlPageEmbedsDeps extends WidgetInstanceResolutionDeps 
    * an image exactly as it always has — this is additive, not a behavior change for images.
    */
   readonly mediaContentTypeStore?: MediaContentTypeStorePort;
+  /**
+   * The site's zone (Bug D, 2026-10-22). When present, every `"post-content"` IR carries it as
+   * `props.timeZone` so the host renders the header's date label as the site's calendar day; absent
+   * leaves the props exactly as before (the host then renders UTC).
+   */
+  readonly siteTimeZone?: SiteTimeZonePort;
   /**
    * Template-preview pending-body fix (2026-08-12) — an explicitly-passed, per-call override for
    * exactly one entity id's content, consulted ONLY by {@link resolveContentTypeEmbeds}. Lets
@@ -978,11 +985,12 @@ async function resolvePostContentRenderContext(
   bodyJson: JsonObject,
   context: WidgetResolveContext
 ): Promise<JsonObject> {
-  const [mediaContext, widgetContext] = await Promise.all([
+  const [mediaContext, widgetContext, timeZone] = await Promise.all([
     resolvePostContentMediaContext(deps, bodyJson, context),
     resolvePostContentWidgetContext(deps, bodyJson, context),
+    deps.siteTimeZone ? resolveSiteTimeZoneSafely({ workspaceId: context.workspaceId }, { siteTimeZone: deps.siteTimeZone }) : undefined,
   ]);
-  return { ...mediaContext, ...widgetContext };
+  return { ...mediaContext, ...widgetContext, ...(timeZone === undefined ? {} : { timeZone }) };
 }
 
 /**

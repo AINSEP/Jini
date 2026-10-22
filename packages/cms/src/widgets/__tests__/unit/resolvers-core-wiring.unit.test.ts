@@ -107,3 +107,19 @@ test("a resolver that drops an instance from its result yields resolver-error fo
   assert.equal(results.get("kept")?.ok, true);
   assert.deepEqual(results.get("dropped"), { ok: false, reason: "resolver-error" });
 });
+
+test("an injected siteTimeZone reaches recent-entries date labels (Bug D); without one they stay UTC", async () => {
+  const row = {
+    id: "e1", workspaceId: "ws-1", type: "post", slug: "e1", status: "published" as const, title: "E1", bodyJson: null, fieldsJson: null,
+    publishedAt: "2026-03-04T07:30:00.000Z", createdAt: "2026-03-01T00:00:00.000Z", updatedAt: "2026-03-04T07:30:00.000Z", version: 1,
+  };
+  const entryList = { listByWorkspace: unexpected, listPublishedForDisplay: unexpected, listByWorkspaceExcludingTypes: async () => [row] };
+  const widget: WidgetInstanceView = { id: "w-recent", widgetType: "recent-entries", config: {} };
+  const label = async (overrides: Partial<CoreResolverDeps>) => {
+    const result = (await createCoreResolvers(deps({ entryList, ...overrides }))["recent-entries"]!.resolveMany([widget], CTX)).get("w-recent");
+    assert.ok(result?.ok);
+    return result.ir.children![0]!.props.dateLabel;
+  };
+  assert.equal(await label({ siteTimeZone: { resolveTimeZone: async () => "America/Los_Angeles" } }), "Mar 3, 2026");
+  assert.equal(await label({}), "Mar 4, 2026");
+});

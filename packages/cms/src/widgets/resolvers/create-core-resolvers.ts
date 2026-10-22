@@ -7,6 +7,7 @@ import { createGalleryWidgetResolver } from "./gallery.js";
 import { createContactFormResolver } from "./contact-form.js";
 import { createMenuResolver } from "./menu.js";
 import { createRecentEntriesResolver, type ContentTypeLookup } from "./recent-entries.js";
+import type { SiteTimeZonePort } from "../date-label.js";
 
 /**
  * @file Assembles the real, DI'd v1 dynamic resolvers against real infrastructure deps.
@@ -36,12 +37,14 @@ export interface CoreResolverDeps {
   /** R1 addition — resolves a `collection` config's target content type. See `recent-entries.ts`'s
    * `ContentTypeLookup` for why this is its own narrow port rather than `ContentTypeRepoPort`. */
   contentTypes: ContentTypeLookup;
+  /** The site's zone for `recent-entries` date labels (Bug D); absent renders UTC. */
+  siteTimeZone?: SiteTimeZonePort;
 }
 
 export function createCoreResolvers(deps: CoreResolverDeps, _optional: Record<string, never> = {}): Partial<Record<WidgetTypeKey, WidgetResolver>> {
   return {
     gallery: createGalleryWidgetResolver({ resolveMedia: deps.galleryMedia ?? (async () => new Map()) }),
-    "recent-entries": createRecentEntriesResolver({ collectionList: deps.collectionList, entryList: deps.entryList, contentTypes: deps.contentTypes }),
+    "recent-entries": createRecentEntriesResolver({ collectionList: deps.collectionList, entryList: deps.entryList, contentTypes: deps.contentTypes, ...(deps.siteTimeZone === undefined ? {} : { siteTimeZone: deps.siteTimeZone }) }),
     menu: createMenuResolver({ menus: deps.menus, navMenuReadModel: deps.navMenuReadModel, ...(deps.resolveMenuTargetHref === undefined ? {} : { resolveTargetHref: deps.resolveMenuTargetHref }), publicOnly: true }),
     "contact-form": createContactFormResolver({ formDefinitionRepo: deps.formDefinitionRepo }),
   };
