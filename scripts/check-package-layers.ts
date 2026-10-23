@@ -21,13 +21,8 @@ const layers: Readonly<Record<string, number>> = {
   ui: 5, admin: 5,
   // Commerce composes CMS authorization and UI through opt-in entries; SI keeps its root isolated.
   server: 6, sqlite: 6, infra: 6, commerce: 6,
-  // Private bundled provider workspace; published packages cannot depend on this L6 artifact.
-  'charts-recharts': 6,
-  // A payment provider plugin sits above commerce: it imports only the commerce kernel entry.
-  'payments-stripe': 7,
 };
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
-const privateArtifacts: ReadonlySet<string> = new Set(['charts-recharts']);
 
 // Reviewed feature owners expose these contracts/catalogs without dispatch or service code.
 // Manifest declarations permit installation; each production import still needs its exact leaf/file.
@@ -109,10 +104,7 @@ export function checkPackageLayers(
       && spec !== '@jini-ai/platform/net/endpoint-policy') {
       violations.push({ rule: 'L2-browser-platform', file, reason: `${reason}: only the isomorphic fetch-with-timeout and literal endpoint-policy entries are allowed` });
     }
-    // Registered private artifacts bundle their development inputs instead of publishing imports.
-    const buildDependency = privateArtifacts.has(owner) && pkg.manifest.private === true
-      && pkg.manifest.devDependencies?.[`@jini-ai/${target}`] !== undefined;
-    if (sourcePath !== undefined && !buildDependency && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
+    if (sourcePath !== undefined && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
       && !pkg.manifest.peerDependencies?.[`@jini-ai/${target}`]) {
       violations.push({ rule: 'L3-undeclared-edge', file, reason: `${reason}: production import must be a dependency or peerDependency` });
     }
@@ -122,9 +114,6 @@ export function checkPackageLayers(
   }
   for (const pkg of packages) {
     const manifestFile = relative(root, join(pkg.directory, 'package.json')).split('\\').join('/');
-    if (privateArtifacts.has(pkg.manifest.name.slice('@jini-ai/'.length)) && pkg.manifest.private !== true) {
-      violations.push({ rule: 'L0-private-artifact', file: manifestFile, reason: 'registered build artifact must remain private' });
-    }
     if (layers[pkg.manifest.name.slice('@jini-ai/'.length)] === undefined) {
       violations.push({ rule: 'L0-unlisted-package', file: manifestFile, reason: 'package missing from the approved layer table' });
     }

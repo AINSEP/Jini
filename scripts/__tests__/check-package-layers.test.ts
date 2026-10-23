@@ -95,7 +95,7 @@ describe.each([
   });
 });
 
-describe('private chart-provider build artifact', () => {
+describe('production dependency declarations', () => {
   let root: string;
 
   function write(required: { file: string; content: string }, _options: Record<string, never> = {}): void {
@@ -105,53 +105,22 @@ describe('private chart-provider build artifact', () => {
   }
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'jini-artifact-layer-test-'));
-    write({ file: 'packages/charts-recharts/package.json', content: JSON.stringify({
-      name: '@jini-ai/charts-recharts', private: true, devDependencies: { '@jini-ai/ui': '*' },
-    }) });
+    root = mkdtempSync(join(tmpdir(), 'jini-production-layer-test-'));
     write({ file: 'packages/ui/package.json', content: JSON.stringify({ name: '@jini-ai/ui' }) });
   });
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-  it('permits the private artifact to bundle its declared UI development inputs', () => {
-    write({ file: 'packages/charts-recharts/src/mount.tsx', content:
-      "import { Spec } from '@jini-ai/ui/charts'; import { Host } from '@jini-ai/ui/charts/browser';" });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
-  });
-
-  it.each([false, undefined])('requires the artifact to remain private: %s', privateFlag => {
-    write({ file: 'packages/charts-recharts/package.json', content: JSON.stringify({
-      name: '@jini-ai/charts-recharts', private: privateFlag,
-    }) });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
-      rule: 'L0-private-artifact', file: 'packages/charts-recharts/package.json',
-      reason: 'registered build artifact must remain private',
-    }]);
-  });
-
-  it.each(['charts-recharts', 'commerce'])('rejects undeclared production inputs in %s', owner => {
+  it('rejects undeclared production inputs', () => {
+    const owner = 'commerce';
     write({ file: `packages/${owner}/package.json`, content: JSON.stringify({
       name: `@jini-ai/${owner}`, private: true,
-      devDependencies: owner === 'commerce' ? { '@jini-ai/ui': '*' } : {},
+      devDependencies: { '@jini-ai/ui': '*' },
     }) });
     write({ file: `packages/${owner}/src/input.ts`, content: "import { Spec } from '@jini-ai/ui/charts';" });
     expect(checkPackageLayers({ repoRoot: root })).toEqual([{
       rule: 'L3-undeclared-edge', file: `packages/${owner}/src/input.ts`,
       reason: `${owner} → @jini-ai/ui/charts: production import must be a dependency or peerDependency`,
     }]);
-  });
-
-  it('keeps a published composition package from depending on the private artifact', () => {
-    write({ file: 'packages/server/package.json', content: JSON.stringify({
-      name: '@jini-ai/server', dependencies: { '@jini-ai/charts-recharts': '*' },
-    }) });
-    write({ file: 'packages/server/src/provider.ts', content: "import { mount } from '@jini-ai/charts-recharts';" });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([
-      { rule: 'L1-layer-edge', file: 'packages/server/package.json',
-        reason: 'server → @jini-ai/charts-recharts: L6 cannot depend on L6' },
-      { rule: 'L1-layer-edge', file: 'packages/server/src/provider.ts',
-        reason: 'server → @jini-ai/charts-recharts: L6 cannot depend on L6' },
-    ]);
   });
 });
 
