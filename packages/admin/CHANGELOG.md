@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.6.10
+
+### Patch Changes
+
+- e27fa91: Removed the `./server` export subpath. It held only the Composio integration, which moves back
+  out — now `@jini-ai/integrations/composio`, a subpath of `@jini-ai/integrations`
+  (`packages/integrations/`; see that package's own changeset for the full history). `jini.entries`
+  drops its `"./server": "node"` entry, and the `@jini-ai/protocol` devDependency (which existed only
+  for composio's type-only `JsonValue` references) is removed. No other consumer imported
+  `@jini-ai/admin/server` — nothing else needs an import-path change.
+- cc33cf1: Folded `@jini-ai/composio` into `@jini-ai/admin` as a `./server` subpath, and retired the package.
+
+  Composio's only consumer is the admin surface, so a standalone package was a boundary that bought
+  nothing — the same reasoning that retired `@jini-ai/ui-core` into `@jini-ai/ui/core`. All 11 source
+  files and 8 test files move as-is; no production logic changed.
+
+  It lands under `./server`, not `./core`, because it imports `node:fs`, `node:crypto`, and
+  `node:path`. `/core` is the framework-free, DOM-free, universal layer, and that property is what
+  makes it installable without React — it is not a general-purpose home for anything non-React.
+  `jini.entries` now reads `{".": universal, "./core": universal, "./browser": browser,
+"./server": node}`. `@jini-ai/protocol` becomes a **devDependency**: all seven references are
+  `import type { JsonValue }`, so admin's consumers pay nothing at runtime for this.
+
+  **Composio's tests had never been type-checked.** Its `tsconfig.json` set `include: ["src"]` while
+  its tests lived in a top-level `tests/` directory, so `tsc` never looked at them, and `vitest` does
+  not type-check. Twenty errors under `exactOptionalPropertyTypes: true` — a setting predating the
+  package — had been latent since its creation. Admin co-locates tests under `src/**/__tests__/`,
+  which `include: ["src"]` does cover, so the move surfaced them; it did not cause them. Nineteen
+  were mechanical fixture shapes. The twentieth was not: a `credentialStore.set` fixture in
+  `service.contract.test.ts` was missing `accountLabel` **on purpose**, simulating a persisted record
+  without one so the test could assert the resulting rejection path. "Fixing" it to satisfy the
+  compiler made the request match instead of mismatch and broke the test at runtime; it is now
+  preserved verbatim behind a documented assertion. No production type was widened to satisfy a
+  fixture. `src/server/**` keeps composio's own 100% coverage threshold via a scoped glob rather than
+  promoting it package-wide onto `/core` and `/browser`, which never carried it.
+
+  **`@jini-ai/composio` is retired, not versioned forward.** It was published (0.1.0, 0.2.0, 0.2.1 —
+  a longer public life than ui-core's single version), but has zero consumers: no source file,
+  package.json, or lockfile in either this repo or Tovu has ever referenced it, verified with a `-S`
+  pickaxe over full git history rather than current state alone. Deleting the source does **not**
+  unpublish anything — 0.2.1 stays installable and no existing build breaks — so a deprecation-stub
+  package was judged not worth keeping alive for a name nothing needs. Whoever runs the next release
+  should follow up against the registry with:
+
+  ```
+  npm deprecate @jini-ai/composio "Merged into @jini-ai/admin; import from '@jini-ai/admin/server' instead."
+  ```
+
+  One caution for anyone re-examining that consumer question later: composio's CHANGELOG for 0.2.1
+  says "Verified against a real external consumer (Tovu...)", which reads like direct evidence of a
+  dependency. It is not. That exact sentence appears verbatim in 23 other packages' CHANGELOGs — it
+  is boilerplate from a repo-wide `main`/`types` resolution fix that was batch-applied, not a
+  composio-specific claim.
+
+  Composio's `source-map.md` is carried forward to `src/server/source-map.md`. Its package-level
+  `UNLOCKED.md` is not: it tracked admission evidence for the locked/incubating gate removed
+  2026-07-28, and its one substantive point is covered in more detail by `source-map.md`. The root
+  `UNLOCKED.md`'s composio entry is deliberately left untouched as historical record, per that file's
+  own header.
+
+- 82ed2d3: Media, SEO and widgets require FetchQueryProvider. Successful media refreshes clear errors; editor reads request fresh versions. Remove redundant settings-loader/provider reads and limit media invalidation to the library. Retain the exported headless entry-picker controller as deprecated pending owner-approved removal.
+- ea8d883: Restore host media-prefix invalidation while isolating provider queries, and validate single-owner SEO form reads.
+- ea8d883: Skip cross-origin image HEAD probes, translate social image warnings through the SEO translator, and use the existing warning notice class.
+- 1c5d476: Hydrate reopened SEO forms from the fresh settings read through the shared query loader so cached default values cannot hide newer settings.
+
 ## 0.4.13 — 2026-10-22
 
 - 2026-10-22: Consent banner editor sections and preview, redirect list fixes, media lightbox via @jini-ai/ui, media provider tab fixes, coverage.
@@ -62,7 +127,7 @@
 
 ## Unreleased
 
-- Add portable Forms admin screens, HTTP/memory adapters and core-port conformance under ./forms*.
+- Add portable Forms admin screens, HTTP/memory adapters and core-port conformance under ./forms\*.
 - Add composable comments admin queue/settings module with HTTP and memory adapters and API conformance.
 - Add portable redirects admin module, React list, HTTP/memory adapters and API conformance.
 - Add portable SEO admin settings, sitemap viewer, entry overrides and analysis with HTTP/memory adapters and API conformance.
@@ -77,7 +142,6 @@
 - Replace the removed connector integration import guidance with host-owned connector ports. Keep the allowed React agentic helpers in their original package.
 
 - Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
-
 
 - Complete object-argument calls in Sidebar, RowMenu and ConfirmDialog, preserving
   preferences, routing, tone precedence, selection and agent handle behavior.

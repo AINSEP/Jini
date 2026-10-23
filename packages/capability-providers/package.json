@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/capability-providers",
-  "version": "0.4.2",
+  "version": "0.6.10",
   "description": "Swappable capability-provider ports (auth, storage, payments, db, realtime) as interfaces and DI tokens only; concrete adapters live behind ./adapters/* subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -112,7 +112,7 @@
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
     "ws": "^8.18.0",
-    "@jini-ai/platform": "^0.5.1"
+    "@jini-ai/platform": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.10
+
+### Patch Changes
+
+- 82ed2d3: Members requires FetchQueryProvider. Await the authoritative roster refresh before reporting a completed disable, and restore settlement rationale beside the keyed panel/loading logic.
+- ea8d883: Preserve successful member-disable state and detail when the follow-up roster read fails.
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.3.4 — 2026-10-22
 
 - 2026-10-22: Named-argument identity guards, optional translate with a custom Users hook, cancellation kept across confirm-to-run, coverage.
@@ -76,7 +87,6 @@
 - Make `IdentityRepos.transactions` and registration transaction/token ports required.
 - Add `sessionTtlMs` and replaceable authentication messages options; preserve the 30-day default. Invalid lifetimes raise RangeError before persistence. Sessions retain required workspace scope because repositories require it.
 - Merge the job-specific test configuration into the existing config and rename its setup file.
-
 
 - Remove specification identifiers from admin safety errors and direct-grant tool text; authorization and ownership checks retain their behavior.
 

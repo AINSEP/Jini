@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-runtime",
-  "version": "0.4.12",
+  "version": "0.6.10",
   "description": "Coding-agent runtime adapters: runtime registry, detection, launch, stream parsers, and the ACP/pi-rpc subprocess transport.",
   "license": "Apache-2.0",
   "repository": {
@@ -115,7 +115,7 @@
     "@jini-ai/integrations": "workspace:^",
     "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/platform": "workspace:^",
-    "@jini-ai/core": "^0.4.0"
+    "@jini-ai/core": "^0.6.10"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
@@ -123,9 +123,9 @@
     "@jini-ai/protocol": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/integrations": "^0.4.2",
+    "@jini-ai/integrations": "^0.6.10",
     "@github/copilot-sdk": "*",
-    "@jini-ai/platform": "^0.5.5"
+    "@jini-ai/platform": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "@jini-ai/integrations": {

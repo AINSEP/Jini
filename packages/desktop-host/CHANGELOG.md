@@ -1,5 +1,14 @@
 # @jini-ai/desktop-host
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.4.3 — 2026-10-22
 
 - 2026-10-22: Native Electron URL capture and private loopback render bridge, security fixes, coverage.
@@ -31,7 +40,6 @@
 - Accept native Electron navigation and electron-updater callback ABIs directly. Keep the existing object registrations as union members (`LegacyNavigableContents`, `LegacyUpdaterLike`) while hosts remove their glue.
 - Controller clocks use core `Clock`, with the legacy `now` callback retained. Export `createElectronUpdaterAdapter`, `createNodeUpdateTimers`, `defaultUpdateMessages` and `defaultUpdateTiming`. Node timers and reference timing/copy are defaults; hosts may override them in parameter two. Reference timeout values are unchanged.
 
-
 ### Desktop host integration
 
 - Publish `./electron/usability`, `./speech`, and `./speech/macos` alongside
@@ -49,7 +57,6 @@
   Add package integration contracts and adapt the generalized characterization
   fixtures without changing their behavioral assertions.
 - No version or dependency changes. Verification is not run by owner directive.
-
 
 - Add `./shutdown`, `./electron/navigation-policy`, `./electron/updates`, and
   `./node-toolchain` with required input objects and injected host ports. Updates

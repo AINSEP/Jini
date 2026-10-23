@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [0ca4d2a]
+- Updated dependencies [b2f0fa8]
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [ea8d883]
+- Updated dependencies [9098d22]
+- Updated dependencies [5a3de86]
+  - @jini-ai/cms@0.6.10
+  - @jini-ai/core@0.6.10
+
 ## 0.2.3 — 2026-10-05
 
 - `submitForm` takes an optional `transaction` port (`SubmissionTransactionPort`): the submission row and its `form.submission.received` event are written inside it, so a failed enqueue rolls the row back instead of leaving a stored submission that never notifies. Dispatch starts only after it commits. Without the port the two writes run back to back, as before.
@@ -35,7 +49,6 @@
 
 - Use core runtime/JSON/ID/time types and `Pick<Logger, 'warn'>`; structured warning error data is passed in argument two.
 - Pass notification subscriptions as `{ eventName, handler }` and change-set insertion as `{ record, items }, { event }`.
-
 
 - Restore independent empty `fieldErrors` defaults for message-only field and
   submission validation errors.

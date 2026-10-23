@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/payments-stripe",
-  "version": "0.1.0",
+  "version": "0.6.10",
   "description": "Stripe payment provider plugin for the @jini-ai/commerce payments kernel: PaymentIntents, partial refunds, manual capture, void, retrieve and signed webhooks over the host's HttpClientPort.",
   "license": "Apache-2.0",
   "repository": {

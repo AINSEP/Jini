@@ -1,5 +1,92 @@
 # @jini-ai/ui
 
+## 0.6.10
+
+### Patch Changes
+
+- 72ea04d: Folded `@jini-ai/renderers-react` into `@jini-ai/ui` as an independently-importable, tree-shakeable
+  `./renderers` subpath, and retired the package.
+
+  Real (non-comment) imports of `@jini-ai/renderers-react` anywhere in the repo were exactly 3 files,
+  2 symbols, all inside `@jini-ai/ui`'s own `features/html-viewer` — `openSandboxedPreviewInNewTab`
+  and `useSandboxBridge`. `@jini-ai/ui` was already the package's only real consumer, so a standalone
+  package bought nothing, the same reasoning that folded `@jini-ai/ui-core` into `./core` and
+  `@jini-ai/composio` into `@jini-ai/admin`. The whole `src/**` tree (registry, renderers, srcDoc
+  host, annotation-canvas, preview-modal-shell, i18n) moves to `packages/ui/src/renderers/` as one
+  `git mv`, unchanged in shape; `html-viewer`'s two consumers switch from the package-qualified
+  import to a relative one, since they're now in the same package.
+
+  **The `@jini-ai/renderers-react → @jini-ai/chat` dependency was dropped first, before the move,
+  not after.** `registry.ts` imported `ArtifactManifest`/`inferLegacyManifest` from `@jini-ai/chat`,
+  and `types.ts` re-exported five manifest types from there. `@jini-ai/chat` already depends on
+  `@jini-ai/ui`, so folding renderers-react into `ui` unchanged would have created a real `ui ↔ chat`
+  package cycle. The five manifest types (`ArtifactManifest`, `ArtifactKind`, `ArtifactRendererId`,
+  `ArtifactExportKind`, `ArtifactStatus`) are now defined locally in `types.ts`, copied verbatim from
+  `@jini-ai/chat`'s `src/core/util/types.ts` — a small duplicated-type cost, accepted because a
+  renderer package must not depend on a chat package.
+
+  **`resolveArtifactManifest` no longer infers a legacy manifest from a file's name/extension** — a
+  real, disclosed API behavior change. It now returns `file.manifest ?? null`. Manifest inference
+  (guessing kind/renderer from `.md`/`.html`/`.svg`/`.tsx`, etc.) is a caller concern that depends on
+  a product's own naming conventions, not something a generic renderer registry should do on a
+  caller's behalf; a caller that still wants that inference should resolve a manifest for the file
+  itself (see `@jini-ai/chat`'s `inferLegacyManifest`) before handing it to this registry. Verified
+  zero external callers of `RendererRegistry`/`resolveArtifactManifest`/`createDefaultRendererRegistry`
+  anywhere in Jini or Tovu before making this change — `@jini-ai/chat`'s own `RendererRegistry` is an
+  unrelated, locally-defined class in `artifact-types.ts`, and `@jini-ai/artifacts`' own
+  `resolveArtifactManifest` is an unrelated 3-argument function; both are same-name coincidences, not
+  real dependents. The four bundled renderers (`HtmlRenderer`, `MarkdownRenderer`, `SvgRenderer`,
+  `ReactComponentRenderer`) gate `canRender` on a resolvable manifest before falling back to any
+  `file.kind`/extension heuristic of their own, so this ripples into every test that exercised
+  default-registry routing via a bare file name with no explicit `manifest` — all updated to attach
+  one, with the extension-inference-specific assertions flipped to assert the removed behavior no
+  longer fires. No test was weakened or deleted: every changed assertion now tests the new,
+  documented contract, or restores a manifest to keep testing what it always meant to test.
+
+  **`@jini-ai/renderers-react` is retired, not versioned forward.** It was published (0.1.2), and
+  `packages/renderers-react` is deleted from this workspace. Deleting the source does not unpublish
+  anything, so whoever runs the next release should follow up with:
+
+  ```
+  npm deprecate @jini-ai/renderers-react "Merged into @jini-ai/ui; import from '@jini-ai/ui/renderers' instead."
+  ```
+
+  `@jini-ai/chat`'s dead `@jini-ai/renderers-react` dependency (declared, never imported — its own
+  `react/artifact-types.ts` defines a local placeholder registry instead, per its
+  `TODO(renderers-react)` header, left untouched here as out of scope) is removed from its
+  `package.json`, hence the accompanying patch bump.
+
+- 4082999: Folded `@jini-ai/ui-core` into `@jini-ai/ui` as an independently-importable `./core` subpath.
+
+  `ui-core` was never a standalone concern — it was always the framework-free half (types, decision
+  rules, catalogs, host port contracts; no React, no DOM) of `@jini-ai/ui`'s own features, published
+  separately only because that pairing was undiscoverable without reading both trees side by side.
+  All 13 `ui-core` features move to their same-named `@jini-ai/ui` feature directory, alongside the
+  React half they were always paired with; `@jini-ai/ui/core` (`src/core.ts`) is the new entry point
+  that re-exports exactly what `@jini-ai/ui-core`'s own root barrel did. `react`/`react-dom` move
+  from required to optional peer dependencies (`peerDependenciesMeta`, matching `@jini-ai/admin`'s
+  existing `./core`/`./browser` split) so `./core` stays importable without installing React. The
+  no-DOM guard `ui-core`'s own `vitest.config.ts` provided by never configuring a `jsdom` environment
+  is now enforced by `environmentMatchGlobs` over the (unchanged) centralized `src/__tests__/`
+  subtree that used to be `ui-core`'s whole test suite, so a DOM-dependent test landing there still
+  fails loudly instead of silently inheriting this package's `jsdom` default.
+
+  **`@jini-ai/ui-core` is retired, not versioned forward.** `packages/ui-core` is deleted from this
+  workspace; nothing else in it depended on the package name directly (only on `@jini-ai/ui`, which
+  already re-exported everything ui-core had). It had no confirmed external consumers, so a
+  deprecation-stub package was judged not worth the ongoing maintenance of keeping a zombie package
+  alive and published indefinitely for a name nothing currently needs. It was still published
+  (`0.1.2`, `publishConfig.access: public`), so it is not silently orphaned: whoever runs the next
+  release should follow up with `npm deprecate @jini-ai/ui-core "Merged into @jini-ai/ui; import from
+'@jini-ai/ui/core' instead."` against the npm registry.
+
+- 82ed2d3: Remove private fetch-query shims and point deprecated public type re-exports directly at core. Memory wired hooks require MemoryPortsProvider; deprecated REST/demo singletons remain explicit compatibility bindings pending a breaking-release removal.
+- ea8d883: Remove obsolete fetch-query build shims and replace prose checks with runtime and type contract coverage.
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.5.6 — 2026-10-22
 
 - 2026-10-22: MCP-UI question cards follow dark hosts, optional useCachedLoader fetch, trust options, html-editor fallbacks removed, coverage.
@@ -81,7 +168,6 @@
 - Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
 - BREAKING: replace package-local clock contracts with core Clock.nowMs().
 
-
 ### UI parity fixes
 
 - Keep replacement writes successful when an older read rejects, including their freshness timestamp.
@@ -121,7 +207,6 @@
 - `RendererRegistry` creation/registration and manifest resolution use named objects; optional
   resolution hints move to the second object, including the renderer matching port.
 - Canvas chrome attributes change to `data-jini-*`; hosts selecting the old attributes must update.
-
 
 - Add generic admin widgets with opt-in `@jini-ai/ui/admin-widgets.css`, using the existing
   `--jini-*` tokens with standalone fallbacks. `TabBar` joins the existing `tab-strip` feature

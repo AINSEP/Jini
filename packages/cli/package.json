@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cli",
-  "version": "0.4.2",
+  "version": "0.6.10",
   "description": "CLI transport shell for driving a Jini daemon over HTTP: flag parsing, daemon-URL resolution, local daemon discovery, and a pluggable command registry.",
   "license": "Apache-2.0",
   "repository": {
@@ -68,8 +68,8 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/platform": "^0.5.1",
-    "@jini-ai/sidecar": "^0.4.0"
+    "@jini-ai/platform": "^0.6.10",
+    "@jini-ai/sidecar": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "@jini-ai/platform": {

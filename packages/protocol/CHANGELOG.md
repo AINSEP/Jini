@@ -1,3 +1,9 @@
+## 0.6.10
+
+### Patch Changes
+
+- 3fe4d14: Add optional delegated tool-result correlation metadata and the shared v1 marker codec. Existing wire payloads remain valid.
+
 ## 0.4.5 — 2026-10-22
 
 - 2026-10-22: decodeApiError reads legacy and canonical error envelopes, flat server error message, agent-plugin usage events.
@@ -27,7 +33,6 @@
 - BREAKING: Remove `JsonPrimitive`/`JsonValue` declarations and re-exports from protocol.
   Import JSON types from `@jini-ai/core/primitives` instead. No compatibility aliases.
 
-
 - Reject resolved registry verification metadata unless verified is explicitly true, and clarify
   MCP content-array forwarding in the human-surface isolation rationale. Regression tests are
   written, not run (owner directive).
@@ -46,7 +51,7 @@
 ### BREAKING
 
 - Convert existing helpers to required argument objects: `createApiError({ code,
-  message }, optionalArgs)`, `createApiErrorResponse({ error })`,
+message }, optionalArgs)`, `createApiErrorResponse({ error })`,
   `isTerminalRunState({ state })`, `encodeRunContextRef({ payload })`, and
   `decodeRunContextRef({ contextRef })`. Names and wire payloads are unchanged;
   positional compatibility adapters are not provided.

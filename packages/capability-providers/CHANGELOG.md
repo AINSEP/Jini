@@ -1,5 +1,23 @@
 # @jini-ai/capability-providers
 
+## 0.6.10
+
+### Patch Changes
+
+- e1b5b52: Add the universal `@jini-ai/capability-providers/visitor-auth` subpath for public-site
+  visitor/social login. It exposes provider-neutral Google, Facebook, and LinkedIn configuration
+  metadata, an extensible definition registry, typed host ports, and pure OAuth/OIDC state, nonce,
+  and PKCE lifecycle decisions.
+
+  The subpath deliberately ships no provider SDK or working provider adapter. Client secrets remain
+  opaque host-owned references, transaction persistence must be tenant-scoped and one-time, and
+  identity/session creation stays in the consuming application's authorization boundary.
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.4.2 — 2026-10-22
 
 - 2026-10-22: Comments provider registry and ports; storage contracts marked as views of ObjectStore.
@@ -34,7 +52,6 @@
   DB port/adapter conversion remains reserved for the active DB lane.
 - Make Stripe Basic auth work without Node Buffer and inject its fallback timestamp clock.
   Strengthen package-wide production-source neutrality checks. Verification deferred by owner directive.
-
 
 - **BREAKING:** Convert the clean existing public APIs and provider methods to required argument objects plus separate optional settings. Inject transport, time, identity and filesystem dependencies through ports. No compatibility wrappers or version bump. Conversion of pre-existing dirty source files and their coupled APIs is deferred; see API-CONVERSION.md.
 

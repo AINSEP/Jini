@@ -1,3 +1,82 @@
+## 0.6.10
+
+### Patch Changes
+
+- 3fe4d14: Parse optional delegated-result markers while preserving the CLI call id and original content for daemon validation.
+
+  Require the co-released protocol package at runtime for its shared marker codec, replacing the optional protocol peer. The workspace dependency follows the protocol release version when Changesets versions the release set.
+
+- aad3d2e: Add the optional `onUnexposedToolCall` refusal hook to `runProviderToolTurn` for all four
+  provider protocols. Hosts can await audit writes and supply uniform refusal text without
+  calling the normal tool executor. Results remain errors; omitted hooks and `undefined`
+  replies preserve the existing refusal text and protocol formatting. Hook failures propagate
+  without falling through to execution.
+- 8ff5653: Drive Antigravity (`agy`) — the 24th and last agent definition `AgentExecutor` rejected.
+
+  `AgentExecutor` drove 23 of 24 registered definitions. Antigravity was rejected by an explicit
+  `def.id === 'antigravity'` guard, for two reasons that are real but narrow:
+
+  - **`agy` can print an OAuth sign-in URL to stdout and still exit 0.** Streaming stdout live shows
+    that URL to the user as if it were the model's reply — a URL that carries the daemon operator's
+    `client_id`/`redirect_uri` into a chat transcript, and that is useless to click anyway (`agy -p`
+    print mode has no field to paste the resulting auth code into).
+  - **`agy` has no `--model` flag.** The model choice is written into one process-global
+    `~/.gemini/antigravity-cli/settings.json` that `agy` reads on its own startup, so two concurrent
+    runs race: run A writes model A, A spawns, B writes model B, and only _then_ does A's `agy` read
+    the file — so A silently executes on B's model.
+
+  Both are now met by **declarative `RuntimeAgentDef` fields the executor reads generically**, joining
+  the 14 optional behavior flags (`promptViaFile`, `authProbe`, …) that already work this way. There is
+  no agent-id branch anywhere in the dispatch path — a deliberate divergence from Open Design's own
+  daemon, which hardcodes the id twice.
+
+  New on `@jini-ai/agent-runtime`'s `RuntimeAgentDef`:
+
+  - `needsAgentLogFile?: boolean` — asks the caller to stage a temp path and pass it as
+    `RuntimeContext.agentLogFilePath` before `buildArgs` runs, mirroring `promptViaFile`. Staged by the
+    new `prepareAgentLogFile(def, label)` (the sibling of `preparePromptFileForAgent`; it creates only
+    the `0o700` containing directory, since the log file is output the CLI authors, not input we do).
+  - `stdoutPolicy?: RuntimeStdoutPolicy` — `{buffering: 'live'}` (the default, and every other
+    definition's behavior) or `{buffering: 'until-close', sanitize?}`. A discriminated union rather
+    than two flat fields on purpose: a sanitizer is only meaningful on the buffered path, because the
+    pattern to redact can straddle two `'data'` chunks. Two independent flags would let a definition
+    declare a sanitizer the caller could not honor — a confidentiality gap that _looks_ closed.
+  - `runtimeLock?: RuntimeLock` — a mutex around a process-global side effect `buildArgs` performs.
+    Acquired before `buildArgs`, released on whichever of `waitForHandoff` settling or process exit
+    comes first. Releasing on exit is load-bearing, not a fallback: a watcher that stops polling means
+    "I stopped watching", never "the child definitely didn't read the file".
+
+  All three are stripped from the `DetectedAgent` registry projection. They instruct whoever _spawns_
+  the CLI, not whoever lists agents — and two carry closures, which `JSON.stringify` would flatten into
+  a misleading `{"buffering":"until-close"}` / `{}` rather than omit.
+
+  In `@jini-ai/daemon`, `AgentExecutor` now stages a log file when `needsAgentLogFile` is set (released
+  on every pre-spawn, spawn-failure, and close path alongside the prompt file, through one composed
+  `cleanupStagedFiles` closure), calls `runtimeLock.acquire()` before `buildArgs`, and branches its
+  `streamFormat: 'plain'` stdout handling on `stdoutPolicy`. `assessAgentExecutorCompatibility` no
+  longer rejects anything by id, and `isAgentExecutorSupported` now accepts all 24 definitions.
+
+  **No behavior change for any other agent.** Antigravity is the only definition declaring any of the
+  three fields; the other four `streamFormat: 'plain'` definitions (`grok-build`, `aider`, `deepseek`,
+  `qwen`) keep streaming live, per chunk, which `aider`'s and `deepseek`'s own comments call out as
+  deliberate. That is pinned by an explicit regression test rather than left implied.
+
+  One thing worth knowing if you consume the run event stream: on the buffered path the raw `'stdout'`
+  echo is held back and sanitized too, not just the `'agent'`/`text_delta` copy. Emitting an
+  unsanitized raw echo while withholding the chat copy would leak the exact string the sanitizer exists
+  to remove to any subscriber. The opt-in byte journal still records raw bytes per chunk — that is its
+  documented contract, and it deliberately lives in a separate `EventLog` instance that is never
+  replayed to run-event subscribers.
+
+- e16a907: Add optional adapter-owned usageCostBasis metadata; Claude declares that its reported dollars are cumulative within a session.
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [3fe4d14]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+  - @jini-ai/protocol@0.6.10
+  - @jini-ai/oauth@0.6.10
+
 ## 0.4.12 — 2026-10-22
 
 - 2026-10-22: Probe-gated chromeIntegration build option, declarative supportsSubagents, network-capture and asset-harvest fixes, coverage.
@@ -66,7 +145,6 @@
 - Remove runtime classifier/redactor exports and local implementations. Import hostname policies from `@jini-ai/platform/net` and `redactSecrets({ input }, { exactSecrets })` from core. Conservative masking keeps model/request identifiers and uses categorized markers; diagnostics never opt into opaque-run masking.
 - Model catalog clocks use core `Clock.nowMs()`; ACP unknown-value records are named `UnknownRecord`, not JSON objects.
 - Callback payload caches use the main bounded store while retaining exclusive TTL and unref timer behavior. Neutralize host-settings wording and host identity comments. Drop the conversion report from published files; the document remains for later relocation.
-
 
 - Preserve host environment customization after CLI housekeeping; correct the hook documentation.
 - Keep DNS resolver injection required and reject lookup failures or empty answers instead of allowing unpinned fallback.

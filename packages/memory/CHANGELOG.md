@@ -1,5 +1,7 @@
 # @jini-ai/memory
 
+## 0.6.10
+
 ## 0.4.2 — 2026-10-22
 
 - 2026-10-22: BREAKING: integrations dependency dropped; callers pass the provider endpoint (config.baseUrl). Security fixes, coverage.
@@ -25,7 +27,6 @@
   safety and disk formats. Expose note helpers and new port/input types from the root barrel.
 - Existing root export remains Node; add matching `jini.entries` metadata. No new subpaths,
   dependencies or version bump. Verification deferred by owner directive.
-
 
 - **BREAKING:** Convert the clean existing public APIs and provider methods to required argument objects plus separate optional settings. Inject transport, time, identity and filesystem dependencies through ports. No compatibility wrappers or version bump. Conversion of pre-existing dirty source files and their coupled APIs is deferred; see API-CONVERSION.md.
 

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.4.8",
+  "version": "0.6.10",
   "description": "Support for Agent Plugins, the open, vendor-neutral spec (v1.0.0, published 2026-08-06; v1.1.0 and later 1.x manifests are also accepted; Technical Steering Committee with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel) for bundling Agent Skills and MCP servers into one portable directory: PluginManifest/McpManifest types + structural validators on the package root, plus the bundled plugins themselves, each on a subpath named for itself (./ui-ux-design). Extracted 2026-08-18 from @jini-ai/plugins, which now only reserves the unrelated, unimplemented ./host format.",
   "license": "Apache-2.0",
   "repository": {
@@ -127,8 +127,8 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "yazl": "^3.3.1",
-    "@jini-ai/core": "^0.4.2",
-    "@jini-ai/platform": "^0.5.0",
+    "@jini-ai/core": "^0.6.10",
+    "@jini-ai/platform": "^0.6.10",
     "@cfworker/json-schema": "^4.1.1",
     "@jini-ai/plugins": "workspace:^",
     "@types/semver": "^7.5.8",
@@ -136,8 +136,8 @@
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
-    "@jini-ai/core": "^0.4.9",
-    "@jini-ai/platform": "^0.5.3",
+    "@jini-ai/core": "^0.6.10",
+    "@jini-ai/platform": "^0.6.10",
     "@cfworker/json-schema": "^4.1.1",
     "semver": "^7.6.2"
   },

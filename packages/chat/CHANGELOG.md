@@ -1,3 +1,127 @@
+## 0.6.10
+
+### Patch Changes
+
+- f9d9894: Hide recovered tool failures when tool calls are hidden. Keep unrecovered failures in one compact, localized disclosure per reply, preserving their existing details.
+- 8ff5653: Make the chat-pane transcript readable from outside the component — a must-have for an AI (or an
+  e2e harness) verifying that commands it gave the pane (create a form, add a user, change a
+  permission) actually happened.
+
+  Before this, `<ChatPane>` fully encapsulated its conversation state: `useConversation()`'s
+  `messages` never left the component, `ChatPaneProps` had no callback that reported the live message
+  list, and the rendered transcript (`MessageList`/`MessageRow`/`ToolCard`) carried zero
+  `data-agent-element` tags — unlike every other interactive surface in this app's reference pages.
+
+  - `ChatPaneProps.onMessagesChange?: (messages: ChatMessage[]) => void` — fires with the full message
+    array on every change, mirroring the existing `onActivityChange` pattern. Each `ChatMessage`
+    already carries its `events` array (`tool_use`/`tool_result`), so a subscriber gets complete,
+    structured tool-call data for free — no DOM parsing needed.
+  - `data-agent-element="chat-transcript"` (role `list`) on the message-list container, and
+    `data-agent-element="chat-message-<id>"` (role `region`) on every message row, so `page.*` DOM
+    tools can enumerate the transcript the same way they read everything else in this app.
+  - `ToolCard` now wraps whatever it renders (any of its dozen built-in card variants, or a host's own
+    custom-registered renderer) in one `data-agent-element="tool-call-<use.id>"` (role `region`)
+    element — added at the single dispatch point every branch already funnels through, so no
+    individual card variant's own markup changed. The collapsed-by-default accordion detail (args/
+    result JSON) sits inside this tagged element, not gated behind expanding it: `textContent` (what
+    the `page.*` DOM driver actually reads) is layout-agnostic, so the full detail is readable whether
+    or not anything has been clicked open.
+
+- 3fe4d14: Add compatibility regression fixtures for legacy inline image results, media-only saved events and delegated echo notes; runtime behavior is unchanged.
+- 8ff5653: Add `createDaemonAttachmentUploader`, so composer drag-and-drop is one line instead of 160.
+
+  `ChatPane` has always gated its drop target and file picker on `uploadAttachments` being supplied — but
+  supplying it meant writing the client half yourself: a bounded-concurrency worker pool that preserves
+  input order, per-turn quota accounting, abort and timeout plumbing, and cleanup of files that already
+  landed when a later one fails. Every host would write the same ~160 lines, and the ordering and
+  cleanup details are exactly the ones that get skipped.
+
+  ```tsx
+  <ChatPane
+    transport={transport}
+    uploadAttachments={createDaemonAttachmentUploader(daemonUrl)}
+  />
+  ```
+
+  That talks to `@jini-ai/http-kit`'s `POST`/`DELETE /api/attachments`. Pass `''` when a dev-server proxy
+  already forwards `/api` from the page's own origin. `maxAttachmentBytes`, `maxAttachmentCount`,
+  `maxBatchBytes`, `timeoutMs`, and `concurrency` are all configurable and all default to the daemon side's
+  own limits, so the client's early rejection matches what the daemon would have said anyway.
+
+  Client-side quotas are a courtesy, never the boundary — telling a user their 400 MB video is too large
+  before the browser streams it, not after. The daemon re-derives every one of them.
+
+  Two behavioral notes for anyone porting hand-rolled code onto this:
+
+  - **The request always sends `content-type: application/octet-stream`**, not `file.type`. The daemon
+    sniffs the real kind from the bytes and ignores the header, so forwarding the browser's guess buys
+    nothing — and breaks real uploads: a dropped `.json` file arrives as `application/json`, which an
+    app-wide `express.json()` on the daemon then claims, draining the request stream before the upload
+    route can read a byte.
+  - **Batch accounting is per uploader instance**, not module-global, so two panes pointed at two daemons
+    cannot consume each other's per-turn quota. Reservations are rolled back on failure, so a retry of a
+    failed turn is not refused for quota it never actually used.
+
+- 72ea04d: Folded `@jini-ai/renderers-react` into `@jini-ai/ui` as an independently-importable, tree-shakeable
+  `./renderers` subpath, and retired the package.
+
+  Real (non-comment) imports of `@jini-ai/renderers-react` anywhere in the repo were exactly 3 files,
+  2 symbols, all inside `@jini-ai/ui`'s own `features/html-viewer` — `openSandboxedPreviewInNewTab`
+  and `useSandboxBridge`. `@jini-ai/ui` was already the package's only real consumer, so a standalone
+  package bought nothing, the same reasoning that folded `@jini-ai/ui-core` into `./core` and
+  `@jini-ai/composio` into `@jini-ai/admin`. The whole `src/**` tree (registry, renderers, srcDoc
+  host, annotation-canvas, preview-modal-shell, i18n) moves to `packages/ui/src/renderers/` as one
+  `git mv`, unchanged in shape; `html-viewer`'s two consumers switch from the package-qualified
+  import to a relative one, since they're now in the same package.
+
+  **The `@jini-ai/renderers-react → @jini-ai/chat` dependency was dropped first, before the move,
+  not after.** `registry.ts` imported `ArtifactManifest`/`inferLegacyManifest` from `@jini-ai/chat`,
+  and `types.ts` re-exported five manifest types from there. `@jini-ai/chat` already depends on
+  `@jini-ai/ui`, so folding renderers-react into `ui` unchanged would have created a real `ui ↔ chat`
+  package cycle. The five manifest types (`ArtifactManifest`, `ArtifactKind`, `ArtifactRendererId`,
+  `ArtifactExportKind`, `ArtifactStatus`) are now defined locally in `types.ts`, copied verbatim from
+  `@jini-ai/chat`'s `src/core/util/types.ts` — a small duplicated-type cost, accepted because a
+  renderer package must not depend on a chat package.
+
+  **`resolveArtifactManifest` no longer infers a legacy manifest from a file's name/extension** — a
+  real, disclosed API behavior change. It now returns `file.manifest ?? null`. Manifest inference
+  (guessing kind/renderer from `.md`/`.html`/`.svg`/`.tsx`, etc.) is a caller concern that depends on
+  a product's own naming conventions, not something a generic renderer registry should do on a
+  caller's behalf; a caller that still wants that inference should resolve a manifest for the file
+  itself (see `@jini-ai/chat`'s `inferLegacyManifest`) before handing it to this registry. Verified
+  zero external callers of `RendererRegistry`/`resolveArtifactManifest`/`createDefaultRendererRegistry`
+  anywhere in Jini or Tovu before making this change — `@jini-ai/chat`'s own `RendererRegistry` is an
+  unrelated, locally-defined class in `artifact-types.ts`, and `@jini-ai/artifacts`' own
+  `resolveArtifactManifest` is an unrelated 3-argument function; both are same-name coincidences, not
+  real dependents. The four bundled renderers (`HtmlRenderer`, `MarkdownRenderer`, `SvgRenderer`,
+  `ReactComponentRenderer`) gate `canRender` on a resolvable manifest before falling back to any
+  `file.kind`/extension heuristic of their own, so this ripples into every test that exercised
+  default-registry routing via a bare file name with no explicit `manifest` — all updated to attach
+  one, with the extension-inference-specific assertions flipped to assert the removed behavior no
+  longer fires. No test was weakened or deleted: every changed assertion now tests the new,
+  documented contract, or restores a manifest to keep testing what it always meant to test.
+
+  **`@jini-ai/renderers-react` is retired, not versioned forward.** It was published (0.1.2), and
+  `packages/renderers-react` is deleted from this workspace. Deleting the source does not unpublish
+  anything, so whoever runs the next release should follow up with:
+
+  ```
+  npm deprecate @jini-ai/renderers-react "Merged into @jini-ai/ui; import from '@jini-ai/ui/renderers' instead."
+  ```
+
+  `@jini-ai/chat`'s dead `@jini-ai/renderers-react` dependency (declared, never imported — its own
+  `react/artifact-types.ts` defines a local placeholder registry instead, per its
+  `TODO(renderers-react)` header, left untouched here as out of scope) is removed from its
+  `package.json`, hence the accompanying patch bump.
+
+- 0c247a8: Fix visitor chat streaming announcements, resumed focus, frame batching, persistence and lazy mount/retry handling. Document the additive A2uiSurfaceCard registry prop for host validation and rendering.
+- e16a907: Clear floating-point noise in displayed costs, reconcile resumed counter resets and revisited sessions, and expose reported output tokens to assistive technology.
+- ea8d883: Release modal semantics when focus leaves chat, announce bounded rendered reply text, and retry opening without reloading mounted assets.
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.6.7 — 2026-10-22
 
 - 2026-10-22: Memory fixes (durable run store reads its own row, ledger parses events once), shared settings segmented control, Slack token rule restored, coverage.
@@ -118,7 +242,6 @@
 - Correct renderer priority and opt-in stylesheet documentation; retain the layout rationale with neutral provenance.
 - BREAKING: replace the local finalizer Clock with core Clock.nowMs(); core/React helpers and ext-event slot-key callbacks take required objects.
 
-
 - BREAKING: ChatStore methods use required argument objects; paging options move to the second bag. ChatHistoryMaintenance and ChatStoreFactory follow the same convention.
 - BREAKING: SQLite/Postgres/PGlite factories use core `Clock` through `{ clock }` rather than `{ now }`; system-time defaults and SQL behavior are preserved.
 
@@ -208,5 +331,6 @@
   - @jini-ai/agentic@0.1.1
 
 ### C2 storage ownership
+
 - Added `./store/legacy` and `./store/legacy/sqlite`; preserved sync local project chat CRUD and schema.
 - Retained the original owner-isolation suite on the concern adapter after draining the old package.

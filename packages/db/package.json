@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/db",
-  "version": "0.3.6",
+  "version": "0.6.10",
   "description": "Database ports, connection helpers, ownership, isolated Kysely kernels and migrations. All peers are optional; drivers are injected.",
   "license": "Apache-2.0",
   "repository": {
@@ -206,7 +206,7 @@
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
-    "@jini-ai/platform": "^0.5.6"
+    "@jini-ai/platform": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {

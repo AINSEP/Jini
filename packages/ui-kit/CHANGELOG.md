@@ -1,5 +1,7 @@
 # @jini-ai/ui-kit
 
+## 0.6.10
+
 ## 0.1.5 — 2026-10-22
 
 - 2026-10-22: Complexity refactors, coverage.

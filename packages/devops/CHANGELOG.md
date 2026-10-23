@@ -1,11 +1,22 @@
 # @jini-ai/devops
 
+## 0.6.10
+
+### Patch Changes
+
+- ea8d883: Preserve positional array-binding holes in hardwiring debt identities.
+- e16a907: Stabilize hardwiring finding identities, reject parse errors, accept injected env defaults, and share installed-public-export inventory and debt adapters.
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
 
 ## 0.5.6 — 2026-10-22
 
 - 2026-10-22: node:dns authoritative resolver (./dns/node), IPv6 canonicalization and RRset checks in DNS verification, coverage.
 
 - `./dns` (new): generic DNS contract kernel, lots D1–D3. RRset record model (structured MX/CAA, TXT 255-byte chunking, ALIAS, proxy flags, provider alias targets); `DnsProvider` with `capabilities.automatic`; pure `planDnsChanges` (preserve-by-default, only conflicting address records change, SPF merge never adds a second `v=spf1`, blockers for CNAME coexistence, apex CNAME without flattening, CAA excluding the target CA, partial/unknown inventory = zero changes) + sha-256 `fingerprintPlan`; `checkDelegation` (NS); authoritative-nameserver `verifyRequirements` with propagated/pending/mismatch/unknown and 30s→10min backoff, 48h cap; approval binding to workspace + provider account + zone + expiry (deletes human-only, apex/MX/delete non-rememberable); built-in `manual` provider with copyable instructions and delegated-subzone lookup; `createDnsProviderRegistry` on the shared provider registry. Apply engine/journal, vendor extraction = later lots.
+
 ## 0.5.5 — 2026-10-16
 
 - Static export crawls `<video poster>` images and reports what it dropped (0de2f161).

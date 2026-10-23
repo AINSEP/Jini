@@ -1,10 +1,13 @@
 # Changelog
 
+## 0.6.10
+
 ## 0.4.8 — 2026-10-22
 
 - 2026-10-22: Provider contributions refuse failures by default (core peer floor ^0.4.9), durable update transaction for operator-installed plugins, coverage.
 
 - `./lifecycle`: `defineProviderContribution()` wraps `defineExecutablePluginContribution` so a bundled plugin can contribute a provider for `@jini-ai/core/provider-registry` (id checked before import), and `contributeProviders()` merges loader and registry refusals. Needs `@jini-ai/core` with `./provider-registry`: the peer range is raised to `^0.4.9` (the first core release carrying that subpath), so release core 0.4.9 before this. Without recovery policies, an unreadable manifest, a throwing module/validator/parser or a hostile descriptor is now a refusal line (never a throw), so one broken plugin no longer discards the healthy contributions loaded with it.
+
 ## Unreleased — compatibility and advisory requirements
 
 - Uses `semver`, the same library as site plugins (`@jini-ai/plugins` checks `sdkRange` with
@@ -87,7 +90,6 @@
   rationale alongside the canonical implementations; move the URL-install real-HTTP/ZIP
   integration suite into the package and add paired metadata-translation regression cases.
 
-
 ## Unreleased — lifecycle test compilation
 
 - Preserve copied test timeouts and conditional skips through Vitest registration.
@@ -114,7 +116,6 @@
 - Shared ownership checks bind token and inode/device; release preserves failed critical-section errors.
 - Native liveness treats only ESRCH as death; unknown probe failures never authorize stale-owner eviction.
 - Archive-error specification now matches safe generic transport/body causes and redacted URL diagnostics.
-
 
 ## Unreleased
 
