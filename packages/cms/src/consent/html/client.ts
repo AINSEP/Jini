@@ -198,6 +198,10 @@ export const CONSENT_CLIENT = String.raw`(function () {
     saveQueue = pending.catch(function () {});
     return pending;
   }
+  function formAction(form) {
+    // Named action buttons shadow form.action; preserve native resolution against the document base.
+    return new URL(form.getAttribute('action'), document.baseURI).href;
+  }
   function reconciliationBody(form) {
     // A cookie is only a denial limit. Never replay its serialized body or manufacture grants.
     var data = new URLSearchParams();
@@ -213,7 +217,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
     var retry = withdrawal.retry;
     if (retry) {
       try {
-        var result = await save(banner.querySelector('form').action, reconciliationBody(banner.querySelector('form')));
+        var result = await save(formAction(banner.querySelector('form')), reconciliationBody(banner.querySelector('form')));
         choices = restrict(choices, result.record.choices);
         syncForm(banner);
         signal('update', signalsFor(choices));
@@ -249,7 +253,9 @@ export const CONSENT_CLIENT = String.raw`(function () {
       banner.querySelector('[data-jini-consent-error]').hidden = true;
       await serializeSave(async function () {
         try {
-          var result = await save(form.action, data);
+          var result = await save(formAction(form), data);
+          choices = result.record.choices;
+          syncForm(banner);
           clearWithdrawal();
           signal('update', result.signals);
           window.location.reload();
