@@ -86,7 +86,15 @@ describe('MessageRow toolCallDisplay', () => {
     expect(cardTitles()).toHaveLength(2);
     expect(cardTitles()[0]).toContain('alpha');
     expect(cardTitles()[1]).toContain('beta');
+    // Show reveals the existing cards; each card's own disclosure opens its result.
+    for (const name of ['alpha', 'beta']) {
+      const card = screen.getByRole('button', { name: new RegExp(name) });
+      expect(card).toHaveAttribute('aria-expanded', 'false');
+      await user.click(card);
+      expect(card).toHaveAttribute('aria-expanded', 'true');
+    }
     expect(screen.getAllByText('boom')).toHaveLength(2);
+    for (const error of screen.getAllByText('boom')) expect(error).toBeVisible();
     await user.click(show);
     expect(show).toHaveAttribute('aria-expanded', 'false');
     expect(cardTitles()).toHaveLength(0);
@@ -124,7 +132,11 @@ describe('MessageRow toolCallDisplay', () => {
     expect(cardTitles()).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Show' }));
     expect(cardTitles()).toHaveLength(1);
-    expect(screen.getByText('boom')).toBeInTheDocument();
+    const card = screen.getByRole('button', { name: /alpha/ });
+    expect(card).toHaveAttribute('aria-expanded', 'false');
+    await user.click(card);
+    expect(card).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('boom')).toBeVisible();
   });
 
   it.each([false, true])('hidden respects reply boundaries even with host-rewritten text (%s)', async (rewrite) => {
