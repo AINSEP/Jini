@@ -238,11 +238,6 @@ export const CONSENT_CLIENT = String.raw`(function () {
       });
     }
     syncForm(banner);
-    var preferences = document.getElementById('jini-consent-preferences');
-    banner.querySelector('[data-jini-do-not-sell]').addEventListener('click', function () {
-      preferences.open = true;
-      banner.querySelector('[data-jini-do-not-sell-button]').focus();
-    });
     banner.querySelector('form').addEventListener('submit', async function (event) {
       if (!event.submitter) return;
       event.preventDefault();

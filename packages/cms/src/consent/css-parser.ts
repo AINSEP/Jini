@@ -1,10 +1,10 @@
-/** A deliberately small CSS grammar: qualified rules containing declarations, with no nesting.
+/** A deliberately small CSS grammar: qualified rules, optionally inside width media queries.
  * Comments, strings and balanced functions are tokenized before structural punctuation is read.
  * The HTML resource scanner classifies remote URLs, not declarations/selectors; customization
  * needs this stricter grammar. Unknown CSS is rejected rather than repaired. */
 export interface ConsentCssToken { kind: 'text' | 'string' | 'symbol' | 'space'; value: string; offset: number }
 export interface ConsentCssDeclaration { property: string; value: string; offset: number }
-export interface ConsentCssRule { selector: string; declarations: ConsentCssDeclaration[]; offset: number }
+export interface ConsentCssRule { selector: string; declarations: ConsentCssDeclaration[]; offset: number; media?: string }
 
 export class ConsentCssSyntaxError extends Error {
   constructor(message: string, readonly offset: number) { super(message); }
@@ -97,20 +97,50 @@ function declaration({ tokens, state }: { tokens: ConsentCssToken[]; state: { cu
   return { property: property.toLowerCase(), value, offset };
 }
 
-/** Internal AST parser; the public compiler adds size/character and semantic allowlists.
- * At-rules and nested rules deliberately have no production in this grammar.
- * @throws ConsentCssSyntaxError for unsupported/malformed syntax. @complexity O(n) time/space. */
-export function parseConsentCss({ css }: { css: string }, _options = {}): ConsentCssRule[] {
-  const tokens = tokenize({ css });
-  const state = { cursor: 0 };
+type RuleInput = { tokens: ConsentCssToken[]; state: { cursor: number }; media?: string };
+
+/** Read one non-nested rule; the compiler validates every selector and declaration.
+ * @throws ConsentCssSyntaxError for unsupported syntax. @complexity O(consumed tokens). */
+function qualifiedRule({ tokens, state, media }: RuleInput, _options = {}): ConsentCssRule {
+  const offset = tokens[state.cursor]!.offset;
+  const selector = takeUntil({ tokens, state, delimiters: '{};@' });
+  if (!selector || tokens[state.cursor]?.value !== '{') throw new ConsentCssSyntaxError('Expected a scoped CSS rule.', offset);
+  state.cursor++;
+  return { selector, declarations: declarations({ tokens, state }), offset, ...(media === undefined ? {} : { media }) };
+}
+
+/** Width queries are the only supported at-rule; no imports, nested queries or feature rules.
+ * @throws ConsentCssSyntaxError for unsupported queries. @complexity O(consumed tokens). */
+function mediaRules({ tokens, state, media }: RuleInput, _options = {}): ConsentCssRule[] {
+  const offset = tokens[state.cursor]!.offset;
+  if (media !== undefined) throw new ConsentCssSyntaxError('Nested media queries are not supported.', offset);
+  state.cursor++;
+  const header = takeUntil({ tokens, state, delimiters: '{};@' });
+  const match = /^media\s*((?:screen\s+and\s+)?\((?:min|max)-width:\s*\d{1,4}(?:\.\d+)?px\)(?:\s+and\s+\((?:min|max)-width:\s*\d{1,4}(?:\.\d+)?px\))?)$/.exec(header);
+  if (!match || tokens[state.cursor]?.value !== '{') throw new ConsentCssSyntaxError('Only width @media queries are supported.', offset);
+  state.cursor++;
+  return ruleList({ tokens, state, media: match[1]! });
+}
+
+/** Flatten one level of media rules, preserving their conditions for safe emission.
+ * @throws ConsentCssSyntaxError for unclosed/nested blocks. @complexity O(consumed tokens). */
+function ruleList(input: RuleInput, _options = {}): ConsentCssRule[] {
+  const { tokens, state, media } = input;
   const rules: ConsentCssRule[] = [];
   while (state.cursor < tokens.length) {
-    const offset = tokens[state.cursor]!.offset;
-    const selector = takeUntil({ tokens, state, delimiters: '{};@' });
-    if (!selector && state.cursor === tokens.length) break;
-    if (!selector || tokens[state.cursor]?.value !== '{') throw new ConsentCssSyntaxError('Only flat scoped CSS rules are supported; at-rules are not allowed.', offset);
-    state.cursor++;
-    rules.push({ selector, declarations: declarations({ tokens, state }), offset });
+    const token = tokens[state.cursor]!;
+    if (token.kind === 'space') { state.cursor++; continue; }
+    if (token.value === '}' && media !== undefined) { state.cursor++; return rules; }
+    if (token.value === '@') { rules.push(...mediaRules(input)); continue; }
+    rules.push(qualifiedRule(input));
   }
+  if (media !== undefined) throw new ConsentCssSyntaxError('Unclosed media query.', tokens[state.cursor - 1]!.offset);
   return rules;
+}
+
+/** Internal AST parser; the compiler adds size/character, selector and declaration allowlists.
+ * @example parseConsentCss({ css: '@media(max-width:640px){#jini-consent{padding:12px}}' })
+ * @throws ConsentCssSyntaxError for unsupported/malformed syntax. @complexity O(n) time/space. */
+export function parseConsentCss({ css }: { css: string }, _options = {}): ConsentCssRule[] {
+  return ruleList({ tokens: tokenize({ css }), state: { cursor: 0 } });
 }

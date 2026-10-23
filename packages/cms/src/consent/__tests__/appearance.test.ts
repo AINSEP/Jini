@@ -34,7 +34,9 @@ describe('consent appearance and secondary policy link', () => {
     const dom = new JSDOM(render({ secondaryLinkLabel: '<Cookie policy>', secondaryLinkUrl: '/cookies?x=1&y=2' }));
     try {
       const links = [...dom.window.document.querySelectorAll('#jini-consent a')];
-      expect(links.map((link: { textContent: string }) => link.textContent)).toEqual(['Privacy policy', '<Cookie policy>', 'Do Not Sell or Share']);
+      expect(links.map((link: { textContent: string }) => link.textContent)).toEqual(['Privacy policy', '<Cookie policy>']);
+      expect(links[0].nextSibling.textContent).toBe(' · ');
+      expect(links[1].nextSibling.textContent.trim()).toBe('');
       expect(links[1].getAttribute('href')).toBe('/cookies?x=1&y=2');
       expect(dom.window.document.querySelector('cookie')).toBeNull();
     } finally { dom.window.close(); }
@@ -48,9 +50,54 @@ describe('consent appearance and secondary policy link', () => {
     const html = render({ secondaryLinkLabel: 'Secondary policy', secondaryLinkUrl });
     const dom = new JSDOM(html);
     try {
-      expect([...dom.window.document.querySelectorAll('a')].map((link: { textContent: string }) => link.textContent)).toEqual(['Privacy policy', 'Do Not Sell or Share']);
+      expect([...dom.window.document.querySelectorAll('a')].map((link: { textContent: string }) => link.textContent)).toEqual(['Privacy policy']);
       expect(dom.window.document.querySelector('script')).toBeNull();
     } finally { dom.window.close(); }
+  });
+  it.each([null, accepted])('renders one native no-sale submission control with record %s', record => {
+    const dom = new JSDOM(render({}, record));
+    try {
+      const document = dom.window.document;
+      const controls = [...document.querySelectorAll('#jini-consent button, #jini-consent a')]
+        .filter((control: { textContent: string }) => control.textContent === 'Do Not Sell or Share');
+      expect(controls).toHaveLength(1);
+      const button = controls[0];
+      expect(button.tagName).toBe('BUTTON');
+      expect(button.type).toBe('submit');
+      expect(button.id).toBe('jini-consent-do-not-sell');
+      expect(button.hasAttribute('data-jini-do-not-sell-button')).toBe(true);
+      expect(button.name).toBe('action');
+      expect(button.value).toBe('do-not-sell');
+      expect(button.form.getAttribute('method')).toBe('post');
+      expect(button.form.getAttribute('action')).toBe('/api/site-consent');
+      const preferences = document.querySelector('#jini-consent-preferences');
+      expect(preferences.tagName).toBe('DETAILS');
+      expect(preferences.open).toBe(record !== null);
+      expect(preferences.querySelector('summary').textContent).toBe(config.preferencesLabel);
+      expect(preferences.contains(button)).toBe(false);
+      expect([...document.querySelectorAll('.jini-consent-initial button')].map((action: { value: string }) => action.value)).toEqual(['reject', 'accept']);
+      expect(document.querySelector('[data-jini-do-not-sell]')).toBeNull();
+      expect(button.form.querySelectorAll('.jini-consent-category input')).toHaveLength(4);
+      expect(document.querySelector('#jini-consent').getAttribute('aria-label')).toBe('Cookie preferences');
+      expect(document.querySelector('[data-jini-consent-error]').getAttribute('role')).toBe('alert');
+    } finally { dom.window.close(); }
+  });
+  it('exposes the theme palette, equal-width action grid and reduced-motion contract', () => {
+    expect(CONSENT_CSS).toContain('--consent-bg:var(--jini-surface,var(--bg,Canvas))');
+    expect(CONSENT_CSS).toContain('--consent-fg:var(--jini-text,var(--fg,CanvasText))');
+    expect(CONSENT_CSS).toContain('--consent-border:var(--jini-border,var(--border,color-mix(');
+    expect(CONSENT_CSS).toContain('--consent-accent:var(--jini-accent,var(--accent,var(--consent-fg)))');
+    for (const token of ['button-bg', 'button-hover-bg', 'button-border']) {
+      expect(CONSENT_CSS).toContain(`--consent-${token}:color-mix(`);
+    }
+    expect(CONSENT_CSS).toContain('grid-template-columns:repeat(auto-fit,minmax(min(120px,100%),1fr))');
+    expect(CONSENT_CSS).not.toMatch(/button\[.*(?:accept|reject)/);
+    expect(CONSENT_CSS).toContain('@media(prefers-reduced-motion:reduce){.jini-consent,.jini-consent *{transition:none!important;animation:none!important}}');
+  });
+  it('uses full-contrast notice and legend text and a text-colored focus ring', () => {
+    expect(CONSENT_CSS).toMatch(/\.jini-consent p\{[^}]*color:inherit/);
+    expect(CONSENT_CSS).toMatch(/\.jini-consent legend\{[^}]*color:inherit/);
+    expect(CONSENT_CSS).toContain(':focus-visible{outline:3px solid currentColor;outline-offset:2px');
   });
   it('requires both secondary fields and safely preserves entity-looking local paths', () => {
     expect(render({ secondaryLinkUrl: '/cookies' })).not.toContain('href="/cookies"');
