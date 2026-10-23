@@ -10,6 +10,22 @@ const input = {
 };
 
 describe('readable question answers', () => {
+  it('resolves flat question option values in single and multiple answers, including saved raw receipts', () => {
+    const input = { question: 'How should we publish?', options: [
+      { value: 'embed', label: 'Embed the widget' }, { value: 'api', label: 'Use the API' },
+    ] };
+    expect(questionAnswerText({ input, answer: { choice: 'api' } })).toBe('Use the API');
+    expect(questionAnswerText({ input, answer: { selections: ['embed', 'api'] } })).toBe('Embed the widget, Use the API');
+    const saved: AgentEvent[] = [
+      { kind: 'tool_use', id: 'q', name: 'assistant_ask_choice', input },
+      acceptedInputUserEvent({ input: { id: 'receipt', text: 'api' }, toolUseId: 'q' }, { receipt: 'accepted' }),
+      { kind: 'tool_result', toolUseId: 'q', content: '{"submitted":true,"choice":"api"}', isError: false },
+    ];
+    const projected = projectAcceptedInputEvents({ events: saved });
+    expect(projected.flatMap(event => acceptedInputEvent({ event })?.data.text ?? [])).toEqual(['Use the API']);
+    expect(projectAcceptedInputEvents({ events: projected })).toEqual(projected);
+  });
+
   it('uses offered labels for both single and multiple selections', () => {
     expect(questionAnswerText({ input, answer: { choice: 'ucla', selections: ['events', 'news'] } })).toBe('A26 UCLA, Events, News');
   });

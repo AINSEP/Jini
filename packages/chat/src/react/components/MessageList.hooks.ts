@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type UIEvent } from 'react';
 import { conversationUsage } from '../../core/turn-usage.js';
+import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
 import type { ChatMessage } from '../../core/index.js';
 import { nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
 
@@ -23,7 +24,10 @@ const prefersReducedMotion = () =>
 
 /** Recompute costs once per immutable transcript snapshot, including saved history on reload. */
 export function useConversationUsage({ messages }: { messages: readonly ChatMessage[] }, _optional = {}) {
-  return useMemo(() => conversationUsage({ messages }), [messages]);
+  // Usage and rendering must see the same answer boundaries, including receipts rebuilt on reload.
+  return useMemo(() => conversationUsage({ messages: messages.map(message => message.events === undefined ? message : {
+    ...message, events: projectAcceptedInputEvents({ events: message.events }),
+  }) }), [messages]);
 }
 
 export function useMessageListAutoScroll(

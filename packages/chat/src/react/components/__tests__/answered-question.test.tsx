@@ -47,6 +47,21 @@ function bubbles(container: HTMLElement) {
 afterEach(() => clearExtEventRenderers());
 
 describe('answered questions in the transcript', () => {
+  it('keeps the final usage footer after the reply when a persisted answer adds a mid-run boundary', () => {
+    register();
+    const view = render(<MessageList messages={[{ ...message([
+      ...openEvents(), { kind: 'usage', costUsd: 0.25 }, result({ submitted: true, choice: 'ucla' }),
+      { kind: 'text', text: 'Theme activated.' }, { kind: 'usage', costUsd: 0.5 },
+    ]), content: 'Theme activated.' }]} />);
+    const lines = [...view.container.querySelectorAll('.jini-message-usage')];
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveTextContent('$0.25');
+    expect(lines[1]).toHaveTextContent('$0.50');
+    expect(screen.getByText('Theme activated.').compareDocumentPosition(lines[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bubbles(view.container)).toEqual(['A26 UCLA']);
+    expect(view.container.querySelector('.mcpui-surface-card-closed')).toHaveTextContent(`${question.title}: A26 UCLA`);
+  });
+
   it.each([
     { button: 'Choose A26', answer: { submitted: true, choice: 'ucla' }, expected: 'A26 UCLA' },
     { button: 'Decline question', answer: { submitted: false, reason: 'cancelled' }, expected: 'Declined' },
@@ -57,7 +72,7 @@ describe('answered questions in the transcript', () => {
     await waitFor(() => expect(bubbles(view.container)).toEqual([expected]));
     expect(execute).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: button })).toBeNull();
-    expect(view.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
+    expect(view.container.querySelector('.mcpui-surface-card-closed')).toHaveTextContent(question.title);
     expect(view.container.textContent).not.toContain('Waiting for your answer');
     const persisted: AgentEvent[] = JSON.parse(JSON.stringify([...openEvents(), result(answer)]));
     view.rerender(<MessageRow message={message(persisted)} />);
@@ -65,7 +80,7 @@ describe('answered questions in the transcript', () => {
     view.unmount();
     const reloaded = render(<MessageRow message={message(persisted)} />);
     expect(bubbles(reloaded.container)).toEqual([expected]);
-    expect(reloaded.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
+    expect(reloaded.container.querySelector('.mcpui-surface-card-closed')).toHaveTextContent(question.title);
   });
 
   it('shows typed answers once during acceptance, receipt replay, completion and reload', () => {
@@ -81,7 +96,7 @@ describe('answered questions in the transcript', () => {
     view.unmount();
     const reloaded = render(<MessageRow message={message(JSON.parse(JSON.stringify(persisted)))} />);
     expect(bubbles(reloaded.container)).toEqual(['My custom theme']);
-    expect(reloaded.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
+    expect(reloaded.container.querySelector('.mcpui-surface-card-closed')).toHaveTextContent(question.title);
   });
 
   it('replays older typed results without a separately journaled receipt', () => {
@@ -89,7 +104,7 @@ describe('answered questions in the transcript', () => {
     const view = render(<MessageRow message={message([...openEvents(), result({ submitted: true, freeText: '<b>Keep this literal</b>' })])} />);
     expect(bubbles(view.container)).toEqual(['<b>Keep this literal</b>']);
     expect(view.container.querySelector('.jini-message-user b')).toBeNull();
-    expect(view.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
+    expect(view.container.querySelector('.mcpui-surface-card-closed')).toHaveTextContent(question.title);
   });
 
   it('keeps the question interactive after failed delivery', async () => {

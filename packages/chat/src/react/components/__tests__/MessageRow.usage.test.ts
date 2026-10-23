@@ -2,8 +2,19 @@ import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import type { ChatUsageSummary } from '../../../core/turn-usage.js';
 import { usageLayout, usageLineMeetsActions, useUsageSummary } from '../MessageRow.usage.js';
+import { I18nContext } from '../../hooks/context.js';
+import { createElement, type ReactNode } from 'react';
 
 afterEach(cleanup);
+
+it.each([['en-US', '1,040'], ['de-DE', '1.040']])('uses readable output-token units and the %s locale', (locale, count) => {
+  const wrapper = ({ children }: { children: ReactNode }) => createElement(I18nContext.Provider, {
+    value: { locale, t: (key, vars) => key.replace('{n}', String(vars?.n)) }, children,
+  });
+  const { result } = renderHook(() => useUsageSummary({ usage: { kind: 'usage', outputTokens: 1040, durationMs: 1000 } }), { wrapper });
+  expect(result.current.title).toBe(`${count} output tokens`);
+  expect(result.current.ariaLabel).toBe(`Done · 1s · ${count} output tokens`);
+});
 
 const first: ChatUsageSummary = { kind: 'usage', costUsd: 0.25, totalCostUsd: 0.25 };
 const second: ChatUsageSummary = { kind: 'usage', costUsd: 0.5, totalCostUsd: 0.75 };
@@ -59,6 +70,6 @@ it.each<{ name: string; usage: ChatUsageSummary; showTotal: boolean; text: strin
 ])('formats partial usage: $name', ({ usage, showTotal, text }) => {
   const { result } = renderHook(() => useUsageSummary({ usage }, { showTotal }));
   expect(result.current.text).toBe(text);
-  expect(result.current.title).toBe(usage.outputTokens === undefined ? undefined : '93 out');
-  expect(result.current.ariaLabel).toBe(usage.outputTokens === undefined ? undefined : `Done · ${text} · 93 out`);
+  expect(result.current.title).toBe(usage.outputTokens === undefined ? undefined : '93 output tokens');
+  expect(result.current.ariaLabel).toBe(usage.outputTokens === undefined ? undefined : `Done · ${text} · 93 output tokens`);
 });

@@ -11,6 +11,17 @@ const messages: ChatMessage[] = [
 ];
 
 describe('MessageList', () => {
+  it('shows separately queued user inputs consecutively before their one shared reply', () => {
+    const combined: ChatMessage = { id: 'queued', role: 'user', content: 'first\n\nsecond', events: [
+      { kind: 'ext', name: 'user_message', data: { id: 'first', text: 'first' } },
+      { kind: 'ext', name: 'user_message', data: { id: 'second', text: 'second' } },
+    ] };
+    const { container } = render(<MessageList messages={[combined, { id: 'answer', role: 'assistant', content: 'Both addressed', runStatus: 'succeeded' }]} />);
+    expect([...container.querySelectorAll('[data-message-id]')].map(row => row.getAttribute('data-message-id')))
+      .toEqual(['first', 'second', 'answer']);
+    expect(container.querySelectorAll('.jini-message-assistant')).toHaveLength(1);
+  });
+
   it('renders every message in order', () => {
     render(<MessageList messages={messages} />);
     expect(screen.getByText('hi')).toBeInTheDocument();

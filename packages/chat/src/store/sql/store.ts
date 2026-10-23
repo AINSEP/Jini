@@ -14,6 +14,7 @@ import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
 import { isUniqueViolation, type StorageKernel } from '@jini-ai/db/kernel';
 import { redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { ChatMessage } from '../../core/messages.js';
+import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../../core/turn-usage.js';
 import type { ChatConversation, ChatStore, ChatOwnerScope, ChatTitleSource, CreateChatConversationInput, ChatPageOptions, ChatMessagePageInput } from '../ports.js';
 import type { ChatDatabase } from './tables.js';
 import { ChatStoreError } from '../errors.js';
@@ -163,8 +164,8 @@ function toHistoryMessage(row: HistoryRow, { includeToolEvents }: { includeToolE
  * @param scope the isolation predicate, resolved from the host's authentication. For a guest,
  *   `ownerId` must already be a hash of the session key (`tenant-scope.ts`).
  * @param optional Optional core Clock for deterministic host/tests; defaults to system wall time.
- * @complexity each method is one to four indexed statements; `list` is O(owned conversations),
- *   `messages` O(messages in the conversation).
+ * @complexity each method is one to four indexed statements; conversation summaries scan their
+ *   messages and embedded events in SQL; `messages` is O(messages in the conversation).
  */
 export function createSqlChatStore<DB extends ChatDatabase>(
   { kernel, scope: inputScope }: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
@@ -176,6 +177,14 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   // stay on the exact borrowed kernel; its transaction context is never projected or recreated.
   const run = <T>(body: (db: Kysely<ChatDatabase>) => T | Promise<T>): Promise<T> =>
     runChatQuery({ kernel: kernel, body: body });
+
+  // Count embedded user messages in SQL: list/get still return summaries, never whole transcripts.
+  // Writers store `JSON.stringify` output (no whitespace, as appendedEventsJson also relies on), so
+  // each mid-run event holds this exact text once; text inside a JSON string has escaped quotes and
+  // cannot match, and invalid JSON stays readable (it counts what it holds, never throws). Plain
+  // length/replace run on SQLite and PostgreSQL 14+, unlike `IS JSON` (PostgreSQL 16+).
+  const needle = `"name":"${MID_RUN_USER_MESSAGE_EVENT_NAME}"`;
+  const midRunCount = sql<number>`((length(coalesce(m.events_json, '')) - length(replace(coalesce(m.events_json, ''), ${sql.lit(needle)}, ''))) / ${sql.lit(needle.length)})`;
 
   /** This scope's conversations, projected as {@link ConversationRow}s with their message count. */
   function ownedConversations(db: Kysely<ChatDatabase>) {
@@ -190,7 +199,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
         "c.expires_at",
         eb
           .selectFrom("ai_chat_messages as m")
-          .select((sb) => sb.fn.countAll().as("n"))
+          .select(sql<number>`coalesce(sum(1 + case when m.role = 'assistant' then ${midRunCount} else 0 end), 0)`.as("n"))
           .whereRef("m.conversation_id", "=", "c.id")
           .as("message_count"),
       ])

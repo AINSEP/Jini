@@ -72,8 +72,15 @@ function expandQuestionAnswers({ events }: { events: readonly AgentEvent[] }, _o
   }));
   // MOVE: Persisted picks carry values; the original tool input retains their human-readable labels.
   const questions = new Map(events.flatMap(event => event.kind === 'tool_use' ? [[event.id, event.input] as const] : []));
-  return events.flatMap(event => {
+  const answers = new Map(events.flatMap(event => {
     const answer = questionAnswerEvent({ event, input: event.kind === 'tool_result' ? questions.get(event.toolUseId) : undefined });
+    return answer ? [[answer.data.toolUseId!, answer] as const] : [];
+  }));
+  return events.flatMap(event => {
+    const receipt = acceptedInputEvent({ event });
+    const recorded = receipt?.data.toolUseId ? answers.get(receipt.data.toolUseId) : undefined;
+    if (receipt && recorded) return [{ ...receipt, data: { ...receipt.data, text: recorded.data.text } }];
+    const answer = event.kind === 'tool_result' ? answers.get(event.toolUseId) : undefined;
     return answer && !savedAnswers.has(answer.data.toolUseId!) ? [event, answer] : [event];
   });
 }

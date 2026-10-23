@@ -35,6 +35,13 @@ function cardTitles(): string[] {
 }
 
 describe('MessageRow toolCallDisplay', () => {
+  it('separates the failure suffix from the tool count for independent styling', () => {
+    const { container } = render(<MessageRow message={turn} runSucceeded toolCallDisplay="collapsed" />);
+    expect(container.querySelector('.jini-tool-group__label')).toHaveTextContent(/^Used 3 tools$/);
+    expect(container.querySelector('.jini-tool-group__failed')).toHaveTextContent('· 1 failed');
+    expect(screen.getByRole('button', { name: 'Used 3 tools · 1 failed' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('show (default) renders every card where it happened', () => {
     render(<MessageRow message={turn} runSucceeded />);
     expect(cardTitles()).toHaveLength(3);

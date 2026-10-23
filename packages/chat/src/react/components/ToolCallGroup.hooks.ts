@@ -6,8 +6,10 @@ export interface ToolCallGroupState {
   /** Whether the turn's tool cards are showing under the line. Starts closed. */
   open: boolean;
   toggle: () => void;
-  /** "Used 3 tools", "Used 3 tools · 1 failed", or "Running Bash…" while a tool runs. */
+  /** "Used 3 tools", or "Running Bash…" while a tool runs. */
   label: string;
+  /** The failure suffix, styled independently of the tool count. */
+  failureLabel: string | undefined;
   running: boolean;
   failed: boolean;
 }
@@ -26,7 +28,8 @@ export function useToolCallGroup({ rows }: { rows: readonly ToolDisplayRow[] }, 
   return {
     open,
     toggle,
-    label: toolGroupLabel({ summary, t }),
+    label: toolGroupLabel({ summary: summary.kind === 'done' ? { ...summary, failed: 0 } : summary, t }),
+    failureLabel: summary.kind === 'done' && summary.failed > 0 ? t('{count} failed', { count: summary.failed }) : undefined,
     running: summary.kind === 'running',
     failed: summary.kind === 'done' && summary.failed > 0,
   };

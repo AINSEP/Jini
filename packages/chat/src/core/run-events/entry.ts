@@ -68,7 +68,7 @@ export function asString({ value }: { value: unknown }, _options: Record<string,
  */
 
 
-/** Keep only numeric usage fields; omit absent fields without changing JSON output. */
+/** Keep numeric usage and the model's stop reason; omit absent or malformed fields. */
 export function parseUsageEvent({ payload }: { payload: RunAgentPayload }, _options: Record<string, never> = {}): AgentEvent {
   const usage = (payload.usage ?? {}) as Record<string, unknown>;
   return {
@@ -79,6 +79,7 @@ export function parseUsageEvent({ payload }: { payload: RunAgentPayload }, _opti
     ...(typeof payload.cumulativeCostUsd === "number" ? { cumulativeCostUsd: payload.cumulativeCostUsd } : {}),
     ...(typeof payload.costSessionId === "string" ? { costSessionId: payload.costSessionId } : {}),
     ...(typeof payload.durationMs === "number" ? { durationMs: payload.durationMs } : {}),
+    ...(typeof payload.stopReason === "string" ? { stopReason: payload.stopReason } : {}),
   };
 }
 /**

@@ -33,6 +33,14 @@ function stubBoxWidth(el: Element, metrics: { scrollWidth: number; clientWidth: 
 }
 
 describe('Markdown', () => {
+  it('renders inline code inside bold and italic without leaving backticks or losing following spans', () => {
+    const { container } = render(<Markdown>{'**`theme_rescan`:** and *Home at `/`:* then **ready**.'}</Markdown>);
+    expect(container.querySelector('strong code')).toHaveTextContent('theme_rescan');
+    expect(container.querySelector('em code')).toHaveTextContent('/');
+    expect(container.textContent).toBe('theme_rescan: and Home at /: then ready.');
+    expect(screen.getByText('ready', { selector: 'strong' })).toBeInTheDocument();
+  });
+
   it('renders headings, paragraphs, and inline emphasis', () => {
     render(<Markdown>{'# Title\n\nSome **bold** and *italic* text.'}</Markdown>);
     expect(screen.getByRole('heading', { level: 1, name: 'Title' })).toBeInTheDocument();

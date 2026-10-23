@@ -15,6 +15,28 @@ export function chatParityContract({ name, makeFixture }: { name: string; makeFi
  beforeEach(async () => { f = await makeFixture(); });
  afterEach(async () => { await f?.close(); });
  function stores() { const now = clock(); return { kernel: f.kernel, alice: f.make(ALICE, { nowMs: now }), bob: f.make(BOB, { nowMs: now }), of: (scope: ChatOwnerScope) => f.make(scope, { nowMs: now }) }; }
+  test('conversation summaries include mid-run user messages and tolerate damaged event JSON', async () => {
+    const { alice, bob } = stores();
+    await alice.create({ id: 'embedded' });
+    await alice.appendMessage({ conversationId: 'embedded', message: user('initial', 'Start') });
+    await alice.appendMessage({ conversationId: 'embedded', message: {
+      id: 'reply', role: 'assistant', content: 'Working', events: [
+        { kind: 'text', text: 'Quoted "name":"user_message" is not an event' },
+        { kind: 'ext', name: 'user_message', data: { id: 'mid-1', text: 'First followup' } },
+        { kind: 'ext', name: 'mcp-ui', data: {} },
+        { kind: 'ext', name: 'user_message', data: { id: 'mid-2', text: 'Second followup' } },
+      ],
+    } });
+    assert.equal((await alice.get({ id: 'embedded' }))?.messageCount, 4);
+    assert.equal((await alice.list())[0]?.messageCount, 4);
+    assert.equal((await alice.history!.list({}))[0]?.messageCount, 4);
+    assert.equal(await bob.get({ id: 'embedded' }), null);
+    for (const events_json of ['broken', '{}', 'null', '[null,"scalar",4]']) {
+      await f.kernel.run(db => db.updateTable('ai_chat_messages').set({ events_json }).where('id', '=', 'reply').execute());
+      assert.equal((await alice.get({ id: 'embedded' }))?.messageCount, 2);
+    }
+  });
+
   test("create then get and list round-trip every conversation field", async () => {
     const { alice } = stores();
     const created = await alice.create({ id: "c1", title: "Hello", titleSource: "manual", expiresAt: T0 + 1000 });

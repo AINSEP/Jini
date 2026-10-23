@@ -19,6 +19,16 @@ it('sums every reported segment field independently without filling unknown fiel
 
 const boundary = (id: string): AgentEvent => ({ kind: 'ext', name: 'user_message', data: { id, text: id } });
 
+it('keeps each reply stop reason and uses the final reason for a whole-turn summary', () => {
+  const usage = conversationUsage({ messages: [{ id: 'a', role: 'assistant', content: 'First then second', events: [
+    { kind: 'text', text: 'First' }, { kind: 'usage', costUsd: 0.1, stopReason: 'aborted_streaming' },
+    boundary('next'), { kind: 'text', text: 'then second' },
+    { kind: 'usage', costUsd: 0.2, stopReason: 'end_turn' }, { kind: 'usage', outputTokens: 4 },
+  ] }] }).get('a');
+  expect(usage?.stopReason).toBe('end_turn');
+  expect(usage?.segments?.map(segment => segment?.stopReason)).toEqual(['aborted_streaming', 'end_turn']);
+});
+
 it('splits a run at each mid-run user message, keeping a late interrupted-reply result with the reply before', () => {
   const late = { kind: 'usage', costUsd: 0.03 } as const;
   const segments = replySegments({ events: [
