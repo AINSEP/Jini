@@ -839,6 +839,9 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
+      '@cfworker/json-schema':
+        specifier: ^4.1.1
+        version: 4.1.1
       '@jini-ai/agent-plugins':
         specifier: workspace:*
         version: link:../agent-plugins

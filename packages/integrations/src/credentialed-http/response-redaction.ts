@@ -64,3 +64,23 @@ export function resolveRedactedResponseBody(bodyText: string, token: string, sec
   const redacted = redactSecretSubstrings(bodyText, secrets);
   return bodyTruncated ? redactTruncatedTail(redacted, secrets) : redacted;
 }
+
+/** Opt-in JSON release boundary: decode escaped strings before using the same credential-secret
+ * owner. Scrubbing only serialized bytes misses a provider echo such as `\u0073ecret-token`.
+ * Callers must reject truncated responses first. Malformed JSON or secrets in keys/numbers throw;
+ * short tokens withhold the whole body under the existing rule. The reviver visits decoded keys
+ * and values at every depth. @complexity O(n * s), bounded body and secrets. */
+export function redactJsonResponseBody(
+  { bodyText, token, secrets }: { bodyText: string; token: string; secrets: readonly string[] },
+  _options: Record<string, never> = {},
+): string {
+  if (token.length < MIN_SAFE_BODY_REDACTION_TOKEN_LENGTH) return BODY_WITHHELD_SHORT_TOKEN_MARKER;
+  const decoded: unknown = JSON.parse(bodyText, (key, value: unknown) => {
+    // Refuse rather than rename fields or change numeric types in the provider's data.
+    if (secrets.some(secret => secret !== "" && key.includes(secret))) throw new TypeError("JSON response key contains a credential");
+    if (typeof value === "number" && secrets.some(secret => secret !== "" && String(value).includes(secret))) throw new TypeError("JSON response number contains a credential");
+    if (typeof value === "string") return redactSecretSubstrings(value, secrets);
+    return value;
+  });
+  return JSON.stringify(decoded);
+}

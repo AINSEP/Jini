@@ -8,6 +8,7 @@ exports. Import the capability you need; each entry owns its dependencies and ru
 | `./media-providers` | Node | Image/video/audio gateway, policy, staging and task stores |
 | `./media-providers/catalog` | Universal | Browser-safe provider/model catalog |
 | `./credentialed-http` | Node | Credential-origin binding, authentication, redacted responses and audit ports |
+| `./saved-requests` | Node | Fixed-target declarative requests, bounded schemas and typed public projections |
 | `./webhooks` | Node | Subscriptions, delivery/retries and signing through host ports |
 
 ## No root `.` export
