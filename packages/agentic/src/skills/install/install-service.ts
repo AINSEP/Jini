@@ -5,30 +5,53 @@ import { fetchGitHubSkill, type GitHubSkillSource } from "./github.js";
 import { readSkillState } from "./state.js";
 import type { SkillInstallDeps } from "./ports.js";
 
-export interface ManagedSkill { readonly toolId: string; readonly name: string; readonly description: string; readonly enabled: boolean; readonly source: "uploaded" | GitHubSkillSource }
-export type SkillInstallInput = { readonly workspaceId: string } & ({ readonly githubUrl: string } | { readonly files: readonly SkillUploadFile[] } | { readonly archiveBase64: string });
+export interface ManagedSkill<Source extends object = GitHubSkillSource> { readonly toolId: string; readonly name: string; readonly description: string; readonly enabled: boolean; readonly source: "uploaded" | GitHubSkillSource | Source }
+export type SkillInstallInput = { readonly workspaceId: string } & (
+  { readonly url: string } |
+  { /** @deprecated Use url with an injected source provider. */ readonly githubUrl: string } |
+  { readonly files: readonly SkillUploadFile[] } | { readonly archiveBase64: string }
+);
 /** A fetched and fully validated skill package, not yet written. Holding the validated bytes (not
  * the source) means commitSkillInstall writes exactly what was validated, with no second fetch. */
-export interface PreparedSkillInstall {
-  readonly toolId: string; readonly name: string; readonly description: string; readonly source: ManagedSkill["source"];
+export interface PreparedSkillInstall<Source extends object = GitHubSkillSource> {
+  readonly toolId: string; readonly name: string; readonly description: string; readonly source: ManagedSkill<Source>["source"];
   readonly files: ReturnType<typeof validateSkillFiles>["files"];
 }
 /** Fetch/decode and validate before asking for mutation approval. No filesystem writes. */
-export async function prepareSkillInstall(required: { input: SkillInstallInput; deps: Pick<SkillInstallDeps, "fetch" | "archiveReader" | "yamlReader" | "toolId"> }, _optional = {}): Promise<PreparedSkillInstall> {
+export async function prepareSkillInstall<Source extends object = GitHubSkillSource>(required: { input: SkillInstallInput; deps: Pick<SkillInstallDeps<Source>, "fetch" | "fetchSource" | "validateSource" | "archiveReader" | "yamlReader" | "toolId"> }, _optional = {}): Promise<PreparedSkillInstall<Source>> {
   const { input, deps } = required;
   let upload: readonly SkillUploadFile[];
-  let source: ManagedSkill["source"] = "uploaded";
-  if ("githubUrl" in input) ({ files: upload, source } = await fetchGitHubSkill({ githubUrl: input.githubUrl, fetch: deps.fetch }));
+  let source: ManagedSkill<Source>["source"] = "uploaded";
+  if ("url" in input || "githubUrl" in input) ({ files: upload, source } = await fetchRemoteSkill({ input, deps }));
   else if ("archiveBase64" in input) upload = await readSkillArchive({ base64: input.archiveBase64, archiveReader: deps.archiveReader });
   else upload = input.files;
   const validated = validateSkillFiles({ files: upload, yamlReader: deps.yamlReader });
   return { ...validated, toolId: deps.toolId({ name: validated.name }), source };
 }
-export interface SkillInstaller {
-  prepareSkillInstall(required: SkillInstallInput): Promise<PreparedSkillInstall>;
-  commitSkillInstall(required: { workspaceId: string; prepared: PreparedSkillInstall }): Promise<ManagedSkill>;
-  installSkill(required: SkillInstallInput): Promise<ManagedSkill>;
-  listManagedSkills(required: { workspaceId: string }): Promise<ManagedSkill[]>;
+/** Source selection only; installation validation and mutation stay in the existing lifecycle.
+ * Normalized URLs never fall back to GitHub. An injected provider owns legacy aliases too.
+ * @throws SkillInputError for missing provider configuration or refused provenance.
+ */
+async function fetchRemoteSkill<Source extends object>({ input, deps }: {
+  input: { readonly url: string } | { readonly githubUrl: string };
+  deps: Pick<SkillInstallDeps<Source>, "fetch" | "fetchSource" | "validateSource">;
+}, _optional: Record<string, never> = {}): Promise<{ readonly files: readonly SkillUploadFile[]; readonly source: GitHubSkillSource | Source }> {
+  if (deps.fetchSource) {
+    if (!deps.validateSource) throw new SkillInputError({ message: "Skill source provenance validation is required." });
+    const result = await deps.fetchSource({ url: "url" in input ? input.url : input.githubUrl }, {});
+    if (!result.source || typeof result.source !== "object" || Array.isArray(result.source) || !deps.validateSource({ source: result.source }, {})) throw new SkillInputError({ message: "Invalid skill source provenance." });
+    return result;
+  }
+  if ("url" in input) throw new SkillInputError({ message: "A skill source provider is required for URL installation." });
+  if (!deps.fetch) throw new SkillInputError({ message: "A legacy GitHub fetch transport is required." });
+  return fetchGitHubSkill({ githubUrl: input.githubUrl, fetch: deps.fetch });
+}
+
+export interface SkillInstaller<Source extends object = GitHubSkillSource> {
+  prepareSkillInstall(required: SkillInstallInput): Promise<PreparedSkillInstall<Source>>;
+  commitSkillInstall(required: { workspaceId: string; prepared: PreparedSkillInstall<Source> }): Promise<ManagedSkill<Source>>;
+  installSkill(required: SkillInstallInput): Promise<ManagedSkill<Source>>;
+  listManagedSkills(required: { workspaceId: string }): Promise<ManagedSkill<Source>[]>;
   setSkillEnabled(required: { workspaceId: string; toolId: string; enabled: boolean }): Promise<void>;
   uninstallSkill(required: { workspaceId: string; toolId: string }): Promise<void>;
 }
@@ -36,7 +59,7 @@ export interface SkillInstaller {
 /** Validate before writes; publish via rename, with instance-local queues keyed by resolved root.
  * Cross-process exclusivity remains the host filesystem/layout adapter's responsibility.
  */
-export function createSkillInstaller(deps: SkillInstallDeps, optional: { onChanged?: (required: { workspaceId: string; toolId: string }) => void | Promise<void> } = {}): SkillInstaller {
+export function createSkillInstaller<Source extends object = GitHubSkillSource>(deps: SkillInstallDeps<Source>, optional: { onChanged?: (required: { workspaceId: string; toolId: string }) => void | Promise<void> } = {}): SkillInstaller<Source> {
   const queues = new Map<string, Promise<unknown>>();
   const layoutFor = (workspaceId: string) => {
     const layout = deps.layout.resolve({ workspaceId });
@@ -52,13 +75,13 @@ export function createSkillInstaller(deps: SkillInstallDeps, optional: { onChang
     try { return await result; }
     finally { if (queues.get(key) === result) queues.delete(key); }
   }
-  async function listManagedSkills(required: { workspaceId: string }): Promise<ManagedSkill[]> {
+  async function listManagedSkills(required: { workspaceId: string }): Promise<ManagedSkill<Source>[]> {
     const layout = layoutFor(required.workspaceId);
     const sources = await deps.toolSourceLoader.load(required, { includeDisabled: true });
     return Promise.all(sources.map(async skill => {
       const directory = containedDirectory(layout.workspaceRoot, skill.directory);
       return { toolId: skill.id, name: skill.skillName, description: skill.description,
-        ...await readSkillState({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem }) };
+        ...await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem, validateSource: deps.validateSource }) };
     }));
   }
   async function managedDirectory(required: { workspaceId: string; toolId: string }): Promise<string> {
@@ -69,7 +92,7 @@ export function createSkillInstaller(deps: SkillInstallDeps, optional: { onChang
     return directory;
   }
   const changed = async (workspaceId: string, toolId: string) => { await optional.onChanged?.({ workspaceId, toolId }); };
-  const installer: SkillInstaller = {
+  const installer: SkillInstaller<Source> = {
     listManagedSkills,
     prepareSkillInstall: input => prepareSkillInstall({ input, deps }),
     async installSkill(input) {
@@ -102,7 +125,7 @@ export function createSkillInstaller(deps: SkillInstallDeps, optional: { onChang
       await locked(input.workspaceId, async () => {
         const directory = await managedDirectory(input);
         const layout = layoutFor(input.workspaceId);
-        const state = await readSkillState({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem });
+        const state = await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem, validateSource: deps.validateSource });
         const id = deps.ids.next({});
         if (!id || /[/\\\x00]/.test(id)) throw new SkillInputError({ message: "Invalid skill temporary id." });
         const temporary = path.join(directory, `.skill-state-${id}.tmp`);

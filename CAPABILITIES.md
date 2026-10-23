@@ -103,7 +103,7 @@ capability-surface · [README](packages/agentic/README.md)
 | `@jini-ai/agentic/core` | The same framework-free agent-control vocabulary as the root. | `PAGE_CAPABILITIES`, `agentHandle`, `executePageCapability`, `toWebMcpTools` | universal | none yet |
 | `@jini-ai/agentic/dom` | Execute allowlisted page actions against real DOM handles. | `createDomPageDriver`, `currentAgentPage`, `getAgentModelContext` | browser | Tovu: admin; Jini: chat |
 | `@jini-ai/agentic/a2ui` | Validate and interpret A2UI messages, bindings, catalogs and surface trees. | `createA2uiInterpreter`, `createLabCatalog`, `parseAgentToRendererMessage` | universal | Tovu: website; Jini: chat, ui |
-| `@jini-ai/agentic/skills/install` | Validate and install bounded skill bundles using host filesystem/archive/HTTP ports. | `decodeSkillBase64`, `validateSkillPath`, `validateSkillMarkdown` | node | none yet |
+| `@jini-ai/agentic/skills/install` | Validate and install bounded skill bundles; [source injection](packages/agentic/README.md#skill-source-injection). | `decodeSkillBase64`, `validateSkillPath`, `validateSkillMarkdown` | node | none yet |
 | `@jini-ai/agentic/skills/install/node` | Native bounded, no-follow filesystem adapter for skill installation. | `createNodeSkillFilesystem` | node | none yet |
 
 ## server · `@jini-ai/cli`

@@ -2,7 +2,7 @@
 // else that is not a small regular file holding a well-formed record fails closed.
 import { describe, expect, it } from 'vitest';
 import { readSkillState } from '../state.js';
-import type { SkillFilesystemPort } from '../ports.js';
+import type { SkillFilesystemPort, SkillSourceValidatorPort } from '../ports.js';
 
 const INVALID = 'Invalid skill installation record.';
 const COMMIT = 'd'.repeat(40);
@@ -18,7 +18,7 @@ function filesystem(options: { stat?: SkillFilesystemPort['lstat']; read?: Skill
   return { port, calls };
 }
 const enoent = () => Object.assign(new Error('missing'), { code: 'ENOENT' });
-const read = (fs: ReturnType<typeof filesystem>) => readSkillState({ directory: '/skills/ops', stateFileName: '.state.json', filesystem: fs.port });
+const read = (fs: ReturnType<typeof filesystem>, optional: { validateSource?: SkillSourceValidatorPort } = {}) => readSkillState({ directory: '/skills/ops', stateFileName: '.state.json', filesystem: fs.port, ...optional });
 const content = (text: string | Uint8Array) => filesystem({ read: async () => (typeof text === 'string' ? Buffer.from(text) : text) });
 
 describe('readSkillState', () => {
@@ -84,5 +84,59 @@ describe('readSkillState', () => {
   it('accepts a commit given as a one-element array because the regex coerces it to a string (reported, not fixed)', async () => {
     const state = { enabled: true, source: { githubUrl: 'u', commit: [COMMIT] } };
     expect(await read(content(JSON.stringify(state)))).toEqual(state);
+  });
+
+  it('passes opaque provenance to the injected validator with separate argument objects', async () => {
+    const source = { repository: 'https://skills.example.test/ops', revision: 'immutable-1' };
+    const state = { enabled: false, source };
+    const calls: unknown[] = [];
+    expect(await read(content(JSON.stringify(state)), { validateSource: (required, optional) => {
+      calls.push([required, optional]);
+      return required.source !== null && (required.source as typeof source).revision === 'immutable-1';
+    } })).toEqual(state);
+    expect(calls).toEqual([[{ source }, {}]]);
+  });
+
+  it('does not accept provider provenance without an injected validator', async () => {
+    await expect(read(content(JSON.stringify({ enabled: true, source: { repository: 'https://skills.example.test/ops', revision: 'immutable-1' } })))).rejects.toThrow(INVALID);
+  });
+
+  it('does not fall back to the legacy predicate after provider refusal', async () => {
+    const state = { enabled: true, source: { githubUrl: 'https://github.com/o/r', commit: COMMIT } };
+    await expect(read(content(JSON.stringify(state)), { validateSource: () => false })).rejects.toThrow(INVALID);
+  });
+
+  it.each([new Error('validator failed'), enoent()])('propagates validator errors without treating them as missing records: %s', async failure => {
+    const state = { enabled: true, source: { repository: 'https://skills.example.test/ops' } };
+    await expect(read(content(JSON.stringify(state)), { validateSource: () => { throw failure; } })).rejects.toBe(failure);
+  });
+
+  it.each(['null', '[]', '"source"', '42', 'false'])('rejects non-object provenance %s before invoking the provider', async source => {
+    let calls = 0;
+    await expect(read(content(`{"enabled":true,"source":${source}}`), { validateSource: () => { calls++; return true; } })).rejects.toThrow(INVALID);
+    expect(calls).toBe(0);
+  });
+
+  it.each(['{"source":{}}', '{"enabled":"yes","source":{}}'])('keeps structural enabled validation ahead of the provider: %s', async record => {
+    let calls = 0;
+    await expect(read(content(record), { validateSource: () => { calls++; return true; } })).rejects.toThrow(INVALID);
+    expect(calls).toBe(0);
+  });
+
+  it('does not ask the provider about uploaded or missing legacy records', async () => {
+    const options = { validateSource: () => { throw new Error('unexpected validation'); } };
+    expect(await read(content('{"enabled":false,"source":"uploaded"}'), options)).toEqual({ enabled: false, source: 'uploaded' });
+    expect(await read(filesystem({ stat: async () => { throw enoent(); } }), options)).toEqual({ enabled: true, source: 'uploaded' });
+  });
+
+  it.each([
+    { kind: 'symlink' as const, size: 100, record: '{}' },
+    { kind: 'file' as const, size: 8193, record: '{}' },
+    { kind: 'file' as const, size: 100, record: JSON.stringify({ enabled: true, source: { padding: 'x'.repeat(8192) } }) },
+  ])('keeps no-follow and byte limits ahead of injected validation: %j', async ({ kind, size, record }) => {
+    let calls = 0;
+    const fs = filesystem({ stat: async () => ({ kind, size }), read: async () => Buffer.from(record) });
+    await expect(read(fs, { validateSource: () => { calls++; return true; } })).rejects.toThrow(INVALID);
+    expect(calls).toBe(0);
   });
 });

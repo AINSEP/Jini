@@ -1,3 +1,6 @@
+import type { GitHubSkillSource } from "./github.js";
+import type { SkillUploadFile } from "./validation.js";
+
 /** The adapter uses failsafe YAML and rejects duplicate keys; the installer never parses YAML itself. */
 export interface YamlReaderPort { read(required: { yaml: string }): unknown }
 
@@ -42,12 +45,24 @@ export interface ArchiveReaderPort {
 }
 /** HTTP transport follows the argument-object convention; hosts own credentials and networking. */
 export type SkillFetchPort = (required: { url: string }, optional?: RequestInit) => Promise<Response>;
-export interface SkillInstallDeps {
+/** Provider-owned remote fetching. Hosts enforce deadlines, byte caps and source-origin policy.
+ * Returned files still pass through the installer's shared validator before any filesystem writes.
+ */
+export type SkillSourceFetchPort<Source extends object = object> = (
+  required: { url: string }, optional?: Record<string, never>,
+) => Promise<{ readonly files: readonly SkillUploadFile[]; readonly source: Source }>;
+/** Pure, fail-closed check of provider-owned JSON provenance; never authorizes an installation. */
+export type SkillSourceValidatorPort = (required: { source: unknown }, optional?: Record<string, never>) => boolean;
+
+export interface SkillInstallDeps<Source extends object = GitHubSkillSource> {
   layout: SkillLayoutPort;
   filesystem: SkillFilesystemPort;
   archiveReader: ArchiveReaderPort;
   yamlReader: YamlReaderPort;
-  fetch: SkillFetchPort;
+  /** @deprecated Supply fetchSource and validateSource instead. Used only for legacy githubUrl input. */
+  fetch?: SkillFetchPort;
+  fetchSource?: SkillSourceFetchPort<Source>;
+  validateSource?: SkillSourceValidatorPort;
   ids: { next(required: Record<string, never>): string };
   toolId: (required: { name: string }) => string;
   toolSourceLoader: ToolSourceLoaderPort;
