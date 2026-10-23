@@ -44,6 +44,11 @@ peer used only by `@jini-ai/core/settings/express`; install it in hosts mounting
 
 ## Usage
 
+The root exports baseline security vocabulary: `AGENT_FAILURE_SECRET_SHAPE_RE`,
+`CREDENTIAL_FILE_DENY_SEGMENTS`, `LOCAL_OWNER_PROXY_MARKER_PREFIXES`, and
+`LOCAL_OWNER_PROXY_MARKER_HEADERS`. Consumers apply these in their existing failure-redaction,
+guarded-file, and local-owner admission policies; the existing redactors are unchanged.
+
 ```ts
 import { bindings, definePack, createDaemon, token, createToolRegistry, registerPackTools } from '@jini-ai/core';
 
