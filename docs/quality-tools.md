@@ -253,7 +253,6 @@ Deferred style wave, counted by package (no style sweep was performed):
 | `agentic` | 9 | 10 | 0 | 1 | 0 | 0 |
 | `artifacts` | 1 | 0 | 0 | 0 | 0 | 0 |
 | `capability-providers` | 0 | 1 | 0 | 0 | 0 | 0 |
-| `charts-recharts` | 0 | 1 | 0 | 0 | 0 | 0 |
 | `chat` | 18 | 13 | 29 | 1 | 9 | 0 |
 | `cli` | 1 | 0 | 3 | 1 | 0 | 1 |
 | `cms` | 6 | 10 | 3 | 10 | 14 | 0 |

@@ -206,19 +206,6 @@
         "*.{config,setup}.{ts,js,mjs,cjs}"
       ]
     },
-    "packages/charts-recharts": {
-      "entry": [
-        "src/index.ts",
-        "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
-        "tests/**/*.types.ts"
-      ],
-      "project": [
-        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
-        "tests/**/*.{ts,tsx,mts,cts,js,jsx}",
-        "scripts/**/*.{ts,js,mjs,cjs}",
-        "*.{config,setup}.{ts,js,mjs,cjs}"
-      ]
-    },
     "packages/chat": {
       "entry": [
         "src/testing/index.ts",
