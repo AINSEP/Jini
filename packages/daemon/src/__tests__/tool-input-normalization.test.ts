@@ -105,25 +105,25 @@ describe('ToolExecutor normalization gate', () => {
     });
     registry.register({ descriptor: { id: 'write', inputSchema, requiresConfirmation: true }, policy: { authorize }, handler });
     const executor = createToolExecutor({ registry }, { delegate: { onConfirm: confirm } });
-    const result = await executor.execute({ principal: { id: 'owner' }, run: { id: 'run' }, toolId: 'write', input: { expected_version: '3', enabled: 'true' } });
+    const result = await executor.execute({ principal: { id: 'owner' }, run: { id: 'run' }, toolId: 'write', input: { expectedVersoin: '3', enabled: 'true' } });
     expect(result.status).toBe('completed');
     expect(authorize.mock.calls[0]![0].input).toEqual({ expectedVersion: 3, enabled: true });
     expect(confirm.mock.calls[0]![0].input).toEqual({ expectedVersion: 3, enabled: true });
     expect(handler.mock.calls[0]![0].input).toEqual({ expectedVersion: 3, enabled: true });
-    expect(result.output).toMatchObject({ written: true, normalizationNotes: expect.arrayContaining(['expected_version→expectedVersion']) });
+    expect(result.output).toMatchObject({ written: true, normalizationNotes: expect.arrayContaining(['expectedVersoin→expectedVersion']) });
     expect(executor.getAuditRecord({ executionId: result.executionId })!.events.find(event => event.phase === 'authorized')!.detail).toContain('normalized:');
   });
 
-  it('returns precise validation errors for ambiguous/near-miss inputs before policy or effects', async () => {
+  it('returns precise validation errors for conflicting or unknown inputs before policy or effects', async () => {
     const registry = createToolRegistry({});
     const handler = vi.fn(async () => ({ written: true }));
     const authorize = vi.fn(() => 'allow' as const);
     registry.register({ descriptor: { id: 'write', inputSchema }, policy: { authorize }, handler });
     const executor = createToolExecutor({ registry });
-    // MOVE: Near misses now name the unknown field and suggest the declared property without rewriting it.
+    // MOVE: Unknown fields without a sole hint must still fail before policy or effects.
     for (const { input, error } of [
       { input: { expectedVersion: 3, expected_version: 4 }, error: "Conflicting inputs 'expectedVersion' and 'expected_version' both name 'expectedVersion'. Send only 'expectedVersion'." },
-      { input: { expectedVersoin: '3' }, error: "Unknown input 'expectedVersoin'. Declared inputs: expectedVersion (required), enabled (optional). Did you mean 'expectedVersion'? Resend with the declared name." },
+      { input: { version: '3' }, error: "Unknown input 'version'. Declared inputs: expectedVersion (required), enabled (optional). Resend with the declared name." },
     ]) {
       const result = await executor.execute({ principal: { id: 'owner' }, run: { id: 'run' }, toolId: 'write', input });
       expect(result).toMatchObject({ status: 'failed', errorKind: 'validation' });

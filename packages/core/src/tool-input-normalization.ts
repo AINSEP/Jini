@@ -26,12 +26,12 @@ function sameLengthNearMiss({ left, right, index }: { left: string; right: strin
     || (left[index] === right[index + 1] && left[index + 1] === right[index] && left.slice(index + 2) === right.slice(index + 2));
 }
 
-/** Whether either key is the generic id shorthand for the other's id suffix; hints only. */
+/** Whether either key is the generic id shorthand for the other's id suffix. */
 function isIdShorthand({ left, right }: { left: string; right: string }, _options: Record<string, never> = {}): boolean {
   return (left === 'id' && right.endsWith('id')) || (right === 'id' && left.endsWith('id'));
 }
 
-/** Detect id shorthand or one insertion, deletion, substitution or transposition, for hints only. */
+/** Detect id shorthand or one insertion, deletion, substitution or transposition. */
 function nearMiss({ left, right }: { left: string; right: string }, _options: Record<string, never> = {}): boolean {
   if (left.length > 128 || right.length > 128) return false;
   if (isIdShorthand({ left, right })) return true;
@@ -73,6 +73,19 @@ function coerceString({ value, types, path, notes }: { value: string; types: rea
   return coerceNumber({ value, types, path, notes });
 }
 
+/** Unwrap only a singleton string array; refuse malformed arrays without exposing values.
+ * Keys-only batch layers preserve values until the final merged input is normalized.
+ * @complexity O(t) time for t allowed schema types, O(1) space; array contents are not scanned.
+ */
+function unwrapStringArray({ value, types, step }: { value: unknown; types: readonly unknown[]; step: Step }): unknown {
+  if (step.walk.keysOnly || !Array.isArray(value) || !types.includes('string')) return value;
+  if (value.length !== 1 || typeof value[0] !== 'string') {
+    throw new ToolInputError({ message: `${step.path}: send one value as a string or a one-element string array.` });
+  }
+  step.walk.notes.push(`${step.path}: one-item string array→string`);
+  return value[0];
+}
+
 function normalizeArray({ value, schema, step }: { value: unknown; schema: Record<string, unknown>; step: Step }): unknown {
   const { path, depth, walk } = step;
   let list = value;
@@ -93,11 +106,17 @@ interface ObjectShape {
   readonly required: readonly string[];
 }
 
-/** The declared property a supplied key names, or undefined; refuses a key that names two. */
+/** Exact names, then case/separator variants, then a sole hint; ambiguous hints stay unresolved
+ * for the domain hook or closed-schema refusal. Never choose one of several candidates.
+ * Hints apply only where a closed schema would refuse the key: an open schema accepts it as data.
+ * @complexity O(p) time and space for p declared properties; near-miss names are length-bounded.
+ */
 function canonicalKey({ key, location, shape }: { key: string; location: string; shape: ObjectShape }): string | undefined {
   const candidates = Object.hasOwn(shape.properties, key) ? [key] : shape.names.filter(name => keyShape(name) === keyShape(key));
   if (candidates.length > 1) throw new ToolInputError({ message: `Ambiguous input '${location}': matches ${candidates.join(', ')}. Use exactly one canonical property name.` });
-  return candidates[0];
+  if (candidates.length === 1 || shape.schema.additionalProperties !== false) return candidates[0];
+  const hints = shape.names.filter(name => nearMiss({ left: keyShape(key), right: keyShape(name) }));
+  return hints.length === 1 ? hints[0] : undefined;
 }
 
 /** Describe the local schema and likely names without choosing a name or exposing input values.
@@ -153,7 +172,8 @@ function normalizeValue({ value, schema, step }: { value: unknown; schema: unkno
     return step.walk.keysOnly || types.includes('string') ? value : coerceString({ value, types, path: step.path, notes: step.walk.notes });
   }
   if (types.includes('array')) return normalizeArray({ value, schema, step });
-  return object(value) ? normalizeObject({ value, schema, step }) : value;
+  const unwrapped = unwrapStringArray({ value, types, step });
+  return object(unwrapped) ? normalizeObject({ value: unwrapped, schema, step }) : unwrapped;
 }
 
 /** A walk from the root of one input. */

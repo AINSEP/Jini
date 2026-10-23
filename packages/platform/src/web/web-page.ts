@@ -62,6 +62,8 @@ export interface WebFetchResult {
   meta: Record<string, string>;
   fetchedAt: string;
   rendered?: true;
+  /** Explains a browser-unavailable fallback; the returned content has not executed JavaScript. */
+  note?: string;
   data?: RenderedWebPage["data"];
   dataUnmatched?: RenderedWebPage["dataUnmatched"];
   dataTruncated?: boolean;
@@ -225,7 +227,7 @@ function render(format: WebFetchFormat, body: string, isHtml: boolean, pageUrl: 
 /** Renderer error codes whose meaning the model can act on; any other code falls through to transport mapping. */
 const RENDER_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   WEB_RENDER_BUSY: "web_fetch_page: render capacity is busy; retry shortly.",
-  WEB_RENDER_UNAVAILABLE: "web_fetch_page: this deployment cannot render pages: its headless browser (Playwright Chromium) is not installed or failed to start.",
+  WEB_RENDER_UNAVAILABLE: "web_fetch_page: this deployment cannot render pages: its headless browser (Playwright Chromium or system Chrome) is not installed or failed to start.",
   WEB_RENDER_REFUSED: "web_fetch_page: the rendered page target is not a public internet address (including after redirects). Localhost, private-network and cloud-metadata addresses are refused.",
 };
 
@@ -320,10 +322,23 @@ async function enforceRateLimit({ ports, url, rateLimitScope, observe }: { ports
   }
 }
 
+/** Only an unavailable browser permits a guarded raw fetch; screenshots still require a browser.
+ * Reuses the call's deadline, rate-limit check and caller-safe error mapping.
+ * @complexity O(response bytes), with the same byte and redirect bounds as the ordinary fetch. */
 async function fetchRendered({ input, ports, url }: { input: WebFetchInput; ports: WebFetchPorts; url: URL }, { signal, timeoutMs }: { signal: AbortSignal; timeoutMs: number }): Promise<WebFetchResult> {
-  if (!ports.renderPage) throw new ToolInputError({ message: "web_fetch_page: rendered pages are unavailable in this deployment." });
-  const page = await ports.renderPage({ input: { ...input, url: url.href } }, { signal, timeoutMs });
-  return projectRendered({ input, ports, url, page });
+  try {
+    if (!ports.renderPage) throw Object.assign(new Error("Browser unavailable"), { code: "WEB_RENDER_UNAVAILABLE" });
+    const page = await ports.renderPage({ input: { ...input, url: url.href } }, { signal, timeoutMs });
+    return projectRendered({ input, ports, url, page });
+  } catch (error) {
+    // Refusals, capacity, navigation and cancellation must never trigger a different network path.
+    if (signal.aborted || input.screenshot || errorCode({ error }) !== "WEB_RENDER_UNAVAILABLE") throw error;
+    const response = await send(ports, url, signal, timeoutMs);
+    return {
+      ...project({ input, ports, url, response }),
+      note: "Browser unavailable; returned a guarded non-rendered fetch. JavaScript was not executed.",
+    };
+  }
 }
 
 function project({ input, ports, url, response }: { input: WebFetchInput; ports: WebFetchPorts; url: URL; response: HttpResponse }): WebFetchResult {

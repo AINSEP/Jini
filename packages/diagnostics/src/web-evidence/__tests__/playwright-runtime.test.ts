@@ -1,7 +1,7 @@
 /** Availability results of the optional browser capability, against injected loader/launch ports. */
 import * as nodeOs from "node:os";
 import { describe, expect, it } from "vitest";
-import { nodeModuleLoader, openPlaywrightRenderBrowser } from "../playwright-runtime.js";
+import { nodeModuleLoader, openPlaywrightRenderBrowser, PUBLIC_RENDER_LAUNCH_OPTIONS } from "../playwright-runtime.js";
 import type { RenderBrowser } from "../render-page.js";
 
 const browser: RenderBrowser = { close: async () => {}, newContext: async () => { throw new Error("unused"); } };
@@ -22,6 +22,20 @@ describe("openPlaywrightRenderBrowser", () => {
     expect(result).toMatchObject({ available: false, reason: expect.stringContaining("(Cannot find package 'playwright')") });
   });
 
+  it("falls back to system Chrome without weakening the launch security options", async () => {
+    const launches: unknown[] = [];
+    const result = await openPlaywrightRenderBrowser({}, {
+      moduleLoader: { load: async () => ({ chromium: { launch: async options => {
+        launches.push(options);
+        if (!options?.channel) throw new Error("downloaded Chromium absent");
+        return browser;
+      } } }) },
+      launchOptions: PUBLIC_RENDER_LAUNCH_OPTIONS,
+    });
+    expect(result).toEqual({ available: true, browser });
+    expect(launches).toEqual([PUBLIC_RENDER_LAUNCH_OPTIONS, { ...PUBLIC_RENDER_LAUNCH_OPTIONS, channel: "chrome" }]);
+  });
+
   it("reports a non-Error module-load failure as unavailable, with its string form", async () => {
     const result = await openPlaywrightRenderBrowser({}, { moduleLoader: { load: async () => { throw "ERR_MODULE_NOT_FOUND"; } } });
     expect(result.available).toBe(false);
@@ -31,7 +45,10 @@ describe("openPlaywrightRenderBrowser", () => {
 
   it("reports a launch failure as unavailable with install guidance, for Error and non-Error failures alike", async () => {
     for (const [failure, detail] of [[new Error("sandbox unsupported"), "sandbox unsupported"], [42, "42"]] as const) {
-      const result = await openPlaywrightRenderBrowser({}, { moduleLoader: { load: async () => ({ chromium: { launch: async () => { throw failure; } } }) } });
+      const channels: unknown[] = [];
+      const result = await openPlaywrightRenderBrowser({}, { moduleLoader: { load: async () => ({ chromium: { launch: async options => { channels.push(options?.channel); throw failure; } } }) } });
+      expect(channels).toEqual([undefined, "chrome"]);
+      expect(result).toMatchObject({ reason: expect.stringContaining("system Chrome") });
       expect(result).toMatchObject({ available: false, reason: expect.stringContaining("npx playwright install --with-deps chromium") });
       expect(result).toMatchObject({ reason: expect.stringMatching(new RegExp(`Underlying error: ${detail}$`)) });
     }
