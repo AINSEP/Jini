@@ -1,5 +1,14 @@
 # @jini-ai/artifacts
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.4.2 — 2026-10-22
 
 - 2026-10-22: Security queue fixes (stub guard), complexity refactors, coverage.
@@ -32,7 +41,6 @@
   Buffer values. Add the optional content-decoder port and browser-safe UTF-8 metadata sizing.
 - Existing root and `./node` subpaths cover all additions; no new dependencies or version bump.
   Verification deferred by owner directive.
-
 
 - **BREAKING:** Convert the clean existing public APIs and provider methods to required argument objects plus separate optional settings. Inject transport, time, identity and filesystem dependencies through ports. No compatibility wrappers or version bump. Conversion of pre-existing dirty source files and their coupled APIs is deferred; see API-CONVERSION.md.
 

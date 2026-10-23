@@ -1,5 +1,14 @@
 # @jini-ai/sidecar
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.4.4 — 2026-10-22
 
 - 2026-10-22: Daemon registry, JSON IPC and respawn-policy refactors, coverage.
@@ -33,7 +42,6 @@
 
 - Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
 - Runtime JSON writes now preserve destination modes and fsync file plus parent directory, reject unserializable JSON, and clean failed owned temp writes.
-
 
 - **BREAKING:** Existing public helpers and data-bearing ports now take required and optional argument objects. Registry adapters and supervisor event/kill ports follow the same convention; migrate callers using `API.md` and the archived migration inventory.
 - Expose the respawn policy and supervisor from the library barrel; declare runtimes for all subpaths.

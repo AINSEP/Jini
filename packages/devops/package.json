@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/devops",
-  "version": "0.5.6",
+  "version": "0.6.10",
   "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -156,7 +156,7 @@
   },
   "peerDependencies": {
     "typescript": "^5.6.0",
-    "@jini-ai/platform": "^0.5.3",
+    "@jini-ai/platform": "^0.6.10",
     "undici": "^7.25.0"
   },
   "peerDependenciesMeta": {

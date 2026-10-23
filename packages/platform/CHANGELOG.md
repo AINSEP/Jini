@@ -1,5 +1,19 @@
 # @jini-ai/platform
 
+## 0.6.10
+
+### Patch Changes
+
+- e16a907: Preserve page-reader emphasis, raw Markdown text and inline-code whitespace; cap HTML before synchronous conversion.
+
+  The library projection retains its definition-list, fenced-code language, q/kbd, explicit hard-break and compact GFM table serialization. Ordinary text remains unescaped.
+
+- b63cb5f: Add an explicit child-environment omission helper that reports dropped key names without exposing values, including case-insensitive matching for Windows hosts.
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.5.10 — 2026-10-22
 
 - 2026-10-22: Mail: sender-identity resolver, payload hash covers the full delivery, rate-limit fixes, console preview; coverage.
@@ -54,6 +68,7 @@
 ## Unreleased
 
 - New `./object-store` (node): `createLocalFsObjectStore({ rootDir })` and `createLocalFsObjectStoreProvider()` — the default `local` provider for `@jini-ai/core/object-store`. Path formula `join(rootDir, key)`, byte-identical to cms `LocalFsBlobStore`; atomic `ifAbsent` via `wx`; keys escaping the root are refused.
+
 ### Compilation fixes
 
 - Omit an absent guarded HTTP abort signal to satisfy the canonical request contract.
@@ -65,7 +80,6 @@
 - Remove `./analytics` and the analytics root namespace; import the standalone `@jini-ai/analytics` package.
 - Remove `./trash` and the trash root namespace; import `@jini-ai/cms/trash`.
 - Move both capabilities' behavior tests with their source; platform retains only generic OS/transport capabilities.
-
 
 ### Shared platform primitives
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.2.2 — 2026-10-22
 
 - 2026-10-22: Vendor forwarder contract, keyed registry, fan-out sink and in-flight cap; provider-load TTL memo moved in from Tovu.

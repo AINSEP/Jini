@@ -1,5 +1,14 @@
 # @jini-ai/commerce
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.1.2 — 2026-10-22
 
 - 2026-10-22: Payments kernel: ledger and worker fixes, reconcile lost capture/void attempts, provider-plugin registration; BREAKING: legacy LiPay import (migration 0005) dropped.

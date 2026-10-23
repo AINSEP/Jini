@@ -1,5 +1,14 @@
 # @jini-ai/plugins
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.5.2 — 2026-10-22
 
 - 2026-10-22: Optional declared effect on plugin tool contributions, security fixes, complexity refactors, coverage.
@@ -31,7 +40,6 @@
 - Remove private-package status and configure public npm publishing without a version bump.
   Host dependencies are optional peers under the 2026-10-07 install-isolation decision.
   Copied behavior tests and entry-purity coverage await coordinator verification.
-
 
 ### Integration of extracted APIs
 

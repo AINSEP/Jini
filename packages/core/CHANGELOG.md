@@ -1,5 +1,21 @@
 # @jini-ai/core
 
+## 0.6.10
+
+### Patch Changes
+
+- 22f0619: Export baseline agent-failure token patterns, credential-directory deny
+  segments, and local-owner proxy markers for reuse by consumers.
+  Preserve existing vocabulary and redaction behavior.
+- 82ed2d3: Expose the React-free fetch-query contracts/cache at @jini-ai/core/fetch; UI keeps deprecated direct type re-exports. Build core before UI and publish before consumers adopt the subpath.
+- 5a3de86: Add optional `expectedRevisionSeq` options to settings `set(required, options)` and
+  `clear(required, options)`. Compare the addressed scope's stored value revision under
+  the existing transaction's ledger lock, throwing `SettingsRevisionConflictError`
+  with expected and actual sequences on mismatch and rolling back the write and revision.
+  Revision 0 represents a missing row; cleared rows retain their revision. Omitting
+  the option preserves unconditional writes. Available through `@jini-ai/core/settings`
+  and the existing `@jini-ai/cms/settings` compatibility re-export.
+
 ## 0.4.9 — 2026-10-22
 
 - 2026-10-22: Provider registry, ObjectStore contract with object_store registry and deferObjectStore, default-on batch tool eligibility, coverage.
@@ -56,7 +72,6 @@
 - Move the domain-independent catalog/input/schema/risk/confirmation registration kit into the root entry, with its behavior contracts. Domain-specific authorization and denial errors remain outside the kernel.
 - Use the existing named argument surface directly; primitive, Result and tool catalog types remain canonical in core.
 
-
 ### Shared kernel
 
 - Add `./primitives` with canonical time, ID, JSON, HTTP, logger and result contracts,
@@ -79,7 +94,6 @@
   samples with `nowIso({ clock })`; approval order, TTL and wire timestamps are unchanged.
 - Origin diagnostics use `Pick<Logger, 'warn'>` rather than a duplicate logger interface.
   The alias name `OriginValidationLoggerPort` remains available with the shared shape.
-
 
 - Add transport-neutral gated mutations with required token generation/TTL and async
   authorization, identity and token-store ports; preserve verified-plan handoff and

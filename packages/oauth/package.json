@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/oauth",
-  "version": "0.2.3",
+  "version": "0.6.10",
   "description": "OAuth 2.x client with discovery, registration, PKCE, device grants and refresh.",
   "license": "Apache-2.0",
   "repository": {
@@ -70,7 +70,7 @@
   "peerDependencies": {},
   "peerDependenciesMeta": {},
   "devDependencies": {
-    "@jini-ai/core": "^0.4.0",
+    "@jini-ai/core": "^0.6.10",
     "@jini-ai/platform": "workspace:*",
     "fast-check": "4.3.0"
   }

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/platform",
-  "version": "0.5.10",
+  "version": "0.6.10",
   "description": "Generic OS/platform primitives: process exec and lifecycle, filesystem containment, HTTP readiness polling, toolchain discovery, blob storage, AWS signing, and an SSRF-safe asset cache.",
   "license": "Apache-2.0",
   "repository": {
@@ -200,7 +200,7 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "@jini-ai/core": "^0.4.0"
+    "@jini-ai/core": "^0.6.10"
   },
   "publishConfig": {
     "access": "public",
@@ -232,11 +232,21 @@
     "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
-    "undici": { "optional": true },
-    "hast-util-from-parse5": { "optional": true },
-    "hast-util-to-mdast": { "optional": true },
-    "mdast-util-to-markdown": { "optional": true },
-    "mdast-util-gfm-table": { "optional": true },
+    "undici": {
+      "optional": true
+    },
+    "hast-util-from-parse5": {
+      "optional": true
+    },
+    "hast-util-to-mdast": {
+      "optional": true
+    },
+    "mdast-util-to-markdown": {
+      "optional": true
+    },
+    "mdast-util-gfm-table": {
+      "optional": true
+    },
     "parse5": {
       "optional": true
     }

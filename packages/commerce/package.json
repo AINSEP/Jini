@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/commerce",
-  "version": "0.1.2",
+  "version": "0.6.10",
   "description": "Opt-in catalog, checkout, payment state machines, provider services and read-only React overview.",
   "license": "Apache-2.0",
   "repository": {
@@ -94,13 +94,13 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/db": "^0.3.0",
+    "@jini-ai/db": "^0.6.10",
     "kysely": "^0.29.6",
     "express": "^4.21.0 || ^5.0.0",
     "react": "^18.3.0 || ^19.0.0",
-    "@jini-ai/agentic": "^0.3.0 || ^0.4.0",
-    "@jini-ai/ui": "^0.3.0 || ^0.4.0 || ^0.5.0",
-    "@jini-ai/cms": "^0.3.0 || ^0.4.0 || ^0.5.0"
+    "@jini-ai/agentic": "^0.6.10",
+    "@jini-ai/ui": "^0.6.10",
+    "@jini-ai/cms": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "@jini-ai/db": {

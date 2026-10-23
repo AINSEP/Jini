@@ -1,3 +1,16 @@
+## 0.6.10
+
+### Patch Changes
+
+- 0ca4d2a: consent banner buttons save again
+- b2f0fa8: Make consent banners compact by default, with equal Reject/Accept buttons, one native Do Not Sell or Share button, and rounded mobile sheets. Widen safe owner CSS to support 12px typography, bounded spacing and control sizes, rgba shadows, and banner-scoped width media queries while preserving required controls and action parity.
+- ea8d883: Flatten JPEG transparency onto white and retain the stored image transform when the social share transform has not registered yet.
+- 9098d22: Run the moved routing contract suites with Vitest and preserve the original routing rationale alongside the extracted implementation.
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.5.14 — 2026-10-22
 
 - 2026-10-22: Redirect matching and list fixes, numbered listing pages, post dates in the site time zone, comments honeypot fix, coverage.
@@ -110,6 +123,7 @@
 ## Unreleased
 
 - `./media`: `blobStoreFromObjectStore({ store })` — `BlobStorePort` as a view over `@jini-ai/core/object-store`, keys unchanged (`computeBlobStorageKey`), `putIfAbsent` → atomic `ifAbsent`, absent `get` throws `blob '<key>' was not found`.
+
 ### Compile repairs
 
 - Align settings HTTP adapters and value-write tool errors with current named kernel/domain arguments; import the canonical taxonomy ID generator type.
@@ -123,7 +137,6 @@
 - Require explicitly bound transactions for term rename and workspace deletion.
 - Add `./trash`, moved with its tests from platform. Retention is an option defaulting to 60 days; eager RangeError validation and sweeper bounds are retained. ID allocation uses the kernel `IdGenerator.newId()` port.
 - Remove the unimplemented `./widgets` export and its metadata entry.
-
 
 - Add `@jini-ai/cms/http/settings`: move the eight settings routes, contracts, CMS
   adapters and resumable change feed with their behavior suites from HTTP kit.

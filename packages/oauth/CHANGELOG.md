@@ -1,5 +1,14 @@
 # @jini-ai/oauth
 
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [22f0619]
+- Updated dependencies [82ed2d3]
+- Updated dependencies [5a3de86]
+  - @jini-ai/core@0.6.10
+
 ## 0.2.3 — 2026-10-22
 
 - 2026-10-22: Protocol handling rebased on openid-client/oauth4webapi behind the facade; device-flow and build fixes, coverage.
@@ -63,7 +72,6 @@
 - Remove prose-only `productName`; host-replaceable `defaultOAuthMessages` supplies neutral prose. Wire registration identity remains unchanged. Registration cache identity no longer includes the unused prose name.
 - Path discovery root fallbacks are opt-in (`allowOriginFallback`); explicit loopback HTTP accepts the full loopback range and mapped IPv6. No-refresh skew-window status says refresh due rather than expired; inclusive expiry is separately tested.
 - Callback caches share the main bounded 256-entry default and preserve the exclusive TTL boundary when explicitly requested. New tests remain under `tests/` until the package test configuration is migrated.
-
 
 - Security defaults: issuer-bound discovery is enabled unless the host explicitly selects `metadataPolicy: "none"`. DNS-pinned transport checks IPv4/IPv6 literal destinations before fetch, since Node bypasses DNS lookup for literals.
 
