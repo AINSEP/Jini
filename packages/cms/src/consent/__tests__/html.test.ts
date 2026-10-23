@@ -62,16 +62,26 @@ describe('delivered HTML consent boundary', () => {
       expect(dom.window.dataLayer[1][2].ad_user_data).toBe('granted');
     } finally { dom.window.close(); }
   });
-  it('honors navigator GPC even if the request header missed it; opens the no-sale controls by keyboard/click', async () => {
-    const { dom, requests } = await browser(gate(accepted), true);
+  it('honors navigator GPC even if the request header missed it and submits the sole no-sale button', async () => {
+    const { dom, requests, runtimeErrors, reloads } = await browser(gate(accepted), true);
+    const submissions: unknown[] = [];
+    dom.window.fetch = async (url: string, options: { body: { toString(): string } }) => {
+      submissions.push({ url, body: options.body.toString() });
+      return { ok: true, json: async () => ({ signals: { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' } }) };
+    };
     try {
       expect(requests).toEqual([]); expect(Array.from(dom.window.runs)).toEqual(['necessary', 'functional']);
       expect(dom.window.document.querySelector('[name=marketing]').disabled).toBe(true);
       expect(dom.window.document.querySelector('[name=analytics]').checked).toBe(false);
       expect(dom.window.dataLayer[1][2].ad_personalization).toBe('denied');
-      dom.window.document.querySelector('[data-jini-do-not-sell]').click();
-      expect(dom.window.document.getElementById('jini-consent-preferences').open).toBe(true);
-      expect(dom.window.document.activeElement.getAttribute('data-jini-do-not-sell-button')).toBe('');
+      dom.window.document.querySelector('.jini-consent-manage').open = true;
+      const button = dom.window.document.querySelector('[data-jini-do-not-sell-button]');
+      button.click();
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(submissions).toEqual([{ url: 'https://site.example/api/site-consent', body: 'policyVersion=1&gpc=1&functional=on&action=do-not-sell' }]);
+      expect(dom.window.dataLayer.at(-1)[2].ad_storage).toBe('denied');
+      expect(runtimeErrors).toEqual([]);
+      expect(reloads).toHaveLength(1);
     } finally { dom.window.close(); }
   });
   it('a failed enhanced save displays the server error and never releases optional code', async () => {

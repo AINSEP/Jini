@@ -19,9 +19,9 @@ function policyLinks({ config }: { config: ConsentConfig }): string {
   const e = (text: string) => escapeHtml({ text });
   const href = consentPolicyHref({ url: config.privacyPolicyUrl });
   const secondaryHref = consentPolicyHref({ url: config.secondaryLinkUrl ?? '' });
-  const privacy = href ? `<a href="${e(href)}">Privacy policy</a> · ` : '';
-  const secondary = secondaryHref && config.secondaryLinkLabel ? `<a href="${e(secondaryHref)}">${e(config.secondaryLinkLabel)}</a> · ` : '';
-  return privacy + secondary;
+  const privacy = href ? `<a href="${e(href)}">Privacy policy</a>` : '';
+  const secondary = secondaryHref && config.secondaryLinkLabel ? `<a href="${e(secondaryHref)}">${e(config.secondaryLinkLabel)}</a>` : '';
+  return [privacy, secondary].filter(Boolean).join(' · ');
 }
 
 /** Render one accessible progressive form. Config text is always text, never trusted HTML.
@@ -37,10 +37,11 @@ export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: {
     return `<label class="jini-consent-category"><input type="checkbox" name="${category}"${choices[category] ? ' checked' : ''}${locked ? ' disabled' : ''}>${category[0]!.toUpperCase() + category.slice(1)}${category === 'necessary' ? ' (always on)' : ''}</label>`;
   }).join('');
   const manage = record === null ? ['', ''] : [`<details class="jini-consent-manage"><summary class="jini-consent-pill">${e(config.preferencesLabel)}</summary><div class="jini-consent-panel">`, '</div></details>'];
+  // MOVE: The sole no-sale control is the native POST button, so opting out also works without JS.
   return `<section id="jini-consent" class="jini-consent" data-has-record="${record !== null}" data-placement="${placement}" aria-label="Cookie preferences">
 ${manage[0]}<div class="jini-consent-initial"><h2>${e(config.title)}</h2><p>${e(config.message)}</p>
 <p>${regionMode === 'opt-out' ? 'You may opt out of optional cookies at any time.' : 'Optional cookies and scripts stay paused until you agree.'}</p></div>
-${policyLinks({ config })}<a href="#jini-consent-preferences" data-jini-do-not-sell>Do Not Sell or Share</a>
+${policyLinks({ config })}
 <p data-jini-gpc-note${gpc ? '' : ' hidden'}>Global Privacy Control is on. Analytics and marketing are disabled.</p>
 <form method="post" action="${e(endpoint)}"><input type="hidden" name="policyVersion" value="${e(config.policyVersion)}"><input type="hidden" name="gpc" value="${gpc ? '1' : '0'}">
 <p role="alert" data-jini-consent-error hidden></p>
