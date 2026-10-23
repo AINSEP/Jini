@@ -62,6 +62,45 @@ export const SECRET_SHAPE_PATTERNS: readonly SecretShapePattern[] = [
   { name: PEM_PATTERN_NAME, pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
 ];
 
+/** Broad token shapes for agent-failure text; consumers retain their plain [REDACTED] pipeline. */
+export const AGENT_FAILURE_SECRET_SHAPE_RE = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[\w.-]+|gh[pousr]_[\w]+|github_pat_[\w]+|ya29\.[\w.-]+|eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)/g;
+
+/**
+ * Exact path SEGMENT names refused at any depth, matched case-insensitively against each segment
+ * of the caller-supplied path (never a substring — a directory named `not-secrets-actually` is not
+ * a match). `secrets` is the owner's explicit example: whatever a site or app tree names its
+ * credentials folder (`sites/**\/secrets/`, `apps/admin/**\/secrets/`, or anywhere else), it never
+ * becomes reachable through this domain. A denied segment is refused by the guarded reader
+ * AND skipped entirely by the `fs_list_files` walk — its contents are never even enumerated,
+ * not merely refused once named. Besides `secrets`, the set names the
+ * well-known credential-store directories a home-directory `custom` root can expose: `.aws`
+ * (`credentials`), `.docker` (`config.json` with registry auth), `.kube` (`config`), and
+ * `gcloud`/`gh` for `.config/gcloud/application_default_credentials.json` and
+ * `.config/gh/hosts.yml`. Denied by SEGMENT rather than by leaf filename on purpose: `config`,
+ * `config.json`, and `hosts.yml` are generic names that appear harmlessly elsewhere, so denying the
+ * directory is the narrower of the two mistakes.
+ *
+ * `.tovu` (2026-09-24) — the install-wide site key's own directory. `keyring.env.ts`'s
+ * `siteKeySources` resolves to `<cwd>/sites/.tovu/site-key.hex` in production
+ * (a SIBLING of every `sites/<name>/` folder, on the durable data volume) and to
+ * `~/.tovu/site-keys/<siteKeyId>.hex` in local/dev (reachable through the operator-set `custom`
+ * root, `layout.ts`'s home-directory case). `TOVU_SITE_KEY` is the one secret the
+ * "site key" admin UI, webhook/newsletter signing secrets, and site-key
+ * permission checks all derive from (see `keyring.env.ts`'s own header) — the owner's standing rule
+ * is that the agent must never be able to read it off disk. Denying the whole `.tovu` segment, not
+ * merely the generated filename, also keeps `fs_list_files` from ever enumerating that directory's
+ * contents in the first place (in Jini's guarded reader), the same "never even advertise it"
+ * property `secrets` gets above.
+ */
+export const CREDENTIAL_FILE_DENY_SEGMENTS: readonly string[] = ["secrets", ".aws", ".docker", ".kube", "gcloud", "gh", ".tovu"];
+
+// A local tunnel has a loopback socket and may rewrite Host; refuse marker presence, even empty.
+export const LOCAL_OWNER_PROXY_MARKER_PREFIXES: readonly string[] = ["x-forwarded-", "x-envoy-", "x-ms-"];
+export const LOCAL_OWNER_PROXY_MARKER_HEADERS: readonly string[] = [
+  "forwarded", "x-real-ip", "via", "cf-connecting-ip", "true-client-ip", "x-original-host",
+  "x-client-ip", "x-cluster-client-ip", "fastly-client-ip", "tailscale-user-login", "x-original-forwarded-for",
+];
+
 export interface SecretRedactionPattern {
   name: string;
   regex: RegExp;
