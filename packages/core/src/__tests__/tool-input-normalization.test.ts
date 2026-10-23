@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeToolInput, withNormalizationNotes } from '../tool-input-normalization.js';
+import { withBatchInput } from '../batch-tool-inputs.js';
+import { authorizeToolInvocation } from '../tool-registry.js';
 import type { ToolRegistration } from '../tool-registry.js';
 
 const schema = {
@@ -56,24 +58,26 @@ describe('schema-guided tool input normalization', () => {
     await expect(normalizeToolInput({ input: { 'foo-bar': 1 }, registration: { descriptor: { id: 'ambiguous', inputSchema: { properties: { fooBar: {}, foo_bar: {} } } } } })).rejects.toThrow('matches fooBar, foo_bar');
   });
 
-  it.each(['expectedVersoin', 'expectedVersio', 'expectedVersions'])('refuses to discard near-miss required property %s', async key => {
-    await expect(normalize({ [key]: 3 })).rejects.toThrow("Did you mean 'expectedVersion'? Resend with the declared name.");
+  it.each(['expectedVersoin', 'expectedVersio', 'expectedVersions'])('applies the sole near-miss required property %s', async key => {
+    expect(await normalize({ [key]: '3' })).toEqual({
+      input: { expectedVersion: 3 }, notes: [`${key}→expectedVersion`, 'expectedVersion: string→integer'],
+    });
   });
 
-  it.each(['id', 'menuI', 'menu_idd'])('suggests the optional menuId for %s without accepting the input', async key => {
+  it.each(['id', 'menuI', 'menu_idd'])('applies the sole optional menuId hint for %s without exposing values', async key => {
     const input = { [key]: 'private-menu-value' };
     const definition = { descriptor: { id: 'read', inputSchema: { type: 'object', additionalProperties: false, properties: { menuId: { type: 'string' } } } } };
-    await expect(normalizeToolInput({ input, registration: definition })).rejects.toThrow(
-      `Unknown input '${key}'. Declared inputs: menuId (optional). Did you mean 'menuId'? Resend with the declared name.`,
-    );
+    expect(await normalizeToolInput({ input, registration: definition })).toEqual({
+      input: { menuId: 'private-menu-value' }, notes: [`${key}→menuId`],
+    });
     expect(input).toEqual({ [key]: 'private-menu-value' });
   });
 
-  it('suggests id when an undeclared resource-specific id name was supplied', async () => {
+  it('applies a sole resource-specific id shorthand in either direction', async () => {
     const definition = { descriptor: { id: 'read', inputSchema: { type: 'object', additionalProperties: false, properties: { id: { type: 'string' } } } } };
-    await expect(normalizeToolInput({ input: { menuId: 'private-menu-value' }, registration: definition })).rejects.toThrow(
-      "Unknown input 'menuId'. Declared inputs: id (optional). Did you mean 'id'? Resend with the declared name.",
-    );
+    expect(await normalizeToolInput({ input: { menuId: 'private-menu-value' }, registration: definition })).toEqual({
+      input: { id: 'private-menu-value' }, notes: ['menuId→id'],
+    });
   });
 
   it('lists required names first even without a near miss', async () => {
@@ -96,10 +100,96 @@ describe('schema-guided tool input normalization', () => {
     );
   });
 
-  it('includes the nested array path and local declared name in a hint', async () => {
-    await expect(normalize({ items: [{ id: 'private-theme-value' }] })).rejects.toThrow(
-      "Unknown input 'items[0].id'. Declared inputs: themeId (optional). Did you mean 'themeId'? Resend with the declared name.",
+  it('includes the nested array path in a sole-hint rename note', async () => {
+    expect(await normalize({ items: [{ id: 'private-theme-value' }] })).toEqual({
+      input: { items: [{ themeId: 'private-theme-value' }] }, notes: ['items[0].id→themeId'],
+    });
+  });
+
+  it.each([
+    { id: 'private-value', entityId: 'other-private-value' },
+    { entityId: 'other-private-value', id: 'private-value' },
+  ])('refuses a sole hint colliding with its canonical key in either order', async input => {
+    const definition = { descriptor: { id: 'remove', inputSchema: { type: 'object', additionalProperties: false, properties: { entityId: { type: 'string' } } } } };
+    await expect(normalizeToolInput({ input, registration: definition })).rejects.toThrow("Send only 'entityId'");
+  });
+
+  it('keeps exact names ahead of shape matches and near misses', async () => {
+    const definition = { descriptor: { id: 'read', inputSchema: { type: 'object', additionalProperties: false, properties: {
+      id: { type: 'string' }, entityId: { type: 'string' }, topic: { type: 'string' }, topics: { type: 'array', items: { type: 'string' } },
+      fooBar: {}, foo_bar: {},
+    } } } };
+    const input = { id: 'private-value', topics: ['one', 'two'], fooBar: 1 };
+    expect(await normalizeToolInput({ input, registration: definition })).toEqual({ input, notes: [] });
+  });
+
+  it('prefers a case/separator match over other near-miss candidates', async () => {
+    const definition = { descriptor: { id: 'read', inputSchema: { type: 'object', additionalProperties: false, properties: { id: {}, entityId: {}, entityIds: {} } } } };
+    expect(await normalizeToolInput({ input: { ENTITY_ID: 'private-value' }, registration: definition })).toEqual({
+      input: { entityId: 'private-value' }, notes: ['ENTITY_ID→entityId'],
+    });
+  });
+
+  it('refuses two near-miss candidates instead of selecting the first', async () => {
+    const definition = { descriptor: { id: 'read', inputSchema: { type: 'object', additionalProperties: false, properties: { topic: {}, tonic: {} } } } };
+    await expect(normalizeToolInput({ input: { topnic: 'private-value' }, registration: definition })).rejects.toThrow("Did you mean 'topic', 'tonic'?");
+  });
+
+  it.each([
+    ['topics', 'topic'], ['topic', 'topics'],
+  ])('applies the sole singular/plural hint from %s to %s', async (key, name) => {
+    const definition = { descriptor: { id: 'guide', inputSchema: { type: 'object', additionalProperties: false, properties: { [name]: { type: 'string' } } } } };
+    const input = { [key]: ['private-topic'] };
+    expect(await normalizeToolInput({ input, registration: definition })).toEqual({
+      input: { [name]: 'private-topic' }, notes: [`${key}→${name}`, `${name}: one-item string array→string`],
+    });
+    expect(input).toEqual({ [key]: ['private-topic'] });
+  });
+
+  it('unwraps a string array at the canonical field and records no values', async () => {
+    expect(await normalize({ caption: ['private-caption'] })).toEqual({
+      input: { caption: 'private-caption' }, notes: ['caption: one-item string array→string'],
+    });
+  });
+
+  it.each([
+    { value: ['plugins', 'how-tovu-works-plugins'] }, { value: [] }, { value: [3] }, { value: [null] },
+    { value: [{}] }, { value: [['plugins']] }, { value: ['plugins', 3] },
+  ])('refuses a non-singleton or malformed string array $value without exposing its values', async ({ value }) => {
+    const definition = { descriptor: { id: 'guide', inputSchema: { type: 'object', additionalProperties: false, properties: { operation: { type: 'string' }, topic: { type: 'string' } } } } };
+    await expect(normalizeToolInput({ input: { operation: 'explain', topics: value }, registration: definition })).rejects.toThrow(
+      "topic: send one value as a string or a one-element string array.",
     );
+  });
+
+  it('preserves arrays allowed by a union and unconstrained nested data', async () => {
+    const data = { topics: ['private-one', 'private-two'], id: 'private-id' };
+    const definition = { descriptor: { id: 'read', inputSchema: { properties: {
+      topic: { type: ['string', 'array'], items: { type: 'string' } }, data: {},
+    } } } };
+    const result = await normalizeToolInput({ input: { topic: ['one', 'two'], data }, registration: definition });
+    expect(result).toEqual({ input: { topic: ['one', 'two'], data }, notes: [] });
+    expect((result.input as { data: unknown }).data).toEqual(data);
+  });
+
+  it('normalizes a sole id hint before authorization and retains its note through batching', async () => {
+    const seen: unknown[] = [];
+    const definition: ToolRegistration = {
+      descriptor: { id: 'remove', inputSchema: { type: 'object', additionalProperties: false, properties: { entityId: { type: 'string' } } } },
+      policy: { authorize: ({ input }) => { seen.push(input); return 'allow'; } },
+      handler: async ({ input }) => ({ removed: (input as { entityId: string }).entityId === 'private-target' }),
+    };
+    const batched = withBatchInput({ registration: definition, tool: { toolId: 'remove' } });
+    const context = { signal: new AbortController().signal, principal: { id: 'owner' }, run: { id: 'run' }, executionId: 'execution' };
+    const output = await batched.handler({ ...context, input: { items: [{ id: 'private-target' }] } }, {
+      invokeTool: async ({ toolId, input }, { registry } = {}) => {
+        const admitted = await authorizeToolInvocation({ registry: registry!, toolId, input, principal: { id: 'owner' }, run: { id: 'run' } });
+        if (!admitted || admitted.decision !== 'allow') throw new Error('authorization refused');
+        return admitted.handler({ ...context, input: admitted.input });
+      },
+    });
+    expect(seen).toEqual([{ entityId: 'private-target' }]);
+    expect(output).toMatchObject({ succeeded: 1, failed: 0, results: [{ ok: true, result: { removed: true, normalizationNotes: ['id→entityId'] } }] });
   });
 
   it('refuses unknown fields even in an empty closed schema before a guard can lose them', async () => {

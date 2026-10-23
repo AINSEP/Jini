@@ -29,6 +29,11 @@ describe('normalizeToolInput: schema shapes that leave input untouched', () => {
     expect(result).toEqual({ input: { extra: true }, notes: ['extra: string→boolean'] });
   });
 
+  it('keeps a near-miss key as open-schema data instead of applying the hint', async () => {
+    const input = { title: 'a', titles: ['b'] };
+    expect(await run(input, { type: 'object', properties: { title: { type: 'string' } } })).toEqual({ input, notes: [] });
+  });
+
   it('records the nested location of an additionalProperties coercion', async () => {
     const schema = { type: 'object', properties: { box: { type: 'object', additionalProperties: { type: 'integer' } } } };
     expect((await run({ box: { n: '4' } }, schema)).notes).toEqual(['box.n: string→integer']);
@@ -106,13 +111,13 @@ describe('normalizeToolInput: key canonicalization and refusals', () => {
     expect((await run({ other: 1 }, { type: 'object', properties: { a: {} } })).input).toEqual({ other: 1 });
   });
 
-  it('ignores non-string and non-array required lists when hinting', async () => {
-    await expect(run({ ab: 1 }, closed({ abc: {} }, 'abc'))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (optional). Did you mean 'abc'? Resend with the declared name.");
-    await expect(run({ ab: 1 }, closed({ abc: {} }, [3, 'abc']))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (required). Did you mean 'abc'? Resend with the declared name.");
+  it('ignores non-string and non-array required lists when reporting ambiguous hints', async () => {
+    await expect(run({ ab: 1 }, closed({ abc: {}, abd: {} }, 'abc'))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (optional), abd (optional). Did you mean 'abc', 'abd'? Resend with the declared name.");
+    await expect(run({ ab: 1 }, closed({ abd: {}, abc: {} }, [3, 'abc']))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (required), abd (optional). Did you mean 'abc', 'abd'? Resend with the declared name.");
   });
 
-  it('hints optional names as well as required ones', async () => {
-    await expect(run({ ab: 1 }, closed({ abc: {} }, []))).rejects.toThrow("Unknown input 'ab'. Declared inputs: abc (optional). Did you mean 'abc'? Resend with the declared name.");
+  it('applies a sole optional hint as well as a required one', async () => {
+    expect(await run({ ab: 1 }, closed({ abc: {} }, []))).toEqual({ input: { abc: 1 }, notes: ['ab→abc'] });
   });
 
   it.each([
@@ -121,8 +126,8 @@ describe('normalizeToolInput: key canonicalization and refusals', () => {
     ['deletion', 'abd', 'abcd'],
     ['insertion', 'abxcd', 'abcd'],
     ['last-character change', 'abcx', 'abcd'],
-  ])('hints a %s', async (_kind, key, name) => {
-    await expect(run({ [key]: 1 }, closed({ [name]: {} }))).rejects.toThrow(`Did you mean '${name}'? Resend with the declared name.`);
+  ])('applies a sole %s hint', async (_kind, key, name) => {
+    expect(await run({ [key]: 1 }, closed({ [name]: {} }))).toEqual({ input: { [name]: 1 }, notes: [`${key}→${name}`] });
   });
 
   it.each([
@@ -136,7 +141,7 @@ describe('normalizeToolInput: key canonicalization and refusals', () => {
   });
 
   it('compares hint shapes ignoring separators and case', async () => {
-    await expect(run({ Expected_Versoin: 1 }, closed({ expectedVersion: {} }))).rejects.toThrow("Did you mean 'expectedVersion'? Resend with the declared name.");
+    expect(await run({ Expected_Versoin: 1 }, closed({ expectedVersion: {} }))).toEqual({ input: { expectedVersion: 1 }, notes: ['Expected_Versoin→expectedVersion'] });
   });
 });
 
@@ -207,6 +212,12 @@ describe('canonicalizeToolInputKeys', () => {
   it('renames keys but does not coerce values or wrap items', () => {
     expect(canonicalizeToolInputKeys({ input: { max_chars: '10', items: { a: 1 } }, schema }))
       .toEqual({ input: { maxChars: '10', items: { a: 1 } }, notes: ['max_chars→maxChars'] });
+  });
+
+  it('applies sole hints in a batch layer while preserving string arrays for the merged pass', () => {
+    const guideSchema = closed({ topic: { type: 'string' } });
+    expect(canonicalizeToolInputKeys({ input: { topics: ['one', 'two'] }, schema: guideSchema }))
+      .toEqual({ input: { topic: ['one', 'two'] }, notes: ['topics→topic'] });
   });
 
   it('keeps unknown keys because the closed check belongs to the final pass', () => {

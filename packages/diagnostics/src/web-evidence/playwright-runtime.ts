@@ -6,12 +6,12 @@
  * Why the import is dynamic, and why the module's types are declared here
  * ---------------------------------------------------------------------------
  * The host may optionally install `playwright`; this package adds no browser dependency. The BROWSER
- * BINARY it drives needs a separate `playwright install chromium` step in the host deployment.
- * Installing the module alone does not supply that binary. So both halves can
+ * BINARY it drives needs a separate `playwright install chromium` step or an installed system
+ * Chrome. Installing the module alone does not supply either binary. So both halves can
  * legitimately be missing at runtime, independently:
  *
  * - the module itself, on a deployment that pruned it;
- * - the Chromium binary, on a deployment that installed the module but not the browser.
+ * - both browser binaries, on a deployment that installed the module but neither browser.
  *
  * Both are caught here and converted into `{ available: false, reason }`, never a thrown error and
  * never a boot failure. The tool then reports "no browser in this deployment" and the compliance
@@ -48,7 +48,7 @@ import type { RequestRouter } from "./request-guard.js";
 
 export interface PlaywrightLike {
   chromium: {
-    launch(options?: { headless?: boolean; args?: readonly string[]; chromiumSandbox?: boolean }): Promise<RenderBrowser>;
+    launch(options?: { headless?: boolean; args?: readonly string[]; chromiumSandbox?: boolean; channel?: "chrome" }): Promise<RenderBrowser>;
   };
 }
 
@@ -57,9 +57,9 @@ export interface PlaywrightLike {
  * deployment cannot.
  *
  * @returns `{ available: true, browser }` on success; `{ available: false, reason }` when the
- * `playwright` module or its Chromium binary is not present. Never throws for either case — see
+ * `playwright` module or both Chromium and system Chrome are unavailable. Never throws for either case — see
  * this file's header for why an absent browser must be a reportable state rather than an error.
- * @complexity One process launch. The caller is responsible for calling `close()`, which
+ * @complexity At most two process launch attempts. The caller is responsible for calling `close()`, which
  * `collectPageEvidence` does in a `finally`.
  */
 export interface PlaywrightAdapterOptions {
@@ -75,7 +75,9 @@ export const nodeModuleLoader: NonNullable<PlaywrightAdapterOptions["moduleLoade
   load: async ({ moduleName }) => (await import(moduleName)) as unknown as PlaywrightLike,
 };
 
-/** Opens the optional browser capability; import and launch failures become availability results. */
+/** Opens bundled Chromium, then system Chrome; import/launch failures become availability results.
+ * Launch policy is retained on both attempts; successful process ownership transfers to the caller.
+ * @complexity At most two launches, O(1) retained state. */
 // A successful launch transfers process ownership to the caller; close the browser in a finally
 // block so an unreachable or unstable page cannot leak the browser process.
 export async function openPlaywrightRenderBrowser(
@@ -96,13 +98,18 @@ export async function openPlaywrightRenderBrowser(
 
   let browser: RenderBrowser;
   try {
-    browser = await playwright.chromium.launch({ headless: true, ...options.launchOptions });
+    try {
+      browser = await playwright.chromium.launch({ headless: true, ...options.launchOptions });
+    } catch {
+      // Desktop retains the driver but omits browser downloads. Keep the same sandbox/network policy.
+      browser = await playwright.chromium.launch({ headless: true, ...options.launchOptions, channel: "chrome" });
+    }
   } catch (error) {
     return {
       available: false,
       reason:
-        "Chromium could not be launched in this deployment — the 'playwright' package is present but its " +
-        `browser binary may be missing or the host may not support the configured sandbox (run 'npx playwright install --with-deps chromium'). Underlying error: ${error instanceof Error ? error.message : String(error)}`,
+        "Neither bundled Chromium nor system Chrome could be launched in this deployment — the 'playwright' package is present but the " +
+        `browser binaries may be missing or the host may not support the configured sandbox (install Chrome or run 'npx playwright install --with-deps chromium'). Underlying error: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 

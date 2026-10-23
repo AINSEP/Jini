@@ -1,6 +1,8 @@
 /** rendr: input contract and rendered projection over a DI renderer, no sockets/module mocks. */
 import { test, expect } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
+import type { HttpRequest } from "@jini-ai/core/primitives";
+import { EgressRefusedError } from "../../http/guarded/errors.js";
 import { fetchWebPage, readWebFetchInput, type WebFetchPorts, type RenderedWebPage } from "../web-page.js";
 import { htmlToMarkdown } from "../html-to-markdown.js";
 const url = "https://public.example/";
@@ -56,7 +58,7 @@ test("live text truncation, JSON truncation and screenshot are retained in the b
 
 test("missing browser capability and transport failures remain caller-safe errors; rate limiting precedes render", async () => {
   const fake = fixture(); delete fake.ports.renderPage;
-  await expect(fake.fetch({ render: true })).rejects.toThrow("unavailable in this deployment");
+  await expect(fake.fetch({ render: true, screenshot: true })).rejects.toThrow("headless browser");
   fake.ports.renderPage = async () => { throw new Error("internal DNS address 10.0.0.1"); };
   await expect(fake.fetch({ render: true })).rejects.toThrow("network error");
   fake.ports.rateLimiter = { check: async () => ({ allowed: false, retryAfterSeconds: 20 }) };
@@ -84,9 +86,65 @@ test("rendered structured facts cap strings as well as counts, and browser image
   expect(result.imagesTruncated).toBe(true); expect(result.truncated).toBe(true);
 });
 
-test("an unavailable renderer reports the missing browser capability instead of a generic network failure", async () => {
+test("an unavailable renderer cannot satisfy a requested screenshot", async () => {
   const fake = fixture(); fake.ports.renderPage = async () => { throw Object.assign(new Error("unavailable"), { code: "WEB_RENDER_UNAVAILABLE" }); };
-  await expect(fake.fetch({ render: true })).rejects.toThrow("headless browser (Playwright Chromium) is not installed or failed to start");
+  await expect(fake.fetch({ render: true, screenshot: true })).rejects.toThrow("headless browser (Playwright Chromium or system Chrome) is not installed or failed to start");
+});
+
+test.each(["missing port", "unavailable browser"])("%s falls back through guarded HTTP with an explicit non-rendered note", async unavailable => {
+  const fake = fixture();
+  if (unavailable === "missing port") delete fake.ports.renderPage;
+  else fake.ports.renderPage = async () => { throw Object.assign(new Error("private launch details"), { code: "WEB_RENDER_UNAVAILABLE" }); };
+  const sent: HttpRequest[] = [];
+  const events: unknown[] = [];
+  const rateKeys: string[] = [];
+  fake.ports.observeFetch = event => events.push(event);
+  fake.ports.rateLimiter = { check: async ({ key }) => { rateKeys.push(key); return { allowed: true }; } };
+  fake.ports.httpClient.send = async ({ request }) => {
+    sent.push(request);
+    return { status: 200, headers: { "content-type": "text/html" }, bodyText: "<h1>Server content</h1>", finalUrl: "https://public.example/redirected" };
+  };
+  const result = await fake.fetch({ render: true });
+  expect(result.content).toBe("# Server content");
+  expect(result.finalUrl).toBe("https://public.example/redirected");
+  expect(result.note).toBe("Browser unavailable; returned a guarded non-rendered fetch. JavaScript was not executed.");
+  expect(result).not.toHaveProperty("rendered");
+  expect(result).not.toHaveProperty("screenshot");
+  expect(result).not.toHaveProperty("data");
+  expect(result.untrusted).toBe(true);
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({ method: "GET", url, maxResponseBytes: 5 * 1024 * 1024, timeoutMs: 30_000 });
+  expect(sent[0]!.headers).not.toHaveProperty("Cookie");
+  expect(sent[0]!.headers).not.toHaveProperty("Authorization");
+  expect(sent[0]!.signal).toBeInstanceOf(AbortSignal);
+  expect(rateKeys).toEqual(["workspace|public.example"]);
+  expect(events).toEqual([{ origin: "https://public.example", outcome: "response", status: 200, durationMs: 0 }]);
+});
+
+test("browser unavailability does not bypass guarded-fetch refusal", async () => {
+  const fake = fixture(); delete fake.ports.renderPage;
+  fake.ports.httpClient.send = async () => { throw new EgressRefusedError({ message: "private redirect peer" }, { callerSafeMessage: "target refused" }); };
+  await expect(fake.fetch({ render: true })).rejects.toThrow("target refused. Only public internet pages can be fetched");
+});
+
+test.each(["WEB_RENDER_BUSY", "WEB_RENDER_REFUSED", "NAVIGATION_FAILED", "ABORT_ERR"])("%s never retries through raw HTTP", async code => {
+  const fake = fixture();
+  fake.ports.renderPage = async () => { throw Object.assign(new Error("private failure details"), { code }); };
+  let sent = 0;
+  fake.ports.httpClient.send = async () => { sent++; throw new Error("must not fetch"); };
+  await expect(fake.fetch({ render: true })).rejects.toBeInstanceOf(ToolInputError);
+  expect(sent).toBe(0);
+});
+
+test("cancellation while the browser starts prevents the unavailable fallback", async () => {
+  const fake = fixture();
+  const abort = new AbortController();
+  const unavailable = Object.assign(new Error("browser unavailable"), { code: "WEB_RENDER_UNAVAILABLE" });
+  fake.ports.renderPage = async () => { abort.abort(); throw unavailable; };
+  let sent = 0;
+  fake.ports.httpClient.send = async () => { sent++; throw new Error("must not fetch"); };
+  await expect(fetchWebPage({ input: readWebFetchInput({ url, render: true }), ports: fake.ports, rateLimitScope: "workspace" }, { signal: abort.signal })).rejects.toBe(unavailable);
+  expect(sent).toBe(0);
 });
 
 

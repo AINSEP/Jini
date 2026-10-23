@@ -496,7 +496,10 @@ test('an active copy under a bundled id at a digest the build did not ship is re
     for (const mode of ['inject', 'pointer'] as const) {
       const result = await resolveAgentPluginRefs(['synthetic'], layout, mode);
       assert.equal(result.ok, false);
-      if (!result.ok) assert.match(result.reason, /only plugins shipped with/);
+      if (!result.ok) {
+        assert.equal(result.code, 'untrusted');
+        assert.match(result.reason, /only plugins shipped with/);
+      }
     }
   } finally { await forceRemove(cwd); }
 });

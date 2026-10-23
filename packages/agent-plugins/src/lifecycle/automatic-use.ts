@@ -1,5 +1,6 @@
 /** Automatic-use policy for one execution context. Catalog, trust, consent and presentation are ports. */
 import type { AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
+import type { ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
 
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
@@ -9,6 +10,12 @@ export interface ChatAgentPluginState {
   excluded: readonly string[];
 }
 export interface AutomaticAgentPluginMatch { id: string; name: string; why: string }
+/** Explicit loads report admission separately from guidance; only real delivery is `loaded`. */
+export interface AutomaticAgentPluginLoadResult {
+  status: 'loaded' | 'installed-but-inactive' | 'excluded' | 'untrusted' | 'missing' | 'already-loaded'
+    | 'off' | 'cancelled' | 'unavailable';
+  guidance: string;
+}
 
 /** Use the same one-line metadata reason in consent and progressive disclosure. */
 function describeMatch({ plugin }: { plugin: AgentPluginSearchCandidate }, _options = {}): AutomaticAgentPluginMatch {
@@ -40,23 +47,22 @@ export interface AutomaticAgentPluginPorts {
   list(input: Record<string, never>, options?: Record<string, never>): Promise<readonly AgentPluginSearchCandidate[]>;
   rank(input: { query: string; candidates: readonly AgentPluginSearchCandidate[]; limit: number }, options?: Record<string, never>): readonly AgentPluginSearchMatch[];
   /** Must recheck activation/trust and return real guidance, never a pointer to unopened guidance. */
-  resolve(input: { pluginId: string }, options?: Record<string, never>): Promise<string>;
+  resolve(input: { pluginId: string }, options?: Record<string, never>): Promise<ResolveAgentPluginRefsResult>;
   /** Only a principal-bound human exchange may return action=auto. */
   ask(input: { matches: readonly AutomaticAgentPluginMatch[]; signal?: AbortSignal }, options?: Record<string, never>): Promise<{ action: 'use' | 'skip' | 'auto'; selected: readonly string[] }>;
   saveAuto(input: Record<string, never>, options?: Record<string, never>): Promise<void>;
   publish(input: { state: ChatAgentPluginState; plugins: readonly { id: string; name: string }[] }, options?: Record<string, never>): Promise<void>;
 }
 
-type PrepareInput = { query?: string; pluginId?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal };
+type PrepareInput = { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal };
 
-/** An explicit id or a guarded capability admits its providers outright; a query is ranked for relevance. */
+/** A guarded capability admits its providers outright; a query is ranked for relevance. */
 function rankCandidates(
   { candidates, input, ports }: { candidates: readonly AgentPluginSearchCandidate[]; input: PrepareInput; ports: AutomaticAgentPluginPorts },
   _options = {},
 ): readonly AgentPluginSearchMatch[] {
-  const { pluginId, capabilities } = input;
+  const { capabilities } = input;
   const admit = (plugins: readonly AgentPluginSearchCandidate[]) => plugins.map(plugin => ({ ...plugin, score: 4 }));
-  if (pluginId !== undefined) return admit(candidates.filter(plugin => plugin.pluginId === pluginId));
   if (capabilities) return admit(candidates.filter(plugin => plugin.provides?.some(capability => capabilities.includes(capability))));
   return ports.rank({ query: input.query ?? '', candidates, limit: candidates.length }, {});
 }
@@ -77,7 +83,7 @@ export function readChatAgentPluginState({ value }: { value: unknown }, _options
 
 /** Create one run's preparation owner. Calls serialize so parallel tool writes share one question.
  * @param required Host effects and the person's mode; browser state is advisory selection only.
- * @returns prepare(): a relevance note or capability guidance; load(): one plugin's real guidance.
+ * @returns prepare(): a relevance note or capability guidance; load(): a truthful admission/delivery outcome.
  * @complexity O(p*t) ranking plus at most one resolve per admitted plugin; relevance, not a count, bounds it.
  * @example const use = createAutomaticAgentPluginUse({ mode: 'auto', ports });
  */
@@ -109,18 +115,28 @@ export function createAutomaticAgentPluginUse(
     // Consent changes only this person's preference, never a workspace default.
     return matches.filter(plugin => selected.includes(plugin.pluginId));
   }
+  /** Resolve through the host's activation/trust owner; only real text records delivery.
+   * Refusals and read failures remain retryable and never expose host diagnostics. O(1) bookkeeping.
+   */
+  async function resolveOneGuidance({ plugin }: { plugin: AgentPluginSearchCandidate }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
+    if (signal?.aborted) return { status: 'cancelled', guidance: '' };
+    try {
+      const result = await ports.resolve({ pluginId: plugin.pluginId }, {});
+      if (!result.ok) return { status: result.code ?? 'unavailable', guidance: '' };
+      if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
+      delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
+      return { status: 'loaded', guidance: result.promptPrefix };
+    } catch {
+      // Automatic guidance is advisory; unavailable plugins must not block the run.
+      return { status: 'unavailable', guidance: '' };
+    }
+  }
   async function resolveGuidance({ matches }: { matches: readonly AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
     const guidance: string[] = [];
     for (const match of matches) {
       if (signal?.aborted) break;
-      try {
-        const text = await ports.resolve({ pluginId: match.pluginId }, {});
-        if (!text.trim()) continue;
-        delivered.set(match.pluginId, match.displayName ?? match.pluginId);
-        guidance.push(text);
-      } catch {
-        // Automatic guidance is advisory; unavailable plugins must not block the run.
-      }
+      const result = await resolveOneGuidance({ plugin: match }, { signal });
+      if (result.status === 'loaded') guidance.push(result.guidance);
     }
     return guidance;
   }
@@ -142,7 +158,7 @@ export function createAutomaticAgentPluginUse(
       // Usage publication is advisory; losing its event must not discard resolved model guidance.
     }
   }
-  /** Query preflight suggests; only an explicit id or guarded capability resolves guidance.
+  /** Query preflight suggests; only a guarded capability resolves guidance here.
    * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
    */
   async function prepare(input: PrepareInput): Promise<string> {
@@ -154,25 +170,46 @@ export function createAutomaticAgentPluginUse(
     const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId));
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
     // Relevance is disclosure, never evidence that the model has read any guidance.
-    const shouldLoad = input.pluginId !== undefined || !!input.capabilities?.length;
+    const shouldLoad = !!input.capabilities?.length;
     const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches });
     rememberAutoSelection();
     await publishUsage();
     return result;
   }
+  /** Admit one explicit id using the same catalog, consent, resolver and delivery state as prepare.
+   * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
+   */
+  async function load({ pluginId, signal }: { pluginId: string; signal?: AbortSignal }, _options = {}): Promise<AutomaticAgentPluginLoadResult> {
+    if (mode === 'off') return { status: 'off', guidance: '' };
+    if (signal?.aborted) return { status: 'cancelled', guidance: '' };
+    if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
+    const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
+    if (!plugin) return { status: 'missing', guidance: '' };
+    if (!plugin.enabled) return { status: 'installed-but-inactive', guidance: '' };
+    if (delivered.has(pluginId) || alreadyLoaded.has(pluginId)) return { status: 'already-loaded', guidance: '' };
+    const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
+    if (!matches.length) {
+      await publishUsage();
+      return { status: 'excluded', guidance: '' };
+    }
+    const result = await resolveOneGuidance({ plugin }, { signal });
+    rememberAutoSelection();
+    await publishUsage();
+    return result;
+  }
   /** Share one queue between preflight, explicit reads and simultaneous guarded writes. */
-  function enqueue(input: PrepareInput): Promise<string> {
-    const next = queue.then(() => prepare(input));
+  function enqueue<T>({ operation }: { operation: () => Promise<T> }, _options = {}): Promise<T> {
+    const next = queue.then(operation);
     queue = next.catch(() => undefined);
     return next;
   }
   return {
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
-    prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal }, _options = {}) => enqueue(input),
+    prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => prepare(input) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
-     * Returns an empty string for denied, unavailable, or already-delivered guidance.
+     * Returns a concrete status; guidance is nonempty only when freshly delivered.
      * @example await controller.load({ pluginId: 'my-plugin' });
      */
-    load: (input: { pluginId: string; signal?: AbortSignal }, _options = {}) => enqueue(input),
+    load: (input: { pluginId: string; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => load(input) }),
   };
 }

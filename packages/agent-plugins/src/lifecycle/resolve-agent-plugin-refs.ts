@@ -84,9 +84,10 @@ import type { AgentPluginLifecyclePorts } from "./ports.js";
 
 export type { AgentPluginDeliveryMode } from "./types.js";
 
+/** Trust refusals carry a machine-readable code so hosts need not parse diagnostic prose. */
 export type ResolveAgentPluginRefsResult =
   | { readonly ok: true; readonly promptPrefix: string }
-  | { readonly ok: false; readonly reason: string };
+  | { readonly ok: false; readonly reason: string; readonly code?: 'untrusted' };
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const persistentState = createPersistentStateModule(ports);
@@ -244,7 +245,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     packagesDir: string,
     deliveryMode: AgentPluginDeliveryMode,
     bundledDigests: BundledAgentPluginDigests,
-  ): Promise<{ readonly ok: true; readonly section: string } | { readonly ok: false; readonly reason: string }> {
+  ): Promise<{ readonly ok: true; readonly section: string } | Extract<ResolveAgentPluginRefsResult, { ok: false }>> {
 
     const installed = preferBundledAgentPluginDigests(await listInstalledPlugins(packagesDir), bundledDigests);
     const matches = installed.filter((plugin) => plugin.pluginId === pluginRefId);
@@ -270,7 +271,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     // trusted-plugin-files' verdict: that module lists installs through this one (import cycle).
     const shippedDigest = bundledDigests.get(pluginRefId);
     if (shippedDigest !== undefined && shippedDigest !== plugin.archiveDigest) {
-      return { ok: false, reason: `Agent Plugin '${pluginRefId}' was not loaded: only plugins shipped with ${ports.productName} may add agent guidance under a bundled id (installed digest ${plugin.archiveDigest.slice(0, 12)} is not the one this build shipped)` };
+      return { ok: false, code: 'untrusted', reason: `Agent Plugin '${pluginRefId}' was not loaded: only plugins shipped with ${ports.productName} may add agent guidance under a bundled id (installed digest ${plugin.archiveDigest.slice(0, 12)} is not the one this build shipped)` };
     }
     if (deliveryMode === "pointer") return buildPointerSection(pluginRefId, plugin);
     return buildInjectedSection({ pluginRefId, packagesDir, plugin });
