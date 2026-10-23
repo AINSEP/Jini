@@ -227,7 +227,9 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * `events_json` is the sole durable record of why a run died (exit code, signal, the CLI's own
    * stderr) once the daemon's in-memory event log is gone, and the pane renders it on reload — so
    * dropping the row trades a history bug for a forensics hole. The skip belongs here, on the read
-   * side. See {@link historyForTranscript} and `assistant-chats.ts`'s `persistableMessages`.
+   * side. The transcript's hidden-tool mode likewise filters only recovered tool failures and keeps
+   * unrecovered failures behind a compact disclosure; it never deletes this durable evidence.
+   * See {@link historyForTranscript} and `assistant-chats.ts`'s `persistableMessages`.
    */
   function isAnsweredAssistantTurn(message: ChatMessage): boolean {
     return message.runStatus === undefined || message.runStatus === "succeeded";

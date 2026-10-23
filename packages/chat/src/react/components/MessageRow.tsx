@@ -55,7 +55,7 @@ import { usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } 
  */
 import React, { memo, useMemo, type ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus, IsAnsweredCard } from '../../core/index.js';
-import { isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
+import { assistantContentFromEvents, isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
@@ -86,7 +86,7 @@ export interface MessageRowProps {
    * included (a host's "Done line" display choice, 2026-10-11). */
   showUsageLine?: boolean;
   /** How tool calls show (`../tool-call-display.ts`): every card (`'show'`, the default), one
-   * fold-up line per turn (`'collapsed'`), or only failed ones (`'hidden'`). */
+   * fold-up line per turn (`'collapsed'`), or compact unrecovered failures (`'hidden'`). */
   toolCallDisplay?: ToolCallDisplay;
   /** Show the model's reasoning (`thinking` events) as a fold-up block where it happened. Off by
    * default — the transcript never showed it before this option. Needs the interleaved layout; a
@@ -166,20 +166,33 @@ interface CopyMessageButtonProps {
 }
 
 function messageBlocks(
-  { visibleContent, message, rows, registry }: { visibleContent: string; message: ChatMessage; rows: ToolTimelineRow[]; registry: ExtEventRendererRegistry },
+  { message, rows, registry, content = message.content }: { message: ChatMessage; rows: ToolTimelineRow[]; registry: ExtEventRendererRegistry; content?: string },
   { toolCallDisplay = 'show', includeThinking = false }: { toolCallDisplay?: ToolCallDisplay; includeThinking?: boolean } = {},
 ) {
-  // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
-  // whole string and trims, so the surviving text no longer lines up with the per-run offsets the
-  // event walk produces, and an artifact block could legitimately span a tool call. Rather than
-  // reason about partial overlaps, an artifact-bearing message keeps the flat layout — those
-  // messages are dominated by the artifact panel anyway, so the ordering matters least there.
-  if (visibleContent !== message.content) return null;
   const blocks = interleaveMessageBlocks<ToolTimelineRow>(
-    { events: message.events, content: message.content, rows },
+    { events: message.events, content, rows },
     { slotOf: (ev) => registry.slot({ name: ev.name, data: ev.data }), includeThinking },
   );
-  return blocks ? applyToolCallDisplay({ blocks, mode: toolCallDisplay }) : null;
+  return blocks ? applyToolCallDisplay({ blocks, mode: toolCallDisplay }, { runFailed: message.runStatus === 'failed' }) : null;
+}
+
+/**
+ * The flat layout's tool groups. Even when host text prevents interleaving, event ordering can still
+ * prove tool recovery and reply boundaries, so hidden mode reconstructs the blocks from the events —
+ * only for this display decision; the host's text is never replaced. Otherwise one flat list.
+ * @complexity O(n) in events + rows.
+ */
+function flatToolGroups(
+  { message, rows, registry, displayBlocks }: { message: ChatMessage; rows: ToolTimelineRow[]; registry: ExtEventRendererRegistry; displayBlocks: readonly MessageBlock<ToolTimelineRow>[] | null },
+  { toolCallDisplay }: { toolCallDisplay: ToolCallDisplay },
+): { rows: readonly ToolTimelineRow[]; key: string }[] {
+  if (toolCallDisplay === 'hidden') {
+    const recovery = displayBlocks
+      ?? messageBlocks({ message, rows, registry, content: assistantContentFromEvents({ events: message.events ?? [] }) }, { toolCallDisplay });
+    if (recovery) return recovery.flatMap((block) => (block.kind === 'tools' ? [{ rows: block.rows, key: block.key }] : []));
+  }
+  const flat = toolRowsForDisplay({ rows, mode: toolCallDisplay }, { runFailed: message.runStatus === 'failed' });
+  return flat.length > 0 ? [{ rows: flat, key: 'tools' }] : [];
 }
 
 /** The model's reasoning, folded under a "Thinking" summary so it never crowds the answer. */
@@ -346,7 +359,10 @@ function AssistantMessageRow({
   const terminalNotice = terminalMessageNotice({ message }, {});
   const visibleContent = stripArtifact({ content: message.content });
 
-  const blocks = messageBlocks({ visibleContent, message, rows: timeline.rows, registry }, { toolCallDisplay, includeThinking: showThinking });
+  const displayBlocks = messageBlocks({ message, rows: timeline.rows, registry }, { toolCallDisplay, includeThinking: showThinking });
+  // Artifact stripping trims/replaces text, invalidating the event offsets for rendering. Keep the
+  // flat layout there; displayBlocks still supplies the recovery decision from the original events.
+  const blocks = visibleContent === message.content ? displayBlocks : null;
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
   const awaitingAnswer = messageAwaitingAnswer({ runStreaming, runInProgress, events: message.events }, { isAnsweredCard: answeredCards.isAnsweredCard });
@@ -365,11 +381,11 @@ function AssistantMessageRow({
     />
   );
 
-  // One turn's cards: a fold-up line when collapsed, the plain card list otherwise.
-  const renderTools = (rows: readonly ToolTimelineRow[], key?: string) => (toolCallDisplay === 'collapsed'
-    ? <ToolCallGroup key={key} rows={rows} renderRow={renderToolCard} />
+  // Hidden mode reuses the same disclosure and card renderer for unrecovered failures.
+  const renderTools = (rows: readonly ToolTimelineRow[], key?: string) => (toolCallDisplay !== 'show'
+    ? <ToolCallGroup key={key} rows={rows} renderRow={renderToolCard} failureOnly={toolCallDisplay === 'hidden'} />
     : <div className="jini-message-tools" key={key}>{rows.map(renderToolCard)}</div>);
-  const flatToolRows = toolRowsForDisplay({ rows: timeline.rows, mode: toolCallDisplay });
+  const flatTools = flatToolGroups({ message, rows: timeline.rows, registry, displayBlocks }, { toolCallDisplay });
 
   const renderExtGroup = (group: ExtEventGroup) => {
     const renderer = registry.get({ name: group.name });
@@ -456,7 +472,7 @@ function AssistantMessageRow({
         : (
           <>
             {renderTextSegments(visibleContent, 'text')}
-            {flatToolRows.length > 0 ? renderTools(flatToolRows) : null}
+            {flatTools.map((group) => renderTools(group.rows, group.key))}
             {extGroups.length > 0 ? <div className="jini-message-ext-events">{extGroups.map(renderExtGroup)}</div> : null}
           </>
         )}

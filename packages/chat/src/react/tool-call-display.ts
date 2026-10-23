@@ -6,8 +6,8 @@
  * - `'show'`      — every tool card, where it happened. The layout every host had before this.
  * - `'collapsed'` — each turn's tool cards fold into ONE line ("Used 3 tools") that expands on
  *   click; while a tool runs the line names it instead ("Running Bash…").
- * - `'hidden'`    — no tool cards at all, EXCEPT a failed one: an error must never vanish from the
- *   transcript just because the reader asked for a quieter view.
+ * - `'hidden'`    — recovered failures disappear with successful calls. Unrecovered failures stay
+ *   behind one compact disclosure per reply: work that stopped must never vanish silently.
  *
  * Pure rules over `interleaveMessageBlocks`' output (or the flat row list when that refused), kept
  * out of `MessageRow.tsx` so every mode is testable without rendering.
@@ -27,7 +27,7 @@ export interface ToolDisplayRow {
 }
 
 /**
- * Whether a row is a failure the reader must always see: the tool returned an error, or the run
+ * Whether a row failed: the tool returned an error, or the run
  * ended without the tool ever answering (`deriveToolStatus` maps both to `'error'`).
  * @complexity O(1).
  */
@@ -49,7 +49,8 @@ function isRunningToolRow(row: Pick<ToolDisplayRow, 'status'>): boolean {
  * one line per reply. Keeping the first block's key keeps the line's open/closed state across
  * streaming updates, since later blocks append after it.
  *
- * `'hidden'` keeps only failed rows and drops `tools` blocks left empty.
+ * `'hidden'` keeps unrecovered failures in one block per reply. Later assistant text or a successful
+ * tool proves recovery; running tools and reasoning do not. An errored final reply keeps its failures.
  *
  * @param input.blocks - `interleaveMessageBlocks` output.
  * @param input.mode - The display mode.
@@ -58,23 +59,40 @@ function isRunningToolRow(row: Pick<ToolDisplayRow, 'status'>): boolean {
  */
 export function applyToolCallDisplay<Row extends ToolDisplayRow>(
   { blocks, mode }: { blocks: readonly MessageBlock<Row>[]; mode: ToolCallDisplay },
+  { runFailed = false }: { runFailed?: boolean } = {},
 ): readonly MessageBlock<Row>[] {
   if (mode === 'show') return blocks;
-  return mode === 'hidden' ? hideToolCalls({ blocks }) : collapseToolCalls({ blocks });
+  return mode === 'hidden' ? hideToolCalls({ blocks, runFailed }) : collapseToolCalls({ blocks });
 }
 
-/** `'hidden'`: keeps only failed rows and drops `tools` blocks left empty. */
-function hideToolCalls<Row extends ToolDisplayRow>({ blocks }: { blocks: readonly MessageBlock<Row>[] }): MessageBlock<Row>[] {
+/**
+ * Scan backwards so only later content in the SAME reply can prove recovery. Failures stay visible
+ * while streaming until that evidence arrives. This is a display filter, never a deletion from the
+ * durable events: see assistant-client/transport.ts's forensics rationale.
+ * @complexity O(n) in blocks + rows, excluding the shared grouping pass.
+ */
+function hideToolCalls<Row extends ToolDisplayRow>({ blocks, runFailed }: {
+  blocks: readonly MessageBlock<Row>[]; runFailed: boolean;
+}): MessageBlock<Row>[] {
   const out: MessageBlock<Row>[] = [];
-  for (const block of blocks) {
+  let recovered = false;
+  let failedReply = runFailed;
+  for (let i = blocks.length - 1; i >= 0; i -= 1) {
+    const block = blocks[i]!;
+    if (block.kind === 'reply-end') {
+      recovered = false;
+      failedReply = false;
+    }
+    if (block.kind === 'text' && block.text.trim()) recovered = true;
     if (block.kind !== 'tools') {
       out.push(block);
       continue;
     }
-    const failed = block.rows.filter((row) => isFailedToolRow({ row }));
-    if (failed.length > 0) out.push({ kind: 'tools', rows: failed, key: block.key });
+    const rows = toolRowsForDisplay({ rows: block.rows, mode: 'hidden' }, { recovered, runFailed: failedReply });
+    if (rows.length > 0) out.push({ ...block, rows });
+    if (block.rows.some((row) => row.status === 'complete')) recovered = true;
   }
-  return out;
+  return collapseToolCalls({ blocks: out.reverse() });
 }
 
 /** `'collapsed'`: merges every `tools` block of a turn into the turn's first one (see above). */
@@ -95,14 +113,22 @@ function collapseToolCalls<Row extends ToolDisplayRow>({ blocks }: { blocks: rea
 }
 
 /**
- * The flat layout's counterpart (used when `interleaveMessageBlocks` refused): `'hidden'` keeps only
- * failed rows; the other modes keep every row (`'collapsed'` folds them into one line at render).
+ * Row-level recovery scan, also used by the flat fallback. Without trustworthy text ordering,
+ * only later successful rows prove recovery. Other modes keep every row.
  * @complexity O(n) in rows.
  */
 export function toolRowsForDisplay<Row extends ToolDisplayRow>(
   { rows, mode }: { rows: readonly Row[]; mode: ToolCallDisplay },
+  { recovered = false, runFailed = false }: { recovered?: boolean; runFailed?: boolean } = {},
 ): readonly Row[] {
-  return mode === 'hidden' ? rows.filter((row) => isFailedToolRow({ row })) : rows;
+  if (mode !== 'hidden') return rows;
+  const failed: Row[] = [];
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const row = rows[i]!;
+    if (isFailedToolRow({ row }) && (runFailed || !recovered)) failed.push(row);
+    if (row.status === 'complete') recovered = true;
+  }
+  return failed.reverse();
 }
 
 /** What a collapsed tool line says: the tool running now, or how many ran (and how many failed). */
