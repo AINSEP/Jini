@@ -8,6 +8,15 @@ contracts and has no user-management dependency. Generic tool wiring is exported
 See [API integration](API-INTEGRATION.md) for current signatures and migration examples, and
 [integration-report.md](integration-report.md) for pending protected work and deferred verification.
 
+## Forms email sender
+
+`@jini-ai/cms/forms`: `createFormsEmailSender({ deps })`, `FormsEmailSenderDeps`, `FormEmailAction`, `FormEmailActionInput`.
+Tokens use stable field ids, never labels; built-in collisions use `field.<id>`.
+Built-ins: `site_name`, canonical `site_url`, and ISO `submitted_at`; templates/hosts own formatting.
+Files, hidden fields, IPs, credentials, undeclared keys, defaults and owner recipients are excluded.
+Only Email fields may supply recipients; choices export option values and booleans use "true"/"false".
+Configuration writes only through the injected guarded settings writer; no delivery effects occur here.
+
 ## Layers
 
 | subpath | runtime | contents |

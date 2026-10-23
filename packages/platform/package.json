@@ -22,6 +22,7 @@
       "./secrets/testing": "node",
       "./http/guarded": "node",
       "./mail": "node",
+      "./mail/senders": "universal",
       "./mail/smtp": "node",
       "./fs/guarded-reader": "node",
       "./fs/durable-json": "node",
@@ -105,6 +106,11 @@
       "types": "./dist/mail/index.d.ts",
       "import": "./dist/mail/index.js",
       "default": "./dist/mail/index.js"
+    },
+    "./mail/senders": {
+      "types": "./dist/mail/senders.d.ts",
+      "import": "./dist/mail/senders.js",
+      "default": "./dist/mail/senders.js"
     },
     "./mail/smtp": {
       "types": "./dist/mail/smtp.d.ts",

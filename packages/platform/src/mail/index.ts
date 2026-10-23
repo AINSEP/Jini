@@ -15,3 +15,4 @@ export type { MailDeliveryPolicy, MailDeliveryPolicyDeps, MailDeliveryPolicyOpti
 export { createMailFeedbackIngest, suppressionScopeFor } from "./feedback.js";
 export type { MailFeedbackInboxPort, MailFeedbackIngestDeps, MailFeedbackIngestOptions, MailFeedbackResponse } from "./feedback.js";
 export { createSmtpMailProvider, createConsoleMailProvider, parseSmtpEndpoint } from "./builtin-providers.js";
+export * from "./senders.js";

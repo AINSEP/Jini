@@ -440,7 +440,8 @@
     "fast-check": "4.3.0"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
     "sharp": "^0.35.3",
