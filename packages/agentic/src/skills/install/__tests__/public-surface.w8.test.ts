@@ -8,7 +8,7 @@ test('the skill installation barrel exposes layout, storage policy and live regi
     'createSkillLayout', 'createSkillInstaller', 'createLiveSkillRegistration',
     'createSkillRefresher', 'createSkillRefreshMiddleware', 'decodeSkillBase64',
     'validateSkillPath', 'validateSkillMarkdown', 'validateSkillFiles',
-    'readSkillArchive', 'fetchGitHubSkill', 'readSkillState',
+    'readSkillArchive', 'fetchGitHubSkill', 'validateGitHubSkillSource', 'readSkillState',
   ]) {
     assert.equal(Object.hasOwn(install, name), true, name + ' must be available from skills/install');
     assert.equal(typeof Reflect.get(install, name), 'function', name + ' must be callable');

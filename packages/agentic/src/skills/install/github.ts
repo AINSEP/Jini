@@ -4,6 +4,15 @@ import type { SkillFetchPort } from "./ports.js";
 
 export interface GitHubSkillSource { readonly githubUrl: string; readonly commit: string }
 
+/** Compatibility provenance check; preserves the original regex coercion of commit values.
+ * @deprecated Hosts using source injection must supply their provider's validateSource predicate.
+ * @complexity O(commit length), bounded by the state reader's 8 KiB record limit.
+ */
+export function validateGitHubSkillSource({ source }: { source: unknown }, _optional: Record<string, never> = {}): boolean {
+  const value = source as GitHubSkillSource | null;
+  return !!value && typeof value.githubUrl === "string" && /^[a-f0-9]{40}$/.test(value.commit);
+}
+
 const URL_HELP = "Use an HTTPS GitHub repository URL, optionally ending in /tree/ref/skill-folder.";
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
 const SEGMENT_PATTERN = /^[a-zA-Z0-9_.-]+$/;
@@ -12,6 +21,7 @@ const REGULAR_FILE_MODES = ["100644", "100755"];
 type GitHubJson = (endpoint: string) => Promise<Record<string, unknown>>;
 
 /** Restricts every request to api.github.com, disallows redirects, pins one immutable commit.
+ * @deprecated Inject fetchSource and use normalized url input instead.
  * @complexity O(files + downloaded bytes), at most 256 file requests and 8 MiB decoded content.
  */
 export async function fetchGitHubSkill({ githubUrl, fetch: fetchImpl }: { githubUrl: string; fetch: SkillFetchPort }, _optional: Record<string, never> = {}) {

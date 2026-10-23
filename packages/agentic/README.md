@@ -76,6 +76,18 @@ requires `clock.nowMs()` and `ids.next({})` ports. WebMCP projection receives an
 returns an argument-object adapter to the first installed native WebMCP surface. A browser host
 can return `[document.modelContext, navigator.modelContext]` from that port.
 
+## Skill source injection
+
+For remote installs, pass `{ workspaceId, url }` and inject `fetchSource({ url }, {})`
+returning `{ files, source }`, plus a pure `validateSource({ source }, {})` predicate.
+Provenance is a provider-owned JSON object; supply the same validator to standalone
+`readSkillState` calls. The installer validates files, stages and atomically commits them;
+preparation writes nothing and commit never fetches again. Providers own URL policy,
+deadlines and fetch limits. Upload and ZIP inputs need no source provider.
+`githubUrl`, `fetchGitHubSkill`, and the raw `fetch` dependency remain deprecated compatibility
+APIs: `githubUrl` uses the injected provider when present and otherwise the legacy GitHub
+fetcher and provenance check. Normalized `url` input requires a provider and never falls back.
+
 ## Entry points
 
 | subpath | what's behind it | extra dep it pulls in |
@@ -84,7 +96,7 @@ can return `[document.modelContext, navigator.modelContext]` from that port.
 | `./core` | The same framework-free agent-control surface as the root. | none |
 | `./dom` | `createDomPageDriver`/`currentAgentPage` — the one `PageDriver` that reads and writes a real DOM subtree, compiled under its own DOM-lib `tsconfig`. Also WebMCP feature detection (`getAgentModelContext`). `@jini-ai/chat-react` is its one in-repo consumer. | a real DOM (browser or jsdom) |
 | `./a2ui` | The real A2UI v1.0 wire types and a minimal client-side interpreter (`common-types`, `agent-to-renderer`, `renderer-to-agent`, `catalog`, `json-pointer`, `resolve`, `tree`, `interpreter`) — zero DOM dependency. | none |
-| `./skills/install` | Bounded bundle validation, archive/GitHub import, installation/state, explicit layout and live-registration factories. | Node runtime; injected filesystem, YAML, archive, HTTP, IDs and tool-source ports |
+| `./skills/install` | Bounded bundle validation, source/archive import, installation/state, explicit layout and live-registration factories. | Node runtime; injected filesystem, YAML, archive, source, IDs and tool-source ports |
 | `./skills/install/node` | `createNodeSkillFilesystem({})`, a bounded no-follow filesystem adapter. | Node runtime |
 
 ## What's swappable
