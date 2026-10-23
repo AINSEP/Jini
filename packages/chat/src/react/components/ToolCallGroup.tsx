@@ -21,6 +21,7 @@ export function ToolCallGroup<Row extends ToolDisplayRow>({ rows, renderRow, fai
       {failureOnly ? <span className="jini-tool-group__label">{t('A step failed')} </span> : null}
       <button type="button" className="jini-tool-group__toggle" aria-expanded={group.open} onClick={group.toggle}>
         <span className={`jini-tool-group__label${group.running ? ' shimmer-text' : ''}`}>{failureOnly ? t('Show') : group.label}</span>
+        {!failureOnly && group.failureLabel ? <span className="jini-tool-group__failed"> · {group.failureLabel}</span> : null}
         <Icon name={group.open ? 'chevron-down' : 'chevron-right'} size={12} />
       </button>
       {group.open ? <div className="jini-message-tools">{rows.map(renderRow)}</div> : null}

@@ -168,10 +168,12 @@ function PendingSurfaceMirror({ uri, plan, t }: { uri: string; plan: McpUiAction
 
 /** A closed card: the question's title, when the call gave one, and why it is closed. */
 function ClosedSurface({ call, label }: { call: ExtEventCall | undefined; label: string }) {
-  const title = (call?.input as { title?: unknown } | undefined)?.title;
+  const input = call?.input as { title?: unknown; question?: unknown; prompt?: unknown } | undefined;
+  const title = [input?.title, input?.question, input?.prompt]
+    .find(value => typeof value === 'string' && value.trim() !== '');
   return (
     <div className="mcpui-surface-card mcpui-surface-card-closed" role="status">
-      {typeof title === 'string' && title.trim() !== '' ? `${title}: ${label}` : label}
+      {typeof title === 'string' ? `${title}: ${label}` : label}
     </div>
   );
 }
@@ -211,7 +213,7 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
   const closed = single === undefined
     ? undefined
     : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
-  const answer = answerText ?? questionAnswerFromResult({ result: call?.result, input: call?.input });
+  const answer = questionAnswerFromResult({ result: call?.result, input: call?.input }) ?? answerText;
   return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
     answer={answer} closed={closed} call={call} t={t} sandboxProxyUrl={sandboxProxyUrl}
     toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
@@ -233,10 +235,11 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   maxHeight: number | undefined;
   expiry: ReturnType<typeof useSurfaceExpiry>;
 }) {
-  // MOVE: The accepted-input receipt owns its bubble; rendering the closed card too duplicates typed answers.
-  if (single !== undefined && answerRecorded) return null;
+  // MOVE: The accepted-input receipt owns its bubble; the closed card retains the question's context.
+  if (single !== undefined && answerRecorded) return <ClosedSurface call={call} label={answer ?? closed ?? t('Answered')} />;
   if (single !== undefined && answer !== undefined) {
-    return <MidRunUserMessage events={[{ text: answer === 'Declined' ? t('Declined') : answer }]} />;
+    const label = answer === 'Declined' ? t('Declined') : answer;
+    return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: label }]} /></>;
   }
   if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
 

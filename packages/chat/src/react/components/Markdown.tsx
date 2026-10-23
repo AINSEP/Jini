@@ -574,8 +574,8 @@ function renderInline(text: string): ReactNode {
     const [whole, code, mdLink, bold, italic, link] = match;
     if (code) nodes.push(<code key={key++}>{code.slice(1, -1)}</code>);
     else if (mdLink) nodes.push(renderMarkdownLink(mdLink, key++));
-    else if (bold) nodes.push(<strong key={key++}>{bold.slice(2, -2)}</strong>);
-    else if (italic) nodes.push(<em key={key++}>{italic.slice(1, -1)}</em>);
+    else if (bold) nodes.push(<strong key={key++}>{renderInline(bold.slice(2, -2))}</strong>);
+    else if (italic) nodes.push(<em key={key++}>{renderInline(italic.slice(1, -1))}</em>);
     else if (link)
       nodes.push(
         <a key={key++} href={link} {...NEW_TAB}>

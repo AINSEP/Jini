@@ -3,7 +3,7 @@
  * appears in a list.
  *
  * The cases below are the ones that made the original heuristic worth porting rather than
- * replacing with `prompt.slice(0, 40)`: filler stripping, stop-word removal, and the refusal to
+ * replacing with `prompt.slice(0, 40)`: filler stripping, preserving words and domain names, and the refusal to
  * title a conversation after a pasted URL or code block.
  */
 import { describe, expect, it } from 'vitest';
@@ -11,10 +11,17 @@ import { describe, expect, it } from 'vitest';
 import { conversationTitleForDisplay, deriveConversationTitle, stripConversationTitleMarkdown } from '../../persistence/title.js';
 
 describe('deriveConversationTitle', () => {
+  it('keeps stop words and domain names in sentence case, truncating only at a whole word', () => {
+    expect(deriveConversationTitle({ prompt: 'i want to port orvellea.com to tovu' })).toBe('I want to port orvellea.com to tovu');
+    expect(deriveConversationTitle({ prompt: 'i want to connect MyBrand.com using API keys' })).toBe('I want to connect MyBrand.com using API keys');
+    const prefix = `I want to port orvellea.com to tovu ${'next '.repeat(8)}`.trim();
+    expect(deriveConversationTitle({ prompt: `${prefix} aVeryLongFinalWord` })).toBe(prefix);
+  });
+
   it.each([
-    ['# **Plannie** and _marketplace_ with `API`', 'Plannie Marketplace Api'],
-    ['Build [Plannie](https://plannie.com) marketplace', 'Plannie Marketplace'],
-    ['Build **Plannie** at **plannie', 'Plannie At Plannie'],
+    ['# **Plannie** and _marketplace_ with `API`', 'Plannie and marketplace with API'],
+    ['Build [Plannie](https://plannie.com) marketplace', 'Plannie marketplace'],
+    ['Build **Plannie** at **plannie', 'Plannie at plannie'],
     ['## **博客** 的 _搜索_ 功能', '博客的搜索功能'],
   ])('strips markdown before deriving a bounded title: %s', (prompt, title) => {
     expect(deriveConversationTitle({ prompt })).toBe(title);
@@ -22,7 +29,7 @@ describe('deriveConversationTitle', () => {
 
   it('cuts long Latin titles at a word boundary', () => {
     const word = 'a'.repeat(50);
-    expect(deriveConversationTitle({ prompt: `alpha ${word} ${word}` })).toBe(`Alpha ${'A' + word.slice(1)}`);
+    expect(deriveConversationTitle({ prompt: `alpha ${word} ${word}` })).toBe(`Alpha ${word}`);
   });
 
   it.each(['generated', 'fallback', 'manual'] as const)('cleans a stored %s title without a transcript or a write', titleSource => {
@@ -42,7 +49,7 @@ describe('deriveConversationTitle', () => {
     expect(stripConversationTitleMarkdown({ text: '```ts\nconst x = 1' })).toBe('');
     expect(conversationTitleForDisplay({ title: '**', titleSource: 'generated' })).toBe('**');
     expect(stripConversationTitleMarkdown({ text: '[Plannie](https://example.com/path_(page))' })).toBe('Plannie');
-    expect(deriveConversationTitle({ prompt: 'Fix `login` bug' })).toBe('Login Bug');
+    expect(deriveConversationTitle({ prompt: 'Fix `login` bug' })).toBe('Login bug');
   });
 
   it.each([
@@ -72,11 +79,11 @@ describe('deriveConversationTitle', () => {
 
   it('can display sentence case without losing proper names or acronyms from the original prompt', () => {
     const prompt = 'I want to connect a Mailchimp account using API keys';
-    expect(deriveConversationTitle({ prompt }, { casing: 'sentence' })).toBe('I want connect Mailchimp account using');
+    expect(deriveConversationTitle({ prompt })).toBe('I want to connect a Mailchimp account using API keys');
     const acronymPrompt = 'Fix the API login bug';
-    expect(deriveConversationTitle({ prompt: acronymPrompt }, { casing: 'sentence' })).toBe('API login bug');
+    expect(deriveConversationTitle({ prompt: acronymPrompt })).toBe('API login bug');
     expect(conversationTitleForDisplay({ title: deriveConversationTitle({ prompt }), titleSource: 'generated', firstPrompt: prompt }))
-      .toBe('I want connect Mailchimp account using');
+      .toBe('I want to connect a Mailchimp account using API keys');
   });
 
   it.each([
@@ -88,12 +95,10 @@ describe('deriveConversationTitle', () => {
   ])('keeps saved or unloaded titles verbatim: %j', input => {
     expect(conversationTitleForDisplay(input)).toBe(input.title);
   });
-  it('strips leading filler and stop words, title-casing what is left', () => {
-    // "of"/"the"/"in" dropped, as in Open Design's own UI. Deliberate divergence: Open Design
-    // renders this as "Do You See All Files This", because its six-word cap lands mid-phrase and
-    // strands the "This". We trim trailing function words, so the title ends on a content word.
+  it('keeps stop words and uses sentence case', () => {
+    // A word cap formerly stranded "This"; preserve the full question when it fits the character cap.
     expect(deriveConversationTitle({ prompt: 'Do you see all of the files in this project?' })).toBe(
-      'Do You See All Files',
+      'Do you see all of the files in this project',
     );
   });
 
@@ -107,34 +112,33 @@ describe('deriveConversationTitle', () => {
     expect(title.length).toBeGreaterThan(0);
   });
 
-  it('does not end a title on a stranded auxiliary or pronoun', () => {
-    // The word cap falls mid-clause on question-shaped prompts, which is how a real conversation
-    // ended up titled "How Many Published Posts Do I" in the admin switcher.
+  it('keeps short questions whole instead of stranding an auxiliary or pronoun', () => {
+    // The old six-word cap stranded the pronoun in "How Many Published Posts Do I".
     expect(deriveConversationTitle({ prompt: 'how many published posts do I have?' })).toBe(
-      'How Many Published Posts',
+      'How many published posts do I have',
     );
-    // Trailing-only trimming must not touch a title that already ends on a content word.
-    expect(deriveConversationTitle({ prompt: 'Fix the login bug' })).toBe('Login Bug');
+    // Removing the word cap must not disturb existing filler removal.
+    expect(deriveConversationTitle({ prompt: 'Fix the login bug' })).toBe('Login bug');
   });
 
   it('drops a leading polite imperative', () => {
-    expect(deriveConversationTitle({ prompt: 'Can you build a dashboard for signups' })).toBe('Dashboard Signups');
+    expect(deriveConversationTitle({ prompt: 'Can you build a dashboard for signups' })).toBe('Dashboard for signups');
   });
 
-  it('caps at six words so a long prompt cannot become a long row', () => {
+  it('keeps a complete sentence that fits the character ceiling', () => {
     const title = deriveConversationTitle({ prompt: 'alpha bravo charlie delta echo foxtrot golf hotel india' });
-    expect(title.split(' ')).toHaveLength(6);
+    expect(title).toBe('Alpha bravo charlie delta echo foxtrot golf hotel india');
   });
 
   it('stops at the first sentence rather than running two together', () => {
-    expect(deriveConversationTitle({ prompt: 'Fix the login bug! Then deploy to staging.' })).toBe('Login Bug');
+    expect(deriveConversationTitle({ prompt: 'Fix the login bug! Then deploy to staging.' })).toBe('Login bug');
   });
 
   it('does NOT treat a period as a sentence break', () => {
     // Deliberate: periods appear in filenames and versions far more often than they end a
     // prompt's first clause. Splitting on '.' would title this conversation "App" and throw
     // away the only word that identifies it.
-    expect(deriveConversationTitle({ prompt: 'Update app.tsx and the router' })).toBe('App Tsx Router');
+    expect(deriveConversationTitle({ prompt: 'Update app.tsx and the router' })).toBe('app.tsx and the router');
   });
 
   it('ignores fenced code, inline code, URLs and handles', () => {
@@ -159,7 +163,7 @@ describe('deriveConversationTitle', () => {
 
   it('keeps the first clause when the prompt is a single long sentence', () => {
     expect(deriveConversationTitle({ prompt: 'implement the retention sweep for guest chats' })).toBe(
-      'Retention Sweep Guest Chats',
+      'Retention sweep for guest chats',
     );
   });
 });

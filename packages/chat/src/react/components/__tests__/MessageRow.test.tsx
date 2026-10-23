@@ -270,6 +270,56 @@ describe('MessageRow', () => {
     const reply = (id: string, events: AgentEvent[], runStatus: NonNullable<ChatMessage['runStatus']>): ChatMessage =>
       ({ id, role: 'assistant', content: assistantContentFromEvents({ events }), runStatus, events });
 
+    it.each([
+      { runStatus: 'succeeded' as const, notice: undefined, label: 'Done', dot: true },
+      { runStatus: 'failed' as const, notice: 'Agent failed', label: 'Failed', dot: false },
+      { runStatus: 'canceled' as const, notice: 'Run canceled', label: 'Canceled', dot: false },
+      { runStatus: 'canceled' as const, notice: 'Stopped. Saved work is above.', label: 'Stopped', dot: false },
+    ])('labels the final footer from the $runStatus run outcome ($label)', ({ runStatus, notice, label, dot }) => {
+      const events: AgentEvent[] = [
+        { kind: 'text', text: 'First reply.' }, { kind: 'usage', costUsd: 0.1 }, midRun('followup'),
+        { kind: 'text', text: 'Final reply.' }, { kind: 'usage', outputTokens: 1040, costUsd: 0.2 },
+        ...(notice ? [{ kind: 'status' as const, code: 'run_terminal', label: notice }] : []),
+      ];
+      render(<MessageRow message={reply('end-state', events, runStatus)} />);
+      const footer = [...document.querySelectorAll('.jini-message-usage')].at(-1)!;
+      expect(footer.textContent).toContain(`${label} · $0.20`);
+      expect(footer).toHaveAttribute('aria-label', `${label} · $0.20 · total $0.30 · 1,040 output tokens`);
+      expect(footer.querySelector('.jini-message-usage-dot') !== null).toBe(dot);
+      expect(screen.getByText('Final reply.').compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('keeps late stopped-reply usage above a trailing mid-run input with no assistant reply', () => {
+      registerMidRunUserMessageRenderer();
+      render(<MessageRow message={reply('trailing-input', [
+        { kind: 'text', text: 'Saved work.' }, midRun('unanswered'),
+        { kind: 'usage', costUsd: 0.25, stopReason: 'aborted_streaming' },
+        { kind: 'status', code: 'run_terminal', label: 'Stopped. Saved work is above.' },
+      ], 'canceled')} />);
+      const footer = document.querySelector('.jini-message-usage')!;
+      expect(footer).toHaveTextContent('Stopped · $0.25');
+      expect(footer.querySelector('.jini-message-usage-dot')).toBeNull();
+      expect(footer.compareDocumentPosition(screen.getByText('prompt unanswered')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it.each(['max_tokens', 'aborted_streaming'])('does not label a %s reply Done when its run exited successfully', stopReason => {
+      const view = render(<MessageRow message={reply('cut-off', [
+        { kind: 'text', text: 'Let me survey the CSS' }, { kind: 'usage', costUsd: 0.1, stopReason },
+      ], 'succeeded')} />);
+      expect(view.container.querySelector('.jini-message-usage')).toHaveTextContent('Interrupted · $0.10');
+      expect(view.container.querySelector('.jini-message-usage-dot')).toBeNull();
+    });
+
+    it('labels a reply ending on an unanswered surface as waiting', () => {
+      render(<MessageRow message={reply('waiting', [
+        { kind: 'text', text: 'Choose a theme.' }, { kind: 'usage', costUsd: 0.1 },
+        { kind: 'tool_use', id: 'q', name: 'assistant_ask_choice', input: { question: 'Which theme?' } },
+        { kind: 'ext', name: 'mcp-ui', data: {} },
+      ], 'succeeded')} />);
+      expect(document.querySelector('.jini-message-usage')).toHaveTextContent('Waiting for your answer · $0.10');
+      expect(document.querySelector('.jini-message-usage-dot')).toBeNull();
+    });
+
     it('gives each finished mid-run reply its own Done line where that reply ends, with the running total as of that reply', () => {
       registerMidRunUserMessageRenderer();
       render(<MessageRow message={reply('replies', [
@@ -281,8 +331,8 @@ describe('MessageRow', () => {
       ], 'succeeded')} />);
       const lines = [...document.querySelectorAll('.jini-message-usage')];
       expect(lines.map((line) => line.textContent)).toEqual(['●Done · 13s · $0.03 · total $0.03', '●Done · 1s · $0.02 · total $0.05']);
-      expect(lines.map((line) => line.getAttribute('title'))).toEqual(['995 out', '5 out']);
-      expect(screen.getByRole('note', { name: 'Done · 13s · $0.03 · total $0.03 · 995 out' })).toBeInTheDocument();
+      expect(lines.map((line) => line.getAttribute('title'))).toEqual(['995 output tokens', '5 output tokens']);
+      expect(screen.getByRole('note', { name: 'Done · 13s · $0.03 · total $0.03 · 995 output tokens' })).toBeInTheDocument();
       const bubble = screen.getByText('prompt u2');
       expect(lines[0]!.compareDocumentPosition(bubble) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(bubble.compareDocumentPosition(lines[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -359,9 +409,9 @@ describe('MessageRow', () => {
       const usageText = document.querySelector('.jini-message-usage')?.textContent;
       expect(usageText).toContain('Done');
       expect(usageText).toContain('46s');
-      expect(usageText).not.toContain('2612 out');
-      expect(screen.getByRole('note', { name: 'Done · 46s · $0.41 · total $0.41 · 2612 out' })).toBeInTheDocument();
-      expect(document.querySelector('.jini-message-usage')).toHaveAttribute('title', '2612 out');
+      expect(usageText).not.toContain('2,612 output tokens');
+      expect(screen.getByRole('note', { name: 'Done · 46s · $0.41 · total $0.41 · 2,612 output tokens' })).toBeInTheDocument();
+      expect(document.querySelector('.jini-message-usage')).toHaveAttribute('title', '2,612 output tokens');
       expect(usageText).toContain('$0.41 · total $0.41');
     });
 

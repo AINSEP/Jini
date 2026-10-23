@@ -17,10 +17,10 @@ function selectedAnswerText(
 ): string | undefined {
   const question = record(input);
   const labels: string[] = [];
-  if (typeof result.choice === 'string') labels.push(optionLabel(question.singleSelect, result.choice));
+  if (typeof result.choice === 'string') labels.push(optionLabel(question.singleSelect ?? question, result.choice));
   if (Array.isArray(result.selections)) {
     for (const selection of result.selections) {
-      if (typeof selection === 'string') labels.push(optionLabel(question.multiSelect, selection));
+      if (typeof selection === 'string') labels.push(optionLabel(question.multiSelect ?? question, selection));
     }
   }
   if (labels.length > 0) return labels.join(', ');

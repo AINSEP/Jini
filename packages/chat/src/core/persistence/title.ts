@@ -10,27 +10,20 @@
  * better title asks its agent for one later and calls `rename(id, title, 'generated')`; the
  * store refuses to overwrite a `manual` title, so a user's own rename always wins.
  *
- * Ported from Open Design's `summarizeProjectNameFromPrompt` (`apps/web/src/utils/projectName.ts`),
- * which this generalizes from project names to conversation titles. Its behaviour is preserved
- * deliberately — including the CJK path, which is not decoration: the filler and punctuation
- * rules for Chinese prompts differ enough from the Latin ones that a shared code path produced
- * visibly worse titles in both.
- *
- * Two intentional divergences from the original, both fixing output the original gets wrong; each
- * is documented at its own declaration below:
- *   1. `LEADING_LATIN_FILLER` requires the separator inside the article group. The original's form
- *      let a bare `a` eat the first letter of the next word ("update app.tsx" → "Pp Tsx").
- *   2. `LATIN_NEVER_TRAILING` trims function words off the end. The original's word cap lands
- *      mid-clause on question-shaped prompts and strands them ("...Posts Do I").
+ * Ported from Open Design's `summarizeProjectNameFromPrompt` (`apps/web/src/utils/projectName.ts`).
+ * The Latin path has since diverged: it keeps the prompt's words, names and dotted domains (the
+ * original's stop-word removal and title casing turned "port orvellea.com to tovu" into "Port
+ * Orvellea Com Tovu"), and `LEADING_LATIN_FILLER` fixes the original's article bug, documented at
+ * its declaration. The CJK path keeps the original's filler and punctuation rules, which is not
+ * decoration: they differ enough from the Latin ones that a shared path produced worse titles in both.
  */
 
-const MAX_LATIN_WORDS = 6;
 const MAX_CJK_LENGTH = 18;
 /**
  * Hard character ceiling, because a word cap is not a length cap.
  *
- * Six "words" says nothing about their size: a pasted base64 blob or minified bundle is a single
- * enormous token, so it survived the word cap intact and became the title verbatim. That title is
+ * A word boundary says nothing about token size: a pasted base64 blob or minified bundle is a single
+ * enormous token, so it must not survive intact and become the title verbatim. That title is
  * then stored, listed, and re-rendered on every conversation-list read — megabytes of it. Applied to
  * the finished title so both the Latin and CJK paths are covered.
  */
@@ -57,35 +50,9 @@ const LEADING_CJK_FILLER = [
   /^(一个|一份|这个|那个)/,
 ];
 
-const LATIN_STOP_WORDS: ReadonlySet<string> = new Set([
-  'a', 'an', 'and', 'for', 'in', 'of', 'on', 'please', 'the', 'to', 'with', 'my',
-]);
-
-/**
- * Function words that are fine *inside* a title but never acceptable as its last word.
- *
- * These cannot go in `LATIN_STOP_WORDS`, because removing them everywhere mangles real titles —
- * "how many posts do I have" would lose the "how many" that makes it a question, and a prompt like
- * "make it work" would reduce to "Work". The problem is specifically the word-cap boundary: a
- * question-shaped prompt reliably spends its six words before reaching the noun, so the title got
- * cut mid-clause. Observed live: "how many published posts do I have?" produced
- * "How Many Published Posts Do I" — a dangling auxiliary plus a stranded pronoun, which in a narrow
- * dock also wrapped to leave a lone "I" on its own line.
- *
- * Trimming only the tail is what makes this safe: it can never shorten a title that already ended
- * on a content word, so no existing good title changes.
- */
-const LATIN_NEVER_TRAILING: ReadonlySet<string> = new Set([
-  'do', 'does', 'did', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'have', 'has', 'had', 'can', 'could', 'should', 'would', 'will', 'shall', 'may', 'might', 'must',
-  'i', 'me', 'you', 'we', 'us', 'it', 'they', 'them', 'he', 'she',
-  'that', 'this', 'these', 'those', 'but', 'or', 'if', 'then', 'than', 'as', 'at', 'by',
-  'from', 'into', 'about', 'so', 'just', 'also', 'too', 'up', 'out',
-]);
-
 /**
  * Strips the parts of a prompt that are never a good title: fenced code, URLs, and
- * `@handle`/`#tag` tokens. Each of these is high-entropy and low-meaning in a six-word summary.
+ * `@handle`/`#tag` tokens. Each of these is high-entropy and low-meaning in a short summary.
  * Inline code keeps its label with delimiters removed, so a filename can still name the task.
  */
 function cleanPrompt(prompt: string): string {
@@ -124,7 +91,8 @@ export function stripConversationTitleMarkdown({ text }: { text: string }, _opti
 }
 
 /** Keep complete words at the display ceiling. A single oversized token still gets a bounded
- * prefix: pasted blobs must never become megabyte-sized stored/listed titles.
+ * prefix: pasted blobs must never become megabyte-sized stored/listed titles. The old six-word cap
+ * stranded auxiliaries and pronouns mid-clause; the character ceiling leaves short questions whole.
  * @complexity O(n) time/space, bounded by the title ceiling after the initial length check.
  */
 function truncateTitle(title: string): string {
@@ -135,25 +103,11 @@ function truncateTitle(title: string): string {
   return (lastSpace > 0 ? prefix.slice(0, lastSpace) : prefix).trimEnd();
 }
 
-/** Callers pass only non-empty words (`trimLatinTitle` filters blanks before mapping). */
-function toTitleCase(word: string): string {
-  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-}
-
-function trimLatinTitle(input: string, { casing }: { casing: 'title' | 'sentence' }): string {
-  const words = input
-    .replace(LEADING_LATIN_FILLER, '')
-    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((word) => !LATIN_STOP_WORDS.has(word.toLowerCase()))
-    .slice(0, MAX_LATIN_WORDS);
-  // Applied after the cap, because the cap is what strands these words in the first place.
-  while (words.length > 0 && LATIN_NEVER_TRAILING.has(words[words.length - 1]!.toLowerCase())) {
-    words.pop();
-  }
-  const title = casing === 'title' ? words.map(toTitleCase).join(' ') : words.join(' ');
-  return title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
+function trimLatinTitle(input: string): string {
+  const words = input.replace(LEADING_LATIN_FILLER, '').match(/[\p{L}\p{N}]+(?:[._-][\p{L}\p{N}]+)*/gu) ?? [];
+  const title = words.join(' ');
+  // Domain and filename tokens retain their original case, even at the start of a sentence.
+  return words[0]?.includes('.') ? title : title.charAt(0).toUpperCase() + title.slice(1);
 }
 
 function trimCjkTitle(input: string): string {
@@ -172,19 +126,19 @@ function trimCjkTitle(input: string): string {
  *
  * @complexity O(n) in prompt length; no allocation beyond the intermediate strings.
  */
-export function deriveConversationTitle({ prompt }: { prompt: string }, { casing = 'title' }: { casing?: 'title' | 'sentence' } = {}): string {
+export function deriveConversationTitle({ prompt }: { prompt: string }, _optional: Record<string, never> = {}): string {
   const cleaned = cleanPrompt(prompt);
   if (!cleaned) return '';
   // `split` always yields a first element, even for a string that starts with a separator.
   const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]!.trim();
   if (!firstClause) return '';
-  const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause, { casing });
+  const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause);
   // Truncated without an ellipsis: this is a working title, not prose, and a `…` would end up stored
   // and shown as if the author wrote it.
   return truncateTitle(title);
 }
 
-/** Sentence-case only a known heuristic title using the original prompt's proper names/acronyms.
+/** A known heuristic title is already display-ready: derivation keeps the prompt's own wording.
  * Manual names, model-authored names and unloaded transcripts keep their saved wording, with
  * presentation markup removed and the display ceiling applied; no writes.
  * @complexity O(n) time/space in the first prompt's length, using the existing bounded heuristic.
@@ -194,7 +148,7 @@ export function conversationTitleForDisplay({ title, titleSource, firstPrompt }:
 }, _options = {}): string | null {
   if (!title) return title;
   if (titleSource === 'generated' && firstPrompt && title === deriveConversationTitle({ prompt: firstPrompt })) {
-    return deriveConversationTitle({ prompt: firstPrompt }, { casing: 'sentence' });
+    return title;
   }
   return truncateTitle(stripConversationTitleMarkdown({ text: title })) || null;
 }

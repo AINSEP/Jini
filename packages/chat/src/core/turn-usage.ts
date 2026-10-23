@@ -74,6 +74,7 @@ export function turnUsage({ events }: { events: readonly AgentEvent[] | undefine
     if (event.kind !== 'usage') continue;
     total ??= { kind: 'usage' };
     addReportedCounts({ total, event });
+    if (event.stopReason !== undefined) total.stopReason = event.stopReason;
     const cost = usageCost({ event, agentId, sessions });
     if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
   }
@@ -92,6 +93,7 @@ function addReportedCounts({ total, event }: { total: UsageEvent; event: UsageEv
 function addUsage({ total, usage }: { total: UsageEvent | undefined; usage: UsageEvent | undefined }, _optional = {}): UsageEvent | undefined {
   if (!usage) return total;
   const next: UsageEvent = { ...(total ?? { kind: 'usage' }) };
+  if (usage.stopReason !== undefined) next.stopReason = usage.stopReason;
   for (const field of ['inputTokens', 'outputTokens', 'durationMs', 'costUsd'] as const) {
     const value = usage[field];
     if (value !== undefined) next[field] = (next[field] ?? 0) + value;

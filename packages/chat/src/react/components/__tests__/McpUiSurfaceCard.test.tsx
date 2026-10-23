@@ -42,6 +42,19 @@ afterEach(() => {
 });
 
 describe('McpUiSurfaceCard', () => {
+  it.each(['question', 'prompt'])('keeps the closed %s with selected labels after its answer receipt renders', field => {
+    const { container, getByRole } = render(<McpUiSurfaceCard {...BASE_PROPS}
+      events={[resourceEvent('ui://question/answered', '<form>Pick</form>')]} answerRecorded
+      answerText="embed, api" call={{ name: 'assistant_ask_choice', input: {
+        title: '', [field]: 'How should we publish?', options: [
+          { value: 'embed', label: 'Embed the widget' }, { value: 'api', label: 'Use the API' },
+        ],
+      }, result: { content: '{"submitted":true,"selections":["embed","api"]}', isError: false } }} />);
+    expect(getByRole('status')).toHaveTextContent('How should we publish?: Embed the widget, Use the API');
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.querySelector('.jini-message-user')).toBeNull();
+  });
+
   describe('a question nobody can answer any more is shown closed, not answerable', () => {
     const card = [resourceEvent('ui://consumer/ask-choice/x/1', '<form>pick one</form>')];
     const askCall = { name: 'assistant_ask_choice', input: { title: 'Pick a plan' } };
@@ -51,7 +64,7 @@ describe('McpUiSurfaceCard', () => {
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={{ ...askCall, result: { content: '{"submitted":true,"choice":"Alpha"}', isError: false } }} />,
       );
       expect(container.querySelector('.jini-message-user .jini-message-content')?.textContent).toBe('Alpha');
-      expect(container.querySelector('.mcpui-surface-card-closed')).toBeNull();
+      expect(container.querySelector('.mcpui-surface-card-closed')).toHaveTextContent('Pick a plan: Alpha');
       expect(container.querySelector('iframe')).toBeNull();
     });
 

@@ -2,7 +2,7 @@ import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
 import { MidRunUserMessage, MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './MidRunUserMessage.js';
 import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-projection.js';
 import type { ChatUsageSummary } from '../../core/turn-usage.js';
-import { usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } from './MessageRow.usage.js';
+import { usageEndLabel, usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } from './MessageRow.usage.js';
 /**
  * @module MessageRow
  *
@@ -146,14 +146,15 @@ function isRunInProgress(runStatus: ChatRunStatus | undefined): boolean {
 /** One "Done · 6m 29s · $0.41 · total $2.50" line from reported usage, never estimated (the total is
  * left off when `showTotal` is false). Partial usage stays partial; output tokens are available to
  * assistive technology and in the tooltip. */
-function UsageSummary({ usage, showTotal }: { usage: ChatUsageSummary; showTotal: boolean }) {
+function UsageSummary({ usage, showTotal, message, awaitingAnswer }: { usage: ChatUsageSummary; showTotal: boolean; message?: ChatMessage; awaitingAnswer?: boolean }) {
   const t = useT();
-  const { text, title, ariaLabel } = useUsageSummary({ usage }, { showTotal });
+  const label = usageEndLabel({ usage, ...(message === undefined ? {} : { message }), ...(awaitingAnswer === undefined ? {} : { awaitingAnswer }) });
+  const { text, title, ariaLabel } = useUsageSummary({ usage }, { showTotal, label });
   if (!text) return null;
   return (
     <div className="jini-message-usage" title={title} role="note" aria-label={ariaLabel}>
-      <span className="jini-message-usage-dot" aria-hidden>●</span>
-      {t('Done')} · {text}
+      {label === 'Done' ? <span className="jini-message-usage-dot" aria-hidden>●</span> : null}
+      {t(label)} · {text}
     </div>
   );
 }
@@ -222,7 +223,8 @@ function AssistantMessageFooter(
 ) {
   const t = useT();
   return <>
-      {usageEvent ? <UsageSummary usage={usageEvent} showTotal={showUsageTotal} /> : null}
+      {usageEvent ? <UsageSummary usage={usageEvent} showTotal={showUsageTotal} message={message}
+        awaitingAnswer={isAwaitingAnswer({ events: message.events }, { isAnsweredCard })} /> : null}
       {terminalNotice ? <div className="jini-message-error" role="status">{t(terminalNotice)}</div> : null}
       {!pending && !runInProgress ? (
         <div className="jini-message-actions jini-message-actions--assistant">
@@ -366,8 +368,11 @@ function AssistantMessageRow({
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
   const awaitingAnswer = messageAwaitingAnswer({ runStreaming, runInProgress, events: message.events }, { isAnsweredCard: answeredCards.isAnsweredCard });
-  const usage = usageLayout({ usage: messageUsage, interleaved: blocks !== null, runInProgress }, { runStreaming });
+  const usage = usageLayout({ usage: messageUsage, interleaved: blocks !== null, runInProgress }, {
+    runStreaming: runStreaming && !isTerminalRunStatus({ status: message.runStatus }),
+  });
   const footerUsage = showUsageLine ? usage.footer : undefined;
+  const lastFinishedReply = !runInProgress && !usage.footer ? usage.replies.findLastIndex(value => value !== undefined) : -1;
 
   const renderToolCard = (row: ToolTimelineRow) => (
     <ToolCard
@@ -442,7 +447,9 @@ function AssistantMessageRow({
     }
     if (block.kind === 'reply-end') {
       const reply = usage.replies[block.index];
-      return reply && showUsageLine ? <UsageSummary key={block.key} usage={reply} showTotal={showUsageTotal} /> : null;
+      // A trailing input may have no reply: its predecessor's usage belongs above that input.
+      return reply && showUsageLine ? <UsageSummary key={block.key} usage={reply} showTotal={showUsageTotal}
+        {...(block.index === lastFinishedReply ? { message } : {})} /> : null;
     }
     if (block.kind === 'tools') return renderTools(block.rows, block.key);
     if (block.kind === 'thinking') return <ThinkingBlock key={block.key} text={block.text} />;

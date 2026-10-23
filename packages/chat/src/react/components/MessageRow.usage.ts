@@ -1,8 +1,25 @@
 import { useMemo } from 'react';
 import type { ChatMessage } from '../../core/messages.js';
+import { terminalMessageNotice } from '../../core/durable-projection.js';
 import { conversationUsage, type ChatUsageSummary } from '../../core/turn-usage.js';
 import { formatUsageCost } from '../../core/usage-format.js';
-import { useT } from '../hooks/context.js';
+import { useI18n } from '../hooks/context.js';
+
+/** A run's terminal state wins over its last model response; interrupted usage never claims success.
+ * Missing lifecycle data keeps the legacy completed label. O(n) in terminal notice events. */
+export function usageEndLabel(
+  { usage, message, awaitingAnswer = false }: { usage: ChatUsageSummary; message?: ChatMessage; awaitingAnswer?: boolean }, _options = {},
+): string {
+  const status = message?.runStatus;
+  if (status === 'failed') return 'Failed';
+  if (status === 'canceled') {
+    return /stopped/i.test(terminalMessageNotice({ message: message! }) ?? '') ? 'Stopped' : 'Canceled';
+  }
+  if (awaitingAnswer) return 'Waiting for your answer';
+  const reason = usage.stopReason ?? '';
+  if (/error|fail/i.test(reason)) return 'Failed';
+  return /abort|interrupt|cancel|max_tokens|max_tool_turns|length|tool_use/i.test(reason) ? 'Interrupted' : 'Done';
+}
 
 /** A standalone row has one turn; MessageList supplies the full conversation projection. */
 export function useMessageUsage({ message, summary }: { message: ChatMessage; summary?: ChatUsageSummary }, _optional = {}): ChatUsageSummary | undefined {
@@ -42,13 +59,13 @@ export function usageLineMeetsActions(
  * Each line carries the chat's running total as of that reply, "Done · 16s · $0.39 · total $3.95" (owner,
  * 2026-10-10: keep the total, always shown, even on the first turn). Known totals remain visible when
  * the current turn's cost is unknown. `showTotal: false` turns the total off. */
-export function useUsageSummary({ usage }: { usage: ChatUsageSummary }, { showTotal = true }: { showTotal?: boolean } = {}) {
-  const t = useT();
+export function useUsageSummary({ usage }: { usage: ChatUsageSummary }, { showTotal = true, label = 'Done' }: { showTotal?: boolean; label?: string } = {}) {
+  const { t, locale } = useI18n();
   const parts = [usageDuration({ durationMs: usage.durationMs }), usageCost({ usage }, { showTotal })]
     .filter((part): part is string => part !== undefined);
   const text = parts.join(' · ');
-  const title = usage.outputTokens === undefined ? undefined : t('{n} out', { n: usage.outputTokens });
-  return { text, title, ariaLabel: title === undefined ? undefined : `${t('Done')} · ${text} · ${title}` };
+  const title = usage.outputTokens === undefined ? undefined : t('{n} output tokens', { n: usage.outputTokens.toLocaleString(locale) });
+  return { text, title, ariaLabel: title === undefined ? undefined : `${t(label)} · ${text} · ${title}` };
 }
 
 function usageDuration({ durationMs }: { durationMs: number | undefined }, _options = {}): string | undefined {

@@ -121,6 +121,11 @@ describe("translateRunAgentPayload — media survives a real SSE JSON round trip
 });
 
 describe("translateRunAgentPayload — usage", () => {
+  test('retains the runtime stop reason so truncated replies can be identified after persistence', () => {
+    expect(translateRunAgentPayload({ type: 'usage', stopReason: 'max_tokens', usage: { output_tokens: 1040 } }))
+      .toEqual({ kind: 'usage', outputTokens: 1040, stopReason: 'max_tokens' });
+  });
+
   test("numeric fields all present are passed through as numbers", () => {
     const translated = translateRunAgentPayload({
       type: "usage",

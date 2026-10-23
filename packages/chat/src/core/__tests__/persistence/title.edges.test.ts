@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { conversationTitleForDisplay, deriveConversationTitle } from '../../persistence/title.js';
 
 describe('conversation title edges', () => {
-  it('derives no title from a prompt made only of stop words', () => {
-    expect(deriveConversationTitle({ prompt: 'the and of' })).toBe('');
+  it('retains stop words rather than dropping the prompt', () => {
+    expect(deriveConversationTitle({ prompt: 'the and of' })).toBe('The and of');
   });
 
   it("derives no title when the prompt's first clause is empty", () => {
