@@ -67,7 +67,7 @@ describe('delivered HTML consent boundary', () => {
     const submissions: unknown[] = [];
     dom.window.fetch = async (url: string, options: { body: { toString(): string } }) => {
       submissions.push({ url, body: options.body.toString() });
-      return { ok: true, json: async () => ({ signals: { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' } }) };
+      return { ok: true, json: async () => ({ record: { ...accepted, action: 'do-not-sell', choices: { necessary: true, functional: true, analytics: false, marketing: false } }, signals: { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' } }) };
     };
     try {
       expect(requests).toEqual([]); expect(Array.from(dom.window.runs)).toEqual(['necessary', 'functional']);
@@ -80,6 +80,40 @@ describe('delivered HTML consent boundary', () => {
       await new Promise<void>(resolve => setImmediate(resolve));
       expect(submissions).toEqual([{ url: 'https://site.example/api/site-consent', body: 'policyVersion=1&gpc=1&functional=on&action=do-not-sell' }]);
       expect(dom.window.dataLayer.at(-1)[2].ad_storage).toBe('denied');
+      expect(runtimeErrors).toEqual([]);
+      expect(reloads).toHaveLength(1);
+    } finally { dom.window.close(); }
+  });
+  it.each([
+    ['reject', '/api/site-consent', 'https://site.example/api/site-consent', { necessary: true, functional: false, analytics: false, marketing: false }],
+    ['accept', 'https://site.example/api/site-consent', 'https://site.example/api/site-consent', accepted.choices],
+    ['save', 'site-consent', 'https://site.example/settings/site-consent', { necessary: true, functional: true, analytics: true, marketing: false }],
+    ['do-not-sell', '../api/site-consent', 'https://site.example/api/site-consent', { necessary: true, functional: true, analytics: false, marketing: false }],
+  ] as const)('saves %s to the action attribute despite named buttons and reflects the saved choices', async (action, endpoint, expectedUrl, choices) => {
+    const html = `<!doctype html><html><head><base href="https://site.example/settings/">${renderConsentHead({ config, record: accepted, gpc: false })}</head><body>${renderConsentUi({ config, record: accepted, regionMode: 'opt-in', gpc: false, endpoint })}</body></html>`;
+    const submissions: unknown[] = [];
+    const signals = { ad_storage: choices.marketing ? 'granted' : 'denied', analytics_storage: choices.analytics ? 'granted' : 'denied' };
+    const { dom, runtimeErrors, reloads } = await browser(html, false, { fetch: async (url, options) => {
+      submissions.push({ url, action: new URLSearchParams(options.body.toString()).get('action') });
+      return { ok: true, json: async () => ({ record: { ...accepted, action, choices }, signals }) };
+    } });
+    try {
+      const form = dom.window.document.querySelector('#jini-consent form');
+      const actions = form.elements.namedItem('action');
+      expect(actions).toBeInstanceOf(dom.window.RadioNodeList);
+      expect(actions.length).toBe(5);
+      // jsdom lacks HTMLFormElement's named getter; model Chrome's lookup with the real controls.
+      Object.defineProperty(form, 'action', { configurable: true, value: actions });
+      expect(form.action).toBe(actions);
+      if (action === 'save') form.querySelector('[name=marketing]').checked = false;
+      form.querySelector(`button[name=action][value="${action}"]`).click();
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(submissions).toEqual([{ url: expectedUrl, action }]);
+      expect(Array.from(dom.window.dataLayer.at(-1))).toEqual(['consent', 'update', signals]);
+      for (const category of ['functional', 'analytics', 'marketing'] as const) {
+        expect(form.querySelector(`[name=${category}]`).checked).toBe(choices[category]);
+      }
+      expect(form.querySelector('[data-jini-consent-error]').hidden).toBe(true);
       expect(runtimeErrors).toEqual([]);
       expect(reloads).toHaveLength(1);
     } finally { dom.window.close(); }
