@@ -13,7 +13,7 @@ import {
 /**
  * @file The three tool-call display modes over real block shapes. The load-bearing invariants:
  * collapsed folds a turn into exactly one tools block (never across a reply boundary), and hidden
- * never drops a failed row.
+ * never drops an unrecovered failure or mistakes a later reply for recovery.
  */
 
 const row = (id: string, status: ToolStatus = 'complete', name = 'Bash'): ToolDisplayRow => ({ id, name, status, use: { input: {} } });
@@ -50,8 +50,8 @@ describe('applyToolCallDisplay', () => {
     expect(shape(applyToolCallDisplay({ blocks: [text('a'), tools('tools-1', row('t1'))], mode: 'collapsed' }))).toEqual(['a', 'tools-1:[t1]']);
   });
 
-  it('hidden keeps only failed rows and drops tools blocks left empty', () => {
-    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['a', 'b', 'tools-3:[t2]', '|', 'c']);
+  it('hidden drops failures followed by a successful row in the same reply', () => {
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['a', 'b', '|', 'c']);
   });
 
   it('never mutates its input', () => {
@@ -78,6 +78,50 @@ describe('applyToolCallDisplay boundaries', () => {
   it('hidden keeps a fully failed block under its own key', () => {
     const blocks = [ext, tools('tools-1', row('t1', 'error'), row('t2', 'error'))];
     expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['ext-form', 'tools-1:[t1,t2]']);
+  });
+});
+
+describe('hidden recovery', () => {
+  const failure = tools('failed', row('bad', 'error'));
+
+  it('hides a failure followed by assistant text, but not text before it', () => {
+    expect(shape(applyToolCallDisplay({ blocks: [failure, text('answer')], mode: 'hidden' }))).toEqual(['answer']);
+    expect(shape(applyToolCallDisplay({ blocks: [text('before'), failure], mode: 'hidden' }))).toEqual(['before', 'failed:[bad]']);
+  });
+
+  it('hides a failure followed by a successful tool in a later block', () => {
+    expect(shape(applyToolCallDisplay({ blocks: [failure, tools('success', row('ok'))], mode: 'hidden' }))).toEqual([]);
+  });
+
+  it('keeps the last failure after an earlier recovery', () => {
+    const blocks = [failure, text('recovered'), tools('last', row('bad2', 'error'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['recovered', 'last:[bad2]']);
+  });
+
+  it('does not count whitespace, reasoning, or a running tool as recovery', () => {
+    const blocks: MessageBlock<ToolDisplayRow>[] = [failure, { kind: 'text', text: '  ', key: 'space' },
+      { kind: 'thinking', text: 'Trying again', key: 'thought' }, tools('pending', row('pending', 'executing'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['failed:[bad]', 'space', 'thought']);
+  });
+
+  it('groups multiple unrecovered failure blocks into one disclosure per reply', () => {
+    const blocks: MessageBlock<ToolDisplayRow>[] = [failure, { kind: 'ext', name: 'notice', slot: 'notice', key: 'notice' }, tools('last', row('bad2', 'error'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['failed:[bad,bad2]', 'notice']);
+  });
+
+  it('does not let later replies recover a terminal failure', () => {
+    const blocks = [failure, replyEnd(0), text('next reply'), tools('success', row('ok'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }))).toEqual(['failed:[bad]', '|', 'next reply']);
+  });
+
+  it('preserves failures in an errored final reply even after text or success', () => {
+    const blocks = [failure, text('partial'), tools('success', row('ok'))];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }, { runFailed: true }))).toEqual(['failed:[bad]', 'partial']);
+  });
+
+  it('an errored final reply does not change recovered failures in earlier replies', () => {
+    const blocks = [failure, text('recovered'), replyEnd(0), tools('last', row('bad2', 'error')), text('partial')];
+    expect(shape(applyToolCallDisplay({ blocks, mode: 'hidden' }, { runFailed: true }))).toEqual(['recovered', '|', 'last:[bad2]', 'partial']);
   });
 });
 

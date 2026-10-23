@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { assistantContentFromEvents } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
+import { I18nContext } from '../../hooks/context.js';
 import { MessageRow } from '../MessageRow.js';
 
 /**
@@ -65,19 +66,103 @@ describe('MessageRow toolCallDisplay', () => {
     expect(screen.getByRole('button', { name: 'Running Gamma Check…' })).toBeInTheDocument();
   });
 
-  it('hidden shows no cards except the failed one', () => {
+  it('hidden hides the recovered failure along with successful calls', () => {
     render(<MessageRow message={turn} runSucceeded toolCallDisplay="hidden" />);
-    const cards = cardTitles();
-    expect(cards).toHaveLength(1);
-    expect(cards[0]).toContain('beta');
-    expect(document.querySelector('.jini-tool-group')).toBeNull();
+    expect(cardTitles()).toHaveLength(0);
+    expect(screen.queryByText('A step failed')).toBeNull();
+    expect(screen.getByText('Done.')).toBeInTheDocument();
   });
 
-  it('hidden keeps a failed tool in the flat layout too', () => {
-    // Content that does not match the events forces the flat fallback.
+  it('hidden shows one compact terminal failure with a working disclosure of the existing cards', async () => {
+    const user = userEvent.setup();
+    const terminal = assistant('terminal', [use('t1', 'alpha'), result('t1', true), use('t2', 'beta'), result('t2', true)]);
+    render(<MessageRow message={terminal} runSucceeded toolCallDisplay="hidden" />);
+    expect(screen.getAllByText('A step failed')).toHaveLength(1);
+    const show = screen.getByRole('button', { name: 'Show' });
+    expect(show).toHaveAttribute('aria-expanded', 'false');
+    expect(cardTitles()).toHaveLength(0);
+    await user.click(show);
+    expect(show).toHaveAttribute('aria-expanded', 'true');
+    expect(cardTitles()).toHaveLength(2);
+    expect(cardTitles()[0]).toContain('alpha');
+    expect(cardTitles()[1]).toContain('beta');
+    expect(screen.getAllByText('boom')).toHaveLength(2);
+    await user.click(show);
+    expect(show).toHaveAttribute('aria-expanded', 'false');
+    expect(cardTitles()).toHaveLength(0);
+  });
+
+  it.each(['text', 'tool'] as const)('hidden keeps a streaming failure until later %s proves recovery', (recovery) => {
+    const events = [use('t1', 'alpha'), result('t1', true)];
+    const view = render(<MessageRow message={assistant('stream', events, 'running')} runStreaming toolCallDisplay="hidden" />);
+    expect(screen.getByText('A step failed')).toBeInTheDocument();
+    const later: AgentEvent[] = recovery === 'text' ? [{ kind: 'text', text: 'Recovered.' }] : [use('t2', 'beta'), result('t2')];
+    view.rerender(<MessageRow message={assistant('stream', [...events, ...later], 'running')} runStreaming toolCallDisplay="hidden" />);
+    expect(screen.queryByText('A step failed')).toBeNull();
+    expect(cardTitles()).toHaveLength(0);
+  });
+
+  it('hidden preserves an errored run failure despite partial assistant text', () => {
+    const failed = assistant('failed', [use('t1', 'alpha'), result('t1', true), { kind: 'text', text: 'Partial answer.' }], 'failed');
+    render(<MessageRow message={failed} toolCallDisplay="hidden" />);
+    expect(screen.getByText('A step failed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('hidden suppresses a failure followed by a successful tool in the flat layout too', () => {
     const flat: ChatMessage = { ...turn, id: 'flat', content: 'Rewritten by the host.' };
     render(<MessageRow message={flat} runSucceeded toolCallDisplay="hidden" />);
+    expect(cardTitles()).toHaveLength(0);
+    expect(screen.queryByText('A step failed')).toBeNull();
+  });
+
+  it('hidden keeps an unrecovered failure compact when text ordering is unavailable', async () => {
+    const user = userEvent.setup();
+    const flat = { ...assistant('flat', [use('t1', 'alpha'), result('t1', true)]), content: 'Host text.' };
+    render(<MessageRow message={flat} runSucceeded toolCallDisplay="hidden" />);
+    expect(screen.getByText('A step failed')).toBeInTheDocument();
+    expect(cardTitles()).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'Show' }));
     expect(cardTitles()).toHaveLength(1);
+    expect(screen.getByText('boom')).toBeInTheDocument();
+  });
+
+  it.each([false, true])('hidden respects reply boundaries even with host-rewritten text (%s)', async (rewrite) => {
+    const user = userEvent.setup();
+    const replies = assistant('replies', [
+      use('t1', 'alpha'), result('t1', true),
+      { kind: 'ext', name: 'user_message', data: { id: 'm1', text: 'Continue.' } },
+      use('t2', 'beta'), result('t2'), { kind: 'text', text: 'Second reply recovered.' },
+      { kind: 'ext', name: 'user_message', data: { id: 'm2', text: 'Again.' } },
+      use('t3', 'gamma'), result('t3', true),
+    ]);
+    render(<MessageRow message={rewrite ? { ...replies, content: 'Host text.' } : replies} runSucceeded toolCallDisplay="hidden" />);
+    expect(screen.getAllByText('A step failed')).toHaveLength(2);
+    const shows = screen.getAllByRole('button', { name: 'Show' });
+    expect(cardTitles()).toHaveLength(0);
+    await user.click(shows[0]!);
+    expect(cardTitles()).toHaveLength(1);
+    expect(cardTitles()[0]).toContain('alpha');
+    await user.click(shows[1]!);
+    expect(cardTitles()).toHaveLength(2);
+    expect(cardTitles()[1]).toContain('gamma');
+  });
+
+  it('hidden uses later event text to prove recovery when the host rewrites content', () => {
+    const message = { ...assistant('rewritten', [use('t1', 'alpha'), result('t1', true), { kind: 'text', text: 'Recovered.' }]), content: 'Host text.' };
+    render(<MessageRow message={message} runSucceeded toolCallDisplay="hidden" />);
+    expect(screen.queryByText('A step failed')).toBeNull();
+    expect(cardTitles()).toHaveLength(0);
+    expect(screen.getByText('Host text.')).toBeInTheDocument();
+  });
+
+  it('hidden localizes the failure label and disclosure with the host adapter', () => {
+    const dictionary: Record<string, string> = { 'A step failed': 'Une étape a échoué', Show: 'Afficher' };
+    render(<I18nContext.Provider value={{ locale: 'fr', t: (key) => dictionary[key] ?? key }}>
+      <MessageRow message={assistant('translated', [use('t1', 'alpha'), result('t1', true)])} toolCallDisplay="hidden" />
+    </I18nContext.Provider>);
+    expect(screen.getByText('Une étape a échoué')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Afficher' })).toHaveAttribute('aria-expanded', 'false');
   });
 });
 
@@ -108,7 +193,8 @@ describe('MessageRow showThinking', () => {
 describe('MessageList display props', () => {
   it('passes every display prop to its rows', () => {
     render(<MessageList messages={[turn]} toolCallDisplay="hidden" showUsageLine={false} showThinking />);
-    expect(cardTitles()).toHaveLength(1);
+    expect(cardTitles()).toHaveLength(0);
+    expect(screen.queryByText('A step failed')).toBeNull();
     expect(document.querySelector('.jini-message-usage')).toBeNull();
   });
 });
