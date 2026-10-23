@@ -48,6 +48,7 @@ Checked 2026-10-07 against the working tree. Find the owning entry point here, t
 | Media generation provider gateway | `@jini-ai/integrations/media-providers` | `createCapabilityRegistry`, `renderStub` |
 | Media library and renditions | `@jini-ai/cms/media` | `MediaRecord`, `AssetBlobRecord` |
 | Credentialed HTTP and SSRF protection | `@jini-ai/integrations/credentialed-http` | makeCredentialedRequest; pair with platform/http/guarded |
+| Fixed-target saved requests with public output selection | `@jini-ai/integrations/saved-requests` | parseSavedRequestDefinition; executeSavedRequest |
 | Webhooks and delivery retries | `@jini-ai/integrations/webhooks` | `enqueueDelivery`, `processDueDeliveries`, `startWebhookDeliveryWorker` |
 | SQL kernels / migrations / store copy | `@jini-ai/db/kernel` | StorageKernel; use db/migrate and db/kernel/store-copy |
 | Owner-scoped chat persistence | `@jini-ai/chat/store` | ChatStore; use store/sqlite, store/pglite or store/postgres |
@@ -543,6 +544,7 @@ vendor-integration-gateway · [README](packages/integrations/README.md)
 | `@jini-ai/integrations/media-providers` | Generate images/video/audio through vendor gateway, policy, staging and task stores. | `renderStub`, `createCapabilityRegistry`, `createSqliteMediaTaskStore` | node | Tovu: website |
 | `@jini-ai/integrations/media-providers/catalog` | Browser-safe provider/model capability catalog with no vendor dispatch. | `findProvider`, `findMediaModel`, `modelsForSurface` | universal | Tovu: admin, website |
 | `@jini-ai/integrations/credentialed-http` | Bind credentials to permitted origins and send audited/redacted guarded requests. | `makeCredentialedRequest`, `buildAuthorizationHeader`, `resolveRequestTarget` | node | Tovu: website |
+| `@jini-ai/integrations/saved-requests` | Interpret fixed HTTPS requests with host-resolved credentials, bounded input bindings and typed untrusted output. | `parseSavedRequestDefinition`, `executeSavedRequest` | node | Tovu T4: pending adoption |
 | `@jini-ai/integrations/webhooks` | Manage subscriptions, signed deliveries, independent retries, claim leases, the cancellable delivery loop and envelope storage ports. | `createSubscription`, `enqueueDelivery`, `processDueDeliveries`, `startWebhookDeliveryWorker`, `signPayload` | node | Tovu: website |
 
 ## integration · `@jini-ai/mcp`

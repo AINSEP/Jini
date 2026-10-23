@@ -10,7 +10,7 @@ import { IntegrationError } from "../argument-error.js";
 import { nowIso, type Clock, type HttpClientPort, type HttpResponse, type UUID } from "@jini-ai/core/primitives";
 import type { CredentialConnection, CredentialTarget, CredentialResolverPort, CredentialSchemeRegistryPort, CredentialedRequestErrorPolicyPort } from "./ports.js";
 import { detectSelfDescribingAuthScheme, type CredentialSchemeRule } from "./auth-schemes.js";
-import { redactResponseHeaders, resolveRedactedResponseBody } from "./response-redaction.js";
+import { redactJsonResponseBody, redactResponseHeaders, resolveRedactedResponseBody } from "./response-redaction.js";
 export class CredentialNotFoundError extends IntegrationError {}
 // Multiple saved origins support providers with separate API hosts. A single absolute URL keeps
 // host/path fields from drifting; compare parsed origins exactly, never prefixes or substrings.
@@ -252,6 +252,10 @@ export interface CredentialedRequestDeps {
 export interface CredentialedRequestOptions {
   readonly headers?: unknown;
   readonly body?: unknown;
+  /** Opt-in structured redaction after transport completeness checks. Existing text callers keep
+   * their original body formatting. JSON escapes cannot disguise a reflected credential value;
+   * credential-bearing keys and numbers refuse the body rather than changing its schema/types. */
+  readonly responseFormat?: "json";
   readonly errorPolicy?: CredentialedRequestErrorPolicyPort;
   readonly diagnosticMapper?: (required: { diagnostic: AuthFailureDiagnostic; status: 401 | 403 }) => AuthFailureDiagnostic;
 }
@@ -451,7 +455,7 @@ function describeEgressRefusal(err: unknown, policy: CredentialedRequestErrorPol
 // auth diagnostic alongside the provider's own answer, never in place of it.
 function buildExecutedResult(
   required: { response: HttpResponse; redaction: ResponseRedaction },
-  optional: Pick<CredentialedRequestOptions, "diagnosticMapper">,
+  optional: Pick<CredentialedRequestOptions, "diagnosticMapper" | "responseFormat">,
 ): CredentialedRequestExecutedResult {
   const { response, redaction } = required;
   const authDiagnostic = isAuthRejectionStatus(response.status) ? mapAuthDiagnostic(redaction.connection, response.status, redaction.schemes, optional) : undefined;
@@ -459,7 +463,23 @@ function buildExecutedResult(
     executed: true,
     status: response.status,
     headers: redactResponseHeaders(response.headers, redaction.secrets),
-    bodyText: resolveRedactedResponseBody(response.bodyText, redaction.connection.token, redaction.secrets, response.bodyTruncated === true),
+    bodyText: redactExecutedBody({ response, redaction }, optional),
     ...(authDiagnostic ? { authDiagnostic } : {}),
   };
+}
+
+/** Keep decoded-string redaction in the credential owner, before any caller's projection. */
+function redactExecutedBody(
+  { response, redaction }: { response: HttpResponse; redaction: ResponseRedaction },
+  options: Pick<CredentialedRequestOptions, "responseFormat"> = {},
+): string {
+  if (options.responseFormat === "json") {
+    if (response.bodyTruncated || response.bodyBytesTruncated) throw new CredentialedRequestValidationError({ message: "JSON response must be complete" });
+    try {
+      return redactJsonResponseBody({ bodyText: response.bodyText, token: redaction.connection.token, secrets: redaction.secrets });
+    } catch {
+      throw new CredentialedRequestValidationError({ message: "JSON response must be valid" });
+    }
+  }
+  return resolveRedactedResponseBody(response.bodyText, redaction.connection.token, redaction.secrets, response.bodyTruncated === true);
 }

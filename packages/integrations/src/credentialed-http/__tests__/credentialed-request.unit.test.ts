@@ -16,6 +16,35 @@ import type { HttpClientPort, HttpRequest, HttpResponse } from "@jini-ai/core/pr
 
 import { EgressRefusedError, createCustomCredential, makeWriteDeps, loadBundledAuthSchemes, type CustomCredentialWriteDeps } from "./resolver-fixtures.js";
 
+test("opt-in JSON mode redacts decoded strings while legacy mode retains original formatting", async () => {
+  const base = await seedBasicAndBearer();
+  const bodyText = ' { "echo": "\\u0062earer-secret-token", "nested": [1, true, null] } ';
+  const deps = makeDeps({ httpClient: new FakeHttpClient([{ status: 200, headers: {}, bodyText }]) }, base);
+  const input = { workspaceId: WORKSPACE, label: "token.example", method: "GET", url: "https://api.token.example/data" };
+  const legacy = await request({ deps, input });
+  assert.equal(legacy.bodyText, bodyText);
+  const result = await request({ deps, input }, { responseFormat: "json" });
+  assert.deepEqual(JSON.parse(result.bodyText), { echo: "[REDACTED]", nested: [1, true, null] });
+});
+
+test("opt-in JSON mode refuses coarse and byte-specific truncation, and malformed JSON, with safe typed errors", async () => {
+  const base = await seedBasicAndBearer();
+  const input = { workspaceId: WORKSPACE, label: "token.example", method: "GET", url: "https://api.token.example/data" };
+  for (const response of [
+    { status: 200, headers: {}, bodyText: "{}", bodyTruncated: true },
+    { status: 200, headers: {}, bodyText: "{}", bodyBytesTruncated: true },
+    { status: 200, headers: {}, bodyText: "bearer-secret-token malformed" },
+    { status: 200, headers: {}, bodyText: '{"bearer-secret-token":1}' },
+  ]) {
+    const deps = makeDeps({ httpClient: new FakeHttpClient([response]) }, base);
+    await assert.rejects(() => request({ deps, input }, { responseFormat: "json" }), (error: unknown) => {
+      assert.ok(error instanceof CredentialedRequestValidationError);
+      assert.doesNotMatch(error.message, /bearer-secret-token/);
+      return true;
+    });
+  }
+});
+
 const WORKSPACE = "ws-1";
 const FIXED_NOW = "2026-08-31T00:00:00.000Z";
 

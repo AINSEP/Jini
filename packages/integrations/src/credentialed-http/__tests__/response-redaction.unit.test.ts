@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { redactResponseHeaders, redactSecretSubstrings, redactTruncatedTail, resolveRedactedResponseBody } from "../response-redaction.js";
+import { redactJsonResponseBody, redactResponseHeaders, redactSecretSubstrings, redactTruncatedTail, resolveRedactedResponseBody } from "../response-redaction.js";
 
 // Direct tests: through makeCredentialedRequest every secret is non-empty (the Authorization header
 // always carries a scheme word, and tokens under 8 characters never reach substring scrubbing), so the
@@ -57,4 +57,32 @@ test("resolveRedactedResponseBody: a truncated body has full secrets and the cut
 
 test("redactResponseHeaders: a header NAME that reflects a secret is kept, only values are scanned (reported, not fixed)", () => {
   assert.deepEqual(redactResponseHeaders({ "x-tok-123456": "1" }, ["tok-123456"]), { "x-tok-123456": "1" });
+});
+
+test("JSON redaction decodes escaped tokens, scrubs nested strings and preserves primitive types", () => {
+  const bodyText = '{"items":[{"echo":"\\u0073ecret-token","quote":"a\\\"bcdefgh","slash":"a\\\\bcdefgh","public":"visible"}],"n":1,"b":false,"nil":null}';
+  assert.deepEqual(JSON.parse(redactJsonResponseBody({ bodyText, token: "secret-token", secrets: ["secret-token", 'a"bcdefgh', "a\\bcdefgh"] })), {
+    items: [{ echo: "[REDACTED]", quote: "[REDACTED]", slash: "[REDACTED]", public: "visible" }], n: 1, b: false, nil: null,
+  });
+});
+
+test("JSON redaction preserves the short-token rule and rejects malformed JSON", () => {
+  assert.equal(redactJsonResponseBody({ bodyText: "malformed", token: "short", secrets: ["short"] }), "[body withheld: credential too short to redact safely]");
+  assert.throws(() => redactJsonResponseBody({ bodyText: "malformed", token: "long-token", secrets: ["long-token"] }), SyntaxError);
+});
+
+test("JSON redaction refuses secrets in decoded object keys at every depth", () => {
+  for (const bodyText of ['{"secret-token":1}', '{"items":[{"prefix-\\u0073ecret-token-suffix":true}]}']) {
+    assert.throws(() => redactJsonResponseBody({ bodyText, token: "secret-token", secrets: ["secret-token"] }), {
+      name: "TypeError", message: "JSON response key contains a credential",
+    });
+  }
+});
+
+test("JSON redaction refuses numeric credential echoes instead of releasing typed numbers", () => {
+  for (const bodyText of ['12345678', '{"items":[{"count":9123456780}]}']) {
+    assert.throws(() => redactJsonResponseBody({ bodyText, token: "12345678", secrets: ["12345678"] }), {
+      name: "TypeError", message: "JSON response number contains a credential",
+    });
+  }
 });
