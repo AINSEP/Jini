@@ -112,7 +112,10 @@ describe('integrated runtime contracts', () => {
     expect(manifest.jini.entries['.']).toBe('node');
     // The root statically loads OAuth through the runtime definitions and PKCE bridge.
     // Packaged consumers must receive it even when they never start an OAuth flow.
-    expect(manifest.dependencies).toEqual({ '@jini-ai/core': 'workspace:^', '@jini-ai/oauth': 'workspace:^' });
+    // The Claude stream parser also loads the shared delegated-result codec at runtime.
+    expect(manifest.dependencies).toEqual({
+      '@jini-ai/core': 'workspace:^', '@jini-ai/oauth': 'workspace:^', '@jini-ai/protocol': 'workspace:^',
+    });
     expect(manifest.peerDependencies).not.toHaveProperty('@jini-ai/oauth');
     expect(manifest.peerDependenciesMeta).not.toHaveProperty('@jini-ai/oauth');
     expect(manifest.devDependencies).not.toHaveProperty('@jini-ai/oauth');

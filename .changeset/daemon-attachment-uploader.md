@@ -1,5 +1,5 @@
 ---
-"@jini-ai/chat-react": minor
+"@jini-ai/chat": minor
 ---
 
 Add `createDaemonAttachmentUploader`, so composer drag-and-drop is one line instead of 160.

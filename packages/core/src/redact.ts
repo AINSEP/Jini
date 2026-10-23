@@ -80,19 +80,17 @@ export const AGENT_FAILURE_SECRET_SHAPE_RE = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[
  * `config.json`, and `hosts.yml` are generic names that appear harmlessly elsewhere, so denying the
  * directory is the narrower of the two mistakes.
  *
- * `.tovu` (2026-09-24) — the install-wide site key's own directory. `keyring.env.ts`'s
- * `siteKeySources` resolves to `<cwd>/sites/.tovu/site-key.hex` in production
- * (a SIBLING of every `sites/<name>/` folder, on the durable data volume) and to
- * `~/.tovu/site-keys/<siteKeyId>.hex` in local/dev (reachable through the operator-set `custom`
- * root, `layout.ts`'s home-directory case). `TOVU_SITE_KEY` is the one secret the
- * "site key" admin UI, webhook/newsletter signing secrets, and site-key
- * permission checks all derive from (see `keyring.env.ts`'s own header) — the owner's standing rule
- * is that the agent must never be able to read it off disk. Denying the whole `.tovu` segment, not
- * merely the generated filename, also keeps `fs_list_files` from ever enumerating that directory's
- * contents in the first place (in Jini's guarded reader), the same "never even advertise it"
- * property `secrets` gets above.
+ * A host's install-wide site-key directory (2026-09-24) needs the same protection; the host appends it.
+ * Production stores it beside individual site folders on a durable volume; local/dev stores
+ * it below the home directory, reachable through an operator-set `custom` root. Its key backs
+ * site-key administration, webhook/newsletter signing secrets, and permission checks, so the
+ * agent must never read it from disk. Denying the whole directory segment, rather than only
+ * a generated key filename, also prevents `fs_list_files` from enumerating its contents — the
+ * same "never even advertise it" property `secrets` gets above.
  */
-export const CREDENTIAL_FILE_DENY_SEGMENTS: readonly string[] = ["secrets", ".aws", ".docker", ".kube", "gcloud", "gh", ".tovu"];
+// Generic credential-store segments only. A host adds its own product-specific key directory
+// (e.g. its install-wide site-key folder) when it builds its deny-list; core stays product-neutral.
+export const CREDENTIAL_FILE_DENY_SEGMENTS: readonly string[] = ["secrets", ".aws", ".docker", ".kube", "gcloud", "gh"];
 
 // A local tunnel has a loopback socket and may rewrite Host; refuse marker presence, even empty.
 export const LOCAL_OWNER_PROXY_MARKER_PREFIXES: readonly string[] = ["x-forwarded-", "x-envoy-", "x-ms-"];

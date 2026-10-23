@@ -20,9 +20,11 @@ test("the installed validator enforces enum, numeric, array, nested closure and 
   } });
   const valid = { choice: "public", count: 1, rows: [{ live: false }] };
   expect(validator.validate(valid).valid).toBe(true);
+  // The interpreter snapshots input as JSON before validation; a missing required field
+  // must be represented by an absent property, not JavaScript's unsupported undefined type.
   for (const input of [
     { ...valid, choice: "private" }, { ...valid, count: 0 }, { ...valid, count: 3 }, { ...valid, count: 1.5 },
     { ...valid, rows: [] }, { ...valid, rows: [{ live: true }, { live: true }, { live: true }] },
-    { ...valid, rows: [{ live: true, secret: "no" }] }, { ...valid, rows: [{}] }, { ...valid, count: undefined },
+    { ...valid, rows: [{ live: true, secret: "no" }] }, { ...valid, rows: [{}] }, { choice: valid.choice, rows: valid.rows },
   ]) expect(validator.validate(input).valid).toBe(false);
 });

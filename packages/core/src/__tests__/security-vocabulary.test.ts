@@ -33,7 +33,7 @@ describe('baseline security vocabulary', () => {
   });
 
   it('pins every credential directory and its order, including the protected site-key directory', () => {
-    expect(CREDENTIAL_FILE_DENY_SEGMENTS).toEqual(['secrets', '.aws', '.docker', '.kube', 'gcloud', 'gh', '.tovu']);
+    expect(CREDENTIAL_FILE_DENY_SEGMENTS).toEqual(['secrets', '.aws', '.docker', '.kube', 'gcloud', 'gh']);
   });
 
   it('pins every proxy prefix and exact header in order', () => {

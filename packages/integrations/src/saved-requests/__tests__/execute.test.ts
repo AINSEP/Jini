@@ -46,14 +46,14 @@ describe("saved-request credentialed execution", () => {
     expect(f.audit.entries[0]!.bodyBytes).toBe(Buffer.byteLength(f.calls[0]!.request.body as string));
   });
 
-  test("optional absent fields are omitted, with and without an empty body", async () => {
+  test.each([{}, { query: undefined }])("optional absent or undefined fields are omitted, with and without an empty body: %j", async input => {
     const f = fixture();
     const inputSchema = { type: "object", properties: { query: { type: "string", maxLength: 200 } }, additionalProperties: false };
-    await run(f, definition({ method: "POST", inputSchema, bodyBindings: { search: "query" } }), {});
+    await run(f, definition({ method: "POST", inputSchema, bodyBindings: { search: "query" } }), input);
     expect(f.calls[0]!.request.url).toBe("https://api.example/catalog?public=true");
     expect(f.calls[0]!.request.body).toBeUndefined();
     expect(f.calls[0]!.request.headers).not.toHaveProperty("Content-Type");
-    await run(f, definition({ method: "POST", inputSchema, queryBindings: {}, bodyBindings: { search: "query" }, staticBody: { catalog: "public" } }), {});
+    await run(f, definition({ method: "POST", inputSchema, queryBindings: {}, bodyBindings: { search: "query" }, staticBody: { catalog: "public" } }), input);
     expect(f.calls[1]!.request.body).toBe('{"catalog":"public"}');
     expect(f.calls[1]!.request.headers["Content-Type"]).toBe("application/json");
   });
@@ -122,7 +122,7 @@ describe("saved-request credentialed execution", () => {
 });
 
 describe("refuse before credential resolution or dispatch", () => {
-  test.each([{}, null, [], { query: 1 }, { query: "" }, { query: "x".repeat(201) }, { query: "tea", url: "https://evil.example" }, { query: "tea", headers: { Host: "evil" } }, { query: "tea", credentialId: "other" }])("closed schema refuses input %#", async input => {
+  test.each([{}, null, [], { query: undefined }, { query: 1 }, { query: "" }, { query: "x".repeat(201) }, { query: "tea", url: "https://evil.example" }, { query: "tea", headers: { Host: "evil" } }, { query: "tea", credentialId: "other" }])("closed schema refuses input %#", async input => {
     const f = fixture();
     await expect(run(f, definition(), input)).rejects.toMatchObject({ code: "invalid_input" });
     expect(f.resolutions).toEqual([]); expect(f.calls).toEqual([]);

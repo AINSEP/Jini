@@ -1,5 +1,5 @@
 ---
-"@jini-ai/chat-react": minor
+"@jini-ai/chat": minor
 ---
 
 Make the chat-pane transcript readable from outside the component — a must-have for an AI (or an
