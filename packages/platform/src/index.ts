@@ -46,6 +46,9 @@ export {
 } from "./proxy-env.js";
 
 export type {
+  ProcessUsage,
+  ProcessUsagePorts,
+  ProcessUsageOptions,
   ProcessSnapshot,
   ProcessStampContract,
   ProcessStampField,
@@ -59,6 +62,7 @@ export {
   createProcessStampArgs,
   isProcessAlive,
   listProcessSnapshots,
+  listProcessUsage,
   matchesProcessStamp,
   matchesStampedProcess,
   readFlagValue,
