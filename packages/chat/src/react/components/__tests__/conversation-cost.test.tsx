@@ -19,7 +19,7 @@ it('renders each turn\'s own cost and the running total as of that turn, identic
   const expected = ['●Done · $2.05 · total $2.05', '●Done · $0.45 · total $2.50', '●Done · $0.25 · total $2.75'];
   const view = render(<MessageList messages={messages} />);
   expect([...view.container.querySelectorAll('.jini-message-usage')].map(row => row.textContent)).toEqual(expected);
-  expect(view.container.querySelector('[data-message-id="b"] .jini-message-usage')).toHaveAttribute('title', '999 out');
+  expect(view.container.querySelector('[data-message-id="b"] .jini-message-usage')).toHaveAttribute('title', '999 output tokens');
   view.unmount();
   const reloaded = render(<MessageList messages={JSON.parse(JSON.stringify(messages))} />);
   expect([...reloaded.container.querySelectorAll('.jini-message-usage')].map(row => row.textContent)).toEqual(expected);
