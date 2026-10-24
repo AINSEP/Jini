@@ -197,7 +197,7 @@ export function writeJsonFileAtomic(required: Omit<AtomicWriteRequired, "content
 /** Async counterpart with the same ownership, permission and durability guarantees.
  * Parent creation supports runtime-state and secret stores without another writer implementation. */
 export async function writeFileAtomicAsync(
-  required: { filePath: string; content: string },
+  required: { filePath: string; content: string | Uint8Array },
   options: AtomicWriteOptions & { fs?: AtomicAsyncFilesystem; createParent?: boolean } = {},
 ): Promise<void> {
   const { filePath, content } = required;
@@ -217,12 +217,27 @@ export async function writeFileAtomicAsync(
     await handle.sync();
     await handle.close(); closed = true;
     if (options.refuseSymlink) await ignoreMissingAsync(async () => assertNotSymlink(await filesystem.lstat(filePath), options));
-    await filesystem.rename(temporary, filePath); renamed = true;
+    await renameWithRetry({ filesystem, from: temporary, to: filePath }); renamed = true;
     await syncDirectoryBestEffortAsync({ directory: path.dirname(filePath), open: (path, flags) => filesystem.open(path, flags) }, { platform });
   } catch (error) {
     if (!closed) await attemptAsync(() => handle.close());
     if (!renamed) await attemptAsync(() => filesystem.rm(temporary, { force: true }));
     throw error;
+  }
+}
+/** Editors, antivirus and dev-server watchers can hold Windows destinations briefly.
+ * Retry only transient rename refusals; retain the same temporary file and fail after 5 tries.
+ * @complexity O(1) time/space, at most 150ms of backoff plus five filesystem calls.
+ */
+async function renameWithRetry({ filesystem, from, to }: {
+  filesystem: AtomicAsyncFilesystem; from: string; to: string;
+}): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try { await filesystem.rename(from, to); return; }
+    catch (error) {
+      if (attempt >= 4 || !hasErrorCode(error, ['EPERM', 'EBUSY'])) throw error;
+      await new Promise<void>(resolve => setTimeout(resolve, 10 * 2 ** attempt));
+    }
   }
 }
 /** Pretty JSON can retain a state-store's trailing newline without changing its serialization. */

@@ -1,7 +1,7 @@
 Spec ID: SPEC-JINI-VIBECODING-API
-Version: 2.0.0
-Last Edited: 2026-10-03T04:10:53Z
-Hash: sha256:b70fd78d47f5e5e88fbc573b89ee894d24c42ac859487f445de3bb529a37a69c
+Version: 2.1.0
+Last Edited: 2026-10-24
+Hash: sha256:e4fa5c947ad8e8c3e6a090a3e4b64a135411ab9efff81547f84473ce2076febd
 spec_mode: reverse_spec
 
 
@@ -15,7 +15,9 @@ spec_mode: reverse_spec
 | `@jini-ai/vibecoding/core` | Universal edit loop, ports and history |
 | `@jini-ai/vibecoding/html` | Universal HTML-region target; parser/storage injected |
 | `@jini-ai/vibecoding/html/node` | parse5-backed parser |
-| `@jini-ai/vibecoding/react` | Sessions, tools, hook and React components; React/ReactDOM optional peers required here |
+| `@jini-ai/vibecoding/session` | Universal session and tools; no React dependency |
+| `@jini-ai/vibecoding/node` | Local file-tree projects; Node filesystem runtime |
+| `@jini-ai/vibecoding/react` | Session/tool re-exports, hook and React components; React/ReactDOM optional peers required here |
 
 Signatures describe current source. Factories with optional settings use `(required, optional = {})`; one-object functions and zero-argument methods below currently do not accept a second options object. `createParse5RegionParser()` is a remaining zero-argument factory.
 
@@ -42,7 +44,7 @@ Required `EditTarget` port: `listParts(): Promise<readonly PartRef[]>`, `readPar
 | `correctionsFor({ outcomes: readonly ApplyOutcome[] })` | `readonly { id: PartId, reason: string }[]` |
 | `createEditHistory({ target: EditTarget }, { limit?: number } = {})` | `EditHistory` |
 
-`EditHistory.transaction<T>({ work: (recording: EditTarget) => Promise<T> }, { label?: string } = {}): Promise<T>`; `canUndo()/canRedo(): boolean`; `undo()/redo(): Promise<HistoryEntry | null>`; `restore({ snapshot }): Promise<HistoryEntry | null>`; `entries(): readonly HistoryEntry[]`; `clear(): void`.
+`EditHistory.transaction<T>({ work: (recording: EditTarget) => Promise<T> }, { label?: string } = {}): Promise<T>`; `canUndo()/canRedo(): boolean`; `undo()/redo(): Promise<HistoryEntry | null>`; `restore({ snapshot }): Promise<HistoryEntry | null>`; `entries(): readonly HistoryEntry[]`; `retainedEntries(): readonly HistoryEntry[]` (both stacks); `clear(): void`.
 
 Entries carry optional label and ordered `PartChange[]` with id, before, after, existedBefore. No persistent history port is required.
 
@@ -80,13 +82,15 @@ const target = createHtmlRegionTarget({
 
 | Public call | Return |
 |---|---|
-| `createVibecodingSession({ target }, { historyOptions?: EditHistoryOptions } = {})` | `VibecodingSession` |
+| `createVibecodingSession({ target }, { historyOptions?: EditHistoryOptions, history?: EditHistory, applyTurn? } = {})` | `VibecodingSession` |
 | `useVibecodingSession({ session })` | `UseVibecodingSessionResult`; current snapshot, session and bound refresh/read/apply/undo/redo |
 | `createVibecodingToolRegistrations({ session }, { policy?: ToolPolicy } = {})` | `ToolRegistration[]` from `@jini-ai/core` |
 | `createVibecodingToolRunner({ session })` | `VibecodingToolRunner { descriptors, run({ toolId, input }): Promise<unknown> }` |
 | `PartsViewer(props: PartsViewerProps)` | React element; full props in `ui.spec.md` |
 | `DocumentPreview(props: DocumentPreviewProps)` | React element; full props in `ui.spec.md` |
 | `VibecodingWorkbench(props: VibecodingWorkbenchProps)` | React element; full props in `ui.spec.md` |
+
+Sessions and tools are defined in `./session`; `./react` re-exports the identical implementations. Inject `history: project.history` and `applyTurn: project.applyEdits` together for file-tree sessions. The injected callback takes `({ edits }, { label? } = {})` and returns aligned `ApplyOutcome[]`; it owns transaction recording. The default session retains sequential per-file semantics.
 
 Session exposes `target`, `history`, `getSnapshot(): VibecodingSessionSnapshot`, `subscribe({ listener: () => void }): () => void`, `refresh(): Promise<void>`, `readPart({ id }): Promise<string>`, `applyEdits({ edits }, { label? } = {}): Promise<ApplyEditsResult>`, `undo()/redo(): Promise<HistoryEntry | null>`, `takeSnapshot(): Promise<Snapshot>`, `restoreSnapshot({ snapshot }): Promise<HistoryEntry | null>`.
 
@@ -109,7 +113,7 @@ await runner.run({ toolId: 'vibecoding.propose_edits', input: { edits } });
 const pane = <VibecodingWorkbench session={session} documentHtml={html} />;
 ```
 
-Consumers own chat transport/model calls, persistence, authorization policy and execution environments. Evidence: all five source barrels and their implementation/test modules; tests were not run.
+Consumers own chat transport/model calls, authorization policy and execution environments; Node projects own local revision persistence in host-selected storage. Evidence: all five source barrels and their implementation/test modules; tests were not run.
 
 ## Supplementary public contracts
 
@@ -117,11 +121,82 @@ These names are also reachable through the current export map. Parameter declara
 
 | Additional exported names | Kind and source |
 |---|---|
-| `CreateVibecodingToolRegistrationsOptions`, `VibecodingToolArgs` | type; [tools.ts](../../src/react/tools.ts) |
+| `CreateVibecodingToolRegistrationsOptions`, `VibecodingToolArgs` | type; [tools.ts](../../src/tools.ts) |
 | `HtmlRegionTargetDeps`, `HtmlRegionTargetOptions` | type; [regions.ts](../../src/html/regions.ts) |
 | `UseVibecodingSessionArgs` | type; [use-vibecoding-session.ts](../../src/react/use-vibecoding-session.ts) |
-| `VibecodingSessionArgs`, `VibecodingSessionOptions` | type; [session.ts](../../src/react/session.ts) |
+| `VibecodingSessionArgs`, `VibecodingSessionOptions` | type; [session.ts](../../src/session.ts) |
 
 ## Current manifest boundary
 
-The current `package.json` exposes `.`, `./core`, `./html`, `./html/node`, `./react`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+The current `package.json` exposes `.`, `./core`, `./html`, `./html/node`, `./session`, `./node`, `./react`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+
+
+## Node projects
+
+`openFileTreeProject({ root, stateDir, policy, validator? }, { limits?, historyLimit? } = {})`
+returns `Promise<FileTreeProject>`. `root` is the real app working tree, watched by the dev server.
+`stateDir` is a private host-owned directory physically outside that tree; neither directory may
+contain the other. It holds `objects/<sha256>`, `manifests/<sha256>.json`, `current.json` and the
+shared file lock. The host supplies `policy.allows({ relativePath }): boolean`; mandatory exclusions
+always take precedence. First open captures allowed existing files, including binary assets.
+
+`PartId` is the canonical relative path. Changes are `{op:'create', relativePath, content}`,
+`{op:'replace', id, content}` or `{op:'delete', id}`. Create has no reservation lifecycle.
+`RevisionToken` contains `{revisionId, generation}`. `ProjectSnapshot` contains `{revisionId}`.
+
+| Call | Contract |
+|---|---|
+| `getRevision()` | Current persisted token; does not itself capture disk drift |
+| `capture()` | Capture external edits as an undoable revision; never rewrite the working tree |
+| `applyTurn({ expectedRevision, changes }, { label?, signal? } = {})` | One complete candidate; returns `{status: 'committed' \| 'unchanged' \| 'rejected', revision, diagnostics}` |
+| `history.undo()` / `redo()` | Select complete revisions, including exact creates/deletes, after capturing drift |
+| `history.entries()` / `retainedEntries()` | Private pointer changes; the latter includes undo and redo pins |
+| `snapshot()` / `restore({snapshot}, {label?} = {})` | Retained-manifest snapshot; restore is undoable, an expired snapshot throws |
+| `target` | Existing-file UTF-8 `EditTarget`; direct replacements use the same whole-turn service |
+| `applyEdits({edits}, {label?} = {})` | Session adapter for replacements; aligned outcomes, no extra history transaction |
+| `close()` | Clear local history and collect unreferenced revisions/objects; later operations throw `CLOSED` |
+
+`validator.validate({candidate, signal}, {})` is optional, defaulting to approval. The immutable
+candidate lists all managed `paths` and offers `readBytes({relativePath}, {})` returning a copy.
+The validator runs once outside the shared lock. Refusal returns bounded diagnostics (100 entries,
+100-character codes, 2000-character messages); exception/timeout/cancellation throws. Generation
+and working-tree drift are checked again under the lock before selection. No compiler is supplied.
+
+Defaults: 2000 files, 2 MiB/file, 64 MiB/tree, depth 32, 100 changes/turn, 30 seconds validation,
+and 50 history entries. Options must be positive safe integers. Overflow refuses without truncation.
+Portable names have a 200-code-unit relative-path cap; Windows devices (including extensions),
+controls, reserved punctuation, trailing dots/spaces, traversal, drive/UNC and backslash spellings
+are refused. Case/NFC collisions include directory prefixes and are checked on the final candidate,
+so a delete/create case-only rename is valid. Unicode filename spelling is preserved; NFC is used for collision comparison. Platform's guarded reader owns containment, deny folding and
+bounded listing/reads. Links/junctions and special files cannot be materialization targets.
+
+Exclusions: `node_modules`, `.git`, `.env*` (including directory segments), `dist`, `build`, `out`,
+`coverage`, `.next`, `.nuxt`, `.angular`, `.vite`, `.cache`, `.turbo`. Host-disallowed files remain
+unmanaged. Refusing a candidate never publishes its changes. Existing external drift is independently
+captured even when a turn is later refused. Same-content timestamp drift only refreshes fingerprints.
+
+Revisions are content-addressed blobs plus immutable manifests, not copied trees. Commit persists
+objects/manifest, atomically selects `{revision,generation,pending}`, deletes removed managed files,
+writes the selected files, prunes empty managed folders, then atomically clears `pending`. Empty
+managed directory aliases or blockers are pruned before writes when needed for a case rename or a
+file/directory transition. Unmanaged directory contents prevent such transitions before selection.
+On reopen, pending materialization rolls forward idempotently. File updates are observable during
+materialization; the journal guarantees process-crash recovery, not simultaneous multi-file visibility
+or power-loss durability on every filesystem. An I/O failure after journal publication can leave a
+committed pending revision; the next locked operation/reopen recovers it. Never replace corrupt
+state with an empty project. The root is host-controlled: this is not a hostile-process sandbox.
+
+Before a turn or replay, compare managed disk files by size, mtime and ctime; unchanged fingerprints
+reuse object bytes, changed fingerprints trigger bounded reads and hashing. `capture()` records npm,
+editor and user changes normally. Every selection (including undo/redo) increments generation;
+another writer's generation clears both local history stacks and throws `CONFLICT`; a stale caller
+token alone throws `CONFLICT` and keeps history. The same handle may retry after
+refresh/capture; reopening is not required. The private pointer write is the only and last write in
+a history transaction. Public `history.transaction` is refused; use `applyTurn`. `target.snapshot()`
+requires UTF-8 files and returns a retained-manifest ID; its restore uses that ID, not an arbitrary
+parts map. Binary-safe snapshots use `project.snapshot()`.
+
+Garbage collection pins current plus both local history stacks. Snapshots do not independently pin
+storage and can expire. History is session-local, not persisted; another writer's generation
+invalidates it. No Git history, process execution, package install, preview, UI or deployment API is
+included. See [DR-002](../decisions/DR-002-file-tree-revisions.md).

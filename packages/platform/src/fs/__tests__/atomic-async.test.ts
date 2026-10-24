@@ -101,3 +101,35 @@ test("Linux async directory EPERM keeps the replacement and closes the handle", 
   expect(fs.readFileSync(filePath, "utf8")).toBe("new");
   expect(fs.readdirSync(path.dirname(filePath))).toEqual(["state"]);
 });
+
+test.each(['EPERM', 'EBUSY'])("async rename retries transient %s and writes binary bytes exactly", async code => {
+  const filePath = target(); fs.writeFileSync(filePath, "old");
+  let calls = 0;
+  const rename: typeof asyncFs.rename = async (from, to) => {
+    calls += 1;
+    if (calls <= 2) throw Object.assign(new Error('watcher holds file'), { code });
+    await asyncFs.rename(from, to);
+  };
+  await writeFileAtomicAsync({ filePath, content: new Uint8Array([0, 255, 17]) }, { fs: { ...asyncFs, rename } });
+  expect(calls).toBe(3);
+  expect([...fs.readFileSync(filePath)]).toEqual([0, 255, 17]);
+  expect(fs.readdirSync(path.dirname(filePath))).toEqual(['state']);
+});
+test("async rename retry is bounded and cleans its temporary file on exhaustion", async () => {
+  const filePath = target(); fs.writeFileSync(filePath, "old");
+  const failure = Object.assign(new Error('busy'), { code: 'EBUSY' });
+  const rename = vi.fn<typeof asyncFs.rename>().mockRejectedValue(failure);
+  await expect(writeFileAtomicAsync({ filePath, content: 'new' }, { fs: { ...asyncFs, rename } })).rejects.toBe(failure);
+  expect(rename).toHaveBeenCalledTimes(5);
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('old');
+  expect(fs.readdirSync(path.dirname(filePath))).toEqual(['state']);
+});
+test("async rename propagates a permanent refusal without retry", async () => {
+  const filePath = target(); fs.writeFileSync(filePath, 'old');
+  const failure = Object.assign(new Error('denied'), { code: 'EACCES' });
+  const rename = vi.fn<typeof asyncFs.rename>().mockRejectedValue(failure);
+  await expect(writeFileAtomicAsync({ filePath, content: 'new' }, { fs: { ...asyncFs, rename } })).rejects.toBe(failure);
+  expect(rename).toHaveBeenCalledTimes(1);
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('old');
+  expect(fs.readdirSync(path.dirname(filePath))).toEqual(['state']);
+});
