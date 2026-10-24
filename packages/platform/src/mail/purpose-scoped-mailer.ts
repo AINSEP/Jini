@@ -17,7 +17,7 @@ type MailerLane = "interactive" | "notification";
 
 // Allowlist the one interactive value: undefined, unknown values and type-bypassing casts
 // belong to the restrictive notification lane, so a new lane cannot accidentally bypass readiness.
-function resolveLane(options: MailerSendOptions): MailerLane {
+function resolveLane(options: Pick<MailerSendOptions, "lane">): MailerLane {
   return options.lane === "interactive" ? "interactive" : "notification";
 }
 
@@ -25,6 +25,31 @@ function refusalError(capabilityName: string): Error {
   return new Error(
     `MAILER_SEND_REFUSED_NO_DURABLE_PATH: notification-lane mailer send refused for capability "${capabilityName}" — no durable outbox path registered`
   );
+}
+
+function validateMode(mode: RuntimeMode): void {
+  if (mode !== "production" && mode !== "local") {
+    throw new TypeError('mailer mode must be "production" or "local"');
+  }
+}
+
+export interface PurposeGateRequired {
+  mode: RuntimeMode;
+  readiness: DeliveryReadinessPolicy;
+  options: Pick<MailerSendOptions, "lane" | "sourceContext">;
+}
+
+/**
+ * Ask the delivery gate without delivering: unknown/absent lanes require durable readiness.
+ * Invalid modes throw TypeError; readiness errors propagate so callers can report unknown.
+ * @complexity O(1), with at most one call to the supplied readiness predicate.
+ */
+export function isPurposeGateOpen(required: PurposeGateRequired): boolean {
+  const { mode, readiness, options } = required;
+  validateMode(mode);
+  if (mode === "local") return true;
+  if (resolveLane(options) !== "notification") return true;
+  return readiness.isReady({ capabilityName: options.sourceContext?.module ?? "unknown" });
 }
 
 // Decorate the existing port rather than inventing a second delivery contract. The caller resolves
@@ -36,18 +61,12 @@ function refusalError(capabilityName: string): Error {
  */
 export function wrapMailerWithPurposeGate(options: WrapMailerWithPurposeGateOptions): MailerPort {
   const { inner, mode, readiness } = options;
-  // Validate once at composition: typos must never silently disable durable delivery.
-  if (mode !== "production" && mode !== "local") {
-    throw new TypeError('mailer mode must be "production" or "local"');
-  }
+  // Validate at composition: typos must never silently disable durable delivery.
+  validateMode(mode);
 
   function checkGate(sendOptions: MailerSendOptions): void {
-    if (mode === "local") return; // Local mode never refuses delivery.
-    const lane = resolveLane(sendOptions);
-    if (lane !== "notification") return;
-    const capabilityName = sendOptions.sourceContext?.module ?? "unknown";
-    if (!readiness.isReady({ capabilityName })) {
-      throw refusalError(capabilityName);
+    if (!isPurposeGateOpen({ mode, readiness, options: sendOptions })) {
+      throw refusalError(sendOptions.sourceContext?.module ?? "unknown");
     }
   }
 
