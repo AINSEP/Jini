@@ -106,13 +106,23 @@ interface ObjectShape {
   readonly required: readonly string[];
 }
 
-/** Exact names, then case/separator variants, then a sole hint; ambiguous hints stay unresolved
+/** Match a canonical spelling or its property's declared string aliases, ignoring case/separators.
+ * Malformed alias annotations confer no alternate names; exact property names still win.
+ * @complexity O(a) comparisons for a aliases on this property; no input mutation or effects.
+ */
+function matchesDeclaredKey({ key, name, schema }: { key: string; name: string; schema: unknown }, _options: Record<string, never> = {}): boolean {
+  if (keyShape(name) === keyShape(key)) return true;
+  if (!object(schema) || !Array.isArray(schema.aliases)) return false;
+  return schema.aliases.some(alias => typeof alias === 'string' && keyShape(alias) === keyShape(key));
+}
+
+/** Exact names, then case/separator variants and declared aliases, then a sole hint; ambiguous hints stay unresolved
  * for the domain hook or closed-schema refusal. Never choose one of several candidates.
  * Hints apply only where a closed schema would refuse the key: an open schema accepts it as data.
- * @complexity O(p) time and space for p declared properties; near-miss names are length-bounded.
+ * @complexity O(p + a) comparisons for p properties and a declared aliases; O(p) space.
  */
 function canonicalKey({ key, location, shape }: { key: string; location: string; shape: ObjectShape }): string | undefined {
-  const candidates = Object.hasOwn(shape.properties, key) ? [key] : shape.names.filter(name => keyShape(name) === keyShape(key));
+  const candidates = Object.hasOwn(shape.properties, key) ? [key] : shape.names.filter(name => matchesDeclaredKey({ key, name, schema: shape.properties[name] }));
   if (candidates.length > 1) throw new ToolInputError({ message: `Ambiguous input '${location}': matches ${candidates.join(', ')}. Use exactly one canonical property name.` });
   if (candidates.length === 1 || shape.schema.additionalProperties !== false) return candidates[0];
   const hints = shape.names.filter(name => nearMiss({ left: keyShape(key), right: keyShape(name) }));
@@ -160,7 +170,7 @@ function normalizeObject({ value, schema, step }: { value: Record<string, unknow
 }
 
 /** Schema-guided copies only: unconstrained data and unsupported schema dialects stay untouched.
- * Cost is O(k*p) per object with k supplied keys and p schema properties; recursion is bounded
+ * Cost is O(k*(p+a)) comparisons per object with k supplied keys, p properties and a aliases; recursion is bounded
  * to 64 levels so a hostile input/schema cannot exhaust the execution gate's stack.
  */
 function normalizeValue({ value, schema, step }: { value: unknown; schema: unknown; step: Step }): unknown {
@@ -181,8 +191,8 @@ function walkRoot({ input, schema, notes, validateClosed, keysOnly }: { input: u
   return normalizeValue({ value: input, schema, step: { path: '', depth: 0, walk: { notes, validateClosed, keysOnly } } });
 }
 
-/** Canonicalize one batch layer before merging; preserve values and domain aliases for the
- * final normalization. Throws ToolInputError for collisions within this layer, never across
+/** Canonicalize one batch layer (including declared aliases) before merging; leave value conversion
+ * and domain hooks for final normalization. Throws ToolInputError for collisions within this layer, never across
  * layers. Uses the same bounded schema walk as normalizeToolInput.
  * @example canonicalizeToolInputKeys({ input: { max_chars: '1000' }, schema });
  */
@@ -194,7 +204,8 @@ export function canonicalizeToolInputKeys(
   return { input: walkRoot({ input, schema, notes, validateClosed: false, keysOnly: true }) as Record<string, unknown>, notes };
 }
 
-/** Normalize before policy, confirmation and handler validation. Domain hooks own semantic aliases.
+/** Normalize before policy, confirmation and handler validation. Schema properties may declare
+ * `aliases: ['search', 'query']`; domain hooks own transformations beyond declared key aliases.
  * Never changes the caller's object or includes values in notes. Invalid/ambiguous input remains
  * a ToolInputError; ordinary domain/schema validation still belongs to the registered handler.
  * @complexity Two bounded schema walks plus the optional domain hook's cost.

@@ -598,6 +598,25 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     expect(onInternalError).not.toHaveBeenCalled();
   });
 
+  it('suggests content_read.<resource> first at read-only preflight without resolving identity or running a handler', async () => {
+    const { registry, toolExecutor, ran } = makeReadOnlyStack();
+    for (const id of ['content_read.backup_restore_point', 'content_read.theme']) {
+      registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => ran.push(id) });
+    }
+    const resolvePrincipal = vi.fn(() => TEST_PRINCIPAL);
+    const deps = makeDeps({ toolExecutor, toolRegistry: registry, resolvePrincipal });
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const result = await delegatedToolExecuteRoute.handle({ input: {
+      runId: run.id, toolUseId: 'tu-1', toolId: 'content_read', input: { resource: 'theme' }, requireReadOnly: true,
+    }, deps });
+    expect(result).toEqual({ ok: false, error: {
+      code: 'TOOL_OPERATION_DENIED',
+      message: 'no tool "content_read" is registered; use search_tools — did you mean content_read.theme, content_read.backup_restore_point?',
+    } });
+    expect(resolvePrincipal).not.toHaveBeenCalled();
+    expect(ran).toEqual([]);
+  });
+
   it('fails CLOSED when the host mounted the route without a toolRegistry — an unverifiable constraint is refused, never waived', async () => {
     const { toolExecutor, ran } = makeReadOnlyStack();
     const deps = makeDeps({ toolExecutor });

@@ -139,7 +139,7 @@ function checkReadOnlyConstraint(
 ): ReturnType<typeof createApiError> | null {
   if (input.requireReadOnly !== true) return null;
   const refusal = readOnlyTools.checkReadOnlyTool({
-    toolId: input.toolId, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly,
+    toolId: input.toolId, input: input.input, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly,
   });
   if (refusal === null) return null;
   return createApiError({ code: 'TOOL_OPERATION_DENIED', message: refusal });

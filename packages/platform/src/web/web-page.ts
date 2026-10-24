@@ -171,10 +171,11 @@ function header(headers: Readonly<Record<string, string>>, name: string): string
   return "";
 }
 
-/** text/*, HTML/XHTML, XML (incl. RSS/Atom/sitemaps), JSON (incl. +json); a missing type is judged by the body. */
+/** text/*, JavaScript, SVG, HTML/XHTML, XML (incl. RSS/Atom/sitemaps), JSON (incl. +json);
+ * a missing type is judged by the body. */
 export function isAllowedContentType({ mediaType }: { mediaType: string }, _optional: Record<string, never> = {}): boolean {
   if (mediaType === "" || mediaType.startsWith("text/")) return true;
-  return /^application\/(?:xhtml\+xml|xml|json|[\w.+-]+\+(?:xml|json))$/.test(mediaType);
+  return /^(?:image\/svg\+xml|application\/(?:javascript|ecmascript|xhtml\+xml|xml|json|[\w.+-]+\+(?:xml|json)))$/.test(mediaType);
 }
 
 function charsetOf(contentType: string, body: string, isHtml: boolean): string | undefined {

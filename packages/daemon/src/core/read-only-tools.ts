@@ -52,6 +52,8 @@ export interface ReadOnlyToolMessages {
 
 export interface ReadOnlyToolCheckRequired {
   readonly toolId: string;
+  /** Diagnostic selector only; never changes which registration is checked or executed. */
+  readonly input?: unknown;
   readonly registry: Pick<ToolRegistry, 'list'> | undefined;
   readonly messages: ReadOnlyToolMessages;
 }
@@ -128,15 +130,16 @@ export function readOnlyToolRefusalMessage(
 /**
  * Single read-only registration decision, shared by routes and inner dispatch.
  * @returns Null for an explicitly read-only registration, otherwise host refusal text.
+ * @complexity O(n) for known tools; unknown-tool diagnostics add bounded name scoring and O(n log n) sorting.
  */
 export function checkReadOnlyTool(
-  { toolId, registry, messages }: ReadOnlyToolCheckRequired,
+  { toolId, input, registry, messages }: ReadOnlyToolCheckRequired,
   _optional: Record<string, never> = {},
 ): string | null {
   if (registry === undefined) return messages.unverifiableMessage;
   const tools = registry.list({});
   const descriptor = tools.find((candidate) => candidate.id === toolId);
-  if (!descriptor) return messages.unknownToolMessage({ toolId, candidates: toolCandidates({ toolId, tools }) });
+  if (!descriptor) return messages.unknownToolMessage({ toolId, candidates: toolCandidates({ toolId, tools, input }) });
   if (isReadOnlyTool({ descriptor })) return null;
   return readOnlyToolRefusalMessage({ toolId, messages });
 }
@@ -155,8 +158,9 @@ export function checkReadOnlyTool(
  * @param required.registry - Descriptors to resolve `toolId` against; `undefined` ⇒ refuse (an
  *   unverifiable constrained dispatch is refused, never waived, matching `checkReadOnlyTool`).
  * @returns `null` when the dispatch may proceed, otherwise the refusal text to report.
- * @complexity O(1) for an unconstrained principal; O(n) in registered tool count for a constrained
- *   one, since `ToolRegistry` exposes enumeration rather than lookup by id.
+ * @complexity O(1) for an unconstrained principal; O(n) in registered tool count for a known tool,
+ *   since `ToolRegistry` exposes enumeration rather than lookup by id. Unknown ids also incur
+ *   the bounded similarity scoring and sorting cost documented by `toolCandidates`.
  */
 export function refuseNonReadOnlyDispatch(
   required: ReadOnlyToolCheckRequired & { readonly principal: Principal },
@@ -203,7 +207,8 @@ export function readOnlyRemedyRefusalMessage(
  *
  * @returns A drop-in `ToolExecutor`; `resumeConfirmation`/`cancel`/`getAuditRecord` delegate
  *   straight through.
- * @complexity One extra property read per unconstrained call; one registry scan per constrained one.
+ * @complexity One extra property read per unconstrained call; one registry scan per constrained one,
+ *   plus bounded similarity scoring and sorting for an unknown id.
  */
 export function withReadOnlyToolConstraint(
   { inner, registry, idGenerator, messages }: ReadOnlyToolConstraintRequired,
@@ -211,8 +216,8 @@ export function withReadOnlyToolConstraint(
 ): ToolExecutor {
   return {
     execute: async (requiredArgs, optionalArgs = {}) => {
-      const { principal, toolId } = requiredArgs;
-      const refusal = refuseNonReadOnlyDispatch({ principal, toolId, registry, messages });
+      const { principal, toolId, input } = requiredArgs;
+      const refusal = refuseNonReadOnlyDispatch({ principal, toolId, input, registry, messages });
       // Deny before inner: no handler or kernel audit record exists. Use the authorization result
       // union instead of throwing, and mint a denial ID because there is no inner execution ID.
       if (refusal !== null) return { executionId: idGenerator.newId(), status: 'denied', error: refusal };
