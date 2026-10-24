@@ -16,6 +16,10 @@ import {
 } from 'node:path';
 import {
   agentCapabilities,
+  assertClaudeFilesystemSupport,
+  claudeFilesystemRuntimePaths,
+  claudeFilesystemSettings,
+  validateFilesystemLaunch,
   bindRuntimeAgentDef,
   defaultRuntimeState,
   getRuntimeModelDiscoveryDeps,
@@ -524,6 +528,10 @@ function nativeBuildOptions({ input, permissionMode }: { input: AgentBuildInput;
 /** Preserve explicit empty restrictions and settings: they have meaning to the native CLI. */
 function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
   return {
+    ...(input.filesystemRoot !== undefined ? { filesystemRoot: input.filesystemRoot } : {}),
+    ...(input.filesystemSharedTempRoots ? { filesystemSharedTempRoots: input.filesystemSharedTempRoots } : {}),
+    ...(input.filesystemTempDir ? { filesystemTempDir: input.filesystemTempDir } : {}),
+    ...(input.filesystemRuntimeReadPaths ? { filesystemRuntimeReadPaths: input.filesystemRuntimeReadPaths } : {}),
     ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
     ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
     ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
@@ -534,7 +542,7 @@ function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = 
 
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
  * that let defs silently enable auto-approval. Always supply the validated restricted default now. Pure. */
-export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings' | 'chromeIntegration'>; readonly systemPromptOverlay: string | null | undefined }
+export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'filesystemRoot' | 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings' | 'chromeIntegration'> & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemNotice?: string }; readonly systemPromptOverlay: string | null | undefined }
 ): RuntimeBuildOptions {
   const permissionMode = input.permissionMode ?? 'restricted';
   if (permissionMode !== 'restricted' && permissionMode !== 'bypass') {
@@ -698,7 +706,7 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
     readonly def: RuntimeAgentDef;
     readonly imageDelivery: ImagePromptDelivery;
     readonly imagePaths: readonly string[] | undefined;
-    readonly runInput: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode'>;
+    readonly runInput: AgentBuildInput;
     readonly systemPromptOverlay: string | null | undefined;
     readonly overlayDelivery: SystemPromptOverlayDelivery;
     readonly runtimeContext: RuntimeContext | undefined;
@@ -854,7 +862,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
   }
 }
 
-type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] };
+type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemNotice?: string };
 
 /** Only include declared capability restrictions; absence has a distinct downstream contract. */
 function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _options = {}) {
@@ -909,7 +917,7 @@ function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
   // This native composition boundary resolves ambient defaults once, before allowlisting child env.
   const env = optionalArgs.hostEnv ?? process.env;
   const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
@@ -945,6 +953,16 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   const claudeConfigDirIsolationEnabled = options.claudeConfigDirIsolationEnabled ?? false;
   const promptAugmenter = options.promptAugmenter;
 
+  const filesystemTemps = new Map<string, string>();
+
+  /** Remove only this run's private temp directory, on startup failure or child cleanup. */
+  async function cleanupFilesystemTemp({ runId }: { runId: string }, _optional = {}) {
+    const path = filesystemTemps.get(runId);
+    if (!path) return;
+    await fsPromises.rm(path, { recursive: true, force: true }).catch(() => console.warn('[agent-executor] private temp cleanup failed'));
+    filesystemTemps.delete(runId);
+  }
+
   /**
    * Transitions `runId` to `'failed'` (idempotent, never resumable — no
    * classifier exists, see index.ts module doc) then rejects with a typed
@@ -965,6 +983,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     await lifecycle
       .emit({ runId: runId, input: { event: 'error', data: { message: `The assistant could not start: ${message.replace(/^AgentExecutor:\s*/, '')}` } } })
       .catch(() => undefined);
+    await cleanupFilesystemTemp({ runId }, {});
     await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
     throw new AgentExecutorError({ code: code, message: message });
   }
@@ -1008,7 +1027,65 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     }
   }
 
-  function resolveRunOverlay({ input, def, imageDelivery }: { input: AgentExecutorRunInput; def: RuntimeAgentDef; imageDelivery: ImagePromptDelivery }, _options = {}) {
+  /** Validate every directory after image augmentation, before model probes or resource staging.
+   * Unknown containment fails this run; O(n) filesystem checks for n attachment directories.
+   */
+  async function enforceFilesystemPaths({ input, imageDelivery }: { input: MutableRunInput; imageDelivery: ImagePromptDelivery }, _options = {}) {
+    if (input.filesystemRoot === undefined) return;
+    try {
+      input.filesystemRoot = validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd,
+        ...(imageDelivery.extraAllowedDirs ? { extraAllowedDirs: imageDelivery.extraAllowedDirs } : {}),
+        ...(input.imagePaths ? { imagePaths: input.imagePaths } : {}),
+      }, {});
+      input.cwd = input.filesystemRoot;
+    } catch {
+      return failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_INVALID', message: 'Folder-limited launch refused: invalid filesystem root, working directory or attachment path.' });
+    }
+  }
+
+  /** Apply supported confinement without removing providers; unknown versions keep the settings.
+   * Runtime and git config reads are explicit infrastructure exceptions; network is unchanged.
+   * O(1) metadata/staging I/O plus the cached, bounded version probe.
+   */
+  async function enforceFilesystemRuntime({ input, def, launch, spawnEnv }: {
+    input: MutableRunInput; def: RuntimeAgentDef; launch: ConfirmedAgentLaunchResolution; spawnEnv: NodeJS.ProcessEnv;
+  }, _options = {}) {
+    if (input.filesystemRoot === undefined) return;
+    try {
+      const verify = options.assertClaudeFilesystemSupport ?? assertClaudeFilesystemSupport;
+      const supported = await verify({ agentId: def.id, launchPath: launch.launchPath, env: spawnEnv }, {});
+      const runtimeDir = join(input.filesystemRoot, '.agent-runtime');
+      await fsPromises.mkdir(runtimeDir, { recursive: true, mode: 0o700 });
+      // Refuse a runtime-folder symlink escaping the site before creating anything beneath it.
+      validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [runtimeDir] }, {});
+      input.filesystemTempDir = await fsPromises.realpath(await fsPromises.mkdtemp(join(runtimeDir, 'tmp-')));
+      filesystemTemps.set(input.runId, input.filesystemTempDir);
+      // Recheck after creation too: swapping the runtime symlink must never grant outside temp access.
+      validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [input.filesystemTempDir] }, {});
+      input.filesystemSharedTempRoots = [spawnEnv.TMPDIR, spawnEnv.TMP, spawnEnv.TEMP].filter((path): path is string => Boolean(path));
+      spawnEnv.TMPDIR = input.filesystemTempDir;
+      spawnEnv.TMP = input.filesystemTempDir;
+      spawnEnv.TEMP = input.filesystemTempDir;
+      if (supported === false) {
+        input.filesystemNotice = 'files and shell are not folder-limited for this agent';
+        console.warn('[agent-executor] files and shell are not folder-limited for this agent');
+        // Personal Claude hooks/permissions stay excluded even on an unconfined CLI fallback.
+        if (def.id === 'claude') input.settingSources = [];
+        delete input.filesystemRoot;
+        return;
+      }
+      if (supported === undefined) console.warn('[agent-executor] filesystem capability unknown; applying read block and sandbox settings');
+      input.filesystemRuntimeReadPaths = claudeFilesystemRuntimePaths({ launchPath: launch.launchPath }, {});
+      // Validates host settings here so a malformed value fails cleanly; buildArgs merges again (idempotent).
+      input.settings = claudeFilesystemSettings({ options: input }, {});
+      // A login environment can otherwise force auto-memory back on despite the host setting.
+      spawnEnv.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
+    } catch {
+      return failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_UNSUPPORTED', message: 'Folder-limited launch refused: invalid host settings or private runtime directory.' });
+    }
+  }
+
+  function resolveRunOverlay({ input, def, imageDelivery }: { input: MutableRunInput; def: RuntimeAgentDef; imageDelivery: ImagePromptDelivery }, _options = {}) {
     // Phase 8, hoisted deliberately above EVERY step that writes or sends the prompt. Four
     // different channels carry a prompt in this driver, and they do not all run at the same point:
     // the `promptViaFile` staging below writes its file BEFORE `buildArgs`, `buildArgs` itself runs
@@ -1028,7 +1105,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // same overlay on every turn, not a first-turn-only one; a caller that needs finer-grained turn
     // numbering can track it itself and ignore this arg.
     const preStagingRuntimeContext = computeRuntimeContext({ preparedPromptFile: null, preparedLogFile: null, mcpBridge: null }, sessionRuntimeContext(input, {}));
-    const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id);
+    const hostOverlay = computeSystemPromptOverlay(promptAugmenter, def.id);
+    const systemPromptOverlay = input.filesystemNotice ? `${hostOverlay ?? ''}\n${input.filesystemNotice}\n` : hostOverlay;
     const overlayDelivery = resolveSystemPromptOverlayDelivery({
       defId: def.id,
       systemPromptDelivery: def.systemPromptDelivery,
@@ -1227,7 +1305,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
     const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
@@ -1243,10 +1321,11 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     await enforceNativeToolPolicy({ input, def }, {});
     const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn } }
     );
-
-    const { systemPromptOverlay, overlayDelivery } = resolveRunOverlay({ input, def, imageDelivery }, {});
+    await enforceFilesystemPaths({ input, imageDelivery }, {});
 
     const { launch, spawnEnv } = await resolveRunLaunch({ input, def }, {});
+    await enforceFilesystemRuntime({ input, def, launch, spawnEnv }, {});
+    const { systemPromptOverlay, overlayDelivery } = resolveRunOverlay({ input, def, imageDelivery }, {});
     const modelCatalog = await selectRunModel({ input, def, launch, spawnEnv }, {});
     // Fill the def's `--help` capability gate before `buildArgs` reads it. Without this, only a
     // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
@@ -1308,6 +1387,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
      */
     let preparedSystemPromptOverlayFile: PreparedSystemPromptOverlayFile | null = null;
     const cleanupStagedFiles: () => Promise<void> = async () => {
+      await cleanupFilesystemTemp({ runId: input.runId }, {});
       if (preparedPromptFile) await preparedPromptFile.cleanup();
       if (preparedLogFile) await preparedLogFile.cleanup();
       if (writtenMcpJsonPath !== undefined) {

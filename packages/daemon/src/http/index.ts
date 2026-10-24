@@ -344,6 +344,7 @@ export {
   isUnchangedAttachment,
   registerAttachmentRoutes,
   sanitizeAttachmentName,
+  stageAttachmentClaim,
   writeBoundedAttachmentBody,
 } from './attachments.js';
 export type {

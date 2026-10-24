@@ -1,17 +1,20 @@
 import { resolveNativeCapabilityDenies, resolveNativeToolDenies } from '../native-tool-policy.js';
+import { claudeFilesystemSettings, validateFilesystemLaunch } from '../claude-filesystem-policy.js';
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /**
  * Claude Code has no dedicated image-attachment flag. imageDelivery: 'prompt-path' makes the
  * executor append local image paths to the prompt and add their directories to extraAllowedDirs;
  * buildArgs then grants --add-dir access so the CLI can read them itself. Native-delivery defs
  * must not also receive this augmentation; see RuntimeAgentDef.imageDelivery for that contract.
+ * A filesystemRoot launch instead validates these directories and omits --add-dir entirely;
+ * hosts must stage attachments inside that root (owner boundary introduced 2026-10-23).
  */
 import { addDirArgs, nonDefaultFlag, permissionModeArgs, resolveCapabilities, sessionArgs } from './claude-compatible-args.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import { loadMmdRouteModels } from '../mmd-routes.js';
 import { loadAnthropicLiveModels, mergeLiveModels } from '../anthropic-live-models.js';
 import { loadClaudeCodeModels } from '../claude-code-models.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeCapabilityMap } from '../types.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeCapabilityMap, RuntimeContext } from '../types.js';
 
 /**
  * The levels `claude --effort` accepts, as the CLI itself reports them when
@@ -108,6 +111,8 @@ function claudeSettingSourcesArgs({ options, caps }: { options: RuntimeBuildOpti
     // This is an explicit restriction, not an optional enhancement: do not probe it away.
     return ['--setting-sources', '', '--disable-slash-commands'];
   }
+  // An explicit empty source list is a host isolation policy, not an optional enhancement.
+  if (options.filesystemRoot || options.settingSources?.length === 0) return ['--setting-sources', ''];
   if (options.settingSources !== undefined && caps.settingSources) {
     return ['--setting-sources', options.settingSources.join(',')];
   }
@@ -120,6 +125,23 @@ function claudeSettingSourcesArgs({ options, caps }: { options: RuntimeBuildOpti
 function claudeChromeArgs({ options, caps }: { options: RuntimeBuildOptions; caps: RuntimeCapabilityMap }): string[] {
   if (options.chromeIntegration === undefined || !caps.chrome) return [];
   return [options.chromeIntegration ? '--chrome' : '--no-chrome'];
+}
+
+/** Resolve the mandatory filesystem settings as one launch fragment, independently of parity.
+ * Native file reads keep today's tool set; outside attachment grants fail before argv exists.
+ * O(n) containment checks for n attachment paths, plus host-settings serialization.
+ */
+function claudeLaunchPolicy({ options, caps, extraAllowedDirs, imagePaths, runtimeContext }: {
+  options: RuntimeBuildOptions; caps: RuntimeCapabilityMap; extraAllowedDirs: readonly string[];
+  imagePaths: readonly string[]; runtimeContext: RuntimeContext;
+}, _optional = {}) {
+  if (options.filesystemRoot !== undefined) {
+    validateFilesystemLaunch({ filesystemRoot: options.filesystemRoot, cwd: runtimeContext.cwd ?? options.filesystemRoot,
+      extraAllowedDirs, imagePaths }, {});
+    return { directoryArgs: [], settingsArgs: ['--settings', claudeFilesystemSettings({ options }, {})] };
+  }
+  return { directoryArgs: addDirArgs({ extraAllowedDirs, caps }),
+    settingsArgs: options.settings ? ['--settings', options.settings] : [] };
 }
 
 export const claudeAgentDef = {
@@ -216,6 +238,7 @@ export const claudeAgentDef = {
     // cursor/qwen entries below.
     buildArgs: (_requiredArgs, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
       const caps = resolveCapabilities({ agentId: 'claude', options });
+      const policy = claudeLaunchPolicy({ options, caps, extraAllowedDirs, imagePaths: _requiredArgs.imagePaths, runtimeContext }, {});
       return [
         // `--input-format stream-json` lets the daemon stream multiple JSONL
         // messages into stdin instead of closing it after the initial prompt,
@@ -231,7 +254,7 @@ export const claudeAgentDef = {
         ...claudeEffortArgs({ options, caps }),
         // `--add-dir` is older but still gate it for symmetry — old/forked
         // builds may lack it.
-        ...addDirArgs({ extraAllowedDirs, caps }),
+        ...policy.directoryArgs,
         // `--append-system-prompt` delivery now lives outside this function — see
         // `systemPromptDelivery` below and `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery`
         // (the single dispatch point for every def, not just this one). The probe-gate reasoning
@@ -241,6 +264,10 @@ export const claudeAgentDef = {
         // itself.
         // Continue Claude's own CLI session across turns (see `sessionArgs`).
         ...sessionArgs(runtimeContext),
+        // The permission mode is unchanged for folder-limited runs: blockReadsOutsideWorkingDirectories
+        // and the Bash sandbox hold in every mode, including bypassPermissions (verified live on
+        // 2.1.309, 2026-10-23). dontAsk would deny Edit/Write and every MCP tool, because the CLI skips
+        // an unanchored `--allowedTools '*'` (permissions docs, "Tool name wildcards").
         ...permissionModeArgs(options),
         // Explicit `--strict-mcp-config --mcp-config <path>` instead of relying on Claude Code's
         // auto-discovery of `.mcp.json` from cwd. Shared with every other `'claude-mcp-json'` def —
@@ -251,7 +278,7 @@ export const claudeAgentDef = {
         ...claudeToolPolicyArgs(options),
         ...claudeSettingSourcesArgs({ options, caps }),
         // See `RuntimeBuildOptions.settings`. Not probe-gated: `--settings` long predates `--setting-sources`.
-        ...(options.settings ? ['--settings', options.settings] : []),
+        ...policy.settingsArgs,
         ...claudeChromeArgs({ options, caps }),
       ];
     },
