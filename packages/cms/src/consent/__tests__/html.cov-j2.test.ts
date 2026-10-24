@@ -6,11 +6,11 @@ import { config } from './fixtures.js';
 const gate = (html: string) => gateConsentHtml({ html, config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
 
 describe('gateConsentHtml attribute edges', () => {
-  it('refuses a page whose handler sits on a parser-cloned formatting element with no source of its own', () => {
-    // `<b>` misnested across `<p>` is cloned by the adoption agency; the clone carries onclick but
-    // has no source span to remove it from, so delivering the page would leak the handler.
-    expect(() => gate('<!doctype html><html><head></head><body><b onclick="track()"><p>text</b>more</p></body></html>'))
-      .toThrow('Consent could not locate the "onclick" attribute of <b> in the delivered HTML. Serve this page under the restrictive consent fallback.');
+  it('refuses a page whose reserved ID sits on a parser-cloned formatting element with no source of its own', () => {
+    // `<b>` misnested across `<p>` is cloned by the adoption agency; the clone carries the reserved ID but
+    // has no source span to remove it from, so delivering the page would shadow the consent UI.
+    expect(() => gate('<!doctype html><html><head></head><body><b id="jini-consent"><p>text</b>more</p></body></html>'))
+      .toThrow('Consent could not locate the "id" attribute of <b> in the delivered HTML. Serve this page under the restrictive consent fallback.');
   });
 
   it('keeps a link whose href the URL parser rejects: it cannot be a javascript: URL', () => {
@@ -19,11 +19,11 @@ describe('gateConsentHtml attribute edges', () => {
     expect(gate('<!doctype html><html><head></head><body><a href="javascript:track()">js</a></body></html>')).not.toContain('<a href="javascript:track()">');
   });
 
-  it('removes a deferred attribute on a foreign element whose other attributes were case-adjusted', () => {
+  it('keeps a first-party handler on a foreign element whose other attributes were case-adjusted', () => {
     const out = gate('<!doctype html><html><head></head><body><svg viewbox="0 0 1 1" onload="track()"></svg></body></html>');
     expect(out).toContain('<svg viewbox="0 0 1 1"');
-    expect(out).not.toMatch(/<svg[^>]*\sonload="track\(\)"/);
-    expect(out).toContain('data-jini-consent-attributes="{&quot;onload&quot;:&quot;track()&quot;}"');
+    expect(out).toMatch(/<svg[^>]*\sonload="track\(\)"/);
+    expect(out).not.toContain('data-jini-consent-attributes=');
   });
 });
 

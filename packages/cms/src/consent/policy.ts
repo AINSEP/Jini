@@ -1,10 +1,10 @@
 import { CONSENT_MAX_AGE_MS, DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRegionMode, type ConsentAction } from './types.js';
 
-/** Only California has opt-out defaults; missing/unrecognized regions use opt-in.
+/** US regions have opt-out defaults; missing/unrecognized regions use opt-in.
  * The host supplies a trusted header value, never a paid geo dependency. @complexity O(1). */
 export function resolveConsentRegion({ configuredMode, region }: { configuredMode: ConsentConfig['regionMode']; region: string | null }, _options = {}): ConsentRegionMode {
   if (configuredMode !== 'auto') return configuredMode;
-  return region?.trim().toUpperCase() === 'US-CA' ? 'opt-out' : 'opt-in';
+  return /^US(?:-|$)/i.test(region?.trim() ?? '') ? 'opt-out' : 'opt-in';
 }
 
 /** GPC wins over stored or new grants. Conservative analytics denial covers tags that share data.

@@ -77,7 +77,7 @@ function validatedOrigins({ resourceOrigins = [], categoryOrigins = {} }: { reso
 function resourcePolicy({ choices, origins }: { choices: ConsentChoices; origins: ResourceOrigins }): string {
   const granted = (['functional', 'analytics'] as const).flatMap(category => choices[category] ? origins.categoryOrigins[category] : []);
   const sources = ["'self'", ...new Set([...origins.resourceOrigins, ...granted])].join(' ');
-  return `style-src ${sources} 'unsafe-inline'; font-src ${sources} data:; img-src ${sources} data: blob:; media-src ${sources}; frame-src ${sources}; connect-src ${sources}`;
+  return `script-src ${sources} 'unsafe-inline'; object-src 'none'; style-src ${sources} 'unsafe-inline'; font-src ${sources} data:; img-src ${sources} data: blob:; media-src ${sources}; frame-src ${sources}; connect-src ${sources}`;
 }
 
 /** The browser runtime can only reduce choices (navigator GPC, an unsaved withdrawal), so it looks
@@ -105,7 +105,8 @@ export function renderConsentHead({ record, gpc, regionMode = 'opt-in', config }
   const gpcChoices = resolveConsentChoices({ choices: record?.choices, gpc: true, regionMode });
   const origins = validatedOrigins({ resourceOrigins, categoryOrigins });
   const state = JSON.stringify({ resourcePolicies: resourcePolicies({ origins }), choices, gpcChoices, signalCategories: GOOGLE_CONSENT_SIGNAL_CATEGORIES, hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
-  // A local stylesheet can import remote CSS/fonts that HTML traversal cannot see.
+  // First-party code can inject remote scripts, and a local stylesheet can import remote
+  // CSS/fonts that HTML traversal cannot see. Enforce the same grants in the browser.
   // Each choice reloads, so restrictive policy can be removed only after a saved grant.
   const resourcePolicyMeta = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins }) })}">`;
   const nonceAttr = nonce === undefined ? '' : ` nonce="${escapeHtml({ text: nonce })}"`;

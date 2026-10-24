@@ -26,10 +26,10 @@ const RESERVED_IDS = ['jini-consent', 'jini-consent-config', 'jini-consent-prefe
 const RESOURCE_HINTS = ['preload', 'modulepreload', 'prefetch', 'prerender', 'preconnect', 'dns-prefetch'];
 const DATA_SCRIPT_TYPES = ['application/json', 'application/ld+json', 'text/plain', 'text/template', 'text/x-template'];
 const URL_ATTRIBUTES = ['src', 'href', 'poster', 'data', 'srcset', 'background'];
-const RESOURCE_TAGS = ['iframe', 'frame', 'object', 'embed', 'video', 'audio', 'source', 'track', 'noscript'];
+const RESOURCE_TAGS = ['iframe', 'frame', 'object', 'embed'];
 const IMAGE_TAGS = ['img', 'image', 'input'];
 const NAVIGATION_TAGS = ['a', 'area', 'form', 'html', 'head', 'body', 'script'];
-const STRUCTURAL_TAGS = ['html', 'head', 'body', 'script'];
+const STRUCTURAL_TAGS = ['html', 'head', 'body', 'script', 'noscript'];
 const OPTIONAL_CATEGORIES = ['functional', 'analytics', 'marketing'];
 const HTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
@@ -73,6 +73,7 @@ function isResource({ tagName, attrs, text, remote }: { tagName: string; attrs: 
   if (IMAGE_TAGS.includes(tagName) && (remote || isTrackingImage({ attrs }))) return true;
   if (remote && !NAVIGATION_TAGS.includes(tagName)) return true;
   if (tagName === 'style' && cssRequestsRemote({ css: text })) return true;
+  // noscript must stay visible without JavaScript; its children are gated by the same walk.
   return attrs.has('data-consent-category') && !STRUCTURAL_TAGS.includes(tagName);
 }
 
@@ -82,16 +83,26 @@ function categoryFor({ declared, fetches }: { declared: string | undefined; fetc
   return OPTIONAL_CATEGORIES.includes(declared) ? declared : 'blocked';
 }
 
-/** Only host allowlisted scripts are necessary. @complexity O(k) for k manifest entries. */
+/** Host-reviewed external exceptions retain exact matching. @complexity O(k) for k manifest entries. */
 function isNecessaryScript({ attrs, text }: { attrs: Attrs; text: string }, { necessaryScripts = [] }: ConsentGateOptions): boolean {
   return necessaryScripts.some(entry => entry.src !== undefined ? attrs.get('src') === entry.src : !attrs.has('src') && text === entry.content);
 }
 
-/** Default deny includes legacy JavaScript MIME types, import maps and speculation rules. @complexity O(k). */
+/** Inline speculation rules stay gated: like the removed resource hints, they prefetch/prerender
+ * other origins outside the resource CSP. @complexity O(URL length). */
+function scriptFetches({ attrs, type }: { attrs: Attrs; type: string }): boolean {
+  return type === 'speculationrules' || (attrs.has('src') && external({ url: attrs.get('src')! }));
+}
+
+/** Unlabelled inline/local code runs by default; explicit optional labels always win over host
+ * exceptions. External code (including legacy MIME types/import maps) stays gated. @complexity O(k). */
 function isOptionalScript({ element, attrs, text, runtime }: { element: Element; attrs: Attrs; text: string; runtime: boolean }, options: ConsentGateOptions): boolean {
   if (element.tagName !== 'script' || runtime) return false;
+  const declared = attrs.get('data-consent-category');
+  if (declared !== undefined && declared !== 'necessary') return true;
   const type = (attrs.get('type') ?? '').trim().toLowerCase();
-  return !DATA_SCRIPT_TYPES.includes(type) && !isNecessaryScript({ attrs, text }, options);
+  if (DATA_SCRIPT_TYPES.includes(type)) return false;
+  return scriptFetches({ attrs, type }) && !isNecessaryScript({ attrs, text }, options);
 }
 
 /** @complexity O(subtree size). */
@@ -113,7 +124,6 @@ function isJavascriptUrl({ value }: { value: string }): boolean {
 /** @complexity O(attribute length). */
 function isDeferredAttribute({ name, value }: Attribute): boolean {
   if (name === 'background' && external({ url: value })) return true;
-  if (/^on/i.test(name)) return true;
   if (['href', 'action', 'formaction'].includes(name)) return isJavascriptUrl({ value });
   return name === 'style' && cssRequestsRemote({ css: value });
 }
@@ -144,8 +154,11 @@ function removeAttributes({ element, attrs, location }: { element: Element; attr
 
 /** Strip reserved markers and move fetching/executing attributes into a release payload.
  * @complexity O(attributes). */
-function attributeEdits({ element, location, reserved, category }: { element: Element; location: Element['sourceCodeLocation']; reserved: Attribute[]; category: string }): Edit[] {
-  const deferred = element.attrs.filter(isDeferredAttribute);
+function attributeEdits({ element, location, reserved, category, declared }: { element: Element; location: Element['sourceCodeLocation']; reserved: Attribute[]; category: string; declared: string | undefined }): Edit[] {
+  // UI handlers are first-party code. Only an explicit label defers them; remote-fetching
+  // styles and javascript: navigation retain their existing restrictions.
+  const labelled = declared !== undefined && declared !== 'necessary';
+  const deferred = element.attrs.filter(attr => isDeferredAttribute(attr) || (labelled && /^on/i.test(attr.name)));
   const edits = removeAttributes({ element, attrs: [...reserved, ...deferred], location });
   const startTag = location?.startTag;
   if (!deferred.length || !startTag) return edits;
@@ -155,9 +168,12 @@ function attributeEdits({ element, location, reserved, category }: { element: El
 
 /** Edits for one element, and whether its children still need gating.
  * @complexity O(attributes + text + k), plus O(subtree) when the element is wrapped. */
-function gateElement({ element }: { element: Element }, options: ConsentGateOptions): { edits: Edit[]; descend: boolean } {
+function gateElement({ element, inheritedCategory }: { element: Element; inheritedCategory: string | undefined }, options: ConsentGateOptions): { edits: Edit[]; descend: boolean } {
   const location = element.sourceCodeLocation;
   const attrs: Attrs = new Map(element.attrs.map(attr => [attr.name, attr.value]));
+  // Noscript cannot itself be templated (no-JS visitors would lose the fallback), so its
+  // optional category is carried into its descendants instead.
+  if (inheritedCategory !== undefined && !attrs.has('data-consent-category')) attrs.set('data-consent-category', inheritedCategory);
   const text = directText({ element });
   const runtime = isRuntimeScript({ element, attrs, text }, options);
   const reserved = runtime ? [] : reservedAttributes({ element });
@@ -171,23 +187,35 @@ function gateElement({ element }: { element: Element }, options: ConsentGateOpti
   const category = categoryFor({ declared: attrs.get('data-consent-category'), fetches: remote || resource });
   if (location && (resource || isOptionalScript({ element, attrs, text, runtime }, options))) return { edits: [wrapEdit({ element, location, category })], descend: false };
   // Authored template contents are already inert; traversing them would release never-mounted code.
-  return { edits: attributeEdits({ element, location, reserved, category }), descend: element.tagName !== 'template' };
+  return { edits: attributeEdits({ element, location, reserved, category, declared: attrs.get('data-consent-category') }), descend: element.tagName !== 'template' };
+}
+
+/** Noscript passes its label to descendants. Document-root labels defer only their own handlers:
+ * inheriting one would template the whole page. A necessary label grants nothing, so it is not
+ * inherited either. @complexity O(attributes). */
+function inheritedCategory({ element, category }: { element: Element; category: string | undefined }): string | undefined {
+  if (element.tagName !== 'noscript') return category;
+  const declared = element.attrs.find(attr => attr.name === 'data-consent-category')?.value;
+  return declared === undefined || declared === 'necessary' ? category : declared;
 }
 
 /** Walk the document once, recording html/head/body start-tag ends for the bootstrap insertions.
  * @complexity O(n) nodes. */
 function gateDocument({ document }: { document: DefaultTreeAdapterMap['document'] }, options: ConsentGateOptions): { edits: Edit[]; startTagEnds: Record<string, number> } {
-  const stack: Node[] = [...document.childNodes];
+  const stack: { node: Node; category: string | undefined }[] = document.childNodes.map(node => ({ node, category: undefined }));
   const edits: Edit[] = [];
   const startTagEnds: Record<string, number> = {};
   while (stack.length) {
-    const node = stack.pop()!;
+    const { node, category } = stack.pop()!;
     if (!('tagName' in node)) continue;
     const startTag = node.sourceCodeLocation?.startTag;
     if (startTag && ['html', 'head', 'body'].includes(node.tagName)) startTagEnds[node.tagName] = startTag.endOffset;
-    const gated = gateElement({ element: node }, options);
+    const gated = gateElement({ element: node, inheritedCategory: category }, options);
     edits.push(...gated.edits);
-    if (gated.descend) stack.push(...node.childNodes);
+    if (gated.descend) {
+      const childCategory = inheritedCategory({ element: node, category });
+      stack.push(...node.childNodes.map(node => ({ node, category: childCategory })));
+    }
   }
   return { edits, startTagEnds };
 }
@@ -239,7 +267,8 @@ function insertionOffsets({ document, startTagEnds }: { document: DefaultTreeAda
 }
 
 /** Gate delivered HTML using the existing parser, including no-JS and non-script requests.
- * Only host allowlisted scripts are necessary. JSON/JSON-LD and authored templates stay inert.
+ * Unlabelled inline/local code and media run by default; optional labels and external resources
+ * remain gated. JSON/JSON-LD and authored templates stay inert.
  * Resource hints are removed so browsers cannot fetch before consent. Source offsets preserve
  * unrelated markup byte-for-byte (except repeated roots/duplicate attributes, see locatedDocument);
  * wrapping a parent consumes its subtree without overlapping edits.

@@ -5,11 +5,13 @@ import { gateConsentHtml, renderConsentUi, renderConsentHead, consentPolicyHref 
 import { CONSENT_CLIENT } from '../html/client.js';
 import { stripConsentRuntime } from '../html/static.js';
 import { CONSENT_CSS } from '../html/styles.js';
+import { MENU_DROPDOWN_SCRIPT } from '../../navigation/dropdown.js';
+import { LISTING_SEE_MORE_SCRIPT } from '../../listing/see-more-script.js';
 import { accepted, config } from './fixtures.js';
 
 // Real installed browser emulator, loaded without adding a types dependency to the no-DOM core.
 const { JSDOM, ResourceLoader, CookieJar, VirtualConsole } = createRequire(import.meta.url)('jsdom');
-const page = '<!doctype html><html><head><link rel="preload" as="script" href="https://tags.example/track.js"><link rel="modulepreload" href="/module.js"><link rel="preconnect" href="https://tags.example"><style>p{color:red}</style><script data-consent-category="necessary">window.runs=[];window.runs.push("necessary")</script></head><body><p>Site</p><script data-consent-category="analytics" src="https://tags.example/track.js"></script><script data-consent-category="analytics">window.runs.push("inline-analytics")</script><script>window.runs.push("functional")</script><script data-consent-category="typo">window.runs.push("invalid")</script><script type="application/ld+json">{"@type":"Site"}</script><template><script>window.runs.push("authored-template")</script></template></body></html>';
+const page = '<!doctype html><html><head><link rel="preload" as="script" href="https://tags.example/track.js"><link rel="modulepreload" href="/module.js"><link rel="preconnect" href="https://tags.example"><style>p{color:red}</style><script data-consent-category="necessary">window.runs=[];window.runs.push("necessary")</script></head><body><p>Site</p><script data-consent-category="analytics" src="https://tags.example/track.js"></script><script data-consent-category="analytics">window.runs.push("inline-analytics")</script><script data-consent-category="functional">window.runs.push("functional")</script><script data-consent-category="typo">window.runs.push("invalid")</script><script type="application/ld+json">{"@type":"Site"}</script><template><script>window.runs.push("authored-template")</script></template></body></html>';
 const necessaryScripts = [{ content: 'window.runs=[];window.runs.push("necessary")' }];
 const gate = (record = null as typeof accepted | null, gpc = false) => gateConsentHtml({ html: page, config, record, gpc, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { necessaryScripts });
 
@@ -147,7 +149,7 @@ describe('delivered HTML consent boundary', () => {
     expect(consentPolicyHref({ url: 'https://site.example/privacy' })).toBe('https://site.example/privacy');
   });
   it('preserves a leading doctype with implicit head markup and removes foreign-namespace scripts', () => {
-    const html = gateConsentHtml({ html: '<!doctype html><html><body><link rel="preload" as="fetch" href="https://tags.example/hidden.js"><svg><script>window.tracked=true</script></svg></body></html>', config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+    const html = gateConsentHtml({ html: '<!doctype html><html><body><link rel="preload" as="fetch" href="https://tags.example/hidden.js"><svg><script data-consent-category="analytics">window.tracked=true</script></svg></body></html>', config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
     expect(html.startsWith('<!doctype html><html>')).toBe(true);
     expect(html).not.toContain('window.tracked=true');
     expect(html).not.toContain('<svg><template');
@@ -158,15 +160,15 @@ describe('delivered HTML consent boundary', () => {
 
 describe('consent security regressions', () => {
   const transform = (html: string, record: typeof accepted | null = null, options = {}) => gateConsentHtml({ html, config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
-  it('page runtime markers and self-declared necessity cannot exempt scripts or their neighbors', async () => {
-    const html = transform('<html><head></head><body><div data-jini-consent-runtime></div><script data-jini-consent-runtime="forged" data-consent-category="necessary">window.leaked=true</script><script>window.neighbor=true</script></body></html>', null, { runtimeToken: 'host-response-token' });
+  it('page runtime markers and self-declared necessity cannot exempt external scripts', async () => {
+    const html = transform('<html><head></head><body><div data-jini-consent-runtime></div><script data-jini-consent-runtime="forged" data-consent-category="necessary" src="https://tags.example/forged.js"></script><script src="https://tags.example/neighbor.js"></script></body></html>', null, { runtimeToken: 'host-response-token' });
     const { dom } = await browser(html);
     try { expect(dom.window.leaked).toBeUndefined(); expect(dom.window.neighbor).toBeUndefined(); expect(dom.window.document.querySelectorAll('template[data-jini-consent-script]').length).toBe(2); }
     finally { dom.window.close(); }
   });
-  it('only exact host manifest entries remain necessary, even with hostile same-origin labels', async () => {
+  it('explicit optional labels override even exact host manifest entries', async () => {
     const content = 'window.essential=true';
-    const { dom } = await browser(transform(`<html><head></head><body><script>${content}</script><script src="/rogue.js" data-consent-category="necessary"></script></body></html>`, null, { necessaryScripts: [{ content }] }));
+    const { dom } = await browser(transform(`<html><head></head><body><script>${content}</script><script src="/rogue.js" data-consent-category="analytics"></script></body></html>`, null, { necessaryScripts: [{ content }, { src: "/rogue.js" }] }));
     try { expect(dom.window.essential).toBe(true); expect(dom.window.document.querySelector('script[src="/rogue.js"]')).toBeNull(); }
     finally { dom.window.close(); }
   });
@@ -175,27 +177,29 @@ describe('consent security regressions', () => {
     try { expect(requests).toEqual([]); expect(dom.window.document.querySelector('template').dataset.category).toBe('marketing'); }
     finally { dom.window.close(); }
   });
-  it('blocks frames, media, pixels, noscript, fonts, CSS, hints and event handlers before opt-in, including without JS', () => {
+  it('blocks remote resources and noscript pixels while preserving noscript and UI handlers', () => {
     const html = transform('<html><head><link rel="prerender" href="https://tags.example"><link rel="stylesheet" href="https://tags.example/site.css"><style>@font-face{src:url(https://tags.example/font.woff)}</style></head><body onload="window.leaked=true"><iframe srcdoc="&lt;img src=https://tags.example/pixel&gt;"></iframe><img src="https://tags.example/pixel"><img src="/photo.png" srcset="/photo.png 1x, https://tags.example/pixel 2x"><video poster="https://tags.example/pixel" src="/movie.mp4"></video><embed src="https://tags.example/pixel"><object data="https://tags.example/pixel"></object><noscript><img src="https://tags.example/nojs"></noscript><button onclick="window.leaked=true" style="background:url(https://tags.example/pixel)">Click</button></body></html>');
     for (const enabled of [false, true]) {
       const dom = new JSDOM(html, { runScripts: enabled ? 'dangerously' : undefined });
       try {
         const document = dom.window.document;
-        expect(document.querySelectorAll('iframe,img,video,embed,object,noscript,link[rel=stylesheet]').length).toBe(0);
+        expect(document.querySelectorAll('iframe,img,video,embed,object,link[rel=stylesheet]').length).toBe(0);
         expect(document.querySelector('link[rel=prerender]')).toBeNull();
         expect(document.querySelector('style:not([data-jini-consent-style])')).toBeNull();
-        expect(document.querySelectorAll('[onclick],[onload],button[style]').length).toBe(0);
-        expect(document.querySelectorAll('template[data-jini-consent-resource]').length).toBe(9);
+        expect(document.querySelectorAll('[onclick],[onload]').length).toBe(2);
+        expect(document.querySelector('button[style]')).toBeNull();
+        expect(document.querySelector('noscript')).not.toBeNull();
+        expect(document.querySelectorAll('template[data-jini-consent-resource]').length).toBe(enabled ? 8 : 9);
       } finally { dom.window.close(); }
     }
   });
   it('replays late theme DOMContentLoaded listeners once without replaying essential listeners', async () => {
     const essential = 'window.early=0;document.addEventListener("DOMContentLoaded",function(){window.early++})';
-    const { dom } = await browser(transform(`<html><head><script>${essential}</script></head><body><script>document.addEventListener("DOMContentLoaded",function(){window.themeReady=(window.themeReady||0)+1},{once:true})</script></body></html>`, accepted, { necessaryScripts: [{ content: essential }] }));
+    const { dom } = await browser(transform(`<html><head><script>${essential}</script></head><body><script data-consent-category="functional">document.addEventListener("DOMContentLoaded",function(){window.themeReady=(window.themeReady||0)+1},{once:true})</script></body></html>`, accepted, { necessaryScripts: [{ content: essential }] }));
     try { expect(dom.window.themeReady).toBe(1); expect(dom.window.early).toBe(1); }
     finally { dom.window.close(); }
   });
-  it('California is opt-out, navigator GPC still prevents advertising requests, and rejection persists', async () => {
+  it('opt-out defaults still honor navigator GPC and persistent rejection', async () => {
     const html = gateConsentHtml({ html: page, config, record: null, gpc: false, regionMode: 'opt-out', endpoint: '/api/site-consent' }, { necessaryScripts });
     const yes = await browser(html), gpc = await browser(html, true);
     try { expect(yes.requests).toEqual(['https://tags.example/track.js']); expect(gpc.requests).toEqual([]); expect(yes.dom.window.dataLayer[1][2].ad_storage).toBe('granted'); }
@@ -210,7 +214,7 @@ describe('consent security regressions', () => {
   it('keeps inert data and template scripts as data rather than turning them executable', () => {
     const html = transform('<html><head></head><body><script type="text/x-template"><div>Template</div></script><script type="importmap">{"imports":{}}</script></body></html>');
     const dom = new JSDOM(html);
-    try { expect(dom.window.document.querySelector('script[type="text/x-template"]').textContent).toBe('<div>Template</div>'); expect(dom.window.document.querySelector('template[data-jini-consent-script]').content.querySelector('script').type).toBe('importmap'); }
+    try { expect(dom.window.document.querySelector('script[type="text/x-template"]').textContent).toBe('<div>Template</div>'); expect(dom.window.document.querySelector('script[type=importmap]').textContent).toBe('{"imports":{}}'); }
     finally { dom.window.close(); }
   });
 });
@@ -250,7 +254,7 @@ it('classifies browser-normalized protocol-relative tag URLs as marketing', () =
 
 it('emits browser policy before local CSS to block hidden remote CSS/font imports until marketing is allowed', async () => {
   const html = gateConsentHtml({ html: '<html><head><link rel="stylesheet" href="/local.css"></head><body>Page</body></html>', config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
-  const policy = "style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self'; frame-src 'self'; connect-src 'self'";
+  const policy = "script-src 'self' 'unsafe-inline'; object-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self'; frame-src 'self'; connect-src 'self'";
   expect(html.indexOf('http-equiv="Content-Security-Policy"')).toBeLessThan(html.indexOf('href="/local.css"'));
   for (const markup of [html, stripConsentRuntime({ html })]) {
     const dom = new JSDOM(markup);
@@ -264,8 +268,8 @@ it('emits browser policy before local CSS to block hidden remote CSS/font import
 });
 
 
-it.each(['text/x-javascript', 'application/x-javascript', 'text/jscript', 'text/livescript', ...Array.from({ length: 6 }, (_, n) => `text/javascript1.${n}`), 'application/x-ecmascript', 'text/x-ecmascript', 'text/javascript; charset=utf-8', 'speculationrules', 'future-executable-type'])('denies script type %s until consent', async type => {
-  const html = gateConsentHtml({ html: `<html><body><script type="${type}">window.mimeLeak=true</script></body></html>`, config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+it.each(['text/x-javascript', 'application/x-javascript', 'text/jscript', 'text/livescript', ...Array.from({ length: 6 }, (_, n) => `text/javascript1.${n}`), 'application/x-ecmascript', 'text/x-ecmascript', 'text/javascript; charset=utf-8', 'speculationrules', 'future-executable-type'])('denies explicitly optional script type %s until consent', async type => {
+  const html = gateConsentHtml({ html: `<html><body><script data-consent-category="analytics" type="${type}">window.mimeLeak=true</script></body></html>`, config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
   const { dom } = await browser(html);
   try {
     expect(dom.window.mimeLeak).toBeUndefined();
@@ -293,7 +297,7 @@ it('uses only host-reviewed theme origins in the resource policy, including brow
   const html = gateConsentHtml({ html: '<html><body>Page</body></html>', config, record: accepted, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { resourceOrigins: ['https://theme.example'] });
   const { dom } = await browser(html, true);
   try {
-    expect(dom.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]').content).toBe("style-src 'self' https://theme.example 'unsafe-inline'; font-src 'self' https://theme.example data:; img-src 'self' https://theme.example data: blob:; media-src 'self' https://theme.example; frame-src 'self' https://theme.example; connect-src 'self' https://theme.example");
+    expect(dom.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]').content).toBe("script-src 'self' https://theme.example 'unsafe-inline'; object-src 'none'; style-src 'self' https://theme.example 'unsafe-inline'; font-src 'self' https://theme.example data:; img-src 'self' https://theme.example data: blob:; media-src 'self' https://theme.example; frame-src 'self' https://theme.example; connect-src 'self' https://theme.example");
   } finally { dom.window.close(); }
   expect(() => gateConsentHtml({ html: '<html><body>Page</body></html>', config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { resourceOrigins: ["https://theme.example/"] })).toThrow('Consent resource origin "https://theme.example/" must be an exact HTTP(S) origin such as https://cdn.example (no path or trailing slash).');
 });
@@ -317,10 +321,10 @@ it('keeps legacy frames inert before a visitor choice', () => {
 
 describe('gate boundaries', () => {
   const transform = (html: string, options = {}) => gateConsentHtml({ html, config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
-  it('keeps only the exact host runtime for this response; a matching token on other code is gated and unmarked', () => {
+  it('keeps only the exact host runtime for this response; a matching token cannot exempt explicitly optional code', () => {
     const runtime = `<script data-jini-consent-runtime="host-token">${CONSENT_CLIENT}</script>`;
-    const html = transform(`<html><head></head><body>${runtime}<script data-jini-consent-runtime="host-token">window.other=true</script></body></html>`, { runtimeToken: 'host-token' });
-    expect(html).toContain(`</section>${runtime}<template data-jini-consent-script data-category="functional"><script>window.other=true</script></template></body>`);
+    const html = transform(`<html><head></head><body>${runtime}<script data-jini-consent-runtime="host-token" data-consent-category="functional">window.other=true</script></body></html>`, { runtimeToken: 'host-token' });
+    expect(html).toContain(`</section>${runtime}<template data-jini-consent-script data-category="functional"><script data-consent-category="functional">window.other=true</script></template></body>`);
   });
   it('removes base and meta refresh but keeps other meta elements and rel-less links', () => {
     const html = transform('<html><head><base href="https://tags.example/"><meta charset="utf-8"><meta http-equiv="Refresh" content="0;url=https://tags.example/"><meta http-equiv="content-type" content="text/html"><link href="/local.css"></head><body></body></html>');
@@ -333,8 +337,8 @@ describe('gate boundaries', () => {
     expect(html).toContain('</section><template data-jini-consent-resource data-category="marketing"><img src="/a.png" width="1"></template><template data-jini-consent-resource data-category="marketing"><img src="/b.png" height="1"></template><template data-jini-consent-resource data-category="analytics"><input type="image" src="/c.png" data-consent-category="analytics"></template><img src="/photo.png"></body>');
   });
   it('matches host manifest scripts by exact src', () => {
-    const html = transform('<html><body><script src="/essential.js"></script><script src="/other.js"></script></body></html>', { necessaryScripts: [{ src: '/essential.js' }] });
-    expect(html).toContain('<body><section'); expect(html).toContain('</section><script src="/essential.js"></script><template data-jini-consent-script data-category="functional"><script src="/other.js"></script></template>');
+    const html = transform('<html><body><script src="https://sdk.example/essential.js"></script><script src="https://sdk.example/other.js"></script></body></html>', { necessaryScripts: [{ src: 'https://sdk.example/essential.js' }] });
+    expect(html).toContain('<body><section'); expect(html).toContain('</section><script src="https://sdk.example/essential.js"></script><template data-jini-consent-script data-category="marketing"><script src="https://sdk.example/other.js"></script></template>');
   });
   it('bootstraps after the doctype, or at offset 0, when the page has no html or head tags; the UI lands first at the shared offset', () => {
     const head = renderConsentHead({ record: null, gpc: false, regionMode: 'opt-in' });
@@ -356,7 +360,7 @@ describe('repeated html/body start tags (the parser merges their attributes into
     ['a second html tag', '<html><body><p>x</p><html onclick="window.leaked=true" id="jini-consent-config"></body></html>'],
     ['a body tag foster-parented out of a table', '<html><body><p>x</p><table><body onpageshow="window.leaked=true"></table></body></html>'],
   ])('defers handlers and strips markers merged from %s', async (_name, page) => {
-    const html = transform(page);
+    const html = transform(page.replace(/<(html|body)\b/g, '<$1 data-consent-category="functional"'));
     const { dom } = await browser(html);
     try {
       const names = roots(dom).flatMap(element => element.getAttributeNames());
@@ -417,7 +421,7 @@ describe('first-party presentation and category-specific resource policy', () =>
     const categoryOrigins = { analytics: ['https://collect.example'], functional: ['https://chat.example'] };
     const page = '<html><head></head><body>Page</body></html>';
     const analytics = policyOf(transform(page, { ...accepted, choices: { necessary: true, functional: false, analytics: true, marketing: false } }, { categoryOrigins }));
-    expect(analytics).toBe("style-src 'self' https://collect.example 'unsafe-inline'; font-src 'self' https://collect.example data:; img-src 'self' https://collect.example data: blob:; media-src 'self' https://collect.example; frame-src 'self' https://collect.example; connect-src 'self' https://collect.example");
+    expect(analytics).toBe("script-src 'self' https://collect.example 'unsafe-inline'; object-src 'none'; style-src 'self' https://collect.example 'unsafe-inline'; font-src 'self' https://collect.example data:; img-src 'self' https://collect.example data: blob:; media-src 'self' https://collect.example; frame-src 'self' https://collect.example; connect-src 'self' https://collect.example");
     expect(policyOf(transform(page, null, { categoryOrigins }))).not.toContain('example');
     expect(policyOf(transform(page, accepted, { categoryOrigins }))).toBeNull();
   });
@@ -522,15 +526,15 @@ describe('after a choice the banner collapses to a settings control', () => {
 
 describe('review regressions: ambiguous HTML and URL normalization', () => {
   const transform = (html: string, record: typeof accepted | null = null, options = {}) => gateConsentHtml({ html, config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
-  it.each(['onerror', 'ONERROR', 'OnError'])('never exposes an ignored duplicate %s handler after deferring the first', async duplicate => {
+  it.each(['onerror', 'ONERROR', 'OnError'])('keeps only the browser-retained first duplicate %s UI handler', async duplicate => {
     const html = transform(`<html><body><img id="probe" src="/bad" onerror="window.leaked=1" ${duplicate}="window.leaked=2"></body></html>`);
     const { dom, runtimeErrors } = await browser(html);
     try {
       const image = dom.window.document.getElementById('probe');
-      expect(image.hasAttribute('onerror')).toBe(false);
+      expect(image.hasAttribute('onerror')).toBe(true);
       image.dispatchEvent(new dom.window.Event('error'));
-      expect(dom.window.leaked).toBeUndefined();
-      expect(JSON.parse(image.dataset.jiniConsentAttributes)).toEqual({ onerror: 'window.leaked=1' });
+      expect(dom.window.leaked).toBe(1);
+      expect(image.dataset.jiniConsentAttributes).toBeUndefined();
       expect(runtimeErrors).toEqual([]);
     } finally { dom.window.close(); }
   });
@@ -732,4 +736,134 @@ describe('review regressions: withdrawal reconciliation', () => {
       expect(result.dom.window.dataLayer.at(-1)[2].ad_storage).toBe('denied'); expect(result.runtimeErrors).toEqual([]);
     } finally { result.dom.window.close(); }
   });
+});
+
+describe('first-party site behavior without optional consent', () => {
+  const rejected = { ...accepted, action: 'reject' as const, choices: { necessary: true as const, functional: false, analytics: false, marketing: false } };
+  const transform = (html: string, record: typeof accepted | null) => gateConsentHtml({ html, config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+
+  it.each([null, rejected])('runs unlabelled inline and local source scripts and keeps UI handlers: %j', async record => {
+    // The loader records actual requests and returns executable script bytes. jsdom does not
+    // enforce CSP; the CSP contract is asserted separately below.
+    const html = '<html><head><script>window.runs=["inline"]</script></head><body><script src="/theme-assets/preview/scripts/ui.js"></script><button id="ui" onclick="window.clicked=true">Open</button></body></html>';
+    const { dom, requests, runtimeErrors } = await browser(transform(html, record));
+    try {
+      expect(requests).toEqual(['https://site.example/theme-assets/preview/scripts/ui.js']);
+      expect(Array.from(dom.window.runs)).toEqual(['inline', 'external-analytics']);
+      dom.window.document.getElementById('ui').click();
+      expect(dom.window.clicked).toBe(true); expect(runtimeErrors).toEqual([]);
+      expect(dom.window.document.querySelector('template[data-jini-consent-script]')).toBeNull();
+    } finally { dom.window.close(); }
+  });
+
+  it.each([null, rejected])('keeps local media and no-JS fallback while gating external resources: %j', record => {
+    const html = '<html><head></head><body><video id="video" src="/movie.mp4"><source src="media/movie.webm"><track src="/captions.vtt"></video><audio id="audio" src="audio.ogg"></audio><noscript><p>Local fallback</p><img src="/fallback.png"><img src="https://tags.example/nojs"></noscript><script src="https://tags.example/sdk.js"></script><iframe src="/embedded"></iframe><img src="https://tags.example/pixel"><img width="1" src="/pixel"></body></html>';
+    const dom = new JSDOM(transform(html, record));
+    try {
+      const document = dom.window.document;
+      for (const selector of ['#video', '#audio', 'video source', 'video track', 'noscript p', 'noscript img[src="/fallback.png"]']) expect(document.querySelector(selector)).not.toBeNull();
+      expect(document.querySelector('template noscript')).toBeNull();
+      expect(document.querySelector('noscript template').content.querySelector('img').src).toBe('https://tags.example/nojs');
+      expect(document.querySelector('iframe')).toBeNull();
+      expect(document.querySelector('script[src]')).toBeNull();
+      expect(document.querySelector('img[src="https://tags.example/pixel"]')).toBeNull();
+      expect(document.querySelector('img[src="/pixel"]')).toBeNull();
+      expect(document.querySelectorAll('template[data-jini-consent-resource]')).toHaveLength(4);
+    } finally { dom.window.close(); }
+  });
+
+  it('preserves noscript while applying its optional label to local fallback resources', () => {
+    const dom = new JSDOM(transform('<html><head></head><body><noscript data-consent-category="analytics"><img src="/optional.png"></noscript></body></html>', rejected));
+    try {
+      const fallback = dom.window.document.querySelector('noscript');
+      expect(fallback).not.toBeNull(); expect(fallback.querySelector('img')).toBeNull();
+      expect(fallback.querySelector('template').dataset.category).toBe('analytics');
+    } finally { dom.window.close(); }
+  });
+
+  it('applies an optional document-root label to its own handlers without templating the page', () => {
+    const dom = new JSDOM(transform('<html><head></head><body data-consent-category="analytics" onload="track()"><p id="content">Site</p><img src="/local.png"></body></html>', rejected));
+    try {
+      const document = dom.window.document;
+      expect(document.body.hasAttribute('onload')).toBe(false);
+      expect(document.body.dataset.jiniConsentCategory).toBe('analytics');
+      expect(document.getElementById('content')).not.toBeNull(); expect(document.querySelector('img')).not.toBeNull();
+    } finally { dom.window.close(); }
+  });
+
+  it('conservatively gates absolute sources when the gate has no site origin', () => {
+    const dom = new JSDOM(transform('<html><head></head><body><script src="https://site.example/ui.js"></script></body></html>', rejected));
+    try {
+      expect(dom.window.document.querySelector('script[src]')).toBeNull();
+      expect(dom.window.document.querySelector('template[data-jini-consent-script]').dataset.category).toBe('marketing');
+    } finally { dom.window.close(); }
+  });
+
+  it('keeps unlabelled inline speculation rules gated like the removed resource hints', () => {
+    const dom = new JSDOM(transform('<html><head></head><body><script type="speculationrules">{"prefetch":[{"urls":["https://tags.example/next"]}]}</script></body></html>', rejected));
+    try {
+      expect(dom.window.document.querySelector('script[type="speculationrules"]')).toBeNull();
+      expect(dom.window.document.querySelector('template[data-jini-consent-script]').content.querySelector('script').type).toBe('speculationrules');
+    } finally { dom.window.close(); }
+  });
+
+  it('does not inherit a necessary document-root label onto first-party descendants', () => {
+    const dom = new JSDOM(transform('<html data-consent-category="necessary"><head></head><body><p id="content">Site</p><img src="/local.png"><script>window.ran=true</script></body></html>', rejected));
+    try {
+      const document = dom.window.document;
+      expect(document.getElementById('content')).not.toBeNull();
+      expect(document.querySelector('img[src="/local.png"]')).not.toBeNull();
+      expect(document.querySelector('template[data-jini-consent-resource], template[data-jini-consent-script]')).toBeNull();
+    } finally { dom.window.close(); }
+  });
+
+  it.each(['functional', 'analytics', 'marketing'])('keeps explicitly %s inline/local scripts, handlers and media gated after rejection', async category => {
+    const html = `<html><head></head><body><script data-consent-category="${category}">window.optional=true</script><script data-consent-category="${category}" src="/optional.js"></script><button id="optional" data-consent-category="${category}" onclick="window.clicked=true">Optional</button><video data-consent-category="${category}" src="/optional.mp4"></video></body></html>`;
+    const { dom, requests } = await browser(transform(html, rejected));
+    try {
+      expect(dom.window.optional).toBeUndefined(); expect(requests).toEqual([]);
+      expect(dom.window.document.querySelector('#optional')).toBeNull();
+      expect(dom.window.document.querySelector('video')).toBeNull();
+      expect(dom.window.document.querySelectorAll(`template[data-category="${category}"]`)).toHaveLength(4);
+    } finally { dom.window.close(); }
+  });
+});
+
+it('restricts dynamic script origins to the current grants without unsafe-eval and widens on the reloaded page', () => {
+  const categoryOrigins = { functional: ['https://chat.example'], analytics: ['https://collect.example'] };
+  const policy = (record: typeof accepted | null) => {
+    const html = gateConsentHtml({ html: '<html><head></head><body><script>document.createElement("script")</script></body></html>', config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { categoryOrigins });
+    const dom = new JSDOM(html);
+    try { return dom.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content ?? ''; }
+    finally { dom.window.close(); }
+  };
+  const denied = policy(null);
+  expect(denied.split('; ')[0]).toBe("script-src 'self' 'unsafe-inline'");
+  expect(denied).toContain("object-src 'none'"); expect(denied).not.toContain('unsafe-eval');
+  const functional = policy({ ...accepted, choices: { necessary: true, functional: true, analytics: false, marketing: false } });
+  expect(functional.split('; ')[0]).toBe("script-src 'self' https://chat.example 'unsafe-inline'");
+  expect(functional).not.toContain('collect.example'); expect(functional).not.toContain('unsafe-eval');
+  const analytics = policy({ ...accepted, choices: { necessary: true, functional: false, analytics: true, marketing: false } });
+  expect(analytics.split('; ')[0]).toBe("script-src 'self' https://collect.example 'unsafe-inline'");
+  expect(analytics).not.toContain('chat.example'); expect(analytics).not.toContain('unsafe-eval');
+  expect(policy(accepted)).toBe('');
+});
+
+
+it('dropdown and see-more scripts still initialize and respond after rejecting optional consent', async () => {
+  const record = { ...accepted, action: 'reject' as const, choices: { necessary: true as const, functional: false, analytics: false, marketing: false } };
+  const html = `<html><head></head><body><ul data-jini-dropdown><li><button class="jini-menu-toggle" aria-controls="submenu" aria-expanded="false">Menu</button><ul id="submenu"><li><a href="/page">Page</a></li></ul></li></ul><div data-jini-listing="posts"></div><button hidden data-jini-more="posts" data-jini-more-href="/batch">See more</button><script>${MENU_DROPDOWN_SCRIPT}</script><script>${LISTING_SEE_MORE_SCRIPT}</script></body></html>`;
+  const requested: string[] = [];
+  const { dom, runtimeErrors } = await browser(gateConsentHtml({ html, config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }));
+  try {
+    const document = dom.window.document;
+    const toggle = document.querySelector('.jini-menu-toggle');
+    toggle.click(); expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const more = document.querySelector('[data-jini-more]');
+    expect(more.hidden).toBe(false);
+    dom.window.fetch = async (url: string) => { requested.push(url); return { ok: true, text: async () => '<div data-jini-listing-batch><p id="next-item">Next</p></div>' }; };
+    more.click(); await new Promise<void>(resolve => setImmediate(resolve));
+    expect(requested).toEqual(['/batch']); expect(document.querySelector('#next-item').textContent).toBe('Next');
+    expect(document.querySelector('[data-jini-more]')).toBeNull(); expect(runtimeErrors).toEqual([]);
+  } finally { dom.window.close(); }
 });
