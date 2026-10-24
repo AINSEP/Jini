@@ -14,6 +14,8 @@ type Attrs = Map<string, string>;
 /** Exact host manifest entries, never declarations taken from page HTML. */
 export interface ConsentGateOptions {
   nonce?: string;
+  /** Host-resolved page origin, used only to retain first-party preloads. */
+  pageOrigin?: string;
   runtimeToken?: string;
   /** Host-reviewed theme origins allowed by the pre-consent resource policy. */
   resourceOrigins?: readonly string[];
@@ -24,6 +26,11 @@ export interface ConsentGateOptions {
 
 const RESERVED_IDS = ['jini-consent', 'jini-consent-config', 'jini-consent-preferences'];
 const RESOURCE_HINTS = ['preload', 'modulepreload', 'prefetch', 'prerender', 'preconnect', 'dns-prefetch'];
+const METADATA_RELS = ['canonical', 'alternate', 'author', 'license'];
+// These metadata rels make the browser fetch (icons, manifests, Firefox's rel=next prefetch), and
+// the resource CSP has no manifest/prefetch directive, so only trusted URLs skip the resource policy.
+const FETCHING_METADATA_RELS = ['icon', 'apple-touch-icon', 'manifest', 'next', 'prev'];
+const PRELOAD_RELS = ['preload', 'modulepreload'];
 const DATA_SCRIPT_TYPES = ['application/json', 'application/ld+json', 'text/plain', 'text/template', 'text/x-template'];
 const URL_ATTRIBUTES = ['src', 'href', 'poster', 'data', 'srcset', 'background'];
 const RESOURCE_TAGS = ['iframe', 'frame', 'object', 'embed'];
@@ -48,11 +55,62 @@ function reservedAttributes({ element }: { element: Element }): Attribute[] {
   return element.attrs.filter(attr => attr.name.startsWith('data-jini-consent-') || (attr.name === 'id' && RESERVED_IDS.includes(attr.value)));
 }
 
-/** Elements that can fetch or navigate before consent with no content worth keeping. @complexity O(rel tokens). */
-function isRemovedElement({ tagName, attrs }: { tagName: string; attrs: Attrs }): boolean {
+/** @complexity O(rel tokens). */
+function linkRels({ attrs }: { attrs: Attrs }): string[] {
+  return (attrs.get('rel') ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+/** Relative URLs, the host-resolved page origin and host-reviewed resourceOrigins are first-party;
+ * authored HTML never supplies trusted origins. @complexity O(URL length + trusted origins). */
+function isTrustedUrl({ url }: { url: string }, { pageOrigin, resourceOrigins = [] }: ConsentGateOptions = {}): boolean {
+  if (!external({ url })) return true;
+  try {
+    const origin = new URL(url, pageOrigin).origin;
+    return (pageOrigin !== undefined && new URL(pageOrigin).origin === origin) || resourceOrigins.includes(origin);
+  } catch { return false; }
+}
+
+/** A link fetches its href and, as an image preload, every imagesrcset candidate. Unparseable
+ * candidates (e.g. data: URLs with commas) fail closed. @complexity O(URL length + trusted origins). */
+function linkFetchesTrusted({ attrs }: { attrs: Attrs }, options: ConsentGateOptions = {}): boolean {
+  const href = attrs.get('href');
+  const candidates = (attrs.get('imagesrcset') ?? '').split(',').map(candidate => candidate.trim().split(/\s+/)[0]!).filter(Boolean);
+  return Boolean(href) && [href!, ...candidates].every(url => isTrustedUrl({ url }, options));
+}
+
+/** Only first-party/trusted preloads survive; other hints can initiate uncontrolled requests.
+ * @complexity O(rel tokens + URL length + trusted origins). */
+function isAllowedPreload({ tagName, attrs }: { tagName: string; attrs: Attrs }, options: ConsentGateOptions = {}): boolean {
+  const rels = tagName === 'link' ? linkRels({ attrs }) : [];
+  return rels.length > 0 && rels.every(rel => PRELOAD_RELS.includes(rel)) && linkFetchesTrusted({ attrs }, options);
+}
+
+/** Metadata describes the page even when an author mistakenly labels it optional: crawlers never
+ * consent. Mixed resource rels and untrusted fetching rels still follow the resource policy.
+ * Meta refresh is removed before this check. @complexity O(rel tokens + URL length + trusted origins). */
+function isMetadata({ tagName, attrs }: { tagName: string; attrs: Attrs }, options: ConsentGateOptions = {}): boolean {
+  if (tagName === 'meta') return true;
+  // HTML never executes this type, whatever its label, src or handlers (handlers are stripped).
+  if (tagName === 'script') return (attrs.get('type') ?? '').trim().toLowerCase() === 'application/ld+json';
+  const rels = tagName === 'link' ? linkRels({ attrs }) : [];
+  if (!rels.length || !rels.every(rel => METADATA_RELS.includes(rel) || FETCHING_METADATA_RELS.includes(rel))) return false;
+  return rels.every(rel => METADATA_RELS.includes(rel)) || linkFetchesTrusted({ attrs }, options);
+}
+
+/** Refresh/base can navigate; untrusted hints can fetch outside the resource policy.
+ * @complexity O(rel tokens + trusted origins). */
+function isRemovedElement({ tagName, attrs }: { tagName: string; attrs: Attrs }, options: ConsentGateOptions = {}): boolean {
   if (tagName === 'base') return true;
   if (tagName === 'meta') return attrs.get('http-equiv')?.toLowerCase() === 'refresh';
-  return tagName === 'link' && (attrs.get('rel') ?? '').toLowerCase().split(/\s+/).some(value => RESOURCE_HINTS.includes(value));
+  const hint = tagName === 'link' && linkRels({ attrs }).some(value => RESOURCE_HINTS.includes(value));
+  return hint && !isAllowedPreload({ tagName, attrs }, options);
+}
+
+/** Exempt markup must never carry executable attributes into the browser or a release payload.
+ * @complexity O(attributes). */
+function exemptEdits({ element, reserved, location }: { element: Element; reserved: Attribute[]; location: Element['sourceCodeLocation'] }, _options = {}): Edit[] {
+  const unsafe = element.attrs.filter(attr => /^on/i.test(attr.name) || isDeferredAttribute(attr) || (URL_ATTRIBUTES.includes(attr.name) && isJavascriptUrl({ value: attr.value })));
+  return removeAttributes({ element, attrs: [...reserved, ...unsafe], location });
 }
 
 /** @complexity O(attribute length). */
@@ -166,6 +224,18 @@ function attributeEdits({ element, location, reserved, category, declared }: { e
   return [...edits, { start: startTag.endOffset - 1, end: startTag.endOffset - 1, text: ` data-jini-consent-attributes="${payload}" data-jini-consent-category="${category}"` }];
 }
 
+/** Resolve metadata and trusted preload exceptions before resource/category classification.
+ * Foreign scripts do not share HTML's inert data-script contract. @complexity O(attributes + origins). */
+function gateExemptElement({ element, attrs, reserved, location }: { element: Element; attrs: Attrs; reserved: Attribute[]; location: Element['sourceCodeLocation'] }, options: ConsentGateOptions = {}): { edits: Edit[]; descend: boolean } | null {
+  if (location && isRemovedElement({ tagName: element.tagName, attrs }, options)) {
+    // An as=fetch preload can fetch the same optional script URL, so remove every untrusted resource hint.
+    return { edits: [{ start: location.startOffset, end: location.endOffset, text: '' }], descend: false };
+  }
+  if (element.namespaceURI !== HTML_NAMESPACE) return null;
+  if (!isMetadata({ tagName: element.tagName, attrs }, options) && !isAllowedPreload({ tagName: element.tagName, attrs }, options)) return null;
+  return { edits: exemptEdits({ element, reserved, location }), descend: false };
+}
+
 /** Edits for one element, and whether its children still need gating.
  * @complexity O(attributes + text + k), plus O(subtree) when the element is wrapped. */
 function gateElement({ element, inheritedCategory }: { element: Element; inheritedCategory: string | undefined }, options: ConsentGateOptions): { edits: Edit[]; descend: boolean } {
@@ -178,10 +248,8 @@ function gateElement({ element, inheritedCategory }: { element: Element; inherit
   const runtime = isRuntimeScript({ element, attrs, text }, options);
   const reserved = runtime ? [] : reservedAttributes({ element });
   element.attrs = element.attrs.filter(attr => !reserved.includes(attr));
-  if (location && isRemovedElement({ tagName: element.tagName, attrs })) {
-    // An as=fetch preload can fetch the same optional script URL, so remove all resource hints.
-    return { edits: [{ start: location.startOffset, end: location.endOffset, text: '' }], descend: false };
-  }
+  const exempt = gateExemptElement({ element, attrs, reserved, location }, options);
+  if (exempt) return exempt;
   const remote = hasRemoteUrl({ attrs });
   const resource = isResource({ tagName: element.tagName, attrs, text, remote });
   const category = categoryFor({ declared: attrs.get('data-consent-category'), fetches: remote || resource });
@@ -269,7 +337,7 @@ function insertionOffsets({ document, startTagEnds }: { document: DefaultTreeAda
 /** Gate delivered HTML using the existing parser, including no-JS and non-script requests.
  * Unlabelled inline/local code and media run by default; optional labels and external resources
  * remain gated. JSON/JSON-LD and authored templates stay inert.
- * Resource hints are removed so browsers cannot fetch before consent. Source offsets preserve
+ * Untrusted resource hints are removed so browsers cannot fetch before consent. Source offsets preserve
  * unrelated markup byte-for-byte (except repeated roots/duplicate attributes, see locatedDocument);
  * wrapping a parent consumes its subtree without overlapping edits.
  * @throws Error when an attribute that must change cannot be located; never returns it ungated.
