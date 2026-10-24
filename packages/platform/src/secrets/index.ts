@@ -1,6 +1,8 @@
 export type { SealedSecret } from "./types.js";
 export type { KeyringPort, SecretSealerPort } from "./ports.js";
 export { AesGcmSecretSealer } from "./secret-sealer.aesgcm.js";
+export { sealWithPassphrase, openWithPassphrase } from "./passphrase-envelope.js";
+export type { PassphraseEnvelopeOptions } from "./passphrase-envelope.js";
 export { EnvOrFileKeyring } from "./keyring.env.js";
 export type { EnvOrFileKeyringRequired, EnvOrFileKeyringOptions } from "./keyring.env.js";
 
