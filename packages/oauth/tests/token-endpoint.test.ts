@@ -314,6 +314,25 @@ for (const input of invalidGrantInputs) {
 }
 
 describe('exchangeOAuthAuthorizationCode / refreshAccessToken', () => {
+  it.each([
+    { resource: undefined },
+    { resource: 'https://api.example.com/path/?audience=a%2Fb' },
+    { resource: ['https://api.example.com/one/', 'https://api.example.com/two?audience=a%2Fb'] },
+  ])('preserves optional refresh resource indicators exactly: $resource', async ({ resource }) => {
+    const http = createFetchDouble([{ json: { token_type: 'Bearer', access_token: 'at-refreshed' } }]);
+    const result = await refreshAccessToken({
+      ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
+      tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, refreshToken: 'rt-original',
+    }, resource === undefined ? {} : { resource });
+    const body = http.requests[0]!.body;
+    expect(body.getAll('resource')).toEqual(resource === undefined ? [] : [resource].flat());
+    expect(body.get('grant_type')).toBe('refresh_token');
+    expect(body.get('refresh_token')).toBe('rt-original');
+    expect(result.accessToken).toBe('at-refreshed');
+    expect(result.refreshToken).toBe('rt-original');
+    expect(http.callCount()).toBe(1);
+  });
+
   // PARITY: the vector survives the shared parser; typed errors replace the unsafe echoed-body error.
   it('exchanges a code for a token via the correct grant_type and body', async () => {
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ access_token: 'at-1', token_type: 'Bearer', expires_in: 3600 }));
