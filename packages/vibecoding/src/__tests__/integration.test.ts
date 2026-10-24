@@ -25,10 +25,11 @@ describe('package integration', () => {
     expect(manifest.jini.entries).toEqual({
       '.': 'universal', './core': 'universal', './html': 'universal',
       './html/node': 'node', './react': 'browser',
+      './session': 'universal', './node': 'node',
     });
     expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
     for (const [entry, conditions] of Object.entries(manifest.exports)) {
-      const stem = entry === '.' ? 'index' : `${entry.slice(2)}/index`;
+      const stem = entry === '.' ? 'index' : entry === './session' ? 'session' : `${entry.slice(2)}/index`;
       expect(conditions).toEqual({
         types: `./dist/${stem}.d.ts`, import: `./dist/${stem}.js`, default: `./dist/${stem}.js`,
       });
