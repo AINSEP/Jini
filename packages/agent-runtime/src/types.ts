@@ -81,6 +81,14 @@ export type RuntimeReasoningInModelId = {
 };
 
 export type RuntimeBuildOptions = {
+  /** Host folder boundary, independent of native grants; unsupported providers disclose the exception. */
+  filesystemRoot?: string;
+  /** Executor-created private temporary directory inside the host root; never a shared temp root. */
+  filesystemTempDir?: string;
+  /** Shared host/login temp roots denied even when child TMPDIR is replaced. */
+  filesystemSharedTempRoots?: readonly string[];
+  /** Executor-resolved CLI/runtime files; read-only exceptions for sandboxed commands. */
+  filesystemRuntimeReadPaths?: readonly string[];
   /** Host-verified per-run overrides; false dimensions must be enforced or launch refused. */
   nativeCapabilities?: Partial<import('./native-tool-policy.js').NativeCapabilities>;
   /** Explicit host grant for shell/direct edits. false must be enforced or launch refused.

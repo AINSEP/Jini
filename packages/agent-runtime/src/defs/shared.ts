@@ -16,6 +16,13 @@ import type { RuntimeContext, RuntimeModelOption } from '../types.js';
 
 export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
 
+type ClaudeMcpOptions = { filesystemRoot?: string; cliParity?: boolean; permissionMode?: string; nativeToolAccess?: boolean; nativeCapabilities?: { userMcp?: boolean } };
+
+/** User MCP inheritance requires the explicit MCP grant or legacy trusted bypass, without a tool lock. */
+function trustedMcpBypass({ options, userMcpLocked }: { options: ClaudeMcpOptions; userMcpLocked: boolean }, _optional = {}): boolean {
+  return (options.nativeCapabilities?.userMcp === true || Boolean(options.cliParity) && options.permissionMode === 'bypass') && !userMcpLocked;
+}
+
 /**
  * The argv every `externalMcpInjection: 'claude-mcp-json'` def appends so the caller-staged
  * `.mcp.json` is loaded *explicitly* rather than auto-discovered from cwd.
@@ -41,18 +48,26 @@ export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
  * it is present only when the caller is actually staging that file for this run (see
  * `RuntimeContext.mcpJsonPath`'s own doc), so an unconfigured host gets `[]` and no argv change.
  * Trusted bypass parity omits strict isolation so user MCP/Chrome settings remain available.
+ * Owner 2026-10-23: filesystemRoot keeps the explicit personal-MCP opt-in; those servers are
+ * outside the folder boundary. OFF still stays strict (the default grant).
  * Explicit --mcp-config still avoids a headless trust prompt. A locked run without a staged
  * config gets --strict-mcp-config alone, exposing no auto-discovered MCP servers.
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options: { cliParity?: boolean; permissionMode?: string; nativeToolAccess?: boolean; nativeCapabilities?: { userMcp?: boolean } } = {}): string[] {
+export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options: ClaudeMcpOptions = {}): string[] {
   const mcpJsonPath = runtimeContext.mcpJsonPath;
-  const userMcpLocked = options.nativeToolAccess === false || options.nativeCapabilities?.userMcp === false;
+  const userMcpLocked = claudeUserMcpLocked({ options }, {});
   if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return userMcpLocked ? ['--strict-mcp-config'] : [];
-  // Explicit config still avoids headless trust prompts. Only a trusted bypass run inherits MCP.
-  const trustedBypass = Boolean(options.cliParity) && options.permissionMode === 'bypass' && !userMcpLocked;
+  // Explicit config still avoids headless trust prompts. An explicit MCP grant or trusted legacy bypass run inherits MCP.
+  const trustedBypass = trustedMcpBypass({ options, userMcpLocked }, {});
   return [...(trustedBypass ? [] : ['--strict-mcp-config']), '--mcp-config', mcpJsonPath];
+}
+
+/** Keep site MCP off by default; an explicit ON grant retains the owner's servers. Pure, O(1). */
+function claudeUserMcpLocked({ options }: { options: ClaudeMcpOptions }, _optional = {}): boolean {
+  return options.nativeToolAccess === false || options.nativeCapabilities?.userMcp === false ||
+    (options.filesystemRoot !== undefined && options.nativeCapabilities?.userMcp !== true);
 }
 
 /** Model-id prefixes of the late gpt-5.x family, which rejects `minimal` effort. */

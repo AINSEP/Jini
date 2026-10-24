@@ -17,6 +17,7 @@ import type {
    AgentRuntimeState,
    applyAgentLaunchEnv,
    ensureAgentCapabilities,
+   assertClaudeFilesystemSupport,
    resolveModelForLaunch,
    getAgentDef,
    resolveAgentLaunch,
@@ -130,6 +131,8 @@ export type AgentRuntimeEventTranslation =
 
 /** Machine-readable failure reasons `run()` can reject with — every one is preceded by a `lifecycle.finish({status:'failed'})` call (see index.ts module doc's Invariant section). */
 export type AgentExecutorErrorCode =
+  | 'FILESYSTEM_POLICY_UNSUPPORTED'
+  | 'FILESYSTEM_POLICY_INVALID'
   | 'NATIVE_TOOL_POLICY_UNSUPPORTED'
   | 'AGENT_MODEL_UNRESOLVED'
   | 'AGENT_PERMISSION_MODE_INVALID'
@@ -151,6 +154,8 @@ export class AgentExecutorError extends Error {
 }
 
 export interface AgentExecutorRunInput {
+  /** Host-selected mandatory filesystem boundary; no user grant may widen it. */
+  readonly filesystemRoot?: string;
   readonly runId: string;
   readonly agentId: string;
   readonly prompt: string;
@@ -253,7 +258,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
   /**
    * Delivers a message the human sent while `runId` is going straight into its live agent process
    * (see {@link UserMessageDelivery} for each outcome). A stream-json agent is interrupted first and
@@ -629,6 +634,8 @@ export interface CreateAgentExecutorOptions {
   readonly resolveAgentLaunch?: typeof resolveAgentLaunch;
   /** @default the real `@jini-ai/agent-runtime` once-per-binary `--help` capability probe */
   readonly ensureAgentCapabilities?: typeof ensureAgentCapabilities;
+  /** Bounded version/enforcement probe; replaceable for offline host tests. */
+  readonly assertClaudeFilesystemSupport?: typeof assertClaudeFilesystemSupport;
   /** @default the real `@jini-ai/agent-runtime` PATH-env composer */
   readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
   /** @default the real `@jini-ai/platform` cross-platform invocation builder */

@@ -12,6 +12,7 @@
 // Core contract and diagnostic types.
 export * from './types.js';
 export * from './native-tool-policy.js';
+export * from './claude-filesystem-policy.js';
 
 // Generic supporting modules.
 export * from './paths.js';
