@@ -10,9 +10,9 @@ describe('consent decisions', () => {
       functionality_storage: string; personalization_storage: string; security_storage: string;
     }>();
   });
-  it('uses opt-in for unknown/EU/UK and opt-out only for California; explicit modes win', () => {
-    for (const region of [null, 'DE', 'GB', 'EU', 'US', 'CA', 'attacker']) expect(resolveConsentRegion({ configuredMode: 'auto', region })).toBe('opt-in');
-    expect(resolveConsentRegion({ configuredMode: 'auto', region: ' us-ca ' })).toBe('opt-out');
+  it('uses opt-in for unknown/EU/UK and opt-out for all US regions; explicit modes win', () => {
+    for (const region of [null, 'DE', 'GB', 'EU', 'CA', 'USA', 'attacker']) expect(resolveConsentRegion({ configuredMode: 'auto', region })).toBe('opt-in');
+    for (const region of ['US', ' us-ca ', 'US-TX', 'us-va']) expect(resolveConsentRegion({ configuredMode: 'auto', region })).toBe('opt-out');
     expect(resolveConsentRegion({ configuredMode: 'opt-in', region: 'US-CA' })).toBe('opt-in');
     expect(resolveConsentRegion({ configuredMode: 'opt-out', region: 'DE' })).toBe('opt-out');
     expect(resolveConsentChoices({ gpc: false })).toEqual(DENIED_CHOICES);
@@ -22,6 +22,11 @@ describe('consent decisions', () => {
   it('GPC denies analytics/marketing over a previous accept without mutating evidence', () => {
     expect(resolveConsentChoices({ choices: accepted.choices, gpc: true })).toEqual({ necessary: true, functional: true, analytics: false, marketing: false });
     expect(accepted.choices.marketing).toBe(true);
+    for (const region of ['US-TX', 'EU']) {
+      const regionMode = resolveConsentRegion({ configuredMode: 'auto', region });
+      const choices = resolveConsentChoices({ gpc: true, regionMode });
+      expect(choices.analytics).toBe(false); expect(choices.marketing).toBe(false);
+    }
   });
   it('reads valid proof and rejects policy races, future/expired evidence and malformed categories', () => {
     const input = { value: accepted, policyVersion: '1', nowMs: Date.parse(now) };

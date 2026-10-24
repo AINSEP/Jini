@@ -1,4 +1,5 @@
 /** Relative resources belong to the host. A base element is removed before delivery.
+ * No request origin reaches this boundary, so absolute URLs remain conservatively external.
  * @complexity O(URL length). Unknown schemes and protocol-relative URLs are external. */
 export function external({ url }: { url: string }, _options = {}): boolean {
   // Browsers normalize backslashes and embedded ASCII URL whitespace before fetching.

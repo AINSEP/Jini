@@ -327,10 +327,13 @@ describe('choice and delivery boundaries', () => {
   });
   it('passes request nonces, manifest scripts and theme origins to the gate', async () => {
     const seen: string[] = [];
-    const dynamic = await site({ register: { nonce: ({ request }) => { seen.push(request.path); return 'n-1'; }, necessaryScripts: [{ src: 'https://tags.example/a.js' }], resourceOrigins: ['https://theme.example'], categoryOrigins: { analytics: ['https://collect.example'] } } });
+    const register = { nonce: ({ request }: { request: { path: string } }) => { seen.push(request.path); return 'n-1'; }, necessaryScripts: [{ src: 'https://tags.example/a.js' }], resourceOrigins: ['https://theme.example'], categoryOrigins: { analytics: ['https://collect.example'] } };
+    const dynamic = await site({ register, pageHtml: '<html><head></head><body><script src="https://tags.example/a.js"></script></body></html>' });
     const html = await (await fetch(dynamic.base)).text();
     expect(seen).toEqual(['/']); expect(html).toContain('nonce="n-1"'); expect(html).toContain('https://theme.example'); expect(html).toContain('https://collect.example');
     expect(html).not.toContain('<template data-jini-consent-script');
+    // An explicit optional label in the page wins over the host exception.
+    expect(await (await fetch((await site({ register })).base)).text()).toContain('<template data-jini-consent-script');
     const fixed = await site({ register: { nonce: 'n-2' } });
     expect(await (await fetch(fixed.base)).text()).toContain('nonce="n-2"');
   });
