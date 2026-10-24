@@ -11,7 +11,7 @@ import { adaptLegacyAuthorize } from "../tool-permissions.js";
 import type { LegacyToolAuthorizeFn as AuthorizeFn } from "../tool-permissions.js";
 import { agentWriteRules, buildSettingsValueWriteHandler, toWriteDeps, type SettingsWriteConfirmation } from "./agent-value-write-tools.js";
 import { findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
-import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, requireString, withSchemaOnRejection, type DerivedRiskByToolId } from "../registration-kit.js";
+import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireString, withSchemaOnRejection, type DerivedRiskByToolId } from "../registration-kit.js";
 import type { AgentToolSideEffect } from "../agent-tools.js";
 import { ToolInputError, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "../tool-registry.js";
 import { requireToolPermission } from "../tool-permissions.js";
@@ -206,7 +206,9 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
     settings_set_value: buildSettingsValueWriteHandler(routeDeps, "settings_set_value"),
     settings_clear_value: buildSettingsValueWriteHandler(routeDeps, "settings_clear_value"),
     settings_list_definitions: async (ctx) => {
-      requireNoInput({ input: ctx.input });
+      const input = requireInputRecord({ input: ctx.input === undefined ? {} : ctx.input });
+      const search = optionalString({ input, key: "search" })?.toLowerCase();
+      const namespace = optionalString({ input, key: "namespace" });
       await routeDeps.settingsReady;
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "settings.read.definitions" }, { entityType: "setting-definition" });
 
@@ -215,8 +217,12 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
         routeDeps.settingsRepo.listActiveDefinitions({ workspaceId: routeDeps.workspaceId }),
       ]);
 
+      // Filter only authorized workspace rows, before alias lookups; never search stored values.
+      const definitions = [...platformDefs, ...siteDefs]
+        .filter((def) => namespace === undefined || def.namespace === namespace)
+        .filter((def) => !search || `${def.namespace}.${def.key}`.toLowerCase().includes(search));
       const rules = agentWriteRules(routeDeps);
-      const data = (await Promise.all([...platformDefs, ...siteDefs].map((def) => describeDefinitionForAgent(routeDeps, rules, def))))
+      const data = (await Promise.all(definitions.map((def) => describeDefinitionForAgent(routeDeps, rules, def))))
         .sort((a, b) => a.namespace.localeCompare(b.namespace) || a.key.localeCompare(b.key));
 
       return { data };

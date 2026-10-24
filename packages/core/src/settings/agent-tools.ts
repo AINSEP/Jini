@@ -54,13 +54,16 @@ import { AGENT_WRITABLE_PREFERENCE_IDS, AGENT_WRITABLE_PREFERENCES } from "./age
    * write entries this file documents but never wires (see file header) carry no schema at all,
    * since one is never published for a tool the model never sees.
    *
- * No arguments — `settings_list_definitions` takes none; it always enumerates the caller's own
- * (boot-wired) workspace's site-owned partition plus the shared platform partition. */
-const NO_INPUT_SCHEMA = {
+ * Optional filters narrow the caller's own (boot-wired) workspace's site-owned partition plus
+ * the shared platform partition; they never select a different workspace. */
+const LIST_DEFINITIONS_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: [],
-  properties: {},
+  properties: {
+    search: { type: "string", description: "Case-insensitive text filter over the full 'namespace.key' name." },
+    namespace: { type: "string", description: "Only definitions in this exact namespace." },
+  },
 } as const;
 
 /** Shared by `settings_get_effective`/`settings_get_raw`: naming a DIFFERENT principal than the
@@ -155,10 +158,10 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
     {
       name: "settings_list_definitions",
       description:
-        "Lists every active setting definition visible to this workspace (platform core/theme definitions plus this workspace's own site-owned definitions): namespace, key, owner kind, scope bitmask, status, version, schema, agentWritable and confirmationRequired. Use before writing a setting. Metadata only — never a value.",
+        "Lists active setting definitions visible to this workspace (platform core/theme definitions plus this workspace's own site-owned definitions), optionally filtered by search text and exact namespace: namespace, key, owner kind, scope bitmask, status, version, schema, agentWritable and confirmationRequired. Use before writing a setting. Metadata only — never a value.",
       sideEffects: "none",
       authorization: { permission: "settings.read.definitions" },
-      inputSchema: NO_INPUT_SCHEMA,
+      inputSchema: LIST_DEFINITIONS_SCHEMA,
     },
     {
       name: "settings_get_effective",

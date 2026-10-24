@@ -1,5 +1,7 @@
 import { discovery, None, allowInsecureRequests, customFetch } from 'openid-client';
 import { resourceDiscoveryRequest, processResourceDiscoveryResponse,
+    // @ts-expect-error Upstream exports its skip-check sentinel at runtime but omits its public type.
+    _nodiscoverycheck,
     customFetch as resourceCustomFetch, allowInsecureRequests as allowInsecureResourceRequests } from 'oauth4webapi';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 import { MAX_OAUTH_RESPONSE_BYTES, readOptionalString, readStringArray } from './bounded-json.js';
@@ -25,6 +27,8 @@ export interface DiscoveredAuthorizationServer {
 export interface DiscoveredOAuthConfiguration {
     readonly server: DiscoveredAuthorizationServer;
     readonly resourceScopes: readonly string[];
+    /** Pass to grant APIs as the RFC 8707 resource; absent when no resource metadata was found. */
+    readonly resource?: string | undefined;
 }
 export interface DiscoverAuthorizationServerInput {
     readonly resourceUrl: string;
@@ -79,7 +83,8 @@ async function fetchMetadataDocument({ deps, candidate, timeoutMs }: {
                 [allowInsecureResourceRequests]: resource.protocol === 'http:',
                 [resourceCustomFetch]: (_url, options) => fetch(candidate.href, options),
             });
-            return { ...await processResourceDiscoveryResponse(resource, response) };
+            // MCP permits an origin/path-prefix identifier; discovery validates that binding below.
+            return { ...await processResourceDiscoveryResponse(_nodiscoverycheck, response) };
         }
         const config = await discovery(candidate, 'jini-metadata-reader', {}, None(), {
             timeout: Math.ceil(timeoutMs / 1000), [customFetch]: fetch,
@@ -109,7 +114,30 @@ function readDiscoveredEndpoint(document: Record<string, unknown>, key: string, 
     return endpoint;
 }
 function isTerminalDiscoveryFailure(error: unknown): error is OAuthError {
-    return error instanceof OAuthError && (error.code === 'OAUTH_UNSAFE_ENDPOINT' || error.code === 'OAUTH_MALFORMED_RESPONSE');
+    return error instanceof OAuthError && (error.code === 'OAUTH_UNSAFE_ENDPOINT' || error.code === 'OAUTH_MALFORMED_RESPONSE'
+        || error.code === 'OAUTH_RESOURCE_MISMATCH');
+}
+
+/** Bind parsed metadata like MCP's checkResourceAllowed, including path-segment boundaries.
+ * Throws a typed failure without echoing provider data. No I/O; O(URL length) time/space.
+ */
+function assertResourceAllowed({ resource, advertisedResource }: { resource: URL; advertisedResource: string }): void {
+    let advertised: URL;
+    try { advertised = new URL(advertisedResource); }
+    catch {
+        throw new OAuthError({ code: 'OAUTH_MALFORMED_RESPONSE',
+            message: 'the protected resource metadata contains an invalid resource URL',
+            operatorAction: 'Check the resource URL published by this server.' });
+    }
+    const resourcePath = resource.pathname.endsWith('/') ? resource.pathname : `${resource.pathname}/`;
+    const advertisedPath = advertised.pathname.endsWith('/') ? advertised.pathname : `${advertised.pathname}/`;
+    // A bare string prefix would wrongly allow /api to stand for /api-other.
+    if (resource.origin !== advertised.origin || resource.pathname.length < advertised.pathname.length
+        || !resourcePath.startsWith(advertisedPath)) {
+        throw new OAuthError({ code: 'OAUTH_RESOURCE_MISMATCH',
+            message: 'the protected resource metadata names a different server or path',
+            operatorAction: 'Check that this connection uses the server URL covered by its OAuth metadata.' });
+    }
 }
 function noMetadataError(host: string): OAuthError {
     return new OAuthError({ code: 'OAUTH_INVALID_REQUEST',
@@ -155,7 +183,11 @@ export async function discoverProtectedResourceMetadata(requiredArgs: OAuthDisco
         try {
             const document = await fetchMetadataDocument({ deps: requiredArgs, candidate,
                 timeoutMs: optionalArgs.timeoutMs ?? DISCOVERY_TIMEOUT_MS }, { resource });
-            return { resource: readOptionalString(document.resource),
+            // Upstream already requires a non-empty resource string. Keep the advertised spelling
+            // for RFC 8707 instead of replacing the audience with the transport endpoint's path.
+            const advertisedResource = document.resource as string;
+            assertResourceAllowed({ resource, advertisedResource });
+            return { resource: advertisedResource,
                 authorizationServers: readStringArray(document.authorization_servers), scopesSupported: readStringArray(document.scopes_supported) };
         } catch (error) {
             if (isTerminalDiscoveryFailure(error)) throw error;
@@ -176,7 +208,7 @@ export async function discoverAuthorizationServer(requiredArgs: OAuthRequiredArg
     for (const issuer of issuers.length > 0 ? issuers : [resource.origin]) {
         try {
             const server = await fetchAuthorizationServerMetadata({ ...requiredArgs, issuer }, optionalArgs);
-            return { server, resourceScopes };
+            return { server, resourceScopes, resource: metadata?.resource ?? undefined };
         } catch (error) {
             if (isTerminalDiscoveryFailure(error)) throw error;
         }

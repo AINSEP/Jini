@@ -106,3 +106,63 @@ test("list_definitions marks a global-only definition as not agent-writable", as
   const { data } = await f.call("settings_list_definitions", {}) as { data: Array<{ agentWritable: boolean; confirmationRequired: boolean }> };
   assert.deepEqual(data.map((row) => [row.agentWritable, row.confirmationRequired]), [[false, false]]);
 });
+
+test("list_definitions advertises optional text and namespace filters", () => {
+  const f = fixture();
+  const schema = f.registrations.find((r) => r.descriptor.id === "settings_list_definitions")!.descriptor.inputSchema as Record<string, unknown>;
+  const properties = schema.properties as Record<string, { type: string }>;
+  assert.deepEqual(schema.required, []);
+  assert.equal(schema.additionalProperties, false);
+  assert.equal(properties.search?.type, "string");
+  assert.equal(properties.namespace?.type, "string");
+});
+
+for (const [search, expectedKeys] of [
+  ["TIME", ["timezone"]], ["MAIL", ["sender"]], ["presentation.LOC", ["locale"]],
+  ["no match", []], ["", ["sender", "locale", "timezone"]],
+] as const) {
+  test(`list_definitions searches the full namespace.key name case-insensitively: '${search}'`, async () => {
+    const f = fixture([
+      definition(),
+      definition({ settingId: "s2", key: "locale" }),
+      definition({ settingId: "s3", namespace: "core.mail", key: "sender" }),
+    ]);
+    const { data } = await f.call("settings_list_definitions", { search }) as { data: Array<{ key: string }> };
+    assert.deepEqual(data.map((row) => row.key), expectedKeys);
+    assert.deepEqual(f.authorizeCalls.map((call) => (call as { permission: string }).permission), ["settings.read.definitions"]);
+  });
+}
+
+test("list_definitions combines exact namespace and search without crossing workspace boundaries", async () => {
+  const f = fixture([
+    definition(),
+    definition({ settingId: "s2", namespace: "site.mail", key: "sender", ownerKind: "site", workspaceId: "ws-1" }),
+    definition({ settingId: "s3", namespace: "site.mail", key: "sender", ownerKind: "site", workspaceId: "ws-2" }),
+    definition({ settingId: "s4", namespace: "site.mailer", key: "sender" }),
+  ]);
+  const keys = async (input: Record<string, unknown>) => {
+    const { data } = await f.call("settings_list_definitions", input) as { data: Array<{ namespace: string; key: string }> };
+    return data.map((row) => `${row.namespace}.${row.key}`);
+  };
+  assert.deepEqual(await keys({}), ["core.presentation.timezone", "site.mail.sender", "site.mailer.sender"]);
+  assert.deepEqual(await keys({ namespace: "site.mail" }), ["site.mail.sender"]);
+  assert.deepEqual(await keys({ namespace: "site.mail", search: "SEND" }), ["site.mail.sender"]);
+  assert.deepEqual(await keys({ namespace: "site.mail", search: "timezone" }), []);
+  assert.deepEqual(await keys({ namespace: "SITE.MAIL" }), []);
+});
+
+for (const key of ["search", "namespace"]) {
+  test(`list_definitions refuses a non-string ${key}`, async () => {
+    const f = fixture();
+    await assert.rejects(() => f.call("settings_list_definitions", { [key]: 5 }), {
+      name: "ToolInputError", message: `'${key}' must be a string`,
+    });
+  });
+}
+
+test("list_definitions checks permission before searching definitions", async () => {
+  const f = fixture(undefined, { authorize: async () => ({ allowed: false, reason: "no_grant" }) });
+  const read = vi.spyOn(f.settingsRepo, "listActiveDefinitions");
+  await assert.rejects(() => f.call("settings_list_definitions", { search: "time" }), { constructor: ForbiddenError });
+  assert.equal(read.mock.calls.length, 0);
+});
