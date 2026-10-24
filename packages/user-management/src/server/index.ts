@@ -19,6 +19,7 @@ export {
 export { parseIdentityToolInput, type IdentityToolInputResult } from "./agent-tool-input.js";
 
 export * from "./session-tokens.js";
+export * from "./auth-challenge.js";
 
 export { buildIdentityRegistrations, identityDerivedRisk, type IdentityToolDeps } from "./agent-tool-registrations.js";
 
