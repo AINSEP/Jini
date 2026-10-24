@@ -113,6 +113,11 @@
       "import": "./dist/recovery/index.js",
       "default": "./dist/recovery/index.js"
     },
+    "./owner-store": {
+      "types": "./dist/owner-store/index.d.ts",
+      "import": "./dist/owner-store/index.js",
+      "default": "./dist/owner-store/index.js"
+    },
     "./secrets-vault": {
       "types": "./dist/secrets-vault/index.d.ts",
       "import": "./dist/secrets-vault/index.js",
@@ -168,6 +173,9 @@
       ],
       "recovery": [
         "./dist/recovery/index.d.ts"
+      ],
+      "owner-store": [
+        "./dist/owner-store/index.d.ts"
       ],
       "secrets-vault": [
         "./dist/secrets-vault/index.d.ts"
