@@ -146,7 +146,7 @@ async function gatedBody({ body, request, response, ports, config, failed }: { b
     if (encoding && encoding !== 'identity') throw new Error('Consent requires uncompressed HTML. Mount consent before compression and retry this page.');
     const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config }, { cookieName: options.cookieName ?? DEFAULT_CONSENT_COOKIE_NAME });
     const regionMode = failed || receipt.failed ? 'opt-in' : resolveConsentRegion({ configuredMode: config.regionMode, region: ports.region({ request }) });
-    return Buffer.from(gateConsentHtml({ html: body.toString('utf8'), config, record: receipt.record, regionMode, gpc: request.get('sec-gpc') === '1', endpoint: options.endpoint }, gateOptions({ request, response }, options)));
+    return Buffer.from(gateConsentHtml({ html: body.toString('utf8'), config, record: receipt.record, regionMode, gpc: request.get('sec-gpc') === '1', endpoint: options.endpoint }, { ...gateOptions({ request, response }, options), pageOrigin: ports.origin({ request }) }));
   } catch (error) {
     ports.reportError({ operation: 'read', error });
     // Fetch CSP cannot block meta refresh or first-party pixels, so never return failed HTML.

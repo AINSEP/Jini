@@ -39,7 +39,7 @@ describe('delivered HTML consent boundary', () => {
   it('leaves disabled HTML byte-identical and safely gates every optional/unknown script', () => {
     expect(gateConsentHtml({ html: page, config: { ...config, enabled: false }, record: null, gpc: false, regionMode: 'opt-out', endpoint: '/api/site-consent' })).toBe(page);
     const html = gate();
-    expect(html).not.toContain('rel="preload"'); expect(html).not.toContain('rel="modulepreload"'); expect(html).not.toContain('rel="preconnect"');
+    expect(html).not.toContain('rel="preload"'); expect(html).toContain('<link rel="modulepreload" href="/module.js">'); expect(html).not.toContain('rel="preconnect"');
     expect(html).toContain('<template data-jini-consent-script data-category="analytics"><script data-consent-category="analytics" src="https://tags.example/track.js">');
     expect(html).toContain('data-category="blocked"');
     expect(html).toContain('<style>p{color:red}</style>');
@@ -919,4 +919,64 @@ it('dropdown and see-more scripts still initialize and respond after rejecting o
     expect(requested).toEqual(['/batch']); expect(document.querySelector('#next-item').textContent).toBe('Next');
     expect(document.querySelector('[data-jini-more]')).toBeNull(); expect(runtimeErrors).toEqual([]);
   } finally { dom.window.close(); }
+});
+
+
+describe('metadata and preload consent regressions', () => {
+  const transform = (html: string, options = {}) => gateConsentHtml({ html, config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
+
+  it.each(['', ' data-consent-category="marketing"'])('keeps metadata discoverable with label %s before any consent', label => {
+    const rels = ['canonical', 'alternate', 'icon', 'apple-touch-icon', 'manifest', 'author', 'license', 'next', 'prev'];
+    const links = rels.map(rel => `<link rel="${rel}" href="https://page.example/${rel}"${label}>`).join('');
+    const metadata = `${links}<meta property="og:url" content="https://page.example/"${label}><script type="application/ld+json"${label}>{"@type":"WebPage"}</script>`;
+    const dom = new JSDOM(transform(`<html><head>${metadata}</head><body></body></html>`, { pageOrigin: 'https://page.example' }));
+    try {
+      for (const rel of rels) expect(dom.window.document.head.querySelector(`link[rel="${rel}"]`).href).toBe(`https://page.example/${rel}`);
+      expect(dom.window.document.head.querySelector('meta[property="og:url"]').content).toBe('https://page.example/');
+      expect(dom.window.document.head.querySelector('script[type="application/ld+json"]').textContent).toBe('{"@type":"WebPage"}');
+      expect(dom.window.document.querySelector('template[data-jini-consent-resource],template[data-jini-consent-script]')).toBeNull();
+    } finally { dom.window.close(); }
+  });
+
+  it('keeps third-party canonical/alternate links but gates fetching metadata from untrusted origins', () => {
+    const fetching = ['icon', 'apple-touch-icon', 'manifest', 'next', 'prev', 'alternate icon'].map(rel => `<link rel="${rel}" href="https://tracker.example/${rel.replace(' ', '-')}">`).join('');
+    const html = transform(`<html><head><link rel="canonical" href="https://other.example/page"><link rel="alternate" hreflang="de" href="https://other.example/de">${fetching}<link rel="icon" href="https://cdn.example/icon.png"></head><body></body></html>`, { pageOrigin: 'https://page.example', resourceOrigins: ['https://cdn.example'] });
+    const dom = new JSDOM(html);
+    try {
+      const live = Array.from(dom.window.document.head.querySelectorAll(':scope > link'), (link: { getAttribute(name: string): string | null }) => link.getAttribute('href'));
+      expect(live).toEqual(['https://other.example/page', 'https://other.example/de', 'https://cdn.example/icon.png']);
+      expect(dom.window.document.querySelectorAll('template[data-jini-consent-resource][data-category="marketing"]')).toHaveLength(6);
+    } finally { dom.window.close(); }
+  });
+
+  it('removes preloads whose image candidates leave trusted origins', () => {
+    const html = transform('<link rel="preload" as="image" href="/hero.png" imagesrcset="/hero.png 1x, https://tracker.example/pixel.png 2x"><link rel="preload" as="image" href="/hero.png" imagesrcset="/hero.png 1x, /hero@2x.png 2x">', { pageOrigin: 'https://page.example' });
+    expect(html).not.toContain('tracker.example');
+    expect(html).toContain('imagesrcset="/hero.png 1x, /hero@2x.png 2x"');
+  });
+
+  it('strips executable metadata attributes while preserving the metadata elements', () => {
+    const dom = new JSDOM(transform('<html><head><link rel="canonical" href="java&#x09;script:alert(1)" onclick="track()"><meta name="description" content="Page" onload="track()" data-consent-category="analytics"><script type="application/ld+json" onerror="track()" data-consent-category="marketing">{}</script><meta http-equiv="refresh" content="0;url=https://tracker.example"></head><body></body></html>'));
+    try {
+      const document = dom.window.document;
+      expect(document.querySelector('link[rel="canonical"]').hasAttribute('href')).toBe(false);
+      expect(document.querySelector('meta[name="description"]').content).toBe('Page');
+      expect(document.querySelector('script[type="application/ld+json"]').textContent).toBe('{}');
+      expect(document.querySelector('[onclick],[onload],[onerror],[data-jini-consent-attributes],meta[http-equiv="refresh"]')).toBeNull();
+    } finally { dom.window.close(); }
+  });
+
+  it('keeps local, same-origin and host-trusted preloads while removing third-party hints', () => {
+    const hints = ['/font.woff2', 'https://page.example/font.woff2', '//page.example/module.js', 'https://cdn.example/font.woff2', 'https://tracker.example/pixel'].map(href => `<link rel="preload" as="font" href="${href}">`).join('');
+    const dom = new JSDOM(transform(`<html><head>${hints}<link rel="preconnect" href="https://tracker.example"></head><body></body></html>`, { pageOrigin: 'https://page.example', resourceOrigins: ['https://cdn.example'] }));
+    try {
+      expect(Array.from(dom.window.document.querySelectorAll('link'), (link: { getAttribute(name: string): string | null }) => link.getAttribute('href'))).toEqual(['/font.woff2', 'https://page.example/font.woff2', '//page.example/module.js', 'https://cdn.example/font.woff2']);
+      expect(dom.window.document.querySelector('template[data-jini-consent-resource]')).toBeNull();
+    } finally { dom.window.close(); }
+  });
+
+  it('keeps absolute preloads untrusted without host origin evidence', () => {
+    const html = transform('<link rel="preload" href="https://page.example/font.woff2">');
+    expect(html).not.toContain('href="https://page.example/font.woff2"');
+  });
 });
