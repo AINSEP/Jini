@@ -28,6 +28,9 @@ describe("findRegions — well-formed input", () => {
     expect(regions).toHaveLength(2);
     expect(regions[0]).toEqual({
       handle: "hero",
+      tag: "section",
+      start: 0,
+      end: html.indexOf("</section>") + "</section>".length,
       role: "region",
       label: "Hero",
       innerStart: html.indexOf("OLD HERO"),
@@ -35,6 +38,9 @@ describe("findRegions — well-formed input", () => {
     });
     expect(regions[1]).toEqual({
       handle: "pricing",
+      tag: "section",
+      start: html.indexOf('<section data-agent-element="pricing"'),
+      end: html.length,
       role: "region",
       innerStart: html.indexOf("OLD PRICING"),
       innerEnd: html.indexOf("OLD PRICING") + "OLD PRICING".length,

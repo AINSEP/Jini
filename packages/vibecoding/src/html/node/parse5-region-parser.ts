@@ -45,10 +45,11 @@
  * source text's occurrence count against what the tree walk actually found, independent of
  * parse5's own error stream.
  *
- * Both mechanisms are handled uniformly: `findRegions` throws (never returns a silently-shortened
- * list), and `checkWellFormed` reports the same problem through the port's ordinary rejection
- * channel so `regions.ts`'s `validate` can surface it as a model-facing reason before `findRegions`
- * is ever reached a second time for the same prospective document.
+ * `scanHtmlRegions` retains every tree-discovered handle, recording unsafe boundaries on that
+ * region and dropped-source handles as a document diagnostic. Reads can still inspect the page
+ * and edit another safely delimited region. The strict `findRegions` throws on either problem
+ * (never returns a silently-shortened list), and `checkWellFormed` reports the same problem through
+ * the port's ordinary rejection channel so `regions.ts`'s `validate` can surface it before writing.
  *
  * ## `checkWellFormed` is a courtesy diagnostic, not the safety mechanism
  *
@@ -62,6 +63,8 @@
  * See docs/decisions/DR-001-conservative-region-detection.md.
  */
 import { defaultTreeAdapter, html, parseFragment, type DefaultTreeAdapterTypes, type ParserError } from "parse5";
+
+import type { HtmlRegionScan, HtmlTopLevelElement, ScannedRegion } from "../edit.js";
 
 import { AGENT_ELEMENT_ATTRIBUTE, isValidRegionHandle, type HtmlRegionParser, type ParsedRegion } from "../regions.js";
 
@@ -97,11 +100,9 @@ const VOID_ELEMENTS = new Set([
 /** Matches `data-agent-element` as an attribute *name* only — deliberately not the value or its
  * quoting style, so it survives single-quoted, double-quoted and unquoted attribute forms alike.
  *
- * This is a plain substring/regex scan of the raw source, the same cost/precision tradeoff
- * `withFormGuardrail` ( Decision 8) makes for its own guardrail: a comment or script-text
- * mention of the attribute name can inflate the count and cause an over-eager rejection, but that
- * false positive is a safe failure mode (the model is asked to retry), whereas the false negative
- * this check exists to catch — a genuinely dropped region — is not.
+ * This remains a conservative source cross-check for genuinely dropped regions. Comments and
+ * raw-text bodies are blanked using parse5 locations first: a script building a handle string
+ * is not a region. Treating those examples as failures would break otherwise valid page reads.
  * See docs/decisions/DR-001-conservative-region-detection.md.
  */
 const RAW_HANDLE_ATTRIBUTE_RE = new RegExp(`\\b${AGENT_ELEMENT_ATTRIBUTE}\\s*=`, "gi");
@@ -110,12 +111,32 @@ function attributeValue(element: Parse5Element, name: string): string | undefine
   return element.attrs.find((a) => a.name === name)?.value;
 }
 
-/** Yields every element node in the tree, in document order, recursing into `<template>` content. */
-function* walkElements(node: Parse5Node): Generator<Parse5Element> {
-  if ("tagName" in node) yield node;
-  const children = "content" in node ? node.content.childNodes : "childNodes" in node ? node.childNodes : undefined;
-  if (children === undefined) return;
-  for (const child of children) yield* walkElements(child);
+/** Visit all nodes, including comments/raw text and nested template contents. */
+function* walkNodes(root: Parse5Node): Generator<Parse5Node> {
+  const pending = [root];
+  // An explicit stack avoids overflowing the JS call stack on deeply nested author markup.
+  while (pending.length > 0) {
+    const node = pending.pop() as Parse5Node; // Nonempty stack on this branch.
+    yield node;
+    const children = "content" in node ? node.content.childNodes : "childNodes" in node ? node.childNodes : undefined;
+    if (children === undefined) continue;
+    for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index] as Parse5Node);
+  }
+}
+
+// RCDATA bodies also contain literal text rather than child markup. Keep their source examples
+// out of the dropped-region check just like raw-text bodies; opening-tag attributes still count.
+// `noscript` is raw text too: parse5 parses with scripting enabled, as a browser running the page does.
+const TEXT_BODY_ELEMENTS = new Set([
+  "script", "style", "xmp", "iframe", "noembed", "noframes", "noscript", "plaintext", "textarea", "title",
+]);
+
+/** Whether a located node is a comment or the literal text body of a raw-text/RCDATA element. */
+function isNonMarkup(node: Parse5Node): boolean {
+  if (node.nodeName === "#comment") return true;
+  if (node.nodeName !== "#text" || !("parentNode" in node)) return false;
+  const parent = node.parentNode;
+  return parent !== null && "tagName" in parent && TEXT_BODY_ELEMENTS.has(parent.tagName);
 }
 
 /** A parse-error entry, phrased for the model rather than left as parse5's bare kebab-case code. */
@@ -123,57 +144,118 @@ function describeParseError(error: ParserError): string {
   return `${error.code.replace(/-/g, " ")} near character ${error.startOffset}`;
 }
 
-interface DocumentAnalysis {
-  readonly regions: readonly ParsedRegion[];
-  /** Set when a tagged element's boundaries could not be safely determined — see above. See docs/decisions/DR-001-conservative-region-detection.md. */
-  readonly locationProblem?: string;
-  readonly parseErrorReasons: readonly string[];
-}
-
-function analyzeRegion(
-  { element, handle }: { readonly element: Parse5Element; readonly handle: string },
-  _options: Record<string, never> = {},
-): { readonly region: ParsedRegion } | { readonly locationProblem: string } {
+/** Why a tagged element's boundaries are unsafe; optional closing tags are unsafe too. */
+function regionProblem(element: Parse5Element, handle: string): string | undefined {
   const location = element.sourceCodeLocation;
   if (location === null || location === undefined || location.startTag === undefined) {
-    return {
-      locationProblem:
-        `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") could not be located in the document — ` +
-        "the parser's error-recovery rules likely dropped or repositioned it. Rewrite the document " +
-        "so this element is reachable in ordinary document structure (for example, not a table-only " +
-        "tag used outside a <table>).",
-    };
+    return `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") could not be located in the document — ` +
+      "the parser's error-recovery rules likely dropped or repositioned it. Rewrite the document " +
+      "so this element is reachable in ordinary document structure (for example, not a table-only " +
+      "tag used outside a <table>).";
   }
   if (location.endTag === undefined) {
-    return {
-      locationProblem: VOID_ELEMENTS.has(element.tagName)
-        ? `"${handle}" tags a <${element.tagName}> element, which is void and has no inner content — ` +
-          `void elements cannot be a ${AGENT_ELEMENT_ATTRIBUTE} region`
-        : `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") has no closing tag the parser could ` +
-          "locate — its content boundaries cannot be determined safely. Close the tag explicitly.",
-    };
+    return VOID_ELEMENTS.has(element.tagName)
+      ? `"${handle}" tags a <${element.tagName}> element, which is void and has no inner content — ` +
+        `void elements cannot be a ${AGENT_ELEMENT_ATTRIBUTE} region`
+      : `a "${AGENT_ELEMENT_ATTRIBUTE}" region ("${handle}") has no closing tag the parser could ` +
+        "locate — its content boundaries cannot be determined safely. Close the tag explicitly.";
   }
+  return undefined;
+}
 
-  const role = attributeValue(element, "data-agent-role");
-  const label = attributeValue(element, "data-agent-label");
+/** Original-source offsets shared by region discovery and top-level tagging advice. */
+function sourceOffsets(element: Parse5Element): Pick<ScannedRegion, "start" | "end" | "innerStart" | "innerEnd"> {
+  const location = element.sourceCodeLocation;
+  if (!location?.startTag) return { start: -1, end: -1, innerStart: -1, innerEnd: -1 };
   return {
-    region: {
-      handle,
-      innerStart: location.startTag.endOffset,
-      innerEnd: location.endTag.startOffset,
-      ...(role === undefined ? {} : { role }),
-      ...(label === undefined ? {} : { label }),
-    },
+    start: location.startTag.startOffset,
+    end: location.endTag?.endOffset ?? location.endOffset,
+    innerStart: location.startTag.endOffset,
+    innerEnd: location.endTag?.startOffset ?? location.endOffset,
   };
 }
 
+/** Keep unsafe regions discoverable; sentinel offsets are never used by locateRegion for edits. */
+function analyzeRegion(element: Parse5Element, handle: string): ScannedRegion {
+  const role = attributeValue(element, "data-agent-role");
+  const label = attributeValue(element, "data-agent-label");
+  const problem = regionProblem(element, handle);
+  return {
+    handle,
+    tag: element.tagName,
+    ...sourceOffsets(element),
+    ...(role === undefined ? {} : { role }),
+    ...(label === undefined ? {} : { label }),
+    ...(problem === undefined ? {} : { problem }),
+  };
+}
+
+/** Direct fragment children in source order; implied closes suffice for tagging advice, not edits. */
+function topLevelElements(fragment: DefaultTreeAdapterTypes.DocumentFragment): HtmlTopLevelElement[] {
+  const elements: HtmlTopLevelElement[] = [];
+  for (const child of fragment.childNodes) {
+    if (!("tagName" in child)) continue;
+    const location = child.sourceCodeLocation;
+    if (!location?.startTag) continue; // Implicit wrappers have no authored open tag to annotate.
+    const handle = attributeValue(child, AGENT_ELEMENT_ATTRIBUTE);
+    elements.push({
+      tag: child.tagName,
+      ...(handle === undefined ? {} : { handle }),
+      ...sourceOffsets(child),
+    });
+  }
+  return elements.sort((a, b) => a.start - b.start);
+}
+
 /**
- * One parse pass, shared by `findRegions` and `checkWellFormed` so both methods judge the same
- * parse5 run rather than parsing the document twice with a chance of disagreeing.
- *
- * @complexity Linear in document size: one parse5 pass plus one tree walk plus one regex scan.
+ * Report each authored tag once. parse5 copies an unclosed or misnested formatting element's
+ * start-tag location onto every clone it reconstructs (`<p><b data-agent-element="x">a</p><p>b`
+ * yields two `b`s starting at the same offset), and a clone can even pick up a later `</b>` that
+ * does not delimit the authored element. Counting clones would make one handle "ambiguous", and an
+ * unrelated edit that adds text after it would then look like it newly duplicated that handle.
+ * Input must be sorted by `start`; the stable sort keeps the authored element (first in tree order).
  */
-function analyzeDocument(html_: string): DocumentAnalysis {
+function collapseClones(sorted: readonly ScannedRegion[]): ScannedRegion[] {
+  const out: ScannedRegion[] = [];
+  for (const region of sorted) {
+    const previous = out[out.length - 1];
+    if (previous === undefined || region.start < 0 || previous.start !== region.start) {
+      out.push(region);
+      continue;
+    }
+    out[out.length - 1] = {
+      ...previous,
+      problem: previous.problem ?? `"${region.handle}" tags an element the parser had to split while ` +
+        "recovering misnested or unclosed tags — its content boundaries cannot be determined safely. " +
+        "Close the tag explicitly, inside the element that contains it.",
+    };
+  }
+  return out;
+}
+
+/** Cross-check only markup-bearing source; recovered/dropped tokens may have no tree node. */
+function droppedRegionProblem(masked: string, regionCount: number): string | undefined {
+  const rawMentions = masked.match(RAW_HANDLE_ATTRIBUTE_RE)?.length ?? 0;
+  if (rawMentions <= regionCount) return undefined;
+  return `the source mentions ${AGENT_ELEMENT_ATTRIBUTE} ${rawMentions} time(s) but only ` +
+    `${regionCount} could be located in the parsed document — the parser's error-recovery ` +
+    "rules likely dropped one entirely (a common cause: a table-only tag, such as <td>, used " +
+    "outside a <table>). Rewrite the document so every tagged element sits in ordinary, " +
+    "non-table-recovery document structure.";
+}
+
+/**
+ * Scan once without throwing for malformed markup: unsafe regions carry their own problem, while
+ * unaccounted-for source handles produce documentProblem. Every offset indexes the untouched input.
+ * Comments/raw-text bodies are blanked by parse5's own locations before the raw-mention check.
+ * @example const scan = scanHtmlRegions({ html: '<section data-agent-element="hero">Hi</section>' });
+ * @complexity One parse and node walk, plus source-order sorting: O(n + r log r) for n source code
+ * units and r discovered elements. Masked ranges are disjoint, so blanking is linear in source size.
+ */
+export function scanHtmlRegions(
+  { html: html_ }: { readonly html: string },
+  _options: Record<string, never> = {},
+): HtmlRegionScan {
   const parseErrorReasons: string[] = [];
   /** Fresh `<div>` fragment-context element — see this module's doc for why `<div>`, not the default. */
   const context = defaultTreeAdapter.createElement("div", html.NS.HTML, []);
@@ -181,38 +263,29 @@ function analyzeDocument(html_: string): DocumentAnalysis {
     sourceCodeLocationInfo: true,
     onParseError: (error) => parseErrorReasons.push(describeParseError(error)),
   });
-
-  const regions: ParsedRegion[] = [];
-  let locationProblem: string | undefined;
-
-  for (const element of walkElements(fragment)) {
-    const handle = attributeValue(element, AGENT_ELEMENT_ATTRIBUTE);
-    if (handle === undefined || locationProblem !== undefined) continue; // Already failed; stop accumulating regions.
-
-    const analyzed = analyzeRegion({ element, handle });
-    if ("locationProblem" in analyzed) {
-      locationProblem = analyzed.locationProblem;
-      continue;
-    }
-
-    regions.push(analyzed.region);
+  const found: ScannedRegion[] = [];
+  // split("") preserves UTF-16 code units, including CRLF, BOM and astral-character offsets.
+  const masked = html_.split("");
+  for (const node of walkNodes(fragment)) {
+    const location = node.sourceCodeLocation;
+    if (isNonMarkup(node) && location) masked.fill(" ", location.startOffset, location.endOffset);
+    if (!("tagName" in node)) continue;
+    const handle = attributeValue(node, AGENT_ELEMENT_ATTRIBUTE);
+    if (handle !== undefined) found.push(analyzeRegion(node, handle));
   }
+  const regions = collapseClones(found.sort((a, b) => a.start - b.start));
+  const documentProblem = droppedRegionProblem(masked.join(""), regions.length);
+  return {
+    regions,
+    topLevel: topLevelElements(fragment),
+    parseErrorReasons,
+    ...(documentProblem === undefined ? {} : { documentProblem }),
+  };
+}
 
-  if (locationProblem === undefined) {
-    const rawMentions = html_.match(RAW_HANDLE_ATTRIBUTE_RE)?.length ?? 0;
-    if (rawMentions > regions.length) {
-      locationProblem =
-        `the source mentions ${AGENT_ELEMENT_ATTRIBUTE} ${rawMentions} time(s) but only ` +
-        `${regions.length} could be located in the parsed document — the parser's error-recovery ` +
-        "rules likely dropped one entirely (a common cause: a table-only tag, such as <td>, used " +
-        "outside a <table>). Rewrite the document so every tagged element sits in ordinary, " +
-        "non-table-recovery document structure.";
-    }
-  }
-
-  return locationProblem === undefined
-    ? { regions, parseErrorReasons }
-    : { regions, locationProblem, parseErrorReasons };
+/** Preserve strict rejection precedence: an unsafe discovered region before a dropped-source handle. */
+function locationProblem(scan: HtmlRegionScan): string | undefined {
+  return scan.regions.find((region) => region.problem !== undefined)?.problem ?? scan.documentProblem;
 }
 
 /**
@@ -221,19 +294,22 @@ function analyzeDocument(html_: string): DocumentAnalysis {
  *
  * @returns a parser ready to hand to `createHtmlRegionTarget`, with `checkWellFormed` always
  * present even though the generic parser port allows implementations to omit it.
- * @complexity 1 (delegates entirely to `analyzeDocument`)
+ * @complexity 1 (delegates to `scanHtmlRegions`)
  */
 export function createParse5RegionParser(): HtmlRegionParser & Required<Pick<HtmlRegionParser, "checkWellFormed">> {
   return {
     findRegions({ html: html_ }: { readonly html: string }): readonly ParsedRegion[] {
-      const { regions, locationProblem } = analyzeDocument(html_);
-      if (locationProblem !== undefined) throw new Error(locationProblem);
-      return regions;
+      const scan = scanHtmlRegions({ html: html_ });
+      const problem = locationProblem(scan);
+      if (problem !== undefined) throw new Error(problem);
+      return scan.regions;
     },
 
     checkWellFormed({ html: html_ }: { readonly html: string }): { readonly ok: true } | { readonly ok: false; readonly reason: string } {
-      const { locationProblem, parseErrorReasons } = analyzeDocument(html_);
-      if (locationProblem !== undefined) return { ok: false, reason: locationProblem };
+      const scan = scanHtmlRegions({ html: html_ });
+      const problem = locationProblem(scan);
+      if (problem !== undefined) return { ok: false, reason: problem };
+      const parseErrorReasons = scan.parseErrorReasons ?? [];
       if (parseErrorReasons.length > 0) {
         return { ok: false, reason: `the document does not parse cleanly: ${parseErrorReasons.join("; ")}` };
       }
