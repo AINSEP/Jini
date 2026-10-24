@@ -32,6 +32,8 @@ export interface ConsentConfig {
   rejectLabel: string;
   preferencesLabel: string;
   placement?: ConsentPlacement;
+  /** Default corner disclosure; link requires a host preferences link on every page. */
+  reopen?: 'corner' | 'link';
   secondaryLinkLabel?: string;
   secondaryLinkUrl?: string;
   appearance?: ConsentAppearanceTokens;

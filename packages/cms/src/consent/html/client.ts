@@ -187,7 +187,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
     var error = banner.querySelector('[data-jini-consent-error]');
     error.textContent = message;
     error.hidden = false;
-    if (open) banner.querySelectorAll('details').forEach(function (details) { details.open = true; });
+    if (open) openPreferences(banner);
   }
   function syncForm(banner) {
     categories.forEach(function (category) { banner.querySelector('[name=' + category + ']').checked = choices[category] === true; });
@@ -231,6 +231,27 @@ export const CONSENT_CLIENT = String.raw`(function () {
     writeWithdrawal(choices, retry, false);
     if (withdrawal.notice || retry) showError(banner, withdrawalMessage(retry), withdrawal.notice);
   }
+  function openPreferences(banner) {
+    if (banner.dataset.reopen === 'link') location.hash = 'jini-consent';
+    banner.querySelectorAll('details').forEach(function (details) { details.open = true; });
+  }
+  function reloadAfterChoice() {
+    // A saved choice must close a fragment-opened panel when the new page loads.
+    if (location.hash === '#jini-consent') history.replaceState(null, '', location.pathname + location.search);
+    window.location.reload();
+  }
+  // Delegation also supports footer controls inserted after the initial document load.
+  document.addEventListener('click', function (event) {
+    if (!(event.target instanceof Element)) return;
+    var control = event.target.closest('[data-jini-consent-open]');
+    if (!control) return;
+    var banner = document.getElementById('jini-consent');
+    if (!banner) return;
+    event.preventDefault();
+    openPreferences(banner);
+    // The first banner buttons are hidden once a choice exists; the category controls never are.
+    banner.querySelector('#jini-consent-preferences input:not([disabled])').focus();
+  });
   document.addEventListener('DOMContentLoaded', function () {
     var banner = document.getElementById('jini-consent');
     if (gpc) {
@@ -258,7 +279,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
           syncForm(banner);
           clearWithdrawal();
           signal('update', result.signals);
-          window.location.reload();
+          reloadAfterChoice();
         } catch (failure) {
           var next = restrict(choices, submittedChoices(form, event.submitter.value));
           if (categories.some(function (category) { return choices[category] && !next[category]; })) {

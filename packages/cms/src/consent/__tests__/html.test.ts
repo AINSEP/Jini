@@ -922,7 +922,7 @@ it('dropdown and see-more scripts still initialize and respond after rejecting o
 });
 
 
-describe('metadata and preload consent regressions', () => {
+describe('metadata, preload and host-link consent regressions', () => {
   const transform = (html: string, options = {}) => gateConsentHtml({ html, config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, options);
 
   it.each(['', ' data-consent-category="marketing"'])('keeps metadata discoverable with label %s before any consent', label => {
@@ -978,5 +978,65 @@ describe('metadata and preload consent regressions', () => {
   it('keeps absolute preloads untrusted without host origin evidence', () => {
     const html = transform('<link rel="preload" href="https://page.example/font.woff2">');
     expect(html).not.toContain('href="https://page.example/font.woff2"');
+  });
+
+  it('retains the default corner disclosure and first-visit choices in link mode', () => {
+    const render = (record: typeof accepted | null, reopen?: 'link') => renderConsentUi({ config: reopen ? { ...config, reopen } : config, record, regionMode: 'opt-in', gpc: false, endpoint: '/api/site-consent' });
+    expect(render(accepted)).toContain('<details class="jini-consent-manage">');
+    const dom = new JSDOM(render(null, 'link'));
+    try {
+      expect(dom.window.document.querySelector('#jini-consent').dataset.hasRecord).toBe('false');
+      expect(dom.window.document.querySelector('button[value="accept"]').textContent).toBe(config.acceptLabel);
+      expect(dom.window.document.querySelector('button[value="reject"]').textContent).toBe(config.rejectLabel);
+    } finally { dom.window.close(); }
+  });
+
+  it('hides the saved link-mode panel without JS and exposes it through the native fragment target', () => {
+    const html = gateConsentHtml({ html: '<html><head></head><body><footer><a data-jini-consent-open href="#jini-consent">Cookie preferences</a></footer></body></html>', config: { ...config, reopen: 'link' }, record: accepted, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+    const dom = new JSDOM(html, { url: 'https://site.example/' });
+    try {
+      const document = dom.window.document;
+      const banner = document.querySelector('#jini-consent');
+      expect(document.querySelector('[data-jini-consent-open]').getAttribute('href')).toBe('#jini-consent');
+      expect(document.querySelector('.jini-consent-pill')).toBeNull();
+      expect(dom.window.getComputedStyle(banner).display).toBe('none');
+      dom.window.location.hash = 'jini-consent';
+      expect(banner.matches(':target')).toBe(true);
+      expect(banner.matches('#jini-consent[data-has-record="true"][data-reopen="link"]:not(:target)')).toBe(false);
+      expect(document.querySelector('#jini-consent-preferences').open).toBe(true);
+      expect(document.querySelector('form').getAttribute('method')).toBe('post');
+      expect(document.querySelector('form').getAttribute('action')).toBe('/api/site-consent');
+    } finally { dom.window.close(); }
+  });
+
+  it('closes fragment-opened preferences after a durable choice', async () => {
+    const html = gateConsentHtml({ html: '<html><head></head><body><a href="#jini-consent" data-jini-consent-open>Preferences</a></body></html>', config: { ...config, reopen: 'link' }, record: accepted, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+    const { dom, reloads, runtimeErrors } = await browser(html, false, { fetch: async () => ({ ok: true, json: async () => ({ record: accepted, signals: {} }) }) });
+    try {
+      dom.window.document.querySelector('[data-jini-consent-open]').click();
+      expect(dom.window.location.hash).toBe('#jini-consent');
+      dom.window.document.querySelector('button[value="save"]').click();
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(dom.window.location.hash).toBe('');
+      expect(reloads).toHaveLength(1);
+      expect(runtimeErrors).toEqual([]);
+    } finally { dom.window.close(); }
+  });
+
+  it('opens preferences from a nested click on a dynamically rendered host control', async () => {
+    const html = gateConsentHtml({ html: '<html><head></head><body></body></html>', config: { ...config, reopen: 'link' }, record: accepted, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+    const { dom, runtimeErrors } = await browser(html);
+    try {
+      const document = dom.window.document;
+      const control = document.createElement('button');
+      control.setAttribute('data-jini-consent-open', '');
+      control.innerHTML = '<span>Cookie preferences</span>';
+      document.body.appendChild(control);
+      control.querySelector('span').click();
+      expect(dom.window.location.hash).toBe('#jini-consent');
+      expect(document.querySelector('#jini-consent-preferences').open).toBe(true);
+      expect(document.activeElement).toBe(document.querySelector('#jini-consent-preferences input[name="functional"]'));
+      expect(runtimeErrors).toEqual([]);
+    } finally { dom.window.close(); }
   });
 });
