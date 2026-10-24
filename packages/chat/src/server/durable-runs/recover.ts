@@ -20,18 +20,25 @@ function lastIndexWhere({ events, match }: { events: readonly AgentEvent[]; matc
   return -1;
 }
 
-/** One saved event's contribution to the executor diagnostics. */
-function diagnosticLines({ event }: { event: AgentEvent }, _optional = {}): string[] {
-  if (event.kind === "status") return [event.label, event.detail ?? ""];
-  if (event.kind !== "raw") return [];
+/** One complete stdout line's contribution to executor diagnostics. */
+function diagnosticLine({ line }: { line: string }, _optional = {}): string[] {
   try {
-    const result = JSON.parse(event.line) as { type?: unknown; is_error?: unknown } | null;
+    const result = JSON.parse(line) as { type?: unknown; subtype?: unknown; is_error?: unknown } | null;
     // Successful CLI summaries contain usage metadata and answer prose, not failure evidence.
     if (result?.type === "result" && result.is_error === false) return [];
+    // A subagent report can discuss billing/auth in completed work; it is not executor evidence.
+    if (result?.type === "system" && result.subtype === "task_notification") return [];
   } catch {
     // Non-JSON stdout can still contain the executor's failure reason.
   }
-  return [event.line];
+  return [line];
+}
+
+/** A saved raw event may hold several JSONL lines; filter each before failure classification. */
+function diagnosticLines({ event }: { event: AgentEvent }, _optional = {}): string[] {
+  if (event.kind === "status") return [event.label, event.detail ?? ""];
+  if (event.kind !== "raw") return [];
+  return event.line.split(/\r?\n/).flatMap(line => diagnosticLine({ line }));
 }
 
 /** Retryability is independent of session resumability. Inspect executor diagnostics, never
@@ -116,8 +123,8 @@ function savedWork({ run }: { run: DurableRun }, _optional = {}): AgentEvent[] {
 }
 
 /** A dead attempt continues now; a fresh queued one waits (see the caller's comment). */
-function continuesNow({ run, probe, trigger, now }: { run: DurableRun; probe: "dead" | "uncertain"; trigger: RecoveryTrigger; now: number }, _optional = {}): boolean {
-  return probe === "dead" && (trigger === "attempt-failed" || now - run.attemptStartedAt >= 10_000);
+function continuesNow({ run, trigger, now }: { run: DurableRun; trigger: RecoveryTrigger; now: number }, _optional = {}): boolean {
+  return trigger === "attempt-failed" || now - run.attemptStartedAt >= 10_000;
 }
 
 /** One recovery decision plus the evidence it was based on, for the metadata log line. */
@@ -193,32 +200,60 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
   async function decide(run: DurableRun, trigger: RecoveryTrigger, liveRunId: string | undefined): Promise<Decision> {
     if (exclusion(run)) return { decision: await finalize(run, STOPPED_NOTICE, { canceled: true }) };
     const probe = await probeAttempt({ run, trigger, liveRunId });
-    if (probe === "live") return { probe, decision: await reattach(run) };
+    // HTTP/storage awaits can cross cancellation, settlement, or an attempt-generation change.
+    // Re-read before attaching or applying diagnostics to the probed attempt.
+    const current = await reload(run);
+    if (typeof current === "string") return { probe, decision: current };
+    if (probe === "live") return { probe, decision: await reattach(current) };
+    if (probe === "uncertain") {
+      // Transport uncertainty is not proof of death and spends no restart/time budget. The
+      // existing watcher waits and probes again; even an expired budget cannot kill a live child.
+      await reattach(current);
+      return { probe, decision: "waiting" };
+    }
+    return decideDead(current, trigger);
+  }
+
+  async function decideDead(run: DurableRun, trigger: RecoveryTrigger): Promise<Decision> {
+    const probe = "dead";
     // A pending human answer takes precedence over executor exit diagnostics.
-    if (probe === "dead" && awaitingAnswer({ run })) return { probe, decision: await resolveMissing(run, probe, trigger) };
+    if (awaitingAnswer({ run })) return { probe, decision: await resolveMissing(run, trigger) };
     // Diagnostics decide only the fate of an attempt that is no longer running. Read before the
     // probe, raw stdout quoting a tool description ("OAuth-authenticated") canceled a live turn
     // as "Not logged in" (luvira, 2026-10-08).
     const diagnostics = attemptDiagnostics({ run });
     const failure = attemptFailure({ diagnostics });
-    const decision = failure === "retryable" ? await resolveMissing(run, probe, trigger) : await finalizeFailure({ run, failure, diagnostics });
+    const decision = failure === "retryable" ? await resolveMissing(run, trigger) : await finalizeFailure({ run, failure, diagnostics });
     return { probe, failure, decision };
   }
 
-  async function resolveMissing(run: DurableRun, probe: "dead" | "uncertain", trigger: RecoveryTrigger): Promise<RecoveryResult> {
+  async function resolveMissing(run: DurableRun, trigger: RecoveryTrigger): Promise<RecoveryResult> {
     await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: true }, {});
-    const timed = await ports.store.load({ messageId: run.messageId }, {}) ?? run;
+    const timed = await reload(run);
+    return typeof timed === "string" ? timed : resolveDead(timed, trigger);
+  }
+
+  /** The saved row after an await, or the outcome that ends this decision. O(1) store reads. */
+  async function reload(run: DurableRun): Promise<DurableRun | RecoveryResult> {
+    const current = await ports.store.load({ messageId: run.messageId }, {});
+    if (!current) return "gone";
     // A probe only speaks about the generation it inspected. Never apply its dead result to
     // a newer attempt committed by another caller while this one was awaiting storage/HTTP.
-    if (timed.runId !== run.runId) return "superseded";
+    if (current.runId !== run.runId) return "superseded";
+    if (current.message.runStatus !== "queued" && current.message.runStatus !== "running") return "terminal";
+    if (exclusion(current)) return finalize(current, STOPPED_NOTICE, { canceled: true });
+    return current;
+  }
+
+  async function resolveDead(run: DurableRun, trigger: RecoveryTrigger): Promise<RecoveryResult> {
     // A dead process cannot resume its question. End this turn with the existing card intact,
     // rather than minting an attempt that runs preflight and asks the same question again.
-    if (probe === "dead" && awaitingAnswer({ run: timed })) return finalize(timed, AWAITING_ANSWER_NOTICE);
-    const notice = budgetNotice(timed, ports.now());
-    if (notice) return finalize(run, notice, { detail: notice === EXHAUSTED_NOTICE ? exhaustedDetail({ run: timed }) : undefined });
+    if (awaitingAnswer({ run })) return finalize(run, AWAITING_ANSWER_NOTICE);
+    const notice = budgetNotice(run, ports.now());
+    if (notice) return finalize(run, notice, { detail: notice === EXHAUSTED_NOTICE ? exhaustedDetail({ run }) : undefined });
     // A queued attempt may be between durable acceptance and the daemon's start transaction.
     // Give that idempotent launch time to appear before a 404 can advance its generation.
-    if (continuesNow({ run, probe, trigger, now: ports.now() })) return continueDead(timed);
+    if (continuesNow({ run, trigger, now: ports.now() })) return continueDead(run);
     ports.attach(run, {});
     return "waiting";
   }

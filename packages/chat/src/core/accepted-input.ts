@@ -7,6 +7,8 @@ import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
 export interface AcceptedChatInput {
   id: string;
   text: string;
+  /** Absent for legacy/ordinary inputs; consumed only after a CLI UUID receipt. */
+  deliveryState?: 'queued' | 'consumed';
   attachments?: ChatAttachment[];
   secretRedaction?: ChatMessage['secretRedaction'];
   /** Wire ids replaced by this receipt remain seen by recall. */
@@ -115,7 +117,7 @@ function mergeAcceptedReceipt(
   { input, pending }: { input: UserMessageEvent; pending: UserMessageEvent }, _options = {},
 ): UserMessageEvent {
   return { ...input, data: { ...input.data, id: pending.data.id,
-    ...(pending.data.inputs ? { inputs: pending.data.inputs } : {}),
+    ...(pending.data.inputs ? { inputs: pending.data.inputs.map(item => ({ ...item, ...(input.data.deliveryState ? { deliveryState: input.data.deliveryState } : {}) })) } : {}),
     aliases: [...new Set([...(input.data.aliases ?? []), input.data.id, ...(pending.data.aliases ?? [])])] } };
 }
 
@@ -148,6 +150,28 @@ function advanceOptimisticInput(
   if (candidates && !input.data.toolUseId) candidates.index += 1;
 }
 
+/** Fold state updates into the original bubble, preserving its position, local id and aliases.
+ * O(e + a + i) time/space for events, receipt aliases and expanded input constituents; equal text never establishes identity. */
+function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] }, _options = {}): AgentEvent[] {
+  const result: AgentEvent[] = [];
+  const positions = new Map<string, number>();
+  for (const event of events) {
+    const input = acceptedInputEvent({ event });
+    const position = input ? positions.get(input.data.id) : undefined;
+    if (input && position !== undefined && input.data.deliveryState) {
+      const original = acceptedInputEvent({ event: result[position]! })!;
+      // Replayed queue acceptance cannot undo confirmed consumption.
+      const deliveryState = original.data.deliveryState === 'consumed' ? 'consumed' : input.data.deliveryState;
+      result[position] = { ...original, data: { ...original.data, deliveryState,
+        ...(original.data.inputs ? { inputs: original.data.inputs.map(input => ({ ...input, deliveryState })) } : {}) } };
+      continue;
+    }
+    if (input) for (const id of acceptedInputIds({ input })) positions.set(id, result.length);
+    result.push(event);
+  }
+  return result;
+}
+
 /** Projects saved answers and reconciles optimistic bubbles with wire events, occurrence for
  * occurrence. Legacy steering receipts have no client id: only unmatched optimistic input may
  * match by text; two real events with equal text always remain distinct.
@@ -156,7 +180,7 @@ function advanceOptimisticInput(
 export function projectAcceptedInputEvents(
   { events }: { events: readonly AgentEvent[] }, _options = {},
 ): AgentEvent[] {
-  const expanded = expandQuestionAnswers({ events });
+  const expanded = expandQuestionAnswers({ events: collapseDeliveryReceipts({ events }) });
   const optimistic = collectOptimisticInputs({ events: expanded });
   const state: InputReconciliation = { replacements: new Map(), replaced: new Set(), seen: new Set() };
   for (const event of expanded) reconcileAcceptedInput({ event, optimistic, state });

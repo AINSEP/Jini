@@ -253,8 +253,8 @@ export const runCancelRoute = defineJsonRoute<{ runId: string; reason?: string }
 /**
  * `POST /api/runs/:runId/messages` — a message the human sent while the run is going. `202` when it
  * reached the live agent; `409 CONFLICT` with `details.delivery` (`'unsupported'` or
- * `'not-running'`) when it did not, which tells the client whether to interrupt the run and send the
- * text as the next turn, or simply send it next because the run is already ending.
+ * `'not-running'`) when it did not, which tells the client to retain the next-turn queue without canceling live work.
+ * Acceptance is distinct from the UUID-attributed consumption receipt in the run stream.
  */
 export const runMessageRoute = defineJsonRoute<RunMessageRequest, RunMessageResponse, RunHttpDeps>({
   method: 'post', path: '/api/runs/:runId/messages', parse: parseRunMessage, handle: async ({ input, deps }) => {
@@ -312,7 +312,12 @@ export async function handleRunEventStreamRequest({ res, runId, afterCursor, dep
   });
 
   try {
-    const subscribed = await deps.lifecycle.stream({ runId, onEvent: (event) => channel.enqueue({ event }) }, { afterCursor });
+    const subscribed = await deps.lifecycle.stream({ runId, onEvent: (event) => {
+      // RunLifecycle validates the run/cursor before replay callbacks. Open before enqueueing
+      // history so a healthy response drains replay instead of overflowing the unopened queue.
+      channel.open();
+      channel.enqueue({ event });
+    } }, { afterCursor });
     if (subscribed.kind !== 'ok') {
       // Nothing was ever subscribed, so `abandon()` has nothing to unsubscribe — it only marks
       // the channel closed. `res` itself is untouched, leaving `sendStreamFailure` free to send

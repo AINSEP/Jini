@@ -214,10 +214,13 @@ export type RunAgentPayload =
    * A message the human sent while this run was going, delivered into the live agent session (see
    * `@jini-ai/daemon`'s `AgentExecutor.sendUserMessage`). Recorded in the run's own stream so every
    * subscriber — and a reload replaying the log — shows it where it happened in the turn. `id` is
-   * unique per message, so a renderer can give each one its own slot. Like `slow_running`, a chat
-   * transport hands it on as an `ext` event of the same name.
+   * unique per message, so a renderer can give each one its own slot. Queued and consumed receipts
+   * share that id: write acceptance never implies the model has read it. Like `slow_running`, a
+   * chat transport hands it on as an `ext` event of the same name.
    */
-  | { type: 'user_message'; id: string; text: string };
+  | { type: 'user_message'; id: string; text: string; deliveryState?: 'queued' | 'consumed' }
+  /** CLI task outcomes, including unconfirmed loss of externally hosted work. */
+  | { type: 'background_task'; id: string; status: 'running' | 'completed' | 'failed' | 'stopped' | 'unknown'; taskRunId?: string; description?: string; detail?: string };
 
 export type RunProtocolEvent =
   | RunEvent<'start', RunStartPayload>

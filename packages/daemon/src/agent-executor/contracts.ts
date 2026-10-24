@@ -261,9 +261,9 @@ export interface AgentExecutor {
   run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
   /**
    * Delivers a message the human sent while `runId` is going straight into its live agent process
-   * (see {@link UserMessageDelivery} for each outcome). A stream-json agent is interrupted first and
-   * gets the message once the CLI acknowledges the interrupt, so this settles in milliseconds (at
-   * most `INTERRUPT_ACK_TIMEOUT_MS`); it never waits on the agent's reply.
+   * (see {@link UserMessageDelivery} for each outcome). A stream-json agent queues the message
+   * directly without interrupting tools. This settles on write acceptance; consumption is reported
+   * separately by UUID receipts. It never waits on the agent's reply.
    * Optional `imageContents` contains host-authorized pixels, encoded exactly as in an idle send.
    */
   sendUserMessage(requiredArgs: { readonly runId: string; readonly text: string }, optionalArgs?: { readonly imageContents?: readonly MessageAttachmentImage[] }): Promise<UserMessageDelivery>;
@@ -271,11 +271,11 @@ export interface AgentExecutor {
 
 /**
  * What {@link AgentExecutor.sendUserMessage} did with a mid-run message:
- * - `'delivered'` — the running turn was interrupted and the message written into the live
+ * - `'delivered'` — the message was queued without interruption into the live
  *   session; the agent answers it next, in the same process and session.
  * - `'unsupported'` — the run is live, but its agent has no way to take input mid-run (its prompt
  *   is plain text or an RPC request). Queue attachment turns intact after the reply; text-only
- *   turns may retain the interrupt-and-resume fallback.
+ *   turns retain the next-turn queue fallback.
  * - `'not-running'` — no live process will accept it: an unknown run, a finished one, or one whose
  *   last turn already ended and closed stdin. The run is ending; the host should send it next.
  */
@@ -329,7 +329,7 @@ export interface StdinCloseHandle {
   closeStdinOnce(): void;
   /** Journals a sent-to-stdin byte chunk, queued through the same FIFO {@link wireChildLifecycle} already uses for emitted events. No-op when no journal was configured (see `CreateAgentExecutorOptions.journal`). */
   recordSentBytes(content: string): void;
-  /** Interrupts this child's turn, then writes a mid-run user message into its open stdin — see {@link AgentExecutor.sendUserMessage}. */
+  /** Queues a mid-run user message into this child's open stdin — see {@link AgentExecutor.sendUserMessage}. */
   sendUserMessage(text: string, imageContents?: readonly MessageAttachmentImage[]): Promise<UserMessageDelivery>;
 }
 
