@@ -53,10 +53,10 @@ function validateMethod(raw: unknown): SupportedMethod {
   return raw as SupportedMethod;
 }
 
-// This binds the original caller URL only. Any redirect comes from the already-approved host;
-// the injected transport must recheck its address and strip credentials on cross-origin hops,
-// rather than widening its global egress allowlist to make the redirected host reachable.
-function resolveAllowedRequestUrl(candidate: unknown, allowedOrigins: readonly string[]): URL {
+/** Parse an absolute HTTP(S) request URL without userinfo; no I/O or credential-origin decision.
+ * @throws CredentialedRequestValidationError for malformed input.
+ * @complexity O(n) parsing for n URL characters. */
+function parseRequestUrl(candidate: unknown): URL {
   if (typeof candidate !== "string" || candidate.trim() === "") {
     throw new CredentialedRequestValidationError({ message: "url must be a non-empty string" });
   }
@@ -72,6 +72,14 @@ function resolveAllowedRequestUrl(candidate: unknown, allowedOrigins: readonly s
   if (parsed.username || parsed.password) {
     throw new CredentialedRequestValidationError({ message: "url must not embed credentials (user:pass@) — the server injects the real Authorization header itself" });
   }
+  return parsed;
+}
+
+// This binds the original caller URL only. Any redirect comes from the already-approved host;
+// the injected transport must recheck its address and strip credentials on cross-origin hops,
+// rather than widening its global egress allowlist to make the redirected host reachable.
+function resolveAllowedRequestUrl(candidate: unknown, allowedOrigins: readonly string[]): URL {
+  const parsed = parseRequestUrl(candidate);
   if (!allowedOrigins.includes(parsed.origin)) {
     throw new CredentialedRequestValidationError({ message: `url '${candidate}' resolves to origin '${parsed.origin}', which is not one of this credential's saved hosts (${allowedOrigins.join(", ")})` });
   }
@@ -283,12 +291,71 @@ async function resolveCredentialOrThrow(deps: Pick<CredentialedRequestDeps, "res
 // Network/ambiguous outcomes are not evidence of a bad credential; a boolean would erase that fact.
 export type CustomCredentialCheckStatus = "valid" | "invalid" | "unreachable";
 
-// Only 401/403 affirmatively reject it; redirects and other statuses reaching this classifier say
-// nothing about validity. Keep this local rather than coupling independent provider features.
-function classifyCustomCredentialStatus(status: number): CustomCredentialCheckStatus {
-  if (status >= 200 && status < 300) return "valid";
-  if (isAuthRejectionStatus(status)) return "invalid";
-  return "unreachable";
+/** A refusal establishes only that this GET was refused, not that the key is invalid. */
+export type CredentialConnectionProbeStatus = "ok" | "refused" | "unavailable";
+
+/** Host-owned probe input. The host must resolve the plugin-declared URL against the saved base
+ * origin before calling; no credential store or plugin/model-input parser is loaded here. */
+export interface CredentialConnectionProbeInput {
+  readonly connection: CredentialConnection;
+  readonly url: string;
+  readonly schemes: readonly CredentialSchemeRule[];
+  /** Omit for GET. Explicit methods are checked at runtime, including untyped callers. */
+  readonly method?: "GET";
+}
+
+/** Send one bodyless GET through the guarded HTTP port without following redirects.
+ * @param required Plaintext connection, trusted host-resolved URL and auth-scheme rules.
+ * @param options Guarded HTTP client; owns DNS/address policy, peer pinning and response bounds.
+ * @returns Only ok/refused/unavailable; no bodies, headers, URLs, secrets or transport errors.
+ * @throws CredentialedRequestValidationError with value-free text for non-GET or malformed URLs.
+ * @complexity One bounded HTTP send plus O(r) auth matching for r supplied scheme rules.
+ * @example await probeCredentialConnection({ connection, url, schemes }, { httpClient });
+ */
+export async function probeCredentialConnection(
+  required: CredentialConnectionProbeInput,
+  options: { httpClient: HttpClientPort },
+): Promise<CredentialConnectionProbeStatus> {
+  if (required.method !== undefined && required.method !== "GET") {
+    throw new CredentialedRequestValidationError({ message: "credential probes only support GET" });
+  }
+  let url: URL;
+  try {
+    url = parseRequestUrl(required.url);
+  } catch {
+    // URL parse errors may contain their input; probe failures must never echo caller values.
+    throw new CredentialedRequestValidationError({ message: "credential probe requires an absolute HTTP(S) URL without embedded credentials" });
+  }
+  return classifyCredentialProbeStatus(await sendCredentialGet({ ...required, url, httpClient: options.httpClient }, { strict: true }));
+}
+
+/** One bodyless authenticated GET shared by the probe and verification. Returns the HTTP status,
+ * or 0 when the transport failed; transport errors are dropped because they can echo request values.
+ * `strict` refuses redirects and bounds the whole operation (the probe contract); verification omits
+ * it to keep its original follow-redirect, idle-timeout-only policy so its results do not change.
+ * @complexity One HTTP send plus O(r) auth matching for r scheme rules. */
+async function sendCredentialGet(
+  required: { connection: CredentialConnection; url: URL; schemes: readonly CredentialSchemeRule[]; httpClient: HttpClientPort },
+  optional: { strict?: boolean } = {},
+): Promise<number> {
+  try {
+    const response = await required.httpClient.send({ request: {
+      method: "GET", url: required.url.href,
+      headers: { Authorization: buildAuthorizationHeader(required) },
+      timeoutMs: CREDENTIALED_REQUEST_TIMEOUT_MS,
+      ...(optional.strict ? { totalDeadlineMs: CREDENTIALED_REQUEST_TIMEOUT_MS } : {}),
+    } }, optional.strict ? { redirect: "error" } : undefined);
+    return response.status;
+  } catch {
+    return 0;
+  }
+}
+
+/** Classify only affirmative success/refusal; redirects and all other statuses are inconclusive. */
+function classifyCredentialProbeStatus(status: number): CredentialConnectionProbeStatus {
+  if (status >= 200 && status < 300) return "ok";
+  if (isAuthRejectionStatus(status)) return "refused";
+  return "unavailable";
 }
 
 // 401 and 403 are the only affirmative authentication rejections; both classification and
@@ -313,35 +380,56 @@ export interface CustomCredentialVerificationResult {
   readonly authDiagnostic?: AuthFailureDiagnostic;
 }
 
-/** Probe the saved origin root and classify 2xx/401/403/other outcomes; audit without returning response bodies. */
+export interface CustomCredentialVerificationOptions extends CredentialedRequestOptions {
+  /** Trusted plugin-declared path relative to baseUrl; omission keeps the origin-root probe. */
+  readonly path?: string;
+}
+
+/** Resolve an optional relative probe path against the saved primary base, never additional hosts.
+ * Invalid stored URLs/paths produce value-free errors before any HTTP send.
+ * @complexity O(n) URL parsing for n URL/path characters; no I/O. */
+function resolveVerificationUrl(baseUrl: string, path: unknown): URL {
+  try {
+    const base = parseRequestUrl(baseUrl);
+    if (path === undefined) return new URL("/", base);
+    // Schemes and network-path references ("//host") are absolute, even when they repeat the saved host.
+    if (typeof path === "string" && path.trim() !== "" && !/[\u0000-\u001f\u007f]/.test(path) && !/^([a-z][a-z\d+.-]*:|[\\/]{2})/i.test(path.trim())) {
+      return resolveAllowedRequestUrl(new URL(path, base).href, [base.origin]);
+    }
+  } catch {
+    // Fall through: URL errors can echo their input, so every failure gets the same value-free text.
+  }
+  throw new CredentialedRequestValidationError({ message: "probe path must be relative to the saved base URL and remain on its origin" });
+}
+
+/** Probe the origin root or a trusted relative path; retain verification messages, diagnostics and audit.
+ * @param required Resolver/HTTP/audit ports and workspace-bound credential identity.
+ * @param optional Optional relative path and existing diagnostic mapping policy.
+ * @returns The existing valid/invalid/unreachable result, without response bodies or secrets.
+ * @throws CredentialedRequestValidationError for invalid labels/paths; resolver/registry errors propagate.
+ * @complexity One credential resolution, registry load and bounded HTTP probe; O(r) scheme matching.
+ * @example await verifyCustomCredential({ deps, input }, { path: "/user" });
+ */
 // Probe the primary saved origin to answer whether the credential works at all, rather than trying
 // every additional API host. Provider bodies never belong in verification results; transport failure
 // remains "unreachable", and only an affirmative auth rejection has a diagnostic worth attaching.
-export async function verifyCustomCredential(required: { deps: CredentialedRequestDeps; input: { workspaceId: UUID; label: unknown } }, optional: CredentialedRequestOptions = {}): Promise<CustomCredentialVerificationResult> {
+export async function verifyCustomCredential(required: { deps: CredentialedRequestDeps; input: { workspaceId: UUID; label: unknown } }, optional: CustomCredentialVerificationOptions = {}): Promise<CustomCredentialVerificationResult> {
   const { deps, input } = required;
   const label = requireLabel(input.label);
   const checkedAt = nowIso({ clock: deps.clock });
   const { baseUrl, connection } = await resolveCredentialOrThrow(deps, { workspaceId: input.workspaceId, label });
-  const url = new URL(`${new URL(baseUrl).origin}/`);
+  const url = resolveVerificationUrl(baseUrl, optional.path);
   const auditBase: AuditBase = { label, host: url.hostname, method: "GET", bodyBytes: 0, at: checkedAt };
   const schemes = await deps.schemeRegistry.load({ workspaceId: input.workspaceId });
 
-  let status: number;
-  try {
-    const response = await deps.httpClient.send({ request: {
-      method: "GET",
-      url: url.toString(),
-      headers: { Authorization: buildAuthorizationHeader({ connection, schemes }) },
-      timeoutMs: CREDENTIALED_REQUEST_TIMEOUT_MS,
-    } });
-    status = response.status;
-  } catch {
-    deps.audit.record({ entry: auditEntry(auditBase, 0) });
+  const status = await sendCredentialGet({ connection, url, schemes, httpClient: deps.httpClient });
+  deps.audit.record({ entry: auditEntry(auditBase, status) });
+  if (status === 0) {
     return { status: "unreachable", message: `Could not reach '${label}' to verify this credential — this does not necessarily mean the credential is bad.`, checkedAt };
   }
 
-  deps.audit.record({ entry: auditEntry(auditBase, status) });
-  const outcome = classifyCustomCredentialStatus(status);
+  const outcomes = { ok: "valid", refused: "invalid", unavailable: "unreachable" } as const;
+  const outcome = outcomes[classifyCredentialProbeStatus(status)];
   const authDiagnostic = isAuthRejectionStatus(status) ? mapAuthDiagnostic(connection, status, schemes, optional) : undefined;
   return { status: outcome, message: buildVerificationMessage(label, status, outcome), checkedAt, ...(authDiagnostic ? { authDiagnostic } : {}) };
 }
