@@ -184,11 +184,13 @@ export type DeliverTypedAnswer = ((input: { text: string }) => Promise<TypedAnsw
 
 /**
  * What happened to a message sent while a run streams (see {@link ChatPaneProps.deliverMidRunMessage}):
- * `'delivered'` — the live agent took it into the running turn; `'unsupported'` — this agent cannot
+ * `{delivery:'delivered', id}` — accepted by the live agent; keep the local copy until an id-matched
+ * consumed event. Legacy hosts may still return `'delivered'`; their receipts reconcile optimistic ids.
+ * `'unsupported'` — this agent cannot
  * take input mid-run (it reads one prompt per turn); `'not-running'` — the run has no live process
  * any more (it is ending); `'failed'` — the host could not tell (network error, unexpected status).
  */
-export type MidRunMessageDelivery = 'delivered' | 'unsupported' | 'not-running' | 'failed';
+export type MidRunMessageDelivery = 'delivered' | 'unsupported' | 'not-running' | 'failed' | { readonly delivery: 'delivered'; readonly id: string };
 
 /** Delivers a complete turn to the live agent; unsupported attachments must reject the whole turn. */
 export type DeliverMidRunMessage = (input: { runId: string; text: string; attachments?: readonly ChatAttachment[] }) => Promise<MidRunMessageDelivery>;

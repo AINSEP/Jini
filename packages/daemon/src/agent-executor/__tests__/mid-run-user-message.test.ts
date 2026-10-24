@@ -46,6 +46,7 @@ function createDef(overrides: Partial<RuntimeAgentDef>): RuntimeAgentDef {
 }
 
 interface HarnessOptions {
+  bridge?: boolean;
   observerFailure?: Error;
   /** The executor's view of `emit` rejects every event this returns an error for (the real lifecycle still records the rest). */
   emitFailure?: (input: Parameters<RunLifecycle['emit']>[0]['input']) => Error | undefined;
@@ -71,6 +72,7 @@ function createHarness(def: RuntimeAgentDef, options: HarnessOptions = {}) {
   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as unknown as typeof nodeSpawn;
   const onCleanupFailure = vi.fn();
   const executor = createAgentExecutor({ lifecycle: executorLifecycle(lifecycle, options) }, {
+    ...(options.bridge ? { mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://127.0.0.1:4317' } } : {}),
     ...(options.journal ? { journal: options.journal } : {}),
     resolveModelForLaunch: fixtureLaunchModel,
     getAgentDef: ({ id }) => (id === def.id ? def : null),
@@ -105,6 +107,37 @@ function controlResponse(requestId: string): unknown {
 }
 
 describe('AgentExecutor.sendUserMessage — a message sent during a run reaches the live agent', () => {
+  it('native_engine_never_relays', async () => {
+    const harness = createHarness(createDef({ externalMcpInjection: 'env-passthrough' }), { bridge: true });
+    const runId = await startRun(harness);
+    await expect(harness.executor.sendUserMessage({ runId, id: 'native-id', text: 'native followup' })).resolves.toBe('delivered');
+    expect(harness.executor.claimUserMessages({ runId, via: 'tool-result' })).toEqual([]);
+    expect(JSON.parse(harness.child.stdin.writes[1]!)).toEqual({ type: 'user', uuid: 'native-id', message: { role: 'user', content: [{ type: 'text', text: 'native followup' }] } });
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
+
+  it('run_end_leaves_unclaimed_for_browser_fallback', async () => {
+    const harness = createHarness(createDef({ streamFormat: 'json-event-stream', eventParser: 'codex', promptInputFormat: 'text', externalMcpInjection: 'env-passthrough' }), { bridge: true });
+    const runId = await startRun(harness);
+    await expect(harness.executor.sendUserMessage({ runId, id: 'claimed', text: 'first' })).resolves.toBe('delivered');
+    expect(harness.executor.claimUserMessages({ runId, via: 'tool-result' })).toEqual([{ id: 'claimed', seq: 1, text: 'first' }]);
+    await expect(harness.executor.sendUserMessage({ runId, id: 'fallback', text: 'next turn' })).resolves.toBe('delivered');
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+    const events: RunProtocolEvent[] = [];
+    await harness.lifecycle.stream({ runId, onEvent: event => { events.push(event); } });
+    const receipts = events.filter(event => event.kind === 'agent' && event.payload.type === 'user_message');
+    expect(receipts.map(event => event.payload)).toEqual([
+      { type: 'user_message', id: 'claimed', text: 'first', deliveryState: 'queued' },
+      { type: 'user_message', id: 'claimed', text: 'first', deliveryState: 'consumed', via: 'tool-result' },
+      { type: 'user_message', id: 'fallback', text: 'next turn', deliveryState: 'queued' },
+    ]);
+    expect(events.at(-1)?.kind).toBe('end');
+    expect(harness.executor.claimUserMessages({ runId, via: 'check_messages' })).toEqual([]);
+    await expect(harness.executor.sendUserMessage({ runId, text: 'too late' })).resolves.toBe('not-running');
+  });
+
   it('writes screenshot pixels with the mid-run text in the same structured user message as an idle send', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);

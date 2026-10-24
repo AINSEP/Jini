@@ -39,8 +39,9 @@ describe('POST /api/runs/:runId/messages — a message sent while the run is goi
     const parsed = runMessageRoute.parse({ body: { text: 'see screenshot', attachmentIds: ['attachment:1'] }, query: {}, params: { runId: run.id } } as never);
     expect(parsed).toEqual({ ok: true, value: { runId: run.id, text: 'see screenshot', attachmentIds: ['attachment:1'] } });
     if (!parsed.ok) throw new Error('message must parse');
-    await runMessageRoute.handle({ input: parsed.value, deps });
-    expect(deliver).toHaveBeenCalledWith(parsed.value);
+    const accepted = await runMessageRoute.handle({ input: parsed.value, deps });
+    if (!accepted.ok) throw new Error('message must be accepted');
+    expect(deliver).toHaveBeenCalledWith({ ...parsed.value, id: accepted.value.id });
   });
 
   it('rejects malformed attachment lists instead of accepting their text alone', () => {
@@ -49,7 +50,7 @@ describe('POST /api/runs/:runId/messages — a message sent while the run is goi
     }
   });
 
-  it('hands the text to the live run and answers 202 delivered', async () => {
+  it('202_returns_id matching the queued message', async () => {
     const deliver = vi.fn((): UserMessageDelivery => 'delivered');
     const deps = makeDeps(deliver);
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
@@ -60,9 +61,11 @@ describe('POST /api/runs/:runId/messages — a message sent while the run is goi
 
     await handler({ body: { text: 'also do the footer' }, query: {}, params: { runId: run.id } }, res);
 
-    expect(deliver).toHaveBeenCalledWith({ runId: run.id, text: 'also do the footer' });
+    const response = res.json.mock.calls[0]![0] as { id: string; delivery: string };
+    expect(response.id).toMatch(/^[a-f0-9-]{36}$/u);
+    expect(deliver).toHaveBeenCalledWith({ runId: run.id, text: 'also do the footer', id: response.id });
     expect(res.status).toHaveBeenCalledWith(202);
-    expect(res.json).toHaveBeenCalledWith({ delivery: 'delivered' });
+    expect(res.json).toHaveBeenCalledWith({ delivery: 'delivered', id: response.id });
   });
 
   it('answers 409 with the delivery outcome when the run cannot take it, so the client can fall back', async () => {

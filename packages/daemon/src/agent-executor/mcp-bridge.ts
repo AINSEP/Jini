@@ -2,6 +2,8 @@ import {
   promises as fsPromises,
 } from 'node:fs';
 import type { McpBridgeProbeResult } from './mcp-bridge-probe.js';
+import { randomBytes } from 'node:crypto';
+import { supportsMessageRelay } from './message-relay.js';
 import { ensureAntigravityMcpPermission } from './antigravity-permissions.js';
 import {
   homedir,
@@ -74,7 +76,7 @@ export function bridgeUnavailableMessage(status: string, probe?: McpBridgeProbeR
  * entirely. Omitting produces byte-identical output to before this parameter existed.
  * @complexity O(t) output space/time for t launch environment and registered ID bytes.
  */
-export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: string; readonly options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl' | 'env' | 'diagnosticToolIds' | 'startupToolIds'> }, { credential }: { readonly credential?: string } = {}
+export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: string; readonly options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl' | 'env' | 'diagnosticToolIds' | 'startupToolIds'> }, { credential, messageRelayNonce }: { readonly credential?: string; readonly messageRelayNonce?: string } = {}
 ): McpJsonServerEntry {
   const hostEnv = Object.entries(options.env ?? {}).filter(([key]) => !key.startsWith('JINI_'));
   return {
@@ -87,6 +89,7 @@ export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: st
       ...(options.diagnosticToolIds ? { JINI_DIAGNOSTIC_TOOL_IDS: JSON.stringify(options.diagnosticToolIds()) } : {}),
       ...(options.startupToolIds ? { JINI_STARTUP_TOOL_IDS: JSON.stringify(options.startupToolIds({ runId })) } : {}),
       ...(credential !== undefined ? { JINI_DAEMON_TOKEN: credential } : {}),
+      ...(messageRelayNonce ? { JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: messageRelayNonce } : {}),
     },
   };
 }
@@ -519,10 +522,14 @@ export function buildMcpBridgeDelivery(input: {
   readonly strategy: RuntimeAgentDef['externalMcpInjection'];
   readonly options: McpJsonInjectionOptions | undefined;
   readonly credential: string | undefined;
+  readonly messageRelayNonce?: string;
 }): McpBridgeDelivery | null {
   const { cwd, runId, strategy, options, credential } = input;
   if (options === undefined || strategy === undefined) return null;
-  const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, credential === undefined ? {} : { credential });
+  const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, {
+    ...(credential === undefined ? {} : { credential }),
+    ...(input.messageRelayNonce ? { messageRelayNonce: input.messageRelayNonce } : {}),
+  });
   switch (strategy) {
     case 'claude-mcp-json':
       return { kind: 'claude-mcp-json', mcpJsonPath: mcpJsonPathForRun(cwd, runId), serverEntry };
@@ -873,6 +880,7 @@ export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: 
       strategy: input.def.externalMcpInjection,
       options: deps.mcpJsonInjection,
       credential,
+      ...(supportsMessageRelay({ def: input.def }) ? { messageRelayNonce: randomBytes(24).toString('hex') } : {}),
     });
     if (input.def.id === 'antigravity' && delivery?.kind === 'env-passthrough') {
       await (deps.ensureAntigravityMcpPermission ?? ensureAntigravityMcpPermission)({

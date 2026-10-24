@@ -15,11 +15,11 @@
  *
  * ## Why it resolves an outcome instead of throwing
  *
- * The pane acts differently on each outcome and must never drop the text: `'unsupported'` stops the
- * run for text-only turns, or queues an attachment turn intact; `'not-running'` queues behind the
+ * The pane acts differently on each outcome and must never drop the text: `'unsupported'` queues
+ * the whole turn; `'not-running'` queues behind the
  * ending run; `'failed'` retains the draft for retry. A 404 means
  * the daemon never saw this run (a host-side run such as a BYOK API turn), so it is `'unsupported'`
- * too: no live process to steer, but an interrupt still works.
+ * too: no live process to steer. Accepted inputs retain their fallback copy until consumed.
  */
 import { redactUserText, type UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 import type { DeliverMidRunMessage, MidRunMessageDelivery } from './types.js';
@@ -42,7 +42,11 @@ async function conflictDelivery(response: Response): Promise<MidRunMessageDelive
 
 /** Maps the route's response onto an outcome. Only 202 is a delivery. */
 async function deliveryFor(response: Response): Promise<MidRunMessageDelivery> {
-  if (response.status === 202) return 'delivered';
+  if (response.status === 202) {
+    const body: unknown = await response.json().catch(() => null);
+    const id = (body as { id?: unknown } | null)?.id;
+    return typeof id === 'string' && id.length > 0 ? { delivery: 'delivered', id } : 'delivered';
+  }
   if (response.status === 409) return conflictDelivery(response);
   return response.status === 404 ? 'unsupported' : 'failed';
 }

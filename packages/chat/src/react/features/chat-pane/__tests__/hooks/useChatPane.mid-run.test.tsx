@@ -28,7 +28,7 @@ async function startStreamingRun(deliverMidRunMessage: DeliverMidRunMessage | un
 describe('useChatPane — a message sent mid-run goes to the running agent', () => {
   beforeEach(() => __resetComposerDraftCacheForTests());
 
-  it('delivers the draft into the live run instead of queueing it, and leaves the run going', async () => {
+  it('retains the draft as queued until consumed, and leaves the live run going', async () => {
     const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
     const { result, transport } = await startStreamingRun(deliver);
 
@@ -36,7 +36,7 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
 
     expect(deliver).toHaveBeenCalledWith({ runId: 'run-1', text: 'also fix the footer' });
     expect(result.current.composer.draft).toBe('');
-    expect(result.current.queuedPrompt).toBeNull();
+    expect(result.current.queuedPrompt).toBe('also fix the footer');
     expect(transport.stoppedRunIds).toEqual([]);
     expect(transport.calls).toHaveLength(1);
     expect(result.current.conversation.isStreaming).toBe(true);
@@ -155,7 +155,7 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     await act(() => result.current.send());
 
     expect(deliver).toHaveBeenCalledWith({ runId: 'run-1', text: 'also fix the footer', attachments: [image] });
-    expect(result.current.queuedPrompt).toBeNull();
+    expect(result.current.queuedPrompt).toBe('also fix the footer');
     expect(result.current.composer.attachments).toEqual([]);
   });
 
@@ -473,4 +473,44 @@ it('exposes queued state immediately on acceptance and consumed state only after
   } }); });
   expect(inputs()).toHaveLength(1);
   expect(inputs()[0]!.deliveryState).toBe('consumed');
+  expect(result.current.queuedPrompt).toBeNull();
+});
+
+it('keep_until_consumed_matches_id_and_flushes_only_leftovers', async () => {
+  let counter = 0;
+  const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => ({ delivery: 'delivered', id: `wire-${++counter}` }));
+  const { result, transport } = await startStreamingRun(deliver);
+  await act(() => result.current.send());
+  act(() => result.current.composer.setDraft('second message'));
+  await act(() => result.current.send());
+  expect(deliver).toHaveBeenCalledTimes(2);
+  expect(result.current.queuedPrompt).toBe('also fix the footer\n\nsecond message');
+  await act(async () => { transport.emit({ kind: 'ext', name: 'user_message', data: {
+    id: 'other', text: 'also fix the footer', deliveryState: 'consumed', via: 'tool-result',
+  } }); });
+  expect(result.current.queuedPrompt).toBe('also fix the footer\n\nsecond message');
+  await act(async () => {
+    transport.emit({ kind: 'ext', name: 'user_message', data: {
+      id: 'wire-1', text: 'also fix the footer', deliveryState: 'consumed', via: 'tool-result',
+    } });
+    transport.finish(); // receipt and end in one React batch must not resend the first message
+  });
+  await waitFor(() => expect(transport.calls).toHaveLength(2));
+  expect(transport.calls[1]!.input.history.at(-1)?.content).toBe('second message');
+  expect(transport.stoppedRunIds).toEqual([]);
+});
+
+it('keeps_an_accepted_attachment_until_consumed_or_next_turn', async () => {
+  const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => ({ delivery: 'delivered', id: 'with-image' }));
+  const { result, transport } = await startStreamingRun(deliver);
+  const image = { path: 'attachment:1', name: 'image.png', kind: 'image' as const };
+  act(() => result.current.composer.addAttachment(image));
+  await act(() => result.current.send());
+  const queuedBubble = (result.current.conversation.messages.at(-1)?.events ?? []).flatMap(event => {
+    const input = acceptedInputEvent({ event }); return input ? input.data.inputs ?? [input.data] : [];
+  });
+  expect(queuedBubble[0]!.attachments).toEqual([image]);
+  await act(async () => { transport.finish(); });
+  await waitFor(() => expect(transport.calls).toHaveLength(2));
+  expect(transport.calls[1]!.input.history.at(-1)?.attachments).toEqual([image]);
 });

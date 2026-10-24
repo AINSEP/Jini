@@ -38,6 +38,7 @@
  */
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
+import { createCheckMessagesTool, messageRelayInstructions, type McpMessageRelay } from '../server/message-relay.js';
 import { isLoopbackHostname } from '@jini-ai/platform/net';
 import type { ToolDescriptor } from '@jini-ai/core';
 import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerRequiredArgs, type McpToolServerOptions } from '../server/tool-server.js';
@@ -176,13 +177,15 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
   };
 
   const delegatedGatewayOptions = buildDelegatedGatewayOptions({ env }, deps);
+  const messageRelay = resolveMessageRelay({ env, runId, writeErr, exit });
   const requiredArgs: McpToolServerRequiredArgs = {
     name: SERVER_NAME,
     version: SERVER_VERSION,
-    tools: buildTools({ runId, delegatedGatewayOptions }),
+    tools: [...buildTools({ runId, delegatedGatewayOptions }), ...(messageRelay ? [createCheckMessagesTool(messageRelay)] : [])],
     resolveBaseUrl,
   };
   const serverOptions = buildServerOptions({ env, runId, delegatedGatewayOptions }, deps);
+  if (messageRelay) Object.assign(serverOptions, { messageRelay, instructions: `${INSTRUCTIONS} ${messageRelayInstructions(messageRelay)}` });
 
   try {
     const diagnosticToolIds = parseLaunchToolIds({ env, key: 'JINI_DIAGNOSTIC_TOOL_IDS' });
@@ -197,6 +200,21 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
     writeErr({ text: `${SERVER_NAME}: ${message}\n` });
     return exit({ code: 1 });
   }
+}
+
+/** Enable both relay surfaces only for a trusted spawn flag with its per-run nonce.
+ * Invalid enabled configuration fails startup through the existing stderr/exit boundary. */
+function resolveMessageRelay({ env, runId, writeErr, exit }: {
+  env: NodeJS.ProcessEnv; runId: string;
+  writeErr: NonNullable<ServeDeps['writeErr']>; exit: NonNullable<ServeDeps['exit']>;
+}, _options = {}): McpMessageRelay | undefined {
+  if (env.JINI_MESSAGE_RELAY !== '1') return undefined;
+  const nonce = env.JINI_MESSAGE_RELAY_NONCE ?? '';
+  if (!/^[a-f0-9]{48}$/u.test(nonce)) {
+    writeErr({ text: `${SERVER_NAME}: relay spawn requires a 48-hex-character JINI_MESSAGE_RELAY_NONCE\n` });
+    return exit({ code: 1 });
+  }
+  return { runId, nonce };
 }
 
 // The process-bound fallbacks for every injectable seam `serve()` itself calls.

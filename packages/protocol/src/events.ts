@@ -218,7 +218,7 @@ export type RunAgentPayload =
    * share that id: write acceptance never implies the model has read it. Like `slow_running`, a
    * chat transport hands it on as an `ext` event of the same name.
    */
-  | { type: 'user_message'; id: string; text: string; deliveryState?: 'queued' | 'consumed' }
+  | { type: 'user_message'; id: string; text: string; deliveryState?: 'queued' | 'consumed'; via?: MessageRelayVia }
   /** CLI task outcomes, including unconfirmed loss of externally hosted work. */
   | { type: 'background_task'; id: string; status: 'running' | 'completed' | 'failed' | 'stopped' | 'unknown'; taskRunId?: string; description?: string; detail?: string };
 
@@ -229,3 +229,6 @@ export type RunProtocolEvent =
   | RunEvent<'stderr', RunChunkPayload>
   | RunEvent<'error', RunErrorPayload>
   | RunEvent<'end', RunEndPayload>;
+/** Text-only FIFO prefix returned to the run's authenticated MCP bridge. */
+export interface RelayedUserMessage { readonly id: string; readonly seq: number; readonly text: string }
+export type MessageRelayVia = 'tool-result' | 'check_messages';

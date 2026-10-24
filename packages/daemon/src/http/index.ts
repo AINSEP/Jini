@@ -1,4 +1,5 @@
 /** Daemon route packs; generic transport primitives live in @jini-ai/http-kit. */
+export { createMessageRelayClaimHandler, registerMessageRelayRoutes, type MessageRelayHttpDeps } from './message-relay.js';
 export type {
   ResolveWorkspaceRootOptions,
   WorkspaceRootRequest,
