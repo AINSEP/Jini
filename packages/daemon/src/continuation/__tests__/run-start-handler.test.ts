@@ -11,6 +11,7 @@ function fakeExecutor(): { executor: AgentExecutor; calls: AgentExecutorRunInput
         calls.push({ ...required, ...optional });
       },
       sendUserMessage: async () => 'not-running',
+      claimUserMessages: () => [],
     },
   };
 }
@@ -66,6 +67,7 @@ describe('createDefaultRunStartHandler', () => {
         throw new Error('spawn failed');
       },
       sendUserMessage: async () => 'not-running',
+      claimUserMessages: () => [],
     };
     const resolveRunInput = () => ({ agentId: 'a', prompt: 'p', cwd: '/work' });
     const handler = createDefaultRunStartHandler({ agentExecutor: executor, resolveRunInput });

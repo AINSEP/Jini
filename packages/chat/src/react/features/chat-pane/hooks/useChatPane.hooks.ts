@@ -160,7 +160,35 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
  * A queued message. Every path into the queue (`enqueueTurn`) records the files it took from the
  * composer, even when there were none, so a queued input's `attachments` is always present.
  */
-type QueuedChatInput = AcceptedChatInput & { attachments: ChatAttachment[] };
+type QueuedChatInput = AcceptedChatInput & { attachments: ChatAttachment[]; liveMessageId?: string };
+
+/** Filter during render so a consumed receipt followed by end in the same batch cannot flush twice.
+ * Legacy host receipts can replace optimistic IDs; the accepted-input owner retains their aliases.
+ * @complexity O(e + q) time and space for receipt events and locally queued inputs.
+ */
+function unconsumedQueuedInputs({ inputs, messages }: { inputs: QueuedChatInput[]; messages: readonly ChatMessage[] }): QueuedChatInput[] {
+  const consumed = new Set<string>();
+  for (const message of messages) {
+    for (const event of projectAcceptedInputEvents({ events: message.events ?? [] })) {
+      const receipt = acceptedInputEvent({ event });
+      if (receipt?.data.deliveryState !== 'consumed') continue;
+      for (const input of [receipt.data, ...(receipt.data.inputs ?? [])]) {
+        consumed.add(input.id);
+        for (const alias of input.aliases ?? []) consumed.add(alias);
+      }
+    }
+  }
+  return inputs.filter(input => !consumed.has(input.liveMessageId ?? input.id));
+}
+
+/** The conversation copies run events onto its messages one effect after streaming stops, so a
+ * consumed receipt can still be missing from the transcript when the send blocker clears. A
+ * live-accepted copy therefore waits until the run's own message reaches a terminal status. */
+function awaitingRunReceipts({ inputs, messages }: { inputs: QueuedChatInput[]; messages: readonly ChatMessage[] }): boolean {
+  if (!inputs.some(input => input.liveMessageId !== undefined)) return false;
+  const status = messages.at(-1)?.runStatus;
+  return status === 'queued' || status === 'running';
+}
 
 /** The stand-in prompt for a turn that carries only attachments. */
 const ATTACHMENTS_ONLY_PROMPT = 'Review the attached file(s).';
@@ -352,11 +380,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
   // MOVE: Keep the signal with each sanitized input; re-redaction cannot detect the original paste.
-  const [queuedInputs, setQueuedInputs] = useState<QueuedChatInput[]>([]);
-  const queuedTurn = useMemo(() => queuedInputs.reduce<UserTextRedaction | null>((queued, input) => appendQueuedTurn({
-    queued, next: { text: input.text, secretRedacted: input.secretRedaction?.secretRedacted ?? false,
-      count: input.secretRedaction?.count ?? 0 },
-  }), null), [queuedInputs]);
+  const [storedQueuedInputs, setQueuedInputs] = useState<QueuedChatInput[]>([]);
   // MOVE: Uploads belong to the input that submitted them, even if a later message is queued first.
   const queuedUploadOwnersRef = useRef(new Map<AbortController, string>());
   // A send during upload resumes once pixels arrive; a rejected live delivery waits for run end.
@@ -432,6 +456,16 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   } }));
 
   const activity: ChatPaneActivity = resolveChatPaneActivity(selectedAgent, conversation);
+
+  const queuedInputs = useMemo(() => unconsumedQueuedInputs({ inputs: storedQueuedInputs, messages: conversation.messages }), [storedQueuedInputs, conversation.messages]);
+  const queuedTurn = useMemo(() => queuedInputs.reduce<UserTextRedaction | null>((queued, input) => appendQueuedTurn({
+    queued, next: { text: input.text, secretRedacted: input.secretRedaction?.secretRedacted ?? false,
+      count: input.secretRedaction?.count ?? 0 },
+  }), null), [queuedInputs]);
+  // Release consumed text/files locally as well as hiding them; next-turn fallback uses this same projection.
+  useEffect(() => {
+    if (queuedInputs.length !== storedQueuedInputs.length) setQueuedInputs(queuedInputs);
+  }, [queuedInputs, storedQueuedInputs.length]);
 
   useEffect(() => {
     options.onActivityChange?.(activity);
@@ -576,7 +610,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   /** Acceptance is the only writer of local recall and optimistic in-run bubbles. */
   const recordAcceptedInput = useCallback((
     { inputs, bubble }: { inputs: AcceptedChatInput[]; bubble?: { text: string; toolUseId?: string; afterInputId?: string } },
-    _options = {},
+    { receipt = 'optimistic' }: { receipt?: 'optimistic' | 'accepted' } = {},
   ) => {
     composer.history?.record({ inputs });
     submittedComposerRef.current = composer;
@@ -586,7 +620,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       if (last?.role !== 'assistant') return messages;
       const event = acceptedInputUserEvent({ input: { id: inputs[0]!.id, text: bubble.text,
         ...(inputs[0]!.deliveryState ? { deliveryState: inputs[0]!.deliveryState } : {}) },
-        inputs, ...bubble });
+        inputs, ...bubble }, { receipt });
       return [...messages.slice(0, -1), { ...last,
         events: projectAcceptedInputEvents({ events: [...(last.events ?? []), event] }) }];
     });
@@ -718,6 +752,30 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (inputs === undefined && latestDraftRef.current === submittedDraft) latestComposerRef.current.setDraft('');
   }, []);
 
+  /** HTTP acceptance retains fallback ownership; only an actual consumption receipt removes it. */
+  const retainAcceptedMidRunInput = useCallback((
+    { outcome, inputs, turn, attachments, afterInputId }: {
+      outcome: 'delivered' | { readonly delivery: 'delivered'; readonly id: string };
+      inputs: QueuedChatInput[] | undefined; turn: UserTextRedaction;
+      attachments: ChatAttachment[]; afterInputId: string | undefined;
+    }, _options = {},
+  ) => {
+    const accepted = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments,
+      ...(turn.secretRedacted ? { secretRedaction: { secretRedacted: true as const, count: turn.count } } : {}) }];
+    const id = typeof outcome === 'object' ? outcome.id : accepted[0]!.id;
+    // A known HTTP id is already authoritative. Do not let equal text reconcile an unrelated
+    // wire receipt into this bubble; legacy hosts alone still need optimistic reconciliation.
+    const retained = accepted.map((input, index) => ({ ...input,
+      ...(index === 0 ? { id, aliases: [...(input.aliases ?? []), input.id] } : {}),
+      liveMessageId: id, deliveryState: 'queued' as const,
+    }));
+    queuedConversationIdRef.current = options.conversationId;
+    setQueuedInputs(queued => [...queued, ...retained]);
+    recordAcceptedInput({ inputs: retained,
+      bubble: { text: turn.text, ...(afterInputId === undefined ? {} : { afterInputId }) } },
+    typeof outcome === 'object' ? { receipt: 'accepted' } : {});
+  }, [options.conversationId, recordAcceptedInput]);
+
   const finishMidRunSend = useCallback((
     { outcome, inputs, turn, attachments, afterInputId, submittedDraft }: {
       outcome: MidRunMessageDelivery; inputs: QueuedChatInput[] | undefined; turn: UserTextRedaction;
@@ -729,16 +787,15 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       setTypedAnswerNotice('failed');
       return;
     }
-    if (outcome === 'delivered') {
-      recordAcceptedInput({ inputs: (inputs ?? [{ id: createChatLocalId({}), text: turn.text }]).map(input => ({ ...input, deliveryState: 'queued' as const })),
-        bubble: { text: turn.text, ...(afterInputId === undefined ? {} : { afterInputId }) } });
+    if (outcome === 'delivered' || typeof outcome === 'object') {
+      retainAcceptedMidRunInput({ outcome, inputs, turn, attachments, afterInputId });
       clearDeliveredDraft({ inputs, submittedDraft });
       consumeDeliveredAttachments({ attachments });
       return;
     }
     enqueueTurn({ turn, attachments, ...(inputs === undefined ? {} : { inputs }) });
     clearDeliveredDraft({ inputs, submittedDraft });
-  }, [enqueueTurn, recordAcceptedInput, clearDeliveredDraft, consumeDeliveredAttachments, restoreQueuedDraft]);
+  }, [enqueueTurn, retainAcceptedMidRunInput, clearDeliveredDraft, consumeDeliveredAttachments, restoreQueuedDraft]);
 
   // A delivered steer belongs to the existing run; unsupported turns use the same accepted queue.
   // A failed delivery keeps the working draft so retry cannot silently become another run.
@@ -774,7 +831,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     const uploadPending = activeUploadsRef.current.size > 0 || attachmentError !== null;
     if (uploadPending) queuedForUploadRef.current = queuedTurn === null || queuedForUploadRef.current;
     // MOVE: The existing queue owns its files; a later steer must join it to preserve send order.
-    const target = uploadPending || queuedTurn !== null ? null : findMidRunTarget({
+    const target = uploadPending || queuedInputs.some(input => input.liveMessageId === undefined) ? null : findMidRunTarget({
       deliver: options.deliverMidRunMessage,
       blocker: sendBlocker,
       attachmentCount: composer.attachments.length,
@@ -795,6 +852,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     enqueueTurn,
     options.deliverMidRunMessage,
     queuedTurn,
+    queuedInputs,
     sendBlocker,
     sendIntoRunningTurn,
     sendPrompt,
@@ -891,7 +949,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       deliver: options.deliverMidRunMessage,
       blocker: sendBlocker, attachmentCount: queuedInputs.flatMap(input => input.attachments).length, messages: conversation.messages,
     }) : null;
-    if (sendBlocker !== null && target === null) return;
+    if (target === null && (sendBlocker !== null || awaitingRunReceipts({ inputs: queuedInputs, messages: conversation.messages }))) return;
     queuedForUploadRef.current = false;
     const inputs = queuedInputs;
     const attachments = inputs.flatMap(input => input.attachments);
@@ -944,7 +1002,9 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     send,
     sendPrompt,
     queuedPrompt: queuedTurn?.text ?? null,
-    queuedMessages: queuedInputs,
+    // Accepted live messages already have queued bubbles in the transcript. Their private fallback
+    // copy must not create a second composer row whose Cancel button cannot revoke daemon input.
+    queuedMessages: queuedInputs.filter(input => input.liveMessageId === undefined),
     cancelQueuedMessage,
     cancelQueued,
     typedAnswerNotice,

@@ -31,6 +31,7 @@ import { createMcpIdleExitController } from '../client/client.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
 import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
 import { createTypedDelegatedToolTool, type CreateExecuteDelegatedToolToolOptions } from './tools/delegated-tool.js';
+import { prependRunUserMessages, type McpMessageRelay } from './message-relay.js';
 
 /** Auto-exit an idle server after this long without tool activity. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
@@ -69,6 +70,8 @@ export interface McpToolServerRequiredArgs {
 }
 
 export interface McpToolServerOptions {
+  /** Set only by relay-enabled spawns; native input engines incur no extra request or tool. */
+  readonly messageRelay?: McpMessageRelay;
   /** Opt in to bounded, per-run typed publication after describe_tool. */
   readonly delegatedTools?: McpDelegatedToolsOptions;
   /** Trusted daemon registration IDs carried into every error sanitizer. */
@@ -247,8 +250,12 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
 
       server.setRequestHandler({
         schema: CallToolRequestSchema,
-        handler: withActivity(async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: { signal?: AbortSignal } } = {}) =>
-          handleToolCall({ name: request.params.name, tools: toolIndex, ctx: extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx }, { rawArgs: request.params.arguments })),
+        handler: withActivity(async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: { signal?: AbortSignal } } = {}) => {
+          const callContext = extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx;
+          const result = await handleToolCall({ name: request.params.name, tools: toolIndex, ctx: callContext }, { rawArgs: request.params.arguments });
+          if (!options.messageRelay || request.params.name === 'check_messages') return result;
+          return prependRunUserMessages({ result, relay: options.messageRelay, ctx: callContext });
+        }),
       });
 
       if (resources.length > 0) {

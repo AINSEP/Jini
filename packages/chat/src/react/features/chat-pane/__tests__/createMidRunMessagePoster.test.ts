@@ -30,6 +30,11 @@ const conflict = (delivery: string): Promise<Response> =>
   status(409, { error: { code: 'CONFLICT', message: 'not delivered', details: { delivery } } });
 
 describe('createMidRunMessagePoster', () => {
+  it('returns_the_202_message_id_for_consumed_receipt_matching', async () => {
+    const fake = fakeFetch(() => status(202, { delivery: 'delivered', id: 'wire-id' }));
+    const post = createMidRunMessagePoster({ baseUrl: '', fetch: fake.fetch });
+    await expect(post({ runId: 'r', text: 'next' })).resolves.toEqual({ delivery: 'delivered', id: 'wire-id' });
+  });
   it('posts attachment capability refs alongside text, never filesystem paths or image bytes', async () => {
     const fake = fakeFetch(() => status(202));
     const post = createMidRunMessagePoster({ baseUrl: '', fetch: fake.fetch });

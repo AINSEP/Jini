@@ -12,6 +12,8 @@ import type {
 import type {
    RunAgentPayload,
    RunErrorPayload,
+   MessageRelayVia,
+   RelayedUserMessage,
 } from '@jini-ai/protocol';
 import type {
    AgentRuntimeState,
@@ -266,7 +268,9 @@ export interface AgentExecutor {
    * separately by UUID receipts. It never waits on the agent's reply.
    * Optional `imageContents` contains host-authorized pixels, encoded exactly as in an idle send.
    */
-  sendUserMessage(requiredArgs: { readonly runId: string; readonly text: string }, optionalArgs?: { readonly imageContents?: readonly MessageAttachmentImage[] }): Promise<UserMessageDelivery>;
+  sendUserMessage(requiredArgs: { readonly runId: string; readonly text: string; readonly id?: string; readonly attachmentIds?: readonly string[] }, optionalArgs?: { readonly imageContents?: readonly MessageAttachmentImage[] }): Promise<UserMessageDelivery>;
+  /** Trusted transport supplies the credential-bound run, never model arguments. No I/O or waiting. */
+  claimUserMessages(input: { readonly runId: string; readonly via: MessageRelayVia }, options?: Record<string, never>): readonly RelayedUserMessage[];
 }
 
 /**
@@ -330,7 +334,7 @@ export interface StdinCloseHandle {
   /** Journals a sent-to-stdin byte chunk, queued through the same FIFO {@link wireChildLifecycle} already uses for emitted events. No-op when no journal was configured (see `CreateAgentExecutorOptions.journal`). */
   recordSentBytes(content: string): void;
   /** Queues a mid-run user message into this child's open stdin — see {@link AgentExecutor.sendUserMessage}. */
-  sendUserMessage(text: string, imageContents?: readonly MessageAttachmentImage[]): Promise<UserMessageDelivery>;
+  sendUserMessage(input: { text: string; id?: string; attachmentIds?: readonly string[] }, options?: { imageContents?: readonly MessageAttachmentImage[] }): Promise<UserMessageDelivery>;
 }
 
 /**

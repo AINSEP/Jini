@@ -138,6 +138,8 @@ function parseRunCreate(input: RouteInputContext): Result<RunCreateRequest> {
 }
 
 export interface RunMessageRequest {
+  /** Generated at intake and passed unchanged to the executor's queue/consumption events. */
+  readonly id?: string;
   readonly runId: string;
   readonly text: string;
   /** Opaque upload capabilities; the host must authorize and prepare every ref before delivery. */
@@ -145,6 +147,7 @@ export interface RunMessageRequest {
 }
 
 export interface RunMessageResponse {
+  readonly id: string;
   readonly delivery: 'delivered';
 }
 
@@ -261,8 +264,9 @@ export const runMessageRoute = defineJsonRoute<RunMessageRequest, RunMessageResp
     const run = await deps.lifecycle.get({ runId: input.runId });
     if (run === undefined) return err({ error: createApiError({ code: 'NOT_FOUND', message: `run "${input.runId}" was not found` }) });
     const deliver = input.attachmentIds?.length ? deps.deliverUserMessageWithAttachments : deps.deliverUserMessage;
-    const delivery = deliver ? await deliver(input) : 'unsupported';
-    if (delivery === 'delivered') return ok({ value: { delivery } });
+    const id = randomUUID();
+    const delivery = deliver ? await deliver({ ...input, id }) : 'unsupported';
+    if (delivery === 'delivered') return ok({ value: { delivery, id } });
     return err({ error: createApiError({ code: 'CONFLICT', message: `run "${input.runId}" did not take the message` }, { details: { delivery } }) });
   }
 }, { requireSameOrigin: true, successStatus: 202 });

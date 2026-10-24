@@ -202,6 +202,8 @@ describe("AgentExecutor — ACP subprocess integration: 'acp-merge' MCP bridge d
           { name: 'JINI_RUN_ID', value: run.id },
           { name: 'JINI_DAEMON_URL', value: 'http://127.0.0.1:4242' },
           { name: 'JINI_DAEMON_TOKEN', value: `token-for-${run.id}` },
+          { name: 'JINI_MESSAGE_RELAY', value: '1' },
+          { name: 'JINI_MESSAGE_RELAY_NONCE', value: expect.stringMatching(/^[a-f0-9]{48}$/u) },
         ],
       },
     ]);
@@ -228,6 +230,8 @@ describe("AgentExecutor — ACP subprocess integration: 'acp-merge' MCP bridge d
           JINI_RUN_ID: run.id,
           JINI_DAEMON_URL: 'http://127.0.0.1:4242',
           JINI_DAEMON_TOKEN: `token-for-${run.id}`,
+          JINI_MESSAGE_RELAY: '1',
+          JINI_MESSAGE_RELAY_NONCE: expect.stringMatching(/^[a-f0-9]{48}$/u),
         },
       },
     ]);

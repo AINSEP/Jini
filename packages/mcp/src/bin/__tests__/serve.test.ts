@@ -40,6 +40,27 @@ function flushAsync(): Promise<void> {
 }
 
 describe('serve() — wiring, with a fully-injected fake createMcpToolServer', () => {
+  it.each([false, true])('gates_the_message_tool_wrapper_and_nonce_guidance_at_spawn (relay: %s)', async enabled => {
+    const nonce = 'a'.repeat(48);
+    let seenTools: readonly string[] = [];
+    let seen: McpToolServerOptions | undefined;
+    await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', ...(enabled ? { JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: nonce } : {}) },
+      createMcpToolServer: (required, options) => {
+        seenTools = required.tools.map(tool => tool.name);
+        seen = options;
+        return { run: async () => {} };
+      },
+    }));
+    if (enabled) {
+      expect(seenTools).toContain('check_messages');
+      expect(seen?.messageRelay).toEqual({ runId: 'run-1', nonce });
+      expect(seen?.instructions).toContain(`nonce=${nonce}`);
+    } else {
+      expect(seenTools).not.toContain('check_messages');
+      expect(seen).not.toHaveProperty('messageRelay');
+      expect(seen?.instructions).not.toContain('run-user-message');
+    }
+  });
   it.each([undefined, '0', '1'])('enables delegated metadata only for explicit host environment opt-in: %s', async flag => {
     let seen: McpToolServerOptions | undefined;
     await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', ...(flag === undefined ? {} : { JINI_DELEGATED_RESULT_MARKERS: flag }) }, createMcpToolServer: (_required, options) => {

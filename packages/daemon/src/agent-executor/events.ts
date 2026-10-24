@@ -3,6 +3,7 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
 import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import { appendSerialTask } from "@jini-ai/core/primitives";
 import { createLiveSessionState } from './live-session-state.js';
+import { acceptsMidRunUserMessages, createMessageRelay, type RunMessageRelay } from './message-relay.js';
 import { randomUUID } from 'node:crypto';
 import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
 import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
@@ -313,7 +314,21 @@ function bufferedStdoutTruncationNotice(droppedBytes: number, maxBytes: number):
   return `\n[jini] agent stdout truncated: ${droppedBytes} byte(s) dropped after the ${maxBytes}-byte buffer limit was reached.\n`;
 }
 
+/** Install once on a driver's FIFO; close synchronously before any terminal handler yields.
+ * Native runs omit registration, so they allocate no relay and emit only CLI receipts. */
+function attachMessageRelay({ register, emit, child }: {
+  register: ((relay: RunMessageRelay) => void) | undefined;
+  emit: (payload: RunAgentPayload) => void; child: ChildProcess;
+}): RunMessageRelay | undefined {
+  if (!register) return undefined;
+  const relay = createMessageRelay({ emit });
+  register(relay);
+  child.once('close', () => relay.close());
+  return relay;
+}
+
 interface WireChildLifecycleContext extends TerminateChildTreeDeps {
+  readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
   readonly startingModel?: string;
@@ -526,7 +541,9 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
 
   // Unanswered UUIDs and the CLI's queued_turn_count keep stdin open across intermediate turn ends.
   // Consumption is confirmed by CLI reply/result attribution, never by HTTP delivery or an echo.
-  const session = createLiveSessionState({ emit: data => enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data } })) });
+  const emitInput = (data: RunAgentPayload) => enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data } }));
+  const session = createLiveSessionState({ emit: emitInput });
+  const relay = attachMessageRelay({ register: ctx.registerMessageRelay, emit: emitInput, child });
   // Claude's background tasks can outlive a parent turn. Keep the existing hold until the last
   // task finishes; closing stdin early stops them at the CLI's background-wait ceiling.
   // 2026-10-10 (plannie chat): closing at the parent's end_turn made messages return
@@ -871,19 +888,18 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    * Images use the idle-send encoder without file tools or new directory grants; journals keep
    * text without base64. HTTP acceptance only
    * confirms the write; UUID-attributed CLI receipts separately confirm consumption. */
-  async function sendUserMessage(text: string, images: readonly MessageAttachmentImage[] = []): Promise<UserMessageDelivery> {
-    if (!acceptsMidRunUserMessages({ def })) return 'unsupported';
+  async function sendUserMessage({ text, id = randomUUID(), attachmentIds }: { text: string; id?: string; attachmentIds?: readonly string[] }, { imageContents: images = [] }: { imageContents?: readonly MessageAttachmentImage[] } = {}): Promise<UserMessageDelivery> {
+    if (!acceptsMidRunUserMessages({ def })) return relay?.enqueue({ id, text, hasAttachments: images.length > 0 || (attachmentIds?.length ?? 0) > 0 }) ?? 'unsupported';
     const stdin = child.stdin;
     if (stdinClosed || !stdin) return 'not-running';
     heldForBackgroundTasks = false;
-    writeUserMessage(stdin, text, images);
+    writeUserMessage(stdin, text, images, id);
     return 'delivered';
   }
 
   /** Writes a complete mid-run turn using the idle image encoder; journals text without base64.
    * The same UUID identifies stdin, queue acceptance and subsequent consumption receipts. */
-  function writeUserMessage(stdin: NonNullable<typeof child.stdin>, text: string, images: readonly MessageAttachmentImage[]): void {
-    const id = randomUUID();
+  function writeUserMessage(stdin: NonNullable<typeof child.stdin>, text: string, images: readonly MessageAttachmentImage[], id: string): void {
     session.queue({ id, text });
     stdin.write(`${JSON.stringify({ ...streamJsonUserMessage({ content: messageContentWithImages({ prompt: text, images }, {}) }), uuid: id })}\n`, 'utf8');
     if (journal) enqueueEmit(() => journal.record({ runId, entry: sentJournalEntry(text) }));
@@ -898,22 +914,13 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   };
 }
 
-/**
- * Whether a def's live process can take another user message mid-run: only a stream-json stdin
- * transport keeps stdin open for more JSONL user lines (see `RuntimeAgentDef.promptInputFormat`).
- * Deliberately not `resolveContinuationTransport`: that answers how a tool result gets back, and
- * reports `'mcp-callback'` for Claude even though its stdin takes user lines all the same.
- */
-export function acceptsMidRunUserMessages({ def }: { readonly def: RuntimeAgentDef }): boolean {
-  return def.promptViaStdin === true && def.promptInputFormat === 'stream-json';
-}
-
 /** The stream-json stdin envelope for one user message — the initial prompt and every mid-run one. */
 function streamJsonUserMessage({ content }: { readonly content: unknown }): { type: string; message: { role: string; content: unknown } } {
   return { type: 'user', message: { role: 'user', content: content } };
 }
 
 interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
+  readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly runId: string;
   readonly agentId: string;
   readonly child: ChildProcess;
@@ -991,6 +998,10 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
   function enqueueEmit(task: () => Promise<unknown>): void {
     emitQueue = appendSerialTask({ previous: emitQueue, task, onError: reportDroppedEmit });
   }
+
+  attachMessageRelay({ register: ctx.registerMessageRelay, child,
+    emit: data => enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data } })),
+  });
 
   if (ctx.model) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label: 'starting_model', model: ctx.model! } } }));
 
@@ -1228,6 +1239,7 @@ interface RunAcpDispatchInput {
 }
 
 interface RunAcpDispatchDeps extends TerminateChildTreeDeps {
+  readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly lifecycle: RunLifecycle;
   readonly attachAcpSession: typeof attachAcpSession;
   readonly onPermissionRequest: AcpPermissionHandler | undefined;
@@ -1243,6 +1255,7 @@ interface RunAcpDispatchDeps extends TerminateChildTreeDeps {
 export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDispatchInput; readonly deps: RunAcpDispatchDeps }): Promise<void> {
   try {
     wireAcpLifecycle({
+      ...(deps.registerMessageRelay ? { registerMessageRelay: deps.registerMessageRelay } : {}),
       runId: input.runId,
       agentId: input.agentId,
       child: input.child,

@@ -1,4 +1,6 @@
 import { buildAgentEnv } from './agent-env.js';
+import { randomUUID } from 'node:crypto';
+import { supportsMessageRelay, type RunMessageRelay } from './message-relay.js';
 import type { MessageAttachmentImage } from '../attachment-content.js';
 import { probeMcpBridge } from './mcp-bridge-probe.js';
 import {
@@ -995,14 +997,17 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * finished or unknown run reads as `'not-running'`. Bounded by the number of live children.
    */
   const liveRunInputs = new Map<string, StdinCloseHandle['sendUserMessage']>();
+  const liveRunRelays = new Map<string, RunMessageRelay>();
+
+  const claimUserMessages: AgentExecutor['claimUserMessages'] = ({ runId, via }) => liveRunRelays.get(runId)?.claim({ via }) ?? [];
 
   /** `AgentExecutor.sendUserMessage()` — see that interface method's own doc. @complexity O(1). */
   async function sendUserMessage(
-    { runId, text }: { readonly runId: string; readonly text: string },
+    { runId, text, id = randomUUID(), attachmentIds }: Parameters<AgentExecutor['sendUserMessage']>[0],
     { imageContents }: { readonly imageContents?: readonly MessageAttachmentImage[] } = {},
   ): Promise<UserMessageDelivery> {
     const deliver = liveRunInputs.get(runId);
-    return deliver ? deliver(text, imageContents) : 'not-running';
+    return deliver ? deliver({ text, id, ...(attachmentIds ? { attachmentIds } : {}) }, imageContents ? { imageContents } : {}) : 'not-running';
   }
 
   /** Validates launch input and selects the definition synchronously before yielding. */
@@ -1168,6 +1173,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const formatForStdin = { streamFormat };
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
+          ...(mcpBridge && supportsMessageRelay({ def }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
           ...(input.model ? { startingModel: input.model } : {}),
           ...(modelCatalog ? { modelCatalog } : {}),
           runId: input.runId,
@@ -1195,8 +1201,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Registered with the lifecycle wiring above, before the spawn-confirmation await, so a child
     // that closes immediately never leaves a stale entry behind.
     const runId = input.runId;
-    liveRunInputs.set(runId, stdinHandle ? stdinHandle.sendUserMessage : async () => 'unsupported');
-    child.once('close', () => liveRunInputs.delete(runId));
+    liveRunInputs.set(runId, stdinHandle ? stdinHandle.sendUserMessage : async ({ text, id = randomUUID(), attachmentIds }, { imageContents } = {}) => {
+      return liveRunRelays.get(runId)?.enqueue({ id, text, hasAttachments: (attachmentIds?.length ?? 0) > 0 || (imageContents?.length ?? 0) > 0 }) ?? 'unsupported';
+    });
+    child.once('close', () => { liveRunInputs.delete(runId); liveRunRelays.delete(runId); });
     return stdinHandle;
   }
 
@@ -1228,6 +1236,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       }, deps: {
         lifecycle,
         attachAcpSession: attachAcpSessionFn,
+        ...(mcpBridge && supportsMessageRelay({ def }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
         onPermissionRequest: options.acpPermissionHandler,
         listProcessSnapshots: listProcessSnapshotsFn,
         collectProcessTreePids: collectProcessTreePidsFn,
@@ -1538,6 +1547,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       await confirmChildSpawned({ input: { runId: input.runId, def, child }, deps: { releaseStagedResources, failBeforeSpawn } });
     } catch (error) {
       liveRunInputs.delete(runId);
+      liveRunRelays.delete(runId);
       throw error;
     }
 
@@ -1558,5 +1568,5 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     dispatchStdinPrompt({ input, def, child, overlayDelivery, imageDelivery, stdinHandle }, {});
   }
 
-  return { run, sendUserMessage };
+  return { run, sendUserMessage, claimUserMessages };
 }
