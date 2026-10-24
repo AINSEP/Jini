@@ -20,6 +20,7 @@
 import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/agentic/a2ui';
 import type { AgentEvent } from './events.js';
 import { isDelegatedWrapperToolName } from './tool-events.js';
+import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
 
 /** The latest thing a running turn is doing. */
 export type RunActivity =
@@ -148,6 +149,8 @@ function scanStatus(
 }
 
 function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
+  // Queue acceptance/consumption is user input, not new agent activity. Neither restarts its clock.
+  if (event.kind === 'ext' && event.name === MID_RUN_USER_MESSAGE_EVENT_NAME) return;
   if (isVisible(event)) {
     scan.lastVisible = { index, kind: event.kind };
     scan.visibleCount += 1;

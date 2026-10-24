@@ -394,7 +394,7 @@ function AssistantMessageRow({
 
   const renderExtGroup = (group: ExtEventGroup) => {
     const renderer = registry.get({ name: group.name });
-    if (!renderer && group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME) return <MidRunUserMessage events={group.events} />;
+    if (!renderer && group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME) return <MidRunUserMessage key={group.slot} events={group.events} runStreaming={answeredCards.runStreaming} />;
     if (!renderer) return null;
     const answerText = answeredCards.answerText(group.slot);
     const node = renderer({
