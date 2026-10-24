@@ -42,6 +42,23 @@ afterEach(() => {
 });
 
 describe('McpUiSurfaceCard', () => {
+  it('keeps the same choice summary before and after result replay, with exactly one receipt-owned bubble', () => {
+    const events = [resourceEvent('ui://question/replay', '<form>Choose</form>')];
+    const call = { id: 'question', name: 'assistant_ask_choice', input: {
+      title: 'Next step', singleSelect: { options: [{ value: 'preview', label: 'Preview the changes' }] },
+    } };
+    const { container, getByRole, rerender } = render(<McpUiSurfaceCard {...BASE_PROPS} runStreaming
+      events={events} call={call} answered answerText="Preview the changes" />);
+    expect(getByRole('status')).toHaveTextContent('Next step: Preview the changes');
+    expect(container.querySelector('.jini-message-user')).toHaveTextContent('Preview the changes');
+    expect(container.querySelector('iframe')).toBeNull();
+    rerender(<McpUiSurfaceCard {...BASE_PROPS} events={events} answerRecorded
+      call={{ ...call, result: { content: '{"submitted":true,"choice":"preview"}', isError: false } }} />);
+    expect(getByRole('status')).toHaveTextContent('Next step: Preview the changes');
+    expect(container.querySelector('.jini-message-user')).toBeNull();
+    expect(container.querySelector('iframe')).toBeNull();
+  });
+
   it.each(['question', 'prompt'])('keeps the closed %s with selected labels after its answer receipt renders', field => {
     const { container, getByRole } = render(<McpUiSurfaceCard {...BASE_PROPS}
       events={[resourceEvent('ui://question/answered', '<form>Pick</form>')]} answerRecorded
