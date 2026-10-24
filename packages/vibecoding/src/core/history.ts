@@ -135,6 +135,9 @@ export interface EditHistory {
   /** Undoable entries, oldest first. For rendering a history UI; do not mutate. */
   entries(): readonly HistoryEntry[];
 
+  /** Entries in both stacks, for pinning revisions during garbage collection. */
+  retainedEntries(): readonly HistoryEntry[];
+
   /** Discard both stacks. */
   clear(): void;
 }
@@ -278,6 +281,7 @@ export function createEditHistory(
     },
 
     entries: () => [...undoStack],
+    retainedEntries: () => [...undoStack, ...redoStack],
 
     clear(): void {
       undoStack.length = 0;

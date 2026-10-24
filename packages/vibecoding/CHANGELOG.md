@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add `./node` real file-tree projects with content-addressed revisions, pending-journal recovery,
+  external-drift capture, optional whole-candidate validation and exact pointer-part undo/redo.
+- Add React-free `./session` with injectable project history/mutation; preserve React re-exports.
+- Expose both retained history stacks for object/manifest garbage collection.
+
 ## 0.6.10
 
 ### Patch Changes

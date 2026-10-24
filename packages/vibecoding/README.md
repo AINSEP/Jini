@@ -33,10 +33,12 @@ Neither reimplements the loop.
 | `./core` | universal | the loop and the `EditTarget` port — no React, no Node, no DOM |
 | `./html` | universal | the tagged-region, single-HTML-document `EditTarget` (parser injected) |
 | `./html/node` | node | a parse5-backed `HtmlRegionParser` for `./html`, for a Node host |
-| `./react` | browser | `VibecodingSession`, the `@jini-ai/core`-registrable tool set, and the file-viewer/renderer components — see `src/react/README` section below |
+| `./session` | universal | Sessions and registered/direct tools; no React import |
+| `./node` | node | Real local file trees, whole-turn validation, capture, journal recovery and exact history |
+| `./react` | browser | Session/tool re-exports, hooks and file-viewer/renderer components |
 
-`./node` (filesystem targets) is planned and deliberately not present yet — building it is a
-separate `EditTarget` implementation, not a `./react` concern. React is an **optional** peer of
+`./node` supplies a file-tree project behind the same `EditTarget` port. The host selects the
+real working directory and a private state directory outside the app root. React is an **optional** peer of
 `./react`: keeping the framework-free half importable without a UI dependency is the point of the
 split, not a stylistic preference, and importing `.`/`./core`/`./html` never pulls React in.
 
@@ -108,7 +110,7 @@ React components keep their props and framework callbacks keep the framework's s
 | Handle check / parser | `isValidRegionHandle({ handle })`, `createParse5RegionParser()` |
 | Parser port | `parser.findRegions({ html })`, `parser.checkWellFormed?.({ html })` |
 | Document store port | `store.read()`, `store.write({ html })` |
-| Session | `createVibecodingSession({ target }, { historyOptions })` |
+| Session | `createVibecodingSession({ target }, { historyOptions?, history?, applyTurn? })` |
 | Session methods | `session.subscribe({ listener })`, `session.readPart({ id })`, `session.applyEdits({ edits }, { label })`, `session.restoreSnapshot({ snapshot })` |
 | React hook | `useVibecodingSession({ session })`; its `readPart` and `applyEdits` actions use the session method shapes |
 | Registered tools | `createVibecodingToolRegistrations({ session }, { policy })` |
@@ -117,9 +119,9 @@ React components keep their props and framework callbacks keep the framework's s
 `createParse5RegionParser()` always provides `checkWellFormed({ html })`; optional chaining
 is only needed when working with the generic `HtmlRegionParser` port.
 
-`VibecodingSessionArgs` holds the required target; `VibecodingSessionOptions` now holds only
-optional `historyOptions`. `UseVibecodingSessionArgs` and `VibecodingToolArgs` describe the required
-session port. All are exported from `./react`. Tool input JSON remains unchanged: `edits` and
+`VibecodingSessionArgs` holds the required target; `VibecodingSessionOptions` holds optional
+`historyOptions`, injected `history` and whole-turn `applyTurn`. `UseVibecodingSessionArgs` and `VibecodingToolArgs` describe the required
+session port. All are exported from `./session` and re-exported from `./react`. Tool input JSON remains unchanged: `edits` and
 `label` still belong to the same tool input object.
 
 ```ts
@@ -152,3 +154,45 @@ belong to the host. Integration verification is deferred by owner directive; see
 ## Design decisions
 
 - [Ambiguous region detection refuses rather than dropping a handle](docs/decisions/DR-001-conservative-region-detection.md).
+
+
+## Local app projects
+
+```ts
+import { openFileTreeProject } from '@jini-ai/vibecoding/node';
+import { createVibecodingSession } from '@jini-ai/vibecoding/session';
+
+const project = await openFileTreeProject({
+  root: appDirectory,
+  stateDir: privateHostStateDirectory, // outside appDirectory: dev servers must never serve history
+  policy: { allows: ({ relativePath }) => allowedAppPath(relativePath) },
+  // Optional validator.validate({candidate, signal}) checks the entire candidate once.
+});
+const session = createVibecodingSession({ target: project.target }, {
+  history: project.history,
+  applyTurn: project.applyEdits,
+});
+await project.applyTurn({
+  expectedRevision: await project.capture(),
+  changes: [{ op: 'create', relativePath: 'src/App.tsx', content: appSource }],
+});
+await session.undo(); // removes the created file and its empty managed folders
+await project.close();
+```
+
+PartIds are canonical relative paths. Explicit creates need no reservation; replacements/deletes
+must name existing parts. The root remains the real working tree watched by Vite and other local
+dev servers; dependencies, secrets and generated output are excluded. `capture()` records npm,
+editor or user drift before a turn/undo so it is not silently overwritten. Revisions deduplicate
+unchanged bytes in objects plus manifests. A pending journal rolls interrupted materialization
+forward on reopen. History is session-local; another writer's generation clears it and returns `CONFLICT`.
+
+Defaults: 2000 files, 2 MiB/file, 64 MiB/tree, depth 32, 100 changes/turn, 30-second validation,
+50 history entries, and 200-character relative paths. A host allowlist always intersects mandatory
+exclusions. Candidate-wide case/NFC checks permit case-only rename turns; nonportable names and
+physical escapes refuse. Snapshots may expire once no longer retained by current/undo/redo.
+
+Read [Node projects](docs/spec/api.spec.md#node-projects), the
+[error table](docs/spec/errors.spec.md#node-project-errors), and
+[DR-002](docs/decisions/DR-002-file-tree-revisions.md) for recovery and authority limits. No process,
+package-install, compiler, preview or deployment implementation is included in this step.
