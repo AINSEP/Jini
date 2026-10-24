@@ -4,6 +4,8 @@ This is a mechanism, not legal advice or a compliance verdict. Hosts own policy 
 
 Imports: `@jini-ai/cms/consent` (universal decisions/contracts), `/consent/html` (Node parse5 transform), `/consent/express` (HTTP lifecycle), `/consent/node` (immutable file receipts behind the existing atomic-writer port). Admin view: `@jini-ai/admin/consent/react`.
 
+`ConsentConfig.allowUnsafeEval?: boolean` is an optional per-site exception for themes that generate code from strings. Only literal `true` appends `'unsafe-eval'` to consent's `script-src` (including the GPC/withdrawal fallback policies); it adds no origins and releases no optional scripts. Prefer self-hosting the script or a CSP-compatible build first. A config read failure keeps the last-good config's choice; with no last-good config the policy stays restrictive.
+
 Declare scripts in theme/plugin HTML:
 
 ```html
