@@ -20,5 +20,8 @@ export interface MailAdapterCreateContext {
 
 /** Provider modules return the ordinary mail port; the shared contract names no vendor. */
 export interface MailAdapterModule {
+  /** Optional host-resolved account connection for domain reads only. The host validates the
+   * HTTPS origin and plugin ownership; this credential must never replace the sending key. */
+  readonly domainReadConnection?: { readonly serverId: string; readonly baseUrl: string };
   create(context: MailAdapterCreateContext): MailerPort;
 }
