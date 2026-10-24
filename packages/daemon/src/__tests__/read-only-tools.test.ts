@@ -185,7 +185,7 @@ test('unknown read-only tool ids suggest registered prefix candidates instead of
   assert.equal(refusal?.includes('execute_delegated_tool'), false);
 });
 
-test('unknown read-only tool suggestions exclude contains-only matches and keep the first eight prefixes in catalog order', () => {
+test('unknown read-only tool suggestions exclude contains-only matches and keep catalog order for equal similarity', () => {
   const { registry } = harness();
   for (const id of ['site_content_read', ...[9, 2, 7, 1, 8, 3, 6, 0, 5, 4].map((index) => `content_read_${index}`)]) {
     registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => null });
@@ -193,6 +193,21 @@ test('unknown read-only tool suggestions exclude contains-only matches and keep 
   const refusal = checkReadOnlyTool({ toolId: 'content_read', registry, messages: defaultDaemonMessages.readOnly });
   assert.equal(refusal, 'no tool "content_read" is registered; use search_tools — did you mean content_read_9, content_read_2, content_read_7, content_read_1, content_read_8, content_read_3, content_read_6, content_read_0?');
   assert.equal(refusal.includes('site_content_read'), false);
+});
+
+test('read-only constraint uses the resource hint for diagnostics without executing an alternate registration', async () => {
+  const { registry, gate, calls } = harness();
+  for (const id of ['content_read.backup_restore_point', 'content_read.theme']) {
+    registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => calls.push(id) });
+  }
+  const input = { resource: 'theme' };
+  const expected = 'no tool "content_read" is registered; use search_tools — did you mean content_read.theme, content_read.backup_restore_point?';
+  assert.equal(checkReadOnlyTool({ toolId: 'content_read', input, registry, messages: defaultDaemonMessages.readOnly }), expected);
+  const constrained = withReadOnlyToolConstraint({ inner: gate, registry, messages: defaultDaemonMessages.readOnly, idGenerator: { newId: () => 'denial' } });
+  assert.deepEqual(await constrained.execute({ principal: READ_ONLY, run: RUN, toolId: 'content_read', input }), {
+    status: 'denied', executionId: 'denial', error: expected,
+  });
+  assert.deepEqual(calls, []);
 });
 
 test('unknown read-only tool ids without candidates still direct discovery; registered writes keep their refusal', () => {

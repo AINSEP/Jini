@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeToolInput, withNormalizationNotes } from '../tool-input-normalization.js';
+import { canonicalizeToolInputKeys, normalizeToolInput, withNormalizationNotes } from '../tool-input-normalization.js';
 import { withBatchInput } from '../batch-tool-inputs.js';
 import { authorizeToolInvocation } from '../tool-registry.js';
 import type { ToolRegistration } from '../tool-registry.js';
@@ -15,6 +15,87 @@ const schema = {
 };
 const registration = { descriptor: { id: 'example', inputSchema: schema } };
 const normalize = (input: unknown, definition = registration) => normalizeToolInput({ input, registration: definition });
+
+describe('declared property aliases', () => {
+  const inputSchema = { type: 'object', additionalProperties: false, properties: {
+    contains: { type: 'string', aliases: ['search', 'query', 'searchText'] },
+  } };
+  const definition = { descriptor: { id: 'logs', inputSchema } };
+
+  it.each(['search', 'query', 'SEARCH', 'search_text'])('canonicalizes %s and exposes a value-free result note', async key => {
+    const input = { [key]: 'private-filter' };
+    const result = await normalizeToolInput({ input, registration: definition });
+    expect(result).toEqual({ input: { contains: 'private-filter' }, notes: [`${key}→contains`] });
+    expect(withNormalizationNotes({ output: { entries: [] }, notes: result.notes })).toEqual({ entries: [], normalizationNotes: [`${key}→contains`] });
+    expect(input).toEqual({ [key]: 'private-filter' });
+  });
+
+  it.each([
+    { contains: 'one', search: 'two' }, { search: 'one', contains: 'two' },
+    { search: 'one', query: 'two' }, { query: 'one', search: 'two' },
+  ])('refuses canonical/alias and alias/alias collisions in either order', async input => {
+    await expect(normalizeToolInput({ input, registration: definition })).rejects.toThrow("Send only 'contains'");
+  });
+
+  it('keeps exact property names ahead of aliases and refuses ambiguous alternate spellings', async () => {
+    const properties = { search: { type: 'string' }, contains: { type: 'string', aliases: ['search'] } };
+    const registration = { descriptor: { id: 'logs', inputSchema: { ...inputSchema, properties } } };
+    expect(await normalizeToolInput({ input: { search: 'private-filter' }, registration })).toEqual({ input: { search: 'private-filter' }, notes: [] });
+    await expect(normalizeToolInput({ input: { SEARCH: 'private-filter' }, registration })).rejects.toThrow('matches search, contains');
+    const ambiguous = { topic: { aliases: ['query'] }, contains: { aliases: ['query'] } };
+    await expect(normalizeToolInput({ input: { query: 'private-filter' }, registration: { descriptor: { id: 'ambiguous', inputSchema: { ...inputSchema, properties: ambiguous } } } })).rejects.toThrow('matches topic, contains');
+  });
+
+  it.each([null, true, { aliases: 'query' }, { aliases: [null, 7, {}] }])('ignores malformed alias annotations %j', async property => {
+    const registration = { descriptor: { id: 'logs', inputSchema: { ...inputSchema, properties: { contains: property } } } };
+    await expect(normalizeToolInput({ input: { query: 'private-filter' }, registration })).rejects.toThrow("Unknown input 'query'");
+  });
+
+  it('canonicalizes declared aliases in open schemas while preserving undeclared synonyms', async () => {
+    const registration = { descriptor: { id: 'logs', inputSchema: { ...inputSchema, additionalProperties: true } } };
+    expect(await normalizeToolInput({ input: { query: 'one', filter: 'two' }, registration })).toEqual({ input: { contains: 'one', filter: 'two' }, notes: ['query→contains'] });
+  });
+
+  it('applies aliases recursively and retains type coercion and nested paths', async () => {
+    const registration = { descriptor: { id: 'nested', inputSchema: {
+      type: 'object', properties: { items: { type: 'array', items: {
+        type: 'object', properties: { limit: { type: 'integer', aliases: ['count'] } },
+      } } },
+    } } };
+    expect(await normalizeToolInput({ input: { items: [{ count: '3' }] }, registration })).toEqual({
+      input: { items: [{ limit: 3 }] }, notes: ['items[0].count→limit', 'items[0].limit: string→integer'],
+    });
+  });
+
+  it('uses the same alias mechanism in the keys-only batch pass without coercing values', () => {
+    expect(canonicalizeToolInputKeys({ input: { query: ['private-filter'] }, schema: inputSchema })).toEqual({
+      input: { contains: ['private-filter'] }, notes: ['query→contains'],
+    });
+  });
+
+  it('merges batch aliases before authorization with item-over-shared precedence and result notes', async () => {
+    const seen: unknown[] = [];
+    const registration: ToolRegistration = {
+      descriptor: definition.descriptor,
+      policy: { authorize: ({ input }) => { seen.push(input); return 'allow'; } },
+      handler: async ({ input }) => input,
+    };
+    const batched = withBatchInput({ registration, tool: { toolId: 'logs', itemDefaults: { search: 'default' } } });
+    const context = { signal: new AbortController().signal, principal: { id: 'owner' }, run: { id: 'run' }, executionId: 'execution' };
+    const output = await batched.handler({ ...context, input: { query: 'shared', items: [{ search: 'item' }, {}] } }, {
+      invokeTool: async ({ toolId, input }, { registry } = {}) => {
+        const admitted = await authorizeToolInvocation({ registry: registry!, toolId, input, principal: context.principal, run: context.run });
+        if (!admitted || admitted.decision !== 'allow') throw new Error('authorization refused');
+        return admitted.handler({ ...context, input: admitted.input });
+      },
+    });
+    expect(seen).toEqual([{ contains: 'item' }, { contains: 'shared' }]);
+    expect(output).toMatchObject({ succeeded: 2, failed: 0, results: [
+      { ok: true, result: { contains: 'item', normalizationNotes: ['search→contains', 'query→contains', 'search→contains'] } },
+      { ok: true, result: { contains: 'shared', normalizationNotes: ['search→contains', 'query→contains'] } },
+    ] });
+  });
+});
 
 describe('schema-guided tool input normalization', () => {
   it.each(['expected_version', 'expected-version', 'ExpectedVersion', 'EXPECTEDVERSION'])('accepts %s and records only keys/types', async key => {

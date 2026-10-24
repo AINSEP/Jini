@@ -49,6 +49,18 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
       .rejects.toMatchObject({ name: 'ToolInputError', message: 'ToolExecutor: unknown tool "content_read"; did you mean content_read.menu, content_read.page?' });
   });
 
+  it('suggests the explicit resource first without dispatching or authorizing an alternate tool', async () => {
+    const handler = vi.fn(async () => 'unused');
+    const authorize = vi.fn(() => 'allow' as const);
+    const registry = registryWith(...['content_read.backup_restore_point', 'content_read.theme'].map((id): ToolRegistration => ({
+      descriptor: { id }, policy: { authorize }, handler,
+    })));
+    await expect(createToolExecutor({ registry }).execute({ principal, run, toolId: 'content_read', input: { resource: 'theme' } }))
+      .rejects.toMatchObject({ name: 'ToolInputError', message: 'ToolExecutor: unknown tool "content_read"; did you mean content_read.theme, content_read.backup_restore_point?' });
+    expect(handler).not.toHaveBeenCalled();
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
   it('runs an allowed tool call end to end and records the audit trail', async () => {
     const registry = registryWith({
       descriptor: { id: 'echo' },

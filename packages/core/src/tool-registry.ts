@@ -48,6 +48,9 @@ export interface ToolDescriptor {
    * JSON-Schema-shaped description of this tool's accepted input, carried as `unknown` because the
    * gate reads common property/type fields for input normalization but leaves validation and
    * schema dialects to the handler; no validator dependency belongs in every registry consumer.
+   * Each property may declare `aliases: readonly string[]` (e.g. contains: { type: 'string',
+   * aliases: ['search', 'query'] }). The gate treats these like case variants, rejects ambiguous
+   * or conflicting names, and reports the rename in normalization notes.
    *
    * It exists because *every* discovery mechanism needs it and nothing else in the kernel can
    * supply it: a caller that can enumerate `ToolRegistry.list({})` still cannot tell an agent what
