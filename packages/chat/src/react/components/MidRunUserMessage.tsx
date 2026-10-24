@@ -13,6 +13,7 @@ import { acceptedInputEvent, type AcceptedChatInput } from '../../core/accepted-
 import { SentAttachmentButton } from './SentAttachment.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
+import { useT } from '../hooks/context.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../../core/turn-usage.js';
 import { registerExtEventRenderer, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 
@@ -31,21 +32,25 @@ export function midRunUserMessageSlotKey({ data }: { data: unknown }): string | 
 }
 
 /** The bubble for one mid-run message — the same classes as a sent user message, so it reads as one. */
-export function MidRunUserMessage({ events }: Pick<ExtEventRenderProps, 'events'>) {
+export function MidRunUserMessage({ events, runStreaming = false }: Pick<ExtEventRenderProps, 'events'> & Partial<Pick<ExtEventRenderProps, 'runStreaming'>>) {
   const data = events.at(-1);
   const text = field(data, 'text');
   if (text === undefined) return null;
   const receipt = acceptedInputEvent({ event: { kind: 'ext', name: MID_RUN_USER_MESSAGE_EVENT_NAME, data } });
   // MOVE: A single live delivery may contain several queued inputs; display their original receipts.
-  const inputs = receipt?.data.inputs ?? [{ id: field(data, 'id') ?? 'mid-run', text }];
-  return <>{inputs.map(input => <MidRunInput key={input.id} input={input} />)}</>;
+  const inputs: readonly AcceptedChatInput[] = receipt?.data.inputs ?? [{ id: field(data, 'id') ?? 'mid-run', text }];
+  // A run that ended without reading the message hands it to the next turn; it is no longer queued here.
+  return <>{inputs.map(input => <MidRunInput key={input.id} input={input}
+    queued={runStreaming && (input.deliveryState ?? receipt?.data.deliveryState) === 'queued'} />)}</>;
 }
 
-function MidRunInput({ input }: { input: AcceptedChatInput }) {
+function MidRunInput({ input, queued }: { input: AcceptedChatInput; queued: boolean }) {
+  const t = useT();
   const attachments = input.attachments ?? [];
   const gallery = useAttachmentGallery({ attachments });
   return (
     <div className="jini-message jini-message-user jini-message-user--mid-run" data-agent-role="region" data-agent-label="A message from the user, sent while the agent was working">
+      {queued && <div className="jini-message-user__queued" role="status">{t('Queued — read after the current step')}</div>}
       <div className="jini-message-content">{input.text}</div>
       {attachments.length > 0 && <div className="jini-message-attachments">
         {attachments.map(attachment => <SentAttachmentButton key={attachment.path} attachment={attachment} onOpen={gallery.open} />)}
@@ -62,7 +67,7 @@ function MidRunInput({ input }: { input: AcceptedChatInput }) {
  */
 export function registerMidRunUserMessageRenderer(): () => void {
   return registerExtEventRenderer(
-    { name: MID_RUN_USER_MESSAGE_EXT_EVENT_NAME, renderer: (props) => <MidRunUserMessage events={props.events} /> },
+    { name: MID_RUN_USER_MESSAGE_EXT_EVENT_NAME, renderer: (props) => <MidRunUserMessage events={props.events} runStreaming={props.runStreaming} /> },
     { slotKey: midRunUserMessageSlotKey },
   );
 }

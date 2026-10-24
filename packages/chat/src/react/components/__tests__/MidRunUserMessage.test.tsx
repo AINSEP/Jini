@@ -8,6 +8,31 @@ import { MID_RUN_USER_MESSAGE_EXT_EVENT_NAME, registerMidRunUserMessageRenderer 
 describe('registerMidRunUserMessageRenderer', () => {
   afterEach(() => clearExtEventRenderers());
 
+  it.each([false, true])('labels queued relay inputs until their consumption receipt, with renderer registered: %s', registered => {
+    if (registered) registerMidRunUserMessageRenderer();
+    const message: ChatMessage = { id: 'a', role: 'assistant', content: '', runStatus: 'running', events: [
+      { kind: 'ext', name: 'user_message', data: { id: 'relay', text: 'follow up', deliveryState: 'queued',
+        inputs: [{ id: 'local', text: 'follow up' }] } },
+    ] };
+    const { rerender, container } = render(<MessageRow message={message} runStreaming />);
+    expect(screen.getByText('Queued — read after the current step')).toBeInTheDocument();
+    rerender(<MessageRow message={{ ...message, events: [...message.events!,
+      { kind: 'ext', name: 'user_message', data: { id: 'relay', text: 'follow up', deliveryState: 'consumed' } },
+    ] }} runStreaming />);
+    expect(screen.queryByText('Queued — read after the current step')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('.jini-message-user--mid-run')).toHaveLength(1);
+    expect(screen.getByText('follow up')).toBeInTheDocument();
+  });
+
+  it('drops the queued label once the run ends without reading the message', () => {
+    const message: ChatMessage = { id: 'a', role: 'assistant', content: 'done', runStatus: 'succeeded', events: [
+      { kind: 'ext', name: 'user_message', data: { id: 'relay', text: 'follow up', deliveryState: 'queued' } },
+    ] };
+    render(<MessageRow message={message} />);
+    expect(screen.getByText('follow up')).toBeInTheDocument();
+    expect(screen.queryByText('Queued — read after the current step')).not.toBeInTheDocument();
+  });
+
   it('renders each message sent mid-run as a user bubble where it arrived inside the running turn', () => {
     registerMidRunUserMessageRenderer();
     const message: ChatMessage = {

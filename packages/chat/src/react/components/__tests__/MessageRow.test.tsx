@@ -92,6 +92,27 @@ describe('MessageRow', () => {
     }
   });
 
+  it('keeps one ticking activity line through queue acceptance, consumption and a transient stream disconnect', () => {
+    vi.useFakeTimers();
+    try {
+      const message: ChatMessage = { id: 'relay-clock', role: 'assistant', content: '', runStatus: 'running' };
+      const { rerender, container } = render(<MessageRow message={message} runStreaming />);
+      act(() => { vi.advanceTimersByTime(3_000); });
+      const queued: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'relay', text: 'follow up', deliveryState: 'queued' } };
+      rerender(<MessageRow message={{ ...message, events: [queued] }} runStreaming />);
+      expect(screen.getByText('Thinking… 3 s')).toBeInTheDocument();
+      expect(container.querySelectorAll('.jini-run-activity')).toHaveLength(1);
+      act(() => { vi.advanceTimersByTime(5_000); });
+      const consumed: AgentEvent = { ...queued, data: { id: 'relay', text: 'follow up', deliveryState: 'consumed' } };
+      rerender(<MessageRow message={{ ...message, events: [queued, consumed] }} runStreaming={false} />);
+      expect(screen.getByText('Thinking… 8 s')).toBeInTheDocument();
+      act(() => { vi.advanceTimersByTime(10_000); });
+      expect(screen.getByText('Thinking… 18 s')).toBeInTheDocument();
+      rerender(<MessageRow message={{ ...message, runStatus: 'succeeded', events: [queued, consumed] }} />);
+      expect(container.querySelector('.jini-run-activity')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
   it('tags each message for agent inspection, distinctly per role and message id', () => {
     const userMessage: ChatMessage = { id: 'u-9', role: 'user', content: 'hi' };
     const { container: userContainer } = render(<MessageRow message={userMessage} />);
