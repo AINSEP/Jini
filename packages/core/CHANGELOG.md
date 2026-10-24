@@ -1,5 +1,12 @@
 # @jini-ai/core
 
+## 0.6.11
+
+### Patch Changes
+
+- OAuth accepts a parent protected-resource identifier and forwards the refresh resource; settings definitions are filtered; scope selectors are never id shorthand; secret-named URL parameters are masked by default in redaction.
+- Tool inputs apply a sole near-miss and declared input aliases; plugin-load outcomes are reported; `web_fetch` reads SVG/JS as text; `content_read` suggests its resource first; the browser falls back to system Chrome.
+
 ## 0.6.10
 
 ### Patch Changes

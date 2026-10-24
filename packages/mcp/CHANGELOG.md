@@ -1,5 +1,16 @@
 # @jini-ai/mcp
 
+## 0.6.11
+
+### Patch Changes
+
+- Mid-run message relay for MCP-bridged engines (Codex, ACP, Antigravity): `registerMessageRelayRoutes` on `@jini-ai/daemon/http`; mid-run messages queue instead of interrupting, and recovery waits on an uncertain probe.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+  - @jini-ai/protocol@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

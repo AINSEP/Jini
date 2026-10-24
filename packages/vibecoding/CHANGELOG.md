@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.11
+
+### Patch Changes
+
+- `./node` file-tree projects with revision undo and a React-free `./session`; `./html` gains a non-throwing region scan and pure region edits; async atomic writes in platform.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+  - @jini-ai/platform@0.6.11
+
 ## Unreleased
 
 ### Added

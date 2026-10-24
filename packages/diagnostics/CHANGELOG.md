@@ -1,5 +1,14 @@
 # @jini-ai/diagnostics
 
+## 0.6.11
+
+### Patch Changes
+
+- Tool inputs apply a sole near-miss and declared input aliases; plugin-load outcomes are reported; `web_fetch` reads SVG/JS as text; `content_read` suggests its resource first; the browser falls back to system Chrome.
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

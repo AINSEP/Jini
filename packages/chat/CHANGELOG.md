@@ -1,3 +1,13 @@
+## 0.6.11
+
+### Patch Changes
+
+- Honest turn footers (done / stopped / interrupted), answered question cards keep their question and chosen labels, readable conversation titles and counts; the usage tooltip reads "N output tokens".
+- Mid-run message relay for MCP-bridged engines (Codex, ACP, Antigravity): `registerMessageRelayRoutes` on `@jini-ai/daemon/http`; mid-run messages queue instead of interrupting, and recovery waits on an uncertain probe.
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

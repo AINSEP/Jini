@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.11
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

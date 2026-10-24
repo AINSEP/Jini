@@ -1,5 +1,14 @@
 # @jini-ai/ui
 
+## 0.6.11
+
+### Patch Changes
+
+- Style variables no longer reference the deleted payments and charts packages.
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

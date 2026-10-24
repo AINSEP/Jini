@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/ui-kit",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "Framework-free UI contract, injected React facades and native defaults.",
   "license": "Apache-2.0",
   "repository": {
