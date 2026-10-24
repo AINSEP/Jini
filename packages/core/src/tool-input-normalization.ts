@@ -26,8 +26,13 @@ function sameLengthNearMiss({ left, right, index }: { left: string; right: strin
     || (left[index] === right[index + 1] && left[index + 1] === right[index] && left.slice(index + 2) === right.slice(index + 2));
 }
 
-/** Whether either key is the generic id shorthand for the other's id suffix. */
+/** Scope selectors name a container, never the resource: guessing `workspaceId` as `id` (or the
+ * reverse) would silently drop or invent a scope. Only a declared name or alias may accept one. */
+const SCOPE_SELECTORS = new Set(['workspaceid', 'siteid']);
+
+/** Whether either key is the generic id shorthand for the other's id suffix; never for a scope selector. */
 function isIdShorthand({ left, right }: { left: string; right: string }, _options: Record<string, never> = {}): boolean {
+  if (SCOPE_SELECTORS.has(left) || SCOPE_SELECTORS.has(right)) return false;
   return (left === 'id' && right.endsWith('id')) || (right === 'id' && left.endsWith('id'));
 }
 
