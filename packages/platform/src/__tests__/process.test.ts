@@ -42,6 +42,7 @@ import {
   createProcessStampArgs,
   isProcessAlive,
   listProcessSnapshots,
+  listProcessUsage,
   matchesProcessStamp,
   matchesStampedProcess,
   readFlagValue,
@@ -458,6 +459,114 @@ describe('@jini-ai/platform — process — listProcessSnapshots (Windows)', () 
   it('returns an empty list when the powershell call fails', async () => {
     mockState.execFileImpl = (_command, _args, _options, callback) => callback(new Error('powershell missing'), '', '');
     await expect(withPlatformAsync('win32', () => listProcessSnapshots())).resolves.toEqual([]);
+  });
+});
+
+describe('@jini-ai/platform — process — listProcessUsage', () => {
+  it('converts macOS RSS and CPU formats, preserving spaces in executable basenames', async () => {
+    mockState.execFileImpl = (command, args, options, callback) => {
+      expect(command).toBe('ps');
+      expect(args).toEqual(['-axo', 'pid=,ppid=,rss=,time=,comm=']);
+      expect(options).toEqual({ encoding: 'utf8', timeout: 5000, maxBuffer: 8 * 1024 * 1024, windowsHide: true });
+      callback(null, [
+        '  123 1 2048 02:03.45 /usr/local/bin/node',
+        '  124 123 512 01:02:03 /Applications/Browser.app/Contents/MacOS/Browser Helper',
+        '  125 123 0 2-03:04:05 /bin/worker',
+      ].join('\n'), '');
+    };
+    await expect(listProcessUsage({ platform: 'darwin' })).resolves.toEqual([
+      { pid: 123, ppid: 1, rssBytes: 2097152, cpuSeconds: 123.45, name: 'node' },
+      { pid: 124, ppid: 123, rssBytes: 524288, cpuSeconds: 3723, name: 'Browser Helper' },
+      { pid: 125, ppid: 123, rssBytes: 0, cpuSeconds: 183845, name: 'worker' },
+    ]);
+  });
+
+  it('uses the same ps fields on Linux and ignores malformed rows without losing valid rows', async () => {
+    mockState.execFileImpl = (_command, _args, _options, callback) => callback(null, [
+      '  42 0 1 00:00:01 /usr/bin/worker',
+      'bad row', '  43 1 12 invalid /bin/worker', '  44 1 -1 00:00:01 /bin/worker',
+      '  99999999999999999999 1 12 00:00:01 /bin/worker', '',
+    ].join('\r\n'), '');
+    await expect(listProcessUsage({ platform: 'linux' })).resolves.toEqual([
+      { pid: 42, ppid: 0, rssBytes: 1024, cpuSeconds: 1, name: 'worker' },
+    ]);
+  });
+
+  const cimRecord = {
+    ProcessId: 100, ParentProcessId: 1, WorkingSetSize: '1048576',
+    UserModeTime: '20000000', KernelModeTime: '15000000', Name: 'C:\\Program Files\\Runtime\\node.exe',
+    CommandLine: 'node.exe --token=must-never-be-returned',
+  };
+
+  it('converts a single CIM object with byte RSS and 100ns CPU counters, exposing only its basename', async () => {
+    mockState.execFileImpl = (command, args, _options, callback) => {
+      expect(command).toBe('powershell.exe');
+      expect(args).toEqual(['-NoProfile', '-NonInteractive', '-Command',
+        "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize, UserModeTime, KernelModeTime, Name | ConvertTo-Json -Compress"]);
+      callback(null, JSON.stringify(cimRecord), '');
+    };
+    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([
+      { pid: 100, ppid: 1, rssBytes: 1048576, cpuSeconds: 3.5, name: 'node.exe' },
+    ]);
+  });
+
+  it('handles CIM arrays, numeric counters and null names without falling back to command lines', async () => {
+    mockState.execFileImpl = (_command, _args, _options, callback) => callback(null, JSON.stringify([
+      cimRecord,
+      { ...cimRecord, ProcessId: '101', WorkingSetSize: 0, UserModeTime: 0, KernelModeTime: 0, Name: null },
+    ]), '');
+    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([
+      { pid: 100, ppid: 1, rssBytes: 1048576, cpuSeconds: 3.5, name: 'node.exe' },
+      { pid: 101, ppid: 1, rssBytes: 0, cpuSeconds: 0, name: '' },
+    ]);
+  });
+
+  it('drops incomplete or invalid CIM metrics while retaining valid records', async () => {
+    mockState.execFileImpl = (_command, _args, _options, callback) => callback(null, JSON.stringify([
+      null, {}, { ...cimRecord, ProcessId: 'bad' }, { ...cimRecord, ParentProcessId: null },
+      { ...cimRecord, WorkingSetSize: null }, { ...cimRecord, WorkingSetSize: -1 },
+      { ...cimRecord, UserModeTime: '' }, { ...cimRecord, KernelModeTime: 'Infinity' }, cimRecord,
+    ]), '');
+    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([
+      { pid: 100, ppid: 1, rssBytes: 1048576, cpuSeconds: 3.5, name: 'node.exe' },
+    ]);
+  });
+
+  it.each(['', '   \n', 'null', '[]', '{broken'])('returns [] for absent or malformed CIM output %j', async (stdout) => {
+    mockState.execFileImpl = (_command, _args, _options, callback) => callback(null, stdout, '');
+    await expect(listProcessUsage({ platform: 'win32' })).resolves.toEqual([]);
+  });
+
+  it.each(['darwin', 'win32'] as const)('returns [] on %s execution failure, even with partial output', async (platform) => {
+    mockState.execFileImpl = (_command, _args, _options, callback) => {
+      callback(new Error('timeout or output limit'), '42 1 1024 00:01 /bin/worker', '');
+    };
+    await expect(listProcessUsage({ platform })).resolves.toEqual([]);
+  });
+
+  it('accepts an injected execution port and timeout override', async () => {
+    const run = vi.fn(async () => ({
+      code: undefined, error: null, ok: true, stderr: '', stdout: '42 1 1 00:01 /bin/worker',
+    }));
+    await expect(listProcessUsage({ platform: 'linux', run }, { timeoutMs: 250 })).resolves.toEqual([
+      { pid: 42, ppid: 1, rssBytes: 1024, cpuSeconds: 1, name: 'worker' },
+    ]);
+    expect(run).toHaveBeenCalledWith('ps', ['-axo', 'pid=,ppid=,rss=,time=,comm='], {
+      encoding: 'utf8', timeout: 250, maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+    });
+  });
+
+  it('returns [] when the injected execution port rejects', async () => {
+    const run = vi.fn(async () => { throw new Error('unavailable'); });
+    await expect(listProcessUsage({ run })).resolves.toEqual([]);
+  });
+
+  it('defaults to the host platform when no ports are supplied', async () => {
+    mockState.execFileImpl = (command, _args, _options, callback) => {
+      expect(command).toBe(process.platform === 'win32' ? 'powershell.exe' : 'ps');
+      callback(null, '', '');
+    };
+    await expect(listProcessUsage()).resolves.toEqual([]);
   });
 });
 

@@ -7,13 +7,15 @@
  * Windows `Get-CimInstance`), walk a process tree, and stop a set of PIDs with
  * SIGTERM-then-SIGKILL escalation.
  *
- * Depends on the `command` module for invocation construction; keeps a private
- * `errorCode` copy so it owns no cross-module runtime surface.
+ * Uses `command` for invocation construction and `shell`'s direct buffered
+ * executor for bounded usage samples; keeps a private `errorCode` copy.
  */
 import { execFile, spawn, type ChildProcess, type StdioOptions } from "node:child_process";
+import { posix, win32 } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
 import { createCommandInvocation, type CommandInvocationRequest } from "./command.js";
+import { execFileBuffered } from "./shell.js";
 
 export type ProcessStampShape = object;
 
@@ -39,6 +41,25 @@ export type ProcessSnapshot = {
   command: string;
   pid: number;
   ppid: number;
+};
+
+/** Display-only usage: RSS is bytes; CPU is cumulative seconds across all cores. */
+export type ProcessUsage = {
+  pid: number;
+  ppid: number;
+  rssBytes: number;
+  cpuSeconds: number;
+  /** Executable basename only; empty when the OS provides no name. */
+  name: string;
+};
+
+export type ProcessUsagePorts = {
+  platform?: NodeJS.Platform;
+  run?: typeof execFileBuffered;
+};
+
+export type ProcessUsageOptions = {
+  timeoutMs?: number;
 };
 
 export type StampedProcessMatchCriteria<TStamp extends ProcessStampShape> = Partial<TStamp>;
@@ -344,6 +365,90 @@ export async function listProcessSnapshots(): Promise<ProcessSnapshot[]> {
     return process.platform === "win32"
       ? await listWindowsProcessSnapshots()
       : await listPosixProcessSnapshots();
+  } catch {
+    return [];
+  }
+}
+
+/** @internal Decode ps cumulative CPU time, including macOS fractional seconds and days. */
+function parseCpuTime(value: string): number {
+  const match = value.match(/^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$/);
+  if (!match) return NaN;
+  return Number(match[1] ?? 0) * 86400 + Number(match[2] ?? 0) * 3600
+    + Number(match[3]) * 60 + Number(match[4]);
+}
+
+/** @internal Reject incomplete metrics instead of presenting missing usage as zero. */
+function validProcessUsage(usage: ProcessUsage): boolean {
+  const { pid, ppid, rssBytes, cpuSeconds } = usage;
+  return [pid, ppid].every(Number.isSafeInteger) && [rssBytes, cpuSeconds].every(Number.isFinite)
+    && [pid, ppid, rssBytes, cpuSeconds].every((value) => value >= 0);
+}
+
+/** @internal Read only comm, never args/command, so credentials cannot enter the result. */
+function parsePsUsage(stdout: string): ProcessUsage[] {
+  return stdout.split(/\r?\n/).flatMap((line) => {
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S.*)$/);
+    if (!match) return [];
+    const usage = {
+      pid: Number(match[1]), ppid: Number(match[2]), rssBytes: Number(match[3]) * 1024,
+      cpuSeconds: parseCpuTime(match[4]!), name: posix.basename(match[5]!.trim()),
+    };
+    return validProcessUsage(usage) ? [usage] : [];
+  });
+}
+
+/** @internal CIM serializes numeric fields as numbers or strings; null is not zero usage. */
+function cimNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  return typeof value === "string" && value.trim() ? Number(value) : NaN;
+}
+
+/** @internal Convert Windows 100ns CPU counters and retain nameless process rows. */
+function parseCimUsage(stdout: string): ProcessUsage[] {
+  if (!stdout.trim()) return [];
+  const payload: unknown = JSON.parse(stdout);
+  return (Array.isArray(payload) ? payload : [payload]).flatMap((record: unknown) => {
+    if (!record || typeof record !== "object") return [];
+    const row = record as Record<string, unknown>;
+    const usage = {
+      pid: cimNumber(row.ProcessId), ppid: cimNumber(row.ParentProcessId),
+      rssBytes: cimNumber(row.WorkingSetSize),
+      cpuSeconds: (cimNumber(row.UserModeTime) + cimNumber(row.KernelModeTime)) / 10_000_000,
+      name: typeof row.Name === "string" ? win32.basename(row.Name.trim()) : "",
+    };
+    return validProcessUsage(usage) ? [usage] : [];
+  });
+}
+
+/** @internal Fixed executable and argv, invoked directly without a command shell. */
+function processUsageCommand(windows: boolean): { command: string; args: string[] } {
+  return windows
+    ? { command: "powershell.exe", args: ["-NoProfile", "-NonInteractive", "-Command",
+      "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize, UserModeTime, KernelModeTime, Name | ConvertTo-Json -Compress"] }
+    : { command: "ps", args: ["-axo", "pid=,ppid=,rss=,time=,comm="] };
+}
+
+/**
+ * Sample process RSS and cumulative CPU without reading command lines. Returns
+ * [] on command, timeout, buffer or JSON failure. RSS totals may count shared
+ * pages more than once; CPU percentages require deltas between samples.
+ * @param input - Optional host platform and bounded command-execution port.
+ * @param options - Execution timeout (default 5000ms); output is capped at 8MiB.
+ */
+export async function listProcessUsage(
+  input: ProcessUsagePorts = {},
+  options: ProcessUsageOptions = {},
+): Promise<ProcessUsage[]> {
+  const windows = (input.platform ?? process.platform) === "win32";
+  const { command, args } = processUsageCommand(windows);
+  try {
+    const result = await (input.run ?? execFileBuffered)(command, args, {
+      encoding: "utf8", timeout: options.timeoutMs ?? 5000, maxBuffer: 8 * 1024 * 1024,
+      windowsHide: true,
+    });
+    if (!result.ok) return [];
+    return windows ? parseCimUsage(result.stdout) : parsePsUsage(result.stdout);
   } catch {
     return [];
   }
