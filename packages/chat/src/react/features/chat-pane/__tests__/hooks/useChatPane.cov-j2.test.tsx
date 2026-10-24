@@ -92,7 +92,8 @@ describe('useChatPane — in-run bubbles', () => {
 
     expect(result.current.conversation.messages).toEqual(transcript);
     expect(result.current.composer.draft).toBe('');
-    expect(result.current.queuedPrompt).toBeNull();
+    // An accepted live message stays queued until its consumed receipt (f40db242).
+    expect(result.current.queuedPrompt).toBe('also fix the footer');
   });
 });
 

@@ -1187,7 +1187,7 @@ describe('ChatPane accepted input recording', () => {
       expect(screen.getAllByText('accepted text')).toHaveLength(1);
       if (path === 'answer' || path === 'steer' || path === 'queue') expect(transport.calls).toHaveLength(1);
       if (path === 'answer') act(() => transport.emit({ kind: 'tool_result', toolUseId: 'ask', content: JSON.stringify({ submitted: true, freeText: 'accepted text' }), isError: false }));
-      if (path === 'steer') act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'persisted-steer', text: 'accepted text' } }));
+      if (path === 'steer') act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'persisted-steer', text: 'accepted text', deliveryState: 'consumed' } }));
       if (path === 'queue') act(() => transport.finish());
       await waitFor(() => expect(screen.getAllByText('accepted text')).toHaveLength(1));
       expect(saved).toEqual(['first', 'accepted text']);
