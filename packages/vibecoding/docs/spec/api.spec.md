@@ -13,8 +13,8 @@ spec_mode: reverse_spec
 |---|---|
 | `@jini-ai/vibecoding` (`.`) | Re-exports `/core` |
 | `@jini-ai/vibecoding/core` | Universal edit loop, ports and history |
-| `@jini-ai/vibecoding/html` | Universal HTML-region target; parser/storage injected |
-| `@jini-ai/vibecoding/html/node` | parse5-backed parser |
+| `@jini-ai/vibecoding/html` | Universal HTML-region target and pure scan-based edits; parser/storage injected |
+| `@jini-ai/vibecoding/html/node` | parse5-backed strict parser and non-throwing region scan |
 | `@jini-ai/vibecoding/session` | Universal session and tools; no React dependency |
 | `@jini-ai/vibecoding/node` | Local file-tree projects; Node filesystem runtime |
 | `@jini-ai/vibecoding/react` | Session/tool re-exports, hook and React components; React/ReactDOM optional peers required here |
@@ -77,6 +77,90 @@ const target = createHtmlRegionTarget({
   parser: createParse5RegionParser(),
 });
 ```
+
+## HTML region scan + pure edits
+
+`scanHtmlRegions({ html: string }, options: Record<string, never> = {}): HtmlRegionScan`
+is exported by `/html/node`. It parses once in a `<div>` fragment context and returns diagnostics
+instead of throwing for malformed HTML. `/html` exports the pure helpers below without a parser
+dependency. Every scan belongs to exactly one unchanged source string; scan each new string once
+and share that result across helpers. Offsets index the original JavaScript string in UTF-16 code
+units, preserving CRLF, BOM and astral-character slices; no parse/serialize rewrite occurs.
+
+```ts
+interface ScannedRegion extends ParsedRegion {
+  readonly tag: string;
+  readonly start: number;
+  readonly end: number;
+  readonly problem?: string;
+}
+interface HtmlTopLevelElement {
+  readonly tag: string;
+  readonly handle?: string;
+  readonly start: number;
+  readonly end: number;
+  readonly innerStart: number;
+  readonly innerEnd: number;
+}
+interface HtmlRegionScan {
+  readonly regions: readonly ScannedRegion[];
+  readonly topLevel: readonly HtmlTopLevelElement[];
+  readonly documentProblem?: string;
+  readonly parseErrorReasons?: readonly string[];
+}
+type RegionLookupProblem =
+  | { readonly kind: 'absent'; readonly available: readonly string[] }
+  | { readonly kind: 'ambiguous'; readonly count: number }
+  | { readonly kind: 'not-replaceable'; readonly tag: string };
+type RegionLookup = { readonly region: ScannedRegion } | { readonly problem: RegionLookupProblem };
+type RegionMoveProblem = 'self' | 'into-itself';
+interface RegionHandleOptions { readonly slugify: (text: string) => string }
+interface UntaggedSection { readonly tag: string; readonly suggestedHandle: string | undefined }
+```
+
+All these types are exported by `/html`; `/html/node` also re-exports `HtmlRegionScan`,
+`HtmlTopLevelElement` and `ScannedRegion`. `ParsedRegion` retains its existing inner-offset contract;
+`ScannedRegion` adds required tag/outer offsets and an optional problem. `start`/`end` delimit the
+whole element and `innerStart`/`innerEnd` its body, with exclusive end offsets. Missing start-tag
+locations yield `-1` for all four offsets. Recovered end offsets may support tagging advice but are
+unsafe for editing when `problem` is present. Regions and direct fragment-child elements are sorted
+by source offset, including when parse5 foster-parenting reorders the tree. No depth is exposed.
+
+| Pure call exported by `/html` | Return and contract |
+|---|---|
+| `locateRegion({ scan: HtmlRegionScan, handle: string }, options = {})` | `RegionLookup`; absent with all available handles, ambiguous with count, or not-replaceable with tag; otherwise one safe region |
+| `replaceRegionInner({ html: string, region: ParsedRegion, fragment: string }, options = {})` | `string`; splice only the inner range; caller must supply safe offsets for this exact string |
+| `moveRegion({ html: string, moving: ScannedRegion, target: ScannedRegion, placement: 'before' \| 'after' }, options = {})` | `{ readonly html: string } \| { readonly problem: RegionMoveProblem }`; move a whole element with adjoining whitespace; refuse itself or a destination inside itself |
+| `handlesMadeAmbiguous({ before: HtmlRegionScan, after: HtmlRegionScan }, options = {})` | `string[]`; each handle whose after-count is greater than one and greater than its before-count, once in after source order |
+| `regionHandlesIn({ scan: HtmlRegionScan }, options = {})` | `string[]`; source order, retaining duplicates, unsafe regions, empty values and legacy grammar |
+| `suggestRegionHandle({ inner: string, taken: ReadonlySet<string> }, { slugify }: RegionHandleOptions)` | `string \| undefined`; first heading's inner text with inline tags replaced by spaces, host slugifier, truncate to 48 code units and strip trailing hyphens; absent/empty/colliding suggestions are undefined |
+| `untaggedTopLevelSections({ html: string, scan: HtmlRegionScan }, options: RegionHandleOptions)` | `readonly UntaggedSection[]`; untagged direct content elements with heading suggestions reserved within the batch; skip style, script, template, link, meta, base and title |
+
+The five calls with `options = {}` accept `Record<string, never>`. The two suggestion calls require
+the host's slugifier; no default slugification dependency is supplied. Move carries trailing
+whitespace, falling back to leading whitespace when there is no trailing run, and may return the
+same HTML for an adjacent move. Neither splice helper reparses, checks stale offsets, enforces
+handle policy nor writes storage; resolve safe regions first and retain the host's version basis
+through commit.
+
+`scanHtmlRegions` retains discovered invalid/duplicate handles and marks unsafe boundaries per
+region. A dropped source handle becomes `documentProblem`; parser errors become `parseErrorReasons`
+(the current scanner always supplies that array). Neither diagnostic globally blocks lookup of a
+safe region. Comment and literal-text body mentions are excluded from the dropped-handle check,
+including `noscript` with scripting enabled; attributes on the text-bearing element still count.
+parse5 formatting clones sharing an authored start offset collapse to one unsafe address.
+HTML5 recovery recognizes unquoted values and upper-case attribute names. A non-void self-closing
+slash leaves the element open; `<section data-agent-element="hero"/>body</section>` is editable
+because its explicit close supplies safe boundaries. Unclosed top-level elements use recovered
+boundaries for advice, while malformed opening tags/declarations follow parse5 recovery.
+
+`createParse5RegionParser()` delegates both methods to the scan. `findRegions` throws for the first
+region problem, then for a document problem; parse errors alone do not make it throw.
+`checkWellFormed`, always present on the factory's return type, rejects those location problems
+before rejecting any parse-error reasons. These strict adapter methods remain available to
+`createHtmlRegionTarget`; the pure path permits adding/removing handles and leaves persistence,
+authorization, version checks and write policy to the host. See [behavior](behavior.spec.md#html-region-scan--pure-edits)
+for the intentional HTML5 recovery differences and consumer policy boundary.
 
 ## React session and tools
 

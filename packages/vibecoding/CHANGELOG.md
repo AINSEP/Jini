@@ -2,10 +2,27 @@
 
 ## Unreleased
 
+### Added
+
 - Add `./node` real file-tree projects with content-addressed revisions, pending-journal recovery,
   external-drift capture, optional whole-candidate validation and exact pointer-part undo/redo.
 - Add React-free `./session` with injectable project history/mutation; preserve React re-exports.
 - Expose both retained history stacks for object/manifest garbage collection.
+- Export non-throwing `scanHtmlRegions` from `./html/node`, with source-ordered inner/outer offsets,
+  tags, per-region problems, document diagnostics and top-level tagging metadata.
+- Export pure lookup, inner replacement, whole-element move, ambiguity comparison, handle listing
+  and heading-based tagging suggestions from `./html`; slugification is supplied by the host.
+
+### Changed
+
+- Delegate the strict parse5 parser to the scan while preserving target validation. Ignore handle
+  examples in comments and literal-text bodies (including `noscript`), and collapse reconstructed
+  formatting clones to one unsafe address. The scan path keeps safe regions usable alongside
+  malformed markup.
+- HTML5 recovery differs from Tovu's former lexical scanner: non-void self-closing syntax remains
+  open, an explicit later close permits editing, unclosed top-level elements use recovered advice
+  boundaries, malformed tokens follow parse5 recovery, and unquoted/upper-case handle attributes
+  are recognized.
 
 ## 0.6.10
 
