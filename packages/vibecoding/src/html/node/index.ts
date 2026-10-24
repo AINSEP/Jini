@@ -6,4 +6,6 @@
  * `./parse5-region-parser.ts` for the implementation and its findings.
  * See docs/decisions/DR-001-conservative-region-detection.md.
  */
-export { createParse5RegionParser, isValidRegionHandle } from "./parse5-region-parser.js";
+export { createParse5RegionParser, isValidRegionHandle, scanHtmlRegions } from "./parse5-region-parser.js";
+
+export type { HtmlRegionScan, HtmlTopLevelElement, ScannedRegion } from "../edit.js";

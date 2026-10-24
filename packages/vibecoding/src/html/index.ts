@@ -19,3 +19,23 @@ export {
   createHtmlRegionTarget,
   isValidRegionHandle,
 } from "./regions.js";
+
+export type {
+  HtmlRegionScan,
+  HtmlTopLevelElement,
+  RegionHandleOptions,
+  RegionLookup,
+  RegionLookupProblem,
+  RegionMoveProblem,
+  ScannedRegion,
+  UntaggedSection,
+} from "./edit.js";
+export {
+  handlesMadeAmbiguous,
+  locateRegion,
+  moveRegion,
+  regionHandlesIn,
+  replaceRegionInner,
+  suggestRegionHandle,
+  untaggedTopLevelSections,
+} from "./edit.js";

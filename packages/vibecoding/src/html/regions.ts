@@ -51,6 +51,8 @@
  * itself is a port. A browser host can satisfy it with `DOMParser`; a server host with whatever it
  * already depends on.
  */
+import { replaceRegionInner } from "./edit.js";
+
 import type { EditTarget } from "../core/target.js";
 import type { PartId, PartRef, Snapshot, ValidationResult } from "../core/types.js";
 
@@ -183,7 +185,7 @@ export function createHtmlRegionTarget(
 
   /** Splices `content` into `region`'s inner range, preserving every byte outside it. */
   function spliced(html: string, region: ParsedRegion, content: string): string {
-    return html.slice(0, region.innerStart) + content + html.slice(region.innerEnd);
+    return replaceRegionInner({ html, region, fragment: content });
   }
 
   return {

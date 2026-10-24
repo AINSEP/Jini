@@ -1,3 +1,5 @@
+// Scan additions: exact region expectations now include tag/outer offsets. Comment/script examples
+// intentionally succeed after the binding review raw-mention fix; all other strict refusals remain.
 import { defaultTreeAdapter, html as parse5Html, parseFragment, type DefaultTreeAdapterTypes } from "parse5";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
@@ -41,7 +43,7 @@ describe("L189 — region analysis characterization", () => {
     const html = `<section data-agent-element="hero"${attributes}>😀&amp;</section>`;
     const innerStart = html.indexOf("😀");
     expect(parser.findRegions({ html })).toEqual([
-      { handle: "hero", innerStart, innerEnd: innerStart + "😀&amp;".length, ...metadata },
+      { handle: "hero", tag: "section", start: 0, end: html.length, innerStart, innerEnd: innerStart + "😀&amp;".length, ...metadata },
     ]);
     expect(parser.checkWellFormed({ html })).toEqual({ ok: true });
   });
@@ -67,7 +69,7 @@ describe("L189 — region analysis characterization", () => {
     const parser = createParse5RegionParser();
     const html = "<div data-agent-element>x</div>";
     const innerStart = html.indexOf(">") + 1;
-    expect(parser.findRegions({ html })).toEqual([{ handle: "", innerStart, innerEnd: innerStart + 1 }]);
+    expect(parser.findRegions({ html })).toEqual([{ handle: "", tag: "div", start: 0, end: html.length, innerStart, innerEnd: innerStart + 1 }]);
     expect(parser.checkWellFormed({ html })).toEqual({ ok: true });
   });
 
@@ -78,7 +80,7 @@ describe("L189 — region analysis characterization", () => {
   ])("matches raw attributes regardless of case, spacing and quoting: %s", (html) => {
     const parser = createParse5RegionParser();
     const innerStart = html.indexOf(">") + 1;
-    expect(parser.findRegions({ html })).toEqual([{ handle: "hero", innerStart, innerEnd: innerStart + 1 }]);
+    expect(parser.findRegions({ html })).toEqual([{ handle: "hero", tag: "div", start: 0, end: html.length, innerStart, innerEnd: innerStart + 1 }]);
     expect(parser.checkWellFormed({ html })).toEqual({ ok: true });
   });
 
@@ -119,21 +121,18 @@ describe("L189 — region analysis characterization", () => {
   test.each([
     '<!-- data-agent-element="example" -->',
     '<script>const example = \'data-agent-element="example"\';</script>',
-  ])("rejects a raw attribute example without a tagged element (reported, not fixed): %s", (html) => {
-    // Documented conservative false positive: the raw scan intentionally sees comments/script text.
-    expectRejected({
-      html,
-      reason: "the source mentions data-agent-element 1 time(s) but only 0 could be located in the parsed document — the parser's error-recovery " +
-        "rules likely dropped one entirely (a common cause: a table-only tag, such as <td>, used " +
-        "outside a <table>). Rewrite the document so every tagged element sits in ordinary, " +
-        "non-table-recovery document structure.",
-    });
+  ])("ignores a raw attribute example without a tagged element: %s", (html) => {
+    // The old conservative false positive broke reads of pages containing authoring examples.
+    // parse5 locations now blank comments/script text before checking for genuinely dropped nodes.
+    const parser = createParse5RegionParser();
+    expect(parser.findRegions({ html })).toEqual([]);
+    expect(parser.checkWellFormed({ html })).toEqual({ ok: true });
   });
 
   test("findRegions still returns located regions when checkWellFormed reports a parse error", () => {
     const parser = createParse5RegionParser();
     const html = '<div data-agent-element="hero">hi</div id="oops">';
-    expect(parser.findRegions({ html })).toEqual([{ handle: "hero", innerStart: 31, innerEnd: 33 }]);
+    expect(parser.findRegions({ html })).toEqual([{ handle: "hero", tag: "div", start: 0, end: html.length, innerStart: 31, innerEnd: 33 }]);
     expect(parser.checkWellFormed({ html })).toEqual({
       ok: false,
       reason: "the document does not parse cleanly: end tag with attributes near character 48",
