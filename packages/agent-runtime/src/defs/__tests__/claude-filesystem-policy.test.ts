@@ -177,7 +177,7 @@ describe('personal configuration disclosure contract', () => {
     for (const runtimeContext of [{}, { mcpJsonPath: '/site/.mcp.jini.json' }]) {
       for (const userMcp of [true, false, undefined]) {
         const args = buildClaudeMcpConfigArgs(runtimeContext, { filesystemRoot: '/site', cliParity: true,
-          permissionMode: 'bypass', nativeToolAccess: true, nativeCapabilities: { userMcp } });
+          permissionMode: 'bypass', nativeToolAccess: true, nativeCapabilities: userMcp === undefined ? {} : { userMcp } });
         expect(args.includes('--strict-mcp-config')).toBe(userMcp !== true);
         expect(args.join(' ')).not.toContain('OUTSIDE_CANARY');
       }
