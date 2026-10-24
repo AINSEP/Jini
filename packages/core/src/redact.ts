@@ -226,8 +226,8 @@ export interface SecretRedactionOptions {
 // correlation ID uses uppercase hex and is meant to reach the model and be quoted to an
 // operator; delegated-tool-calls is the route segment named in delegated tool failures.
 // Matching the ENTIRE run keeps a secret glued onto either spelling redactable.
-export const LABELED_SECRET_RE =
-  /\b(authorization|bearer|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|password|secret|cookie)\b\s*[:=]\s*\S+/gi;
+const SECRET_LABELS = 'authorization|bearer|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|password|secret|cookie';
+export const LABELED_SECRET_RE = new RegExp(`\\b(${SECRET_LABELS})\\b\\s*[:=]\\s*\\S+`, 'gi');
 export const OPAQUE_TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;
 export const NON_SECRET_TOKEN_RE = /^(?:ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}|delegated-tool-calls|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)$/;
 // Runtime markers must survive a second pass; the bounded sanitizer deliberately retains
@@ -247,6 +247,16 @@ const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s]+)/gi;
 // readable for debugging without exposing credentials that authorize access to the resource.
 const URL_CREDENTIALS_RE = /(\b[a-z][a-z0-9+.-]*:\/\/)([^/\s?#@]+)@/gi;
 const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|access_token|refresh_token)=)([^&#\s,;"']+)/gi;
+// A secret word must END a name segment (split at . _ - or the name's end): api_key, apiKey,
+// authtoken, X-Amz-Signature and custom.Token-value are masked, while author, keyword, design,
+// signup and page stay readable. Names that merely end in a secret word (zipcode, error_code,
+// monkey) are masked too; over-masking a URL value is the cheaper failure. Empty values stay.
+// Match through a trailing fragment; only '&', quotes, parentheses or whitespace end the value.
+// Both name runs are bounded so a long separator-free run costs linear time, not quadratic.
+const URL_SECRET_PARAM_RE =
+  /[?&#;]([\w.-]{0,128}?(?:token|key|secret|signature|sig|code|password|passwd|pwd|auth|authorization|credential)s?(?=[._=-])[\w.-]{0,128})=[^&\s"'<>()]+/gi;
+// A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
+const LABELED_URL_PARAM_NAME_RE = new RegExp(`(?:^|[.-])(?:${SECRET_LABELS})$`, 'i');
 
 // Only an entire marker is already masked. A secret glued onto marker-like text still needs
 // masking; a substring check would preserve credential suffixes in echoed header/query values.
@@ -381,11 +391,24 @@ function redactKeyedCredentials({ text, marker }: RedactionPass): string {
   out = out.replace(PROVIDER_API_KEY_HEADER, (match, name: string, value: string) =>
     isMaskedValue(value) ? match : `${name}: ${marker('api_key_header')}`,
   );
+  // Sweep other URL parameters before the general labeled rule can consume harmless
+  // neighboring parameters (`password=x&page=2` used to lose `&page=2`).
+  out = redactUrlSecretParams({ text: out, marker });
   return out.replace(MASK_AWARE_LABELED_SECRET_RE, (match, _label: string, value: string) => {
     // Replace only the captured value, retaining labels even when no whitespace separates
     // them. Glued credential suffixes fail the complete-marker check and remain maskable.
     if (isMaskedValue(value)) return match;
     return `${match.slice(0, -value.length)}${marker('labeled_secret')}`;
+  });
+}
+
+/** Secret-named URL query/fragment values; values already masked above keep their category. */
+function redactUrlSecretParams({ text, marker }: RedactionPass): string {
+  return text.replace(URL_SECRET_PARAM_RE, (match, name: string) => {
+    const separator = match.indexOf('=') + 1;
+    if (isMaskedValue(match.slice(separator))) return match;
+    const category = LABELED_URL_PARAM_NAME_RE.test(name) ? 'labeled_secret' : 'url_secret_param';
+    return `${match.slice(0, separator)}${marker(category)}`;
   });
 }
 

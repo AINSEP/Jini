@@ -120,6 +120,68 @@ describe('@jini-ai/core — redact — redactSecrets', () => {
     );
   });
 
+  it.each([
+    '?token', '#access_token', '?api_key', '?X-Amz-Signature', '&client_secret',
+    ';signature', '#sig', '?code', '#password', '?pwd', '&auth', '?custom.Token-value',
+  ])('masks the complete URL secret value, including its fragment: %s', (parameter) => {
+    const input = `https://example.com/x${parameter}=short#private&page=2`;
+    const redacted = redactSecrets({ input });
+    expect(redacted).not.toContain('short');
+    expect(redacted).not.toContain('private');
+    expect(redacted).toContain(`${parameter}=[REDACTED:`);
+    expect(redacted).toMatch(/\]&page=2$/);
+    expect(redactSecretsWithCounts({ input: redacted })).toEqual({ redacted, counts: {} });
+  });
+
+  it('masks URL parameters without PII redaction and retains harmless neighbors', () => {
+    const input = 'https://example.com/?page=2&token=one&auth=two#private&sort=asc';
+    expect(redactSecretsWithCounts({ input }, { redactPii: false })).toEqual({
+      redacted: 'https://example.com/?page=2&token=[REDACTED:url_secret_param]&auth=[REDACTED:url_secret_param]&sort=asc',
+      counts: { url_secret_param: 2 },
+    });
+  });
+
+  it.each([
+    'https://example.com/?page=2&sort=asc#section=overview',
+    'https://example.com/?token=&page=2',
+  ])('preserves non-secret URL values and empty parameters: %s', (input) => {
+    expect(redactSecretsWithCounts({ input })).toEqual({ redacted: input, counts: {} });
+  });
+
+  // A secret word must end a name segment, so a parameter that only contains one stays readable.
+  it.each(['?author=7', '?keyword=shoes', '?design=dark', '?signup=1', '?author_id=3', '?keywords=a'])(
+    'leaves parameters that only contain a secret word readable: %s',
+    (query) => {
+      const input = `https://example.com/${query}&page=2`;
+      expect(redactSecretsWithCounts({ input })).toEqual({ redacted: input, counts: {} });
+    },
+  );
+
+  it.each(['?sessionKey', '?authtoken', '?zipcode', '?x_pwd', '?keys'])('masks names whose segment ends in a secret word: %s', (name) => {
+    expect(redactSecrets({ input: `https://example.com/${name}=v1&page=2` }))
+      .toBe(`https://example.com/${name}=[REDACTED:url_secret_param]&page=2`);
+  });
+
+  it('keeps labeled_secret for URL parameters the labeled rule names, and their neighbors', () => {
+    expect(redactSecretsWithCounts({ input: 'https://example.com/?password=pw&page=2&client_secret=cs' })).toEqual({
+      redacted: 'https://example.com/?password=[REDACTED:labeled_secret]&page=2&client_secret=[REDACTED:labeled_secret]',
+      counts: { labeled_secret: 2 },
+    });
+  });
+
+  // `key_` isolates this rule; a `key-` run is slow in an older rule and is not covered here.
+  it('scans a long separator-free secret-word run in linear time', () => {
+    const input = `?${'key_'.repeat(50_000)}`;
+    const started = performance.now();
+    expect(redactSecrets({ input })).toBe(input);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('stops URL secret values at surrounding quotes and text', () => {
+    expect(redactSecrets({ input: 'failed "https://example.com/?token=short#private" next' }))
+      .toBe('failed "https://example.com/?token=[REDACTED:url_secret_param]" next');
+  });
+
   it('redacts a Luhn-valid credit card number and leaves an invalid one unchanged', () => {
     expect(redactSecrets({ input: 'card 5500 0000 0000 0004 on file' })).toBe('card [REDACTED:credit_card] on file');
     expect(redactSecrets({ input: 'card 5500 0000 0000 0005 on file' })).toBe('card 5500 0000 0000 0005 on file');
