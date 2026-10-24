@@ -161,6 +161,27 @@ describe('schema-guided tool input normalization', () => {
     });
   });
 
+  it.each([
+    [{ workspaceId: 'private-workspace' }, 'workspaceId'],
+    [{ id: 'record', workspaceId: 'private-workspace' }, 'workspaceId'],
+    [{ workspaceId: 'private-workspace', id: 'record' }, 'workspaceId'],
+    [{ id: 'record', site_id: 'private-site' }, 'site_id'],
+  ] as const)('refuses an undeclared scope selector before it can become an id alias', async (input, key) => {
+    const schema = { type: 'object', additionalProperties: false, properties: { id: { type: 'string' } } };
+    const registration = { descriptor: { id: 'read', inputSchema: schema } };
+    // Batch layers must preserve scope fields for the final closed-schema refusal, in either key order.
+    expect(canonicalizeToolInputKeys({ input, schema })).toEqual({ input, notes: [] });
+    await expect(normalizeToolInput({ input, registration })).rejects.toThrow(
+      `Unknown input '${key}'. Declared inputs: id (optional). Resend with the declared name.`,
+    );
+  });
+
+  it('never guesses a bare id as a declared scope selector', async () => {
+    const registration = { descriptor: { id: 'read', inputSchema: {
+      type: 'object', additionalProperties: false, properties: { workspaceId: { type: 'string' } } } } };
+    await expect(normalizeToolInput({ input: { id: 'private-workspace' }, registration })).rejects.toThrow("Unknown input 'id'");
+  });
+
   it('lists required names first even without a near miss', async () => {
     const definition = { descriptor: { id: 'read', inputSchema: {
       type: 'object', additionalProperties: false, required: ['expectedVersion'],
