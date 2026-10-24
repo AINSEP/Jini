@@ -53,6 +53,9 @@ export interface MailerSendOptions {
    * distinguish them. Unmapped/absent lanes resolve to notification rather than opening the
    * interactive bypass; the caller-facing facade applies that fail-closed allowlist. */
   lane?: "interactive" | "notification";
+
+  /** Configuration facts approved by the caller, rechecked immediately before delivery. */
+  mailTestApproval?: MailTestApproval;
 }
 
 /** Serializable outcomes cross the adapter ABI; live thrown objects cannot be carried as results. */
@@ -103,3 +106,15 @@ export type MailerDelivery = Pick<MailerSendOptions, "idempotencyKey" | "workspa
 export type MailerOptional = Omit<MailerSendOptions, keyof MailerDelivery>;
 export type MailerSendRequired = MailerDelivery & { message: OutboundEmail };
 export type MailerBatchRequired = MailerDelivery & { messages: readonly OutboundEmail[] };
+
+/** Persisted test-mode shape; capture availability is decided separately by the delivery wrapper. */
+export type MailTestModeSetting = { mode: "off" } | { mode: "redirect"; to: string } | { mode: "capture" };
+
+/** Preserve field order when constructing/comparing approvals: approval bytes are caller-owned. */
+export interface MailTestApproval {
+  providerId: string | null;
+  driver: string;
+  from: OutboundEmail["from"];
+  mode: MailTestModeSetting["mode"];
+  effectiveRecipient: string;
+}
