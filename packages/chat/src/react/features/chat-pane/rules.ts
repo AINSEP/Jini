@@ -2,6 +2,7 @@ import { configuredPickerModel, pickerModelOptions, isConcretePickerModel } from
 import type { ChatMessage } from '@jini-ai/chat';
 import { isTerminalRunStatus } from '../../../core/messages.js';
 import { acceptedInputEvent } from '../../../core/accepted-input.js';
+import { isAwaitingAnswer } from '../../../core/run-activity.js';
 import type { UserTextRedaction } from '../../../core/user-text-redaction.js';
 
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection, TypedAnswerNotice } from './types.js';
@@ -340,15 +341,19 @@ export function isTypedAnswerTurn({ blocker, attachmentCount, messages, toolName
  * turn with a known `runId`.
  * Attachment support is decided by the host's delivery, never by dropping them here.
  *
- * @complexity O(1).
+ * A native live-input transport can reject a pending human gate when given another user turn.
+ * Keep ordinary text in the pane's queue until the card's tool settles; typed question answers
+ * have their own delivery path and never pass this guard.
+ * @complexity O(e) in the newest message's events.
  */
 export function findMidRunMessageRunId({ blocker, messages }: {
   blocker: ChatPaneSendBlocker | null;
   attachmentCount: number;
   messages: readonly ChatMessage[];
-}): string | null {
+}, _options = {}): string | null {
   if (!isChatPaneQueueableBlocker({ blocker })) return null;
   const last = messages.at(-1);
+  if (isAwaitingAnswer({ events: last?.events })) return null;
   return last?.role === 'assistant' && last.runId ? last.runId : null;
 }
 

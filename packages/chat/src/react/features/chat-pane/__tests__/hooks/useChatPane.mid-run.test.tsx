@@ -28,6 +28,27 @@ async function startStreamingRun(deliverMidRunMessage: DeliverMidRunMessage | un
 describe('useChatPane — a message sent mid-run goes to the running agent', () => {
   beforeEach(() => __resetComposerDraftCacheForTests());
 
+  it.each(['tool_approval', 'credential_save'])('holds ordinary text behind a pending %s card without rejecting its tool', async name => {
+    const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => ({ delivery: 'delivered', id: 'relay-1' }));
+    const { result, transport } = await startStreamingRun(deliver);
+    await act(async () => {
+      transport.emit({ kind: 'tool_use', id: 'pending', name, input: {} });
+      transport.emit({ kind: 'ext', name: 'mcp-ui', data: { resource: { uri: 'ui://approval/1' } } });
+    });
+    await act(() => result.current.send());
+    expect(deliver).not.toHaveBeenCalled();
+    expect(result.current.queuedPrompt).toBe('also fix the footer');
+    expect(transport.stoppedRunIds).toEqual([]);
+    expect(result.current.conversation.messages.at(-1)?.events?.some(event => event.kind === 'tool_result')).toBe(false);
+    await act(async () => { transport.emit({ kind: 'status', label: 'tool_progress', code: 'tool_progress', data: { elapsedSeconds: 3 } }); });
+    expect(deliver).not.toHaveBeenCalled();
+    await act(async () => { transport.emit({ kind: 'tool_result', toolUseId: 'pending', content: '{"saved":true}', isError: false }); });
+    await waitFor(() => expect(deliver).toHaveBeenCalledWith({ runId: 'run-1', text: 'also fix the footer' }));
+    expect(deliver).toHaveBeenCalledTimes(1);
+    expect(transport.calls).toHaveLength(1);
+    expect(transport.stoppedRunIds).toEqual([]);
+  });
+
   it('retains the draft as queued until consumed, and leaves the live run going', async () => {
     const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
     const { result, transport } = await startStreamingRun(deliver);

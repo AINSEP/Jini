@@ -1,6 +1,7 @@
 import { acceptedInputEvent, acceptedInputUserEvent, projectAcceptedInputEvents, type AcceptedChatInput } from '../../../../core/accepted-input.js';
 import type { UserTextRedaction, UserTextRedactionOptions } from '../../../../core/user-text-redaction.js';
 import { useUserTextGuard } from '../../../hooks/useUserTextGuard.js';
+import { isAwaitingAnswer } from '../../../../core/run-activity.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -282,11 +283,20 @@ function resolveChatPaneActivity(
   return 'ready';
 }
 
+/** Hold new input until its uploads or human gate settle; the existing queue owns the retry.
+ * @complexity O(e) in the newest message's events, with no I/O.
+ */
+function waitingForLiveInput(
+  { uploadPending, messages }: { uploadPending: boolean; messages: readonly ChatMessage[] }, _options = {},
+): boolean {
+  return uploadPending || isAwaitingAnswer({ events: messages.at(-1)?.events });
+}
+
 /**
  * The host delivery and live run a send can go INTO instead of queueing behind, or `null` when the
  * host offers no mid-run delivery or no run can take it ({@link findMidRunMessageRunId}).
  *
- * @complexity O(1).
+ * @complexity O(e) in the newest message's events.
  */
 function findMidRunTarget(
   { deliver, blocker, attachmentCount, messages }: {
@@ -383,8 +393,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [storedQueuedInputs, setQueuedInputs] = useState<QueuedChatInput[]>([]);
   // MOVE: Uploads belong to the input that submitted them, even if a later message is queued first.
   const queuedUploadOwnersRef = useRef(new Map<AbortController, string>());
-  // A send during upload resumes once pixels arrive; a rejected live delivery waits for run end.
-  const queuedForUploadRef = useRef(false);
+  // A send held for uploads or a human card resumes live; a refused delivery waits for run end.
+  const queuedForLiveDeliveryRef = useRef(false);
   const submittedComposerRef = useRef<UseComposerResult | null>(null);
   const startingPromptRef = useRef(false);
   const [typedAnswerNotice, setTypedAnswerNotice] = useState<TypedAnswerNotice | null>(null);
@@ -829,7 +839,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }
     const turn = guard.redact({ text: prompt }, {});
     const uploadPending = activeUploadsRef.current.size > 0 || attachmentError !== null;
-    if (uploadPending) queuedForUploadRef.current = queuedTurn === null || queuedForUploadRef.current;
+    // Retry live delivery after the human gate settles, using the same queue as pending uploads.
+    if (waitingForLiveInput({ uploadPending, messages: conversation.messages })) {
+      queuedForLiveDeliveryRef.current = queuedTurn === null || queuedForLiveDeliveryRef.current;
+    }
     // MOVE: The existing queue owns its files; a later steer must join it to preserve send order.
     const target = uploadPending || queuedInputs.some(input => input.liveMessageId === undefined) ? null : findMidRunTarget({
       deliver: options.deliverMidRunMessage,
@@ -918,7 +931,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
   const cancelQueued = useCallback(() => {
     submittedComposerRef.current = null;
-    queuedForUploadRef.current = false;
+    queuedForLiveDeliveryRef.current = false;
     queuedConversationIdRef.current = undefined;
     discardQueuedUploads({});
     setQueuedInputs([]);
@@ -934,7 +947,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   // clear blocker. Clear the slot before awaiting so re-renders cannot send it twice.
   useEffect(() => {
     if (queuedTurn === null) {
-      queuedForUploadRef.current = false;
+      queuedForLiveDeliveryRef.current = false;
       return;
     }
     if (queuedConversationIdRef.current !== options.conversationId) {
@@ -945,12 +958,12 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       return;
     }
     if (activeUploadCount > 0 || attachmentError !== null) return;
-    const target = queuedForUploadRef.current ? findMidRunTarget({
+    const target = queuedForLiveDeliveryRef.current ? findMidRunTarget({
       deliver: options.deliverMidRunMessage,
       blocker: sendBlocker, attachmentCount: queuedInputs.flatMap(input => input.attachments).length, messages: conversation.messages,
     }) : null;
     if (target === null && (sendBlocker !== null || awaitingRunReceipts({ inputs: queuedInputs, messages: conversation.messages }))) return;
-    queuedForUploadRef.current = false;
+    queuedForLiveDeliveryRef.current = false;
     const inputs = queuedInputs;
     const attachments = inputs.flatMap(input => input.attachments);
     setQueuedInputs([]);
@@ -979,7 +992,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // `conversation.cancel()` above clears the streaming blocker — the flush effect fires it into
     // the just-reset conversation instead of discarding it like the rest of this turn's state.
     queuedConversationIdRef.current = undefined;
-    queuedForUploadRef.current = false;
+    queuedForLiveDeliveryRef.current = false;
     queuedUploadOwnersRef.current.clear();
     setQueuedInputs([]);
   }, [composer, conversation, options.initialMessages]);
