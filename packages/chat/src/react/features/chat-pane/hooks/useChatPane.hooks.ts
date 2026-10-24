@@ -584,7 +584,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     conversation.setMessages(messages => {
       const last = messages.at(-1);
       if (last?.role !== 'assistant') return messages;
-      const event = acceptedInputUserEvent({ input: { id: inputs[0]!.id, text: bubble.text },
+      const event = acceptedInputUserEvent({ input: { id: inputs[0]!.id, text: bubble.text,
+        ...(inputs[0]!.deliveryState ? { deliveryState: inputs[0]!.deliveryState } : {}) },
         inputs, ...bubble });
       return [...messages.slice(0, -1), { ...last,
         events: projectAcceptedInputEvents({ events: [...(last.events ?? []), event] }) }];
@@ -729,7 +730,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       return;
     }
     if (outcome === 'delivered') {
-      recordAcceptedInput({ inputs: inputs ?? [{ id: createChatLocalId({}), text: turn.text }],
+      recordAcceptedInput({ inputs: (inputs ?? [{ id: createChatLocalId({}), text: turn.text }]).map(input => ({ ...input, deliveryState: 'queued' as const })),
         bubble: { text: turn.text, ...(afterInputId === undefined ? {} : { afterInputId }) } });
       clearDeliveredDraft({ inputs, submittedDraft });
       consumeDeliveredAttachments({ attachments });
@@ -737,8 +738,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }
     enqueueTurn({ turn, attachments, ...(inputs === undefined ? {} : { inputs }) });
     clearDeliveredDraft({ inputs, submittedDraft });
-    if (outcome === 'unsupported' && attachments.length === 0) conversation.cancel();
-  }, [conversation.cancel, enqueueTurn, recordAcceptedInput, clearDeliveredDraft, consumeDeliveredAttachments, restoreQueuedDraft]);
+  }, [enqueueTurn, recordAcceptedInput, clearDeliveredDraft, consumeDeliveredAttachments, restoreQueuedDraft]);
 
   // A delivered steer belongs to the existing run; unsupported turns use the same accepted queue.
   // A failed delivery keeps the working draft so retry cannot silently become another run.

@@ -988,3 +988,27 @@ describe('registerRunRoutes', () => {
     expect(body.started).toBe(true);
   });
 });
+
+
+it('replay_over_1000_events_delivers_sse_and_advancing_cursors', async () => {
+  const deps = makeDeps();
+  const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
+  for (let index = 0; index < 1166; index++) {
+    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: String(index) } } });
+  }
+  const res = makeSseRes();
+  res.flushHeaders = vi.fn(() => { res.headersSent = true; });
+  res.write = vi.fn((_chunk: string) => {
+    expect(res.headersSent).toBe(true);
+    expect(res.writableEnded).toBe(false);
+    return true;
+  });
+  await handleRunEventStreamRequest({ res: res as any, runId: run.id, afterCursor: null, deps });
+  expect(res.flushHeaders).toHaveBeenCalledTimes(1);
+  expect(res.write).toHaveBeenCalledTimes(1167);
+  const cursors = res.write.mock.calls.map(([chunk]) => chunk.match(/^id: (.+)/m)![1]);
+  expect(new Set(cursors).size).toBe(1167);
+  expect(cursors.at(-1)).not.toBe(cursors[0]);
+  expect(res.end).not.toHaveBeenCalled();
+  res.emitClose();
+});

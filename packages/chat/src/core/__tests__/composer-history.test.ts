@@ -179,3 +179,27 @@ it('reconciles several accepted steers whose wire receipts arrive together later
   expect(acceptedInputsFromMessages({ messages: [{ id: 'a', role: 'assistant', content: '', events: projected }] }).map(input => input.id)).toEqual(['local-first', 'local-second']);
   expect(projectAcceptedInputEvents({ events: [...projected, ...wire] })).toEqual(projected);
 });
+
+
+it('queued_bubble_clears_only_on_consumption_receipt', () => {
+  const queued: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'next', deliveryState: 'queued' } };
+  const consumed: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'next', deliveryState: 'consumed' } };
+  const optimistic = acceptedInputUserEvent({ input: { id: 'local', text: 'next' } });
+  const read = (events: AgentEvent[]) => acceptedInputsFromMessages({ messages: [{ id: 'reply', role: 'assistant', content: '', events }] });
+  expect(read([optimistic, queued])).toEqual([{ id: 'local', text: 'next', deliveryState: 'queued', aliases: ['wire'] }]);
+  const projected = projectAcceptedInputEvents({ events: [optimistic, queued, { kind: 'text', text: 'work' }, consumed] });
+  expect(read(projected)).toEqual([{ id: 'local', text: 'next', deliveryState: 'consumed', aliases: ['wire'] }]);
+  expect(projected).toHaveLength(2);
+  expect(projectAcceptedInputEvents({ events: [...projected, queued, consumed] })).toEqual(projected);
+});
+
+
+it('updates every constituent of a merged queued bubble on its shared consumption receipt', () => {
+  const optimistic = acceptedInputUserEvent({ input: { id: 'merged', text: 'one\n\ntwo' },
+    inputs: [{ id: 'one', text: 'one' }, { id: 'two', text: 'two' }] });
+  const receipt = (deliveryState: 'queued' | 'consumed'): AgentEvent => ({ kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'one\n\ntwo', deliveryState } });
+  const queued = projectAcceptedInputEvents({ events: [optimistic, receipt('queued')] });
+  const read = (events: AgentEvent[]) => acceptedInputsFromMessages({ messages: [{ id: 'reply', role: 'assistant', content: '', events }] });
+  expect(read(queued).map(input => input.deliveryState)).toEqual(['queued', 'queued']);
+  expect(read([...queued, receipt('consumed')]).map(input => input.deliveryState)).toEqual(['consumed', 'consumed']);
+});

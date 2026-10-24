@@ -7,17 +7,11 @@ import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
 import type { RunByteJournal } from '../../continuation/journal.js';
 import { createAgentExecutor } from '../../index.js';
-import { INTERRUPT_ACK_TIMEOUT_MS } from '../events.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
 
-/**
- * A message the human sends while a run is going must reach the live agent, not wait for the run
- * to end. A stream-json stdin agent (Claude Code) is first sent an `interrupt` control request —
- * the CLI stops generating at once — and, once the CLI acknowledges it, the message goes in as the
- * next user line, so the agent answers it straight away in the same session. Every other agent
- * reports `'unsupported'` so the host can interrupt and resume instead; a run with no live process
- * reports `'not-running'`.
- */
+/** A message sent during tools/background work is queued on the same session without aborting
+ * anything. HTTP acceptance means queued; only UUID-attributed CLI replies confirm consumption.
+ * Unsupported transports keep the host's next-turn queue; explicit Stop still cancels. */
 
 interface FakeChild extends EventEmitter {
   pid: number;
@@ -118,10 +112,8 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
       imageContents: [{ mimeType: 'image/png', data: 'iVBORw==' }],
     });
     await flush();
-    const interrupt = JSON.parse(harness.child.stdin.writes[1]!);
-    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(interrupt.request_id))}\n`);
     await expect(delivery).resolves.toBe('delivered');
-    expect(JSON.parse(harness.child.stdin.writes[2]!)).toEqual({ type: 'user', message: { role: 'user', content: [
+    expect(JSON.parse(harness.child.stdin.writes[1]!)).toEqual({ type: 'user', uuid: expect.any(String), message: { role: 'user', content: [
       { type: 'text', text: 'see screenshot' },
       { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw==' } },
     ] } });
@@ -154,7 +146,7 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     }
   });
 
-  it('records cancellation for every unresolved native and delegated call at the aborted boundary', async () => {
+  it('queues_mid_run_input_without_interrupting_parallel_tools', async () => {
     const h = createHarness(createDef({}));
     const runId = await startRun(h);
     h.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [
@@ -163,21 +155,11 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     ], stop_reason: 'tool_use' } })}\n`);
     // Delegated canonical calls enter the lifecycle directly, outside the CLI parser.
     await h.lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'tool_use', id: 'delegate', name: 'site_read', input: {} } } });
-    const delivery = h.executor.sendUserMessage({ runId, text: 'change course' });
+    await expect(h.executor.sendUserMessage({ runId, text: 'change course' })).resolves.toBe('delivered');
+    expect(h.child.stdin.writes.slice(1).map(line => JSON.parse(line).type)).toEqual(['user']);
     await flush();
-    h.child.stdout.emit('data', `${JSON.stringify(controlResponse(JSON.parse(h.child.stdin.writes[1]!).request_id))}\n`);
-    await expect(delivery).resolves.toBe('delivered');
-    h.child.stdout.emit('data', `${JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'fetch', content: 'Tool execution cancelled.', is_error: true }] } })}\n`);
-    // The next segment has a new call: it must survive the old segment's cancellation.
-    h.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm2', content: [{ type: 'tool_use', id: 'next', name: 'Read', input: {} }], stop_reason: 'tool_use' } })}\n`);
-    h.child.stdout.emit('data', `${JSON.stringify({ type: 'result', terminal_reason: 'aborted_tool_use' })}\n`);
-    await flush();
-    const results = (await agentPayloads(h, runId)).filter((p) => (p as { type?: string }).type === 'tool_result');
-    expect(results.sort((a, b) => (a as { toolUseId: string }).toolUseId.localeCompare((b as { toolUseId: string }).toolUseId))).toEqual([
-      { type: 'tool_result', toolUseId: 'delegate', content: 'Tool execution cancelled.', isError: true },
-      { type: 'tool_result', toolUseId: 'fetch', content: 'Tool execution cancelled.', isError: true },
-      { type: 'tool_result', toolUseId: 'shot', content: 'Tool execution cancelled.', isError: true },
-    ]);
+    expect((await agentPayloads(h, runId)).filter(p => (p as { type: string }).type === 'tool_result')).toEqual([]);
+    expect(h.child.stdin.ended).toBe(false);
     h.child.emit('close', 0, null);
     await h.lifecycle.waitForTerminal({ runId });
   });
@@ -222,7 +204,6 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     const runId = await startRun(h);
     const delivery = h.executor.sendUserMessage({ runId, text: 'look again' }, { imageContents: [{ mimeType: 'image/png', data: 'iVBORw==' }] });
     await flush();
-    h.child.stdout.emit('data', `${JSON.stringify(controlResponse(JSON.parse(h.child.stdin.writes[1]!).request_id))}\n`);
     await expect(delivery).resolves.toBe('delivered');
     await flush();
     expect(recorded).toContainEqual({ content: 'look again', provenance: { source: 'host', channel: 'stdin' }, trust: 'trusted' });
@@ -231,115 +212,110 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     await h.lifecycle.waitForTerminal({ runId });
   });
 
-  it('a call that completed between two interrupts keeps only its real result when the turn aborts', async () => {
+  it('consumes_queued_input_at_next_tool_batch_boundary', async () => {
     const h = createHarness(createDef({}));
     const runId = await startRun(h);
     h.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [
       { type: 'tool_use', id: 'quick', name: 'Read', input: {} },
       { type: 'tool_use', id: 'slow', name: 'Bash', input: {} },
     ], stop_reason: 'tool_use' } })}\n`);
-    const ack = (index: number) => `${JSON.stringify(controlResponse(JSON.parse(h.child.stdin.writes[index]!).request_id))}\n`;
-    const first = h.executor.sendUserMessage({ runId, text: 'one' });
-    await flush();
-    h.child.stdout.emit('data', ack(1));
-    await expect(first).resolves.toBe('delivered');
-    // 'quick' finishes before the aborted turn ends; the next interrupt must drop it from the capture.
+    await h.executor.sendUserMessage({ runId, text: 'one' });
+    const id = JSON.parse(h.child.stdin.writes[1]!).uuid;
+    // A completed call keeps its real result; queueing must not synthesize cancellation for slow.
     h.child.stdout.emit('data', `${JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'quick', content: 'read ok' }] } })}\n`);
+    h.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', user_message_uuid: id, message: { id: 'm2', content: [{ type: 'text', text: 'next step' }] } })}\n`);
     await flush();
-    const second = h.executor.sendUserMessage({ runId, text: 'two' });
-    await flush();
-    h.child.stdout.emit('data', ack(3));
-    await expect(second).resolves.toBe('delivered');
-    h.child.stdout.emit('data', `${JSON.stringify({ type: 'result', terminal_reason: 'aborted_tool_use' })}\n`);
-    await flush();
-    const results = (await agentPayloads(h, runId)).filter((p) => (p as { type?: string }).type === 'tool_result');
-    expect(results).toEqual([
-      expect.objectContaining({ type: 'tool_result', toolUseId: 'quick', content: 'read ok' }),
-      { type: 'tool_result', toolUseId: 'slow', content: 'Tool execution cancelled.', isError: true },
+    const payloads = await agentPayloads(h, runId);
+    expect(payloads.filter((p) => (p as { type: string }).type === 'user_message')).toEqual([
+      { type: 'user_message', id, text: 'one', deliveryState: 'queued' },
+      { type: 'user_message', id, text: 'one', deliveryState: 'consumed' },
     ]);
+    expect(payloads.filter((p) => (p as { type: string }).type === 'tool_result')).toEqual([
+      { type: 'tool_result', toolUseId: 'quick', content: 'read ok', isError: false },
+    ]);
+    expect(h.child.stdin.ended).toBe(false);
     h.child.emit('close', 0, null);
     await h.lifecycle.waitForTerminal({ runId });
   });
 
-  it('interrupts the running turn first and writes the message only once the CLI acknowledges the interrupt', async () => {
+  it('queues one UUID-stamped user envelope and ignores unrelated control acknowledgements', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
-
-    const delivery = harness.executor.sendUserMessage({ runId, text: 'also check the footer' });
-    await flush();
-    const interrupt = JSON.parse(harness.child.stdin.writes[1]!);
-    expect(interrupt).toEqual({ type: 'control_request', request_id: expect.any(String), request: { subtype: 'interrupt' } });
+    await expect(harness.executor.sendUserMessage({ runId, text: 'also check the footer' })).resolves.toBe('delivered');
     expect(harness.child.stdin.writes).toHaveLength(2);
-
+    const envelope = JSON.parse(harness.child.stdin.writes[1]!);
+    expect(envelope).toEqual({ type: 'user', uuid: expect.any(String), message: { role: 'user', content: [{ type: 'text', text: 'also check the footer' }] } });
     harness.child.stdout.emit('data', `${JSON.stringify(controlResponse('some-other-request'))}\n`);
     await flush();
     expect(harness.child.stdin.writes).toHaveLength(2);
-
-    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(interrupt.request_id))}\n`);
-    await expect(delivery).resolves.toBe('delivered');
-
-    expect(harness.child.stdin.writes.slice(2).map((line) => JSON.parse(line))).toEqual([
-      { type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'also check the footer' }] } },
+    expect((await agentPayloads(harness, runId)).filter((p) => (p as { type: string }).type === 'user_message')).toEqual([
+      { type: 'user_message', id: envelope.uuid, text: 'also check the footer', deliveryState: 'queued' },
     ]);
-    expect(harness.child.stdin.ended).toBe(false);
-    const userMessages = (await agentPayloads(harness, runId)).filter((payload) => (payload as { type?: string }).type === 'user_message');
-    expect(userMessages).toEqual([{ type: 'user_message', id: expect.any(String), text: 'also check the footer' }]);
-
     harness.child.emit('close', 0, null);
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
-  it('matches an acknowledgement split across stdout chunks', async () => {
+  it('matches a UUID consumption receipt split across stdout chunks', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
-
-    const delivery = harness.executor.sendUserMessage({ runId, text: 'next' });
+    await harness.executor.sendUserMessage({ runId, text: 'next' });
+    const id = JSON.parse(harness.child.stdin.writes[1]!).uuid;
+    const receipt = `${JSON.stringify({ type: 'assistant', user_message_uuid: id, message: { id: 'm2', content: [] } })}\n`;
+    harness.child.stdout.emit('data', receipt.slice(0, 20));
+    harness.child.stdout.emit('data', receipt.slice(20));
     await flush();
-    const ack = `${JSON.stringify(controlResponse(JSON.parse(harness.child.stdin.writes[1]!).request_id))}\n`;
-    harness.child.stdout.emit('data', ack.slice(0, 20));
-    harness.child.stdout.emit('data', ack.slice(20));
-
-    await expect(delivery).resolves.toBe('delivered');
+    expect(await agentPayloads(harness, runId)).toContainEqual({ type: 'user_message', id, text: 'next', deliveryState: 'consumed' });
     harness.child.emit('close', 0, null);
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
-  it('keeps stdin open through the interrupted turn\'s own end, and closes it when the answer to the message ends', async () => {
+  it('preserves_queued_input_order_and_images_across_turn_end', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
-
-    const delivery = harness.executor.sendUserMessage({ runId, text: 'stop at 10' });
-    await flush();
-    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(JSON.parse(harness.child.stdin.writes[1]!).request_id))}\n`);
-    await expect(delivery).resolves.toBe('delivered');
-
-    // Claude Code ends the interrupted turn with this result frame, after the acknowledgement.
-    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, stop_reason: null, terminal_reason: 'aborted_streaming' })}\n`);
+    await harness.executor.sendUserMessage({ runId, text: 'first followup' }, { imageContents: [{ mimeType: 'image/png', data: 'pixels' }] });
+    await harness.executor.sendUserMessage({ runId, text: 'second followup' });
+    const envelopes = harness.child.stdin.writes.slice(1).map(line => JSON.parse(line));
+    expect(envelopes.map(item => item.message.content[0].text)).toEqual(['first followup', 'second followup']);
+    expect(envelopes[0].message.content[1]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'pixels' } });
+    // A prior turn's end and a later receipt may share one chunk: scan in wire order.
+    harness.child.stdout.emit('data', [
+      { type: 'assistant', message: { id: 'm1', content: [], stop_reason: 'end_turn' } },
+      { type: 'result', user_message_uuid: envelopes[0].uuid, queued_turn_count: 1, stop_reason: 'end_turn' },
+    ].map(frame => JSON.stringify(frame)).join('\n') + '\n');
     await flush();
     expect(harness.child.stdin.ended).toBe(false);
-
-    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm2', content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' } })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', user_message_uuid: envelopes[1].uuid, message: { id: 'm2', content: [{ type: 'text', text: 'done' }], stop_reason: 'end_turn' } })}\n`);
+    expect(harness.child.stdin.ended).toBe(false); // queued_turn_count still promises a result
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'result', user_message_uuids: envelopes.map(item => item.uuid), queued_turn_count: 0, stop_reason: 'end_turn' })}\n`);
     await flush();
     expect(harness.child.stdin.ended).toBe(true);
-
+    expect((await agentPayloads(harness, runId)).filter(p => (p as { deliveryState?: string }).deliveryState === 'consumed')).toHaveLength(2);
     harness.child.emit('close', 0, null);
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
-  it('keeps stdin open while the interrupt is unacknowledged even if the turn ends on its own meanwhile', async () => {
+  it('keeps stdin open while consumption is unconfirmed even if the turn ends meanwhile', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
-
-    const delivery = harness.executor.sendUserMessage({ runId, text: 'late but live' });
-    await flush();
+    await expect(harness.executor.sendUserMessage({ runId, text: 'late but live' })).resolves.toBe('delivered');
     harness.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: 'finished' }], stop_reason: 'end_turn' } })}\n`);
     await flush();
     expect(harness.child.stdin.ended).toBe(false);
+    expect(JSON.parse(harness.child.stdin.writes[1]!).message.content[0].text).toBe('late but live');
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal({ runId });
+  });
 
-    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(JSON.parse(harness.child.stdin.writes[1]!).request_id))}\n`);
-    await expect(delivery).resolves.toBe('delivered');
-    expect(JSON.parse(harness.child.stdin.writes[2]!).message.content[0].text).toBe('late but live');
-
+  it('closes the held stdin at a result that neither names nor queues the message (no receipt support)', async () => {
+    const harness = createHarness(createDef({}));
+    const runId = await startRun(harness);
+    await harness.executor.sendUserMessage({ runId, text: 'older cli' });
+    harness.child.stdout.emit('data', [
+      { type: 'assistant', message: { id: 'm1', content: [], stop_reason: 'end_turn' } },
+      { type: 'result', stop_reason: 'end_turn' },
+    ].map(frame => JSON.stringify(frame)).join('\n') + '\n');
+    await flush();
+    expect(harness.child.stdin.ended).toBe(true);
     harness.child.emit('close', 0, null);
     await harness.lifecycle.waitForTerminal({ runId });
   });
@@ -353,7 +329,6 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
 
     const delivery = harness.executor.sendUserMessage({ runId, text: 'never mind' });
     await flush();
-    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(JSON.parse(harness.child.stdin.writes[1]!).request_id))}\n`);
     await expect(delivery).resolves.toBe('delivered');
 
     harness.child.emit('close', 0, null);
@@ -364,7 +339,7 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
   // background subagents ran ten more minutes. stdin closed at that end, so every message sent in
   // those ten minutes came back 'not-running' and waited for the run to end — and the CLI, at EOF,
   // killed both subagents at its 10-minute background-wait ceiling.
-  it('keeps stdin open after an end_turn while background tasks run, and takes a message then without an interrupt', async () => {
+  it('keeps_background_agent_alive_across_parent_turn_and_followup', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
     const task = { task_id: 'bg-1', task_type: 'local_agent', description: 'Port pages' };
@@ -380,6 +355,17 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     expect(JSON.parse(harness.child.stdin.writes[1]!).message.content[0].text).toBe('save some context');
     expect(harness.child.stdin.ended).toBe(false);
 
+    const id = JSON.parse(harness.child.stdin.writes[1]!).uuid;
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'assistant', user_message_uuid: id, message: { id: 'followup', content: [{ type: 'text', text: 'Context saved.' }], stop_reason: 'end_turn' } })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'result', user_message_uuid: id, queued_turn_count: 0, stop_reason: 'end_turn' })}\n`);
+    await flush();
+    expect(harness.child.stdin.ended).toBe(false);
+    expect((await agentPayloads(harness, runId)).filter(p => (p as { type: string; status?: string }).type === 'background_task' && (p as { status: string }).status === 'stopped')).toEqual([]);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: task.task_id, status: 'completed', summary: 'Pages ported' })}\n`);
+    harness.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'background_tasks_changed', tasks: [] })}\n`);
+    expect(harness.child.stdin.ended).toBe(true);
+    await flush();
+    expect(await agentPayloads(harness, runId)).toContainEqual({ type: 'background_task', id: task.task_id, description: 'Port pages', status: 'completed', detail: 'Pages ported' });
     harness.child.emit('close', 0, null);
     await harness.lifecycle.waitForTerminal({ runId });
   });
@@ -414,25 +400,21 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
-  it('ignores stdout lines that only mention a control response, holding the message until the real acknowledgement', async () => {
+  it('ignores malformed or unrelated consumption receipts', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
-    let settled = false;
-    const delivery = harness.executor.sendUserMessage({ runId, text: 'later' }).then((result) => { settled = true; return result; });
-    await flush();
-    const interrupt = JSON.parse(harness.child.stdin.writes[1]!);
+    await harness.executor.sendUserMessage({ runId, text: 'later' });
+    const id = JSON.parse(harness.child.stdin.writes[1]!).uuid;
     for (const noise of [
-      '{"control_response" is not json',
-      JSON.stringify({ type: 'assistant', control_response: true }),
-      JSON.stringify({ type: 'control_response', response: 'not-an-object' }),
-      JSON.stringify({ type: 'control_response', response: { request_id: 7 } }),
+      '{"user_message_uuid" is not json',
+      JSON.stringify({ type: 'user', uuid: id }),
+      JSON.stringify({ type: 'assistant', user_message_uuid: 7 }),
+      JSON.stringify({ type: 'assistant', user_message_uuid: 'other' }),
     ]) harness.child.stdout.emit('data', `${noise}\n`);
     await flush();
-    expect(settled).toBe(false);
-    expect(harness.child.stdin.writes).toHaveLength(2);
-
-    harness.child.stdout.emit('data', `${JSON.stringify(controlResponse(interrupt.request_id))}\n`);
-    await expect(delivery).resolves.toBe('delivered');
+    expect((await agentPayloads(harness, runId)).filter(p => (p as { type: string }).type === 'user_message')).toEqual([
+      { type: 'user_message', id, text: 'later', deliveryState: 'queued' },
+    ]);
     harness.child.emit('close', 0, null);
     await harness.lifecycle.waitForTerminal({ runId });
   });
@@ -459,32 +441,22 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
-  it('still writes the message when the CLI never acknowledges the interrupt', async () => {
+  it('writes immediately without waiting for a control acknowledgement', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
-    vi.useFakeTimers();
-    try {
-      const delivery = harness.executor.sendUserMessage({ runId, text: 'are you there' });
-      await vi.advanceTimersByTimeAsync(INTERRUPT_ACK_TIMEOUT_MS);
-      await expect(delivery).resolves.toBe('delivered');
-      expect(JSON.parse(harness.child.stdin.writes[2]!).message.content[0].text).toBe('are you there');
-    } finally {
-      vi.useRealTimers();
-    }
+    await expect(harness.executor.sendUserMessage({ runId, text: 'are you there' })).resolves.toBe('delivered');
+    expect(harness.child.stdin.writes).toHaveLength(2);
+    expect(JSON.parse(harness.child.stdin.writes[1]!).message.content[0].text).toBe('are you there');
     harness.child.emit('close', 0, null);
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
-  it('reports not-running, writing no message, when the process exits before acknowledging', async () => {
+  it('reports not-running immediately on process close before terminal persistence finishes', async () => {
     const harness = createHarness(createDef({}));
     const runId = await startRun(harness);
-
-    const delivery = harness.executor.sendUserMessage({ runId, text: 'too late' });
-    await flush();
     harness.child.emit('close', 0, null);
-
-    await expect(delivery).resolves.toBe('not-running');
-    expect(harness.child.stdin.writes).toHaveLength(2);
+    await expect(harness.executor.sendUserMessage({ runId, text: 'too late' })).resolves.toBe('not-running');
+    expect(harness.child.stdin.writes).toHaveLength(1);
     await harness.lifecycle.waitForTerminal({ runId });
   });
 
@@ -522,4 +494,17 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
     await harness.lifecycle.waitForTerminal({ runId });
     await expect(harness.executor.sendUserMessage({ runId, text: 'hello' })).resolves.toBe('not-running');
   });
+});
+
+
+it('reports_stopped_background_agent_on_session_exit', async () => {
+  const h = createHarness(createDef({}));
+  const runId = await startRun(h);
+  h.child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'background', task_type: 'local_agent', description: 'Page review' })}\n`);
+  h.child.emit('close', null, 'SIGTERM');
+  await h.lifecycle.waitForTerminal({ runId });
+  expect((await agentPayloads(h, runId)).filter(p => (p as { type: string }).type === 'background_task')).toEqual([
+    { type: 'background_task', id: 'background', status: 'running', description: 'Page review' },
+    { type: 'background_task', id: 'background', status: 'stopped', description: 'Page review', detail: 'Stopped because the agent session ended' },
+  ]);
 });

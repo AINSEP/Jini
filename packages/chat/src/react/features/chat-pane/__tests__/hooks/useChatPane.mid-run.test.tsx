@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { __resetComposerDraftCacheForTests } from '../../../../hooks/composer-draft-cache.js';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import type { ChatPaneAgent, DeliverMidRunMessage, MidRunMessageDelivery } from '../../types.js';
+import { acceptedInputEvent, projectAcceptedInputEvents } from '../../../../../core/accepted-input.js';
 import { useChatPane, type UseChatPaneOptions } from '../../hooks/useChatPane.hooks.js';
 
 const agents: ChatPaneAgent[] = [{ id: 'claude', name: 'Claude Code', available: true }];
@@ -41,13 +42,16 @@ describe('useChatPane — a message sent mid-run goes to the running agent', () 
     expect(result.current.conversation.isStreaming).toBe(true);
   });
 
-  it('interrupts the run and sends the text as the next turn when the agent cannot take it mid-run', async () => {
+  it('unsupported_delivery_queues_without_cancelling_run', async () => {
     const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'unsupported');
     const { result, transport } = await startStreamingRun(deliver);
 
     await act(() => result.current.send());
 
-    expect(transport.stoppedRunIds).toEqual(['run-1']);
+    expect(transport.stoppedRunIds).toEqual([]);
+    expect(result.current.queuedPrompt).toBe('also fix the footer');
+    expect(transport.calls).toHaveLength(1);
+    await act(async () => { transport.finish(); });
     await waitFor(() => expect(transport.calls).toHaveLength(2));
     expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('also fix the footer');
   });
@@ -451,4 +455,22 @@ it.each([false, true])('aggregates only the surviving queued redaction signals (
   expect(transport.calls[1]!.input.history.at(-1)?.secretRedaction).toEqual({ secretRedacted: true, count: cancelFirst ? 2 : 3 });
   expect(transport.calls[1]!.input.history.at(-1)?.content).toBe(cancelFirst
     ? 'two [token removed] [token removed]' : 'one [token removed]\n\ntwo [token removed] [token removed]');
+});
+
+
+it('exposes queued state immediately on acceptance and consumed state only after a wire receipt', async () => {
+  const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => 'delivered');
+  const { result, transport } = await startStreamingRun(deliver);
+  await act(() => result.current.send());
+  const inputs = () => projectAcceptedInputEvents({ events: result.current.conversation.messages.at(-1)?.events ?? [] })
+    .flatMap(event => { const input = acceptedInputEvent({ event }); return input ? [input.data] : []; });
+  expect(inputs()).toHaveLength(1);
+  expect(inputs()[0]!.deliveryState).toBe('queued');
+  await act(async () => { transport.emit({ kind: 'text', text: 'still working on the previous step' }); });
+  expect(inputs()[0]!.deliveryState).toBe('queued');
+  await act(async () => { transport.emit({ kind: 'ext', name: 'user_message', data: {
+    id: 'wire', text: 'also fix the footer', deliveryState: 'consumed',
+  } }); });
+  expect(inputs()).toHaveLength(1);
+  expect(inputs()[0]!.deliveryState).toBe('consumed');
 });

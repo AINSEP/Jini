@@ -9,7 +9,7 @@ export interface DurableRunBinding { readonly messageId: string; readonly conver
 export interface DurableSubscriptionPorts {
   /** Absent recover intent preserves legacy recovery; false requests only the saved checkpoint. */
   readonly read: (required: { runId: string; messageId?: string }, optional: { recover?: boolean }) => Promise<ChatMessage | null | "gone">;
-  readonly stream: (required: { runId: string; cursor: string; frame: (kind: string, data: string, cursor: string) => void; dropped: () => void }, optional: {}) => () => void;
+  readonly stream: (required: { runId: string; cursor: string; frame: (kind: string, data: string, cursor: string) => void; dropped: (reason?: string) => void }, optional: {}) => () => void;
   readonly schedule: (required: { work: () => void; delayMs: number }, optional: {}) => () => void;
 }
 
@@ -18,20 +18,23 @@ type CheckpointHandlers = RunHandlers & { onCheckpoint?: (message: ChatMessage) 
 /** SSE is a view of one attempt. The saved message owns terminal state and can point at a new
  * attempt after recovery; neither a browser 404 nor a closed stream may fail the logical run. */
 export function followDurableRun(
-  { runId: initialRunId, handlers, signal, binding, ports, notices, bindings }: { runId: string; handlers: CheckpointHandlers; signal?: AbortSignal; binding?: DurableRunBinding; ports: DurableSubscriptionPorts; notices: RunNotices; bindings: Map<string, DurableRunBinding> }, _optional = {},
+  { runId: initialRunId, handlers, signal, binding, ports, notices, bindings }: { runId: string; handlers: CheckpointHandlers; signal?: AbortSignal; binding?: DurableRunBinding; ports: DurableSubscriptionPorts; notices: RunNotices; bindings: Map<string, DurableRunBinding> }, { logger = console }: { logger?: Pick<Console, "info"> } = {},
 ): () => void {
+  let streamEpoch = 0;
   let runId = initialRunId;
   let cursor = "";
   let stopped = false;
   let reading = false;
   let recoveryPending = true;
   let dropped = false;
+  let reconnectDelayMs = 0;
   let stopStream: (() => void) | undefined;
   let stopTimer: (() => void) | undefined;
   let messageId = binding?.messageId;
 
   function stop() {
     stopped = true;
+    streamEpoch += 1;
     stopStream?.();
     stopTimer?.();
     signal?.removeEventListener("abort", stop);
@@ -45,14 +48,39 @@ export function followDurableRun(
   }
 
   function open() {
+    const epoch = ++streamEpoch;
     dropped = false;
     stopStream?.();
-    stopStream = ports.stream({ runId, cursor, frame, dropped: () => { dropped = true; recoveryPending = true; void read().catch(() => undefined); } }, {});
+    stopStream = ports.stream({ runId, cursor,
+      frame: (...args) => { if (epoch === streamEpoch) frame(...args); },
+      dropped: reason => { if (epoch === streamEpoch) disconnected(reason); },
+    }, {});
+  }
+
+  /** One timer owns reconnects, including faults during a checkpoint read. No cursor reset. */
+  function disconnected(reason = "stream-error") {
+    if (stopped || dropped) return;
+    dropped = true;
+    streamEpoch += 1;
+    recoveryPending = true;
+    reconnectDelayMs = Math.min(30_000, Math.max(1_000, reconnectDelayMs * 2));
+    // Metadata only: neither frame contents nor saved user messages belong in transport logs.
+    logger.info("[durable-subscription] " + JSON.stringify({ runId, reason, cursor, retryDelayMs: reconnectDelayMs }));
+    stopStream?.();
+    if (!reading) scheduleRead();
+  }
+
+  function scheduleRead() {
+    stopTimer?.();
+    stopTimer = ports.schedule({ work: () => void read().catch(() => undefined), delayMs: dropped ? reconnectDelayMs : 1_000 }, {});
   }
 
   function frame(kind: string, data: string, nextCursor: string) {
     if (stopped) return;
-    if (nextCursor) cursor = nextCursor;
+    if (nextCursor) {
+      if (nextCursor !== cursor) reconnectDelayMs = 0;
+      cursor = nextCursor;
+    }
     const outcome = translateRunFrame({ kind, raw: data, notices }, {});
     // An attempt's error/end may be followed by a continuation. Only the row can finalize it.
     if (outcome.terminal || outcome.error) { recoveryPending = true; void read().catch(() => undefined); return; }
@@ -78,8 +106,8 @@ export function followDurableRun(
     } finally {
       reading = false;
       if (!stopped) {
-        if (recoveryPending) void read().catch(() => undefined);
-        else stopTimer = ports.schedule({ work: () => void read().catch(() => undefined), delayMs: 1_000 }, {});
+        // Always schedule: an error arriving during read must not create a tight recovery loop.
+        scheduleRead();
       }
     }
   }
@@ -91,6 +119,7 @@ export function followDurableRun(
     if (message.runId && message.runId !== runId) {
       runId = message.runId;
       cursor = "";
+      reconnectDelayMs = 0;
       if (binding) bindings.set(runId, binding);
       dropped = true;
     }

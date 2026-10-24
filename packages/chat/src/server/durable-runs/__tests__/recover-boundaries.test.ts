@@ -65,7 +65,7 @@ function harness({ events = [], probe = "dead", run = {}, now = TIME + 20_000, a
   const recover = (trigger: RecoveryTrigger = "boot", options: { liveRunId?: string; expectedRunId?: string } = {}) =>
     recovery.recover({ messageId: "answer", trigger, ...(options.expectedRunId ? { expectedRunId: options.expectedRunId } : {}) },
       options.liveRunId ? { liveRunId: options.liveRunId } : {});
-  return { recover, settlements, attached, launches, clocks, advances, nativeQueries, info };
+  return { recover, settlements, attached, launches, clocks, advances, nativeQueries, info, ports, current: () => current, replace: (run: DurableRun) => { current = run; } };
 }
 
 const NATIVE_RUN: Partial<DurableRun> = { sessionConfirmed: true, sessionId: "session-1", child: { pid: 10, startedAt: "start" } };
@@ -150,13 +150,13 @@ describe("durable recovery boundaries: liveness", () => {
     expect(await h.recover("attempt-failed")).toBe("continued");
   });
 
-  it("keeps waiting on an uncertain probe and starts the recovery clock", async () => {
+  it("keeps waiting on an uncertain probe without spending recovery budget", async () => {
     const h = harness({ probe: "uncertain" });
     expect(await h.recover("timeout")).toBe("waiting");
-    expect(h.clocks).toEqual([{ runId: "old", now: TIME + 20_000, active: true }]);
+    expect(h.clocks).toEqual([{ runId: "old", now: TIME + 20_000, active: false }]);
     expect(h.attached).toEqual(["old"]);
     expect(h.launches).toEqual([]);
-    expect(h.info).toEqual([["[durable-recovery] " + JSON.stringify({ runId: "old", trigger: "timeout", probe: "uncertain", decision: "waiting", failureClass: "retryable" })]]);
+    expect(h.info).toEqual([["[durable-recovery] " + JSON.stringify({ runId: "old", trigger: "timeout", probe: "uncertain", decision: "waiting" })]]);
   });
 
   it("gives a freshly started dead attempt 10 s before continuing it", async () => {
@@ -177,13 +177,13 @@ describe("durable recovery boundaries: liveness", () => {
 });
 
 describe("durable recovery boundaries: generation fencing", () => {
-  it("returns superseded when another caller advanced the run while the clock was set", async () => {
+  it("returns superseded when another caller advanced the run while probing", async () => {
     const h = harness({ reload: (run) => ({ ...run, runId: "newer" }) });
     expect(await h.recover("attempt-failed")).toBe("superseded");
     expect(h.advances).toEqual([]);
   });
 
-  it("falls back to the inspected run when the reload finds nothing", async () => {
+  it("returns gone when the probe reload finds nothing", async () => {
     let loads = 0;
     const attached: string[] = [];
     const recovery = createDurableRecovery({
@@ -194,8 +194,8 @@ describe("durable recovery boundaries: generation fencing", () => {
       now: () => TIME + 20_000, mintRunId: () => "next", probe: async () => "uncertain", attach: (run) => { attached.push(run.runId); },
       launch: async () => {}, cancelAttempt: async () => {}, verifyChildDead: async () => true, supportsNativeResume: () => true, settle: async () => true,
     }, { logger: { info: () => {} } });
-    expect(await recovery.recover({ messageId: "answer", trigger: "timeout" }, {})).toBe("waiting");
-    expect(attached).toEqual(["old"]);
+    expect(await recovery.recover({ messageId: "answer", trigger: "timeout" }, {})).toBe("gone");
+    expect(attached).toEqual([]);
   });
 
   it("returns superseded when the advance CAS loses", async () => {
@@ -206,21 +206,21 @@ describe("durable recovery boundaries: generation fencing", () => {
 
   it("returns superseded when the run disappears after the advance", async () => {
     let loads = 0;
-    const h = harness({ reload: (run) => { loads += 1; return loads >= 2 ? null : run; } });
+    const h = harness({ reload: (run) => { loads += 1; return loads >= 3 ? null : run; } });
     expect(await h.recover("attempt-failed")).toBe("superseded");
     expect(h.launches).toEqual([]);
   });
 
   it("returns superseded when a newer generation than the minted one is stored", async () => {
     let loads = 0;
-    const h = harness({ reload: (run) => { loads += 1; return loads >= 2 ? { ...run, runId: "other" } : run; } });
+    const h = harness({ reload: (run) => { loads += 1; return loads >= 3 ? { ...run, runId: "other" } : run; } });
     expect(await h.recover("attempt-failed")).toBe("superseded");
     expect(h.launches).toEqual([]);
   });
 
   it("finalizes the new generation as canceled when a cancel won the fence", async () => {
     let loads = 0;
-    const h = harness({ reload: (run) => { loads += 1; return loads >= 2 ? { ...run, cancelReason: "user" } : run; } });
+    const h = harness({ reload: (run) => { loads += 1; return loads >= 3 ? { ...run, cancelReason: "user" } : run; } });
     expect(await h.recover("attempt-failed")).toBe("finalized");
     expect(h.launches).toEqual([]);
     expect(h.settlements[0]!.runId).toBe("next");
@@ -390,14 +390,96 @@ describe("durable recovery boundaries: preflight answer wait", () => {
 });
 
 describe("durable recovery boundaries: stale budget", () => {
-  it("says an uncertain stale run was waiting for an answer while a card is pending", async () => {
+  it("waits for proof of death even when an uncertain stale run has a pending card", async () => {
     const h = harness({ probe: "uncertain", run: { lastProgressAt: TIME + 20_000 - RUN_STALENESS_MS }, events: [{ kind: "ext", name: "mcp-ui", data: null }] });
-    expect(await h.recover("timeout")).toBe("finalized");
-    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: AWAITING_ANSWER_NOTICE });
+    expect(await h.recover("timeout")).toBe("waiting");
+    expect(h.settlements).toEqual([]);
+    expect(h.clocks).toEqual([{ runId: "old", now: TIME + 20_000, active: false }]);
   });
 
   it("keeps waiting one millisecond before the staleness bound", async () => {
     const h = harness({ probe: "uncertain", run: { lastProgressAt: TIME + 20_001 - RUN_STALENESS_MS } });
     expect(await h.recover("timeout")).toBe("waiting");
   });
+});
+
+
+describe("uncertain recovery does not terminate live work", () => {
+  it("uncertain_then_live_never_cancels_or_settles", async () => {
+    const canceled: string[] = [];
+    let probe: RunProbe = "uncertain";
+    const h = harness({ events: [{ kind: "status", label: "billing" }], ports: {
+      probe: async () => probe, cancelAttempt: async run => { canceled.push(run.runId); },
+    } });
+    expect(await h.recover("browser")).toBe("waiting");
+    probe = "live";
+    expect(await h.recover("timeout")).toBe("reattached");
+    expect(canceled).toEqual([]);
+    expect(h.settlements).toEqual([]);
+    expect(h.advances).toEqual([]);
+    expect(h.clocks).toEqual([
+      { runId: "old", now: TIME + 20_000, active: false },
+      { runId: "old", now: TIME + 20_000, active: false },
+    ]);
+  });
+
+  it("uncertain_with_expired_budgets_reprobes_before_finalizing", async () => {
+    for (const nextProbe of ["live", "dead"] as const) {
+      let probes = 0;
+      const h = harness({ run: { recoveryCount: 100, recoveryDeadline: TIME - 1, lastProgressAt: TIME - RUN_STALENESS_MS }, ports: {
+        probe: async () => { probes += 1; return probes === 1 ? "uncertain" : nextProbe; },
+      } });
+      expect(await h.recover("timeout")).toBe("waiting");
+      expect(h.clocks).toEqual([{ runId: "old", now: TIME + 20_000, active: false }]);
+      expect(h.settlements).toEqual([]);
+      expect(await h.recover("timeout")).toBe(nextProbe === "live" ? "reattached" : "finalized");
+      expect(probes).toBe(2);
+      expect(h.settlements).toHaveLength(nextProbe === "live" ? 0 : 1);
+      expect(h.advances).toEqual([]);
+    }
+  });
+
+  it("1166_live_reattaches_spend_no_recovery_budget", async () => {
+    const h = harness({ probe: "live", run: { recoveryCount: 2, recoveryDeadline: TIME - 1, lastProgressAt: TIME - RUN_STALENESS_MS } });
+    for (let index = 0; index < 1166; index++) expect(await h.recover("browser")).toBe("reattached");
+    expect(h.current()!.recoveryCount).toBe(2);
+    expect(h.clocks).toHaveLength(1166);
+    expect(h.clocks.every(clock => clock.active === false)).toBe(true);
+    expect(h.advances).toEqual([]);
+    expect(h.settlements).toEqual([]);
+  });
+
+  it("reprobe_generation_change_cannot_cancel_new_attempt", async () => {
+    let probe: RunProbe = "uncertain";
+    const canceled: string[] = [];
+    let onProbe = async (): Promise<RunProbe> => probe;
+    const h = harness({ ports: { probe: () => onProbe(), cancelAttempt: async run => { canceled.push(run.runId); } } });
+    expect(await h.recover("browser")).toBe("waiting");
+    const current = h.current()!;
+    probe = "dead";
+    onProbe = async () => {
+      h.replace({ ...current, runId: "new-generation", message: { ...current.message, runId: "new-generation" } });
+      return "dead";
+    };
+    expect(await h.recover("timeout")).toBe("superseded");
+    expect(canceled).toEqual([]);
+    expect(h.settlements).toEqual([]);
+    expect(h.clocks).toEqual([{ runId: "old", now: TIME + 20_000, active: false }]);
+  });
+});
+
+
+it.each(['succeeded', 'failed', 'canceled'] as const)('honors a %s settlement saved while the uncertain probe awaited', async runStatus => {
+  const h = harness({ probe: 'uncertain', reload: run => ({ ...run, message: { ...run.message, runStatus } }) });
+  expect(await h.recover('browser')).toBe('terminal');
+  expect(h.settlements).toEqual([]);
+  expect(h.attached).toEqual([]);
+  expect(h.clocks).toEqual([]);
+});
+
+it('honors explicit cancellation saved while the uncertain probe awaited', async () => {
+  const h = harness({ probe: 'uncertain', reload: run => ({ ...run, cancelReason: 'user' }) });
+  expect(await h.recover('browser')).toBe('finalized');
+  expect(h.settlements[0]!.status).toBe('canceled');
+  expect(h.attached).toEqual([]);
 });

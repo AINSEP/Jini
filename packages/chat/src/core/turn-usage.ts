@@ -16,6 +16,16 @@ export function isReplyBoundary({ event }: { event: AgentEvent }, _optional = {}
   return event.kind === 'ext' && event.name === MID_RUN_USER_MESSAGE_EVENT_NAME;
 }
 
+/** Queued/consumed receipts update one input, so usage must split that reply only once. */
+function newReplyBoundary({ event, seen }: { event: AgentEvent; seen: Set<string> }, _options = {}): boolean {
+  if (!isReplyBoundary({ event })) return false;
+  const id = (event as Extract<AgentEvent, { kind: 'ext' }>).data as { id?: unknown } | null;
+  if (typeof id?.id !== 'string') return true;
+  if (seen.has(id.id)) return false;
+  seen.add(id.id);
+  return true;
+}
+
 /** Split one assistant message's events into replies at each mid-run user message. A usage event
  * that lands after a boundary but before the next reply produced anything is the interrupted
  * reply's own result (the daemon notes it can arrive after the interrupt ack), so it stays with
@@ -24,8 +34,9 @@ export function isReplyBoundary({ event }: { event: AgentEvent }, _optional = {}
 export function replySegments({ events }: { events: readonly AgentEvent[] | undefined }, _optional = {}): AgentEvent[][] {
   const segments: AgentEvent[][] = [[]];
   let started = false;
+  const seen = new Set<string>();
   for (const event of events ?? []) {
-    if (isReplyBoundary({ event })) {
+    if (newReplyBoundary({ event, seen })) {
       segments.push([]);
       started = false;
       continue;
@@ -39,7 +50,7 @@ export function replySegments({ events }: { events: readonly AgentEvent[] | unde
 
 /** Usage, status and raw lines are bookkeeping; anything else means the reply has produced output. */
 function producesReplyOutput({ event }: { event: AgentEvent }, _optional = {}): boolean {
-  return event.kind !== 'usage' && event.kind !== 'status' && event.kind !== 'raw';
+  return !['usage', 'status', 'raw'].includes(event.kind) && !isReplyBoundary({ event });
 }
 
 /** Resolve one charge against this agent/session's last snapshot. State is local to an

@@ -309,3 +309,20 @@ describe("durable recovery: bridge failure is permanent", () => {
     expect(h.settlements).toEqual([]);
   });
 });
+
+
+it("completed_subagent_billing_summary_is_not_executor_failure", async () => {
+  const summary = JSON.stringify({ type: "system", subtype: "task_notification", status: "completed", summary: "actual billing isn't verified; OAuth is forbidden here" });
+  for (const line of [summary, `${summary}\n${JSON.stringify({ type: "tool_progress", tool_use_id: "tool", elapsed_time_seconds: 60 })}\n`]) {
+    const h = harness({ probe: "dead", events: [
+      { kind: "raw", line }, { kind: "status", label: "Run failed", detail: "exit code 1" },
+    ] });
+    expect(await h.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("continued");
+    expect(h.settlements).toEqual([]);
+    expect(h.launches).toHaveLength(1);
+  }
+  // Filtering a completed summary must not hide an independent executor failure beside it.
+  const failed = harness({ probe: "dead", events: [{ kind: "raw", line: `${summary}\nHTTP 403: forbidden` }] });
+  expect(await failed.recovery.recover({ messageId: "answer", trigger: "attempt-failed" }, {})).toBe("finalized");
+  expect(failed.settlements).toHaveLength(1);
+});

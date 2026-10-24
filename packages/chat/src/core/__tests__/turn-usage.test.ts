@@ -146,3 +146,18 @@ it('skips user messages and leaves a reply without usage as an undefined segment
   expect([...usage.keys()]).toEqual(['a']);
   expect(usage.get('a')).toEqual({ kind: 'usage', costUsd: 0.5, totalCostUsd: 0.5, segments: [undefined, { kind: 'usage', costUsd: 0.5, totalCostUsd: 0.5 }] });
 });
+
+
+it('counts queued and consumed receipts as one reply boundary and one charge', () => {
+  const queued: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'u1', text: 'next', deliveryState: 'queued' } };
+  const consumed: AgentEvent = { ...queued, data: { id: 'u1', text: 'next', deliveryState: 'consumed' } };
+  const events: AgentEvent[] = [
+    { kind: 'text', text: 'before' }, queued,
+    { kind: 'usage', costUsd: 0.1 }, consumed,
+    { kind: 'text', text: 'after' }, { kind: 'usage', costUsd: 0.2 },
+  ];
+  const usage = conversationUsage({ messages: [{ id: 'reply', role: 'assistant', content: 'beforeafter', events }] }).get('reply');
+  expect(usage?.segments).toHaveLength(2);
+  expect(usage?.segments?.map(segment => segment?.costUsd)).toEqual([0.1, 0.2]);
+  expect(usage?.costUsd).toBeCloseTo(0.3);
+});
