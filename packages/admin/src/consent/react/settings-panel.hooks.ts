@@ -5,6 +5,7 @@ import type { ConsentAppearanceView, ConsentFieldProblem, ConsentSettingsPanelPr
 export function useConsentSettingsPanel({ value, onChange }: Pick<ConsentSettingsPanelProps, 'value' | 'onChange'>, _options = {}) {
   return {
     toggle: () => onChange({ patch: { enabled: !value.enabled } }),
+    toggleUnsafeEval: () => onChange({ patch: { allowUnsafeEval: value.allowUnsafeEval !== true } }),
     region: (event: ChangeEvent<HTMLSelectElement>) => onChange({ patch: { regionMode: event.target.value as ConsentSettingsView['regionMode'] } }),
     placement: (event: ChangeEvent<HTMLSelectElement>) => onChange({ patch: { placement: event.target.value } }),
     text: (key: keyof ConsentSettingsView) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ patch: { [key]: event.target.value } }),

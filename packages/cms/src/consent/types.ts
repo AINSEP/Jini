@@ -21,6 +21,8 @@ export interface ConsentAppearanceTokens {
 /** Text/policy content belongs to the host, not the mechanism. */
 export interface ConsentConfig {
   enabled: boolean;
+  /** Page-wide dynamic code exception; only literal true relaxes consent's script policy. */
+  allowUnsafeEval?: boolean;
   regionMode: 'auto' | ConsentRegionMode;
   policyVersion: string;
   privacyPolicyUrl: string;

@@ -15,6 +15,8 @@ export interface ConsentAppearanceView {
 /** The host's consent configuration. The look fields are optional so older hosts stay valid. */
 export interface ConsentSettingsView {
   enabled: boolean;
+  /** Optional for older hosts; omitted means the dynamic code exception is off. */
+  allowUnsafeEval?: boolean;
   regionMode: 'auto' | 'opt-in' | 'opt-out';
   policyVersion: string;
   privacyPolicyUrl: string;

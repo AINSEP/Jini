@@ -57,6 +57,38 @@ describe('ConsentBannerFields', () => {
 });
 
 describe('ConsentRulesFields', () => {
+  it('lets an older host enable and revoke dynamic code with the keyboard and describes the risk', async () => {
+    const patches = host(ConsentRulesFields as typeof ConsentBannerFields);
+    const user = userEvent.setup();
+    const toggle = screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(toggle).toHaveAccessibleDescription("Some themes need this. It weakens the site's script protection. Optional scripts still wait for consent.");
+    await user.tab();
+    await user.tab();
+    expect(toggle).toHaveFocus();
+    await user.keyboard(' ');
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{Enter}');
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(patches).toEqual([{ allowUnsafeEval: true }, { allowUnsafeEval: false }]);
+  });
+
+  it('hides the dynamic code switch while consent is off without clearing its saved value', async () => {
+    const patches = host(ConsentRulesFields as typeof ConsentBannerFields, {}, { ...initial, enabled: false, allowUnsafeEval: true });
+    expect(screen.queryByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toBeNull();
+    await userEvent.setup().click(screen.getByRole('switch', { name: 'Enable cookie consent on this site' }));
+    expect(screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toHaveAttribute('aria-checked', 'true');
+    expect(patches).toEqual([{ enabled: true }]);
+  });
+
+  it('disables dynamic code edits with the other fields while loading', async () => {
+    const patches = host(ConsentRulesFields as typeof ConsentBannerFields, { disabled: true });
+    const toggle = screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' });
+    expect(toggle).toBeDisabled();
+    await userEvent.setup().click(toggle);
+    expect(patches).toEqual([]);
+  });
+
   it('toggles consent and offers only the region modes the host allows', async () => {
     const patches = host(ConsentRulesFields as typeof ConsentBannerFields, { regionModes: ['opt-in', 'opt-out'], limits: { policyVersion: 64 } });
     const user = userEvent.setup();

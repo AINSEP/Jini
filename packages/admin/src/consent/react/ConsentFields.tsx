@@ -78,7 +78,7 @@ export function ConsentBannerFields({ value, onChange, disabled = false, problem
   </fieldset>;
 }
 
-/** On/off, region behavior and the policy version that re-asks visitors when it changes. */
+/** On/off, script policy, region behavior and the version that re-asks visitors when it changes. */
 export function ConsentRulesFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, regionModes = ['auto', 'opt-in', 'opt-out'] }: ConsentFieldsProps & { regionModes?: readonly ConsentSettingsView['regionMode'][] }) {
   const id = useId();
   const t = translator(dictionary);
@@ -88,6 +88,9 @@ export function ConsentRulesFields({ value, onChange, disabled = false, problems
     <button type="button" className={value.enabled ? 'jini-toggle-row on' : 'jini-toggle-row'} role="switch" aria-checked={value.enabled} aria-labelledby={`${id}-enabled`} aria-describedby={`${id}-hint`} onClick={handlers.toggle}>
       <span className="jini-toggle-row-text"><span id={`${id}-enabled`} className="jini-toggle-row-label">{t('Enable cookie consent on this site')}</span><span id={`${id}-hint`} className="jini-toggle-row-hint">{t('Applies to published site pages.')}</span></span><span className="jini-toggle-row-switch" aria-hidden="true" />
     </button>
+    {value.enabled && <button type="button" className={value.allowUnsafeEval === true ? 'jini-toggle-row on' : 'jini-toggle-row'} role="switch" aria-checked={value.allowUnsafeEval === true} aria-labelledby={`${id}-eval`} aria-describedby={`${id}-eval-hint`} onClick={handlers.toggleUnsafeEval}>
+      <span className="jini-toggle-row-text"><span id={`${id}-eval`} className="jini-toggle-row-label">{t('Allow dynamic code (unsafe-eval)')}</span><span id={`${id}-eval-hint`} className="jini-toggle-row-hint">{t("Some themes need this. It weakens the site's script protection. Optional scripts still wait for consent.")}</span></span><span className="jini-toggle-row-switch" aria-hidden="true" />
+    </button>}
     <Field label={t('Region mode')} field="regionMode" problems={problems}>{aria => <select className="jini-input" value={value.regionMode} onChange={handlers.region} {...aria}>
       {modes.map(mode => <option key={mode} value={mode}>{t(REGION_LABELS[mode])}</option>)}
     </select>}</Field>

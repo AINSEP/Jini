@@ -829,6 +829,59 @@ describe('first-party site behavior without optional consent', () => {
   });
 });
 
+describe('per-site dynamic code exception', () => {
+  const baseline = "script-src 'self' 'unsafe-inline'; object-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self'; frame-src 'self'; connect-src 'self'";
+
+  it.each([undefined, false, 'true', 1, {}])('keeps the policy byte-identical unless the flag is literally true (%j)', allowUnsafeEval => {
+    const supplied = allowUnsafeEval === undefined ? config : { ...config, allowUnsafeEval: allowUnsafeEval as boolean };
+    const html = renderConsentHead({ record: null, gpc: false, config: supplied });
+    expect(html).toBe(renderConsentHead({ record: null, gpc: false, config }));
+    const dom = new JSDOM(html);
+    try {
+      const document = dom.window.document;
+      expect(document.querySelector('meta[http-equiv="Content-Security-Policy"]').content).toBe(baseline);
+      expect(JSON.parse(document.querySelector('#jini-consent-config').textContent).resourcePolicies).toEqual({ '00': baseline, '01': baseline, '10': baseline, '11': baseline });
+    } finally { dom.window.close(); }
+  });
+
+  it('adds only unsafe-eval to script-src in the initial policy and all four withdrawal/GPC policies', () => {
+    const options = { resourceOrigins: ['https://theme.example'], categoryOrigins: { functional: ['https://chat.example'], analytics: ['https://collect.example'] } };
+    const baselineDom = new JSDOM(renderConsentHead({ record: null, gpc: false, config }, options));
+    const enabledDom = new JSDOM(renderConsentHead({ record: null, gpc: false, config: { ...config, allowUnsafeEval: true } }, options));
+    try {
+      const before = baselineDom.window.document;
+      const after = enabledDom.window.document;
+      const initialPolicy = before.querySelector('meta[http-equiv="Content-Security-Policy"]').content;
+      expect(after.querySelector('meta[http-equiv="Content-Security-Policy"]').content).toBe(initialPolicy.replace(" 'unsafe-inline';", " 'unsafe-inline' 'unsafe-eval';"));
+      const beforeState = JSON.parse(before.querySelector('#jini-consent-config').textContent);
+      const afterState = JSON.parse(after.querySelector('#jini-consent-config').textContent);
+      expect(Object.keys(afterState.resourcePolicies).sort()).toEqual(['00', '01', '10', '11']);
+      for (const key of ['00', '01', '10', '11']) {
+        expect(afterState.resourcePolicies[key]).toBe(beforeState.resourcePolicies[key].replace(" 'unsafe-inline';", " 'unsafe-inline' 'unsafe-eval';"));
+      }
+      expect({ ...afterState, resourcePolicies: beforeState.resourcePolicies }).toEqual(beforeState);
+    } finally { baselineDom.window.close(); enabledDom.window.close(); }
+  });
+
+  it('preserves external and explicitly labelled script gating with the exception enabled', async () => {
+    const { dom, requests, runtimeErrors } = await browser(gateConsentHtml({ html: page, config: { ...config, allowUnsafeEval: true }, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }));
+    try {
+      expect(requests).toEqual([]);
+      expect(Array.from(dom.window.runs)).toEqual(['necessary']);
+      expect(dom.window.document.querySelectorAll('template[data-category="analytics"]')).toHaveLength(2);
+      expect(dom.window.document.querySelectorAll('template[data-category="functional"]')).toHaveLength(1);
+      expect(runtimeErrors).toEqual([]);
+    } finally { dom.window.close(); }
+  });
+
+  it('leaves disabled delivery untouched and keeps marketing-granted delivery free of the initial policy', () => {
+    expect(gateConsentHtml({ html: page, config: { ...config, enabled: false, allowUnsafeEval: true }, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' })).toBe(page);
+    const dom = new JSDOM(renderConsentHead({ record: accepted, gpc: false, config: { ...config, allowUnsafeEval: true } }));
+    try { expect(dom.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]')).toBeNull(); }
+    finally { dom.window.close(); }
+  });
+});
+
 it('restricts dynamic script origins to the current grants without unsafe-eval and widens on the reloaded page', () => {
   const categoryOrigins = { functional: ['https://chat.example'], analytics: ['https://collect.example'] };
   const policy = (record: typeof accepted | null) => {

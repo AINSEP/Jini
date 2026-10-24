@@ -74,18 +74,18 @@ function validatedOrigins({ resourceOrigins = [], categoryOrigins = {} }: { reso
 
 /** Pre-consent resource policy for one choice set: theme origins plus each granted category's
  * origins, so an analytics grant reaches its collector without granting marketing. @complexity O(origins). */
-function resourcePolicy({ choices, origins }: { choices: ConsentChoices; origins: ResourceOrigins }): string {
+function resourcePolicy({ choices, origins, allowUnsafeEval }: { choices: ConsentChoices; origins: ResourceOrigins; allowUnsafeEval: boolean }, _options = {}): string {
   const granted = (['functional', 'analytics'] as const).flatMap(category => choices[category] ? origins.categoryOrigins[category] : []);
   const sources = ["'self'", ...new Set([...origins.resourceOrigins, ...granted])].join(' ');
-  return `script-src ${sources} 'unsafe-inline'; object-src 'none'; style-src ${sources} 'unsafe-inline'; font-src ${sources} data:; img-src ${sources} data: blob:; media-src ${sources}; frame-src ${sources}; connect-src ${sources}`;
+  return `script-src ${sources} 'unsafe-inline'${allowUnsafeEval ? " 'unsafe-eval'" : ''}; object-src 'none'; style-src ${sources} 'unsafe-inline'; font-src ${sources} data:; img-src ${sources} data: blob:; media-src ${sources}; frame-src ${sources}; connect-src ${sources}`;
 }
 
 /** The browser runtime can only reduce choices (navigator GPC, an unsaved withdrawal), so it looks
  * policies up by functional/analytics bits instead of rebuilding them. @complexity O(origins). */
-function resourcePolicies({ origins }: { origins: ResourceOrigins }): Record<string, string> {
+function resourcePolicies({ origins, allowUnsafeEval }: { origins: ResourceOrigins; allowUnsafeEval: boolean }, _options = {}): Record<string, string> {
   const policies: Record<string, string> = {};
   for (const functional of [false, true]) for (const analytics of [false, true]) {
-    policies[`${Number(functional)}${Number(analytics)}`] = resourcePolicy({ choices: { ...DENIED_CHOICES, functional, analytics }, origins });
+    policies[`${Number(functional)}${Number(analytics)}`] = resourcePolicy({ choices: { ...DENIED_CHOICES, functional, analytics }, origins, allowUnsafeEval });
   }
   return policies;
 }
@@ -104,11 +104,13 @@ export function renderConsentHead({ record, gpc, regionMode = 'opt-in', config }
   const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
   const gpcChoices = resolveConsentChoices({ choices: record?.choices, gpc: true, regionMode });
   const origins = validatedOrigins({ resourceOrigins, categoryOrigins });
-  const state = JSON.stringify({ resourcePolicies: resourcePolicies({ origins }), choices, gpcChoices, signalCategories: GOOGLE_CONSENT_SIGNAL_CATEGORIES, hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
+  // Stored settings can bypass TypeScript: truthy values must never weaken the policy.
+  const allowUnsafeEval = config?.allowUnsafeEval === true;
+  const state = JSON.stringify({ resourcePolicies: resourcePolicies({ origins, allowUnsafeEval }), choices, gpcChoices, signalCategories: GOOGLE_CONSENT_SIGNAL_CATEGORIES, hasRecord: record !== null, optOut: regionMode === 'opt-out', gpc }).replace(/</g, '\\u003c');
   // First-party code can inject remote scripts, and a local stylesheet can import remote
   // CSS/fonts that HTML traversal cannot see. Enforce the same grants in the browser.
   // Each choice reloads, so restrictive policy can be removed only after a saved grant.
-  const resourcePolicyMeta = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins }) })}">`;
+  const resourcePolicyMeta = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins, allowUnsafeEval }) })}">`;
   const nonceAttr = nonce === undefined ? '' : ` nonce="${escapeHtml({ text: nonce })}"`;
   return `${resourcePolicyMeta}${consentStyle({ config, nonceAttr })}<script type="application/json" id="jini-consent-config"${nonceAttr}>${state}</script><script data-jini-consent-runtime="${escapeHtml({ text: runtimeToken ?? '' })}"${nonceAttr}>${CONSENT_CLIENT}</script>`;
 }
