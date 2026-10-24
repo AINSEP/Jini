@@ -52,7 +52,7 @@ function isRuntimeScript({ element, attrs, text }: { element: Element; attrs: At
 
 /** Authored markers cannot become another release owner or shadow our UI/state IDs. @complexity O(attributes). */
 function reservedAttributes({ element }: { element: Element }): Attribute[] {
-  return element.attrs.filter(attr => attr.name.startsWith('data-jini-consent-') || (attr.name === 'id' && RESERVED_IDS.includes(attr.value)));
+  return element.attrs.filter(attr => (attr.name.startsWith('data-jini-consent-') && attr.name !== 'data-jini-consent-open') || (attr.name === 'id' && RESERVED_IDS.includes(attr.value)));
 }
 
 /** @complexity O(rel tokens). */

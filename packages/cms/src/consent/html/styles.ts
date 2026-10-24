@@ -30,6 +30,7 @@ export const CONSENT_CSS = `
 #jini-consent[data-has-record="false"]:where([data-placement="top-bar"]){inset:1rem 1rem auto;max-width:380px}
 .jini-consent[data-has-record="true"]{inset:auto auto 1rem 1rem;max-width:min(40rem,calc(100vw - 2rem));max-height:none;overflow:visible;padding:0;border:0;background:none;box-shadow:none}
 .jini-consent[data-has-record="true"] .jini-consent-initial,.jini-consent[data-has-record="true"] #jini-consent-preferences>summary{display:none}
+#jini-consent[data-has-record="true"][data-reopen="link"]:not(:target){display:none!important}
 .jini-consent .jini-consent-manage{margin:0}
 .jini-consent .jini-consent-pill{display:inline-flex;align-items:center;list-style:none;padding:.5rem 1rem;border:1px solid var(--consent-border);border-radius:999px;background:var(--consent-bg);box-shadow:var(--consent-shadow);text-decoration:none}
 .jini-consent .jini-consent-pill::-webkit-details-marker{display:none}

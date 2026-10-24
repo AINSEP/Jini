@@ -24,9 +24,17 @@ function policyLinks({ config }: { config: ConsentConfig }): string {
   return [privacy, secondary].filter(Boolean).join(' · ');
 }
 
+/** Saved link mode keeps a native fragment target, so withdrawal also works without JS.
+ * @complexity O(label length). */
+function consentManage({ config, record, reopen }: { config: ConsentConfig; record: ConsentRecord | null; reopen: 'corner' | 'link' }, _options = {}): [string, string] {
+  if (record === null) return ['', ''];
+  if (reopen === 'link') return ['<div class="jini-consent-panel"><a href="#">Close preferences</a>', '</div>'];
+  return [`<details class="jini-consent-manage"><summary class="jini-consent-pill">${escapeHtml({ text: config.preferencesLabel })}</summary><div class="jini-consent-panel">`, '</div></details>'];
+}
+
 /** Render one accessible progressive form. Config text is always text, never trusted HTML.
  * Necessary cookies/default rejection work without JS. After a choice the form sits inside a
- * closed disclosure whose summary is a small corner control, so withdrawal stays one click away
+ * closed disclosure or a host-linked fragment panel, so withdrawal stays one click away
  * (also without JS) without a box at the top of every page. @complexity O(config text length). */
 export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: { config: ConsentConfig; record: ConsentRecord | null; regionMode: ConsentRegionMode; gpc: boolean; endpoint: string }, _options = {}): string {
   const e = (text: string) => escapeHtml({ text });
@@ -36,9 +44,10 @@ export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: {
     const locked = category === 'necessary' || (gpc && (category === 'analytics' || category === 'marketing'));
     return `<label class="jini-consent-category"><input type="checkbox" name="${category}"${choices[category] ? ' checked' : ''}${locked ? ' disabled' : ''}>${category[0]!.toUpperCase() + category.slice(1)}${category === 'necessary' ? ' (always on)' : ''}</label>`;
   }).join('');
-  const manage = record === null ? ['', ''] : [`<details class="jini-consent-manage"><summary class="jini-consent-pill">${e(config.preferencesLabel)}</summary><div class="jini-consent-panel">`, '</div></details>'];
+  const reopen = config.reopen === 'link' ? 'link' : 'corner';
+  const manage = consentManage({ config, record, reopen });
   // MOVE: The sole no-sale control is the native POST button, so opting out also works without JS.
-  return `<section id="jini-consent" class="jini-consent" data-has-record="${record !== null}" data-placement="${placement}" aria-label="Cookie preferences">
+  return `<section id="jini-consent" class="jini-consent" data-has-record="${record !== null}" data-placement="${placement}" data-reopen="${reopen}" aria-label="Cookie preferences">
 ${manage[0]}<div class="jini-consent-initial"><h2>${e(config.title)}</h2><p>${e(config.message)}</p>
 <p>${regionMode === 'opt-out' ? 'You may opt out of optional cookies at any time.' : 'Optional cookies and scripts stay paused until you agree.'}</p></div>
 ${policyLinks({ config })}
