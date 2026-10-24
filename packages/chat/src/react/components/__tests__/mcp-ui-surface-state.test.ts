@@ -4,6 +4,17 @@ import { isDeliveredAnswer, reportDeliveredAnswer } from '../mcp-ui-surface-stat
 const CALL = { name: 'deployment_execute_static_publish', arguments: { __exchangeId: 'x1', decision: 'confirm' } };
 
 describe('delivered answers (owner, 2026-10-11: "Waiting for your answer" outlived the click)', () => {
+  it('reports offered labels before closing a delivered choice, without exposing callback bookkeeping', async () => {
+    const reports: string[] = [];
+    const handler = reportDeliveredAnswer({
+      onToolCall: async () => ({ delivered: true }),
+      onAnswerText: text => reports.push(text), onAnswered: () => reports.push('closed'),
+      input: { question: 'When?', options: [{ value: 'preview', label: 'Preview the changes' }, { value: 'later', label: 'Remind me later' }] },
+    });
+    await handler({ name: 'answer', arguments: { __exchangeId: 'private', selections: ['preview', 'later'] } });
+    expect(reports).toEqual(['Preview the changes, Remind me later', 'closed']);
+  });
+
   it('reads only the route\'s {delivered: true} receipt as a delivered answer', () => {
     expect(isDeliveredAnswer({ delivered: true })).toBe(true);
     expect(isDeliveredAnswer({ delivered: false })).toBe(false);
