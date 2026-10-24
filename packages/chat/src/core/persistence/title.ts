@@ -12,8 +12,8 @@
  *
  * Ported from Open Design's `summarizeProjectNameFromPrompt` (`apps/web/src/utils/projectName.ts`).
  * The Latin path has since diverged: it keeps the prompt's words, names and dotted domains (the
- * original's stop-word removal and title casing turned "port orvellea.com to tovu" into "Port
- * Orvellea Com Tovu"), and `LEADING_LATIN_FILLER` fixes the original's article bug, documented at
+ * original's stop-word removal and title casing turned "port example.com to jini" into "Port
+ * Example Com Jini"), and `LEADING_LATIN_FILLER` fixes the original's article bug, documented at
  * its declaration. The CJK path keeps the original's filler and punctuation rules, which is not
  * decoration: they differ enough from the Latin ones that a shared path produced worse titles in both.
  */

@@ -25,7 +25,9 @@ describe('claude buildArgs — settingSources', () => {
     const def = getAgentDef({ id: 'claude' })!;
     expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} })).not.toContain('--setting-sources');
     agentCapabilities.set('claude', { settingSources: false });
-    expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settingSources: [] }, runtimeContext: {} })).not.toContain('--setting-sources');
+    expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settingSources: ['user'] }, runtimeContext: {} })).not.toContain('--setting-sources');
+    // An explicit empty list is a host isolation policy (ba9a6de9), so it is never probed away.
+    expect(def.buildArgs({ prompt: '', imagePaths: [] }, { extraAllowedDirs: [], options: { settingSources: [] }, runtimeContext: {} })).toEqual(expect.arrayContaining(['--setting-sources', '']));
   });
 
   it('probes for the flag in `claude -p --help`', () => {

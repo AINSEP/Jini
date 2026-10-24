@@ -255,7 +255,7 @@ describe('schema-guided tool input normalization', () => {
   });
 
   it.each([
-    { value: ['plugins', 'how-tovu-works-plugins'] }, { value: [] }, { value: [3] }, { value: [null] },
+    { value: ['plugins', 'how-it-works-plugins'] }, { value: [] }, { value: [3] }, { value: [null] },
     { value: [{}] }, { value: [['plugins']] }, { value: ['plugins', 3] },
   ])('refuses a non-singleton or malformed string array $value without exposing its values', async ({ value }) => {
     const definition = { descriptor: { id: 'guide', inputSchema: { type: 'object', additionalProperties: false, properties: { operation: { type: 'string' }, topic: { type: 'string' } } } } };

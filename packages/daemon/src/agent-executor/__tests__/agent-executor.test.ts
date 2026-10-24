@@ -68,6 +68,15 @@ import {
   probeMcpBridge,
 } from '../../index.js';
 
+// Fake defs take no stream-json stdin, so every bridged run also carries the mid-run message
+// relay (f40db242) with a fresh per-run nonce.
+const RELAY_ENV = { JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: expect.stringMatching(/^[0-9a-f]{48}$/) };
+function relayNonce(content: string | undefined): string {
+  const nonce = /JINI_MESSAGE_RELAY_NONCE\W+([0-9a-f]{48})/.exec(content ?? '')?.[1];
+  if (!nonce) throw new Error('bridge config carries no relay nonce');
+  return nonce;
+}
+
 const TEST_PRINCIPAL: Principal = { id: 'test-principal' };
 
 describe('delegated result image retention', () => {
@@ -1308,7 +1317,7 @@ describe('createAgentExecutor — real default collaborators', () => {
       const written = JSON.parse(await fs.readFile(path.join(tmpDir, writtenNames[0]!), 'utf8'));
       expect(written).toEqual({
         mcpServers: {
-          jini: { command: '/usr/bin/jini-mcp', args: [], env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' } },
+          jini: { command: '/usr/bin/jini-mcp', args: [], env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV } },
         },
       });
     } finally {
@@ -4709,7 +4718,7 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
         jini: {
           command: '/usr/bin/jini-mcp',
           args: ['--quiet'],
-          env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+          env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV },
         },
       },
     });
@@ -4730,7 +4739,7 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
     expect(JSON.parse(writeCalls[0]!.content).mcpServers.jini.env).toEqual({
       ELECTRON_RUN_AS_NODE: '1',
       JINI_RUN_ID: run.id,
-      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV,
     });
   });
 
@@ -4747,7 +4756,7 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
         jini: {
           command: '/usr/bin/jini-mcp',
           args: ['--quiet'],
-          env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+          env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV },
         },
       },
     });
@@ -4798,7 +4807,7 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
     expect(seenRunIds).toEqual([run.id]);
     expect(JSON.parse(writeCalls[0]!.content).mcpServers.jini.env).toEqual({
       JINI_RUN_ID: run.id,
-      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV,
       JINI_DAEMON_TOKEN: `token-for-${run.id}`,
     });
   });
@@ -4876,8 +4885,8 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
       const byPath = new Map(writeCalls.map((c) => [c.path, JSON.parse(c.content).mcpServers.jini.env]));
       expect([...byPath.values()]).toEqual(
         expect.arrayContaining([
-          { JINI_RUN_ID: 'run-a', JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_DAEMON_TOKEN: 'token-for-run-a' },
-          { JINI_RUN_ID: 'run-b', JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_DAEMON_TOKEN: 'token-for-run-b' },
+          { JINI_RUN_ID: 'run-a', JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_DAEMON_TOKEN: 'token-for-run-a', ...RELAY_ENV },
+          { JINI_RUN_ID: 'run-b', JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_DAEMON_TOKEN: 'token-for-run-b', ...RELAY_ENV },
         ]),
       );
     });
@@ -5742,7 +5751,7 @@ describe("AgentExecutor — 'acp-merge' MCP bridge delivery reaches attachAcpSes
         name: 'jini',
         command: '/usr/bin/jini-mcp',
         args: ['--quiet'],
-        env: { JINI_RUN_ID: runId, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+        env: { JINI_RUN_ID: runId, JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV },
       },
     ]);
   });
@@ -5812,7 +5821,7 @@ describe("AgentExecutor — env-content MCP bridge delivery (opencode / mimo)", 
         jini: {
           type: 'local',
           command: ['/usr/bin/jini-mcp', '--quiet'],
-          environment: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+          environment: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV },
           enabled: true,
         },
       },
@@ -5831,7 +5840,7 @@ describe("AgentExecutor — env-content MCP bridge delivery (opencode / mimo)", 
     expect(JSON.parse(env.MIMOCODE_CONFIG_CONTENT!).mcp.jini).toEqual({
       type: 'local',
       command: ['/usr/bin/jini-mcp', '--quiet'],
-      environment: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+      environment: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242', ...RELAY_ENV },
       enabled: true,
     });
   });
@@ -5848,7 +5857,7 @@ describe("AgentExecutor — env-content MCP bridge delivery (opencode / mimo)", 
       const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
       const { run } = await lifecycle.start({ contextRef: `ctx-${id}` });
       await executor.run({ runId: run.id, agentId: id, prompt: 'hi', cwd: '/work' });
-      contents.push(spawnedEnv(spawnCalls)[varName]!.replace(run.id, '<RUN>'));
+      contents.push(spawnedEnv(spawnCalls)[varName]!.replace(run.id, '<RUN>').replace(relayNonce(spawnedEnv(spawnCalls)[varName]), '<NONCE>'));
     }
     expect(contents[0]).toBe(contents[1]);
   });
@@ -6017,7 +6026,7 @@ describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME r
       buildCodexMcpServerToml({ entry: {
         command: '/usr/bin/jini-mcp',
         args: ['--quiet'],
-        env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+        env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: relayNonce(configWrite?.content) },
       } }),
     );
     expect(spawnCalls).toHaveLength(1);

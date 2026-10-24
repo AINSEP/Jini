@@ -132,7 +132,8 @@ for (const alias of ["menuId", "menu_id", "menu-id", "MenuId"]) {
     const input = Object.freeze({ [alias]: "private-menu-id", expectedVersion: "1", items: [] });
     const result = await normalizeToolInput({ input, registration });
     assert.deepEqual(result.input, { id: "private-menu-id", expectedVersion: 1, items: [] });
-    assert.deepEqual(result.notes, ["expectedVersion: string→integer", `${alias}→id`]);
+    // Declared aliases rename first, then values coerce (core input aliases, 965f9a2b).
+    assert.deepEqual(result.notes, [`${alias}→id`, "expectedVersion: string→integer"]);
     assert.deepEqual(input, { [alias]: "private-menu-id", expectedVersion: "1", items: [] });
     assert.equal(result.notes.join(" ").includes("private-menu-id"), false);
   });

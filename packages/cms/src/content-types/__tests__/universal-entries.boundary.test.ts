@@ -99,7 +99,7 @@ const universalEntries = Object.entries(manifest.jini.entries).filter(([, runtim
 // REGRESSION: the folded domains use verified-origin; keep its peer optional and publishable,
 // rather than restoring "workspace:*" to peerDependencies or requiring it for unrelated entries.
 test("CMS declares the used HTTP toolkit peer with an optional registry range", () => {
-  expect(manifest.peerDependencies?.["@jini-ai/http-kit"]).toBe("^0.4.0");
+  expect(manifest.peerDependencies?.["@jini-ai/http-kit"]).toBe("^0.6.10");
   expect(manifest.peerDependenciesMeta?.["@jini-ai/http-kit"]).toEqual({ optional: true });
 });
 

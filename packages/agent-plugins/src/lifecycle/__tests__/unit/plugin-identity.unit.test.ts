@@ -136,8 +136,9 @@ describe('plugin identity (owner 2026-10-09)', () => {
 
   it('requires the core peer version that exports the runtime identity entry', async () => {
     const pkg = JSON.parse(await readFile(new URL('../../../../package.json', import.meta.url), 'utf8'));
-    // 0.4.3 added the runtime identity entry; the floor is now 0.4.9, the first core with ./provider-registry.
-    expect(pkg.peerDependencies['@jini-ai/core']).toBe('^0.4.9');
+    // 0.4.3 added the runtime identity entry and 0.4.9 ./provider-registry; the fixed-group
+    // 0.6.10 release moved the floor to ^0.6.10.
+    expect(pkg.peerDependencies['@jini-ai/core']).toBe('^0.6.10');
     expect(pkg.peerDependenciesMeta['@jini-ai/core']?.optional).not.toBe(true);
   });
 
