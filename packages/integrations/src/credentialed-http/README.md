@@ -23,6 +23,18 @@ and credential stripping on cross-origin redirects; this module checks the initi
 The registry adapter owns trust, duplicate rules across contributions, and filesystem loading.
 Self-describing schemes win over Basic; Basic wins over Bearer.
 
+`probeCredentialConnection({ connection, url, schemes }, { httpClient })` performs one GET and
+returns only `"ok"` (2xx), `"refused"` (401/403), or `"unavailable"` (transport failure or other
+HTTP status). It sends no body, refuses redirects, and imposes a 10-second timeout and total
+deadline. An explicit `method` is accepted only when it is `"GET"`; other methods and malformed
+URLs throw value-free `CredentialedRequestValidationError`s. The caller owns plugin trust and
+must resolve the declared probe URL under the saved base origin before calling this primitive.
+
+`verifyCustomCredential({ deps, input }, { path: "/user" })` shares the probe's GET while keeping
+its existing redirect/timeout policy, verification result, diagnostics and audit metadata. `path` must be relative to
+the saved `baseUrl` and remain on its primary origin; absolute URLs and authority references
+are rejected even when they name a saved host. Omitting `path` retains the origin-root probe.
+
 `audit.record` receives only label, host, method, status, request-body byte count and time.
 Transport failures use status zero. Credential lookup/shape failures occur before transport and
 retain their error behavior without an outbound audit entry. The audit adapter must not throw.
