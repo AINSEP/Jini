@@ -1,5 +1,15 @@
 # @jini-ai/platform
 
+## 0.6.11
+
+### Patch Changes
+
+- Tool inputs apply a sole near-miss and declared input aliases; plugin-load outcomes are reported; `web_fetch` reads SVG/JS as text; `content_read` suggests its resource first; the browser falls back to system Chrome.
+- `./node` file-tree projects with revision undo and a React-free `./session`; `./html` gains a non-throwing region scan and pure region edits; async atomic writes in platform.
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

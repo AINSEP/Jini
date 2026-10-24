@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/platform",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "Generic OS/platform primitives: process exec and lifecycle, filesystem containment, HTTP readiness polling, toolchain discovery, blob storage, AWS signing, and an SSRF-safe asset cache.",
   "license": "Apache-2.0",
   "repository": {
@@ -200,7 +200,7 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "@jini-ai/core": "^0.6.10"
+    "@jini-ai/core": "^0.6.11"
   },
   "publishConfig": {
     "access": "public",

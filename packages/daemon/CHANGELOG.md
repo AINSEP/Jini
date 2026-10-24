@@ -1,3 +1,16 @@
+## 0.6.11
+
+### Patch Changes
+
+- Mid-run message relay for MCP-bridged engines (Codex, ACP, Antigravity): `registerMessageRelayRoutes` on `@jini-ai/daemon/http`; mid-run messages queue instead of interrupting, and recovery waits on an uncertain probe.
+- Site agents are confined to the site folder: Claude file tools are bounded to the site root and private temp dir, and attachments are staged inside the site (`stageAttachmentClaim`).
+- Tool inputs apply a sole near-miss and declared input aliases; plugin-load outcomes are reported; `web_fetch` reads SVG/JS as text; `content_read` suggests its resource first; the browser falls back to system Chrome.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+  - @jini-ai/protocol@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

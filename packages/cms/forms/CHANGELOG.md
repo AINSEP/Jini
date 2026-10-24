@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.11
+
+### Patch Changes
+
+- Updated dependencies [8fe4cb0]
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/cms@0.6.11
+  - @jini-ai/core@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

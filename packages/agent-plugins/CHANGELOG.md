@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.11
+
+### Patch Changes
+
+- Tool inputs apply a sole near-miss and declared input aliases; plugin-load outcomes are reported; `web_fetch` reads SVG/JS as text; `content_read` suggests its resource first; the browser falls back to system Chrome.
+
 ## 0.6.10
 
 ## 0.4.8 — 2026-10-22

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.11
+
+### Patch Changes
+
+- Pure email sign-in challenge primitive (member auth, shard A).
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

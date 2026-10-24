@@ -259,10 +259,10 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       '@jini-ai/core':
-        specifier: ^0.6.10
+        specifier: ^0.6.11
         version: link:../core
       '@jini-ai/platform':
-        specifier: ^0.6.10
+        specifier: ^0.6.11
         version: link:../platform
       '@jini-ai/plugins':
         specifier: workspace:^
@@ -308,7 +308,7 @@ importers:
   packages/agentic:
     devDependencies:
       '@jini-ai/core':
-        specifier: ^0.6.10
+        specifier: ^0.6.11
         version: link:../core
       '@jini-ai/protocol':
         specifier: workspace:^
@@ -880,7 +880,7 @@ importers:
   packages/platform:
     dependencies:
       '@jini-ai/core':
-        specifier: ^0.6.10
+        specifier: ^0.6.11
         version: link:../core
     devDependencies:
       '@vitest/coverage-v8':
@@ -10910,7 +10910,8 @@ snapshots:
 
   immediate@3.0.6: {}
 
-  immer@11.1.17: {}
+  immer@11.1.17:
+    optional: true
 
   immutable@4.3.9: {}
 

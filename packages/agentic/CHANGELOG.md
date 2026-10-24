@@ -1,5 +1,7 @@
 # @jini-ai/agentic
 
+## 0.6.11
+
 ## 0.6.10
 
 ### Patch Changes

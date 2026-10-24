@@ -1,3 +1,15 @@
+## 0.6.11
+
+### Patch Changes
+
+- Site agents are confined to the site folder: Claude file tools are bounded to the site root and private temp dir, and attachments are staged inside the site (`stageAttachmentClaim`).
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @jini-ai/core@0.6.11
+  - @jini-ai/oauth@0.6.11
+  - @jini-ai/protocol@0.6.11
+
 ## 0.6.10
 
 ### Patch Changes
