@@ -34,9 +34,17 @@ late success cannot automatically release uncertainty. Acknowledgement failure r
 fence, since the storage operation may have committed before throwing. Unavailable storage cannot
 guarantee an immediate literal uncertain write.
 
-Enqueueing fenced rows (uniqueness, idempotent receipts, transaction joining) stays with the host's
-storage API; the port covers only recovery, claims and the dispatch fence. Storage/schema owners
-stay with the host. This addition leaves CMS's separate co-persistence decision in place.
+Enqueueing is a separate opt-in `FencedEnqueuePort<E, Tx>`, so `processFencedOutbox` and existing
+`FencedOutboxPort` adapters are unaffected. Receipt uniqueness is `(scope, idempotencyKey)`; a replay
+compares the request digest (sha-256 of canonical JSON, `outboxRequestDigest`) and a mismatch
+conflicts without touching the original row. A supplied transaction is the caller's exact live
+session, shared with its intent writes; enqueue never opens, commits or retries one, and closed
+sessions are rejected. An earlier draft declared these types with no adapter or tests and was
+removed; they return with `InMemoryFencedOutbox` as the reference adapter and
+`fencedOutboxConformance` as the contract cases hosts run against their own adapters. The reference
+adapter does not model concurrent transactions, so cross-transaction uniqueness is proven only by a
+host adapter's conformance run. Storage/schema owners stay with the host. This addition leaves CMS's
+separate co-persistence decision in place.
 
 `createSerialPump` reuses the drainer's private scheduling lifecycle with an inert construction,
 positive fixed interval before every complete callback, and terminal shutdown awaiting that whole

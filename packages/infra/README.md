@@ -69,8 +69,22 @@ clock, scheduler, randomness and logger as `processOutbox`. Its second argument 
 It never changes `OutboxPort`, its four statuses or the legacy worker's recovery behavior.
 
 The host adapter implements four methods: `recoverExpired`, `claimReady`, `beginDispatch` and
-`complete`. Enqueueing a row (its event, scope and idempotency key, uniqueness and any transaction
-it joins) is the host's own storage API, not part of this port. Storage and schema remain host-owned.
+`complete`. Storage and schema remain host-owned.
+
+Enqueueing is the separate, opt-in `FencedEnqueuePort<Event, Tx>`:
+`enqueueWithReceipt({ intent }, { transaction } = {})`. The intent carries `event`, `scope`,
+`idempotencyKey` and `requestDigest` (use `outboxRequestDigest({ request })`: sha-256 of the
+request's canonical JSON). Unique `(scope, idempotencyKey)` returns `{ status: 'inserted' }`, a
+same-digest replay `{ status: 'existing' }`, and a different digest
+`{ status: 'conflict', reason: 'request-digest-mismatch' }` with the original row preserved. With
+`{ transaction: liveSession }` the insert joins the caller's exact live session and commits or rolls
+back with the caller's own intent writes; enqueue never opens, commits or retries a transaction.
+
+`InMemoryFencedOutbox` (with `InMemoryTransaction`) is a reference adapter implementing both ports.
+`fencedOutboxConformance({ createSubject })` returns framework-neutral `{ name, run }` cases
+(receipts, transaction commit/rollback, fencing, lease recovery, uncertainty); run them against
+every host adapter, e.g. `for (const c of cases) it(c.name, c.run)`. Jini runs them against the
+reference adapter; it does not run them against any real database.
 
 Claims include a mandatory token, expiry and one-based attempts. The worker authorizes each claim,
 persists `leased → dispatching` under a scope/id/token/state/expiry fence, and rechecks expiry after
@@ -91,7 +105,7 @@ each bounded by `deliveryTimeoutMs`; a hung gate records no completion and the l
 so a pump's `stop()` cannot wait on it forever. An unavailable fence prevents dispatch;
 unavailable storage can leave a leased/dispatching marker until recovery rather than immediately
 recording literal uncertainty. Only host reconciliation can resolve uncertain effects. The port
-contract and DI tests do not establish real host-adapter atomicity; adapters need conformance tests.
+contract and DI tests do not establish real host-adapter atomicity; run the conformance cases.
 
 ### Independent serial pump
 
