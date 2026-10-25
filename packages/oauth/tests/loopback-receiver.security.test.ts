@@ -186,6 +186,28 @@ describe('stray requests do not consume the slot', () => {
     await expect(result).resolves.toMatchObject({ code: 'real' });
   });
 
+  // F1 fix wave (Stryker L1 §4 loopback-receiver.ts:100 `||`→`&&` survived): the body check must
+  // refuse on its own, so these carry the CORRECT state — only the body is wrong.
+  test.each([
+    ['content-length body', { 'content-length': '5' }, 'xxxxx'],
+    ['chunked body', { 'transfer-encoding': 'chunked' }, 'xxxxx'],
+  ])('a GET with the right state but a %s is refused unread, without consuming', async (_label, headers, body) => {
+    const receiver = await start();
+    const result = receiver.receive({ expectedState: STATE });
+    const withBody = await send({ url: callbackUrl(receiver, { state: STATE, code: 'smuggled' }) }, { body, headers });
+    expect(withBody.status).toBe(400);
+    await send({ url: callbackUrl(receiver, { state: STATE, code: 'real' }) });
+    await expect(result).resolves.toMatchObject({ code: 'real' });
+  });
+
+  test('an explicit content-length: 0 is not a body', async () => {
+    const receiver = await start();
+    const result = receiver.receive({ expectedState: STATE });
+    const ok = await send({ url: callbackUrl(receiver, { state: STATE, code: 'real' }) }, { headers: { 'content-length': '0' } });
+    expect(ok.status).toBe(200);
+    await expect(result).resolves.toMatchObject({ code: 'real' });
+  });
+
   test('oversized headers are refused by the parser without consuming', async () => {
     const receiver = await start();
     const result = receiver.receive({ expectedState: STATE });
