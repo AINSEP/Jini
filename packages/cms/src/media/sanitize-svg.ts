@@ -39,60 +39,41 @@ async function createRuntime() {
   return { window, purifier };
 }
 
-/** Own one lazy DOM/purifier per media-service instance; ordinary uploads never load a DOM. */
-export function createSvgSanitizer(_required: Record<string, never>, _options: Record<string, never> = {}) {
-  let runtime: ReturnType<typeof createRuntime> | undefined;
+let runtime: ReturnType<typeof createRuntime> | undefined;
 
-  /** Sanitizes a standalone SVG before hashing/storage or inline serving, including legacy blobs.
-   * Rejects malformed XML, DTDs/entities and SVG fonts. No scripts or external resources are loaded.
-   * @complexity O(n) in the size-bounded SVG document.
-   */
-  async function sanitizeSvg(
-    { bytes }: { bytes: Uint8Array },
-    _options: Record<string, never> = {}
-  ): Promise<Uint8Array> {
-    const { window, purifier } = await (runtime ??= createRuntime());
-    let source: string;
-    try {
-      source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    } catch {
-      throw new MediaValidationError({ message: "SVG must be valid UTF-8" });
-    }
-    // Reject before XML parsing: no external entities, SVG font documents, or DTD expansion.
-    if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new MediaValidationError({ message: "SVG DTDs and entities are not allowed" });
-    const document = new window.DOMParser().parseFromString(source, "image/svg+xml");
-    const root = document.documentElement;
-    if (document.querySelector("parsererror") || root.localName !== "svg" || root.namespaceURI !== SVG_NAMESPACE) {
-      throw new MediaValidationError({ message: "invalid SVG document" });
-    }
-    if ([...document.getElementsByTagName("*")].some((element) => ["font", "font-face"].includes(element.localName.toLowerCase()))) {
-      throw new MediaValidationError({ message: "SVG fonts are not allowed" });
-    }
-    purifier.sanitize(root, {
-      IN_PLACE: true,
-      USE_PROFILES: { svg: true, svgFilters: true },
-      ADD_TAGS: ["use"],
-      // Animation can rewrite a safe reference after sanitization. Foreign HTML is never media.
-      FORBID_TAGS: ["script", "foreignObject", "animate", "animateMotion", "animateTransform", "set", "discard"],
-      FORBID_ATTR: ["xml:base"],
-      ALLOW_DATA_ATTR: false,
-    });
-    return new TextEncoder().encode(new window.XMLSerializer().serializeToString(root));
-  }
-
-  /** Release this sanitizer's DOM when its owning service or one-shot call ends. */
-  async function dispose(_required: Record<string, never>, _options: Record<string, never> = {}): Promise<void> {
-    if (runtime) (await runtime).window.close();
-  }
-  return { sanitizeSvg, dispose };
-}
-
-/** Compatibility one-shot entry: use a factory instance to share a DOM across a service lifetime. */
-export async function sanitizeSvg(required: { bytes: Uint8Array }, options: Record<string, never> = {}): Promise<Uint8Array> {
-  const sanitizer = createSvgSanitizer({});
+/** Sanitizes a standalone SVG before hashing/storage or inline serving, including legacy blobs.
+ * Rejects malformed XML, DTDs/entities and SVG fonts. No scripts or external resources are loaded.
+ * @complexity O(n) in the size-bounded SVG document.
+ */
+export async function sanitizeSvg(
+  { bytes }: { bytes: Uint8Array },
+  _options: Record<string, never> = {}
+): Promise<Uint8Array> {
+  const { window, purifier } = await (runtime ??= createRuntime());
+  let source: string;
   try {
-    return await sanitizer.sanitizeSvg(required, options);
-  } finally {
-    await sanitizer.dispose({});
+    source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new MediaValidationError({ message: "SVG must be valid UTF-8" });
   }
+  // Reject before XML parsing: no external entities, SVG font documents, or DTD expansion.
+  if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new MediaValidationError({ message: "SVG DTDs and entities are not allowed" });
+  const document = new window.DOMParser().parseFromString(source, "image/svg+xml");
+  const root = document.documentElement;
+  if (document.querySelector("parsererror") || root.localName !== "svg" || root.namespaceURI !== SVG_NAMESPACE) {
+    throw new MediaValidationError({ message: "invalid SVG document" });
+  }
+  if ([...document.getElementsByTagName("*")].some((element) => ["font", "font-face"].includes(element.localName.toLowerCase()))) {
+    throw new MediaValidationError({ message: "SVG fonts are not allowed" });
+  }
+  purifier.sanitize(root, {
+    IN_PLACE: true,
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ["use"],
+    // Animation can rewrite a safe reference after sanitization. Foreign HTML is never media.
+    FORBID_TAGS: ["script", "foreignObject", "animate", "animateMotion", "animateTransform", "set", "discard"],
+    FORBID_ATTR: ["xml:base"],
+    ALLOW_DATA_ATTR: false,
+  });
+  return new TextEncoder().encode(new window.XMLSerializer().serializeToString(root));
 }
