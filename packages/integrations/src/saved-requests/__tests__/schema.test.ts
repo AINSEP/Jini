@@ -28,3 +28,12 @@ test("the installed validator enforces enum, numeric, array, nested closure and 
     { ...valid, rows: [{ live: true, secret: "no" }] }, { ...valid, rows: [{}] }, { choice: valid.choice, rows: valid.rows },
   ]) expect(validator.validate(input).valid).toBe(false);
 });
+
+test("an integer enum must list numbers: numeric values compile, a string value is refused as invalid_definition", () => {
+  const root = (values: unknown[]) => ({ type: "object", additionalProperties: false, properties: { n: { type: "integer", minimum: 1, maximum: 3, enum: values } } });
+  const validator = compileInputSchema({ schema: root([1, 3]) });
+  expect(validator.validate({ n: 3 }).valid).toBe(true);
+  expect(validator.validate({ n: 2 }).valid).toBe(false);
+  expect(() => compileInputSchema({ schema: root([1, "3"]) })).toThrow(expect.objectContaining({ code: "invalid_definition" }));
+  expect(() => compileInputSchema({ schema: root([]) })).toThrow(SavedRequestError);
+});

@@ -186,3 +186,26 @@ test("verification retains unreachable transport handling without leaking a secr
   assert.equal(rig.audit.entries[0]?.status, 0);
   assert.equal(JSON.stringify({ result, audit: rig.audit.entries }).includes(TOKEN), false);
 });
+
+test("verification with a corrupt stored baseUrl fails with the same value-free error and sends nothing", async () => {
+  // Covers resolveVerificationUrl's catch: a stored base that no longer parses (e.g. hand-edited
+  // storage) must not echo the stored value nor reach the HTTP client.
+  const rig = await verificationRig();
+  const resolve = rig.deps.resolver.resolve.bind(rig.deps.resolver);
+  const corrupted: CredentialedRequestDeps = {
+    ...rig.deps,
+    resolver: { ...rig.deps.resolver, resolve: async (input) => {
+      const credential = await resolve(input);
+      return credential && { ...credential, baseUrl: `not a url ${TOKEN}` };
+    } },
+  };
+  for (const path of [undefined, "/owners"]) {
+    await assert.rejects(verifyCustomCredential({ ...rig, deps: corrupted }, path === undefined ? {} : { path }), error => {
+      assert.ok(error instanceof CredentialedRequestValidationError);
+      assert.equal(error.message, "probe path must be relative to the saved base URL and remain on its origin");
+      assert.equal(error.stack?.includes(TOKEN), false);
+      return true;
+    });
+  }
+  assert.deepEqual(rig.client.requests, []);
+});
