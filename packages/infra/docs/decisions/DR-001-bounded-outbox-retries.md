@@ -1,6 +1,6 @@
 # DR-001: Outbox retries are bounded and worker-owned
 
-Status: restated from the existing reliability rationale; no runtime changes.
+Status: existing reliability rationale restated; additive opt-in contracts clarified below.
 
 ## Context
 
@@ -21,3 +21,26 @@ A poison event spinning forever, a crashed worker leaving rows processing perman
 ## Source and enforcement
 
 The [worker JSDoc](../../src/events/outbox/worker.ts), [drainer JSDoc](../../src/events/outbox/drainer.ts) and [enqueue-only JSDoc](../../src/events/outbox/enqueue-only.ts) record the inherited fixes and their limitations. Historical identifiers remain outside the engine. This record concerns the outbox source entry; it does not broaden the older database shim guarantees.
+
+## Opt-in fenced delivery and independent pump (2026-10-25)
+
+`FencedOutboxPort` and `processFencedOutbox` add a separate, explicitly selected contract without
+changing the legacy port, statuses or retry semantics above. Host adapters atomically enforce
+scope, row identity, claim token, state and expiry. Authorization precedes a durable begin-dispatch
+marker; expiry is checked again after awaiting that marker. Expired leased/dispatching rows become
+uncertain, never automatically pending. Only a confirmed no-effect transport outcome may use the
+existing bounded retry policy. Throws, invalid outcomes and timeouts require host reconciliation;
+late success cannot automatically release uncertainty. Acknowledgement failure retains the durable
+fence, since the storage operation may have committed before throwing. Unavailable storage cannot
+guarantee an immediate literal uncertain write.
+
+Enqueue receipt uniqueness is `(scope, idempotencyKey)` and compares both digest and exact canonical
+request atomically. A supplied transaction is the caller's exact live session, shared with its
+intent/journal; unsupported sessions are rejected. No new transaction is opened, committed or
+retried on that path. Callers roll back on conflict/failure. Storage/schema owners stay with the
+host. This addition leaves CMS's separate co-persistence decision in place.
+
+`createSerialPump` reuses the drainer's private scheduling lifecycle with an inert construction,
+positive fixed interval before every complete callback, and terminal shutdown awaiting that whole
+callback. It ignores batch counts. The existing drainer retains its initial-zero/full-batch timing
+and bounded-drain shutdown. Neither orchestration API creates a scheduler, transport or database.
