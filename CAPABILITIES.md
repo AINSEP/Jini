@@ -71,6 +71,7 @@ kernel · [README](packages/core/README.md)
 | `@jini-ai/core/object-store` | The one object-storage contract (key → bytes, atomic create-only put, optional public-read access) and its keyed provider registry (default `local`). | `ObjectStore`, `ObjectStoreProvider`, `createObjectStoreRegistry`, `objectStoreProviderFault` | universal | Tovu media + shares |
 | `@jini-ai/core/naming` | Find collision-free names using the host's suffix and exhaustion policy. | `deriveAvailableName`, `deriveDuplicateName` | universal | Tovu: website |
 | `@jini-ai/core/primitives` | Canonical clocks, IDs, JSON, HTTP, inbound SSE framing, logging, Result and lexical path containment. | `Clock`, `IdGenerator`, `JsonValue`, `HttpClientPort`, `decodeSseFrames`, `parseSseRecord`, `pathContains` | universal | Tovu: website; Jini: agent-plugins, agent-runtime, agentic, analytics, chat, cms, cms-forms, commerce, daemon, db, desktop-host, devops, diagnostics, http-kit, infra, integrations, mcp, oauth, platform, protocol, registry, ui, user-management |
+| `@jini-ai/core/filesystem` | Shared guarded-reader contracts and path-refusal identity; native operations stay in platform. | `GuardedFileReader`, `FsFilePathError` | universal | Jini: platform, vibecoding |
 | `@jini-ai/core/fetch` | Framework-neutral query keys, transport callbacks, cache and host clock/scheduler/environment ports. | `FetchQueryCache`, `QueryKey`, `QueryResult`, `FetchQueryEnvironmentPort` | universal | Tovu: admin; Jini: ui |
 | `@jini-ai/core/text` | Strip terminal controls, mask secrets and bound untrusted display text. | `sanitizeUntrustedText`, `stripControlSequences` | universal | Jini: cli, mcp |
 
@@ -607,3 +608,6 @@ plugin-packaging · [README](packages/plugins/README.md)
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
 | `@jini-ai/plugins/glue` | Validate host attachment vocabulary and gate/dispatch contributed capabilities; host loader is not implemented. | `validateGlueManifest`, `resolveCallSiteDispatch`, `buildGlueCapabilityGate` | universal | none yet |
+
+Owner credential composition: `@jini-ai/server/owner-store` owns `openOwnerStore`,
+`OwnerStoreService` and encrypted backups. `@jini-ai/db/owner-store` owns the pinned SQL history.

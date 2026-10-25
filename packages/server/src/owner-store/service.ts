@@ -1,7 +1,7 @@
 import { SecretsVaultService, isCopyableKind, type VaultPutInput, type VaultServiceDeps } from "@jini-ai/platform/secrets/credential-sets";
 import { VaultError, type VaultContext, type VaultCopyResult, type VaultOptions, type VaultSummary } from "@jini-ai/platform/secrets/credential-sets/contracts";
-import type { StorageKernel } from "../kernel/port.js";
-import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../secrets-vault/repo.sql.js";
+import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { SqlSecretsVaultRepo, SecretsVaultDatabase } from "@jini-ai/db/secrets-vault";
 
 export const OWNER_WORKSPACE_ID = "owner";
 export interface OwnerGrant { entry_id: string; consumer_id: string; created_at: string }
@@ -29,11 +29,10 @@ export class OwnerStoreService {
   readonly kernel: StorageKernel<OwnerStoreDatabase>;
   private readonly now: VaultServiceDeps["now"];
 
-  constructor(required: { kernel: StorageKernel<OwnerStoreDatabase> } & Omit<VaultServiceDeps, "repo" | "authorize">, _options: VaultOptions = {}) {
+  constructor(required: { kernel: StorageKernel<OwnerStoreDatabase>; repo: SqlSecretsVaultRepo } & Omit<VaultServiceDeps, "repo" | "authorize">, _options: VaultOptions = {}) {
     this.kernel = required.kernel;
     this.now = required.now;
-    // Kysely's DB generic is invariant. The vault sees only its table on this same transaction owner.
-    this.repo = new SqlSecretsVaultRepo({ kernel: required.kernel as unknown as StorageKernel<SecretsVaultDatabase> });
+    this.repo = required.repo;
     this.vault = new SecretsVaultService({ ...required, repo: this.repo, authorize: async ({ context }) => {
       if (context.workspaceId !== OWNER_WORKSPACE_ID || context.principalId !== null || !isCopyableKind[context.kind]) {
         throw new VaultError({ code: "context" });

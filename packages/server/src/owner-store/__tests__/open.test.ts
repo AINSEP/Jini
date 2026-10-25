@@ -2,8 +2,8 @@ import Database from "better-sqlite3";
 import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { sql } from "kysely";
 import { afterEach, expect, test } from "vitest";
-import { sourceChecksum } from "../../migrate/checksum.js";
-import { ownerStoreDdl, ownerStoreMigration } from "../migrations/0000_owner_store.js";
+import { sourceChecksum } from "@jini-ai/db/migrate";
+import { ownerStoreDdl, ownerStoreMigration } from "@jini-ai/db/owner-store";
 import { OwnerStoreRecoveryError } from "../open.js";
 import { fixture, input } from "./fixture.js";
 

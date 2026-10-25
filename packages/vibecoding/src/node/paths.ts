@@ -1,4 +1,4 @@
-import { createGuardedFileReader, createNodeGuardedReaderFilesystem } from '@jini-ai/platform/fs';
+import type { ProjectFilesystemPort } from '../core/project-filesystem.js';
 import { ProjectError, type ProjectLimits } from '../core/project.js';
 
 export interface FileTreePolicy {
@@ -68,13 +68,13 @@ export function assertCandidatePaths({ paths }: { paths: readonly string[] }, _o
     }
   }
 }
-/** Platform owns physical containment and bounded traversal; this adapter adds project policy.
+/** The injected reader owns physical containment and bounded traversal; this adapter adds project policy.
  * @complexity Construction O(1); path checks O(depth), listing bounded by configured limits.
  */
-export function createProjectPaths({ root, policy, limits }: {
-  root: string; policy: FileTreePolicy; limits: ProjectLimits;
+export function createProjectPaths({ root, policy, limits, filesystem }: {
+  root: string; policy: FileTreePolicy; limits: ProjectLimits; filesystem: ProjectFilesystemPort;
 }, _options = {}) {
-  const reader = createGuardedFileReader({ rootPath: root, filesystem: createNodeGuardedReaderFilesystem({}),
+  const reader = filesystem.createReader({ rootPath: root,
     denyRules: { segments: EXCLUDED, filenamePatterns: [/^\.env/i, ATOMIC_TEMP] },
     limits: { maxFileBytes: limits.maxFileBytes, binarySniffBytes: 1024,
       maxListedFiles: limits.maxFiles + 1, maxWalkDepth: limits.maxDepth, maxWalkEntries: limits.maxFiles * (limits.maxDepth + 1) },

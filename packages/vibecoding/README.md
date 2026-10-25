@@ -159,10 +159,20 @@ belong to the host. Integration verification is deferred by owner directive; see
 ## Local app projects
 
 ```ts
-import { openFileTreeProject } from '@jini-ai/vibecoding/node';
+import { openFileTreeProject, type ProjectFilesystemPort } from '@jini-ai/vibecoding/node';
+import { createGuardedFileReader, createNodeGuardedReaderFilesystem, withFileLock,
+  writeFileAtomicAsync, writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createVibecodingSession } from '@jini-ai/vibecoding/session';
 
+// The host binds the existing platform owners once at composition.
+const filesystem: ProjectFilesystemPort = {
+  createReader: (input, options = {}) => createGuardedFileReader({
+    ...input, filesystem: createNodeGuardedReaderFilesystem({}),
+  }, options),
+  withFileLock, writeFileAtomicAsync, writeJsonFileAtomicAsync,
+};
 const project = await openFileTreeProject({
+  filesystem,
   root: appDirectory,
   stateDir: privateHostStateDirectory, // outside appDirectory: dev servers must never serve history
   policy: { allows: ({ relativePath }) => allowedAppPath(relativePath) },

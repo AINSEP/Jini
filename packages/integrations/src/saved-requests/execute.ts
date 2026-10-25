@@ -1,6 +1,6 @@
 import { createHttpClient } from "@jini-ai/platform/http/guarded";
 import type { HttpClientPort, HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import { CredentialedRequestValidationError, makeCredentialedRequest } from "../credentialed-http/credentialed-request.js";
+import { CredentialedRequestValidationError } from "../contracts/credentialed-request-errors.js";
 import type { ResolvedCredential } from "../credentialed-http/ports.js";
 import { prepareSavedRequestDefinition } from "./definition.js";
 import { projectSavedRequestResponse } from "./projection.js";
@@ -27,7 +27,7 @@ export async function executeSavedRequest(
     options.signal?.throwIfAborted();
     const credential = await resolveCredential({ deps, workspaceId, definition });
     options.signal?.throwIfAborted();
-    const response = await makeCredentialedRequest({
+    const response = await deps.executeCredentialedRequest({
       deps: {
         resolver: { describe: async () => credential, resolve: async () => credential },
         schemeRegistry: deps.schemeRegistry, audit: deps.audit, clock: deps.clock,
