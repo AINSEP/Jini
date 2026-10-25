@@ -437,7 +437,8 @@
     "@types/jsdom": "^21.1.7",
     "dompurify": "^3.4.12",
     "jsdom": "^25.0.1",
-    "fast-check": "4.3.0"
+    "fast-check": "4.3.0",
+    "@jini-ai/platform": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
@@ -450,7 +451,8 @@
     "parse5": "^7.3.0",
     "@jini-ai/http-kit": "^0.6.10",
     "dompurify": "^3.4.12",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "@jini-ai/platform": "^0.6.12"
   },
   "peerDependenciesMeta": {
     "sharp": {
@@ -475,6 +477,9 @@
       "optional": true
     },
     "jsdom": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
       "optional": true
     }
   }

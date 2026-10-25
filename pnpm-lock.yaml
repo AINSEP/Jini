@@ -492,6 +492,9 @@ importers:
       '@jini-ai/http-kit':
         specifier: workspace:*
         version: link:../http-kit
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
