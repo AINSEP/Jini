@@ -98,6 +98,15 @@ The package also exposes `./http/guarded`, `./mail`, `./mail/smtp`,
 `./fs/guarded-reader`, `./fs/durable-json`, and `./secrets`. New APIs take a required
 object followed by an optional object. Application identity and policy values belong to the caller.
 
+Email event senders use the universal `@jini-ai/platform/mail/senders` entry (also exported by `/mail`).
+`EmailSender` exposes `listSources`, `describeSource`, `resolveEvent`, and `configureEmail`.
+Each operation authorizes its workspace and principal; the sender owns values, recipients and binding.
+Delivery providers are separate; `createEmailSenderRegistry` reuses core's keyed registry.
+`listEmailSources` lists events across senders; `validateEmailSourceTemplate` checks compatibility.
+`prepareSenderEmail` refuses disabled bindings and events before the latest activation.
+Preparation renders through the injected version-checked template port and sends nothing.
+Its result can be frozen in the feature's existing job; missing optional values produce token warnings.
+
 `@jini-ai/platform/web` loads these optional peers at import time: `parse5@7.3.0`,
 `hast-util-from-parse5@8.0.3`, `hast-util-to-mdast@10.1.2`,
 `mdast-util-to-markdown@2.1.2`, and `mdast-util-gfm-table@2.0.0`. Install all five
