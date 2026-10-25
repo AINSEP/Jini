@@ -129,3 +129,12 @@ test("recurring-only products use the cheapest active price across billing inter
     currency: "USD", compareAtPrice: undefined, specs: undefined,
   }]);
 });
+
+test("pickDisplayPrice: an exact price tie keeps the FIRST candidate (stable, not last-wins)", () => {
+  // Stryker L6: `<` → `<=` survived; with `<=` the later equal-priced candidate would win.
+  const first = price({ id: "first", unitAmount: usd(2000) });
+  const second = price({ id: "second", unitAmount: usd(2000) });
+  const third = price({ id: "third", unitAmount: usd(2000) });
+  assert.equal(pickDisplayPrice({ prices: [first, second, third] })?.id, "first");
+  assert.equal(pickDisplayPrice({ prices: [third, first, second] })?.id, "third");
+});
