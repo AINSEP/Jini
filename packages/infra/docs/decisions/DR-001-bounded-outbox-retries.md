@@ -27,8 +27,8 @@ The [worker JSDoc](../../src/events/outbox/worker.ts), [drainer JSDoc](../../src
 `FencedOutboxPort` and `processFencedOutbox` add a separate, explicitly selected contract without
 changing the legacy port, statuses or retry semantics above. Host adapters atomically enforce
 scope, row identity, claim token, state and expiry. Authorization precedes a durable begin-dispatch
-marker; expiry is checked again after awaiting that marker. Expired leased/dispatching rows become
-uncertain, never automatically pending. Only a confirmed no-effect transport outcome may use the
+marker; expiry is checked again after awaiting that marker. Expired leased rows never passed that
+marker and return to pending; expired dispatching rows become uncertain, never automatically pending. Only a confirmed no-effect transport outcome may use the
 existing bounded retry policy. Throws, invalid outcomes and timeouts require host reconciliation;
 late success cannot automatically release uncertainty. Acknowledgement failure retains the durable
 fence, since the storage operation may have committed before throwing. Unavailable storage cannot

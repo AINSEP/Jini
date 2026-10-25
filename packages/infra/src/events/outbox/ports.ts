@@ -105,7 +105,10 @@ export interface FencedOutboxPort<E, Tx> {
    * or closed sessions. The caller must roll back its intent/journal on conflict or failure.
    */
   enqueueWithReceipt(input: Intent<E>, options?: { transaction?: Tx }): Promise<EnqueueReceipt>;
-  /** Move at most limit expired leased/dispatching rows in scope to uncertain, never pending. */
+  /**
+   * Recover at most limit expired rows in scope. A leased row never passed the beginDispatch fence,
+   * so it was provably never sent: return it to pending. Only dispatching rows become uncertain.
+   */
   recoverExpired(input: { scope: string; nowIso: string; limit: number }, options?: Empty): Promise<number>;
   /** Claim only due pending rows in scope; persist a fresh token, lease and incremented attempts. */
   claimReady(input: { scope: string; batchSize: number; nowIso: string; claimLeaseMs: number }, options?: Empty): Promise<readonly FencedClaim<E>[]>;

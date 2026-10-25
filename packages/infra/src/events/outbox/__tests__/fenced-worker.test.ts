@@ -70,6 +70,23 @@ test.each(['authorize-throws', 'begin-throws', 'begin-commit-then-throw', 'begin
   },
 );
 
+test('an expired lease that never began dispatch is retried; an expired dispatch stays uncertain', async () => {
+  const f = await fencedFixture();
+  f.args.authorize.mockRejectedValueOnce(new Error('authorization unavailable'));
+  await processFencedOutbox(f.args, bounds);
+  expect(f.stored().status).toBe('leased');
+  f.advance(100);
+  expect(await processFencedOutbox(f.args, bounds)).toBe(1);
+  expect(f.stored()).toMatchObject({ status: 'delivered', attempts: 2 });
+  expect(f.args.dispatch).toHaveBeenCalledTimes(1);
+  const g = await fencedFixture();
+  g.outbox.complete.mockRejectedValueOnce(new Error('acknowledgement lost'));
+  await processFencedOutbox(g.args, bounds);
+  g.advance(100);
+  expect(await processFencedOutbox(g.args, bounds)).toBe(0);
+  expect(g.stored().status).toBe('uncertain');
+});
+
 test('expiry at claim receipt prevents authorization and dispatch', async () => {
   const f = await fencedFixture();
   f.outbox.claimReady.mockImplementation(async input => {
