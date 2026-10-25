@@ -32,6 +32,7 @@ import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResour
 import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
 import { createTypedDelegatedToolTool, type CreateExecuteDelegatedToolToolOptions } from './tools/delegated-tool.js';
 import { prependRunUserMessages, type McpMessageRelay } from './message-relay.js';
+import { createStdioHosting, validateFrameLimit, wantsStdioHosting, type StdioHosting, type StdioHostingOptions } from './stdio-hosting.js';
 
 /** Auto-exit an idle server after this long without tool activity. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
@@ -69,7 +70,8 @@ export interface McpToolServerRequiredArgs {
   readonly resolveBaseUrl: () => Promise<string> | string;
 }
 
-export interface McpToolServerOptions {
+/** Opt-in stdio guards; omitting all three keeps SDK limits, concurrency and immediate EOF closure. */
+export interface McpToolServerOptions extends StdioHostingOptions {
   /** Set only by relay-enabled spawns; native input engines incur no extra request or tool. */
   readonly messageRelay?: McpMessageRelay;
   /** Opt in to bounded, per-run typed publication after describe_tool. */
@@ -160,6 +162,22 @@ function stdioOptions(options: McpToolServerOptions): { stdin?: Readable; stdout
   };
 }
 
+/** Opt-in stdio guards for this run, or undefined to keep the legacy lifecycle. */
+function hostingForOptions(options: McpToolServerOptions): StdioHosting | undefined {
+  if (!wantsStdioHosting(options)) return undefined;
+  return createStdioHosting({ stdin: options.stdin ?? process.stdin, stdout: options.stdout ?? process.stdout, options });
+}
+
+/** Hosted runs hand the guarded stream pair to the unchanged transport factory. */
+function createHostedTransport({ createTransport, options, hosting }: {
+  createTransport: NonNullable<McpToolServerOptions['createTransport']>; options: McpToolServerOptions; hosting: StdioHosting | undefined;
+}): McpTransportLike {
+  if (!hosting) return createTransport({}, stdioOptions(options));
+  const transport = createTransport({}, hosting.streams);
+  hosting.guardTransport({ transport });
+  return transport;
+}
+
 /**
  * Own only the MCP projection/dispatch index. F0 owns immutable exposure, and the daemon catalog
  * supplies each descriptor; the temporary source below is not another definition catalog.
@@ -210,6 +228,7 @@ function createToolPublisher({ index, server, options }: {
  * handle's `run()`.
  */
 export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, options: McpToolServerOptions = {}): McpToolServerHandle {
+  validateFrameLimit(options);
   // Validate eagerly, but keep the mutable dispatch index inside run() so re-runs are isolated.
   buildToolIndex({ tools: requiredArgs.tools });
   const resources = options.resources ?? [];
@@ -238,10 +257,14 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
         idleMs: options.idleMs ?? DEFAULT_IDLE_MS,
         onIdle: () => closeTransportForIdle?.(),
       });
+      const hosting = hostingForOptions(options);
       const withActivity =
         <Args extends unknown[], Result>(handler: (...args: Args) => Result | Promise<Result>) =>
-          (...args: Args) =>
-            idleExit.trackRequest({ fn: () => handler(...args) });
+          (...args: Args) => {
+            const task = () => idleExit.trackRequest({ fn: () => handler(...args) });
+            if (!hosting) return task();
+            return hosting.track({ task, signal: (args[1] as { extra?: { signal?: AbortSignal } } | undefined)?.extra?.signal });
+          };
 
       server.setRequestHandler({
         schema: ListToolsRequestSchema,
@@ -270,7 +293,7 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
         });
       }
 
-      const transport = createTransport({}, stdioOptions(options));
+      const transport = createHostedTransport({ createTransport, options, hosting });
       try {
         closeTransportForIdle = () => {
           void transport.close({}).catch(() => {});
@@ -287,14 +310,18 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
         };
 
         const stdin = options.stdin ?? process.stdin;
-        await new Promise<void>((resolve) => {
+        await new Promise<void>((resolve, reject) => {
           const sdkOnClose = transport.onclose;
           let finished = false;
           const done = () => {
             if (finished) return;
             finished = true;
             idleExit.dispose({});
-            resolve();
+            if (!hosting) {
+              resolve();
+              return;
+            }
+            void hosting.dispose().then(failure => (failure ? reject(failure.error) : resolve()));
           };
           transport.onclose = () => {
             sdkOnClose?.();
@@ -305,11 +332,16 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
           };
           // Hold the process open until the client disconnects (stdin EOF) — `connect()` only
           // starts the transport, it doesn't wait for the stream to close.
+          if (hosting) {
+            hosting.watch({ close: closeTransportForStdin });
+            return;
+          }
           stdin.once('end', closeTransportForStdin);
           stdin.once('close', closeTransportForStdin);
         });
       } finally {
         idleExit.dispose({});
+        if (hosting) void hosting.dispose();
         closeTransportForIdle = null;
       }
     },

@@ -137,6 +137,16 @@ const server = createMcpToolServer({
 await server.run({}); // serves over this process's stdio until idle-exit
 ```
 
+Stdio hosting can opt in to `{ maxFrameBytes: 256 * 1024, serial: true, eof: 'drain' }`
+in the existing options object. `maxFrameBytes` must be a positive safe integer and counts each
+inbound/outbound UTF-8 NDJSON frame including LF. Input overflow rejects `run()`; oversized
+responses become bounded JSON-RPC `-32603` errors retaining the request ID. If that error cannot
+fit, the host closes and rejects. `serial` keeps request handlers FIFO through their response
+writes while cancellation, notifications, and replies remain live. Drain finishes complete frames,
+accepted handlers, and writes before closing; an unterminated EOF tail then rejects `run()`.
+Stream errors reject the opted-in host. Omitted options retain SDK limits, concurrent execution,
+and immediate EOF closure; the factory signatures and `run({})` are unchanged.
+
 Read `McpToolDef` in `src/server/` before writing your own tool — the exact `handler` and
 `inputSchema` field shapes are what the index and the SDK bridge consume.
 
