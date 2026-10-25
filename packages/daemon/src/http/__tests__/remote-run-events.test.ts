@@ -223,6 +223,76 @@ describe('requireRemoteToolBridgeToken', () => {
   });
 });
 
+describe('requireRemoteToolBridgeToken — deny table (F1: every non-matching header must 401, never next())', () => {
+  const EXPECTED_401 = { error: { code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${TOKEN_ENV_VAR}> required` } };
+  it.each([
+    ['no Authorization header', undefined],
+    ['empty header', ''],
+    ['scheme only', 'Bearer'],
+    ['scheme with blank token', 'Bearer    '],
+    ['wrong scheme', 'Basic right-secret'],
+    ['raw token without scheme', 'right-secret'],
+    ['wrong token, same length', 'Bearer wrong-secret!'],
+    ['proper prefix of the token', 'Bearer right-secre'],
+    ['token plus trailing junk', 'Bearer right-secretX'],
+    ['token plus a second word', 'Bearer right-secret extra'],
+    ['leading junk before the scheme', 'x Bearer right-secret'],
+    ['wrong-case token', 'Bearer RIGHT-SECRET'],
+  ])('%s → 401 REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED, next() never called', (_label, header) => {
+    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'right-secret' } });
+    const res = makeJsonRes();
+    const next = vi.fn();
+    expect(() => gate({ headers: {}, get: () => header } as any, res as any, next)).not.toThrow();
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(EXPECTED_401);
+  });
+
+  it('accepts the bearer scheme case-insensitively and tolerates trailing whitespace (the shared http-kit header grammar)', () => {
+    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'right-secret' } });
+    for (const header of ['bearer right-secret', 'Bearer right-secret  ']) {
+      const res = makeJsonRes();
+      const next = vi.fn();
+      gate({ headers: {}, get: () => header } as any, res as any, next);
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(res.status).not.toHaveBeenCalled();
+    }
+  });
+
+  it('an empty-string token env var is "not configured" (503), never a match for an empty bearer', () => {
+    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: '' } });
+    const res = makeJsonRes();
+    const next = vi.fn();
+    gate({ headers: {}, get: () => 'Bearer ' } as any, res as any, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json.mock.calls[0]![0].error.code).toBe('REMOTE_TOOL_BRIDGE_NOT_CONFIGURED');
+  });
+
+  it('a token configured under a DIFFERENT env var name does not open the gate', () => {
+    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { JINI_REMOTE_TOOL_BRIDGE_TOKEN: 'right-secret' } });
+    const res = makeJsonRes();
+    const next = vi.fn();
+    gate({ headers: {}, get: () => 'Bearer right-secret' } as any, res as any, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+  });
+
+  it('end to end: a WRONG token on tool-result is rejected before the recorder runs', async () => {
+    const app = makeApp();
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const recordToolResult = vi.spyOn(deps.recorder, 'recordToolResult');
+    registerRemoteRunEventRoutes({ app: app as any, deps, adapter });
+    const res = makeJsonRes();
+    await dispatch(app, 'POST', '/api/runs/:runId/tool-result', { headers: {}, get: () => 'Bearer shared-secreT', body: { toolUseId: 'tu-1', content: 'x' }, query: {}, params: { runId: run.id } }, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json.mock.calls[0]![0].error.code).toBe('REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED');
+    expect(recordToolResult).not.toHaveBeenCalled();
+  });
+});
+
 describe('registerRemoteRunEventRoutes', () => {
   it('mounts exactly the two remote-event routes', () => {
     const app = makeApp();
