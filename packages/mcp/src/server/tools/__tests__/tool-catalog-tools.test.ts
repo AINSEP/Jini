@@ -26,6 +26,12 @@ describe('searchToolsTool', () => {
     expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/tools/search?q=navigate+page' }, { fetchImpl: ctx.fetchImpl });
   });
 
+  it('omits a non-number limit (handler called directly, bypassing schema validation)', async () => {
+    getDaemonJson.mockResolvedValueOnce({ hits: [] });
+    await searchToolsTool.handler({ args: { query: 'navigate page', limit: '5' }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenLastCalledWith({ baseUrl: 'http://d.example', route: '/api/tools/search?q=navigate+page' }, { fetchImpl: ctx.fetchImpl });
+  });
+
   it('includes limit in the query string when supplied as a number', async () => {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
     await searchToolsTool.handler({ args: { query: 'navigate page', limit: 5 }, ctx: ctx });

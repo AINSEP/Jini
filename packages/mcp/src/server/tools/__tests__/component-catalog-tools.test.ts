@@ -26,6 +26,12 @@ describe('searchComponentsTool', () => {
     expect(getDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/components/search?q=tabular+data' }, { fetchImpl: ctx.fetchImpl });
   });
 
+  it('omits a non-number limit (handler called directly, bypassing schema validation)', async () => {
+    getDaemonJson.mockResolvedValueOnce({ hits: [] });
+    await searchComponentsTool.handler({ args: { query: 'tabular data', limit: '5' }, ctx: ctx });
+    expect(getDaemonJson).toHaveBeenLastCalledWith({ baseUrl: 'http://d.example', route: '/api/components/search?q=tabular+data' }, { fetchImpl: ctx.fetchImpl });
+  });
+
   it('includes limit in the query string when supplied as a number', async () => {
     getDaemonJson.mockResolvedValueOnce({ hits: [] });
     await searchComponentsTool.handler({ args: { query: 'tabular data', limit: 5 }, ctx: ctx });
