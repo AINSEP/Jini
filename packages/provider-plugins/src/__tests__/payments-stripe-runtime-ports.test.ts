@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { StripePaymentsProvider } from '../index.js';
+import { StripePaymentsProvider } from '../payments-stripe/stripe.js';
 
 describe('universal Stripe adapter effects', () => {
   it('uses browser-safe Basic auth and the injected clock when the response omits created', async () => {

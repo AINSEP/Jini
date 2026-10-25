@@ -1,8 +1,8 @@
 /**
  * @file The Sentry adapter for diagnostics' `ObservabilityPort`, shipped as the
  * `observability-sentry` provider plugin — the only module in this distribution's Sentry artifact
- * that imports `@sentry/*` (bundled; no runtime peer). Moved out of Tovu core
- * (`apps/website/src/platform/observability/sentry.ts`) and then out of `@jini-ai/diagnostics`
+ * that imports `@sentry/*` (bundled; no runtime peer). Moved out of the first host application's
+ * core (its `platform/observability/sentry.ts`) and then out of `@jini-ai/diagnostics`
  * (its former `./observability/sentry` subpath) on 2026-10-25 by owner decision, the same as the
  * OpenTelemetry plugin, and selected the same way (see its header): a host loads this plugin only
  * when it is installed, enabled and configured with a DSN, so an install without Sentry never loads

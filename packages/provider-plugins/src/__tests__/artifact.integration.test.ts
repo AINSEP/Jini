@@ -40,6 +40,8 @@ const SPECS: Record<string, { contract: string; id: string; validate: (port: unk
     input: () => ({ apiKey: 'phc_unused', host: 'https://posthog.invalid' }) },
   'fixture-provider': { contract: 'fixture', id: 'fixture', validate: port => typeof (port as { read?: unknown })?.read === 'function', input: namespace => ({ value: namespace }),
     probe: port => (port as { read(required: Record<string, never>): unknown }).read({}) },
+  'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => typeof (port as { charge?: unknown })?.charge === 'function',
+    input: () => ({ secretKey: 'sk_test_unused' }) },
   'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => typeof (port as { trackRequest?: unknown })?.trackRequest === 'function',
     input: () => ({ serviceName: 'artifact-test', tracerName: 'artifact', endpoint: 'http://127.0.0.1:9', headers: { authorization: 'Bearer unused' } }) },
   'observability-sentry': { contract: 'observability', id: 'sentry', validate: port => typeof (port as { reportError?: unknown })?.reportError === 'function',

@@ -18,7 +18,6 @@ spec_mode: reverse_spec
 | `/adapters/sqlite` | `SqliteDbProvider` |
 | `/adapters/blob-storage` | `BlobStorageProvider` |
 | `/adapters/jwt-auth` | `JwtAuthProvider` |
-| `/adapters/stripe` | `StripePaymentsProvider`, `StripePaymentsProviderError` |
 
 Signatures below describe current source. Empty optional objects are shown only when accepted. The database interface and its implementations still use positional arguments; consumers must not wrap them in invented objects. Constructors generally have one required object; the SQLite constructor is positional.
 
@@ -45,23 +44,10 @@ All operations return promises, except realtime subscription, which returns an u
 | Blob storage | `new BlobStorageProvider({ blobStorage, namespace })` | `@jini-ai/platform` `BlobStorage` with `writeFile(namespace, key, Buffer)`, `readFile`, `deleteFile`, `listFiles`; nonempty namespace; implements `StorageProvider` |
 | SQLite | `new SqliteDbProvider(db)` | Open `better-sqlite3` database; implements `DbProvider`; consumer owns connection lifetime |
 | JWT | `new JwtAuthProvider({ secret }, { sessionTtlMs?, now? } = {})` | HMAC secret; optional millisecond clock; implements `AuthProvider`; uses Node crypto and local user state |
-| Stripe | `new StripePaymentsProvider({ secretKey }, { now?, fetchFn?, apiBase? } = {})` | Secret API key; native fetch or injected fetch; optional millisecond clock/base URL; implements `PaymentsProvider` |
 | WebSocket | `new WebSocketRealtimeProvider({ server })` | Structural server supporting `on({ event: 'connection', listener })`; implements `RealtimeProvider` |
 | WebSocket factory | `createWebSocketRealtimeProvider({ wsOptions }, { createServer? } = {})` | `ws` server options; optional `createServer({ wsOptions })`; returns `{ provider, server }` |
 
 Structural sockets support `send({ data })`, `on({ event, listener })`, and `readyState`. `ws` is an optional peer but the adapter module imports it at load time. Node-specific adapters require a Node host; browser consumers should import appropriate subpaths rather than all adapters.
-
-```ts
-import { StripePaymentsProvider } from '@jini-ai/capability-providers/adapters/stripe';
-const payments = new StripePaymentsProvider(
-  { secretKey: paymentApiKey },
-  { fetchFn: fetch, now: () => Date.now() },
-);
-const charge = await payments.charge(
-  { amountCents: 1200, currency: 'usd', customerRef: customerId },
-  { description: 'Account credit' },
-);
-```
 
 ```ts
 import type { StorageProvider } from '@jini-ai/capability-providers';
@@ -164,7 +150,6 @@ These names are also reachable through the current export map. Parameter declara
 | `JwtAuthProviderOptionalArgs`, `JwtAuthProviderOptions` | interface; [index.ts](../../src/adapters/jwt-auth/index.ts) |
 | `RealtimeHandler`, `RealtimeUnsubscribe` | type; [realtime.ts](../../src/realtime.ts) |
 | `StoragePutOptions` | interface; [storage.ts](../../src/storage.ts) |
-| `StripePaymentsProviderOptionalArgs`, `StripePaymentsProviderOptions` | interface; [index.ts](../../src/adapters/stripe/index.ts) |
 | `VisitorAuthAuthorizationPlan`, `VisitorAuthCallbackParameters` | interface; [lifecycle.ts](../../src/visitor-auth/lifecycle.ts) |
 | `VisitorAuthAuthorizationServer`, `VisitorAuthClientRegistration`, `VisitorAuthClientSecretRef`, `VisitorAuthSecurityArtifacts`, `VisitorAuthTokenExchangeRequest`, `VisitorAuthTokenSet`, `VisitorAuthTransaction`, `VisitorAuthVerifiedIdTokenClaims` | interface; [ports.ts](../../src/visitor-auth/ports.ts) |
 | `VisitorAuthCallbackDecision`, `VisitorAuthCallbackRejectionReason`, `VisitorAuthConfigurationErrorCode`, `VisitorAuthIdentityClaimsDecision`, `VisitorAuthIdentityClaimsRejectionReason` | type; [lifecycle.ts](../../src/visitor-auth/lifecycle.ts) |
@@ -174,4 +159,4 @@ These names are also reachable through the current export map. Parameter declara
 
 ## Current manifest boundary
 
-The current `package.json` exposes `.`, `./visitor-auth`, `./unsafe-reference`, `./adapters/ws`, `./adapters/sqlite`, `./adapters/blob-storage`, `./adapters/jwt-auth`, `./adapters/stripe`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+The current `package.json` exposes `.`, `./visitor-auth`, `./unsafe-reference`, `./adapters/ws`, `./adapters/sqlite`, `./adapters/blob-storage`, `./adapters/jwt-auth`. (`./adapters/stripe` moved to the `payments-stripe` provider plugin of `@jini-ai/provider-plugins` on 2026-10-25.) Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.

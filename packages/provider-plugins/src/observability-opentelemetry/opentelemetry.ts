@@ -1,7 +1,7 @@
 /**
  * @file The OpenTelemetry SDK adapter for diagnostics' `ObservabilityPort`, shipped as the
- * `observability-opentelemetry` provider plugin. Moved out of Tovu core
- * (`apps/website/src/platform/observability/otel.ts`) and then out of `@jini-ai/diagnostics`
+ * `observability-opentelemetry` provider plugin. Moved out of the first host application's core
+ * (its `platform/observability/otel.ts`) and then out of `@jini-ai/diagnostics`
  * (its former `./observability/opentelemetry` subpath) by owner decision 2026-10-25 ("it should be
  * a provider plugin … we're gonna want to use it for other projects"); behavior unchanged.
  * Diagnostics' `otel.ts` (SDK-free lifecycle and redaction) explains why the port itself must never
@@ -11,8 +11,8 @@
  * Loaded only when selected: a host imports this plugin only when it is installed, enabled and
  * configured, so the OTel SDK is never loaded into a process whose operator hasn't configured an
  * OTLP endpoint. That is a real resource-budget concern, not tidiness: the groundwork survey this
- * was built from (Tovu `ADS-memory/.local-artifacts/metrics/2026-08-28-observability-groundwork.md`
- * §5.5) flags that Tovu ships to small, single-process VPS instances, and an always-loaded SDK would
+ * was built from (that host's 2026-08-28 observability groundwork survey, §5.5) flags that the host
+ * ships to small, single-process VPS instances, and an always-loaded SDK would
  * be dead weight for every operator who never configures an exporter (measured 2026-10-25: ~155 ms,
  * +21 MB RSS). The former synchronous `require()` loading is gone: provider plugins initialize
  * asynchronously (awaited, bounded) before the host admits application work.

@@ -1,24 +1,23 @@
 /**
- * `@jini-ai/capability-providers/adapters/stripe` — the one real,
- * production-quality `PaymentsProvider` adapter this package ships, against
- * Stripe's real, documented Charges/Refunds REST API
+ * The Stripe `PaymentsProvider` adapter, shipped as the `payments-stripe` provider plugin. MOVED
+ * ONLY (2026-10-25) from `@jini-ai/capability-providers/adapters/stripe`; behavior unchanged. It
+ * targets the legacy `@jini-ai/capability-providers` payments port, not commerce's canonical payment
+ * contract — conversion is deferred by the owner (see this plugin's README), and no host selects it.
+ *
+ * Against Stripe's real, documented Charges/Refunds REST API
  * (`https://docs.stripe.com/api/charges`, `https://docs.stripe.com/api/refunds`)
  * — verified against Stripe's own docs while building this, not guessed from
  * memory (request shape, Basic auth over the secret key, form-encoded body,
  * JSON error envelope).
  *
- * Lives at this separate entry point (not the package's main
- * `@jini-ai/capability-providers` barrel) so importing the port
- * interface/types/DI tokens never pulls a vendor-specific HTTP client into a
- * consumer that only wanted the `PaymentsProvider` interface to implement
- * itself against a different processor. Import from here only when you actually
- * want this concrete adapter.
+ * Formerly a separate entry point so importing the port interface/types/DI tokens never pulled a
+ * vendor-specific HTTP client into a consumer that only wanted the `PaymentsProvider` interface;
+ * now the vendor code leaves the core package entirely.
  *
  * The in-memory reference implementation (`createInMemoryPaymentsProvider`) is
- * a separate, non-production stub under `src/unsafe-reference/` — see that
- * directory's `index.ts` header for the full warning.
+ * a separate, non-production stub under capability-providers' `src/unsafe-reference/`.
  */
-import type { Charge, ChargeInput, ChargeStatus, PaymentsProvider } from '../../payments.js';
+import type { Charge, ChargeInput, ChargeStatus, PaymentsProvider } from '@jini-ai/capability-providers';
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 

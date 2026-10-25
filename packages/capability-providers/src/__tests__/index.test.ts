@@ -3,7 +3,6 @@ import * as barrel from '../index.js';
 import * as blobStorageAdapter from '../adapters/blob-storage/index.js';
 import * as jwtAuthAdapter from '../adapters/jwt-auth/index.js';
 import * as sqliteAdapter from '../adapters/sqlite/index.js';
-import * as stripeAdapter from '../adapters/stripe/index.js';
 import * as wsAdapter from '../adapters/ws/index.js';
 
 describe('@jini-ai/capability-providers barrel completeness', () => {
@@ -34,7 +33,7 @@ describe('@jini-ai/capability-providers barrel completeness', () => {
     //
     // Compared by reference, not by name: a name-presence check would pass for an unrelated export
     // that happened to share a name, which is a trap this repo has already hit once.
-    for (const adapter of [wsAdapter, sqliteAdapter, blobStorageAdapter, jwtAuthAdapter, stripeAdapter]) {
+    for (const adapter of [wsAdapter, sqliteAdapter, blobStorageAdapter, jwtAuthAdapter]) {
       // Asserted so the loop below can never pass vacuously if an adapter's value exports vanish.
       expect(Object.keys(adapter).length).toBeGreaterThan(0);
       for (const name of Object.keys(adapter)) {

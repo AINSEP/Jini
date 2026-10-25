@@ -42,6 +42,7 @@
   "devDependencies": {
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/analytics": "workspace:^",
+    "@jini-ai/capability-providers": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
     "@opentelemetry/api": "^1.9.1",

@@ -3,9 +3,10 @@
  *
  * This file defines the port's stable interface/type surface and nothing else —
  * it has no imports at all, so a consumer implementing `PaymentsProvider`
- * themselves installs nothing. The one real, production-quality adapter
- * (`StripePaymentsProvider`, against Stripe's Charges/Refunds REST API) lives
- * at the separate `@jini-ai/capability-providers/adapters/stripe` entry point;
+ * themselves installs nothing. The Stripe adapter (`StripePaymentsProvider`,
+ * against Stripe's Charges/Refunds REST API) moved to the `payments-stripe`
+ * provider plugin in `@jini-ai/provider-plugins` (2026-10-25, move only: commerce's
+ * payment contract is canonical and conversion is deferred);
  * the non-production in-memory reference stub
  * (`createInMemoryPaymentsProvider`) lives under `src/unsafe-reference/`,
  * exported only from `@jini-ai/capability-providers/unsafe-reference`.
