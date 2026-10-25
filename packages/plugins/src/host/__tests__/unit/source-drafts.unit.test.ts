@@ -477,3 +477,17 @@ test('capability sets name a content type without a string key by its JSON text,
   assert.deepEqual(caps, ['content-type:null', 'content-type:{"key":7}', 'content-type:{"label":"Untitled"}', 'tier:tier-1']);
   assert.deepEqual(addedPluginCapabilities({ approved: pluginCapabilitySet({ manifest: base }), next: caps }), ['content-type:null', 'content-type:{"key":7}', 'content-type:{"label":"Untitled"}']);
 });
+
+test('file-path validator: one clause per refusal, and dotted look-alikes are allowed', async () => {
+  const f = await fixture(); await f.create();
+  for (const file of ['', 'C:/x.txt', 'a\0b', 'server/', '/x', '.', 'a/./b', 'a//b', 'a/..', 5 as unknown as string]) {
+    await assert.rejects(f.service.write({ id, path: file, content: 'bad' }), { code: 'PLUGIN_SOURCE_PATH_INVALID', message: 'File paths must be relative to the draft, without .., absolute paths or empty segments.' });
+  }
+  for (const file of ['..notes.md', 'a..b.md', '.hidden.md', 'docs/...md']) {
+    assert.deepEqual(await f.service.write({ id, path: file, content: 'ok' }), { bytesWritten: 2 });
+    assert.equal((await f.service.read({ id, path: file })).content, 'ok');
+  }
+  for (const bad of [5, '', 'A', 'a_b', 'a'.repeat(51)]) {
+    await assert.rejects(f.service.open({ id: bad as string }), { code: 'PLUGIN_SOURCE_PATH_INVALID', message: 'Use a lowercase plugin id of at most 50 characters containing letters, numbers and hyphens.' });
+  }
+});
