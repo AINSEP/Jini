@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, lstatSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createConnection, createServer as createNetServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
@@ -74,6 +75,29 @@ describe("prepareIpcPath — live socket is never treated as stale", () => {
       await first.close();
     }
     expect(existsSync(socketPath)).toBe(false);
+  });
+
+  it("unlinks a STALE socket (file present, nobody listening → ECONNREFUSED) so a new server can bind", async () => {
+    const socketPath = join(root, "stale.sock");
+    const child = spawn(process.execPath, ["-e", `require("node:net").createServer().listen(${JSON.stringify(socketPath)}, () => console.log("up"))`], { stdio: ["ignore", "pipe", "inherit"] });
+    await new Promise<void>((resolve) => child.stdout!.once("data", () => resolve()));
+    child.kill("SIGKILL");
+    await new Promise((resolve) => child.once("exit", resolve));
+    expect(lstatSync(socketPath).isSocket()).toBe(true);
+    const server = await createJsonIpcServer({ handler: async () => "reborn", socketPath });
+    try {
+      await expect(requestJsonIpc({ socketPath, payload: {} })).resolves.toBe("reborn");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("leaves a regular (non-socket) file at the path alone", async () => {
+    const socketPath = join(root, "plain.sock");
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(socketPath, "keep");
+    await prepareIpcPath({ socketPath });
+    expect(existsSync(socketPath)).toBe(true);
   });
 
   it("creates the parent directory and is a no-op on a missing path", async () => {
@@ -156,7 +180,11 @@ describe("trace vocabulary and details", () => {
     const clientId = Number(String(byEvent("client.connect_start")!.traceId).split("-").pop());
     const serverId = Number(String(byEvent("server.connection")!.traceId).split("-").pop());
     expect(serverId).toBe(clientId + 1);
-    for (const trace of traces) expect(trace.durationMs === undefined || (trace.durationMs as number) >= 0).toBe(true);
+    for (const trace of traces) {
+      if (trace.durationMs === undefined) continue;
+      expect(trace.durationMs as number).toBeGreaterThanOrEqual(0);
+      expect(trace.durationMs as number).toBeLessThan(10_000);
+    }
   });
 
   it.each([
@@ -286,6 +314,30 @@ describe("frame size boundary (SEC-004)", () => {
       await server.close();
     }
     expect(traces.find((trace) => trace.event === "server.frame_too_large")).toEqual({ event: "server.frame_too_large", ...base(socketPath), maxFrameBytes: limit, receivedBytes: limit + 1 });
+  });
+
+  it("an empty frame (bare newline) is answered as a parse failure, not left waiting", async () => {
+    const socketPath = join(root, "empty.sock");
+    const server = await createJsonIpcServer({ handler: async () => "never", socketPath }, { idleTimeoutMs: 5_000 });
+    try {
+      const reply = JSON.parse(await rawExchange(socketPath, "\n"));
+      expect(reply.ok).toBe(false);
+      expect(typeof reply.error.message).toBe("string");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("a payload larger than the socket buffer traces client.drain", async () => {
+    process.env.JINI_JSON_IPC_TRACE = "1";
+    const socketPath = join(root, "drain.sock");
+    const server = await createJsonIpcServer({ handler: async () => "ok", socketPath }, { maxFrameBytes: 8_000_000 });
+    try {
+      await requestJsonIpc({ socketPath, payload: { blob: "x".repeat(4_000_000) } }, { timeoutMs: 10_000 });
+    } finally {
+      await server.close();
+    }
+    expect(traces.find((trace) => trace.event === "client.drain")).toEqual({ event: "client.drain", ...base(socketPath), message: { type: "undefined" } });
   });
 
   it("ignores a second frame on the same connection (one request per connection)", async () => {

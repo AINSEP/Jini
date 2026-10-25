@@ -123,6 +123,9 @@ describe("async termination ordering", () => {
     expect(h.children).toHaveLength(1);
     expect(h.tasks.size).toBe(0);
     expect(h.failures).toHaveLength(1);
+    // The failed stop must also clear `stopping`, or a later manual restart would only queue.
+    expect(h.supervisor.restart()).toEqual({ ok: true });
+    expect(h.children).toHaveLength(2);
   });
 });
 
