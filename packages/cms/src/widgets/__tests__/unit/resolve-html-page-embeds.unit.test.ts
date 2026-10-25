@@ -3,7 +3,7 @@ import { InMemoryEntryRepo } from "../../../entries/index.js";
 import { findMediaByIdOrSlug, getLatestTransformDefinition } from "../../../media/index.js";
 import { InMemoryTaxonomyRepo, InMemoryTermRepo } from "../../../taxonomy/index.js";
 import type { WidgetHostPorts } from "../../host-ports.js";
-import { resolveHtmlPageEmbeds, type ResolveHtmlPageEmbedsDeps } from "../../html/index.js";
+import { resolveHtmlPageEmbeds, substituteHtmlEmbeds, type PluginExportRender, type ResolveHtmlPageEmbedsDeps } from "../../html/index.js";
 
 /**
  * @file `resolveHtmlPageEmbeds` — the per-type dispatch over an html-format Page's embed markers,
@@ -82,6 +82,8 @@ describe("resolveHtmlPageEmbeds", () => {
     const html = `<div data-embed-config='{"type":"plugin","plugin":"example/login","component":"button","props":{}}'>fallback</div>`;
     const absent = await resolveHtmlPageEmbeds({ deps, input: { workspaceId: WS, html } });
     expect([...absent.get("plugin")!]).toEqual([]);
+    // A host without plugin support still serves the author's fallback, without an error.
+    expect(substituteHtmlEmbeds({ html, resolve: ref => absent.get(ref.type)?.get(ref.id!)?.props as unknown as PluginExportRender | undefined })).toBe('<div>fallback</div>');
     const result = await resolveHtmlPageEmbeds({ deps: { ...deps, pluginExports: { resolve: async ({ workspaceId }) => ({
       plugin: "example/login", component: "button", version: 1, consent: "necessary",
       template: "<span>{{host.site}}</span>", props: {}, host: { site: workspaceId },

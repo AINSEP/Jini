@@ -680,6 +680,15 @@ describe("post embed resolution", () => {
   });
 });
 
+it('the universal plugin entry keeps every authored fallback; parse5 resolution is node-only', async () => {
+  const refs = [{ type: 'plugin', id: 'plugin:1', slug: null, name: null, variant: null, config: { plugin: 'example/login' } }] as unknown as PageHtmlEmbedRef[];
+  const port = { resolve: vi.fn() };
+  const deps = { pluginExports: port } as unknown as ResolveHtmlPageEmbedsDeps;
+  const resolved = await HTML_EMBED_RESOLVERS['plugin']!(refs, deps, { workspaceId: 'ws', preview: false } as WidgetResolveContext);
+  expect([...resolved]).toEqual([]);
+  expect(port.resolve).not.toHaveBeenCalled();
+});
+
 it('comments markers belong to the host renderer rather than the CMS content resolver', () => {
   expect(THEME_OWNED_MARKER_TYPES.has('comments')).toBe(true);
   expect(HTML_EMBED_RESOLVERS['comments']).toBeUndefined();

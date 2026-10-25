@@ -17,6 +17,8 @@ See [API integration](API-INTEGRATION.md) for current signatures and migration e
 | `./media/node` | node | Filesystem blob stores, sharp image transforms and ffmpeg adapters. |
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
 | `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
+| `./widgets` / `./widgets/markers` / `./widgets/resolvers` | universal | Widget contracts, markers and resolution services; no HTML parser. |
+| `./widgets/html` | node | HTML scanning/substitution, fragment validation and plugin-export template resolution. |
 
 Hosts that sanitize SVG uploads or ingest documents through `./media` must install the optional peers
 `dompurify` and `jsdom`. They load lazily: without them, other media still works, but SVG and Office uploads fail.
@@ -43,6 +45,11 @@ The HTTP toolkit is a host composition choice and is not a CMS dependency.
 Readiness or principal-resolution failures return `401 UNAUTHENTICATED`.
 Stream diagnostics are best-effort: a throwing reporter cannot prevent retries,
 cancellation of other schedules or ending the response.
+
+Plugin embeds resolve only through the node entry: hosts pass their site-scoped admission port as
+`ResolveHtmlPageEmbedsDeps.pluginExports` to `resolveHtmlPageEmbeds` from `@jini-ai/cms/widgets/html`,
+which fills templates with parse5. The universal registry never resolves plugins. A missing port or a
+refused export keeps the authored fallback HTML. See the [host adoption note](docs/plugin-export-host-adoption.md).
 
 ## Why the split exists before there is any code to split
 
@@ -88,8 +95,8 @@ parse5 normalization to create/update, merge and tool registration. The existing
 raw-HTML permission checks, OCC and outbox owners remain unchanged; an unconfigured universal
 HTML write fails before saving rather than persisting markup that could escape its theme container.
 
-**Still to move:** `post`, `seo`, `comments`, `redirects`, `widgets`, `newsletter`,
-`members`. The unimplemented `./widgets` export has been removed.
+**Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
+`members`. Widgets are exposed through the universal and node entries above.
 The nested forms package is maintained by its separate owner and is excluded from this parent package.
 
 **Explicitly not ported:**
