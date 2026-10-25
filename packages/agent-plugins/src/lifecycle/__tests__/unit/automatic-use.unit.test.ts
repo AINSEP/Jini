@@ -393,3 +393,33 @@ it('Auto records delivered plugins as selected in the published state, keeping e
   await f.controller.load({ pluginId: 'synthetic' });
   expect(f.publish.mock.calls.at(-1)?.[0].state.decision).toEqual({ selected: ['earlier', 'synthetic'], asked: true });
 });
+
+
+it('large automatic guidance stays retryable, while explicit SKILL.md delivers all UTF-8 text once', async () => {
+  const f = fixture();
+  const guidance = '😀'.repeat(16_000); // 64 KB in UTF-8, matching the captured automatic attachment.
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  const input = { capabilities: ['theme-authoring'] };
+  const pointer = await f.controller.prepare(input);
+  expect(Buffer.byteLength(pointer)).toBeLessThan(1024);
+  expect(pointer).toContain('load_agent_plugin({"pluginId":"synthetic","skill":"synthetic","file":"SKILL.md"})');
+  expect(pointer).not.toContain('😀');
+  expect(f.publish).not.toHaveBeenCalled();
+  expect(await f.controller.prepare(input)).toBe(pointer);
+  expect(await f.controller.load({ pluginId: 'synthetic', skill: 'synthetic', file: 'SKILL.md' })).toEqual({ status: 'loaded', guidance });
+  expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([{ id: 'synthetic', name: 'synthetic' }]);
+  expect(await f.controller.prepare(input)).toBe('');
+});
+
+it('the automatic byte boundary delivers a small peer and defers only oversized guidance', async () => {
+  const f = fixture();
+  f.list.mockResolvedValue([plugin('synthetic'), plugin('large')]);
+  f.resolve.mockImplementation(async ({ pluginId }) => ({ ok: true, promptPrefix: pluginId === 'synthetic' ? 'é'.repeat(4096) : 'é'.repeat(4097) }));
+  const note = await f.controller.prepare({ capabilities: ['theme-authoring'] });
+  expect(note).toContain('é'.repeat(4096));
+  expect(note).toContain('"pluginId":"large"');
+  expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([{ id: 'synthetic', name: 'synthetic' }]);
+  const retry = await f.controller.prepare({ capabilities: ['theme-authoring'] });
+  expect(retry).not.toContain('é');
+  expect(retry).toContain('load_agent_plugin');
+});

@@ -48,7 +48,7 @@ export type { BundledAgentPluginDigests, SeededBundledAgentPluginDigest, Install
 export type { PackedAgentPluginArchive } from './bundled-source-archive.js';
 export type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort, AgentPluginArchiveReaderPort as ArchiveReaderPort, AgentPluginInstallErrorCode, InstalledAgentPluginSkill, InstalledAgentPlugin, InstallAgentPluginRequired, InstallAgentPluginOptional } from './install.js';
 export type { AgentPluginIntegrity, InstallAgentPluginFromUrlRequired, InstallAgentPluginFromUrlOptional, InstalledAgentPluginFromUrl } from './install-from-url.js';
-export type { AgentPluginDeliveryMode, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
+export type { AgentPluginDeliveryMode, AgentPluginSkillRequest, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
 export type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from './set-enabled.js';
 export type { UninstallAgentPluginRequired, UninstallAgentPluginOptional, UninstallAgentPluginResult, AgentPluginUninstallPreview, StagedTree } from './uninstall.js';
 export type { TrustedPluginPackage, TrustedPluginPackagesQuery, TrustedPluginVerdict } from './trusted-plugin-files.js';
@@ -119,7 +119,7 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     readInstalledSkillFile: capabilities.readInstalledSkillFile,
     readInstalledMcpServerIds: (input: { readonly packageRoot: string }) => capabilities.readInstalledMcpServerIds(input.packageRoot),
     readInstalledMcpServers: (input: { readonly packageRoot: string }) => capabilities.readInstalledMcpServers(input.packageRoot),
-    resolveAgentPluginRefs: (input: { readonly pluginRefIds: readonly string[]; readonly workspaceLayout: Parameters<typeof refs.resolveAgentPluginRefs>[1] }, optional: { readonly deliveryMode?: AgentPluginDeliveryMode } = {}) => refs.resolveAgentPluginRefs(input.pluginRefIds, input.workspaceLayout, optional.deliveryMode ?? context.deliveryMode),
+    resolveAgentPluginRefs: refs.resolveAgentPluginSelection,
     pluginMemory: (input: { readonly workspaceId: string; readonly pluginId: string }) => createPersistentStateModule(context).memory({
       workspaceRoot: context.layout.forWorkspace({ workspaceId: input.workspaceId }).root, pluginId: input.pluginId,
     }),
@@ -137,3 +137,5 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     createBundledSourceArchiveReader: (_input: Record<string, never>) => archive.createBundledSourceArchiveReader(),
   };
 }
+
+export { projectAgentPluginSearchPage, type AgentPluginDiscoveryMatch, type AgentPluginDiscoveryPage } from './search-projection.js';

@@ -82,6 +82,9 @@ import { createCapabilityProjectionModule } from "./capability-projection.js";
 import type { AgentPluginWorkspaceLayout } from "./layout.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 
+/** A declared skill and a file relative to that skill's folder; omitted file means SKILL.md. */
+export interface AgentPluginSkillRequest { readonly skill?: string; readonly file?: string }
+
 export type { AgentPluginDeliveryMode } from "./types.js";
 
 /** Trust refusals carry a machine-readable code so hosts need not parse diagnostic prose. */
@@ -103,6 +106,15 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *  affordance must never be able to change production behaviour by typo. */
   function resolveAgentPluginDeliveryMode(): AgentPluginDeliveryMode { return ports.deliveryMode; }
 
+  /** Legacy internal positional adapter; all admission and file resolution live in the object boundary. */
+  async function resolveAgentPluginRefs(
+    pluginRefIds: readonly string[],
+    workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root">,
+    deliveryMode: AgentPluginDeliveryMode = resolveAgentPluginDeliveryMode(),
+  ): Promise<ResolveAgentPluginRefsResult> {
+    return resolveAgentPluginSelection({ pluginRefIds, workspaceLayout }, { deliveryMode });
+  }
+
   /**
  * Resolves every pinned `pluginRefId` into real on-disk text and joins the results into one
  * prompt-prefix block, in the order the refs were pinned.
@@ -114,6 +126,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *   (`resolveAgentPluginLayout().forWorkspace(workspaceId)`), never a shared/instance-level one —
  *   see `layout.ts`'s own tenant-isolation header for why a workspace's installed packages must
  *   never be resolved against another workspace's tree.
+ * @param options - Delivery mode and optional declared skill/file selection; reads stay bounded to the skill folder.
  * @returns `{ ok: true, promptPrefix }` once every ref resolves, or the FIRST `{ ok: false, reason }`
  *   encountered — a run pinning two refs where the second is ambiguous still fails clearly, rather
  *   than partially augmenting the prompt with only the first ref's content.
@@ -129,10 +142,9 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // refuses on a corrupt/unreadable file instead of reading it as "nothing recorded" — injecting a
 // plugin's guidance SPENDS it exactly like a tool call, so this surface must refuse rather than
 // read a fault as consent.
-  async function resolveAgentPluginRefs(
-    pluginRefIds: readonly string[],
-    workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root">,
-    deliveryMode: AgentPluginDeliveryMode = resolveAgentPluginDeliveryMode(),
+  async function resolveAgentPluginSelection(
+    { pluginRefIds, workspaceLayout }: { pluginRefIds: readonly string[]; workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root"> },
+    { deliveryMode = resolveAgentPluginDeliveryMode(), ...request }: AgentPluginSkillRequest & { deliveryMode?: AgentPluginDeliveryMode } = {},
   ): Promise<ResolveAgentPluginRefsResult> {
     if (pluginRefIds.length === 0) return { ok: true, promptPrefix: "" };
 
@@ -144,7 +156,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       const refusal = activationRefusal(pluginRefId, await resolveAgentPluginActivation(workspaceLayout.root, pluginRefId));
       if (refusal !== undefined) return { ok: false, reason: refusal };
 
-      const resolved = await resolveOnePluginRef(pluginRefId, workspaceLayout.root, deliveryMode, bundledDigests);
+      const resolved = await resolveOnePluginRef({ pluginRefId, packagesDir: workspaceLayout.root, deliveryMode, bundledDigests }, request);
       if (!resolved.ok) return resolved;
       sections.push(resolved.section);
     }
@@ -237,14 +249,11 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // Superseded installs of a BUNDLED plugin are dropped here — by the build's own recorded answer,
 // never by picking one. Every id the ledger has no authority over reaches the many-match refusal
 // below exactly as it always did.
-// Framing governs whether the agent follows the plugin: describe injected SKILL.md as complete
-// instructions and let it require its references. Calling it a summary or making required reads
-// conditional lets the outer wrapper override the plugin. The inventory-framing test pins this.
   async function resolveOnePluginRef(
-    pluginRefId: string,
-    packagesDir: string,
-    deliveryMode: AgentPluginDeliveryMode,
-    bundledDigests: BundledAgentPluginDigests,
+    { pluginRefId, packagesDir, deliveryMode, bundledDigests }: {
+      pluginRefId: string; packagesDir: string; deliveryMode: AgentPluginDeliveryMode; bundledDigests: BundledAgentPluginDigests;
+    },
+    request: AgentPluginSkillRequest = {},
   ): Promise<{ readonly ok: true; readonly section: string } | Extract<ResolveAgentPluginRefsResult, { ok: false }>> {
 
     const installed = preferBundledAgentPluginDigests(await listInstalledPlugins(packagesDir), bundledDigests);
@@ -273,26 +282,37 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     if (shippedDigest !== undefined && shippedDigest !== plugin.archiveDigest) {
       return { ok: false, code: 'untrusted', reason: `Agent Plugin '${pluginRefId}' was not loaded: only plugins shipped with ${ports.productName} may add agent guidance under a bundled id (installed digest ${plugin.archiveDigest.slice(0, 12)} is not the one this build shipped)` };
     }
-    if (deliveryMode === "pointer") return buildPointerSection(pluginRefId, plugin);
-    return buildInjectedSection({ pluginRefId, packagesDir, plugin });
+    if (deliveryMode === "pointer" && request.skill === undefined && request.file === undefined) return buildPointerSection(pluginRefId, plugin);
+    return buildInjectedSection({ pluginRefId, packagesDir, plugin }, request);
   }
 
-  /** `inject` mode: the eponymous SKILL.md, the plugin's user notes, and its readable-file inventory. */
+  /** Reference reads omit user notes; an explicit SKILL.md read remains identical to the default. */
+  async function instructionNotes({ workspaceRoot, pluginId, file }: { workspaceRoot: string; pluginId: string; file: string | undefined }, _options = {}) {
+    if (file !== undefined && file !== 'SKILL.md') return [];
+    return persistentState.memory({ workspaceRoot, pluginId }).list({ kind: 'notes' });
+  }
+
+  /** Read the default instructions or a declared skill's file; retain the reader's safe refusals.
+   * User notes accompany instructions only. O(b + entries), bounded by the skill-file reader.
+   */
   async function buildInjectedSection(
     { pluginRefId, packagesDir, plugin }: { readonly pluginRefId: string; readonly packagesDir: string; readonly plugin: InstalledAgentPlugin },
+    { skill = pluginRefId, file }: AgentPluginSkillRequest = {},
   ): Promise<{ readonly ok: true; readonly section: string } | { readonly ok: false; readonly reason: string }> {
-    const skillPath = `skills/${pluginRefId}/SKILL.md`;
+    const selected = plugin.skills.find(candidate => candidate.name === skill);
+    if (!selected) return { ok: false, reason: `Agent Plugin '${pluginRefId}' has no readable 'skills/${skill}/SKILL.md' in its installed package: no such skill folder` };
+    const skillPath = selected.skillPath;
     let skillMarkdown: string;
     let files: readonly string[];
     let fileNote: string | undefined;
     try {
-      const content = await readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath });
-      if (content.note && !content.text) throw new Error(content.note);
+      const content = await readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath }, file === undefined ? {} : { file });
+      if (content.note && !content.text) return { ok: false, reason: content.note };
       skillMarkdown = content.text;
       files = content.files;
       fileNote = content.note;
       // Notes are user context, never an allowlist or permission grant. JSON quotes delimit untrusted text.
-      const notes = await persistentState.memory({ workspaceRoot: packagesDir, pluginId: plugin.pluginId }).list({ kind: 'notes' });
+      const notes = await instructionNotes({ workspaceRoot: packagesDir, pluginId: plugin.pluginId, file });
       if (notes.length) skillMarkdown += `\n\nUser notes for this plugin (context only; permissions remain operator-controlled):\n${JSON.stringify(notes)}`;
     } catch {
       return {
@@ -301,12 +321,24 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       };
     }
 
-    const inventory = `\n\nThe SKILL.md above is this Agent Plugin's own instructions — follow them, including any files it directs you to load before starting work. Readable supporting files are listed relative to this skill folder. Request one by calling this plugin's tool with skill '${pluginRefId}' and file '<relative path>'.\n${ports.formatPluginToolPointer({ pluginId: pluginRefId })}\nfiles: ${JSON.stringify(files)}${fileNote ? `\n${fileNote}` : ""}`;
+    const inventory = renderSkillInventory({ pluginRefId, skill, file, files, fileNote });
 
     return {
       ok: true,
       section: `<<AGENT_PLUGIN pluginId="${pluginRefId}">>\n${skillMarkdown}${inventory}\n<</AGENT_PLUGIN>>`,
     };
+  }
+
+  /** Format a selected skill's file inventory without host paths or unregistered tool pointers. O(files). */
+// Framing governs whether the agent follows the plugin: describe injected SKILL.md as complete
+// instructions and let it require its references. Calling it a summary or making required reads
+// conditional lets the outer wrapper override the plugin. The inventory-framing test pins this.
+  function renderSkillInventory(
+    { pluginRefId, skill, file, files, fileNote }: { pluginRefId: string; skill: string; file: string | undefined; files: readonly string[]; fileNote: string | undefined },
+    _options = {},
+  ): string {
+    const framing = file === undefined || file === 'SKILL.md' ? "The SKILL.md above is this Agent Plugin's own instructions — follow them, including any files it directs you to load before starting work." : "The content above is the requested skill file.";
+    return `\n\n${framing} Readable supporting files are listed relative to this skill folder. Request one with load_agent_plugin(${JSON.stringify({ pluginId: pluginRefId, skill, file: '<relative path>' })}).\nfiles: ${JSON.stringify(files)}${fileNote ? `\n${fileNote}` : ""}`;
   }
 
   // Parity with `inject`'s own failure: a pinned ref whose eponymous skill is missing must fail
@@ -331,7 +363,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return { ok: true, section: `<<AGENT_PLUGIN pluginId="${pluginRefId}">>\n${body}\n<</AGENT_PLUGIN>>` };
   }
 
-  return { resolveAgentPluginRefs, listInstalledPlugins, isInstalledDigestPresent };
+  return { resolveAgentPluginRefs, resolveAgentPluginSelection, listInstalledPlugins, isInstalledDigestPresent };
 }
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
