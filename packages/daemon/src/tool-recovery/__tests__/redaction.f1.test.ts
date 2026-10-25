@@ -47,3 +47,13 @@ describe('describeDelegatedInternalError — reason branches', () => {
     expect(describeDelegatedInternalError({ context: ctx({ error: 'x' }), ...deps(), onFailure: () => { throw new Error('sink'); } })).toBe('Error ERR-0000-0000-0000-0001: x');
   });
 });
+
+describe('readToolErrorId — F1', () => {
+  it('only a string errorId counts', async () => {
+    const { readToolErrorId, isRedactedToolFailure } = await import('../redaction.js');
+    const failed = { status: 'failed', error: 'x' } as never;
+    expect(readToolErrorId({ result: { ...(failed as object), errorId: 5 } as never })).toBeUndefined();
+    expect(isRedactedToolFailure({ result: { ...(failed as object), errorId: 5 } as never })).toBe(false);
+    expect(readToolErrorId({ result: { ...(failed as object), errorId: 'ERR-1' } as never })).toBe('ERR-1');
+  });
+});

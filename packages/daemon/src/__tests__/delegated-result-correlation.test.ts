@@ -159,3 +159,27 @@ describe('delegated result correlation — F1 malformed image sources', () => {
     expect([store.matches(saved), store.matches({ ...saved, runId: 'keep' })]).toEqual([false, true]);
   });
 });
+
+describe('delegated result correlation — F1 re-score kills (malformed ≠ canonical, both directions)', () => {
+  const canonical = { type: 'image', mimeType: 'image/png', data: 'PIXELS' };
+  it.each([
+    ['url source', { type: 'url', media_type: 'image/png', data: 'PIXELS' }],
+    ['numeric media_type', { type: 'base64', media_type: 7, data: 'PIXELS' }],
+    ['numeric data', { type: 'base64', media_type: 'image/png', data: 7 }],
+  ])('a recorded image with a %s is not interchangeable with the canonical form', (_l, source) => {
+    const store = makeStore();
+    store.record({ ...saved, content: [{ type: 'image', source }] });
+    expect(store.matches({ ...saved, content: [canonical] })).toBe(false);
+    expect(store.matches({ ...saved, content: [{ type: 'image', source }] })).toBe(true);
+  });
+  it('a recorded null-source image still matches itself (the guard must not throw the digest away)', () => {
+    const store = makeStore();
+    store.record({ ...saved, content: [{ type: 'image', source: null }] });
+    expect(store.matches({ ...saved, content: [{ type: 'image', source: null }] })).toBe(true);
+  });
+  it('a recorded non-image block with a base64 source is not interchangeable with a {data,mimeType} block', () => {
+    const store = makeStore();
+    store.record({ ...saved, content: [{ type: 'document', source: { type: 'base64', media_type: 'image/png', data: 'PIXELS' } }] });
+    expect(store.matches({ ...saved, content: [{ type: 'document', mimeType: 'image/png', data: 'PIXELS' }] })).toBe(false);
+  });
+});

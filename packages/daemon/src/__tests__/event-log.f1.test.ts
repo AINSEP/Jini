@@ -57,3 +57,13 @@ describe('createInMemoryEventLog — F1 retention + dedupe + copies', () => {
     expect(await log.replay({ runId: 'r', afterCursor: '1' })).toEqual({ kind: 'replay-gap', requestedCursor: '1', oldestAvailableCursor: '3' });
   });
 });
+
+describe('createInMemoryEventLog — F1 re-score kills', () => {
+  it('two appends WITHOUT a dedupe key are two distinct entries (undefined is not a key)', async () => {
+    const log = createInMemoryEventLog({});
+    const a = await log.append({ runId: 'r', event: 'agent', data: 1 });
+    const b = await log.append({ runId: 'r', event: 'agent', data: 2 });
+    expect([a.id, b.id]).toEqual(['1', '2']);
+    expect(b.data).toBe(2);
+  });
+});
