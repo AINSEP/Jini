@@ -109,3 +109,33 @@ test("combineObservabilityPorts: two live ports each get the operation, its nest
   assert.deepEqual(a.getFinishedSpans().map((s) => s.name), ["tool.call"]);
   assert.deepEqual(b.getFinishedSpans().map((s) => [s.name, s.events[0]?.attributes["exception.type"]]), [["tool.call", "RangeError"]]);
 });
+
+test("review #2: a secret in Error.name is redacted and capped in the error type (OTel export and describeReportedError)", () => {
+  const error = new Error("boom"); error.name = `${SECRET}${"X".repeat(200)}`;
+  const described = describeReportedError({ error });
+  assert.ok(!described.type.includes(SECRET)); assert.ok(described.type.length <= 64);
+  const exporter = new InMemorySpanExporter();
+  createPort(CONFIG, exporter).reportError({ error, context: { operation: "tool.call" } });
+  const exported = JSON.stringify(exporter.getFinishedSpans().map((s) => [s.status, s.events, s.attributes]));
+  assert.ok(!exported.includes(SECRET));
+});
+
+test("review #1: secret-shaped operation attribute strings are redacted before the SDK sees them", () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter);
+  port.trackOperation({ name: "tool.call", attributes: { "tool.id": SECRET } }).end({ outcome: "completed", failed: false, attributes: { note: SECRET } });
+  port.reportError({ error: new Error("x"), context: { operation: "tool.call", attributes: { "tool.id": SECRET } } });
+  assert.ok(!JSON.stringify(exporter.getFinishedSpans().map((s) => s.attributes)).includes(SECRET));
+});
+
+test("review #3: fan-out isolates each adapter's tracker creation and end; the caller never sees an adapter's throw", async () => {
+  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const b = new InMemorySpanExporter(); const c = new InMemorySpanExporter();
+  const throwsOnStart = { ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: () => { throw new Error("start down"); } };
+  const throwsOnEnd = { ...createPort(CONFIG, b), trackOperation: () => ({ run: <T>(fn: () => T) => fn(), end: () => { throw new Error("end down"); } }) };
+  const port = combineObservabilityPorts({ ports: [throwsOnStart, throwsOnEnd, createPort(CONFIG, c)] });
+  const tracker = port.trackOperation({ name: "tool.call" });
+  assert.equal(tracker.run(() => "done"), "done");
+  assert.doesNotThrow(() => tracker.end({ outcome: "completed", failed: false }));
+  assert.deepEqual(c.getFinishedSpans().map((s) => s.name), ["tool.call"]);
+});

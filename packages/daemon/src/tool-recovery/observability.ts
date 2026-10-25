@@ -9,7 +9,7 @@
  * A host whose telemetry is off should not wrap at all (diagnostics' `isNoopObservabilityPort`), so
  * a disabled install keeps its exact executor object and pays no wrapper frame.
  */
-import { ToolInputError, type Principal, type RunRef, type SurfaceEmitter } from "@jini-ai/core";
+import { redactSecrets, ToolInputError, type Principal, type RunRef, type SurfaceEmitter } from "@jini-ai/core";
 import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from "../tool-executor.js";
 
 type Attributes = Readonly<Record<string, string | number>>;
@@ -35,28 +35,56 @@ export class ToolExecutionFailure extends Error {
   override readonly name = "ToolExecutionFailure";
 }
 
+/** The `tool.id` label for an id nobody registered. Observation starts before the registry has looked
+ * the id up, and a delegated request can carry any string there, a pasted key included (review
+ * 2026-10-25 #1): an unregistered id is never exported, only this fixed label. */
+export const UNREGISTERED_TOOL_LABEL = "unregistered";
+
+/** Registered tool ids are short dotted/underscored names. Used only when the host gives no registry check. */
+const TOOL_ID_SHAPE = /^[A-Za-z][\w.:-]{0,127}$/;
+
+/** Host check, when it has one: is this id a tool the registry knows? */
+export type IsRegisteredTool = (input: { toolId: string }) => boolean;
+
+function toolLabel({ toolId }: { toolId: string }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool | undefined }): string {
+  const shapeOk = TOOL_ID_SHAPE.test(toolId) && redactSecrets({ input: toolId }) === toolId;
+  return shapeOk && (isRegisteredTool?.({ toolId }) ?? true) ? toolId : UNREGISTERED_TOOL_LABEL;
+}
+
+/** WHO did it, as the principal's opaque id (owner 2026-10-25). Pseudonymous only: an id that looks
+ * like an e-mail address or carries a secret shape is replaced, never exported. */
+export const UNIDENTIFIED_USER_LABEL = "unidentified";
+
+export function pseudonymousUserId({ principal }: { principal: Principal }): string {
+  const id = principal.id;
+  if (!id || id.includes("@") || id.length > 128 || redactSecrets({ input: id }) !== id) return UNIDENTIFIED_USER_LABEL;
+  return id;
+}
+
 function errorKindOf(result: ToolExecutionResult): string | undefined {
   return result.status === "failed" ? result.errorKind ?? "internal" : undefined;
 }
 
 /**
- * Wraps `inner` so each `execute` is one `tool.call` operation: `tool.id` and `agent.run.id` at start,
+ * Wraps `inner` so each `execute` is one `tool.call` operation: `tool.id` (or the fixed
+ * {@link UNREGISTERED_TOOL_LABEL}), `agent.run.id` and `user.id` (the principal, pseudonymous) at start,
  * the settled status as outcome, `tool.error_kind` (`validation` vs `internal`) for a failure, and
  * the duration the adapter measures between start and end. Execution errors (an internal failure, a
  * timeout, a non-input throw) also go through `reportError`, inside the operation's scope so trace
  * adapters attach them to its span. A validation failure is NOT reported: it is the caller (usually
  * the model) sending bad input — counted on the operation, but not an incident to page anyone for.
  * @param required The executor and the observability port slice.
+ * @param optional `isRegisteredTool`: the host's registry check; without it only the id's shape is checked.
  * @returns A drop-in `ToolExecutor`; results and throws pass through unchanged; other methods delegate.
  * @complexity O(1) beyond `inner`'s own cost.
  */
-export function withToolCallObservability({ inner, observability }: { inner: ToolExecutor; observability: ToolCallObservability }, _optional: Record<string, never> = {}): ToolExecutor {
+export function withToolCallObservability({ inner, observability }: { inner: ToolExecutor; observability: ToolCallObservability }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool } = {}): ToolExecutor {
   return {
     execute: async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
       { signal, emitSurface }: { signal?: AbortSignal; emitSurface?: SurfaceEmitter } = {},
     ): Promise<ToolExecutionResult> => {
-      const attributes = { "tool.id": toolId, "agent.run.id": run.id };
+      const attributes = { "tool.id": toolLabel({ toolId }, { isRegisteredTool }), "agent.run.id": run.id, "user.id": pseudonymousUserId({ principal }) };
       const context = { operation: TOOL_CALL_OPERATION, attributes };
       const tracker = observability.trackOperation({ name: TOOL_CALL_OPERATION, attributes });
       let result: ToolExecutionResult;
