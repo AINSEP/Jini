@@ -63,25 +63,15 @@
     "test:properties": "vitest run tests/__tests__/unit/endpoint-safety.property.unit.test.ts"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
-  },
-  "peerDependencies": {
+    "@jini-ai/core": "workspace:^",
     "openid-client": "6.8.8",
     "oauth4webapi": "3.8.8"
   },
-  "peerDependenciesMeta": {
-    "openid-client": {
-      "optional": true
-    },
-    "oauth4webapi": {
-      "optional": true
-    }
-  },
+  "peerDependencies": {},
+  "peerDependenciesMeta": {},
   "devDependencies": {
     "@jini-ai/core": "^0.6.12",
     "@jini-ai/platform": "workspace:*",
-    "fast-check": "4.3.0",
-    "openid-client": "6.8.8",
-    "oauth4webapi": "3.8.8"
+    "fast-check": "4.3.0"
   }
 }

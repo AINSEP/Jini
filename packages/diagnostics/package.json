@@ -88,21 +88,17 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
-    "jszip": "^3.10.1",
-    "js-tokens": "^9.0.1"
+    "jszip": "^3.10.1"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "js-tokens": "^9.0.1"
   },
   "peerDependencies": {
-    "jszip": "^3.10.1",
-    "js-tokens": "^9.0.1"
+    "jszip": "^3.10.1"
   },
   "peerDependenciesMeta": {
     "jszip": {
-      "optional": true
-    },
-    "js-tokens": {
       "optional": true
     }
   }
