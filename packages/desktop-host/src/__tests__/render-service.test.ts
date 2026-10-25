@@ -155,3 +155,49 @@ describe('RenderServiceError', () => {
     expect(error.message).toBe('nope');
   });
 });
+
+// L10 Stryker survivors (render-service.ts:105,116,130): each settling path alone.
+describe('withRenderTimeout: each settling path alone', () => {
+  it('a timeout with NO signal still rejects as timeout (the fast path is only for neither)', async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = withRenderTimeout({ promise: new Promise<never>(() => undefined) }, { timeoutMs: 10 });
+      const assertion = expect(pending).rejects.toMatchObject({ code: 'timeout', message: 'render timed out after 10ms' });
+      await vi.advanceTimersByTimeAsync(10);
+      await assertion;
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('a signal with NO timeout never times out: a later value still resolves', async () => {
+    vi.useFakeTimers();
+    try {
+      const value = new Promise<string>(resolve => { setTimeout(() => resolve('late'), 5_000); });
+      const pending = withRenderTimeout({ promise: value }, { signal: new AbortController().signal });
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(pending).resolves.toBe('late');
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('an abort clears the pending timeout timer', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const pending = withRenderTimeout({ promise: new Promise<never>(() => undefined) }, { timeoutMs: 60_000, signal: controller.signal });
+      expect(vi.getTimerCount()).toBe(1);
+      controller.abort();
+      await expect(pending).rejects.toMatchObject({ code: 'aborted', message: 'render aborted' });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('a settled value clears the timer, and a rejection passes the original error through', async () => {
+    vi.useFakeTimers();
+    try {
+      await expect(withRenderTimeout({ promise: Promise.resolve(1) }, { timeoutMs: 60_000 })).resolves.toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+      const original = new Error('backend failed');
+      await expect(withRenderTimeout({ promise: Promise.reject(original) }, { timeoutMs: 60_000 })).rejects.toBe(original);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+});
