@@ -127,6 +127,7 @@ export interface FencedEnqueuePort<E, Tx> {
    * A supplied transaction is the caller's exact live session: the insert joins it, so it commits or
    * rolls back with the caller's own intent writes, and enqueue never opens, commits or retries
    * another. Reject closed or unsupported sessions. Without one, the insert commits on its own.
+   * A key inserted by another still-open transaction is never inserted twice: wait for it or reject.
    */
   enqueueWithReceipt(required: { intent: EnqueueIntent<E> }, optional?: { transaction?: Tx }): Promise<EnqueueReceipt>;
 }

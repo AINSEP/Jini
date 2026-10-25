@@ -4,7 +4,7 @@ import type { Empty, EnqueueIntent, Fence, FencedClaim, FencedEnqueuePort, Fence
 /** One open host transaction the suite enqueues into, next to a host intent write. */
 export interface FencedConformanceTransaction<Tx> {
   transaction: Tx;
-  /** Write the host's own intent record inside this transaction. */
+  /** Write the host's own intent record inside this transaction; a failed commit must undo it. */
   recordIntent(required: { key: string }): Promise<void>;
   commit(): Promise<void>;
   rollback(): Promise<void>;
@@ -13,6 +13,8 @@ export interface FencedConformanceTransaction<Tx> {
 export interface FencedConformanceSubject<E, Tx> {
   outbox: FencedOutboxPort<E> & FencedEnqueuePort<E, Tx>;
   event: E;
+  /** A second event, deep-unequal to `event`, that a conflicting enqueue carries. */
+  conflictingEvent: E;
   begin(): Promise<FencedConformanceTransaction<Tx>>;
   /** Whether a committed host intent record exists. */
   hasIntent(required: { key: string }): Promise<boolean>;
@@ -28,6 +30,8 @@ const fence = (claim: FencedClaim<unknown>, ms: number): Fence => ({ id: claim.i
 type Subject = FencedConformanceSubject<unknown, unknown>;
 const intent = (subject: Subject, overrides: Partial<EnqueueIntent<unknown>> = {}): EnqueueIntent<unknown> =>
   ({ event: subject.event, scope: SCOPE, idempotencyKey: 'key-1', requestDigest: 'digest-1', ...overrides });
+const CONFLICT = { status: 'conflict', reason: 'request-digest-mismatch' } as const;
+const conflicting = (subject: Subject) => intent(subject, { event: subject.conflictingEvent, requestDigest: 'digest-2' });
 const claim = (subject: Subject, ms = 0) => subject.outbox.claimReady({ scope: SCOPE, batchSize: 10, nowIso: at(ms), claimLeaseMs: LEASE_MS });
 
 /** Enqueue, claim and pass the dispatch fence: the row is now `dispatching` with a lease ending at LEASE_MS. */
@@ -52,10 +56,29 @@ const CASES: Record<string, (subject: Subject) => Promise<void>> = {
     assert.equal((await claim(subject)).length, 1);
   },
   'a different digest conflicts and preserves the original row': async (subject) => {
+    assert.notDeepEqual(subject.conflictingEvent, subject.event, 'conflictingEvent must differ from event');
     await subject.outbox.enqueueWithReceipt({ intent: intent(subject) });
-    assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: intent(subject, { requestDigest: 'digest-2' }) }),
-      { status: 'conflict', reason: 'request-digest-mismatch' });
-    assert.equal((await claim(subject)).length, 1);
+    assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: conflicting(subject) }), CONFLICT);
+    assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: intent(subject) }), { status: 'existing' });
+    assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: conflicting(subject) }), CONFLICT);
+    const rows = await claim(subject);
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0]!.event, subject.event);
+  },
+  'overlapping transactions never both insert one key': async (subject) => {
+    const first = await subject.begin();
+    const second = await subject.begin();
+    assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: intent(subject) }, { transaction: first.transaction }), { status: 'inserted' });
+    // A real database may block this insert until `first` settles, so it is awaited only after that commit.
+    const racing = subject.outbox.enqueueWithReceipt({ intent: conflicting(subject) }, { transaction: second.transaction })
+      .then(receipt => receipt, () => undefined);
+    await first.commit();
+    const receipt = await racing;
+    if (receipt === undefined) await second.rollback();
+    else { assert.deepEqual(receipt, CONFLICT); await second.commit(); }
+    const rows = await claim(subject);
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0]!.event, subject.event);
   },
   'enqueue joins the caller transaction and commits only with it': async (subject) => {
     const host = await subject.begin();
@@ -75,15 +98,20 @@ const CASES: Record<string, (subject: Subject) => Promise<void>> = {
     assert.equal((await claim(subject)).length, 0);
     assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: intent(subject) }), { status: 'inserted' });
   },
-  'fencing: claim, beginDispatch, complete; stale tokens and repeats are refused': async (subject) => {
+  'fencing: claim, beginDispatch, complete; stale tokens, other scopes, expired leases and repeats are refused': async (subject) => {
     await subject.outbox.enqueueWithReceipt({ intent: intent(subject) });
     const [row] = await claim(subject);
     assert.equal(row!.attempts, 1);
+    const delivered = { status: 'delivered' } as const;
     assert.equal(await subject.outbox.beginDispatch({ ...fence(row!, 0), claimToken: 'stale' }), false);
-    assert.equal(await subject.outbox.beginDispatch(fence(row!, 0)), true);
+    assert.equal(await subject.outbox.beginDispatch({ ...fence(row!, 0), scope: 'other' }), false);
+    assert.equal(await subject.outbox.beginDispatch(fence(row!, LEASE_MS)), false, 'a lease ending now is expired');
+    assert.equal(await subject.outbox.beginDispatch(fence(row!, LEASE_MS - 1)), true);
     assert.equal(await subject.outbox.beginDispatch(fence(row!, 0)), false);
-    assert.equal(await subject.outbox.complete({ ...fence(row!, 0), claimToken: 'stale', completion: { status: 'delivered' } }), false);
-    assert.equal(await subject.outbox.complete({ ...fence(row!, 0), completion: { status: 'delivered' } }), true);
+    assert.equal(await subject.outbox.complete({ ...fence(row!, 0), claimToken: 'stale', completion: delivered }), false);
+    assert.equal(await subject.outbox.complete({ ...fence(row!, 0), scope: 'other', completion: delivered }), false);
+    assert.equal(await subject.outbox.complete({ ...fence(row!, LEASE_MS), completion: delivered }), false);
+    assert.equal(await subject.outbox.complete({ ...fence(row!, LEASE_MS - 1), completion: delivered }), true);
     assert.equal(await subject.outbox.complete({ ...fence(row!, 0), completion: { status: 'delivered' } }), false);
     assert.equal((await claim(subject, LEASE_MS * 2)).length, 0);
   },
