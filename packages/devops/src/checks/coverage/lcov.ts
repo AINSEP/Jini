@@ -42,7 +42,8 @@ export function isMeasurableSourceFile({ file, rules }: { file: string; rules: S
   if (!rules.sourceExtensions.some((extension) => normalized.endsWith(extension))) return false;
   const parts = normalized.split('/');
   if (parts.some((part) => rules.excludedDirectories.includes(part))) return false;
-  if (rules.excludedBasenames.includes(parts.at(-1) ?? '')) return false;
+  // `split` always yields at least one element, so the basename is always defined.
+  if (rules.excludedBasenames.includes(parts.at(-1)!)) return false;
   // Do not mutate a host's global/sticky regex or inherit its lastIndex.
   return !new RegExp(rules.testPattern.source, rules.testPattern.flags.replace(/[gy]/g, '')).test(normalized);
 }

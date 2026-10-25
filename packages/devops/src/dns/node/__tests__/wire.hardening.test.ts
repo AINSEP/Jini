@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeNsReply, encodeNsQuery } from '../wire.js';
-import { DNS_NAME, dnsReply, nsRecord } from './wire-fixtures.js';
+import { DNS_NAME, dnsReply, nsRecord, type FixtureRecord } from './wire-fixtures.js';
 
 /** L9 §8.8: label-length boundary (bytes, not chars), compression pointers (target, loop, chained),
  *  truncation, and header flag decoding — each malformed message refused with its exact reason. */
@@ -18,7 +18,7 @@ describe('encodeNsQuery', () => {
 });
 
 describe('decodeNsReply hardening', () => {
-  const reply = (answers: Parameters<typeof dnsReply>[0]['answers'], extra: Partial<Parameters<typeof dnsReply>[0]> = {}) =>
+  const reply = (answers: FixtureRecord[], extra: Partial<Parameters<typeof dnsReply>[0]> = {}) =>
     dnsReply({ id: 7, question: 'example.com', answers, ...extra });
 
   it('a 63-byte label in a record decodes; a 64-byte label length is a malformed name', () => {
@@ -58,7 +58,7 @@ describe('decodeNsReply hardening', () => {
 
   it('decodes id, rcode (low 4 bits only) and the TC flag', () => {
     const message = reply([], { rcode: 3, truncated: true });
-    message[2] |= 0x04; // AA bit must not leak into rcode
+    message[2] = (message[2] ?? 0) | 0x04; // AA bit must not leak into rcode
     expect(decodeNsReply({ message, name: 'example.com' })).toEqual({ id: 7, rcode: 3, truncated: true, nameservers: [] });
     expect(decodeNsReply({ message: reply([]), name: 'example.com' })).toMatchObject({ rcode: 0, truncated: false });
   });
