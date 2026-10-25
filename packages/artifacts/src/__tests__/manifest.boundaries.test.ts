@@ -5,7 +5,7 @@
  * Stryker survivors at manifest.ts:81, 83, 94, 101, 105, 109.
  */
 import { describe, expect, test } from 'vitest';
-import { validateArtifactManifestInput, type ArtifactManifestTaxonomy } from '../manifest.js';
+import { parsePersistedManifest, validateArtifactManifestInput, type ArtifactManifestTaxonomy } from '../manifest.js';
 
 const taxonomy: ArtifactManifestTaxonomy = { allowedKinds: new Set(['html']), allowedRenderers: new Set(['html']), allowedExports: new Set(['html']) };
 const base = { kind: 'html', renderer: 'html', exports: ['html'] };
@@ -62,4 +62,31 @@ describe('supporting paths', () => {
     expect(error({ ...base, supportingFiles: [''] })).toBe('supportingFiles entries cannot be empty');
     expect(error({ ...base, supportingFiles: [7] })).toBe('supportingFiles entries must be strings');
   });
+});
+
+// F5 re-score survivors (manifest.ts:231, 345-347): persisted-manifest version/entry rules and the
+// exact metadata size limit.
+describe('parsePersistedManifest', () => {
+  const persisted = (patch: Record<string, unknown>) => JSON.stringify({ version: 1, ...base, createdAt: 'C', updatedAt: 'U', ...patch });
+  const parse = (raw: string) => parsePersistedManifest({ raw, fallbackEntry: 'fallback.html', taxonomy });
+
+  test('its own entry wins; a missing, empty or non-string entry falls back', () => {
+    expect(parse(persisted({ entry: 'own.html' }))?.entry).toBe('own.html');
+    for (const entry of [undefined, '', 7]) expect(parse(persisted({ entry }))?.entry).toBe('fallback.html');
+  });
+
+  test('the original updatedAt is preserved', () => {
+    expect(parse(persisted({ entry: 'own.html' }))).toMatchObject({ createdAt: 'C', updatedAt: 'U' });
+  });
+
+  test.each([['wrong version', persisted({ version: 2 })], ['no version', JSON.stringify(base)], ['an array', '[]'], ['null', 'null'], ['not JSON', '{']])('%s is null', (_name, raw) => {
+    expect(parse(raw)).toBeNull();
+  });
+});
+
+test('metadata of exactly 16 KiB of JSON is accepted; one byte more is refused', () => {
+  const metadata = (length: number) => ({ k: 'x'.repeat(length) });
+  const overhead = JSON.stringify(metadata(0)).length;
+  expect(error({ ...base, metadata: metadata(16 * 1024 - overhead) })).toBeNull();
+  expect(error({ ...base, metadata: metadata(16 * 1024 - overhead + 1) })).toBe('artifactManifest.metadata exceeds max size (16384 bytes)');
 });
