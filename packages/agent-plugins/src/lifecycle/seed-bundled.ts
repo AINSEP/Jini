@@ -84,6 +84,7 @@ import path from "node:path";
 import { createActivationModule } from "./activation.js";
 import { createBundledDigestsModule } from "./bundled-digests.js";
 import { createBundledSourceArchiveModule } from "./bundled-source-archive.js";
+import type { PackAgentPluginDirectoryOptional } from "./bundled-source-archive.js";
 import { createInstallModule } from "./install.js";
 import type { AgentPluginLayout } from "./layout.js";
 import type {  RetiredAgentPluginOutcome } from "./retire-bundled.js";
@@ -102,6 +103,16 @@ export type SeededAgentPluginOutcome =
   readonly activationRecorded: boolean;
     }
   | { readonly pluginId: string; readonly status: "failed"; readonly reason: string };
+
+/** Host packing policy resolved independently for each source; failures use the existing seed report. */
+export type PackingForSource = (
+  required: { sourceDir: string; dirName: string },
+  optional?: Record<string, never>,
+) => PackAgentPluginDirectoryOptional | Promise<PackAgentPluginDirectoryOptional>;
+
+export interface SeedBundledAgentPluginsOptional {
+  readonly packing?: PackAgentPluginDirectoryOptional | PackingForSource;
+}
 
 export interface SeedBundledAgentPluginsResult {
   /** Directory holding one subdirectory per bundled plugin. `deps.ts`'s `bundledAgentPluginsDir()`
@@ -169,6 +180,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // rather than remove it in favour of a switch with no code behind it (its header, step 1a).
   async function seedBundledAgentPlugins(
     required: SeedBundledAgentPluginsRequired,
+    optional: SeedBundledAgentPluginsOptional = {},
   ): Promise<SeedBundledAgentPluginsResult> {
     const { layout, workspaceId, sourceRoot } = required;
 
@@ -194,7 +206,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
     const outcomes: SeededAgentPluginOutcome[] = [];
     for (const dirName of pluginDirNames) {
-      outcomes.push(await seedOne({ layout, workspaceId, sourceDir: path.join(sourceRoot, dirName), dirName }));
+      outcomes.push(await seedOne({ layout, workspaceId, sourceDir: path.join(sourceRoot, dirName), dirName }, optional));
     }
 
     const ledgerFailure = await recordSeededDigests(layout.forWorkspace({ workspaceId }).root, outcomes);
@@ -248,13 +260,15 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     readonly workspaceId: string;
     readonly sourceDir: string;
     readonly dirName: string;
-  }): Promise<SeededAgentPluginOutcome> {
+  }, optional: SeedBundledAgentPluginsOptional = {}): Promise<SeededAgentPluginOutcome> {
     try {
-      const packed = await packAgentPluginDirectory(args.sourceDir);
+      const packing = typeof optional.packing === 'function'
+        ? await optional.packing({ sourceDir: args.sourceDir, dirName: args.dirName }, {}) : optional.packing;
+      const packed = await packAgentPluginDirectory(args.sourceDir, packing);
       const installed = await installAgentPlugin({
         archive: packed.bytes,
         expectedSha256: packed.sha256,
-        archiveReader: createBundledSourceArchiveReader(),
+        archiveReader: packed.archiveReader ?? createBundledSourceArchiveReader(),
         layout: args.layout,
         workspaceId: args.workspaceId,
       });

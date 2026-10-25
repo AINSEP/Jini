@@ -42,19 +42,55 @@
  *  comes from here. */
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createHash } from "node:crypto";
+import { constants } from "node:fs";
 import path from "node:path";
+import { createPackagePathsModule } from "./package-paths.js";
 import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "./install.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 
 export interface PackedAgentPluginArchive {
+  /** Bundled archive bytes, or a 32-byte canonical token requiring the paired archiveReader. */
   readonly bytes: Uint8Array;
 
   /** Lowercase hex SHA-256 of {@link bytes} — passed straight to `installAgentPlugin`'s
    *  `expectedSha256`, which recomputes and compares it rather than trusting it. */
   readonly sha256: string;
 
-  /** Package-relative POSIX paths included, sorted — the same order they appear in `bytes`. */
+  /** Package-relative POSIX paths included, sorted — the bundled-v1 encoding uses this order. */
   readonly files: readonly string[];
+  /** Paired snapshot reader for canonical-files-v1 tokens; absent for bundled-v1. */
+  readonly archiveReader?: AgentPluginArchiveReaderPort;
+}
+
+/** Opt-in source selection, resource bounds and archive identity. Omission preserves bundled-v1. */
+export interface PackAgentPluginDirectoryOptional {
+  /** Exact package-relative files or directory subtrees. Empty selects nothing; exclusions win. */
+  readonly allowPaths?: readonly string[];
+  /** Entry basenames excluded at every depth, before entering directories. */
+  readonly excludeNames?: readonly string[];
+  /** Nonnegative safe integers; root depth is zero. Supplied bounds fail rather than truncate. */
+  readonly limits?: {
+    readonly maxEntries: number;
+    readonly maxDepth: number;
+    readonly maxFiles: number;
+    readonly maxFileBytes: number;
+    readonly maxTotalBytes: number;
+    readonly maxArchiveBytes: number;
+  };
+  readonly symlinkPolicy?: 'skip' | 'reject';
+  readonly specialFilePolicy?: 'skip' | 'reject';
+  /** canonical-files-v1 returns a digest token and a reader bound to the captured source snapshot. */
+  readonly digestEncoding?: 'bundled-v1' | 'canonical-files-v1';
+}
+
+interface PackingState {
+  readonly options: PackAgentPluginDirectoryOptional;
+  readonly allowPaths: readonly string[] | undefined;
+  readonly excluded: ReadonlySet<string>;
+  readonly files: Set<string>;
+  entries: number;
+  totalBytes: number;
+  archiveBytes: number;
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
@@ -63,23 +99,28 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const MAGIC = ports.bundledArchiveMagic;
 
   const MAX_SOURCE_FILES = 2048;
+  const { normalizePackageEntryPath } = createPackagePathsModule(ports);
 
   /**
  * Serialises runtime regular files under `sourceDir` into one deterministic archive.
  *
- * Symlinks and any other non-regular entry are skipped rather than followed: a bundled package is
+ * By default, symlinks and any other non-regular entry are skipped rather than followed: a bundled package is
  * this repository's own tracked content, so a symlink in it would be a mistake, and following one
  * is the exact vector `install.ts` refuses on the extraction side. Skipping keeps the two sides
  * agreeing instead of producing an archive the installer would then reject.
+ * Optional policies can reject these entries; supplied limits bound traversal and handle reads.
  *
  * @throws {Error} If the tree holds more than {@link MAX_SOURCE_FILES} files.
  * @throws Propagates `readdir`/`readFile` errors — a bundled package that cannot be read is a build
  * defect, not a runtime condition to degrade around.
- * @complexity O(f) files, O(b) total bytes; both bounded by the cap above and by `install.ts`'s own
- * `LIMITS` on the extraction side.
+ * @complexity O(f log f + b) for sorting f selected files and reading b bytes, plus traversal.
+ * Supplied limits bound source I/O; `install.ts` independently retains its extraction ceilings.
  */
-  async function packAgentPluginDirectory(sourceDir: string): Promise<PackedAgentPluginArchive> {
-    const relativePaths = (await listRegularFiles(sourceDir, "")).sort();
+  async function packAgentPluginDirectory(sourceDir: string, options: PackAgentPluginDirectoryOptional = {}): Promise<PackedAgentPluginArchive> {
+    const state = createPackingState({ options });
+    assertPackingLimit({ state, name: 'maxArchiveBytes', value: state.archiveBytes });
+    const rootSelected = Object.keys(options).length === 0 || await isTraversableRoot({ sourceDir, state });
+    const relativePaths = rootSelected ? (await listRegularFiles({ dir: sourceDir, prefix: '', depth: 0, state })).sort() : [];
     if (relativePaths.length > MAX_SOURCE_FILES) {
       throw new Error(
         `bundled agent plugin at '${sourceDir}' has ${relativePaths.length} files, over the ${MAX_SOURCE_FILES}-file cap — is this the right directory?`,
@@ -87,17 +128,119 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     }
 
     const chunks: Buffer[] = [Buffer.from(MAGIC, "utf8")];
+    const snapshot: { entryPath: string; content: Buffer }[] = [];
+    const canonical = options.digestEncoding === 'canonical-files-v1';
+    const digest = createHash('sha256');
     for (const relativePath of relativePaths) {
-      const content = await readFile(path.join(sourceDir, relativePath));
+      const content = options.limits
+        ? await readBoundedFile({ sourceDir, relativePath, state })
+        : await readFile(path.join(sourceDir, relativePath));
       const pathBytes = Buffer.from(relativePath, "utf8");
-      chunks.push(Buffer.from(`F ${pathBytes.byteLength} ${content.byteLength}\n`, "utf8"), pathBytes, content);
+      if (canonical) {
+        digest.update(JSON.stringify([relativePath, content.byteLength]), 'utf8').update(content);
+        snapshot.push({ entryPath: relativePath, content });
+      } else {
+        chunks.push(Buffer.from(`F ${pathBytes.byteLength} ${content.byteLength}\n`, "utf8"), pathBytes, content);
+      }
+      state.totalBytes += content.byteLength;
+      if (!canonical) state.archiveBytes += encodedFileBytes({ relativePath, fileBytes: content.byteLength });
     }
 
-    const bytes = Buffer.concat(chunks);
+    const bytes = canonical ? digest.digest() : Buffer.concat(chunks);
     return {
       bytes: new Uint8Array(bytes),
       sha256: createHash("sha256").update(bytes).digest("hex"),
       files: relativePaths,
+      ...(canonical ? { archiveReader: createSnapshotReader({ token: bytes, snapshot }) } : {}),
+    };
+  }
+
+  /** Validate caller bounds before I/O and normalize selection through the package path owner. */
+  function createPackingState({ options }: { options: PackAgentPluginDirectoryOptional }, _optional: Record<string, never> = {}): PackingState {
+    if (options.limits) {
+      for (const name of ['maxEntries', 'maxDepth', 'maxFiles', 'maxFileBytes', 'maxTotalBytes', 'maxArchiveBytes'] as const) {
+        const value = options.limits[name];
+        if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Invalid packing limit ${name}`);
+      }
+    }
+    return {
+      options,
+      allowPaths: options.allowPaths?.map(value => normalizePackageEntryPath(value)),
+      excluded: new Set(options.excludeNames ?? []),
+      files: new Set(), entries: 0, totalBytes: 0,
+      archiveBytes: options.digestEncoding === 'canonical-files-v1' ? 32 : Buffer.byteLength(MAGIC),
+    };
+  }
+
+  /** The opt-in walk never follows a source root link, matching its descendant policy. */
+  async function isTraversableRoot({ sourceDir, state }: { sourceDir: string; state: PackingState }, _optional: Record<string, never> = {}): Promise<boolean> {
+    const stat = await ports.filesystem.lstat(sourceDir);
+    if (stat.isDirectory()) return true;
+    refuseEntry({ state, entryPath: sourceDir, symlink: stat.isSymbolicLink() });
+    return false;
+  }
+
+  function assertPackingLimit({ state, name, value }: {
+    state: PackingState; name: keyof NonNullable<PackAgentPluginDirectoryOptional['limits']>; value: number;
+  }, _optional: Record<string, never> = {}): void {
+    const limit = state.options.limits?.[name];
+    if (limit !== undefined && value > limit) throw new Error(`bundled agent plugin exceeds packing ${name} (${limit})`);
+  }
+
+  function encodedFileBytes({ relativePath, fileBytes }: { relativePath: string; fileBytes: number }, _optional: Record<string, never> = {}): number {
+    const pathBytes = Buffer.byteLength(relativePath);
+    return Buffer.byteLength(`F ${pathBytes} ${fileBytes}\n`) + pathBytes + fileBytes;
+  }
+
+  /** Check actual read bytes before retaining a chunk, including the bundled header/path overhead. */
+  function checkFileBudget({ state, relativePath, fileBytes }: { state: PackingState; relativePath: string; fileBytes: number }, _optional: Record<string, never> = {}): void {
+    assertPackingLimit({ state, name: 'maxFileBytes', value: fileBytes });
+    assertPackingLimit({ state, name: 'maxTotalBytes', value: state.totalBytes + fileBytes });
+    const archiveBytes = state.options.digestEncoding === 'canonical-files-v1'
+      ? state.archiveBytes : state.archiveBytes + encodedFileBytes({ relativePath, fileBytes });
+    assertPackingLimit({ state, name: 'maxArchiveBytes', value: archiveBytes });
+  }
+
+  /** Bounded handle reads also detect growing files; every success/failure closes the handle.
+   * @throws Propagates filesystem failures and rejects a changed file kind or any exceeded cap.
+   * @complexity O(b) bytes read, O(b) captured bytes within the supplied file/total/archive caps. */
+  async function readBoundedFile({ sourceDir, relativePath, state }: {
+    sourceDir: string; relativePath: string; state: PackingState;
+  }, _optional: Record<string, never> = {}): Promise<Buffer> {
+    const handle = await ports.filesystem.open(path.join(sourceDir, relativePath), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    try {
+      const stat = await handle.stat();
+      if (!stat.isFile()) throw new Error(`bundled agent plugin source is no longer a regular file: '${relativePath}'`);
+      checkFileBudget({ state, relativePath, fileBytes: stat.size });
+      const chunks: Buffer[] = [];
+      let fileBytes = 0;
+      for (;;) {
+        const limits = state.options.limits!;
+        const remaining = Math.min(limits.maxFileBytes - fileBytes, limits.maxTotalBytes - state.totalBytes - fileBytes);
+        const buffer = Buffer.alloc(Math.min(64 * 1024, remaining + 1));
+        const { bytesRead } = await handle.read(buffer, 0, buffer.byteLength, null);
+        if (bytesRead === 0) return Buffer.concat(chunks, fileBytes);
+        fileBytes += bytesRead;
+        checkFileBudget({ state, relativePath, fileBytes });
+        chunks.push(buffer.subarray(0, bytesRead));
+      }
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /** A token identifies only this snapshot. Copy yielded bytes so a reader cannot mutate later reads. */
+  function createSnapshotReader({ token, snapshot }: {
+    token: Buffer; snapshot: readonly { entryPath: string; content: Buffer }[];
+  }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort {
+    return {
+      async *entries({ archive }) {
+        if (!token.equals(archive)) throw new Error('bundled agent plugin archive: snapshot token mismatch');
+        for (const { entryPath, content } of snapshot) {
+          yield { kind: 'file', entryPath, declaredSize: content.byteLength,
+            openReadStream: () => onceAsyncIterable(new Uint8Array(content)) };
+        }
+      },
     };
   }
 
@@ -167,22 +310,49 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * Test directories and test/spec files are excluded so test-only edits cannot change installed
  * runtime contents or their content-addressed digest.
  *
- * @complexity O(f) in filesystem entries under `dir`.
+ * @complexity O(e * a) selection checks for e enumerated entries and a allowlist paths (one when omitted).
  */
-  async function listRegularFiles(dir: string, prefix: string): Promise<string[]> {
+  async function listRegularFiles({ dir, prefix, depth, state }: {
+    dir: string; prefix: string; depth: number; state: PackingState;
+  }, _optional: Record<string, never> = {}): Promise<string[]> {
     const entries = await readdir(dir, { withFileTypes: true });
+    state.entries += entries.length;
+    assertPackingLimit({ state, name: 'maxEntries', value: state.entries });
     const files: string[] = [];
     for (const entry of entries) {
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (state.excluded.has(entry.name)) continue;
+      if (!selectPath({ relative, directory: entry.isDirectory(), state })) continue;
       if (entry.isDirectory()) {
-        if (entry.name === "__tests__") continue;
-        files.push(...(await listRegularFiles(path.join(dir, entry.name), relative)));
+        if (entry.name === '__tests__') continue;
+        assertPackingLimit({ state, name: 'maxDepth', value: depth + 1 });
+        files.push(...(await listRegularFiles({ dir: path.join(dir, entry.name), prefix: relative, depth: depth + 1, state })));
       } else if (entry.isFile() && !/\.(test|spec)\./.test(entry.name)) {
+        recordFile({ relative, state });
         files.push(relative);
+      } else if (!entry.isFile()) {
+        refuseEntry({ state, entryPath: relative, symlink: entry.isSymbolicLink() });
       }
-      // Symlinks and everything else: skipped. See this function's own doc.
+      // Symlinks and everything else: skipped by default. See this function's own doc.
     }
     return files;
+  }
+
+  function recordFile({ relative, state }: { relative: string; state: PackingState }, _optional: Record<string, never> = {}): void {
+    state.files.add(relative);
+    assertPackingLimit({ state, name: 'maxFiles', value: state.files.size });
+    if (state.options.limits && state.files.size > MAX_SOURCE_FILES) throw new Error(`bundled agent plugin exceeds the ${MAX_SOURCE_FILES}-file cap`);
+  }
+
+  /** Ancestors of an allowed path must be traversed, but their unrelated siblings are pruned. */
+  function selectPath({ relative, directory, state }: { relative: string; directory: boolean; state: PackingState }, _optional: Record<string, never> = {}): boolean {
+    return state.allowPaths === undefined || state.allowPaths.some(allowed =>
+      relative === allowed || relative.startsWith(`${allowed}/`) || (directory && allowed.startsWith(`${relative}/`)));
+  }
+
+  function refuseEntry({ state, entryPath, symlink }: { state: PackingState; entryPath: string; symlink: boolean }, _optional: Record<string, never> = {}): void {
+    const policy = symlink ? state.options.symlinkPolicy : state.options.specialFilePolicy;
+    if (policy === 'reject') throw new Error(`bundled agent plugin refuses ${symlink ? 'symlink' : 'special file'} '${entryPath}'`);
   }
 
   return { packAgentPluginDirectory, createBundledSourceArchiveReader };

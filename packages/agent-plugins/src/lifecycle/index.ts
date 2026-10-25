@@ -12,6 +12,7 @@ import { createRetireBundledModule } from './retire-bundled.js';
 import { createActivationModule } from './activation.js';
 import { createBundledDigestsModule } from './bundled-digests.js';
 import { createBundledSourceArchiveModule } from './bundled-source-archive.js';
+import type { PackAgentPluginDirectoryOptional } from './bundled-source-archive.js';
 import { createCapabilityProjectionModule } from './capability-projection.js';
 import { createInstallModule } from './install.js';
 import { createInstallFromUrlModule } from './install-from-url.js';
@@ -26,7 +27,7 @@ import type { AgentPluginLifecyclePorts, AgentPluginLifecycleRequired, AgentPlug
 import type { AgentPluginDeliveryMode } from './resolve-agent-plugin-refs.js';
 import type { InstalledDigestIdentity } from './bundled-digests.js';
 
-export type { SeededAgentPluginOutcome, SeedBundledAgentPluginsRequired, SeedBundledAgentPluginsResult } from './seed-bundled.js';
+export type { SeededAgentPluginOutcome, SeedBundledAgentPluginsRequired, SeedBundledAgentPluginsOptional, SeedBundledAgentPluginsResult, PackingForSource } from './seed-bundled.js';
 export type { RetireBundledAgentPluginsRequired, RetireBundledAgentPluginsOptional, RetiredAgentPluginOutcome, RetiredAgentPluginSuccessorOutcome } from './retire-bundled.js';
 export * from './ports.js';
 export { createSkillFileReader } from './skill-file-reader.js';
@@ -45,7 +46,7 @@ export { AgentPluginNotInstalledError } from './set-enabled.js';
 export { AgentPluginNotFoundError, AgentPluginNotUninstallableError, AgentPluginChangedSincePreviewError } from './uninstall.js';
 export type { AgentPluginOrigin, AgentPluginActivationRecord, AgentPluginActivations, AgentPluginActivationVerdict, SetAgentPluginActivationRequired, SetAgentPluginActivationOptional, BundledAgentPluginEnableOutcome, DeleteAgentPluginActivationRequired } from './activation.js';
 export type { BundledAgentPluginDigests, SeededBundledAgentPluginDigest, InstalledDigestIdentity } from './bundled-digests.js';
-export type { PackedAgentPluginArchive } from './bundled-source-archive.js';
+export type { PackedAgentPluginArchive, PackAgentPluginDirectoryOptional } from './bundled-source-archive.js';
 export type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort, AgentPluginArchiveReaderPort as ArchiveReaderPort, AgentPluginInstallErrorCode, InstalledAgentPluginSkill, InstalledAgentPlugin, InstallAgentPluginRequired, InstallAgentPluginOptional } from './install.js';
 export type { AgentPluginIntegrity, InstallAgentPluginFromUrlRequired, InstallAgentPluginFromUrlOptional, InstalledAgentPluginFromUrl } from './install-from-url.js';
 export type { AgentPluginDeliveryMode, AgentPluginSkillRequest, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
@@ -133,7 +134,7 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     importContainedModule: (input: { readonly plugin: Parameters<typeof trusted.importContainedModule>[0]; readonly modulePath: string }) => trusted.importContainedModule(input.plugin, input.modulePath),
     maxAgentPluginInstallArchiveBytes: (_input: Record<string, never>) => install.maxAgentPluginInstallArchiveBytes(),
     indexInstalledRoot: (input: { readonly packageRoot: string; readonly archiveDigest: string }) => install.indexInstalledRoot(input.packageRoot, input.archiveDigest),
-    packAgentPluginDirectory: (input: { readonly sourceDir: string }) => archive.packAgentPluginDirectory(input.sourceDir),
+    packAgentPluginDirectory: (input: { readonly sourceDir: string }, optional: PackAgentPluginDirectoryOptional = {}) => archive.packAgentPluginDirectory(input.sourceDir, optional),
     createBundledSourceArchiveReader: (_input: Record<string, never>) => archive.createBundledSourceArchiveReader(),
   };
 }
