@@ -344,13 +344,23 @@ function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: r
   return out;
 }
 
-// Exact secrets shorter than this match only as whole tokens. As substrings they split credential
-// labels before the label rules run (`a` inside `password=hunter2` broke the label and left
-// `hunter2` visible), and they split earlier markers (`a` inside `exact_secret`).
-const SHORT_EXACT_SECRET_LENGTH = 8;
+// Exact secrets match as substrings at any length (a secret glued into other text stays masked),
+// but never where they overlap a span the later rules depend on: a credential label in label
+// position, a secret-named URL parameter, a URL scheme, or a complete marker. As plain substrings
+// they split labels before the label rules ran (`a` inside `password=hunter2` broke the label
+// and left `hunter2` visible; `api_key` swallowed the whole `api_key=` label), and they split
+// earlier markers (`a` inside `exact_secret`, `email` inside `[REDACTED:email]`).
+const PROTECTED_SPAN_RE = new RegExp([
+  `\\b(?:${SECRET_LABELS})\\b\\s*[:=]`,
+  '\\bbearer\\s+',
+  URL_SECRET_PARAM_RE.source.slice(0, URL_SECRET_PARAM_RE.source.lastIndexOf('=') + 1),
+  URL_CREDENTIALS_RE.source.slice(0, URL_CREDENTIALS_RE.source.indexOf(')') + 1),
+  '\\[REDACTED:[^\\]]*\\]',
+  '\\[redacted\\]',
+].join('|'), 'gi');
 
 /** Masks caller-supplied secrets verbatim, longest first, ignoring empty and non-string entries;
- * short secrets only where no word character or hyphen touches them. */
+ * an occurrence overlapping a protected span is left for the label rules. */
 function redactExactSecrets(
   { text, marker, secrets }: RedactionPass & { secrets: ReadonlyArray<string | undefined | null> },
 ): string {
@@ -360,8 +370,10 @@ function redactExactSecrets(
   let out = text;
   for (const secret of usable) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const source = secret.length < SHORT_EXACT_SECRET_LENGTH ? `(?<![\\w-])${escaped}(?![\\w-])` : escaped;
-    out = out.replace(new RegExp(source, 'g'), () => marker('exact_secret'));
+    // Recomputed per secret: a longer secret's marker is protected from the shorter ones.
+    const spans = [...out.matchAll(PROTECTED_SPAN_RE)].map(({ index, 0: span }) => ({ start: index, end: index + span.length }));
+    out = out.replace(new RegExp(escaped, 'g'), (match, offset: number) =>
+      spans.some(({ start, end }) => offset < end && offset + match.length > start) ? match : marker('exact_secret'));
   }
   return out;
 }
