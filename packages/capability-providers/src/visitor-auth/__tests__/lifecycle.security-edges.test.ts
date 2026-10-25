@@ -275,3 +275,46 @@ describe('validateVisitorAuthIdentityClaims limits', () => {
     });
   });
 });
+
+describe('security-artifact formats and TTL bounds', () => {
+  const planWithSecurity = (override: Partial<typeof security>, ttlMs?: number) =>
+    planVisitorAuthAuthorization(
+      { provider: GOOGLE_VISITOR_AUTH_PROVIDER, server, registration: { tenantId: 'tenant-1', providerId: 'google', clientId: 'client-1' }, redirectUri: 'https://app.example.test/cb', flowBinding: 'browser-1', security: { ...security, ...override }, nowMs },
+      ttlMs === undefined ? {} : { ttlMs },
+    );
+  const invalid = expect.objectContaining({ code: 'invalid-input' });
+
+  it.each([
+    ['state with a leading junk char', { state: `!${'s'.repeat(32)}` }],
+    ['state with a trailing junk char', { state: `${'s'.repeat(32)}!` }],
+    ['state with a trailing newline', { state: `${'s'.repeat(32)}\n` }],
+    ['verifier with leading junk', { codeVerifier: `!${'v'.repeat(43)}` }],
+    ['verifier with trailing junk', { codeVerifier: `${'v'.repeat(43)}!` }],
+    ['challenge with trailing junk', { codeChallenge: `${'c'.repeat(43)}=` }],
+    ['nonce with trailing junk', { nonce: `${'n'.repeat(32)}!` }],
+    ['state of 513 chars', { state: 's'.repeat(513) }],
+    ['verifier of 129 chars', { codeVerifier: 'v'.repeat(129) }],
+  ])('%s is refused', (_label, override) => {
+    expect(() => planWithSecurity(override)).toThrowError(invalid);
+  });
+
+  it.each([
+    ['state of 512 chars', { state: 's'.repeat(512) }],
+    ['verifier of 128 chars', { codeVerifier: 'v'.repeat(128) }],
+    ['every allowed character class', { state: 'Az09._~-'.repeat(4) }],
+  ] as [string, Partial<typeof security>][])('%s is accepted', (_label, override) => {
+    expect(planWithSecurity(override).transaction).toMatchObject({ state: override.state ?? security.state, codeVerifier: override.codeVerifier ?? security.codeVerifier });
+  });
+
+  it('a TTL of exactly 15 minutes is accepted and sets expiresAtMs; one ms more is refused', () => {
+    expect(planWithSecurity({}, 15 * 60 * 1000).transaction.expiresAtMs).toBe(nowMs + 15 * 60 * 1000);
+    expect(planWithSecurity({}, 1).transaction.expiresAtMs).toBe(nowMs + 1);
+    expect(() => planWithSecurity({}, 15 * 60 * 1000 + 1)).toThrowError(invalid);
+  });
+
+  it('an accepted identity without email claims carries no email/emailVerified keys at all', () => {
+    const transaction = planWithSecurity({}).transaction;
+    const result = validateVisitorAuthIdentityClaims({ transaction, claims: { issuer: ISSUER, subject: 's', audience: 'client-1', expiresAtSeconds: nowSeconds + 60, nonce: security.nonce }, nowSeconds });
+    expect(result).toStrictEqual({ decision: 'accept', identity: { providerId: 'google', subject: 's' } });
+  });
+});

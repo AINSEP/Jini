@@ -196,4 +196,63 @@ describe('JwtAuthProvider', () => {
     }
     expect(seenResidues.size).toBeGreaterThan(1);
   });
+
+  describe('claim shape, header, timing and ids (Stryker L6 survivors)', () => {
+    const secret = 's3cr3t';
+    const decode = (part: string) => JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
+
+    it.each([
+      ['non-JSON payload', 'not json'],
+      ['JSON null', 'null'],
+      ['JSON number', '7'],
+      ['missing sub', JSON.stringify({ jti: 'j', exp: 4_102_444_800 })],
+      ['numeric sub', JSON.stringify({ sub: 1, jti: 'j', exp: 4_102_444_800 })],
+      ['missing jti', JSON.stringify({ sub: 'user-1', exp: 4_102_444_800 })],
+      ['numeric jti', JSON.stringify({ sub: 'user-1', jti: 2, exp: 4_102_444_800 })],
+      ['string exp', JSON.stringify({ sub: 'user-1', jti: 'j', exp: '4102444800' })],
+      ['missing exp', JSON.stringify({ sub: 'user-1', jti: 'j' })],
+    ])('a correctly signed token with %s verifies to null and signOut ignores it', async (_label, payload) => {
+      const auth = new JwtAuthProvider({ secret }, { now: () => 0 });
+      await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const token = craftToken(payload, secret);
+      await expect(auth.verifySession({ token })).resolves.toBeNull();
+      await expect(auth.signOut({ token })).resolves.toBeUndefined();
+    });
+
+    it('a well-formed hand-signed token for a known user verifies (the shape checks are not over-strict)', async () => {
+      const auth = new JwtAuthProvider({ secret }, { now: () => 0 });
+      const user = await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const token = craftToken(JSON.stringify({ sub: user.id, jti: 'j', iat: 0, exp: 4_102_444_800 }), secret);
+      expect(await auth.verifySession({ token })).toEqual(user);
+    });
+
+    it('issues an HS256/JWT header, iat/exp in Unix seconds, and a 1-hour default TTL', async () => {
+      const now = 1_700_000_123_456;
+      const auth = new JwtAuthProvider({ secret }, { now: () => now });
+      await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const session = await auth.signIn({ email: 'ada@example.com', password: 'hunter2' });
+      const [header, payload] = session.token.split('.');
+      expect(decode(header!)).toEqual({ alg: 'HS256', typ: 'JWT' });
+      expect(decode(payload!)).toMatchObject({ sub: session.userId, iat: Math.floor(now / 1000), exp: Math.floor((now + 3_600_000) / 1000) });
+      expect(session.expiresAt).toBe(now + 3_600_000);
+    });
+
+    it('a session is valid one ms before exp and invalid exactly at exp', async () => {
+      let now = 1_000_000;
+      const auth = new JwtAuthProvider({ secret }, { now: () => now, sessionTtlMs: 10_000 });
+      await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const session = await auth.signIn({ email: 'ada@example.com', password: 'hunter2' });
+      now = 1_010_000 - 1;
+      expect(await auth.verifySession({ token: session.token })).not.toBeNull();
+      now = 1_010_000;
+      expect(await auth.verifySession({ token: session.token })).toBeNull();
+    });
+
+    it('user ids are sequential and distinct', async () => {
+      const auth = new JwtAuthProvider({ secret }, {});
+      const a = await auth.signUp({ email: 'a@example.com', password: 'x' });
+      const b = await auth.signUp({ email: 'b@example.com', password: 'x' });
+      expect([a.id, b.id]).toEqual(['user-1', 'user-2']);
+    });
+  });
 });
