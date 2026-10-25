@@ -431,18 +431,22 @@ function ipMatchesRange(ip: string, range: string): boolean {
   if (mapped) ip = mapped[1]!;
   if (!range.includes("/")) return ip === range;
 
+  const cidr = parseIpv4Cidr(range);
+  const ipInt = ip.includes(":") ? null : ipv4ToInt(ip);
+  return cidr !== null && ipInt !== null && (ipInt & cidr.mask) === cidr.network;
+}
+
+/** An `a.b.c.d/n` range as its masked network, or null for an IPv6 range, a bad address or prefix. */
+function parseIpv4Cidr(range: string): { network: number; mask: number } | null {
   const [rangeIp = "", prefixRaw = ""] = range.split("/");
   // Digits only, 0-32: `Number("")` and `Number("-1")` would otherwise read a malformed range as /0
   // and exclude every visitor.
-  const prefix = /^\d{1,2}$/.test(prefixRaw) ? Number(prefixRaw) : Number.NaN;
-  if (ip.includes(":") || rangeIp.includes(":") || Number.isNaN(prefix) || prefix > 32) return false;
-
-  const ipInt = ipv4ToInt(ip);
+  if (rangeIp.includes(":") || !/^\d{1,2}$/.test(prefixRaw) || Number(prefixRaw) > 32) return null;
   const rangeInt = ipv4ToInt(rangeIp);
-  if (ipInt === null || rangeInt === null) return false;
-
+  if (rangeInt === null) return null;
+  const prefix = Number(prefixRaw);
   const mask = prefix <= 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
-  return (ipInt & mask) === (rangeInt & mask);
+  return { network: rangeInt & mask, mask };
 }
 
 function ipv4ToInt(ip: string): number | null {
