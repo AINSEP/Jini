@@ -1,4 +1,4 @@
-import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
+import { createSystemClock } from '@jini-ai/core/primitives';
 /**
  * `createSqliteEventLog` — the durable `EventLog` adapter (extraction-plan §8 task 8,
  * §2.6: "`@jini-ai/daemon/store/event-log/sqlite` is the default adapter... an adapter conformance suite covers
@@ -24,93 +24,27 @@ import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
  */
 import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
 import type {
-  EventLog,
   EventLogAppendInput,
   EventLogAppendOptions,
   EventLogEntry,
   EventLogReplayResult,
 } from '@jini-ai/protocol';
 
-/**
- * Default per-run retention cap applied when `SqliteEventLogOptions.maxEntriesPerRun` is
- * omitted — see that option's doc for why a durable adapter defaults to a bound instead of
- * mirroring the in-memory reference adapter's unbounded-by-default behavior.
- */
-export const DEFAULT_MAX_ENTRIES_PER_RUN = 2000;
-
-export interface SqliteEventLogOptions {
-  /**
-   * Maximum entries retained per run before the oldest are evicted. Defaults to
-   * {@link DEFAULT_MAX_ENTRIES_PER_RUN} (2000) when omitted — unlike the in-memory reference
-   * adapter (`@jini-ai/daemon`'s `createInMemoryEventLog`), where an omitted cap means unbounded,
-   * a durable on-disk store defaults to a bounded retention window because unbounded persistent
-   * growth is a real, unattended operational risk (disk exhaustion across long-lived runs) in a
-   * way an in-process, GC'd, process-lifetime-bounded structure is not. Pass an explicit value
-   * (larger, smaller, or `0`) to override the default in either direction — the caller then
-   * owns that tradeoff explicitly. Must be a non-negative safe integer; anything else (negative,
-   * fractional, `NaN`, `Infinity`) throws at construction time.
-   */
-  readonly maxEntriesPerRun?: number;
-  /** Core Clock for durable recordedAt values; omitted clock preserves system wall time. */
-  readonly clock?: Clock;
-}
-
-/** @internal Validates and resolves `options.maxEntriesPerRun`, applying the documented default. */
-function resolveMaxEntriesPerRun(value: number | undefined): number {
-  if (value === undefined) return DEFAULT_MAX_ENTRIES_PER_RUN;
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new Error(
-      `createSqliteEventLog: options.maxEntriesPerRun must be a non-negative safe integer, got ${value}`,
-    );
-  }
-  return value;
-}
-
-/** @internal Validates a `replay(runId, afterCursor)` cursor. `null` ("from the beginning") is always valid. */
-function assertValidReplayCursor(afterCursor: string | null): void {
-  if (afterCursor === null) return;
-  const n = Number(afterCursor);
-  if (!Number.isSafeInteger(n) || n < 0) {
-    throw new Error(
-      `createSqliteEventLog: invalid replay cursor ${JSON.stringify(afterCursor)} — must be a non-negative safe integer string`,
-    );
-  }
-}
-
-/** A `@jini-ai/daemon` `EventLog` backed by a `better-sqlite3` database, plus a `close()` to release the file handle. */
-export interface SqliteEventLog extends EventLog {
-  close(_args: Record<string, never>): Promise<void>;
-}
-
-interface RunRow {
-  run_id: string;
-  // Keep the counter independently of retained entries and persist its bump with the insert.
-  // MAX(cursor) + 1 would reuse cursors once eviction removes every retained entry.
-  next_cursor: number;
-}
-
-interface EntryRow {
-  run_id: string;
-  cursor: number;
-  event: string;
-  // Durable payloads cross a JSON TEXT boundary, unlike the in-memory log's live references.
-  // Callers must supply JSON-safe values: object undefined/functions and Map/Set do not round-trip.
-  data: string;
-  recorded_at: number;
-  dedupe_key: string | null;
-}
-
-function rowToEntry(row: EntryRow): EventLogEntry {
-  return {
-    id: String(row.cursor),
-    event: row.event,
-    data: JSON.parse(row.data) as unknown,
-    recordedAt: row.recorded_at,
-  };
-}
+import {
+  resolveMaxEntriesPerRun, assertValidReplayCursor, existingAppendResult,
+  replayResult, rowToEntry, SQLITE_EVENT_LOG_SCHEMA,
+  type RunRow, type EntryRow, type SqliteEventLogOptions, type SqliteEventLogWithReceipts,
+  type SqliteEventLogAppendOptions, type SqliteEventLogAppendResult,
+} from './sqlite-policy.js';
+export { DEFAULT_MAX_ENTRIES_PER_RUN, SQLITE_EVENT_LOG_SCHEMA } from './sqlite-policy.js';
+export type {
+  SqliteEventLog, SqliteEventLogOptions, SqliteEventLogWithReceipts,
+  SqliteEventLogDatabase, SqliteEventLogAppendOptions, SqliteEventLogAppendResult,
+} from './sqlite-policy.js';
+export { createKernelSqliteEventLog } from './sqlite-kernel.js';
 
 /**
- * Borrows the caller's connection and ensures the dedicated event-log schema idempotently.
+ * Borrows the caller's connection; ensures schema unless schemaSetup is 'host'.
  * Closing this adapter never closes a borrowed handle or changes its pragmas.
  * Use openSqliteEventLog with an explicit file/opener to acquire an owned connection.
  * @throws Host SQL/setup failures, or a missing borrowed connection.
@@ -119,7 +53,7 @@ function rowToEntry(row: EntryRow): EventLogEntry {
 export function createSqliteEventLog(
   input: { db: SqliteDb },
   options: SqliteEventLogOptions = {},
-): SqliteEventLog {
+): SqliteEventLogWithReceipts {
   resolveMaxEntriesPerRun(options.maxEntriesPerRun);
   if (!input || typeof input !== 'object' || !input.db) {
     throw new Error('createSqliteEventLog: pass a borrowed SqliteDb');
@@ -138,7 +72,7 @@ export function createSqliteEventLog(
 export function openSqliteEventLog(
   input: { file: string; open: SqliteSyncOpener },
   options: SqliteEventLogOptions = {},
-): SqliteEventLog {
+): SqliteEventLogWithReceipts {
   resolveMaxEntriesPerRun(options.maxEntriesPerRun);
   let db: SqliteDb | undefined;
   try {
@@ -155,30 +89,11 @@ export function openSqliteEventLog(
   }
 }
 
-/** Binds the unchanged cursor/dedupe/retention SQL to a borrowed synchronous connection. */
-function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): SqliteEventLog {
+/** Binds event-log policies to a borrowed synchronous connection and its atomic transactions. */
+function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): SqliteEventLogWithReceipts {
   const maxEntriesPerRun = resolveMaxEntriesPerRun(options.maxEntriesPerRun);
   const clock = options.clock ?? createSystemClock();
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS jini_event_log_runs (
-      run_id TEXT PRIMARY KEY,
-      next_cursor INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS jini_event_log_entries (
-      run_id TEXT NOT NULL,
-      cursor INTEGER NOT NULL,
-      event TEXT NOT NULL,
-      data TEXT NOT NULL,
-      recorded_at INTEGER NOT NULL,
-      dedupe_key TEXT,
-      PRIMARY KEY (run_id, cursor)
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_jini_event_log_entries_dedupe
-      ON jini_event_log_entries (run_id, dedupe_key)
-      WHERE dedupe_key IS NOT NULL;
-  `);
+  if (options.schemaSetup !== 'host') db.exec(SQLITE_EVENT_LOG_SCHEMA);
 
   const getRunStmt = db.prepare<[string], RunRow>(
     'SELECT run_id, next_cursor FROM jini_event_log_runs WHERE run_id = ?',
@@ -226,41 +141,30 @@ function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): Sqlit
   // public `append<Payload>` method below casts at the boundary — the same pattern
   // `createInMemoryEventLog` uses for its dedupe-hit early return.
   const appendTxn = db.transaction(
-    (input: EventLogAppendInput<unknown> & EventLogAppendOptions): EventLogEntry<unknown> => {
+    (input: EventLogAppendInput<unknown>, options: SqliteEventLogAppendOptions): SqliteEventLogAppendResult<unknown> => {
+      if (options.dedupeKey !== undefined) {
+        const existing = getByDedupeStmt.get(input.runId, options.dedupeKey);
+        if (existing) return existingAppendResult({ row: existing, input }, options);
+      }
+      if (options.retentionPolicy === 'reject' && countEntriesStmt.get(input.runId)!.count >= maxEntriesPerRun) {
+        return { kind: 'capacity-exceeded', maxEntriesPerRun };
+      }
       let runRow = getRunStmt.get(input.runId);
       if (!runRow) {
         insertRunStmt.run(input.runId, 1);
         runRow = { run_id: input.runId, next_cursor: 1 };
       }
-      if (input.dedupeKey !== undefined) {
-        const existing = getByDedupeStmt.get(input.runId, input.dedupeKey);
-        if (existing) {
-          return rowToEntry(existing);
-        }
-      }
       const cursor = runRow.next_cursor;
       const recordedAt = clock.nowMs();
       insertEntryStmt.run(
-        input.runId,
-        cursor,
-        input.event,
-        JSON.stringify(input.data ?? null),
-        recordedAt,
-        input.dedupeKey ?? null,
+        input.runId, cursor, input.event, JSON.stringify(input.data ?? null), recordedAt, options.dedupeKey ?? null,
       );
       updateNextCursorStmt.run(cursor + 1, input.runId);
-
       const { count } = countEntriesStmt.get(input.runId)!;
       if (count > maxEntriesPerRun) {
         evictOldestStmt.run(input.runId, input.runId, count - maxEntriesPerRun);
       }
-
-      return {
-        id: String(cursor),
-        event: input.event,
-        data: input.data,
-        recordedAt,
-      };
+      return { kind: 'inserted', entry: { id: String(cursor), event: input.event, data: input.data, recordedAt } };
     },
   );
 
@@ -269,34 +173,14 @@ function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): Sqlit
     // caller/transport bug regardless of run state, so it throws rather than being folded into
     // (or masked by) an `'unknown-run'`/`'replay-gap'` result.
     assertValidReplayCursor(afterCursor);
-    const runRow = getRunStmt.get(runId);
-    if (!runRow) {
-      return { kind: 'unknown-run' };
-    }
-    if (afterCursor === null) {
-      const oldestRow = selectOldestStmt.get(runId);
-      const truncated = oldestRow !== undefined && oldestRow.cursor > 1;
-      return {
-        kind: 'ok',
-        entries: selectAllStmt.all(runId).map(rowToEntry),
-        ...(truncated ? { truncated: true as const } : {}),
-      };
-    }
+    const run = getRunStmt.get(runId);
+    if (!run) return { kind: 'unknown-run' };
+    const oldest = selectOldestStmt.get(runId);
+    const result = replayResult({ run, oldest, afterCursor });
+    if (result.kind !== 'ok') return result;
     // Safe: assertValidReplayCursor already proved this parses to a non-negative safe integer.
-    const afterCursorNum = Number(afterCursor);
-    const oldestRow = selectOldestStmt.get(runId);
-    const oldestRetainedId = oldestRow ? oldestRow.cursor : runRow.next_cursor;
-    if (afterCursorNum < oldestRetainedId - 1) {
-      return {
-        kind: 'replay-gap',
-        requestedCursor: afterCursor,
-        oldestAvailableCursor: oldestRow ? String(oldestRow.cursor) : null,
-      };
-    }
-    return {
-      kind: 'ok',
-      entries: selectAfterStmt.all(runId, afterCursorNum).map(rowToEntry),
-    };
+    const rows = afterCursor === null ? selectAllStmt.all(runId) : selectAfterStmt.all(runId, Number(afterCursor));
+    return { ...result, entries: rows.map(rowToEntry) };
   }
 
   const dropTxn = db.transaction((runId: string) => {
@@ -306,7 +190,12 @@ function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): Sqlit
 
   return {
     async append<Payload>(input: EventLogAppendInput<Payload>, options: EventLogAppendOptions = {}): Promise<EventLogEntry<Payload>> {
-      return appendTxn({ ...input, dedupeKey: options.dedupeKey } as EventLogAppendInput<unknown> & EventLogAppendOptions) as EventLogEntry<Payload>;
+      // Forwarding only dedupeKey guarantees an inserted/existing receipt, never a refusal.
+      const result = appendTxn(input, options.dedupeKey === undefined ? {} : { dedupeKey: options.dedupeKey }) as { entry: EventLogEntry<Payload> };
+      return result.entry;
+    },
+    async appendWithResult<P>(input: EventLogAppendInput<P>, options: SqliteEventLogAppendOptions = {}): Promise<SqliteEventLogAppendResult<P>> {
+      return appendTxn(input, options) as SqliteEventLogAppendResult<P>;
     },
     async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
       return replaySync(runId, afterCursor);
