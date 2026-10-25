@@ -25,6 +25,8 @@ import type { BundledBrowserProviderApproval } from "../ports.js";
 
 import * as semver from "semver";
 
+import { PLUGIN_PROVIDER_CAPABILITY } from '../provider-contributions.js';
+import { createPluginContributionCapture, type PluginContributionRegistry, type PluginContributionsSnapshot } from '../contributions.js';
 import { buildCapabilityScopedSdk, type CapabilityScopedSdkCoreDeps } from "../capability-sdk.js";
 import type { PluginDiscoveryRecord } from "../discovery-types.js";
 import type { PluginManifest } from "../manifest.js";
@@ -77,6 +79,12 @@ export interface LoadPluginRequired<H extends HookPoints = HookPoints> {
    * module and therefore owns building the capability-scoped SDK passed to its `setup()` call;
    * the root owns what each granted handle actually delegates to. */
   readonly coreDeps: CapabilityScopedSdkCoreDeps;
+  /** Provider selection is host-owned (installed + enabled + configured). Checked before import
+   * and again after setup; a selection revoked during setup never publishes its capture. */
+  readonly providerContributions?: {
+    readonly registry: PluginContributionRegistry;
+    readonly isSelected: (required: { pluginId: string }, optional?: Record<string, never>) => boolean;
+  };
   /** Compiled-in review records; absent means all browser providers are refused. */
   readonly browserProviderApprovals?: readonly BundledBrowserProviderApproval[];
 }
@@ -90,7 +98,9 @@ export type PluginLoadFailureReason =
   | "PLUGIN_EXPORT_INVALID"
   | "PLUGIN_SETUP_FAILED"
   | "BROWSER_PROVIDER_FORBIDDEN"
-  | "BROWSER_PROVIDER_INVALID";
+  | "BROWSER_PROVIDER_INVALID"
+  | "PROVIDER_NOT_SELECTED"
+  | "PROVIDER_ADMISSION_FAILED";
 
 export type PluginEnableFailureReason = PluginLoadFailureReason | "PLUGIN_HOOK_NOT_ATTACHED" | "PLUGIN_HOOK_ATTACH_FAILED";
 
@@ -170,22 +180,64 @@ async function importPluginModule(required: {
 /** Step (4): validate the `definePlugin()` export, build the per-load gated SDK, run setup. */
 async function runPluginSetup<H extends HookPoints>(required: {
   pluginSdkBinding: PluginSdkBinding<H>; moduleValue: unknown; record: PluginDiscoveryRecord; manifest: PluginManifest; coreDeps: CapabilityScopedSdkCoreDeps;
+  providerContributions?: LoadPluginRequired<H>['providerContributions'];
 }): Promise<PluginLoadFailureReason | undefined> {
-  const { pluginSdkBinding, coreDeps } = required;
+  const { pluginSdkBinding } = required;
   const plugin = pluginSdkBinding.readDefinedPlugin({ moduleValue: required.moduleValue });
   if (!plugin) return "PLUGIN_EXPORT_INVALID";
-  const sdk = buildCapabilityScopedSdk({
-    pluginId: required.record.id,
-    capabilities: required.manifest.capabilities as readonly import("../manifest.js").PluginCapability[],
-    coreDeps,
-    pluginSdkBinding,
-  });
+  // Provider-bearing plugins use a private capture owned by this load, never host callbacks
+  // that could publish factories during setup. Existing content-only loads retain their ABI.
+  const capture = requiresProviderCapture({ manifest: required.manifest })
+    ? createPluginContributionCapture({ manifest: required.manifest }) : undefined;
+  let snapshot: PluginContributionsSnapshot | undefined;
+  let sdk: ReturnType<typeof buildCapabilityScopedSdk<H>> | undefined;
   try {
+    const coreDeps = capture ? { ...required.coreDeps, contributions: capture, providers: capture.providers } : required.coreDeps;
+    sdk = buildCapabilityScopedSdk({ pluginId: required.record.id, capabilities: required.manifest.capabilities, coreDeps, pluginSdkBinding });
     await plugin.definition.setup(sdk);
-    return undefined;
   } catch {
     return "PLUGIN_SETUP_FAILED";
+  } finally {
+    // Seal on failure too: a retained SDK cannot register from a late setup callback.
+    if (capture) snapshot = capture.seal({ sdk: sdk! });
   }
+  if (!snapshot) return undefined;
+  return publishProviderCapture({ snapshot, providerContributions: required.providerContributions });
+}
+
+function publishProviderCapture(required: {
+  snapshot: PluginContributionsSnapshot; providerContributions: LoadPluginRequired['providerContributions'];
+}): PluginLoadFailureReason | undefined {
+  const admission = required.providerContributions;
+  if (!admission?.isSelected({ pluginId: required.snapshot.pluginId }, {})) return "PROVIDER_NOT_SELECTED";
+  try { admission.registry.replace({ contributions: required.snapshot }); }
+  catch { return "PROVIDER_ADMISSION_FAILED"; }
+  return undefined;
+}
+
+/** Integrity and SDK compatibility remain ordered before any executable importer (CIC U-001). */
+async function admitPluginPackage<H extends HookPoints>(required: LoadPluginRequired<H>): Promise<
+  { pluginRoot: string; loaded: LoadPluginResult } | { failure: PluginLoadFailureReason }
+> {
+  const { record, manifest, entryPath } = required;
+  const pluginRoot = derivePluginRoot(entryPath);
+  const computeFileHash = (absoluteFilePath: string) => required.verifyDigest({ absoluteFilePath });
+  // --- CIC U-001-ORD1: step (1), integrity, MUST complete successfully before step (2)/(3). ---
+  if (!await verifyIntegrity({ record, manifest, pluginRoot, entryPath, computeFileHash })) return { failure: 'INTEGRITY_FAILED' };
+  // --- CIC U-001-ORD1: step (2), sdkRange, MUST complete successfully before step (3). ---
+  if (!semver.satisfies(required.pluginSdkBinding.runtimeSdkVersion, manifest.sdkRange)) return { failure: 'SDK_RANGE_UNSATISFIED' };
+  const admission = await admitDeclaredBrowserProviders({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals });
+  if (!admission.admitted) return { failure: admission.reason };
+  return { pluginRoot, loaded: { loaded: true, ...(admission.providers ? { browserProviders: admission.providers } : {}) } };
+}
+
+function requiresProviderCapture(required: { manifest: PluginManifest }): boolean {
+  return !!required.manifest.contributes?.providers?.length || required.manifest.capabilities.includes(PLUGIN_PROVIDER_CAPABILITY);
+}
+
+function isProviderSelected<H extends HookPoints>(required: LoadPluginRequired<H>): boolean {
+  if (!requiresProviderCapture({ manifest: required.manifest })) return true;
+  return required.providerContributions?.isSelected({ pluginId: required.record.id }, {}) === true;
 }
 
 /**
@@ -203,30 +255,21 @@ export async function loadPlugin<H extends HookPoints>(
   required: LoadPluginRequired<H>,
   _optional: LoadPluginOptional = {}
 ): Promise<LoadPluginResult> {
-  const { record, manifest, entryPath, coreDeps } = required;
-  const { importModule, tierPolicy, pluginSdkBinding } = required;
-  const computeFileHash = (absoluteFilePath: string) => required.verifyDigest({ absoluteFilePath });
-  // --- CIC U-001-ORD1: step (1), integrity, MUST complete successfully before step (2)/(3). ---
-  const pluginRoot = derivePluginRoot(entryPath);
-  if (!(await verifyIntegrity({ record, manifest, pluginRoot, entryPath, computeFileHash }))) return failed("INTEGRITY_FAILED");
-
-  // --- CIC U-001-ORD1: step (2), sdkRange, MUST complete successfully before step (3). ---
-  if (!semver.satisfies(pluginSdkBinding.runtimeSdkVersion, manifest.sdkRange)) return failed("SDK_RANGE_UNSATISFIED");
-
-  const admission = await admitDeclaredBrowserProviders({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals });
-  if (!admission.admitted) return failed(admission.reason);
-  const loaded: LoadPluginResult = { loaded: true, ...(admission.providers ? { browserProviders: admission.providers } : {}) };
-
+  const { record, manifest, coreDeps, importModule, pluginSdkBinding } = required;
+  const admission = await admitPluginPackage(required);
+  if ('failure' in admission) return failed(admission.failure);
+  const { pluginRoot, loaded } = admission;
   // Declarative plugins never reach an executable importer. A worker port is mandatory for tier-2,
   // and tier-3 must be admitted explicitly by the host (CMS-JINI-MODULAR-DESIGN Rev 3 §5).
-  if (manifest.tier === "tier-1") return loaded;
-  if (!isExecutionAdmitted({ tierPolicy, record, manifest })) return failed("CODE_ENTRY_MISSING");
+  if (manifest.tier === 'tier-1') return loaded;
+  if (!isExecutionAdmitted({ tierPolicy: required.tierPolicy, record, manifest })) return failed('CODE_ENTRY_MISSING');
+  if (!isProviderSelected(required)) return failed('PROVIDER_NOT_SELECTED');
 
   // --- Step (3): only now, after both prior checks pass, is the plugin's code ever evaluated. ---
-  const imported = await importPluginModule({ importModule, record, pluginRoot, entryPath });
+  const imported = await importPluginModule({ importModule, record, pluginRoot, entryPath: required.entryPath });
   if ("reason" in imported) return failed(imported.reason);
 
-  const setupFailure = await runPluginSetup({ pluginSdkBinding, moduleValue: imported.moduleValue, record, manifest, coreDeps });
+  const setupFailure = await runPluginSetup({ pluginSdkBinding, moduleValue: imported.moduleValue, record, manifest, coreDeps, providerContributions: required.providerContributions });
   if (setupFailure) return failed(setupFailure);
 
   // Step (5) remains composition-owned: setup's gated `addFilter()` handle captures the filter in

@@ -59,3 +59,10 @@ p6 extraction implements that format under the approved CMS/Jini modular design 
 ## Design decisions
 
 - [Attachment vocabulary and failure containment are separate decisions](docs/decisions/DR-001-category-specific-glue-containment.md).
+
+Server provider plugins extend this same host with `contributes.providers` and a capability-gated
+`sdk.providers.register`. The loader captures factories privately and publishes after admission;
+`createPluginProviderHost` validates returned ports through injected domain validators and retires
+resources on contribution detach/replacement or shutdown. See [API.md](API.md#server-provider-contributions).
+Self-contained artifacts are distributed by `@jini-ai/provider-plugins`; there are no domain or
+vendor imports in this host extension.

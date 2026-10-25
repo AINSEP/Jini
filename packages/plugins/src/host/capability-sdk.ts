@@ -28,6 +28,7 @@
  * capabilities and present, typed-denial stubs for every ungranted surface.
  */
 import type { BeforeSaveFilter, ContentEntryDraft, PluginSdk, HookPoints, PluginSdkBinding } from "./ports.js";
+import { PLUGIN_PROVIDER_CAPABILITY } from './provider-contributions.js';
 import type { PluginCapability } from "./manifest.js";
 
 /** Thrown synchronously when a plugin invokes an SDK surface it did not declare a capability for
@@ -57,6 +58,7 @@ export interface CapabilityScopedSdkCoreDeps {
   writeExtField(field: string, value: string | number | boolean): void;
   /** Backing implementation for the granted `addFilter()` surface. */
   attachFilter(hookName: string, filter: BeforeSaveFilter): void;
+  readonly providers?: PluginSdk['providers'];
   readonly contributions?: Pick<PluginSdk, 'routes' | 'tools' | 'widgets'>;
 }
 
@@ -103,6 +105,10 @@ export function buildCapabilityScopedSdk<H extends HookPoints>(
   }
 
   const sdk: PluginSdk<H> = {
+    providers: { register: gate(PLUGIN_PROVIDER_CAPABILITY, (input, options = {}) => {
+      if (!coreDeps.providers) throw new Error('plugin providers are not bound by this host');
+      coreDeps.providers.register(input, options);
+    }) },
     content: {
       read: gate("content.read", () => coreDeps.getCurrentEntry()),
       extend: gate("content.extend", (field: string, value: string | number | boolean) =>

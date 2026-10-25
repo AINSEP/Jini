@@ -81,8 +81,10 @@ export interface PluginManifest {
   readonly contributes?: PluginContributions | null;
 }
 
-/** `jini.plugin.json`'s `contributes` block — every list optional, every entry a plain name. */
+/** `jini.plugin.json`'s `contributes` block — optional named surfaces and provider declarations. */
 export interface PluginContributions {
+  /** Server provider factories; identity is exclusive within one contract. */
+  readonly providers?: readonly PluginProviderDeclaration[];
   /** `"METHOD /path"` or `"/path"` (every method). Parameter names do not distinguish routes. */
   readonly routes?: readonly string[];
   /** Agent tool ids. The generated prefixes `plugin_capability_`/`agent_plugin_` are reserved. */
@@ -93,6 +95,12 @@ export interface PluginContributions {
   readonly widgets?: readonly string[];
   /** Permission ids this plugin DEFINES (not ones it merely requires). */
   readonly permissions?: readonly string[];
+}
+
+export interface PluginProviderDeclaration {
+  readonly contract: string;
+  readonly id: string;
+  readonly contractVersion: 1;
 }
 
 /** One validation-vocabulary entry (errors.spec.md §3). `file` names the offending packaged file

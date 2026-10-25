@@ -85,3 +85,58 @@ nothing. Its present callable capability-denial surface remains for CIC U-003 co
 Legacy positional `addContribution` calls also fail explicitly; explicit route/tool/widget records
 use each surface's own grant. SDK content reads/extends retain their existing beforeSave-only
 invocation contract; passing the SDK to a route/tool does not invent new content permissions.
+
+## Server provider contributions
+
+`contributes.providers` declares `{ contract, id, contractVersion: 1 }` records. Both names follow
+core's provider id grammar (`^[a-z][a-z0-9_]{0,63}$`). A provider plugin is tier-3 and requests
+`providers.register`. The callable `sdk.providers.register({ contract, id, contractVersion: 1,
+factory }, {})` is always present and throws `CapabilityDeniedError` without that grant. Host
+`PluginSdkBinding.buildSdk` must preserve this supplied handle when assembling its SDK.
+
+`loadPlugin` accepts `providerContributions: { registry, isSelected }`. `registry` is the existing
+`PluginContributionRegistry`; `isSelected({ pluginId }, {})` must verify installed, enabled and
+configured state, including the current configuration revision for a pending load. Selection is
+checked before import and after setup. Registration uses a private, bounded capture sealed on
+success or failure; factories publish only after setup and registry admission succeed. Failures
+add `PROVIDER_NOT_SELECTED` and `PROVIDER_ADMISSION_FAILED` to `PluginLoadFailureReason`.
+No new installer, executable importer, activation or quarantine owner is introduced.
+
+```ts
+import { createPluginContributionRegistry, createPluginProviderHost } from '@jini-ai/plugins/host';
+
+const contributions = createPluginContributionRegistry({});
+const providers = createPluginProviderHost({
+  contributions,
+  contracts: [{ contract: 'observability', validate: ({ provider }) => validateObservabilityPort(provider) }],
+}, { disposeTimeoutMs: 2000, onError: ({ pluginId, phase, error }) => report({ pluginId, phase, error }) });
+// After the existing installer + loader admits the selected plugin:
+const lease = await providers.initialize({ contract: 'observability', id: 'selected_provider',
+  input: { config, credentials, effects } }, { factoryOptions: {} });
+if (lease?.isCurrent({})) startApplicationWork({ observability: lease.port });
+// Disable/quarantine removes the snapshot; replacement publishes a new sealed snapshot.
+contributions.detach({ pluginId });
+await providers.dispose({}); // also required on failed boot
+```
+
+Factories have `(requiredObject, optionalObject = {})` and return `{ port, dispose }` synchronously
+or asynchronously. `dispose({}, {})` releases only owned clients/timers. Domain validation is
+injected as `PluginProviderContract.validate({ provider })`; optional `seed` uses core definitions.
+Provider identity is an exclusive `contract:id` claim, refused by the existing conflict detector at
+manifest resolution and again at snapshot publication. Returned ports pass core's `createProviderRegistry` validation.
+`initialize` returns a lease, `undefined` for an unavailable/retired generation, or rejects for
+factory/contract failures. Hosts await boot initialization and retain their existing noop when
+no provider is selected. Calls for distinct accounts may initialize independent resources.
+
+Retirement blocks new work through `lease.isCurrent({})`, disposes acquired resources and
+immediately disposes any late initialization result. `lease.dispose({})` and `providers.dispose({})`
+are idempotent. All teardown starts independently, and each wait is bounded (default 2000 ms).
+Thrown/rejected cleanup and diagnostics cannot suppress another provider's cleanup. Timeout bounds
+waiting, not arbitrary in-process effects. Do not retain a port beyond its lease's generation.
+
+New exports from `./host`: `PLUGIN_PROVIDER_CAPABILITY`, `createPluginProviderHost`,
+`PluginProviderError`; types `PluginProviderDeclaration`, `PluginProviderResource`,
+`PluginProviderFactory`, `PluginProviderContribution`, `PluginProvidersSdk`, `PluginProviderContract`,
+`PluginProviderFailure`, `PluginProviderLease`, `PluginProviderHost`. Existing capture adds
+`providers.register`, SDK dependencies add optional `providers`, and contribution snapshots add
+optional `providers`. `PLUGIN_CONTRIBUTION_CAPABILITIES` now includes `providers.register`.

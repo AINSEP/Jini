@@ -19,3 +19,7 @@ export * from './contributions.js';
 export * from './tool-contributions.js';
 export * from './browser-providers.js';
 export * from './bundled-initialization.js';
+
+export { PLUGIN_PROVIDER_CAPABILITY } from './provider-contributions.js';
+export type { PluginProviderResource, PluginProviderFactory, PluginProviderContribution, PluginProvidersSdk } from './provider-contributions.js';
+export * from './provider-host.js';

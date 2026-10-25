@@ -51,7 +51,7 @@ export { CORE_OWNER_ID };
 // Hook semantics are supplied by PluginSdkBinding; product hook names remain host-owned.
 
 /** `contributes` list -> claim kind. */
-const CONTRIBUTION_KINDS: ReadonlyArray<readonly [keyof PluginContributions, string]> = [
+const CONTRIBUTION_KINDS: ReadonlyArray<readonly [Exclude<keyof PluginContributions, 'providers'>, string]> = [
   ["routes", "route"],
   ["tools", "tool"],
   ["tables", "table"],
@@ -105,7 +105,8 @@ export function pluginClaimsFromManifest(
   const contentTypes = required.declarativeContentTypes.parse({ value: manifest.contentTypes }).decls.map(
     (decl): ExtensionClaim => ({ kind: "content-type", key: decl.key, mode: "exclusive" }),
   );
-  return [...declared, ...hooks, ...generated, ...contentTypes];
+  const providers = (contributes.providers ?? []).map(({ contract, id }): ExtensionClaim => ({ kind: 'provider', key: `${contract}:${id}`, mode: 'exclusive' }));
+  return [...declared, ...hooks, ...generated, ...contentTypes, ...providers];
 }
 
 export interface ResolvePluginConflictsRequired extends Pick<ManifestHostPorts, "pluginSdkBinding" | "declarativeContentTypes" | "coreOwnerName"> {

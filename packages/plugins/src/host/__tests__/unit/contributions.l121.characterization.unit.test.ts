@@ -5,6 +5,7 @@ import type { PluginSdk } from '../../ports.js';
 
 const manifest: PluginManifest = { id: 'sample', name: 'Sample', version: '1.0.0', sdkRange: '*', engine: 1, tier: 'tier-3', capabilities: [], hooks: [], fields: [], integrity: {}, contributes: { tools: ['hello', 'other'], widgets: ['hello'] } };
 const sdk: PluginSdk = {
+  providers: { register: () => {} },
   content: { read: () => ({ workspaceId: 'workspace', ext: {} }), extend: () => {} },
   addFilter: () => {}, addAction: () => {}, addContribution: () => {},
   routes: { add: () => {} }, tools: { add: () => {} }, widgets: { add: () => {} },

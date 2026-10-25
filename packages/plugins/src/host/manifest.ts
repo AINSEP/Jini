@@ -26,9 +26,10 @@
  */
 
 import type { PluginTier, PluginManifest, PluginValidationError } from './manifest-types.js';
-export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginValidationError } from './manifest-types.js';
+export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginProviderDeclaration, PluginValidationError } from './manifest-types.js';
 import * as semver from "semver";
 import { PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
+import { validatePluginProviderDeclarations } from './provider-contributions.js';
 import { validateBrowserProviders } from "./browser-providers.js";
 
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
@@ -391,8 +392,8 @@ function validateFields(raw: Readonly<Record<string, unknown>>, id: string | und
   return errors;
 }
 
-/** The `contributes` lists `validateContributes` accepts, in the order claims are derived. */
-export const CONTRIBUTION_KEYS = ["routes", "tools", "tables", "settings", "widgets", "permissions"] as const;
+/** The `contributes` lists `validateContributes` accepts, including structured providers. */
+export const CONTRIBUTION_KEYS = ["routes", "tools", "tables", "settings", "widgets", "permissions", "providers"] as const;
 const CONTRIBUTION_KEY_SET = new Set<string>(CONTRIBUTION_KEYS);
 /** Tool-id prefixes the runtime generates itself (`capability-tool-registrations.ts`,
  *  `agent-plugins/tool-registrations.ts`) — a plugin declaring one could impersonate another
@@ -426,7 +427,7 @@ function validateContribution(key: string, entry: string, id: string | undefined
   return problem === undefined ? undefined : contributesInvalid(`contributes.${key} entry '${entry}' ${problem}`);
 }
 
-/** `contributes` (2026-10-04): an object of known string lists — see `PluginManifest.contributes`. */
+/** `contributes` (2026-10-04): known string lists plus provider declarations — see `PluginManifest.contributes`. */
 function validateContributes(raw: Readonly<Record<string, unknown>>, id: string | undefined): PluginValidationError[] {
   if (raw.contributes === undefined || raw.contributes === null) return [];
   if (typeof raw.contributes !== "object" || Array.isArray(raw.contributes)) {
@@ -434,7 +435,11 @@ function validateContributes(raw: Readonly<Record<string, unknown>>, id: string 
   }
   const errors: PluginValidationError[] = [];
   for (const [key, list] of Object.entries(raw.contributes)) {
-    errors.push(...validateContributionList({ key, list, id }));
+    if (key === 'providers') {
+      errors.push(...validatePluginProviderDeclarations({ value: list, tier: raw.tier, capabilities: raw.capabilities }));
+    } else {
+      errors.push(...validateContributionList({ key, list, id }));
+    }
   }
   return errors;
 }
