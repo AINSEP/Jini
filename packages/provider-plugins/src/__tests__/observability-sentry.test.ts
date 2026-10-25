@@ -1,7 +1,7 @@
 /** The Sentry provider plugin against the real SDK (recording transport, `.invalid` DSN: no network). */
 import assert from "node:assert/strict";
-import { test } from "vitest";
-import { createTransport, getCurrentScope } from "@sentry/node";
+import { test, vi } from "vitest";
+import { NodeClient, createTransport, getCurrentScope } from "@sentry/node";
 
 import { createSentryObservabilityAdapter, type SentryConfigEnabled } from "../observability-sentry/sentry.js";
 
@@ -80,4 +80,74 @@ test("review #6: dispose releases the SDK's beforeExit listeners (repeated open/
     await dispose();
   }
   assert.equal(process.listenerCount("beforeExit"), baseline);
+});
+
+test("operation end: settled attributes and failure status reach the transaction; a second end is ignored", async () => {
+  const { items, transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  const tracker = port.trackOperation({ name: "site.publish", attributes: { "publish.target": "pages" } });
+  tracker.end({ outcome: "AUTH_FAILED", failed: true, attributes: { attempt: 2 } });
+  tracker.end({ outcome: "published", failed: false });
+  port.trackOperation({ name: "plain" }).end({ outcome: "completed", failed: false });
+  await flush(); await dispose();
+  const transactions = items.filter((item) => item.type === "transaction").map((item) => item.payload.contexts.trace);
+  assert.equal(transactions.length, 2);
+  assert.equal(transactions[0].status, "internal_error");
+  assert.equal(transactions[0].data["operation.outcome"], "AUTH_FAILED");
+  assert.equal(transactions[0].data.attempt, 2);
+  assert.equal(transactions[1].status, "ok");
+});
+
+test("an error reported inside an operation's run() is attached to it; a non-Error value is reported by type with no stack", async () => {
+  const { items, transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  const tracker = port.trackOperation({ name: "outbox.deliver" });
+  tracker.run(() => port.reportError({ error: "plain string failure", context: { operation: "outbox.deliver", attributes: { "event.name": "entry.updated" } } }));
+  tracker.end({ outcome: "error", failed: true });
+  await flush(); await dispose();
+  const [event] = items.filter((item) => item.type === "event");
+  assert.equal(event?.payload.exception.values[0].type, "string");
+  assert.equal(event?.payload.contexts.operation["event.name"], "entry.updated");
+  assert.equal(event?.payload.contexts.trace.trace_id, items.find((item) => item.type === "transaction")!.payload.contexts.trace.trace_id);
+});
+
+test("a broken SDK call inside reportError never throws, and a failing close is swallowed", async () => {
+  const { transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  const hostile = new Error("x");
+  Object.defineProperty(hostile, "message", { get() { throw new Error("hostile"); } });
+  assert.doesNotThrow(() => port.reportError({ error: hostile, context: { operation: "x" } }));
+  const close = vi.spyOn(NodeClient.prototype, "close").mockRejectedValueOnce(new Error("close failed"));
+  let calls = 0;
+  try { await dispose(); calls = close.mock.calls.length; } finally { close.mockRestore(); }
+  assert.equal(calls, 1);
+});
+
+test("plugin factory: validates its card input, defaults to errors only, and reuses a host-owned client", async () => {
+  const { default: plugin, createSentryProvider } = await import("../observability-sentry/index.js");
+  const registered: unknown[] = [];
+  plugin.definition.setup({ providers: { register: (value: unknown) => { registered.push(value); } } } as never);
+  assert.deepEqual(registered, [{ contract: "observability", id: "sentry", contractVersion: 1, factory: createSentryProvider }]);
+  for (const [input, message] of [
+    [{}, "dsn must be a non-empty string"], [{ dsn: " " }, "dsn must be a non-empty string"], [{ dsn: 3 }, "dsn must be a non-empty string"],
+    [{ dsn: CONFIG.dsn, environment: 1 }, "environment must be a string"],
+    [{ dsn: CONFIG.dsn, tracesSampleRate: 2 }, "tracesSampleRate must be within 0..1"], [{ dsn: CONFIG.dsn, tracesSampleRate: -0.1 }, "tracesSampleRate must be within 0..1"],
+    [{ dsn: CONFIG.dsn, tracesSampleRate: "1" }, "tracesSampleRate must be within 0..1"], [{ dsn: CONFIG.dsn, tracesSampleRate: Number.NaN }, "tracesSampleRate must be within 0..1"],
+  ] as const) assert.throws(() => createSentryProvider(input as Record<string, unknown>), { name: "TypeError", message });
+  const { items, transport } = recordingTransport();
+  const resource = createSentryProvider({ dsn: ` ${CONFIG.dsn} `, environment: "production" }, { transport });
+  resource.port.trackOperation({ name: "unsampled" }).end({ outcome: "completed", failed: false });
+  resource.port.reportError({ error: new Error("boom"), context: { operation: "x" } });
+  await flush(); await resource.dispose({});
+  assert.deepEqual(items.map((item) => item.type), ["event"], "rate 0: errors are sent, operations are not sampled");
+  assert.equal(items[0]?.payload.environment, "production");
+  let closed = 0;
+  const hosted = createSentryProvider({ dsn: CONFIG.dsn }, { client: { close: async () => { closed += 1; return true; }, getOptions: () => ({}) } });
+  await hosted.dispose({});
+  assert.equal(closed, 0);
+});
+
+test("without a test transport the private client uses the SDK's own transport (nothing sent when idle)", async () => {
+  const { dispose } = createSentryObservabilityAdapter({ config: CONFIG });
+  await dispose();
 });

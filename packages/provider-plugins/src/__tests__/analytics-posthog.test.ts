@@ -1,6 +1,7 @@
 /** The PostHog provider plugin against the real SDK with a recording fetch (no network). Moved from `@jini-ai/analytics`. */
 import { gunzipSync } from "node:zlib";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
+import { PostHog } from "posthog-node";
 
 import { withProductAnalyticsGuards } from "@jini-ai/analytics/product";
 import { createPostHogProductAnalyticsAdapter } from "../analytics-posthog/posthog.js";
@@ -66,4 +67,29 @@ test("dispose never throws when the SDK shutdown fails", async () => {
   const resource = createPostHogProvider({ apiKey: "phc", host: "https://posthog.invalid" }, { fetch: async () => { throw new Error("offline"); }, flushAt: 1 });
   resource.port.capture({ name: "x", userId: "u1" });
   await expect(resource.dispose({})).resolves.toBeUndefined();
+});
+
+test("events without properties and identities without traits are sent bare; the default batch size holds until dispose flushes", async () => {
+  const { batches, fetch } = recordingFetch();
+  const { port, dispose } = createPostHogProductAnalyticsAdapter({ config: { enabled: true, apiKey: "phc_test_dummy", host: "https://posthog.invalid" } }, { fetch: fetch as never });
+  port.capture({ name: "theme_changed", userId: "u2" });
+  port.identify({ userId: "u2" });
+  expect(batches).toEqual([]);
+  await dispose();
+  const events = batches.flatMap((b) => b.body.batch);
+  expect(events.map((e) => [e.event, e.distinct_id])).toEqual([["theme_changed", "u2"], ["$identify", "u2"]]);
+});
+
+test("without an injected fetch an idle client is built and shut down with nothing to send", async () => {
+  const { dispose } = createPostHogProductAnalyticsAdapter({ config: { enabled: true, apiKey: "phc_test_dummy", host: "https://posthog.invalid" } });
+  await expect(dispose()).resolves.toBeUndefined();
+});
+
+test("a rejected SDK shutdown is swallowed by dispose", async () => {
+  const shutdown = vi.spyOn(PostHog.prototype, "shutdown").mockRejectedValueOnce(new Error("network gone"));
+  try {
+    const { dispose } = createPostHogProductAnalyticsAdapter({ config: { enabled: true, apiKey: "phc_test_dummy", host: "https://posthog.invalid" } }, { fetch: recordingFetch().fetch as never });
+    await expect(dispose()).resolves.toBeUndefined();
+    expect(shutdown).toHaveBeenCalledTimes(1);
+  } finally { shutdown.mockRestore(); }
 });

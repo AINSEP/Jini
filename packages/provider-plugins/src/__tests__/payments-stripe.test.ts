@@ -240,3 +240,20 @@ describe('StripePaymentsProvider', () => {
     expect(fetchFn).toHaveBeenCalledOnce();
   });
 });
+
+describe('payments-stripe plugin factory (moved only; not activated)', () => {
+  it('registers one inert factory; the resource has no teardown work', async () => {
+    const { default: plugin, createStripeProvider } = await import('../payments-stripe/index.js');
+    const registered: unknown[] = [];
+    plugin.definition.setup({ providers: { register: (value: unknown) => { registered.push(value); } } } as never);
+    expect(registered).toEqual([{ contract: 'payments', id: 'stripe', contractVersion: 1, factory: createStripeProvider }]);
+    const resource = createStripeProvider({ secretKey: 'sk_test_x' }, { fetchFn: vi.fn() });
+    expect(resource.port).toBeInstanceOf(StripePaymentsProvider);
+    expect(resource.dispose({})).toBeUndefined();
+  });
+
+  it.each([{}, { secretKey: 7 }, { secretKey: '' }])('refuses a missing or non-string key %j through the adapter\'s own check', async (input) => {
+    const { createStripeProvider } = await import('../payments-stripe/index.js');
+    expect(() => createStripeProvider(input)).toThrow(StripePaymentsProviderError);
+  });
+});
