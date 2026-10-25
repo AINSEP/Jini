@@ -168,3 +168,22 @@ describe('createRoleMarkerGuard — tail window and pending clamp', () => {
     });
   });
 });
+
+describe('createRoleMarkerGuard — marker spacing (F3 re-score)', () => {
+  const feedAll = (chunks: readonly string[]) => {
+    const guard = createRoleMarkerGuard({ messageId: 'm' });
+    return { out: chunks.map((text) => guard.feedText({ text })).join(''), contaminated: guard.contaminated };
+  };
+  it.each([
+    ['several spaces after ## at stream start', ['##   user\nx'], true],
+    ['tab after ## mid-stream', ['ok\n##\tsystem\nx'], true],
+    ['several spaces after ## mid-stream, later chunk', ['z'.repeat(80), '\n##   assistant\nx'], true],
+    ['indent before ## mid-stream, later chunk', ['z'.repeat(80), '\n  ## user\nx'], true],
+    ['pending keyword with several spaces, confirmed next chunk', ['z'.repeat(80) + '\n##  user', '\nx'], true],
+    ['pending keyword with several spaces at stream start', ['##  system', ':x'], true],
+    ['text before ## on the same line, later chunk', ['z'.repeat(80), '\nfoo## user\nx'], false],
+    ['text before ## at stream start', ['foo## user\nx'], false],
+  ])('%s → contaminated=%s', (_label, chunks, contaminated) => {
+    expect(feedAll(chunks).contaminated).toBe(contaminated);
+  });
+});

@@ -585,3 +585,46 @@ describe('auth failure classifiers — one alternation per case', () => {
     expect(isClaudeAuthFailureText({ text })).toBe(expected);
   });
 });
+
+// Stryker L3 re-score (F3): the codex/claude env short-circuit only had result assertions (the
+// probe mock also answers ok), JSON-ish text spacing variants, reasonix apikey, and the tailored
+// guidance hostName threading were unpinned.
+describe('auth — re-score survivors (F3)', () => {
+  it.each([
+    ['codex', { CODEX_API_KEY: 'k' }, false], ['codex', { OPENAI_API_KEY: 'k' }, false],
+    ['codex', { ANTHROPIC_API_KEY: 'k' }, true], ['claude', { ANTHROPIC_API_KEY: 'k' }, false],
+    ['claude', { CODEX_API_KEY: 'k' }, true], ['gemini', { CODEX_API_KEY: 'k', ANTHROPIC_API_KEY: 'k' }, true],
+  ] as const)('%s with %j probes the CLI: %s', async (id, env, probed) => {
+    let called = false;
+    mockState.execFileImpl = (_f, _a, _o, cb) => { called = true; cb(null, { stdout: '', stderr: '' }); };
+    await probeAgentAuthStatus({ def: { id, name: id, authProbe: { args: ['auth', 'status'] } }, resolvedBin: `/bin/${id}`, env: { ...env } });
+    expect(called).toBe(probed);
+  });
+
+  it.each([
+    ['log "authenticated":true; not authenticated', false],
+    ['log "loggedIn"  :  true; not logged in', false],
+    ['log "loggedIn":false', true],
+    ['log "authenticated":false', true],
+  ])('claude text %j → %s', (text, expected) => {
+    expect(isClaudeAuthFailureText({ text })).toBe(expected);
+  });
+
+  it('reasonix: apikey (no separator) next to its config path', () => {
+    expect(isReasonixAuthFailureText({ text: '~/.reasonix/config.json apikey' })).toBe(true);
+  });
+
+  it.each([
+    ['deepseek', 'DEEPSEEK_API_KEY missing'],
+    ['antigravity', 'Error: authentication timed out.'],
+    ['reasonix', 'DEEPSEEK_API_KEY missing'],
+    ['cursor-agent', 'not logged in'],
+    ['claude', 'not logged in'],
+  ])('%s guidance threads the host name', (agentId, text) => {
+    const result = classifyAgentAuthFailure({ agentId, text }, { hostName: 'HostX' });
+    expect(result?.status).toBe('missing');
+    expect(typeof result?.message).toBe('string');
+    expect(result?.message.length).toBeGreaterThan(20);
+    if (agentId !== 'antigravity' && agentId !== 'cursor-agent') expect(result?.message).toContain('HostX');
+  });
+});
