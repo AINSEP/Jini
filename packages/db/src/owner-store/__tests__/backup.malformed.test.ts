@@ -1,6 +1,6 @@
 import { sealWithPassphrase } from "@jini-ai/platform/secrets";
-import { afterAll, beforeAll, expect, test } from "vitest";
-import { OwnerStoreBackupError, restoreOwnerStore } from "../backup.js";
+import { afterAll, beforeAll, expect, test, vi } from "vitest";
+import { OwnerStoreBackupError, exportOwnerStore, restoreOwnerStore } from "../backup.js";
 import type { OwnerStoreService } from "../service.js";
 import { fixture, input } from "./fixture.js";
 
@@ -70,6 +70,19 @@ test("boundary hints are accepted: last4 with tokenLength exactly 12, tokenLengt
     await expect(restoreOwnerStore({ store: target, envelope, passphrase: "p" })).resolves.toEqual({ restored: 2 });
     const hints = (await target.list({})).map(summary => [summary.id, summary.last4, summary.tokenLength]).sort();
     expect(hints).toEqual([["e1", "alue", 12], ["e2", null, 0]]);
+  } finally {
+    await other.cleanup();
+  }
+});
+
+test("export refuses (invalid-backup) when an inventoried entry cannot be read back from the vault", async () => {
+  const other = fixture();
+  try {
+    const source = await other.open();
+    await source.put(input);
+    const get = vi.spyOn(source.vault, "get").mockResolvedValueOnce(null);
+    await expect(exportOwnerStore({ store: source, passphrase: "p" })).rejects.toMatchObject({ name: "OwnerStoreBackupError", code: "invalid-backup" });
+    expect(get).toHaveBeenCalledOnce();
   } finally {
     await other.cleanup();
   }
