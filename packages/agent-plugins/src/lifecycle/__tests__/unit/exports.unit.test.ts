@@ -70,6 +70,65 @@ describe('plugin export contracts', () => {
     expect(parseAgentPluginExports({ extension: { renamedFrom }, provides: [] })).toMatchObject({ ok: false });
   });
 
+  const reasonOf = (entry: unknown) => {
+    const result = parse(entry);
+    return result.ok ? null : result.errors;
+  };
+
+  it.each([
+    ['template', 123, 'template must be a contained .html path'],
+    ['template', undefined, 'template must be a contained .html path'],
+    ['styles', 7, 'styles must be a contained .css path'],
+    ['styles', 'exports/button.js', 'styles must be a contained .css path'],
+    ['aliases', [1], 'aliases must be an array of component names'],
+    ['aliases', ['old-button', 'BAD NAME'], 'aliases must be an array of component names'],
+    ['aliases', 'old-button', 'aliases must be an array of component names'],
+    ['assets', { mark: 'exports/mark.svg', other: 'exports/code.js' }, 'assets must map names to contained .png or .svg paths'],
+    ['assets', { mark: 5 }, 'assets must map names to contained .png or .svg paths'],
+    ['assets', { '1bad': 'exports/mark.svg' }, 'assets must map names to contained .png or .svg paths'],
+    ['assets', { 'a b': 'exports/mark.svg' }, 'assets must map names to contained .png or .svg paths'],
+    ['assets', { 'x!': 'exports/mark.svg' }, 'assets must map names to contained .png or .svg paths'],
+    ['hostLinks', { signIn: 'member-login:example', other: 'member-login:undeclared' }, 'hostLinks must name capabilities this plugin provides'],
+    ['hostLinks', { signIn: 5 }, 'hostLinks must name capabilities this plugin provides'],
+    ['hostLinks', { '1bad': 'member-login:example' }, 'hostLinks must name capabilities this plugin provides'],
+    ['hostLinks', { 'x!': 'member-login:example' }, 'hostLinks must name capabilities this plugin provides'],
+  ])('refuses %s = %j with the specific reason and never throws', (key, value, message) => {
+    expect(reasonOf({ ...definition, [key]: value })).toEqual([`exports.sign-in: ${message}`]);
+  });
+
+  it.each([
+    ['template', 'x.html'], ['template', 'a/b/c.html'], ['styles', 'a/b/c.css'], ['styles', 'x.css'],
+  ])('accepts portable %s path %s at any directory depth', (key, value) => {
+    expect(parse({ ...definition, [key]: value }).ok).toBe(true);
+    expect(parse({ ...definition, assets: { mark: 'a/b/c.png', flat: 'x.svg' } }).ok).toBe(true);
+  });
+
+  it('refuses a non-object entry and a non-object exports block with specific reasons', () => {
+    expect(parseAgentPluginExports({ extension: { exports: 'x' }, provides: [] })).toEqual({ ok: false, errors: ['exports must be an object keyed by component name'] });
+    expect(parseAgentPluginExports({ extension: { exports: { a: 'x' } }, provides: [] })).toEqual({ ok: false, errors: ['exports.a: must be an object'] });
+    expect(parseAgentPluginExports({ extension: { exports: [] }, provides: [] })).toEqual({ ok: false, errors: ['exports must be an object keyed by component name'] });
+  });
+
+  it.each([
+    [{ renamedFrom: ['publisher/previous', 'local-name'] }], [{ renamedFrom: [4] }], [{ renamedFrom: 'publisher/old' }],
+  ])('names the renamedFrom failure for %j', extension => {
+    expect(parseAgentPluginExports({ extension, provides: [] })).toEqual({ ok: false, errors: ['renamedFrom must be an array of publisher-qualified plugin ids'] });
+  });
+
+  it.each([
+    [{ version: 0 }, 'version must be a positive safe integer'],
+    [{ minVersion: 4 }, 'minVersion must be between 1 and version'],
+    [{ consent: 'other' }, 'consent must name a consent category'],
+    [{ staticExport: 'dynamic' }, 'staticExport must be full, link-only or fallback-only'],
+    [{ props: { type: 'string' } }, 'props must declare an object schema'],
+  ])('reports %j with its own message', (patch, message) => {
+    expect(reasonOf({ ...definition, ...patch })?.[0]).toContain(message);
+  });
+
+  it('refuses an invalid component name with its reason', () => {
+    expect(parseAgentPluginExports({ extension: { exports: { 'Bad Name': definition } }, provides: ['member-login:example'] })).toEqual({ ok: false, errors: ['exports.Bad Name: invalid component name'] });
+  });
+
   it('rejects invalid contracts through the manifest parser', () => {
     expect(parseAgentPluginManifest({ value: plugin({ exports: { 'sign-in': { ...definition, version: -1 } } }) }, { identityNamespace: 'example' }))
       .toEqual({ ok: false, errors: ['exports.sign-in: version must be a positive safe integer'] });
