@@ -357,8 +357,8 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
     /** Owns the descriptor until validated; every refusal closes it before propagating. */
     function openValidatedDescriptor({ target, relativePath, maxBytes }: {
         target: string; relativePath: string; maxBytes: number;
-    }, _optional = {}): { fd: number; maxBytes: number } {
-        const fd = fs.openSync(target, descriptorFlags!);
+    }): { fd: number; maxBytes: number } {
+        const fd = openNoFollow({ target, relativePath });
         try {
             const stat = fs.fstatSync!(fd);
             assertDescriptorStat({ stat, relativePath, maxBytes }, descriptorRead);
@@ -399,10 +399,20 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
             stream.destroy();
         }
     }
+    /** O_NOFOLLOW refusals (ELOOP) and other open failures carry absolute host paths; surface only
+     * the caller's relative path, like every other refusal from this reader. */
+    function openNoFollow({ target, relativePath }: { target: string; relativePath: string }): number {
+        try {
+            return fs.openSync(target, descriptorFlags!);
+        }
+        catch {
+            throw new FsFilePathError({ message: `path '${relativePath}' is a symbolic link or could not be opened` });
+        }
+    }
     /** Transfer ownership to the stream only after construction; it alone closes on end/error. */
     function createBoundedStream({ target, relativePath, maxBytes }: {
         target: string; relativePath: string; maxBytes: number;
-    }, _optional = {}): { stream: nodeFs.ReadStream; maxBytes: number } {
+    }): { stream: nodeFs.ReadStream; maxBytes: number } {
         const highWaterMark = Math.min(64 * 1024, maxBytes + 1);
         if (descriptorFlags === undefined) return { stream: fs.createReadStream(target, { highWaterMark }), maxBytes };
         const opened = openValidatedDescriptor({ target, relativePath, maxBytes });
@@ -428,14 +438,14 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
 /** Validate opt-in capability support without weakening legacy filesystem adapters. */
 function descriptorOpenFlags({ filesystem, policy }: {
     filesystem: GuardedReaderFilesystem; policy: DescriptorReadPolicy;
-}, _optional = {}): number {
+}): number {
     if (!filesystem.fstatSync || !filesystem.constants)
         throw new TypeError("descriptorRead requires fstatSync and filesystem constants");
     const { O_RDONLY, O_NOFOLLOW, O_NONBLOCK } = filesystem.constants;
     if (!O_NOFOLLOW || !O_NONBLOCK || !Number.isInteger(O_RDONLY))
         throw new TypeError("descriptorRead requires supported O_RDONLY, O_NOFOLLOW and O_NONBLOCK flags");
-    if (policy.exactMode !== undefined && (!Number.isInteger(policy.exactMode) || policy.exactMode < 0 || policy.exactMode > 0o777))
-        throw new TypeError("exactMode must contain only permission bits (0o000 through 0o777)");
+    if (policy.exactMode !== undefined && (!Number.isInteger(policy.exactMode) || policy.exactMode < 0 || policy.exactMode > 0o7777))
+        throw new TypeError("exactMode must contain only permission bits (0o0000 through 0o7777)");
     return O_RDONLY | O_NOFOLLOW | O_NONBLOCK;
 }
 /** Both read paths validate the opened object, independent of earlier pathname metadata. */
@@ -446,7 +456,8 @@ function assertDescriptorStat({ stat, relativePath, maxBytes }: {
         throw new FsFilePathError({ message: `path '${relativePath}' is not a regular file` });
     if (!Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > maxBytes)
         throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${maxBytes}-byte descriptor limit` });
-    if (exactMode !== undefined && (stat.mode & 0o777) !== exactMode)
+    // Include setuid/setgid/sticky: "exact" 0o600 must refuse a 0o4600 file.
+    if (exactMode !== undefined && (stat.mode & 0o7777) !== exactMode)
         throw new FsFilePathError({ message: `file '${relativePath}' does not have exact mode ${exactMode.toString(8)}` });
 }
 function errorText(error: unknown): string {
