@@ -26,17 +26,20 @@ function optionLabel({ group, value }: { group: unknown; value: string }, _optio
   return typeof label === 'string' ? label : value;
 }
 
+/** Labels for the string entries of a multi-select answer, in answer order. O(s*m). */
+function multiSelectLabels({ selections, question }: { selections: unknown; question: Record<string, unknown> }, _options = {}): string[] {
+  if (!Array.isArray(selections)) return [];
+  return selections.filter((selection): selection is string => typeof selection === 'string')
+    .map(selection => optionLabel({ group: question.multiSelect ?? question, value: selection }));
+}
+
 function selectedAnswerText(
   { result, input }: { result: Record<string, unknown>; input: unknown }, _options = {},
 ): string | undefined {
   const question = record(input);
   const labels: string[] = [];
   if (typeof result.choice === 'string') labels.push(optionLabel({ group: question.singleSelect ?? question, value: result.choice }));
-  if (Array.isArray(result.selections)) {
-    for (const selection of result.selections) {
-      if (typeof selection === 'string') labels.push(optionLabel({ group: question.multiSelect ?? question, value: selection }));
-    }
-  }
+  labels.push(...multiSelectLabels({ selections: result.selections, question }));
   if (labels.length > 0) return labels.join(', ');
   return Array.isArray(result.selections) && result.selections.length === 0 ? 'None selected' : undefined;
 }

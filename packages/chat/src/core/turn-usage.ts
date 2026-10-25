@@ -84,12 +84,17 @@ export function turnUsage({ events }: { events: readonly AgentEvent[] | undefine
   for (const event of events ?? []) {
     if (event.kind !== 'usage') continue;
     total ??= { kind: 'usage' };
-    addReportedCounts({ total, event });
-    if (event.stopReason !== undefined) total.stopReason = event.stopReason;
-    const cost = usageCost({ event, agentId, sessions });
-    if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
+    addEventUsage({ total, event, agentId, sessions });
   }
   return total;
+}
+
+/** Fold one usage event (counts, stop reason, cost) into `total`, in place. O(1). */
+function addEventUsage({ total, event, agentId, sessions }: { total: UsageEvent; event: UsageEvent; agentId: string; sessions: Map<string, SessionCost> }, _optional = {}): void {
+  addReportedCounts({ total, event });
+  if (event.stopReason !== undefined) total.stopReason = event.stopReason;
+  const cost = usageCost({ event, agentId, sessions });
+  if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
 }
 
 /** Add an event's well-formed token and duration counts into `total`, in place. */
