@@ -123,6 +123,30 @@ describe('AI trace lifecycle failure containment and terminal observation', () =
     expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
   });
 
+  it.each([
+    ['refused', async () => ({ kind: 'unknown-run' as const })],
+    ['rejected', async () => { throw new Error('replay down'); }],
+  ])('recheck #3: a %s subscription still finishes the started trace with the run\'s real outcome', async (_label, stream) => {
+    const onSinkError = vi.fn();
+    const { lifecycle, sink } = fixture();
+    const traced = withAiTracing({ lifecycle: { ...lifecycle, stream }, sink }, { onSinkError });
+    const { run } = await traced.start({ contextRef: 'chat' });
+    await vi.waitFor(() => expect(onSinkError).toHaveBeenCalledTimes(1));
+    await expect(traced.finish({ runId: run.id, status: 'cancelled', code: null, signal: 'SIGTERM', resumable: false })).resolves.toMatchObject({ state: 'cancelled' });
+    await vi.waitFor(() => expect(sink.events.map((event) => event.kind)).toEqual(['run_started', 'run_finished']));
+    expect(sink.events.at(-1)).toMatchObject({ outcome: 'cancelled' });
+  });
+
+  it('recheck #3: an unreadable terminal state after a failed subscription releases the trace without inventing an outcome', async () => {
+    const { lifecycle, sink } = fixture();
+    const waited = vi.fn(async () => { throw new Error('unknown run'); });
+    const traced = withAiTracing({ lifecycle: { ...lifecycle, stream: async () => ({ kind: 'unknown-run' as const }), waitForTerminal: waited }, sink });
+    const { run } = await traced.start({ contextRef: 'chat' });
+    await vi.waitFor(() => expect(waited).toHaveBeenCalledWith({ runId: run.id }));
+    await expect(traced.finish({ runId: run.id, ...success })).resolves.toMatchObject({ state: 'succeeded' });
+    expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
+  });
+
   it('propagates underlying lifecycle failures without treating them as telemetry failures', async () => {
     const onSinkError = vi.fn();
     const { traced } = fixture({ onSinkError });
