@@ -105,3 +105,41 @@ describe("createMailFeedbackIngest", () => {
     assert.equal(suppressed.length, 1);
   });
 });
+
+// F1 fix wave (Stryker L1 §4 mail/feedback.ts:70-112 — window boundary, `ok:false` bodies, body
+// size limit, keyed-event filter): exact bodies and ±1 boundaries.
+describe("createMailFeedbackIngest — F1 boundaries", () => {
+  test("refusal bodies are exact: 404 unknown provider, 503 no secret, 401 forged, 400 parse error", async () => {
+    assert.deepEqual(await createMailFeedbackIngest(harness().deps).handle({ ...REQUEST, providerId: "other" }), { status: 404, body: { ok: false, error: "unknown provider" } });
+    assert.deepEqual(await createMailFeedbackIngest(harness({ secrets: [] }).deps).handle(REQUEST), { status: 503, body: { ok: false, error: "webhook secret not configured" } });
+    assert.deepEqual(await createMailFeedbackIngest(harness().deps).handle({ ...REQUEST, headers: { "x-sig": "forged" } }), { status: 401, body: { ok: false, error: "signature rejected" } });
+    assert.deepEqual(await createMailFeedbackIngest(harness({ events: { error: "bad json" } }).deps).handle(REQUEST), { status: 400, body: { ok: false, error: "bad json" } });
+  });
+
+  test("body exactly maxBodyBytes is accepted; +1 is 413", async () => {
+    const ingest = createMailFeedbackIngest(harness().deps, { maxBodyBytes: 4 });
+    assert.equal((await ingest.handle({ ...REQUEST, rawBody: new Uint8Array(4) })).status, 200);
+    assert.deepEqual(await ingest.handle({ ...REQUEST, rawBody: new Uint8Array(5) }), { status: 413, body: { ok: false, error: "body too large" } });
+  });
+
+  test("unverified throttle: the max-th failure is still 401, the next is 429; a new window resets; signed requests are never throttled", async () => {
+    let t = 1_000;
+    const ingest = createMailFeedbackIngest(harness().deps, { maxUnverifiedPerWindow: 2, windowMs: 100, now: () => t });
+    const forged = { ...REQUEST, headers: { "x-sig": "forged" } };
+    assert.equal((await ingest.handle(forged)).status, 401);
+    assert.equal((await ingest.handle(forged)).status, 401);
+    assert.deepEqual(await ingest.handle(forged), { status: 429, body: { ok: false, error: "too many unverified requests" } });
+    t += 99; // still inside the window
+    assert.equal((await ingest.handle(forged)).status, 429);
+    t = 1_000 + 100; // window elapsed exactly
+    assert.equal((await ingest.handle(forged)).status, 401);
+    // A genuinely signed request is never throttled, even while the window is hot.
+    assert.equal((await ingest.handle(REQUEST)).status, 200);
+  });
+
+  test("events lacking an id or recipient are dropped, not applied", async () => {
+    const { deps, suppressed } = harness({ events: [{ ...BASE, eventId: "" }, { ...BASE, eventId: "e9", recipient: "" }, { ...BASE, eventId: undefined as never }, { ...BASE, eventId: "ok" }] });
+    assert.deepEqual(await createMailFeedbackIngest(deps).handle(REQUEST), { status: 200, body: { ok: true, applied: 1, duplicates: 0 } });
+    assert.equal(suppressed.length, 1);
+  });
+});
