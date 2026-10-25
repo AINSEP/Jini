@@ -161,3 +161,19 @@ test("resolveStdioChildCwd: the configured (requested) command decides, not the 
   assert.equal(resolveStdioChildCwd({ resolved: launch }, { neutralDir: "/neutral" }), "/neutral");
   assert.equal(resolveStdioChildCwd({ resolved: { ...launch, command: "npx", requestedCommand: "/electron/Electron" } }, { neutralDir: "/neutral" }), undefined);
 });
+
+// Stryker L3 re-score (F3): the 4-char redaction minimum and the hold-back length were untested at
+// their edges. A 4-char secret IS redacted (a 3-char one is not, it would shred ordinary text), and a
+// secret split one char at a time across chunks is still caught.
+test("createStderrTail: 4-char secrets are redacted, 3-char ones are left alone", () => {
+  const tail = createStderrTail({ secretValues: ["abcd", "xyz"] });
+  tail.append({ chunk: "abcd xyz abcd" });
+  assert.equal(tail.text(), "[redacted] xyz [redacted]");
+});
+
+test("createStderrTail: a secret fed one character per chunk is still redacted", () => {
+  const secret = "tok_SECRET_9";
+  const tail = createStderrTail({ secretValues: [secret, "abcd"] });
+  for (const ch of `pre ${secret} post`) tail.append({ chunk: ch });
+  assert.equal(tail.text(), "pre [redacted] post");
+});
