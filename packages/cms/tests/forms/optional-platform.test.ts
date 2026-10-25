@@ -4,11 +4,19 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { copyRuntimeTree, fixture, pack, packages, run } from '../../../../scripts/testing/packed-fixture.js';
 
+/** Keep the copied runtime deps, but leave only tarball files for packed packages: a checkout copy would mask a missing `files` entry. */
+function packOnly(dir: string, names: readonly string[]): void {
+  for (const name of names) {
+    rmSync(join(dir, 'node_modules/@jini-ai', name), { recursive: true, force: true });
+    pack(dir, name);
+  }
+}
+
 it('loads packed Forms and validates a submission without platform installed', () => {
   const dir = fixture('cms-forms-no-platform-');
   try {
     copyRuntimeTree(dir, '@jini-ai/cms', join(packages, 'cms'));
-    pack(dir, 'cms');
+    packOnly(dir, ['cms']);
     expect(existsSync(join(dir, 'node_modules/@jini-ai/platform'))).toBe(false);
     // REGRESSION: an eager sender re-export made this existing public entry require platform.
     const result = run(dir, `
@@ -36,8 +44,7 @@ it('loads the packed sender subpath and configures an email action through injec
   try {
     copyRuntimeTree(dir, '@jini-ai/cms', join(packages, 'cms'));
     copyRuntimeTree(dir, '@jini-ai/platform', join(packages, 'platform'));
-    pack(dir, 'cms');
-    pack(dir, 'platform');
+    packOnly(dir, ['cms', 'platform']);
     const result = run(dir, `
       import assert from 'node:assert/strict';
       const { createFormsEmailSender } = await import('@jini-ai/cms/forms/email-sender');
