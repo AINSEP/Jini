@@ -58,10 +58,12 @@ does not pull another package's test sources outside server's source root.
 
 ## Owner-only credential store
 
-`@jini-ai/server/owner-store` re-exports `openOwnerStore`, `OwnerStoreService`, `exportOwnerStore` and
-`restoreOwnerStore`. The implementation still lives in `@jini-ai/db/owner-store`, which published hosts
-import directly. The database path, key path and SQLite opener remain host supplied. This entry requires
-the optional `@jini-ai/db` peer.
+`@jini-ai/server/owner-store` assembles the database and platform vault implementations.
+Import `openOwnerStore`, `OwnerStoreService`, `exportOwnerStore` and `restoreOwnerStore`
+from this entry. `@jini-ai/db/owner-store` now owns only the pinned schema/migrations;
+it no longer loads a driver, migration runner or vault service from a sibling domain.
+The database path, key path and SQLite opener remain host supplied. This entry requires
+the optional `@jini-ai/db`, `@jini-ai/platform` and `kysely` peers.
 
 ```ts
 import { openOwnerStore } from '@jini-ai/server/owner-store';
