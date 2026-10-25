@@ -52,8 +52,9 @@ export function isNoopProductAnalytics(port: ProductAnalyticsPort): boolean {
   return port === NOOP;
 }
 
-/** May this user's activity be sent to the product-analytics vendor? The host's consent record decides. */
-export type ProductAnalyticsConsent = (input: { userId: string }) => boolean;
+/** May this user's activity be sent to the product-analytics vendor? The host's consent record decides.
+ * A promise is fine (a settings read): the event waits for the answer and is dropped unless it is `true`. */
+export type ProductAnalyticsConsent = (input: { userId: string }) => boolean | Promise<boolean>;
 
 const EVENT_NAME = /^[a-z][a-z0-9_.]{0,63}$/;
 const MAX_ID = 128;
@@ -85,21 +86,26 @@ function safeProperties(properties: ProductEventProperties | undefined): Product
  */
 export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, _optional: Record<string, never> = {}): ProductAnalyticsPort {
   if (isNoopProductAnalytics(inner)) return inner;
-  const allowed = (userId: string): boolean => {
-    try { return isPseudonymousId(userId) && consent({ userId }); } catch { return false; }
+  /** Runs `send` only after an explicit `true` from consent; synchronous answers stay synchronous. */
+  const whenAllowed = (userId: string, send: () => void): void => {
+    if (!isPseudonymousId(userId)) return;
+    const deliver = () => { try { send(); } catch { /* never fail the feature */ } };
+    let decision: boolean | Promise<boolean>;
+    try { decision = consent({ userId }); } catch { return; }
+    if (decision === true) return deliver();
+    if (typeof decision === "object" && decision !== null) void Promise.resolve(decision).then((ok) => { if (ok === true) deliver(); }, () => {});
   };
   return {
     capture({ name, userId, properties }) {
-      if (!EVENT_NAME.test(name) || !allowed(userId)) return;
+      if (!EVENT_NAME.test(name)) return;
       const safe = safeProperties(properties);
       if (safe === null) return;
-      try { inner.capture({ name, userId, ...(safe ? { properties: safe } : {}) }); } catch { /* never fail the feature */ }
+      whenAllowed(userId, () => inner.capture({ name, userId, ...(safe ? { properties: safe } : {}) }));
     },
     identify({ userId, traits }) {
-      if (!allowed(userId)) return;
       const safe = safeProperties(traits);
       if (safe === null) return;
-      try { inner.identify({ userId, ...(safe ? { traits: safe } : {}) }); } catch { /* never fail the feature */ }
+      whenAllowed(userId, () => inner.identify({ userId, ...(safe ? { traits: safe } : {}) }));
     },
   };
 }
