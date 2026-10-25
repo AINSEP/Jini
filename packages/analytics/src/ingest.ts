@@ -431,9 +431,11 @@ function ipMatchesRange(ip: string, range: string): boolean {
   if (mapped) ip = mapped[1]!;
   if (!range.includes("/")) return ip === range;
 
-  const [rangeIp = "", prefixRaw] = range.split("/");
-  const prefix = Number(prefixRaw);
-  if (ip.includes(":") || rangeIp.includes(":") || Number.isNaN(prefix)) return false;
+  const [rangeIp = "", prefixRaw = ""] = range.split("/");
+  // Digits only, 0-32: `Number("")` and `Number("-1")` would otherwise read a malformed range as /0
+  // and exclude every visitor.
+  const prefix = /^\d{1,2}$/.test(prefixRaw) ? Number(prefixRaw) : Number.NaN;
+  if (ip.includes(":") || rangeIp.includes(":") || Number.isNaN(prefix) || prefix > 32) return false;
 
   const ipInt = ipv4ToInt(ip);
   const rangeInt = ipv4ToInt(rangeIp);
