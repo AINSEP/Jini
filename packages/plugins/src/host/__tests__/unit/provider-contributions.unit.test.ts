@@ -168,6 +168,16 @@ describe('generation retirement and provider resources', () => {
       expect(() => createPluginProviderHost({ contributions: registry, contracts: [contract] }, { initializeTimeoutMs })).toThrow('invalid provider initialization timeout');
     }
   });
+  it('settles at once when the factory itself triggers shutdown before returning a never-settling promise', async () => {
+    const registry = createPluginContributionRegistry({});
+    let host!: ReturnType<typeof createPluginProviderHost>, shutdown!: Promise<void>;
+    publish({ registry, factory: () => { shutdown = host.dispose({}); return new Promise<PluginProviderResource>(() => {}); } });
+    host = createPluginProviderHost({ contributions: registry, contracts: [contract] }, { initializeTimeoutMs: 60_000 });
+    const initialization = host.initialize({ ...declaration, input: {} });
+    // Retirement happened before the waker existed; settling must not wait for the deadline.
+    const outcome = await Promise.race([initialization, new Promise(resolve => setTimeout(resolve, 50, 'pending'))]);
+    expect(outcome).toBeUndefined(); await shutdown;
+  });
   it('reads the port once after cleanup exists: a throwing getter is disposed, a changing getter leases the validated value', async () => {
     const registry = createPluginContributionRegistry({}), dispose = vi.fn();
     const throwing = { dispose, get port(): unknown { throw new Error('port getter failed'); } };
