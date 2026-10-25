@@ -78,3 +78,30 @@ test('explicit loopback HTTP allows the full IPv4 range and IPv4-mapped IPv6', (
     const secure = createOAuthUrlGuard({ assertAllowed: () => undefined });
     assert.throws(() => secure.assertSafeUrl({ raw: 'http://127.0.0.2/token', label: 'token endpoint' }), { code: 'OAUTH_UNSAFE_ENDPOINT' });
 });
+
+// F1 fix wave (Stryker L1 §4 endpoint-safety.ts:14,18 — loopback regex anchors and bracket strip
+// survived). Each http:// host below is one character class / anchor away from a loopback form.
+test('F1: loopback http exception is anchored — near-loopback hosts are refused with the https message', () => {
+    const guard = createOAuthUrlGuard({ assertAllowed: () => undefined }, { allowLoopbackHttp: true });
+    for (const raw of [
+        'http://127.0.0.1.evil.com/token', // trailing junk after a dotted 127/8 address
+        'http://[1::ffff:7f00:1]/token', // leading junk before the mapped prefix
+        'http://[::ffff:7f00:1:2]/token', // trailing junk after the mapped form
+        'http://[::1:0]/token', // ::1 prefix with trailing groups
+        'http://localhost.evil.com/token',
+        'http://evil-localhost/token',
+    ]) {
+        assert.throws(() => guard.assertSafeUrl({ raw, label: 'token endpoint' }), {
+            name: 'OAuthError', code: 'OAUTH_UNSAFE_ENDPOINT',
+            message: 'token endpoint: provider endpoint must use https (http is permitted only for loopback)',
+        }, raw);
+    }
+    for (const raw of ['http://localhost/token', 'http://LOCALHOST./token', 'http://[::1]/token', 'http://127.1/token', 'http://[::ffff:127.0.0.1]/token']) {
+        assert.equal(guard.assertSafeUrl({ raw, label: 'token endpoint' }).href, new URL(raw).href, raw);
+    }
+});
+
+test('F1: loopback alone is not enough — a non-http plaintext scheme is still refused', () => {
+    const guard = createOAuthUrlGuard({ assertAllowed: () => undefined }, { allowLoopbackHttp: true });
+    assert.throws(() => guard.assertSafeUrl({ raw: 'ws://127.0.0.1/token', label: 'token endpoint' }), { code: 'OAUTH_UNSAFE_ENDPOINT', message: 'token endpoint: provider endpoint must use https (http is permitted only for loopback)' });
+});
