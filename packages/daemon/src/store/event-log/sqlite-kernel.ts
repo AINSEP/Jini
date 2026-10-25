@@ -14,7 +14,7 @@ type EventDatabase = Kysely<SqliteEventLogDatabase>;
 
 /**
  * Borrow a SQLite kernel, awaiting its readiness and optionally ensuring the owner's schema.
- * Every operation joins the caller's kernel context; append/drop use kernel transactions.
+ * Every operation joins the caller's kernel context; append/drop/replay use kernel transactions.
  * Refusals are values: hosts aborting a composed operation must use their exception/rollback path.
  * Close leaves the borrowed kernel open. Driver, readiness and serialization failures propagate.
  * @param required Host kernel with the event-log table subset.
@@ -51,7 +51,9 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
     async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
       // Validate even when the run is unknown, matching the synchronous adapter.
       assertValidReplayCursor(afterCursor);
-      return run(db => replayInKernel({ db, runId, afterCursor }));
+      // One transaction for all three reads: another process cannot evict between the gap check
+      // and the entry read, which would otherwise return a gap reported as ok.
+      return kernel.transaction(() => run(db => replayInKernel({ db, runId, afterCursor })));
     },
     listRunIds(_args: Record<string, never>): Promise<readonly string[]> {
       return run(async db => (await db.selectFrom('jini_event_log_runs').select('run_id')

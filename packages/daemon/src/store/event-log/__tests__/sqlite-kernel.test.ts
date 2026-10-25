@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { expect, it, vi } from 'vitest';
 import type { StorageKernel } from '@jini-ai/db/kernel';
@@ -37,7 +40,7 @@ it('awaits readiness, routes through the injected kernel, and never closes it', 
     });
     await log.listRunIds({});
     await log.drop({ runId: 'r' });
-    expect(transaction).toHaveBeenCalledTimes(2);
+    expect(transaction).toHaveBeenCalledTimes(3);
     expect(run).toHaveBeenCalledTimes(4);
     expect(db.prepare('SELECT * FROM jini_event_log_runs').all()).toEqual([]);
     await log.close({}); await log.close({});
@@ -105,6 +108,35 @@ it('blocks concurrent callers until an outer transaction completes, then allocat
     const rest = await Promise.all(Array.from({ length: 8 }, (_, n) => log.append({ runId: 'r', event: 'e', data: n + 4 })));
     expect(rest.map(entry => entry.id)).toEqual(['4', '5', '6', '7', '8', '9', '10', '11']);
   } finally { release(); db.close(); }
+});
+
+it('replay reads one snapshot: another connection cannot evict between the gap check and the entry read', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'jini-event-log-'));
+  const db = new Database(join(dir, 'log.db'));
+  // A second connection stands in for another process; timeout 0 so a held lock refuses at once.
+  const other = new Database(join(dir, 'log.db'), { timeout: 0 });
+  try {
+    const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db) }, { maxEntriesPerRun: 3 });
+    for (const n of [1, 2, 3]) await log.append({ runId: 'r', event: 'e', data: n });
+    const prepare = db.prepare.bind(db);
+    let statements = 0;
+    let interleaved: unknown;
+    db.prepare = ((source: string) => {
+      // Before replay's third read, the other connection appends 4 and 5 and evicts 1 and 2.
+      if (++statements === 3) {
+        try {
+          other.exec(`INSERT INTO jini_event_log_entries (run_id, cursor, event, data, recorded_at)
+            VALUES ('r', 4, 'e', '4', 0), ('r', 5, 'e', '5', 0);
+            DELETE FROM jini_event_log_entries WHERE run_id = 'r' AND cursor <= 2;
+            UPDATE jini_event_log_runs SET next_cursor = 6 WHERE run_id = 'r'`);
+        } catch (error) { interleaved = error; }
+      }
+      return prepare(source);
+    }) as typeof db.prepare;
+    const result = await log.replay({ runId: 'r', afterCursor: '1' });
+    expect(result.kind === 'ok' ? result.entries.map(entry => entry.data) : result).toEqual([2, 3]);
+    expect(interleaved).toMatchObject({ code: 'SQLITE_BUSY' });
+  } finally { other.close(); db.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
 it('rejects non-SQLite kernels and propagates readiness failures without querying or closing', async () => {
