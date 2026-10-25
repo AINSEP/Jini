@@ -28,6 +28,11 @@ export async function prepareSkillInstall<Source extends object = GitHubSkillSou
   const validated = validateSkillFiles({ files: upload, yamlReader: deps.yamlReader });
   return { ...validated, toolId: deps.toolId({ name: validated.name }), source };
 }
+/** Provider provenance must be a plain object before the host validator sees it (extracted to keep
+ * fetchRemoteSkill within CCN 10). */
+function isProvenanceRecord(source: unknown): source is object {
+  return Boolean(source) && typeof source === "object" && !Array.isArray(source);
+}
 /** Source selection only; installation validation and mutation stay in the existing lifecycle.
  * Normalized URLs never fall back to GitHub. An injected provider owns legacy aliases too.
  * @throws SkillInputError for missing provider configuration or refused provenance.
@@ -39,7 +44,7 @@ async function fetchRemoteSkill<Source extends object>({ input, deps }: {
   if (deps.fetchSource) {
     if (!deps.validateSource) throw new SkillInputError({ message: "Skill source provenance validation is required." });
     const result = await deps.fetchSource({ url: "url" in input ? input.url : input.githubUrl }, {});
-    if (!result.source || typeof result.source !== "object" || Array.isArray(result.source) || !deps.validateSource({ source: result.source }, {})) throw new SkillInputError({ message: "Invalid skill source provenance." });
+    if (!isProvenanceRecord(result.source) || !deps.validateSource({ source: result.source }, {})) throw new SkillInputError({ message: "Invalid skill source provenance." });
     return result;
   }
   if ("url" in input) throw new SkillInputError({ message: "A skill source provider is required for URL installation." });
