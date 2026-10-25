@@ -24,20 +24,27 @@ async function sourceFiles(dir: string): Promise<string[]> {
   return out;
 }
 
-it('no core package imports or declares a vendor SDK', async () => {
+async function manifestOffenders({ name, root }: { name: string; root: string }): Promise<string[]> {
+  const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8').catch(() => '{}')) as Record<string, Record<string, string> | undefined>;
+  return ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
+    .flatMap(field => Object.keys(manifest[field] ?? {}).filter(dependency => VENDOR.test(dependency)).map(dependency => `${name}/package.json ${field}: ${dependency}`));
+}
+
+async function sourceOffenders({ root }: { root: string }): Promise<string[]> {
   const offenders: string[] = [];
+  for (const file of await sourceFiles(path.join(root, 'src')).catch(() => [])) {
+    for (const match of (await readFile(file, 'utf8')).matchAll(SPECIFIER)) if (VENDOR.test(match[1]!)) offenders.push(`${path.relative(packagesRoot, file)}: ${match[1]}`);
+  }
+  return offenders;
+}
+
+it('no core package imports or declares a vendor SDK', async () => {
   const packages = (await readdir(packagesRoot, { withFileTypes: true })).filter(entry => entry.isDirectory() && entry.name !== 'provider-plugins');
   expect(packages.length).toBeGreaterThan(20);
+  const offenders: string[] = [];
   for (const { name } of packages) {
     const root = path.join(packagesRoot, name);
-    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8').catch(() => '{}')) as Record<string, Record<string, string> | undefined>;
-    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-      for (const dependency of Object.keys(manifest[field] ?? {})) if (VENDOR.test(dependency)) offenders.push(`${name}/package.json ${field}: ${dependency}`);
-    }
-    const src = path.join(root, 'src');
-    for (const file of await sourceFiles(src).catch(() => [])) {
-      for (const match of (await readFile(file, 'utf8')).matchAll(SPECIFIER)) if (VENDOR.test(match[1]!)) offenders.push(`${path.relative(packagesRoot, file)}: ${match[1]}`);
-    }
+    offenders.push(...await manifestOffenders({ name, root }), ...await sourceOffenders({ root }));
   }
   expect(offenders).toEqual([]);
 });

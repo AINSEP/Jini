@@ -85,3 +85,52 @@ describe('ai-trace-langfuse factory', () => {
     expect(() => createLangfuseProvider(input, { client: fakeLangfuseClient() })).toThrow(new TypeError(message));
   });
 });
+
+describe('Langfuse mapping edges (pure, no client)', () => {
+  const started = { kind: 'run_started', traceId: 't', runId: 'r', at: 0, agentId: 'codex', provider: null, model: null, sessionId: null, input: null, tags: ['x'] } as const;
+  const turn = { kind: 'model_turn', traceId: 't', turnId: 'u', index: 0, startedAt: 10, endedAt: 20, model: null, input: null, output: null, reasoning: null,
+    usage: null, costUsd: null, costSource: null, ttftMs: null, stopReason: null, error: null } as const;
+  const tool = { kind: 'tool_call', traceId: 't', toolCallId: 'c', turnId: 'u', name: 'n', input: null, output: null, isError: false, errorClass: null, startedAt: 1, endedAt: 2 } as const;
+
+  it('run_started without session, input or provider omits them; captured metadata carries truncation and redactions', () => {
+    expect(toLangfuseCall({ event: started }).body).toMatchObject({ sessionId: undefined, input: null, tags: ['x'], metadata: { provider: null } });
+    const body = toLangfuseCall({ event: { ...started, input: { chars: 9, text: 'redacted…', truncated: true, redactions: { secret: 1 } } } }).body;
+    expect(body).toMatchObject({ input: 'redacted…', metadata: { inputChars: 9, inputTruncated: true, inputRedactions: { secret: 1 } } });
+    expect(toLangfuseCall({ event: { ...started, input: { chars: 3 } } }).body.metadata).toEqual({ runId: 'r', agentId: 'codex', provider: null, model: null, inputChars: 3 });
+  });
+
+  it('model_turn: absent usage/cost/ttft stay undefined; all-null counters are not zeros; an error is ERROR; reasoning text rides metadata', () => {
+    expect(toLangfuseCall({ event: turn }).body).toMatchObject({ model: undefined, usageDetails: undefined, costDetails: undefined, completionStartTime: undefined, level: 'DEFAULT', statusMessage: undefined });
+    const nullCounters = { inputTokens: null, outputTokens: null, cacheReadTokens: null, cacheWriteTokens: null, reasoningTokens: null };
+    expect(toLangfuseCall({ event: { ...turn, usage: nullCounters } }).body.usageDetails).toBeUndefined();
+    const failed = toLangfuseCall({ event: { ...turn, ttftMs: 5, error: 'overloaded', reasoning: { chars: 4, text: 'hmm.' }, costUsd: 0 } }).body;
+    expect(failed).toMatchObject({ completionStartTime: new Date(15).toISOString(), level: 'ERROR', statusMessage: 'overloaded', costDetails: { total: 0 }, metadata: { reasoning: 'hmm.', reasoningChars: 4 } });
+    expect(toLangfuseCall({ event: { ...turn, reasoning: { chars: 4 } } }).body.metadata).not.toHaveProperty('reasoning');
+  });
+
+  it('tool_call: an error is ERROR with its class; an unfinished tool is a WARNING marked unresolved', () => {
+    expect(toLangfuseCall({ event: { ...tool, isError: true, errorClass: 'timeout' } }).body).toMatchObject({ level: 'ERROR', statusMessage: 'timeout' });
+    expect(toLangfuseCall({ event: { ...tool, endedAt: null } }).body).toMatchObject({ level: 'WARNING', statusMessage: 'unresolved', endTime: undefined });
+  });
+
+  it('run_finished carries the policy-applied error message and code as output', () => {
+    const finished = { kind: 'run_finished', traceId: 't', at: 0, outcome: 'failed', error: { message: '[redacted]', code: 'E_RUN' }, totals: { turns: 1, toolCalls: 0, toolErrors: 0, inputTokens: null, outputTokens: null, costUsd: null } } as const;
+    expect(toLangfuseCall({ event: finished }).body).toMatchObject({ output: { error: '[redacted]', code: 'E_RUN' }, tags: ['outcome:failed'] });
+  });
+
+  it('the sink forwards flush and shutdown to the client', async () => {
+    const client = fakeLangfuseClient();
+    let shutdowns = 0;
+    client.shutdownAsync = async () => { shutdowns += 1; };
+    const sink = createLangfuseAiTraceSink({ client });
+    await sink.flush!();
+    await sink.shutdown!();
+    expect([client.flushed, shutdowns]).toEqual([1, 1]);
+  });
+
+  it('createLangfuseClient omits unset optional settings', async () => {
+    const client = createLangfuseClient({ publicKey: 'pk', secretKey: 'sk' });
+    expect(typeof client.span).toBe('function');
+    await client.shutdownAsync();
+  });
+});

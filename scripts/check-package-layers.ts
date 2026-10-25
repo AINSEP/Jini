@@ -56,6 +56,13 @@ function isPublicEntry(
   return pattern !== undefined && exports[pattern] != null;
 }
 
+/** A plugin-packaging distribution bundles its sources at build time and ships no runtime
+ * dependencies, so its source imports are declared as devDependencies (see its README). */
+function bundledAtBuild({ pkg, target }: { pkg: SourcePackage; target: string }): boolean {
+  return (pkg.manifest as { jini?: { kind?: string } }).jini?.kind === 'plugin-packaging'
+    && pkg.manifest.devDependencies?.[`@jini-ai/${target}`] !== undefined;
+}
+
 export function checkPackageLayers(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
   _optional: Record<string, never> = {},
@@ -108,11 +115,7 @@ export function checkPackageLayers(
       && spec !== '@jini-ai/platform/net/endpoint-policy') {
       violations.push({ rule: 'L2-browser-platform', file, reason: `${reason}: only the isomorphic fetch-with-timeout and literal endpoint-policy entries are allowed` });
     }
-    // A plugin-packaging distribution bundles its sources at build time and ships no runtime
-    // dependencies, so its source imports are declared as devDependencies (see its README).
-    const bundledAtBuild = (pkg.manifest as { jini?: { kind?: string } }).jini?.kind === 'plugin-packaging'
-      && pkg.manifest.devDependencies?.[`@jini-ai/${target}`] !== undefined;
-    if (sourcePath !== undefined && !bundledAtBuild && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
+    if (sourcePath !== undefined && !bundledAtBuild({ pkg, target }) && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
       && !pkg.manifest.peerDependencies?.[`@jini-ai/${target}`]) {
       violations.push({ rule: 'L3-undeclared-edge', file, reason: `${reason}: production import must be a dependency or peerDependency` });
     }

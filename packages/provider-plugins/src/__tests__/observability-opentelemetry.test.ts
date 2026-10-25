@@ -354,6 +354,8 @@ test.each([
   [{ serviceName: "s", tracerName: "t", endpoint: 5 }, "endpoint must be a string"],
   [{ serviceName: "s", tracerName: "t", tracesEndpoint: [] }, "tracesEndpoint must be a string"],
   [{ serviceName: "", tracerName: "t", endpoint: "http://c" }, "serviceName must be non-empty"],
+  [{ tracerName: "t", endpoint: "http://c" }, "serviceName must be non-empty"],
+  [{ serviceName: "s", endpoint: "http://c" }, "tracerName must be non-empty"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: "x" }, "headers must be an object of strings"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: null }, "headers must be an object of strings"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: ["a"] }, "headers must be an object of strings"],
@@ -364,5 +366,10 @@ test.each([
 
 test("the factory builds a real OTLP exporter with headers when no test processors are given", async () => {
   const resource = createOpenTelemetryProvider({ serviceName: "s", tracerName: "t", endpoint: "http://127.0.0.1:9", headers: { "x-scope": "a" } });
+  await resource.dispose({});
+});
+
+test("the factory without headers or test processors builds a plain OTLP exporter", async () => {
+  const resource = createOpenTelemetryProvider({ serviceName: "s", tracerName: "t", tracesEndpoint: "http://127.0.0.1:9/v1/traces" });
   await resource.dispose({});
 });
