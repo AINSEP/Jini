@@ -9,6 +9,7 @@
  * the untouched rest is disclosed in `preserved`.
  */
 import { createHash } from 'node:crypto';
+import { canonicalJson } from '@jini-ai/core/records';
 import {
   DEFAULT_DNS_TTL,
   DNS_ADDRESS_TYPES,
@@ -52,18 +53,8 @@ interface Planned { readonly changes: readonly DnsChange[]; readonly blockers: r
 
 const OP_ORDER: Readonly<Record<DnsChange['op'], number>> = { delete: 0, update: 1, create: 2 };
 
-/** Canonical JSON: object keys sorted, `undefined` members dropped, array order kept. */
-export function canonicalJson(required: { readonly value: unknown }, _optional = {}): string {
-  const { value } = required;
-  if (Array.isArray(value)) return `[${value.map(item => canonicalJson({ value: item })).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    const members = Object.keys(record).filter(key => record[key] !== undefined).sort()
-      .map(key => `${JSON.stringify(key)}:${canonicalJson({ value: record[key] })}`);
-    return `{${members.join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-}
+/** Moved to `@jini-ai/core/records`; re-exported so existing `@jini-ai/devops/dns` importers keep working. */
+export { canonicalJson };
 
 /** sha-256 hex over the canonical plan, excluding any fingerprint it already carries. */
 export function fingerprintPlan(required: { readonly plan: Omit<DnsChangePlan, 'fingerprint'> & { readonly fingerprint?: string } }, _optional = {}): string {
