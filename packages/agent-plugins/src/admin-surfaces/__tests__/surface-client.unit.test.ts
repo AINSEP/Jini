@@ -227,4 +227,12 @@ describe('browser-backed defaults (injected scope, no DOM)', () => {
       expect(start(browser).heights()).toEqual([]);
     }
   });
+  test('each missing browser piece alone (body, either observer, computed style) disables measuring', () => {
+    const { browser } = fakeBrowser();
+    const without = (key: 'ResizeObserver' | 'MutationObserver' | 'getComputedStyle') => { const copy: Record<string, unknown> = { ...browser }; delete copy[key]; return copy; };
+    for (const partial of [without('ResizeObserver'), without('MutationObserver'), without('getComputedStyle'), { ...browser, document: { documentElement: browser.document.documentElement, body: null } }]) {
+      expect(start(partial).heights()).toEqual([]);
+    }
+    expect(start(browser).heights()).toEqual([109]);
+  });
 });
