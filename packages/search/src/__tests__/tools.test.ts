@@ -253,3 +253,35 @@ describe('search tools — mixed inputs, exact keys, site scope (F3)', () => {
     expect(settingArgs).toEqual([{ siteId: SITE, providerId: 'vendor', principalId: 'u' }]);
   });
 });
+
+// Stryker L5 re-score (F3): every inputSchema property/required literal could be emptied — pin the
+// catalog contract inline (descriptions only checked as strings).
+describe('search tool catalog contract (F3)', () => {
+  const text = expect.any(String);
+  const NO_INPUT = { type: 'object', additionalProperties: false, properties: {} };
+  it('matches exactly', () => {
+    expect(catalog).toEqual([
+      { name: 'search_query', description: text, sideEffects: 'none', authorization: { permission: SEARCH_READ_PERMISSION },
+        inputSchema: { type: 'object', additionalProperties: false, required: ['text'], properties: {
+          text: { type: 'string', minLength: 1, description: text },
+          collections: { type: 'array', items: { type: 'string' }, description: text },
+          locale: { type: 'string' },
+          filters: { type: 'object', additionalProperties: { type: ['string', 'number', 'boolean'] }, description: text },
+          limit: { type: 'integer', minimum: 1, maximum: 100, description: text },
+          cursor: { type: 'string', description: text },
+        } } },
+      { name: 'search_status', description: text, sideEffects: 'none', authorization: { permission: SEARCH_READ_PERMISSION }, inputSchema: NO_INPUT },
+      { name: 'search_reindex', description: text, sideEffects: 'mutates-durable-state', authorization: { permission: SEARCH_MANAGE_PERMISSION },
+        actorClassRule: 'confirmer-must-equal-own-delegatedBy', inputSchema: NO_INPUT },
+      { name: 'search_set_provider', description: text, sideEffects: 'mutates-durable-state', authorization: { permission: SEARCH_MANAGE_PERMISSION },
+        actorClassRule: 'confirmer-must-equal-own-delegatedBy',
+        inputSchema: { type: 'object', additionalProperties: false, required: ['providerId'], properties: { providerId: { type: 'string', minLength: 1, description: text } } } },
+    ]);
+  });
+
+  it('a refused reindex (no active provider) never asks the human', async () => {
+    const none = setup({ active: null });
+    await none.call('search_reindex', {});
+    expect(none.asked).toEqual([]);
+  });
+});
