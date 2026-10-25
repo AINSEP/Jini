@@ -184,3 +184,34 @@ it("publishes descriptions for the host's actual naming and forwards message ove
   expect(localized.map(tool => [tool.descriptor.id, tool.descriptor.readOnly])).toEqual(baseline.map(tool => [tool.descriptor.id, tool.descriptor.readOnly]));
   expect(h.calls).toEqual([]);
 });
+
+// F2 (L2 §5 NO-COVERAGE transfer-tools.ts:148,170): what the human is told is left behind.
+it("plan reports left-out user data with live row counts, hiding bookkeeping, derived indexes and empty tables", async () => {
+  const { LEFT_OUT_REASON } = await import("../../transfer/table-catalog.js");
+  const h = harness(); h.saveDestination();
+  const dir = await mkdtemp(join(tmpdir(), "transfer-tools-"));
+  try {
+    const artifactRef = join(dir, "snapshot"); await writeFile(artifactRef, "content");
+    h.ports.dbOps.captureRestorePoint = async () => ({ artifactRef });
+    const extra = ["ledger", "fts", "secrets", "empty_custom"];
+    h.ports.openSource = bytes => {
+      const name = bytes.toString();
+      const rows: Record<string, number> = { secrets: 3, empty_custom: 0 };
+      return { tableNames: () => [name, ...(name === "content" ? extra : [])], columns: () => ["id"], layout: () => null, countRows: table => rows[table] ?? 1, rows: () => [[name]], close: () => {} };
+    };
+    h.ports.catalog = (name, source) => ({
+      tables: [{ name, columns: [{ name: "id", sqlType: "text", notNull: true }], primaryKey: ["id"], indexes: [], foreignKeys: [], checks: [] } satisfies TransferTable],
+      leftOut: source.tableNames().length > 1 ? [
+        { table: "ledger", reason: LEFT_OUT_REASON.bookkeeping }, { table: "fts", reason: LEFT_OUT_REASON.derived },
+        { table: "secrets", reason: LEFT_OUT_REASON.secret }, { table: "empty_custom", reason: "host exclusion" },
+      ] : [],
+    });
+    h.ports.partialExclusions = (name) => (name === "content" ? [{ table: "content", rows: 2, reason: "drafts stay local" }] : []);
+    const plan = await h.tools.get("database_transfer_plan")!.handler(ctx()) as { planned: boolean; leftOut: unknown[] };
+    expect(plan.planned).toBe(true);
+    expect(plan.leftOut).toEqual([
+      { table: "secrets", reason: LEFT_OUT_REASON.secret, rows: 3 },
+      { table: "content", rows: 2, reason: "drafts stay local" },
+    ]);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
