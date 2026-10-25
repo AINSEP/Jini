@@ -354,7 +354,7 @@ describe('ToolCard', () => {
       expect(screen.getByText('list files')).toBeInTheDocument();
     });
 
-    it('truncates a very long command and output', async () => {
+    it('shows the complete command and output only after expansion', async () => {
       const longCommand = 'x'.repeat(500);
       const longOutput = 'y'.repeat(5000);
       render(
@@ -363,12 +363,12 @@ describe('ToolCard', () => {
           result={{ kind: 'tool_result', toolUseId: 'b3', content: longOutput, isError: false }}
         />,
       );
+      expect(document.querySelectorAll('pre')).toHaveLength(0);
       await userEvent.click(screen.getByRole('button'));
       const commandEl = document.querySelector('.op-command');
       const outputEl = document.querySelector('.op-output');
-      expect(commandEl?.textContent).toHaveLength(400);
-      expect(commandEl?.textContent?.endsWith('…')).toBe(true);
-      expect(outputEl?.textContent).toHaveLength(4000);
+      expect(commandEl?.textContent).toBe(longCommand);
+      expect(outputEl?.textContent).toBe(longOutput);
     });
 
     it('omits the output block when the result has no content', async () => {
@@ -926,7 +926,7 @@ describe('ToolCard', () => {
       expect(document.querySelectorAll('pre')).toHaveLength(0);
       const head = screen.getByRole('button');
       await userEvent.click(head);
-      expect(document.querySelector('.op-output')?.textContent).toHaveLength(10_000);
+      expect(document.querySelector('.op-output')?.textContent).toBe(longOutput);
       expect(document.querySelector('.op-card-reader-text')).toBeNull();
       await userEvent.click(head);
       expect(document.querySelectorAll('pre')).toHaveLength(0);
