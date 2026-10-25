@@ -159,3 +159,58 @@ describe('artifacts/pointer', () => {
     expect(resolveHtmlPointerArtifactTarget({ content: 'see a//b.html', candidateFileName: 'r.html', projectFiles: [{ name: 'a//b.html' }] })).toBeNull();
   });
 });
+
+// Stryker L5 (2026-10-25): each clause of the target guard (null / equals candidate / unsafe) and the
+// full-path short-circuit survived on its own. One case breaking ONLY that clause.
+describe('resolveHtmlPointerArtifactTarget — one clause per case (F3)', () => {
+  const files = [{ name: 'design.html' }, { name: 'page.html', path: 'site/page.html' }, { name: 'other.htm' }, { name: 'notes.md' }];
+  const resolve = (content: string, candidateFileName = 'new.html', projectFiles = files) =>
+    resolveHtmlPointerArtifactTarget({ content, candidateFileName, projectFiles });
+
+  it.each([
+    ['plain pointer', 'see design.html', 'design.html'],
+    ['chinese colon form', '见：design.html', 'design.html'],
+    ['quoted, trailing period', 'See "design.html".', 'design.html'],
+    ['full path wins', 'see site/page.html', 'site/page.html'],
+    ['basename resolves to its path', 'see page.html', 'site/page.html'],
+    ['.htm', 'see other.htm', 'other.htm'],
+    ['not a pointer at all', 'design.html', null],
+    ['pointer to the candidate itself', 'see new.html', null],
+    ['scheme target', 'see https://x.html', null],
+    ['absolute target', 'see /etc/design.html', null],
+    ['traversal target', 'see ../design.html', null],
+    ['backslash target', 'see a\\design.html', null],
+    ['unknown file', 'see missing.html', null],
+    ['non-html project file never resolves', 'see notes.md', null],
+    ['leading junk', 'please see design.html', null],
+    ['trailing junk', 'see design.html now', null],
+  ])('%s', (_label, content, expected) => {
+    expect(resolve(content)).toBe(expected);
+  });
+
+  it('a basename shared by two files is ambiguous', () => {
+    expect(resolve('see a.html', 'new.html', [{ name: 'a.html', path: 'x/a.html' }, { name: 'a.html', path: 'y/a.html' }])).toBeNull();
+  });
+
+  it('a lone basename match that IS the candidate path is refused', () => {
+    expect(resolve('see a.html', 'x/a.html', [{ name: 'a.html', path: 'x/a.html' }])).toBeNull();
+  });
+
+  it('the full-path match short-circuits even when the basename is ambiguous', () => {
+    expect(resolve('see x/a.html', 'new.html', [{ name: 'a.html', path: 'x/a.html' }, { name: 'a.html', path: 'y/a.html' }])).toBe('x/a.html');
+  });
+
+  it('a pointer longer than 100 UTF-8 bytes is not a pointer', () => {
+    const name = 'd'.repeat(87) + '.html'; // "see " + 92 = 96 bytes
+    expect(resolve(`see ${name}`, 'new.html', [{ name }])).toBe(name);
+    const long = 'd'.repeat(92) + '.html'; // 101 bytes
+    expect(resolve(`see ${long}`, 'new.html', [{ name: long }])).toBeNull();
+    const multi = 'é'.repeat(46) + '.html'; // "see " + 92 bytes + 5 = 101 bytes, 55 chars
+    expect(resolve(`see ${multi}`, 'new.html', [{ name: multi }])).toBeNull();
+  });
+
+  it('tags, script/style bodies, BOM and entities are stripped before matching', () => {
+    expect(resolve('﻿<p>see <code>design.html</code></p><script>x()</script>')).toBe('design.html');
+    expect(resolve('<style>p{}</style>see &quot;design.html&quot;')).toBe('design.html');
+  });
+});
