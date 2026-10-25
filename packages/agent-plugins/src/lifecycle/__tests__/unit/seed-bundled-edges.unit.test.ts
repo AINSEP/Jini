@@ -98,3 +98,46 @@ describe('faults become report entries', () => {
     expect((report.outcomes[0] as { reason: string }).reason).toContain(`${ACTIVATIONS_FILENAME} could not be read (EISDIR`);
   });
 });
+
+// Stryker run-2 survivors (seed-bundled.ts:220,264,308,313): a plugin.json that is not a file is not a
+// package, seeding order is sorted whatever the listing order, each seeded digest lands in the ledger,
+// and only ids the host lists start enabled.
+describe('seeding details', () => {
+  async function addPlugin(source: string, id: string) {
+    await fs.mkdir(path.join(source, id, 'skills', id), { recursive: true });
+    await fs.writeFile(path.join(source, id, 'plugin.json'), JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: id }));
+    await fs.writeFile(path.join(source, id, 'skills', id, 'SKILL.md'), `# ${id}\n`);
+  }
+
+  test('a directory whose plugin.json is a directory is skipped', async () => {
+    const source = await sourceWithPlugin();
+    await fs.mkdir(path.join(source, 'fake', 'plugin.json'), { recursive: true });
+    const { report } = await seed(source);
+    expect(report.outcomes.map(outcome => outcome.pluginId)).toEqual(['seeded-one']);
+  });
+
+  test('plugins are seeded in sorted order even when the listing is reversed', async () => {
+    const source = await tempDir();
+    for (const id of ['alpha-one', 'beta-two', 'gamma-three']) await addPlugin(source, id);
+    const reversed = { ...fs, readdir: (async (target: string, ...rest: unknown[]) => {
+      const listed = await (fs.readdir as (...args: unknown[]) => Promise<unknown[]>)(target, ...rest);
+      return target === source ? [...listed].reverse() : listed;
+    }) } as unknown as FilesystemPort;
+    const { report } = await seed(source, { filesystem: reversed });
+    expect(report.outcomes.map(outcome => outcome.pluginId)).toEqual(['alpha-one', 'beta-two', 'gamma-three']);
+  });
+
+  test('each seeded digest is recorded in the ledger; a non-listed id starts disabled, a listed one enabled', async () => {
+    const source = await sourceWithPlugin();
+    await addPlugin(source, 'new-integration');
+    const { layout, report } = await seed(source);
+    const root = layout.forWorkspace({ workspaceId: 'ws' }).root;
+    const ledger = JSON.parse(await fs.readFile(path.join(root, BUNDLED_DIGESTS_FILENAME), 'utf8')) as { plugins: Record<string, { archiveDigest: string }> };
+    const seeded = report.outcomes.filter(outcome => outcome.status === 'seeded') as Array<{ pluginId: string; archiveDigest: string }>;
+    expect(seeded).toHaveLength(2);
+    for (const outcome of seeded) expect(ledger.plugins[outcome.pluginId]?.archiveDigest).toBe(outcome.archiveDigest);
+    const activations = JSON.parse(await fs.readFile(path.join(root, ACTIVATIONS_FILENAME), 'utf8')) as { plugins: Record<string, { enabled: boolean }> };
+    expect(activations.plugins['seeded-one']?.enabled).toBe(false);
+    expect(activations.plugins['new-integration']?.enabled).toBe(true);
+  });
+});
