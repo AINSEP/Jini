@@ -280,7 +280,7 @@ describe('consent CSS compiler', () => {
     expect(css).not.toContain('flex:1');
     expect(css).toContain(`${root} .jini-consent-actions{display:grid!important}`);
     expect(css).toContain(':focus-visible{outline:3px solid currentColor!important;outline-offset:2px!important}');
-    expect(css).toContain(`@media(max-width:640px){${root}{inset:auto 0 0!important;width:100%!important;`);
+    expect(css).toContain('@media(max-width:640px){#jini-consent{inset:auto 0 0!important;width:100%!important;');
     expect(css).not.toContain('border-radius:0!important');
   });
 });

@@ -140,13 +140,13 @@ function gateOptions({ request, response }: { request: Request; response: Respon
 
 /** Gate one enabled HTML body; any failure returns inert text under the blocking policy.
  * @complexity O(HTML bytes), at most one receipt read. */
-async function gatedBody({ body, request, response, ports, config, failed }: { body: Buffer; request: Request; response: Response; ports: ConsentHttpPorts; config: ConsentConfig; failed: boolean }, options: ConsentHttpOptions & { endpoint: string }): Promise<Buffer> {
+async function gatedBody({ body, request, response, ports, config, failed, mode, endpoint }: { body: Buffer; request: Request; response: Response; ports: ConsentHttpPorts; config: ConsentConfig; failed: boolean; mode: ConsentDelivery; endpoint: string }, options: ConsentHttpOptions = {}): Promise<Buffer> {
   try {
     const encoding = response.getHeader('Content-Encoding');
     if (encoding && encoding !== 'identity') throw new Error('Consent requires uncompressed HTML. Mount consent before compression and retry this page.');
     const receipt = failed ? { record: null, failed: false } : await currentRecord({ request, ports, config }, { cookieName: options.cookieName ?? DEFAULT_CONSENT_COOKIE_NAME });
     const regionMode = failed || receipt.failed ? 'opt-in' : resolveConsentRegion({ configuredMode: config.regionMode, region: ports.region({ request }) });
-    return Buffer.from(gateConsentHtml({ html: body.toString('utf8'), config, record: receipt.record, regionMode, gpc: request.get('sec-gpc') === '1', endpoint: options.endpoint }, { ...gateOptions({ request, response }, options), pageOrigin: ports.origin({ request }) }));
+    return Buffer.from(gateConsentHtml({ html: body.toString('utf8'), config, record: receipt.record, regionMode, gpc: mode === 'live' && request.get('sec-gpc') === '1', endpoint }, { ...gateOptions({ request, response }, options), pageOrigin: ports.origin({ request }), ensureReopenLink: mode === 'static' }));
   } catch (error) {
     ports.reportError({ operation: 'read', error });
     // Fetch CSP cannot block meta refresh or first-party pixels, so never return failed HTML.
@@ -154,23 +154,21 @@ async function gatedBody({ body, request, response, ports, config, failed }: { b
   }
 }
 
-type DeliveryPolicy = { config: ConsentConfig; failed: boolean } | { body: Buffer } | null;
+type DeliveryPolicy = { config: ConsentConfig; failed: boolean; mode: ConsentDelivery } | null;
 
 /** Shared preflight for ordinary and oversized HTML. Disabled sites remain byte-identical;
- * static export is refused before any size fallback can publish optional content.
+ * static exports use denied defaults rather than publishing the exporter's saved grants.
  * @complexity O(1), one config read and no receipt access. */
-async function prepareDelivery({ request, response, ports, state }: { request: Request; response: Response; ports: ConsentHttpPorts; state: { lastGood?: ConsentConfig } }, { delivery }: ConsentHttpOptions): Promise<DeliveryPolicy> {
+async function prepareDelivery({ request, response, ports, state }: { request: Request; response: Response; ports: ConsentHttpPorts; state: { lastGood?: ConsentConfig } }, { delivery }: ConsentHttpOptions = {}): Promise<DeliveryPolicy> {
   const policy = await deliveryConfig({ ports, state });
   if (!policy.config.enabled) return null;
   response.set('Cache-Control', 'private, no-store');
   response.vary('Cookie'); response.vary('Sec-GPC');
   response.removeHeader('Content-Length'); response.removeHeader('ETag');
   const mode = typeof delivery === 'function' ? delivery({ request }) : delivery;
-  if (mode !== 'static') return policy;
-  // Exported pages cannot POST a receipt. Refuse the export instead of publishing a broken theme.
-  response.removeHeader('Content-Encoding');
-  response.status(409).type('text/plain');
-  return { body: Buffer.from('Static export requires cookie consent to be disabled. Review optional scripts before exporting.') };
+  if (mode !== 'static') return { ...policy, mode: 'live' };
+  // Static bytes are shared by all visitors: never bake the exporter's receipt or region into them.
+  return { config: policy.config, failed: true, mode };
 }
 
 /** Mount before public renderers, outside admin/API HTML. Durable proof precedes cookie issuance.
@@ -200,14 +198,13 @@ export function registerConsentHttp({ app, ports }: { app: Express; ports: Conse
     captureConsentHtml({ response, transform: async ({ body }) => {
       const policy = await prepare();
       if (policy === null) return body;
-      if ('body' in policy) return policy.body;
-      return gatedBody({ body, request, response, ports, ...policy }, { ...options, endpoint, cookieName });
+      return gatedBody({ body, request, response, ports, ...policy, endpoint }, { ...options, cookieName });
     } }, {
       reportError: ({ error }) => ports.reportError({ operation: 'read', error }), maxBytes: maxHtmlBytes,
       overflow: async () => {
         const policy = await prepare();
         if (policy === null) return null;
-        return 'body' in policy ? policy.body : inertConsentBody({ response });
+        return inertConsentBody({ response });
       },
     });
     next();
