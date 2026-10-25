@@ -10,7 +10,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PayloadTooLargeError, readPromptFromFlags } from '../prompt.js';
+import { PayloadTooLargeError, readBodyFromFlags, readPromptFromFlags } from '../prompt.js';
 import { sanitizeUnknownDeep } from '../redact.js';
 
 async function withFakeStdin<T>(run: (stdin: EventEmitter & { paused: number }) => Promise<T>): Promise<T> {
@@ -68,5 +68,39 @@ describe('sanitizeUnknownDeep caps at their exact edge', () => {
     expect(sanitizeUnknownDeep({ value: Array.from({ length: 51 }, (_, i) => i) })).toEqual(Array.from({ length: 50 }, (_, i) => i));
     const wide = Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`k${i}`, i]));
     expect(Object.keys(sanitizeUnknownDeep({ value: wide }) as object)).toEqual(Array.from({ length: 50 }, (_, i) => `k${i}`));
+  });
+});
+
+describe('default body stdin reader (async iterator)', () => {
+  async function withIterableStdin<T>(chunks: Array<string | Buffer>, run: (stdin: { destroyed: unknown[] }) => Promise<T>): Promise<T> {
+    const fake = { destroyed: [] as unknown[], destroy(error?: unknown) { fake.destroyed.push(error); }, async *[Symbol.asyncIterator]() { for (const chunk of chunks) yield chunk; } };
+    const original = process.stdin;
+    Object.defineProperty(process, 'stdin', { value: fake, configurable: true });
+    try { return await run(fake); } finally { Object.defineProperty(process, 'stdin', { value: original, configurable: true }); }
+  }
+
+  it('accepts exactly maxBytes across string and Buffer chunks', async () => {
+    await withIterableStdin(['é', Buffer.from('ab')], async () => {
+      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { maxBytes: 4 })).resolves.toBe('éab');
+    });
+  });
+
+  it('refuses maxBytes + 1 and destroys stdin', async () => {
+    await withIterableStdin(['éab', '!'], async (stdin) => {
+      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { maxBytes: 4 }))
+        .rejects.toThrow(new PayloadTooLargeError({ message: 'stdin exceeded the 4-byte limit' }));
+      expect(stdin.destroyed).toEqual([undefined]);
+    });
+  });
+
+  it('an abort during the read destroys stdin with the abort error and rejects', async () => {
+    const controller = new AbortController();
+    await withIterableStdin([], async (stdin) => {
+      const original = (process.stdin as unknown as { [Symbol.asyncIterator]: () => AsyncIterator<string> });
+      Object.assign(original, { async *[Symbol.asyncIterator]() { yield 'a'; controller.abort(); yield 'b'; } });
+      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal })).rejects.toThrow();
+      expect(stdin.destroyed).toHaveLength(1);
+      expect((stdin.destroyed[0] as Error).message).toBe('stdin read aborted');
+    });
   });
 });
