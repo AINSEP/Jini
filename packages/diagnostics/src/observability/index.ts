@@ -7,6 +7,7 @@ export * from './ports.js';
 export * from './noop.js';
 export * from './otel.js';
 export * from './errors.js';
+export * from './fanout.js';
 export * from './hooks.js';
 export * from './instrumentation.js';
 
