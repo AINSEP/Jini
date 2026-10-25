@@ -4,7 +4,7 @@ import { validateDefinitionInput } from "../settings.js";
 
 /** L2 §4 settings.ts: the owner namespace fence breaks on prefix OR workspace independently for each
  *  owner kind; the scopes bitmask is pinned at 0/1/7/8; site defs may not take the global bit. */
-const base = { namespace: "core.x", key: "k", ownerKind: "core" as const, workspaceId: null as string | null, schema: { type: "string" as const }, defaultValue: "d", scopes: 1, secret: false };
+const base = { namespace: "core.x", key: "k", ownerKind: "core" as "core" | "theme" | "site", workspaceId: null as string | null, schema: { type: "string" as const }, defaultValue: "d", scopes: 1, secret: false };
 const invalid = (patch: Partial<typeof base> & Record<string, unknown>) => {
   const result = validateDefinitionInput({ ...base, ...patch } as never);
   return result.valid ? undefined : result.error;

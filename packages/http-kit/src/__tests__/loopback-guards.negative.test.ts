@@ -28,7 +28,7 @@ function gate(register: (app: Express) => void) {
   register({ use: (_path: string, handler: (req: any, res: any, next: any) => void) => handlers.push(handler) } as unknown as Express);
   return handlers[0]!;
 }
-function call(handler: (req: any, res: any, next: any) => void, req: { method?: string; path?: string; origin?: string; host?: string; remoteAddress?: string; authorization?: string; headers?: Record<string, string> }) {
+function call(handler: (req: any, res: any, next: any) => void, req: { method?: string; path?: string; origin?: string; host?: string; remoteAddress?: string | undefined; authorization?: string; headers?: Record<string, string> }) {
   const headers: Record<string, string> = { ...(req.headers ?? {}) };
   if (req.origin !== undefined) headers.origin = req.origin;
   if (req.host !== undefined) headers.host = req.host;

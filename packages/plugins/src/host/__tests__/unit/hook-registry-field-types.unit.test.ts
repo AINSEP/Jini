@@ -16,12 +16,12 @@ describe("declared field types", () => {
   for (const [type, good, bad] of cases) {
     it.each(good.map(value => [value]))(`${type} accepts %j`, async (value) => {
       const registry = createHookRegistry();
-      registry.attach("p", "built-in", () => ({ f: value }), [{ path: "ext.p.f", type }]);
+      registry.attach("p", "built-in", () => ({ f: value as never }), [{ path: "ext.p.f", type }]);
       await expect(registry.previewBeforeSave("p", entry())).resolves.toEqual({ f: value });
     });
     it.each(bad.map(value => [value]))(`${type} refuses %j with FIELD_TYPE_MISMATCH`, async (value) => {
       const registry = createHookRegistry();
-      registry.attach("p", "built-in", () => ({ f: value }), [{ path: "ext.p.f", type }]);
+      registry.attach("p", "built-in", () => ({ f: value as never }), [{ path: "ext.p.f", type }]);
       await expect(registry.previewBeforeSave("p", entry())).rejects.toMatchObject({
         name: "PluginHookFailedError",
         message: `plugin 'p' returned ext field 'f' with a value not matching its declared type '${type}' (FIELD_TYPE_MISMATCH)`,
