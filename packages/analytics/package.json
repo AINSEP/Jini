@@ -13,7 +13,9 @@
     "kind": "analytics",
     "runtime": "node",
     "entries": {
-      ".": "node"
+      ".": "node",
+      "./product": "universal",
+      "./product/posthog": "node"
     }
   },
   "type": "module",
@@ -25,6 +27,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./product": {
+      "types": "./dist/product/index.d.ts",
+      "import": "./dist/product/index.js",
+      "default": "./dist/product/index.js"
+    },
+    "./product/posthog": {
+      "types": "./dist/product/posthog.d.ts",
+      "import": "./dist/product/posthog.js",
+      "default": "./dist/product/posthog.js"
     }
   },
   "files": [
@@ -38,6 +50,17 @@
   ],
   "dependencies": {
     "@jini-ai/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "posthog-node": "5.55.1"
+  },
+  "peerDependenciesMeta": {
+    "posthog-node": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "posthog-node": "5.55.1"
   },
   "publishConfig": {
     "access": "public",
