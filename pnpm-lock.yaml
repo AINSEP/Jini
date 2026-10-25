@@ -1054,6 +1054,9 @@ importers:
       '@jini-ai/http-kit':
         specifier: workspace:*
         version: link:../http-kit
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@jini-ai/registry':
         specifier: workspace:*
         version: link:../registry
@@ -1075,6 +1078,9 @@ importers:
       express:
         specifier: ^4.21.0
         version: 4.22.2
+      kysely:
+        specifier: ^0.29.6
+        version: 0.29.6
 
   packages/sidecar:
     dependencies:
@@ -1316,10 +1322,10 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+    devDependencies:
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform
-    devDependencies:
       '@testing-library/jest-dom':
         specifier: ^6.9.1
         version: 6.9.1

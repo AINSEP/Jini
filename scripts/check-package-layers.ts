@@ -18,7 +18,8 @@ const layers: Readonly<Record<string, number>> = {
   'capability-providers': 3, registry: 3,
   daemon: 4, 'user-management': 4, cms: 4, 'cms-forms': 4, mcp: 4,
   integrations: 4, 'agent-plugins': 4, devops: 4, chat: 4, plugins: 4, analytics: 4,
-  ui: 5, admin: 5,
+  // The search contribution entry composes agent-plugins (L4), so L5 is its lowest valid layer.
+  ui: 5, admin: 5, search: 5,
   // Commerce composes CMS authorization and UI through opt-in entries; SI keeps its root isolated.
   server: 6, sqlite: 6, infra: 6, commerce: 6,
 };

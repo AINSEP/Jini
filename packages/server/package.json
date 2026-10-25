@@ -41,6 +41,11 @@
       "types": "./dist/store/projects/sqlite.d.ts",
       "import": "./dist/store/projects/sqlite.js",
       "default": "./dist/store/projects/sqlite.js"
+    },
+    "./owner-store": {
+      "types": "./dist/owner-store/index.d.ts",
+      "import": "./dist/owner-store/index.js",
+      "default": "./dist/owner-store/index.js"
     }
   },
   "files": [
@@ -78,7 +83,9 @@
     "express": "^4.21.0",
     "@jini-ai/db": "workspace:*",
     "@jini-ai/chat": "workspace:*",
-    "@jini-ai/registry": "workspace:*"
+    "@jini-ai/registry": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
+    "kysely": "^0.29.6"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
@@ -92,7 +99,9 @@
     "express": "^4.21.0 || ^5.0.0",
     "@jini-ai/db": "^0.6.10",
     "@jini-ai/chat": "^0.6.10",
-    "@jini-ai/registry": "^0.6.10"
+    "@jini-ai/registry": "^0.6.10",
+    "@jini-ai/platform": "^0.6.10",
+    "kysely": "^0.29.6"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
@@ -120,6 +129,12 @@
       "optional": true
     },
     "@jini-ai/registry": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   },

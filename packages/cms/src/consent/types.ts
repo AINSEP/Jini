@@ -1,6 +1,6 @@
 /** Optional scripts require a stored visitor choice; necessary is never optional. */
-export const CONSENT_CATEGORIES = ['necessary', 'functional', 'analytics', 'marketing'] as const;
-export type ConsentCategory = typeof CONSENT_CATEGORIES[number];
+import type { ConsentCategory } from '../contracts/consent-category.js';
+export { CONSENT_CATEGORIES, type ConsentCategory } from '../contracts/consent-category.js';
 export type ConsentChoices = Record<ConsentCategory, boolean>;
 export type ConsentRegionMode = 'opt-in' | 'opt-out';
 export type ConsentAction = 'accept' | 'reject' | 'save' | 'do-not-sell';

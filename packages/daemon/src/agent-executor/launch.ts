@@ -18,7 +18,7 @@ import {
 } from 'node:path';
 import {
   agentCapabilities,
-  assertClaudeFilesystemSupport,
+  createClaudeFilesystemSupportProbe,
   claudeFilesystemRuntimePaths,
   claudeFilesystemSettings,
   validateFilesystemLaunch,
@@ -527,19 +527,9 @@ function nativeBuildOptions({ input, permissionMode }: { input: AgentBuildInput;
   };
 }
 
-/** Preserve explicit empty restrictions and settings: they have meaning to the native CLI. */
-function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
-  return {
-    ...filesystemBuildOptions({ input }, {}),
-    ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
-    ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
-    ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
-    ...(input.settings !== undefined ? { settings: input.settings } : {}),
-    ...(input.chromeIntegration !== undefined ? { chromeIntegration: input.chromeIntegration } : {}),
-  };
-}
-
-/** Keep executor-resolved filesystem facts through the definition's second settings merge. Pure, O(1). */
+/** Forward only supplied confinement paths; empty restriction arrays remain meaningful.
+ * Keeps executor-resolved filesystem facts through the definition's second settings merge. Pure, O(1).
+ */
 function filesystemBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
   return {
     ...(input.filesystemRoot !== undefined ? { filesystemRoot: input.filesystemRoot } : {}),
@@ -548,6 +538,25 @@ function filesystemBuildOptions({ input }: { input: AgentBuildInput }, _options 
     ...(input.filesystemRuntimeReadPaths ? { filesystemRuntimeReadPaths: input.filesystemRuntimeReadPaths } : {}),
     ...(input.filesystemRuntimeTempBase !== undefined ? { filesystemRuntimeTempBase: input.filesystemRuntimeTempBase } : {}),
   };
+}
+
+/** Preserve explicit empty restrictions and settings: they have meaning to the native CLI. */
+function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
+  return {
+    ...filesystemBuildOptions({ input }),
+    ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
+    ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
+    ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
+    ...(input.settings !== undefined ? { settings: input.settings } : {}),
+    ...(input.chromeIntegration !== undefined ? { chromeIntegration: input.chromeIntegration } : {}),
+  };
+}
+
+/** A relay needs both a delivered bridge and a runtime that understands it. Pure, O(1). */
+function canRegisterRunMessageRelay({ def, mcpBridge }: {
+  def: RuntimeAgentDef; mcpBridge: McpBridgeDelivery | null;
+}, _options = {}): boolean {
+  return mcpBridge !== null && supportsMessageRelay({ def });
 }
 
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
@@ -964,6 +973,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   const promptAugmenter = options.promptAugmenter;
 
   const filesystemTemps = new Map<string, string[]>();
+  const verifyClaudeFilesystem = options.assertClaudeFilesystemSupport ?? createClaudeFilesystemSupportProbe({});
 
   /** Remove this run's private temp directories on startup failure, exit, crash or cancellation.
    * O(d) removals for d staged directories; each failure is reported without skipping the others.
@@ -1068,8 +1078,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   }, _options = {}) {
     if (input.filesystemRoot === undefined) return;
     try {
-      const verify = options.assertClaudeFilesystemSupport ?? assertClaudeFilesystemSupport;
-      const supported = await verify({ agentId: def.id, launchPath: launch.launchPath, env: spawnEnv }, {});
+      const supported = await verifyClaudeFilesystem({ agentId: def.id, launchPath: launch.launchPath, env: spawnEnv }, {});
       const runtimeDir = join(input.filesystemRoot, '.agent-runtime');
       await fsPromises.mkdir(runtimeDir, { recursive: true, mode: 0o700 });
       // Refuse a runtime-folder symlink escaping the site before creating anything beneath it.
@@ -1195,7 +1204,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const formatForStdin = { streamFormat };
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
-          ...(mcpBridge && supportsMessageRelay({ def }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
+          ...(canRegisterRunMessageRelay({ def, mcpBridge }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
           ...(input.model ? { startingModel: input.model } : {}),
           ...(modelCatalog ? { modelCatalog } : {}),
           runId: input.runId,

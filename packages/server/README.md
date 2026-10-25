@@ -55,3 +55,18 @@ the daemon's close port in both failed boot and normal shutdown.
 The package TypeScript configuration includes source tests and fixtures. Published files continue
 to exclude test output. The packed memory-boot fixture is local to this package so compiling server
 does not pull another package's test sources outside server's source root.
+
+## Owner-only credential store
+
+`@jini-ai/server/owner-store` assembles the database and platform vault implementations.
+Import `openOwnerStore`, `OwnerStoreService`, `exportOwnerStore` and `restoreOwnerStore`
+from this entry. `@jini-ai/db/owner-store` now owns only the pinned schema/migrations;
+it no longer loads a driver, migration runner or vault service from a sibling domain.
+The database path, key path and SQLite opener remain host supplied. This entry requires
+the optional `@jini-ai/db`, `@jini-ai/platform` and `kysely` peers.
+
+```ts
+import { openOwnerStore } from '@jini-ai/server/owner-store';
+const owner = await openOwnerStore({ filePath, keyFilePath, open });
+try { await owner.service.list({}); } finally { await owner.close(); }
+```

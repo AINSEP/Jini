@@ -21,7 +21,7 @@ function claudeConfigFiles({ env, context, user, root }: ConfigPaths): ConfigFil
     ...(sources.includes('project') ? [json(root('.claude/settings.json'))] : []),
     ...(sources.includes('local') ? [json(root('.claude/settings.local.json'))] : [])];
 }
-const CONFIG_FILES = new Map<string, (paths: ConfigPaths) => ConfigFile[]>([
+const CONFIG_FILES: ReadonlyMap<string, (paths: ConfigPaths) => ConfigFile[]> = new Map<string, (paths: ConfigPaths) => ConfigFile[]>([
   ['codex', codexConfigFiles],
   ['claude', claudeConfigFiles],
   ['antigravity', ({ user }) => [json(user('.gemini/antigravity-cli/settings.json'))]],
@@ -106,8 +106,8 @@ const MODEL_ENV: Record<string, readonly string[]> = {
   claude: ['ANTHROPIC_MODEL'], aider: ['AIDER_MODEL'], amr: ['VELA_DEFAULT_MODEL'],
   deepseek: ['CODEWHALE_MODEL', 'DEEPSEEK_MODEL'], qwen: ['QWEN_MODEL', 'OPENAI_MODEL', 'ANTHROPIC_MODEL', 'GEMINI_MODEL'],
 };
-const PROJECT_ROOT_AGENTS = new Set(['claude', 'aider', 'opencode']);
-const INLINE_CONFIG_ENV = new Map([['opencode', 'OPENCODE_CONFIG_CONTENT'], ['mimo', 'MIMOCODE_CONFIG_CONTENT']]);
+const PROJECT_ROOT_AGENTS: ReadonlySet<string> = new Set(['claude', 'aider', 'opencode']);
+const INLINE_CONFIG_ENV: ReadonlyMap<string, string> = new Map([['opencode', 'OPENCODE_CONFIG_CONTENT'], ['mimo', 'MIMOCODE_CONFIG_CONTENT']]);
 async function withProjectRoot(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelDiscoveryContext> {
   if (context.projectRoot || !PROJECT_ROOT_AGENTS.has(agentId) || !deps.fs.projectRoot) return context;
   const projectRoot = await deps.fs.projectRoot({ cwd: context.cwd, signal });

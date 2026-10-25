@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync, symlinkSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { assertClaudeFilesystemSupport, claudeFilesystemSettings, validateFilesystemLaunch } from '../../claude-filesystem-policy.js';
+import { assertClaudeFilesystemSupport, createClaudeFilesystemSupportProbe, claudeFilesystemSettings, validateFilesystemLaunch } from '../../claude-filesystem-policy.js';
 import { claudeAgentDef } from '../claude.js';
 import { buildClaudeMcpConfigArgs } from '../shared.js';
 
@@ -81,6 +81,7 @@ describe('Claude enforcement availability', () => {
     expect(probe).not.toHaveBeenCalled();
   });
   it('shares concurrent probes by path/mtime and reprobes after the executable changes', async () => {
+    const assertClaudeFilesystemSupport = createClaudeFilesystemSupportProbe({});
     const launchPath = executable();
     const probe = vi.fn().mockResolvedValue({ stdout: '2.1.309 (Claude Code)', stderr: '' });
     const required = { agentId: 'claude', launchPath, env: {} };
@@ -91,6 +92,7 @@ describe('Claude enforcement availability', () => {
     expect(probe).toHaveBeenCalledTimes(2);
   });
   it.each(['timeout', 'unknown-output'])('retries %s once with a longer timeout and caches uncertainty without output', async scenario => {
+    const assertClaudeFilesystemSupport = createClaudeFilesystemSupportProbe({});
     const probe = scenario === 'timeout' ? vi.fn().mockRejectedValue(new Error('OUTSIDE_CANARY_CONTENT'))
       : vi.fn().mockResolvedValue({ stdout: 'OUTSIDE_CANARY_NAME', stderr: 'OUTSIDE_CANARY_CONTENT' });
     const required = { agentId: 'claude', launchPath: executable(), env: {} };

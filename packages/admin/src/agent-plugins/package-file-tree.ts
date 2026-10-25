@@ -199,7 +199,7 @@ function activate({ row: { node }, open }: KeyContext, _optional = {}): PackageF
   return { focus: node.path, setExpanded: { path: node.path, expanded: !open } };
 }
 
-const KEY_HANDLERS = new Map<string, (context: KeyContext) => PackageFileTreeKeyAction>([
+const KEY_HANDLERS: ReadonlyMap<string, (context: KeyContext) => PackageFileTreeKeyAction> = new Map<string, (context: KeyContext) => PackageFileTreeKeyAction>([
   ["ArrowDown", ({ rows, index }) => focusAt(rows, Math.min(index + 1, rows.length - 1))],
   ["ArrowUp", ({ rows, index }) => focusAt(rows, Math.max(index - 1, 0))],
   ["Home", ({ rows }) => focusAt(rows, 0)],

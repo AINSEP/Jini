@@ -35,7 +35,7 @@
  */
 import { delegatedResultMarker } from '@jini-ai/protocol';
 import { batchOutcomeFor, isReadOnlyTool, type ExposedToolDescriptor } from '@jini-ai/core';
-import { ToolSchema } from '@modelcontextprotocol/sdk/types.js';
+import { parseMcpToolInputSchema } from '../adapters/protocol.js';
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
@@ -314,9 +314,7 @@ export function createTypedDelegatedToolTool(
   options: CreateExecuteDelegatedToolToolOptions = {},
 ): McpToolDef {
   const { descriptor, wireName } = tool;
-  const parsedSchema = ToolSchema.shape.inputSchema.safeParse(descriptor.inputSchema);
-  if (!parsedSchema.success) throw new Error(`${descriptor.id}.inputSchema: ${parsedSchema.error.message}`);
-  const inputSchema = parsedSchema.data;
+  const inputSchema = parseMcpToolInputSchema({ inputSchema: descriptor.inputSchema, toolId: descriptor.id });
   const readOnly = isReadOnlyTool({ descriptor });
   const gateway = readOnly
     ? createExecuteReadonlyDelegatedToolTool({ runId }, options)

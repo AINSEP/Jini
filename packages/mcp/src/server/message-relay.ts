@@ -1,4 +1,4 @@
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from './adapters/protocol.js';
 import type { MessageRelayVia, RelayedUserMessage } from '@jini-ai/protocol';
 import { postDaemonJson } from './daemon-client.js';
 import { daemonCallOptions, type McpToolContext, type McpToolDef } from './tool-protocol.js';

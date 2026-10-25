@@ -325,7 +325,7 @@ function parseRegistryValue(stdout: string, valueName: string): string | null {
 }
 
 /** @internal Per-protocol `ProxyServer` kinds mapped to the env slot and default scheme they fill. */
-const WINDOWS_PROXY_KINDS = new Map<string, { scheme: string; slot: "allProxy" | "httpProxy" | "httpsProxy" }>([
+const WINDOWS_PROXY_KINDS: ReadonlyMap<string, { scheme: string; slot: "allProxy" | "httpProxy" | "httpsProxy" }> = new Map<string, { scheme: string; slot: "allProxy" | "httpProxy" | "httpsProxy" }>([
   ["http", { scheme: "http", slot: "httpProxy" }],
   ["https", { scheme: "http", slot: "httpsProxy" }],
   ["socks", { scheme: "socks5", slot: "allProxy" }],

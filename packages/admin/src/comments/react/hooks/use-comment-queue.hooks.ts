@@ -1,5 +1,5 @@
 import { createContext, createElement, useContext, useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction, type ReactNode } from 'react';
-import { useCachedLoader, useFetchQuery, useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useCachedLoader, useFetchQuery, useInvalidate, useFetchQueryScope } from '@jini-ai/ui/fetch-query';
 import { AdminConfigError } from '../../../core/module/create-admin.js';
 import { useController } from '../../../core/react/use-controller.js';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
@@ -30,21 +30,6 @@ const CommentQueueScopeContext = createContext<CommentQueueScope | null>(null);
  */
 export function CommentQueueScopeProvider({ scope, children }: { scope: CommentQueueScope; children: ReactNode }) {
   return createElement(CommentQueueScopeContext.Provider, { value: scope }, children);
-}
-
-// Weak API keys preserve sharing between consumers without retaining APIs from previous sessions.
-// Explicit workspace/principal keys below also isolate hosts that retain one API across sessions.
-const queueScopes = new WeakMap<AdminCommentsPort, number>();
-let nextQueueScope = 0;
-
-/** Allocate the API portion of a namespace; workspace/principal identity is keyed separately. */
-function queueScope({ api }: { api: AdminCommentsPort }, _optional: Record<string, never> = {}): number {
-  let scope = queueScopes.get(api);
-  if (scope === undefined) {
-    scope = ++nextQueueScope;
-    queueScopes.set(api, scope);
-  }
-  return scope;
 }
 
 export interface CommentQueueController {
@@ -114,7 +99,10 @@ export function useCommentQueue(
   { t = englishComments, events }: { t?: CommentsTranslator; events?: CommentsEventsPort } = {},
 ): CommentQueueController {
   const invalidate = useInvalidate();
-  const queueRoot = useMemo(() => [...KEYS.queueRoot, queueScope({ api }), scope.workspaceId, scope.principalId], [api, scope.workspaceId, scope.principalId]);
+  // Weak API keys preserve sharing between consumers without retaining APIs from previous sessions.
+  // Explicit workspace/principal keys below also isolate hosts that retain one API across sessions.
+  const apiScope = useFetchQueryScope({ owner: api });
+  const queueRoot = useMemo(() => [...KEYS.queueRoot, apiScope, scope.workspaceId, scope.principalId], [apiScope, scope.workspaceId, scope.principalId]);
   const invalidateQueue = useCallback(() => invalidate({ key: queueRoot }), [invalidate, queueRoot]);
   const loadPageRef = useRef<QueuePageLoader | null>(null);
   const { controller: attachedController, snapshot: attachedSnapshot } = useController({

@@ -154,7 +154,7 @@ const IDLE_CONTROL: AboutUpdateControl = {
  * state string that happens to name an `Object.prototype` member can never
  * resolve to anything but the idle fallback.
  */
-const STATE_DERIVERS = new Map<UpdaterStatusState, (model: UpdaterModel) => AboutUpdateControl>([
+const STATE_DERIVERS: ReadonlyMap<UpdaterStatusState, (model: UpdaterModel) => AboutUpdateControl> = new Map<UpdaterStatusState, (model: UpdaterModel) => AboutUpdateControl>([
   [
     'checking',
     () => ({

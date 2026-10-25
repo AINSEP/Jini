@@ -100,7 +100,7 @@ function extractProviderErrorDetail(data: unknown, rawText: string): string {
   return message ?? rawText.trim().slice(0, 240);
 }
 
-const INVALID_BASE_URL_NETWORK_CODES = new Set<string | undefined>(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE']);
+const INVALID_BASE_URL_NETWORK_CODES: ReadonlySet<string | undefined> = new Set<string | undefined>(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'CERT_HAS_EXPIRED', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE']);
 
 function networkErrorToKind(err: unknown): ConnectionTestKind {
   if (err instanceof Error) {

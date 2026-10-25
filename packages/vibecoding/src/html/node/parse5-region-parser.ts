@@ -127,7 +127,7 @@ function* walkNodes(root: Parse5Node): Generator<Parse5Node> {
 // RCDATA bodies also contain literal text rather than child markup. Keep their source examples
 // out of the dropped-region check just like raw-text bodies; opening-tag attributes still count.
 // `noscript` is raw text too: parse5 parses with scripting enabled, as a browser running the page does.
-const TEXT_BODY_ELEMENTS = new Set([
+const TEXT_BODY_ELEMENTS: ReadonlySet<string> = new Set([
   "script", "style", "xmp", "iframe", "noembed", "noframes", "noscript", "plaintext", "textarea", "title",
 ]);
 

@@ -998,7 +998,7 @@ function handleCursorEvent(obj: unknown, onEvent: StreamEventHandler, state: Par
   return false;
 }
 
-const MODEL_RECEIPT_FRAME_TYPES = new Set(['session.created', 'thread.started', 'turn.started', 'model.changed']);
+const MODEL_RECEIPT_FRAME_TYPES: ReadonlySet<string> = new Set(['session.created', 'thread.started', 'turn.started', 'model.changed']);
 
 // Preserve structured model receipts before vendor event translation. These fields describe
 // session/turn/assistant-message metadata; generated text is never used for model identity.

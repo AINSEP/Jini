@@ -1,4 +1,4 @@
-import { createGuardedFileReader, createNodeGuardedReaderFilesystem } from '@jini-ai/platform/fs';
+import type { ProjectFilesystemPort } from '../core/project-filesystem.js';
 import { ProjectError, type ProjectLimits } from '../core/project.js';
 
 export interface FileTreePolicy {
@@ -9,7 +9,7 @@ export const DEFAULT_PROJECT_LIMITS: ProjectLimits = {
   maxFiles: 2_000, maxFileBytes: 2 * 1024 * 1024, maxTreeBytes: 64 * 1024 * 1024,
   maxDepth: 32, maxChanges: 100, validationTimeoutMs: 30_000,
 };
-const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', 'out', 'coverage',
+const EXCLUDED: ReadonlySet<string> = new Set(['node_modules', '.git', 'dist', 'build', 'out', 'coverage',
   '.next', '.nuxt', '.angular', '.vite', '.cache', '.turbo']);
 const DEVICE = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i;
 // Platform's atomic writer stages `.<name>.<pid>.<uuid>.tmp` beside the destination. A crash
@@ -68,13 +68,13 @@ export function assertCandidatePaths({ paths }: { paths: readonly string[] }, _o
     }
   }
 }
-/** Platform owns physical containment and bounded traversal; this adapter adds project policy.
+/** The injected reader owns physical containment and bounded traversal; this adapter adds project policy.
  * @complexity Construction O(1); path checks O(depth), listing bounded by configured limits.
  */
-export function createProjectPaths({ root, policy, limits }: {
-  root: string; policy: FileTreePolicy; limits: ProjectLimits;
+export function createProjectPaths({ root, policy, limits, filesystem }: {
+  root: string; policy: FileTreePolicy; limits: ProjectLimits; filesystem: ProjectFilesystemPort;
 }, _options = {}) {
-  const reader = createGuardedFileReader({ rootPath: root, filesystem: createNodeGuardedReaderFilesystem({}),
+  const reader = filesystem.createReader({ rootPath: root,
     denyRules: { segments: EXCLUDED, filenamePatterns: [/^\.env/i, ATOMIC_TEMP] },
     limits: { maxFileBytes: limits.maxFileBytes, binarySniffBytes: 1024,
       maxListedFiles: limits.maxFiles + 1, maxWalkDepth: limits.maxDepth, maxWalkEntries: limits.maxFiles * (limits.maxDepth + 1) },

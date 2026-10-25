@@ -280,3 +280,13 @@ message replacements remain supported; unspecified runtime fields retain neutral
 missing-source-table/column formatter subset. Messages never select a schema or rewrite SQL.
 Persisted `TransferNaming` remains required with no fallback; its display-only catalog
 examples still default to `app` / `app_`. Keep each host's existing wire names explicit.
+
+`@jini-ai/db/owner-store` exports the independent owner schema and pinned migration history.
+The concrete owner-vault assembly moved to `@jini-ai/server/owner-store`; use that entry for
+`openOwnerStore`, `OwnerStoreService` and encrypted backup operations.
+
+**Migration (breaking, next release):** replace
+`import { openOwnerStore, OwnerStoreService, exportOwnerStore, restoreOwnerStore, OwnerStoreBackupError, OwnerStoreRecoveryError } from '@jini-ai/db/owner-store'`
+with the same names from `'@jini-ai/server/owner-store'`, and add `@jini-ai/server` (same version as
+`@jini-ai/db`) to the host's dependencies. `OWNER_STORE_LEDGER`, `ownerStoreMigrations`, `ownerStoreDdl`
+and `ownerStoreMigration` stay here.
