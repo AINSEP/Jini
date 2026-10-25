@@ -16,8 +16,6 @@
       "./redaction/secrets-only": "universal",
       "./observability": "universal",
       "./observability/node": "node",
-      "./observability/opentelemetry": "node",
-      "./observability/sentry": "node",
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
       "./domain-dns": "node"
@@ -48,16 +46,6 @@
       "types": "./dist/observability/node.d.ts",
       "import": "./dist/observability/node.js",
       "default": "./dist/observability/node.js"
-    },
-    "./observability/opentelemetry": {
-      "types": "./dist/observability/opentelemetry.d.ts",
-      "import": "./dist/observability/opentelemetry.js",
-      "default": "./dist/observability/opentelemetry.js"
-    },
-    "./observability/sentry": {
-      "types": "./dist/observability/sentry.d.ts",
-      "import": "./dist/observability/sentry.js",
-      "default": "./dist/observability/sentry.js"
     },
     "./web-evidence": {
       "types": "./dist/web-evidence/index.d.ts",
@@ -100,52 +88,17 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
-    "jszip": "^3.10.1",
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
-    "@opentelemetry/resources": "^2.10.0",
-    "@opentelemetry/sdk-trace-base": "^2.10.0",
-    "@opentelemetry/sdk-trace-node": "^2.10.0",
-    "@opentelemetry/semantic-conventions": "^1.43.0",
-    "@sentry/node": "11.6.0"
+    "jszip": "^3.10.1"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
     "js-tokens": "^9.0.1"
   },
   "peerDependencies": {
-    "jszip": "^3.10.1",
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
-    "@opentelemetry/resources": "^2.10.0",
-    "@opentelemetry/sdk-trace-base": "^2.10.0",
-    "@opentelemetry/sdk-trace-node": "^2.10.0",
-    "@opentelemetry/semantic-conventions": "^1.43.0",
-    "@sentry/node": "11.6.0"
+    "jszip": "^3.10.1"
   },
   "peerDependenciesMeta": {
     "jszip": {
-      "optional": true
-    },
-    "@opentelemetry/api": {
-      "optional": true
-    },
-    "@opentelemetry/exporter-trace-otlp-http": {
-      "optional": true
-    },
-    "@opentelemetry/resources": {
-      "optional": true
-    },
-    "@opentelemetry/sdk-trace-base": {
-      "optional": true
-    },
-    "@opentelemetry/sdk-trace-node": {
-      "optional": true
-    },
-    "@opentelemetry/semantic-conventions": {
-      "optional": true
-    },
-    "@sentry/node": {
       "optional": true
     }
   }

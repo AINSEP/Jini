@@ -1,21 +1,22 @@
 /**
- * @file The Sentry adapter for `ObservabilityPort` — a vendor PROVIDER subpath
- * (`@jini-ai/diagnostics/observability/sentry`), the only module in this package that imports
- * `@sentry/*` (an optional peer dependency). Moved out of Tovu core
- * (`apps/website/src/platform/observability/sentry.ts`) on 2026-10-25 by owner decision, the same
- * as `./opentelemetry.ts`, and loaded the same lazy way (see its header): a host requires this
- * subpath only when `SENTRY_DSN` is set, so an install without Sentry never loads the SDK
- * (measured 2026-10-25: ~465 ms, +40 MB RSS when loaded).
+ * @file The Sentry adapter for diagnostics' `ObservabilityPort`, shipped as the
+ * `observability-sentry` provider plugin — the only module in this distribution's Sentry artifact
+ * that imports `@sentry/*` (bundled; no runtime peer). Moved out of Tovu core
+ * (`apps/website/src/platform/observability/sentry.ts`) and then out of `@jini-ai/diagnostics`
+ * (its former `./observability/sentry` subpath) on 2026-10-25 by owner decision, the same as the
+ * OpenTelemetry plugin, and selected the same way (see its header): a host loads this plugin only
+ * when it is installed, enabled and configured with a DSN, so an install without Sentry never loads
+ * the SDK (measured 2026-10-25: ~465 ms, +40 MB RSS when loaded).
  *
  * Sentry is an error tracker, not a tracing backend: this adapter maps the two feature-level signals
  * (`trackOperation` → a Sentry span, a transaction when it is a root; `reportError` →
  * `captureException`) and leaves request/DB/outbound/agent-run signals to the OpenTelemetry adapter
- * (no-op here). When both are configured, the host fans out to both (`combineObservabilityPorts`).
+ * (no-op here). When both are configured, the host fans out to both (diagnostics' fan-out).
  *
  * PROCESS-WIDE STATE IS THE HOST'S, never this adapter's (review 2026-10-25 #5):
  * - Never `Sentry.init()`: init installs a process-wide client and default integrations (global
  *   handlers, auto-instrumentation) — the same "never take over process-wide registration" rule
- *   `./opentelemetry.ts` follows for the tracer provider.
+ *   the OpenTelemetry plugin follows for the tracer provider.
  * - Never `NodeClient#init()` either: in @sentry/node 11.6.0 it selects Sentry's AsyncLocalStorage
  *   (or OTel) async-context strategy for the WHOLE process, which would replace a strategy a host
  *   that already uses Sentry chose. Without it the client still sends (measured: transactions and
@@ -33,10 +34,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import { NodeClient, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
-import { createNoopObservabilityPort } from "./noop.js";
-import { describeReportedError } from "./errors.js";
-import { redactOperationAttributes } from "./otel.js";
-import type { ObservabilityAdapter, ObservabilityPort } from "./ports.js";
+import { createNoopObservabilityPort, describeReportedError, redactOperationAttributes, type ObservabilityAdapter } from "@jini-ai/diagnostics/observability";
 
 export interface SentryConfigEnabled { enabled: true; dsn: string; environment?: string; tracesSampleRate: number; }
 
@@ -88,7 +86,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
   const client = (options.client ?? privateClient({ config }, { transport: options.transport })) as NodeClient;
   const active = new AsyncLocalStorage<Span>();
   const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); return fn(); });
-  const port: ObservabilityPort = {
+  const port: ObservabilityAdapter["port"] = {
     ...createNoopObservabilityPort({}),
     trackOperation({ name, attributes = {} }) {
       const parentSpan = active.getStore();
@@ -118,9 +116,4 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
     },
   };
   return { port, dispose: async () => { if (!owned) return; try { await client.close(2_000); } catch { /* best-effort */ } } };
-}
-
-/** Port-only form (no teardown), kept for hosts that own no site lifecycle. */
-export function createSentryObservabilityPort({ config }: { config: SentryConfigEnabled }, options: SentryAdapterOptions = {}): ObservabilityPort {
-  return createSentryObservabilityAdapter({ config }, options).port;
 }

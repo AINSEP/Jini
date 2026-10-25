@@ -1,7 +1,18 @@
 # @jini-ai/provider-plugins
 
-One asset distribution of ordinary tier-3 Jini server plugins. The initial catalog contains only
-`fixture-provider`, a conformance fixture. There are no vendor adapters or callable adapter exports.
+One asset distribution of ordinary tier-3 Jini server plugins. There are no callable adapter exports:
+hosts install and load the artifacts. Vendor SDKs are bundled into each artifact at build time and
+never become dependencies or peers of a core `@jini-ai/*` package.
+
+| plugin id | provider (`contract` / `id`) | factory `required` input | factory `optional` input |
+|---|---|---|---|
+| `fixture-provider` | `fixture` / `fixture` | `{ value }` | — (conformance fixture) |
+| `observability-opentelemetry` | `observability` / `opentelemetry` | `{ serviceName, tracerName, endpoint?, tracesEndpoint?, headers? }` — any OTLP/HTTP endpoint; credentials ride `headers` | `{ spanProcessors? }` (tests) |
+| `observability-sentry` | `observability` / `sentry` | `{ dsn, environment?, tracesSampleRate? }` (rate default 0) | `{ client?, transport? }` (host-owned client is never closed) |
+
+Each factory returns diagnostics' `ObservabilityPort` plus `dispose`. Two configured observability
+providers fan out through diagnostics' existing fan-out. Inputs come from the host's secure plugin
+settings; never from manifests, browser assets or agent instructions.
 
 `pnpm --filter @jini-ai/provider-plugins build` produces `catalog.json` and
 `plugins/<id>/<version>/{jini.plugin.json,server/index.mjs,licenses/**}`. `pnpm pack` builds these

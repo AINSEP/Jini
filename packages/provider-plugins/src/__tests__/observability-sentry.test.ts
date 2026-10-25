@@ -1,9 +1,9 @@
-/** The Sentry provider subpath against the real SDK (recording transport, `.invalid` DSN: no network). */
+/** The Sentry provider plugin against the real SDK (recording transport, `.invalid` DSN: no network). */
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { createTransport, getCurrentScope } from "@sentry/node";
 
-import { createSentryObservabilityAdapter, type SentryConfigEnabled } from "../observability/sentry.js";
+import { createSentryObservabilityAdapter, type SentryConfigEnabled } from "../observability-sentry/sentry.js";
 
 const CONFIG: SentryConfigEnabled = { enabled: true, dsn: "https://public@sentry.invalid/1", tracesSampleRate: 1 };
 const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
