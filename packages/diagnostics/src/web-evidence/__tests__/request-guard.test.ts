@@ -351,3 +351,13 @@ test("a redirect reads the Location header by name (any case), not the first hea
   expect(net.sent.map(sent => sent.url)).toEqual(["https://public.example/a", "https://public.example/b"]);
   expect(outcome.fulfilled?.body).toBe("target");
 });
+
+test("an egress refusal of a SUBRESOURCE is blocked but does not mark the navigation refused", async () => {
+  const net = transport({ "https://public.example/img.png": egressRefused });
+  const { router: guard, blocked } = router(net.httpClient);
+  await guard.handle(route(request({ url: "https://public.example/img.png", resourceType: "image", navigation: false })).like);
+  expect(blocked).toEqual(["refused:https://public.example/img.png"]);
+  expect(guard.report().navigationRefused).toBe(false);
+  await guard.handle(route(request({ url: "https://public.example/img.png" })).like);
+  expect(guard.report().navigationRefused).toBe(true);
+});
