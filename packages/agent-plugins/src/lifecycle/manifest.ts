@@ -55,6 +55,8 @@
  * caller that reads the file and hands the parsed value here.
  */
 import { readAgentPluginCompatibilityMetadata } from "./compatibility-metadata.js";
+import { parseAgentPluginExports, type AgentPluginExportMetadata } from './exports.js';
+export * from './exports.js';
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 export { validatePluginManifest, validateMcpManifest } from '../manifest.js';
 export type { PluginManifest, McpManifest, McpServerEntry } from '../manifest.js';
@@ -129,7 +131,7 @@ export function isAgentPluginName({ value }: { readonly value: unknown }, _optio
   return typeof value === "string" && value.length <= MAX_NAME_LENGTH && NAME_PATTERN.test(value);
 }
 
-export interface AgentPluginManifest {
+export interface AgentPluginManifest extends AgentPluginExportMetadata {
   readonly name: string;
   readonly version?: (string) | undefined;
   readonly description?: (string) | undefined;
@@ -249,9 +251,13 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
   const extension = isJsonObject(raw.extensions) && isJsonObject(raw.extensions[identityNamespace]) ? raw.extensions[identityNamespace] : {};
   const { warnings: compatibilityWarnings, ...compatibility } = readAgentPluginCompatibilityMetadata({ extension });
   warnings.push(...compatibilityWarnings);
+  const exportsResult = parseAgentPluginExports({ extension, provides: identity.provides });
+  if (!exportsResult.ok) return { ok: false, errors: exportsResult.errors };
+  warnings.push(...exportsResult.warnings);
 
   const manifest: AgentPluginManifest = {
     ...compatibility,
+    ...exportsResult.metadata,
     name: nameResult.name as string,
     id: identity.id,
     provides: identity.provides,

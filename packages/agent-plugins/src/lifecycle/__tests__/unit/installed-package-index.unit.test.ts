@@ -75,6 +75,21 @@ describe('indexInstalledRoot results', () => {
     expect(indexed).toMatchObject({ description: 'd', keywords: ['k'], author: 'a', license: 'MIT' });
   });
 
+  it('carries validated exports and declared old identities without reading templates', async () => {
+    const definition = { template: 'exports/button.html', props: { type: 'object' }, consent: 'necessary', staticExport: 'fallback-only', version: 1 };
+    const metadata = { exports: { button: definition }, renamedFrom: ['publisher/previous'] };
+    const root = await packageRoot({ 'plugin.json': manifest({ extensions: { [ports.extensionNamespace]: metadata } }) });
+    const indexed = await index(root);
+    expect(indexed.exports).toEqual(metadata.exports);
+    expect(indexed.renamedFrom).toEqual(metadata.renamedFrom);
+    expect(indexed.files).toEqual(['plugin.json']);
+  });
+
+  it('refuses malformed export metadata at the shared manifest boundary', async () => {
+    const root = await packageRoot({ 'plugin.json': manifest({ extensions: { [ports.extensionNamespace]: { exports: { button: {} } } } }) });
+    await expect(index(root)).rejects.toMatchObject({ code: 'MANIFEST_INVALID', message: 'plugin.json failed validation: exports.button: version must be a positive safe integer' });
+  });
+
   it('trims and caps the host displayName and summary', async () => {
     const extensions = { [ports.extensionNamespace]: { displayName: `  ${'n'.repeat(70)}  `, summary: ` ${'s'.repeat(1300)} ` } };
     const indexed = await index(await packageRoot({ 'plugin.json': manifest({ extensions }) }));

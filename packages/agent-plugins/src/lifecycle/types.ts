@@ -1,4 +1,5 @@
 import type { PluginManifestAuthor } from "../manifest.js";
+import type { AgentPluginExportMetadata } from './exports.js';
 
 /** Lifecycle value contracts shared by host ports and implementations. */
 export type AgentPluginDeliveryMode = "inject" | "pointer";
@@ -8,7 +9,7 @@ export interface InstalledAgentPluginSkill {
   readonly skillPath: string;
 }
 
-export interface InstalledAgentPlugin {
+export interface InstalledAgentPlugin extends AgentPluginExportMetadata {
   readonly id?: string | undefined;
   readonly provides?: readonly string[] | undefined;
   readonly requires?: readonly string[] | undefined;

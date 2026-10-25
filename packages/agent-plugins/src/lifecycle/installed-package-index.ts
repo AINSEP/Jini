@@ -5,6 +5,13 @@ import { readAgentPluginExtension, parseAgentPluginManifest as parseAgentPluginM
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 import type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js";
 
+/** Keep undeclared metadata absent, including for older packages. No extra manifest read. */
+function indexedMetadata({ manifest }: { readonly manifest: InstalledAgentPluginMetadata }, _optional = {}) {
+  const { requires, hostRange, exports, renamedFrom } = manifest;
+  return Object.fromEntries(Object.entries({ requires, hostRange, exports, renamedFrom }).filter(([, value]) => value !== undefined));
+}
+type InstalledAgentPluginMetadata = Pick<InstalledAgentPlugin, 'requires' | 'hostRange' | 'exports' | 'renamedFrom'>;
+
 /** Indexes manifests and files with the same injected effects used by installation and resolution.
  * @complexity O(f) reads/walk work for f package files; no mutation or executable imports. */
 export function createInstalledPackageIndex(required: { readonly ports: AgentPluginLifecyclePorts }, _optional: Record<string, never> = {}) {
@@ -108,8 +115,7 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
       pluginId: parsed.manifest.name,
       id: parsed.manifest.id,
       provides: parsed.manifest.provides,
-      ...(parsed.manifest.requires === undefined ? {} : { requires: parsed.manifest.requires }),
-      ...(parsed.manifest.hostRange === undefined ? {} : { hostRange: parsed.manifest.hostRange }),
+      ...indexedMetadata({ manifest: parsed.manifest }),
       version: parsed.manifest.version,
 
       ...(/**
