@@ -94,3 +94,9 @@ describe("assertGrantClamp", () => {
     await expect(clamp([{ permission: "user.manage", resourceType: "x" }, { permission: "user.manage", constraintJson: "{}" }, { permission: "user.manage" }], ["user.manage"])).resolves.toBeUndefined();
   });
 });
+
+describe("assertGrantClamp — F1 re-score kill", () => {
+  it("an unconstrained * alongside ordinary rows still confers a permission held nowhere else (some, not every)", async () => {
+    await expect(assertGrantClamp({ deps: await depsWith([{ permission: "post.read" }, { permission: "*" }, { permission: "media.read", resourceType: "x" }]), workspaceId: W, callerPrincipalId: "caller", conferredPermissions: ["user.manage"] })).resolves.toBeUndefined();
+  });
+});

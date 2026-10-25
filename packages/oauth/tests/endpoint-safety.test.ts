@@ -96,7 +96,7 @@ test('F1: loopback http exception is anchored — near-loopback hosts are refuse
             message: 'token endpoint: provider endpoint must use https (http is permitted only for loopback)',
         }, raw);
     }
-    for (const raw of ['http://localhost/token', 'http://LOCALHOST./token', 'http://[::1]/token', 'http://127.1/token', 'http://[::ffff:127.0.0.1]/token']) {
+    for (const raw of ['http://localhost/token', 'http://LOCALHOST./token', 'http://localhost../token', 'http://[::1]/token', 'http://127.1/token', 'http://[::ffff:127.0.0.1]/token']) {
         assert.equal(guard.assertSafeUrl({ raw, label: 'token endpoint' }).href, new URL(raw).href, raw);
     }
 });

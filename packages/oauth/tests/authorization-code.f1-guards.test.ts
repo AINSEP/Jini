@@ -95,3 +95,38 @@ for (const [label, code] of [["missing", undefined], ["empty", ""]] as const) {
         assert.equal(http.callCount(), 0);
     });
 }
+
+// F1 re-score kills (authorization-code.ts:19 regex anchors, :185 MAX_CODE_LENGTH boundary).
+import { toCallbackError, MAX_CODE_LENGTH } from "../src/authorization-code.js";
+for (const [raw, code, kept] of [
+    ["access_denied", "OAUTH_ACCESS_DENIED", "access_denied"],
+    ["invalid_scope", "OAUTH_PROVIDER_REJECTED", "invalid_scope"],
+    ["EVIL access_denied", "OAUTH_PROVIDER_REJECTED", undefined],
+    ["access_denied\n<script>", "OAUTH_PROVIDER_REJECTED", undefined],
+    ["access_denied!", "OAUTH_PROVIDER_REJECTED", undefined],
+    ["a".repeat(64), "OAUTH_PROVIDER_REJECTED", "a".repeat(64)],
+    ["a".repeat(65), "OAUTH_PROVIDER_REJECTED", undefined],
+] as const) {
+    test(`F1: callback error ${JSON.stringify(raw).slice(0, 30)} → ${code}, providerErrorCode kept=${kept !== undefined}`, () => {
+        const error = toCallbackError(raw);
+        assert.equal(error.code, code);
+        assert.equal(error.providerErrorCode, kept);
+    });
+}
+
+for (const [label, length, refused] of [["exactly MAX", MAX_CODE_LENGTH, false], ["MAX+1", MAX_CODE_LENGTH + 1, true]] as const) {
+    test(`F1: an authorization code of ${label} characters is ${refused ? "refused before exchange" : "exchanged"}`, async () => {
+        const f = flow();
+        const started = await begin([A], A, f);
+        const http = createFetchDouble([{ json: { token_type: "Bearer", access_token: "at" } }]);
+        const run = () => completeAuthorizationCode({ ...fixturePorts, provider: f.provider, pending: f.pending, clock: f.clock, fetchFn: http.fetchFn, ownerKey: "ws:1", client: TEST_CLIENT, params: { state: started.state, code: "c".repeat(length) } });
+        if (refused) {
+            const error = await assertOAuthRejects(run, "OAUTH_INVALID_REQUEST");
+            assert.equal(error.message, `the authorization code exceeded ${MAX_CODE_LENGTH} characters`);
+            assert.equal(http.callCount(), 0);
+        } else {
+            assert.equal((await run()).accessToken, "at");
+            assert.equal(http.requests[0]!.body.get("code"), "c".repeat(length));
+        }
+    });
+}
