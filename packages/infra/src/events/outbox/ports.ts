@@ -69,8 +69,14 @@ export interface OutboxWorkerOptions {
 
 /** Reserved optional object for boundaries with no current options. */
 export type Empty = Record<string, never>;
-/** The host-enqueued event a fenced row carries; enqueueing itself stays host-owned. */
+/** The event a fenced row carries, unique per (scope, idempotencyKey). */
 export type Intent<E> = { event: E; scope: string; idempotencyKey: string };
+/** An intent plus the digest of the request that produced it (see `outboxRequestDigest`). */
+export type EnqueueIntent<E> = Intent<E> & { requestDigest: string };
+/** Replays under (scope, idempotencyKey) match the original digest; a different one conflicts. */
+export type EnqueueReceipt =
+  | { status: 'inserted' | 'existing' }
+  | { status: 'conflict'; reason: 'request-digest-mismatch' };
 /** Every transition checks identity, scope, token, allowed state and an unexpired lease atomically. */
 export type Fence = { id: string; scope: string; claimToken: string; nowIso: string };
 /** Detached lease receipt; attempts is one-based and incremented atomically by claimReady. */
@@ -88,7 +94,7 @@ export type DispatchResult = {
 /**
  * Opt-in durable fencing contract, independent of the legacy OutboxPort and host schema.
  * Adapters own atomic transitions; uncertain rows require host reconciliation, never auto-reclaim.
- * Enqueueing (uniqueness, idempotent receipts, transaction joining) is the host's own storage API.
+ * Enqueueing is the separate, opt-in `FencedEnqueuePort`.
  */
 export interface FencedOutboxPort<E> {
   /**
@@ -107,4 +113,20 @@ export interface FencedOutboxPort<E> {
    * no-effect outcome. A failure here must never be interpreted as a transport failure/retry.
    */
   complete(input: Fence & { completion: Completion }, options?: Empty): Promise<boolean>;
+}
+
+/**
+ * Opt-in idempotent enqueue for fenced rows; `Tx` is the host's live transaction session type.
+ * Run the exported `fencedOutboxConformance` cases against every adapter.
+ * @example await outbox.enqueueWithReceipt({ intent }, { transaction: liveSession });
+ */
+export interface FencedEnqueuePort<E, Tx> {
+  /**
+   * Atomically insert under unique (scope, idempotencyKey), or compare the digest with the original:
+   * equal is `existing`, different is a conflict that preserves the original row and its event.
+   * A supplied transaction is the caller's exact live session: the insert joins it, so it commits or
+   * rolls back with the caller's own intent writes, and enqueue never opens, commits or retries
+   * another. Reject closed or unsupported sessions. Without one, the insert commits on its own.
+   */
+  enqueueWithReceipt(required: { intent: EnqueueIntent<E> }, optional?: { transaction?: Tx }): Promise<EnqueueReceipt>;
 }
