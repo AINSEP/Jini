@@ -55,6 +55,10 @@ describe('trusted-URL and necessary-script edges (coverage)', () => {
     const out = body('<script src="https://[::1/x.js"></script>', { pageOrigin: 'https://site.example', resourceOrigins: ['https://site.example'] });
     expect(out).toContain('<template data-jini-consent-script');
   });
+  it('an invalid host pageOrigin makes external URLs untrusted (fails closed), never throws', () => {
+    const out = body('<script src="https://site.example/a.js"></script>', { pageOrigin: 'not a url' });
+    expect(out).toContain('<template data-jini-consent-script');
+  });
   it('a content-only necessary entry never exempts a script that has a src', () => {
     const out = body('<script src="https://tags.example/a.js"></script>', { necessaryScripts: [{ content: '' }] });
     expect(out).toContain('<template data-jini-consent-script');
