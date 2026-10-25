@@ -8,12 +8,32 @@ export interface OtelAdapterOptions { scope?: SpanScopePort; }
 type Attributes = Record<string, string | number>;
 
 /** A low-cardinality error label: a SCREAMING_CASE code (ECONNREFUSED, SQLITE_BUSY), else the class
- * name. Messages are never exported: they carry SQL fragments, hostnames, emails, even credentials. */
+ * name. Messages are never exported: they carry SQL fragments, hostnames, emails, even credentials.
+ * `Error.name` is writable, so it is a secret channel too (review 2026-10-25 #2): redacted, then capped
+ * to {@link MAX_ERROR_TYPE} (redact first: a cut could leave a secret prefix too short to match). */
 export function errorType(error: unknown): string {
  const code = (error as { code?: unknown } | null)?.code;
  if (typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code)) return code;
- if (error instanceof Error) return error.name;
+ if (error instanceof Error) return redactLabel(String(error.name)).slice(0, MAX_ERROR_TYPE) || 'Error';
  return typeof error;
+}
+
+const MAX_ERROR_TYPE = 64;
+const MAX_ATTRIBUTE_TEXT = 256;
+
+function redactLabel(text: string): string {
+ return redactSecretShapes({ text, policy: {} }).text;
+}
+
+/** Feature attributes are documented as ids and fixed labels, but a caller can still hand over a
+ * secret-shaped value (an unknown tool id straight from a request, review #1). Every string is
+ * redacted and capped before any SDK sees it; numbers pass. Every adapter applies this, so one careless
+ * call site cannot leak through one vendor.
+ * @param required The caller's attributes. @returns A fresh, redacted copy. @complexity O(total text). */
+export function redactOperationAttributes({ attributes }: { attributes: Readonly<Record<string, string | number>> }): Attributes {
+ const safe: Attributes = {};
+ for (const [name, value] of Object.entries(attributes)) safe[name] = typeof value === 'string' ? redactLabel(value).slice(0, MAX_ATTRIBUTE_TEXT) : value;
+ return safe;
 }
 
 /** Query and fragment are dropped (tokens ride there most often); secret-shaped path values are
@@ -108,10 +128,10 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
    }) };
   },
   trackOperation({ name, attributes = {} }) {
-   const span = start({ name, kind: 'internal', attributes: { ...attributes } });
+   const span = start({ name, kind: 'internal', attributes: redactOperationAttributes({ attributes }) });
    return { run: runIn(span), end: once(({ outcome, failed, attributes: settled = {} }) => {
     // The feature decides what counts as failure; its outcome label doubles as the error type.
-    finish({ span, attributes: { ...settled, 'operation.outcome': outcome } }, failed ? { failure: outcome } : {});
+    finish({ span, attributes: redactOperationAttributes({ attributes: { ...settled, 'operation.outcome': outcome } }) }, failed ? { failure: redactLabel(outcome) } : {});
    }) };
   },
   reportError({ error, context }) {
@@ -119,7 +139,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     // Inside a tracker's run() the exception lands on that tracker's span; elsewhere it is its own
     // short root span. Type only, never the message: the same export rule errorType documents.
     const active = scope?.active();
-    const span = active ?? start({ name: `error ${context.operation}`, kind: 'internal', attributes: { ...context.attributes } }, { root: true });
+    const span = active ?? start({ name: `error ${context.operation}`, kind: 'internal', attributes: redactOperationAttributes({ attributes: context.attributes ?? {} }) }, { root: true });
     const type = errorType(error);
     span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation } });
     span.setStatus({ code: 'error', description: type });

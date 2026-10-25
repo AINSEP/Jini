@@ -1,7 +1,7 @@
 /** Each tool call becomes one observed operation; execution errors are reported, input errors are not. */
 import { expect, test } from "vitest";
 import { ToolInputError } from "@jini-ai/core";
-import { withToolCallObservability, ToolExecutionFailure, type ToolCallObservability } from "../index.js";
+import { withToolCallObservability, ToolExecutionFailure, UNREGISTERED_TOOL_LABEL, UNIDENTIFIED_USER_LABEL, type ToolCallObservability } from "../index.js";
 import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
 
 type Recorded = { name: string; start: Record<string, unknown>; end?: Record<string, unknown>; durationMs?: number; errors: unknown[] };
@@ -38,7 +38,7 @@ test("a completed call is one tool.call operation with tool id, run id, outcome 
   const executor = withToolCallObservability({ inner: executorReturning(() => ({ executionId: "e", status: "completed", output: 1 }), () => fake.advance(42)), observability: fake.port }, {});
   const result = await executor.execute(CALL);
   expect(result.status).toBe("completed");
-  expect(fake.operations).toEqual([{ name: "tool.call", start: { "tool.id": "pages_list", "agent.run.id": "run-1" },
+  expect(fake.operations).toEqual([{ name: "tool.call", start: { "tool.id": "pages_list", "agent.run.id": "run-1", "user.id": "p1" },
     end: { outcome: "completed", failed: false }, durationMs: 42, errors: [] }]);
 });
 
@@ -91,4 +91,22 @@ test("other executor methods delegate to inner", () => {
   const executor = withToolCallObservability({ inner, observability: createFakePort().port }, {});
   executor.resumeConfirmation({ executionId: "e", decision: "approve" as never }); executor.cancel({ executionId: "e" }); executor.getAuditRecord({ executionId: "e" });
   expect(calls).toEqual(["resume", "cancel", "audit"]);
+});
+
+test("review #1: a secret-shaped or unregistered tool id never reaches the port; a fixed label does", async () => {
+  const fake = createFakePort();
+  const completed = executorReturning(() => ({ executionId: "e", status: "completed", output: 1 }));
+  const secretId = ["sk", "live", "51HxAbCdEfGhIjKlMnOpQrSt"].join("_"); // built at runtime: push protection blocks the literal
+  await withToolCallObservability({ inner: completed, observability: fake.port }, {}).execute({ ...CALL, toolId: secretId });
+  await withToolCallObservability({ inner: completed, observability: fake.port }, { isRegisteredTool: ({ toolId }) => toolId === "pages_list" }).execute({ ...CALL, toolId: "made_up_tool" });
+  await withToolCallObservability({ inner: completed, observability: fake.port }, { isRegisteredTool: ({ toolId }) => toolId === "pages_list" }).execute(CALL);
+  expect(fake.operations.map((op) => op.start["tool.id"])).toEqual([UNREGISTERED_TOOL_LABEL, UNREGISTERED_TOOL_LABEL, "pages_list"]);
+  expect(JSON.stringify(fake.operations)).not.toContain(secretId);
+});
+
+test("owner 10-25: user.id is the pseudonymous principal id; e-mail- or secret-shaped ids are replaced", async () => {
+  const fake = createFakePort();
+  const executor = withToolCallObservability({ inner: executorReturning(() => ({ executionId: "e", status: "completed", output: 1 })), observability: fake.port }, {});
+  for (const id of ["user_7f3a", "owner@example.com", "ghp_abcdefghijklmnopqrstuvwxyz0123456789"]) await executor.execute({ ...CALL, principal: { id } as never });
+  expect(fake.operations.map((op) => op.start["user.id"])).toEqual(["user_7f3a", UNIDENTIFIED_USER_LABEL, UNIDENTIFIED_USER_LABEL]);
 });

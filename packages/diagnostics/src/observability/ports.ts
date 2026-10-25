@@ -97,3 +97,7 @@ export interface ExporterFactory {
 export interface TracerProviderFactory {
  create(required: { serviceName: string; exporter: unknown }): TracerProviderPort;
 }
+/** What a vendor provider subpath returns: the port plus the host-owned lifecycle hook. The host
+ * registers `dispose` with its teardown (a closed site, a stopped process) so SDK clients, timers
+ * and exit listeners are released (review 2026-10-25 #6). `dispose` never throws. */
+export interface ObservabilityAdapter { port: ObservabilityPort; dispose(): Promise<void>; }
