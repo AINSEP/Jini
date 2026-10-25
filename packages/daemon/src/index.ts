@@ -80,6 +80,7 @@
 export * from './event-log.js';
 export * from './close-status.js';
 export * from './run-lifecycle.js';
+export * from './ai-trace-lifecycle.js';
 export * from './tool-executor.js';
 export * from './delegated-tool-bridge.js';
 export * from './remote-tool-bridge.js';

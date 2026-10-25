@@ -181,3 +181,22 @@ it.each([false, true])('preserves a feature-connection boot error while closing 
     expect(closes.get('journal.db')).toHaveBeenCalledTimes(1);
   } finally { spy.mockRestore(); vi.restoreAllMocks(); }
 });
+
+describe('createJiniKernelBase aiTrace option', () => {
+  it('traces runs through the kernel lifecycle when a sink is configured, and leaves it unwrapped otherwise', async () => {
+    const { createRecordingAiTraceSink } = await import('@jini-ai/agent-runtime');
+    const sink = createRecordingAiTraceSink();
+    const traced = await createJiniKernelBase({ storage: { kind: 'memory' }, aiTrace: { sink, capture: 'off' } });
+    const plain = await createJiniKernelBase({ storage: { kind: 'memory' } });
+    try {
+      const { run } = await traced.lifecycle.start({ contextRef: 'chat-1' }, { agentId: 'codex' });
+      await traced.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'usage', usage: { input_tokens: 3 } } as never } });
+      await traced.lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+      expect(sink.events.map((e) => e.kind)).toEqual(['run_started', 'model_turn', 'run_finished']);
+      expect('noteRunInput' in plain.lifecycle).toBe(false);
+    } finally {
+      await traced.close();
+      await plain.close();
+    }
+  });
+});
