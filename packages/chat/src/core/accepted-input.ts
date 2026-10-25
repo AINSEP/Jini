@@ -166,6 +166,15 @@ function advanceOptimisticInput(
   if (candidates && !input.data.toolUseId) candidates.index += 1;
 }
 
+/** The original bubble with a later receipt's delivery state folded in (it and every constituent).
+ * O(i) in the bubble's expanded inputs. */
+function withDeliveryState({ original, update }: { original: UserMessageEvent; update: UserMessageEvent }, _options = {}): AgentEvent {
+  // Replayed queue acceptance cannot undo confirmed consumption.
+  const deliveryState = original.data.deliveryState === 'consumed' ? 'consumed' : update.data.deliveryState;
+  return { ...original, data: { ...original.data, deliveryState,
+    ...(original.data.inputs ? { inputs: original.data.inputs.map(input => ({ ...input, deliveryState })) } : {}) } };
+}
+
 /** Fold state updates into the original bubble, preserving its position, local id and aliases.
  * O(e + a + i) time/space for events, receipt aliases and expanded input constituents; equal text never establishes identity. */
 function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] }, _options = {}): AgentEvent[] {
@@ -175,11 +184,7 @@ function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] },
     const input = acceptedInputEvent({ event });
     const position = input ? positions.get(input.data.id) : undefined;
     if (input && position !== undefined && input.data.deliveryState) {
-      const original = acceptedInputEvent({ event: result[position]! })!;
-      // Replayed queue acceptance cannot undo confirmed consumption.
-      const deliveryState = original.data.deliveryState === 'consumed' ? 'consumed' : input.data.deliveryState;
-      result[position] = { ...original, data: { ...original.data, deliveryState,
-        ...(original.data.inputs ? { inputs: original.data.inputs.map(input => ({ ...input, deliveryState })) } : {}) } };
+      result[position] = withDeliveryState({ original: acceptedInputEvent({ event: result[position]! })!, update: input });
       continue;
     }
     if (input) for (const id of acceptedInputIds({ input })) positions.set(id, result.length);
