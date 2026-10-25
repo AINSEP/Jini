@@ -158,3 +158,38 @@ describe('injected skill source contract', () => {
     expect(fetchSource).not.toHaveBeenCalled();
   }));
 });
+
+describe('installer guards that a strict validator would otherwise mask', () => {
+  it.each([null, [], 'uploaded', 0])('refuses non-object provenance %j even when the validator says yes', invalid => fixture(async ({ root, deps, fetchSource }) => {
+    deps.validateSource = () => true;
+    fetchSource.mockResolvedValue({ files: upload(), source: invalid as unknown as Source });
+    await expect(createSkillInstaller(deps).installSkill({ ...ctx, url })).rejects.toThrow('Invalid skill source provenance.');
+    expect(await readdir(root)).toEqual([]);
+  }));
+
+  it('writes every file exclusively with mode 0o600, lists with includeDisabled, and removes staging even when publish fails', () => fixture(async ({ root, deps }) => {
+    const real = deps.filesystem;
+    const writes: unknown[] = [];
+    const removes: unknown[] = [];
+    const load = vi.spyOn(deps.toolSourceLoader, 'load');
+    deps.filesystem = { ...real,
+      writeFile: async (input) => { writes.push({ exclusive: input.exclusive, mode: input.mode, name: path.basename(input.path) }); return real.writeFile(input); },
+      remove: async (input, options) => { removes.push(options); return real.remove(input, options); },
+      rename: async () => { throw new Error('rename refused'); },
+    };
+    await expect(createSkillInstaller(deps).installSkill({ ...ctx, url })).rejects.toThrow('rename refused');
+    expect(writes).toEqual([{ exclusive: true, mode: 0o600, name: 'SKILL.md' }, { exclusive: true, mode: 0o600, name: '.state.json' }]);
+    expect(removes).toEqual([{ recursive: true, force: true }]);
+    expect(load).toHaveBeenCalledWith(expect.objectContaining(ctx), { includeDisabled: true });
+    expect(await readdir(path.join(root, 'staging'))).toEqual([]);
+  }));
+
+  it('a failed install does not wedge the per-root queue: the next install proceeds', () => fixture(async ({ deps }) => {
+    const real = deps.filesystem;
+    let fail = true;
+    deps.filesystem = { ...real, rename: async (input) => { if (fail) { fail = false; throw new Error('once'); } return real.rename(input); } };
+    const api = createSkillInstaller(deps);
+    await expect(api.installSkill({ ...ctx, url })).rejects.toThrow('once');
+    await expect(api.installSkill({ ...ctx, url })).resolves.toMatchObject({ toolId: 'skill_incident', enabled: true });
+  }));
+});
