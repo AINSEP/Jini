@@ -107,6 +107,26 @@ describe('mountFiles characterization', () => {
     expect(events).toEqual([{ path: 'b', kind: 'modified' }, { path: 'src/a', kind: 'modified' }]);
   });
 
+  it('while a path is mounting only its create/write echoes are suppressed; remove/rename still reach listeners', async () => {
+    const fake = createHandle({});
+    const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
+    const events: FileChangeEvent[] = [];
+    session.onFileChange({ listener: event => events.push(event) });
+    const write = deferred<void>({});
+    fake.write.mockImplementationOnce(() => write.promise);
+    const mounting = session.mountFiles({ files: [{ path: 'a', content: 'host' }] });
+    fake.emit({ event: { name: 'a', type: 'create' } });
+    fake.emit({ event: { name: 'a', type: 'write' } });
+    fake.emit({ event: { name: 'a', type: 'remove' } });
+    fake.emit({ event: { name: 'a', type: 'rename' } });
+    fake.emit({ event: { name: 'a', type: 'chmod' } });
+    fake.emit({ event: { name: 'b', type: 'write' } });
+    expect(events).toEqual([{ path: 'a', kind: 'deleted' }, { path: 'a', kind: 'modified' }, { path: 'b', kind: 'modified' }]);
+    write.resolve();
+    await mounting;
+    await session.teardown();
+  });
+
   it('loses the earlier echo fingerprint when a newer overlapping mount fails (reported, not fixed)', async () => {
     const fake = createHandle({});
     const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
