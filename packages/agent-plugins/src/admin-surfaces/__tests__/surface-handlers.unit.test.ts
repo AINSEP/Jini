@@ -68,3 +68,20 @@ test('a changed declaration with the same module object starts a new generation 
   await expect(old({ payload: {}, context: CONTEXT })).rejects.toMatchObject({ code: 'plugin-disabled', message: ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE });
   await expect(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }).save!({ payload: {}, context: CONTEXT })).resolves.toBe(true);
 });
+
+// Stryker run-2 survivors (surface-handlers.ts:70,109): the failure-code grammar, one row per edge.
+describe('failure codes', () => {
+  const failWith = (code: unknown) => {
+    const module: AdminSurfaceHandlerModule = { actions: { save: ({ fail }) => { throw fail({ code: code as string, message: 'No.' }); } } };
+    return hostWith([{ descriptor: descriptorOf(), pluginId: PLUGIN, module }]).handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }).save!({ payload: {}, context: CONTEXT });
+  };
+  test.each([['a'], ['ab'], ['a1-b2'], ['sheet-missing-now'], ['x'.repeat(64)]])('%j is passed to the surface', async (code) => {
+    await expect(failWith(code)).rejects.toMatchObject({ code, message: 'No.', retryable: false });
+  });
+  test.each([['x'.repeat(65)], [''], ['-a'], ['a-'], ['a--b'], ['Sheet'], ['a_b'], [' a'], ['a\n'], ['a!'], [7], [null]])('%j becomes the generic invalid-code failure', async (code) => {
+    const failure = await failWith(code).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe('a plugin failure used an invalid code');
+    expect(failure).not.toHaveProperty('code');
+  });
+});
