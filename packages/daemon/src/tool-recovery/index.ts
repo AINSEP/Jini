@@ -3,3 +3,4 @@ export * from "./recovery.js";
 export * from "./redaction.js";
 export * from "./stack.js";
 export * from "./federated-refusal.js";
+export * from "./observability.js";
