@@ -95,6 +95,7 @@ export function createStdioHosting({ stdin, stdout, options }: { stdin: Readable
   let failure: { error: unknown } | undefined;
   let closeTransport: (() => void) | undefined;
   let stopped = false;
+  const stop = new AbortController();
   let disposed: Promise<{ error: unknown } | undefined> | undefined;
 
   const listen = (emitter: EventEmitter, event: string, fn: (...args: any[]) => void) => {
@@ -159,6 +160,13 @@ export function createStdioHosting({ stdin, stdout, options }: { stdin: Readable
       if (serial) tail = settled;
       return result;
     },
+    /** Settles once `result` settled and its response write completed, or the run stopped; never rejects. */
+    async responseWritten({ result }: { result: Promise<unknown> }): Promise<void> {
+      await result.then(() => {}, () => {});
+      await setImmediate();
+      // Abortable unlike writesDone: a write still pending at dispose never drains.
+      try { while (output && output.writableLength > 0) await once(output, 'drain', { signal: stop.signal }); } catch { /* run stopped */ }
+    },
     /** Install EOF handling once connected; a failure recorded during connect closes at once. */
     watch({ close }: { close: () => void }): void {
       closeTransport = close;
@@ -180,6 +188,7 @@ export function createStdioHosting({ stdin, stdout, options }: { stdin: Readable
     dispose(): Promise<{ error: unknown } | undefined> {
       disposed ??= (async () => {
         stopped = true;
+        stop.abort();
         closeTransport = undefined;
         if (input) { stdin.unpipe(input.guard); input.guard.destroy(); }
         output?.destroy();
