@@ -65,7 +65,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   const MAX_SOURCE_FILES = 2048;
 
   /**
- * Serialises every regular file under `sourceDir` into one deterministic archive.
+ * Serialises runtime regular files under `sourceDir` into one deterministic archive.
  *
  * Symlinks and any other non-regular entry are skipped rather than followed: a bundled package is
  * this repository's own tracked content, so a symlink in it would be a mistake, and following one
@@ -163,7 +163,9 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   }
 
   /**
- * Lists every regular file under `dir`, as POSIX-style package-relative paths.
+ * Lists runtime regular files under `dir`, as POSIX-style package-relative paths.
+ * Test directories and test/spec files are excluded so test-only edits cannot change installed
+ * runtime contents or their content-addressed digest.
  *
  * @complexity O(f) in filesystem entries under `dir`.
  */
@@ -173,8 +175,9 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     for (const entry of entries) {
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
+        if (entry.name === "__tests__") continue;
         files.push(...(await listRegularFiles(path.join(dir, entry.name), relative)));
-      } else if (entry.isFile()) {
+      } else if (entry.isFile() && !/\.(test|spec)\./.test(entry.name)) {
         files.push(relative);
       }
       // Symlinks and everything else: skipped. See this function's own doc.
