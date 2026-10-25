@@ -214,3 +214,12 @@ describe('resolveHtmlPointerArtifactTarget — one clause per case (F3)', () => 
     expect(resolve('<style>p{}</style>see &quot;design.html&quot;')).toBe('design.html');
   });
 });
+
+describe('resolveHtmlPointerArtifactTarget — guards that the file lookup would not catch (F3 re-score)', () => {
+  it('refuses a pointer to the candidate even when the candidate is a known project file', () => {
+    expect(resolveHtmlPointerArtifactTarget({ content: 'see design.html', candidateFileName: 'design.html', projectFiles: [{ name: 'design.html' }] })).toBeNull();
+  });
+  it.each(['mailto:a.html', 'javascript:a.html', 'data:a.html'])('refuses the scheme target %s even when a file of that name exists', (name) => {
+    expect(resolveHtmlPointerArtifactTarget({ content: `see ${name}`, candidateFileName: 'new.html', projectFiles: [{ name }] })).toBeNull();
+  });
+});
