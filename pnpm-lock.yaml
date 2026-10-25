@@ -955,6 +955,9 @@ importers:
       '@jini-ai/analytics':
         specifier: workspace:^
         version: link:../analytics
+      '@jini-ai/capability-providers':
+        specifier: workspace:^
+        version: link:../capability-providers
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics

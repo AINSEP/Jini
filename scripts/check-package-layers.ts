@@ -22,6 +22,9 @@ const layers: Readonly<Record<string, number>> = {
   ui: 5, admin: 5, search: 5,
   // Commerce composes CMS authorization and UI through opt-in entries; SI keeps its root isolated.
   server: 6, sqlite: 6, infra: 6, commerce: 6,
+  // Provider plugin sources adapt lower-layer domain ports (diagnostics, analytics, agent-runtime,
+  // capability-providers) and register through plugins; no core package may depend on them.
+  'provider-plugins': 7,
 };
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
 
@@ -105,7 +108,11 @@ export function checkPackageLayers(
       && spec !== '@jini-ai/platform/net/endpoint-policy') {
       violations.push({ rule: 'L2-browser-platform', file, reason: `${reason}: only the isomorphic fetch-with-timeout and literal endpoint-policy entries are allowed` });
     }
-    if (sourcePath !== undefined && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
+    // A plugin-packaging distribution bundles its sources at build time and ships no runtime
+    // dependencies, so its source imports are declared as devDependencies (see its README).
+    const bundledAtBuild = (pkg.manifest as { jini?: { kind?: string } }).jini?.kind === 'plugin-packaging'
+      && pkg.manifest.devDependencies?.[`@jini-ai/${target}`] !== undefined;
+    if (sourcePath !== undefined && !bundledAtBuild && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
       && !pkg.manifest.peerDependencies?.[`@jini-ai/${target}`]) {
       violations.push({ rule: 'L3-undeclared-edge', file, reason: `${reason}: production import must be a dependency or peerDependency` });
     }

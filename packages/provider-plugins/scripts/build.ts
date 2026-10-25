@@ -61,7 +61,8 @@ async function retainLicenses(required: { packageRoot: string; artifactRoot: str
     await mkdir(target, { recursive: true });
     for (const name of sibling.names) await copyFile(path.join(sibling.root, name), path.join(target, name));
     if (sibling !== item) await writeFile(path.join(target, 'LICENSE-SOURCE'), `License text copied from ${sibling.manifest.name}@${sibling.manifest.version} (same repository and declared license).\n`);
-    await writeFile(path.join(target, 'package.json'), JSON.stringify({ name: item.manifest.name, version: item.manifest.version, license: item.manifest.license }, null, 2) + '\n');
+    // Not `package.json`: these are license records inside an artifact, never workspace packages.
+    await writeFile(path.join(target, 'package-license.json'), JSON.stringify({ name: item.manifest.name, version: item.manifest.version, license: item.manifest.license }, null, 2) + '\n');
   }
 }
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { StripePaymentsProvider, StripePaymentsProviderError } from '../index.js';
+import { StripePaymentsProvider, StripePaymentsProviderError } from '../payments-stripe/stripe.js';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });

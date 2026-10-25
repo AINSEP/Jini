@@ -20,7 +20,6 @@
       "./adapters/sqlite": "node",
       "./adapters/blob-storage": "node",
       "./adapters/jwt-auth": "node",
-      "./adapters/stripe": "universal",
       "./comments": "universal"
     },
     "isolation": {
@@ -28,8 +27,7 @@
         "./adapters/ws": "realtime",
         "./adapters/sqlite": "db",
         "./adapters/blob-storage": "storage",
-        "./adapters/jwt-auth": "auth",
-        "./adapters/stripe": "payments"
+        "./adapters/jwt-auth": "auth"
       }
     }
   },
@@ -72,11 +70,6 @@
       "types": "./dist/adapters/jwt-auth/index.d.ts",
       "import": "./dist/adapters/jwt-auth/index.js",
       "default": "./dist/adapters/jwt-auth/index.js"
-    },
-    "./adapters/stripe": {
-      "types": "./dist/adapters/stripe/index.d.ts",
-      "import": "./dist/adapters/stripe/index.js",
-      "default": "./dist/adapters/stripe/index.js"
     },
     "./comments": {
       "types": "./dist/comments/index.d.ts",

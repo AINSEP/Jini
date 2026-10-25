@@ -143,8 +143,9 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     return { rule, file: tree.fileName, line: tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1, reason, fingerprint };
   }
 
+  // `provider-plugins/` holds provider plugin sources: each is a vendor adapter by definition.
   function adapter(file: string): boolean {
-    return /(?:^|\/)(?:adapters?|kernel|providers?)(?:\/|\.)|\.adapter\.[^.]+$/.test(file);
+    return /(?:^|\/)(?:adapters?|kernel|providers?|provider-plugins)(?:\/|\.)|\.adapter\.[^.]+$/.test(file);
   }
 
   function urlOwner(file: string): boolean {

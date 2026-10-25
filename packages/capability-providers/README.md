@@ -3,28 +3,13 @@
 ## Integration update (2026-10-01)
 
 The existing exports and entry runtimes cover all reported subpaths: `.`, `./visitor-auth`,
-`./unsafe-reference`, and the five `./adapters/*` entries. No new exports or dependencies are needed.
+`./unsafe-reference`, and the four `./adapters/*` entries. (`./adapters/stripe` moved to the
+`payments-stripe` provider plugin in `@jini-ai/provider-plugins` on 2026-10-25.)
 The non-DB APIs use required/optional argument objects; the remaining DB conversion belongs to the
 active DB lane and remains deferred across the port and both implementations together.
 
-```ts
-const stripe = new StripePaymentsProvider(
-  { secretKey },
-  { fetchFn, apiBase, now: () => Date.now() },
-);
-await stripe.getCharge({ id });
-await stripe.charge(
-  { amountCents: 1000, currency: 'usd', customerRef },
-  { description: 'Order payment' },
-);
-```
-
 Provider tokens use core's `token({ id })` factory and retain their existing IDs.
-Stripe error metadata includes `stripeType` and `stripeCode` only when supplied by the response.
-
-The universal Stripe adapter now uses UTF-8 plus native base64 encoding for Basic auth and an
-injected clock when a response omits `created`. Successful response timestamps and HTTP payloads
-retain their existing meaning. Neutrality guards inspect every production source extension and
+Neutrality guards inspect every production source extension and
 reject application references in comments as well as imports.
 Verification is not run (owner directive); see INTEGRATION-REPORT.md.
 
@@ -81,9 +66,8 @@ you want at composition time; a pack declaring one of these in its `deps` gets i
 - `./adapters/blob-storage` — `BlobStorageProvider` / `BlobStorageProviderOptions`. Delegates to an
   injected `@jini-ai/platform` `BlobStorage` (`LocalBlobStorage` or `S3BlobStorage`), scoped to one
   namespace. `StoragePutOptions.contentType` is echoed back but not durably persisted.
-- `./adapters/stripe` — `StripePaymentsProvider` / `StripePaymentsProviderOptions` /
-  `StripePaymentsProviderError`. Real Stripe REST calls; the secret key is an explicit constructor
-  argument, never read from an environment variable inside the adapter.
+- Stripe (`StripePaymentsProvider`) is no longer here: it is the `payments-stripe` provider plugin in
+  `@jini-ai/provider-plugins` (moved only; commerce's payment contract is canonical).
 - `./adapters/sqlite` — `SqliteDbProvider`, constructed from a `better-sqlite3` `Database` you own
   and open. Creates its own `jini_capability_db_records` table.
 - `./adapters/ws` — `WebSocketRealtimeProvider`, `createWebSocketRealtimeProvider`, and the
@@ -145,7 +129,6 @@ const session = await daemon.services.account.auth.signIn({
 | `./unsafe-reference` | Non-production in-memory stubs. See the warning above. | none |
 | `./adapters/jwt-auth` | `JwtAuthProvider` (HS256 sessions, `scrypt` hashing, in-memory users). | none (`node:crypto`) |
 | `./adapters/blob-storage` | `BlobStorageProvider` over an injected `@jini-ai/platform` `BlobStorage`. | none |
-| `./adapters/stripe` | `StripePaymentsProvider` (real Stripe REST). | none (`fetch`) |
 | `./adapters/sqlite` | `SqliteDbProvider` over a caller-owned `Database` handle. | `better-sqlite3` (native) |
 | `./adapters/ws` | `WebSocketRealtimeProvider` + `createWebSocketRealtimeProvider`. | `ws` |
 
@@ -154,7 +137,7 @@ const session = await daemon.services.account.auth.signIn({
 Everything, by design — that is the package's whole reason to exist. Each of the five interfaces is a
 port you can implement against any vendor (Supabase, Auth0, S3, Postgres, Pusher) and bind through
 the matching token with no change at the consumer. Within the shipped adapters, the injectable seams
-are real too: `StripePaymentsProvider` takes `fetchFn`/`apiBase`, `JwtAuthProvider` takes `now` and
+are real too: `JwtAuthProvider` takes `now` and
 `sessionTtlMs`, `BlobStorageProvider` takes the `BlobStorage` instance, `SqliteDbProvider` takes the
 open database handle, and `WebSocketRealtimeProvider` accepts an injected server object so tests need
 no real socket. Composition — pairing, say, `JwtAuthProvider` with a durable user store — happens at
@@ -163,7 +146,7 @@ the binding site, deliberately not inside this package.
 ## Runtime
 
 `jini.runtime: "universal"` for the root entry point and `./unsafe-reference`. Per-entry:
-`./adapters/stripe` is universal (`fetch` only); `./adapters/ws`, `./adapters/sqlite`,
+`./adapters/ws`, `./adapters/sqlite`,
 `./adapters/blob-storage`, and `./adapters/jwt-auth` are Node-only.
 ESM only — ships `"type": "module"` with no CommonJS `require` build.
 

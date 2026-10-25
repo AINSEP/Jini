@@ -1,0 +1,17 @@
+{
+  "id": "payments-stripe",
+  "name": "Stripe payments provider (moved; not activated)",
+  "version": "0.6.12",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "tovu": { "id": "jini/payments-stripe" },
+    "open-marketing": { "id": "jini/payments-stripe" }
+  },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "payments", "id": "stripe", "contractVersion": 1 }] },
+  "hooks": [],
+  "fields": [],
+  "integrity": {}
+}

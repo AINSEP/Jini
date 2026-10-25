@@ -20,6 +20,8 @@ describe('hardwiring audit fixtures (bad and clean for every guard)', () => {
     for (const source of ['import Database from "better-sqlite3";', 'import type { Pool } from "pg";', 'const sdk = import("@anthropic-ai/sdk");', 'const sdk = require("openai");', 'export * from "@electric-sql/pglite";', 'import { Client } from "@modelcontextprotocol/sdk/client/index.js";', 'const driver = import("playwright");']) {
       expect(rules(source)).toEqual(['HW2-vendor-adapter']);
       expect(rules(source, { file: 'packages/db/src/adapters/sqlite.ts' })).toEqual([]);
+      expect(rules(source, { file: 'packages/provider-plugins/src/vendor-plugin/vendor.ts' })).toEqual([]);
+      expect(rules(source, { file: 'packages/provider-pluginsx/src/vendor.ts' })).toEqual(['HW2-vendor-adapter']);
     }
     expect(rules('import { readFile } from "node:fs";')).toEqual([]);
     expect(rules('import Database from "better-sqlite3";', { file: 'packages/db/src/catalogs/index.ts' })).toEqual(['HW2-vendor-adapter']);
@@ -79,6 +81,7 @@ describe('hardwiring audit fixtures (bad and clean for every guard)', () => {
       expect(rules(source)).toEqual(['HW8-provider-url']);
       expect(rules(source, { file: 'packages/integrations/src/providers/vendor.ts' })).toEqual([]);
       expect(rules(source, { file: 'packages/integrations/src/catalogs/vendor.ts' })).toEqual([]);
+      expect(rules(source, { file: 'packages/provider-plugins/src/payments-vendor/vendor.ts' })).toEqual([]);
     }
     expect(rules('const url = "https://docs.example/guide";')).toEqual([]);
   });
