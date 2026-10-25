@@ -178,3 +178,109 @@ describe('plugin export occurrence resolution', () => {
     expect([...result.keys()]).toEqual(['plugin:2']);
   });
 });
+
+// Stryker run-2 (cms plugin-export.ts 85.2 %): each guard is pinned by the error it alone raises, so
+// a layered refusal elsewhere (fragment policy, try/catch) cannot hide its removal.
+describe('plugin export guards, each pinned by its own error', () => {
+  const fill = (patch: Partial<PluginExportTemplate>) => fillPluginExportTemplate({ definition: { ...definition, ...patch } });
+
+  it.each(['//evil.example/start', '//', '///evil.example'])('refuses protocol-relative host URL %s as a non-local path (open-redirect guard)', start => {
+    expect(() => fill({ host: { start } })).toThrow('plugin export URL must be a local path');
+  });
+
+  it.each(['/a b', '/a\u0000b', '/a\tb', '/a\\b', 'relative/path', ''])('refuses non-local host URL %j by the local-path rule', start => {
+    expect(() => fill({ host: { start } })).toThrow('plugin export URL must be a local path');
+  });
+
+  it('accepts a local host URL that merely ends in a slash or contains "//" later', () => {
+    expect(fill({ host: { start: '/member//start/' } })).toContain('href="/member//start/"');
+  });
+
+  it.each([
+    ['inherited prototype key', '{{props.constructor}}', { label: 'hi' }],
+    ['__proto__ path', '{{props.__proto__}}', { label: 'hi' }],
+    ['own property of a string (length)', '{{props.label.length}}', { label: 'hi' }],
+    ['own property of a number', '{{props.n.toFixed}}', { n: 3 }],
+    ['path through null', '{{props.n.x}}', { n: null }],
+    ['missing key', '{{props.missing}}', { label: 'hi' }],
+  ])('refuses a slot that is not an own object key: %s', (_name, slot, props) => {
+    expect(() => fill({ template: `<span>${slot}</span>`, props })).toThrow('unknown plugin export slot');
+  });
+
+  it('refuses a slot through a host scope that is absent', () => {
+    const { host: _host, ...withoutHost } = definition;
+    expect(() => fillPluginExportTemplate({ definition: { ...withoutHost, template: '<span>{{host.start}}</span>' } })).toThrow('unknown plugin export slot');
+  });
+
+  it.each([
+    ['object', { a: 1 }], ['array', ['a']], ['null', null], ['own undefined', undefined],
+  ])('refuses a non-scalar %s slot value', (_name, value) => {
+    expect(() => fill({ template: '<span>{{props.v}}</span>', props: { v: value } })).toThrow('non-scalar plugin export slot');
+  });
+
+  it.each([['string', 'x', 'x'], ['number', 2.5, '2.5'], ['boolean', false, 'false']])('fills a %s scalar slot', (_name, value, text) => {
+    expect(fill({ template: '<span>{{props.v}}</span>', props: { v: value } })).toBe(`<span>${text}</span>`);
+  });
+
+  it('reads nested own keys and tolerates whitespace inside the braces', () => {
+    expect(fill({ template: '<span>{{ props.a.b }}|{{props.a.b}}|{{\tprops.a.b\n}}</span>', props: { a: { b: 'deep' } } })).toBe('<span>deep|deep|deep</span>');
+  });
+
+  it('a non-whitespace character inside the braces is not a slot', () => {
+    expect(() => fill({ template: '<span>{{xprops.label}}</span>' })).toThrow('unsupported plugin export slot');
+    expect(() => fill({ template: '<span>{{props.label}x}</span>' })).toThrow('unsupported plugin export slot');
+  });
+
+  it.each([
+    '<span class="a" title={{props.label}}>x</span>',
+    '<span title=x"{{props.label}}>x</span>',
+    "<span title={{props.label}}='x'>x</span>",
+  ])('refuses an unquoted slot attribute even next to quotes: %s', template => {
+    expect(() => fill({ template })).toThrow('plugin export slots require quoted attributes');
+  });
+
+  it("accepts single-quoted and spaced quoted slot attributes", () => {
+    expect(fill({ template: "<span title='{{props.label}}'>x</span>" })).toBe('<span title="Continue">x</span>');
+    expect(fill({ template: '<span title = "{{props.label}}">x</span>' })).toBe('<span title="Continue">x</span>');
+  });
+
+  it('refuses a slot inside a comment with the comment error, but keeps an inert comment', () => {
+    expect(() => fill({ template: '<span>x</span><!-- {{props.label}} -->' })).toThrow('plugin export slots cannot appear in comments');
+    expect(() => fill({ template: '<!-- }} -->' })).toThrow('plugin export slots cannot appear in comments');
+    expect(fill({ template: '<!-- note --><span>{{props.label}}</span>' })).toContain('<span>Continue</span>');
+  });
+
+  it('fills top-level text nodes, not only element children', () => {
+    expect(fill({ template: '{{props.label}} <b>!</b>' })).toBe('Continue <b>!</b>');
+  });
+});
+
+describe('plugin export admission, each refusal alone', () => {
+  const resolveWith = (patch: Partial<PluginExportTemplate>, marker: Record<string, unknown> = {}) =>
+    resolve(embedMarkerSnippetFromConfig({ config: { ...config, ...marker } }), { resolve: async () => ({ ...definition, ...patch }) });
+
+  it('refuses version 0 even when the definition admits minVersion 0', async () => {
+    expect((await resolveWith({ minVersion: 0 }, { version: 0 })).size).toBe(0);
+    expect((await resolveWith({ minVersion: 0 }, { version: 1 })).size).toBe(1);
+  });
+
+  it('refuses a version above the definition and below its minimum', async () => {
+    expect((await resolveWith({ version: 2 }, { version: 3 })).size).toBe(0);
+    expect((await resolveWith({ minVersion: 2, version: 3 }, { version: 1 })).size).toBe(0);
+    expect((await resolveWith({ minVersion: 2, version: 3 }, { version: 3 })).size).toBe(1);
+  });
+
+  it.each([['tracking', 0], ['', 0], ['necessary', 1], ['marketing', 1]])('consent %j admits %i exports', async (consent, size) => {
+    expect((await resolveWith({ consent: consent as PluginExportTemplate['consent'] })).size).toBe(size);
+  });
+
+  it('never calls the port for a ref missing its id or its config', async () => {
+    const calls: unknown[] = [];
+    const port: PluginExportsPort = { resolve: async (input) => { calls.push(input); return definition; } };
+    const ref = scanHtmlEmbeds({ html: snippet() })[0]!;
+    const { config: _config, ...withoutConfig } = ref;
+    const result = await resolvePluginExportEmbeds({ refs: [{ ...ref, id: null }, { ...ref, id: '' }, withoutConfig, ref], port, workspaceId: 'site-a' });
+    expect(calls).toHaveLength(1);
+    expect([...result.keys()]).toEqual([ref.id]);
+  });
+});
