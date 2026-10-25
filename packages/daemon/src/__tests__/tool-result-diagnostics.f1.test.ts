@@ -69,3 +69,17 @@ describe('createToolResultDiagnosticProjection — F1 framing', () => {
     expect(createToolResultDiagnosticProjection({}).feed({ chunk: '\n\n' })).toBe('\n\n');
   });
 });
+
+describe('projectDiagnosticFrame — F1 re-score kills', () => {
+  it('a null-source image does not abort projection of a sibling valid image in the same frame', () => {
+    const frame = { blocks: [{ type: 'image', source: null }, { type: 'image', mimeType: 'image/png', data: 'AAA' }] };
+    expect(JSON.parse(project(frame))).toEqual({ blocks: [{ type: 'image', source: null }, { type: 'image', mimeType: 'image/png', data: '[image image/png; 3 base64 characters]' }] });
+  });
+  it('a JSON-looking string under a key other than `content` is left verbatim', () => {
+    const inner = JSON.stringify({ type: 'image', mimeType: 'image/png', data: 'AA' });
+    expect(JSON.parse(project({ text: inner }))).toEqual({ text: inner });
+  });
+  it('maxFrameChars=1 is a valid limit', () => {
+    expect(createToolResultDiagnosticProjection({}, { maxFrameChars: 1 }).feed({ chunk: 'a\n' })).toBe('a\n');
+  });
+});

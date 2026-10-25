@@ -102,3 +102,12 @@ describe('message-relay — F1 exact refusals', () => {
     expect(typeof post.mock.calls[0]![1]).toBe('function');
   });
 });
+
+it('F1: explicit loopback trust still claims by path when a bearer token is presented (no resolver to consult)', () => {
+  const claimUserMessages = vi.fn(() => []);
+  const handler = createMessageRelayClaimHandler({ agentExecutor: { claimUserMessages }, runScopedCallers: undefined });
+  const json = vi.fn(); const next = vi.fn();
+  handler({ get: () => 'Bearer some-token', params: { runId: 'local' }, body: { via: 'tool-result' } } as never, { json } as never, next);
+  expect(next).not.toHaveBeenCalled();
+  expect(claimUserMessages).toHaveBeenCalledWith({ runId: 'local', via: 'tool-result' });
+});

@@ -111,3 +111,9 @@ describe('run credential Express adapters — F1 pins', () => {
     expect(res.json).toHaveBeenCalledWith({ runs: [{ id: 'b' }] });
   });
 });
+
+it('F1: a missing/non-string contextRef passes an options object with NO contextRef key at all', async () => {
+  const listRuns = vi.fn(async () => []);
+  await createOwnedRunListHandler({ listRuns, filterOwnedRuns: () => ({ allowed: true as const, runs: [] }), principalHeaderName: 'x-p' })({ query: { contextRef: 5 }, get: () => 'alice' } as never, response() as never, vi.fn());
+  expect(Object.keys((listRuns.mock.calls[0] as unknown[])[1] as object)).toEqual([]);
+});
