@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { withProductAnalyticsGuards, type ProductAnalyticsPort, type ProductEvent, type ProductIdentity } from "../product/index.js";
 
 function deferredConsent() {
@@ -159,4 +159,31 @@ test("recheck #1: async consent without a revision fails closed; sync consent an
   await Promise.resolve();
   expect(events).toEqual([{ name: "sync", userId: "u1" }]);
   expect(identities).toEqual([{ userId: "u2" }]);
+});
+
+afterEach(() => { vi.restoreAllMocks(); });
+
+test("recheck #1: async consent without a revision warns once per wrapper; sync or revised consent never warns", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const { inner } = recordingPort();
+  withProductAnalyticsGuards({ inner, consent: () => true }).capture({ name: "sync", userId: "u1" });
+  withProductAnalyticsGuards({ inner, consent: async () => true }, { consentRevision: () => 1 }).capture({ name: "revised", userId: "u1" });
+  expect(warn).not.toHaveBeenCalled();
+  const unrevised = withProductAnalyticsGuards({ inner, consent: async () => true });
+  unrevised.capture({ name: "first", userId: "u1" });
+  unrevised.identify({ userId: "u2" });
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining("async consent without consentRevision"));
+  withProductAnalyticsGuards({ inner, consent: async () => true }).capture({ name: "other_wrapper", userId: "u1" });
+  expect(warn).toHaveBeenCalledTimes(2);
+});
+
+test("recheck #1: a throwing console never fails the feature or strands a rejected consent read", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => { throw new Error("console down"); });
+  const { inner, events } = recordingPort();
+  const guarded = withProductAnalyticsGuards({ inner, consent: () => Promise.reject(new Error("db down")) });
+  expect(() => guarded.capture({ name: "dropped", userId: "u1" })).not.toThrow();
+  // An unhandled rejection here fails the run: the consent promise must still get its handlers.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(events).toEqual([]);
 });

@@ -123,18 +123,59 @@ describe('AI trace lifecycle failure containment and terminal observation', () =
     expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
   });
 
-  it.each([
+  const failedSubscriptions = [
     ['refused', async () => ({ kind: 'unknown-run' as const })],
     ['rejected', async () => { throw new Error('replay down'); }],
-  ])('recheck #3: a %s subscription still finishes the started trace with the run\'s real outcome', async (_label, stream) => {
+  ] as const;
+  const terminalOutcomes = [
+    ['succeeded', { status: 'succeeded', code: 0, signal: null }],
+    ['failed', { status: 'failed', code: 1, signal: null }],
+    ['cancelled', { status: 'cancelled', code: null, signal: 'SIGTERM' }],
+  ] as const;
+
+  it.each(failedSubscriptions.flatMap(([label, stream]) => terminalOutcomes.map(([outcome, terminal]) => [label, outcome, stream, terminal] as const)))(
+    'recheck #3: a %s subscription still finishes the started trace with the run\'s real outcome (%s)', async (_label, outcome, stream, terminal) => {
+      const onSinkError = vi.fn();
+      const { lifecycle, sink } = fixture();
+      const traced = withAiTracing({ lifecycle: { ...lifecycle, stream }, sink }, { onSinkError });
+      const { run } = await traced.start({ contextRef: 'chat' });
+      await vi.waitFor(() => expect(onSinkError).toHaveBeenCalledTimes(1));
+      await expect(traced.finish({ runId: run.id, ...terminal, resumable: false })).resolves.toMatchObject({ state: outcome });
+      await vi.waitFor(() => expect(sink.events.map((event) => event.kind)).toEqual(['run_started', 'run_finished']));
+      expect(sink.events.at(-1)).toMatchObject({ outcome });
+    });
+
+  it.each(failedSubscriptions)('recheck #3: dispose() cancels the terminal wait after a %s subscription and releases the trace unfinished', async (_label, stream) => {
     const onSinkError = vi.fn();
     const { lifecycle, sink } = fixture();
-    const traced = withAiTracing({ lifecycle: { ...lifecycle, stream }, sink }, { onSinkError });
+    let signal: AbortSignal | undefined;
+    const waitForTerminal: RunLifecycle['waitForTerminal'] = (args, optional = {}) => {
+      signal = optional.signal;
+      return lifecycle.waitForTerminal(args, optional);
+    };
+    const traced = withAiTracing({ lifecycle: { ...lifecycle, stream, waitForTerminal }, sink }, { onSinkError });
     const { run } = await traced.start({ contextRef: 'chat' });
-    await vi.waitFor(() => expect(onSinkError).toHaveBeenCalledTimes(1));
-    await expect(traced.finish({ runId: run.id, status: 'cancelled', code: null, signal: 'SIGTERM', resumable: false })).resolves.toMatchObject({ state: 'cancelled' });
-    await vi.waitFor(() => expect(sink.events.map((event) => event.kind)).toEqual(['run_started', 'run_finished']));
-    expect(sink.events.at(-1)).toMatchObject({ outcome: 'cancelled' });
+    await vi.waitFor(() => expect(signal).toBeDefined());
+    expect(signal?.aborted).toBe(false);
+    traced.dispose();
+    expect(signal?.aborted).toBe(true);
+    // The run ending after teardown must not resurrect the released trace or invent an outcome.
+    await traced.finish({ runId: run.id, ...success });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
+    expect(onSinkError).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispose() releases a live trace subscription without finishing it, and is idempotent', async () => {
+    const { traced, sink, unsubscribed } = fixture();
+    const { run } = await traced.start({ contextRef: 'chat' });
+    await vi.waitFor(() => expect(sink.events.map((event) => event.kind)).toEqual(['run_started']));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    traced.dispose();
+    traced.dispose();
+    expect(unsubscribed).toHaveBeenCalledTimes(1);
+    await traced.finish({ runId: run.id, ...success });
+    expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
   });
 
   it('recheck #3: an unreadable terminal state after a failed subscription releases the trace without inventing an outcome', async () => {
@@ -142,7 +183,7 @@ describe('AI trace lifecycle failure containment and terminal observation', () =
     const waited = vi.fn(async () => { throw new Error('unknown run'); });
     const traced = withAiTracing({ lifecycle: { ...lifecycle, stream: async () => ({ kind: 'unknown-run' as const }), waitForTerminal: waited }, sink });
     const { run } = await traced.start({ contextRef: 'chat' });
-    await vi.waitFor(() => expect(waited).toHaveBeenCalledWith({ runId: run.id }));
+    await vi.waitFor(() => expect(waited).toHaveBeenCalledWith({ runId: run.id }, { signal: expect.any(AbortSignal) }));
     await expect(traced.finish({ runId: run.id, ...success })).resolves.toMatchObject({ state: 'succeeded' });
     expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
   });

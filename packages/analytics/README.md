@@ -17,8 +17,10 @@ settings, pass `withProductAnalyticsGuards({ inner, consent }, { consentRevision
 The revision callback must synchronously read the current settings revision and change on every
 consent update (including revoke/regrant), before outstanding consent reads can settle. The guard
 checks it immediately before capture or identify. A denial or failed consent read also invalidates
-pending approvals for that user; without a revision callback, settings changes are only observed
-when a consent check reports them. Global telemetry settings may use a single global revision.
+pending approvals for that user. Without a revision callback an async (promised) consent answer is
+always dropped (fail closed: an in-flight approval could not see a revoke), and the wrapper warns once
+on the console; synchronous consent needs no revision. Global telemetry settings may use a single
+global revision.
 
 This capability is independent of CMS content: any marketing, website or other application may
 supply the ports. The move from the former platform analytics entry preserves behavior and tests.

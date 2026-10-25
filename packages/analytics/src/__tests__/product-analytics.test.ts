@@ -80,7 +80,7 @@ test("PostHog provider (real posthog-node, recording fetch): capture/identify be
 test("an async consent (a settings read) delays the event until it answers true; false or a rejection drops it", async () => {
   const { port, events } = recordingPort();
   const answers = [Promise.resolve(true), Promise.resolve(false), Promise.reject(new Error("db down"))];
-  const guarded = withProductAnalyticsGuards({ inner: port, consent: () => answers.shift()! });
+  const guarded = withProductAnalyticsGuards({ inner: port, consent: () => answers.shift()! }, { consentRevision: () => 1 });
   for (const userId of ["u1", "u2", "u3"]) guarded.capture({ name: "assistant_tool_call", userId });
   expect(events).toEqual([]);
   await new Promise((resolve) => setTimeout(resolve, 0));

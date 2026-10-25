@@ -96,10 +96,11 @@ export function classifyRunFailureForRetry(context: {
     context.sideEffects === undefined ? {} : { sideEffects: context.sideEffects });
 }
 
-function tracedIfConfigured(lifecycle: RunLifecycle, aiTrace: CreateJiniKernelBaseOptions['aiTrace']): RunLifecycle {
-  if (!aiTrace) return lifecycle;
+function tracedIfConfigured(lifecycle: RunLifecycle, aiTrace: CreateJiniKernelBaseOptions['aiTrace']): { lifecycle: RunLifecycle; disposeTracing: () => void } {
+  if (!aiTrace) return { lifecycle, disposeTracing: () => {} };
   const { sink, ...options } = aiTrace;
-  return withAiTracing({ lifecycle, sink }, options);
+  const traced = withAiTracing({ lifecycle, sink }, options);
+  return { lifecycle: traced, disposeTracing: traced.dispose };
 }
 
 async function closeFailedAcquisition(
@@ -159,6 +160,7 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
   let eventLog!: ClosableEventLog;
   let journalEventLog!: ClosableEventLog;
   let lifecycle!: RunLifecycle;
+  let disposeTracing = (): void => {};
   let journal!: ReturnType<typeof createRunByteJournal>;
   try {
     eventLog = openEventLog(eventsDbPath);
@@ -178,7 +180,7 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     }
 
     journal = createRunByteJournal({ eventLog: journalEventLog });
-    lifecycle = tracedIfConfigured(createRunLifecycle({ eventLog }), options.aiTrace);
+    ({ lifecycle, disposeTracing } = tracedIfConfigured(createRunLifecycle({ eventLog }), options.aiTrace));
     await lifecycle.rehydrate({});
   } catch (error) {
     await closeFailedAcquisition({ featureConnection, opened });
@@ -216,6 +218,9 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     close(): Promise<void> {
       closed ??= (async () => {
         try { await agentRuntime.dispose({}); } finally {
+          // After the runtime stops its runs (their traces finish with real outcomes); releases the
+          // traces and terminal waits still open so a retained kernel keeps none of them. Never throws.
+          disposeTracing();
           try { sqlite?.connection.close(); } finally {
             await Promise.all([eventLog.close?.({}), journalEventLog.close?.({})]);
           }
