@@ -1,6 +1,6 @@
 /** Offline packed imports use plain Node in a disposable directory, never workspace symlinks. */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { createRequire } from 'node:module';
@@ -11,8 +11,10 @@ export function fixture(prefix) {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'module' }));
     return dir;
 }
+/** Replaces any copied checkout with tarball files only: an overlay would mask a runtime file missing from `files`. */
 export function pack(dir, name) {
     const source = join(packages, name), dest = join(dir, 'node_modules', '@jini-ai', name);
+    rmSync(dest, { recursive: true, force: true });
     mkdirSync(dest, { recursive: true });
     const result = JSON.parse(execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', join(dir, 'npm-cache'), '--pack-destination', dir], { cwd: source, encoding: 'utf8' }));
     execFileSync('tar', ['-xzf', join(dir, result[0].filename), '-C', dest, '--strip-components', '1']);
