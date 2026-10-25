@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InMemoryFencedOutbox, InMemoryTransaction, fencedOutboxConformance, outboxRequestDigest } from '../index.js';
+import { deferredValue } from './fenced-fixtures.js';
 import { NOW, row, type TestEvent } from './fixtures.js';
 
 /** Reference subject: host intent records join the same in-memory transaction as the enqueue. */
@@ -64,6 +65,99 @@ describe('fenced outbox conformance: serialized host', () => {
 
   // A hang (the old case awaited the second begin while the first was still open) fails fast here.
   for (const conformance of fencedOutboxConformance({ createSubject: createSerializedSubject })) it(conformance.name, conformance.run, 2_000);
+});
+
+type Subject = Awaited<ReturnType<typeof createSubject>>;
+const OVERLAP = 'overlapping transactions never both insert one key';
+const overlapCase = (subject: () => Promise<Subject>) => fencedOutboxConformance({ createSubject: subject }).find(c => c.name === OVERLAP)!.run;
+/** The subject's second begin (the contender's) goes through `contender` instead. */
+const withContender = (base: Subject, contender: (begin: Subject['begin']) => ReturnType<Subject['begin']>): Subject => {
+  let begun = 0;
+  return { ...base, begin: () => (++begun === 2 ? contender(base.begin) : base.begin()) };
+};
+
+describe('fenced outbox conformance: host with a slow begin and an overlap barrier', () => {
+  /** Each begin outlasts a macrotask, like a network round trip; the reference enqueue lands as soon as it is issued. */
+  async function createLatencySubject() {
+    const subject = await createSubject();
+    return { ...subject, awaitOverlap: async () => {},
+      begin: async () => { await new Promise(resolve => { setTimeout(resolve, 5); }); return subject.begin(); } };
+  }
+  for (const conformance of fencedOutboxConformance({ createSubject: createLatencySubject })) it(conformance.name, conformance.run);
+
+  it('the first writer commits only after the host reports the contender reached the store', async () => {
+    const base = await createSubject();
+    const reached = deferredValue<void>();
+    const firstCommitted = deferredValue<void>();
+    const opened: InMemoryTransaction[] = [];
+    const commits: number[] = [];
+    /** Like a database row lock: the contender's enqueue waits until the first writer commits. */
+    class Blocking extends InMemoryFencedOutbox<TestEvent> {
+      override async enqueueWithReceipt(...args: Parameters<InMemoryFencedOutbox<TestEvent>['enqueueWithReceipt']>) {
+        if (args[1]?.transaction === opened[1]) await firstCommitted.promise;
+        return super.enqueueWithReceipt(...args);
+      }
+    }
+    const awaitOverlap = vi.fn((_required: { transaction: unknown }) => reached.promise);
+    const subject = { ...base, outbox: new Blocking(), awaitOverlap, begin: async () => {
+      const transaction = await base.begin();
+      const index = opened.push(transaction.transaction);
+      return { ...transaction, commit: async () => {
+        await transaction.commit();
+        commits.push(index);
+        if (index === 1) firstCommitted.resolve();
+      } };
+    } };
+    const run = overlapCase(async () => subject)();
+    await new Promise(resolve => { setTimeout(resolve, 10); });
+    expect(commits).toEqual([]);
+    expect(awaitOverlap).toHaveBeenCalledTimes(1);
+    expect(awaitOverlap).toHaveBeenCalledWith({ transaction: opened[1] });
+    reached.resolve();
+    await run;
+    expect(commits).toEqual([1, 2]);
+  });
+});
+
+describe('fenced outbox conformance: contender failure paths', () => {
+  it('a contender begin that rejects early surfaces its error, never as an unhandled rejection', async () => {
+    const beginFailed = new Error('contender begin failed');
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => { unhandled.push(reason); };
+    process.on('unhandledRejection', record);
+    try {
+      await expect(overlapCase(async () => withContender(await createSubject(), async () => { throw beginFailed; }))()).rejects.toBe(beginFailed);
+    } finally {
+      process.off('unhandledRejection', record);
+    }
+    expect(unhandled).toEqual([]);
+  });
+
+  it('a contender commit that rejects after a conflict receipt is rolled back; the commit error surfaces', async () => {
+    const commitFailed = new Error('contender commit failed');
+    const rollback = vi.fn();
+    const subject = async () => withContender(await createSerializedSubject(), async (begin) => {
+      const opened = await begin();
+      rollback.mockImplementation(opened.rollback);
+      return { ...opened, commit: async () => { throw commitFailed; }, rollback };
+    });
+    await expect(overlapCase(subject)()).rejects.toBe(commitFailed);
+    expect(rollback).toHaveBeenCalledTimes(1);
+  });
+
+  it('when that rollback fails too, both errors surface in one AggregateError', async () => {
+    const commitFailed = new Error('contender commit failed');
+    const rollbackFailed = new Error('contender rollback failed');
+    const subject = async () => withContender(await createSerializedSubject(), async (begin) => {
+      const opened = await begin();
+      return { ...opened, commit: async () => { throw commitFailed; },
+        rollback: async () => { await opened.rollback(); throw rollbackFailed; } };
+    });
+    const error = await overlapCase(subject)().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).message).toBe('contender commit failed and its rollback failed');
+    expect((error as AggregateError).errors).toEqual([commitFailed, rollbackFailed]);
+  });
 });
 
 describe('in-memory reference adapter transactions', () => {

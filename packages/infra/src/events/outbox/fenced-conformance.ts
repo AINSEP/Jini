@@ -18,6 +18,15 @@ export interface FencedConformanceSubject<E, Tx> {
   begin(): Promise<FencedConformanceTransaction<Tx>>;
   /** Whether a committed host intent record exists. */
   hasIntent(required: { key: string }): Promise<boolean>;
+  /**
+   * Overlap barrier: resolve once the enqueue issued in `transaction` has reached the store (finished,
+   * or blocked behind the first writer's key). Hosts should supply it, above all when begin or enqueue
+   * can outlast a macrotask (a network database): without it the overlap case falls back to one timer
+   * turn, and an adapter with no concurrent-key protection can pass through ordinary committed-row
+   * conflict detection. A host that serializes transactions must omit it: its second begin waits for
+   * the first commit, so the barrier could never resolve.
+   */
+  awaitOverlap?(required: { transaction: Tx }): Promise<void>;
 }
 /** Framework-neutral case: register with your runner, e.g. `it(name, run)`; failures throw. */
 export interface FencedConformanceCase { name: string; run(): Promise<void> }
@@ -35,16 +44,45 @@ const conflicting = (subject: Subject) => intent(subject, { event: subject.confl
 const claim = (subject: Subject, ms = 0) => subject.outbox.claimReady({ scope: SCOPE, batchSize: 10, nowIso: at(ms), claimLeaseMs: LEASE_MS });
 
 /** A second writer enqueues the conflicting intent in its own transaction and always settles it. */
-async function contend(subject: Subject): Promise<EnqueueReceipt | 'rejected'> {
+async function contend(subject: Subject, optional: { issued?: (transaction: unknown) => void } = {}): Promise<EnqueueReceipt | 'rejected'> {
   const second = await subject.begin();
-  const receipt = await subject.outbox.enqueueWithReceipt({ intent: conflicting(subject) }, { transaction: second.transaction })
-    .catch(() => undefined);
-  if (receipt?.status === 'conflict') await second.commit();
-  else await second.rollback();
-  return receipt ?? 'rejected';
+  const pending = subject.outbox.enqueueWithReceipt({ intent: conflicting(subject) }, { transaction: second.transaction });
+  optional.issued?.(second.transaction);
+  const receipt = await pending.catch(() => undefined);
+  if (receipt?.status !== 'conflict') {
+    await second.rollback();
+    return receipt ?? 'rejected';
+  }
+  await commitOrRollback(second);
+  return receipt;
+}
+/** A rejected commit may leave the session open, so roll it back; a failed cleanup keeps both errors. */
+async function commitOrRollback(transaction: FencedConformanceTransaction<unknown>): Promise<void> {
+  try {
+    await transaction.commit();
+  } catch (commitError) {
+    await transaction.rollback().catch((rollbackError: unknown) => {
+      throw new AggregateError([commitError, rollbackError], 'contender commit failed and its rollback failed');
+    });
+    throw commitError;
+  }
 }
 /** One macrotask, so a host that does not serialize transactions starts the contender while the first is open. */
 const nextTurn = () => new Promise<void>(resolve => { setTimeout(resolve, 0); });
+type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
+/** Handle the rejection now, so an early contender failure is kept for later, never reported unhandled. */
+const settled = <T>(promise: Promise<T>): Promise<Settled<T>> =>
+  promise.then(value => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
+/** `reached` resolves once the contender's enqueue is in the store per the host's barrier, else after one timer turn. */
+function overlapBarrier(subject: Subject): { issued: (transaction: unknown) => void; reached: Promise<void> } {
+  const { awaitOverlap } = subject;
+  if (!awaitOverlap) return { issued: () => {}, reached: nextTurn() };
+  let issued: (transaction: unknown) => void = () => {};
+  const reached = new Promise<void>((resolve, reject) => {
+    issued = (transaction) => { awaitOverlap.call(subject, { transaction }).then(resolve, reject); };
+  });
+  return { issued, reached };
+}
 
 /** Enqueue, claim and pass the dispatch fence: the row is now `dispatching` with a lease ending at LEASE_MS. */
 async function dispatching(subject: Subject): Promise<FencedClaim<unknown>> {
@@ -81,18 +119,22 @@ const CASES: Record<string, (subject: Subject) => Promise<void>> = {
     const first = await subject.begin();
     // A serialized host queues the second begin, and a real database may block its insert, until
     // `first` settles, so the contender is awaited only after that commit.
-    let contender: Promise<EnqueueReceipt | 'rejected'> | undefined;
+    let contender: Promise<Settled<EnqueueReceipt | 'rejected'>> | undefined;
     try {
       assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: intent(subject) }, { transaction: first.transaction }), { status: 'inserted' });
-      contender = contend(subject);
-      await nextTurn();
+      const barrier = overlapBarrier(subject);
+      contender = settled(contend(subject, { issued: barrier.issued }));
+      // A contender that fails before reaching the store must not leave the barrier waiting forever.
+      await Promise.race([barrier.reached, contender]);
       await first.commit();
     } catch (error) {
       await first.rollback().catch(() => undefined);
-      await contender?.catch(() => undefined);
+      await contender;
       throw error;
     }
-    const outcome = await contender;
+    const result = await contender;
+    if (!result.ok) throw result.error;
+    const outcome = result.value;
     if (outcome !== 'rejected') assert.deepEqual(outcome, CONFLICT);
     const rows = await claim(subject);
     assert.equal(rows.length, 1);
