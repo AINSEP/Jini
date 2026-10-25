@@ -44,7 +44,8 @@ export interface PluginExportRender {
 
 const SLOT = /{{\s*(props|host)\.([a-zA-Z0-9_.-]+)\s*}}/g;
 const HOST_URL_SLOT = /^{{\s*host\.(?:assets\.)?[A-Za-z][A-Za-z0-9_-]*\s*}}$/;
-const URL_ATTRIBUTES = new Set(['href', 'src', 'srcset', 'action', 'formaction', 'poster', 'xlink:href']);
+// The fragment policy's attribute allowlist rejects every other URL sink (srcset, formaction, style…).
+const URL_ATTRIBUTES = new Set(['href', 'src', 'action']);
 const STAMPS = new Set(['data-plugin', 'data-component', 'data-embed-v', 'data-consent-category']);
 
 /** Resolve own properties only: template names cannot reach prototypes through page JSON.
