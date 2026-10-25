@@ -1,5 +1,5 @@
 ---
-"@jini-ai/infra": minor
+"@jini-ai/infra": patch
 ---
 
 Add opt-in fenced outbox contracts and processing with durable dispatch gates, conservative
