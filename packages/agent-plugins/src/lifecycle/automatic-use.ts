@@ -1,9 +1,10 @@
 /** Automatic-use policy for one execution context. Catalog, trust, consent and presentation are ports. */
 import type { AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
-import type { ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
+import type { AgentPluginSkillRequest, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
 
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
+const MAX_AUTOMATIC_GUIDANCE_BYTES = 8 * 1024;
 /** Browser-owned, per-conversation state. Clearing it deliberately permits a fresh question. */
 export interface ChatAgentPluginState {
   decision: { selected: readonly string[]; asked?: boolean } | null;
@@ -47,7 +48,7 @@ export interface AutomaticAgentPluginPorts {
   list(input: Record<string, never>, options?: Record<string, never>): Promise<readonly AgentPluginSearchCandidate[]>;
   rank(input: { query: string; candidates: readonly AgentPluginSearchCandidate[]; limit: number }, options?: Record<string, never>): readonly AgentPluginSearchMatch[];
   /** Must recheck activation/trust and return real guidance, never a pointer to unopened guidance. */
-  resolve(input: { pluginId: string }, options?: Record<string, never>): Promise<ResolveAgentPluginRefsResult>;
+  resolve(input: { pluginId: string } & AgentPluginSkillRequest, options?: Record<string, never>): Promise<ResolveAgentPluginRefsResult>;
   /** Only a principal-bound human exchange may return action=auto. */
   ask(input: { matches: readonly AutomaticAgentPluginMatch[]; signal?: AbortSignal }, options?: Record<string, never>): Promise<{ action: 'use' | 'skip' | 'auto'; selected: readonly string[] }>;
   saveAuto(input: Record<string, never>, options?: Record<string, never>): Promise<void>;
@@ -115,28 +116,40 @@ export function createAutomaticAgentPluginUse(
     // Consent changes only this person's preference, never a workspace default.
     return matches.filter(plugin => selected.includes(plugin.pluginId));
   }
-  /** Resolve through the host's activation/trust owner; only real text records delivery.
+  /** Resolve through the host's activation/trust owner; delivery is recorded only by the caller.
    * Refusals and read failures remain retryable and never expose host diagnostics. O(1) bookkeeping.
    */
-  async function resolveOneGuidance({ plugin }: { plugin: AgentPluginSearchCandidate }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
+  async function resolveOneGuidance({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
     if (signal?.aborted) return { status: 'cancelled', guidance: '' };
     try {
-      const result = await ports.resolve({ pluginId: plugin.pluginId }, {});
+      const result = await ports.resolve({ pluginId: plugin.pluginId, ...request }, {});
       if (!result.ok) return { status: result.code ?? 'unavailable', guidance: '' };
       if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
-      delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
       return { status: 'loaded', guidance: result.promptPrefix };
     } catch {
       // Automatic guidance is advisory; unavailable plugins must not block the run.
       return { status: 'unavailable', guidance: '' };
     }
   }
+  /** Only complete primary guidance updates the loaded set. O(1), no host effects. */
+  function recordDelivery({ plugin, result }: { plugin: AgentPluginSearchCandidate; result: AutomaticAgentPluginLoadResult }, _options = {}): void {
+    if (result.status === 'loaded') delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
+  }
+  /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
+   * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
+   */
   async function resolveGuidance({ matches }: { matches: readonly AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
     const guidance: string[] = [];
     for (const match of matches) {
       if (signal?.aborted) break;
       const result = await resolveOneGuidance({ plugin: match }, { signal });
-      if (result.status === 'loaded') guidance.push(result.guidance);
+      if (result.status !== 'loaded') continue;
+      if (new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
+        guidance.push(`Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit. Load the full instructions with load_agent_plugin(${JSON.stringify({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' })}); use the same call with file '<relative path>' for supporting references.`);
+        continue;
+      }
+      recordDelivery({ plugin: match, result });
+      guidance.push(result.guidance);
     }
     return guidance;
   }
@@ -161,7 +174,7 @@ export function createAutomaticAgentPluginUse(
   /** Query preflight suggests; only a guarded capability resolves guidance here.
    * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
    */
-  async function prepare(input: PrepareInput): Promise<string> {
+  async function prepare(input: PrepareInput, _options = {}): Promise<string> {
     if (mode === 'off' || input.signal?.aborted) return '';
     for (const id of input.loaded ?? []) alreadyLoaded.add(id);
     const candidates = (await ports.list({}, {})).filter(plugin => plugin.enabled && !state.excluded.includes(plugin.pluginId));
@@ -179,20 +192,32 @@ export function createAutomaticAgentPluginUse(
   /** Admit one explicit id using the same catalog, consent, resolver and delivery state as prepare.
    * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
    */
-  async function load({ pluginId, signal }: { pluginId: string; signal?: AbortSignal }, _options = {}): Promise<AutomaticAgentPluginLoadResult> {
+  async function load({ pluginId, signal, ...request }: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}): Promise<AutomaticAgentPluginLoadResult> {
     if (mode === 'off') return { status: 'off', guidance: '' };
     if (signal?.aborted) return { status: 'cancelled', guidance: '' };
     if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
     const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
     if (!plugin) return { status: 'missing', guidance: '' };
     if (!plugin.enabled) return { status: 'installed-but-inactive', guidance: '' };
-    if (delivered.has(pluginId) || alreadyLoaded.has(pluginId)) return { status: 'already-loaded', guidance: '' };
+    return loadPermitted({ plugin, ...request }, { signal });
+  }
+  /** The plugin's own SKILL.md, whether defaulted or named explicitly. O(1). */
+  function isPrimaryInstructions({ pluginId, skill, file }: { pluginId: string } & AgentPluginSkillRequest, _options = {}): boolean {
+    return (skill === undefined || skill === pluginId) && (file === undefined || file === 'SKILL.md');
+  }
+  /** Requested content bypasses only deduplication, never consent or the resolver's trust checks.
+   * Only the primary SKILL.md records full plugin delivery. O(p) consent filtering plus one read.
+   */
+  async function loadPermitted({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
+    const requestedContent = request.skill !== undefined || request.file !== undefined;
+    if (!requestedContent && (delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId))) return { status: 'already-loaded', guidance: '' };
     const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
     if (!matches.length) {
       await publishUsage();
       return { status: 'excluded', guidance: '' };
     }
-    const result = await resolveOneGuidance({ plugin }, { signal });
+    const result = await resolveOneGuidance({ plugin, ...request }, { signal });
+    if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
     rememberAutoSelection();
     await publishUsage();
     return result;
@@ -210,6 +235,6 @@ export function createAutomaticAgentPluginUse(
      * Returns a concrete status; guidance is nonempty only when freshly delivered.
      * @example await controller.load({ pluginId: 'my-plugin' });
      */
-    load: (input: { pluginId: string; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => load(input) }),
+    load: (input: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}) => enqueue({ operation: () => load(input) }),
   };
 }
