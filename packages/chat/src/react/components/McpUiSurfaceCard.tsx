@@ -172,6 +172,14 @@ function surfaceAnswerLabel({ call, label }: { call: ExtEventCall | undefined; l
   return questionAnswerLabel({ input: call?.input, text: label });
 }
 
+/** Name the frame by its question, keeping opaque resource identity out of the accessible title.
+ * @complexity O(h + c) for fallback markup and controls; metadata needs O(1), no effects.
+ */
+function surfaceQuestionTitle({ resource }: { resource: UIResource }, _options = {}): string {
+  const input = surfaceQuestionInput({ resource, input: undefined }) as { title?: unknown } | undefined;
+  return typeof input?.title === 'string' ? input.title : resource.resource.uri;
+}
+
 /** A closed card: the question's title, when the call gave one, and why it is closed. */
 function ClosedSurface({ call, label }: { call: ExtEventCall | undefined; label: string }) {
   return (
@@ -258,10 +266,12 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   expiry: ReturnType<typeof useSurfaceExpiry>;
 }) {
   // MOVE: The accepted-input receipt owns its bubble; the closed card retains the question's context.
-  if (single !== undefined && answerRecorded) return <ClosedSurface call={call} label={recordedAnswerLabel({ answer, closed, t })} />;
-  if (single !== undefined && answer !== undefined) {
-    const label = answer === 'Declined' ? t('Declined') : answer;
-    return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: standalone ? surfaceAnswerLabel({ call, label }) : label }]} /></>;
+  if (single !== undefined) {
+    if (answerRecorded) return <ClosedSurface call={call} label={recordedAnswerLabel({ answer, closed, t })} />;
+    if (answer !== undefined) {
+      const label = answer === 'Declined' ? t('Declined') : answer;
+      return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: standalone ? surfaceAnswerLabel({ call, label }) : label }]} /></>;
+    }
   }
   if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
 
@@ -285,7 +295,7 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
         return (
           <Fragment key={resource.resource.uri}>
             <McpUiHost
-              title={resource.resource.uri}
+              title={surfaceQuestionTitle({ resource })}
               html={resource.resource.text}
               sandboxProxyUrl={sandboxProxyUrl}
               toolName={resource.resource.uri}

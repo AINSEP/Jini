@@ -1,4 +1,7 @@
 /** @module question-answer — plain transcript text from the ask-choice result contract. */
+/** Optional question context on an MCP-UI resource, before HTML presentation flattens its labels. */
+export const SURFACE_QUESTION_META_KEY = 'x-jini-chat/question';
+
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
 }

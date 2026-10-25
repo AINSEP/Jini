@@ -43,7 +43,8 @@ export interface PluginExportRender {
 }
 
 const SLOT = /{{\s*(props|host)\.([a-zA-Z0-9_.-]+)\s*}}/g;
-const URL_ATTRIBUTES = new Set(['href', 'src', 'action']);
+const HOST_URL_SLOT = /^{{\s*host\.(?:assets\.)?[A-Za-z][A-Za-z0-9_-]*\s*}}$/;
+const URL_ATTRIBUTES = new Set(['href', 'src', 'srcset', 'action', 'formaction', 'poster', 'xlink:href']);
 const STAMPS = new Set(['data-plugin', 'data-component', 'data-embed-v', 'data-consent-category']);
 
 /** Resolve own properties only: template names cannot reach prototypes through page JSON.
@@ -69,6 +70,8 @@ function fillSlotText(
   { text, definition, url = false }: { text: string; definition: PluginExportTemplate; url?: boolean },
   _optional: Record<string, never> = {},
 ): string {
+  // The host resolves declared hostLinks/assets. Literal pieces would let a template retarget them.
+  if (url && !HOST_URL_SLOT.test(text)) throw new Error('plugin export URL must be a whole hostLinks or assets slot');
   // A single replace pass prevents a prop containing {{host.secret}} becoming another slot.
   if (/{{|}}/.test(text.replace(SLOT, ''))) throw new Error('unsupported plugin export slot');
   const output = text.replace(SLOT, (_match, scope: 'props' | 'host', path: string) => {

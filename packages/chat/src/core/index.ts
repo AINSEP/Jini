@@ -49,3 +49,4 @@ export { turnUsage, conversationUsage, replySegments, isReplyBoundary, MID_RUN_U
 export { formatUsageCost } from './usage-format.js';
 
 export * from './accepted-input.js';
+export * from './question-answer.js';

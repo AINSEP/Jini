@@ -7,6 +7,10 @@ import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
 export interface AcceptedChatInput {
   id: string;
   text: string;
+  /** Standalone questions have no owning tool id; their resource URI binds the durable receipt. */
+  surfaceUri?: string;
+  /** The card's answer without its title; text retains the complete user bubble. */
+  answerText?: string;
   /** Absent for legacy/ordinary inputs; consumed only after a CLI UUID receipt. */
   deliveryState?: 'queued' | 'consumed';
   attachments?: ChatAttachment[];
