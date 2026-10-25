@@ -90,7 +90,7 @@ export function stripControlSequences({ text }: { text: string }): string {
   return out;
 }
 
-/** Exact diagnostic vocabulary only: unknown spellings and glued suffixes remain opaque in aggressive mode. */
+/** Exact diagnostic vocabulary only: unknown spellings and glued suffixes remain opaque. */
 const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
   'additionalProperties', 'additionalItems', 'unevaluatedProperties', 'unevaluatedItems',
   'dependentRequired', 'dependentSchemas', 'exclusiveMinimum', 'exclusiveMaximum',
@@ -98,25 +98,32 @@ const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
   'contentEncoding', 'contentMediaType', 'contentSchema',
 ]);
 
-/** Mask credentials before preserving trusted IDs and UPPER_SNAKE diagnostics;
- * only aggressive mode masks otherwise opaque spans.
+/** Lowercase all-letter or all-digit segments joined by at least two '-'/'_' separators:
+ * slugs and snake_case tool IDs. UUIDs, hex, mixed case and letter+digit runs never qualify.
+ * @complexity O(n) in token length; pure. */
+function isIdentifierShaped({ token }: { token: string }): boolean {
+  return /^(?:[a-z]+|[0-9]+)(?:[-_](?:[a-z]+|[0-9]+)){2,}$/.test(token);
+}
+
+/** Mask credentials before preserving trusted IDs and UPPER_SNAKE diagnostics; redact opaque spans elsewhere.
+ * `keepIdentifiers` additionally exempts identifier-shaped runs (see {@link isIdentifierShaped}).
  * @complexity Local scans of text plus core's exact-secret replacements; no I/O. */
 function redactSecretLike({ text }: { text: string }, options: SanitizeTextOptions = {}): string {
-  const redacted = redactSecrets({ input: text }, { redactPii: false, exactSecrets: options.exactSecrets ?? [] })
-    .replace(LABELED_SECRET_RE, match => match.replace(/([:=]\s*)\S+$/, '$1[redacted]'))
-    .replace(/\[REDACTED:[^\]\r\n]+\]/g, '[redacted]');
-  if (options.policy === 'conservative') return redacted;
   const diagnosticToolIds = new Set(options.diagnosticToolIds);
-  return redacted
+  const keepOpaque = (match: string): boolean => NON_SECRET_TOKEN_RE.test(match) || DIAGNOSTIC_TOKENS.has(match)
+    || (options.keepIdentifiers === true && isIdentifierShaped({ token: match }));
+  return redactSecrets({ input: text }, { redactPii: false, exactSecrets: options.exactSecrets ?? [] })
+    .replace(LABELED_SECRET_RE, match => match.replace(/([:=]\s*)\S+$/, '$1[redacted]'))
+    .replace(/\[REDACTED:[^\]\r\n]+\]/g, '[redacted]')
     // Trust whole dotted IDs so their components cannot become a general redaction bypass.
     .replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => diagnosticToolIds.has(token) ? token
-      : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) || DIAGNOSTIC_TOKENS.has(match) ? match : '[redacted]'));
+      : token.replace(OPAQUE_TOKEN_RE, match => keepOpaque(match) ? match : '[redacted]'));
 }
 
 export interface SanitizeTextOptions {
-  /** Aggressive by default; conservative retains bare opaque identifiers, using core's credential rules. */
-  policy?: SecretRedactionOptions['policy'];
-  /** Known credentials forwarded to core's exact-secret redactor under either policy. */
+  /** Model-facing error paths keep slugs/tool IDs that would otherwise read as opaque tokens. Default false. */
+  keepIdentifiers?: boolean;
+  /** Known credentials forwarded to core's exact-secret redactor. */
   exactSecrets?: SecretRedactionOptions['exactSecrets'];
   /** Exact IDs from trusted registration metadata, never inferred from error text or arguments.
    * Credential rules still run first; prefixes and glued suffixes are never exempted. */
@@ -130,7 +137,7 @@ export interface SanitizeTextOptions {
  * length of `text` — the one function every boundary that surfaces daemon/network-derived text
  * to stderr/stdout should route through first.
  * Trusted diagnosticToolIds exempt complete IDs (including dots) only, after credential masking.
- * Conservative mode skips only the opaque-token heuristic; it cannot detect unknown unlabelled secrets.
+ * keepIdentifiers exempts only identifier-shaped opaque runs; every other opaque run stays masked.
  * @complexity O(n + t) local time/space for n text bytes and t trusted ID bytes,
  * plus core's exact-secret replacements when supplied.
  */

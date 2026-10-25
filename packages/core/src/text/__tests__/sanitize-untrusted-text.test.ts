@@ -5,11 +5,32 @@ import { sanitizeUntrustedText, stripControlSequences } from '../index.js';
 const ESC = String.fromCharCode(0x1b);
 
 describe('sanitizeUntrustedText', () => {
-  it.each(['conservative', 'aggressive'] as const)('honors %s policy while masking known and labelled credentials', policy => {
-    const id = 'plugin_documentation_read';
-    const secret = 'known.opaque+credential-value';
-    const result = sanitizeUntrustedText({ text: `${id} ${secret} api_key=${id}` }, { policy, exactSecrets: [secret] });
-    expect(result).toBe(`${policy === 'conservative' ? id : '[redacted]'} [redacted] api_key=[redacted]`);
+  it.each([
+    'five-coffee-brewing-tips',
+    'agent_plugin_cloudflare',
+    'release-2026-10-25-notes',
+  ])('keepIdentifiers keeps the identifier-shaped run %s, which the default masks', token => {
+    expect(sanitizeUntrustedText({ text: `slug ${token}` }, { keepIdentifiers: true })).toBe(`slug ${token}`);
+    expect(sanitizeUntrustedText({ text: `slug ${token}` })).toBe('slug [redacted]');
+  });
+
+  it.each([
+    '123e4567-e89b-12d3-a456-426614174000',
+    'deadbeef0123456789abcdef01234567',
+    `ghp_${'a1B2'.repeat(9)}`,
+    `sk-proj-${'abc123'.repeat(4)}`,
+    'Five-Coffee-Brewing-Tips-Today',
+    'abc123def456ghi789jkl',
+    'plugin_a1b2c3d4e5f6g7h8',
+    'onlyonelongwordwithoutseparators',
+  ])('keepIdentifiers still masks the opaque or credential-shaped run %s', token => {
+    expect(sanitizeUntrustedText({ text: `failed ${token}` }, { keepIdentifiers: true })).toBe('failed [redacted]');
+  });
+
+  it('masks known and labelled credentials even when they are identifier-shaped', () => {
+    const secret = 'known-opaque-credential-value';
+    expect(sanitizeUntrustedText({ text: `${secret} api_key=agent_plugin_cloudflare` }, { keepIdentifiers: true, exactSecrets: [secret] }))
+      .toBe('[redacted] api_key=[redacted]');
   });
 
   it('retains exact recovery hints and schema keywords, masking unknown identifiers', () => {
