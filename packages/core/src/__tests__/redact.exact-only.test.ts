@@ -14,13 +14,20 @@ describe('exact-only redaction', () => {
       .toEqual({ redacted: '', counts: {} });
   });
 
-  it('deduplicates and uses longest-first literal alternatives at each original position', () => {
+  it('deduplicates secrets and redacts each matched range once', () => {
     expect(redactSecretsWithCounts({ input: 'abcdef abc ababa a.*+$[x](y)?|\\' }, {
       policy: 'exact-only', exactSecrets: ['abc', 'abcdef', 'abc', 'aba', 'bab', 'a.*+$[x](y)?|\\'],
     })).toEqual({
-      redacted: '[REDACTED:exact_secret] [REDACTED:exact_secret] [REDACTED:exact_secret]ba [REDACTED:exact_secret]',
+      // 'ababa' is covered by overlapping 'aba'/'bab'/'aba' matches: one marker, nothing left behind.
+      redacted: '[REDACTED:exact_secret] [REDACTED:exact_secret] [REDACTED:exact_secret] [REDACTED:exact_secret]',
       counts: { exact_secret: 4 },
     });
+  });
+
+  it('merges overlapping secrets into one marker so no part of either leaks', () => {
+    expect(redactSecretsWithCounts({ input: 'xabcdefx abc bcdef' }, { policy: 'exact-only', exactSecrets: ['abc', 'bcdef'] }))
+      .toEqual({ redacted: 'x[REDACTED:exact_secret]x [REDACTED:exact_secret] [REDACTED:exact_secret]', counts: { exact_secret: 3 } });
+    expect(redactSecrets({ input: 'xx' }, { policy: 'exact-only', exactSecrets: ['x'], marker: '#' })).toBe('##');
   });
 
   it('inserts markers literally once even when they contain secrets or replacement syntax', () => {

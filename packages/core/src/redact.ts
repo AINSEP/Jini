@@ -363,10 +363,14 @@ function redactExactSecrets(
     (secret): secret is string => typeof secret === 'string' && secret.length > 0,
   ))].sort((a, b) => b.length - a.length);
   if (options.singlePass) {
-    if (usable.length === 0) return text;
     // Match the original text once: a marker can contain a supplied secret or '$' literally.
-    const alternatives = usable.map(secret => secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-    return text.replace(new RegExp(alternatives.join('|'), 'g'), () => marker('exact_secret'));
+    let out = '';
+    let cursor = 0;
+    for (const [start, end] of mergedSecretRanges({ text, secrets: usable })) {
+      out += text.slice(cursor, start) + marker('exact_secret');
+      cursor = end;
+    }
+    return out + text.slice(cursor);
   }
   let out = text;
   for (const secret of usable) {
@@ -374,6 +378,24 @@ function redactExactSecrets(
     out = out.replace(new RegExp(escaped, 'g'), () => marker('exact_secret'));
   }
   return out;
+}
+
+/** Every occurrence of every secret, overlapping ranges merged: with 'abc' and 'bcdef', a left-to-right
+ * alternation would replace 'abc' and leave 'def' — part of the other secret — in the output.
+ * @complexity O(s * n) indexOf scans for s secrets over n characters, plus O(r log r) for r matches. */
+function mergedSecretRanges({ text, secrets }: { text: string; secrets: readonly string[] }): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  for (const secret of secrets) {
+    for (let at = text.indexOf(secret); at !== -1; at = text.indexOf(secret, at + 1)) ranges.push([at, at + secret.length]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [start, end] of ranges) {
+    const last = merged.at(-1);
+    if (last && start < last[1]) last[1] = Math.max(last[1], end);
+    else merged.push([start, end]);
+  }
+  return merged;
 }
 
 /** URL userinfo and signed query values: credentials recognized by their URL context. */
