@@ -61,7 +61,7 @@ describe.each(["read", "readBytes"] as const)("descriptor %s", method => {
     expect(f.close.mock.calls).toEqual([[71]]);
   });
 
-  it.each([0o100400, 0o100640])("refuses descriptor mode %s even when pathname checks passed", async mode => {
+  it.each([0o100400, 0o100640, 0o104600])("refuses descriptor mode %s even when pathname checks passed", async mode => {
     const f = fixture({ mode });
     await expect(Promise.resolve().then(() => invoke(f.make(), method))).rejects.toThrow(/exact mode 600/);
     expect(f.read).not.toHaveBeenCalled();
@@ -85,12 +85,15 @@ describe.each(["read", "readBytes"] as const)("descriptor %s", method => {
 
   it("refuses a symlink swapped in at open and does not close an unowned descriptor", async () => {
     const f = fixture();
-    const failure = Object.assign(new Error("ELOOP"), { code: "ELOOP" });
+    const failure = Object.assign(new Error("ELOOP: too many symbolic links, open '/virtual/file'"), { code: "ELOOP" });
     vi.mocked(f.fs.openSync).mockImplementation((_path, flags) => {
       expect(Number(flags) & nodeFs.constants.O_NOFOLLOW).toBe(nodeFs.constants.O_NOFOLLOW);
       throw failure;
     });
-    await expect(Promise.resolve().then(() => invoke(f.make(), method))).rejects.toBe(failure);
+    // The refusal names only the relative path; the host's absolute path stays out of it.
+    const refusal = await Promise.resolve().then(() => invoke(f.make(), method)).catch(error => error);
+    expect(refusal).toBeInstanceOf(FsFilePathError);
+    expect(refusal.message).toBe("path 'file' is a symbolic link or could not be opened");
     expect(f.close).not.toHaveBeenCalled();
   });
 
@@ -149,7 +152,7 @@ it("fails closed without supported no-follow or nonblocking flags", () => {
   expect(() => f.make({})).toThrow(/constants/);
 });
 
-it.each([-1, 0o1000, 0.5, NaN])("refuses invalid exact permission bits %s", exactMode => {
+it.each([-1, 0o10000, 0.5, NaN])("refuses invalid exact permission bits %s", exactMode => {
   expect(() => fixture().make({ exactMode })).toThrow(TypeError);
 });
 

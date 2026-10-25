@@ -3,7 +3,7 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { readFetchResponseText } from "../fetch-with-timeout.js";
 
 const encoder = new TextEncoder();
-type Chunk = ReadableStreamReadResult<Uint8Array>;
+type Chunk = Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

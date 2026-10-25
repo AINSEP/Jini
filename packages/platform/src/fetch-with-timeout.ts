@@ -228,7 +228,7 @@ async function decodeResponseStream(
  * Per-read listeners avoid accumulating pending race handlers over a long response. */
 async function readResponseChunk(
   { reader, signal }: { reader: ReadableStreamDefaultReader<Uint8Array>; signal: AbortSignal | undefined },
-): Promise<ReadableStreamReadResult<Uint8Array>> {
+): ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]> {
   if (!signal) return reader.read();
   signal.throwIfAborted();
   let abort: () => void = () => {};

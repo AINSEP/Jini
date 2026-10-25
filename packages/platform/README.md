@@ -145,7 +145,7 @@ The guarded reader requires root, deny rules, all read/traversal limits, and a f
 Its existing options object also accepts `descriptorRead: { exactMode?: number, rejectGrowth?: boolean }`.
 When present (including `{}`), reads open with `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`, verify
 regular-file status and size with `fstatSync`, and read that same descriptor. `exactMode` compares
-exact permission bits (`mode & 0o777`); `rejectGrowth: true` rejects bytes beyond its initial size.
+exact permission bits including setuid/setgid/sticky (`mode & 0o7777`); `rejectGrowth: true` rejects bytes beyond its initial size.
 The filesystem's optional `fstatSync` and `constants` capabilities become required for this policy;
 unsupported flags fail closed. No-follow protects the final path component; ancestor-directory
 replacement races remain outside this guarantee. Omitting the policy retains existing reads.
