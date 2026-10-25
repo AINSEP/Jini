@@ -7,7 +7,11 @@ import type { AgentPluginArchiveReaderPort } from '../../install.js';
 import type { FilesystemPort } from '../../ports.js';
 import { ports } from '../test-support.js';
 
-type FakeNode = { kind: 'file' | 'directory' | 'symlink' | 'special'; content?: string; declaredSize?: number; readFailure?: boolean };
+type FakeNode = {
+  kind: 'file' | 'directory' | 'symlink' | 'special'; content?: string; declaredSize?: number; readFailure?: boolean;
+  /** What open() reaches when the path was swapped after the walk; defaults to this node. */
+  opened?: FakeNode; ino?: number;
+};
 const limits = { maxEntries: 100, maxDepth: 10, maxFiles: 10, maxFileBytes: 1000, maxTotalBytes: 2000, maxArchiveBytes: 3000 };
 
 /** Exercise the existing filesystem injection, including actual handle read lengths and closes. */
@@ -23,6 +27,7 @@ function fixture({ nodes, root = { kind: 'directory' } }: { nodes: Record<string
   const stats = (node: FakeNode) => ({
     isDirectory: () => node.kind === 'directory', isFile: () => node.kind === 'file',
     isSymbolicLink: () => node.kind === 'symlink', size: node.declaredSize ?? Buffer.byteLength(node.content ?? ''),
+    dev: 1, ino: node.ino ?? 1,
   });
   const filesystem = {
     ...ports.filesystem,
@@ -35,7 +40,7 @@ function fixture({ nodes, root = { kind: 'directory' } }: { nodes: Record<string
     readFile: async (target: string) => { calls.push(`readFile:${target}`); return Buffer.from(tree.get(target)!.content ?? ''); },
     open: async (target: string) => {
       calls.push(`open:${target}`);
-      const node = tree.get(target)!;
+      const node = tree.get(target)!.opened ?? tree.get(target)!;
       const content = Buffer.from(node.content ?? '');
       let offset = 0;
       return {
@@ -132,7 +137,7 @@ describe('opt-in source packing', () => {
     await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, { limits: { ...limits, [name]: 0 } })).rejects.toThrow(name);
     expect(calls.some(call => call.startsWith('open:') || call.startsWith('readFile:'))).toBe(false);
     expect(calls).not.toContain('list:/source/later');
-    if (name !== 'maxFiles') expect(calls).toEqual(['lstat:/source', 'list:/source']);
+    if (name !== 'maxFiles') expect(calls).toEqual(['list:/source']);
   });
 
   test.each(['maxFileBytes', 'maxTotalBytes', 'maxArchiveBytes'] as const)('%s accounts for growing files and closes before opening later files', async name => {
@@ -169,8 +174,30 @@ describe('opt-in source packing', () => {
     expect(calls.some(call => call.startsWith('open:') || call.startsWith('readFile:'))).toBe(false);
     expect((await api.packAgentPluginDirectory({ sourceDir: '/source' }, { ...option, excludeNames: ['unsafe'] })).files).toEqual(['safe']);
     const root = fixture({ nodes: {}, root: { kind } });
-    expect((await root.api.packAgentPluginDirectory({ sourceDir: '/source' }, { limits })).files).toEqual([]);
     await expect(root.api.packAgentPluginDirectory({ sourceDir: '/source' }, option)).rejects.toThrow();
     expect(root.calls.some(call => call.startsWith('list:'))).toBe(false);
+  });
+
+  test('a symlinked root keeps legacy output under any non-reject options object', async () => {
+    const { api } = fixture({ nodes: { 'a.txt': { kind: 'file', content: 'a' } }, root: { kind: 'symlink' } });
+    const baseline = await api.packAgentPluginDirectory({ sourceDir: '/source' });
+    // An explicit undefined field reaches here from JavaScript or a spread of unset host config.
+    const all: PackAgentPluginDirectoryOptional[] = [{ digestEncoding: undefined } as unknown as PackAgentPluginDirectoryOptional, { limits }, { specialFilePolicy: 'reject' }];
+    for (const options of all) {
+      expect(await api.packAgentPluginDirectory({ sourceDir: '/source' }, options)).toEqual(baseline);
+    }
+    await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, { symlinkPolicy: 'reject' })).rejects.toThrow('symlink');
+  });
+
+  test('an allowPaths directory with a trailing slash selects its subtree', async () => {
+    const { api } = fixture({ nodes: { 'dist/a.js': { kind: 'file', content: 'a' }, 'src/b.ts': { kind: 'file', content: 'b' } } });
+    expect((await api.packAgentPluginDirectory({ sourceDir: '/source' }, { allowPaths: ['dist/'] })).files).toEqual(['dist/a.js']);
+  });
+
+  test('refuses a file swapped after the walk even without O_NOFOLLOW, closing the handle', async () => {
+    const { api, calls } = fixture({ nodes: { a: { kind: 'file', content: 'a', opened: { kind: 'file', content: 'outside', ino: 2 } } } });
+    await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, { limits })).rejects.toThrow('no longer a regular file');
+    expect(calls.some(call => call.startsWith('read:'))).toBe(false);
+    expect(calls.at(-1)).toBe('close:/source/a');
   });
 });

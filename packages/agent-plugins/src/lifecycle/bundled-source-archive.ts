@@ -119,8 +119,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   async function packAgentPluginDirectory(sourceDir: string, options: PackAgentPluginDirectoryOptional = {}): Promise<PackedAgentPluginArchive> {
     const state = createPackingState({ options });
     assertPackingLimit({ state, name: 'maxArchiveBytes', value: state.archiveBytes });
-    const rootSelected = Object.keys(options).length === 0 || await isTraversableRoot({ sourceDir, state });
-    const relativePaths = rootSelected ? (await listRegularFiles({ dir: sourceDir, prefix: '', depth: 0, state })).sort() : [];
+    await refuseRoot({ sourceDir, state });
+    const relativePaths = (await listRegularFiles({ dir: sourceDir, prefix: '', depth: 0, state })).sort();
     if (relativePaths.length > MAX_SOURCE_FILES) {
       throw new Error(
         `bundled agent plugin at '${sourceDir}' has ${relativePaths.length} files, over the ${MAX_SOURCE_FILES}-file cap — is this the right directory?`,
@@ -156,7 +156,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   }
 
   /** Validate caller bounds before I/O and normalize selection through the package path owner. */
-  function createPackingState({ options }: { options: PackAgentPluginDirectoryOptional }, _optional: Record<string, never> = {}): PackingState {
+  function createPackingState({ options }: { options: PackAgentPluginDirectoryOptional }): PackingState {
     if (options.limits) {
       for (const name of ['maxEntries', 'maxDepth', 'maxFiles', 'maxFileBytes', 'maxTotalBytes', 'maxArchiveBytes'] as const) {
         const value = options.limits[name];
@@ -165,35 +165,36 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     }
     return {
       options,
-      allowPaths: options.allowPaths?.map(value => normalizePackageEntryPath(value)),
+      // A directory written as 'dist/' selects the same subtree as 'dist' (normalize already collapsed '//').
+      allowPaths: options.allowPaths?.map(value => normalizePackageEntryPath(value).replace(/\/$/, '')),
       excluded: new Set(options.excludeNames ?? []),
       files: new Set(), entries: 0, totalBytes: 0,
       archiveBytes: options.digestEncoding === 'canonical-files-v1' ? 32 : Buffer.byteLength(MAGIC),
     };
   }
 
-  /** The opt-in walk never follows a source root link, matching its descendant policy. */
-  async function isTraversableRoot({ sourceDir, state }: { sourceDir: string; state: PackingState }, _optional: Record<string, never> = {}): Promise<boolean> {
+  /** Only a reject policy refuses a non-directory root. Otherwise the root is read as before:
+   * readdir follows a symlinked root, so any options object (even all-undefined) keeps legacy output. */
+  async function refuseRoot({ sourceDir, state }: { sourceDir: string; state: PackingState }): Promise<void> {
+    if (state.options.symlinkPolicy !== 'reject' && state.options.specialFilePolicy !== 'reject') return;
     const stat = await ports.filesystem.lstat(sourceDir);
-    if (stat.isDirectory()) return true;
-    refuseEntry({ state, entryPath: sourceDir, symlink: stat.isSymbolicLink() });
-    return false;
+    if (!stat.isDirectory()) refuseEntry({ state, entryPath: sourceDir, symlink: stat.isSymbolicLink() });
   }
 
   function assertPackingLimit({ state, name, value }: {
     state: PackingState; name: keyof NonNullable<PackAgentPluginDirectoryOptional['limits']>; value: number;
-  }, _optional: Record<string, never> = {}): void {
+  }): void {
     const limit = state.options.limits?.[name];
     if (limit !== undefined && value > limit) throw new Error(`bundled agent plugin exceeds packing ${name} (${limit})`);
   }
 
-  function encodedFileBytes({ relativePath, fileBytes }: { relativePath: string; fileBytes: number }, _optional: Record<string, never> = {}): number {
+  function encodedFileBytes({ relativePath, fileBytes }: { relativePath: string; fileBytes: number }): number {
     const pathBytes = Buffer.byteLength(relativePath);
     return Buffer.byteLength(`F ${pathBytes} ${fileBytes}\n`) + pathBytes + fileBytes;
   }
 
   /** Check actual read bytes before retaining a chunk, including the bundled header/path overhead. */
-  function checkFileBudget({ state, relativePath, fileBytes }: { state: PackingState; relativePath: string; fileBytes: number }, _optional: Record<string, never> = {}): void {
+  function checkFileBudget({ state, relativePath, fileBytes }: { state: PackingState; relativePath: string; fileBytes: number }): void {
     assertPackingLimit({ state, name: 'maxFileBytes', value: fileBytes });
     assertPackingLimit({ state, name: 'maxTotalBytes', value: state.totalBytes + fileBytes });
     const archiveBytes = state.options.digestEncoding === 'canonical-files-v1'
@@ -206,11 +207,9 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
    * @complexity O(b) bytes read, O(b) captured bytes within the supplied file/total/archive caps. */
   async function readBoundedFile({ sourceDir, relativePath, state }: {
     sourceDir: string; relativePath: string; state: PackingState;
-  }, _optional: Record<string, never> = {}): Promise<Buffer> {
-    const handle = await ports.filesystem.open(path.join(sourceDir, relativePath), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  }): Promise<Buffer> {
+    const { handle, stat } = await openWalkedFile({ target: path.join(sourceDir, relativePath), relativePath });
     try {
-      const stat = await handle.stat();
-      if (!stat.isFile()) throw new Error(`bundled agent plugin source is no longer a regular file: '${relativePath}'`);
       checkFileBudget({ state, relativePath, fileBytes: stat.size });
       const chunks: Buffer[] = [];
       let fileBytes = 0;
@@ -229,10 +228,28 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     }
   }
 
+  /** O_NOFOLLOW/O_NONBLOCK do not exist on Windows, so no-follow cannot rest on open flags alone:
+   * the opened object must also be the regular file the walk lstat'ed (same dev/ino). A link or file
+   * swapped in between is refused, failing closed on every platform. Refusals close the handle. */
+  async function openWalkedFile({ target, relativePath }: { target: string; relativePath: string }) {
+    const walked = await ports.filesystem.lstat(target);
+    const handle = await ports.filesystem.open(target, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0));
+    try {
+      const stat = await handle.stat();
+      if (!walked.isFile() || !stat.isFile() || stat.dev !== walked.dev || stat.ino !== walked.ino) {
+        throw new Error(`bundled agent plugin source is no longer a regular file: '${relativePath}'`);
+      }
+      return { handle, stat };
+    } catch (error) {
+      await handle.close();
+      throw error;
+    }
+  }
+
   /** A token identifies only this snapshot. Copy yielded bytes so a reader cannot mutate later reads. */
   function createSnapshotReader({ token, snapshot }: {
     token: Buffer; snapshot: readonly { entryPath: string; content: Buffer }[];
-  }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort {
+  }): AgentPluginArchiveReaderPort {
     return {
       async *entries({ archive }) {
         if (!token.equals(archive)) throw new Error('bundled agent plugin archive: snapshot token mismatch');
@@ -314,7 +331,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  */
   async function listRegularFiles({ dir, prefix, depth, state }: {
     dir: string; prefix: string; depth: number; state: PackingState;
-  }, _optional: Record<string, never> = {}): Promise<string[]> {
+  }): Promise<string[]> {
     const entries = await readdir(dir, { withFileTypes: true });
     state.entries += entries.length;
     assertPackingLimit({ state, name: 'maxEntries', value: state.entries });
@@ -338,19 +355,18 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return files;
   }
 
-  function recordFile({ relative, state }: { relative: string; state: PackingState }, _optional: Record<string, never> = {}): void {
+  function recordFile({ relative, state }: { relative: string; state: PackingState }): void {
     state.files.add(relative);
     assertPackingLimit({ state, name: 'maxFiles', value: state.files.size });
-    if (state.options.limits && state.files.size > MAX_SOURCE_FILES) throw new Error(`bundled agent plugin exceeds the ${MAX_SOURCE_FILES}-file cap`);
   }
 
   /** Ancestors of an allowed path must be traversed, but their unrelated siblings are pruned. */
-  function selectPath({ relative, directory, state }: { relative: string; directory: boolean; state: PackingState }, _optional: Record<string, never> = {}): boolean {
+  function selectPath({ relative, directory, state }: { relative: string; directory: boolean; state: PackingState }): boolean {
     return state.allowPaths === undefined || state.allowPaths.some(allowed =>
       relative === allowed || relative.startsWith(`${allowed}/`) || (directory && allowed.startsWith(`${relative}/`)));
   }
 
-  function refuseEntry({ state, entryPath, symlink }: { state: PackingState; entryPath: string; symlink: boolean }, _optional: Record<string, never> = {}): void {
+  function refuseEntry({ state, entryPath, symlink }: { state: PackingState; entryPath: string; symlink: boolean }): void {
     const policy = symlink ? state.options.symlinkPolicy : state.options.specialFilePolicy;
     if (policy === 'reject') throw new Error(`bundled agent plugin refuses ${symlink ? 'symlink' : 'special file'} '${entryPath}'`);
   }
