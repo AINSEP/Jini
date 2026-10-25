@@ -115,3 +115,13 @@ describe('requireStrictBearerToken', () => {
     }
   });
 });
+
+describe('bearerTokenFromHeader grammar', () => {
+  it.each([
+    ['Bearer abc', 'abc'], ['bearer abc', 'abc'], ['BEARER  abc  ', 'abc'], ['Bearer\tabc', 'abc'],
+    ['xBearer abc', null], ['Bearer abc def', null], ['Bearer', null], ['Bearer ', null], ['Basic abc', null], ['', null], [undefined, null], ['Token Bearer abc', null],
+  ])('%j → %j', async (header, expected) => {
+    const { bearerTokenFromHeader } = await import('../api-security-middleware.js');
+    expect(bearerTokenFromHeader({ header })).toBe(expected);
+  });
+});
