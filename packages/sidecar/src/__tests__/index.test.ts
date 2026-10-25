@@ -1195,3 +1195,34 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     }
   });
 });
+
+describe("@jini-ai/sidecar — bootstrap option precedence (F2)", () => {
+  const stampFor = (env: NodeJS.ProcessEnv = {}) => ({
+    app: "api" as const, mode: "dev" as const, namespace: "alpha", source: "tool" as const,
+    ipc: resolveAppIpcPath({ app: "api", contract: fakeContract, namespace: "alpha" }, { env }),
+  });
+  it("an explicit base wins over the env base, both for launch env and bootstrap", () => {
+    const launch = createSidecarLaunchEnv({ base: "/explicit", contract: fakeContract, stamp: stampFor() }, { extraEnv: { FAKE_BASE: "/from-env", KEEP: "1" } });
+    expect(launch.FAKE_BASE).toBe(resolve("/explicit"));
+    expect(launch.KEEP).toBe("1");
+    const env: NodeJS.ProcessEnv = { FAKE_BASE: "/from-env" };
+    expect(bootstrapSidecarRuntime({ stampInput: stampFor(), env, app: "api", contract: fakeContract }, { base: "/explicit" }).base).toBe(resolve("/explicit"));
+  });
+  it("without a base the launch env falls back to the extraEnv base, not process.env", () => {
+    const launch = createSidecarLaunchEnv({ base: null, contract: fakeContract, stamp: stampFor() } as never, { extraEnv: { FAKE_BASE: "/from-extra" } });
+    expect(launch.FAKE_BASE).toBe(resolve("/from-extra"));
+  });
+  it("bootstrap resolves the base from projectRoot when neither option nor env names one", () => {
+    const env: NodeJS.ProcessEnv = {};
+    const viaRoot = bootstrapSidecarRuntime({ stampInput: stampFor(), env, app: "api", contract: fakeContract }, { projectRoot: "/proj" });
+    expect(viaRoot.base.startsWith(resolve("/proj"))).toBe(true);
+    expect(env.FAKE_IPC_PATH).toBe(stampFor().ipc);
+  });
+  it("bootstrap reads the ipc base override from the supplied env, not process.env", () => {
+    const env: NodeJS.ProcessEnv = { FAKE_IPC_BASE: "/custom-ipc", FAKE_BASE: "/b" };
+    const stamp = stampFor(env);
+    expect(stamp.ipc.startsWith("/custom-ipc") || stamp.ipc.startsWith("\\\\.\\pipe\\")).toBe(true);
+    expect(bootstrapSidecarRuntime({ stampInput: stamp, env, app: "api", contract: fakeContract }).ipc).toBe(stamp.ipc);
+    expect(() => bootstrapSidecarRuntime({ stampInput: stampFor(), env: { FAKE_IPC_BASE: "/custom-ipc" }, app: "api", contract: fakeContract })).toThrow(/sidecar ipc path mismatch/);
+  });
+});
