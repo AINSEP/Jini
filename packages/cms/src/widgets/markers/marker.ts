@@ -593,6 +593,7 @@ const MAX_TARGET_VALUE_LENGTH = 200;
  * - `widget`/`form`/`media`/`post`/`content`: `id`, else `slug` — registered in
  *   `resolver-service.ts`'s `HTML_EMBED_RESOLVERS` (see `marker-target-parity.unit.test.ts`, which fails
  *   loudly if a registered type has no matching row or incorrect target keys).
+ * - `plugin`: canonical manifest id in `plugin`; `component` identifies its declared export.
  * - `taxonomy`: `id` only — `widgets/resolvers/taxonomy.ts` reads `ref.id`, accepting a real
  *   taxonomy id or a unique taxonomy name through that key; `ref.slug` is never consulted.
  * - {@link COLLECTION_MARKER_TYPE}: `id`, else `typeKey` — `routes/site/pages.ts`'s
@@ -607,7 +608,10 @@ const MAX_TARGET_VALUE_LENGTH = 200;
  * to `["id"]` for that case rather than treating an unrecognized type as needing no target — a display
  * must never claim a slug resolves for a type no resolver has ever registered.
  */
-export const EMBED_MARKER_TARGET_KEYS: Readonly<Record<string, readonly ("id" | "slug" | "typeKey")[]>> = {
+/** Target keys are identities; plugin component/props remain in the complete marker config. */
+export type EmbedMarkerTargetKey = "id" | "slug" | "typeKey" | "plugin";
+export const EMBED_MARKER_TARGET_KEYS: Readonly<Record<string, readonly EmbedMarkerTargetKey[]>> = {
+  plugin: ["plugin"],
   widget: ["id", "slug"],
   form: ["id", "slug"],
   taxonomy: ["id"],
@@ -632,7 +636,7 @@ const UNKNOWN_TYPE_TARGET_KEYS: readonly ("id" | "slug" | "typeKey")[] = ["id"];
  * the marker points at, or the `"none"` marker for a type that needs no target at all. Kept distinct
  * from `undefined` (target missing) — see {@link embedMarkerTarget}'s own doc.
  */
-export type EmbedMarkerTarget = { readonly key: "id" | "slug" | "typeKey"; readonly value: string } | { readonly key: "none" };
+export type EmbedMarkerTarget = { readonly key: EmbedMarkerTargetKey; readonly value: string } | { readonly key: "none" };
 
 /** `value` trimmed down to a usable target string, or `undefined` if it is not a non-empty string of
  *  at most {@link MAX_TARGET_VALUE_LENGTH} characters — the same absent-vs-present rule
@@ -690,6 +694,17 @@ export function embedMarkerSnippet(
   _optional: Record<string, never> = {},
 ): string {
   return `<div data-embed-config='{"type":"${type}","${key}":"${value}"}'></div>`;
+}
+
+/** Serialize complete configs through the marker's existing single-attribute encoder.
+ * Unknown config keys survive; apostrophes cannot terminate the attribute.
+ * @complexity O(n) in the serialized config length.
+ */
+export function embedMarkerSnippetFromConfig(
+  { config }: { config: Readonly<Record<string, unknown>> },
+  _optional: Record<string, never> = {},
+): string {
+  return `<div data-embed-config='${toSingleQuotedValue(JSON.stringify(config))}'></div>`;
 }
 
 /**

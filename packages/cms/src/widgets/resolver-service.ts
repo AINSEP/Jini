@@ -1,3 +1,4 @@
+import { resolvePluginExportEmbeds, type PluginExportsPort } from "./html/plugin-export.js";
 import { isNonArrayRecord } from "@jini-ai/core";
 import { resolveGalleryEmbeds } from "./gallery-resolver.js";
 import { isPlausibleMediaRefId } from "./markers/media-reference.js";
@@ -353,6 +354,8 @@ function assembleInlineResolved(
  * call site that never touches media to thread media dependencies through anyway.
  */
 export interface ResolveHtmlPageEmbedsDeps extends WidgetInstanceResolutionDeps {
+  /** Optional host admission port. Absence keeps the plugin marker's authored fallback. */
+  readonly pluginExports?: PluginExportsPort;
   readonly host: Pick<WidgetHostPorts, "media" | "posts">;
   readonly mediaRepo?: MediaRepoPort;
   readonly transformRepo?: TransformDefinitionRepoPort;
@@ -1283,6 +1286,7 @@ async function resolveContentTypeEmbeds(
  * synthetic instance on the SAME registered contact-form resolver so the two cannot drift.
  */
 export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> = {
+  plugin: (refs, deps, context) => resolvePluginExportEmbeds({ refs, port: deps.pluginExports, workspaceId: context.workspaceId }),
   widget: resolveWidgetTypeEmbeds,
   form: resolveFormTypeEmbeds,
   taxonomy: (refs, deps) => resolveTaxonomyEmbeds({ refs, deps }),
