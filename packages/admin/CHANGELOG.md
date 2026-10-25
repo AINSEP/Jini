@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.12
+
+### Patch Changes
+
+- consent settings: per-site `'unsafe-eval'` toggle.
+
 ## 0.6.11
 
 ## 0.6.10

@@ -1,3 +1,10 @@
+## 0.6.12
+
+### Patch Changes
+
+- chat: typing while a choice card waits queues the message instead of cancelling its tool call; answered choice cards keep their question and report option labels, not values; mid-run follow-ups read "Queued" until consumed; one steady thinking clock.
+  - @jini-ai/core@0.6.12
+
 ## 0.6.11
 
 ### Patch Changes

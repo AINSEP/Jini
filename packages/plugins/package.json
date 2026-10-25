@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugins",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "description": "Host-independent extension glue and site-plugin runtime with injected SDK, trust, archive and storage ports.",
   "license": "Apache-2.0",
   "repository": {

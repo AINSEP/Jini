@@ -1,3 +1,11 @@
+## 0.6.12
+
+### Patch Changes
+
+- @jini-ai/oauth@0.6.12
+- @jini-ai/core@0.6.12
+- @jini-ai/protocol@0.6.12
+
 ## 0.6.11
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @jini-ai/mcp
 
+## 0.6.12
+
+### Patch Changes
+
+- @jini-ai/core@0.6.12
+- @jini-ai/protocol@0.6.12
+
 ## 0.6.11
 
 ### Patch Changes
