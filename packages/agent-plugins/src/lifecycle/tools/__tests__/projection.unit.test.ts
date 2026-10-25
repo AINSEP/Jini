@@ -229,3 +229,40 @@ describe('describeAffectedResources', () => {
     await expect(projection.describeAffectedResources({ toolId: 'p_acme-office__list_rows', input: {} })).resolves.toMatchObject({ resources: answer });
   });
 });
+
+// Stryker run-2 NO-COVERAGE (projection.ts:137) + survivors 136-138: generation reuse must compare the
+// ADDITIONAL (surface) tools by identity and order, and every executable tool, not just the first.
+describe('generation reuse with additional tools', () => {
+  const extra = (name: string) => ({ pluginId: 'acme-office', describeAffectedResources: () => [name],
+    tool: { name, description: name, inputSchema: { type: 'object' }, effect: 'write' as const, handler: () => name } });
+
+  test('the same additional tool objects in the same order reuse the generation', () => {
+    const { registry, calls } = fakeRegistry();
+    const projection = projectionWith(registry);
+    const [a, b] = [extra('a'), extra('b')];
+    projection.sync({ loaded: [], refusals: [], additionalTools: [a, b] });
+    projection.sync({ loaded: [], refusals: [], additionalTools: [a, b] });
+    expect(calls.replace).toBe(1);
+  });
+
+  test('a different additional tool object, a reordered list or a different count replaces it', () => {
+    for (const next of [(a: object, _b: object) => [a, extra('b')], (a: object, b: object) => [b, a], (a: object) => [a]]) {
+      const { registry, calls } = fakeRegistry();
+      const projection = projectionWith(registry);
+      const [a, b] = [extra('a'), extra('b')];
+      projection.sync({ loaded: [], refusals: [], additionalTools: [a, b] });
+      projection.sync({ loaded: [], refusals: [], additionalTools: next(a, b) as never });
+      expect(calls.replace).toBe(2);
+    }
+  });
+
+  test('a change in the SECOND executable tool alone replaces the generation', () => {
+    const { registry, calls } = fakeRegistry();
+    const projection = projectionWith(registry);
+    const module: AgentPluginToolModule = { invoke: () => 'ok' };
+    const first = loaded({ module });
+    projection.sync({ loaded: [first, loaded({ module, descriptor: { name: 'second' } })], refusals: [] });
+    projection.sync({ loaded: [first, loaded({ module, descriptor: { name: 'second', description: 'Changed.' } })], refusals: [] });
+    expect(calls.replace).toBe(2);
+  });
+});
