@@ -82,13 +82,13 @@ export function signSigV4(input: SignSigV4Input): SignSigV4Result {
     input.headers['x-amz-security-token'] = input.credentials.sessionToken;
   }
 
-  // Canonical headers: lower-case keys + trim values; sort by key.
-  const headerKeys = Object.keys(input.headers)
-    .map((k) => k.toLowerCase())
-    .sort();
-  const canonicalHeaders = headerKeys
-    .map((k) => `${k}:${trimValue(input.headers[k] ?? input.headers[k.toLowerCase()] ?? '')}\n`)
-    .join('');
+  // Canonical headers: lower-case keys + trim values; sort by key. Values are read through the
+  // ORIGINAL key: looking them up by the lower-cased key signed a mixed-case header as empty (F1).
+  const canonicalEntries = [...new Map(Object.entries(input.headers).map(([k, v]) => [k.toLowerCase(), v]))]
+    // Keys are unique after lower-casing, so code-unit order never ties (same order as the old .sort()).
+    .sort(([a], [b]) => (a < b ? -1 : 1));
+  const headerKeys = canonicalEntries.map(([k]) => k);
+  const canonicalHeaders = canonicalEntries.map(([k, v]) => `${k}:${trimValue(v)}\n`).join('');
   const signedHeaders = headerKeys.join(';');
 
   const canonicalRequest = [

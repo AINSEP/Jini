@@ -37,6 +37,12 @@ describe('signSigV4 — F1 canonicalisation', () => {
     expect(auth).toContain('SignedHeaders=host;x-amz-content-sha256;x-amz-date;x-amz-meta-tag,');
   });
 
+  it('reverse-ordered input headers are signed in sorted order (insertion order is irrelevant)', () => {
+    const forward = sign({ headers: { 'a-h': '1', host: 'b.s3.amazonaws.com', 'z-h': '2' } });
+    expect(sign({ headers: { 'z-h': '2', host: 'b.s3.amazonaws.com', 'a-h': '1' } })).toBe(forward);
+    expect(forward).toContain('SignedHeaders=a-h;host;x-amz-content-sha256;x-amz-date;z-h,');
+  });
+
   it('a session token is added and signed only when present', () => {
     const headers: Record<string, string> = { host: 'b.s3.amazonaws.com' };
     signSigV4({ method: 'GET', path: '/o', query: '', headers, body: Buffer.alloc(0), region: 'r', service: 's3', credentials: { ...CREDENTIALS, sessionToken: 'tok' }, now: NOW });
