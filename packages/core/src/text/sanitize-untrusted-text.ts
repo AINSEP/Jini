@@ -1,4 +1,4 @@
-import { redactSecrets, LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE, type SecretRedactionOptions } from "../redact.js";
+import { redactSecrets, GENERATED_MARKER_RE, LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE, type SecretRedactionOptions } from "../redact.js";
 /**
  * @module redact
  *
@@ -116,7 +116,9 @@ function redactSecretLike({ text }: { text: string }, options: SanitizeTextOptio
     || (options.keepIdentifiers === true && isIdentifierShaped({ token: match }));
   return redactSecrets({ input: text }, { redactPii: false, exactSecrets: options.exactSecrets ?? [] })
     .replace(LABELED_SECRET_RE, match => match.replace(/([:=]\s*)\S+$/, '$1[redacted]'))
-    .replace(/\[REDACTED:[^\]\r\n]+\]/g, '[redacted]')
+    // Only markers redact generates: a bounded category alternation, where `[^\]]+` rescanned the
+    // rest of the text after every unterminated `[REDACTED:` (quadratic on large responses).
+    .replace(GENERATED_MARKER_RE, '[redacted]')
     // Trust whole dotted IDs so their components cannot become a general redaction bypass.
     .replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => diagnosticToolIds.has(token) ? token
       : token.replace(OPAQUE_TOKEN_RE, match => keepOpaque(match) ? match : '[redacted]'));

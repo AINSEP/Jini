@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
+import { GENERATED_MARKER_RE, redactSecrets, redactSecretsWithCounts } from '../redact.js';
+import { sanitizeUntrustedText } from '../text/sanitize-untrusted-text.js';
 
-// Characterization pins for the SEC refactor of redactSecretsWithCounts: each phase and the
-// order between phases is pinned. Every credential-shaped value is built at runtime so no
-// literal secret shape is committed.
+// Characterization pins for redactSecretsWithCounts: span union over the original text, the
+// merged-span category rule and linear-time guards. Every credential-shaped value is built at
+// runtime so no literal secret shape is committed.
 
 const npmToken = (): string => ['np', 'm_'].join('') + 'n'.repeat(36);
 const githubToken = (): string => ['gh', 'p_'].join('') + 'g'.repeat(36);
 const skPrefix = (): string => ['s', 'k-'].join('') + 's'.repeat(20);
 
 describe('@jini-ai/core — redact — characterization pins', () => {
-  it('masks a provider api-key header the core header rule cannot anchor, normalizing its separator', () => {
+  it('masks a provider api-key header the core header rule cannot anchor, keeping its separator', () => {
     expect(redactSecretsWithCounts({ input: 'my-x-api-key=abc123 tail' })).toEqual({
-      redacted: 'my-x-api-key: [REDACTED:api_key_header] tail',
+      redacted: 'my-x-api-key=[REDACTED:api_key_header] tail',
       counts: { api_key_header: 1 },
     });
   });
@@ -30,13 +31,16 @@ describe('@jini-ai/core — redact — characterization pins', () => {
     });
   });
 
-  // Exact secrets run after every lexical rule, so a short secret may split a label word the
-  // label rule already processed; the case passes as long as no real value survives.
+  // Every rule matches the ORIGINAL text and overlapping/adjacent spans merge, so no rule's
+  // leftover can expose part of another's value. A short secret may still split a label word
+  // visually; the case passes as long as no real value survives.
   it.each([
     ['a short secret inside a label', 'a; password=hunter2 pa', ['a', 'pa'], ['hunter2'],
       '[REDACTED:exact_secret]; [REDACTED:exact_secret]ssword=[REDACTED:labeled_secret] [REDACTED:exact_secret]'],
     ['a secret that is itself a label name', 'api_key=hunter2', ['api_key'], ['hunter2'],
       '[REDACTED:exact_secret]=[REDACTED:labeled_secret]'],
+    ['a secret that ends in a label and its separator', 'note password=hunter2', ['note password='], ['hunter2'],
+      '[REDACTED:exact_secret]'],
     ['a short secret glued inside other text', 'Rejected prefixabcSuffix', ['abc'], [],
       'Rejected prefix[REDACTED:exact_secret]Suffix'],
     ['forged marker text redact never generates', 'Rejected [REDACTED:s3cr3t99] [redacted:s3cr3t99]', ['s3cr3t99'], [],
@@ -51,37 +55,60 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       'GET /x?[REDACTED:exact_secret]ey=[REDACTED:api_key_query]'],
     ['a one-letter secret inside a Bearer prefix', 'Bearer hunter2', ['e'], ['hunter2'],
       'B[REDACTED:exact_secret]ar[REDACTED:exact_secret]r [REDACTED:bearer_token]'],
+    // Marker text in the input gets no protection: an overlapping secret is simply covered.
     ['a secret named like a generated marker', 'email [REDACTED:email]', ['email'], [],
-      '[REDACTED:exact_secret] [REDACTED:email]'],
+      '[REDACTED:exact_secret] [REDACTED:[REDACTED:exact_secret]]'],
+    ['a secret overlapping marker text in the input', '[REDACTED:email]hunter2', ['email]hunter2'], [],
+      '[REDACTED:[REDACTED:exact_secret]'],
+    ['a secret overlapping a generated marker', 'mail me@example.com!hunter2', ['com!hunter2'], ['me@example'],
+      'mail [REDACTED:email]'],
     ['a secret named like a marker with another case', '[REDACTED:EMAIL]', ['EMAIL'], [],
       '[REDACTED:[REDACTED:exact_secret]]'],
-    // The label, vendor and query rules each stop partway through these; the pre-pass masks them whole.
+    // The label, vendor, query and bearer rules each stop partway through these.
     ['a secret with spaces after a label', 'password=correct horse battery', ['correct horse battery'], ['horse battery'],
       'password=[REDACTED:exact_secret]'],
     ['a dotted secret glued onto a vendor-shaped token', `${skPrefix()}abc.def.ghi.jkl.mno`, ['abc.def.ghi.jkl.mno'], ['.def.ghi'],
-      '[REDACTED:sk_key][REDACTED:exact_secret]'],
+      '[REDACTED:sk_key]'],
     ['a 16+ char secret after api_key=', `GET /x?api_key=${'Q'.repeat(8)}&${'q'.repeat(8)}`, [`${'Q'.repeat(8)}&${'q'.repeat(8)}`], ['q'.repeat(8)],
       'GET /x?api_key=[REDACTED:exact_secret]'],
+    ['a short secret with & after api_key=', 'GET /x?api_key=abc&hunter2', ['abc&hunter2'], ['&hunter2'],
+      'GET /x?api_key=[REDACTED:exact_secret]'],
+    ['a short secret with ! after Bearer', 'Bearer abc!hunter2', ['abc!hunter2'], ['!hunter2'],
+      'Bearer [REDACTED:exact_secret]'],
+    ['a short secret with a unicode delimiter after Bearer', 'Bearer abcéhunter2', ['abcéhunter2'], ['hunter2'],
+      'Bearer [REDACTED:exact_secret]'],
+    ['two overlapping secrets', 'x abcdef y', ['abcd', 'cdef'], ['ef'],
+      'x [REDACTED:exact_secret] y'],
+    ['a secret echoed JSON-escaped', '{"error":"bad ab\\"cd"}', ['ab"cd'], [],
+      '{"error":"bad [REDACTED:exact_secret]"}'],
   ])('leaves no secret value in %s', (_label, input, exactSecrets, otherValues, expected) => {
     const redacted = redactSecrets({ input }, { exactSecrets });
     expect(redacted).toBe(expected);
-    const outsideMarkers = redacted.replace(/\[REDACTED:(?:exact_secret|labeled_secret|url_credentials|api_key_query|bearer_token|email|sk_key)\]/g, '');
-    for (const value of [...exactSecrets, ...otherValues]) expect(outsideMarkers).not.toContain(value);
+    const outsideMarkers = redacted.replace(GENERATED_MARKER_RE, '');
+    const spellings = exactSecrets.flatMap(secret => [secret, JSON.stringify(secret).slice(1, -1)]);
+    for (const value of [...spellings, ...otherValues]) expect(outsideMarkers).not.toContain(value);
   });
 
-  it('never splits an existing marker', () => {
-    expect(redactSecrets({ input: '[REDACTED:email] [redacted] email' }, { exactSecrets: ['email', 'redacted'] }))
-      .toBe('[REDACTED:email] [redacted] [REDACTED:exact_secret]');
+  it('writes one marker, counted once, for merged overlapping spans', () => {
+    expect(redactSecretsWithCounts({ input: 'note password=hunter2 abcdef' }, { exactSecrets: ['note password=', 'abcd', 'cdef'] }))
+      .toEqual({ redacted: '[REDACTED:exact_secret] [REDACTED:exact_secret]', counts: { exact_secret: 2 } });
   });
 
-  // 10 MiB MCP responses reach this path synchronously; each input was quadratic.
+  // 10 MiB MCP responses reach these paths synchronously; each input was quadratic.
   it.each([
     ['unterminated marker prefixes', '[REDACTED:'.repeat(20_000), ['x']],
     ['many markers beside many exact matches', '[redacted] x '.repeat(20_000), ['x']],
     ['a long dotted run (URL scheme and email local part)', 'a.'.repeat(20_000), []],
+    ['a 10 MiB run of JWT header prefixes', 'eyJ-'.repeat(2_621_440), []],
   ])('stays linear on %s', (_label, input, exactSecrets) => {
     const started = performance.now();
     redactSecrets({ input }, { exactSecrets });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('sanitizes unterminated marker prefixes in linear time', () => {
+    const started = performance.now();
+    sanitizeUntrustedText({ text: '[REDACTED:'.repeat(20_000) }, { maxLength: Infinity });
     expect(performance.now() - started).toBeLessThan(500);
   });
 
@@ -94,16 +121,20 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       .toBe('got [REDACTED:exact_secret] back');
   });
 
-  it('lets a lexical rule label a short known secret it recognizes before exact substitution runs', () => {
+  it('lets a lexical rule label a known secret it matches exactly', () => {
     expect(redactSecretsWithCounts({ input: 'Bearer s3cr3t99' }, { exactSecrets: ['s3cr3t99'] })).toEqual({
       redacted: 'Bearer [REDACTED:bearer_token]',
       counts: { bearer_token: 1 },
     });
   });
 
-  it('masks a 16+ char known secret in the exact pre-pass, before a lexical rule can label it', () => {
+  it('names a merged span after its longest constituent, a lexical rule winning a tie', () => {
     const token = githubToken();
     expect(redactSecretsWithCounts({ input: `t=${token}` }, { exactSecrets: [token] })).toEqual({
+      redacted: 't=[REDACTED:github_token]',
+      counts: { github_token: 1 },
+    });
+    expect(redactSecretsWithCounts({ input: `t=${token}.x` }, { exactSecrets: [`${token}.x`] })).toEqual({
       redacted: 't=[REDACTED:exact_secret]',
       counts: { exact_secret: 1 },
     });

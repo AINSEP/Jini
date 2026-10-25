@@ -146,7 +146,11 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // JSON Web Tokens. The "header.payload.signature" triple is distinctive
   // enough that false positives are rare (the literal "eyJ" prefix is the
   // base64 encoding of '{"' which is how every JOSE header starts).
-  { name: 'jwt', regex: /\beyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g },
+  // A match may start only where the segment alphabet does not continue backwards. With `\b`,
+  // `'eyJ-'.repeat(n)` started at every `eyJ` and rescanned the whole run each time (quadratic;
+  // bounding each segment to 8192 still took ~3 s at 160 KB). All starts inside one run share its
+  // end, so the first is the only one that can match; a JWT glued after `-` is no longer matched.
+  { name: 'jwt', regex: /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g },
 
   // Bearer tokens in HTTP Authorization header copy/paste. We only match
   // the value, not the literal 'Bearer ', so the marker stays readable in
@@ -155,8 +159,10 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
 
   // Email addresses. Conservative enough to require a TLD-like trailer. The local part is
   // bounded at the RFC 5321 limit of 64: an unbounded run rescanned the suffix from every word
-  // boundary, so `'a.'.repeat(20000)` blocked ~3 s on a large tool response.
-  { name: 'email', regex: /\b[\w.+-]{1,64}@[\w-]+\.[\w.-]+\b/g },
+  // boundary, so `'a.'.repeat(20000)` blocked ~3 s on a large tool response. Matching starts at
+  // the `@` and reads the local part in a lookbehind (captured as `local`): starting at every word
+  // boundary still cost up to 64 steps per position, ~2.5 s on 10 MiB of `'eyJ-'`.
+  { name: 'email', regex: /@(?<=\b(?<local>[\w.+-]{1,64})@)[\w-]+\.[\w.-]+\b/g },
 
   // IPv4. Reject all-zero / 255.255.255.255-ish junk shapes by gating on
   // each octet being 0-255.
@@ -209,6 +215,8 @@ function markerSource(categories: Iterable<string>): string {
 }
 
 const GENERATED_MARKER = markerSource(GENERATED_CATEGORIES);
+/** Every marker redact can generate from its built-in categories; consumers normalize only these. */
+export const GENERATED_MARKER_RE = new RegExp(GENERATED_MARKER, 'g');
 
 // Credit card sweep is special: a naive 13-19 digit run matches a lot of
 // non-card numbers (timestamps, IDs, hashes). We isolate the candidate
@@ -221,7 +229,7 @@ const API_KEY_QUERY = /([?&](?:key|api_key|api-key)=)[^&#\s,;"']+/gi;
 // The length guard and the per-digit `d < 0 || d > 9` guard from the origin
 // were both dropped here (a documented deviation from the otherwise-verbatim
 // port — see archived provenance ledger): `isLuhnValid` is private with exactly one call
-// site (the `CARD_CANDIDATE.replace` callbacks below), and `CARD_CANDIDATE`'s
+// site (the `CARD_CANDIDATE` span callback in `collectPii` below), and `CARD_CANDIDATE`'s
 // own regex (`\b(?:\d[ -]?){12,18}\d\b`) already guarantees any string
 // reaching here is 13-19 characters, and the preceding `match.replace(/\D/g,
 // '')` strip guarantees every character is an ASCII digit — so both guards
@@ -269,12 +277,16 @@ export const NON_SECRET_TOKEN_RE = /^(?:ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}|deleg
 // its historical lowercase marker contract and uses the unmodified lexical vocabulary.
 // Reject a masked header/query value before matching, so a following field's credential
 // remains available to the global scan rather than being consumed beside the marker.
+// `Authorization: Bearer <token>` names the bearer rule's value, not a label value `Bearer`.
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
-  LABELED_SECRET_RE.source.replace(/\\S\+$/, `(?!Bearer\\s+${GENERATED_MARKER}(?:\\s|$))(?!${GENERATED_MARKER}[;&])(\\S+)`),
+  LABELED_SECRET_RE.source.replace(/\\S\+$/,
+    `(?!Bearer\\s+(?:[A-Za-z0-9_.+/=-]|${GENERATED_MARKER}(?:\\s|$)))(?!${GENERATED_MARKER}[;&])(\\S+)`),
   LABELED_SECRET_RE.flags,
 );
 // Provider failures also echo short bearer values. Exclude our own marker on subsequent passes.
-const SHORT_BEARER_RE = /(?<=Bearer\s+)[A-Za-z0-9_\-.+/=]+/gi;
+// The value is read in a lookahead so the scan resumes at it (`Bearer Bearer x` masks both),
+// as the earlier lookbehind form did, without a lookbehind test at every position.
+const SHORT_BEARER_RE = /Bearer\s+(?=([A-Za-z0-9_\-.+/=]+))/gi;
 const PROVIDER_API_KEY_HEADER = /(x-api-key|api-key|x-goog-api-key)\s*[:=]\s*([^\s,;"']+)/gi;
 const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s]+)/gi;
 // URL userinfo and signed query values have explicit credential context; unlike opaque runs,
@@ -282,8 +294,10 @@ const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s]+)/gi;
 // readable for debugging without exposing credentials that authorize access to the resource.
 // RFC 3986 schemes are short, so the scheme is bounded: an unbounded run rescanned the suffix
 // from every start (`'a.'.repeat(20000)` blocked ~3.6 s). With no leading `\b` the bounded
-// scheme may start mid-word, so glued text before a scheme cannot hide its userinfo.
-const URL_CREDENTIALS_RE = /([a-z][a-z0-9+.-]{0,31}:\/\/)([^/\s?#@]+)@/gi;
+// scheme may start mid-word, so glued text before a scheme cannot hide its userinfo. Matching
+// starts at `://` and checks the scheme in a lookbehind: trying a scheme at every position still
+// cost up to 32 steps each, ~2 s on 10 MiB of `'eyJ-'`.
+const URL_CREDENTIALS_RE = /:\/\/(?<=[a-z][a-z0-9+.-]{0,31}:\/\/)([^/\s?#@]+)@/gi;
 const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|access_token|refresh_token)=)([^&#\s,;"']+)/gi;
 // A secret word must END a name segment (split at . _ - or the name's end): api_key, apiKey,
 // authtoken, X-Amz-Signature and custom.Token-value are masked, while author, keyword, design,
@@ -305,8 +319,9 @@ function isMaskedValue(value: string): boolean {
 
 /**
  * Returns `input` with every recognised secret / PII pattern replaced by a
- * `[REDACTED:<kind>]` marker. Idempotent — re-running on already redacted
- * text only matches new tokens. Defaults to conservative; `{ policy: 'aggressive' }`
+ * `[REDACTED:<kind>]` marker. Lexical rules are idempotent: re-running on already redacted
+ * text only matches new tokens. An exact secret is masked wherever it occurs, including
+ * inside marker text. Defaults to conservative; `{ policy: 'aggressive' }`
  * additionally masks bare 20+ character opaque runs. Exact secrets and extra patterns
  * are honored under either policy.
  *
@@ -322,10 +337,16 @@ export function redactSecrets({ input }: { input: string }, options: SecretRedac
  * caller can attach an audit summary to the trace metadata ('we stripped 2
  * keys + 1 email before send').
  *
- * Exact secrets run last, longest first, so they never split a label, scheme or prefix a lexical
- * rule still needs; a shorter supplied secret must not split a longer one. Secrets a lexical rule
- * could mask only partly also run first (see {@link needsExactPrePass}). Opt-in aggressive
- * opaque rules precede PII rules so a numeric token is not split into phone/card candidates.
+ * Every rule matches the ORIGINAL input and contributes value spans; overlapping or adjacent
+ * spans merge, and one left-to-right pass writes one marker per merged span. Sequential
+ * substitution passes leaked in every order tried: each pass saw text an earlier pass had
+ * changed. Exact secrets run first split labels (`a` inside `password=hunter2` left `hunter2`) and
+ * lost context (`note password=` left `hunter2`); run last, a lexical rule that stopped partway
+ * (the label rule at whitespace, vendor/query rules at `.`, `;`, `&`, `!` or quotes) left the rest
+ * of a known secret visible; protecting spans exempted secrets overlapping a marker; and
+ * overlapping secrets left a tail behind. Opt-in aggressive opaque
+ * rules are collected before PII rules so a numeric token keeps the opaque category when tied.
+ * @complexity O(n·r + n·s + k log k) for n input chars, r rules, s exact-secret bytes and k spans.
  */
 export function redactSecretsWithCounts({ input }: { input: string }, options: SecretRedactionOptions = {}): {
   redacted: string;
@@ -333,35 +354,105 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
 } {
   const counts: Record<string, number> = {};
   if (!input) return { redacted: input, counts };
-  const marker: Marker = (name) => {
-    counts[name] = (counts[name] ?? 0) + 1;
-    return `[REDACTED:${name}]`;
-  };
-  const exact = { marker, secrets: options.exactSecrets ?? [], extraPatterns: options.extraPatterns ?? [] };
-  let out = redactExactSecrets({ ...exact, text: input, secrets: exact.secrets.filter(needsExactPrePass) });
-  out = redactUrlCredentials({ text: out, marker });
-  out = applyPatterns({ text: out, marker, patterns: credentialPatterns(exact.extraPatterns) });
-  out = redactKeyedCredentials({ text: out, marker });
-  if (options.policy === 'aggressive') {
-    const trustedIds = new Set(options.diagnosticToolIds);
-    out = out.replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => trustedIds.has(token) ? token
-      : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) ? match : marker(CATEGORY.opaqueToken)));
+  const spans = mergeSpans(collectSpans({ text: input }, options));
+  let redacted = '';
+  let cursor = 0;
+  for (const { start, end, category } of spans) {
+    counts[category] = (counts[category] ?? 0) + 1;
+    redacted += `${input.slice(cursor, start)}[REDACTED:${category}]`;
+    cursor = end;
   }
-  if (options.redactPii !== false) out = redactPii({ text: out, marker });
-  out = redactExactSecrets({ ...exact, text: out });
-  return { redacted: out, counts };
+  return { redacted: redacted + input.slice(cursor), counts };
 }
 
-/** Records one match of category `name` and returns its `[REDACTED:<name>]` marker. */
-type Marker = (name: string) => string;
+/** A half-open `[start, end)` range of the original input that one rule masks. */
+interface Span {
+  start: number;
+  end: number;
+  category: string;
+}
 
-interface RedactionPass {
+/** Records a span; empty ranges are dropped. */
+type AddSpan = (start: number, end: number, category: string) => void;
+
+interface SpanPass {
   text: string;
-  marker: Marker;
+  add: AddSpan;
 }
 
-// PII rules run last (after credential and opt-in opaque rules) and only when PII redaction is on;
-// splitting once keeps each list in PATTERNS order.
+/** Every rule's spans over the original text, in rule-precedence order (see {@link mergeSpans}). */
+function collectSpans({ text }: { text: string }, options: SecretRedactionOptions): Span[] {
+  const spans: Span[] = [];
+  const add: AddSpan = (start, end, category) => {
+    if (end > start) spans.push({ start, end, category });
+  };
+  collectUrlCredentials({ text, add });
+  collectPatterns({ text, add, patterns: credentialPatterns(options.extraPatterns ?? []) });
+  collectKeyedCredentials({ text, add });
+  collectLabeledSecrets({ text, add }, spans);
+  if (options.policy === 'aggressive') collectOpaqueTokens({ text, add }, new Set(options.diagnosticToolIds));
+  if (options.redactPii !== false) collectPii({ text, add }, spans);
+  collectExactSecrets({ text, add, secrets: options.exactSecrets ?? [] });
+  return spans;
+}
+
+interface MergedSpan extends Span {
+  rank: number;
+  categoryLength: number;
+}
+
+/** Sorts spans and merges overlapping or adjacent ones; masking whole merged runs means no rule's
+ * leftover can expose part of another rule's value.
+ * Category rule: the longest constituent span names the merged span; on a tie the earlier rule in
+ * {@link collectSpans} wins, so a lexical rule labels a known secret it matches exactly
+ * (`Bearer <secret>` stays `bearer_token`) and the exact-secret category marks what only it covers.
+ * @complexity O(k log k) time, O(k) space for k spans. */
+function mergeSpans(spans: readonly Span[]): Span[] {
+  const ordered = spans.map((span, rank) => ({ ...span, rank })).sort((a, b) => a.start - b.start);
+  const merged: MergedSpan[] = [];
+  for (const span of ordered) {
+    const length = span.end - span.start;
+    const last = merged.at(-1);
+    if (!last || span.start > last.end) {
+      merged.push({ ...span, categoryLength: length });
+      continue;
+    }
+    last.end = Math.max(last.end, span.end);
+    if (length > last.categoryLength || (length === last.categoryLength && span.rank < last.rank)) {
+      Object.assign(last, { category: span.category, rank: span.rank, categoryLength: length });
+    }
+  }
+  return merged;
+}
+
+/** Adds one span per match of `regex`; `spanOf` maps a match to its value range, or skips it. */
+function collectMatches(
+  { text, add }: SpanPass,
+  regex: RegExp,
+  spanOf: (match: RegExpMatchArray, index: number) => Span | undefined,
+): void {
+  // Clone so a caller-owned or shared regex never carries lastIndex state across requests;
+  // non-global extra patterns use the same every-occurrence contract as the built-ins.
+  const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
+  for (const match of text.matchAll(new RegExp(regex.source, flags))) {
+    const span = spanOf(match, match.index ?? 0);
+    if (span) add(span.start, span.end, span.category);
+  }
+}
+
+/** Span of the match's trailing capture `group`, unless that value is already a generated marker
+ * (already masked values are not new credentials and should not inflate the audit count). */
+function trailingValue(category: string, group: number) {
+  return (match: RegExpMatchArray, index: number): Span | undefined => {
+    const value = match[group] ?? '';
+    if (isMaskedValue(value)) return undefined;
+    const end = index + match[0].length;
+    return { start: end - value.length, end, category };
+  };
+}
+
+// PII rules are collected last (after credential and opt-in opaque rules) and only when PII
+// redaction is on; splitting once keeps each list in PATTERNS order.
 const PII_PATTERN_NAMES: readonly string[] = ['email', 'ipv4', 'phone'];
 const NON_PII_PATTERNS = PATTERNS.filter((pattern) => !PII_PATTERN_NAMES.includes(pattern.name));
 const PII_PATTERNS = PATTERNS.filter((pattern) => PII_PATTERN_NAMES.includes(pattern.name));
@@ -375,135 +466,143 @@ function credentialPatterns(extraPatterns: readonly SecretRedactionPattern[]): S
   ];
 }
 
-function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: readonly SecretRedactionPattern[] }): string {
-  let out = text;
+function collectPatterns({ text, add, patterns }: SpanPass & { patterns: readonly SecretRedactionPattern[] }): void {
   for (const { name, regex } of patterns) {
-    // Clone host/global regexes so lastIndex state never leaks across requests. Named extra
-    // patterns use the same global replacement contract as the built-in vocabulary.
-    const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
-    out = out.replace(new RegExp(regex.source, flags), () => marker(name));
+    collectMatches({ text, add }, regex, (match, index) => ({ start: index, end: index + match[0].length, category: name }));
   }
-  return out;
-}
-
-// The final pass alone leaked secrets a lexical rule masks only partly: the label rule stops at
-// whitespace (`password=correct horse battery` kept `horse battery`), vendor/query rules stop at
-// `.`, `;`, `,`, quotes or `&`, and the remaining fragment no longer matches the whole secret.
-// Such secrets, and any of 16+ chars, are masked before the lexical rules as well. Short plain
-// secrets stay final-pass-only so they cannot split a label before its value is masked.
-const PRE_PASS_SECRET_CHARS_RE = /[\s.;,"'`]/;
-function needsExactPrePass(secret: string | undefined | null): boolean {
-  return typeof secret === 'string' && (secret.length >= 16 || PRE_PASS_SECRET_CHARS_RE.test(secret));
-}
-
-// Exact secrets match as plain substrings at any length (a secret glued into other text stays
-// masked) and run after every other rule. Run first, short ones split labels before the label rules ran
-// (`a` inside `password=hunter2` broke the label and left `hunter2` visible; `api_key` swallowed
-// the whole `api_key=` label); protecting label/scheme spans instead let a secret shaped like a
-// scheme (`s3cr3t99://host`) survive. Once the values are masked, a short secret can only split an
-// already-processed label word, which is cosmetic. Only generated markers are protected, so an
-// earlier marker is never split (`a` inside `exact_secret`, `email` inside `[REDACTED:email]`).
-// Case-sensitive: redact never emits `[REDACTED:EMAIL]`, so that text gets no protection.
-function protectedSpanRe(extraPatterns: readonly SecretRedactionPattern[]): RegExp {
-  const markers = markerSource([...GENERATED_CATEGORIES, ...extraPatterns.map(({ name }) => name)]);
-  return new RegExp(`${markers}|\\[redacted\\]`, 'g');
-}
-
-interface Span {
-  start: number;
-  end: number;
-}
-
-// Replacements arrive in ascending offset order and matchAll spans are sorted and disjoint, so
-// one forward-only cursor decides every overlap in O(matches + spans) rather than their product.
-function overlapsSpan(spans: readonly Span[]): (start: number, end: number) => boolean {
-  let next = 0;
-  return (start, end) => {
-    while ((spans[next]?.end ?? Infinity) <= start) next += 1;
-    return (spans[next]?.start ?? Infinity) < end;
-  };
-}
-
-/** Masks caller-supplied secrets verbatim, longest first, ignoring empty and non-string entries;
- * an occurrence overlapping a generated marker is left intact.
- * @complexity O(secrets x text) time, O(text) space per secret. */
-function redactExactSecrets({ text, marker, secrets, extraPatterns }: RedactionPass & {
-  secrets: ReadonlyArray<string | undefined | null>;
-  extraPatterns: readonly SecretRedactionPattern[];
-}): string {
-  const usable = [...new Set(secrets.filter(
-    (secret): secret is string => typeof secret === 'string' && secret.length > 0,
-  ))].sort((a, b) => b.length - a.length);
-  if (usable.length === 0) return text;
-  const spanRe = protectedSpanRe(extraPatterns);
-  let out = text;
-  for (const secret of usable) {
-    // Recomputed per secret: a longer secret's marker is protected from the shorter ones.
-    const spans = [...out.matchAll(spanRe)].map(({ index, 0: span }) => ({ start: index, end: index + span.length }));
-    const isProtected = overlapsSpan(spans);
-    out = out.replace(new RegExp(escapeRegExp(secret), 'g'), (match, offset: number) =>
-      isProtected(offset, offset + match.length) ? match : marker(CATEGORY.exactSecret));
-  }
-  return out;
 }
 
 /** URL userinfo and signed query values: credentials recognized by their URL context. */
-function redactUrlCredentials({ text, marker }: RedactionPass): string {
-  return text
-    .replace(URL_CREDENTIALS_RE, (match, scheme: string, userinfo: string) =>
-      isMaskedValue(userinfo) ? match : `${scheme}${marker(CATEGORY.urlCredentials)}@`,
-    )
-    .replace(SIGNED_QUERY_RE, (match, prefix: string, value: string) =>
-      isMaskedValue(value) ? match : `${prefix}${marker(CATEGORY.signedQuery)}`,
-    );
+function collectUrlCredentials(pass: SpanPass): void {
+  collectMatches(pass, URL_CREDENTIALS_RE, (match, index) => {
+    const userinfo = match[1] ?? '';
+    if (isMaskedValue(userinfo)) return undefined;
+    const start = index + '://'.length;
+    return { start, end: start + userinfo.length, category: CATEGORY.urlCredentials };
+  });
+  collectMatches(pass, SIGNED_QUERY_RE, trailingValue(CATEGORY.signedQuery, 2));
 }
 
-/** Values named by a header, query parameter, bearer prefix or credential label. */
-function redactKeyedCredentials({ text, marker }: RedactionPass): string {
-  let out = text.replace(API_KEY_HEADER, (_match, prefix: string, quote: string, name: string, separator: string, value: string) => {
-    // Already masked values are not new credentials and should not inflate the audit count.
-    if (isMaskedValue(value)) return `${prefix}${quote}${name}${quote}${separator}${value}`;
-    const masked = marker(CATEGORY.apiKeyHeader);
-    const redactedValue = value.startsWith('"') ? `"${masked}"` : masked;
-    return `${prefix}${quote}${name}${quote}${separator}${redactedValue}`;
+/** Values named by a header, query parameter or bearer prefix. Each rule matches the original
+ * text, so overlapping rules (the provider query rule includes a fragment the core rule stops
+ * before) merge into one span instead of one leaving a credential suffix beside the other's marker. */
+function collectKeyedCredentials(pass: SpanPass): void {
+  collectMatches(pass, API_KEY_HEADER, (match, index) => {
+    const value = match[5] ?? '';
+    if (isMaskedValue(value)) return undefined;
+    const end = index + match[0].length;
+    // A quoted value keeps its quotes around the marker.
+    const quoted = value.startsWith('"') ? 1 : 0;
+    return { start: end - value.length + quoted, end: end - quoted, category: CATEGORY.apiKeyHeader };
   });
-  // The provider rule includes a query fragment in an echoed key; mask that whole value
-  // before the narrower core query rule can split it and leave a credential suffix behind.
-  out = out.replace(PROVIDER_API_KEY_QUERY, (match, prefix: string, value: string) =>
-    isMaskedValue(value) ? match : `${prefix}${marker(CATEGORY.apiKeyQuery)}`,
-  );
-  out = out.replace(API_KEY_QUERY, (match, prefix: string) =>
-    isMaskedValue(match.slice(prefix.length)) ? match : `${prefix}${marker(CATEGORY.apiKeyQuery)}`,
-  );
-  out = out.replace(SHORT_BEARER_RE, () => marker(CATEGORY.bearerToken));
-  out = out.replace(PROVIDER_API_KEY_HEADER, (match, name: string, value: string) =>
-    isMaskedValue(value) ? match : `${name}: ${marker(CATEGORY.apiKeyHeader)}`,
-  );
-  // Sweep other URL parameters before the general labeled rule can consume harmless
-  // neighboring parameters (`password=x&page=2` used to lose `&page=2`).
-  out = redactUrlSecretParams({ text: out, marker });
-  return out.replace(MASK_AWARE_LABELED_SECRET_RE, (match, _label: string, value: string) => {
-    // Replace only the captured value, retaining labels even when no whitespace separates
-    // them. Glued credential suffixes fail the complete-marker check and remain maskable.
-    if (isMaskedValue(value)) return match;
-    return `${match.slice(0, -value.length)}${marker(CATEGORY.labeledSecret)}`;
+  collectMatches(pass, PROVIDER_API_KEY_QUERY, trailingValue(CATEGORY.apiKeyQuery, 2));
+  collectMatches(pass, API_KEY_QUERY, (match, index) => {
+    const start = index + (match[1] ?? '').length;
+    const end = index + match[0].length;
+    return isMaskedValue(match[0].slice(start - index)) ? undefined : { start, end, category: CATEGORY.apiKeyQuery };
   });
+  collectMatches(pass, SHORT_BEARER_RE, (match, index) => {
+    const start = index + match[0].length;
+    return { start, end: start + (match[1] ?? '').length, category: CATEGORY.bearerToken };
+  });
+  collectMatches(pass, PROVIDER_API_KEY_HEADER, trailingValue(CATEGORY.apiKeyHeader, 2));
+  collectUrlSecretParams(pass);
 }
 
-/** Secret-named URL query/fragment values; values already masked above keep their category. */
-function redactUrlSecretParams({ text, marker }: RedactionPass): string {
-  return text.replace(URL_SECRET_PARAM_RE, (match, name: string) => {
-    const separator = match.indexOf('=') + 1;
-    if (isMaskedValue(match.slice(separator))) return match;
-    const category = LABELED_URL_PARAM_NAME_RE.test(name) ? CATEGORY.labeledSecret : CATEGORY.urlSecretParam;
-    return `${match.slice(0, separator)}${marker(category)}`;
+/** Secret-named URL query/fragment values; values already masked keep their category. */
+function collectUrlSecretParams(pass: SpanPass): void {
+  collectMatches(pass, URL_SECRET_PARAM_RE, (match, index) => {
+    const separator = match[0].indexOf('=') + 1;
+    if (isMaskedValue(match[0].slice(separator))) return undefined;
+    const category = LABELED_URL_PARAM_NAME_RE.test(match[1] ?? '') ? CATEGORY.labeledSecret : CATEGORY.urlSecretParam;
+    return { start: index + separator, end: index + match[0].length, category };
   });
 }
 
-/** Email/IPv4/phone rules, then Luhn-checked card candidates. */
-function redactPii({ text, marker }: RedactionPass): string {
-  return applyPatterns({ text, marker, patterns: PII_PATTERNS }).replace(CARD_CANDIDATE, (match) => {
-    const digits = match.replace(/\D/g, '');
-    return isLuhnValid(digits) ? marker(CATEGORY.creditCard) : match;
-  });
+/** Label values (`password=...`): only the captured value is masked, so the label stays readable
+ * even when no whitespace separates it; a glued credential suffix fails the complete-marker check.
+ * A label whose value an earlier rule already masks through its end, or up to a `;`/`&` field
+ * separator, is skipped and the scan resumes at the value, so `api-key=x;password=y` and
+ * `?password=x&page=2` keep the following field instead of masking it beside the first value.
+ * @complexity O(n + k) for n chars and k earlier spans; each skip resumes past the label. */
+function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]): void {
+  const ends = new Map<number, number[]>();
+  for (const { start, end } of earlier) {
+    const list = ends.get(start);
+    if (list) list.push(end);
+    else ends.set(start, [end]);
+  }
+  const regex = new RegExp(MASK_AWARE_LABELED_SECRET_RE.source, MASK_AWARE_LABELED_SECRET_RE.flags);
+  for (let match = regex.exec(text); match; match = regex.exec(text)) {
+    const value = match[2] ?? '';
+    const end = match.index + match[0].length;
+    const start = end - value.length;
+    if (isCoveredField(text, ends, start, end) || isMaskedValue(value)) regex.lastIndex = start;
+    else add(start, end, CATEGORY.labeledSecret);
+  }
+}
+
+/** True when an earlier span starting at the label value (inside its quotes, for a quoted value)
+ * reaches the value's end, its closing quote, or a `;`/`&` field separator. */
+function isCoveredField(text: string, ends: ReadonlyMap<number, readonly number[]>, start: number, end: number): boolean {
+  const quoted = /["']/.test(text[start] ?? '') ? 1 : 0;
+  const spanEnds = ends.get(start) ?? ends.get(start + quoted) ?? [];
+  return spanEnds.some((spanEnd) => spanEnd >= end - quoted || /[;&]/.test(text[spanEnd] ?? ''));
+}
+
+/** Opt-in bare opaque runs; whole trusted dotted IDs and non-secret diagnostic tokens stay readable. */
+function collectOpaqueTokens({ text, add }: SpanPass, trustedIds: ReadonlySet<string>): void {
+  for (const token of text.matchAll(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g)) {
+    if (trustedIds.has(token[0])) continue;
+    for (const run of token[0].matchAll(OPAQUE_TOKEN_RE)) {
+      if (NON_SECRET_TOKEN_RE.test(run[0])) continue;
+      const start = (token.index ?? 0) + (run.index ?? 0);
+      add(start, start + run[0].length, CATEGORY.opaqueToken);
+    }
+  }
+}
+
+/** Email/IPv4/phone rules, then Luhn-checked card candidates. The email rule matches from its `@`
+ * with the local part in its `local` lookbehind group. An "email" whose `@` ends URL userinfo
+ * (`scheme://user:pw@host`) is skipped: its local part is already the credential span, and
+ * merging it would mask the host, which stays readable for debugging. */
+function collectPii(pass: SpanPass, earlier: readonly Span[]): void {
+  const userinfoEnds = new Set(earlier.filter(({ category }) => category === CATEGORY.urlCredentials).map(({ end }) => end));
+  for (const { name, regex } of PII_PATTERNS) {
+    collectMatches(pass, regex, (match, index) => name === 'email' && userinfoEnds.has(index) ? undefined
+      : { start: index - (match.groups?.local?.length ?? 0), end: index + match[0].length, category: name });
+  }
+  collectMatches(pass, CARD_CANDIDATE, (match, index) =>
+    isLuhnValid(match[0].replace(/\D/g, '')) ? { start: index, end: index + match[0].length, category: CATEGORY.creditCard } : undefined);
+}
+
+/** Each usable secret plus its JSON-escaped spelling (`ab"cd` echoed inside JSON as `ab\"cd`). */
+function exactNeedles(secrets: ReadonlyArray<string | undefined | null>): Set<string> {
+  const needles = new Set<string>();
+  for (const secret of secrets) {
+    if (typeof secret !== 'string' || secret.length === 0) continue;
+    needles.add(secret);
+    needles.add(JSON.stringify(secret).slice(1, -1));
+  }
+  return needles;
+}
+
+/** Caller-supplied secrets as plain substrings at any length and every occurrence, overlapping
+ * ones included (a secret glued into other text stays masked). Matching the original text means
+ * a short secret can no longer break a label or prefix before that rule sees it; it can only split
+ * a label word visually, which is accepted because every value is still covered.
+ * @complexity O(needles x text) time; consecutive overlapping hits of one needle share a span. */
+function collectExactSecrets({ text, add, secrets }: SpanPass & { secrets: ReadonlyArray<string | undefined | null> }): void {
+  for (const needle of exactNeedles(secrets)) {
+    let runStart = -1;
+    let runEnd = -1;
+    for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
+      if (at > runEnd) {
+        add(runStart, runEnd, CATEGORY.exactSecret);
+        runStart = at;
+      }
+      runEnd = at + needle.length;
+    }
+    add(runStart, runEnd, CATEGORY.exactSecret);
+  }
 }
