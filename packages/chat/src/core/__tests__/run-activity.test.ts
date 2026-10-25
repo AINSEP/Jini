@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../events.js';
 import { deriveRunActivity, describeRunActivity, formatActivityClock, humanizeToolName, isAwaitingAnswer } from '../run-activity.js';
+import { acceptedInputUserEvent } from '../accepted-input.js';
+import { SURFACE_QUESTION_META_KEY } from '../question-answer.js';
 
 const t = (key: string, vars?: Record<string, string | number>) =>
   vars ? key.replace(/\{(\w+)\}/g, (_m, name: string) => String(vars[name])) : key;
@@ -10,6 +12,35 @@ function line(events: AgentEvent[], seconds = 0, idleMs = 0): string {
 }
 
 describe('run activity line — one table, exact words', () => {
+  it('keeps a standalone question waiting across startup activity until its own receipt is replayed', () => {
+    const uri = 'ui://host/ask-choice/one';
+    const card: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: {
+      uri, mimeType: 'text/html', text: '<custom-choice></custom-choice>',
+      _meta: { [SURFACE_QUESTION_META_KEY]: { title: 'Agent plugins', options: [{ value: 'github', label: 'GitHub' }] } },
+    } } };
+    const events: AgentEvent[] = [card, { kind: 'text', text: 'Preparing the session.' },
+      { kind: 'status', code: 'thinking', label: 'Thinking' }];
+    expect(line(events, 7, 7_000)).toBe('Waiting for your answer above');
+    expect(line(events, 31, 31_000)).toBe('Waiting for your answer above');
+    const receipt = (surfaceUri: string) => acceptedInputUserEvent({ input: {
+      id: `answer:${surfaceUri}`, text: 'Agent plugins: GitHub', answerText: 'GitHub', surfaceUri,
+    } }, { receipt: 'accepted' });
+    expect(isAwaitingAnswer({ events: [...events, receipt('ui://host/ask-choice/other')] })).toBe(true);
+    const replayed = JSON.parse(JSON.stringify([...events, receipt(uri), receipt(uri)]));
+    expect(isAwaitingAnswer({ events: replayed })).toBe(false);
+    expect(line(replayed, 31, 31_000)).not.toContain('Waiting');
+  });
+
+  it('stops waiting on an explicit question once tool work follows it without a receipt (expired or skipped)', () => {
+    const card: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: {
+      uri: 'ui://host/ask-choice/expired', mimeType: 'text/html', text: '<form></form>',
+      _meta: { [SURFACE_QUESTION_META_KEY]: { title: 'Agent plugins', options: [] } },
+    } } };
+    const events: AgentEvent[] = [card, { kind: 'tool_use', id: 'list-1', name: 'mcp__supabase__list_projects', input: {} }];
+    expect(isAwaitingAnswer({ events })).toBe(false);
+    expect(line(events, 5, 5_000)).toBe('Running List Projects… 5 s');
+  });
+
   it.each(['<form><input type="checkbox"></form>', '<button data-mcpui-action="confirm">Allow</button>'])(
     'waits for a standalone interactive surface without a tool call: %s', html => {
       const event: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: { text: html } } };

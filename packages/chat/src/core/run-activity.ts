@@ -21,6 +21,8 @@ import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/agentic/a2ui';
 import type { AgentEvent } from './events.js';
 import { isDelegatedWrapperToolName } from './tool-events.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
+import { SURFACE_QUESTION_META_KEY } from './question-answer.js';
+import { acceptedInputEvent } from './accepted-input.js';
 
 /** The latest thing a running turn is doing. */
 export type RunActivity =
@@ -96,6 +98,7 @@ interface Scan {
   lastVisible: { index: number; kind: AgentEvent['kind'] } | null;
   lastCardIndex: number;
   standaloneCardIndex: number;
+  pendingQuestionIndex: number;
   lastWorkIndex: number;
   retry: { index: number; data: unknown } | null;
   progress: { index: number; seconds: number } | null;
@@ -104,6 +107,7 @@ interface Scan {
   displayOnlySurfaces: Set<string>;
   /** See {@link RunActivityOptions.isAnsweredCard}. */
   isAnsweredCard: IsAnsweredCard | undefined;
+  answeredSurfaces: ReadonlySet<string>;
 }
 
 /** Whether the person already answered a card, before its tool call returned. */
@@ -130,12 +134,20 @@ function isVisible(event: AgentEvent): boolean {
  */
 function isAnswerCard(scan: Scan, name: string, data: unknown): boolean {
   if (!CARD_EXT_NAMES.has(name)) return false;
+  if (hasSurfaceReceipt({ scan, name, data })) return false;
   if (scan.isAnsweredCard?.({ name, data }) === true) return false;
   if (name !== A2UI_EXT_NAME) return true;
   const displayOnlyId = displayOnlySurfaceIdOf({ message: data });
   if (displayOnlyId !== undefined) scan.displayOnlySurfaces.add(displayOnlyId);
   const surfaceId = a2uiSurfaceIdOf({ message: data });
   return surfaceId === undefined || !scan.displayOnlySurfaces.has(surfaceId);
+}
+
+/** A replayed standalone receipt closes only the resource it answered. O(1), no effects. */
+function hasSurfaceReceipt({ scan, name, data }: { scan: Scan; name: string; data: unknown }, _options = {}): boolean {
+  if (name !== 'mcp-ui' || !isRecord(data)) return false;
+  const resource = data.resource;
+  return isRecord(resource) && typeof resource.uri === 'string' && scan.answeredSurfaces.has(resource.uri);
 }
 
 function scanStatus(
@@ -158,10 +170,14 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
     scan.lastVisible = { index, kind: event.kind };
     scan.visibleCount += 1;
   }
+  // Tool work after an explicit question proves the run moved past it (expired, skipped or aborted
+  // without a receipt); otherwise its waiting line would outlive the question for the whole run.
   if (event.kind === 'tool_use') {
+    scan.pendingQuestionIndex = -1;
     scan.open = scan.open.filter((tool) => tool.id !== event.id);
     scan.open.push({ id: event.id, name: event.name, input: event.input, index });
   } else if (event.kind === 'tool_result') {
+    scan.pendingQuestionIndex = -1;
     scan.open = scan.open.filter((tool) => tool.id !== event.toolUseId);
   } else if (event.kind === 'ext') {
     scanCard({ scan, event, index });
@@ -182,6 +198,10 @@ function scanCard({ scan, event, index }: {
   scan.lastCardIndex = index;
   const resource = isRecord(event.data) ? event.data.resource : undefined;
   const html = isRecord(resource) ? resource.text : undefined;
+  const meta = isRecord(resource) ? resource._meta : undefined;
+  // A producer can retain its question before flattening it into a document (including custom forms).
+  const question = isRecord(meta) ? meta[SURFACE_QUESTION_META_KEY] : undefined;
+  if (isRecord(question)) scan.pendingQuestionIndex = index;
   if (typeof html === 'string' && /<form\b|data-mcpui-action\s*=/i.test(html)) scan.standaloneCardIndex = index;
 }
 
@@ -228,12 +248,23 @@ function openToolSignal(
 }
 
 function latestSignal({ scan }: { scan: Scan }, _optional: {} = {}): Pick<RunActivityState, 'activity' | 'key'> {
+  // Explicit standalone questions wait for their receipt; unrelated startup/model activity cannot
+  // establish that a person answered. Markup-only legacy cards retain their existing work heuristic.
+  if (scan.pendingQuestionIndex >= 0) {
+    return { activity: { kind: 'awaiting-answer' }, key: `card:${scan.pendingQuestionIndex}` };
+  }
   const lastVisibleIndex = scan.lastVisible?.index ?? -1;
   if (scan.retry && scan.retry.index > lastVisibleIndex) {
     return { activity: retryingActivity({ data: scan.retry.data }), key: `retry:${lastVisibleIndex}` };
   }
   const newestOpen = scan.open[scan.open.length - 1];
   if (newestOpen) return openToolSignal({ scan, newestOpen });
+  return idleSignal({ scan });
+}
+
+/** The no-open-tool fallback; legacy markup alone stops waiting when work follows it. O(1). */
+function idleSignal({ scan }: { scan: Scan }, _options = {}): Pick<RunActivityState, 'activity' | 'key'> {
+  const lastVisibleIndex = scan.lastVisible?.index ?? -1;
   if (scan.standaloneCardIndex > scan.lastWorkIndex) {
     return { activity: { kind: 'awaiting-answer' }, key: `card:${scan.standaloneCardIndex}` };
   }
@@ -251,13 +282,17 @@ function latestSignal({ scan }: { scan: Scan }, _optional: {} = {}): Pick<RunAct
  * card); the newest open tool call; else
  * writing (last visible event is text) or thinking.
  *
- * @complexity O(n) in events, O(open tool calls) extra space.
+ * @complexity O(n) time in events, O(open tool calls + answered surfaces) extra space.
  */
 export function deriveRunActivity(
   { events }: { events: readonly AgentEvent[] | undefined },
   { isAnsweredCard }: RunActivityOptions = {},
 ): RunActivityState {
-  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, standaloneCardIndex: -1, lastWorkIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set(), isAnsweredCard };
+  const answeredSurfaces = new Set((events ?? []).flatMap(event => {
+    const uri = acceptedInputEvent({ event })?.data.surfaceUri;
+    return typeof uri === 'string' ? [uri] : [];
+  }));
+  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, standaloneCardIndex: -1, pendingQuestionIndex: -1, lastWorkIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set(), isAnsweredCard, answeredSurfaces };
   (events ?? []).forEach((event, index) => scanEvent(scan, event, index));
   return { ...latestSignal({ scan }), visibleCount: scan.visibleCount };
 }

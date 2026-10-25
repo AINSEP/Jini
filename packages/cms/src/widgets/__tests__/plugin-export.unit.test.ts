@@ -62,6 +62,39 @@ describe('plugin marker serialization and substitution', () => {
 });
 
 describe('plugin export template policy', () => {
+  it.each(['/some/path', 'https://example.com/path', '//example.com/path', 'javascript:alert(1)'])('refuses literal URL %s in every supported URL attribute', value => {
+    for (const template of [`<a href="${value}">Link</a>`, `<img src="${value}" alt="">`, `<form action="${value}"></form>`]) {
+      expect(() => fillPluginExportTemplate({ definition: { ...definition, template } })).toThrow();
+    }
+  });
+
+  it.each([
+    '<a HREF="&#47;some/path">Link</a>', '<a href=/some/path>Link</a>', '<a href="">Link</a>',
+    '<a href="/prefix{{host.start}}">Link</a>', '<a href="{{host.start}}/suffix">Link</a>',
+    '<a href="{{host.start}}{{host.start}}">Link</a>', '<a href="{{host.links.start}}">Link</a>',
+    '<img src="{{host.assets.mark}}?literal=1" alt="">',
+  ])('requires one complete declared host URL slot: %s', template => {
+    expect(() => fillPluginExportTemplate({ definition: { ...definition, template } }))
+      .toThrow('plugin export URL must be a whole hostLinks or assets slot');
+  });
+
+  it.each([
+    ['<a href="{{host.signIn}}">Link</a>', '<a href="/member/sign-in">Link</a>'],
+    ['<img src="{{host.assets.mark}}" alt="">', '<img src="/plugin-assets/mark.png" alt="">'],
+  ])('accepts the host-resolved URL slot in %s', (template, expected) => {
+    expect(fillPluginExportTemplate({ definition: { ...definition, template,
+      host: { signIn: '/member/sign-in', assets: { mark: '/plugin-assets/mark.png' } },
+    } })).toBe(expected);
+  });
+
+  it.each([
+    '<img srcset="/image.png 1x" alt="">', '<button formaction="/submit">Submit</button>',
+    '<div poster="/poster.png"></div>', '<a xlink:href="/link">Link</a>',
+    '<span style="background:url(/image.png)">Image</span>',
+  ])('retains the fragment policy refusal for unsupported URL sinks: %s', template => {
+    expect(() => fillPluginExportTemplate({ definition: { ...definition, template } })).toThrow();
+  });
+
   it('escapes text and attributes without interpreting values as template source', () => {
     const label = `Owner's " & </span><script>x</script> {{host.secret}}`;
     const html = fillPluginExportTemplate({ definition: { ...definition, template: '<span title="{{props.label}}">{{props.label}}</span>', props: { label } } });
@@ -93,6 +126,16 @@ describe('plugin export template policy', () => {
 });
 
 describe('plugin export occurrence resolution', () => {
+  it.each(['/some/path', 'https://example.com/path', '//example.com/path', 'javascript:alert(1)'])('keeps authored fallback for literal URL %s and still renders the next occurrence', async value => {
+    const html = snippet().replace('></div>', '><b>Author fallback</b></div>') + snippet();
+    let calls = 0;
+    const result = await resolve(html, { resolve: async () => calls++ === 0
+      ? { ...definition, template: `<a href="${value}">Refused link</a>` } : definition });
+    expect([...result.keys()]).toEqual(['plugin:2']);
+    expect(substituteHtmlEmbeds({ html, resolve: ref => result.get(ref.id!)?.props as unknown as PluginExportRender | undefined }))
+      .toBe('<div><b>Author fallback</b></div><div data-plugin="example/login" data-component="button" data-embed-v="1" data-consent-category="necessary">' + rendered.html + '</div>');
+  });
+
   it('does not require a port and never emits a placeholder IR', async () => {
     expect([...await resolve(snippet())]).toEqual([]);
   });

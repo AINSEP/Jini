@@ -3,6 +3,7 @@ import { parseUIResource, readActionPlan, type UIResource } from '@jini-ai/ui/mc
 import { useMemo, useRef } from 'react';
 import type { AgentEvent } from '../../core/events.js';
 import type { AcceptedInputProjectionOptions } from '../../core/accepted-input.js';
+import { SURFACE_QUESTION_META_KEY } from '../../core/question-answer.js';
 import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
 import { useExtEventRendererRegistry } from '../hooks/context.js';
 
@@ -35,12 +36,19 @@ export function useSurfaceAnswerContexts({ events }: { events: AgentEvent[] | un
 export function surfaceQuestionInput(
   { resource, input }: { resource: UIResource | undefined; input: unknown }, _options = {},
 ): unknown {
+  const context = surfaceQuestionContext({ resource });
+  if (hasQuestionOptions({ input: context })) return context;
   if (hasQuestionOptions({ input })) return input;
   if (resource === undefined || typeof DOMParser === 'undefined') return input;
   const { title, options } = markupQuestion({ resource });
   if (!title && options.length === 0) return input;
   // The call's explicit question remains authoritative. Markup fills the standalone form's gap.
   return { title, options, ...(typeof input === 'object' && input !== null ? input : {}) };
+}
+
+/** Read producer-supplied display context without parsing or executing the surface. O(1). */
+function surfaceQuestionContext({ resource }: { resource: UIResource | undefined }, _options = {}): unknown {
+  return resource?.resource._meta?.[SURFACE_QUESTION_META_KEY];
 }
 
 /** The title and offered choices an inert parse of the surface document shows. */
