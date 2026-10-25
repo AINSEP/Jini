@@ -139,10 +139,60 @@ describe('generation retirement and provider resources', () => {
       if (retire === 'detach') registry.detach({ pluginId: manifest.id });
       if (retire === 'replace') publish({ registry, factory: () => ({ port: 'new', dispose() {} }) });
       if (retire === 'shutdown') await host.dispose({});
+      // Retirement settles initialization without waiting for the factory.
+      expect(await initialization).toBeUndefined(); expect(dispose).not.toHaveBeenCalled();
       pending.resolve({ port: 'late', dispose });
-      expect(await initialization).toBeUndefined(); expect(dispose).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(dispose).toHaveBeenCalledTimes(1));
       await host.dispose({}); expect(dispose).toHaveBeenCalledTimes(1);
     }
+  });
+  it('a never-settling factory cannot hang boot: detach and shutdown settle it, the deadline rejects it', async () => {
+    for (const retire of ['detach', 'shutdown'] as const) {
+      const registry = createPluginContributionRegistry({});
+      publish({ registry, factory: () => new Promise<PluginProviderResource>(() => {}) });
+      const host = createPluginProviderHost({ contributions: registry, contracts: [contract] }, { initializeTimeoutMs: 60_000 });
+      const initialization = host.initialize({ ...declaration, input: {} });
+      if (retire === 'detach') registry.detach({ pluginId: manifest.id });
+      const shutdown = host.dispose({});
+      expect(await initialization).toBeUndefined(); await shutdown;
+    }
+    const registry = createPluginContributionRegistry({}), dispose = vi.fn(), pending = deferred<PluginProviderResource>();
+    publish({ registry, factory: () => pending.promise });
+    const host = createPluginProviderHost({ contributions: registry, contracts: [contract] }, { initializeTimeoutMs: 5 });
+    await expect(host.initialize({ ...declaration, input: {} })).rejects.toMatchObject({ name: 'PluginProviderError', message: 'provider initialization timed out' });
+    // The generation is still current, but nobody holds a lease for the late result: release it.
+    pending.resolve({ port: 'ok', dispose });
+    await vi.waitFor(() => expect(dispose).toHaveBeenCalledTimes(1));
+    await host.dispose({}); expect(dispose).toHaveBeenCalledTimes(1);
+    for (const initializeTimeoutMs of [0, -1, 1.5, Number.NaN]) {
+      expect(() => createPluginProviderHost({ contributions: registry, contracts: [contract] }, { initializeTimeoutMs })).toThrow('invalid provider initialization timeout');
+    }
+  });
+  it('reads the port once after cleanup exists: a throwing getter is disposed, a changing getter leases the validated value', async () => {
+    const registry = createPluginContributionRegistry({}), dispose = vi.fn();
+    const throwing = { dispose, get port(): unknown { throw new Error('port getter failed'); } };
+    let reads = 0;
+    const changing = { dispose, get port(): unknown { reads++; return reads === 1 ? 'ok' : 42; } };
+    const resources: PluginProviderResource[] = [throwing, changing];
+    publish({ registry, factory: () => resources.shift()! });
+    const host = createPluginProviderHost({ contributions: registry, contracts: [contract] });
+    await expect(host.initialize({ ...declaration, input: {} })).rejects.toThrow('port getter failed');
+    expect(dispose).toHaveBeenCalledTimes(1);
+    const lease = (await host.initialize({ ...declaration, input: {} }))!;
+    expect(lease.port).toBe('ok'); expect(lease.port).toBe('ok'); expect(reads).toBe(1);
+    await host.dispose({}); expect(dispose).toHaveBeenCalledTimes(2);
+  });
+  it('shutdown waits for a direct lease disposal that is still in flight', async () => {
+    const registry = createPluginContributionRegistry({}), release = deferred<void>();
+    publish({ registry, factory: () => ({ port: 'ok', dispose: () => release.promise }) });
+    const host = createPluginProviderHost({ contributions: registry, contracts: [contract] }, { disposeTimeoutMs: 60_000 });
+    const lease = (await host.initialize({ ...declaration, input: {} }))!;
+    void lease.dispose({});
+    let closed = false;
+    const shutdown = host.dispose({}).then(() => { closed = true; });
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(closed).toBe(false);
+    release.resolve(); await shutdown; expect(closed).toBe(true);
   });
   it('retires acquired leases on replacement and disable, with idempotent cleanup', async () => {
     const registry = createPluginContributionRegistry({}), dispose = vi.fn();
