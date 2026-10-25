@@ -1,9 +1,10 @@
+import { createProjectPaths } from './filesystem.js';
 import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
-import { assertCandidatePaths, canonicalPath, createProjectPaths, projectLimits } from '../paths.js';
-import { openFileTreeProject } from '../project.js';
+import { assertCandidatePaths, canonicalPath, projectLimits } from '../paths.js';
+import { openFileTreeProject } from './filesystem.js';
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true }); });
