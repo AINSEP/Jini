@@ -26,7 +26,7 @@ it('threads trusted registry IDs through daemon diagnostics and the final MCP er
   expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${diagnostic}` }] });
 });
 
-it('preserves a trusted dotted recovery hint through both error sanitizers, masking glued and token secrets', async () => {
+it('preserves a dotted recovery hint through both error sanitizers, masking known glued and token secrets', async () => {
   const { postDaemonJson } = await import('../daemon-client.js');
   const { daemonCallOptions } = await import('../tool-protocol.js');
   const id = 'content_read.backup_restore_point';
@@ -37,8 +37,41 @@ it('preserves a trusted dotted recovery hint through both error sanitizers, mask
     handler: ({ ctx }) => postDaemonJson({ baseUrl: ctx.baseUrl, route: '/api/x', body: {} }, daemonCallOptions({ ctx })),
   }] });
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message } }), { status: 400 });
-  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds: [id] } });
-  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]` }] });
+  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds: [id], authHeaders: { Authorization: `Bearer ${opaque}` } } });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${hint}; ${id}_[redacted] api_key=[redacted] sk-proj-[redacted] [redacted]` }] });
+});
+
+it.each([
+  "slug 'a-long-existing-content-slug' already exists",
+  'ToolExecutor: unknown tool "agent_plugin_cloudflare"',
+])('keeps identifiers through the complete daemon-to-MCP error path: %s', async diagnostic => {
+  const { postDaemonJson } = await import('../daemon-client.js');
+  const { daemonCallOptions } = await import('../tool-protocol.js');
+  const esc = String.fromCharCode(27);
+  const token = 'run-scoped-opaque-credential';
+  const vendorToken = `sk-proj-${'v'.repeat(25)}`;
+  const signedUrl = 'https://user:pw@files.example/download?signature=short-signature#private';
+  const message = `${esc}[31m${diagnostic}${esc}[0m ${token} api_key=short-key ${vendorToken} ${signedUrl}`;
+  const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message } }), { status: 400 });
+  const tools = buildToolIndex({ tools: [makeTool({ name: 'gateway',
+    handler: ({ ctx }) => postDaemonJson({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: {} }, daemonCallOptions({ ctx })),
+  })] });
+  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, authHeaders: { Authorization: `Bearer ${token}` } } });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${diagnostic} [redacted] api_key=[redacted] [redacted] https://files.example/download` }] });
+});
+
+it('protects raw handler errors at the final catch, retaining identifiers and the output cap', async () => {
+  const token = 'bare-run-credential';
+  const diagnostic = 'ToolExecutor: unknown tool "agent_plugin_cloudflare"';
+  const tools = buildToolIndex({ tools: [makeTool({ name: 'gateway', handler: () => {
+    throw new Error(`${diagnostic} ${token} api_key=short https://files.example/x?signature=secret ${'word '.repeat(150)}`);
+  } })] });
+  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, authHeaders: { Authorization: `Bearer ${token}` } } });
+  expect(result.isError).toBe(true);
+  const text = (result.content[0] as { text: string }).text;
+  const expected = `${diagnostic} [redacted] api_key=[redacted] https://files.example/x ${'word '.repeat(150)}`;
+  expect(text).toBe(`${expected.slice(0, 487)}… [truncated]`);
+  expect(text.length).toBe(500);
 });
 
 function makeTool(overrides: Partial<McpToolDef> = {}): McpToolDef {

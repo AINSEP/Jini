@@ -1,4 +1,4 @@
-import { redactSecrets, LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE } from "../redact.js";
+import { redactSecrets, LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE, type SecretRedactionOptions } from "../redact.js";
 /**
  * @module redact
  *
@@ -90,7 +90,7 @@ export function stripControlSequences({ text }: { text: string }): string {
   return out;
 }
 
-/** Exact diagnostic vocabulary only: unknown spellings and glued suffixes remain opaque. */
+/** Exact diagnostic vocabulary only: unknown spellings and glued suffixes remain opaque in aggressive mode. */
 const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
   'additionalProperties', 'additionalItems', 'unevaluatedProperties', 'unevaluatedItems',
   'dependentRequired', 'dependentSchemas', 'exclusiveMinimum', 'exclusiveMaximum',
@@ -98,17 +98,26 @@ const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
   'contentEncoding', 'contentMediaType', 'contentSchema',
 ]);
 
-/** Mask credentials before preserving complete trusted IDs and UPPER_SNAKE diagnostics; redact opaque spans elsewhere. */
-function redactSecretLike({ text, diagnosticToolIds }: { text: string; diagnosticToolIds: ReadonlySet<string> }): string {
-  return redactSecrets({ input: text }, { redactPii: false })
+/** Mask credentials before preserving trusted IDs and UPPER_SNAKE diagnostics;
+ * only aggressive mode masks otherwise opaque spans.
+ * @complexity Local scans of text plus core's exact-secret replacements; no I/O. */
+function redactSecretLike({ text }: { text: string }, options: SanitizeTextOptions = {}): string {
+  const redacted = redactSecrets({ input: text }, { redactPii: false, exactSecrets: options.exactSecrets ?? [] })
     .replace(LABELED_SECRET_RE, match => match.replace(/([:=]\s*)\S+$/, '$1[redacted]'))
-    .replace(/\[REDACTED:[^\]\r\n]+\]/g, '[redacted]')
+    .replace(/\[REDACTED:[^\]\r\n]+\]/g, '[redacted]');
+  if (options.policy === 'conservative') return redacted;
+  const diagnosticToolIds = new Set(options.diagnosticToolIds);
+  return redacted
     // Trust whole dotted IDs so their components cannot become a general redaction bypass.
     .replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => diagnosticToolIds.has(token) ? token
       : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) || DIAGNOSTIC_TOKENS.has(match) ? match : '[redacted]'));
 }
 
 export interface SanitizeTextOptions {
+  /** Aggressive by default; conservative retains bare opaque identifiers, using core's credential rules. */
+  policy?: SecretRedactionOptions['policy'];
+  /** Known credentials forwarded to core's exact-secret redactor under either policy. */
+  exactSecrets?: SecretRedactionOptions['exactSecrets'];
   /** Exact IDs from trusted registration metadata, never inferred from error text or arguments.
    * Credential rules still run first; prefixes and glued suffixes are never exempted. */
   diagnosticToolIds?: readonly string[];
@@ -121,12 +130,14 @@ export interface SanitizeTextOptions {
  * length of `text` — the one function every boundary that surfaces daemon/network-derived text
  * to stderr/stdout should route through first.
  * Trusted diagnosticToolIds exempt complete IDs (including dots) only, after credential masking.
- * @complexity O(n + t) local time/space for n text bytes and t trusted ID bytes.
+ * Conservative mode skips only the opaque-token heuristic; it cannot detect unknown unlabelled secrets.
+ * @complexity O(n + t) local time/space for n text bytes and t trusted ID bytes,
+ * plus core's exact-secret replacements when supplied.
  */
 export function sanitizeUntrustedText({ text }: { text: string }, options: SanitizeTextOptions = {}): string {
   const requestedLength = options.maxLength ?? DEFAULT_MAX_EXCERPT_LENGTH;
   const maxLength = Number.isFinite(requestedLength) ? Math.max(0, Math.floor(requestedLength)) : DEFAULT_MAX_EXCERPT_LENGTH;
-  const sanitized = redactSecretLike({ text: stripControlSequences({ text }), diagnosticToolIds: new Set(options.diagnosticToolIds) });
+  const sanitized = redactSecretLike({ text: stripControlSequences({ text }) }, options);
   if (sanitized.length <= maxLength) return sanitized;
   // The marker is part of the output budget, including when the budget cannot fit the full marker.
   const marker = '… [truncated]';

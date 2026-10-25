@@ -50,6 +50,7 @@ import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { argumentShapeMessage, isRecord, normalizeToolArguments, type McpToolArgumentContract } from './tool-arguments.js';
+import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
@@ -90,10 +91,10 @@ export interface McpToolContext {
  *
  * @param ctx - The context handed to a tool or resource handler.
  * @returns Options carrying the injected `fetch` and, when present, the auth headers.
- * @complexity O(1).
+ * @complexity O(h) to copy h configured headers; no I/O.
  * @overallScore 100/100
  */
-export function daemonCallOptions({ ctx }: { ctx: McpToolContext }): { fetchImpl: typeof fetch; headers?: Record<string, string>; signal?: AbortSignal; diagnosticToolIds?: readonly string[] } {
+export function daemonCallOptions({ ctx }: { ctx: McpToolContext }, _options = {}): DaemonRequestOptions & { fetchImpl: typeof fetch } {
   return {
     fetchImpl: ctx.fetchImpl,
     ...(ctx.diagnosticToolIds !== undefined ? { diagnosticToolIds: ctx.diagnosticToolIds } : {}),
@@ -232,8 +233,9 @@ function validatorForTool(tool: McpToolDef): Validator {
  * not JSON-RPC errors. Schema validation runs before every handler unconditionally: a caller (an
  * agent, not this repo's own code) supplies `rawArgs`, so a handler must never be trusted to check
  * its own declared contract on the untrusted-input path. Both a validation failure's message and a
- * thrown error's message are passed through {@link sanitizeUntrustedText} before reaching the
- * result: either can end up echoing caller- or daemon-supplied text. The validation prefix uses the
+ * thrown error's message are sanitized before reaching the result: either can end up echoing
+ * caller- or daemon-supplied text. Handler errors reuse {@link safeDiagnostic} so a second
+ * pass retains slugs/tool IDs while masking the configured auth-header credential. The validation prefix uses the
  * registered tool name outside sanitization so long gateway names are not mistaken for secrets.
  */
 export async function handleToolCall(
@@ -265,6 +267,6 @@ export async function handleToolCall(
     return okResult({ payload: result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return errorResult({ message: sanitizeUntrustedText({ text: message }, { diagnosticToolIds }) });
+    return errorResult({ message: safeDiagnostic({ text: message }, daemonCallOptions({ ctx })) });
   }
 }
