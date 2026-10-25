@@ -472,3 +472,32 @@ it('accepts a legal dot-prefixed project while rejecting a sibling prefix', () =
   expect(isManagedProjectCwd({ projectsDir, cwd: path.join(projectsDir, '..legal-name') }, { resolvePath })).toBe(true);
   expect(isManagedProjectCwd({ projectsDir, cwd: projectsDir + '-sibling/site' }, { resolvePath })).toBe(false);
 });
+
+// Stryker L3 re-score (F3): each input guard of isManagedProjectCwd survived alone (they were only
+// ever reached with a valid projectsDir), and the transport/auth discriminators with wrong types.
+describe('isManagedProjectCwd — one guard per case (F3)', () => {
+  const identity = { resolvePath: ({ filePath }: { filePath: string }) => path.resolve(filePath) };
+  it.each([
+    ['empty cwd', '', '/data/projects', false],
+    ['null cwd', null, '/data/projects', false],
+    ['non-string cwd', 7, '/data/projects', false],
+    ['empty projectsDir', '/data/projects/p', '', false],
+    ['non-string projectsDir', '/data/projects/p', 7, false],
+    ['the root itself', '/data/projects', '/data/projects', false],
+    ['the root with a trailing slash', '/data/projects/', '/data/projects', false],
+    ['a sibling sharing the prefix', '/data/projects-other/p', '/data/projects', false],
+    ['a direct child', '/data/projects/p', '/data/projects', true],
+    ['a nested child', '/data/projects/p/q', '/data/projects', true],
+  ])('%s → %s', (_label, cwd, projectsDir, expected) => {
+    expect(isManagedProjectCwd({ cwd: cwd as string, projectsDir: projectsDir as string }, identity)).toBe(expected);
+  });
+});
+
+describe('sanitizeMcpServer transport/auth discriminators (F3)', () => {
+  it.each([['HTTP'], [''], [5], [null], ['websocket']])('refuses transport %j instead of defaulting', (transport) => {
+    expect(sanitizeMcpServer({ raw: { id: 'a', transport, command: 'node', url: 'https://x.test' } })).toBeNull();
+  });
+  it('an absent transport is stdio', () => {
+    expect(sanitizeMcpServer({ raw: { id: 'a', command: 'node' } })?.transport).toBe('stdio');
+  });
+});
