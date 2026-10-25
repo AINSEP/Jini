@@ -127,7 +127,16 @@ describe('mountFiles characterization', () => {
     expect(fake.read).not.toHaveBeenCalled();
   });
 
-  it.each(['../outside', 'src/../../outside', '/etc/passwd', 'bad\0path'])(
+  it.each([['..foo', '/root/app/..foo'], ['a/..', '/root/app'], ['./x/../y', '/root/app/y'], ['.', '/root/app']])(
+    'allows in-root look-alikes of an escape: %j reads %j', async (path, absolute) => {
+      const fake = createHandle({});
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
+      await session.readFile({ path });
+      expect(fake.read).toHaveBeenCalledWith(expect.objectContaining({ path: absolute }));
+      await session.teardown();
+    });
+
+  it.each(['../outside', 'src/../../outside', '/etc/passwd', 'bad\0path', '..', 'a/../..', '../app-evil', '/root/app/inside-but-absolute', 'ok\0'])(
     'rejects escaped mount, read and list paths before file I/O: %j', async path => {
       const fake = createHandle({});
       const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
