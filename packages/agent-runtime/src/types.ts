@@ -87,6 +87,8 @@ export type RuntimeBuildOptions = {
   filesystemTempDir?: string;
   /** Shared host/login temp roots denied even when child TMPDIR is replaced. */
   filesystemSharedTempRoots?: readonly string[];
+  /** The child's effective CLAUDE_CODE_TMPDIR; absent or empty means the platform default, never the host environment. */
+  filesystemRuntimeTempBase?: string;
   /** Executor-resolved CLI/runtime files; read-only exceptions for sandboxed commands. */
   filesystemRuntimeReadPaths?: readonly string[];
   /** Host-verified per-run overrides; false dimensions must be enforced or launch refused. */
