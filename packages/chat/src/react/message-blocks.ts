@@ -47,6 +47,8 @@
  */
 import type { AgentEvent } from '../core/index.js';
 import { assistantContentFromEvents, isReplyBoundary, legacyAssistantContentFromEvents } from '../core/index.js';
+import { isAssistantStepBoundary } from '../core/assistant-content.js';
+import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../core/turn-usage.js';
 
 /**
  * One rendered block. Consecutive tool cards are coalesced into a single `tools` block so they keep
@@ -70,6 +72,25 @@ export type MessageBlock<Row> =
    * back-to-back thinking events with no text between them join into one block. */
   | { readonly kind: 'thinking'; readonly text: string; readonly key: string };
 
+/** Split assistant sections around user receipts so each bubble can be an ordinary transcript row.
+ * @complexity O(b) time/space for b blocks; preserves every block and its order.
+ */
+export function splitMidRunBlocks<Row>(
+  { blocks }: { blocks: readonly MessageBlock<Row>[] }, _options = {},
+): MessageBlock<Row>[][] {
+  const sections: MessageBlock<Row>[][] = [];
+  let assistant: MessageBlock<Row>[] = [];
+  for (const block of blocks) {
+    if (block.kind === 'ext' && block.name === MID_RUN_USER_MESSAGE_EVENT_NAME) {
+      if (assistant.length > 0) sections.push(assistant);
+      sections.push([block]);
+      assistant = [];
+    } else assistant.push(block);
+  }
+  if (assistant.length > 0) sections.push(assistant);
+  return sections;
+}
+
 /** Mutable walk state threaded through the per-event helpers of {@link interleaveMessageBlocks}. */
 interface WalkState<Row> {
   readonly rowById: ReadonlyMap<string, Row>;
@@ -89,7 +110,7 @@ function hasSomethingToInterleave(
   { includeThinking }: { includeThinking: boolean },
 ): boolean {
   if (rows.length > 0) return true;
-  return events.some((ev) => ev.kind === 'ext' || (includeThinking && ev.kind === 'thinking' && ev.text.trim() !== ''));
+  return events.some((ev) => isAssistantStepBoundary({ event: ev }) || (includeThinking && ev.kind === 'thinking' && ev.text.trim() !== ''));
 }
 
 /** Whether `content` is demonstrably built from the text events. */
@@ -163,6 +184,9 @@ function placeEvent<Row>(
     if (includeThinking) placeThinking({ state, text: ev.text });
     return;
   }
+  // Usage and step-start markers separate paragraphs even when no tool/card renders there.
+  // Tool and card events keep their own placement rules (a folded card or repeated tool id never splits).
+  if ((ev.kind === 'usage' || ev.kind === 'status') && isAssistantStepBoundary({ event: ev })) flushText({ state });
   // Emitted per boundary, before any slot dedupe below, so every reply gets its own end marker.
   if (isReplyBoundary({ event: ev })) placeReplyEnd({ state });
   if (ev.kind === 'ext') placeExt({ state, ev }, { slotOf });

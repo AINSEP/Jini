@@ -9,6 +9,7 @@ import {
   type AgUiEvent,
 } from "../entry.js";
 import type { AgentEvent } from "../../events.js";
+import { assistantContentFromEvents } from '../../assistant-content.js';
 
 const NAMES = { usage: "jini.usage", status: "jini.status", extensionPrefix: "jini.ext." };
 const forward = () => createAgUiTranslationState({ ids: { next: ({ prefix, ordinal }) => `${prefix}-${ordinal}` }, customEventNames: NAMES });
@@ -33,6 +34,7 @@ describe("AG-UI → AgentEvent translation", () => {
     const wire = [...events.flatMap(event => translateAgentEventToAgUi({ event, state })), ...closeAgUiRun({ state })];
     expect(back(wire)).toEqual([
       { kind: "thinking", text: "plan" },
+      { kind: 'status', code: 'step_start', label: '', data: { messageId: 'msg-2' } },
       { kind: "text", text: "Hello" },
       { kind: "thinking", text: "again" },
       { kind: "tool_use", id: "t1", name: "search", input: { q: "x" } },
@@ -74,7 +76,20 @@ describe("AG-UI → AgentEvent translation", () => {
       { kind: "ext", name: "vendor.thing", data: 3 },
       { kind: "raw", line: "{\"a\":1}" },
       { kind: "raw", line: "" },
+      { kind: 'status', code: 'step_start', label: '', data: { messageId: 'm' } },
     ]);
+  });
+
+  it('preserves separate assistant messages as paragraphs and joins deltas only within one message', () => {
+    const events = back([
+      { type: EventType.TEXT_MESSAGE_START, messageId: 'first', role: 'assistant' },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'first', delta: 'Retry.' },
+      { type: EventType.TEXT_MESSAGE_END, messageId: 'first' },
+      { type: EventType.TEXT_MESSAGE_START, messageId: 'second', role: 'assistant' },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'second', delta: 'I ne' },
+      { type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'second', delta: 'ed context.' },
+    ]);
+    expect(assistantContentFromEvents({ events })).toBe('Retry.\n\nI need context.');
   });
 
   it("refuses an agent event kind it does not know, naming it", () => {

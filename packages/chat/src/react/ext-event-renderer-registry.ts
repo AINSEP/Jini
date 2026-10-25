@@ -41,6 +41,8 @@ export interface ExtEventRenderProps {
   events: readonly unknown[];
   /** Whether the owning run is still streaming — more events with this `name` may still arrive. */
   runStreaming: boolean;
+  /** The event is a user row alongside assistant sections, with ordinary transcript spacing. */
+  transcriptRow?: boolean;
   runSucceeded: boolean;
   /**
    * Whether the owning run is waiting on the person — a card (form, confirm, sign-in) sits on a

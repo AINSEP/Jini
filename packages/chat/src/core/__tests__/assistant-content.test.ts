@@ -54,6 +54,25 @@ describe('assistantContentFromEvents — a working note is never glued onto the 
 });
 
 describe('assistantContentFromEvents — edges', () => {
+  it.each<AgentEvent>([
+    { kind: 'usage', outputTokens: 10 },
+    { kind: 'status', label: 'thinking' },
+    { kind: 'status', label: 'running' },
+    { kind: 'status', label: 'Next step', code: 'step_start' },
+  ])('separates steps marked by $kind without breaking streamed words', boundary => {
+    expect(assistantContentFromEvents({ events: [
+      { kind: 'text', text: 'Retry.' }, boundary,
+      { kind: 'text', text: 'I ne' }, { kind: 'text', text: 'ed the codebase.' },
+    ] })).toBe('Retry.\n\nI need the codebase.');
+  });
+
+  it('does not split a streamed step for thinking-token heartbeats or raw diagnostics', () => {
+    expect(assistantContentFromEvents({ events: [
+      { kind: 'text', text: 'Hel' }, { kind: 'status', label: 'thinking', code: 'thinking' },
+      { kind: 'raw', line: 'heartbeat' }, { kind: 'text', text: 'lo' },
+    ] })).toBe('Hello');
+  });
+
   it('returns an empty string for no events', () => {
     expect(assistantContentFromEvents({ events: undefined })).toBe('');
   });

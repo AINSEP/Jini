@@ -619,7 +619,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
   /** Acceptance is the only writer of local recall and optimistic in-run bubbles. */
   const recordAcceptedInput = useCallback((
-    { inputs, bubble }: { inputs: AcceptedChatInput[]; bubble?: { text: string; toolUseId?: string; afterInputId?: string } },
+    { inputs, bubble }: { inputs: AcceptedChatInput[]; bubble?: { text: string; toolUseId?: string; afterInputId?: string; atEventCount?: number } },
     { receipt = 'optimistic' }: { receipt?: 'optimistic' | 'accepted' } = {},
   ) => {
     composer.history?.record({ inputs });
@@ -628,11 +628,14 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     conversation.setMessages(messages => {
       const last = messages.at(-1);
       if (last?.role !== 'assistant') return messages;
+      const { atEventCount, ...eventBubble } = bubble;
       const event = acceptedInputUserEvent({ input: { id: inputs[0]!.id, text: bubble.text,
         ...(inputs[0]!.deliveryState ? { deliveryState: inputs[0]!.deliveryState } : {}) },
-        inputs, ...bubble }, { receipt });
+        inputs, ...eventBubble }, { receipt });
+      const events = last.events ?? [];
+      const position = atEventCount ?? events.length;
       return [...messages.slice(0, -1), { ...last,
-        events: projectAcceptedInputEvents({ events: [...(last.events ?? []), event] }) }];
+        events: projectAcceptedInputEvents({ events: [...events.slice(0, position), event, ...events.slice(position)] }) }];
     });
   }, [composer, conversation.setMessages]);
 
@@ -764,10 +767,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
 
   /** HTTP acceptance retains fallback ownership; only an actual consumption receipt removes it. */
   const retainAcceptedMidRunInput = useCallback((
-    { outcome, inputs, turn, attachments, afterInputId }: {
+    { outcome, inputs, turn, attachments, afterInputId, atEventCount }: {
       outcome: 'delivered' | { readonly delivery: 'delivered'; readonly id: string };
       inputs: QueuedChatInput[] | undefined; turn: UserTextRedaction;
-      attachments: ChatAttachment[]; afterInputId: string | undefined;
+      attachments: ChatAttachment[]; afterInputId: string | undefined; atEventCount: number;
     }, _options = {},
   ) => {
     const accepted = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments,
@@ -782,14 +785,14 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     queuedConversationIdRef.current = options.conversationId;
     setQueuedInputs(queued => [...queued, ...retained]);
     recordAcceptedInput({ inputs: retained,
-      bubble: { text: turn.text, ...(afterInputId === undefined ? {} : { afterInputId }) } },
+      bubble: { text: turn.text, atEventCount, ...(afterInputId === undefined ? {} : { afterInputId }) } },
     typeof outcome === 'object' ? { receipt: 'accepted' } : {});
   }, [options.conversationId, recordAcceptedInput]);
 
   const finishMidRunSend = useCallback((
-    { outcome, inputs, turn, attachments, afterInputId, submittedDraft }: {
+    { outcome, inputs, turn, attachments, afterInputId, submittedDraft, atEventCount }: {
       outcome: MidRunMessageDelivery; inputs: QueuedChatInput[] | undefined; turn: UserTextRedaction;
-      attachments: ChatAttachment[]; afterInputId: string | undefined; submittedDraft: string;
+      attachments: ChatAttachment[]; afterInputId: string | undefined; submittedDraft: string; atEventCount: number;
     }, _options = {},
   ) => {
     if (outcome === 'failed') {
@@ -798,7 +801,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       return;
     }
     if (outcome === 'delivered' || typeof outcome === 'object') {
-      retainAcceptedMidRunInput({ outcome, inputs, turn, attachments, afterInputId });
+      retainAcceptedMidRunInput({ outcome, inputs, turn, attachments, afterInputId, atEventCount });
       clearDeliveredDraft({ inputs, submittedDraft });
       consumeDeliveredAttachments({ attachments });
       return;
@@ -828,7 +831,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     });
     deliveringTypedAnswerRef.current = false;
     if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
-    finishMidRunSend({ outcome, inputs, turn, attachments, afterInputId, submittedDraft });
+    // The reply may stream before HTTP 202 resolves. Anchor the bubble to send time, not response time.
+    finishMidRunSend({ outcome, inputs, turn, attachments, afterInputId, submittedDraft, atEventCount: priorEvents.length });
   }, [composer, conversation, finishMidRunSend]);
 
   // The ordinary next-turn path: into the running run, else queue behind it, else send now.

@@ -28,6 +28,22 @@ async function startStreamingRun(deliverMidRunMessage: DeliverMidRunMessage | un
 describe('useChatPane — a message sent mid-run goes to the running agent', () => {
   beforeEach(() => __resetComposerDraftCacheForTests());
 
+  it('anchors accepted input before text that streams while the HTTP acceptance is pending', async () => {
+    let accept!: (delivery: MidRunMessageDelivery) => void;
+    const deliver: DeliverMidRunMessage = () => new Promise(resolve => { accept = resolve; });
+    const { result, transport } = await startStreamingRun(deliver);
+    act(() => transport.emit({ kind: 'text', text: 'Initial work.' }));
+    let sending!: Promise<void>;
+    act(() => { sending = result.current.send(); });
+    act(() => transport.emit({ kind: 'text', text: 'Reply to follow-up.' }));
+    await act(async () => { accept({ delivery: 'delivered', id: 'wire' }); await sending; });
+    const assistant = result.current.conversation.messages.at(-1)!;
+    expect(assistant.events?.map(event => event.kind)).toEqual(['text', 'ext', 'text']);
+    expect(assistant.events?.[1]).toMatchObject({ data: { id: 'wire', text: 'also fix the footer', deliveryState: 'queued' } });
+    act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'also fix the footer', deliveryState: 'consumed' } }));
+    expect(result.current.conversation.messages.at(-1)?.events?.[1]).toMatchObject({ data: { deliveryState: 'consumed' } });
+  });
+
   it.each(['tool_approval', 'credential_save'])('holds ordinary text behind a pending %s card without rejecting its tool', async name => {
     const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => ({ delivery: 'delivered', id: 'relay-1' }));
     const { result, transport } = await startStreamingRun(deliver);

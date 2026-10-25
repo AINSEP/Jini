@@ -10,6 +10,21 @@ function line(events: AgentEvent[], seconds = 0, idleMs = 0): string {
 }
 
 describe('run activity line — one table, exact words', () => {
+  it.each(['<form><input type="checkbox"></form>', '<button data-mcpui-action="confirm">Allow</button>'])(
+    'waits for a standalone interactive surface without a tool call: %s', html => {
+      const event: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: { text: html } } };
+      expect(line([event], 13)).toBe('Waiting for your answer above');
+      expect(isAwaitingAnswer({ events: [event] }, { isAnsweredCard: () => true })).toBe(false);
+      expect(isAwaitingAnswer({ events: [event, { kind: 'text', text: 'Proceeding.' }] })).toBe(false);
+    },
+  );
+
+  it('does not wait for a standalone display-only outcome document', () => {
+    expect(isAwaitingAnswer({ events: [{ kind: 'ext', name: 'mcp-ui', data: {
+      type: 'resource', resource: { text: '<h1>Saved</h1><p>All done.</p>' },
+    } }] })).toBe(false);
+  });
+
   it('says Thinking with a clock before anything arrives, and Still working after 20 s of nothing new', () => {
     expect(line([], 8)).toBe('Thinking… 8 s');
     expect(line([{ kind: 'status', label: 'initializing' }], 3)).toBe('Thinking… 3 s');

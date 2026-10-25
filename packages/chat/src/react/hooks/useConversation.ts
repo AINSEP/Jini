@@ -195,12 +195,13 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         else if (run.status === 'error') runStatus = 'failed';
         else if (run.status === 'canceled') runStatus = 'canceled';
         const nextRunId = run.runId ?? m.runId;
+        const events = projectAcceptedInputEvents({ events: mergeRunEvents({ saved: m.events, incoming: run.events }, {}) });
         return {
           ...m,
           ...(nextRunId !== undefined ? { runId: nextRunId } : {}),
-          events: projectAcceptedInputEvents({ events: mergeRunEvents({ saved: m.events, incoming: run.events }, {}) }),
+          events,
           // Replayed completion prefixes cannot erase a saved interrupted segment.
-          content: preserveAssistantContent({ saved: m.content, incoming: assistantContentFromEvents({ events: run.events }) }, {}),
+          content: preserveAssistantContent({ saved: m.content, incoming: assistantContentFromEvents({ events }) }, {}),
           runStatus,
           ...(isTerminalRunStatus({ status: runStatus }) ? { endedAt: Date.now() } : {}),
         };

@@ -118,7 +118,7 @@ describe("createAgUiRunClient", () => {
     expect(agents[0]!.abortRun).toHaveBeenCalledTimes(1);
     agents[0]!.observer!.error(new DOMException("aborted", "AbortError"));
     expect(handlers.onError).not.toHaveBeenCalled();
-    expect(handlers.onDone).toHaveBeenCalledWith([]);
+    expect(handlers.onDone).toHaveBeenCalledWith([{ kind: 'status', code: 'step_start', label: '', data: { messageId: 'm' } }]);
 
     void client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers });
     await client.stopAgUiRun({ runId: "agui-id3" });

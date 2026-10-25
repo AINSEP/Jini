@@ -8,10 +8,11 @@ it('consumes equal-text optimistic receipts in order only after their predecesso
   const receipt = (id: string, text = 'same') => acceptedInputUserEvent({ input: { id, text } }, { receipt: 'accepted' });
   const events = [first, second, receipt('early'), receipt('prior', 'before'), receipt('wire-1'), receipt('wire-2'), receipt('wire-1')];
   const projected = projectAcceptedInputEvents({ events });
+  // Matched bubbles keep their send-time position; acceptance only supplies wire aliases.
   expect(projected.flatMap(event => acceptedInputEvent({ event })?.data ?? [])).toEqual([
-    { id: 'early', text: 'same' }, { id: 'prior', text: 'before' },
     { id: 'local-1', text: 'same', aliases: ['wire-1'] },
     { id: 'local-2', text: 'same', aliases: ['wire-2'] },
+    { id: 'early', text: 'same' }, { id: 'prior', text: 'before' },
   ]);
   expect(projectAcceptedInputEvents({ events: projected })).toEqual(projected);
 });

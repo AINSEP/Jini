@@ -193,6 +193,21 @@ it('queued_bubble_clears_only_on_consumption_receipt', () => {
   expect(projectAcceptedInputEvents({ events: [...projected, queued, consumed] })).toEqual(projected);
 });
 
+it('keeps optimistic send order and queued state when legacy acceptance arrives after its reply', () => {
+  const pending = acceptedInputUserEvent({ input: { id: 'local', text: 'Follow up', deliveryState: 'queued' } });
+  const reply: AgentEvent = { kind: 'text', text: 'Answer to the follow-up.' };
+  const accepted: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'Follow up' } };
+  const projected = projectAcceptedInputEvents({ events: [pending, reply, accepted] });
+  expect(projected).toEqual([
+    { ...accepted, data: { id: 'local', text: 'Follow up', deliveryState: 'queued', aliases: ['wire'] } }, reply,
+  ]);
+  const consumed: AgentEvent = { ...accepted, data: { id: 'wire', text: 'Follow up', deliveryState: 'consumed' } };
+  const finished = projectAcceptedInputEvents({ events: [...projected, consumed] });
+  expect(finished[0]).toMatchObject({ data: { id: 'local', deliveryState: 'consumed' } });
+  expect(finished[1]).toBe(reply);
+  expect(projectAcceptedInputEvents({ events: [...finished, accepted, consumed] })).toEqual(finished);
+});
+
 
 it('updates every constituent of a merged queued bubble on its shared consumption receipt', () => {
   const optimistic = acceptedInputUserEvent({ input: { id: 'merged', text: 'one\n\ntwo' },

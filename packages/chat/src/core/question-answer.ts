@@ -3,11 +3,22 @@ function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
 }
 
+/** The shared title/answer format for closed cards and standalone form receipts. */
+export function questionAnswerLabel({ input, text }: { input: unknown; text: string }, _options = {}): string {
+  const question = record(input);
+  const title = [question.title, question.question, question.prompt]
+    .find(value => typeof value === 'string' && value.trim() !== '');
+  return typeof title === 'string' ? `${title}: ${text}` : text;
+}
+
 /** Resolve a stored option value through the question that offered it. Unknown values stay readable. */
-function optionLabel(group: unknown, value: string): string {
+function optionLabel({ group, value }: { group: unknown; value: string }, _options = {}): string {
   const options = record(group).options;
   if (!Array.isArray(options)) return value;
-  const option = options.find(candidate => record(candidate).value === value);
+  const option = options.find(candidate => {
+    const offered = record(candidate);
+    return (offered.value ?? offered.id ?? offered.label) === value;
+  });
   const label = record(option).label;
   return typeof label === 'string' ? label : value;
 }
@@ -17,10 +28,10 @@ function selectedAnswerText(
 ): string | undefined {
   const question = record(input);
   const labels: string[] = [];
-  if (typeof result.choice === 'string') labels.push(optionLabel(question.singleSelect ?? question, result.choice));
+  if (typeof result.choice === 'string') labels.push(optionLabel({ group: question.singleSelect ?? question, value: result.choice }));
   if (Array.isArray(result.selections)) {
     for (const selection of result.selections) {
-      if (typeof selection === 'string') labels.push(optionLabel(question.multiSelect ?? question, selection));
+      if (typeof selection === 'string') labels.push(optionLabel({ group: question.multiSelect ?? question, value: selection }));
     }
   }
   if (labels.length > 0) return labels.join(', ');

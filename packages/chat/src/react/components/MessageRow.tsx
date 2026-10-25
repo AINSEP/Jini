@@ -1,5 +1,6 @@
 import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
 import { MidRunUserMessage, MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './MidRunUserMessage.js';
+import { useSurfaceAnswerContexts } from './mcp-ui-question-input.js';
 import { terminalMessageNotice, continuingRunNotice } from '../../core/durable-projection.js';
 import type { ChatUsageSummary } from '../../core/turn-usage.js';
 import { usageEndLabel, usageLayout, usageLineMeetsActions, useMessageUsage, useUsageSummary } from './MessageRow.usage.js';
@@ -60,8 +61,8 @@ import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.
 import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import { useRunActivity } from '../hooks/useRunActivity.js';
-import { useAnsweredCards } from '../hooks/useAnsweredCards.js';
-import { interleaveMessageBlocks, type MessageBlock } from '../message-blocks.js';
+import { useAnsweredCards, type AnsweredCards } from '../hooks/useAnsweredCards.js';
+import { interleaveMessageBlocks, splitMidRunBlocks, type MessageBlock } from '../message-blocks.js';
 import { useT, useExtEventRendererRegistry } from '../hooks/context.js';
 import type { ExtEventRendererRegistry } from '../ext-event-renderer-registry.js';
 import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
@@ -296,9 +297,10 @@ export const MessageRow = memo(function MessageRow({
   questionFormInteractive = false,
   ...props
 }: MessageRowProps) {
+  const answerContexts = useSurfaceAnswerContexts({ events: props.message.events });
   const message = useMemo(() => props.message.events === undefined ? props.message : {
-    ...props.message, events: projectAcceptedInputEvents({ events: props.message.events }),
-  }, [props.message]);
+    ...props.message, events: projectAcceptedInputEvents({ events: props.message.events }, answerContexts),
+  }, [props.message, answerContexts]);
   if (message.role === 'user') return <UserMessageRow {...props} message={message} />;
   return <AssistantMessageRow {...props} message={message} {...{ showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSucceeded, questionFormInteractive }} />;
 });
@@ -393,14 +395,16 @@ function AssistantMessageRow({
   const flatTools = flatToolGroups({ message, rows: timeline.rows, registry, displayBlocks }, { toolCallDisplay });
 
   const renderExtGroup = (group: ExtEventGroup) => {
+    const transcriptRow = group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME;
     const renderer = registry.get({ name: group.name });
-    if (!renderer && group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME) return <MidRunUserMessage key={group.slot} events={group.events} runStreaming={answeredCards.runStreaming} />;
+    if (!renderer && group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME) return <MidRunUserMessage key={group.slot} events={group.events} runStreaming={runInProgress} transcriptRow />;
     if (!renderer) return null;
     const answerText = answeredCards.answerText(group.slot);
     const node = renderer({
       name: group.name,
       events: group.events,
-      runStreaming: answeredCards.runStreaming,
+      runStreaming: group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME ? runInProgress : answeredCards.runStreaming,
+      ...(group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME ? { transcriptRow: true } : {}),
       runSucceeded,
       awaitingAnswer,
       runId: message.runId,
@@ -408,8 +412,7 @@ function AssistantMessageRow({
       answered: answeredCards.isAnswered(group.slot),
       onAnswered: () => answeredCards.markAnswered(group.slot),
       onAnswerText: (text) => answeredCards.markAnswered(group.slot, text),
-      ...(answeredCards.isRecorded(group.slot) ? { answerRecorded: true } : {}),
-      ...(answerText === undefined ? {} : { answerText }),
+      ...answerRenderProps({ answeredCards, slot: group.slot, answerText }),
     });
     if (!node) return null;
     return (
@@ -417,7 +420,7 @@ function AssistantMessageRow({
       // gets a fresh boundary instance (not the still-tripped one) once a new event actually
       // arrives for it, instead of staying tombstoned for the message's whole lifetime.
       <ExtEventErrorBoundary key={`${group.slot}:${group.events.length}`} name={group.name}>
-        <div>{node}</div>
+        {transcriptRow ? node : <div>{node}</div>}
       </ExtEventErrorBoundary>
     );
   };
@@ -453,8 +456,14 @@ function AssistantMessageRow({
     }
     if (block.kind === 'tools') return renderTools(block.rows, block.key);
     if (block.kind === 'thinking') return <ThinkingBlock key={block.key} text={block.text} />;
+    return renderExtBlock(block);
+  };
+
+  // A mid-run bubble is its own transcript row, so it skips the ext-events wrapper and its spacing.
+  const renderExtBlock = (block: Extract<AssistantBlock, { kind: 'ext' }>): ReactNode => {
     const group = extGroups.find((g) => g.slot === block.slot);
     if (!group) return null;
+    if (group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME) return <React.Fragment key={block.key}>{renderExtGroup(group)}</React.Fragment>;
     return (
       <div className="jini-message-ext-events" key={block.key}>
         {renderExtGroup(group)}
@@ -462,8 +471,11 @@ function AssistantMessageRow({
     );
   };
 
-  return (
+  const renderAssistantSection = ({ section, key, footer }: {
+    section: readonly AssistantBlock[] | null; key: string; footer: boolean;
+  }) => (
     <div
+      key={key}
       className={usageLineMeetsActions({ footer: footerUsage, terminalNotice, pending, runInProgress }, { showTotal: showUsageTotal })
         ? 'jini-message jini-message-assistant jini-message-assistant--usage-actions'
         : 'jini-message jini-message-assistant'}
@@ -474,8 +486,8 @@ function AssistantMessageRow({
       data-agent-label="A reply from the assistant"
     >
       {message.agentName ? <div className="jini-message-agent">{message.agentName}</div> : null}
-      {blocks
-        ? blocks.map(renderBlock)
+      {section
+        ? section.map(renderBlock)
         : (
           <>
             {renderTextSegments(visibleContent, 'text')}
@@ -483,9 +495,43 @@ function AssistantMessageRow({
             {extGroups.length > 0 ? <div className="jini-message-ext-events">{extGroups.map(renderExtGroup)}</div> : null}
           </>
         )}
-      <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />
+      {footer && <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />}
     </div>
   );
+  if (blocks === null) return renderAssistantSection({ section: null, key: message.id, footer: true });
+  // A reply boundary without reported usage renders nothing; it must not create an empty row's gap.
+  const visibleBlocks = blocks.filter(block => block.kind !== 'reply-end' || (showUsageLine && usage.replies[block.index] !== undefined));
+  const { sections, footerIndex } = transcriptSections({ blocks: visibleBlocks, runInProgress });
+  return <>{sections.map((section, index) => isUserSection({ section })
+    ? <React.Fragment key={section[0]!.key}>{section.map(renderBlock)}</React.Fragment>
+    : renderAssistantSection({ section, key: section[0]?.key ?? message.id, footer: index === footerIndex }))}</>;
+}
+
+/** Preserve optional render-prop presence for custom extension renderers. */
+function answerRenderProps({ answeredCards, slot, answerText }: {
+  answeredCards: AnsweredCards; slot: string; answerText: string | undefined;
+}, _options = {}) {
+  return { ...(answeredCards.isRecorded(slot) ? { answerRecorded: true } : {}),
+    ...(answerText === undefined ? {} : { answerText }) };
+}
+
+/** Place the one footer on the last assistant section, never below a completed trailing input. */
+function transcriptSections({ blocks, runInProgress }: {
+  blocks: readonly AssistantBlock[]; runInProgress: boolean;
+}, _options = {}) {
+  const sections = splitMidRunBlocks({ blocks });
+  if (sections.length === 0) sections.push([]);
+  // A live trailing input starts the next reply. A completed run needs no empty assistant row
+  // (its actions/usage used to leave a large gap below the final user bubble).
+  if (runInProgress && isUserSection({ section: sections.at(-1) })) sections.push([]);
+  const footerIndex = sections.findLastIndex(section => !isUserSection({ section }));
+  return { sections, footerIndex };
+}
+
+/** A user receipt occupies its own section; every other block belongs to an assistant row. */
+function isUserSection({ section }: { section: readonly AssistantBlock[] | undefined }, _options = {}): boolean {
+  const block = section?.[0];
+  return block?.kind === 'ext' && block.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME;
 }
 
 /**
