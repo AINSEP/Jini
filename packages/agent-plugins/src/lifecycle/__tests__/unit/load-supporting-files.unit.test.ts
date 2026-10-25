@@ -32,7 +32,7 @@ test('enable, load and supporting reads share admission after loading, including
   const ask = vi.fn(async () => ({ action: 'use' as const, selected: [pluginId] }));
   const resolve = vi.fn(({ pluginId: id, ...request }: Parameters<AutomaticAgentPluginPorts['resolve']>[0]) => api.resolveAgentPluginRefs({ pluginRefIds: [id], workspaceLayout: workspace }, { deliveryMode: 'inject', ...request }));
   const makeController = (excluded: string[] = []) => createAutomaticAgentPluginUse({ mode: 'ask', state: { decision: null, excluded }, ports: {
-    list: async () => [candidate()], rank: () => [], resolve, ask, publish, saveAuto: async () => {},
+    list: async () => [candidate()], rank: () => [], resolve, ask, publish, saveAuto: async () => {}, formatPluginToolPointer: ports.formatPluginToolPointer,
   } });
   try {
     await filesystem.mkdir(path.join(skillRoot, 'references'), { recursive: true });
@@ -52,7 +52,8 @@ test('enable, load and supporting reads share admission after loading, including
     enabled = true; active = true;
     const loaded = await controller.load({ pluginId });
     expect(loaded.status).toBe('loaded');
-    expect(loaded.guidance).toContain('load_agent_plugin({"pluginId":"synthetic","skill":"synthetic","file":"<relative path>"})');
+    expect(loaded.guidance).toContain('host_read_plugin({"pluginId":"synthetic","skill":"synthetic","file":"<relative path>"})');
+    expect(loaded.guidance).not.toContain('load_agent_plugin');
     expect(loaded.guidance).not.toContain('agent_plugin_synthetic');
     expect(await controller.load({ pluginId })).toEqual({ status: 'already-loaded', guidance: '' });
     const reference = await controller.load(request);
@@ -61,15 +62,25 @@ test('enable, load and supporting reads share admission after loading, including
     expect(reference.guidance).not.toContain(root);
     expect(ask).toHaveBeenCalledTimes(1);
     expect((await controller.load({ pluginId, skill: 'other' })).guidance).toContain('# Other declared skill');
-    for (const file of ['../other/SKILL.md', 'escape.md', 'oversized.md']) {
-      expect(await controller.load({ ...request, file })).toEqual({ status: 'unavailable', guidance: '' });
+    for (const [file, refusal] of [
+      ['../other/SKILL.md', 'use a path relative to this skill folder, without traversal or absolute paths.'],
+      ['escape.md', 'file is missing, unreadable, or resolves outside this skill folder.'],
+      ['oversized.md', 'exceeds the 256 KiB text limit; no content returned.'],
+    ] as const) {
+      expect(await controller.load({ ...request, file })).toEqual({ status: 'unavailable', guidance: `File request refused: ${refusal} Valid supporting files: references/permissions.md. Omit file to request SKILL.md.` });
     }
-    expect(await controller.load({ ...request, skill: '../other' })).toEqual({ status: 'unavailable', guidance: '' });
+    expect(await controller.load({ ...request, skill: '../other' })).toEqual({ status: 'unavailable', guidance: "Agent Plugin 'synthetic' has no readable 'skills/../other/SKILL.md' in its installed package: no such skill folder" });
     // A stale enabled catalog cannot override the resolver's fresh activation check.
     active = false;
-    expect(await controller.load(request)).toEqual({ status: 'unavailable', guidance: '' });
+    const inactive = await controller.load(request);
+    expect(inactive.status).toBe('unavailable');
+    expect(inactive.guidance).toContain('is installed in this workspace but is not enabled');
+    expect(inactive.guidance).not.toContain(root);
     active = true; trusted = false;
-    expect(await controller.load(request)).toEqual({ status: 'untrusted', guidance: '' });
+    const untrusted = await controller.load(request);
+    expect(untrusted.status).toBe('untrusted');
+    expect(untrusted.guidance).toContain('only plugins shipped with the host may add agent guidance');
+    expect(untrusted.guidance).not.toContain(root);
     trusted = true;
     const calls = resolve.mock.calls.length;
     expect(await makeController([pluginId]).load(request)).toEqual({ status: 'excluded', guidance: '' });

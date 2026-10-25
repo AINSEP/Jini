@@ -141,11 +141,9 @@ describe('mandatory native launch settings', () => {
       expect(settings.sandbox.enabled).toBe(platform !== 'win32');
       expect(settings.sandbox.failIfUnavailable).toBe(platform !== 'win32');
       expect(settings.sandbox.allowUnsandboxedCommands).toBe(platform === 'win32');
-      const runtimeTemp = platform === 'darwin' ? ['/tmp/claude-501', '/private/tmp/claude-501']
-        : platform === 'linux' ? ['/runtime/temp/claude-501'] : [];
       expect(settings.sandbox.filesystem).toEqual({ denyRead: ['/home/owner', '/tmp', '/private/tmp', '/runtime/temp'],
-        allowRead: ['/site', '/site/.agent-runtime/tmp', '/home/owner/.gitconfig', '/home/owner/.config/git/config', '/runtime/claude', ...runtimeTemp],
-        allowWrite: ['/site', '/site/.agent-runtime/tmp', ...runtimeTemp] });
+        allowRead: ['/site', '/site/.agent-runtime/tmp', '/home/owner/.gitconfig', '/home/owner/.config/git/config', '/runtime/claude'],
+        allowWrite: ['/site', '/site/.agent-runtime/tmp'] });
       expect(settings.sandbox.network).toBeUndefined();
     }
   });
@@ -161,14 +159,14 @@ describe('explicit infrastructure exceptions', () => {
     expect(denyRead).toContain('/home/owner');
     expect(JSON.stringify(settings)).not.toContain('/home/owner/OUTSIDE_CANARY');
   });
-  it('denies shared temp parents while granting the exact per-UID runtime subtree', () => {
-    const options = { filesystemRoot: '/site', filesystemTempDir: '/site/.agent-runtime/tmp-run', filesystemSharedTempRoots: ['/shared/login-temp'] };
+  it('denies shared and other runs\' scratch while granting only this run\'s exact subtree', () => {
+    const options = { filesystemRoot: '/site', filesystemTempDir: '/site/.agent-runtime/tmp-run', filesystemSharedTempRoots: ['/shared/login-temp'], filesystemRuntimeTempBase: '/tmp/jini-ABC123' };
     const settings = JSON.parse(claudeFilesystemSettings({ options }, { platform: 'darwin', uid: 501, tempDir: '/shared/host-temp' }));
     const { allowRead, allowWrite, denyRead } = settings.sandbox.filesystem;
     expect(denyRead).toEqual(expect.arrayContaining(['/tmp', '/private/tmp', '/shared/host-temp', '/shared/login-temp']));
-    expect(allowWrite).toEqual(['/site', options.filesystemTempDir, '/tmp/claude-501', '/private/tmp/claude-501']);
-    expect(allowRead).toEqual(expect.arrayContaining(['/tmp/claude-501', '/private/tmp/claude-501']));
-    for (const path of ['/tmp', '/private/tmp', '/tmp/claude-502', '/private/tmp/claude-502', '/shared/host-temp', '/shared/login-temp']) {
+    expect(allowWrite).toEqual(['/site', options.filesystemTempDir, '/tmp/jini-ABC123/claude-501', '/private/tmp/jini-ABC123/claude-501']);
+    expect(allowRead).toEqual(expect.arrayContaining(['/tmp/jini-ABC123/claude-501', '/private/tmp/jini-ABC123/claude-501']));
+    for (const path of ['/tmp', '/private/tmp', '/tmp/claude-501', '/private/tmp/claude-501', '/tmp/jini-DEF456/claude-501', '/private/tmp/jini-DEF456/claude-501', '/shared/host-temp', '/shared/login-temp']) {
       expect(allowRead).not.toContain(path); expect(allowWrite).not.toContain(path);
     }
     expect(JSON.stringify(settings)).not.toContain('OUTSIDE_CANARY');
@@ -178,16 +176,13 @@ describe('explicit infrastructure exceptions', () => {
 describe('claude runtime temp exceptions stay narrow', () => {
   const atLimit = `/tmp/${'a'.repeat(28)}`; // 44 bytes including /claude-501.
   const cases = [
-    { name: 'macOS default', platform: 'darwin', tempDir: '/var/folders/host', claudeTempDir: '', expected: ['/tmp/claude-501', '/private/tmp/claude-501'] },
-    { name: 'Linux and WSL default', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: '', expected: ['/run/user/501/claude-501'] },
+    { name: 'macOS missing run directory', platform: 'darwin', tempDir: '/var/folders/host', claudeTempDir: '', expected: [] },
+    { name: 'Linux and WSL missing run directory', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: '', expected: [] },
     { name: 'macOS short override', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/tmp/custom', expected: ['/tmp/custom/claude-501', '/private/tmp/custom/claude-501'] },
     { name: 'canonical macOS override', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/private/tmp/custom', expected: ['/tmp/custom/claude-501', '/private/tmp/custom/claude-501'] },
     { name: 'macOS var alias', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/private/var/custom', expected: ['/var/custom/claude-501', '/private/var/custom/claude-501'] },
     { name: 'Linux short override', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: '/scratch', expected: ['/scratch/claude-501'] },
     { name: '44 byte override', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: atLimit, expected: [`${atLimit}/claude-501`] },
-    { name: '45 byte override', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: `${atLimit}a`, expected: [`${atLimit}a/claude-501`, '/run/user/501/claude-501'] },
-    { name: 'UTF-8 byte fallback', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: `/tmp/${'é'.repeat(15)}`, expected: [`/tmp/${'é'.repeat(15)}/claude-501`, '/run/user/501/claude-501'] },
-    { name: 'long macOS override', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: `/scratch/${'a'.repeat(40)}`, expected: [`/scratch/${'a'.repeat(40)}/claude-501`, '/tmp/claude-501', '/private/tmp/claude-501'] },
     { name: 'Windows exception', platform: 'win32', tempDir: '/host/temp', claudeTempDir: '/scratch', expected: [] },
   ] as const;
   it.each(cases)('$name', ({ platform, tempDir, claudeTempDir, expected }) => {
@@ -201,10 +196,19 @@ describe('claude runtime temp exceptions stay narrow', () => {
       expect(allowRead).not.toContain(denied); expect(allowWrite).not.toContain(denied);
     }
   });
+  it.each([
+    { platform: 'linux', base: `${atLimit}a` },
+    { platform: 'linux', base: `/tmp/${'é'.repeat(15)}` },
+    { platform: 'darwin', base: `/scratch/${'a'.repeat(40)}` },
+  ] as const)('refuses an overlong $platform base instead of granting shared fallback scratch', ({ platform, base }) => {
+    expect(() => claudeFilesystemSettings({ options: { filesystemRoot: '/site', filesystemRuntimeTempBase: base } }, {
+      platform, uid: 501, tempDir: '/tmp',
+    })).toThrow('44 bytes');
+  });
   it('keeps UID zero exact and fails closed without valid Unix host facts', () => {
-    const required = { options: { filesystemRoot: '/site' } };
+    const required = { options: { filesystemRoot: '/site', filesystemRuntimeTempBase: '/tmp/jini-ABC123' } };
     const facts = { platform: 'linux' as const, homeDir: '/home/owner', tempDir: '/tmp' };
-    expect(JSON.parse(claudeFilesystemSettings(required, { ...facts, uid: 0 })).sandbox.filesystem.allowWrite).toEqual(['/site', '/site/.agent-runtime/tmp', '/tmp/claude-0']);
+    expect(JSON.parse(claudeFilesystemSettings(required, { ...facts, uid: 0 })).sandbox.filesystem.allowWrite).toEqual(['/site', '/site/.agent-runtime/tmp', '/tmp/jini-ABC123/claude-0']);
     for (const uid of [null, -1, 0.5, NaN]) expect(() => claudeFilesystemSettings(required, { ...facts, uid })).toThrow('Unix UID');
     expect(() => claudeFilesystemSettings({ options: { filesystemRoot: '/site', filesystemRuntimeTempBase: '../outside' } }, { ...facts, uid: 501 })).toThrow('absolute');
   });
@@ -214,7 +218,7 @@ describe('claude runtime temp exceptions stay narrow', () => {
     const settings = claudeFilesystemSettings({ options }, facts);
     const rebuilt = claudeFilesystemSettings({ options: { ...options, settings } }, facts);
     expect(rebuilt).toBe(settings);
-    expect(JSON.parse(rebuilt).sandbox.filesystem.allowWrite).toEqual(['/site', '/site/private-temp', `${base || '/site/private-temp'}/claude-501`]);
+    expect(JSON.parse(rebuilt).sandbox.filesystem.allowWrite).toEqual(['/site', '/site/private-temp', ...(base ? [`${base}/claude-501`] : [])]);
     expect(JSON.parse(rebuilt).sandbox.filesystem.denyRead).toContain('/host/temp');
   });
 });

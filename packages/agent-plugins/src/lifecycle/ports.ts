@@ -36,7 +36,8 @@ export interface AgentPluginLifecyclePorts {
   /** Optional host admission serializes cross-kind identity checking and publication. */
   readonly identityAdmission?: (<T>(required: { id: string; localId: string; run: () => Promise<T> }, optional?: Record<string, never>) => Promise<T>) | undefined;
   readonly onEvent?: ((required: { readonly event: string; readonly message: string }) => void) | undefined;
-  readonly formatPluginToolPointer: (required: { readonly pluginId: string }) => string;
+  /** The host owns tool names and supports explicit skill/file pointers as well as default instructions. */
+  readonly formatPluginToolPointer: (required: { readonly pluginId: string; readonly skill?: string; readonly file?: string }, optional?: Record<string, never>) => string;
   readonly seededEnabledPluginIds: ReadonlySet<string>;
   /** Retired bundled plugin id -> the bundled plugin(s) that absorbed it (`retire-bundled.ts`). */
   readonly retiredBundledPlugins: ReadonlyMap<string, string | readonly string[]>;
