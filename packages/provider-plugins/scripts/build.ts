@@ -21,18 +21,34 @@ async function owningPackage(required: { input: string }): Promise<string> {
   }
 }
 
-/** Preserve each input package's license/notice texts, not only esbuild's legal-comment excerpts. */
+interface BundledPackage { readonly root: string; readonly manifest: { name: string; version: string; license?: unknown; repository?: unknown }; readonly names: readonly string[] }
+
+const repositoryOf = (manifest: BundledPackage['manifest']): string | undefined => {
+  const value = typeof manifest.repository === 'string' ? manifest.repository : (manifest.repository as { url?: unknown } | undefined)?.url;
+  return typeof value === 'string' ? value.replace(/^git\+/, '').replace(/^git:/, 'https:').replace(/\.git$/, '') : undefined;
+};
+
+/** Preserve each input package's license/notice texts, not only esbuild's legal-comment excerpts.
+ * A package that ships no license file (some upstream monorepos omit it from sub-packages) takes the
+ * text of a bundled sibling from the same repository with the same declared license; the copy is
+ * recorded in `LICENSE-SOURCE`. Anything else still fails the build. */
 async function retainLicenses(required: { packageRoot: string; artifactRoot: string; metafile: Metafile }): Promise<void> {
   const roots = new Set<string>();
   for (const input of Object.keys(required.metafile.inputs)) roots.add(await owningPackage({ input: path.resolve(required.packageRoot, input) }));
+  const bundled: BundledPackage[] = [];
   for (const root of [...roots].sort()) {
-    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as { name: string; version: string; license?: unknown };
-    const names = (await readdir(root)).filter(name => /^(?:licen[sc]e|copying|notice)(?:$|[.-])/i.test(name));
-    if (!names.length) throw new Error(`Missing license text for bundled package ${manifest.name}`);
-    const target = path.join(required.artifactRoot, 'licenses', manifest.name.replace(/[^a-z0-9._-]/gi, '_'));
+    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as BundledPackage['manifest'];
+    bundled.push({ root, manifest, names: (await readdir(root)).filter(name => /^(?:licen[sc]e|copying|notice)(?:$|[.-])/i.test(name)).sort() });
+  }
+  for (const item of bundled) {
+    const sibling = item.names.length ? item : bundled.find(other => other.names.length && other.manifest.license === item.manifest.license
+      && repositoryOf(other.manifest) !== undefined && repositoryOf(other.manifest) === repositoryOf(item.manifest));
+    if (!sibling) throw new Error(`Missing license text for bundled package ${item.manifest.name}`);
+    const target = path.join(required.artifactRoot, 'licenses', item.manifest.name.replace(/[^a-z0-9._-]/gi, '_'));
     await mkdir(target, { recursive: true });
-    for (const name of names.sort()) await copyFile(path.join(root, name), path.join(target, name));
-    await writeFile(path.join(target, 'package.json'), JSON.stringify({ name: manifest.name, version: manifest.version, license: manifest.license }, null, 2) + '\n');
+    for (const name of sibling.names) await copyFile(path.join(sibling.root, name), path.join(target, name));
+    if (sibling !== item) await writeFile(path.join(target, 'LICENSE-SOURCE'), `License text copied from ${sibling.manifest.name}@${sibling.manifest.version} (same repository and declared license).\n`);
+    await writeFile(path.join(target, 'package.json'), JSON.stringify({ name: item.manifest.name, version: item.manifest.version, license: item.manifest.license }, null, 2) + '\n');
   }
 }
 

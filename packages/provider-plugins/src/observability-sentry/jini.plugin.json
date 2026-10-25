@@ -1,0 +1,17 @@
+{
+  "id": "observability-sentry",
+  "name": "Sentry observability provider",
+  "version": "0.6.12",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "tovu": { "id": "jini/observability-sentry" },
+    "open-marketing": { "id": "jini/observability-sentry" }
+  },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "observability", "id": "sentry", "contractVersion": 1 }] },
+  "hooks": [],
+  "fields": [],
+  "integrity": {}
+}

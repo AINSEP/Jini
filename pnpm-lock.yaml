@@ -764,27 +764,6 @@ importers:
         specifier: ^9.0.1
         version: 9.0.1
     devDependencies:
-      '@opentelemetry/api':
-        specifier: ^1.9.1
-        version: 1.10.0
-      '@opentelemetry/exporter-trace-otlp-http':
-        specifier: ^0.221.0
-        version: 0.221.0(@opentelemetry/api@1.10.0)
-      '@opentelemetry/resources':
-        specifier: ^2.10.0
-        version: 2.12.0(@opentelemetry/api@1.10.0)
-      '@opentelemetry/sdk-trace-base':
-        specifier: ^2.10.0
-        version: 2.12.0(@opentelemetry/api@1.10.0)
-      '@opentelemetry/sdk-trace-node':
-        specifier: ^2.10.0
-        version: 2.12.0(@opentelemetry/api@1.10.0)
-      '@opentelemetry/semantic-conventions':
-        specifier: ^1.43.0
-        version: 1.43.0
-      '@sentry/node':
-        specifier: 11.6.0
-        version: 11.6.0(rollup@4.62.2)
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
@@ -970,9 +949,33 @@ importers:
 
   packages/provider-plugins:
     devDependencies:
+      '@jini-ai/diagnostics':
+        specifier: workspace:^
+        version: link:../diagnostics
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.10.0
+      '@opentelemetry/exporter-trace-otlp-http':
+        specifier: ^0.221.0
+        version: 0.221.0(@opentelemetry/api@1.10.0)
+      '@opentelemetry/resources':
+        specifier: ^2.10.0
+        version: 2.12.0(@opentelemetry/api@1.10.0)
+      '@opentelemetry/sdk-trace-base':
+        specifier: ^2.10.0
+        version: 2.12.0(@opentelemetry/api@1.10.0)
+      '@opentelemetry/sdk-trace-node':
+        specifier: ^2.10.0
+        version: 2.12.0(@opentelemetry/api@1.10.0)
+      '@opentelemetry/semantic-conventions':
+        specifier: ^1.43.0
+        version: 1.43.0
+      '@sentry/node':
+        specifier: 11.6.0
+        version: 11.6.0(rollup@4.62.2)
       esbuild:
         specifier: ^0.28.1
         version: 0.28.1
