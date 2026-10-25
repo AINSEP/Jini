@@ -178,6 +178,13 @@ describe('withRenderTimeout: each settling path alone', () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it('a signal with NO timeout still rejects as aborted when it fires', async () => {
+    const controller = new AbortController();
+    const pending = withRenderTimeout({ promise: new Promise<never>(() => undefined) }, { signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ code: 'aborted', message: 'render aborted' });
+  });
+
   it('an abort clears the pending timeout timer', async () => {
     vi.useFakeTimers();
     try {
