@@ -28,26 +28,37 @@ export function validateFilesystemLaunch(required: {
   return root;
 }
 
-// Cache concurrent and subsequent launches by executable identity for the process lifetime.
-const filesystemSupport = new Map<string, Promise<boolean | undefined>>();
+/** Create one executor's probe cache; no filesystem access until the returned probe is called.
+ * Cache concurrent and subsequent launches by executable identity for that executor's lifetime
+ * so repeated launches do not spawn redundant metadata probes or share another host's evidence.
+ * @returns The support check bound to an empty cache. @complexity O(1) allocation.
+ * @example const verify = createClaudeFilesystemSupportProbe({});
+ */
+export function createClaudeFilesystemSupportProbe(_required: Record<string, never>, _options = {}): typeof assertClaudeFilesystemSupport {
+  const cache = new Map<string, Promise<boolean | undefined>>();
+  return (required, options = {}) => assertClaudeFilesystemSupport(required, { ...options, cache });
+}
 
 /** Probe official CLI enforcement, retrying uncertain evidence once without logging its values.
  * The 2.1.285 floor covers native read blocking and admin-required sandbox locks.
  * https://code.claude.com/docs/en/sandboxing#repository-settings-under-an-admin-required-sandbox
  * True means supported, false means known unsupported, undefined means apply settings optimistically.
- * O(1) metadata I/O and at most two bounded subprocesses per CLI path/mtime.
+ * O(1) metadata I/O and at most two bounded subprocesses per cache slot. Standalone calls
+ * probe independently; executors bind a cache with createClaudeFilesystemSupportProbe.
  */
 export async function assertClaudeFilesystemSupport(required: {
   agentId: string; launchPath: string; env: NodeJS.ProcessEnv;
-}, { probe = execAgentFile }: { probe?: typeof execAgentFile } = {}): Promise<boolean | void> {
+}, { probe = execAgentFile, cache = new Map() }: {
+  probe?: typeof execAgentFile; cache?: Map<string, Promise<boolean | undefined>>;
+} = {}): Promise<boolean | void> {
   if (required.agentId !== 'claude' || /^openclaude(?:\.|$)/i.test(basename(required.launchPath))) return false;
   let key: string;
   try { key = `${realpathSync(required.launchPath)}:${statSync(required.launchPath).mtimeMs}`; }
   catch { return undefined; }
-  let pending = filesystemSupport.get(key);
+  let pending = cache.get(key);
   if (!pending) {
     pending = probeFilesystemSupport({ ...required, probe }, {});
-    filesystemSupport.set(key, pending);
+    cache.set(key, pending);
   }
   return pending;
 }

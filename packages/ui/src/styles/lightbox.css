@@ -126,7 +126,7 @@
 }
 .jini-lightbox-button:hover:not(:disabled) { background: var(--jini-lightbox-button-bg-hover); border-color: var(--jini-lightbox-button-border-hover); }
 .jini-lightbox-button:focus-visible { outline: 2px solid var(--jini-lightbox-ink); outline-offset: 2px; }
-/* Same chip, only fainter: a host `button:disabled` fill (the Tovu admin's light `--surface-3`) would
+/* Same chip, only fainter: a host `button:disabled` fill (the host admin's light `--surface-3`) would
    otherwise turn the end-of-set arrow into a bright pressed-looking disc. */
 .jini-lightbox-button:disabled {
   opacity: 0.3;

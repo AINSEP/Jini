@@ -3,3 +3,4 @@ export { openFileTreeProject } from './project.js';
 export type { OpenFileTreeProjectInput, OpenFileTreeProjectOptions } from './project.js';
 export type { FileTreePolicy } from './paths.js';
 export * from '../core/project.js';
+export type { ProjectFilesystemPort } from '../core/project-filesystem.js';

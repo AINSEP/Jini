@@ -1,55 +1,11 @@
 import nodeFs from "node:fs";
 import type { Stats } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-// A distinct refusal class lets tool adapters treat rejected paths/content as actionable input
-// problems instead of redacting them as an internal crash.
-/** Refusal of a malformed, denied, escaped, or over-limit file operation. */
-export class FsFilePathError extends Error {
-    constructor({ message }: {
-        message: string;
-    }) { super(message); this.name = "FsFilePathError"; }
-}
-export interface DenyRules {
-    segments: ReadonlySet<string>;
-    filenamePatterns: readonly RegExp[];
-}
-export interface GuardedReaderLimits {
-    maxFileBytes: number;
-    binarySniffBytes: number;
-    maxListedFiles: number;
-    maxWalkDepth: number;
-    maxWalkEntries: number;
-}
+import { FsFilePathError, type DenyRules, type GuardedFileReader, type GuardedReaderLimits } from '@jini-ai/core/filesystem';
+export { FsFilePathError, type DenyRules, type GuardedFileReader, type GuardedReaderLimits } from '@jini-ai/core/filesystem';
 export type GuardedReaderFilesystem = Pick<typeof nodeFs, "existsSync" | "lstatSync" | "readdirSync" | "realpathSync" | "statSync" | "openSync" | "readSync" | "closeSync" | "createReadStream">;
 /** Native filesystem adapter; callers can replace individual operations for a virtual filesystem. */
 export function createNodeGuardedReaderFilesystem(_required: Record<string, never>): GuardedReaderFilesystem { return nodeFs; }
-export interface GuardedFileReader {
-    resolve(required: {
-        relativePath: string;
-    }): string;
-    read(required: {
-        relativePath: string;
-    }): {
-        content: string;
-        bytes: number;
-    };
-    readBytes(required: {
-        relativePath: string;
-        maxBytes: number;
-    }): Promise<Uint8Array>;
-    list(required: Record<string, never>, optional?: {
-        relativePath?: string;
-    }): {
-        files: string[];
-        truncated: boolean;
-    };
-    isDeniedFileName(required: {
-        fileName: string;
-    }): boolean;
-    isDeniedPathSegment(required: {
-        segmentName: string;
-    }): boolean;
-}
 /** Contains both requested and resolved paths, including symlink aliases and nonexistent descendants.
  * Deny rules and traversal/read limits are host policy and have no implicit defaults.
  */

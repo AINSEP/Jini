@@ -176,7 +176,7 @@ export {
 
 export type { MediaReferenceCheckPort } from "./ports.js";
 
-export { sanitizeSvg } from "./sanitize-svg.js";
+export { createSvgSanitizer, sanitizeSvg } from "./sanitize-svg.js";
 
 export { replaceMediaFile, type ReplaceMediaFileDeps, type MediaFileReplacementRepoPort } from './replace-media-file.js';
 

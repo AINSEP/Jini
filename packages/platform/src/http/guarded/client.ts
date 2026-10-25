@@ -14,7 +14,7 @@ import type { PinnedPeer } from "./types.js";
 export type { AddressClass } from "../../net/address.js";
 /** Uses the canonical net address validator; labels preserve the guarded refusal contract. */
 export const classifyAddress = classifyIpAddress;
-const CROSS_ORIGIN_HEADERS = new Set(["accept", "accept-language", "user-agent"]);
+const CROSS_ORIGIN_HEADERS: ReadonlySet<string> = new Set(["accept", "accept-language", "user-agent"]);
 
 // HTTP header names are case-insensitive; preserve the caller's explicit User-Agent in any casing.
 function hasUserAgentHeader(headers: Readonly<Record<string, string>>): boolean {

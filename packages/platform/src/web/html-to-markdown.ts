@@ -95,7 +95,7 @@ function readable(node: Node, base: string): boolean {
   return node.tagName !== "img" || absolute({ raw: imageSource({ img: node }), base, protocols: ASSET_PROTOCOLS }) !== undefined;
 }
 
-const ATTENTION = new Set(["b", "strong", "i", "em"]);
+const ATTENTION: ReadonlySet<string> = new Set(["b", "strong", "i", "em"]);
 
 /** Move whitespace outside attention before serialization; empty attention is plain whitespace.
  * Only this newly parsed tree is mutated. Nested inline wrappers retain their formatting.

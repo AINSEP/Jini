@@ -10,6 +10,7 @@ import {
   parseSavedRequestDefinition, executeSavedRequest,
   type SavedRequestDeps,
 } from '@jini-ai/integrations/saved-requests';
+import { makeCredentialedRequest } from '@jini-ai/integrations/credentialed-http';
 
 const definition = parseSavedRequestDefinition({ value: {
   version: 1,
@@ -29,8 +30,9 @@ const definition = parseSavedRequestDefinition({ value: {
   } },
 } });
 
-// deps are constructed in the trusted composition root, never in model input.
-declare const deps: SavedRequestDeps;
+// Bind the credential owner's executor in trusted composition, never in model input.
+declare const ports: Omit<SavedRequestDeps, 'executeCredentialedRequest'>;
+const deps: SavedRequestDeps = { ...ports, executeCredentialedRequest: makeCredentialedRequest };
 declare const signal: AbortSignal;
 const result = await executeSavedRequest(
   { deps, workspaceId: 'mounted-workspace', definition, input: { query: 'tea' } },

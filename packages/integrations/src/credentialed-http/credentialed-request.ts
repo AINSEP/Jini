@@ -7,6 +7,8 @@
  * does not introduce a second approval ceremony or expose decrypted credentials to the caller.
  */
 import { IntegrationError } from "../argument-error.js";
+import { CredentialedRequestValidationError } from "../contracts/credentialed-request-errors.js";
+export { CredentialedRequestValidationError } from "../contracts/credentialed-request-errors.js";
 import { nowIso, type Clock, type HttpClientPort, type HttpResponse, type UUID } from "@jini-ai/core/primitives";
 import type { CredentialConnection, CredentialTarget, CredentialResolverPort, CredentialSchemeRegistryPort, CredentialedRequestErrorPolicyPort } from "./ports.js";
 import { detectSelfDescribingAuthScheme, type CredentialSchemeRule } from "./auth-schemes.js";
@@ -17,9 +19,6 @@ export class CredentialNotFoundError extends IntegrationError {}
 function allowedOriginsFor(record: CredentialTarget): readonly string[] {
   return [...new Set([new URL(record.baseUrl).origin, ...record.additionalHosts])];
 }
-
-// Request validation is distinct from validation of stored credentials, which belongs to the resolver.
-export class CredentialedRequestValidationError extends IntegrationError {}
 
 // An answered HTTP error is still a normal response. A host-recognized egress refusal retains its
 // identity, so callers can distinguish a fixable target rejection from a DNS/timeout failure.

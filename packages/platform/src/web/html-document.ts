@@ -106,7 +106,7 @@ export function imageSource({ img }: { img: Element }, _optional: Record<string,
 interface RawFacts { anchors: Element[]; images: Element[]; linkTags: Element[]; metas: Element[]; title?: Element; html?: Element; base?: string | undefined }
 
 /** A Map, not an object literal, so tag names such as `constructor` never hit Object.prototype. */
-const COLLECTED = new Map<string, "anchors" | "images" | "linkTags" | "metas">([["a", "anchors"], ["img", "images"], ["link", "linkTags"], ["meta", "metas"]]);
+const COLLECTED: ReadonlyMap<string, "anchors" | "images" | "linkTags" | "metas"> = new Map<string, "anchors" | "images" | "linkTags" | "metas">([["a", "anchors"], ["img", "images"], ["link", "linkTags"], ["meta", "metas"]]);
 
 function collect(document: Node): RawFacts {
   const raw: RawFacts = { anchors: [], images: [], linkTags: [], metas: [] };
@@ -122,7 +122,7 @@ function collect(document: Node): RawFacts {
 }
 
 /** Meta keys whose values are URLs and are returned absolute. */
-const URL_META = new Set(["og:image", "og:url", "twitter:image"]);
+const URL_META: ReadonlySet<string> = new Set(["og:image", "og:url", "twitter:image"]);
 /** `<link rel>` tokens copied into meta, in emission order, under their meta key. */
 const LINK_META: ReadonlyArray<readonly [rel: string, key: string]> = [["canonical", "canonical"], ["icon", "favicon"], ["apple-touch-icon", "apple-touch-icon"]];
 

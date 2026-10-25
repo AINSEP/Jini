@@ -1,6 +1,6 @@
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import type { PinnedPeer } from "@jini-ai/platform/http/guarded";
-import { InMemoryCredentialedRequestAuditLog } from "../../credentialed-http/credentialed-request.js";
+import { InMemoryCredentialedRequestAuditLog, makeCredentialedRequest } from "../../credentialed-http/credentialed-request.js";
 import type { SavedRequestDefinition, SavedRequestDeps } from "../types.js";
 
 export function definition(overrides: Partial<SavedRequestDefinition> = {}): SavedRequestDefinition {
@@ -29,6 +29,7 @@ export function fixture() {
   };
   const audit = new InMemoryCredentialedRequestAuditLog();
   const deps: SavedRequestDeps = {
+    executeCredentialedRequest: makeCredentialedRequest,
     credentials: { async resolve(input) { resolutions.push(input); return state.credential; } },
     schemeRegistry: { async load() { return []; } }, audit,
     clock: { nowMs: () => 0, timeoutSignal: ({ timeoutMs }) => { deadlines.push(timeoutMs); return state.deadline.signal; } },
