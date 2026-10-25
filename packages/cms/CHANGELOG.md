@@ -1,3 +1,10 @@
+## 0.6.12
+
+### Patch Changes
+
+- consent: SEO metadata (canonical, alternate, meta tags, JSON-LD) is never consent-gated while third-party fetching rels stay gated; optional per-site `'unsafe-eval'` exception; new `reopen` option (`'corner'` default, or `'link'` to reopen the one-and-done banner from a host link instead of the corner button).
+  - @jini-ai/core@0.6.12
+
 ## 0.6.11
 
 ### Patch Changes

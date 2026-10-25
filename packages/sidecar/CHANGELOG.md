@@ -1,5 +1,11 @@
 # @jini-ai/sidecar
 
+## 0.6.12
+
+### Patch Changes
+
+- @jini-ai/core@0.6.12
+
 ## 0.6.11
 
 ### Patch Changes
