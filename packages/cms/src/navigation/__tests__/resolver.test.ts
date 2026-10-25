@@ -3,7 +3,7 @@ import { test } from "vitest";
 
 import { assignLocation, createMenu } from "../menu-service.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
-import { resolveForLocation, type ResolveTargetHrefFn } from "../resolver.js";
+import { findBoundMenu, resolveForLocation, type ResolveTargetHrefFn } from "../resolver.js";
 import { NAV_DOC_TYPE, type NavItemNode, type NavMenuEntry, type NavTarget } from "../types.js";
 
 function fakeClock(iso = "2026-07-10T00:00:00.000Z") {
@@ -291,4 +291,22 @@ test("resolveForLocation renders an item with no label as an empty label rather 
   });
   assert.equal(resolved?.items[0]?.label, "");
   assert.equal(resolved?.items[0]?.href, "/");
+});
+
+test("bound-menu selection and resolved navigation share reassignment and workspace scope", async () => {
+  const { repo, bindingRepo, menu } = await seedMenuBoundToLocation([{ id: "one", label: "One", target: { kind: "entryRef", entryId: "one" } }]);
+  const replacement = { ...menu, id: "replacement", slug: "replacement", doc: { ...menu.doc,
+    items: [{ id: "two", label: "Two", target: { kind: "entryRef" as const, entryId: "two" } }],
+  } };
+  await repo.save(replacement);
+  const deps = { menuRepo: repo, bindingRepo, resolveTargetHref: fakeResolveTargetHref };
+  const input = { workspaceId: "ws-1", locationKey: "primary" };
+  assert.equal((await findBoundMenu({ deps, input }))?.id, menu.id);
+  await bindingRepo.upsert({ ...input, menuId: replacement.id, boundAt: "2026-10-25" });
+  assert.equal((await findBoundMenu({ deps, input }))?.id, replacement.id);
+  assert.equal((await resolveForLocation({ deps, input }))?.items[0]?.href, "/entries/two");
+  assert.equal(await findBoundMenu({ deps, input: { ...input, workspaceId: "other" } }), null);
+  await bindingRepo.upsert({ ...input, menuId: "missing", boundAt: "2026-10-25" });
+  assert.equal(await findBoundMenu({ deps, input }), null);
+  assert.equal(await resolveForLocation({ deps, input }), null);
 });

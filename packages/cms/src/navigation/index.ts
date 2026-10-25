@@ -127,6 +127,7 @@ export {
 } from "./menu-html.js";
 
 export {
+  findBoundMenu,
   resolveForLocation,
   resolveMenuDoc,
   type ResolveTargetHrefFn,
