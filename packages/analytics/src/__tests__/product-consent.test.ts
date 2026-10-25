@@ -19,7 +19,7 @@ test("obs2 #2: a later denial invalidates pending capture and identify approvals
   const { inner, events, identities } = recordingPort();
   const pending = deferredConsent();
   let answer: boolean | Promise<boolean> = pending.promise;
-  const guarded = withProductAnalyticsGuards({ inner, consent: () => answer });
+  const guarded = withProductAnalyticsGuards({ inner, consent: () => answer }, { consentRevision: () => 1 });
   guarded.capture({ name: "old_capture", userId: "u1" });
   guarded.identify({ userId: "u1", traits: { plan: "old" } });
   answer = false;
@@ -40,7 +40,7 @@ test("an asynchronous denial invalidates earlier approvals before they settle", 
   const approval = deferredConsent();
   const denial = deferredConsent();
   let answer = approval.promise;
-  const guarded = withProductAnalyticsGuards({ inner, consent: () => answer });
+  const guarded = withProductAnalyticsGuards({ inner, consent: () => answer }, { consentRevision: () => 1 });
   guarded.capture({ name: "old_capture", userId: "u1" });
   guarded.identify({ userId: "u1" });
   answer = denial.promise;
@@ -97,7 +97,7 @@ test("concurrent approvals at an unchanged revision both deliver", async () => {
 test("one user's denial does not invalidate another user's pending approval", async () => {
   const { inner, events } = recordingPort();
   const pending = deferredConsent();
-  const guarded = withProductAnalyticsGuards({ inner, consent: ({ userId }) => userId === "u1" ? pending.promise : false });
+  const guarded = withProductAnalyticsGuards({ inner, consent: ({ userId }) => userId === "u1" ? pending.promise : false }, { consentRevision: () => 1 });
   guarded.capture({ name: "allowed", userId: "u1" });
   guarded.identify({ userId: "u2" });
   pending.resolve(true);
@@ -113,7 +113,7 @@ test.each(["throw", "reject"])("a consent %s invalidates earlier pending approva
     if (!failed) return pending.promise;
     if (failure === "throw") throw new Error("settings unavailable");
     return Promise.reject(new Error("settings unavailable"));
-  } });
+  } }, { consentRevision: () => 1 });
   guarded.capture({ name: "old_capture", userId: "u1" });
   guarded.identify({ userId: "u1" });
   failed = true;
@@ -139,4 +139,24 @@ test.each(["before", "after"])("a revision read failing %s consent drops the eve
   await Promise.resolve();
   expect(events).toEqual([]);
   expect(identities).toEqual([]);
+});
+
+test("recheck #1: async consent without a revision fails closed; sync consent and async with a revision deliver", async () => {
+  const { inner, events, identities } = recordingPort();
+  const pending = deferredConsent();
+  const unrevised = withProductAnalyticsGuards({ inner, consent: () => pending.promise });
+  unrevised.capture({ name: "approved_then_revoked", userId: "u1" });
+  unrevised.identify({ userId: "u1" });
+  // The host revokes here; no later event or denial ever reaches the guard, then the old read settles.
+  pending.resolve(true);
+  await Promise.resolve();
+  expect(events).toEqual([]);
+  expect(identities).toEqual([]);
+  withProductAnalyticsGuards({ inner, consent: () => true }).capture({ name: "sync", userId: "u1" });
+  const revised = deferredConsent();
+  withProductAnalyticsGuards({ inner, consent: () => revised.promise }, { consentRevision: () => 1 }).identify({ userId: "u2" });
+  revised.resolve(true);
+  await Promise.resolve();
+  expect(events).toEqual([{ name: "sync", userId: "u1" }]);
+  expect(identities).toEqual([{ userId: "u2" }]);
 });
