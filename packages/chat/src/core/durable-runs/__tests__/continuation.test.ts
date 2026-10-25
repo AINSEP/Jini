@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import type { AgentEvent } from "../../index.js";
 import { canonicalToolInput, continuationRequest, hasUnknownToolCall } from "../continuation.js";
 import type { DurableRun } from "../ports.js";
@@ -119,4 +119,28 @@ test("continuationRequest lists tool calls with results, unwrapping delegated ca
 
 test("continuationRequest throws on invalid accepted context JSON", () => {
   expect(() => continuationRequest({ run: durableRun({ request: { contextRef: "{bad" } }), native: false }, {})).toThrow(/JSON/);
+});
+
+// Stryker L5 (2026-10-25): the delegated-wrapper unwrap guard (name regex, non-null input, string
+// toolId) and the completed-set from tool_result events survived. One clause per row.
+describe("hasUnknownToolCall — delegated unwrap, one clause per case (F3)", () => {
+  const use = (id: string, name: string, input: unknown) => ({ kind: "tool_use", id, name, input }) as AgentEvent;
+  const result = (toolUseId: string) => ({ kind: "tool_result", toolUseId, content: "ok" }) as AgentEvent;
+  const target = { toolId: "pages.update", input: { b: 2, a: 1 } };
+
+  it.each([
+    ["the delegated wrapper", [use("1", "mcp__jini__execute_delegated_tool", { toolId: "pages.update", input: { a: 1, b: 2 } })], true],
+    ["a direct call of the same tool", [use("1", "pages.update", { a: 1, b: 2 })], true],
+    ["the wrapper but a different tool", [use("1", "mcp__jini__execute_delegated_tool", { toolId: "pages.delete", input: { a: 1, b: 2 } })], false],
+    ["the wrapper but different input", [use("1", "mcp__jini__execute_delegated_tool", { toolId: "pages.update", input: { a: 1, b: 3 } })], false],
+    ["a non-wrapper name carrying toolId", [use("1", "other_tool", { toolId: "pages.update", input: { a: 1, b: 2 } })], false],
+    ["the wrapper with a non-string toolId", [use("1", "mcp__jini__execute_delegated_tool", { toolId: 7, input: { a: 1, b: 2 } })], false],
+    ["the wrapper with null input", [use("1", "mcp__jini__execute_delegated_tool", null)], false],
+    ["the read-only wrapper", [use("1", "mcp__jini__execute_readonly_delegated_tool", { toolId: "pages.update", input: { a: 1, b: 2 } })], false],
+    ["a completed wrapper call", [use("1", "mcp__jini__execute_delegated_tool", { toolId: "pages.update", input: { a: 1, b: 2 } }), result("1")], false],
+    ["a result for another call does not complete this one", [use("1", "pages.update", { a: 1, b: 2 }), result("2")], true],
+    ["one completed and one open identical call", [use("1", "pages.update", { a: 1, b: 2 }), result("1"), use("2", "pages.update", { b: 2, a: 1 })], true],
+  ])("%s", (_label, events, expected) => {
+    expect(hasUnknownToolCall({ events, ...target })).toBe(expected);
+  });
 });

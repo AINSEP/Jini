@@ -332,6 +332,43 @@ describe("durable recovery boundaries: failure classes", () => {
     expect(await h.recover("attempt-failed")).toBe("continued");
   });
 
+  // Stryker L5 (2026-10-25): the success-summary and task_notification filters (recover.ts:28-30)
+  // could be forced to true or false with no failure. Each row isolates one side of one filter.
+  it.each([
+    ["a successful result summary quoting billing", '{"type":"result","is_error":false,"result":"billing"}', "continued"],
+    ["a failed result summary", '{"type":"result","is_error":true,"result":"billing"}', "finalized"],
+    ["a result whose is_error is the string false", '{"type":"result","is_error":"false","result":"billing"}', "finalized"],
+    ["a non-result line with is_error false", '{"type":"assistant","is_error":false,"text":"billing"}', "finalized"],
+    ["a subagent task_notification quoting billing", '{"type":"system","subtype":"task_notification","text":"billing"}', "continued"],
+    ["another system subtype", '{"type":"system","subtype":"init","text":"billing"}', "finalized"],
+    ["a task_notification subtype on a non-system line", '{"type":"user","subtype":"task_notification","text":"billing"}', "finalized"],
+  ])("classifies %s", async (_label, line, expected) => {
+    const h = harness({ events: [{ kind: "raw", line }] });
+    expect(await h.recover("attempt-failed")).toBe(expected);
+  });
+
+  it("filters each line of a multi-line raw event on its own (LF and CRLF)", async () => {
+    const h = harness({ events: [{ kind: "raw", line: '{"type":"result","is_error":false,"result":"billing"}\r\nok\nforbidden' }] });
+    expect(await h.recover("attempt-failed")).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: EXHAUSTED_NOTICE, detail: "forbidden" });
+  });
+
+  it("reads a status event's detail as diagnostics", async () => {
+    const h = harness({ events: [{ kind: "status", label: "stopped", detail: "payment required" }] });
+    expect(await h.recover("attempt-failed")).toBe("finalized");
+    expect(h.settlements[0]!.events.at(-1)).toEqual({ kind: "status", label: EXHAUSTED_NOTICE, detail: "payment required" });
+  });
+
+  it("text and tool results are never diagnostics", async () => {
+    const h = harness({ events: [{ kind: "text", text: "forbidden billing" }, { kind: "tool_result", toolUseId: "t", content: "billing", isError: true } as AgentEvent] });
+    expect(await h.recover("attempt-failed")).toBe("continued");
+  });
+
+  it("a message with no events at all continues", async () => {
+    const h = harness({ run: { message: { id: "answer", role: "assistant", runId: "old", runStatus: "running", content: "" } } });
+    expect(await h.recover("attempt-failed")).toBe("continued");
+  });
+
   it("classifies a non-JSON raw line as diagnostic input", async () => {
     const h = harness({ events: [{ kind: "raw", line: "fatal: billing" }] });
     expect(await h.recover("attempt-failed")).toBe("finalized");
