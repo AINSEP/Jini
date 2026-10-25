@@ -148,3 +148,14 @@ test('with two installed digests of one id, enable is refused when ANY revision 
     await expect(api.setAgentPluginEnabled(toggle('twin', true))).rejects.toBeInstanceOf(AgentPluginHostIncompatibleError);
   });
 });
+
+// Stryker run-2 survivors (set-enabled.ts:59,63,65): only THIS plugin's revisions are checked for
+// host compatibility, the refusal names the plugin, and a disable reports dependents with nothing provided.
+test('another installed, host-incompatible plugin never blocks enabling this one', async () => {
+  await withHarness(async ({ api, install }) => {
+    await install('future', { hostRange: '>=99' });
+    await install('fine', { hostRange: '^1' });
+    await expect(api.setAgentPluginEnabled(toggle('fine', true))).resolves.toMatchObject({ pluginId: 'fine', enabled: true });
+    await expect(api.setAgentPluginEnabled(toggle('future', true))).rejects.toThrow("Plugin 'future' is not compatible with this host's Agent Plugin contract.");
+  });
+});
