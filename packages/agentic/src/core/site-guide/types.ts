@@ -52,8 +52,6 @@ export interface GuideResult {
   readonly operation: 'overview' | 'explain';
   readonly topics: readonly GuideTopicView[];
   readonly facts: Readonly<Record<string, GuideFact>>;
-  /** Granted permissions consulted for this result, rather than an inventory of the caller's roles. */
-  readonly callerPermissions: readonly string[];
   readonly enrichment: 'ok' | 'unavailable' | 'partial';
 }
 export interface SiteGuide {

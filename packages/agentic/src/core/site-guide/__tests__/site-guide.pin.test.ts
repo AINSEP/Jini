@@ -98,12 +98,12 @@ describe('run authorization and facts', () => {
     pointers: [{ label: 'open', tool: 'x', permissions: ['read'] }, { label: 'edit', href: '/e', permissions: ['write'] }],
     workflows: [{ title: 'w1', steps: ['s'], permissions: [] }, { title: 'w2', steps: ['s'], permissions: ['read', 'write'] }],
   });
-  it('asks once per permission and reports only granted ones in first-asked order', async () => {
+  it('asks once per permission in first-asked order and keeps the decisions internal', async () => {
     const p = ports({ topics: [gated, topic('open'), topic('admin', ['admin'])], grants: ['read'] });
     const result = await createSiteGuide(p.ports).run({ caller, operation: 'explain', topic: 'gated' });
     expect(result.topics).toEqual([{ id: 'gated', title: 'T gated', summary: 'S gated', source: 'core', explanation: 'E gated', pointers: [{ label: 'open', tool: 'x' }], workflows: [{ title: 'w1', steps: ['s'] }] }]);
     expect(p.authorizeCalls).toEqual(['read', 'write']);
-    expect(result.callerPermissions).toEqual(['read']);
+    expect(result).not.toHaveProperty('callerPermissions');
     expect(result.facts).toEqual({ gated: { status: 'ok', data: 'gated' } });
   });
   it('hides topics whose permissions are not all granted on overview', async () => {

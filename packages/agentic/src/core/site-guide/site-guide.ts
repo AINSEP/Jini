@@ -68,7 +68,7 @@ export function createSiteGuide(ports: SiteGuidePorts, options: { readonly readT
     if (input.operation === 'explain' && views.length === 0) throw new SiteGuideInputError({ message: 'Topic unavailable. Call site_guide with operation overview for topics you may read.' });
     // Overview is discovery only; read fresh domain facts when a visible topic is explained.
     const facts = input.operation === 'explain' ? await readFacts({ ports, caller: input.caller, topicIds: views.map(view => view.id), timeoutMs }) : {};
-    return { operation: input.operation, topics: views, facts, callerPermissions: await gate.granted(), enrichment };
+    return { operation: input.operation, topics: views, facts, enrichment };
   } };
 }
 
@@ -95,7 +95,9 @@ async function loadContributions({ ports, caller, timeoutMs }: { ports: SiteGuid
 }
 
 /** Per-request authorization cache: each permission is asked at most once, in first-use order. */
-function createPermissionGate({ ports, caller, timeoutMs }: { ports: SiteGuidePorts; caller: GuideCaller; timeoutMs: number }): { permitted: Permitted; granted: () => Promise<string[]> } {
+function createPermissionGate({ ports, caller, timeoutMs }: { ports: SiteGuidePorts; caller: GuideCaller; timeoutMs: number }, _options = {}): { permitted: Permitted } {
+  // Granted permissions consulted for this result, rather than an inventory of the caller's roles.
+  // Keep these decisions internal so partial checks cannot be mistaken for a complete grant list.
   const decisions = new Map<string, Promise<boolean>>();
   const allowed = (permission: string): Promise<boolean> => {
     let decision = decisions.get(permission);
@@ -108,11 +110,6 @@ function createPermissionGate({ ports, caller, timeoutMs }: { ports: SiteGuidePo
   };
   return {
     permitted: async permissions => (await Promise.all(permissions.map(allowed))).every(Boolean),
-    granted: async () => {
-      const callerPermissions = [];
-      for (const [permission, decision] of decisions) if (await decision) callerPermissions.push(permission);
-      return callerPermissions;
-    },
   };
 }
 
