@@ -33,3 +33,40 @@ describe('redactUserText', () => {
     expect(redactUserText({ text })).toEqual({ text, secretRedacted: false, count: 0 });
   });
 });
+
+// Stryker L5 (2026-10-25): the URL-span exemption, the entropy thresholds and entropy() itself were
+// never pinned at their boundaries. Every candidate below is 40+ chars of the token alphabet.
+describe('redactUserText — URL span and entropy boundaries (F3)', () => {
+  const TOKEN = 'aZ9kQ2mX7pL4vB8nR1tY6wC3hJ5dF0gS2eU7iO4q'; // 40 chars, digits + mixed case
+
+  it.each([
+    ['alone', TOKEN, '[token removed]'],
+    ['after a URL, separated by a space', `https://example.com/a ${TOKEN}`, 'https://example.com/a [token removed]'],
+    ['inside a URL path', `https://example.com/${TOKEN}`, `https://example.com/${TOKEN}`],
+    ['as the last URL segment before punctuation', `see https://example.com/x/${TOKEN}"`, `see https://example.com/x/${TOKEN}"`],
+    ['starting exactly at the URL start (as its scheme)', `${TOKEN}://example.com`, `${TOKEN}://example.com`],
+    ['after a quote that ends a URL', `https://e.com/"${TOKEN}`, 'https://e.com/"[token removed]'],
+  ])('%s', (_label, text, expected) => {
+    expect(redactUserText({ text }).text).toBe(expected);
+  });
+
+  // 16 equally frequent symbols = exactly 4.0 bits: the threshold is `< 4`, so 4.0 is removed.
+  it.each([
+    ['16 symbols, digits (4.0 bits) → removed', 'ghijklmn12345678'.repeat(3), true],
+    ['15 symbols, digits (3.9 bits) → kept', 'ghijklmn1234567'.repeat(3), false],
+    ['23 mixed-case letters, no digits (4.52 bits) → removed', 'ABCDEFGHIJKLabcdefghijk'.repeat(2), true],
+    ['22 mixed-case letters, no digits (4.46 bits) → kept', 'ABCDEFGHIJKabcdefghijk'.repeat(2), false],
+    ['26 lowercase letters, no digits, not mixed → kept', 'abcdefghijklmnopqrstuvwxyz'.repeat(2), false],
+    ['26 uppercase letters, no digits, not mixed → kept', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.repeat(2), false],
+    ['hex hash → kept', 'a3f9'.repeat(16), false],
+    ['digits and symbols only → kept', '0123456789+/='.repeat(4), false],
+    ['39 chars → never a candidate', TOKEN.slice(0, 39), false],
+  ])('%s', (_label, text, removed) => {
+    const out = redactUserText({ text });
+    expect(out).toEqual(removed ? { text: '[token removed]', secretRedacted: true, count: 1 } : { text, secretRedacted: false, count: 0 });
+  });
+
+  it('two candidates are counted separately', () => {
+    expect(redactUserText({ text: `${TOKEN} and ${TOKEN.toUpperCase()}x1` })).toMatchObject({ count: 2, secretRedacted: true });
+  });
+});
