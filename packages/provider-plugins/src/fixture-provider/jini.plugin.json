@@ -1,0 +1,17 @@
+{
+  "id": "fixture-provider",
+  "name": "Provider artifact fixture",
+  "version": "0.6.12",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "tovu": { "id": "jini/fixture-provider" },
+    "com.example.host": { "id": "jini/fixture-provider" }
+  },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "fixture", "id": "fixture", "contractVersion": 1 }] },
+  "hooks": [],
+  "fields": [],
+  "integrity": {}
+}

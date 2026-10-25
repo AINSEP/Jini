@@ -52,7 +52,7 @@ describe('manifest identity and contribution validation before L121', () => {
     expect(errorsFor({ changes: { contributes: {
       unknown: ['x'], tools: ['plugin_capability_bad', ''], routes: ['bad', 'GET /ok'], settings: [3], permissions: null, widgets: [],
     } } })).toEqual([
-      contributesInvalid({ message: "unknown contributes key 'unknown' (expected one of routes, tools, tables, settings, widgets, permissions)" }),
+      contributesInvalid({ message: "unknown contributes key 'unknown' (expected one of routes, tools, tables, settings, widgets, permissions, providers)" }),
       contributesInvalid({ message: 'contributes.tools must be a list of non-empty strings' }),
       contributesInvalid({ message: "contributes.routes entry 'bad' must be '/path' or 'METHOD /path'" }),
       contributesInvalid({ message: 'contributes.settings must be a list of non-empty strings' }),

@@ -1,0 +1,30 @@
+# @jini-ai/provider-plugins
+
+One asset distribution of ordinary tier-3 Jini server plugins. The initial catalog contains only
+`fixture-provider`, a conformance fixture. There are no vendor adapters or callable adapter exports.
+
+`pnpm --filter @jini-ai/provider-plugins build` produces `catalog.json` and
+`plugins/<id>/<version>/{jini.plugin.json,server/index.mjs,licenses/**}`. `pnpm pack` builds these
+assets through `prepack`. esbuild bundles runtime dependencies, permits only Node builtins as
+external imports, retains bundled packages' license/notice files, and the existing installer
+integrity helper hashes every packaged file except the manifest. SDK packages are build-time
+(dev) dependencies of this distribution, never runtime dependencies of an installed artifact.
+
+Hosts read the catalog, install selected plugin folders with `previewSitePluginInstall` /
+`installSitePlugin`, and use the existing `loadPlugin` with explicit tier admission. Supply
+`providerContributions: { registry, isSelected }`; selection must require installed, enabled,
+and configured state. Recheck selection when settings change. Detach the plugin's contribution
+snapshot on disable/quarantine. Only admitted snapshots can initialize factories through
+`createPluginProviderHost`. Await initialization before admitting application work, and dispose
+that host on shutdown or failed boot. Unselected contracts keep the domain's existing noop.
+
+Factories accept explicit configuration, credentials and borrowed effect ports as required object
+inputs, plus an optional object, and return `{ port, dispose }`. Setup only registers factories.
+The injected domain validator checks returned ports through core's `createProviderRegistry`.
+A lease's `isCurrent({})` guards new work after replacement. Retirement releases resources with
+idempotent, bounded, independent teardown; pending factories release their late results on arrival.
+A teardown timeout bounds waiting and cannot forcibly interrupt arbitrary in-process code.
+
+The fixture supports SDK `0.1.x` and `1.x`, and declares one publisher identity for two example
+host identity namespaces. Tier-3 plugins execute trusted code in process; capability gating governs
+supplied SDK handles and does not sandbox arbitrary Node code. No secrets belong in manifests.

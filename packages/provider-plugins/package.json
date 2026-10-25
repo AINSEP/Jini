@@ -1,0 +1,47 @@
+{
+  "name": "@jini-ai/provider-plugins",
+  "version": "0.6.12",
+  "description": "Self-contained server provider plugin artifacts for the existing Jini plugin host.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/provider-plugins"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "node",
+    "entries": {
+      "./catalog": "node",
+      "./plugins/*": "node"
+    }
+  },
+  "exports": {
+    "./catalog": "./catalog.json",
+    "./plugins/*": "./plugins/*"
+  },
+  "files": [
+    "catalog.json",
+    "plugins",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node --import tsx scripts/build.ts",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "devDependencies": {
+    "@jini-ai/plugins": "workspace:^",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.19.0"
+  }
+}

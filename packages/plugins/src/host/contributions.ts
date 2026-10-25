@@ -1,12 +1,13 @@
 /** Executable contribution admission on the existing plugin loader, never a second loader.
  * Captures stay private until setup succeeds. A sealed generation cannot register from a timer.
  * Tier-3 currently runs with full in-process authority; TODO: hardened worker at this boundary. */
+import { PLUGIN_PROVIDER_CAPABILITY, isPluginProviderDeclaration, type PluginProviderContribution } from './provider-contributions.js';
 import { createContributionRegistry } from '@jini-ai/core/contribution-registry';
 import { normalizeRoute, resolveClaimConflicts, type ExtensionClaim } from './claim-conflicts.js';
 import type { PluginManifest } from './manifest-types.js';
 import type { PluginSdk } from './ports.js';
 
-export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute'] as const;
+export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute', PLUGIN_PROVIDER_CAPABILITY] as const;
 export type PluginRouteAccess = 'public' | 'member' | 'admin';
 export interface PluginAuthContext { readonly access: PluginRouteAccess; readonly principalId?: string; readonly workspaceId: string }
 export interface PluginInvocationContext { readonly pluginId: string; readonly auth: PluginAuthContext; readonly sdk: PluginSdk; readonly signal?: AbortSignal }
@@ -33,6 +34,7 @@ export interface PluginWidgetContribution {
 export type PluginContribution = { readonly kind: 'route'; readonly value: PluginRouteContribution } | { readonly kind: 'tool'; readonly value: PluginToolContribution } | { readonly kind: 'widget'; readonly value: PluginWidgetContribution };
 export interface PluginContributionsSnapshot {
   readonly pluginId: string; readonly sdk: PluginSdk;
+  readonly providers?: readonly PluginProviderContribution[];
   readonly routes: readonly PluginRouteContribution[];
   readonly tools: readonly PluginToolContribution[];
   readonly widgets: readonly PluginWidgetContribution[];
@@ -71,12 +73,13 @@ function serializePluginToolSchema(
 export function createPluginContributionCapture(required: { manifest: PluginManifest }, optional: { maxContributions?: number } = {}) {
   const { manifest } = required;
   const routes: PluginRouteContribution[] = [], tools: PluginToolContribution[] = [], widgets: PluginWidgetContribution[] = [];
+  const providers: PluginProviderContribution[] = [];
   let sealed = false;
   const limit = optional.maxContributions ?? 128;
   if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError('invalid contribution limit');
   const check = () => {
     if (sealed) throw new Error('plugin contribution capture is sealed');
-    if (routes.length + tools.length + widgets.length >= limit) throw new Error('plugin contribution limit reached');
+    if (routes.length + tools.length + widgets.length + providers.length >= limit) throw new Error('plugin contribution limit reached');
     // Worker proxy currently transports only beforeSave; accepting these there would lose them.
     if (manifest.tier === 'tier-2') throw new Error('worker contributions are not supported yet');
   };
@@ -84,6 +87,13 @@ export function createPluginContributionCapture(required: { manifest: PluginMani
     if (!/^[a-z][a-z0-9_-]{0,63}$/.test(name) || !declarations?.includes(name)) throw new Error(`undeclared plugin contribution '${name}'`);
   };
   const capture = {
+    providers: { register(value: PluginProviderContribution, _optional: Record<string, never> = {}) {
+      check();
+      if (manifest.tier !== 'tier-3' || !isPluginProviderDeclaration({ value }) || typeof value.factory !== 'function') throw new Error('invalid plugin provider factory');
+      if (!manifest.contributes?.providers?.some(declaration => declaration.contract === value.contract && declaration.id === value.id && declaration.contractVersion === value.contractVersion)) throw new Error('undeclared plugin provider');
+      if (providers.some(provider => provider.contract === value.contract && provider.id === value.id)) throw new Error('duplicate plugin provider');
+      providers.push(Object.freeze({ contract: value.contract, id: value.id, contractVersion: value.contractVersion, factory: value.factory }));
+    } },
     routes: { add(value: PluginRouteContribution, _optional: Record<string, never> = {}) {
       check(); validatePluginRoute(value);
       if (!['public','member','admin'].includes(value.access)) throw new Error('invalid plugin route access');
@@ -109,7 +119,7 @@ export function createPluginContributionCapture(required: { manifest: PluginMani
     } },
     seal({ sdk }: { sdk: PluginSdk }, _optional: Record<string, never> = {}): PluginContributionsSnapshot {
       sealed = true;
-      return Object.freeze({ pluginId: manifest.id, sdk, routes: Object.freeze([...routes]), tools: Object.freeze([...tools]), widgets: Object.freeze([...widgets]) });
+      return Object.freeze({ pluginId: manifest.id, sdk, routes: Object.freeze([...routes]), tools: Object.freeze([...tools]), widgets: Object.freeze([...widgets]), providers: Object.freeze([...providers]) });
     },
   };
   return capture;
@@ -133,6 +143,8 @@ export function createPluginContributionRegistry(_required: Record<string, never
       const owners = next.map(row => ({ id: row.pluginId, claims: [
         ...row.tools.map(tool => ({ kind: 'tool', key: pluginToolIdFor({ pluginId: row.pluginId, name: tool.name }), mode: 'exclusive' } as ExtensionClaim)),
         ...row.widgets.map(widget => ({ kind: 'widget', key: widget.name, mode: 'exclusive' } as ExtensionClaim)),
+        // Provider identity is exclusive within one contract; the same claim key as plugin-claims.ts.
+        ...(row.providers ?? []).map(provider => ({ kind: 'provider', key: `${provider.contract}:${provider.id}`, mode: 'exclusive' } as ExtensionClaim)),
       ] }));
       if (resolveClaimConflicts({ owners }).refused.size) throw new Error('plugin contribution collision');
       const previous = registry.list({});
