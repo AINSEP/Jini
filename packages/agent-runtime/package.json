@@ -19,8 +19,7 @@
       "./providers/sse-decode": "universal",
       "./model-discovery": "node",
       "./model-selection": "universal",
-      "./ai-trace": "universal",
-      "./ai-trace/langfuse": "universal"
+      "./ai-trace": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -75,11 +74,6 @@
       "types": "./dist/ai-trace/index.d.ts",
       "import": "./dist/ai-trace/index.js",
       "default": "./dist/ai-trace/index.js"
-    },
-    "./ai-trace/langfuse": {
-      "types": "./dist/ai-trace/langfuse.d.ts",
-      "import": "./dist/ai-trace/langfuse.js",
-      "default": "./dist/ai-trace/langfuse.js"
     }
   },
   "typesVersions": {
