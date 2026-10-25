@@ -29,6 +29,11 @@ describe('@jini-ai/core — redact — characterization pins', () => {
     });
   });
 
+  it('masks a short exact secret only as a whole token, so it cannot break a credential label', () => {
+    expect(redactSecrets({ input: 'a; password=hunter2 pa' }, { exactSecrets: ['a', 'pa'] }))
+      .toBe('[REDACTED:exact_secret]; password=[REDACTED:labeled_secret] [REDACTED:exact_secret]');
+  });
+
   it('masks a known exact secret before a lexical rule can relabel it', () => {
     const token = githubToken();
     expect(redactSecretsWithCounts({ input: `t=${token}` }, { exactSecrets: [token] }).counts)

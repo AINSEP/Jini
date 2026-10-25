@@ -137,7 +137,8 @@ const CREDENTIAL_HEADER_RE = /^(?:(?:proxy-)?authorization|x-api-key)$/i;
  * also use exact-secret masking at eight characters or more;
  * short header values would otherwise erase ordinary words from recovery hints.
  * Credential headers (the run credential) are masked at any length: a short secret leaking
- * outweighs a hint losing a few characters.
+ * outweighs a hint losing a few characters. Core matches short ones as whole tokens only, so
+ * they cannot split another credential's label.
  * @complexity Local scans of diagnostic text and header values, plus core's exact-secret replacements.
  */
 export function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions = {}): string {

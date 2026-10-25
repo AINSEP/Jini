@@ -344,7 +344,13 @@ function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: r
   return out;
 }
 
-/** Masks caller-supplied secrets verbatim, longest first, ignoring empty and non-string entries. */
+// Exact secrets shorter than this match only as whole tokens. As substrings they split credential
+// labels before the label rules run (`a` inside `password=hunter2` broke the label and left
+// `hunter2` visible), and they split earlier markers (`a` inside `exact_secret`).
+const SHORT_EXACT_SECRET_LENGTH = 8;
+
+/** Masks caller-supplied secrets verbatim, longest first, ignoring empty and non-string entries;
+ * short secrets only where no word character or hyphen touches them. */
 function redactExactSecrets(
   { text, marker, secrets }: RedactionPass & { secrets: ReadonlyArray<string | undefined | null> },
 ): string {
@@ -354,7 +360,8 @@ function redactExactSecrets(
   let out = text;
   for (const secret of usable) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    out = out.replace(new RegExp(escaped, 'g'), () => marker('exact_secret'));
+    const source = secret.length < SHORT_EXACT_SECRET_LENGTH ? `(?<![\\w-])${escaped}(?![\\w-])` : escaped;
+    out = out.replace(new RegExp(source, 'g'), () => marker('exact_secret'));
   }
   return out;
 }
