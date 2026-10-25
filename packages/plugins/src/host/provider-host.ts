@@ -64,22 +64,30 @@ function createResourceDisposer(required: {
   };
 }
 
+function timeoutOption(value: number | undefined, fallback: number, name: string): number {
+  const timeoutMs = value ?? fallback;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new RangeError(`invalid provider ${name} timeout`);
+  return timeoutMs;
+}
+
 /**
  * Track resources against snapshot identity, so replacement retires even the same plugin version.
  * @param required.contributions Existing executable contribution owner; detach retires immediately.
  * @param required.contracts Domain validators and optional built-in providers.
  * @param optional.disposeTimeoutMs Positive finite bound for each resource's teardown (default 2000).
+ * @param optional.initializeTimeoutMs Positive finite bound for awaiting a factory (default 10000).
  * @returns A host whose shutdown is idempotent and whose late factory results are disposed.
- * @throws RangeError for invalid timeout; PluginProviderError for unknown/invalid contracts or ports.
+ * @throws RangeError for invalid timeouts; PluginProviderError for unknown/invalid contracts or ports.
  */
 export function createPluginProviderHost(required: {
   contributions: PluginContributionRegistry; contracts: readonly PluginProviderContract[];
 }, optional: {
   disposeTimeoutMs?: number;
+  initializeTimeoutMs?: number;
   onError?: (required: PluginProviderFailure, optional?: Record<string, never>) => void | Promise<void>;
 } = {}): PluginProviderHost {
-  const timeoutMs = optional.disposeTimeoutMs ?? 2000;
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new RangeError('invalid provider disposal timeout');
+  const timeoutMs = timeoutOption(optional.disposeTimeoutMs, 2000, 'disposal');
+  const initializeTimeoutMs = timeoutOption(optional.initializeTimeoutMs, 10_000, 'initialization');
   const contracts = new Map<string, PluginProviderContract>();
   for (const contract of required.contracts) {
     if (contracts.has(contract.contract)) throw new PluginProviderError({ message: 'duplicate provider contract' });
@@ -90,30 +98,33 @@ export function createPluginProviderHost(required: {
   const acquired = new Set<Acquired>();
   const cleanups = new Set<Promise<void>>();
   const disposers = new WeakMap<PluginProviderResource, () => Promise<void>>();
+  // Pending initializations re-check their generation on each change, so retirement settles them.
+  const wakers = new Set<() => void>();
   let closed = false;
   let shutdown: Promise<void> | undefined;
   const current = (snapshot: PluginContributionsSnapshot): boolean => !closed && required.contributions.list({}).includes(snapshot);
-  const cleanup = (item: Acquired): Promise<void> => {
-    acquired.delete(item);
-    const pending = item.lease.dispose({});
+  // Every started teardown, direct or host-triggered, is awaited by shutdown.
+  const track = (pending: Promise<void>): Promise<void> => {
     cleanups.add(pending);
     void pending.then(() => { cleanups.delete(pending); });
     return pending;
   };
+  const cleanup = (item: Acquired): Promise<void> => item.lease.dispose({});
   const unsubscribe = required.contributions.subscribe({ onChanged: () => {
     // Contribution listeners can reject publication and roll it back synchronously. Release
     // only the committed generation; lease.isCurrent already blocks work during replacement.
     queueMicrotask(() => {
       for (const item of acquired) if (!current(item.snapshot)) void cleanup(item);
+      for (const wake of wakers) wake();
     });
   } });
   const report = (failure: PluginProviderFailure): void => {
     // Diagnostics must never prevent another provider from releasing its resources.
     try { void Promise.resolve(optional.onError?.(failure, {})).catch(() => {}); } catch { /* Failure reporting is a borrowed host effect. */ }
   };
-  function leaseResource(input: {
+  function releaserFor(input: {
     resource: PluginProviderResource; snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution;
-  }): Acquired {
+  }): () => Promise<void> {
     let release = disposers.get(input.resource);
     if (!release) {
       release = createResourceDisposer({ resource: input.resource, timeoutMs, report: failure => report({
@@ -121,20 +132,22 @@ export function createPluginProviderHost(required: {
       }) });
       disposers.set(input.resource, release);
     }
+    return release;
+  }
+  function leaseResource(input: { port: unknown; release: () => Promise<void>; snapshot: PluginContributionsSnapshot }): Acquired {
     let retired = false;
-    const dispose = release;
     const item: Acquired = { snapshot: input.snapshot, lease: {
-      port: input.resource.port,
+      port: input.port,
       isCurrent: () => !retired && current(input.snapshot),
-      dispose: () => { retired = true; acquired.delete(item); return dispose(); },
+      dispose: () => { retired = true; acquired.delete(item); return track(input.release()); },
     } };
     return item;
   }
-  function validatePort(input: { resource: PluginProviderResource; contract: PluginProviderContract; snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution }): void {
+  function validatePort(input: { port: unknown; contract: PluginProviderContract; snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution }): void {
     const registry = createProviderRegistry<unknown>({ contract: input.contract.contract }, {
       validate: input.contract.validate, seed: input.contract.seed ?? [],
     });
-    if (!registry.contribute({ definition: { id: input.provider.id, provider: input.resource.port }, pluginId: input.snapshot.pluginId, contract: input.provider.contract })) {
+    if (!registry.contribute({ definition: { id: input.provider.id, provider: input.port }, pluginId: input.snapshot.pluginId, contract: input.provider.contract })) {
       throw new PluginProviderError({ message: registry.refusals()[0]!.message });
     }
   }
@@ -145,6 +158,41 @@ export function createPluginProviderHost(required: {
     }
     return undefined;
   }
+  /** Admit one factory result; anything not handed out as a lease is released before settling. */
+  async function admit(input: {
+    resource: PluginProviderResource; contract: PluginProviderContract; snapshot: PluginContributionsSnapshot;
+    provider: PluginProviderContribution; abandoned: () => boolean;
+  }): Promise<PluginProviderLease | undefined> {
+    const { resource, snapshot } = input;
+    if (!resource || typeof resource.dispose !== 'function') throw new PluginProviderError({ message: 'provider factory must return { port, dispose }' });
+    // Cleanup exists before the first port read; the single read is the value validated and leased.
+    const release = releaserFor(input);
+    let item: Acquired;
+    try {
+      const port = resource.port;
+      validatePort({ ...input, port });
+      item = leaseResource({ port, release, snapshot });
+    } catch (error) { await track(release()); throw error; }
+    if (input.abandoned() || !current(snapshot)) { await cleanup(item); return undefined; }
+    acquired.add(item);
+    return item.lease;
+  }
+  /** Settle on the factory, retirement (undefined) or the deadline; admit() still releases late results. */
+  function untilRetiredOrDeadline(input: {
+    produced: Promise<PluginProviderLease | undefined>; snapshot: PluginContributionsSnapshot; abandon: () => void;
+  }): Promise<PluginProviderLease | undefined> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let wake!: () => void;
+    const stopped = new Promise<undefined>((resolve, reject) => {
+      wake = () => { if (!current(input.snapshot)) { input.abandon(); resolve(undefined); } };
+      timer = setTimeout(() => {
+        input.abandon();
+        reject(new PluginProviderError({ message: 'provider initialization timed out' }));
+      }, initializeTimeoutMs);
+    });
+    wakers.add(wake);
+    return Promise.race([input.produced, stopped]).finally(() => { wakers.delete(wake); clearTimeout(timer); });
+  }
   async function initialize(
     input: Parameters<PluginProviderHost['initialize']>[0], options: NonNullable<Parameters<PluginProviderHost['initialize']>[1]> = {},
   ): Promise<PluginProviderLease | undefined> {
@@ -154,14 +202,10 @@ export function createPluginProviderHost(required: {
     const selected = findProvider(input);
     if (!selected) return undefined;
     const { snapshot, provider } = selected;
-    const resource = await provider.factory(input.input, options.factoryOptions ?? {});
-    if (!resource || typeof resource.dispose !== 'function') throw new PluginProviderError({ message: 'provider factory must return { port, dispose }' });
-    const item = leaseResource({ resource, snapshot, provider });
-    try { validatePort({ resource, contract, snapshot, provider }); }
-    catch (error) { await cleanup(item); throw error; }
-    if (!current(snapshot)) { await cleanup(item); return undefined; }
-    acquired.add(item);
-    return item.lease;
+    let abandoned = false;
+    const produced = Promise.resolve(provider.factory(input.input, options.factoryOptions ?? {}))
+      .then(resource => admit({ resource, contract, snapshot, provider, abandoned: () => abandoned }));
+    return untilRetiredOrDeadline({ produced, snapshot, abandon: () => { abandoned = true; } });
   }
   return {
     initialize,
@@ -171,6 +215,7 @@ export function createPluginProviderHost(required: {
         unsubscribe();
         // Begin every teardown before awaiting any: a hung or rejected sink cannot block peers.
         for (const item of acquired) void cleanup(item);
+        for (const wake of wakers) wake();
         await Promise.all([...cleanups]);
       })();
       return shutdown;

@@ -125,8 +125,10 @@ injected as `PluginProviderContract.validate({ provider })`; optional `seed` use
 Provider identity is an exclusive `contract:id` claim, refused by the existing conflict detector at
 manifest resolution and again at snapshot publication. Returned ports pass core's `createProviderRegistry` validation.
 `initialize` returns a lease, `undefined` for an unavailable/retired generation, or rejects for
-factory/contract failures. Hosts await boot initialization and retain their existing noop when
-no provider is selected. Calls for distinct accounts may initialize independent resources.
+factory/contract failures. Retirement (detach, replacement, shutdown) settles a pending
+`initialize` with `undefined` without waiting for the factory; `initializeTimeoutMs` (default
+10000) rejects one that never settles. A result arriving after either is disposed on arrival.
+Hosts await boot initialization and retain their existing noop when no provider is selected. Calls for distinct accounts may initialize independent resources.
 
 Retirement blocks new work through `lease.isCurrent({})`, disposes acquired resources and
 immediately disposes any late initialization result. `lease.dispose({})` and `providers.dispose({})`
