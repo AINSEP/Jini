@@ -26,7 +26,7 @@ it('threads trusted registry IDs through daemon diagnostics and the final MCP er
   expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${diagnostic}` }] });
 });
 
-it('preserves a dotted recovery hint through both error sanitizers, masking known glued and token secrets', async () => {
+it('preserves a dotted recovery hint through both error sanitizers, masking glued and token secrets', async () => {
   const { postDaemonJson } = await import('../daemon-client.js');
   const { daemonCallOptions } = await import('../tool-protocol.js');
   const id = 'content_read.backup_restore_point';
@@ -37,8 +37,8 @@ it('preserves a dotted recovery hint through both error sanitizers, masking know
     handler: ({ ctx }) => postDaemonJson({ baseUrl: ctx.baseUrl, route: '/api/x', body: {} }, daemonCallOptions({ ctx })),
   }] });
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message } }), { status: 400 });
-  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds: [id], authHeaders: { Authorization: `Bearer ${opaque}` } } });
-  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${hint}; ${id}_[redacted] api_key=[redacted] sk-proj-[redacted] [redacted]` }] });
+  const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, diagnosticToolIds: [id] } });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${hint}; content_read.[redacted] api_key=[redacted] [redacted] [redacted]` }] });
 });
 
 it.each([
@@ -51,13 +51,14 @@ it.each([
   const token = 'run-scoped-opaque-credential';
   const vendorToken = `sk-proj-${'v'.repeat(25)}`;
   const signedUrl = 'https://user:pw@files.example/download?signature=short-signature#private';
-  const message = `${esc}[31m${diagnostic}${esc}[0m ${token} api_key=short-key ${vendorToken} ${signedUrl}`;
+  const uuid = '123e4567-e89b-12d3-a456-426614174000';
+  const message = `${esc}[31m${diagnostic}${esc}[0m ${token} ${uuid} api_key=short-key ${vendorToken} ${signedUrl}`;
   const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({ error: { message } }), { status: 400 });
   const tools = buildToolIndex({ tools: [makeTool({ name: 'gateway',
     handler: ({ ctx }) => postDaemonJson({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: {} }, daemonCallOptions({ ctx })),
   })] });
   const result = await handleToolCall({ name: 'gateway', tools, ctx: { ...ctx, fetchImpl, authHeaders: { Authorization: `Bearer ${token}` } } });
-  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${diagnostic} [redacted] api_key=[redacted] [redacted] https://files.example/download` }] });
+  expect(result).toEqual({ isError: true, content: [{ type: 'text', text: `HTTP 400: ${diagnostic} [redacted] [redacted] api_key=[redacted] [redacted] https://files.example/download` }] });
 });
 
 it('protects raw handler errors at the final catch, retaining identifiers and the output cap', async () => {

@@ -39,7 +39,7 @@ export class DaemonResponseTooLargeError extends Error {
 }
 
 export interface DaemonRequestOptions {
-  /** Exact host-registered IDs; inert since daemon diagnostics use the conservative policy, which keeps every ID. */
+  /** Exact host-registered IDs that may appear in diagnostics; credentials are always redacted. */
   diagnosticToolIds?: readonly string[];
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
@@ -131,8 +131,8 @@ function formatConnectionFailure(err: unknown, baseUrl: string, options: DaemonR
 
 /** Remove URL credentials, queries and fragments before ordinary secret/control redaction.
  * Even short query tokens are secrets; token-length heuristics cannot protect them.
- * Conservative core policy preserves slugs/tool IDs; unknown unlabelled opaque credentials lose
- * heuristic masking. Configured header values (the run credential) still use exact-secret masking.
+ * Opaque runs stay masked except identifier-shaped slugs/tool IDs; configured header values
+ * (the run credential) also use exact-secret masking.
  * @complexity Local scans of diagnostic text and header values, plus core's exact-secret replacements.
  */
 export function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions = {}): string {
@@ -151,8 +151,9 @@ export function safeDiagnostic({ text }: { text: string }, options: DaemonReques
   });
   const headerSecrets = Object.values(options.headers ?? {}).flatMap(value => [value, value.replace(/^(?:Bearer|Basic)\s+/i, '')]);
   return sanitizeUntrustedText({ text: redacted }, {
-    policy: 'conservative',
+    keepIdentifiers: true,
     exactSecrets: headerSecrets,
+    ...(options.diagnosticToolIds === undefined ? {} : { diagnosticToolIds: options.diagnosticToolIds }),
   });
 }
 
