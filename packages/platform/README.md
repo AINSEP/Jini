@@ -142,6 +142,27 @@ The SMTP subpath accepts a transport and clock; its nodemailer factory accepts t
 as a structural port. Core loads no mail vendor and adds no mail dependency.
 
 The guarded reader requires root, deny rules, all read/traversal limits, and a filesystem port.
+Its existing options object also accepts `descriptorRead: { exactMode?: number, rejectGrowth?: boolean }`.
+When present (including `{}`), reads open with `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`, verify
+regular-file status and size with `fstatSync`, and read that same descriptor. `exactMode` compares
+exact permission bits (`mode & 0o777`); `rejectGrowth: true` rejects bytes beyond its initial size.
+The filesystem's optional `fstatSync` and `constants` capabilities become required for this policy;
+unsupported flags fail closed. No-follow protects the final path component; ancestor-directory
+replacement races remain outside this guarantee. Omitting the policy retains existing reads.
+
+`@jini-ai/platform/fetch-with-timeout` also exports `TextReadOptions`,
+`readFetchResponseText({ response }, { maxResponseBytes?, strictUtf8? })`, and
+`fetchTextWithTimeout({ url, timeoutMs, init? }, { fetch?, maxResponseBytes?, strictUtf8? })`.
+Text defaults to unlimited bytes and replacement UTF-8 decoding. Caps must be nonnegative safe
+integers; exactly the cap is accepted, overflow throws `RangeError`, and strict UTF-8 throws on
+malformed/truncated input. Streamed bytes are counted before decoding, independent of Content-Length;
+failed guarded consumption cancels and releases the reader without masking the original error.
+Incoming chunk allocation is controlled by the upstream stream. The text-fetch helper maps timeout
+errors during both headers and body consumption to `FetchTimeoutError`, returns `{ response, text }`,
+and leaves the response metadata available with its body consumed. The existing positional
+`fetchWithTimeout(url, init, { timeoutMs, fetch? })` now accepts transport injection and still returns
+the original unconsumed response. Neither function retries.
+
 The durable JSON factory requires file path, filesystem/time/sleep/liveness/random/reporting ports,
 and host notices. It preserves atomic replacement and corrupt-file states; parent-directory
 persistence and the inherited simultaneous stale-lock-break race remain filesystem/locking limits.

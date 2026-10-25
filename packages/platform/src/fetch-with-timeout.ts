@@ -95,6 +95,70 @@ export interface FetchWithTimeoutOptions {
   /** Milliseconds before the call is aborted. Pick one of {@link FETCH_TIMEOUT_MS}, or a specific
    * justified number for a call site that doesn't fit those classes. */
   timeoutMs: number;
+  /** Host-supplied transport; defaults to the global fetch. */
+  fetch?: typeof fetch;
+}
+
+/** Opt-in byte and decoding guards; defaults remain unlimited and replacement-decoded. */
+export type TextReadOptions = {
+  /** Nonnegative safe integer. Actual streamed bytes, independent of Content-Length. */
+  maxResponseBytes?: number;
+  /** Reject malformed UTF-8, including an incomplete trailing character. */
+  strictUtf8?: boolean;
+};
+
+/**
+ * Consumes a response as UTF-8, checking bytes before decoding/retaining each chunk.
+ * @throws {RangeError} An invalid cap or a response exceeding it.
+ * @throws {TypeError} Invalid UTF-8 when strict decoding is enabled.
+ * Read failures propagate; failure cancels consumption and always releases the lock.
+ * @complexity O(n) time and retained text for n bytes, bounded by the optional cap.
+ * The upstream stream controls the allocation of individual incoming chunks.
+ */
+export async function readFetchResponseText(
+  { response }: { response: Response },
+  { maxResponseBytes, strictUtf8 = false }: TextReadOptions = {},
+): Promise<string> {
+  validateTextReadOptions({ maxResponseBytes });
+  if (maxResponseBytes === undefined && !strictUtf8) return response.text();
+  if (response.body === null) return "";
+  const reader = response.body.getReader();
+  let failed = true;
+  try {
+    const text = await decodeResponseStream({ reader }, { ...(maxResponseBytes === undefined ? {} : { maxResponseBytes }), strictUtf8 });
+    failed = false;
+    return text;
+  } catch (error) {
+    try { await reader.cancel(error); } catch { /* Preserve the consumption error. */ }
+    throw error;
+  } finally {
+    try { reader.releaseLock(); } catch (error) { if (!failed) throw error; }
+  }
+}
+
+/** Reject invalid caps before consumption, including for empty responses. */
+function validateTextReadOptions({ maxResponseBytes }: { maxResponseBytes: number | undefined }, _optional = {}): void {
+  if (maxResponseBytes !== undefined && (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 0)) {
+    throw new RangeError("maxResponseBytes must be a nonnegative safe integer");
+  }
+}
+
+/** Byte counting precedes decoding; final flush detects truncated UTF-8 in strict mode. */
+async function decodeResponseStream(
+  { reader }: { reader: ReadableStreamDefaultReader<Uint8Array> },
+  { maxResponseBytes = Infinity, strictUtf8 = false }: TextReadOptions = {},
+): Promise<string> {
+  const decoder = new TextDecoder("utf-8", { fatal: strictUtf8 });
+  let total = 0;
+  let text = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxResponseBytes) throw new RangeError(`response exceeds the ${maxResponseBytes}-byte limit`);
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
 }
 
 /**
@@ -117,12 +181,44 @@ export async function fetchWithTimeout(
   init: RequestInit = {},
   options: FetchWithTimeoutOptions,
 ): Promise<Response> {
-  const { timeoutMs } = options;
+  return executeFetchWithTimeout({ url, init, timeoutMs: options.timeoutMs, consume: async ({ response }) => response }, options);
+}
+
+/**
+ * Fetches and consumes text inside one timeout scope. The returned response keeps its metadata
+ * and has a consumed body. No retries; other fetch/read errors propagate unchanged.
+ * @throws {FetchTimeoutError} The timeout ends fetch or body consumption before caller abort.
+ * @throws {RangeError | TypeError} See {@link readFetchResponseText} for opt-in guards.
+ * @complexity O(n) time and text storage for n response bytes, optionally capped.
+ */
+export async function fetchTextWithTimeout(
+  required: { url: string | URL; timeoutMs: number; init?: RequestInit },
+  optional: TextReadOptions & { fetch?: typeof fetch } = {},
+): Promise<{ response: Response; text: string }> {
+  return executeFetchWithTimeout({
+    url: required.url,
+    timeoutMs: required.timeoutMs,
+    init: required.init ?? {},
+    consume: async ({ response }) => ({ response, text: await readFetchResponseText({ response }, optional) }),
+  }, optional);
+}
+
+/** Shared signal composition/error mapping; consumption decides the timeout scope's endpoint. */
+async function executeFetchWithTimeout<T>(
+  { url, init, timeoutMs, consume }: {
+    url: string | URL;
+    init: RequestInit;
+    timeoutMs: number;
+    consume: (required: { response: Response }) => Promise<T>;
+  },
+  options: Pick<FetchWithTimeoutOptions, "fetch"> = {},
+): Promise<T> {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
 
   try {
-    return await fetch(url, { ...init, signal });
+    const response = await (options.fetch ?? fetch)(url, { ...init, signal });
+    return await consume({ response });
   } catch (error) {
     // `timeoutSignal` is the original object this function created, not the (possibly composed)
     // signal handed to `fetch` — checking its own `.aborted` tells us specifically whether OUR

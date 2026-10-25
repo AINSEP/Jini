@@ -20,7 +20,17 @@ export interface GuardedReaderLimits {
     maxWalkDepth: number;
     maxWalkEntries: number;
 }
-export type GuardedReaderFilesystem = Pick<typeof nodeFs, "existsSync" | "lstatSync" | "readdirSync" | "realpathSync" | "statSync" | "openSync" | "readSync" | "closeSync" | "createReadStream">;
+/** Optional capabilities needed only when descriptor reads are requested. */
+export type DescriptorCapabilities = Partial<Pick<typeof nodeFs, "fstatSync" | "constants">>;
+export type DescriptorReadPolicy = {
+    /** Require exact permission bits, e.g. 0o600; no subset/superset matching. */
+    exactMode?: number;
+    /** Reject growth beyond the descriptor's initial size even below the byte cap. */
+    rejectGrowth?: boolean;
+};
+/** Additive descriptor policy in the guarded reader's existing options object. */
+export type AddedReaderOptions = { descriptorRead?: DescriptorReadPolicy };
+export type GuardedReaderFilesystem = Pick<typeof nodeFs, "existsSync" | "lstatSync" | "readdirSync" | "realpathSync" | "statSync" | "openSync" | "readSync" | "closeSync" | "createReadStream"> & DescriptorCapabilities;
 /** Native filesystem adapter; callers can replace individual operations for a virtual filesystem. */
 export function createNodeGuardedReaderFilesystem(_required: Record<string, never>): GuardedReaderFilesystem { return nodeFs; }
 export interface GuardedFileReader {
@@ -52,20 +62,23 @@ export interface GuardedFileReader {
 }
 /** Contains both requested and resolved paths, including symlink aliases and nonexistent descendants.
  * Deny rules and traversal/read limits are host policy and have no implicit defaults.
+ * Opt-in descriptor reads fail closed without fstat/no-follow/nonblocking capabilities. No-follow
+ * protects the final component, not concurrent ancestor-directory replacement.
  */
 export function createGuardedFileReader({ rootPath, denyRules, limits, filesystem: fs }: {
     rootPath: string;
     denyRules: DenyRules;
     limits: GuardedReaderLimits;
     filesystem: GuardedReaderFilesystem;
-}, { excludedListingDirs = new Set(["node_modules", ".git", "dist"]) }: {
+}, { excludedListingDirs = new Set(["node_modules", ".git", "dist"]), descriptorRead }: {
     excludedListingDirs?: ReadonlySet<string>;
-} = {}): GuardedFileReader {
+} & AddedReaderOptions = {}): GuardedFileReader {
     if (!rootPath)
         throw new TypeError("rootPath is required");
     for (const value of Object.values(limits))
         if (!Number.isSafeInteger(value) || value <= 0)
             throw new TypeError("reader limits must be positive safe integers");
+    const descriptorFlags = descriptorRead === undefined ? undefined : descriptorOpenFlags({ filesystem: fs, policy: descriptorRead });
     const { existsSync, lstatSync, readdirSync, realpathSync, statSync } = fs;
     const MAX_FS_FILE_BYTES = limits.maxFileBytes, BINARY_SNIFF_BYTES = limits.binarySniffBytes;
     const MAX_LISTED_FILES = limits.maxListedFiles, MAX_WALK_DEPTH = limits.maxWalkDepth, MAX_WALK_ENTRIES = limits.maxWalkEntries;
@@ -321,9 +334,11 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
     }
     // Read one byte past the cap so a file that grew after stat is refused rather than clipped.
     function readBoundedSync(target: string, relativePath: string): Buffer {
-        const fd = fs.openSync(target, "r");
+        const { fd, maxBytes } = descriptorFlags === undefined
+            ? { fd: fs.openSync(target, "r"), maxBytes: MAX_FS_FILE_BYTES }
+            : openValidatedDescriptor({ target, relativePath, maxBytes: MAX_FS_FILE_BYTES });
         try {
-            const bounded = Buffer.alloc(MAX_FS_FILE_BYTES + 1);
+            const bounded = Buffer.alloc(maxBytes + 1);
             let count = 0;
             while (count < bounded.length) {
                 const read = fs.readSync(fd, bounded, count, bounded.length - count, null);
@@ -331,12 +346,26 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
                     break;
                 count += read;
             }
-            if (count > MAX_FS_FILE_BYTES)
-                throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${MAX_FS_FILE_BYTES}-byte readable limit` });
+            if (count > maxBytes)
+                throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${maxBytes}-byte readable limit` });
             return bounded.subarray(0, count);
         }
         finally {
             fs.closeSync(fd);
+        }
+    }
+    /** Owns the descriptor until validated; every refusal closes it before propagating. */
+    function openValidatedDescriptor({ target, relativePath, maxBytes }: {
+        target: string; relativePath: string; maxBytes: number;
+    }, _optional = {}): { fd: number; maxBytes: number } {
+        const fd = fs.openSync(target, descriptorFlags!);
+        try {
+            const stat = fs.fstatSync!(fd);
+            assertDescriptorStat({ stat, relativePath, maxBytes }, descriptorRead);
+            return { fd, maxBytes: descriptorRead?.rejectGrowth ? Math.min(maxBytes, stat.size) : maxBytes };
+        } catch (error) {
+            try { fs.closeSync(fd); } catch { /* Preserve the validation error. */ }
+            throw error;
         }
     }
     // A stat-only size check can be bypassed by a growing file: bound the stream independently and
@@ -358,15 +387,33 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         return readBoundedStream(target, { relativePath, maxBytes });
     }
     async function readBoundedStream(target: string, { relativePath, maxBytes }: { relativePath: string; maxBytes: number }): Promise<Uint8Array> {
-        const stream = fs.createReadStream(target, { highWaterMark: Math.min(64 * 1024, maxBytes + 1) });
+        const opened = createBoundedStream({ target, relativePath, maxBytes });
+        const { stream } = opened;
         try {
             // Own refusals pass through; any other stream failure becomes this reader's refusal class.
-            return await collectBoundedChunks(stream, { relativePath, maxBytes }).catch((error: unknown) => Promise.reject(error instanceof FsFilePathError
+            return await collectBoundedChunks(stream, { relativePath, maxBytes: opened.maxBytes }).catch((error: unknown) => Promise.reject(error instanceof FsFilePathError
                 ? error
                 : new FsFilePathError({ message: `path '${relativePath}' could not be read: ${errorText(error)}` })));
         }
         finally {
             stream.destroy();
+        }
+    }
+    /** Transfer ownership to the stream only after construction; it alone closes on end/error. */
+    function createBoundedStream({ target, relativePath, maxBytes }: {
+        target: string; relativePath: string; maxBytes: number;
+    }, _optional = {}): { stream: nodeFs.ReadStream; maxBytes: number } {
+        const highWaterMark = Math.min(64 * 1024, maxBytes + 1);
+        if (descriptorFlags === undefined) return { stream: fs.createReadStream(target, { highWaterMark }), maxBytes };
+        const opened = openValidatedDescriptor({ target, relativePath, maxBytes });
+        try {
+            return {
+                stream: fs.createReadStream(target, { fd: opened.fd, autoClose: true, highWaterMark: Math.min(highWaterMark, opened.maxBytes + 1) }),
+                maxBytes: opened.maxBytes,
+            };
+        } catch (error) {
+            try { fs.closeSync(opened.fd); } catch { /* Preserve the construction error. */ }
+            throw error;
         }
     }
     return {
@@ -377,6 +424,30 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         isDeniedFileName: ({ fileName }) => isDeniedFsFileName(fileName),
         isDeniedPathSegment: ({ segmentName }) => isDeniedFsPathSegment(segmentName),
     };
+}
+/** Validate opt-in capability support without weakening legacy filesystem adapters. */
+function descriptorOpenFlags({ filesystem, policy }: {
+    filesystem: GuardedReaderFilesystem; policy: DescriptorReadPolicy;
+}, _optional = {}): number {
+    if (!filesystem.fstatSync || !filesystem.constants)
+        throw new TypeError("descriptorRead requires fstatSync and filesystem constants");
+    const { O_RDONLY, O_NOFOLLOW, O_NONBLOCK } = filesystem.constants;
+    if (!O_NOFOLLOW || !O_NONBLOCK || !Number.isInteger(O_RDONLY))
+        throw new TypeError("descriptorRead requires supported O_RDONLY, O_NOFOLLOW and O_NONBLOCK flags");
+    if (policy.exactMode !== undefined && (!Number.isInteger(policy.exactMode) || policy.exactMode < 0 || policy.exactMode > 0o777))
+        throw new TypeError("exactMode must contain only permission bits (0o000 through 0o777)");
+    return O_RDONLY | O_NOFOLLOW | O_NONBLOCK;
+}
+/** Both read paths validate the opened object, independent of earlier pathname metadata. */
+function assertDescriptorStat({ stat, relativePath, maxBytes }: {
+    stat: Stats; relativePath: string; maxBytes: number;
+}, { exactMode }: DescriptorReadPolicy = {}): void {
+    if (!stat.isFile())
+        throw new FsFilePathError({ message: `path '${relativePath}' is not a regular file` });
+    if (!Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > maxBytes)
+        throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${maxBytes}-byte descriptor limit` });
+    if (exactMode !== undefined && (stat.mode & 0o777) !== exactMode)
+        throw new FsFilePathError({ message: `file '${relativePath}' does not have exact mode ${exactMode.toString(8)}` });
 }
 function errorText(error: unknown): string {
     return error instanceof Error ? error.message : String(error);

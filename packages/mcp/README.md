@@ -15,9 +15,8 @@ implementation.
 npm install @jini-ai/mcp
 ```
 
-No peer dependencies. `@modelcontextprotocol/sdk`, `undici`, `@cfworker/json-schema`,
-`@jini-ai/core`, `@jini-ai/cli`, and `@jini-ai/platform`
-are regular dependencies, installed automatically. Nothing here needs a native compile.
+`@modelcontextprotocol/sdk`, `@cfworker/json-schema`, and `@jini-ai/platform` are optional
+peers, needed only for the surfaces that use them. Nothing here needs a native compile.
 
 ## What you get
 
@@ -61,6 +60,15 @@ and `applyJsonInstall` / `removeJsonInstall` to execute the JSON-file variant. P
 For an explicit UI check, pass `CHROME_DEVTOOLS_MCP_PRESET` to `planAgentInstall` with `ctx.serverName: "chrome-devtools"`; it pins 1.10.1 and disables usage statistics and CrUX. See the [on-demand recipe](../diagnostics/docs/ui-performance-check.md).
 
 **Client-side runtime helpers** — `extractRelativeRefs`, `isTextualMime`.
+
+`createFetchMcpHttpExchange({ fetch }, { maxResponseBytes?, strictUtf8? })` from
+`@jini-ai/mcp/federation` optionally caps actual streamed bytes and rejects malformed UTF-8 for
+both JSON and SSE responses. Caps are nonnegative safe integers; overflow throws `RangeError` and
+strict decoding failures throw `TypeError`. Enabling either guard lazily loads the optional
+`@jini-ai/platform` peer, **0.6.15 or later** (the release introducing `readFetchResponseText`); install a
+compatible version before opting in. With neither guard enabled, exchanges still use unlimited
+`response.text()` and work without platform installed. Headers, signals, redirect refusal and the
+separate session-level 4 MiB check retain their behavior.
 
 ## Argument convention (breaking)
 
