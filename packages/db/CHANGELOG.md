@@ -1,3 +1,10 @@
+## 0.6.12
+
+### Patch Changes
+
+- db: new `@jini-ai/db/owner-store` entry — owner-only SQLite vault with grants, copy-to-site sync and passphrase-sealed backup (uses the optional `better-sqlite3` peer or an injected opener).
+  - @jini-ai/core@0.6.12
+
 ## 0.6.11
 
 ### Patch Changes

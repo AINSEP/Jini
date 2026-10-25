@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/search",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "description": "Generic site-search contract: provider interface, registry, single-writer indexer, query service with access revalidation, agent tools and a provider conformance test-kit.",
   "license": "Apache-2.0",
   "repository": {
