@@ -178,6 +178,25 @@ describe('AI trace lifecycle failure containment and terminal observation', () =
     expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
   });
 
+  it('maps a canceled end to cancelled and an end with no status to failed; an error event without a code is still recorded', async () => {
+    // A cancelled run records no failure; a failed one carries the last stream error (no code here),
+    // its text replaced by the default metadata capture policy.
+    const cases = [
+      [{ status: 'canceled' }, { message: 'stream broke' }, 'cancelled', null],
+      [{}, { message: 'stream broke' }, 'failed', { message: 'run_error', code: null }],
+      [{}, { message: 'stream broke', error: { code: 'E_STREAM' } }, 'failed', { message: 'run_error', code: 'E_STREAM' }],
+    ] as const;
+    for (const [payload, errorPayload, outcome, error] of cases) {
+      const { traced, sink, deliverAgain } = fixture();
+      const { run } = await traced.start({ contextRef: 'chat' });
+      await vi.waitFor(() => expect(sink.events.map((event) => event.kind)).toEqual(['run_started']));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      deliverAgain({ kind: 'error', runId: run.id, payload: errorPayload } as unknown as RunProtocolEvent);
+      deliverAgain({ kind: 'end', runId: run.id, payload } as unknown as RunProtocolEvent);
+      expect(sink.events.at(-1)).toMatchObject({ kind: 'run_finished', outcome, error });
+    }
+  });
+
   it('dispose() during a pending underlying start opens no recorder or subscription afterwards', async () => {
     const { lifecycle, sink, unsubscribed } = fixture();
     let release!: () => void;

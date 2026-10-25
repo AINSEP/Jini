@@ -310,6 +310,17 @@ describe('RunLifecycle — a durable start that has not committed yet', () => {
     await expect(waiting).rejects.toThrow('start append failed');
   });
 
+  it('a failing start append clears the run from the delegated-result correlation store', async () => {
+    const { eventLog, fail } = gatedStartLog();
+    const cleared: string[] = [];
+    const lifecycle = createRunLifecycle({ eventLog }, { delegatedResultCorrelation: { clearRun: ({ runId }: { runId: string }) => { cleared.push(runId); } } as never });
+    const starting = lifecycle.start({ contextRef: 'ctx-correlated' }, { runId: 'correlated-run' });
+    await settleQueues();
+    fail(new Error('start append failed'));
+    await expect(starting).rejects.toThrow('start append failed');
+    expect(cleared).toEqual(['correlated-run']);
+  });
+
   it('an abort ends a waitForTerminal() parked behind a stalled start append; the start failure still reaches un-aborted waiters', async () => {
     const { eventLog, fail } = gatedStartLog();
     const lifecycle = createRunLifecycle({ eventLog });

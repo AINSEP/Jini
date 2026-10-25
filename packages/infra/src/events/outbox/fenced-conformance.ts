@@ -77,12 +77,11 @@ const settled = <T>(promise: Promise<T>): Promise<Settled<T>> =>
 function overlapBarrier(subject: Subject): { issued: (transaction: unknown) => void; reached: Promise<void> } {
   const { awaitOverlap } = subject;
   if (!awaitOverlap) return { issued: () => {}, reached: nextTurn() };
-  let issued: (transaction: unknown) => void = () => {};
-  const reached = new Promise<void>((resolve, reject) => {
-    // Deferred a microtask so a hook that throws synchronously rejects `reached` (and reaches the
-    // barrier-failure cleanup) instead of escaping contend() before its enqueue is settled.
-    issued = (transaction) => { Promise.resolve().then(() => awaitOverlap.call(subject, { transaction })).then(resolve, reject); };
-  });
+  let settle!: { resolve: () => void; reject: (error: unknown) => void };
+  const reached = new Promise<void>((resolve, reject) => { settle = { resolve, reject }; });
+  // Deferred a microtask so a hook that throws synchronously rejects `reached` (and reaches the
+  // barrier-failure cleanup) instead of escaping contend() before its enqueue is settled.
+  const issued = (transaction: unknown) => { Promise.resolve().then(() => awaitOverlap.call(subject, { transaction })).then(settle.resolve, settle.reject); };
   return { issued, reached };
 }
 
