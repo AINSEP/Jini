@@ -175,6 +175,22 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   },
 ];
 
+// Categories the pipeline names directly; pattern rules carry their own names. Exact-secret
+// masking derives the set of markers redact can generate from these plus the pattern names.
+const CATEGORY = {
+  exactSecret: 'exact_secret',
+  credential: 'credential',
+  urlCredentials: 'url_credentials',
+  signedQuery: 'signed_query',
+  apiKeyHeader: 'api_key_header',
+  apiKeyQuery: 'api_key_query',
+  bearerToken: 'bearer_token',
+  labeledSecret: 'labeled_secret',
+  urlSecretParam: 'url_secret_param',
+  opaqueToken: 'opaque_token',
+  creditCard: 'credit_card',
+} as const;
+
 // Credit card sweep is special: a naive 13-19 digit run matches a lot of
 // non-card numbers (timestamps, IDs, hashes). We isolate the candidate
 // then run a Luhn check before redacting.
@@ -297,14 +313,14 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
     counts[name] = (counts[name] ?? 0) + 1;
     return `[REDACTED:${name}]`;
   };
-  let out = redactExactSecrets({ text: input, marker, secrets: options.exactSecrets ?? [] });
+  let out = redactExactSecrets({ text: input, marker, secrets: options.exactSecrets ?? [], extraPatterns: options.extraPatterns ?? [] });
   out = redactUrlCredentials({ text: out, marker });
   out = applyPatterns({ text: out, marker, patterns: credentialPatterns(options.extraPatterns ?? []) });
   out = redactKeyedCredentials({ text: out, marker });
   if (options.policy === 'aggressive') {
     const trustedIds = new Set(options.diagnosticToolIds);
     out = out.replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => trustedIds.has(token) ? token
-      : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) ? match : marker('opaque_token')));
+      : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) ? match : marker(CATEGORY.opaqueToken)));
   }
   if (options.redactPii !== false) out = redactPii({ text: out, marker });
   return { redacted: out, counts };
@@ -328,7 +344,7 @@ const PII_PATTERNS = PATTERNS.filter((pattern) => PII_PATTERN_NAMES.includes(pat
 function credentialPatterns(extraPatterns: readonly SecretRedactionPattern[]): SecretRedactionPattern[] {
   return [
     ...NON_PII_PATTERNS,
-    ...SECRET_SHAPE_PATTERNS.map((shape) => ({ name: 'credential', regex: shape.pattern })),
+    ...SECRET_SHAPE_PATTERNS.map((shape) => ({ name: CATEGORY.credential, regex: shape.pattern })),
     ...extraPatterns,
   ];
 }
@@ -350,30 +366,63 @@ function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: r
 // they split labels before the label rules ran (`a` inside `password=hunter2` broke the label
 // and left `hunter2` visible; `api_key` swallowed the whole `api_key=` label), and they split
 // earlier markers (`a` inside `exact_secret`, `email` inside `[REDACTED:email]`).
-const PROTECTED_SPAN_RE = new RegExp([
+const PROTECTED_LABEL_SPANS: readonly string[] = [
   `\\b(?:${SECRET_LABELS})\\b\\s*[:=]`,
   '\\bbearer\\s+',
   URL_SECRET_PARAM_RE.source.slice(0, URL_SECRET_PARAM_RE.source.lastIndexOf('=') + 1),
   URL_CREDENTIALS_RE.source.slice(0, URL_CREDENTIALS_RE.source.indexOf(')') + 1),
-  '\\[REDACTED:[^\\]]*\\]',
-  '\\[redacted\\]',
-].join('|'), 'gi');
+];
+// Only markers redact itself generates are protected: arbitrary `[REDACTED:<text>]` would let
+// echoed input such as `[REDACTED:<secret>]` keep the real secret. A fixed category alternation
+// also bounds each marker attempt; `[^\]]*` rescanned the suffix after every unterminated
+// `[REDACTED:`, which was quadratic on large tool responses.
+const GENERATED_CATEGORIES: readonly string[] = [...PATTERNS.map(({ name }) => name), ...Object.values(CATEGORY)];
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Label/scheme spans plus generated markers (built-in and this call's extra pattern names). */
+function protectedSpanRe(extraPatterns: readonly SecretRedactionPattern[]): RegExp {
+  const categories = new Set([...GENERATED_CATEGORIES, ...extraPatterns.map(({ name }) => name)]);
+  const markerRe = `\\[REDACTED:(?:${[...categories].map(escapeRegExp).join('|')})\\]`;
+  return new RegExp([...PROTECTED_LABEL_SPANS, markerRe, '\\[redacted\\]'].join('|'), 'gi');
+}
+
+interface Span {
+  start: number;
+  end: number;
+}
+
+// Replacements arrive in ascending offset order and matchAll spans are sorted and disjoint, so
+// one forward-only cursor decides every overlap in O(matches + spans) rather than their product.
+function overlapsSpan(spans: readonly Span[]): (start: number, end: number) => boolean {
+  let next = 0;
+  return (start, end) => {
+    while ((spans[next]?.end ?? Infinity) <= start) next += 1;
+    return (spans[next]?.start ?? Infinity) < end;
+  };
+}
 
 /** Masks caller-supplied secrets verbatim, longest first, ignoring empty and non-string entries;
- * an occurrence overlapping a protected span is left for the label rules. */
-function redactExactSecrets(
-  { text, marker, secrets }: RedactionPass & { secrets: ReadonlyArray<string | undefined | null> },
-): string {
+ * an occurrence overlapping a protected span is left for the label rules.
+ * @complexity O(secrets x text) time, O(text) space per secret. */
+function redactExactSecrets({ text, marker, secrets, extraPatterns }: RedactionPass & {
+  secrets: ReadonlyArray<string | undefined | null>;
+  extraPatterns: readonly SecretRedactionPattern[];
+}): string {
   const usable = [...new Set(secrets.filter(
     (secret): secret is string => typeof secret === 'string' && secret.length > 0,
   ))].sort((a, b) => b.length - a.length);
+  if (usable.length === 0) return text;
+  const spanRe = protectedSpanRe(extraPatterns);
   let out = text;
   for (const secret of usable) {
-    const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     // Recomputed per secret: a longer secret's marker is protected from the shorter ones.
-    const spans = [...out.matchAll(PROTECTED_SPAN_RE)].map(({ index, 0: span }) => ({ start: index, end: index + span.length }));
-    out = out.replace(new RegExp(escaped, 'g'), (match, offset: number) =>
-      spans.some(({ start, end }) => offset < end && offset + match.length > start) ? match : marker('exact_secret'));
+    const spans = [...out.matchAll(spanRe)].map(({ index, 0: span }) => ({ start: index, end: index + span.length }));
+    const isProtected = overlapsSpan(spans);
+    out = out.replace(new RegExp(escapeRegExp(secret), 'g'), (match, offset: number) =>
+      isProtected(offset, offset + match.length) ? match : marker(CATEGORY.exactSecret));
   }
   return out;
 }
@@ -382,10 +431,10 @@ function redactExactSecrets(
 function redactUrlCredentials({ text, marker }: RedactionPass): string {
   return text
     .replace(URL_CREDENTIALS_RE, (match, scheme: string, userinfo: string) =>
-      isMaskedValue(userinfo) ? match : `${scheme}${marker('url_credentials')}@`,
+      isMaskedValue(userinfo) ? match : `${scheme}${marker(CATEGORY.urlCredentials)}@`,
     )
     .replace(SIGNED_QUERY_RE, (match, prefix: string, value: string) =>
-      isMaskedValue(value) ? match : `${prefix}${marker('signed_query')}`,
+      isMaskedValue(value) ? match : `${prefix}${marker(CATEGORY.signedQuery)}`,
     );
 }
 
@@ -394,21 +443,21 @@ function redactKeyedCredentials({ text, marker }: RedactionPass): string {
   let out = text.replace(API_KEY_HEADER, (_match, prefix: string, quote: string, name: string, separator: string, value: string) => {
     // Already masked values are not new credentials and should not inflate the audit count.
     if (isMaskedValue(value)) return `${prefix}${quote}${name}${quote}${separator}${value}`;
-    marker('api_key_header');
-    const redactedValue = value.startsWith('"') ? '"[REDACTED:api_key_header]"' : '[REDACTED:api_key_header]';
+    const masked = marker(CATEGORY.apiKeyHeader);
+    const redactedValue = value.startsWith('"') ? `"${masked}"` : masked;
     return `${prefix}${quote}${name}${quote}${separator}${redactedValue}`;
   });
   // The provider rule includes a query fragment in an echoed key; mask that whole value
   // before the narrower core query rule can split it and leave a credential suffix behind.
   out = out.replace(PROVIDER_API_KEY_QUERY, (match, prefix: string, value: string) =>
-    isMaskedValue(value) ? match : `${prefix}${marker('api_key_query')}`,
+    isMaskedValue(value) ? match : `${prefix}${marker(CATEGORY.apiKeyQuery)}`,
   );
   out = out.replace(API_KEY_QUERY, (match, prefix: string) =>
-    isMaskedValue(match.slice(prefix.length)) ? match : `${prefix}${marker('api_key_query')}`,
+    isMaskedValue(match.slice(prefix.length)) ? match : `${prefix}${marker(CATEGORY.apiKeyQuery)}`,
   );
-  out = out.replace(SHORT_BEARER_RE, () => marker('bearer_token'));
+  out = out.replace(SHORT_BEARER_RE, () => marker(CATEGORY.bearerToken));
   out = out.replace(PROVIDER_API_KEY_HEADER, (match, name: string, value: string) =>
-    isMaskedValue(value) ? match : `${name}: ${marker('api_key_header')}`,
+    isMaskedValue(value) ? match : `${name}: ${marker(CATEGORY.apiKeyHeader)}`,
   );
   // Sweep other URL parameters before the general labeled rule can consume harmless
   // neighboring parameters (`password=x&page=2` used to lose `&page=2`).
@@ -417,7 +466,7 @@ function redactKeyedCredentials({ text, marker }: RedactionPass): string {
     // Replace only the captured value, retaining labels even when no whitespace separates
     // them. Glued credential suffixes fail the complete-marker check and remain maskable.
     if (isMaskedValue(value)) return match;
-    return `${match.slice(0, -value.length)}${marker('labeled_secret')}`;
+    return `${match.slice(0, -value.length)}${marker(CATEGORY.labeledSecret)}`;
   });
 }
 
@@ -426,7 +475,7 @@ function redactUrlSecretParams({ text, marker }: RedactionPass): string {
   return text.replace(URL_SECRET_PARAM_RE, (match, name: string) => {
     const separator = match.indexOf('=') + 1;
     if (isMaskedValue(match.slice(separator))) return match;
-    const category = LABELED_URL_PARAM_NAME_RE.test(name) ? 'labeled_secret' : 'url_secret_param';
+    const category = LABELED_URL_PARAM_NAME_RE.test(name) ? CATEGORY.labeledSecret : CATEGORY.urlSecretParam;
     return `${match.slice(0, separator)}${marker(category)}`;
   });
 }
@@ -435,6 +484,6 @@ function redactUrlSecretParams({ text, marker }: RedactionPass): string {
 function redactPii({ text, marker }: RedactionPass): string {
   return applyPatterns({ text, marker, patterns: PII_PATTERNS }).replace(CARD_CANDIDATE, (match) => {
     const digits = match.replace(/\D/g, '');
-    return isLuhnValid(digits) ? marker('credit_card') : match;
+    return isLuhnValid(digits) ? marker(CATEGORY.creditCard) : match;
   });
 }

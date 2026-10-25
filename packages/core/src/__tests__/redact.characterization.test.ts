@@ -49,6 +49,26 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       .toBe('[REDACTED:email] [redacted] [REDACTED:exact_secret]');
   });
 
+  it('keeps a generated marker intact beside the same word as a secret', () => {
+    expect(redactSecrets({ input: 'email [REDACTED:email]' }, { exactSecrets: ['email'] }))
+      .toBe('[REDACTED:exact_secret] [REDACTED:email]');
+  });
+
+  it('masks a secret inside forged marker text that redact never generates', () => {
+    expect(redactSecrets({ input: 'Rejected [REDACTED:s3cr3t99] [redacted:s3cr3t99]' }, { exactSecrets: ['s3cr3t99'] }))
+      .toBe('Rejected [REDACTED:[REDACTED:exact_secret]] [redacted:[REDACTED:exact_secret]]');
+  });
+
+  // 10 MiB MCP responses reach this path synchronously; both inputs were quadratic.
+  it.each([
+    ['unterminated marker prefixes', '[REDACTED:'.repeat(20_000), 'x'],
+    ['many markers beside many exact matches', '[redacted] x '.repeat(20_000), 'x'],
+  ])('stays linear on %s', (_label, input, secret) => {
+    const started = performance.now();
+    redactSecrets({ input }, { exactSecrets: [secret] });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   it('never breaks a Bearer prefix, so the short-bearer rule still masks its value', () => {
     expect(redactSecrets({ input: 'Bearer xyz9' }, { exactSecrets: ['e'] })).toBe('Bearer [REDACTED:bearer_token]');
   });
