@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { AesGcmSecretSealer, FixedSiteKeyKeyring } from "@jini-ai/platform/secrets";
 import { createVaultMetaParsers, InMemoryVaultRepo, SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
 import type { OwnerSyncTarget } from "../service.js";
-import type { SqliteOpener } from "@jini-ai/db/sqlite";
+import type { SqliteOpener } from "../../sqlite/types.js";
 import { openOwnerStore, type OpenOwnerStoreOptions, type OpenedOwnerStore } from "../open.js";
 
 export const input = { kind: "vendor" as const, ownerKey: "plugin", binding: null, provider: "provider",
