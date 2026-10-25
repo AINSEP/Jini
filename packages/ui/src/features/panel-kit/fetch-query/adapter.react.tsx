@@ -1,16 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, withCachedLoaderFetch, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
+import { DEFAULT_STALE_TIME, FetchQueryCache, toQueryError, withCachedLoaderFetch, type FetchQueryCacheOptions } from '@jini-ai/core/fetch';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
 import { FetchQueryBinding } from './binding.react.js';
 import type { CachedLoader, CachedLoaderDefaults, CachedLoaderOptions, FetchMutationOptions, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
 
 const CacheContext = createContext<FetchQueryCache | null>(null);
 
-/** Isolated cache scope; no external provider or query-library singleton is needed. */
-export function FetchQueryProvider({ children, environment = browserFetchQueryEnvironment }: { children: ReactNode; environment?: FetchQueryEnvironmentPort }) {
+/** Isolated cache scope; no external provider or query-library singleton is needed.
+ * Omitted timing ports use core's real clock and native timers. Keep port identities stable:
+ * replacing a port creates a new cache and disposes the previous scope's timers/subscriptions.
+ * @param props Children and optional host environment, clock and scheduler ports.
+ * @returns The provider-scoped query binding; activates on mount and disposes on unmount.
+ * @example <FetchQueryProvider clock={clock} scheduler={scheduler}><Records /></FetchQueryProvider>
+ * @complexity O(1) setup time and space; disposal scales with cached entries. */
+export function FetchQueryProvider({ children, environment = browserFetchQueryEnvironment, ...timing }: { children: ReactNode } & Pick<FetchQueryCacheOptions, 'environment' | 'clock' | 'scheduler'>) {
   // A module singleton would leak cache values between independent providers/tests,
   // producing cases that pass alone but fail together. Scope ownership to this provider.
-  const cache = useMemo(() => new FetchQueryCache({}, { environment }), [environment]);
+  const cache = useMemo(() => new FetchQueryCache({}, { environment, ...timing }), [environment, timing.clock, timing.scheduler]);
   useEffect(() => {
     cache.activate();
     return () => cache.dispose();
