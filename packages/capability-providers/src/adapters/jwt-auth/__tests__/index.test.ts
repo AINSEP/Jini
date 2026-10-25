@@ -143,4 +143,57 @@ describe('JwtAuthProvider', () => {
     const provider2 = new JwtAuthProvider({ secret: 'shared-secret' }, {});
     expect(await provider2.verifySession({ token: session.token })).toBeNull();
   });
+
+  // Security guard (index.ts verifySessionJwt length check): `timingSafeEqual` throws RangeError on
+  // unequal buffer lengths, so the length guard is the only thing turning a short/long forged
+  // signature into a plain rejection. Removing the guard makes every case below reject/throw.
+  describe('forged signature of the wrong length', () => {
+    const secret = 's3cr3t';
+    const payload = JSON.stringify({ sub: 'user-1', jti: 'j1', iat: 0, exp: 4_102_444_800 });
+    it.each([
+      ['empty', 0],
+      ['one byte', 1],
+      ['31 bytes (one short)', 31],
+      ['33 bytes (one long)', 33],
+      ['64 bytes (double)', 64],
+    ])('%s signature → verifySession resolves null, never RangeError', async (_label, length) => {
+      const auth = new JwtAuthProvider({ secret }, { now: () => 0 });
+      await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const token = craftToken(payload, secret, Buffer.alloc(length, 7));
+      await expect(auth.verifySession({ token })).resolves.toBeNull();
+    });
+
+    it.each([0, 31, 33])('%i-byte signature → signOut is a no-op that does not revoke the real session', async (length) => {
+      const auth = new JwtAuthProvider({ secret }, {});
+      await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const session = await auth.signIn({ email: 'ada@example.com', password: 'hunter2' });
+      const [h, p] = session.token.split('.');
+      const forged = `${h}.${p}.${base64url(Buffer.alloc(length, 1))}`;
+      await expect(auth.signOut({ token: forged })).resolves.toBeUndefined();
+      expect(await auth.verifySession({ token: session.token })).toMatchObject({ id: session.userId });
+    });
+
+    it('a correct-length signature with a truncated-then-padded real signature is still rejected', async () => {
+      const auth = new JwtAuthProvider({ secret }, {});
+      await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const session = await auth.signIn({ email: 'ada@example.com', password: 'hunter2' });
+      const [h, p, sig] = session.token.split('.');
+      // Drop the last base64url char: decodes to 31 or 32 bytes of mostly-real signature.
+      await expect(auth.verifySession({ token: `${h}.${p}.${sig!.slice(0, -1)}` })).resolves.toBeNull();
+      await expect(auth.verifySession({ token: `${h}.${p}.${sig}AA` })).resolves.toBeNull();
+    });
+  });
+
+  it('accepts its own tokens for payloads of every base64 padding residue (0/1/2 pad chars stripped)', async () => {
+    // Different email lengths → different `sub`/`jti` sizes don't vary, so vary the user id length via many sign-ups.
+    const auth = new JwtAuthProvider({ secret: 's3cr3t' }, {});
+    const seenResidues = new Set<number>();
+    for (let i = 0; i < 12; i++) {
+      await auth.signUp({ email: `u${i}@example.com`, password: 'pw' });
+      const session = await auth.signIn({ email: `u${i}@example.com`, password: 'pw' });
+      seenResidues.add(session.token.split('.')[1]!.length % 4);
+      expect(await auth.verifySession({ token: session.token })).toMatchObject({ id: session.userId });
+    }
+    expect(seenResidues.size).toBeGreaterThan(1);
+  });
 });
