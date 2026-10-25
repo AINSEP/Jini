@@ -147,6 +147,7 @@ test.each([
   ["NPX", "/neutral"],
   ["npx.bat", undefined],
   ["npx.cmd.bak", undefined],
+  ["np.exex", undefined], // only a TRAILING .exe/.cmd is stripped ("np.exex" must not become "npx")
   ["xnpx.cmd", undefined],
   ["C:\\tools\\npxx.exe", undefined],
   ["node_modules\\.bin\\npx.cmd", undefined], // relative with a separator: cwd must not move
