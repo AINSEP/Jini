@@ -21,7 +21,7 @@
  */
 import { useId, useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
-import { describeCollapsedToolCall, describeToolCallDetail, formatToolOutputForDisplay, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
+import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, redactUserText, toRenderProps } from '../../core/index.js';
 import { useT, useToolRendererRegistry } from '../hooks/context.js';
 import type { ToolRendererRegistry } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
@@ -189,7 +189,7 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
           <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Tool call')} · {humanizeToolId(toolId)}</span>
-          {target ? <span className="op-meta">{target}</span> : null}
+          {target ? <span className="op-meta">{headSummary({ text: target })}</span> : null}
         </>
       }
       after={<FileErrorDetail result={result} />}
@@ -386,10 +386,7 @@ function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
         </>
       }
     >
-      <div className="op-card-detail">
-        <pre className="op-command">{truncate(command, 400)}</pre>
-        {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay({ text: result.content }), 4000)}</pre> : null}
-      </div>
+      <ToolCallDetail input={command} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
     </ExpandableCard>
   );
 }
@@ -491,7 +488,7 @@ function GenericCard({ name, input, result, runStreaming, runSucceeded }: CardPr
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
           <span className="op-title">{name}</span>
-          {summary ? <span className="op-meta">{truncate(summary, 200)}</span> : null}
+          {summary ? <span className="op-meta">{headSummary({ text: summary })}</span> : null}
         </>
       }
       after={<ToolResultMedia result={result} />}
@@ -538,7 +535,9 @@ function CollapsedReaderText({ call }: { call: CardProps }) {
 /** The call's input, its result (or why there is none), and any extra `children` — see `describeToolCallDetail` for the redaction and formatting rules. */
 function ToolCallDetail({ input, result, runStreaming, runSucceeded, children }: CardProps & { children?: ReactNode }) {
   const t = useT();
-  const detail = describeToolCallDetail({ input: input, result: result }, { runStreaming: runStreaming, runSucceeded: runSucceeded });
+  // Only mounted on expansion: keep the compact preview cheap without losing any of the stored
+  // call when the person opens it. The core formatter still owns formatting and secret redaction.
+  const detail = describeToolCallDetail({ input: input, result: result }, { runStreaming: runStreaming, runSucceeded: runSucceeded, maxChars: Infinity });
   return (
     <div className="op-card-detail">
       {detail.inputText !== null ? <pre className="op-command op-input">{detail.inputText}</pre> : null}
@@ -565,7 +564,7 @@ function ResultBadge({ result, runStreaming, runSucceeded }: { result?: ToolResu
     );
   if (result?.isError)
     return (
-      <span className="op-status op-status-error" title={result.content || t('Error')}>
+      <span className="op-status op-status-error" title={describeToolCallDetail({ input: null, result }, { maxChars: COLLAPSED_DETAIL_MAX_CHARS }).outputText ?? t('Error')}>
         <Icon name="close" size={14} />
       </span>
     );
@@ -609,8 +608,11 @@ function ToolResultMedia({ result }: { result?: ToolResultEvent | undefined }) {
 }
 
 function FileErrorDetail({ result }: { result?: ToolResultEvent | undefined }) {
-  if (!result?.isError || !result.content.trim()) return null;
-  return <pre className="op-output">{truncate(formatToolOutputForDisplay({ text: result.content }), 1200)}</pre>;
+  if (!result?.isError) return null;
+  // This block and the badge tooltip stay mounted even when collapsed. Share the reader's cap
+  // and redactor so large failures cannot retain their full output in those alternate DOM sinks.
+  const detail = describeToolCallDetail({ input: null, result }, { maxChars: COLLAPSED_DETAIL_MAX_CHARS });
+  return detail.outputText === null ? null : <pre className="op-output">{detail.outputText}</pre>;
 }
 
 function describeInput(input: unknown): string {
@@ -627,6 +629,15 @@ function describeInput(input: unknown): string {
   } catch {
     return '';
   }
+}
+
+/**
+ * A head's one-line summary of an arbitrary argument. Heads stay mounted for every collapsed row,
+ * and the fallback argument can be a 20k-char payload or a key, so it gets the reader text's
+ * order: redact first (a cut could split a key past its pattern), then cap.
+ */
+function headSummary({ text }: { text: string }): string {
+  return truncate(redactUserText({ text: text }).text, 200);
 }
 
 function truncate(s: string, n: number): string {
