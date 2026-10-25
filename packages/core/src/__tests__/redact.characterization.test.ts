@@ -8,6 +8,7 @@ import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
 
 const npmToken = (): string => ['np', 'm_'].join('') + 'n'.repeat(36);
 const githubToken = (): string => ['gh', 'p_'].join('') + 'g'.repeat(36);
+const skPrefix = (): string => ['s', 'k-'].join('') + 's'.repeat(20);
 
 describe('@jini-ai/core — redact — characterization pins', () => {
   it('masks a provider api-key header the core header rule cannot anchor, normalizing its separator', () => {
@@ -54,10 +55,17 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       '[REDACTED:exact_secret] [REDACTED:email]'],
     ['a secret named like a marker with another case', '[REDACTED:EMAIL]', ['EMAIL'], [],
       '[REDACTED:[REDACTED:exact_secret]]'],
+    // The label, vendor and query rules each stop partway through these; the pre-pass masks them whole.
+    ['a secret with spaces after a label', 'password=correct horse battery', ['correct horse battery'], ['horse battery'],
+      'password=[REDACTED:exact_secret]'],
+    ['a dotted secret glued onto a vendor-shaped token', `${skPrefix()}abc.def.ghi.jkl.mno`, ['abc.def.ghi.jkl.mno'], ['.def.ghi'],
+      '[REDACTED:sk_key][REDACTED:exact_secret]'],
+    ['a 16+ char secret after api_key=', `GET /x?api_key=${'Q'.repeat(8)}&${'q'.repeat(8)}`, [`${'Q'.repeat(8)}&${'q'.repeat(8)}`], ['q'.repeat(8)],
+      'GET /x?api_key=[REDACTED:exact_secret]'],
   ])('leaves no secret value in %s', (_label, input, exactSecrets, otherValues, expected) => {
     const redacted = redactSecrets({ input }, { exactSecrets });
     expect(redacted).toBe(expected);
-    const outsideMarkers = redacted.replace(/\[REDACTED:(?:exact_secret|labeled_secret|url_credentials|api_key_query|bearer_token|email)\]/g, '');
+    const outsideMarkers = redacted.replace(/\[REDACTED:(?:exact_secret|labeled_secret|url_credentials|api_key_query|bearer_token|email|sk_key)\]/g, '');
     for (const value of [...exactSecrets, ...otherValues]) expect(outsideMarkers).not.toContain(value);
   });
 
@@ -86,11 +94,18 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       .toBe('got [REDACTED:exact_secret] back');
   });
 
-  it('lets a lexical rule label a known secret it recognizes before exact substitution runs', () => {
+  it('lets a lexical rule label a short known secret it recognizes before exact substitution runs', () => {
+    expect(redactSecretsWithCounts({ input: 'Bearer s3cr3t99' }, { exactSecrets: ['s3cr3t99'] })).toEqual({
+      redacted: 'Bearer [REDACTED:bearer_token]',
+      counts: { bearer_token: 1 },
+    });
+  });
+
+  it('masks a 16+ char known secret in the exact pre-pass, before a lexical rule can label it', () => {
     const token = githubToken();
     expect(redactSecretsWithCounts({ input: `t=${token}` }, { exactSecrets: [token] })).toEqual({
-      redacted: 't=[REDACTED:github_token]',
-      counts: { github_token: 1 },
+      redacted: 't=[REDACTED:exact_secret]',
+      counts: { exact_secret: 1 },
     });
   });
 

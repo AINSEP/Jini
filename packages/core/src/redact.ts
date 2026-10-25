@@ -323,7 +323,8 @@ export function redactSecrets({ input }: { input: string }, options: SecretRedac
  * keys + 1 email before send').
  *
  * Exact secrets run last, longest first, so they never split a label, scheme or prefix a lexical
- * rule still needs; a shorter supplied secret must not split a longer one. Opt-in aggressive
+ * rule still needs; a shorter supplied secret must not split a longer one. Secrets a lexical rule
+ * could mask only partly also run first (see {@link needsExactPrePass}). Opt-in aggressive
  * opaque rules precede PII rules so a numeric token is not split into phone/card candidates.
  */
 export function redactSecretsWithCounts({ input }: { input: string }, options: SecretRedactionOptions = {}): {
@@ -336,8 +337,10 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
     counts[name] = (counts[name] ?? 0) + 1;
     return `[REDACTED:${name}]`;
   };
-  let out = redactUrlCredentials({ text: input, marker });
-  out = applyPatterns({ text: out, marker, patterns: credentialPatterns(options.extraPatterns ?? []) });
+  const exact = { marker, secrets: options.exactSecrets ?? [], extraPatterns: options.extraPatterns ?? [] };
+  let out = redactExactSecrets({ ...exact, text: input, secrets: exact.secrets.filter(needsExactPrePass) });
+  out = redactUrlCredentials({ text: out, marker });
+  out = applyPatterns({ text: out, marker, patterns: credentialPatterns(exact.extraPatterns) });
   out = redactKeyedCredentials({ text: out, marker });
   if (options.policy === 'aggressive') {
     const trustedIds = new Set(options.diagnosticToolIds);
@@ -345,7 +348,7 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
       : token.replace(OPAQUE_TOKEN_RE, match => NON_SECRET_TOKEN_RE.test(match) ? match : marker(CATEGORY.opaqueToken)));
   }
   if (options.redactPii !== false) out = redactPii({ text: out, marker });
-  out = redactExactSecrets({ text: out, marker, secrets: options.exactSecrets ?? [], extraPatterns: options.extraPatterns ?? [] });
+  out = redactExactSecrets({ ...exact, text: out });
   return { redacted: out, counts };
 }
 
@@ -383,8 +386,18 @@ function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: r
   return out;
 }
 
+// The final pass alone leaked secrets a lexical rule masks only partly: the label rule stops at
+// whitespace (`password=correct horse battery` kept `horse battery`), vendor/query rules stop at
+// `.`, `;`, `,`, quotes or `&`, and the remaining fragment no longer matches the whole secret.
+// Such secrets, and any of 16+ chars, are masked before the lexical rules as well. Short plain
+// secrets stay final-pass-only so they cannot split a label before its value is masked.
+const PRE_PASS_SECRET_CHARS_RE = /[\s.;,"'`]/;
+function needsExactPrePass(secret: string | undefined | null): boolean {
+  return typeof secret === 'string' && (secret.length >= 16 || PRE_PASS_SECRET_CHARS_RE.test(secret));
+}
+
 // Exact secrets match as plain substrings at any length (a secret glued into other text stays
-// masked) and run after every other rule. Run first, they split labels before the label rules ran
+// masked) and run after every other rule. Run first, short ones split labels before the label rules ran
 // (`a` inside `password=hunter2` broke the label and left `hunter2` visible; `api_key` swallowed
 // the whole `api_key=` label); protecting label/scheme spans instead let a secret shaped like a
 // scheme (`s3cr3t99://host`) survive. Once the values are masked, a short secret can only split an
