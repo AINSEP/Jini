@@ -21,7 +21,7 @@
 import { redactSecrets } from "@jini-ai/core";
 import type { JsonObject } from "@jini-ai/core/primitives";
 
-import { validateEventProps } from "../ingest.js";
+import { validateEventProps } from "../privacy.js";
 
 export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
 
@@ -56,6 +56,17 @@ export function isNoopProductAnalytics(port: ProductAnalyticsPort): boolean {
  * A promise is fine (a settings read): the event waits for the answer and is dropped unless it is `true`. */
 export type ProductAnalyticsConsent = (input: { userId: string }) => boolean | Promise<boolean>;
 
+/** Synchronous snapshot of the host's consent revision, checked again immediately before delivery.
+ * Change it on EVERY consent update, including revoke/regrant, before old reads can settle.
+ * Use a global revision for global telemetry settings or a per-user revision for per-user consent. */
+export type ProductAnalyticsConsentRevision = (input: { userId: string }) => string | number;
+
+export interface ProductAnalyticsGuardOptions {
+  /** Required for async consent backed by mutable settings: the guard cannot observe settings
+   * changes on its own. A failed revision read drops the event, just like a failed consent read. */
+  consentRevision?: ProductAnalyticsConsentRevision;
+}
+
 const EVENT_NAME = /^[a-z][a-z0-9_.]{0,63}$/;
 const MAX_ID = 128;
 const PRIVACY = { maxEventPropCount: 20, maxEventPropStringLength: 200, sessionWindowMinutes: 30 };
@@ -78,34 +89,57 @@ function safeProperties(properties: ProductEventProperties | undefined): Product
 /**
  * Wraps a vendor port with the rules every product-analytics vendor must get, so no adapter and no
  * call site can skip them: CONSENT first (no consent, nothing leaves — checked per event, so a
- * revoked consent stops the next one), then fixed event names, pseudonymous ids, and the PII/secret
- * property rules. Anything refused is dropped silently: analytics must never fail the feature.
+ * revoked consent stops the next one and invalidates pending approvals), then fixed event names,
+ * pseudonymous ids, and the PII/secret property rules. Anything refused is dropped silently:
+ * analytics must never fail the feature.
  * @param required The vendor port and the host's consent decision.
+ * @param options A synchronous host consent revision for revocation without a subsequent event.
  * @returns A guarded port; the noop stays the noop (zero cost when no vendor is configured).
- * @complexity O(p) per event in its property count.
+ * @complexity O(p) per event in its property count; O(d) state for in-flight consent decisions.
  */
-export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, _optional: Record<string, never> = {}): ProductAnalyticsPort {
+export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, { consentRevision }: ProductAnalyticsGuardOptions = {}): ProductAnalyticsPort {
   if (isNoopProductAnalytics(inner)) return inner;
-  /** Runs `send` only after an explicit `true` from consent; synchronous answers stay synchronous. */
-  const whenAllowed = (userId: string, send: () => void): void => {
+  // Keep generations only while decisions are in flight; past users do not accumulate here.
+  const pending = new Map<string, { generation: number; count: number }>();
+  /** Runs `send` only after a current explicit approval; synchronous answers stay synchronous. */
+  const whenAllowed = ({ userId, send }: { userId: string; send: () => void }): void => {
     if (!isPseudonymousId(userId)) return;
-    const deliver = () => { try { send(); } catch { /* never fail the feature */ } };
-    let decision: boolean | Promise<boolean>;
-    try { decision = consent({ userId }); } catch { return; }
-    if (decision === true) return deliver();
-    if (typeof decision === "object" && decision !== null) void Promise.resolve(decision).then((ok) => { if (ok === true) deliver(); }, () => {});
+    const state = pending.get(userId) ?? { generation: 0, count: 0 };
+    pending.set(userId, state);
+    state.count += 1;
+    const generation = state.generation;
+    let revision: string | number | undefined;
+    const settle = ({ allowed }: { allowed: boolean }): void => {
+      try {
+        if (allowed !== true) { state.generation += 1; return; }
+        if (generation !== state.generation) return;
+        if (consentRevision && consentRevision({ userId }) !== revision) return;
+        try { send(); } catch { /* A vendor failure must not invalidate other pending approvals. */ }
+      } catch {
+        state.generation += 1; // Failed checks fail closed; analytics never fails the feature.
+      } finally {
+        state.count -= 1;
+        if (state.count === 0) pending.delete(userId);
+      }
+    };
+    try {
+      revision = consentRevision?.({ userId });
+      const decision = consent({ userId });
+      if (typeof decision === "boolean") return settle({ allowed: decision });
+      void Promise.resolve(decision).then((allowed) => settle({ allowed }), () => settle({ allowed: false }));
+    } catch { settle({ allowed: false }); }
   };
   return {
     capture({ name, userId, properties }) {
       if (!EVENT_NAME.test(name)) return;
       const safe = safeProperties(properties);
       if (safe === null) return;
-      whenAllowed(userId, () => inner.capture({ name, userId, ...(safe ? { properties: safe } : {}) }));
+      whenAllowed({ userId, send: () => inner.capture({ name, userId, ...(safe ? { properties: safe } : {}) }) });
     },
     identify({ userId, traits }) {
       const safe = safeProperties(traits);
       if (safe === null) return;
-      whenAllowed(userId, () => inner.identify({ userId, ...(safe ? { traits: safe } : {}) }));
+      whenAllowed({ userId, send: () => inner.identify({ userId, ...(safe ? { traits: safe } : {}) }) });
     },
   };
 }
