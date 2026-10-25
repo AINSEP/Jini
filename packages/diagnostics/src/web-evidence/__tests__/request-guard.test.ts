@@ -284,3 +284,70 @@ test("a data write without a body is sent without one", async () => {
   await guard.handle(route(request({ url: "https://public.example/api", method: "POST", resourceType: "xhr", navigation: false })).like);
   expect(net.sent[0]).toMatchObject({ method: "POST" }); expect(net.sent[0]).not.toHaveProperty("body");
 });
+
+// L10 Stryker survivors (request-guard.ts:104,179,180,217,224,233,263): the default-deny options and
+// the exact byte-budget boundary, each pinned by a case that fails if the default or edge flips.
+test("decideRequest with no options refuses a data write (allowDataRequests defaults to false)", () => {
+  expect(decideRequest({ url: "https://public.example/api", method: "POST", resourceType: "fetch", allowedOrigins: NO_ORIGINS })).toEqual({ action: "abort", reason: "method" });
+});
+
+test("the router refuses a data write by default and passes it only when opted in", async () => {
+  const net = transport({});
+  const { router: guard, blocked } = router(net.httpClient);
+  await guard.handle(route(request({ url: "https://public.example/api", method: "POST", resourceType: "xhr", navigation: false, postData: "{}" })).like);
+  expect(blocked).toEqual(["method:https://public.example/api"]);
+  expect(net.sent).toEqual([]);
+});
+
+test("own-site fetches drop the page cookie and Set-Cookie by default (preserveOwnSiteCookies defaults to false)", async () => {
+  const calls: Array<{ headers: Record<string, string>; signal: unknown; maxBytes: unknown }> = [];
+  const capture = new AbortController();
+  const ownSiteFetch: OwnSiteFetch = async ({ headers }, options) => {
+    calls.push({ headers, signal: options?.signal, maxBytes: options?.maxBytes });
+    return { status: 200, headers: { "set-cookie": "visitor=1" }, body: Buffer.from("ok"), truncated: false } satisfies FetchedResource;
+  };
+  const { router: guard } = router(transport({}).httpClient, {}, { ownSiteFetch, allowedOrigins: ["https://site.example"], signal: capture.signal });
+  const { like, outcome } = route(request({ url: "https://site.example/", headers: { cookie: "visitor=1" } }));
+  await guard.handle(like);
+  expect(calls).toEqual([{ headers: {}, signal: capture.signal, maxBytes: 15 * 1024 * 1024 }]);
+  expect(outcome.fulfilled?.headers).toEqual({});
+});
+
+test("the guarded transport is asked for at most 15 MiB per resource by default", async () => {
+  const net = transport({});
+  const { router: guard } = router(net.httpClient);
+  await guard.handle(route(request({ url: "https://public.example/" })).like);
+  expect(net.sent[0]?.maxResponseBytes).toBe(15 * 1024 * 1024);
+});
+
+test("a response landing EXACTLY on the byte budget is delivered; the next fetch is refused", async () => {
+  const net = transport({ "https://public.example/five": { bodyText: "12345" } });
+  const { router: guard, blocked } = router(net.httpClient, { maxTotalBytes: 5 });
+  const five = route(request({ url: "https://public.example/five", navigation: false }));
+  await guard.handle(five.like);
+  await guard.handle(route(request({ url: "https://public.example/next", navigation: false })).like);
+  expect(five.outcome.fulfilled?.body).toBe("12345");
+  expect(blocked).toEqual(["budget:https://public.example/next"]);
+  expect(net.sent.map(sent => sent.url)).toEqual(["https://public.example/five"]);
+});
+
+test("a Location header on a non-redirect status is not followed", async () => {
+  const net = transport({ "https://public.example/a": { status: 200, headers: { location: "https://public.example/b" }, bodyText: "page" } });
+  const { router: guard } = router(net.httpClient);
+  const { like, outcome } = route(request({ url: "https://public.example/a", navigation: false }));
+  await guard.handle(like);
+  expect(net.sent.map(sent => sent.url)).toEqual(["https://public.example/a"]);
+  expect(outcome.fulfilled?.body).toBe("page");
+});
+
+test("a redirect reads the Location header by name (any case), not the first header", async () => {
+  const net = transport({
+    "https://public.example/a": { status: 302, headers: { "content-type": "text/plain", LOCATION: "/b" }, bodyText: "" },
+    "https://public.example/b": { bodyText: "target" },
+  });
+  const { router: guard } = router(net.httpClient);
+  const { like, outcome } = route(request({ url: "https://public.example/a", navigation: false }));
+  await guard.handle(like);
+  expect(net.sent.map(sent => sent.url)).toEqual(["https://public.example/a", "https://public.example/b"]);
+  expect(outcome.fulfilled?.body).toBe("target");
+});
