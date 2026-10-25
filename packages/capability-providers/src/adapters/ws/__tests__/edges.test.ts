@@ -48,12 +48,17 @@ function unsubscribeMessage(channel: string): string {
 
 /** Inbound-message shape guards and socket bookkeeping edges (Stryker L6: 18 survivors). */
 describe('WebSocketRealtimeProvider — inbound message guards', () => {
+  // Publishes on 'c' AND on every malformed channel value the message carried (5, undefined, …) —
+  // probing only 'c' would stay green if the channel-type guard were removed and the socket got
+  // subscribed under the raw non-string value instead.
   async function delivered(raw: unknown): Promise<boolean> {
     const server = new FakeServer();
     const provider = new WebSocketRealtimeProvider({ server });
     const socket = connect(server);
     socket.emit('message', raw);
-    await provider.publish({ channel: 'c', event: 1 });
+    for (const channel of ['c', 5, undefined, null]) {
+      await provider.publish({ channel: channel as string, event: 1 });
+    }
     return socket.send.mock.calls.length > 0;
   }
 

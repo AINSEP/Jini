@@ -173,28 +173,37 @@ describe('JwtAuthProvider', () => {
       expect(await auth.verifySession({ token: session.token })).toMatchObject({ id: session.userId });
     });
 
-    it('a correct-length signature with a truncated-then-padded real signature is still rejected', async () => {
+    it('a correct-length (32-byte) signature with one flipped byte of the real signature is rejected', async () => {
+      // Exactly 32 bytes, so it passes the length guard and only the constant-time comparison can reject it.
       const auth = new JwtAuthProvider({ secret }, {});
       await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
       const session = await auth.signIn({ email: 'ada@example.com', password: 'hunter2' });
       const [h, p, sig] = session.token.split('.');
-      // Drop the last base64url char: decodes to 31 or 32 bytes of mostly-real signature.
-      await expect(auth.verifySession({ token: `${h}.${p}.${sig!.slice(0, -1)}` })).resolves.toBeNull();
-      await expect(auth.verifySession({ token: `${h}.${p}.${sig}AA` })).resolves.toBeNull();
+      const forgedBytes = Buffer.from(sig!, 'base64url');
+      forgedBytes[0] = forgedBytes[0]! ^ 0x01;
+      expect(forgedBytes).toHaveLength(32);
+      const forged = `${h}.${p}.${base64url(forgedBytes)}`;
+      await expect(auth.verifySession({ token: forged })).resolves.toBeNull();
+      await auth.signOut({ token: forged });
+      expect(await auth.verifySession({ token: session.token })).toMatchObject({ id: session.userId });
     });
   });
 
-  it('accepts its own tokens for payloads of every base64 padding residue (0/1/2 pad chars stripped)', async () => {
-    // Different email lengths → different `sub`/`jti` sizes don't vary, so vary the user id length via many sign-ups.
-    const auth = new JwtAuthProvider({ secret: 's3cr3t' }, {});
-    const seenResidues = new Set<number>();
-    for (let i = 0; i < 12; i++) {
-      await auth.signUp({ email: `u${i}@example.com`, password: 'pw' });
-      const session = await auth.signIn({ email: `u${i}@example.com`, password: 'pw' });
-      seenResidues.add(session.token.split('.')[1]!.length % 4);
-      expect(await auth.verifySession({ token: session.token })).toMatchObject({ id: session.userId });
-    }
-    expect(seenResidues.size).toBeGreaterThan(1);
+  it.each([
+    // payload byte length mod 3: 0 → residue 0, 1 → residue 2, 2 → residue 3 (residue 1 is impossible).
+    [0, ''],
+    [2, 'x'],
+    [3, 'xx'],
+  ])('accepts a hand-signed token whose payload has base64url length residue %i', async (residue, pad) => {
+    const auth = new JwtAuthProvider({ secret: 's3cr3t' }, { now: () => 0 });
+    const user = await auth.signUp({ email: 'ada@example.com', password: 'pw' });
+    // Fixed-width claims so only `pad` varies the length.
+    const base = JSON.stringify({ sub: user.id, jti: 'j', iat: 0, exp: 4_102_444_800, pad: '' });
+    const fill = 'y'.repeat((3 - (Buffer.byteLength(base) % 3)) % 3);
+    const payload = JSON.stringify({ sub: user.id, jti: 'j', iat: 0, exp: 4_102_444_800, pad: fill + pad });
+    const token = craftToken(payload, 's3cr3t');
+    expect(token.split('.')[1]!.length % 4).toBe(residue);
+    expect(await auth.verifySession({ token })).toEqual(user);
   });
 
   describe('claim shape, header, timing and ids (Stryker L6 survivors)', () => {
@@ -217,6 +226,20 @@ describe('JwtAuthProvider', () => {
       const token = craftToken(payload, secret);
       await expect(auth.verifySession({ token })).resolves.toBeNull();
       await expect(auth.signOut({ token })).resolves.toBeUndefined();
+    });
+
+    it.each([
+      ['missing sub', (jti: string) => ({ jti, exp: 4_102_444_800 })],
+      ['numeric sub', (jti: string) => ({ sub: 1, jti, exp: 4_102_444_800 })],
+      ['string exp', (jti: string, sub: string) => ({ sub, jti, exp: '4102444800' })],
+      ['missing exp', (jti: string, sub: string) => ({ sub, jti })],
+    ])('signOut with a correctly signed %s token carrying a REAL session jti does not revoke that session', async (_label, claims) => {
+      const auth = new JwtAuthProvider({ secret }, { now: () => 0 });
+      await auth.signUp({ email: 'ada@example.com', password: 'hunter2' });
+      const session = await auth.signIn({ email: 'ada@example.com', password: 'hunter2' });
+      const { jti, sub } = decode(session.token.split('.')[1]!) as { jti: string; sub: string };
+      await auth.signOut({ token: craftToken(JSON.stringify(claims(jti, sub)), secret) });
+      expect(await auth.verifySession({ token: session.token })).toMatchObject({ id: session.userId });
     });
 
     it('a well-formed hand-signed token for a known user verifies (the shape checks are not over-strict)', async () => {
