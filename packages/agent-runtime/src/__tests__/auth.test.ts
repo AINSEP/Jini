@@ -624,7 +624,7 @@ describe('auth — re-score survivors (F3)', () => {
     const result = classifyAgentAuthFailure({ agentId, text }, { hostName: 'HostX' });
     expect(result?.status).toBe('missing');
     expect(typeof result?.message).toBe('string');
-    expect(result?.message.length).toBeGreaterThan(20);
+    expect(result?.message?.length ?? 0).toBeGreaterThan(20);
     if (agentId !== 'antigravity' && agentId !== 'cursor-agent') expect(result?.message).toContain('HostX');
   });
 });
