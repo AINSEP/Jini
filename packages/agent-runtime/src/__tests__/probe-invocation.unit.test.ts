@@ -26,3 +26,28 @@ it('retains the process slot after abort rejection until the child closes', asyn
   expect(await second).toEqual({ stdout: 'ok', stderr: '' });
   expect(calls).toBe(2);
 });
+
+// Stryker L3 (F3): the exact default options and the "already finished child" short-circuit.
+it('defaults to SIGKILL and the OS tmpdir, and lets the caller override both', async () => {
+  const seen: Array<Record<string, unknown>> = [];
+  const execute: NonNullable<NonNullable<Parameters<typeof execAgentFile>[1]>['execute']> = (input) => {
+    seen.push(input.options as Record<string, unknown>);
+    return Object.assign(Promise.resolve({ stdout: '', stderr: '' }), { child: undefined as unknown as ChildProcess });
+  };
+  await execAgentFile({ command: '/fake-cli', args: ['--version'] }, { execute });
+  await execAgentFile({ command: '/fake-cli', args: ['x'] }, { execute, options: { cwd: '/w', killSignal: 'SIGTERM' } });
+  const { tmpdir } = await import('node:os');
+  expect(seen[0]).toMatchObject({ killSignal: 'SIGKILL', cwd: tmpdir() });
+  expect(seen[1]).toMatchObject({ killSignal: 'SIGTERM', cwd: '/w' });
+});
+
+it.each([
+  ['exited', { pid: 1, exitCode: 0, signalCode: null }],
+  ['signaled', { pid: 1, exitCode: null, signalCode: 'SIGTERM' }],
+  ['never spawned (no pid)', { pid: undefined, exitCode: null, signalCode: null }],
+])('does not wait for close on a child that already %s', async (_label, state) => {
+  const child = Object.assign(new EventEmitter(), state);
+  const execute: NonNullable<NonNullable<Parameters<typeof execAgentFile>[1]>['execute']> = () =>
+    Object.assign(Promise.resolve({ stdout: 'done', stderr: '' }), { child: child as unknown as ChildProcess });
+  await expect(execAgentFile({ command: '/fake-cli', args: [] }, { execute })).resolves.toEqual({ stdout: 'done', stderr: '' });
+});
