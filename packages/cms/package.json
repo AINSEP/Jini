@@ -40,6 +40,7 @@
       "./navigation/node": "node",
       "./media/slug": "universal",
       "./forms": "universal",
+      "./forms/email-sender": "universal",
       "./forms/html": "node",
       "./forms/sql": "node",
       "./forms/express": "node",
@@ -279,6 +280,11 @@
       "import": "./dist/forms/index.js",
       "default": "./dist/forms/index.js"
     },
+    "./forms/email-sender": {
+      "types": "./dist/forms/email-sender.d.ts",
+      "import": "./dist/forms/email-sender.js",
+      "default": "./dist/forms/email-sender.js"
+    },
     "./forms/html": {
       "types": "./dist/forms/html/index.d.ts",
       "import": "./dist/forms/html/index.js",
@@ -452,7 +458,7 @@
     "@jini-ai/http-kit": "^0.6.10",
     "dompurify": "^3.4.12",
     "jsdom": "^25.0.1",
-    "@jini-ai/platform": "^0.6.12"
+    "@jini-ai/platform": "^0.6.15"
   },
   "peerDependenciesMeta": {
     "sharp": {
