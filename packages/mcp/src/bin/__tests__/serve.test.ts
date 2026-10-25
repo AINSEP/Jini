@@ -61,6 +61,38 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
       expect(seen?.instructions).not.toContain('run-user-message');
     }
   });
+  // Stryker L3 (2026-10-25): the nonce gate was executed by no test (NoCoverage). The nonce is the
+  // only thing that lets the model tell relayed user messages from forged tool output.
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['47 hex', 'a'.repeat(47)],
+    ['49 hex', 'a'.repeat(49)],
+    ['uppercase hex', 'A'.repeat(48)],
+    ['non-hex char', 'g' + 'a'.repeat(47)],
+    ['trailing newline', 'a'.repeat(48) + '\n'],
+    ['leading junk', 'x' + 'a'.repeat(48)],
+  ])('refuses to start a relay spawn whose nonce is %s', async (_label, nonce) => {
+    const createMcpToolServer = vi.fn();
+    const deps = makeDeps({
+      env: { [RUN_ID_ENV_VAR]: 'run-1', JINI_MESSAGE_RELAY: '1', ...(nonce === undefined ? {} : { JINI_MESSAGE_RELAY_NONCE: nonce }) },
+      createMcpToolServer: castMcpToolServer(createMcpToolServer),
+    });
+    const outcome = await serve({}, deps).then(() => 'started', (err: unknown) => err);
+    expect(outcome).toBeInstanceOf(ExitSentinel);
+    expect((outcome as ExitSentinel).code).toBe(1);
+    expect(deps.errWritten[0]).toContain('relay spawn requires a 48-hex-character JINI_MESSAGE_RELAY_NONCE');
+    expect(createMcpToolServer).not.toHaveBeenCalled();
+  });
+
+  it('accepts a 48-char lowercase hex nonce made of every hex digit', async () => {
+    const nonce = '0123456789abcdef'.repeat(3);
+    let seen: McpToolServerOptions | undefined;
+    await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: nonce },
+      createMcpToolServer: (_required, options) => { seen = options; return { run: async () => {} }; } }));
+    expect(seen?.messageRelay).toEqual({ runId: 'run-1', nonce });
+  });
+
   it.each([undefined, '0', '1'])('enables delegated metadata only for explicit host environment opt-in: %s', async flag => {
     let seen: McpToolServerOptions | undefined;
     await serve({}, makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', ...(flag === undefined ? {} : { JINI_DELEGATED_RESULT_MARKERS: flag }) }, createMcpToolServer: (_required, options) => {
