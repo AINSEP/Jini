@@ -400,3 +400,23 @@ test("an unchanged confirmed preview uninstalls normally", async () => {
     await forceRemove(cwd);
   }
 });
+
+// Stryker run-2 survivor (uninstall.ts:341): the preview's digests are compared as a SET, so a
+// confirmed preview listing the same two archives in the opposite order still uninstalls.
+test("a confirmed preview listing the same archives in another order uninstalls both", async () => {
+  const { cwd, instanceLayout, workspaceLayout } = await freshLayout();
+  try {
+    const first = await installTestPackage(instanceLayout, "ordered-plugin", "archive-ordered-a");
+    const second = await installLegacyRevision({ packagesDir: workspaceLayout.pluginPackagesDir({ pluginId: "ordered-plugin" }), install: () => installTestPackage(instanceLayout, "ordered-plugin", "archive-ordered-b") });
+    const req = { layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "ordered-plugin" };
+    const preview = await previewAgentPluginUninstall(req);
+    const sorted = [first.archiveDigest, second.archiveDigest].sort();
+    const reversed = { ...preview, archiveDigests: [...sorted].reverse() };
+
+    const result = await uninstallAgentPlugin(req, { confirmedPreview: reversed });
+
+    assert.deepEqual([...result.removedDigests].sort(), sorted);
+  } finally {
+    await forceRemove(cwd);
+  }
+});
