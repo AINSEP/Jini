@@ -40,7 +40,7 @@ export class AtomicFencedStore implements FencedOutboxPort<TestEvent, never> {
   async recoverExpired(input: { scope: string; nowIso: string; limit: number }, _options: Empty = {}): Promise<number> {
     const expired = [...this.state.rows.values()].filter(candidate => candidate.scope === input.scope
       && ['leased', 'dispatching'].includes(candidate.status) && candidate.leaseExpiresAt <= input.nowIso).slice(0, input.limit);
-    for (const candidate of expired) candidate.status = 'uncertain';
+    for (const candidate of expired) candidate.status = candidate.status === 'leased' ? 'pending' : 'uncertain';
     return expired.length;
   }
   async claimReady(input: { scope: string; batchSize: number; nowIso: string; claimLeaseMs: number }, _options: Empty = {}): Promise<readonly FencedClaim<TestEvent>[]> {

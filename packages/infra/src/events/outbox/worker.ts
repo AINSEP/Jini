@@ -361,7 +361,8 @@ async function deliverFenced<Event extends EventEnvelope, Tx>(input: {
 }
 
 /**
- * Recover expired leases into uncertainty, then process a bounded batch of due pending rows.
+ * Recover expired leases (never-dispatched leased rows to pending, dispatching rows to uncertain),
+ * then process a bounded batch of due pending rows.
  * Only explicit confirmed-no-effect results use the existing retry policy. Throws, invalid results
  * and timeouts cannot release an attempt; late results never overwrite uncertainty. A storage
  * acknowledgement failure leaves the durable dispatch marker for host reconciliation, since it

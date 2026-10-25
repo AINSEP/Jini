@@ -78,8 +78,9 @@ The caller rolls back its intent on conflict or failure. Storage and schema rema
 
 Claims include a mandatory token, expiry and one-based attempts. The worker authorizes each claim,
 persists `leased → dispatching` under a scope/id/token/state/expiry fence, and rechecks expiry after
-that await before dispatch. Expired leased **and** dispatching rows recover into `uncertain`, which
-is excluded from automatic claims. Transport returns `DispatchResult`:
+that await before dispatch. An expired `leased` row never passed that fence, so it was never sent
+and recovers to `pending`; only an expired `dispatching` row recovers into `uncertain`, which is
+excluded from automatic claims. Transport returns `DispatchResult`:
 
 | kind | completion |
 |---|---|
