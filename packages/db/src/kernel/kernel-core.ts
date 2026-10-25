@@ -10,6 +10,7 @@ import {
   UnsupportedCapabilityError,
 } from "./port.js";
 import { TurnLock } from "./turn-lock.js";
+import { ownedTransactions } from "./owned-transaction.js";
 
 /**
  * @file The transaction rules every driver shares, so they cannot differ by dialect: a test that
@@ -94,9 +95,16 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     return takingTurn(lock, "shared", async () => scope.run({ kind: "run", db: driver.base }, () => fn(driver.base)));
   }
 
-  async function transaction<T>(fn: () => Promise<T>): Promise<T> {
+  function assertOwnedAvailable(): void {
+    if (scope.getStore() !== undefined || joinsForeign()) {
+      throw new Error("an owned transaction cannot join an existing run or foreign transaction");
+    }
+  }
+
+  async function transaction<T>(fn: () => Promise<T>, owned = false): Promise<T> {
     require("interactiveTransactions");
     await driver.ready;
+    if (owned) assertOwnedAvailable();
     const current = scope.getStore();
     if (current?.kind === "transaction") return fn();
     if (current?.kind === "run") {
@@ -106,6 +114,7 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     }
     if (joinsForeign()) return fn();
     return takingTurn(lock, "exclusive", async () => {
+      if (owned) assertOwnedAvailable();
       ownTransactions += 1;
       try {
         return await driver.begin((tx) => scope.run({ kind: "transaction", db: tx }, fn));
@@ -124,7 +133,7 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     await driver.lockKey(current?.db ?? driver.base, key);
   }
 
-  return {
+  const kernel: StorageKernel<DB> = {
     dialect: driver.dialect,
     transport: driver.transport,
     capabilities: driver.capabilities,
@@ -147,4 +156,9 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     },
     close: () => driver.close(),
   };
+  ownedTransactions.set(kernel as StorageKernel<unknown>, {
+    assertAvailable: assertOwnedAvailable,
+    transaction: (work) => transaction(work, true),
+  });
+  return kernel;
 }

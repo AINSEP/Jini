@@ -1,4 +1,5 @@
 import type { Kysely, RawBuilder } from "kysely";
+export type { RawBuilder } from "kysely";
 
 /**
  * @file The storage kernel port: the ONE async way a repo reaches its database, on every driver.

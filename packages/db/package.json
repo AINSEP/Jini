@@ -24,13 +24,15 @@
         "src/kernel/index.ts",
         "src/kernel/kernel-core.ts",
         "src/kernel/ops.ts",
+        "src/kernel/owned-transaction.ts",
         "src/kernel/port.ts",
         "src/kernel/postgres-lock.ts",
         "src/kernel/schema-scope.ts",
         "src/kernel/schema-shape.ts",
         "src/kernel/store-copy.ts",
         "src/kernel/turn-lock.ts",
-        "src/kernel/typegen.ts"
+        "src/kernel/typegen.ts",
+        "src/sqlite/checked-state.ts"
       ]
     }
   },

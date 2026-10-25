@@ -2,7 +2,7 @@ import type { StorageKernel } from "../kernel/index.js";
 
 /**
  * @file What a migration step is. Steps form ONE ordered history for every dialect; the runner
- * (`runner.ts`) applies each pending one in its own transaction and records it in the consumer's
+ * (`runner.ts`) by default applies each pending one in its own transaction and records it in the consumer's
  * ledger table.
  */
 

@@ -201,6 +201,71 @@ builds the same four definitions for catalog inspection; its display-only defaul
 - [Unavailable restore mechanisms have no attestation override](docs/decisions/DR-002-restore-point-precondition.md).
 - [Storage copying takes its schemas from the host](docs/decisions/DR-003-host-owned-schema-copy.md).
 
+### Optional checked SQLite transactions and migration policies
+
+`@jini-ai/db/sqlite` adds the following object-input APIs:
+
+```ts
+declare function createCheckedSqliteClient(
+  required: { database: IntegerSource }, optional?: {}
+): CheckedSqliteClient;
+declare function withSqliteTransaction<T>(
+  required: { client: CheckedSqliteClient; kernel: StorageKernel<unknown>; work: Work<T> },
+  optional?: { rollbackOnFailedOutcome?: boolean }
+): Promise<T>;
+```
+
+The host's `database` must support `statement.safeIntegers(true)`. The factory memoizes one
+borrowed wrapper per handle; `sqliteKernel(client)` supplies its matching kernel. Safe bigint
+cells and write metadata become numbers; overflow throws `SqliteClientError` with code
+`unsafe_integer`. Blobs and floats retain their values. Iteration decodes one row at a time.
+The wrapper's `close()` does nothing. Mixing raw and checked kernel ownership is refused.
+Connection-only imports still load no runtime Kysely dependency; sessions use the supplied kernel.
+
+`work({ session })` receives `TransactionSession` with `query({ statement }, {})`,
+`execute({ statement }, {})` and `transaction({ work }, {})`. Statements are Kysely
+`RawBuilder`s. Nested work joins; only the root return value decides whether the optional
+failed-Outcome policy rolls back. Omission or `false` commits resolved values, including
+`{ ok: false }`; `true` rolls that result back and returns the identical object after successful
+cleanup. Thrown errors roll back. Retained sessions, overlapping helpers and entry into existing
+transactions are refused. Uncertain commits and failed rollbacks quarantine the shared wrapper;
+queued and future SQL fails. Native control errors remain causes of typed `commit_failed` /
+`rollback_failed` errors; combined failures use `AggregateError`. Other codes are `quarantined`,
+`session_expired` and `transaction_busy`. The host retains responsibility for the native handle.
+The exported error constructor is `new SqliteClientError({ code }, { cause })`; its second object
+is optional.
+
+`@jini-ai/db/migrate` adds `migrate({ kernel, steps, ledgerTable }, options = {})`, which
+delegates to `runMigrations`. Both accept these optional `MigrationOptions` fields:
+
+```ts
+declare function migrate(
+  required: { kernel: StorageKernel<unknown>; steps: readonly MigrationStep[]; ledgerTable: string },
+  optional?: Omit<MigrationOptions, "ledgerTable">
+): Promise<MigrationReport>;
+
+interface MigrationExtensions {
+  atomicity?: "step" | "batch";
+  historyCheck?: "known" | "ordered-prefix";
+  clock?: Clock; // @jini-ai/core/primitives, nowMs()
+  legacyLedger?: LegacyLedgerMapping;
+}
+interface LegacyLedgerMapping {
+  columns: { version: string; name: string; checksum: string; appliedAt: string };
+  identities: Readonly<Record<string, { version: number; name: string }>>;
+  timestamps?: "database-default" | "iso";
+}
+```
+
+Batch mode requires a kernel-owned transaction and transactional DDL, refuses pending `prepare`
+hooks, backs up outside the transaction and verifies history again under the ledger lock.
+Ordered-prefix checks reject holes before pending work and repeat under that lock. ISO clocks
+are sampled once per inserted row. Legacy mappings require complete, unique positive-safe-integer
+versions ascending in step order and unique nonempty names; identifiers are quoted and history is read by numeric version.
+Existing rows are never rewritten. Mapped timestamps use the database default unless `iso` is
+explicit; supplying a clock with database-default timestamps is refused. The default runner
+retains its standard ledger, known-ID checks and per-step commits.
+
 ### Host database prose
 
 `defaultDbMessages` and `DbMessages` are exported from `@jini-ai/db/tools`.

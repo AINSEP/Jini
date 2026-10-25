@@ -2,8 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { type Kysely, sql } from "kysely";
+import { nowIso, type Clock } from "@jini-ai/core/primitives";
 
 import { listTables, type StorageKernel, tableExists } from "../kernel/index.js";
+import { ownedTransactionOf } from "../kernel/owned-transaction.js";
+import { ensureLegacyLedger, insertLegacyRow, readLegacyLedger, validateLegacyMapping, type LegacyLedgerMapping } from "./legacy-ledger.js";
 import {
   MIGRATION_ID,
   MigrationChecksumError,
@@ -17,12 +20,12 @@ import {
  * any dialect and records each in a ledger table the consumer names (required, no default: this
  * package ships no tables, so no name of its own can leak into a consumer's database).
  *
- * - Ledger `<ledgerTable>(id, checksum, applied_at)`, created by the runner inside the first step's
+ * - Default ledger `<ledgerTable>(id, checksum, applied_at)`, created by the runner inside the first step's
  *   transaction (so a step's pre-change backup has no trace of the runner), same on every dialect.
  * - Before anything is applied, every recorded id must be one this runtime knows
  *   ({@link UnknownAppliedMigrationError}) with the checksum this runtime has
  *   ({@link MigrationChecksumError}). Nothing is applied on a mismatch.
- * - Serialized: each pending step runs in ONE kernel transaction that first takes
+ * - Serialized: by default each pending step runs in ONE kernel transaction that first takes
  *   `lockKey(<ledgerTable>)` (Postgres advisory lock; SQLite's `BEGIN IMMEDIATE` write lock) and
  *   re-reads its ledger row, so two processes starting at once apply a step exactly once.
  * - A kernel without interactive transactions is refused (`require`), never downgraded.
@@ -35,7 +38,7 @@ import {
  *   go through Kysely `withSchema`, never `SET search_path` (no session state on a shared PGlite).
  */
 
-interface LedgerRow {
+export interface LedgerRow {
   id: string;
   checksum: string;
   applied_at: string;
@@ -52,13 +55,22 @@ export interface MigrationOptions {
   schema?: string;
   /** Names the newer runtime in {@link UnknownAppliedMigrationError}'s message (default "version"). */
   appName?: string;
+  /** Opt in to one owned transaction for the entire pending batch. Default: per-step commits. */
+  atomicity?: "step" | "batch";
+  /** Opt in to requiring recorded history to be an exact prefix of the supplied steps. */
+  historyCheck?: "known" | "ordered-prefix";
+  /** Sampled once for each inserted ISO timestamp, never for already-recorded rows. */
+  clock?: Clock;
+  /** Explicit persisted identities and column names for an existing version/name ledger. */
+  legacyLedger?: LegacyLedgerMapping;
 }
 
 /** Where one history's ledger lives, resolved from {@link MigrationOptions}. */
-interface Ledger {
+export interface Ledger {
   readonly table: string;
   readonly schema: string | undefined;
   readonly lockKey: string;
+  readonly mapping: LegacyLedgerMapping | undefined;
   run<T>(fn: (db: Kysely<LedgerDb>) => Promise<T>): Promise<T>;
 }
 
@@ -72,6 +84,7 @@ function ledgerFor(kernel: StorageKernel<unknown>, options: MigrationOptions): L
     table,
     schema,
     lockKey: schema === undefined ? table : `${schema}.${table}`,
+    mapping: options.legacyLedger,
     run: (fn) => store.run((db) => fn(schema === undefined ? db : db.withSchema(schema))),
   };
 }
@@ -100,6 +113,7 @@ export function assertValidSteps(steps: readonly MigrationStep[]): void {
  * `prepare` is the database exactly as it was. */
 async function ensureLedger(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<void> {
   if (ledger.schema !== undefined) await kernel.run((db) => db.schema.createSchema(ledger.schema as string).ifNotExists().execute());
+  if (ledger.mapping !== undefined) return ensureLegacyLedger({ ledger, mapping: ledger.mapping, dialect: kernel.dialect });
   await ledger.run((db) =>
     db.schema
       .createTable(ledger.table)
@@ -112,17 +126,89 @@ async function ensureLedger(kernel: StorageKernel<unknown>, ledger: Ledger): Pro
 }
 
 async function readLedger(ledger: Ledger): Promise<LedgerRow[]> {
+  if (ledger.mapping !== undefined) return readLegacyLedger({ ledger, mapping: ledger.mapping });
   return ledger.run((db) => db.selectFrom(ledger.table).selectAll().orderBy("id").execute());
 }
 
-function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationStep[], appName: string | undefined): void {
+function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationStep[], options: MigrationOptions): void {
   const known = new Map(steps.map((step) => [step.id, step]));
   const unknown = rows.filter((row) => !known.has(row.id)).map((row) => row.id);
-  if (unknown.length > 0) throw new UnknownAppliedMigrationError(unknown, appName);
+  if (unknown.length > 0) throw new UnknownAppliedMigrationError(unknown, options.appName);
   for (const row of rows) {
     const step = known.get(row.id) as MigrationStep;
     if (row.checksum !== step.checksum) throw new MigrationChecksumError(row.id, row.checksum, step.checksum);
   }
+  if (options.historyCheck === "ordered-prefix" && rows.some((row, index) => row.id !== steps[index]?.id)) {
+    throw new Error("recorded migration history is not an ordered prefix");
+  }
+}
+
+async function insertRow({ ledger, step, options }: { ledger: Ledger; step: MigrationStep; options: MigrationOptions }, _optional: {} = {}): Promise<void> {
+  const timestamp = () => options.clock === undefined ? new Date().toISOString() : nowIso({ clock: options.clock });
+  if (ledger.mapping !== undefined) return insertLegacyRow({ ledger, mapping: ledger.mapping, step, timestamp });
+  await ledger.run((db) => db.insertInto(ledger.table).values({ id: step.id, checksum: step.checksum, applied_at: timestamp() }).execute());
+}
+
+async function recordedStep({ ledger, step, steps, options }: { ledger: Ledger; step: MigrationStep; steps: readonly MigrationStep[]; options: MigrationOptions }, _optional: {} = {}): Promise<boolean> {
+  if (ledger.mapping !== undefined || options.historyCheck === "ordered-prefix") {
+    const rows = await readLedger(ledger);
+    verifyRecorded(rows, steps, options);
+    return rows.some((row) => row.id === step.id);
+  }
+  const row = await ledger.run((db) => db.selectFrom(ledger.table).selectAll().where("id", "=", step.id).executeTakeFirst());
+  if (row === undefined) return false;
+  verifyRecorded([row], steps, options);
+  return true;
+}
+
+function validateExtensions({ options, steps }: { options: MigrationOptions; steps: readonly MigrationStep[] }, _optional: {} = {}): void {
+  if (options.legacyLedger === undefined) return;
+  validateLegacyMapping({ mapping: options.legacyLedger, steps });
+  if (options.clock !== undefined && options.legacyLedger.timestamps !== "iso") {
+    throw new Error("a migration clock requires ISO legacy ledger timestamps");
+  }
+}
+
+function assertBatchSteps({ steps, done }: { steps: readonly MigrationStep[]; done: ReadonlySet<string> }, _optional: {} = {}): void {
+  if (steps.some((step) => !done.has(step.id) && step.prepare !== undefined)) throw new Error("batch migrations cannot run pending prepare hooks");
+}
+
+async function applyBatch({ kernel, ledger, steps, options, context, report }: {
+  kernel: StorageKernel<unknown>; ledger: Ledger; steps: readonly MigrationStep[];
+  options: MigrationOptions; context: MigrationContext; report: MigrationReport;
+}, _optional: {} = {}): Promise<MigrationReport> {
+  const control = ownedTransactionOf({ kernel });
+  kernel.require("transactionalDdl");
+  control.assertAvailable();
+  const initiallyDone = new Set(report.alreadyApplied);
+  const pending = steps.filter((step) => !initiallyDone.has(step.id));
+  assertBatchSteps({ steps, done: initiallyDone });
+  if (pending.length === 0) return report;
+  await backUpBeforeChange(kernel, context);
+  return control.transaction(async () => {
+    await kernel.lockKey(ledger.lockKey);
+    await ensureLedger(kernel, ledger);
+    const rows = await readLedger(ledger);
+    verifyRecorded(rows, steps, options);
+    const done = new Set(rows.map((row) => row.id));
+    assertBatchSteps({ steps, done });
+    report.alreadyApplied = [...done];
+    for (const step of steps) {
+      if (done.has(step.id)) continue;
+      await step.up(kernel, context);
+      await insertRow({ ledger, step, options });
+      report.applied.push(step.id);
+    }
+    return report;
+  });
+}
+
+/** Object-input facade over the existing runner; all extensions remain opt-in. */
+export function migrate(
+  required: { kernel: StorageKernel<unknown>; steps: readonly MigrationStep[]; ledgerTable: string },
+  optional: Omit<MigrationOptions, "ledgerTable"> = {}
+): Promise<MigrationReport> {
+  return runMigrations(required.kernel, required.steps, { ...optional, ledgerTable: required.ledgerTable });
 }
 
 /**
@@ -140,15 +226,18 @@ export async function runMigrations(
 ): Promise<MigrationReport> {
   assertValidSteps(steps);
   kernel.require("interactiveTransactions");
+  validateExtensions({ options, steps });
+  if (options.atomicity === "batch") ownedTransactionOf({ kernel }).assertAvailable();
   const ledger = ledgerFor(kernel, options);
   const recorded = (await ledgerExists(kernel, ledger)) ? await readLedger(ledger) : [];
-  verifyRecorded(recorded, steps, options.appName);
+  verifyRecorded(recorded, steps, options);
 
   const report: MigrationReport = { applied: [], alreadyApplied: recorded.map((row) => row.id), notes: [] };
   const note = (message: string) => {
     report.notes.push(message);
   };
   const context: MigrationContext = options.backupPath === undefined ? { note } : { backupPath: options.backupPath, note };
+  if (options.atomicity === "batch") return applyBatch({ kernel, ledger, steps, options, context, report });
   const done = new Set(report.alreadyApplied);
   let backedUp = false;
   for (const step of steps) {
@@ -159,15 +248,9 @@ export async function runMigrations(
     const applied = await kernel.transaction(async () => {
       await kernel.lockKey(ledger.lockKey);
       await ensureLedger(kernel, ledger);
-      const row = await ledger.run((db) => db.selectFrom(ledger.table).selectAll().where("id", "=", step.id).executeTakeFirst());
-      if (row !== undefined) {
-        verifyRecorded([row], steps, options.appName);
-        return false;
-      }
+      if (await recordedStep({ ledger, step, steps, options })) return false;
       await step.up(kernel, context);
-      await ledger.run((db) =>
-        db.insertInto(ledger.table).values({ id: step.id, checksum: step.checksum, applied_at: new Date().toISOString() }).execute()
-      );
+      await insertRow({ ledger, step, options });
       return true;
     });
     (applied ? report.applied : report.alreadyApplied).push(step.id);

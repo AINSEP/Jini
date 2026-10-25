@@ -1,4 +1,5 @@
 import type { StorageKernel } from "./port.js";
+import { ownedTransactions } from "./owned-transaction.js";
 
 /**
  * @file A kernel whose query-builder statements address one Postgres schema: every `run()` body gets
@@ -13,8 +14,11 @@ import type { StorageKernel } from "./port.js";
  */
 export function scopeToSchema<DB>(kernel: StorageKernel<DB>, schema: string): StorageKernel<DB> {
   if (kernel.dialect !== "postgres") throw new Error(`schema '${schema}' needs a Postgres kernel, not ${kernel.dialect}`);
-  return {
+  const scoped: StorageKernel<DB> = {
     ...kernel,
     run: (fn) => kernel.run((db) => fn(db.withSchema(schema))),
   };
+  const control = ownedTransactions.get(kernel as StorageKernel<unknown>);
+  if (control !== undefined) ownedTransactions.set(scoped as StorageKernel<unknown>, control);
+  return scoped;
 }

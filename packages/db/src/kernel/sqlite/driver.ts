@@ -4,6 +4,8 @@ import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 
 import { buildKernel, type StorageKernel, TurnLock } from "../index.js";
 import type { SqliteClient, SqliteOpener } from "../../sqlite/types.js";
+import { checkedClients, checkedStates, connectionsByKernel, rawKernelClients } from "../../sqlite/checked-state.js";
+import { ownedTransactions } from "../owned-transaction.js";
 
 /**
  * @file The better-sqlite3 driver: a kernel over an ALREADY OPEN SQLite connection the consumer
@@ -36,9 +38,6 @@ export type SqliteKernel<DB> = StorageKernel<DB>;
 export type SqliteConnectionSource = SqliteClient | { readonly $client: SqliteClient };
 
 const kernels = new WeakMap<SqliteClient, SqliteKernel<unknown>>();
-
-/** The reverse of `kernels`, plus the owning kernels {@link openSqliteFileKernel} hands out. */
-const connectionsByKernel = new WeakMap<StorageKernel<unknown>, SqliteClient>();
 
 /** One turn lock per database FILE, shared by every connection to it in this process. */
 const fileTurnLocks = new Map<string, TurnLock>();
@@ -80,6 +79,9 @@ function bindingShim(client: SqliteClient): SqliteDatabase {
 
 export function sqliteKernel<DB>(source: SqliteConnectionSource): SqliteKernel<DB> {
   const client = sqliteClientOf(source);
+  const checked = checkedClients.has(client);
+  if (checkedStates.has(client) && !checked) throw new Error("cannot mix raw and checked SQLite kernel ownership");
+  if (!checked) rawKernelClients.add(client);
   const known = kernels.get(client);
   if (known !== undefined) return known as SqliteKernel<DB>;
   const base = new Kysely<DB>({ dialect: new SqliteDialect({ database: bindingShim(client) }) });
@@ -98,7 +100,13 @@ export function sqliteKernel<DB>(source: SqliteConnectionSource): SqliteKernel<D
         client.exec("COMMIT");
         return result;
       } catch (error) {
-        if (client.inTransaction) client.exec("ROLLBACK");
+        if (checked) {
+          try {
+            if (client.inTransaction) client.exec("ROLLBACK");
+          } catch (cleanup) {
+            throw new AggregateError([error, cleanup], "SQLite transaction and rollback failed");
+          }
+        } else if (client.inTransaction) client.exec("ROLLBACK");
         throw error;
       }
     },
@@ -154,6 +162,8 @@ export function openSqliteFileKernel<DB>(
     close: async () => closeSqliteConnection(client),
   };
   connectionsByKernel.set(owned as SqliteKernel<unknown>, client);
+  const control = ownedTransactions.get(kernel as StorageKernel<unknown>);
+  if (control !== undefined) ownedTransactions.set(owned as StorageKernel<unknown>, control);
   return owned;
 }
 
