@@ -135,3 +135,29 @@ test("resolveStdioChildCwd: a relative package-runner path keeps the daemon's cw
   assert.equal(resolveStdioChildCwd({ resolved: { command: "./node_modules/.bin/npx", args: [], env: {}, launchEnv: {} } }, { neutralDir: "/neutral" }), undefined);
   assert.equal(resolveStdioChildCwd({ resolved: { command: "node_modules/.bin/npx", args: [], env: {}, launchEnv: {} } }, { neutralDir: "/neutral" }), undefined);
 });
+
+// Stryker L3 (2026-10-25): the win32 path detection and `.cmd/.exe` stripping regexes (adapter.stdio.ts
+// 101-103) had no Windows-style case beyond one forward-slash path. One row per branch.
+test.each([
+  ["C:\\Program Files\\nodejs\\npx.cmd", "/neutral"],
+  ["c:\\nodejs\\NPX.EXE", "/neutral"],
+  ["D:npx.exe", "/neutral"], // drive-relative still selects win32 basename rules
+  ["\\\\server\\share\\npx.cmd", "/neutral"],
+  ["npx.cmd", "/neutral"],
+  ["NPX", "/neutral"],
+  ["npx.bat", undefined],
+  ["npx.cmd.bak", undefined],
+  ["xnpx.cmd", undefined],
+  ["C:\\tools\\npxx.exe", undefined],
+  ["node_modules\\.bin\\npx.cmd", undefined], // relative with a separator: cwd must not move
+  ["./node_modules/.bin/npx", undefined],
+  ["/opt/npx.exe", "/neutral"], // posix absolute: extension stripped too
+])("resolveStdioChildCwd: %s → %s", (command, expected) => {
+  assert.equal(resolveStdioChildCwd({ resolved: { command, args: [], env: {}, launchEnv: {} } }, { neutralDir: "/neutral" }), expected);
+});
+
+test("resolveStdioChildCwd: the configured (requested) command decides, not the rewritten one", () => {
+  const launch = { command: "/electron/Electron", requestedCommand: "npx", args: [], env: {}, launchEnv: {} };
+  assert.equal(resolveStdioChildCwd({ resolved: launch }, { neutralDir: "/neutral" }), "/neutral");
+  assert.equal(resolveStdioChildCwd({ resolved: { ...launch, command: "npx", requestedCommand: "/electron/Electron" } }, { neutralDir: "/neutral" }), undefined);
+});
