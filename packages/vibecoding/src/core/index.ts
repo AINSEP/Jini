@@ -23,3 +23,4 @@ export { applyEdit, applyEdits, correctionsFor } from "./apply.js";
 export type { EditHistory, EditHistoryOptions, HistoryEntry, PartChange } from "./history.js";
 export { createEditHistory } from "./history.js";
 export * from './project.js';
+export type { ProjectFilesystemPort } from './project-filesystem.js';

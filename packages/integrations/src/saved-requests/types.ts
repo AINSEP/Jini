@@ -1,4 +1,4 @@
-import type { CredentialedRequestAuditPort } from "../credentialed-http/credentialed-request.js";
+import type { CredentialedRequestAuditPort, makeCredentialedRequest } from "../credentialed-http/credentialed-request.js";
 import type { CredentialSchemeRegistryPort, ResolvedCredential } from "../credentialed-http/ports.js";
 import type { DnsResolver, GuardedClock, PinnedHttpTransport } from "@jini-ai/platform/http/guarded";
 
@@ -33,8 +33,11 @@ export interface SavedRequestCredentialResolverPort {
 }
 
 /** All effects are injected. The interpreter constructs the existing guard, so callers cannot
- * accidentally supply an HTTP client with redirects or development bypasses enabled. */
+ * accidentally supply an HTTP client with redirects or development bypasses enabled. The trusted
+ * executor port must bind the credentialed-http owner so auditing and redaction stay intact. */
 export interface SavedRequestDeps {
+  /** Composition binds the credential owner's executor; the interpreter never loads that domain. */
+  readonly executeCredentialedRequest: typeof makeCredentialedRequest;
   readonly credentials: SavedRequestCredentialResolverPort;
   readonly schemeRegistry: CredentialSchemeRegistryPort;
   readonly audit: CredentialedRequestAuditPort;

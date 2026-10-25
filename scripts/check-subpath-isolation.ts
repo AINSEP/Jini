@@ -18,6 +18,19 @@ import { extractImports, listSourceFiles, REPO_ROOT, type ImportRef } from './li
 // Foundation packages supply shared runtime primitives across otherwise isolated subpaths.
 // Coordinator decision 2026-10-07: their installation is required even for subset use.
 const FOUNDATION = new Set(['@jini-ai/core', '@jini-ai/protocol']);
+/** Reviewed exceptions to the subset-dependency rule: each is a regression proven by a packed install, not a waiver.
+ * - agent-runtime -> oauth: its root statically loads the OAuth redactor and PKCE bridge. The packaged root must boot
+ *   without consumer-supplied peers; lightweight leaves do not make it optional (desktop launch regression).
+ * - oauth -> openid-client, oauth4webapi: the root protocol client loads them and agent-runtime's required root imports
+ *   that root; as optional peers a fresh agent-runtime install fails (tests/loads-without-integrations, 11/17 red).
+ * - diagnostics -> js-tokens: ./redaction/secrets-only and ./observability load it, and their published consumers
+ *   (chat's user-text redaction, hosts' ./observability) do not declare it; an optional peer breaks them at load.
+ */
+const REQUIRED_SUBSET_DEPENDENCIES: Readonly<Record<string, ReadonlySet<string>>> = {
+  '@jini-ai/agent-runtime': new Set(['@jini-ai/oauth']),
+  '@jini-ai/oauth': new Set(['openid-client', 'oauth4webapi']),
+  '@jini-ai/diagnostics': new Set(['js-tokens']),
+};
 
 interface IsolationConfig {
   entries?: Record<string, string>;
@@ -295,10 +308,7 @@ export function auditSubpathIsolation(
           pkg.manifest.peerDependenciesMeta?.[name]?.optional !== true)) };
       for (const dependency of Object.keys(forced)) {
         if (FOUNDATION.has(dependency)) continue;
-        // agent-runtime's root statically loads the OAuth redactor and PKCE bridge.
-        // The packaged root must boot without consumer-supplied peers; lightweight leaves
-        // do not make this required root dependency optional (desktop launch regression).
-        if (pkg.manifest.name === '@jini-ai/agent-runtime' && dependency === '@jini-ai/oauth') continue;
+        if (REQUIRED_SUBSET_DEPENDENCIES[pkg.manifest.name]?.has(dependency)) continue;
         const used = distinct.filter(closure => closure.dependencies.includes(dependency));
         if (used.length < distinct.length) add(pkg, used.map(closure => closure.subpath).join(', ') || '(none)',
           'b', join(pkg.directory, 'package.json'),

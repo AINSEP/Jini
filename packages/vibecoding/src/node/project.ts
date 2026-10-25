@@ -1,5 +1,6 @@
 import { createEditHistory, type EditHistory, type HistoryEntry } from '../core/history.js';
-import { FsFilePathError } from '@jini-ai/platform/fs';
+import { FsFilePathError } from '@jini-ai/core/filesystem';
+import type { ProjectFilesystemPort } from '../core/project-filesystem.js';
 import type { EditTarget } from '../core/target.js';
 import type { ProposedEdit } from '../core/apply.js';
 import type { ApplyOutcome, Snapshot } from '../core/types.js';
@@ -9,6 +10,8 @@ import { assertCandidatePaths, createProjectPaths, projectLimits, type FileTreeP
 import { createProjectStore, prepareDirectories, revisionToken, type Current, type ProjectStore } from './store.js';
 
 export interface OpenFileTreeProjectInput {
+  /** Native effects are supplied by the host composition root. */
+  readonly filesystem: ProjectFilesystemPort;
   readonly root: string;
   /** Private host-owned directory outside the watched and served application tree. */
   readonly stateDir: string;
@@ -120,8 +123,8 @@ export async function openFileTreeProject(input: OpenFileTreeProjectInput, optio
   if (!Number.isSafeInteger(historyLimit) || historyLimit <= 0) throw new TypeError('historyLimit must be positive');
   try {
     const directories = await prepareDirectories(input);
-    const paths = createProjectPaths({ root: directories.root, policy: input.policy, limits });
-    const store = createProjectStore({ ...directories, paths, limits });
+    const paths = createProjectPaths({ root: directories.root, policy: input.policy, limits, filesystem: input.filesystem });
+    const store = createProjectStore({ ...directories, paths, limits, filesystem: input.filesystem });
     const project = assembleProject({ store, paths, limits, historyLimit, validator: input.validator });
     await project.capture();
     return project;

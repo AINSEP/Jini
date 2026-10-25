@@ -91,7 +91,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
    * Serialized with install/update/uninstall of the same plugin by the per-plugin state lock, so a
    * toggle never judges compatibility against a package that is mid-swap. The lock is a
    * non-reentrant file lock: no caller holds it around this function (checked 2026-10-21 in this
-   * package and in Tovu's admin route / `plugins_set_enabled` tool).
+   * package and in the host admin route / `plugins_set_enabled` tool).
    */
   async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput, _optional: Record<string, never> = {}): Promise<SetAgentPluginEnabledResult> {
     const workspaceRoot = ports.layout.forWorkspace({ workspaceId: input.workspaceId }).root;

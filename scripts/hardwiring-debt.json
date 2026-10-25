@@ -10,6 +10,13 @@
     },
     {
       "rule": "HW3-module-state",
+      "file": "packages/cms/src/media/sanitize-svg.ts",
+      "line": 42,
+      "reason": "Reviewed 2026-10-25: process-lifetime lazy JSDOM/DOMPurify runtime with fixed hooks and no tenant/request state (each call parses a fresh document); per-call construction measured 8.3 ms vs 1.1 ms and hosts sanitize per public media request.",
+      "fingerprint": "d92c6a81b2ff50096bcda80885427d1f59a25b5f483f7055523504925d16ab23"
+    },
+    {
+      "rule": "HW3-module-state",
       "file": "packages/admin/src/agent-plugins/rules.ts",
       "line": 8,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",

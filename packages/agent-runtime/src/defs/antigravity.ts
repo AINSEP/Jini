@@ -180,9 +180,15 @@ export const antigravityAgentDef = {
     timeoutMs: AGY_MODELS_TIMEOUT_MS,
   },
   // Checked against agy 1.4.2 and https://antigravity.google/docs/cli/headless/.
-  fallbackModelsAssertedAt: '2026-10-18',
+  fallbackModelsAssertedAt: '2026-10-24',
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
+    { id: 'claude-opus-5-5-low', label: 'Claude Opus 5.5 (Low)' },
+    { id: 'claude-opus-5-5-medium', label: 'Claude Opus 5.5 (Medium)' },
+    { id: 'claude-opus-5-5-high', label: 'Claude Opus 5.5 (High)' },
+    { id: 'claude-sonnet-5-5-low', label: 'Claude Sonnet 5.5 (Low)' },
+    { id: 'claude-sonnet-5-5-medium', label: 'Claude Sonnet 5.5 (Medium)' },
+    { id: 'claude-sonnet-5-5-high', label: 'Claude Sonnet 5.5 (High)' },
     { id: 'gemini-4-argon-high', label: 'Gemini 4 Argon High' },
     { id: 'gemini-4-argon-medium', label: 'Gemini 4 Argon Medium' },
     { id: 'gemini-4-argon-low', label: 'Gemini 4 Argon Low' },

@@ -69,7 +69,7 @@ export const AGENT_FAILURE_SECRET_SHAPE_RE = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[
  * Exact path SEGMENT names refused at any depth, matched case-insensitively against each segment
  * of the caller-supplied path (never a substring — a directory named `not-secrets-actually` is not
  * a match). `secrets` is the owner's explicit example: whatever a site or app tree names its
- * credentials folder (`sites/**\/secrets/`, `apps/admin/**\/secrets/`, or anywhere else), it never
+ * credentials folder (`sites/**\/secrets/`, `app/**\/secrets/`, or anywhere else), it never
  * becomes reachable through this domain. A denied segment is refused by the guarded reader
  * AND skipped entirely by the `fs_list_files` walk — its contents are never even enumerated,
  * not merely refused once named. Besides `secrets`, the set names the

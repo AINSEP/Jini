@@ -10,7 +10,7 @@
  * Every schema is strict (`additionalProperties: false`): a field the model invents is refused, not
  * ignored, so it can never believe an option it made up was applied.
  */
-import type { AgentToolDefinition, DerivedRiskByToolId } from "@jini-ai/core";
+import type { AgentToolDefinition, AgentToolSideEffect } from "@jini-ai/core";
 
 export const PAYMENTS_TOOLS_DOMAIN = "commerce-payments";
 export const PAYMENTS_TOOLS_CATALOG_MODULE = "packages/commerce/src/payments/tools/catalog.ts";
@@ -116,7 +116,8 @@ export function paymentsToolCatalog(
  * provider). Its irreversibility is carried by the human-confirmation rule and by the approval
  * plan never offering a remembered grant, not by this word.
  */
-export const paymentsToolsDerivedRisk: DerivedRiskByToolId = new Map([
+// Spell out the readonly map because the guard cannot resolve the registration kit's type alias.
+export const paymentsToolsDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // PaymentsPort.getPayment: one ledger read.
   [PAYMENTS_TOOL_IDS.get, "none"],
   // PaymentsPort.listProviders: the in-memory provider registry.

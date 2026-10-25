@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
-import { openFileTreeProject } from '../project.js';
+import { openFileTreeProject } from './filesystem.js';
 import type { ProjectValidator } from '../../core/project.js';
 
 const roots: string[] = [];

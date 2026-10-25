@@ -1,3 +1,4 @@
+import { MEDIA_PROVIDER_BASE_URL_PLACEHOLDER } from '../../catalog.js';
 import type { I18nContextValue } from '../../../i18n/index.js';
 import type { MediaProvidersTabLabels } from './MediaProvidersTab.js';
 
@@ -18,7 +19,7 @@ const DEFAULT_LABELS: ResolvedMediaProvidersTabLabels = {
   showKeyLabel: 'Show',
   hideKeyLabel: 'Hide',
   baseUrlLabel: 'Base URL',
-  baseUrlPlaceholder: 'https://api.example.com',
+  baseUrlPlaceholder: MEDIA_PROVIDER_BASE_URL_PLACEHOLDER,
   baseUrlDefaultHintTemplate: 'Uses {url} by default.',
   baseUrlInvalidLabel: 'Enter an absolute http:// or https:// URL that is not a private or internal address.',
   modelLabel: 'Model',

@@ -187,7 +187,7 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
 }
 
 /** Work after a standalone form proves the run has moved past that form. */
-const WORK_EVENT_KINDS = new Set<AgentEvent['kind']>(['text', 'tool_use', 'tool_result']);
+const WORK_EVENT_KINDS: ReadonlySet<AgentEvent['kind']> = new Set<AgentEvent['kind']>(['text', 'tool_use', 'tool_result']);
 
 /** Standalone approval forms have no open tool call. Require interactive markup so outcome
  * documents do not acquire a waiting status. Inspect text only; this never executes a document. */
