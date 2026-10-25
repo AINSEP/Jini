@@ -93,11 +93,13 @@ export function claudeFilesystemRuntimePaths(required: { launchPath: string }, _
  * https://code.claude.com/docs/en/permissions#working-directories
  * O(s + r) serialization for s host settings bytes and r runtime exception paths. Pure with
  * injectable host facts; errors reject malformed/file-based settings rather than dropping policy.
+ * @example claudeFilesystemSettings({ options: { filesystemRoot: '/site' } }, { platform: 'darwin', uid: 501 })
  */
 export function claudeFilesystemSettings(required: { options: RuntimeBuildOptions }, {
-  platform = process.platform, homeDir = homedir(), tempDir = tmpdir(),
-}: { platform?: NodeJS.Platform; homeDir?: string; tempDir?: string } = {}): string {
+  platform = process.platform, homeDir = homedir(), tempDir = tmpdir(), uid,
+}: { platform?: NodeJS.Platform; homeDir?: string; tempDir?: string; uid?: number | null | undefined } = {}): string {
   const { options } = required;
+  const runtimeTempPaths = claudeRuntimeTempPaths({ options, platform, tempDir }, { uid });
   const settings = options.settings ? JSON.parse(options.settings) as Record<string, unknown> : {};
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Host settings must be a JSON object');
   const permissions = settings.permissions as Record<string, unknown> | undefined;
@@ -105,22 +107,58 @@ export function claudeFilesystemSettings(required: { options: RuntimeBuildOption
     permissions: { ...permissions, blockReadsOutsideWorkingDirectories: true, additionalDirectories: [] },
     sandbox: { enabled: platform !== 'win32', failIfUnavailable: platform !== 'win32',
       allowUnsandboxedCommands: platform === 'win32', excludedCommands: [],
-      filesystem: filesystemSandboxPaths({ options, homeDir, tempDir }, {}),
+      filesystem: filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths }, {}),
     },
   });
 }
 
+/** Exact per-UID runtime scratch and its short Bash fallback; never grants the base directory.
+ * Mirrors CLAUDE_CODE_TMPDIR selection: macOS defaults to /tmp, Linux to the child's os.tmpdir().
+ * Pure, O(p) time/space for p path bytes; invalid Unix host facts throw before policy generation.
+ */
+function claudeRuntimeTempPaths({ options, platform, tempDir }: {
+  options: RuntimeBuildOptions; platform: NodeJS.Platform; tempDir: string;
+}, { uid }: { uid?: number | null | undefined } = {}): string[] {
+  if (platform === 'win32') return [];
+  const unixUid = requireUnixUid({}, { uid });
+  const defaultBase = platform === 'darwin' ? '/tmp' : options.filesystemTempDir ?? tempDir;
+  // The child's own CLAUDE_CODE_TMPDIR (executor-resolved), never the daemon's ambient environment.
+  const base = options.filesystemRuntimeTempBase || defaultBase;
+  if (!isAbsolute(base)) throw new Error('Runtime temp base must be absolute');
+  const runtimeTemp = resolve(base, `claude-${unixUid}`);
+  const paths = [runtimeTemp];
+  // Claude keeps its own files under the override, but shortens sandboxed Bash's TMPDIR for sockets.
+  if (Buffer.byteLength(runtimeTemp) > 44) paths.push(resolve(defaultBase, `claude-${unixUid}`));
+  return [...new Set(paths.flatMap(path => claudeTempAliases({ path, platform }, {})))];
+}
+
+/** The host UID that names Claude's scratch subtree; fails closed rather than granting a guessed path. O(1). */
+function requireUnixUid(_required = {}, { uid = process.getuid?.() }: { uid?: number | null | undefined } = {}): number {
+  if (!Number.isSafeInteger(uid) || uid! < 0) throw new Error('Runtime temp policy requires a Unix UID');
+  return uid!;
+}
+
+/** Preserve macOS's lexical and /private spellings without filesystem I/O. Pure, O(p) path bytes. */
+function claudeTempAliases({ path, platform }: { path: string; platform: NodeJS.Platform }, _optional = {}): string[] {
+  if (platform !== 'darwin') return [path];
+  const unprefixed = path.replace(/^\/private\/(?=tmp\/|var\/)/, '/');
+  return /^\/(?:tmp|var)\//.test(unprefixed) ? [unprefixed, `/private${unprefixed}`] : [path];
+}
+
 /** Build explicit filesystem exceptions; shared temp and the rest of home remain denied.
+ * Owner 2026-10-25: Claude's exact per-UID runtime subtree is a read/write infrastructure
+ * exception so Bash can track cwd. It permits cross-session scratch access for the same UID;
+ * strict session scratch isolation needs a separate design. Shared temp parents stay denied.
  * Pure, O(r + t) for r runtime paths and t shared temp roots; no filesystem access.
  */
-function filesystemSandboxPaths({ options, homeDir, tempDir }: {
-  options: RuntimeBuildOptions; homeDir: string; tempDir: string;
+function filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths }: {
+  options: RuntimeBuildOptions; homeDir: string; tempDir: string; runtimeTempPaths: readonly string[];
 }, _optional = {}) {
   const privateTemp = options.filesystemTempDir ?? resolve(options.filesystemRoot!, '.agent-runtime', 'tmp');
   const sharedTempRoots = [...new Set(['/tmp', '/private/tmp', tempDir, ...(options.filesystemSharedTempRoots ?? [])])];
   return { denyRead: [homeDir, ...sharedTempRoots],
     // Owner 2026-10-23: git config is a read-only infrastructure exception, never all of home.
     allowRead: [options.filesystemRoot!, privateTemp, resolve(homeDir, '.gitconfig'),
-      resolve(homeDir, '.config/git/config'), ...(options.filesystemRuntimeReadPaths ?? [])],
-    allowWrite: [options.filesystemRoot!, privateTemp] };
+      resolve(homeDir, '.config/git/config'), ...(options.filesystemRuntimeReadPaths ?? []), ...runtimeTempPaths],
+    allowWrite: [options.filesystemRoot!, privateTemp, ...runtimeTempPaths] };
 }

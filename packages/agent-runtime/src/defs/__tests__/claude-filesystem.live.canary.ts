@@ -34,7 +34,7 @@ function fixture() {
   return { base, site, outside, content, hiddenName, privateTemp };
 }
 
-async function runCli(required: { site: string; prompt: string; tools: string[] }) {
+async function runCli(required: { site: string; prompt: string; tools: string[] }, _optional = {}) {
   const privateTemp = join(required.site, '.agent-runtime', 'tmp');
   const args = claudeAgentDef.buildArgs({ prompt: required.prompt, imagePaths: [] }, {
     options: { filesystemRoot: required.site, filesystemTempDir: privateTemp, nativeToolAccess: true,
@@ -145,4 +145,48 @@ test('live folder confinement: shared temp contents and names stay absent while 
   assert.ok(!output.includes(f.hiddenName));
   assert.ok(output.includes('"name":"Bash"'), 'No Bash invocation observed');
   assert.ok(output.includes('PRIVATE_TEMP_OK'), 'Private temp was not usable');
+});
+
+test('live Bash cwd tracking succeeds across successive commands without widening confinement', {
+  skip: !enabled && 'Live CLI canaries are opt-in', timeout: 150_000,
+}, async t => {
+  if (process.platform === 'win32') return t.skip('Native Windows has the recorded unsandboxed-shell exception');
+  const executable = process.env.JINI_LIVE_CLAUDE_PATH;
+  if (!executable) return t.skip('No explicit live Claude executable supplied');
+  if (await assertClaudeFilesystemSupport({ agentId: 'claude', launchPath: executable, env: process.env }, {}) !== true) return t.skip('Supported official Claude unavailable');
+  const f = fixture();
+  const shared = mkdtempSync(join(tmpdir(), 'bash-cwd-canary-'));
+  t.after(() => { rmSync(f.base, { recursive: true, force: true }); rmSync(shared, { recursive: true, force: true }); });
+  writeFileSync(join(shared, 'read-target.txt'), f.content);
+  const commands = [1, 2].map(sequence => [
+    'set -e', 'pwd',
+    `printf 'TEMP_OK_${sequence}\\n' > "$TMPDIR/cwd-canary-${sequence}"`,
+    `cat "$TMPDIR/cwd-canary-${sequence}"`,
+    ...[shared, f.outside].flatMap(dir => [
+      `if cat '${dir}/read-target.txt'; then printf 'OUTSIDE_READ_SUCCEEDED'; fi`,
+      `if printf 'OUTSIDE_WRITE' > '${dir}/read-target.txt'; then printf 'OUTSIDE_WRITE_SUCCEEDED'; fi`,
+      `if printf 'OUTSIDE_WRITE' > '${dir}/created.txt'; then printf 'OUTSIDE_WRITE_SUCCEEDED'; fi`,
+    ]),
+    'pwd', 'exit 0',
+  ].join('; '));
+  const output = await runCli({ site: f.site, tools: ['Bash'], prompt:
+    `Run exactly these two Bash commands in order, as separate foreground Bash calls. Do not change directories, retry, or disable sandboxing. Report both tool outcomes.\n1. ${commands[0]}\n2. ${commands[1]}` }, {});
+  const blocks = output.split('\n').filter(Boolean).flatMap(line => JSON.parse(line).message?.content ?? []);
+  const calls = blocks.filter(block => block.type === 'tool_use' && block.name === 'Bash');
+  assert.equal(calls.length, 2, 'Expected two successive Bash calls');
+  const results = blocks.filter(block => block.type === 'tool_result' && calls.some(call => call.id === block.tool_use_id));
+  assert.equal(results.length, 2, 'Both Bash calls must return a tool result');
+  for (let index = 0; index < results.length; index++) {
+    const result = results[index];
+    const content = typeof result.content === 'string' ? result.content : JSON.stringify(result.content);
+    assert.notEqual(result.is_error, true, 'Bash failed, including cwd tracking after command execution');
+    assert.ok(content.includes(`TEMP_OK_${index + 1}`), 'Bash temp was not usable');
+    assert.ok(content.split('\n').filter((line: string) => line === f.site).length >= 2, 'Cwd changed within or between Bash calls');
+    assert.ok(!content.includes(f.content), 'Outside canary contents leaked');
+    assert.ok(!/OUTSIDE_(READ|WRITE)_SUCCEEDED/.test(content), 'Confinement was bypassed');
+  }
+  for (const dir of [shared, f.outside]) {
+    assert.equal(readFileSync(join(dir, 'read-target.txt'), 'utf8'), f.content, 'Outside file was overwritten');
+    assert.ok(!existsSync(join(dir, 'created.txt')), 'Outside file was created');
+  }
 });

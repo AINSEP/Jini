@@ -530,10 +530,7 @@ function nativeBuildOptions({ input, permissionMode }: { input: AgentBuildInput;
 /** Preserve explicit empty restrictions and settings: they have meaning to the native CLI. */
 function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
   return {
-    ...(input.filesystemRoot !== undefined ? { filesystemRoot: input.filesystemRoot } : {}),
-    ...(input.filesystemSharedTempRoots ? { filesystemSharedTempRoots: input.filesystemSharedTempRoots } : {}),
-    ...(input.filesystemTempDir ? { filesystemTempDir: input.filesystemTempDir } : {}),
-    ...(input.filesystemRuntimeReadPaths ? { filesystemRuntimeReadPaths: input.filesystemRuntimeReadPaths } : {}),
+    ...filesystemBuildOptions({ input }, {}),
     ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
     ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
     ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
@@ -542,9 +539,20 @@ function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = 
   };
 }
 
+/** Keep executor-resolved filesystem facts through the definition's second settings merge. Pure, O(1). */
+function filesystemBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
+  return {
+    ...(input.filesystemRoot !== undefined ? { filesystemRoot: input.filesystemRoot } : {}),
+    ...(input.filesystemSharedTempRoots ? { filesystemSharedTempRoots: input.filesystemSharedTempRoots } : {}),
+    ...(input.filesystemTempDir ? { filesystemTempDir: input.filesystemTempDir } : {}),
+    ...(input.filesystemRuntimeReadPaths ? { filesystemRuntimeReadPaths: input.filesystemRuntimeReadPaths } : {}),
+    ...(input.filesystemRuntimeTempBase !== undefined ? { filesystemRuntimeTempBase: input.filesystemRuntimeTempBase } : {}),
+  };
+}
+
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
  * that let defs silently enable auto-approval. Always supply the validated restricted default now. Pure. */
-export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'filesystemRoot' | 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings' | 'chromeIntegration'> & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemNotice?: string }; readonly systemPromptOverlay: string | null | undefined }
+export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'filesystemRoot' | 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings' | 'chromeIntegration'> & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemRuntimeTempBase?: string; filesystemNotice?: string }; readonly systemPromptOverlay: string | null | undefined }, _options = {}
 ): RuntimeBuildOptions {
   const permissionMode = input.permissionMode ?? 'restricted';
   if (permissionMode !== 'restricted' && permissionMode !== 'bypass') {
@@ -864,7 +872,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
   }
 }
 
-type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemNotice?: string };
+type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemRuntimeTempBase?: string; filesystemNotice?: string };
 
 /** Only include declared capability restrictions; absence has a distinct downstream contract. */
 function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _options = {}) {
@@ -1125,7 +1133,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     return { systemPromptOverlay, overlayDelivery };
   }
 
-  async function resolveRunLaunch({ input, def }: { input: AgentExecutorRunInput; def: RuntimeAgentDef }, _options = {}) {
+  /** Resolve the launch environment and retain its temp override for both policy builds.
+   * Mutates only this run's input; O(e) for e environment entries plus executable resolution I/O.
+   */
+  async function resolveRunLaunch({ input, def }: { input: MutableRunInput; def: RuntimeAgentDef }, _options = {}) {
     // The def's own declared env (e.g. claude's `ENABLE_TOOL_SEARCH=false`) is a default the run's
     // env can override. Detection already spawns with it (`detection.ts`); without this the run
     // spawn silently dropped it. Declared by the def itself, so it never widens SEC-001's allowlist.
@@ -1137,6 +1148,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     );
 
     const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
+    // Use the actual child override, including its absence, rather than the daemon's environment.
+    input.filesystemRuntimeTempBase = spawnEnv.CLAUDE_CODE_TMPDIR ?? '';
     return { launch, spawnEnv };
   }
 
