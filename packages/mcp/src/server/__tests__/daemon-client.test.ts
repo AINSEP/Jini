@@ -39,6 +39,18 @@ describe('getDaemonJson / postDaemonJson', () => {
       headers: { Authorization: `Bearer ${token}` },
     })).rejects.toThrow('HTTP 401: denied [redacted]; password=[redacted]');
   });
+  it('a credential header naming a label cannot swallow that label', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(401, { error: { message: 'denied api_key=hunter2' } }));
+    await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl,
+      headers: { Authorization: 'Bearer api_key' },
+    })).rejects.toThrow('HTTP 401: denied api_key=[redacted]');
+  });
+  it('a short credential header glued inside other text is still masked', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(401, { error: { message: 'Rejected prefixabcSuffix' } }));
+    await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl,
+      headers: { Authorization: 'Bearer abc' },
+    })).rejects.toThrow('HTTP 401: Rejected prefix[redacted]Suffix');
+  });
   it('defaults fetchImpl to the global fetch when omitted', async () => {
     const spy = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
       streamResponse(200, [new TextEncoder().encode(JSON.stringify({ ok: true }))]));

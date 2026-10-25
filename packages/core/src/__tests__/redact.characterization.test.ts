@@ -29,9 +29,38 @@ describe('@jini-ai/core — redact — characterization pins', () => {
     });
   });
 
-  it('masks a short exact secret only as a whole token, so it cannot break a credential label', () => {
+  it('never masks a short exact secret inside a credential label, so the label rule still masks its value', () => {
     expect(redactSecrets({ input: 'a; password=hunter2 pa' }, { exactSecrets: ['a', 'pa'] }))
       .toBe('[REDACTED:exact_secret]; password=[REDACTED:labeled_secret] [REDACTED:exact_secret]');
+  });
+
+  it('leaves an exact secret that is itself a label name to the label rule', () => {
+    expect(redactSecrets({ input: 'api_key=hunter2' }, { exactSecrets: ['api_key'] }))
+      .toBe('api_key=[REDACTED:labeled_secret]');
+  });
+
+  it('still masks a short exact secret glued inside other text', () => {
+    expect(redactSecrets({ input: 'Rejected prefixabcSuffix' }, { exactSecrets: ['abc'] }))
+      .toBe('Rejected prefix[REDACTED:exact_secret]Suffix');
+  });
+
+  it('never splits an existing marker', () => {
+    expect(redactSecrets({ input: '[REDACTED:email] [redacted] email' }, { exactSecrets: ['email', 'redacted'] }))
+      .toBe('[REDACTED:email] [redacted] [REDACTED:exact_secret]');
+  });
+
+  it('never breaks a Bearer prefix, so the short-bearer rule still masks its value', () => {
+    expect(redactSecrets({ input: 'Bearer xyz9' }, { exactSecrets: ['e'] })).toBe('Bearer [REDACTED:bearer_token]');
+  });
+
+  it('never breaks a URL scheme or a secret-named query parameter', () => {
+    expect(redactSecrets({ input: 'see https://u:p@x.io/?key=v' }, { exactSecrets: ['s', 'k'] }))
+      .toBe('[REDACTED:exact_secret]ee https://[REDACTED:url_credentials]@x.io/?key=[REDACTED:api_key_query]');
+  });
+
+  it('masks an exact secret containing a label word that is not in label position', () => {
+    expect(redactSecrets({ input: 'got secret-value-xyz back' }, { exactSecrets: ['secret-value-xyz'] }))
+      .toBe('got [REDACTED:exact_secret] back');
   });
 
   it('masks a known exact secret before a lexical rule can relabel it', () => {
