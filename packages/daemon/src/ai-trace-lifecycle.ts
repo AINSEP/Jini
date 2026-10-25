@@ -12,8 +12,8 @@
  * want prompt capture call `noteRunInput` with the text they sent. Resumed runs keep their
  * original trace closed; a resume is not re-traced in this prototype.
  */
-import { createAiTraceRecorder, type AiTraceRecorder, type AiTraceRecorderOptions, type AiTraceSink } from '@jini-ai/agent-runtime';
-import type { RunProtocolEvent, RunEndPayload } from '@jini-ai/protocol';
+import { createAiTraceRecorder, type AiRunOutcome, type AiTraceRecorder, type AiTraceRecorderOptions, type AiTraceSink } from '@jini-ai/agent-runtime';
+import type { RunProtocolEvent } from '@jini-ai/protocol';
 import type { RunLifecycle } from './run-lifecycle.js';
 
 export interface AiTracingOptions extends Pick<AiTraceRecorderOptions, 'capture' | 'exactSecrets' | 'maxCapturedChars' | 'priceUsage' | 'onSinkError' | 'now'> {
@@ -46,11 +46,10 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
     }
   }
 
-  function close({ runId, end }: { runId: string; end: RunEndPayload }): void {
+  function close({ runId, outcome }: { runId: string; outcome: AiRunOutcome }): void {
     const entry = recorders.get(runId);
     if (!entry) return;
     try {
-      const outcome = end.status === 'canceled' ? 'cancelled' : end.status ?? 'failed';
       safely({ action: () => entry.recorder.finish({ outcome }) });
     } finally {
       recorders.delete(runId);
@@ -59,7 +58,10 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
   }
 
   function observe({ event }: { event: RunProtocolEvent }): void {
-    if (event.kind === 'end') return close({ runId: event.runId, end: event.payload });
+    if (event.kind === 'end') {
+      const { status } = event.payload;
+      return close({ runId: event.runId, outcome: status === 'canceled' ? 'cancelled' : status ?? 'failed' });
+    }
     const recorder = recorders.get(event.runId)?.recorder;
     if (event.kind === 'agent') recorder?.observe(event.payload as unknown as Record<string, unknown>);
     if (event.kind === 'error') recorder?.observe({ type: 'error', message: event.payload.message, code: event.payload.error?.code });
@@ -77,6 +79,16 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
     else entry.unsubscribe = subscription.unsubscribe;
   }
 
+  /** A failed subscription has already recorded run_started: finish the trace from the run's real
+   * terminal state instead of dropping it. Background only, so tracing never affects the run; when
+   * the outcome cannot be read it is not invented and the recorder is just released. */
+  function finishWhenTerminal({ runId }: { runId: string }): void {
+    // waitForTerminal resolves only terminal states, whose labels are exactly AiRunOutcome's.
+    void Promise.resolve().then(() => lifecycle.waitForTerminal({ runId }))
+      .then((status) => close({ runId, outcome: status.state as AiRunOutcome }))
+      .catch(() => { recorders.delete(runId); });
+  }
+
   return {
     ...lifecycle,
     async start(required, optional = {}) {
@@ -85,8 +97,8 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
         // Not awaited: a slow or hung event-log replay must not delay the committed start. The
         // recorder is registered synchronously; replay delivers anything emitted before subscribing.
         void open({ runId: result.run.id, contextRef: required.contextRef, agentId: optional.agentId ?? 'unknown' }).catch((error: unknown) => {
-          recorders.delete(result.run.id);
           safely({ action: () => { throw error; } });
+          finishWhenTerminal({ runId: result.run.id });
         });
       }
       return result;
