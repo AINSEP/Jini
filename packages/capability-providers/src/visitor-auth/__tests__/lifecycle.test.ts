@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   evaluateVisitorAuthCallback,
@@ -193,7 +193,12 @@ describe('planVisitorAuthAuthorization', () => {
 });
 
 describe('evaluateVisitorAuthCallback', () => {
-  const transaction = plan().transaction;
+  // Built in beforeAll, not at collection: a planner regression must fail these tests rather than
+  // crash test collection (which per-test mutation runs cannot see). Table rows use the literal
+  // state the plan is built from, so they need no transaction at collection time.
+  const STATE = 's'.repeat(32);
+  let transaction: VisitorAuthTransaction;
+  beforeAll(() => { transaction = plan().transaction; });
 
   function evaluate(
     callback: VisitorAuthCallbackParameters,
@@ -233,13 +238,13 @@ describe('evaluateVisitorAuthCallback', () => {
   });
 
   it.each([
-    ['tenant-mismatch', { state: transaction.state, code: 'code', issuer: expectedIssuer }, {}, { tenantId: 'tenant-2' }],
-    ['flow-binding-mismatch', { state: transaction.state, code: 'code', issuer: expectedIssuer }, {}, { flowBinding: 'other-browser' }],
-    ['expired', { state: transaction.state, code: 'code', issuer: expectedIssuer }, {}, { nowMs: transaction.expiresAtMs }],
+    ['tenant-mismatch', { state: STATE, code: 'code', issuer: expectedIssuer }, {}, { tenantId: 'tenant-2' }],
+    ['flow-binding-mismatch', { state: STATE, code: 'code', issuer: expectedIssuer }, {}, { flowBinding: 'other-browser' }],
+    ['expired', { state: STATE, code: 'code', issuer: expectedIssuer }, {}, { nowMs: nowMs + 10 * 60 * 1000 }],
     ['state-mismatch', { state: 'wrong', code: 'code', error: 'denied' }, {}, {}],
-    ['issuer-mismatch', { state: transaction.state, code: 'code', issuer: 'https://attacker.example' }, {}, {}],
-    ['provider-error', { state: transaction.state, error: 'access_denied', errorDescription: 'secret detail', issuer: expectedIssuer }, {}, {}],
-    ['missing-code', { state: transaction.state, issuer: expectedIssuer }, {}, {}],
+    ['issuer-mismatch', { state: STATE, code: 'code', issuer: 'https://attacker.example' }, {}, {}],
+    ['provider-error', { state: STATE, error: 'access_denied', errorDescription: 'secret detail', issuer: expectedIssuer }, {}, {}],
+    ['missing-code', { state: STATE, issuer: expectedIssuer }, {}, {}],
   ] as const)('rejects terminal callback path %s', (reason, callback, txOverride, contextOverride) => {
     const result = evaluate(callback, txOverride, contextOverride);
     expect(result).toMatchObject({ decision: 'reject', reason });
@@ -258,11 +263,12 @@ describe('evaluateVisitorAuthCallback', () => {
 });
 
 describe('validateVisitorAuthIdentityClaims', () => {
-  const transaction = plan().transaction;
+  let transaction: VisitorAuthTransaction;
+  beforeAll(() => { transaction = plan().transaction; });
   const claims: VisitorAuthVerifiedIdTokenClaims = {
     issuer: expectedIssuer,
     subject: 'provider-user-1',
-    audience: transaction.clientId,
+    audience: 'client-1',
     expiresAtSeconds: Math.floor(nowMs / 1000) + 300,
     nonce: 'n'.repeat(32),
     email: 'visitor@example.test',

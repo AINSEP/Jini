@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   evaluateVisitorAuthCallback,
@@ -68,9 +68,15 @@ describe('planVisitorAuthAuthorization fails closed on configuration', () => {
   });
 });
 
+// Fixtures are built in beforeAll, not at describe level: a planner regression must fail these
+// tests, not crash test collection (a collection crash is invisible to per-test mutation runs).
 describe('evaluateVisitorAuthCallback edge bindings', () => {
-  const transaction = planWith().transaction;
-  const callback = { state: transaction.state, code: 'authorization-code' };
+  let transaction: VisitorAuthTransaction;
+  let callback: { state: string; code: string };
+  beforeAll(() => {
+    transaction = planWith().transaction;
+    callback = { state: transaction.state, code: 'authorization-code' };
+  });
 
   it('treats a non-finite clock as an expired transaction', () => {
     expect(evaluateVisitorAuthCallback({ transaction, callback, tenantId: 'tenant-1', flowBinding: 'browser-session-1', nowMs: Number.NaN })).toEqual({ decision: 'reject', reason: 'expired' });
@@ -89,9 +95,10 @@ describe('evaluateVisitorAuthCallback edge bindings', () => {
 });
 
 describe('validateVisitorAuthIdentityClaims edge bindings', () => {
-  const transaction = planWith().transaction;
-  const { expectedIssuer: _omittedExpectedIssuer, ...withoutIssuer } = transaction;
-  const { nonce: _omittedNonce, ...withoutNonce } = transaction;
+  let transaction: VisitorAuthTransaction;
+  beforeAll(() => { transaction = planWith().transaction; });
+  const withoutIssuer = () => { const { expectedIssuer: _omitted, ...rest } = transaction; return rest; };
+  const withoutNonce = () => { const { nonce: _omitted, ...rest } = transaction; return rest; };
   const nowSeconds = Math.floor(nowMs / 1000);
   const claims: VisitorAuthVerifiedIdTokenClaims = { issuer: 'https://accounts.example.test', subject: 'user-1', audience: 'client-1', expiresAtSeconds: nowSeconds + 300, nonce: 'n'.repeat(32) };
 
@@ -100,12 +107,12 @@ describe('validateVisitorAuthIdentityClaims edge bindings', () => {
   });
 
   it.each([
-    { name: 'a blank audience entry', change: { claims: { ...claims, audience: ['client-1', ' '] } }, reason: 'malformed-claims' },
-    { name: 'a non-finite clock', change: { nowSeconds: Number.NaN }, reason: 'malformed-claims' },
-    { name: 'a transaction with no expected issuer', change: { transaction: withoutIssuer }, reason: 'issuer-mismatch' },
-    { name: 'a transaction with no nonce (plain OAuth2)', change: { transaction: withoutNonce }, reason: 'nonce-mismatch' },
+    { name: 'a blank audience entry', change: () => ({ claims: { ...claims, audience: ['client-1', ' '] } }), reason: 'malformed-claims' },
+    { name: 'a non-finite clock', change: () => ({ nowSeconds: Number.NaN }), reason: 'malformed-claims' },
+    { name: 'a transaction with no expected issuer', change: () => ({ transaction: withoutIssuer() }), reason: 'issuer-mismatch' },
+    { name: 'a transaction with no nonce (plain OAuth2)', change: () => ({ transaction: withoutNonce() }), reason: 'nonce-mismatch' },
   ])('rejects $name', ({ change, reason }) => {
-    expect(validateVisitorAuthIdentityClaims({ transaction, claims, nowSeconds, ...change } as Parameters<typeof validateVisitorAuthIdentityClaims>[0])).toEqual({ decision: 'reject', reason });
+    expect(validateVisitorAuthIdentityClaims({ transaction, claims, nowSeconds, ...change() } as Parameters<typeof validateVisitorAuthIdentityClaims>[0])).toEqual({ decision: 'reject', reason });
   });
 
   it('accepts claims without email details and reports only the subject', () => {

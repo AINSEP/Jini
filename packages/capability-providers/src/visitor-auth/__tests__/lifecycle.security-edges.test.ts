@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   evaluateVisitorAuthCallback,
@@ -7,6 +7,7 @@ import {
   planVisitorAuthAuthorization,
   validateVisitorAuthIdentityClaims,
   type VisitorAuthAuthorizationServer,
+  type VisitorAuthTransaction,
   type VisitorAuthVerifiedIdTokenClaims,
 } from '../index.js';
 
@@ -126,7 +127,9 @@ describe('reserved parameters preconfigured on authorizationEndpoint', () => {
 });
 
 describe('evaluateVisitorAuthCallback provider-error sanitisation boundaries', () => {
-  const transaction = planWith().transaction;
+  // Built per suite, not at collection: a planner regression must fail tests, not crash collection.
+  let transaction: VisitorAuthTransaction;
+  beforeAll(() => { transaction = planWith().transaction; });
   const evaluate = (error: string) =>
     evaluateVisitorAuthCallback({
       transaction,
@@ -202,7 +205,9 @@ describe('evaluateVisitorAuthCallback provider-error sanitisation boundaries', (
 });
 
 describe('validateVisitorAuthIdentityClaims limits', () => {
-  const transaction = planWith().transaction;
+  // Built per suite, not at collection: a planner regression must fail tests, not crash collection.
+  let transaction: VisitorAuthTransaction;
+  beforeAll(() => { transaction = planWith().transaction; });
   const claims: VisitorAuthVerifiedIdTokenClaims = {
     issuer: ISSUER,
     subject: 'sub-1',
