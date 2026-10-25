@@ -139,6 +139,17 @@ describe('delivered HTML consent boundary', () => {
       expect(dom.window.dataLayer.length).toBe(1);
     } finally { dom.window.close(); }
   });
+  it('a static host without the consent endpoint shows the plain save error and keeps optional code inert', async () => {
+    const { dom, requests } = await browser(gate());
+    dom.window.fetch = async () => ({ ok: false, status: 405, json: async () => { throw new SyntaxError('Unexpected token < in JSON'); } });
+    try {
+      const button = dom.window.document.querySelector('#jini-consent form button[value=accept]');
+      button.closest('form').dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: button }));
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(dom.window.document.querySelector('[data-jini-consent-error]').textContent).toBe('Cookie preferences could not be saved.');
+      expect(button.disabled).toBe(false); expect(requests).toEqual([]); expect(Array.from(dom.window.runs)).toEqual(['necessary']);
+    } finally { dom.window.close(); }
+  });
   it('escapes configurable text and keeps a native no-JS rejection path; unsafe policy URLs are omitted', () => {
     const html = renderConsentUi({ config: { ...config, title: '<script>alert(1)</script>', privacyPolicyUrl: 'javascript:alert(1)' }, record: null, regionMode: 'opt-in', gpc: true, endpoint: '/api/site-consent' });
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;'); expect(html).not.toContain('javascript:');
@@ -517,9 +528,25 @@ describe('after a choice the banner collapses to a settings control', () => {
       expect(manage.querySelector('form button[value=save]')).not.toBeNull();
     } finally { dom.window.close(); }
   });
-  it('pins the control to a corner instead of leaving a static box at the top of the page', () => {
+  it('keeps the saved control fixed without overriding the configured placement', () => {
     expect(CONSENT_CSS).not.toContain('position:static');
-    expect(CONSENT_CSS).toMatch(/\.jini-consent\[data-has-record="true"\]\{[^}]*inset:auto auto 1rem 1rem/);
+    expect(CONSENT_CSS).not.toMatch(/\.jini-consent\[data-has-record="true"\]\{[^}]*inset:/);
+  });
+  it.each([
+    ['bottom-right', 'auto 1rem 1rem auto'], ['bottom-left', 'auto auto 1rem 1rem'],
+    ['bottom-bar', 'auto 1rem 1rem'], ['top-bar', '1rem 1rem auto'],
+  ])('uses the same %s position for first-visit and reopened panels', (placement, inset) => {
+    for (const reopen of ['link', 'corner'] as const) {
+      const documents = [null, accepted].map(record => new JSDOM(gateConsentHtml({ html: '<html><head></head><body></body></html>', config: { ...config, placement: placement as NonNullable<typeof config.placement>, reopen }, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }), { url: 'https://site.example/#jini-consent' }));
+      try {
+        for (const dom of documents) {
+          const banner = dom.window.document.getElementById('jini-consent');
+          expect(banner.dataset.placement).toBe(placement);
+          expect(dom.window.getComputedStyle(banner).position).toBe('fixed');
+          expect(dom.window.getComputedStyle(banner).inset).toBe(inset);
+        }
+      } finally { for (const dom of documents) dom.window.close(); }
+    }
   });
 });
 
@@ -989,6 +1016,27 @@ describe('metadata, preload and host-link consent regressions', () => {
       expect(dom.window.document.querySelector('button[value="accept"]').textContent).toBe(config.acceptLabel);
       expect(dom.window.document.querySelector('button[value="reject"]').textContent).toBe(config.rejectLabel);
     } finally { dom.window.close(); }
+  });
+
+  it.each([
+    '<template><a href="#jini-consent" data-jini-consent-open>Hidden</a></template>',
+    '<div data-consent-category="analytics"><a href="#jini-consent" data-jini-consent-open>Gated</a></div>',
+    '<a href="/elsewhere" data-jini-consent-open>Wrong target</a>',
+  ])('adds an active static reopen anchor when authored controls are unavailable: %s', markup => {
+    const html = gateConsentHtml({ html: `<html><body>${markup}</body></html>`, config: { ...config, reopen: 'link', preferencesLabel: 'Cookie <settings>' }, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { ensureReopenLink: true });
+    const dom = new JSDOM(html);
+    try {
+      const link = dom.window.document.querySelector('body > a[href="#jini-consent"][data-jini-consent-open]');
+      expect(link.textContent).toBe('Cookie <settings>');
+      expect(link.children).toHaveLength(0);
+      expect(link.nextElementSibling.id).toBe('jini-consent');
+    } finally { dom.window.close(); }
+  });
+
+  it('does not insert a static fallback link into ordinary live or disabled HTML', () => {
+    const input = { html: '<html><body>Site</body></html>', config, record: null, gpc: false, regionMode: 'opt-in' as const, endpoint: '/api/site-consent' };
+    expect(gateConsentHtml(input)).not.toContain('<a href="#jini-consent" data-jini-consent-open>');
+    expect(gateConsentHtml({ ...input, config: { ...config, enabled: false } }, { ensureReopenLink: true })).toBe(input.html);
   });
 
   it('hides the saved link-mode panel without JS and exposes it through the native fragment target', () => {

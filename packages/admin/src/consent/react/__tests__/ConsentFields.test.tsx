@@ -73,6 +73,23 @@ describe('ConsentRulesFields', () => {
     expect(patches).toEqual([{ allowUnsafeEval: true }, { allowUnsafeEval: false }]);
   });
 
+  it('shows dynamic code help through the shared info-tip without toggling the setting', async () => {
+    const patches = host(ConsentRulesFields as typeof ConsentBannerFields);
+    const user = userEvent.setup();
+    const toggle = screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' });
+    const help = screen.getByRole('button', { name: 'About dynamic code' });
+    expect(help).toHaveTextContent('ⓘ');
+    expect(toggle).not.toContainElement(help);
+    expect(document.getElementById(toggle.getAttribute('aria-describedby')!)).toHaveAttribute('hidden');
+    await user.click(help);
+    expect(help).toHaveAttribute('aria-expanded', 'true');
+    expect(help).toHaveAccessibleDescription("Some themes need this. It weakens the site's script protection. Optional scripts still wait for consent.");
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(patches).toEqual([]);
+    await user.keyboard('{Escape}');
+    expect(help).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('hides the dynamic code switch while consent is off without clearing its saved value', async () => {
     const patches = host(ConsentRulesFields as typeof ConsentBannerFields, {}, { ...initial, enabled: false, allowUnsafeEval: true });
     expect(screen.queryByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toBeNull();

@@ -14,6 +14,8 @@ type Attrs = Map<string, string>;
 /** Exact host manifest entries, never declarations taken from page HTML. */
 export interface ConsentGateOptions {
   nonce?: string;
+  /** Static pages need a native reopening control even when the host omitted its footer link. */
+  ensureReopenLink?: boolean;
   /** Host-resolved page origin, used only to retain first-party preloads. */
   pageOrigin?: string;
   runtimeToken?: string;
@@ -269,10 +271,11 @@ function inheritedCategory({ element, category }: { element: Element; category: 
 
 /** Walk the document once, recording html/head/body start-tag ends for the bootstrap insertions.
  * @complexity O(n) nodes. */
-function gateDocument({ document }: { document: DefaultTreeAdapterMap['document'] }, options: ConsentGateOptions): { edits: Edit[]; startTagEnds: Record<string, number> } {
+function gateDocument({ document }: { document: DefaultTreeAdapterMap['document'] }, options: ConsentGateOptions = {}): { edits: Edit[]; startTagEnds: Record<string, number>; hasReopenLink: boolean } {
   const stack: { node: Node; category: string | undefined }[] = document.childNodes.map(node => ({ node, category: undefined }));
   const edits: Edit[] = [];
   const startTagEnds: Record<string, number> = {};
+  let hasReopenLink = false;
   while (stack.length) {
     const { node, category } = stack.pop()!;
     if (!('tagName' in node)) continue;
@@ -281,11 +284,18 @@ function gateDocument({ document }: { document: DefaultTreeAdapterMap['document'
     const gated = gateElement({ element: node, inheritedCategory: category }, options);
     edits.push(...gated.edits);
     if (gated.descend) {
+      hasReopenLink ||= isReopenLink({ element: node });
       const childCategory = inheritedCategory({ element: node, category });
       stack.push(...node.childNodes.map(node => ({ node, category: childCategory })));
     }
   }
-  return { edits, startTagEnds };
+  return { edits, startTagEnds, hasReopenLink };
+}
+
+/** Only a retained native anchor counts; a link inside a gated template cannot reopen the UI.
+ * @complexity O(attributes), using the document walk already owned by the HTML gate. */
+function isReopenLink({ element }: { element: Element }): boolean {
+  return element.tagName === 'a' && element.attrs.some(attr => attr.name === 'href' && attr.value === '#jini-consent') && element.attrs.some(attr => attr.name === 'data-jini-consent-open');
 }
 
 /** Count merged roots and ignored duplicate attributes through the existing parser.
@@ -347,10 +357,11 @@ export function gateConsentHtml({ html, config, record, regionMode, gpc, endpoin
   const located = locatedDocument({ html });
   const document = located.document;
   html = located.html;
-  const { edits, startTagEnds } = gateDocument({ document }, options);
+  const { edits, startTagEnds, hasReopenLink } = gateDocument({ document }, options);
   const offsets = insertionOffsets({ document, startTagEnds });
   edits.push({ start: offsets.head, end: offsets.head, text: renderConsentHead({ record, gpc, regionMode, config }, options) });
-  edits.push({ start: offsets.ui, end: offsets.ui, text: renderConsentUi({ config, record, regionMode, gpc, endpoint }) });
+  const reopenLink = options.ensureReopenLink && !hasReopenLink ? `<a href="#jini-consent" data-jini-consent-open>${escapeHtml({ text: config.preferencesLabel })}</a>` : '';
+  edits.push({ start: offsets.ui, end: offsets.ui, text: reopenLink + renderConsentUi({ config, record, regionMode, gpc, endpoint }) });
   edits.sort((a, b) => b.start - a.start);
   for (const edit of edits) html = html.slice(0, edit.start) + edit.text + html.slice(edit.end);
   return html;

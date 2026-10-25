@@ -160,8 +160,9 @@ export const CONSENT_CLIENT = String.raw`(function () {
   async function save(url, body) {
     var response = await fetch(url, { method: 'POST', credentials: 'same-origin',
       headers: { 'Accept': 'application/json' }, body: new URLSearchParams(body) });
-    var result = await response.json();
-    if (!response.ok) {
+    // A file-only host answers the POST with an HTML error page; show the plain message, not a parse error.
+    var result = await response.json().catch(function () { return {}; });
+    if (!response.ok || !result.record) {
       var failure = new Error(result.error || 'Cookie preferences could not be saved.');
       // Only throttling and server faults can succeed later; a refused choice (changed policy) cannot.
       failure.retry = response.status === 429 || response.status >= 500;

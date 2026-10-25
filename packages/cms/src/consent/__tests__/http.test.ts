@@ -120,7 +120,7 @@ describe('availability and delivery regressions', () => {
   it.each([
     { delivery: 'live' as const, register: {}, expectedStatus: 200 },
     { delivery: 'live' as const, register: { maxHtmlBytes: 16 }, expectedStatus: 200 },
-    { delivery: 'static' as const, register: {}, expectedStatus: 409 },
+    { delivery: 'static' as const, register: {}, expectedStatus: 200 },
   ])('fails closed after OFF → publish ON → read failure ($delivery, $register)', async ({ delivery, register, expectedStatus }) => {
     const { base, html, ports, failures, records } = await site({ enabled: false, delivery, register });
     let published = { ...config, enabled: false, regionMode: 'opt-out' as const };
@@ -143,8 +143,7 @@ describe('availability and delivery regressions', () => {
     expect(response.status).toBe(expectedStatus);
     expect(denied).not.toBe(html);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
-    if (delivery === 'static') expect(denied).toContain('Static export requires');
-    else if ('maxHtmlBytes' in register) expect(denied).toBe(inertText);
+    if ('maxHtmlBytes' in register) expect(denied).toBe(inertText);
     else {
       expect(denied).toContain('<template data-jini-consent-script');
       expect(denied).toContain('"hasRecord":false');
@@ -202,13 +201,42 @@ describe('availability and delivery regressions', () => {
     const response = await fetch(base + '/binary');
     expect(response.status).toBe(200); expect(await response.text()).toBe('binary'); expect(failures).toEqual([]);
   });
-  it('refuses static delivery with consent ON, and preserves static delivery with consent OFF', async () => {
+  it.each(['/', '/buffer', '/end', '/stream', '/file', '/headerless', '/missing'])('exports consent ON with gated content and a native reopen link on %s', async route => {
     const on = await site({ delivery: 'static' });
-    const response = await fetch(on.base);
-    expect(response.status).toBe(409);
-    expect(await response.text()).toBe('Static export requires cookie consent to be disabled. Review optional scripts before exporting.');
+    on.ports.config.get = async () => ({ ...config, reopen: 'link', preferencesLabel: 'Cookie settings' });
+    const response = await fetch(on.base + route);
+    expect(response.status).toBe(route === '/missing' ? 404 : 200);
+    const html = await response.text();
+    expect(html).toContain('<a href="#jini-consent" data-jini-consent-open>Cookie settings</a>');
+    expect(html).toContain('data-reopen="link"');
+    expect(html).toContain('<template data-jini-consent-script');
+    expect(html).toContain('id="jini-consent"');
+    expect(html).toContain('action="/api/site-consent"');
+    expect(response.headers.get('content-length')).toBeNull();
+  });
+  it('preserves static delivery with consent OFF', async () => {
     const off = await site({ delivery: 'static', enabled: false });
     expect(await (await fetch(off.base)).text()).toBe(off.html);
+  });
+  it('does not bake the export visitor receipt, GPC or opt-out region into shared HTML', async () => {
+    const { base, ports } = await site({ delivery: 'static' });
+    let receiptReads = 0;
+    ports.config.get = async () => ({ ...config, regionMode: 'opt-out' });
+    ports.records.read = async () => { receiptReads++; return accepted; };
+    const response = await fetch(base, { headers: { cookie: `jini_consent=${accepted.id}`, 'sec-gpc': '1', 'x-edge-region': 'US-CA' } });
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    expect(html).toContain('"hasRecord":false');
+    expect(html).toContain('"optOut":false');
+    expect(html).toContain('"gpc":false');
+    expect(html).toContain('"choices":{"necessary":true,"functional":false,"analytics":false,"marketing":false}');
+    expect(receiptReads).toBe(0);
+  });
+  it('retains the host reopen anchor instead of adding another control to the export', async () => {
+    const { base } = await site({ delivery: 'static', pageHtml: '<html><body><footer><a data-jini-consent-open href="#jini-consent">Cookie settings</a></footer></body></html>' });
+    const html = await (await fetch(base)).text();
+    expect(html.match(/<a\b[^>]*data-jini-consent-open/g)).toHaveLength(1);
+    expect(html).toContain('<footer><a data-jini-consent-open href="#jini-consent">Cookie settings</a></footer>');
   });
   it('resolves live/static delivery independently for each request on the same registration', async () => {
     const requests: string[] = [];
@@ -219,7 +247,7 @@ describe('availability and delivery regressions', () => {
     const live = await fetch(base);
     expect(live.status).toBe(200); expect(await live.text()).toContain('<template data-jini-consent-script');
     const exported = await fetch(base, { headers: { 'x-static-export': '1' } });
-    expect(exported.status).toBe(409); expect(await exported.text()).toBe('Static export requires cookie consent to be disabled. Review optional scripts before exporting.');
+    expect(exported.status).toBe(200); expect(await exported.text()).toContain('<a href="#jini-consent" data-jini-consent-open>');
     expect(await (await fetch(base)).text()).toContain('id="jini-consent"');
     expect(requests).toEqual(['live', '1', 'live']);
   });
@@ -237,7 +265,7 @@ describe('availability and delivery regressions', () => {
     let calls = 0;
     const { base } = await site({ register: { maxHtmlBytes: 16 }, delivery: ({ request }) => { calls++; return request.get('x-static-export') === '1' ? 'static' : 'live'; } });
     const exported = await fetch(base + route, { headers: { 'x-static-export': '1' } });
-    expect(exported.status).toBe(409); expect(await exported.text()).toContain('Static export requires');
+    expect(exported.status).toBe(200); expect(await exported.text()).toBe(inertText);
     expect(calls).toBe(1);
     const live = await fetch(base + route);
     expect(live.status).toBe(200); expect(await live.text()).toBe(inertText);
@@ -341,13 +369,13 @@ describe('choice and delivery boundaries', () => {
 
 
 describe('review regressions: delivery policy and malformed proof', () => {
-  it.each(['/', '/stream', '/file', '/headerless'])('refuses oversized static HTML before selecting overflow fallback: %s', async route => {
+  it.each(['/', '/stream', '/file', '/headerless'])('keeps oversized static HTML inert instead of exporting ungated content: %s', async route => {
     const { base, ports } = await site({ delivery: 'static', register: { maxHtmlBytes: 64 } });
     let reads = 0;
     ports.config.get = async () => { reads++; return config; };
     const response = await fetch(base + route, { signal: AbortSignal.timeout(2000) });
-    expect(response.status).toBe(409);
-    expect(await response.text()).toBe('Static export requires cookie consent to be disabled. Review optional scripts before exporting.');
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(inertText);
     expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8'); expect(reads).toBe(1);
   });
   it.each(['live', 'static'] as const)('preserves oversized consent-disabled pages byte-for-byte in %s delivery', async delivery => {

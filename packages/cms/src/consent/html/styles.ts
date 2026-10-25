@@ -1,4 +1,5 @@
 /** Compact defaults and scoped fallback styles share consent variables across the banner, native controls and saved panel. */
+// Placement selectors apply before and after a choice so reopening cannot move the panel.
 // MOVE: Auto-fit keeps actions equally sized in one row when they fit, without growing the text controls.
 export const CONSENT_CSS = `
 .jini-consent{--consent-bg:var(--jini-surface,var(--bg,Canvas));--consent-fg:var(--jini-text,var(--fg,CanvasText));--consent-border:var(--jini-border,var(--border,color-mix(in srgb,var(--consent-fg) 14%,var(--consent-bg))));--consent-accent:var(--jini-accent,var(--accent,var(--consent-fg)));--consent-radius:var(--jini-radius,14px);--consent-button-bg:color-mix(in srgb,var(--consent-fg) 7%,var(--consent-bg));--consent-button-hover-bg:color-mix(in srgb,var(--consent-fg) 13%,var(--consent-bg));--consent-button-border:color-mix(in srgb,var(--consent-fg) 26%,var(--consent-bg));--consent-shadow:0 1px 2px #0000000f,0 12px 32px #00000024;position:fixed;inset:auto 1rem 1rem;z-index:2147483000;margin:auto;max-width:380px;max-height:85dvh;overflow:auto;padding:14px 16px;border:1px solid var(--consent-border);border-radius:var(--consent-radius);background:var(--consent-bg);color:var(--consent-fg);box-shadow:var(--consent-shadow);font:inherit;font-size:13.5px;line-height:1.45;text-align:start;box-sizing:border-box}
@@ -24,11 +25,11 @@ export const CONSENT_CSS = `
 .jini-consent legend{padding:0 .35rem;font-size:.8125rem;font-weight:600;color:inherit}
 .jini-consent-category{display:flex;align-items:center;gap:.6rem;padding:.35rem 0;min-height:32px}
 .jini-consent-category input{width:1.15rem;height:1.15rem;margin:0;accent-color:var(--consent-accent)}
-#jini-consent[data-has-record="false"]:where([data-placement="bottom-bar"]){inset:auto 1rem 1rem;max-width:380px}
-#jini-consent[data-has-record="false"]:where([data-placement="bottom-left"]){inset:auto auto 1rem 1rem;max-width:380px}
-#jini-consent[data-has-record="false"]:where([data-placement="bottom-right"]){inset:auto 1rem 1rem auto;max-width:380px}
-#jini-consent[data-has-record="false"]:where([data-placement="top-bar"]){inset:1rem 1rem auto;max-width:380px}
-.jini-consent[data-has-record="true"]{inset:auto auto 1rem 1rem;max-width:min(40rem,calc(100vw - 2rem));max-height:none;overflow:visible;padding:0;border:0;background:none;box-shadow:none}
+#jini-consent:where([data-placement="bottom-bar"]){inset:auto 1rem 1rem;max-width:380px}
+#jini-consent:where([data-placement="bottom-left"]){inset:auto auto 1rem 1rem;max-width:380px}
+#jini-consent:where([data-placement="bottom-right"]){inset:auto 1rem 1rem auto;max-width:380px}
+#jini-consent:where([data-placement="top-bar"]){inset:1rem 1rem auto;max-width:380px}
+.jini-consent[data-has-record="true"]{max-height:none;overflow:visible;padding:0;border:0;background:none;box-shadow:none}
 .jini-consent[data-has-record="true"] .jini-consent-initial,.jini-consent[data-has-record="true"] #jini-consent-preferences>summary{display:none}
 #jini-consent[data-has-record="true"][data-reopen="link"]:not(:target){display:none!important}
 .jini-consent .jini-consent-manage{margin:0}
@@ -36,6 +37,6 @@ export const CONSENT_CSS = `
 .jini-consent .jini-consent-pill::-webkit-details-marker{display:none}
 .jini-consent-panel{margin-top:.5rem;max-height:70dvh;overflow:auto;padding:14px 16px;border:1px solid var(--consent-border);border-radius:var(--consent-radius);background:var(--consent-bg);box-shadow:var(--consent-shadow)}
 .jini-consent [hidden]{display:none!important}
-@media(max-width:640px){.jini-consent{inset:auto 0 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-radius:var(--consent-radius) var(--consent-radius) 0 0}#jini-consent[data-has-record="false"]{max-width:100%}.jini-consent[data-has-record="true"]{inset:auto auto .5rem .5rem;max-width:calc(100vw - 1rem);border-radius:0}.jini-consent-panel{padding:1rem}}
+@media(max-width:640px){.jini-consent{inset:auto 0 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-radius:var(--consent-radius) var(--consent-radius) 0 0}#jini-consent{max-width:100%}.jini-consent-panel{padding:1rem}}
 @media(prefers-reduced-motion:reduce){.jini-consent,.jini-consent *{transition:none!important;animation:none!important}}
 `;

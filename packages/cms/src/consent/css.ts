@@ -189,7 +189,7 @@ function finalColors(rules: ConsentCssRule[]): Colors | null {
 }
 
 /** Engine-owned lock follows all customization. Native details/hidden semantics remain intact;
- * initial placement rules never reposition the saved-choice disclosure/pill. Controls inherit the
+ * placement stays shared by the initial banner and saved-choice panel. Controls inherit the
  * root's colors; shared action fills/borders use engine variables, while links and summaries stay
  * unboxed. With no customized colors, theme-token colors and typography remain in charge.
  * @complexity O(1). */
@@ -211,7 +211,7 @@ ${root} #jini-consent-do-not-sell{background:transparent!important;border:0!impo
 ${root} button{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:0!important;max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere!important}
 ${root} a{display:inline-flex!important;align-items:center!important;max-width:100%!important;overflow-wrap:anywhere!important;text-decoration:underline!important}
 #jini-consent :focus-visible{outline:3px solid currentColor!important;outline-offset:2px!important}
-@media(max-width:640px){${root}{inset:auto 0 0!important;width:100%!important;margin:0!important}}
+@media(max-width:640px){#jini-consent{inset:auto 0 0!important;width:100%!important;margin:0!important}}
 `;
 }
 

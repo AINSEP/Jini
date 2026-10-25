@@ -9,13 +9,13 @@ const { JSDOM } = createRequire(import.meta.url)('jsdom');
 const render = (overrides: Partial<ConsentConfig>, record: typeof accepted | null = null) => renderConsentUi({ config: { ...config, ...overrides }, record, regionMode: 'opt-in', gpc: false, endpoint: '/api/site-consent' });
 
 describe('consent appearance and secondary policy link', () => {
-  it.each(CONSENT_PLACEMENTS)('renders %s with initial-state-only desktop placement rules', placement => {
+  it.each(CONSENT_PLACEMENTS)('renders %s with shared desktop placement rules', placement => {
     const dom = new JSDOM(render({ placement }));
     try {
       const banner = dom.window.document.querySelector('#jini-consent');
       expect(banner.getAttribute('data-placement')).toBe(placement);
       expect(banner.getAttribute('data-has-record')).toBe('false');
-      expect(CONSENT_CSS).toContain(`#jini-consent[data-has-record="false"]:where([data-placement="${placement}"])`);
+      expect(CONSENT_CSS).toContain(`#jini-consent:where([data-placement="${placement}"])`);
     } finally { dom.window.close(); }
   });
   it('defaults to bottom-bar and retains a closed saved-choice disclosure for every placement', () => {
@@ -28,7 +28,7 @@ describe('consent appearance and secondary policy link', () => {
         expect(dom.window.document.querySelector('.jini-consent-pill').textContent).toBe(config.preferencesLabel);
       } finally { dom.window.close(); }
     }
-    expect(CONSENT_CSS).toContain('.jini-consent[data-has-record="true"]{inset:auto auto 1rem 1rem');
+    expect(CONSENT_CSS).not.toMatch(/\.jini-consent\[data-has-record="true"\]\{[^}]*inset:/);
   });
   it('renders the escaped secondary link immediately after the privacy link', () => {
     const dom = new JSDOM(render({ secondaryLinkLabel: '<Cookie policy>', secondaryLinkUrl: '/cookies?x=1&y=2' }));
