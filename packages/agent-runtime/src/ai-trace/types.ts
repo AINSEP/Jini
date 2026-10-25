@@ -56,7 +56,7 @@ export interface AiTraceRunStarted {
   readonly tags: readonly string[];
 }
 
-/** One provider usage-report window: from the previous report (or run start) to this one. */
+/** One explicit provider request, or a run-level window when the stream supplies no request boundaries. */
 export interface AiTraceModelTurn {
   readonly kind: 'model_turn';
   readonly traceId: string;
@@ -74,11 +74,15 @@ export interface AiTraceModelTurn {
   readonly ttftMs: number | null;
   readonly stopReason: string | null;
   readonly error: string | null;
+  /** Error text follows the same capture policy as prompts; `error` is a safe label outside full mode. */
+  readonly errorContent?: AiCapturedText | null;
+  readonly errorCode?: string | null;
 }
 
 export interface AiTraceToolCall {
   readonly kind: 'tool_call';
   readonly traceId: string;
+  /** Request-scoped trace identity; provider ids may repeat on the next request. */
   readonly toolCallId: string;
   /** The model turn that requested the call. */
   readonly turnId: string;
@@ -106,7 +110,7 @@ export interface AiTraceRunFinished {
   readonly traceId: string;
   readonly at: number;
   readonly outcome: AiRunOutcome;
-  readonly error: { readonly message: string; readonly code: string | null } | null;
+  readonly error: { readonly message: string; readonly code: string | null; readonly content?: AiCapturedText | null } | null;
   readonly totals: AiTraceTotals;
 }
 
