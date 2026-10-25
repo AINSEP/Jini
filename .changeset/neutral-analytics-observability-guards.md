@@ -6,4 +6,5 @@
 Redact selected error codes before export, invalidate stale product-analytics consent approvals,
 and share platform-neutral privacy validation between product analytics and visitor ingestion. Async product-analytics consent now
 requires `consentRevision`: without it a promised approval is dropped (fail closed); synchronous
-consent is unchanged.
+consent is unchanged. `combineObservabilityPorts` now wraps a
+single enabled adapter too, so its throws never reach the caller.
