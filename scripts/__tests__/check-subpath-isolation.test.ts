@@ -147,6 +147,19 @@ describe('source subpath and installation isolation', () => {
     expect(findings().some(finding => finding.rule === 'SI-dependency' && finding.reason.startsWith('@jini-ai/oauth '))).toBe(true);
   });
 
+  it.each([
+    ['@jini-ai/oauth', 'openid-client'], ['@jini-ai/oauth', 'oauth4webapi'], ['@jini-ai/diagnostics', 'js-tokens'],
+  ])('keeps the reviewed %s root dependency %s mandatory without exempting other dependencies', (name, dependency) => {
+    manifest({ name, dependencies: { [dependency]: '*', driver: '*' } });
+    write({ file: 'packages/sample/src/beta/index.ts', content: `import '${dependency}'; import 'driver'; export const beta = true;` });
+    expect(findings()).toEqual([{
+      rule: 'SI-dependency', file: 'packages/sample/package.json',
+      reason: 'driver is an install-time dependency used by 1/3 source closures; declare an optional peer and a development dependency',
+    }]);
+    manifest({ dependencies: { [dependency]: '*' } });
+    expect(findings().some(finding => finding.rule === 'SI-dependency' && finding.reason.startsWith(`${dependency} `))).toBe(true);
+  });
+
   it.each(['dependencies', 'optionalDependencies', 'peerDependencies'])('rejects a forced subset installation via %s', field => {
     manifest({ [field]: { driver: '*' } });
     write({ file: 'packages/sample/src/beta/index.ts', content: "import 'driver'; export const beta = true;" });
