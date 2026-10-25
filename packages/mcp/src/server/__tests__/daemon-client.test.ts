@@ -33,17 +33,22 @@ describe('getDaemonJson / postDaemonJson', () => {
       headers: { 'x-short': 'a', 'x-seven': '1234567', 'x-eight': 'abcdefgh', Authorization: 'Bearer s3cr3t!' },
     })).rejects.toThrow('HTTP 429: retry a request after 1234567 seconds; [redacted]; rejected [redacted]');
   });
-  it.each(['a', 'pa'])('a short credential header %s cannot break another credential label', async (token) => {
+  // Exact secrets run after the label rules, so a short header may split an already-processed
+  // label word; the labeled value is masked either way.
+  it.each([
+    ['a', 'HTTP 401: denied [redacted]; p[redacted]ssword=[redacted]'],
+    ['pa', 'HTTP 401: denied [redacted]; [redacted]ssword=[redacted]'],
+  ])('a short credential header %s leaves no labeled credential value', async (token, expected) => {
     const fetchImpl = vi.fn(async () => jsonResponse(401, { error: { message: `denied ${token}; password=hunter2` } }));
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl,
       headers: { Authorization: `Bearer ${token}` },
-    })).rejects.toThrow('HTTP 401: denied [redacted]; password=[redacted]');
+    })).rejects.toThrow(expected);
   });
-  it('a credential header naming a label cannot swallow that label', async () => {
+  it('a credential header naming a label leaves no labeled credential value', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(401, { error: { message: 'denied api_key=hunter2' } }));
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl,
       headers: { Authorization: 'Bearer api_key' },
-    })).rejects.toThrow('HTTP 401: denied api_key=[redacted]');
+    })).rejects.toThrow('HTTP 401: denied [redacted]=[redacted]');
   });
   it('a short credential header glued inside other text is still masked', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(401, { error: { message: 'Rejected prefixabcSuffix' } }));

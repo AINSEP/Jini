@@ -191,7 +191,7 @@ describe('runAnthropicToolTurn', () => {
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({ apiKey: 'sk-ant-secret', model: 'claude-opus-4-8', maxTokens: 256, messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
-      { type: 'error', message: 'invalid x-api-key: [REDACTED:exact_secret]', code: '401' },
+      { type: 'error', message: 'invalid x-api-key: [REDACTED:api_key_header]', code: '401' },
       { type: 'end', reason: 'error' },
     ]);
   });

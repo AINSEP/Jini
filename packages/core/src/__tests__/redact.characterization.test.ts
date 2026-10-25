@@ -29,19 +29,36 @@ describe('@jini-ai/core — redact — characterization pins', () => {
     });
   });
 
-  it('never masks a short exact secret inside a credential label, so the label rule still masks its value', () => {
-    expect(redactSecrets({ input: 'a; password=hunter2 pa' }, { exactSecrets: ['a', 'pa'] }))
-      .toBe('[REDACTED:exact_secret]; password=[REDACTED:labeled_secret] [REDACTED:exact_secret]');
-  });
-
-  it('leaves an exact secret that is itself a label name to the label rule', () => {
-    expect(redactSecrets({ input: 'api_key=hunter2' }, { exactSecrets: ['api_key'] }))
-      .toBe('api_key=[REDACTED:labeled_secret]');
-  });
-
-  it('still masks a short exact secret glued inside other text', () => {
-    expect(redactSecrets({ input: 'Rejected prefixabcSuffix' }, { exactSecrets: ['abc'] }))
-      .toBe('Rejected prefix[REDACTED:exact_secret]Suffix');
+  // Exact secrets run after every lexical rule, so a short secret may split a label word the
+  // label rule already processed; the case passes as long as no real value survives.
+  it.each([
+    ['a short secret inside a label', 'a; password=hunter2 pa', ['a', 'pa'], ['hunter2'],
+      '[REDACTED:exact_secret]; [REDACTED:exact_secret]ssword=[REDACTED:labeled_secret] [REDACTED:exact_secret]'],
+    ['a secret that is itself a label name', 'api_key=hunter2', ['api_key'], ['hunter2'],
+      '[REDACTED:exact_secret]=[REDACTED:labeled_secret]'],
+    ['a short secret glued inside other text', 'Rejected prefixabcSuffix', ['abc'], [],
+      'Rejected prefix[REDACTED:exact_secret]Suffix'],
+    ['forged marker text redact never generates', 'Rejected [REDACTED:s3cr3t99] [redacted:s3cr3t99]', ['s3cr3t99'], [],
+      'Rejected [REDACTED:[REDACTED:exact_secret]] [redacted:[REDACTED:exact_secret]]'],
+    ['a secret shaped like a URL scheme', 'Rejected s3cr3t99://host', ['s3cr3t99'], [],
+      'Rejected [REDACTED:exact_secret]://host'],
+    ['a secret after a Bearer prefix', 'Authorization: Bearer s3cr3t99', ['s3cr3t99'], [],
+      'Authorization: Bearer [REDACTED:bearer_token]'],
+    ['a one-letter secret inside a URL scheme', 'see https://user:pw@host', ['s'], ['user', 'pw'],
+      '[REDACTED:exact_secret]ee http[REDACTED:exact_secret]://[REDACTED:url_credentials]@ho[REDACTED:exact_secret]t'],
+    ['a one-letter secret inside a query name', 'GET /x?key=v4lue', ['k'], ['v4lue'],
+      'GET /x?[REDACTED:exact_secret]ey=[REDACTED:api_key_query]'],
+    ['a one-letter secret inside a Bearer prefix', 'Bearer hunter2', ['e'], ['hunter2'],
+      'B[REDACTED:exact_secret]ar[REDACTED:exact_secret]r [REDACTED:bearer_token]'],
+    ['a secret named like a generated marker', 'email [REDACTED:email]', ['email'], [],
+      '[REDACTED:exact_secret] [REDACTED:email]'],
+    ['a secret named like a marker with another case', '[REDACTED:EMAIL]', ['EMAIL'], [],
+      '[REDACTED:[REDACTED:exact_secret]]'],
+  ])('leaves no secret value in %s', (_label, input, exactSecrets, otherValues, expected) => {
+    const redacted = redactSecrets({ input }, { exactSecrets });
+    expect(redacted).toBe(expected);
+    const outsideMarkers = redacted.replace(/\[REDACTED:(?:exact_secret|labeled_secret|url_credentials|api_key_query|bearer_token|email)\]/g, '');
+    for (const value of [...exactSecrets, ...otherValues]) expect(outsideMarkers).not.toContain(value);
   });
 
   it('never splits an existing marker', () => {
@@ -49,33 +66,19 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       .toBe('[REDACTED:email] [redacted] [REDACTED:exact_secret]');
   });
 
-  it('keeps a generated marker intact beside the same word as a secret', () => {
-    expect(redactSecrets({ input: 'email [REDACTED:email]' }, { exactSecrets: ['email'] }))
-      .toBe('[REDACTED:exact_secret] [REDACTED:email]');
-  });
-
-  it('masks a secret inside forged marker text that redact never generates', () => {
-    expect(redactSecrets({ input: 'Rejected [REDACTED:s3cr3t99] [redacted:s3cr3t99]' }, { exactSecrets: ['s3cr3t99'] }))
-      .toBe('Rejected [REDACTED:[REDACTED:exact_secret]] [redacted:[REDACTED:exact_secret]]');
-  });
-
-  // 10 MiB MCP responses reach this path synchronously; both inputs were quadratic.
+  // 10 MiB MCP responses reach this path synchronously; each input was quadratic.
   it.each([
-    ['unterminated marker prefixes', '[REDACTED:'.repeat(20_000), 'x'],
-    ['many markers beside many exact matches', '[redacted] x '.repeat(20_000), 'x'],
-  ])('stays linear on %s', (_label, input, secret) => {
+    ['unterminated marker prefixes', '[REDACTED:'.repeat(20_000), ['x']],
+    ['many markers beside many exact matches', '[redacted] x '.repeat(20_000), ['x']],
+    ['a long dotted run (URL scheme and email local part)', 'a.'.repeat(20_000), []],
+  ])('stays linear on %s', (_label, input, exactSecrets) => {
     const started = performance.now();
-    redactSecrets({ input }, { exactSecrets: [secret] });
+    redactSecrets({ input }, { exactSecrets });
     expect(performance.now() - started).toBeLessThan(500);
   });
 
-  it('never breaks a Bearer prefix, so the short-bearer rule still masks its value', () => {
-    expect(redactSecrets({ input: 'Bearer xyz9' }, { exactSecrets: ['e'] })).toBe('Bearer [REDACTED:bearer_token]');
-  });
-
-  it('never breaks a URL scheme or a secret-named query parameter', () => {
-    expect(redactSecrets({ input: 'see https://u:p@x.io/?key=v' }, { exactSecrets: ['s', 'k'] }))
-      .toBe('[REDACTED:exact_secret]ee https://[REDACTED:url_credentials]@x.io/?key=[REDACTED:api_key_query]');
+  it('masks URL userinfo behind a scheme glued onto a long word', () => {
+    expect(redactSecrets({ input: `${'x'.repeat(40)}https://u:pw@h` })).toBe(`${'x'.repeat(40)}https://[REDACTED:url_credentials]@h`);
   });
 
   it('masks an exact secret containing a label word that is not in label position', () => {
@@ -83,10 +86,12 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       .toBe('got [REDACTED:exact_secret] back');
   });
 
-  it('masks a known exact secret before a lexical rule can relabel it', () => {
+  it('lets a lexical rule label a known secret it recognizes before exact substitution runs', () => {
     const token = githubToken();
-    expect(redactSecretsWithCounts({ input: `t=${token}` }, { exactSecrets: [token] }).counts)
-      .toEqual({ exact_secret: 1 });
+    expect(redactSecretsWithCounts({ input: `t=${token}` }, { exactSecrets: [token] })).toEqual({
+      redacted: 't=[REDACTED:github_token]',
+      counts: { github_token: 1 },
+    });
   });
 
   it('applies a non-global extra pattern to every occurrence', () => {
@@ -133,9 +138,14 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       redacted: 'password=[REDACTED:labeled_secret]',
       counts: { labeled_secret: 1 },
     });
+    const once = redactSecrets({ input: 'password=hunter' });
+    expect(redactSecretsWithCounts({ input: once })).toEqual({ redacted: once, counts: {} });
+  });
+
+  it('masks and counts a labeled value that only looks like a marker', () => {
     expect(redactSecretsWithCounts({ input: 'password=[REDACTED:x]' })).toEqual({
-      redacted: 'password=[REDACTED:x]',
-      counts: {},
+      redacted: 'password=[REDACTED:labeled_secret]',
+      counts: { labeled_secret: 1 },
     });
   });
 });

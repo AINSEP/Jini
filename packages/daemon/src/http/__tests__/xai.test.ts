@@ -1028,7 +1028,7 @@ describe('xaiSearchRoute.handle', () => {
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const reportedError = onInternalError.mock.calls[0]![0].error as Error;
     expect(reportedError.message).not.toContain('super-secret-token');
-    expect(reportedError.message).toBe('xAI 401: Bearer [REDACTED:exact_secret] invalid');
+    expect(reportedError.message).toBe('xAI 401: Bearer [REDACTED:bearer_token] invalid');
   });
 
   it('SEC-005: a network-level fetch rejection during search is also redacted and reported', async () => {
