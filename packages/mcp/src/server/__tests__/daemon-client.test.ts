@@ -33,6 +33,12 @@ describe('getDaemonJson / postDaemonJson', () => {
       headers: { 'x-short': 'a', 'x-seven': '1234567', 'x-eight': 'abcdefgh', Authorization: 'Bearer s3cr3t!' },
     })).rejects.toThrow('HTTP 429: retry a request after 1234567 seconds; [redacted]; rejected [redacted]');
   });
+  it.each(['a', 'pa'])('a short credential header %s cannot break another credential label', async (token) => {
+    const fetchImpl = vi.fn(async () => jsonResponse(401, { error: { message: `denied ${token}; password=hunter2` } }));
+    await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl,
+      headers: { Authorization: `Bearer ${token}` },
+    })).rejects.toThrow('HTTP 401: denied [redacted]; password=[redacted]');
+  });
   it('defaults fetchImpl to the global fetch when omitted', async () => {
     const spy = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
       streamResponse(200, [new TextEncoder().encode(JSON.stringify({ ok: true }))]));
