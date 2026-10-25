@@ -163,6 +163,28 @@ and leaves the response metadata available with its body consumed. The existing 
 `fetchWithTimeout(url, init, { timeoutMs, fetch? })` now accepts transport injection and still returns
 the original unconsumed response. Neither function retries.
 
+For retained-byte metadata and optional truncation, use the single-object overload:
+
+```ts
+const { text, byteLength, truncated } = await readFetchResponseText({
+  response,
+  maxResponseBytes: 1024,
+  result: "details",
+  onLimit: "truncate",
+  signal,
+});
+```
+
+This overload requires a nonnegative safe-integer cap. `onLimit` defaults to `"reject"`;
+`strictUtf8` defaults to `false`. `byteLength` counts retained source bytes before decoding,
+and `truncated` becomes true only after observing bytes beyond the cap. An exact-sized body
+(including an empty body at a zero cap) requires EOF to establish completeness. Truncation
+cancels consumption and flushes the decoder; cutting a UTF-8 character produces replacement
+text by default or throws with `strictUtf8: true`. A signal interrupts pending reads and
+preserves its abort reason. Details-mode cancellation failures are observed without waiting
+for cancellation to settle, and every acquired reader's lock is released. Existing string
+overloads, defaults, and text-fetch behavior remain unchanged.
+
 The durable JSON factory requires file path, filesystem/time/sleep/liveness/random/reporting ports,
 and host notices. It preserves atomic replacement and corrupt-file states; parent-directory
 persistence and the inherited simultaneous stale-lock-break race remain filesystem/locking limits.
