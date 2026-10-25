@@ -98,11 +98,13 @@ const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
   'contentEncoding', 'contentMediaType', 'contentSchema',
 ]);
 
-/** Lowercase all-letter or all-digit segments joined by at least two '-'/'_' separators:
- * slugs and snake_case tool IDs. UUIDs, hex, mixed case and letter+digit runs never qualify.
+/** Short lowercase slugs with at least one letter-only segment and two separators.
+ * Bound both segments and total length so long passphrases do not become diagnostic exemptions.
+ * UUIDs, numeric-only runs, mixed case and letter+digit segments never qualify.
  * @complexity O(n) in token length; pure. */
 function isIdentifierShaped({ token }: { token: string }): boolean {
-  return /^(?:[a-z]+|[0-9]+)(?:[-_](?:[a-z]+|[0-9]+)){2,}$/.test(token);
+  return token.length <= 31 && /[a-z]/.test(token)
+    && /^(?:[a-z]{1,15}|[0-9]{1,15})(?:[-_](?:[a-z]{1,15}|[0-9]{1,15})){2,}$/.test(token);
 }
 
 /** Mask credentials before preserving trusted IDs and UPPER_SNAKE diagnostics; redact opaque spans elsewhere.

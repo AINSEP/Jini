@@ -27,6 +27,12 @@ function streamResponse(status: number, chunks: readonly Uint8Array[], headers: 
 }
 
 describe('getDaemonJson / postDaemonJson', () => {
+  it('keeps short header values out of exact-secret masking while masking eight-character credentials', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(429, { error: { message: 'retry a request after 1234567 seconds; abcdefgh' } }));
+    await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl,
+      headers: { 'x-short': 'a', 'x-seven': '1234567', 'x-eight': 'abcdefgh', authorization: 'Bearer r' },
+    })).rejects.toThrow('HTTP 429: retry a request after 1234567 seconds; [redacted]');
+  });
   it('defaults fetchImpl to the global fetch when omitted', async () => {
     const spy = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
       streamResponse(200, [new TextEncoder().encode(JSON.stringify({ ok: true }))]));
