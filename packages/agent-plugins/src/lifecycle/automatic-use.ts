@@ -180,9 +180,8 @@ export function createAutomaticAgentPluginUse(
    * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
    */
   async function load({ pluginId, signal }: { pluginId: string; signal?: AbortSignal }, _options = {}): Promise<AutomaticAgentPluginLoadResult> {
-    if (mode === 'off') return { status: 'off', guidance: '' };
-    if (signal?.aborted) return { status: 'cancelled', guidance: '' };
-    if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
+    const early = earlyLoadStatus({ pluginId, signal });
+    if (early !== null) return early;
     const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
     if (!plugin) return { status: 'missing', guidance: '' };
     if (!plugin.enabled) return { status: 'installed-but-inactive', guidance: '' };
@@ -196,6 +195,12 @@ export function createAutomaticAgentPluginUse(
     rememberAutoSelection();
     await publishUsage();
     return result;
+  }
+  /** The refusal `load` gives before reading the catalog (mode off, cancelled, excluded), or null. O(e). */
+  function earlyLoadStatus({ pluginId, signal }: { pluginId: string; signal?: AbortSignal | undefined }): AutomaticAgentPluginLoadResult | null {
+    if (mode === 'off') return { status: 'off', guidance: '' };
+    if (signal?.aborted) return { status: 'cancelled', guidance: '' };
+    return state.excluded.includes(pluginId) ? { status: 'excluded', guidance: '' } : null;
   }
   /** Share one queue between preflight, explicit reads and simultaneous guarded writes. */
   function enqueue<T>({ operation }: { operation: () => Promise<T> }, _options = {}): Promise<T> {
