@@ -190,3 +190,66 @@ describe('search_set_provider', () => {
     expect([...asked, ...settings]).toEqual([]);
   });
 });
+
+// Stryker L5 (2026-10-25): `every`→`some` on collections/filters survived (only singleton bad
+// lists were tested), the `present` filter survived (toEqual ignores undefined-valued keys), and
+// `{ siteId }` → `{}` survived because the fakes ignored their argument.
+describe('search tools — mixed inputs, exact keys, site scope (F3)', () => {
+  it.each([
+    ['collections with a bad item last', { text: 'x', collections: ['post', 1] }, "'collections' must be an array of strings"],
+    ['collections with a bad item first', { text: 'x', collections: [null, 'post', 'page'] }, "'collections' must be an array of strings"],
+    ['filters with one object value among scalars', { text: 'x', filters: { a: 'x', b: 1, c: {} } }, "'filters' must be an object of string, number or boolean values"],
+    ['filters with an array value first', { text: 'x', filters: { a: [], b: true } }, "'filters' must be an object of string, number or boolean values"],
+    ['filters with a null value', { text: 'x', filters: { a: 'x', b: null } }, "'filters' must be an object of string, number or boolean values"],
+  ])('refuses %s with the specific message', async (_label, input, message) => {
+    const { call, queries } = setup();
+    const err = await call('search_query', input).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ToolInputError);
+    expect((err as Error).message).toBe(message);
+    expect(queries).toEqual([]);
+  });
+
+  it('passes no undefined-valued optional keys to the service', async () => {
+    const { call, queries } = setup();
+    await call('search_query', { text: 'hi', locale: 'en' });
+    const query = (queries[0] as { required: { query: Record<string, unknown> } }).required.query;
+    expect(Object.keys(query).sort()).toEqual(['limit', 'locale', 'text']);
+  });
+
+  it('accepts an empty filters object and an empty collections list', async () => {
+    const { call, queries } = setup();
+    await call('search_query', { text: 'hi', filters: {}, collections: [] });
+    expect((queries[0] as { required: { query: unknown } }).required.query).toStrictEqual({ text: 'hi', limit: 10, filters: {}, collections: [] });
+  });
+
+  it('every service and indexer call is scoped to this site', async () => {
+    const registry = createProviderRegistry<SearchProvider>({ contract: SEARCH_CONTRACT });
+    registry.register({ definition: { id: 'vendor', provider: makeProvider({ id: 'vendor' }).provider } });
+    const statusArgs: unknown[] = [];
+    const rebuildArgs: unknown[] = [];
+    const settingArgs: unknown[] = [];
+    const service: SearchService = {
+      async query() { return { status: 'ok', providerId: 'vendor', page: { hits: [] } }; },
+      async status(required) {
+        statusArgs.push(required);
+        return { siteId: SITE, active: { providerId: 'vendor', generation: 1, registered: true, counts: ZERO }, building: null };
+      },
+    };
+    const registrations = buildSearchToolRegistrations({
+      workspaceId: WS, siteId: SITE, service, registry,
+      indexer: { async startRebuild(required: { siteId: string; workspaceId: string; providerId: string }) { rebuildArgs.push(required); return { active: ACTIVE, building: null }; } },
+      requirePermission: async () => {},
+      askHuman: async () => ({ confirmed: true }),
+      setProviderSetting: async required => { settingArgs.push(required); },
+    });
+    const byId = new Map(registrations.map(r => [r.descriptor.id, r] as const));
+    const run = (id: string, input: unknown) => (byId.get(id) as ToolRegistration).handler({ executionId: 'e', principal: { id: 'u' }, run: { id: 'r' }, input, signal: new AbortController().signal });
+    await run('search_status', {});
+    await run('search_reindex', {});
+    await run('search_set_provider', { providerId: 'vendor' });
+    expect(statusArgs.length).toBeGreaterThan(0);
+    for (const args of statusArgs) expect(args).toEqual({ siteId: SITE });
+    expect(rebuildArgs).toEqual([{ siteId: SITE, workspaceId: WS, providerId: 'vendor' }, { siteId: SITE, workspaceId: WS, providerId: 'vendor' }]);
+    expect(settingArgs).toEqual([{ siteId: SITE, providerId: 'vendor', principalId: 'u' }]);
+  });
+});

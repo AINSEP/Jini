@@ -60,3 +60,24 @@ test('registry: empty by default; a custom default id', () => {
   expect(registry.getDefault()?.id).toBe('memory');
   expect(() => createSearchProviderRegistry({}, { defaultProviderId: 'Not Valid' })).toThrow(ProviderRegistryError);
 });
+
+// Stryker L5 (2026-10-25): `maxBatch < 1` → `<= 1` survived (1 was never accepted in a test), and
+// the provider-id pattern was only tested with one bad id.
+test.each([
+  [{ maxBatch: 1 }, undefined],
+  [{ maxBatch: Number.MAX_SAFE_INTEGER }, undefined],
+  [{ maxBatch: Number.MAX_SAFE_INTEGER + 1 }, 'capabilities.maxBatch must be a positive integer'],
+  [{ maxBatch: -1 }, 'capabilities.maxBatch must be a positive integer'],
+  [{ maxBatch: Number.NaN }, 'capabilities.maxBatch must be a positive integer'],
+  [{ locales: [] }, undefined],
+  [{ locales: ['en', 2] }, "capabilities.locales must be 'any' or an array of strings"],
+])('capability boundary %#', (change, reason) => {
+  expect(validateSearchProvider({ provider: withCapabilities(change) })).toBe(reason);
+});
+
+test.each([
+  ['a', true], ['a'.repeat(64), true], ['a'.repeat(65), false], ['a_1', true], ['1a', false],
+  ['_a', false], ['', false], ['a\n', false], ['xa-b', false], ['A', false],
+])('provider id %j valid=%s', (id, ok) => {
+  expect(validateSearchProvider({ provider: withChange({ id }) })).toBe(ok ? undefined : 'id must be a string matching ^[a-z][a-z0-9_]{0,63}$');
+});
