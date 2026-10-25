@@ -119,8 +119,11 @@ export function isDeepSeekAuthFailureText({ text }: { text: string }): boolean {
     /KEY=<your-key>/i.test(value) ||
     /api_key\s*=\s*["']<your-key>["']/i.test(value) ||
     (/~\/\.deepseek\/config\.toml/i.test(value) && /api[_ -]?key|KEY=/i.test(value)) ||
+    // The qualifier must not itself match "DEEPSEEK_API_KEY": it used to include `api[_ -]?key`,
+    // which made this conjunction true for ANY mention of the variable, so a healthy probe that
+    // merely named it was reported as unauthenticated (F3 fix wave 2026-10-25).
     (/DEEPSEEK_API_KEY/i.test(value) &&
-      /auth|api[_ -]?key|missing|not set|required|unauthorized/i.test(value))
+      /auth|missing|not set|required|unauthorized/i.test(value))
   );
 }
 
