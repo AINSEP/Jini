@@ -64,7 +64,7 @@ test("marker-target parity: every server-registered page-embed type declares its
     assert.ok(keys, `EMBED_MARKER_TARGET_KEYS is missing an entry for registered type "${type}"`);
     // resolveTaxonomyEmbeds reads only ref.id (an ID or a unique taxonomy name), never ref.slug.
     // The other registered resolvers, including resolveFormTypeEmbeds, read id before slug.
-    assert.deepEqual(keys, type === "gallery" ? [] : type === "taxonomy" ? ["id"] : ["id", "slug"], `incorrect resolver target keys for "${type}"`);
+    assert.deepEqual(keys, type === "plugin" ? ["plugin"] : type === "gallery" ? [] : type === "taxonomy" ? ["id"] : ["id", "slug"], `incorrect resolver target keys for "${type}"`);
   }
 });
 
@@ -97,4 +97,10 @@ test("marker.ts stays import-free so the admin's alias never pulls in server-onl
   }
   visit(parsed);
   assert.deepEqual(dependencies, [], "marker must not acquire a dependency through imports or re-exports");
+});
+
+
+test("marker-target parity: plugin identity is independent of authored id/slug", () => {
+  assert.deepEqual(embedMarkerTarget("plugin", { plugin: "example/login", component: "button", id: "wrong", slug: "wrong" }), { key: "plugin", value: "example/login" });
+  assert.equal(embedMarkerTarget("plugin", { component: "button", id: "wrong" }), undefined);
 });

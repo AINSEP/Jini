@@ -77,6 +77,21 @@ describe("resolveHtmlPageEmbeds", () => {
     );
   });
 
+  it("dispatches plugin markers through the optional site-scoped port", async () => {
+    const deps = await taxonomyDeps();
+    const html = `<div data-embed-config='{"type":"plugin","plugin":"example/login","component":"button","props":{}}'>fallback</div>`;
+    const absent = await resolveHtmlPageEmbeds({ deps, input: { workspaceId: WS, html } });
+    expect([...absent.get("plugin")!]).toEqual([]);
+    const result = await resolveHtmlPageEmbeds({ deps: { ...deps, pluginExports: { resolve: async ({ workspaceId }) => ({
+      plugin: "example/login", component: "button", version: 1, consent: "necessary",
+      template: "<span>{{host.site}}</span>", props: {}, host: { site: workspaceId },
+    }) } }, input: { workspaceId: WS, html } });
+    expect(result.get("plugin")?.get("plugin:1")).toEqual({ componentId: "plugin-export", props: {
+      plugin: "example/login", component: "button", version: 1, consent: "necessary", html: "<span>ws-1</span>",
+    } });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("returns an empty map for a page with no embed markers", async () => {
     const result = await resolveHtmlPageEmbeds({ deps: await taxonomyDeps(), input: { workspaceId: WS, html: "<p>plain</p>" } });
     expect(result.size).toBe(0);

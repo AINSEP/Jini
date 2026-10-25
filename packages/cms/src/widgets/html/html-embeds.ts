@@ -103,6 +103,7 @@ import {
   type EmbedMarker,
   type MarkerAttribute,
 } from "../markers/marker.js";
+import { substitutePluginExport, type PluginExportRender } from "./plugin-export.js";
 import { normalizeLegacyWidgetMarkers } from "./legacy-widget-markers.js";
 
 // Public rendering accepts legacy widget type/id attributes through this CMS-specific adapter.
@@ -211,18 +212,27 @@ function configBooleanDefaultTrue(config: Readonly<Record<string, unknown>>, key
   return config[key] !== false;
 }
 
-/** Project a parsed marker onto the six fields the resolvers read. `type` is lowercased here, as
+/** Inline galleries/media and plugin exports have no target entity. Key them by occurrence so
+ * repeated markers with different layouts/captions/props cannot overwrite each other's resolved IR,
+ * even with an authored id. Ordinary entity refs retain their ids. */
+function occurrenceEmbedId({ marker }: { marker: EmbedMarker }, _optional: Record<string, never> = {}): string | null {
+  const type = marker.type.toLowerCase();
+  if (type === "gallery" || type === "plugin") return `${type}:${marker.occurrence}`;
+  const inlineMedia = type === "media" && ["content", "items", "html"].some(key => marker.config[key] !== undefined);
+  return inlineMedia ? `media:${marker.occurrence}` : normalizeEmbedId(configString(marker.config, "id"));
+}
+
+/** Project a parsed marker onto the fields the resolvers read. `type` is lowercased here, as
  * the old attribute pattern's `i` flag did — a config is hand-authored JSON, so `"Widget"` must keep
- * reaching the same resolver `"widget"` does. */
-function toEmbedRef(marker: EmbedMarker): PageHtmlEmbedRef {
+ * reaching the same resolver `"widget"` does. Plugin config is carried intact for the admission port. */
+function toEmbedRef({ marker }: { marker: EmbedMarker }, _optional: Record<string, never> = {}): PageHtmlEmbedRef {
   return {
     type: marker.type.toLowerCase(),
     // Only saved widget overlays use placement keys. Inline Media content already has its own
     // occurrence id below; a second key would make rendering miss the resolver's media:<n> result.
     ...(marker.type.toLowerCase() === "widget" && marker.config.content !== undefined ? { placementKey: `placement:${marker.occurrence}` } : {}),
-    // Inline galleries have no target entity. Key by occurrence so repeated assets with different
-    // layouts/captions cannot overwrite each other's resolved IR, even with an authored id.
-    id: (marker.type.toLowerCase() === "gallery" || (marker.type.toLowerCase() === "media" && (marker.config.content !== undefined || marker.config.items !== undefined || marker.config.html !== undefined))) ? `${marker.type.toLowerCase()}:${marker.occurrence}` : normalizeEmbedId(configString(marker.config, "id")),
+    // Inline galleries/media and plugin exports resolve by occurrence, never an authored id.
+    id: occurrenceEmbedId({ marker }),
     slug: normalizeEmbedSlug(configString(marker.config, "slug")),
     name: configString(marker.config, "name"),
     variant: configString(marker.config, "variant"),
@@ -251,7 +261,7 @@ function toEmbedRef(marker: EmbedMarker): PageHtmlEmbedRef {
 export function scanHtmlEmbeds({ html }: { html: string }, _optional: Record<string, never> = {}): PageHtmlEmbedRef[] {
   const refs: PageHtmlEmbedRef[] = [];
   for (const marker of scanEmbedMarkers({ html: normalizeLegacyWidgetMarkers({ html }) }).markers) {
-    refs.push(toEmbedRef(marker));
+    refs.push(toEmbedRef({ marker }));
     if (refs.length >= MAX_HTML_EMBEDS_PER_PAGE) break;
   }
   return refs;
@@ -492,6 +502,9 @@ function substituteMediaMarker(
  * `isPageEmbedType` to answer; this function only carries the answer through.
  *
  * Per-type handling (2026-09-16):
+ * - **`"plugin"`**: a structured PluginExportRender retains the wrapper with canonical stamps.
+ *   Undefined or string output retains authored fallback, removing only the marker attribute.
+ *   Hosts must pass the plugin-export IR props intact; strings cannot carry trusted consent/identity.
  * - **`"media"`**: {@link planMediaMarkerAttributes} computes the occurrence AND the wrapper split.
  *   On the marker's own self-rendering tag ({@link SELF_RENDERING_MEDIA_TAGS}) the replacement is
  *   returned as-is (no wrapper, unchanged from before). On any other tag: if nothing moved, the
@@ -508,16 +521,21 @@ function substituteMediaMarker(
  * @overallScore 100
  */
 export function substituteHtmlEmbeds(
-  { html, resolve }: { html: string; resolve: (ref: PageHtmlEmbedRef, occurrence: EmbedOccurrence) => string | undefined },
+  { html, resolve }: { html: string; resolve: (ref: PageHtmlEmbedRef, occurrence: EmbedOccurrence) => string | PluginExportRender | undefined },
   _optional: Record<string, never> = {},
 
 ): string {
   return substituteMarkers({ html: normalizeLegacyWidgetMarkers({ html }), resolve: (marker) => {
-    const ref = toEmbedRef(marker);
+    const ref = toEmbedRef({ marker });
 
-    if (ref.type === "media") return substituteMediaMarker({ marker, ref, resolve });
+    if (ref.type === "plugin") return substitutePluginExport({ marker, resolved: resolve(ref, DEFAULT_OCCURRENCE) });
+    if (ref.type === "media") return substituteMediaMarker({ marker, ref, resolve: (mediaRef, occurrence) => {
+      const output = resolve(mediaRef, occurrence);
+      return typeof output === "string" ? output : undefined;
+    } });
 
-    const replacement = resolve(ref, DEFAULT_OCCURRENCE);
+    const output = resolve(ref, DEFAULT_OCCURRENCE);
+    const replacement = typeof output === "string" ? output : undefined;
     if (replacement === undefined) return undefined;
     // A missing widget contributes nothing, including its authored wrapper/fallback content.
     if (ref.type === "widget" && replacement === "") return "";
