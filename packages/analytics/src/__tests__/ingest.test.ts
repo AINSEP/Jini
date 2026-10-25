@@ -1072,3 +1072,19 @@ test("ingestHit rethrows a genuinely unexpected error raised while reading event
     (err: unknown) => err === boom
   );
 });
+
+// L10 Stryker survivors (ingest.ts:436-448): malformed ranges and addresses never match, /0 matches all.
+test("ingestHit CIDR edge cases: /0 matches everything; NaN prefix, bad octets and IPv6 never match", async () => {
+  for (const [range, ip, excluded] of [
+    ["0.0.0.0/0", "203.0.113.1", true], ["10.0.0.0/x", "10.0.0.1", false], ["10.0.0.0/", "10.0.0.1", false],
+    ["10.0.0.0/24", "10.0.0.256", false], ["10.0.0.0/24", "10.0.0", false], ["10.0.0.0/24", "10.0.0.-1", false],
+    ["10.0.0.256/24", "10.0.0.1", false], ["10.0.0.0/24", "::ffff:10.0.0.9", true], ["10.0.0.0/24", "2001:db8::1", false],
+    ["10.0.0.0/8", "10.255.255.255", true], ["10.0.0.0/8", "11.0.0.0", false],
+    // Bug found 2026-10-25 (F5): an empty or negative prefix was read as /0 and excluded EVERY visitor.
+    ["10.0.0.0/-1", "203.0.113.1", false], ["10.0.0.0/ 8", "10.0.0.1", false], ["10.0.0.0/33", "10.0.0.1", false], ["10.0.0.0/08", "10.9.9.9", true],
+  ] as const) {
+    const { deps } = makeDeps({ config: makeConfigPort(makeConfig({ excludedIpRanges: [range] })) });
+    const result = await ingestHit({ input: { beacon: makeBeacon(), context: makeContext({ ip }) }, deps });
+    assert.deepEqual(result, excluded ? { accepted: false, reason: "excluded_ip" } : { accepted: true }, `${range} vs ${ip}`);
+  }
+});
