@@ -3,8 +3,8 @@ import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "n
 import { join, relative } from "node:path";
 import { sql } from "kysely";
 import { afterEach, expect, test, vi } from "vitest";
-import { sourceChecksum } from "../../migrate/checksum.js";
-import { ownerStoreDdl, ownerStoreMigration } from "../migrations/0000_owner_store.js";
+import { sourceChecksum } from "@jini-ai/db/migrate";
+import { ownerStoreDdl, ownerStoreMigration } from "@jini-ai/db/owner-store";
 import { openOwnerStore, OwnerStoreRecoveryError } from "../open.js";
 import { fixture, input } from "./fixture.js";
 

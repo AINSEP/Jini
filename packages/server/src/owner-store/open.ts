@@ -1,13 +1,15 @@
+import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "@jini-ai/db/secrets-vault";
+import type { StorageKernel } from "@jini-ai/db/kernel";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { AesGcmSecretSealer, EnvOrFileKeyring, generateFileSiteKey, SiteKeyFileAlreadyExistsError } from "@jini-ai/platform/secrets";
 import { createVaultMetaParsers, type VaultServiceDeps } from "@jini-ai/platform/secrets/credential-sets";
-import { closeSqliteConnection, sqliteKernel } from "../kernel/sqlite/index.js";
-import { runMigrations } from "../migrate/runner.js";
-import { openSqliteConnection } from "../sqlite/open.js";
-import type { SqliteOpener } from "../sqlite/types.js";
-import { OWNER_STORE_LEDGER, ownerStoreMigrations } from "./migrations/index.js";
+import { closeSqliteConnection, sqliteKernel } from "@jini-ai/db/kernel/sqlite";
+import { runMigrations } from "@jini-ai/db/migrate";
+import { openSqliteConnection } from "@jini-ai/db/sqlite";
+import type { SqliteOpener } from "@jini-ai/db/sqlite";
+import { OWNER_STORE_LEDGER, ownerStoreMigrations } from "@jini-ai/db/owner-store";
 import { OwnerStoreService, ownerContext, type OwnerStoreDatabase } from "./service.js";
 
 export interface OpenOwnerStoreInput { filePath: string; keyFilePath: string; open: SqliteOpener }
@@ -41,7 +43,9 @@ export async function openOwnerStore(required: OpenOwnerStoreInput, options: Ope
       prepareKey({ keyFilePath: required.keyFilePath, hasCredentials: anyEntry !== undefined });
       const keyring = new EnvOrFileKeyring({ env: { read: () => undefined }, envVarName: "OWNER_STORE_KEY",
         keyFilePath: required.keyFilePath, hkdfSalt: "jini-owner-store-v1", allowFileFallback: true, allowFileAutoGenerate: false });
-      const store = new OwnerStoreService({ kernel, keyring, sealer: new AesGcmSecretSealer({ keyring }),
+      // Kysely's DB generic is invariant. The vault sees only its table on this same transaction owner.
+      const repo = new SqlSecretsVaultRepo({ kernel: kernel as unknown as StorageKernel<SecretsVaultDatabase> });
+      const store = new OwnerStoreService({ kernel, repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
         metaParsers: options.metaParsers ?? createVaultMetaParsers({}),
         now: options.now ?? (() => new Date().toISOString()), newId: options.newId ?? (() => randomUUID()) });
       try {
