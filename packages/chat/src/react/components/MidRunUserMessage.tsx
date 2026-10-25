@@ -32,7 +32,7 @@ export function midRunUserMessageSlotKey({ data }: { data: unknown }): string | 
 }
 
 /** The bubble for one mid-run message — the same classes as a sent user message, so it reads as one. */
-export function MidRunUserMessage({ events, runStreaming = false }: Pick<ExtEventRenderProps, 'events'> & Partial<Pick<ExtEventRenderProps, 'runStreaming'>>) {
+export function MidRunUserMessage({ events, runStreaming = false, transcriptRow = false }: Pick<ExtEventRenderProps, 'events'> & Partial<Pick<ExtEventRenderProps, 'runStreaming' | 'transcriptRow'>>) {
   const data = events.at(-1);
   const text = field(data, 'text');
   if (text === undefined) return null;
@@ -40,16 +40,16 @@ export function MidRunUserMessage({ events, runStreaming = false }: Pick<ExtEven
   // MOVE: A single live delivery may contain several queued inputs; display their original receipts.
   const inputs: readonly AcceptedChatInput[] = receipt?.data.inputs ?? [{ id: field(data, 'id') ?? 'mid-run', text }];
   // A run that ended without reading the message hands it to the next turn; it is no longer queued here.
-  return <>{inputs.map(input => <MidRunInput key={input.id} input={input}
+  return <>{inputs.map(input => <MidRunInput key={input.id} input={input} transcriptRow={transcriptRow}
     queued={runStreaming && (input.deliveryState ?? receipt?.data.deliveryState) === 'queued'} />)}</>;
 }
 
-function MidRunInput({ input, queued }: { input: AcceptedChatInput; queued: boolean }) {
+function MidRunInput({ input, queued, transcriptRow }: { input: AcceptedChatInput; queued: boolean; transcriptRow: boolean }) {
   const t = useT();
   const attachments = input.attachments ?? [];
   const gallery = useAttachmentGallery({ attachments });
   return (
-    <div className="jini-message jini-message-user jini-message-user--mid-run" data-agent-role="region" data-agent-label="A message from the user, sent while the agent was working">
+    <div className={`jini-message jini-message-user${transcriptRow ? '' : ' jini-message-user--mid-run'}`} data-agent-role="region" data-agent-label="A message from the user, sent while the agent was working">
       {queued && <div className="jini-message-user__queued" role="status">{t('Queued — read after the current step')}</div>}
       <div className="jini-message-content">{input.text}</div>
       {attachments.length > 0 && <div className="jini-message-attachments">
@@ -67,7 +67,7 @@ function MidRunInput({ input, queued }: { input: AcceptedChatInput; queued: bool
  */
 export function registerMidRunUserMessageRenderer(): () => void {
   return registerExtEventRenderer(
-    { name: MID_RUN_USER_MESSAGE_EXT_EVENT_NAME, renderer: (props) => <MidRunUserMessage events={props.events} runStreaming={props.runStreaming} /> },
+    { name: MID_RUN_USER_MESSAGE_EXT_EVENT_NAME, renderer: (props) => <MidRunUserMessage events={props.events} runStreaming={props.runStreaming} transcriptRow={props.transcriptRow === true} /> },
     { slotKey: midRunUserMessageSlotKey },
   );
 }

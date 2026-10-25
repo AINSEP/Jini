@@ -20,7 +20,7 @@ describe('registerMidRunUserMessageRenderer', () => {
       { kind: 'ext', name: 'user_message', data: { id: 'relay', text: 'follow up', deliveryState: 'consumed' } },
     ] }} runStreaming />);
     expect(screen.queryByText('Queued — read after the current step')).not.toBeInTheDocument();
-    expect(container.querySelectorAll('.jini-message-user--mid-run')).toHaveLength(1);
+    expect(container.querySelectorAll('.jini-message-user')).toHaveLength(1);
     expect(screen.getByText('follow up')).toBeInTheDocument();
   });
 
@@ -50,7 +50,7 @@ describe('registerMidRunUserMessageRenderer', () => {
     };
     render(<MessageRow message={message} runStreaming />);
 
-    const bubbles = document.querySelectorAll('.jini-message-user--mid-run');
+    const bubbles = document.querySelectorAll('.jini-message-user');
     expect([...bubbles].map((bubble) => bubble.textContent)).toEqual(['also fix the footer', 'and the nav']);
     expect(screen.getByText('also fix the footer').closest('.jini-message-user')).not.toBeNull();
   });
@@ -66,7 +66,7 @@ describe('registerMidRunUserMessageRenderer', () => {
       runStatus: 'running',
     };
     render(<MessageRow message={message} runStreaming />);
-    expect(document.querySelector('.jini-message-user--mid-run')).toBeNull();
+    expect(document.querySelector('.jini-message-user')).toBeNull();
   });
 });
 
@@ -82,7 +82,7 @@ it('displays the separate queued receipts and their own files after one merged l
       data: { id: 'wire-receipt', text: 'first queued input\n\nsecond queued input' } },
   ] };
   render(<MessageRow message={message} runStreaming />);
-  const bubbles = document.querySelectorAll('.jini-message-user--mid-run');
+  const bubbles = document.querySelectorAll('.jini-message-user');
   expect(bubbles).toHaveLength(2);
   expect(bubbles[0]).toHaveTextContent('first queued input');
   expect(bubbles[0]!.querySelector('.jini-message-attachment-chip')).toBeNull();

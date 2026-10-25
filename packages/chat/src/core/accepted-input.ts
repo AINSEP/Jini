@@ -1,5 +1,5 @@
 /** Accepted composer input has one identity across optimistic display, replay and recall. */
-import { questionAnswerFromResult } from './question-answer.js';
+import { questionAnswerFromResult, questionAnswerLabel } from './question-answer.js';
 import type { AgentEvent } from './events.js';
 import type { ChatAttachment, ChatMessage } from './messages.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
@@ -38,6 +38,11 @@ type UserMessageEvent = Extract<AgentEvent, { kind: 'ext' }> & {
   data: AcceptedChatInput & { optimistic?: boolean; toolUseId?: string; afterInputId?: string; inputs?: AcceptedChatInput[] };
 };
 
+/** Hosts can recover standalone form labels without adding a DOM dependency to core. */
+export interface AcceptedInputProjectionOptions {
+  answerContexts?: ReadonlyMap<string, { input: unknown; includeTitle?: boolean }>;
+}
+
 /** Reads the existing event-backed user bubble without depending on a host renderer. */
 export function acceptedInputEvent({ event }: { event: AgentEvent }, _options = {}): UserMessageEvent | null {
   if (event.kind !== 'ext' || event.name !== MID_RUN_USER_MESSAGE_EVENT_NAME) return null;
@@ -46,12 +51,13 @@ export function acceptedInputEvent({ event }: { event: AgentEvent }, _options = 
 }
 
 /** Project a persisted answer through the same receipt owner as composer input. */
-function questionAnswerEvent({ event, input }: { event: AgentEvent; input: unknown }, _options = {}): UserMessageEvent | null {
+function questionAnswerEvent({ event, input }: { event: AgentEvent; input: unknown }, { includeTitle = false }: { includeTitle?: boolean } = {}): UserMessageEvent | null {
   if (event.kind !== 'tool_result') return null;
   const text = questionAnswerFromResult({ result: event, input });
   if (text === undefined) return null;
+  // A standalone form's bubble reads like its closed card: "<title>: <answer>".
   return { kind: 'ext', name: MID_RUN_USER_MESSAGE_EVENT_NAME,
-    data: { id: `answer:${event.toolUseId}`, text, toolUseId: event.toolUseId } };
+    data: { id: `answer:${event.toolUseId}`, text: includeTitle ? questionAnswerLabel({ input, text }) : text, toolUseId: event.toolUseId } };
 }
 
 /** Builds the same bubble for delivered answers and steering; queues use the existing pending row. */
@@ -67,7 +73,7 @@ type OptimisticTextQueue = { events: UserMessageEvent[]; index: number };
 type OptimisticInputs = { byText: Map<string, OptimisticTextQueue>; byQuestion: Map<string, UserMessageEvent> };
 type InputReconciliation = { replacements: Map<AgentEvent, AgentEvent>; replaced: Set<AgentEvent>; seen: Set<string> };
 
-function expandQuestionAnswers({ events }: { events: readonly AgentEvent[] }, _options = {}): AgentEvent[] {
+function expandQuestionAnswers({ events }: { events: readonly AgentEvent[] }, { answerContexts }: AcceptedInputProjectionOptions = {}): AgentEvent[] {
   const savedAnswers = new Set(events.flatMap(event => {
     const input = acceptedInputEvent({ event });
     return input && !input.data.optimistic && input.data.toolUseId ? [input.data.toolUseId] : [];
@@ -75,7 +81,9 @@ function expandQuestionAnswers({ events }: { events: readonly AgentEvent[] }, _o
   // MOVE: Persisted picks carry values; the original tool input retains their human-readable labels.
   const questions = new Map(events.flatMap(event => event.kind === 'tool_use' ? [[event.id, event.input] as const] : []));
   const answers = new Map(events.flatMap(event => {
-    const answer = questionAnswerEvent({ event, input: event.kind === 'tool_result' ? questions.get(event.toolUseId) : undefined });
+    const context = event.kind === 'tool_result' ? answerContexts?.get(event.toolUseId) : undefined;
+    const input = context ? context.input : event.kind === 'tool_result' ? questions.get(event.toolUseId) : undefined;
+    const answer = questionAnswerEvent({ event, input }, { includeTitle: context?.includeTitle === true });
     return answer ? [[answer.data.toolUseId!, answer] as const] : [];
   }));
   return events.flatMap(event => {
@@ -116,7 +124,10 @@ function matchOptimisticInput(
 function mergeAcceptedReceipt(
   { input, pending }: { input: UserMessageEvent; pending: UserMessageEvent }, _options = {},
 ): UserMessageEvent {
+  const deliveryState = input.data.deliveryState ?? pending.data.deliveryState;
   return { ...input, data: { ...input.data, id: pending.data.id,
+    // Legacy acceptance receipts omit state; HTTP acceptance still means queued until consumption.
+    ...(deliveryState === undefined ? {} : { deliveryState }),
     ...(pending.data.inputs ? { inputs: pending.data.inputs.map(item => ({ ...item, ...(input.data.deliveryState ? { deliveryState: input.data.deliveryState } : {}) })) } : {}),
     aliases: [...new Set([...(input.data.aliases ?? []), input.data.id, ...(pending.data.aliases ?? [])])] } };
 }
@@ -139,8 +150,9 @@ function reconcileAcceptedInput(
   advanceOptimisticInput({ input, optimistic });
   for (const id of [pending.data.id, ...(pending.data.aliases ?? [])]) seen.add(id);
   optimistic.byQuestion.delete(input.data.toolUseId ?? '');
-  replaced.add(pending);
-  replacements.set(event, mergeAcceptedReceipt({ input, pending }));
+  // Acceptance can arrive after the reply it triggered. Keep the position where the person sent it.
+  replaced.add(event);
+  replacements.set(pending, mergeAcceptedReceipt({ input, pending }));
 }
 
 function advanceOptimisticInput(
@@ -178,9 +190,9 @@ function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] },
  * @complexity O(e + u + a) time, O(e + u) space for e events, u user inputs and total answer-label lookup cost a.
  */
 export function projectAcceptedInputEvents(
-  { events }: { events: readonly AgentEvent[] }, _options = {},
+  { events }: { events: readonly AgentEvent[] }, options: AcceptedInputProjectionOptions = {},
 ): AgentEvent[] {
-  const expanded = expandQuestionAnswers({ events: collapseDeliveryReceipts({ events }) });
+  const expanded = expandQuestionAnswers({ events: collapseDeliveryReceipts({ events }) }, options);
   const optimistic = collectOptimisticInputs({ events: expanded });
   const state: InputReconciliation = { replacements: new Map(), replaced: new Set(), seen: new Set() };
   for (const event of expanded) reconcileAcceptedInput({ event, optimistic, state });

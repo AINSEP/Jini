@@ -95,6 +95,8 @@ interface Scan {
   open: OpenTool[];
   lastVisible: { index: number; kind: AgentEvent['kind'] } | null;
   lastCardIndex: number;
+  standaloneCardIndex: number;
+  lastWorkIndex: number;
   retry: { index: number; data: unknown } | null;
   progress: { index: number; seconds: number } | null;
   visibleCount: number;
@@ -151,6 +153,7 @@ function scanStatus(
 function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
   // Queue acceptance/consumption is user input, not new agent activity. Neither restarts its clock.
   if (event.kind === 'ext' && event.name === MID_RUN_USER_MESSAGE_EVENT_NAME) return;
+  if (WORK_EVENT_KINDS.has(event.kind)) scan.lastWorkIndex = index;
   if (isVisible(event)) {
     scan.lastVisible = { index, kind: event.kind };
     scan.visibleCount += 1;
@@ -161,10 +164,25 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
   } else if (event.kind === 'tool_result') {
     scan.open = scan.open.filter((tool) => tool.id !== event.toolUseId);
   } else if (event.kind === 'ext') {
-    if (isAnswerCard(scan, event.name, event.data)) scan.lastCardIndex = index;
+    scanCard({ scan, event, index });
   } else if (event.kind === 'status') {
     scanStatus({ scan, event, index });
   }
+}
+
+/** Work after a standalone form proves the run has moved past that form. */
+const WORK_EVENT_KINDS = new Set<AgentEvent['kind']>(['text', 'tool_use', 'tool_result']);
+
+/** Standalone approval forms have no open tool call. Require interactive markup so outcome
+ * documents do not acquire a waiting status. Inspect text only; this never executes a document. */
+function scanCard({ scan, event, index }: {
+  scan: Scan; event: Extract<AgentEvent, { kind: 'ext' }>; index: number;
+}, _options = {}): void {
+  if (!isAnswerCard(scan, event.name, event.data)) return;
+  scan.lastCardIndex = index;
+  const resource = isRecord(event.data) ? event.data.resource : undefined;
+  const html = isRecord(resource) ? resource.text : undefined;
+  if (typeof html === 'string' && /<form\b|data-mcpui-action\s*=/i.test(html)) scan.standaloneCardIndex = index;
 }
 
 /** `{ a: 1, b: undefined }` → `{ a: 1 }`, so optional activity fields are absent rather than undefined. */
@@ -216,6 +234,9 @@ function latestSignal({ scan }: { scan: Scan }, _optional: {} = {}): Pick<RunAct
   }
   const newestOpen = scan.open[scan.open.length - 1];
   if (newestOpen) return openToolSignal({ scan, newestOpen });
+  if (scan.standaloneCardIndex > scan.lastWorkIndex) {
+    return { activity: { kind: 'awaiting-answer' }, key: `card:${scan.standaloneCardIndex}` };
+  }
   if (scan.lastVisible?.kind === 'text') {
     return { activity: { kind: 'writing' }, key: `writing:${lastVisibleIndex}` };
   }
@@ -236,7 +257,7 @@ export function deriveRunActivity(
   { events }: { events: readonly AgentEvent[] | undefined },
   { isAnsweredCard }: RunActivityOptions = {},
 ): RunActivityState {
-  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set(), isAnsweredCard };
+  const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, standaloneCardIndex: -1, lastWorkIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set(), isAnsweredCard };
   (events ?? []).forEach((event, index) => scanEvent(scan, event, index));
   return { ...latestSignal({ scan }), visibleCount: scan.visibleCount };
 }

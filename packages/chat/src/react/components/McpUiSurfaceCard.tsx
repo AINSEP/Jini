@@ -60,7 +60,7 @@
  * `visible` field in per-element STATE when a caller opts into it — see the regression tests added
  * against the real driver in `@jini-ai/agentic`.
  */
-import { questionAnswerFromResult } from '../../core/question-answer.js';
+import { questionAnswerFromResult, questionAnswerLabel } from '../../core/question-answer.js';
 import { MidRunUserMessage } from './MidRunUserMessage.js';
 import { Fragment, useMemo } from 'react';
 import {
@@ -77,6 +77,7 @@ import { defaultExtEventRendererRegistry, type ExtEventRendererRegistry, type Ex
 import { useT } from '../hooks/context.js';
 import { useSurfaceExpiry, type SurfaceExpiryClock } from '../hooks/useSurfaceExpiry.js';
 import { closedSurfaceLabel, reportDeliveredAnswer } from './mcp-ui-surface-state.js';
+import { surfaceQuestionInput } from './mcp-ui-question-input.js';
 
 /** The `kind: 'ext'` event name this renderer claims. */
 export const MCP_UI_EXT_EVENT_NAME = 'mcp-ui';
@@ -166,14 +167,16 @@ function PendingSurfaceMirror({ uri, plan, t }: { uri: string; plan: McpUiAction
   );
 }
 
+/** Keep one title/answer format for the collapsed card and standalone form's user bubble. */
+function surfaceAnswerLabel({ call, label }: { call: ExtEventCall | undefined; label: string }, _options = {}): string {
+  return questionAnswerLabel({ input: call?.input, text: label });
+}
+
 /** A closed card: the question's title, when the call gave one, and why it is closed. */
 function ClosedSurface({ call, label }: { call: ExtEventCall | undefined; label: string }) {
-  const input = call?.input as { title?: unknown; question?: unknown; prompt?: unknown } | undefined;
-  const title = [input?.title, input?.question, input?.prompt]
-    .find(value => typeof value === 'string' && value.trim() !== '');
   return (
     <div className="mcpui-surface-card mcpui-surface-card-closed" role="status">
-      {typeof title === 'string' ? `${title}: ${label}` : label}
+      {surfaceAnswerLabel({ call, label })}
     </div>
   );
 }
@@ -205,7 +208,8 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
   // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
   // that card. A group holding several URIs has no single call to judge them by, and stays live.
   const single = resources.length === 1 ? resources[0] : undefined;
-  const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall, onAnswered, onAnswerText, call });
+  const { displayCall, input, standalone } = useSurfaceQuestionCall({ events, call });
+  const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall, onAnswered, onAnswerText, call: displayCall });
   const expiry = useSurfaceExpiry(
     { expiresAtMs },
     expiryClock === undefined ? {} : { clock: expiryClock },
@@ -213,14 +217,31 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
   const closed = single === undefined
     ? undefined
     : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
-  const answer = questionAnswerFromResult({ result: call?.result, input: call?.input }) ?? answerText;
+  const answer = questionAnswerFromResult({ result: call?.result, input }) ?? answerText;
   return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
-    answer={answer} closed={closed} call={call} t={t} sandboxProxyUrl={sandboxProxyUrl}
+    answer={answer} closed={closed} call={displayCall} standalone={standalone} t={t} sandboxProxyUrl={sandboxProxyUrl}
     toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
 }
 
+/** A standalone form's call may lack the question; its first document's markup supplies the title
+ * and option labels, so answers read as labels rather than raw values. */
+function useSurfaceQuestionCall({ events, call }: { events: readonly unknown[]; call: ExtEventCall | undefined }, _options = {}) {
+  const resource = parseUIResource(events[0]);
+  const input = useMemo(() => surfaceQuestionInput({ resource, input: call?.input }),
+    [resource?.resource.text, resource?.resource._meta, call?.input]);
+  const displayCall: ExtEventCall = call === undefined ? { name: '', input } : { ...call, input };
+  return { displayCall, input, standalone: input !== call?.input };
+}
+
+/** A recorded receipt closes the card even while its readable answer is still arriving. */
+function recordedAnswerLabel({ answer, closed, t }: {
+  answer: string | undefined; closed: string | undefined; t: ReturnType<typeof useT>;
+}, _options = {}): string {
+  return answer ?? closed ?? t('Answered');
+}
+
 /** Rendering priority stays receipt, answer, closure, then the live documents. */
-function SurfaceCardContent({ resources, single, answerRecorded, answer, closed, call, t,
+function SurfaceCardContent({ resources, single, answerRecorded, answer, closed, call, standalone, t,
   sandboxProxyUrl, toolCall, onOpenLink, maxHeight, expiry }: {
   resources: readonly UIResource[];
   single: UIResource | undefined;
@@ -228,6 +249,7 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   answer: string | undefined;
   closed: string | undefined;
   call: McpUiSurfaceCardProps['call'];
+  standalone: boolean;
   t: ReturnType<typeof useT>;
   sandboxProxyUrl: URL;
   toolCall: McpUiToolCallHandler | undefined;
@@ -236,10 +258,10 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   expiry: ReturnType<typeof useSurfaceExpiry>;
 }) {
   // MOVE: The accepted-input receipt owns its bubble; the closed card retains the question's context.
-  if (single !== undefined && answerRecorded) return <ClosedSurface call={call} label={answer ?? closed ?? t('Answered')} />;
+  if (single !== undefined && answerRecorded) return <ClosedSurface call={call} label={recordedAnswerLabel({ answer, closed, t })} />;
   if (single !== undefined && answer !== undefined) {
     const label = answer === 'Declined' ? t('Declined') : answer;
-    return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: label }]} /></>;
+    return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: standalone ? surfaceAnswerLabel({ call, label }) : label }]} /></>;
   }
   if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
 

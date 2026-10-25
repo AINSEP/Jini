@@ -23,6 +23,14 @@ function contentOf(events: readonly AgentEvent[]): string {
 }
 
 describe('interleaveMessageBlocks', () => {
+  it('keeps legacy saved step text in separate paragraphs without splitting deltas within a step', () => {
+    const events: AgentEvent[] = [text('Retry.'), { kind: 'usage', outputTokens: 10 }, text('I ne'), text('ed context.')];
+    for (const content of ['Retry.I need context.', 'Retry.\n\nI need context.']) {
+      expect(interleaveMessageBlocks({ events, content, rows: [] })?.filter(block => block.kind === 'text').map(block => block.text))
+        .toEqual(['Retry.', 'I need context.']);
+    }
+  });
+
   it('places tool cards where they occurred, splitting the text around them', () => {
     const events = [text('Looking for a tool. '), toolUse('t1'), toolResult('t1'), text('Done — it is English now.')];
     const rows: Row[] = [{ id: 't1' }];

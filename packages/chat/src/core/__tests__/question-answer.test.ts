@@ -10,6 +10,10 @@ const input = {
 };
 
 describe('readable question answers', () => {
+  it('maps option ids and label-defaulted values through the same question owner', () => {
+    const input = { options: [{ id: 'guide-id', label: 'Site guide' }, { label: 'Continue' }] };
+    expect(questionAnswerText({ input, answer: { selections: ['guide-id', 'Continue'] } })).toBe('Site guide, Continue');
+  });
   it('resolves flat question option values in single and multiple answers, including saved raw receipts', () => {
     const input = { question: 'How should we publish?', options: [
       { value: 'embed', label: 'Embed the widget' }, { value: 'api', label: 'Use the API' },

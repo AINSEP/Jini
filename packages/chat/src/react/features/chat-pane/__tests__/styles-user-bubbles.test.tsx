@@ -63,7 +63,7 @@ describe('sent user bubbles', () => {
   it.each(['tools', 'text'] as const)('separates a mid-run bubble from preceding %s by the ordinary turn spacing', preceding => {
     registerMidRunUserMessageRenderer();
     const assistant: ChatMessage = {
-      id: 'assistant', role: 'assistant', content: '', runId: 'run', runStatus: 'running',
+      id: 'assistant', role: 'assistant', content: preceding === 'text' ? 'Working on the page.' : '', runId: 'run', runStatus: 'running',
       events: [
         ...(preceding === 'tools' ? [
           { kind: 'tool_use' as const, id: 'tool', name: 'site_guide', input: {} },
@@ -77,8 +77,10 @@ describe('sent user bubbles', () => {
     </div>);
     const bubble = screen.getByText('use sqlite').closest('.jini-message-user')!;
     const row = container.querySelector('.jini-message-assistant')!;
-    expect(getComputedStyle(bubble).marginTop).toBe(getComputedStyle(row).marginBottom);
-    expect(getComputedStyle(bubble).marginTop).toBe('20px');
+    expect(bubble.parentElement).toBe(row.parentElement);
+    expect(bubble).not.toHaveClass('jini-message-user--mid-run');
+    expect(getComputedStyle(bubble).marginBottom).toBe(getComputedStyle(row).marginBottom);
+    expect(getComputedStyle(bubble).marginBottom).toBe('20px');
     if (preceding === 'tools') expect(container.querySelector('.jini-message-tools')).not.toBeNull();
   });
 });

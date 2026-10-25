@@ -5,6 +5,24 @@ import { useConversation } from '../useConversation.js';
 import { createFakeChatTransport } from '../testing/fake-transport.js';
 
 describe('useConversation', () => {
+  it('builds content from merged events so a locally accepted follow-up preserves paragraph order', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useConversation({ transport }));
+    await act(async () => { await result.current.sendMessage('Start'); });
+    act(() => transport.emit({ kind: 'text', text: 'Initial work.' }));
+    act(() => result.current.setMessages(messages => messages.map(message => message.role === 'assistant' ? {
+      ...message, events: [...(message.events ?? []), { kind: 'ext', name: 'user_message',
+        data: { id: 'local', text: 'Follow up', optimistic: true, deliveryState: 'queued' } }],
+    } : message)));
+    act(() => transport.emit({ kind: 'text', text: 'Reply to follow-up.' }));
+    expect(result.current.messages.at(-1)?.content).toBe('Initial work.\n\nReply to follow-up.');
+    act(() => transport.emit({ kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'Follow up', deliveryState: 'consumed' } }));
+    const assistant = result.current.messages.at(-1)!;
+    expect(assistant.content).toBe('Initial work.\n\nReply to follow-up.');
+    expect(assistant.events?.map(event => event.kind)).toEqual(['text', 'ext', 'text']);
+    expect(assistant.events?.[1]).toMatchObject({ data: { id: 'local', deliveryState: 'consumed' } });
+  });
+
   it('appends an optimistic user message and a placeholder assistant message on sendMessage', async () => {
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useConversation({ transport }));
