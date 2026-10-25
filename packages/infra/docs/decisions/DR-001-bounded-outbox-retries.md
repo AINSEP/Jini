@@ -27,18 +27,26 @@ The [worker JSDoc](../../src/events/outbox/worker.ts), [drainer JSDoc](../../src
 `FencedOutboxPort` and `processFencedOutbox` add a separate, explicitly selected contract without
 changing the legacy port, statuses or retry semantics above. Host adapters atomically enforce
 scope, row identity, claim token, state and expiry. Authorization precedes a durable begin-dispatch
-marker; expiry is checked again after awaiting that marker. Expired leased/dispatching rows become
-uncertain, never automatically pending. Only a confirmed no-effect transport outcome may use the
+marker; expiry is checked again after awaiting that marker. Expired leased rows never passed that
+marker and return to pending; expired dispatching rows become uncertain, never automatically pending. Only a confirmed no-effect transport outcome may use the
 existing bounded retry policy. Throws, invalid outcomes and timeouts require host reconciliation;
 late success cannot automatically release uncertainty. Acknowledgement failure retains the durable
 fence, since the storage operation may have committed before throwing. Unavailable storage cannot
 guarantee an immediate literal uncertain write.
 
-Enqueue receipt uniqueness is `(scope, idempotencyKey)` and compares both digest and exact canonical
-request atomically. A supplied transaction is the caller's exact live session, shared with its
-intent/journal; unsupported sessions are rejected. No new transaction is opened, committed or
-retried on that path. Callers roll back on conflict/failure. Storage/schema owners stay with the
-host. This addition leaves CMS's separate co-persistence decision in place.
+Enqueueing is a separate opt-in `FencedEnqueuePort<E, Tx>`, so `processFencedOutbox` and existing
+`FencedOutboxPort` adapters are unaffected. Receipt uniqueness is `(scope, idempotencyKey)`; a replay
+compares the request digest (sha-256 of canonical JSON, `outboxRequestDigest`) and a mismatch
+conflicts without touching the original row. A supplied transaction is the caller's exact live
+session, shared with its intent writes; enqueue never opens, commits or retries one, and closed
+sessions are rejected. An earlier draft declared these types with no adapter or tests and was
+removed; they return with `InMemoryFencedOutbox` as the reference adapter and
+`fencedOutboxConformance` as the contract cases hosts run against their own adapters. A key enqueued
+in an open transaction stays reserved: a concurrent writer must wait or be rejected, never insert a
+second row, and a conformance case races two open transactions on one key. The reference adapter
+rejects (it cannot block); if any joined write's commit throws, it rolls back every joined write.
+Storage/schema owners stay with the host. This addition leaves CMS's
+separate co-persistence decision in place.
 
 `createSerialPump` reuses the drainer's private scheduling lifecycle with an inert construction,
 positive fixed interval before every complete callback, and terminal shutdown awaiting that whole

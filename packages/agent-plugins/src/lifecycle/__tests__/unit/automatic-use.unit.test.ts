@@ -11,16 +11,48 @@ function fixture(mode: 'auto' | 'ask' | 'off' = 'auto', state?: ChatAgentPluginS
   const saveAuto = vi.fn();
   const list = vi.fn(async () => [plugin('synthetic'), plugin('inactive', false)]);
   const ports: AutomaticAgentPluginPorts = { list,
+    formatPluginToolPointer: input => `host_read_plugin(${JSON.stringify(input)})`,
     rank: ({ candidates }) => candidates.map(candidate => ({ ...candidate, score: 4 })), resolve, ask, saveAuto, publish };
   return { controller: createAutomaticAgentPluginUse({ mode, state, ports }), publish, ask, resolve, saveAuto, ports, list };
 }
 describe('automatic installed plugin use', () => {
+  it.each([{ skill: 'synthetic' }, { file: 'missing.md' }])('retains the reader reason for explicit content requests %j', async request => {
+    const f = fixture();
+    const reason = 'File request refused. Valid supporting files: references/permissions.md.';
+    f.resolve.mockResolvedValueOnce({ ok: false, reason });
+    expect(await f.controller.load({ pluginId: 'synthetic', ...request })).toEqual({ status: 'unavailable', guidance: reason });
+    expect(f.publish).not.toHaveBeenCalled();
+    f.resolve.mockRejectedValueOnce(new Error('/private/host/path: read failed'));
+    expect(await f.controller.load({ pluginId: 'synthetic', ...request })).toEqual({ status: 'unavailable', guidance: '' });
+  });
+
+  it('uses the host pointer for relevance and oversized automatic guidance', async () => {
+    const f = fixture();
+    const pointer = 'custom_host_read({"id":"synthetic"})';
+    f.ports.formatPluginToolPointer = () => pointer;
+    expect(await f.controller.prepare({ query: 'synthetic' })).toContain(pointer);
+    f.resolve.mockResolvedValueOnce({ ok: true, promptPrefix: 'x'.repeat(8193) });
+    const deferred = await f.controller.prepare({ capabilities: ['theme-authoring'] });
+    expect(deferred).toContain(pointer);
+    expect(deferred).not.toContain('load_agent_plugin');
+    expect(f.publish).not.toHaveBeenCalled();
+  });
+  it('omits load pointers when the host supplies no pointer formatter', async () => {
+    const f = fixture();
+    delete f.ports.formatPluginToolPointer;
+    const note = await f.controller.prepare({ query: 'synthetic' });
+    expect(note).toContain('synthetic');
+    expect(note).not.toContain('Load one with');
+    f.resolve.mockResolvedValueOnce({ ok: true, promptPrefix: 'x'.repeat(8193) });
+    expect(await f.controller.prepare({ capabilities: ['theme-authoring'] }))
+      .toBe("Agent Plugin 'synthetic' guidance is deferred because it exceeds the automatic byte limit.");
+  });
   it('Auto suggests metadata matches without resolving or showing them as loaded', async () => {
     const f = fixture();
     const note = await f.controller.prepare({ query: 'synthetic' });
     expect(note).toContain('Relevant agent plugins for this request:');
     expect(note).toContain('synthetic');
-    expect(note).toContain('load_agent_plugin');
+    expect(note).toContain('host_read_plugin');
     expect(note).not.toContain('Guidance for synthetic');
     expect(f.resolve).not.toHaveBeenCalled();
     expect(f.publish).not.toHaveBeenCalled();
@@ -74,7 +106,7 @@ describe('automatic installed plugin use', () => {
     const f = fixture('ask');
     f.resolve.mockRejectedValue(new Error('unreadable'));
     const [note, guidance] = await Promise.all([f.controller.prepare({ query: 'synthetic' }), f.controller.prepare({ capabilities: ['theme-authoring'] })]);
-    expect(note).toContain('load_agent_plugin');
+    expect(note).toContain('host_read_plugin');
     expect(guidance).toBe('');
     expect(f.ask).toHaveBeenCalledTimes(1);
     expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
@@ -402,7 +434,7 @@ it('large automatic guidance stays retryable, while explicit SKILL.md delivers a
   const input = { capabilities: ['theme-authoring'] };
   const pointer = await f.controller.prepare(input);
   expect(Buffer.byteLength(pointer)).toBeLessThan(1024);
-  expect(pointer).toContain('load_agent_plugin({"pluginId":"synthetic","skill":"synthetic","file":"SKILL.md"})');
+  expect(pointer).toContain('host_read_plugin({"pluginId":"synthetic","skill":"synthetic","file":"SKILL.md"})');
   expect(pointer).not.toContain('😀');
   expect(f.publish).not.toHaveBeenCalled();
   expect(await f.controller.prepare(input)).toBe(pointer);
@@ -421,5 +453,5 @@ it('the automatic byte boundary delivers a small peer and defers only oversized 
   expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([{ id: 'synthetic', name: 'synthetic' }]);
   const retry = await f.controller.prepare({ capabilities: ['theme-authoring'] });
   expect(retry).not.toContain('é');
-  expect(retry).toContain('load_agent_plugin');
+  expect(retry).toContain('host_read_plugin');
 });

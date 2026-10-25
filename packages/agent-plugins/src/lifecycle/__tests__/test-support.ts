@@ -25,7 +25,8 @@ export const ports: AgentPluginLifecyclePorts = {
     forWorkspace: input => resolveAgentPluginLayout().forWorkspace(input),
   },
   onEvent: ({ message }) => console.warn(message),
-  formatPluginToolPointer: ({ pluginId }) => {
+  formatPluginToolPointer: ({ pluginId, skill, file }) => {
+    if (skill !== undefined || file !== undefined) return `host_read_plugin(${JSON.stringify({ pluginId, ...(skill === undefined ? {} : { skill }), ...(file === undefined ? {} : { file }) })})`;
     const toolId = `agent_plugin_${pluginId.replace(/-/g, '_')}`;
     return [
       'MANDATORY — before you begin this task, make this one tool call and follow what it returns:', '',

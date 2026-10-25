@@ -69,14 +69,14 @@ export interface OutboxWorkerOptions {
 
 /** Reserved optional object for boundaries with no current options. */
 export type Empty = Record<string, never>;
-/** Host-canonicalized request identity; neither digest nor canonical bytes are recomputed here. */
-export type Intent<E> = {
-  event: E; scope: string; idempotencyKey: string;
-  requestDigest: string; canonicalRequest: string;
-};
+/** The event a fenced row carries, unique per (scope, idempotencyKey). */
+export type Intent<E> = { event: E; scope: string; idempotencyKey: string };
+/** An intent plus the digest of the request that produced it (see `outboxRequestDigest`). */
+export type EnqueueIntent<E> = Intent<E> & { requestDigest: string };
+/** Replays under (scope, idempotencyKey) match the original digest; a different one conflicts. */
 export type EnqueueReceipt =
-  | { kind: 'inserted' | 'existing'; id: string }
-  | { kind: 'conflict'; reason: 'digest-mismatch' | 'request-mismatch' };
+  | { status: 'inserted' | 'existing' }
+  | { status: 'conflict'; reason: 'request-digest-mismatch' };
 /** Every transition checks identity, scope, token, allowed state and an unexpired lease atomically. */
 export type Fence = { id: string; scope: string; claimToken: string; nowIso: string };
 /** Detached lease receipt; attempts is one-based and incremented atomically by claimReady. */
@@ -94,18 +94,13 @@ export type DispatchResult = {
 /**
  * Opt-in durable fencing contract, independent of the legacy OutboxPort and host schema.
  * Adapters own atomic transitions; uncertain rows require host reconciliation, never auto-reclaim.
- * @example await outbox.enqueueWithReceipt(intent, { transaction: liveSession });
+ * Enqueueing is the separate, opt-in `FencedEnqueuePort`.
  */
-export interface FencedOutboxPort<E, Tx> {
+export interface FencedOutboxPort<E> {
   /**
-   * Atomically insert under unique (scope, idempotencyKey), or compare BOTH digest and exact
-   * canonical request with the original. Conflicts preserve that row, including its event.
-   * A supplied transaction is the caller's exact live session: enqueue and any journal append
-   * join it without opening, committing or retrying another transaction. Reject unsupported
-   * or closed sessions. The caller must roll back its intent/journal on conflict or failure.
+   * Recover at most limit expired rows in scope. A leased row never passed the beginDispatch fence,
+   * so it was provably never sent: return it to pending. Only dispatching rows become uncertain.
    */
-  enqueueWithReceipt(input: Intent<E>, options?: { transaction?: Tx }): Promise<EnqueueReceipt>;
-  /** Move at most limit expired leased/dispatching rows in scope to uncertain, never pending. */
   recoverExpired(input: { scope: string; nowIso: string; limit: number }, options?: Empty): Promise<number>;
   /** Claim only due pending rows in scope; persist a fresh token, lease and incremented attempts. */
   claimReady(input: { scope: string; batchSize: number; nowIso: string; claimLeaseMs: number }, options?: Empty): Promise<readonly FencedClaim<E>[]>;
@@ -118,4 +113,22 @@ export interface FencedOutboxPort<E, Tx> {
    * no-effect outcome. A failure here must never be interpreted as a transport failure/retry.
    */
   complete(input: Fence & { completion: Completion }, options?: Empty): Promise<boolean>;
+}
+
+/**
+ * Opt-in idempotent enqueue for fenced rows; `Tx` is the host's live transaction session type.
+ * Run the exported `fencedOutboxConformance` cases against every adapter.
+ * @example await outbox.enqueueWithReceipt({ intent }, { transaction: liveSession });
+ */
+export interface FencedEnqueuePort<E, Tx> {
+  /**
+   * Atomically insert under unique (scope, idempotencyKey), or compare the digest with the original:
+   * equal is `existing`, different is a conflict that preserves the original row and its event.
+   * A supplied transaction is the caller's exact live session: the insert joins it, so it commits or
+   * rolls back with the caller's own intent writes, and enqueue never opens, commits or retries
+   * another. Reject closed or unsupported sessions. Without one, the insert commits on its own.
+   * A key inserted by another still-open transaction is never inserted twice: wait for it or reject.
+   * An abandoned open transaction keeps its key reserved indefinitely, so callers settle it (finally).
+   */
+  enqueueWithReceipt(required: { intent: EnqueueIntent<E> }, optional?: { transaction?: Tx }): Promise<EnqueueReceipt>;
 }

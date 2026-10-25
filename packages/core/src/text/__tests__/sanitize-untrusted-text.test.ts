@@ -9,6 +9,7 @@ describe('sanitizeUntrustedText', () => {
     'five-coffee-brewing-tips',
     'agent_plugin_cloudflare',
     'release-2026-10-25-notes',
+    'abcdefghijklmno-abcdefghijklm-a',
   ])('keepIdentifiers keeps the identifier-shaped run %s, which the default masks', token => {
     expect(sanitizeUntrustedText({ text: `slug ${token}` }, { keepIdentifiers: true })).toBe(`slug ${token}`);
     expect(sanitizeUntrustedText({ text: `slug ${token}` })).toBe('slug [redacted]');
@@ -23,6 +24,11 @@ describe('sanitizeUntrustedText', () => {
     'abc123def456ghi789jkl',
     'plugin_a1b2c3d4e5f6g7h8',
     'onlyonelongwordwithoutseparators',
+    'correct-horse-battery-staple-orbit',
+    'abcdefghij-klmnopqrst-uvwxyzabcd',
+    '12345678_87654321_11223344',
+    'abcdefghijklmnop-tool-id',
+    'tool-1234567890123456-id',
   ])('keepIdentifiers still masks the opaque or credential-shaped run %s', token => {
     expect(sanitizeUntrustedText({ text: `failed ${token}` }, { keepIdentifiers: true })).toBe('failed [redacted]');
   });

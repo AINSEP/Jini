@@ -5,3 +5,6 @@ export * from './worker.js';
 export * from './drainer.js';
 export * from './enqueue-only.js';
 export * from './node-scheduler.js';
+export * from './request-digest.js';
+export * from './in-memory-fenced.js';
+export * from './fenced-conformance.js';

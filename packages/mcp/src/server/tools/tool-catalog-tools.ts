@@ -133,7 +133,7 @@ export const describeToolTool: McpToolDef = {
     if (ctx.publishTool) {
       const descriptor = describedDescriptor({ id, data });
       // A family can describe its members without owning an executable input contract.
-      if (descriptor.inputSchema !== undefined) await ctx.publishTool({ descriptor });
+      if (descriptor.inputSchema != null) await ctx.publishTool({ descriptor });
     }
     return data;
   },

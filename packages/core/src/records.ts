@@ -44,3 +44,22 @@ export function deleteMapRecord<Key, Row extends object>({ records, key, fields 
   const record = records.get(key);
   if (record && matchesRecordFields({ record, fields })) records.delete(key);
 }
+
+/**
+ * Canonical JSON: object keys sorted, `undefined` members dropped, array order kept, so equal
+ * JSON-like values serialize identically regardless of key order (fingerprints, request digests).
+ * Objects serialize by own enumerable keys only, so a Date or Map becomes `{}`: pass JSON-like values.
+ * @complexity O(n log n) time over n object keys, O(n) space.
+ * @example canonicalJson({ value: { b: 1, a: 2 } }); // '{"a":2,"b":1}'
+ */
+export function canonicalJson(required: { readonly value: unknown }, _optional = {}): string {
+  const { value } = required;
+  if (Array.isArray(value)) return `[${value.map(item => canonicalJson({ value: item })).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const members = Object.keys(record).filter(key => record[key] !== undefined).sort()
+      .map(key => `${JSON.stringify(key)}:${canonicalJson({ value: record[key] })}`);
+    return `{${members.join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}

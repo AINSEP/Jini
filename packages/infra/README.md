@@ -62,24 +62,39 @@ subscribes its real handlers. Importing the entry or creating a scheduler starts
 
 ### Opt-in fenced delivery
 
-`processFencedOutbox(input, options = {})` accepts `scope`, `outbox: FencedOutboxPort<Event, Tx>`,
+`processFencedOutbox(input, options = {})` accepts `scope`, `outbox: FencedOutboxPort<Event>`,
 `authorize({ claim }, options = {})`, `dispatch({ claim }, options = {})`, and the same injected
 clock, scheduler, randomness and logger as `processOutbox`. Its second argument is the existing
 `OutboxWorkerOptions`. It returns the number of claims, including denied/unresolved attempts.
 It never changes `OutboxPort`, its four statuses or the legacy worker's recovery behavior.
 
-The host adapter implements five methods: `enqueueWithReceipt`, `recoverExpired`, `claimReady`,
-`beginDispatch` and `complete`. Enqueue accepts an `Intent<Event>` (event, scope, idempotency key,
-digest and exact canonical request) and returns `EnqueueReceipt`. Unique `(scope, idempotencyKey)`
-must atomically compare both request representations and preserve the original row on conflict.
-With `{ transaction: liveSession }`, enqueue and its journal join the caller's **exact** live session;
-adapters reject unsupported sessions and never open, commit or retry a replacement transaction.
-The caller rolls back its intent on conflict or failure. Storage and schema remain host-owned.
+The host adapter implements four methods: `recoverExpired`, `claimReady`, `beginDispatch` and
+`complete`. Storage and schema remain host-owned.
+
+Enqueueing is the separate, opt-in `FencedEnqueuePort<Event, Tx>`:
+`enqueueWithReceipt({ intent }, { transaction } = {})`. The intent carries `event`, `scope`,
+`idempotencyKey` and `requestDigest` (use `outboxRequestDigest({ request })`: sha-256 of the
+request's canonical JSON). Unique `(scope, idempotencyKey)` returns `{ status: 'inserted' }`, a
+same-digest replay `{ status: 'existing' }`, and a different digest
+`{ status: 'conflict', reason: 'request-digest-mismatch' }` with the original row preserved. With
+`{ transaction: liveSession }` the insert joins the caller's exact live session and commits or rolls
+back with the caller's own intent writes; enqueue never opens, commits or retries a transaction.
+While that transaction is open its key is reserved: another writer waits or is rejected, never
+inserting a second row (`InMemoryFencedOutbox` rejects).
+
+`InMemoryFencedOutbox` (with `InMemoryTransaction`) is a reference adapter implementing both ports.
+`fencedOutboxConformance({ createSubject })` returns framework-neutral `{ name, run }` cases
+(receipts, conflict preservation, transaction commit/rollback, overlapping transactions, fencing
+by token/scope/expiry, lease recovery, uncertainty); the subject supplies `event` and a deep-unequal
+`conflictingEvent`. Run them against every host adapter, e.g.
+`for (const c of cases) it(c.name, c.run)`. Jini runs them against the
+reference adapter; it does not run them against any real database.
 
 Claims include a mandatory token, expiry and one-based attempts. The worker authorizes each claim,
 persists `leased → dispatching` under a scope/id/token/state/expiry fence, and rechecks expiry after
-that await before dispatch. Expired leased **and** dispatching rows recover into `uncertain`, which
-is excluded from automatic claims. Transport returns `DispatchResult`:
+that await before dispatch. An expired `leased` row never passed that fence, so it was never sent
+and recovers to `pending`; only an expired `dispatching` row recovers into `uncertain`, which is
+excluded from automatic claims. Transport returns `DispatchResult`:
 
 | kind | completion |
 |---|---|
@@ -89,10 +104,12 @@ is excluded from automatic claims. Transport returns `DispatchResult`:
 | `uncertain`, invalid result, throw, timeout | uncertain; host reconciliation required |
 
 Late results never release uncertain rows. Completion acknowledgement failure never becomes a
-delivery retry: storage may have committed before throwing. An unavailable fence prevents dispatch;
+delivery retry: storage may have committed before throwing. `authorize` and `beginDispatch` are
+each bounded by `deliveryTimeoutMs`; a hung gate records no completion and the lease expiry decides,
+so a pump's `stop()` cannot wait on it forever. An unavailable fence prevents dispatch;
 unavailable storage can leave a leased/dispatching marker until recovery rather than immediately
 recording literal uncertainty. Only host reconciliation can resolve uncertain effects. The port
-contract and DI tests do not establish real host-adapter atomicity; adapters need conformance tests.
+contract and DI tests do not establish real host-adapter atomicity; run the conformance cases.
 
 ### Independent serial pump
 

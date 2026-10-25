@@ -261,9 +261,12 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
       const withActivity =
         <Args extends unknown[], Result>(handler: (...args: Args) => Result | Promise<Result>) =>
           (...args: Args) => {
-            const task = () => idleExit.trackRequest({ fn: () => handler(...args) });
-            if (!hosting) return task();
-            return hosting.track({ task, signal: (args[1] as { extra?: { signal?: AbortSignal } } | undefined)?.extra?.signal });
+            if (!hosting) return idleExit.trackRequest({ fn: () => handler(...args) });
+            const result = hosting.track({ task: async () => handler(...args), signal: (args[1] as { extra?: { signal?: AbortSignal } } | undefined)?.extra?.signal });
+            // Active from acceptance through the response write, not just the handler: a serial
+            // request queued behind a slow write must not let idle exit close the transport.
+            void idleExit.trackRequest({ fn: () => hosting.responseWritten({ result }) });
+            return result;
           };
 
       server.setRequestHandler({

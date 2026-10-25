@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deleteMapRecord, matchesRecordFields, upsertRecord } from './records.js';
+import { canonicalJson, deleteMapRecord, matchesRecordFields, upsertRecord } from './records.js';
 
 describe('memory record operations', () => {
   it('matches all supplied fields strictly, including explicit undefined', () => {
@@ -31,5 +31,12 @@ describe('memory record operations', () => {
     expect([...records.keys()]).toEqual(['same', 'kept']);
     deleteMapRecord({ records, key: 'same', fields: { scope: 'one' } });
     expect([...records.keys()]).toEqual(['kept']);
+  });
+});
+
+describe('canonicalJson', () => {
+  it('sorts keys, drops undefined members, keeps array order', () => {
+    expect(canonicalJson({ value: { b: 1, a: [2, { d: null, c: undefined }], e: 'x' } })).toBe('{"a":[2,{"d":null}],"b":1,"e":"x"}');
+    expect(canonicalJson({ value: undefined })).toBe('null');
   });
 });
