@@ -34,11 +34,9 @@ late success cannot automatically release uncertainty. Acknowledgement failure r
 fence, since the storage operation may have committed before throwing. Unavailable storage cannot
 guarantee an immediate literal uncertain write.
 
-Enqueue receipt uniqueness is `(scope, idempotencyKey)` and compares both digest and exact canonical
-request atomically. A supplied transaction is the caller's exact live session, shared with its
-intent/journal; unsupported sessions are rejected. No new transaction is opened, committed or
-retried on that path. Callers roll back on conflict/failure. Storage/schema owners stay with the
-host. This addition leaves CMS's separate co-persistence decision in place.
+Enqueueing fenced rows (uniqueness, idempotent receipts, transaction joining) stays with the host's
+storage API; the port covers only recovery, claims and the dispatch fence. Storage/schema owners
+stay with the host. This addition leaves CMS's separate co-persistence decision in place.
 
 `createSerialPump` reuses the drainer's private scheduling lifecycle with an inert construction,
 positive fixed interval before every complete callback, and terminal shutdown awaiting that whole

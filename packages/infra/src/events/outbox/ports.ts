@@ -69,14 +69,8 @@ export interface OutboxWorkerOptions {
 
 /** Reserved optional object for boundaries with no current options. */
 export type Empty = Record<string, never>;
-/** Host-canonicalized request identity; neither digest nor canonical bytes are recomputed here. */
-export type Intent<E> = {
-  event: E; scope: string; idempotencyKey: string;
-  requestDigest: string; canonicalRequest: string;
-};
-export type EnqueueReceipt =
-  | { kind: 'inserted' | 'existing'; id: string }
-  | { kind: 'conflict'; reason: 'digest-mismatch' | 'request-mismatch' };
+/** The host-enqueued event a fenced row carries; enqueueing itself stays host-owned. */
+export type Intent<E> = { event: E; scope: string; idempotencyKey: string };
 /** Every transition checks identity, scope, token, allowed state and an unexpired lease atomically. */
 export type Fence = { id: string; scope: string; claimToken: string; nowIso: string };
 /** Detached lease receipt; attempts is one-based and incremented atomically by claimReady. */
@@ -94,17 +88,9 @@ export type DispatchResult = {
 /**
  * Opt-in durable fencing contract, independent of the legacy OutboxPort and host schema.
  * Adapters own atomic transitions; uncertain rows require host reconciliation, never auto-reclaim.
- * @example await outbox.enqueueWithReceipt(intent, { transaction: liveSession });
+ * Enqueueing (uniqueness, idempotent receipts, transaction joining) is the host's own storage API.
  */
-export interface FencedOutboxPort<E, Tx> {
-  /**
-   * Atomically insert under unique (scope, idempotencyKey), or compare BOTH digest and exact
-   * canonical request with the original. Conflicts preserve that row, including its event.
-   * A supplied transaction is the caller's exact live session: enqueue and any journal append
-   * join it without opening, committing or retrying another transaction. Reject unsupported
-   * or closed sessions. The caller must roll back its intent/journal on conflict or failure.
-   */
-  enqueueWithReceipt(input: Intent<E>, options?: { transaction?: Tx }): Promise<EnqueueReceipt>;
+export interface FencedOutboxPort<E> {
   /**
    * Recover at most limit expired rows in scope. A leased row never passed the beginDispatch fence,
    * so it was provably never sent: return it to pending. Only dispatching rows become uncertain.

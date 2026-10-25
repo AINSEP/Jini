@@ -62,19 +62,15 @@ subscribes its real handlers. Importing the entry or creating a scheduler starts
 
 ### Opt-in fenced delivery
 
-`processFencedOutbox(input, options = {})` accepts `scope`, `outbox: FencedOutboxPort<Event, Tx>`,
+`processFencedOutbox(input, options = {})` accepts `scope`, `outbox: FencedOutboxPort<Event>`,
 `authorize({ claim }, options = {})`, `dispatch({ claim }, options = {})`, and the same injected
 clock, scheduler, randomness and logger as `processOutbox`. Its second argument is the existing
 `OutboxWorkerOptions`. It returns the number of claims, including denied/unresolved attempts.
 It never changes `OutboxPort`, its four statuses or the legacy worker's recovery behavior.
 
-The host adapter implements five methods: `enqueueWithReceipt`, `recoverExpired`, `claimReady`,
-`beginDispatch` and `complete`. Enqueue accepts an `Intent<Event>` (event, scope, idempotency key,
-digest and exact canonical request) and returns `EnqueueReceipt`. Unique `(scope, idempotencyKey)`
-must atomically compare both request representations and preserve the original row on conflict.
-With `{ transaction: liveSession }`, enqueue and its journal join the caller's **exact** live session;
-adapters reject unsupported sessions and never open, commit or retry a replacement transaction.
-The caller rolls back its intent on conflict or failure. Storage and schema remain host-owned.
+The host adapter implements four methods: `recoverExpired`, `claimReady`, `beginDispatch` and
+`complete`. Enqueueing a row (its event, scope and idempotency key, uniqueness and any transaction
+it joins) is the host's own storage API, not part of this port. Storage and schema remain host-owned.
 
 Claims include a mandatory token, expiry and one-based attempts. The worker authorizes each claim,
 persists `leased → dispatching` under a scope/id/token/state/expiry fence, and rechecks expiry after
