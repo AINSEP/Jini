@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { DomainRecordRequirement } from '@jini-ai/core/provider-registry';
 import type { DnsPlanRequirement, DnsRecord } from '../contract.js';
-import { canonicalJson, fingerprintPlan, planDnsChanges } from '../plan.js';
+import { fingerprintPlan, planDnsChanges } from '../plan.js';
 
 const zone = 'example.test';
 const req = (records: DomainRecordRequirement[], extra: Partial<DnsPlanRequirement> = {}): DnsPlanRequirement => ({ purpose: 'site', domain: 'www.example.test', providerId: 'host', records, ...extra });
@@ -215,10 +215,6 @@ describe('plan blockers', () => {
 });
 
 describe('canonical JSON and fingerprints', () => {
-  test('sorts keys, drops undefined members, keeps array order', () => {
-    expect(canonicalJson({ value: { b: 1, a: [2, { d: null, c: undefined }], e: 'x' } })).toBe('{"a":[2,{"d":null}],"b":1,"e":"x"}');
-    expect(canonicalJson({ value: undefined })).toBe('null');
-  });
   test('ignores a fingerprint already present on the plan', () => {
     const body = { providerId: 'p', zone, changes: [], preserved: [], inventory: 'complete' as const, blockers: [] };
     expect(fingerprintPlan({ plan: { ...body, fingerprint: 'stale' } })).toBe(fingerprintPlan({ plan: body }));

@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { expect, it, vi } from 'vitest';
 import type { StorageKernel } from '@jini-ai/db/kernel';
@@ -105,6 +108,60 @@ it('blocks concurrent callers until an outer transaction completes, then allocat
     const rest = await Promise.all(Array.from({ length: 8 }, (_, n) => log.append({ runId: 'r', event: 'e', data: n + 4 })));
     expect(rest.map(entry => entry.id)).toEqual(['4', '5', '6', '7', '8', '9', '10', '11']);
   } finally { release(); db.close(); }
+});
+
+it('replay reads one snapshot: run, oldest retained cursor and entries come from a single statement', async () => {
+  const db = new Database(':memory:');
+  try {
+    const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db) }, { maxEntriesPerRun: 3 });
+    for (const n of [1, 2, 3, 4, 5]) await log.append({ runId: 'r', event: 'e', data: n });
+    const prepare = vi.spyOn(db, 'prepare');
+    // One statement leaves no point where another process could evict between gap check and read.
+    expect(await log.replay({ runId: 'r', afterCursor: '2' })).toEqual({
+      kind: 'ok', entries: [3, 4, 5].map(n => ({ id: String(n), event: 'e', data: n, recordedAt: expect.any(Number) })),
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(await log.replay({ runId: 'r', afterCursor: '1' })).toEqual({ kind: 'replay-gap', requestedCursor: '1', oldestAvailableCursor: '3' });
+    expect(await log.replay({ runId: 'r', afterCursor: '5' })).toEqual({ kind: 'ok', entries: [] });
+    expect(await log.replay({ runId: 'r', afterCursor: null }))
+      .toMatchObject({ kind: 'ok', truncated: true, entries: [{ id: '3' }, { id: '4' }, { id: '5' }] });
+    expect(await log.replay({ runId: 'missing', afterCursor: null })).toEqual({ kind: 'unknown-run' });
+    await log.drop({ runId: 'r' });
+    await log.append({ runId: 'empty', event: 'e', data: 1 });
+    db.prepare("DELETE FROM jini_event_log_entries WHERE run_id = 'empty'").run();
+    // Every entry evicted: the gap is measured from next_cursor, with no oldest cursor to report.
+    expect(await log.replay({ runId: 'empty', afterCursor: '0' }))
+      .toEqual({ kind: 'replay-gap', requestedCursor: '0', oldestAvailableCursor: null });
+    expect(await log.replay({ runId: 'empty', afterCursor: null })).toEqual({ kind: 'ok', entries: [] });
+  } finally { db.close(); }
+});
+
+it('replays through a read-only kernel with host-managed schema', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'jini-event-log-'));
+  const path = join(dir, 'log.db');
+  try {
+    const writer = new Database(path);
+    const seeded = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(writer) });
+    await seeded.append({ runId: 'r', event: 'e', data: 1 });
+    writer.close();
+    const reader = new Database(path, { readonly: true, fileMustExist: true });
+    try {
+      const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(reader) }, { schemaSetup: 'host' });
+      expect(await log.replay({ runId: 'r', afterCursor: null }))
+        .toMatchObject({ kind: 'ok', entries: [{ id: '1', event: 'e', data: 1 }] });
+    } finally { reader.close(); }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+it('replays inside a host run() body on the same executor', async () => {
+  const db = new Database(':memory:');
+  const kernel = sqliteKernel<SqliteEventLogDatabase>(db);
+  try {
+    const log = await createKernelSqliteEventLog({ kernel });
+    await log.append({ runId: 'r', event: 'e', data: 1 });
+    const result = await kernel.run(() => log.replay({ runId: 'r', afterCursor: null }));
+    expect(result).toMatchObject({ kind: 'ok', entries: [{ id: '1' }] });
+  } finally { db.close(); }
 });
 
 it('rejects non-SQLite kernels and propagates readiness failures without querying or closing', async () => {

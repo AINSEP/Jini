@@ -74,7 +74,7 @@ export interface EntryRow {
 }
 
 /** Decode the persisted JSON boundary while preserving the original cursor and timestamp. */
-export function rowToEntry(row: EntryRow): EventLogEntry {
+export function rowToEntry(row: Pick<EntryRow, 'cursor' | 'event' | 'data' | 'recorded_at'>): EventLogEntry {
   return {
     id: String(row.cursor),
     event: row.event,
@@ -129,7 +129,7 @@ export function existingAppendResult<P>(
 /** Decide replay status before loading payloads, keeping a replay gap to indexed lookups only. */
 export function replayResult({ run, oldest, afterCursor }: {
   run: RunRow;
-  oldest: EntryRow | undefined;
+  oldest: Pick<EntryRow, 'cursor'> | undefined;
   afterCursor: string | null;
 }): EventLogReplayResult {
   if (afterCursor === null) {

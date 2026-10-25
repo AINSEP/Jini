@@ -34,10 +34,20 @@ function fixture() {
   return { base, site, outside, content, hiddenName, privateTemp };
 }
 
+/** Stage private scratch for the direct CLI canary and remove it on success or failure. */
 async function runCli(required: { site: string; prompt: string; tools: string[] }, _optional = {}) {
+  const runtimeTempBase = mkdtempSync(join(process.platform === 'win32' ? tmpdir() : '/tmp', 'jini-'));
+  try {
+    return await runCliWithScratch({ ...required, runtimeTempBase }, {});
+  } finally { rmSync(runtimeTempBase, { recursive: true, force: true }); }
+}
+
+/** Mirror the executor's per-run scratch override when invoking the CLI directly. */
+async function runCliWithScratch(required: { site: string; prompt: string; tools: string[]; runtimeTempBase: string }, _optional = {}) {
   const privateTemp = join(required.site, '.agent-runtime', 'tmp');
   const args = claudeAgentDef.buildArgs({ prompt: required.prompt, imagePaths: [] }, {
     options: { filesystemRoot: required.site, filesystemTempDir: privateTemp, nativeToolAccess: true,
+      filesystemRuntimeTempBase: required.runtimeTempBase,
       filesystemRuntimeReadPaths: claudeFilesystemRuntimePaths({ launchPath: process.env.JINI_LIVE_CLAUDE_PATH! }, {}),
     }, runtimeContext: { cwd: required.site },
   });
@@ -46,7 +56,7 @@ async function runCli(required: { site: string; prompt: string; tools: string[] 
   args[args.indexOf('--input-format') + 1] = 'text';
   args.push('--forward-subagent-text', '--tools', required.tools.join(','));
   const pending = execute(process.env.JINI_LIVE_CLAUDE_PATH!, args, {
-    cwd: required.site, env: { ...process.env, TMPDIR: privateTemp, TMP: privateTemp, TEMP: privateTemp }, timeout: 120_000, maxBuffer: 4 * 1024 * 1024,
+    cwd: required.site, env: { ...process.env, TMPDIR: privateTemp, TMP: privateTemp, TEMP: privateTemp, CLAUDE_CODE_TMPDIR: required.runtimeTempBase }, timeout: 120_000, maxBuffer: 4 * 1024 * 1024,
     encoding: 'utf8',
   });
   pending.child.stdin!.end(required.prompt);

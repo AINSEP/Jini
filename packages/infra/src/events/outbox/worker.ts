@@ -6,8 +6,8 @@ import type { Completion, DispatchResult, Empty, Fence, FencedClaim, FencedOutbo
 
 type RetryRow<Event extends EventEnvelope> = Pick<OutboxRecord<Event>, 'id' | 'event' | 'attempts'>;
 type WorkerServices<Event extends EventEnvelope> = Pick<OutboxWorkerArgs<Event>, 'clock' | 'scheduler' | 'random' | 'logger'>;
-type FencedWorkerArgs<Event extends EventEnvelope, Tx> = WorkerServices<Event> & {
-  scope: string; outbox: FencedOutboxPort<Event, Tx>;
+type FencedWorkerArgs<Event extends EventEnvelope> = WorkerServices<Event> & {
+  scope: string; outbox: FencedOutboxPort<Event>;
   authorize(input: { claim: FencedClaim<Event> }, options?: Empty): Promise<boolean>;
   dispatch(input: { claim: FencedClaim<Event> }, options?: Empty): Promise<DispatchResult>;
 };
@@ -273,16 +273,16 @@ export async function processOutbox<Event extends EventEnvelope>(
 }
 
 /** Build a fresh transition fence from host time, never the earlier batch-claim instant. */
-function currentFence<Event extends EventEnvelope, Tx>(input: {
-  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>;
+function currentFence<Event extends EventEnvelope>(input: {
+  args: FencedWorkerArgs<Event>; row: FencedClaim<Event>;
 }): Fence {
   return { id: input.row.id, scope: input.args.scope, claimToken: input.row.claimToken,
     nowIso: nowIso({ clock: input.args.clock }) };
 }
 
 /** Reject expired, malformed or cross-scope receipts before an irreversible effect. */
-function isLiveClaim<Event extends EventEnvelope, Tx>(input: {
-  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>;
+function isLiveClaim<Event extends EventEnvelope>(input: {
+  args: FencedWorkerArgs<Event>; row: FencedClaim<Event>;
 }): boolean {
   return input.row.scope === input.args.scope && input.row.claimToken.length > 0
     && input.args.clock.nowMs() < Date.parse(input.row.leaseExpiresAt);
@@ -302,8 +302,8 @@ function dispatchKind(input: { result: unknown }): DispatchResult['kind'] {
 }
 
 /** Reuse worker retry policy only after the host confirms the attempt had no effect. */
-function fencedCompletion<Event extends EventEnvelope, Tx>(input: {
-  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>; retry: OutboxRetryPolicy;
+function fencedCompletion<Event extends EventEnvelope>(input: {
+  args: FencedWorkerArgs<Event>; row: FencedClaim<Event>; retry: OutboxRetryPolicy;
   kind: DispatchResult['kind'];
 }): Completion {
   switch (input.kind) {
@@ -320,18 +320,33 @@ function fencedCompletion<Event extends EventEnvelope, Tx>(input: {
 }
 
 /**
+ * Bound a pre-dispatch gate by the delivery timeout so a hung host call cannot hold the batch (or a
+ * pump's stop()) forever. Nothing has been sent yet, so a timeout records no completion; the lease
+ * expires and recovery decides. A late result is ignored and a late rejection stays handled.
+ */
+async function boundedGate<Event extends EventEnvelope>(input: {
+  args: FencedWorkerArgs<Event>; policy: ResolvedPolicy; start: () => Promise<boolean>;
+}): Promise<boolean | typeof TIMED_OUT> {
+  const gate = Promise.resolve().then(input.start);
+  gate.catch(() => {});
+  return settleWithin({ publishing: gate, scheduler: input.args.scheduler, timeoutMs: input.policy.deliveryTimeoutMs });
+}
+
+/**
  * Authorization and the durable begin marker precede dispatch. A failed/unavailable fence never
  * reaches transport. Recheck expiry AFTER awaiting storage: begin may have used up the lease.
  */
-async function dispatchFenced<Event extends EventEnvelope, Tx>(input: {
-  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>; policy: ResolvedPolicy;
+async function dispatchFenced<Event extends EventEnvelope>(input: {
+  args: FencedWorkerArgs<Event>; row: FencedClaim<Event>; policy: ResolvedPolicy;
   retry: OutboxRetryPolicy;
 }): Promise<Completion | undefined> {
   const { args, row, policy, retry } = input;
   if (!isLiveClaim(input)) return;
   if (row.attempts > retry.maxAttempts) return { status: 'failed' };
-  if (await args.authorize({ claim: row }, {}) !== true) return { status: 'denied' };
-  if (await args.outbox.beginDispatch(currentFence(input), {}) !== true) return;
+  const authorized = await boundedGate({ ...input, start: () => args.authorize({ claim: row }, {}) });
+  if (authorized === TIMED_OUT) return;
+  if (authorized !== true) return { status: 'denied' };
+  if (await boundedGate({ ...input, start: () => args.outbox.beginDispatch(currentFence(input), {}) }) !== true) return;
   if (!isLiveClaim(input)) return;
   // Capture both synchronous and asynchronous failures; a late result is observed but never
   // writes over uncertainty or releases a row for an automatic retry.
@@ -346,8 +361,8 @@ async function dispatchFenced<Event extends EventEnvelope, Tx>(input: {
  * Keep storage acknowledgements outside outcome/retry classification: complete may have committed
  * before throwing. Leave its durable state fenced for recovery/reconciliation rather than retrying.
  */
-async function deliverFenced<Event extends EventEnvelope, Tx>(input: {
-  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>; policy: ResolvedPolicy;
+async function deliverFenced<Event extends EventEnvelope>(input: {
+  args: FencedWorkerArgs<Event>; row: FencedClaim<Event>; policy: ResolvedPolicy;
 }): Promise<void> {
   try {
     const retry = retryPolicyFor(input);
@@ -361,7 +376,8 @@ async function deliverFenced<Event extends EventEnvelope, Tx>(input: {
 }
 
 /**
- * Recover expired leases into uncertainty, then process a bounded batch of due pending rows.
+ * Recover expired leases (never-dispatched leased rows to pending, dispatching rows to uncertain),
+ * then process a bounded batch of due pending rows.
  * Only explicit confirmed-no-effect results use the existing retry policy. Throws, invalid results
  * and timeouts cannot release an attempt; late results never overwrite uncertainty. A storage
  * acknowledgement failure leaves the durable dispatch marker for host reconciliation, since it
@@ -374,8 +390,8 @@ async function deliverFenced<Event extends EventEnvelope, Tx>(input: {
  * @example await processFencedOutbox({ scope, outbox, authorize, dispatch, clock, scheduler, random, logger });
  * @complexity O(batchSize) sequential gate/transport/storage calls, with bounded transport waits.
  */
-export async function processFencedOutbox<Event extends EventEnvelope, Tx>(
-  input: FencedWorkerArgs<Event, Tx>, options: OutboxWorkerOptions = {},
+export async function processFencedOutbox<Event extends EventEnvelope>(
+  input: FencedWorkerArgs<Event>, options: OutboxWorkerOptions = {},
 ): Promise<number> {
   const policy = resolvePolicy({ options });
   await input.outbox.recoverExpired({ scope: input.scope, nowIso: nowIso({ clock: input.clock }), limit: policy.batchSize }, {});

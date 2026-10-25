@@ -14,7 +14,7 @@ type EventDatabase = Kysely<SqliteEventLogDatabase>;
 
 /**
  * Borrow a SQLite kernel, awaiting its readiness and optionally ensuring the owner's schema.
- * Every operation joins the caller's kernel context; append/drop use kernel transactions.
+ * Every operation joins the caller's kernel context; append/drop/replay use kernel transactions.
  * Refusals are values: hosts aborting a composed operation must use their exception/rollback path.
  * Close leaves the borrowed kernel open. Driver, readiness and serialization failures propagate.
  * @param required Host kernel with the event-log table subset.
@@ -51,6 +51,9 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
     async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
       // Validate even when the run is unknown, matching the synchronous adapter.
       assertValidReplayCursor(afterCursor);
+      // One statement for all three reads: another process cannot evict between the gap check
+      // and the entry read, which would otherwise return a gap reported as ok. A statement, not a
+      // transaction, so replay works on read-only kernels and inside a host's run() body.
       return run(db => replayInKernel({ db, runId, afterCursor }));
     },
     listRunIds(_args: Record<string, never>): Promise<readonly string[]> {
@@ -125,17 +128,31 @@ async function appendInKernel<P>(
   return { kind: 'inserted', entry: { id: String(cursor), event: input.event, data: input.data, recordedAt } };
 }
 
-/** Decide gaps/truncation first, then read retained rows on the kernel executor. */
+/**
+ * Read the run, its oldest retained cursor and the entries after the cursor in ONE statement
+ * (SQLite reads a statement from one snapshot), then decide gaps/truncation from that snapshot.
+ * A gap loads payloads it then discards; the price of needing no transaction.
+ * @complexity One statement; O(n) in retained entries after the cursor.
+ */
 async function replayInKernel({ db, runId, afterCursor }: {
   db: EventDatabase; runId: string; afterCursor: string | null;
 }): Promise<EventLogReplayResult> {
-  const run = await db.selectFrom('jini_event_log_runs').selectAll().where('run_id', '=', runId).executeTakeFirst();
-  if (!run) return { kind: 'unknown-run' };
-  const oldest = await db.selectFrom('jini_event_log_entries').selectAll().where('run_id', '=', runId)
-    .orderBy('cursor').limit(1).executeTakeFirst();
-  const result = replayResult({ run, oldest, afterCursor });
+  // Cursors start at 1, so "after 0" is every retained entry.
+  const after = afterCursor === null ? 0 : Number(afterCursor);
+  const rows = await db.selectFrom('jini_event_log_runs as r')
+    .leftJoin('jini_event_log_entries as e', join => join.onRef('e.run_id', '=', 'r.run_id').on('e.cursor', '>', after))
+    .select(eb => [
+      'r.next_cursor', 'e.cursor', 'e.event', 'e.data', 'e.recorded_at',
+      eb.selectFrom('jini_event_log_entries').select(eb.fn.min<number>('cursor').as('m'))
+        .where('run_id', '=', runId).as('oldest_cursor'),
+    ])
+    .where('r.run_id', '=', runId).orderBy('e.cursor').execute();
+  const [first] = rows;
+  if (!first) return { kind: 'unknown-run' };
+  const oldest = first.oldest_cursor === null ? undefined : { cursor: first.oldest_cursor };
+  const result = replayResult({ run: { run_id: runId, next_cursor: first.next_cursor }, oldest, afterCursor });
   if (result.kind !== 'ok') return result;
-  let query = db.selectFrom('jini_event_log_entries').selectAll().where('run_id', '=', runId).orderBy('cursor');
-  if (afterCursor !== null) query = query.where('cursor', '>', Number(afterCursor));
-  return { ...result, entries: (await query.execute()).map(rowToEntry) };
+  const entries = rows.flatMap(({ cursor, event, data, recorded_at }) =>
+    cursor === null || event === null || data === null || recorded_at === null ? [] : [rowToEntry({ cursor, event, data, recorded_at })]);
+  return { ...result, entries };
 }
