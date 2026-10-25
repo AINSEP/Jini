@@ -7,7 +7,7 @@ import { withAiTracing } from '../ai-trace-lifecycle.js';
 function tracedLifecycle(capture: 'metadata' | 'full' = 'metadata') {
   const sink = createRecordingAiTraceSink();
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}, { terminalRetentionMs: null, maxRuns: null }) }, { slowRunThresholdMs: null });
-  return { sink, traced: withAiTracing({ lifecycle, sink }, { capture, providerOf: (agentId) => (agentId === 'claude' ? 'anthropic' : agentId) }) };
+  return { sink, traced: withAiTracing({ lifecycle, sink }, { capture, providerOf: ({ agentId }) => (agentId === 'claude' ? 'anthropic' : agentId) }) };
 }
 
 describe('withAiTracing(RunLifecycle)', () => {
@@ -36,7 +36,7 @@ describe('withAiTracing(RunLifecycle)', () => {
     const { run } = await traced.start({ contextRef: 'c' }, { agentId: 'codex' });
     await traced.emit({ runId: run.id, input: { event: 'error', data: { message: 'codex exited 1' } } });
     await traced.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: false });
-    expect(sink.events.at(-1)).toMatchObject({ outcome: 'failed', error: { message: 'codex exited 1' } });
+    expect(sink.events.at(-1)).toMatchObject({ outcome: 'failed', error: { message: 'run_error', content: { chars: 14 } } });
   });
 
   it('an idempotent replay start does not open a second trace', async () => {

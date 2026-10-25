@@ -9,14 +9,17 @@
  * `runProviderToolTurn` (OpenAI/Anthropic/Azure/Google HTTP). Tapping that one vocabulary is
  * what makes tracing provider-agnostic: no per-vendor code lives here.
  *
- * A model turn is one usage-report window. Providers that report usage per model call (HTTP
- * tool-turn) produce one turn per call; CLIs that report once per run (Claude Code `result`,
+ * A model turn follows explicit request boundaries (`status: requesting`, `end`) when the stream has them;
+ * otherwise each usage report closes one turn (CLI per-step or per-run usage).
+ * Within a request, usage reports are snapshots, not boundaries: a final frame can contain usage AND more text.
+ * HTTP tool-turn produces one turn per call; CLIs that report once per run (Claude Code `result`,
  * Copilot) produce one turn per run with all its tool calls — the granularity the provider gave,
  * not a guess.
  */
 import { captureText, stringifyForCapture, type CaptureTextOptions } from './capture.js';
 import { classifyToolError } from './classify.js';
 import { addNullable, normalizeAiUsage } from './usage.js';
+import { reportError } from './sinks.js';
 import type { AiContentCapture, AiCostSource, AiRunOutcome, AiTokenUsage, AiTraceEvent, AiTraceSink } from './types.js';
 
 type AgentEvent = Record<string, unknown>;
@@ -34,9 +37,13 @@ interface OpenTurn {
   ttftMs: number | null;
   stopReason: string | null;
   error: string | null;
+  errorCode: string | null;
+  usage: AiTokenUsage | null;
+  reportedCost: number | null;
 }
 
 interface PendingTool {
+  readonly id: string;
   readonly name: string;
   readonly input: unknown;
   readonly startedAt: number;
@@ -99,15 +106,17 @@ export function createAiTraceRecorder(
     if (chars === 0 || captureOptions.mode === 'off') return null;
     return keepText ? capture(text) : { chars };
   };
-  const pending = new Map<string, PendingTool>();
+  const pending = new Map<string, PendingTool[]>();
   const seenTools = new Set<string>();
   const totals: Totals = { turns: 0, toolCalls: 0, toolErrors: 0, inputTokens: null, outputTokens: null, costUsd: null };
   let model = options.model ?? null;
   let turn: OpenTurn | null = null;
-  let lastClosedTurnId: string | null = null;
   let lastBoundary = now();
   let runInput: string | null = null;
   let lastError: string | null = null;
+  let lastErrorCode: string | null = null;
+  // Set by the first `status: requesting`; streams without request boundaries keep usage-closes-turn.
+  let requestBounded = false;
   let started = false;
   let finished = false;
 
@@ -115,7 +124,7 @@ export function createAiTraceRecorder(
     try {
       sink.record(event);
     } catch (error) {
-      options.onSinkError?.(error);
+      reportError({ error, onError: options.onSinkError });
     }
   }
 
@@ -133,15 +142,20 @@ export function createAiTraceRecorder(
 
   function ensureTurn(): OpenTurn {
     if (!started) start({});
-    turn ??= { id: `${traceId}:turn:${totals.turns}`, index: totals.turns, startedAt: lastBoundary, output: '', outputChars: 0, reasoning: '', reasoningChars: 0, firstTokenAt: null, ttftMs: null, stopReason: null, error: null };
+    turn ??= { id: `${traceId}:turn:${totals.turns}`, index: totals.turns, startedAt: lastBoundary, output: '', outputChars: 0, reasoning: '', reasoningChars: 0, firstTokenAt: null, ttftMs: null, stopReason: null, error: null, errorCode: null, usage: null, reportedCost: null };
     return turn;
   }
 
-  function resolveCost(usage: AiTokenUsage | null, reported: unknown): { costUsd: number | null; costSource: AiCostSource | null } {
+  function resolveCost({ usage, reported }: { usage: AiTokenUsage | null; reported: unknown }): { costUsd: number | null; costSource: AiCostSource | null } {
     const provided = num(reported);
     if (provided !== null) return { costUsd: provided, costSource: 'provider' };
-    const estimated = usage && options.priceUsage ? options.priceUsage({ model, usage }) : null;
-    return estimated === null || estimated === undefined ? { costUsd: null, costSource: null } : { costUsd: estimated, costSource: 'estimated' };
+    let estimated: number | null = null;
+    try {
+      estimated = usage && options.priceUsage ? num(options.priceUsage({ model, usage })) : null;
+    } catch (error) {
+      reportError({ error, onError: options.onSinkError });
+    }
+    return estimated === null ? { costUsd: null, costSource: null } : { costUsd: estimated, costSource: 'estimated' };
   }
 
   function addToTotals(usage: AiTokenUsage | null, costUsd: number | null): void {
@@ -156,27 +170,57 @@ export function createAiTraceRecorder(
     return open.firstTokenAt === null ? null : open.firstTokenAt - open.startedAt;
   }
 
-  function closeTurn({ rawUsage = null, reportedCost = null }: { rawUsage?: unknown; reportedCost?: unknown } = {}): void {
+  /** Snapshots replace reported fields and retain omitted counters; they are never summed within a request. */
+  function updateUsage({ event }: { event: AgentEvent }): void {
     const open = ensureTurn();
+    const usage = normalizeAiUsage({ usage: event.usage });
+    if (usage) {
+      const merged = { ...usage };
+      for (const key of Object.keys(merged) as Array<keyof AiTokenUsage>) merged[key] ??= open.usage?.[key] ?? null;
+      open.usage = merged;
+    }
+    open.reportedCost = num(event.costUsd) ?? open.reportedCost;
+    open.stopReason = str(event.stopReason) ?? open.stopReason;
+  }
+
+  /** Codes are bounded labels, never arbitrary error prose or a redacted credential. */
+  function safeCode({ code }: { code: string | null }): string | null {
+    if (!code) return null;
+    const captured = captureText({ text: code }, { ...captureOptions, mode: 'full', maxChars: 64 });
+    if (captured?.redactions || captured?.truncated) return null;
+    return /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/.test(code) ? code : null;
+  }
+
+  function closeTurn(): void {
+    if (!turn) return;
+    const open = turn;
     const endedAt = now();
-    const usage = normalizeAiUsage({ usage: rawUsage });
-    const { costUsd, costSource } = resolveCost(usage, reportedCost);
-    record({ kind: 'model_turn', traceId, turnId: open.id, index: open.index, startedAt: open.startedAt, endedAt, model, input: open.index === 0 ? capture(runInput) : null, output: captureStreamed(open.output, open.outputChars), reasoning: captureStreamed(open.reasoning, open.reasoningChars), usage, costUsd, costSource, ttftMs: ttftOf(open), stopReason: open.stopReason, error: open.error });
+    const usage = open.usage;
+    const { costUsd, costSource } = resolveCost({ usage, reported: open.reportedCost });
+    const errorContent = capture(open.error);
+    record({ kind: 'model_turn', traceId, turnId: open.id, index: open.index, startedAt: open.startedAt, endedAt, model, input: open.index === 0 ? capture(runInput) : null, output: captureStreamed(open.output, open.outputChars), reasoning: captureStreamed(open.reasoning, open.reasoningChars), usage, costUsd, costSource, ttftMs: ttftOf(open), stopReason: open.stopReason, error: open.error === null ? null : errorContent?.text ?? 'model_error', errorContent, errorCode: safeCode({ code: open.errorCode }) });
     addToTotals(usage, costUsd);
     turn = null;
-    lastClosedTurnId = open.id;
     lastBoundary = endedAt;
   }
 
-  function emitTool(id: string, tool: PendingTool, result: { content: string | null; isError: boolean; endedAt: number | null }): void {
+  function emitTool({ tool, result }: { tool: PendingTool; result: { content: string | null; isError: boolean; endedAt: number | null } }): void {
     const errorClass = result.isError ? classifyToolError({ content: result.content ?? '' }) : null;
     totals.toolCalls += 1;
     if (result.isError) totals.toolErrors += 1;
-    record({ kind: 'tool_call', traceId, toolCallId: id, turnId: tool.turnId, name: tool.name, input: capture(stringifyForCapture({ value: tool.input })), output: capture(result.content), isError: result.isError, errorClass, startedAt: tool.startedAt, endedAt: result.endedAt });
+    record({ kind: 'tool_call', traceId, toolCallId: tool.id, turnId: tool.turnId, name: tool.name, input: capture(stringifyForCapture({ value: tool.input })), output: capture(result.content), isError: result.isError, errorClass, startedAt: tool.startedAt, endedAt: result.endedAt });
   }
 
   const handlers: Readonly<Record<string, (event: AgentEvent) => void>> = {
     status(event) {
+      if (event.label === 'requesting') {
+        requestBounded = true;
+        closeTurn();
+        // Every HTTP request already emits this status, including tool-only follow-up requests.
+        // Its turn (opened lazily by the first event) stays open through usage and delayed
+        // tool_use emission until the next boundary.
+        lastBoundary = now();
+      }
       model = str(event.model) ?? model;
       const ttft = num(event.ttftMs);
       if (ttft !== null) ensureTurn().ttftMs = ttft;
@@ -196,34 +240,45 @@ export function createAiTraceRecorder(
     },
     tool_use(event) {
       const id = str(event.id);
-      if (!id || seenTools.has(id)) return;
-      seenTools.add(id);
+      if (!id) return;
+      const turnId = ensureTurn().id;
+      const scopedId = `${turnId}:tool:${id}`;
+      if (seenTools.has(scopedId)) return;
+      seenTools.add(scopedId);
       // HTTP adapters report usage while streaming and emit tool_use only after the stream ends,
-      // so a call arriving between turns was requested by the turn that just closed.
-      const turnId = turn?.id ?? lastClosedTurnId ?? ensureTurn().id;
-      pending.set(id, { name: str(event.name) ?? 'unknown', input: event.input, startedAt: now(), turnId });
+      // so usage leaves this request open until its delayed calls have been attributed.
+      const tools = pending.get(id) ?? [];
+      tools.push({ id: scopedId, name: str(event.name) ?? 'unknown', input: event.input, startedAt: now(), turnId });
+      pending.set(id, tools);
     },
     tool_result(event) {
       const id = str(event.toolUseId) ?? 'unknown';
-      const tool = pending.get(id) ?? { name: 'unknown', input: null, startedAt: now(), turnId: ensureTurn().id };
-      pending.delete(id);
-      emitTool(id, tool, { content: typeof event.content === 'string' ? event.content : null, isError: event.isError === true, endedAt: now() });
+      const tools = pending.get(id);
+      const tool = tools?.shift() ?? { id: `${ensureTurn().id}:tool:${id}`, name: 'unknown', input: null, startedAt: now(), turnId: ensureTurn().id };
+      if (!tools?.length) pending.delete(id);
+      emitTool({ tool, result: { content: typeof event.content === 'string' ? event.content : null, isError: event.isError === true, endedAt: now() } });
     },
+    // CLI streams (OpenCode step_finish, pi-rpc turn_end, ...) report per-step usage with no request
+    // boundary: each report still closes its own turn so totals sum steps instead of keeping the last.
     usage(event) {
-      if (typeof event.stopReason === 'string') ensureTurn().stopReason = event.stopReason;
-      closeTurn({ rawUsage: event.usage, reportedCost: event.costUsd });
+      updateUsage({ event });
+      if (!requestBounded) closeTurn();
     },
-    // Stop reasons annotate an open turn only: HTTP adapters send `end` after the final usage
-    // report, and opening a turn for it would record an empty phantom model call.
+    // Boundaries close only existing work: opening a turn for a final stop signal would record
+    // an empty phantom model call. CLI turn_end is a control signal; usage may follow it.
     turn_end(event) {
       if (turn) turn.stopReason = str(event.stopReason);
     },
     end(event) {
-      if (turn) turn.stopReason = str(event.reason);
+      if (turn) turn.stopReason ??= str(event.reason);
+      closeTurn();
     },
     error(event) {
       lastError = str(event.message) ?? 'error';
-      ensureTurn().error = lastError;
+      lastErrorCode = str(event.code);
+      const open = ensureTurn();
+      open.error = lastError;
+      open.errorCode = lastErrorCode;
     },
   };
 
@@ -235,13 +290,17 @@ export function createAiTraceRecorder(
   /** Tools still pending when the run ends are reported with `endedAt: null`, never dropped. */
   function flushOpenWork(): void {
     if (turn) closeTurn();
-    for (const [id, tool] of pending) emitTool(id, tool, { content: null, isError: false, endedAt: null });
+    for (const tools of pending.values()) {
+      for (const tool of tools) emitTool({ tool, result: { content: null, isError: false, endedAt: null } });
+    }
     pending.clear();
   }
 
-  function runError(outcome: AiRunOutcome, error: { message: string; code?: string | null } | null): { message: string; code: string | null } | null {
+  function runError({ outcome, error }: { outcome: AiRunOutcome; error: { message: string; code?: string | null } | null }): Extract<AiTraceEvent, { kind: 'run_finished' }>['error'] {
     const message = error?.message ?? (outcome === 'failed' ? lastError : null);
-    return message ? { message, code: error?.code ?? null } : null;
+    if (!message) return null;
+    const content = capture(message);
+    return { message: content?.text ?? 'run_error', code: safeCode({ code: error?.code ?? lastErrorCode }), content };
   }
 
   function finish({ outcome }: { outcome: AiRunOutcome }, { error = null }: { error?: { message: string; code?: string | null } | null } = {}): void {
@@ -249,7 +308,7 @@ export function createAiTraceRecorder(
     if (!started) start({});
     flushOpenWork();
     finished = true;
-    record({ kind: 'run_finished', traceId, at: now(), outcome, error: runError(outcome, error), totals: { ...totals } });
+    record({ kind: 'run_finished', traceId, at: now(), outcome, error: runError({ outcome, error }), totals: { ...totals } });
   }
 
   return { traceId, start, noteInput, observe, finish };

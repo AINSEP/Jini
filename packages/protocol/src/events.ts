@@ -123,7 +123,18 @@ export type RunAgentPayload =
       /** Optional v1 echo hint; only a daemon-verified match may replace content with a note. */
       delegatedToolUseId?: string;
     }
-  | { type: 'usage'; usage?: { input_tokens?: number; output_tokens?: number }; costUsd?: number; cumulativeCostUsd?: number; costSessionId?: string; durationMs?: number }
+  | {
+      type: 'usage';
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_read_input_tokens?: number;
+        cache_creation_input_tokens?: number;
+        reasoning_tokens?: number;
+      };
+      stopReason?: string;
+      costUsd?: number; cumulativeCostUsd?: number; costSessionId?: string; durationMs?: number;
+    }
   | { type: 'raw'; line: string }
   /**
    * Announces a named sub-stage of a multi-step agent run beginning/ending — generic scaffolding

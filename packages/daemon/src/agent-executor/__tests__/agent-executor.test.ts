@@ -1543,7 +1543,7 @@ describe('translateAgentRuntimeEvent', () => {
     });
   });
 
-  it('translates usage with only input/output tokens carried through — other sub-fields are documented drops', () => {
+  it('translates usage without dropping reasoning or cache counters', () => {
     expect(
       translateAgentRuntimeEvent({ rawEvent: {
         type: 'usage',
@@ -1553,7 +1553,7 @@ describe('translateAgentRuntimeEvent', () => {
       } }),
     ).toEqual({
       kind: 'agent',
-      payload: { type: 'usage', usage: { input_tokens: 10, output_tokens: 5 }, costUsd: 0.01, durationMs: 500 },
+      payload: { type: 'usage', usage: { input_tokens: 10, output_tokens: 5, reasoning_tokens: 3, cache_read_input_tokens: 2 }, costUsd: 0.01, durationMs: 500 },
     });
   });
 

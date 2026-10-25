@@ -115,7 +115,7 @@ describe('Codex CLI (json-event-stream kind=codex)', () => {
       handler.flush();
     }, 'codex') as Awaited<ReturnType<typeof traceOf>>;
     expect(trace.turns[0]).toMatchObject({ model: 'gpt-5-codex', costUsd: null, usage: { inputTokens: 200, outputTokens: 30, cacheReadTokens: 50 } });
-    expect(trace.tools.map((t) => [t.toolCallId, t.isError, t.errorClass])).toEqual([['cmd_1', true, 'input_validation'], ['item_0', true, 'denied']]);
+    expect(trace.tools.map((t) => [t.toolCallId, t.isError, t.errorClass])).toEqual([['codex:turn:0:tool:cmd_1', true, 'input_validation'], ['codex:turn:0:tool:item_0', true, 'denied']]);
   });
 });
 
@@ -144,7 +144,7 @@ describe('ACP agents (Gemini CLI / Codex / others over ACP) — real session-upd
     }, 'gemini-acp') as Awaited<ReturnType<typeof traceOf>>;
     expect(trace.turns[0]).toMatchObject({ model: 'gemini-2.5-pro', costUsd: null, usage: { inputTokens: 300, outputTokens: 20, reasoningTokens: 7 } });
     // GAP (measured): the failed shell call never reaches the normalized stream — ACP mirrors only artifact writes.
-    expect(trace.tools.map((t) => t.toolCallId)).not.toContain('shell-1');
+    expect(trace.tools.map((t) => t.toolCallId)).not.toContain('gemini-acp:turn:0:tool:shell-1');
     for (const tool of trace.tools) expect(tool.output).toBeNull();
   });
 });
@@ -165,6 +165,7 @@ describe('OpenAI HTTP (runProviderToolTurn protocol=openai, real SSE frame parse
       const openai: typeof providerTurnAdapters.openai = (async ({ onEvent }: { onEvent: (event: never) => void }, { executeTool }: { executeTool?: (call: { id: string; name: string; input: unknown }) => Promise<{ content: string }> } = {}) => {
         const emit = onEvent as (event: Record<string, unknown>) => void;
         for (const frames of [round1, round2]) {
+          emit({ type: 'status', label: 'requesting' });
           const state: OpenAiStreamState = { guard: createRoleMarkerGuard({ messageId: 'm' }), toolCalls: new Map(), fullText: '', finishReason: null, usage: null };
           for (const frame of frames) processOpenAiStreamFrame({ state, frame, onEvent: emit as never });
           const calls = resolveOpenAiToolCalls({ pending: state.toolCalls });

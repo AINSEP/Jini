@@ -12,9 +12,9 @@ type UsageKey = keyof AiTokenUsage;
 const USAGE_ALIASES: Readonly<Record<UsageKey, readonly string[]>> = {
   inputTokens: ['input_tokens', 'inputTokens', 'prompt_tokens', 'promptTokenCount'],
   outputTokens: ['output_tokens', 'outputTokens', 'completion_tokens', 'candidatesTokenCount'],
-  cacheReadTokens: ['cache_read_input_tokens', 'cached_read_tokens', 'cachedReadTokens', 'prompt_tokens_details.cached_tokens', 'cachedContentTokenCount'],
-  cacheWriteTokens: ['cache_creation_input_tokens', 'cached_write_tokens'],
-  reasoningTokens: ['thought_tokens', 'thoughtTokens', 'completion_tokens_details.reasoning_tokens', 'thoughtsTokenCount', 'reasoning_tokens'],
+  cacheReadTokens: ['cache_read_input_tokens', 'cached_read_tokens', 'cachedReadTokens', 'cacheReadTokens', 'prompt_tokens_details.cached_tokens', 'cachedContentTokenCount'],
+  cacheWriteTokens: ['cache_creation_input_tokens', 'cached_write_tokens', 'cacheWriteTokens'],
+  reasoningTokens: ['thought_tokens', 'thoughtTokens', 'reasoningTokens', 'completion_tokens_details.reasoning_tokens', 'thoughtsTokenCount', 'reasoning_tokens'],
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -36,7 +36,7 @@ function firstNumber(source: Record<string, unknown>, aliases: readonly string[]
 }
 
 /** Returns `null` when the input is not a usage object or carries no recognised counter. */
-export function normalizeAiUsage({ usage }: { usage: unknown }): AiTokenUsage | null {
+export function normalizeAiUsage({ usage }: { usage: unknown }, _options: Record<string, never> = {}): AiTokenUsage | null {
   if (!isRecord(usage)) return null;
   const out = {} as Record<UsageKey, number | null>;
   let found = false;

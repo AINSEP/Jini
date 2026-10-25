@@ -2,6 +2,7 @@ import type {
    RunAgentPayload,
    RunErrorPayload,
 } from '@jini-ai/protocol';
+import { normalizeAiUsage } from '@jini-ai/agent-runtime';
 import type {
    AgentRuntimeEventTranslation,
 } from './contracts.js';
@@ -16,45 +17,44 @@ function asOptionalNumber(value: unknown): number | undefined {
 }
 
 /**
- * Narrows a parsed `usage` event's `usage` sub-object (`{input_tokens?, output_tokens?}`) — the one
+ * Narrows a parsed `usage` event's `usage` sub-object — the one
  * piece of {@link translateUsagePayload} with real nested branching (an optional container holding
- * two optional numeric fields), extracted so that function reads as a flat field-by-field mapping.
+ * optional numeric fields), extracted so that function reads as a flat field-by-field mapping.
+ * Reuses the runtime's alias owner so cache/reasoning counters survive the canonical boundary.
  * @param rawUsage - `rawEvent.usage` once already narrowed to a record, or `undefined` when absent/malformed.
- * @returns `undefined` when neither token count is present — matching `translateUsagePayload`'s
+ * @returns `undefined` when no token count is present — matching `translateUsagePayload`'s
  * original "omit the whole `usage` field rather than emit an empty object" behavior.
  * @complexity O(1).
  */
-export function extractUsageTokens({ rawUsage }: { readonly rawUsage: Record<string, unknown> | undefined }
-): { input_tokens?: number; output_tokens?: number } | undefined {
-  if (!rawUsage) return undefined;
-  const inputTokens = asOptionalNumber(rawUsage.input_tokens);
-  const outputTokens = asOptionalNumber(rawUsage.output_tokens);
-  if (inputTokens === undefined && outputTokens === undefined) return undefined;
-  return {
-    ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
-    ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
-  };
+export function extractUsageTokens({ rawUsage }: { readonly rawUsage: Record<string, unknown> | undefined }, _options: Record<string, never> = {}
+): Extract<RunAgentPayload, { type: 'usage' }>['usage'] {
+  const normalized = normalizeAiUsage({ usage: rawUsage });
+  if (!normalized) return undefined;
+  const fields = { input_tokens: normalized.inputTokens, output_tokens: normalized.outputTokens, cache_read_input_tokens: normalized.cacheReadTokens, cache_creation_input_tokens: normalized.cacheWriteTokens, reasoning_tokens: normalized.reasoningTokens };
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null));
 }
 
 /**
  * Narrows one parsed `usage` event's loosely-typed fields into
  * `RunAgentPayload`'s `usage` variant. The 4 source parsers attach extra
- * fields this narrow payload has no room for — `thought_tokens`,
+ * fields beyond the basic counts — `thought_tokens`,
  * `cached_read_tokens`/`cached_write_tokens` (opencode/gemini/codex),
  * `modelUsage`/`stopReason`/`isError` (qoder), a top-level `stopReason`
- * (claude/copilot) — all intentionally dropped here, not carried through.
+ * (claude/copilot). Cache/reasoning counters and stop reasons now survive tracing; vendor-only
+ * `modelUsage` and `isError` remain outside this neutral usage contract.
  * @param rawEvent - The raw `{type:'usage', ...}` record from a stream parser.
  * @returns The narrowed `RunAgentPayload` `usage` variant.
  * @complexity O(1).
  * @overallScore 100/100
  */
-function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPayload {
+function translateUsagePayload({ rawEvent }: { rawEvent: Record<string, unknown> }): RunAgentPayload {
   const rawUsage = isRecord(rawEvent.usage) ? rawEvent.usage : undefined;
   const usage = extractUsageTokens({ rawUsage: rawUsage });
   const costUsd = asOptionalNumber(rawEvent.costUsd);
   const cumulativeCostUsd = asOptionalNumber(rawEvent.cumulativeCostUsd);
   const costSessionId = asOptionalString(rawEvent.costSessionId);
   const durationMs = asOptionalNumber(rawEvent.durationMs);
+  const stopReason = asOptionalString(rawEvent.stopReason);
   return {
     type: 'usage',
     ...(usage !== undefined ? { usage } : {}),
@@ -62,6 +62,7 @@ function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPaylo
     ...(cumulativeCostUsd !== undefined ? { cumulativeCostUsd } : {}),
     ...(costSessionId !== undefined ? { costSessionId } : {}),
     ...(durationMs !== undefined ? { durationMs } : {}),
+    ...(stopReason !== undefined ? { stopReason } : {}),
   };
 }
 
@@ -136,7 +137,7 @@ export function translateToolResultEvent({ rawEvent }: { readonly rawEvent: Reco
 }
 
 function translateUsageEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
-  return { kind: 'agent', payload: translateUsagePayload(rawEvent) };
+  return { kind: 'agent', payload: translateUsagePayload({ rawEvent }) };
 }
 
 function translateRawEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {

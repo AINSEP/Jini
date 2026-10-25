@@ -31,8 +31,8 @@ describe('swap proof: noop, recording and Langfuse sinks see the same trace', ()
     expect(sink.events.map((e) => e.kind)).toEqual(['run_started', 'tool_call', 'tool_call', 'model_turn', 'run_finished']);
     const [started, failedTool, okTool, turn, finished] = sink.events as [AiTraceEvent & { kind: 'run_started' }, AiTraceEvent & { kind: 'tool_call' }, AiTraceEvent & { kind: 'tool_call' }, AiTraceEvent & { kind: 'model_turn' }, AiTraceEvent & { kind: 'run_finished' }];
     expect(started).toMatchObject({ traceId: 'run-1', agentId: 'claude', provider: 'anthropic', sessionId: 'chat-9', input: { chars: 22 } });
-    expect(failedTool).toMatchObject({ toolCallId: 't1', name: 'content_post_create', isError: true, errorClass: 'input_validation', turnId: turn.turnId });
-    expect(okTool).toMatchObject({ toolCallId: 't2', isError: false, errorClass: null });
+    expect(failedTool).toMatchObject({ toolCallId: 'run-1:turn:0:tool:t1', name: 'content_post_create', isError: true, errorClass: 'input_validation', turnId: turn.turnId });
+    expect(okTool).toMatchObject({ toolCallId: 'run-1:turn:0:tool:t2', isError: false, errorClass: null });
     expect(okTool.endedAt! - okTool.startedAt).toBeGreaterThan(0);
     expect(turn).toMatchObject({ model: 'claude-sonnet-4-5', costUsd: 0.0123, costSource: 'provider', stopReason: 'end_turn', usage: { inputTokens: 1800, outputTokens: 75, cacheReadTokens: 500, cacheWriteTokens: null, reasoningTokens: null }, output: { chars: 23 } });
     expect(finished).toMatchObject({ outcome: 'succeeded', error: null, totals: { turns: 1, toolCalls: 2, toolErrors: 1, inputTokens: 1800, outputTokens: 75, costUsd: 0.0123 } });
@@ -113,9 +113,9 @@ describe('failure handling', () => {
     recorder.observe({ type: 'error', message: 'stream disconnected' });
     recorder.finish({ outcome: 'failed' });
     expect(sink.events.map((e) => e.kind)).toEqual(['run_started', 'model_turn', 'tool_call', 'run_finished']);
-    expect(sink.events[1]).toMatchObject({ error: 'stream disconnected' });
-    expect(sink.events[2]).toMatchObject({ toolCallId: 'slow', endedAt: null, isError: false });
-    expect(sink.events[3]).toMatchObject({ outcome: 'failed', error: { message: 'stream disconnected', code: null } });
+    expect(sink.events[1]).toMatchObject({ error: 'model_error', errorContent: { chars: 19 } });
+    expect(sink.events[2]).toMatchObject({ toolCallId: 'r:turn:0:tool:slow', endedAt: null, isError: false });
+    expect(sink.events[3]).toMatchObject({ outcome: 'failed', error: { message: 'run_error', code: null, content: { chars: 19 } } });
   });
 
   it('ignores events after finish and duplicate tool_use ids', () => {
@@ -162,6 +162,7 @@ describe('normalizeAiUsage', () => {
     ['openai', { prompt_tokens: 1, completion_tokens: 2, prompt_tokens_details: { cached_tokens: 3 }, completion_tokens_details: { reasoning_tokens: 5 } }, { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: null, reasoningTokens: 5 }],
     ['google', { promptTokenCount: 1, candidatesTokenCount: 2, cachedContentTokenCount: 3, thoughtsTokenCount: 5 }, { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: null, reasoningTokens: 5 }],
     ['acp / codex', { input_tokens: 1, output_tokens: 2, cached_read_tokens: 3, thought_tokens: 5 }, { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: null, reasoningTokens: 5 }],
+    ['neutral usage', { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4, reasoningTokens: 5 }, { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheWriteTokens: 4, reasoningTokens: 5 }],
   ])('%s', (_name, usage, expected) => {
     expect(normalizeAiUsage({ usage })).toEqual(expected);
   });
