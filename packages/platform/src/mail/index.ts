@@ -1,8 +1,9 @@
 export type * from "./types.js";
 export type * from "./ports.js";
 export type * from "./adapter-module.js";
-export { wrapMailerWithPurposeGate } from "./purpose-scoped-mailer.js";
-export type { WrapMailerWithPurposeGateOptions } from "./purpose-scoped-mailer.js";
+export type * from "./engine-contracts.js";
+export { wrapMailerWithPurposeGate, isPurposeGateOpen } from "./purpose-scoped-mailer.js";
+export type { WrapMailerWithPurposeGateOptions, PurposeGateRequired } from "./purpose-scoped-mailer.js";
 export { isMailDeliveryAvailable } from "./delivery-availability.js";
 export { createMailSenderIdentityResolver, NON_DELIVERING_MAIL_DRIVERS, SenderIdentityNotConfiguredError } from "./sender-identity.js";
 export type { ConfiguredMailSender, CreateMailSenderIdentityResolverOptional, MailSenderIdentityPort } from "./sender-identity.js";
@@ -15,3 +16,14 @@ export type { MailDeliveryPolicy, MailDeliveryPolicyDeps, MailDeliveryPolicyOpti
 export { createMailFeedbackIngest, suppressionScopeFor } from "./feedback.js";
 export type { MailFeedbackInboxPort, MailFeedbackIngestDeps, MailFeedbackIngestOptions, MailFeedbackResponse } from "./feedback.js";
 export { createSmtpMailProvider, createConsoleMailProvider, parseSmtpEndpoint } from "./builtin-providers.js";
+export { safeMailProviderText, credentialSecrets } from "./provider-error.js";
+export { readMailDomain, isDomainReadPermissionRefused } from "./domain-read.js";
+export type { MailDomainReadCredentialPort } from "./domain-read.js";
+export { createSenderDomainVerification } from "./sender-domain-verification.js";
+export type { SenderDomainVerificationDeps } from "./sender-domain-verification.js";
+export { createMailPolicyWrapper } from "./delivery-wrapper.js";
+export type { MailPolicyWrapperDeps, MailPolicyWrapperOptions, MailPolicyWrapperInput } from "./delivery-wrapper.js";
+export { createResolvedMailer } from "./resolve-mailer.js";
+export type { ResolveMailerDeps, ResolveMailerOptions, ResolvedMailer } from "./resolve-mailer.js";
+export { createTtlCache, MAIL_STATUS_TTL_MS } from "./mail-status-cache.js";
+export type { TtlCache } from "./mail-status-cache.js";
