@@ -138,6 +138,28 @@ describe('opt-in MCP stdio hosting', () => {
     expect(host.responses.map(response => response.id)).toEqual([2]);
   });
 
+  it('keeps queued serial work and pending response writes active for idle exit', async () => {
+    const releaseWrite = deferred<void>();
+    const started: string[] = [];
+    const written: string[] = [];
+    const stdout = new Writable({ write(chunk, _encoding, callback) {
+      written.push(String(chunk));
+      void releaseWrite.promise.then(() => callback());
+    } });
+    const host = await boot({ serial: true, idleMs: 20, stdout, tools: [tool(({ args }) => {
+      started.push(String(args.value));
+      return 'done';
+    })] });
+    host.stdin.write(JSON.stringify(call(1)) + '\n' + JSON.stringify(call(2)) + '\n');
+    // Hold the first response's write past idleMs: accepted work must keep the server alive.
+    await new Promise(resolve => setTimeout(resolve, 80));
+    expect(started).toEqual(['1']);
+    releaseWrite.resolve();
+    await host.running;
+    expect(started).toEqual(['1', '2']);
+    expect(written.map(frame => JSON.parse(frame).id)).toEqual([1, 2]);
+  });
+
   it('skips a queued cancelled handler without blocking subsequent requests', async () => {
     const release = deferred<void>();
     const started: string[] = [];
