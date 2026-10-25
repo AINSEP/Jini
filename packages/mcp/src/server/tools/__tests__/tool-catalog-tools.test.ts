@@ -93,7 +93,7 @@ describe('describeToolTool', () => {
     expect(result).toEqual({ id: 'page.fill', description: 'Fill a field' });
   });
 
-  it('publishes only the fields the daemon actually described, never inventing a schema or read-only claim', async () => {
+  it('keeps schema-less descriptions informational and publishes only concrete fields the daemon described', async () => {
     const published: unknown[] = [];
     const publishing: McpToolContext = { ...ctx, publishTool: async ({ descriptor }) => { published.push(descriptor); } };
     getDaemonJson.mockResolvedValueOnce({ id: 'page.fill', description: 7, readOnly: 'yes' });
@@ -101,7 +101,6 @@ describe('describeToolTool', () => {
     getDaemonJson.mockResolvedValueOnce({ id: 'page.read', description: 'Read a page', readOnly: true, inputSchema: { type: 'object' } });
     await describeToolTool.handler({ args: { id: 'page.read' }, ctx: publishing });
     expect(published).toEqual([
-      { id: 'page.fill' },
       { id: 'page.read', description: 'Read a page', readOnly: true, inputSchema: { type: 'object' } },
     ]);
   });

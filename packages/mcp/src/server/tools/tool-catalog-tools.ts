@@ -114,7 +114,7 @@ export const searchToolsTool: McpToolDef = {
 export const describeToolTool: McpToolDef = {
   name: 'describe_tool',
   description:
-    'Get the full descriptor for one tool id found via search_tools — description, input schema, readOnly and sideEffects. When dynamic publication is enabled, this also exposes that operation as a concrete tool in tools/list; call it with its own arguments. Legacy fallback: use execute_readonly_delegated_tool only when readOnly is true. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
+    'Get the full descriptor for one tool id found via search_tools — description, input schema, readOnly and sideEffects. Schema-less descriptors are information only. When dynamic publication is enabled, descriptors with an input schema also expose that operation as a concrete tool in tools/list; call it with its own arguments. Legacy fallback: use execute_readonly_delegated_tool only when readOnly is true. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -130,7 +130,11 @@ export const describeToolTool: McpToolDef = {
   handler: async ({ args, ctx }) => {
     const id = requireString({ value: args.id, name: 'id' });
     const data = await getDaemonJson({ baseUrl: ctx.baseUrl, route: `/api/tools/${encodeURIComponent(id)}` }, daemonCallOptions({ ctx }));
-    if (ctx.publishTool) await ctx.publishTool({ descriptor: describedDescriptor({ id, data }) });
+    if (ctx.publishTool) {
+      const descriptor = describedDescriptor({ id, data });
+      // A family can describe its members without owning an executable input contract.
+      if (descriptor.inputSchema !== undefined) await ctx.publishTool({ descriptor });
+    }
     return data;
   },
 };
