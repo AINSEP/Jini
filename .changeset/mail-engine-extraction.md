@@ -1,5 +1,5 @@
 ---
-"@jini-ai/platform": minor
+"@jini-ai/platform": patch
 ---
 
 Expose the mail engine through `@jini-ai/platform/mail`: host contracts, redacted
