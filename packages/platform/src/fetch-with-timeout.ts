@@ -107,58 +107,143 @@ export type TextReadOptions = {
   strictUtf8?: boolean;
 };
 
+type TextReadDetails = { text: string; byteLength: number; truncated: boolean };
+type DetailedTextReadInput = {
+  response: Response;
+  maxResponseBytes: number;
+  result: "details";
+  onLimit?: "reject" | "truncate";
+  strictUtf8?: boolean;
+  signal?: AbortSignal;
+};
+type StreamTextReadOptions = TextReadOptions & {
+  onLimit?: "reject" | "truncate";
+  signal?: AbortSignal;
+};
+
 /**
  * Consumes a response as UTF-8, checking bytes before decoding/retaining each chunk.
+ * Details mode reports retained source bytes and truncates only on observed overflow;
+ * reaching the cap still requires EOF to establish completeness. Defaults reject overflow
+ * and replace malformed UTF-8. A supplied signal interrupts even a stalled read.
  * @throws {RangeError} An invalid cap or a response exceeding it.
  * @throws {TypeError} Invalid UTF-8 when strict decoding is enabled.
- * Read failures propagate; failure cancels consumption and always releases the lock.
+ * Read failures and abort reasons propagate; acquired readers are cancelled on failure
+ * and always released. Details mode observes cancellation failures without awaiting cleanup.
  * @complexity O(n) time and retained text for n bytes, bounded by the optional cap.
  * The upstream stream controls the allocation of individual incoming chunks.
+ * @example readFetchResponseText({ response, maxResponseBytes: 1024, result: "details", onLimit: "truncate" })
  */
-export async function readFetchResponseText(
+export function readFetchResponseText(input: {
+  response: Response;
+  maxResponseBytes: number;
+  result: "details";
+  onLimit?: "reject" | "truncate";
+  strictUtf8?: boolean;
+  signal?: AbortSignal;
+}): Promise<{ text: string; byteLength: number; truncated: boolean }>;
+export function readFetchResponseText(
   { response }: { response: Response },
+  options?: TextReadOptions,
+): Promise<string>;
+export async function readFetchResponseText(
+  input: { response: Response } | DetailedTextReadInput,
   { maxResponseBytes, strictUtf8 = false }: TextReadOptions = {},
-): Promise<string> {
-  validateTextReadOptions({ maxResponseBytes });
-  if (maxResponseBytes === undefined && !strictUtf8) return response.text();
-  if (response.body === null) return "";
+): Promise<string | TextReadDetails> {
+  const details = "result" in input && input.result === "details";
+  const options = details ? input : { ...(maxResponseBytes === undefined ? {} : { maxResponseBytes }), strictUtf8 };
+  validateTextReadOptions({ maxResponseBytes: options.maxResponseBytes, requireCap: details });
+  if (!details && options.maxResponseBytes === undefined && !options.strictUtf8) return input.response.text();
+  const result = await consumeResponseText({ response: input.response, awaitCancel: !details }, options);
+  return details ? result : result.text;
+}
+
+/** Owns reader cleanup for every caller; legacy failure cleanup keeps its awaited behavior.
+ * Signal-driven callers skip that wait: a body that ignores its signal may never settle cancel. */
+async function consumeResponseText(
+  { response, awaitCancel }: { response: Response; awaitCancel: boolean },
+  options: StreamTextReadOptions = {},
+): Promise<TextReadDetails> {
+  options.signal?.throwIfAborted();
+  if (response.body === null) return { text: "", byteLength: 0, truncated: false };
   const reader = response.body.getReader();
   let failed = true;
   try {
-    const text = await decodeResponseStream({ reader }, { ...(maxResponseBytes === undefined ? {} : { maxResponseBytes }), strictUtf8 });
+    const result = await decodeResponseStream({ reader }, options);
+    if (result.truncated) void cancelResponseReader({ reader });
     failed = false;
-    return text;
+    return result;
   } catch (error) {
-    try { await reader.cancel(error); } catch { /* Preserve the consumption error. */ }
+    const cancellation = cancelResponseReader({ reader, reason: error });
+    if (awaitCancel) await cancellation;
     throw error;
   } finally {
     try { reader.releaseLock(); } catch (error) { if (!failed) throw error; }
   }
 }
 
+/** Observe synchronous/asynchronous cancellation failure without masking the consumption outcome. */
+function cancelResponseReader(
+  { reader, reason }: { reader: ReadableStreamDefaultReader<Uint8Array>; reason?: unknown },
+): Promise<void> {
+  try { return reader.cancel(reason).catch(() => { /* Preserve the consumption error. */ }); }
+  catch { return Promise.resolve(); }
+}
+
 /** Reject invalid caps before consumption, including for empty responses. */
-function validateTextReadOptions({ maxResponseBytes }: { maxResponseBytes: number | undefined }, _optional = {}): void {
-  if (maxResponseBytes !== undefined && (!Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 0)) {
+function validateTextReadOptions(
+  { maxResponseBytes, requireCap = false }: { maxResponseBytes: number | undefined; requireCap?: boolean },
+): void {
+  if (maxResponseBytes === undefined && !requireCap) return;
+  if (typeof maxResponseBytes !== "number" || !Number.isSafeInteger(maxResponseBytes) || maxResponseBytes < 0) {
     throw new RangeError("maxResponseBytes must be a nonnegative safe integer");
   }
 }
 
-/** Byte counting precedes decoding; final flush detects truncated UTF-8 in strict mode. */
+/** Byte counting precedes decoding; final flush detects truncated UTF-8 in strict mode.
+ * Retains only the allowed prefix, independently of upstream chunk size or headers. */
 async function decodeResponseStream(
   { reader }: { reader: ReadableStreamDefaultReader<Uint8Array> },
-  { maxResponseBytes = Infinity, strictUtf8 = false }: TextReadOptions = {},
-): Promise<string> {
+  { maxResponseBytes = Infinity, strictUtf8 = false, onLimit = "reject", signal }: StreamTextReadOptions = {},
+): Promise<TextReadDetails> {
   const decoder = new TextDecoder("utf-8", { fatal: strictUtf8 });
   let total = 0;
   let text = "";
   for (;;) {
-    const { done, value } = await reader.read();
+    const { done, value } = await readResponseChunk({ reader, signal });
     if (done) break;
+    const remaining = maxResponseBytes - total;
+    if (value.byteLength > remaining) {
+      if (onLimit === "reject") throw new RangeError(`response exceeds the ${maxResponseBytes}-byte limit`);
+      text += decoder.decode(value.subarray(0, remaining), { stream: true });
+      return { text: text + decoder.decode(), byteLength: maxResponseBytes, truncated: true };
+    }
     total += value.byteLength;
-    if (total > maxResponseBytes) throw new RangeError(`response exceeds the ${maxResponseBytes}-byte limit`);
     text += decoder.decode(value, { stream: true });
   }
-  return text + decoder.decode();
+  return { text: text + decoder.decode(), byteLength: total, truncated: false };
+}
+
+/** Race one read against cancellation, removing the listener on every outcome.
+ * Per-read listeners avoid accumulating pending race handlers over a long response. */
+async function readResponseChunk(
+  { reader, signal }: { reader: ReadableStreamDefaultReader<Uint8Array>; signal: AbortSignal | undefined },
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  if (!signal) return reader.read();
+  signal.throwIfAborted();
+  let abort: () => void = () => {};
+  try {
+    return await Promise.race([
+      new Promise<never>((_resolve, reject) => {
+        abort = () => reject(signal.reason);
+        signal.addEventListener("abort", abort, { once: true });
+        if (signal.aborted) abort();
+      }),
+      Promise.resolve().then(() => { signal.throwIfAborted(); return reader.read(); }),
+    ]);
+  } finally {
+    signal.removeEventListener("abort", abort);
+  }
 }
 
 /**
@@ -199,7 +284,14 @@ export async function fetchTextWithTimeout(
     url: required.url,
     timeoutMs: required.timeoutMs,
     init: required.init ?? {},
-    consume: async ({ response }) => ({ response, text: await readFetchResponseText({ response }, optional) }),
+    consume: async ({ response, signal }) => {
+      const { maxResponseBytes, strictUtf8 = false } = optional;
+      validateTextReadOptions({ maxResponseBytes });
+      // Always stream under the scope's signal: an injected fetch's body may ignore that signal,
+      // and only racing each read lets the timeout end consumption.
+      const read = await consumeResponseText({ response, awaitCancel: false }, { ...(maxResponseBytes === undefined ? {} : { maxResponseBytes }), strictUtf8, signal });
+      return { response, text: read.text };
+    },
   }, optional);
 }
 
@@ -209,7 +301,7 @@ async function executeFetchWithTimeout<T>(
     url: string | URL;
     init: RequestInit;
     timeoutMs: number;
-    consume: (required: { response: Response }) => Promise<T>;
+    consume: (required: { response: Response; signal: AbortSignal }) => Promise<T>;
   },
   options: Pick<FetchWithTimeoutOptions, "fetch"> = {},
 ): Promise<T> {
@@ -218,7 +310,7 @@ async function executeFetchWithTimeout<T>(
 
   try {
     const response = await (options.fetch ?? fetch)(url, { ...init, signal });
-    return await consume({ response });
+    return await consume({ response, signal });
   } catch (error) {
     // `timeoutSignal` is the original object this function created, not the (possibly composed)
     // signal handed to `fetch` — checking its own `.aborted` tells us specifically whether OUR

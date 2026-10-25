@@ -117,6 +117,16 @@ describe("fetchTextWithTimeout and injected legacy fetch", () => {
     expect(await result).toBe(reason);
   });
 
+  it.each([{}, { maxResponseBytes: 64 }])("times out a body that ignores the abort signal (%o)", async guards => {
+    timedFetch("body"); // Only for its fake-timer AbortSignal.timeout; the transport below replaces it.
+    // The injected transport's body never closes and never observes the signal; cancel stalls too.
+    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode("partial")); }, cancel: () => new Promise(() => {}) });
+    const fetch = async () => new Response(body);
+    const result = fetchTextWithTimeout({ url: "https://example.test", timeoutMs: 100 }, { fetch, ...guards }).catch(error => error);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(await result).toBeInstanceOf(FetchTimeoutError);
+  });
+
   it("preserves network errors", async () => {
     const failure = new Error("network");
     await expect(fetchTextWithTimeout({ url: "https://example.test", timeoutMs: 5000 }, { fetch: async () => { throw failure; } })).rejects.toBe(failure);
