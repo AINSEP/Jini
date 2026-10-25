@@ -20,6 +20,9 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
       const held = await authorizedScripted(w);
       const result = await w.service.capture({ scope: SCRIPTED, paymentId: held.id, amount: USD(6_000), idempotencyKey: "ck-1", grant: await captureGrant(w, held.id, 6_000) });
       expect(result).toMatchObject({ ok: true, replayed: false, risk: { reasons: ["not-assessed"] }, payment: { status: "succeeded", captured: USD(6_000) } });
+      // Capture never re-runs the risk gate: the decision is the fixed "not assessed" allow, and it is
+      // NOT a fail-policy fallback (`fallback: true` would tell a host the risk port was unreachable).
+      expect(result).toMatchObject({ risk: { verdict: "allow", reasons: ["not-assessed"], fallback: false } });
       const { attempts } = await w.read(held.id);
       // The requested amount is stored on the attempt (0004): a replay of the key is compared against it.
       expect(attempts.at(-1)).toMatchObject({ op: "capture", operationKey: "capture:ck-1", outcome: "ok", currency: "USD", amountMinor: 6_000 });
