@@ -52,7 +52,7 @@ function finish({ span, attributes }: { span: TraceSpanPort; attributes: Attribu
  span.end({});
 }
 
-/** Builds request, DB, outbound and agent-run spans through injected provider/exporter factories.
+/** Builds request, DB, outbound, agent-run and operation spans, and exception events for reported errors, through injected provider/exporter factories.
  * @param required Explicit config and structural factories. Hosts wrap their SDK here.
  * @param options Optional host scope storage; with it, spans started inside a tracker's run() are its children.
  * @returns One adapter whose spans end once, with final names, redacted attributes and error status.
@@ -106,6 +106,27 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     // Client-span semantics: a 4xx is this caller's failure, unlike a server span's 4xx.
     finish({ span, attributes }, statusCode !== undefined && statusCode >= 400 ? { failure: String(statusCode) } : {});
    }) };
+  },
+  trackOperation({ name, attributes = {} }) {
+   const span = start({ name, kind: 'internal', attributes: { ...attributes } });
+   return { run: runIn(span), end: once(({ outcome, failed, attributes: settled = {} }) => {
+    // The feature decides what counts as failure; its outcome label doubles as the error type.
+    finish({ span, attributes: { ...settled, 'operation.outcome': outcome } }, failed ? { failure: outcome } : {});
+   }) };
+  },
+  reportError({ error, context }) {
+   try {
+    // Inside a tracker's run() the exception lands on that tracker's span; elsewhere it is its own
+    // short root span. Type only, never the message: the same export rule errorType documents.
+    const active = scope?.active();
+    const span = active ?? start({ name: `error ${context.operation}`, kind: 'internal', attributes: { ...context.attributes } }, { root: true });
+    const type = errorType(error);
+    span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation } });
+    span.setStatus({ code: 'error', description: type });
+    if (!active) span.end({});
+   } catch {
+    // Reporting is best-effort: a broken exporter must not turn an already-handled failure into a crash.
+   }
   },
   trackAgentRun({ runId }, { conversationId, agentName } = {}) {
    // A run outlives the request that started it, so it is its own trace rather than a long child.
