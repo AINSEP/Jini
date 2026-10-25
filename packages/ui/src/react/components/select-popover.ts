@@ -208,7 +208,7 @@ type SelectNavigationActions = {
 };
 
 // A Map rather than an object literal so an inherited key such as `toString` never matches.
-const NAVIGATION_KEY_ACTIONS = new Map<string, (actions: SelectNavigationActions) => void>([
+const NAVIGATION_KEY_ACTIONS: ReadonlyMap<string, (actions: SelectNavigationActions) => void> = new Map<string, (actions: SelectNavigationActions) => void>([
   ['ArrowDown', (actions) => actions.move(1)],
   ['ArrowUp', (actions) => actions.move(-1)],
   ['Home', (actions) => actions.edge('first')],

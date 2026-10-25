@@ -9,7 +9,7 @@
  * See docs/decisions/DR-005-proxy-argument-shapes.md.
  */
 import type { OutputUnit } from '@cfworker/json-schema';
-import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import type { Tool } from './adapters/protocol.js';
 
 /** Argument normalization's input contract, shared with the dispatcher without a reverse import. */
 export interface McpToolArgumentContract {

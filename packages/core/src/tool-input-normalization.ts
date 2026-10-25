@@ -28,7 +28,7 @@ function sameLengthNearMiss({ left, right, index }: { left: string; right: strin
 
 /** Scope selectors name a container, never the resource: guessing `workspaceId` as `id` (or the
  * reverse) would silently drop or invent a scope. Only a declared name or alias may accept one. */
-const SCOPE_SELECTORS = new Set(['workspaceid', 'siteid']);
+const SCOPE_SELECTORS: ReadonlySet<string> = new Set(['workspaceid', 'siteid']);
 
 /** Whether either key is the generic id shorthand for the other's id suffix; never for a scope selector. */
 function isIdShorthand({ left, right }: { left: string; right: string }, _options: Record<string, never> = {}): boolean {

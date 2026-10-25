@@ -85,7 +85,7 @@ export function syncStyle(
   }
 }
 
-const NON_ATTRIBUTE_PROPS = new Set([
+const NON_ATTRIBUTE_PROPS: ReadonlySet<string> = new Set([
   'cacheKey', 'src', 'style', 'children', 'dangerouslySetInnerHTML',
 ]);
 

@@ -92,7 +92,7 @@ const VALUE_RULES: Record<string, (value: string) => boolean> = {
   'max-width': value => value === '100%' || boundedLength(value, 256, 960),
   'box-shadow': value => isShadow({ value }),
 };
-const ROOT_ONLY = new Set(['background-color', 'color', 'max-width', 'box-shadow']);
+const ROOT_ONLY: ReadonlySet<string> = new Set(['background-color', 'color', 'max-width', 'box-shadow']);
 
 /** Decode an already validated opaque hex color to sRGB channels. @complexity O(1). */
 function colorChannels({ color }: { color: string }, _options = {}): number[] {

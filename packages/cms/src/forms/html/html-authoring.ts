@@ -99,7 +99,7 @@ const RESERVED_NAMES = ["_hp", "__proto__", "constructor", "prototype"];
 const ACTION_INPUT_TYPES = ["submit", "reset", "button", "image"];
 /** Existing field types a repeated control of this input type may join. A Map, not an object
  * literal, so an authored type such as "constructor" cannot reach Object.prototype. */
-const GROUP_JOINS = new Map<string, readonly string[]>([["radio", ["radio"]], ["checkbox", ["checkbox", "checkbox-group"]]]);
+const GROUP_JOINS: ReadonlyMap<string, readonly string[]> = new Map<string, readonly string[]>([["radio", ["radio"]], ["checkbox", ["checkbox", "checkbox-group"]]]);
 
 function removeAttributes(element: Element, names: readonly string[]): void {
   element.attrs = element.attrs.filter((attribute) => !names.includes(attribute.name));

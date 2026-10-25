@@ -404,7 +404,7 @@ export interface RedactionPolicy {
 
 // Context rules guess from labels/headers/prose; on public package files they only produce false
 // positives, while a pasted provider key still has a provider shape.
-const CONTEXT_RULE_KINDS = new Set(["auth_header", "url_credentials", "bearer_token", "labeled_secret"]);
+const CONTEXT_RULE_KINDS: ReadonlySet<string> = new Set(["auth_header", "url_credentials", "bearer_token", "labeled_secret"]);
 
 /** Redacts credential values with a required policy; returns text and replacement count. */
 export function redactSecretShapes({ text, policy }: { text: string; policy: RedactionPolicy }): SecretRedaction {

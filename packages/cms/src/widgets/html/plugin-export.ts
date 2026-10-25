@@ -1,6 +1,6 @@
 import { parseFragment, serialize, type DefaultTreeAdapterMap } from 'parse5';
 import { escapeHtml } from '@jini-ai/core/text';
-import { CONSENT_CATEGORIES, type ConsentCategory } from '../../consent/types.js';
+import { CONSENT_CATEGORIES, type ConsentCategory } from '../../contracts/consent-category.js';
 import type { PageHtmlEmbedRef } from './html-embeds.js';
 import type { WidgetRenderIR } from '../types.js';
 import {
@@ -43,8 +43,8 @@ export interface PluginExportRender {
 }
 
 const SLOT = /{{\s*(props|host)\.([a-zA-Z0-9_.-]+)\s*}}/g;
-const URL_ATTRIBUTES = new Set(['href', 'src', 'action']);
-const STAMPS = new Set(['data-plugin', 'data-component', 'data-embed-v', 'data-consent-category']);
+const URL_ATTRIBUTES: ReadonlySet<string> = new Set(['href', 'src', 'action']);
+const STAMPS: ReadonlySet<string> = new Set(['data-plugin', 'data-component', 'data-embed-v', 'data-consent-category']);
 
 /** Resolve own properties only: template names cannot reach prototypes through page JSON.
  * Missing/non-scalar slots refuse the whole export instead of leaking template text.
