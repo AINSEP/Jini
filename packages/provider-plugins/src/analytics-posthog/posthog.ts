@@ -1,13 +1,13 @@
 /**
- * @file The PostHog adapter for `ProductAnalyticsPort` — a vendor PROVIDER subpath
- * (`@jini-ai/analytics/product/posthog`), the only module in this package that imports
- * `posthog-node` (an optional peer dependency, pinned by the host). Owner 2026-10-25: "since
+ * @file The PostHog adapter for `@jini-ai/analytics/product`'s `ProductAnalyticsPort`, shipped as
+ * the `analytics-posthog` provider plugin (moved out of the former `@jini-ai/analytics/product/posthog`
+ * subpath 2026-10-25); `posthog-node` is bundled into this artifact only. Owner 2026-10-25: "since
  * PostHog is free, let's just use that, but it has to be an adapter so we can swap it out later."
  *
- * Server-side only (`posthog-node`). A host loads this subpath lazily, only when its PostHog key is
- * configured, so an install without PostHog never loads the SDK. Wrap the port in
- * `withProductAnalyticsGuards` (`../product`): consent, pseudonymous ids and PII rules live there,
- * once, not in each vendor adapter.
+ * Server-side only (`posthog-node`). A host loads this plugin only when it is installed, enabled and
+ * configured with a project key, so an install without PostHog never loads the SDK. The host wraps
+ * the port in `withProductAnalyticsGuards` (`@jini-ai/analytics/product`): consent, pseudonymous ids
+ * and PII rules live there, once, not in each vendor adapter.
  *
  * Privacy defaults (measured against posthog-node 5.55.1's options): GeoIP enrichment off (the
  * server's IP would otherwise be geolocated as the user's), no exception autocapture (errors belong
@@ -17,7 +17,7 @@
  */
 import { PostHog, type PostHogOptions } from "posthog-node";
 
-import type { ProductAnalyticsAdapter, ProductAnalyticsPort } from "./index.js";
+import type { ProductAnalyticsAdapter, ProductAnalyticsPort } from "@jini-ai/analytics/product";
 
 export interface PostHogConfigEnabled { enabled: true; apiKey: string; host: string; }
 

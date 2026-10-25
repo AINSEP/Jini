@@ -329,9 +329,9 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      posthog-node:
-        specifier: 5.55.1
-        version: 5.55.1
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
 
   packages/artifacts:
     dependencies:
@@ -949,6 +949,9 @@ importers:
 
   packages/provider-plugins:
     devDependencies:
+      '@jini-ai/analytics':
+        specifier: workspace:^
+        version: link:../analytics
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
@@ -979,6 +982,9 @@ importers:
       esbuild:
         specifier: ^0.28.1
         version: 0.28.1
+      posthog-node:
+        specifier: 5.55.1
+        version: 5.55.1
       tsx:
         specifier: ^4.19.0
         version: 4.23.1

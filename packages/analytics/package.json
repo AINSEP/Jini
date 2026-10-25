@@ -14,8 +14,7 @@
     "runtime": "node",
     "entries": {
       ".": "node",
-      "./product": "universal",
-      "./product/posthog": "node"
+      "./product": "universal"
     }
   },
   "type": "module",
@@ -32,11 +31,6 @@
       "types": "./dist/product/index.d.ts",
       "import": "./dist/product/index.js",
       "default": "./dist/product/index.js"
-    },
-    "./product/posthog": {
-      "types": "./dist/product/posthog.d.ts",
-      "import": "./dist/product/posthog.js",
-      "default": "./dist/product/posthog.js"
     }
   },
   "files": [
@@ -51,16 +45,8 @@
   "dependencies": {
     "@jini-ai/core": "workspace:^"
   },
-  "peerDependencies": {
-    "posthog-node": "5.55.1"
-  },
-  "peerDependenciesMeta": {
-    "posthog-node": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "posthog-node": "5.55.1"
+    "esbuild": "^0.28.1"
   },
   "publishConfig": {
     "access": "public",

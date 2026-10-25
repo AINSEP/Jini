@@ -15,8 +15,8 @@
  * timestamp) changes no call site and no signature. `userId` is WHO did it: the principal's opaque
  * id, never an e-mail or name.
  *
- * Vendor adapters are provider subpaths (`./product/posthog`), loaded by the host only when
- * configured; the contract names no vendor.
+ * Vendor adapters are provider plugins (`analytics-posthog` in `@jini-ai/provider-plugins`), loaded
+ * by the host only when installed, enabled and configured; the contract names no vendor.
  */
 import { redactSecrets } from "@jini-ai/core";
 import type { JsonObject } from "@jini-ai/core/primitives";

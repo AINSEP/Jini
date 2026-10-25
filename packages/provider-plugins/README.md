@@ -8,9 +8,12 @@ never become dependencies or peers of a core `@jini-ai/*` package.
 |---|---|---|---|
 | `fixture-provider` | `fixture` / `fixture` | `{ value }` | — (conformance fixture) |
 | `observability-opentelemetry` | `observability` / `opentelemetry` | `{ serviceName, tracerName, endpoint?, tracesEndpoint?, headers? }` — any OTLP/HTTP endpoint; credentials ride `headers` | `{ spanProcessors? }` (tests) |
+| `analytics-posthog` | `product_analytics` / `posthog` | `{ apiKey, host }` | `{ fetch?, flushAt? }` (tests) |
 | `observability-sentry` | `observability` / `sentry` | `{ dsn, environment?, tracesSampleRate? }` (rate default 0) | `{ client?, transport? }` (host-owned client is never closed) |
 
-Each factory returns diagnostics' `ObservabilityPort` plus `dispose`. Two configured observability
+Observability factories return diagnostics' `ObservabilityPort` plus `dispose`; `analytics-posthog`
+returns `@jini-ai/analytics/product`'s `ProductAnalyticsPort`, which the host wraps in
+`withProductAnalyticsGuards` (consent, opaque ids, PII rules) before any event reaches the vendor. Two configured observability
 providers fan out through diagnostics' existing fan-out. Inputs come from the host's secure plugin
 settings; never from manifests, browser assets or agent instructions.
 
