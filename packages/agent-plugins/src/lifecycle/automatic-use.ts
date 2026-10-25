@@ -31,10 +31,10 @@ function describeMatch({ plugin }: { plugin: AgentPluginSearchCandidate }, _opti
  * @returns A bounded note in relevance order, with discovery for every omitted match.
  * @complexity O(p) metadata formatting; output is bounded independently of plugin count.
  */
-function relevantPluginNote({ matches, formatPluginToolPointer }: { matches: readonly AgentPluginSearchCandidate[]; formatPluginToolPointer: AgentPluginLifecyclePorts['formatPluginToolPointer'] }, _options = {}): string {
+function relevantPluginNote({ matches, formatPluginToolPointer }: { matches: readonly AgentPluginSearchCandidate[]; formatPluginToolPointer?: AgentPluginLifecyclePorts['formatPluginToolPointer'] | undefined }, _options = {}): string {
   if (!matches.length) return '';
   const header = 'Relevant agent plugins for this request:\n';
-  const footer = `\nLoad one with ${formatPluginToolPointer({ pluginId: '<pluginId>', file: 'SKILL.md' })} before acting on that part.`;
+  const footer = formatPluginToolPointer ? `\nLoad one with ${formatPluginToolPointer({ pluginId: '<pluginId>', file: 'SKILL.md' })} before acting on that part.` : '';
   const more = (remaining: number) => remaining ? `\n+${remaining} more relevant: search_agent_plugin_local({ query: <same request>, offset: 0 }); page with nextOffset` : '';
   const lines: string[] = [];
   const bytes = (text: string) => new TextEncoder().encode(text).length;
@@ -47,7 +47,8 @@ function relevantPluginNote({ matches, formatPluginToolPointer }: { matches: rea
   return header + lines.join('\n') + more(matches.length - lines.length) + footer;
 }
 export interface AutomaticAgentPluginPorts {
-  formatPluginToolPointer: AgentPluginLifecyclePorts['formatPluginToolPointer'];
+  /** Optional so hosts wired before this port keep working; without it, notes omit the load pointer. */
+  formatPluginToolPointer?: AgentPluginLifecyclePorts['formatPluginToolPointer'] | undefined;
   list(input: Record<string, never>, options?: Record<string, never>): Promise<readonly AgentPluginSearchCandidate[]>;
   rank(input: { query: string; candidates: readonly AgentPluginSearchCandidate[]; limit: number }, options?: Record<string, never>): readonly AgentPluginSearchMatch[];
   /** Must recheck activation/trust and return real guidance, never a pointer to unopened guidance. */
@@ -149,8 +150,9 @@ export function createAutomaticAgentPluginUse(
       const result = await resolveOneGuidance({ plugin: match }, { signal });
       if (result.status !== 'loaded') continue;
       if (new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
-        const pointer = ports.formatPluginToolPointer({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
-        guidance.push(`Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit. Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`);
+        const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
+        const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
+        guidance.push(`Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`);
         continue;
       }
       recordDelivery({ plugin: match, result });

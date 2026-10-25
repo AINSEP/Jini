@@ -37,6 +37,16 @@ describe('automatic installed plugin use', () => {
     expect(deferred).not.toContain('load_agent_plugin');
     expect(f.publish).not.toHaveBeenCalled();
   });
+  it('omits load pointers when the host supplies no pointer formatter', async () => {
+    const f = fixture();
+    delete f.ports.formatPluginToolPointer;
+    const note = await f.controller.prepare({ query: 'synthetic' });
+    expect(note).toContain('synthetic');
+    expect(note).not.toContain('Load one with');
+    f.resolve.mockResolvedValueOnce({ ok: true, promptPrefix: 'x'.repeat(8193) });
+    expect(await f.controller.prepare({ capabilities: ['theme-authoring'] }))
+      .toBe("Agent Plugin 'synthetic' guidance is deferred because it exceeds the automatic byte limit.");
+  });
   it('Auto suggests metadata matches without resolving or showing them as loaded', async () => {
     const f = fixture();
     const note = await f.controller.prepare({ query: 'synthetic' });
