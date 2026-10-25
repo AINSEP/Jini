@@ -88,3 +88,34 @@ describe("user scope principal handling", () => {
     expect(revision).toMatchObject({ principalId: null });
   });
 });
+
+describe("clear() revision partition mirrors set()", () => {
+  it("global clear writes workspaceId null and principalId null even when both are passed", async () => {
+    const ctx = deps(definition(1));
+    await clear({ deps: ctx.deps, input: { namespace: base.namespace, key: base.key, callerPrincipalId: "actor-1", scope: "global", workspaceId: "ws-2", authWorkspaceId: "ws-1", principalId: "p" } });
+    const [revision] = await ctx.repo.listRevisions({ settingId: "s-1" });
+    expect(revision).toMatchObject({ scope: "global", workspaceId: null, principalId: null, op: "clear", actor: "actor-1" });
+  });
+  it("workspace clear keeps the workspace and drops the principal", async () => {
+    const ctx = deps(definition(2));
+    await clear({ deps: ctx.deps, input: { namespace: base.namespace, key: base.key, callerPrincipalId: "actor-1", scope: "workspace", workspaceId: "ws-1", principalId: "p" } });
+    const [revision] = await ctx.repo.listRevisions({ settingId: "s-1" });
+    expect(revision).toMatchObject({ scope: "workspace", workspaceId: "ws-1", principalId: null });
+  });
+  it("user clear defaults the principal to the caller, or keeps an explicit one", async () => {
+    const ctx = deps(definition(4), new InMemorySettingsPrincipalLookup([{ id: "other", workspaceId: "ws-1", kind: "user", displayName: "O", status: "active", createdAt: NOW }]));
+    await clear({ deps: ctx.deps, input: { namespace: base.namespace, key: base.key, callerPrincipalId: "actor-1", scope: "user", workspaceId: "ws-1" } });
+    await clear({ deps: ctx.deps, input: { namespace: base.namespace, key: base.key, callerPrincipalId: "actor-1", scope: "user", workspaceId: "ws-1", principalId: "other" } });
+    const revisions = await ctx.repo.listRevisions({ settingId: "s-1" });
+    expect(revisions.map(r => r.principalId).sort()).toEqual(["actor-1", "other"]);
+    expect(revisions.every(r => r.workspaceId === "ws-1")).toBe(true);
+  });
+  it("a denied clear names the permission and reason and writes nothing", async () => {
+    const ctx = deps(definition(2));
+    ctx.authorize.mockResolvedValueOnce({ allowed: false, reason: "no-role" });
+    await expect(clear({ deps: ctx.deps, input: { namespace: base.namespace, key: base.key, callerPrincipalId: "actor-1", scope: "workspace", workspaceId: "ws-1" } }))
+      .rejects.toThrow(/principal 'actor-1' is not authorized for '.+' \(no-role\)/);
+    expect(await ctx.repo.listRevisions({ settingId: "s-1" })).toEqual([]);
+    expect(ctx.authorize).toHaveBeenCalledWith(expect.objectContaining({ principalId: "actor-1", workspaceId: "ws-1", entityType: "setting-value" }));
+  });
+});
