@@ -1,8 +1,8 @@
 /**
  * @module ai-trace
  * Vendor-neutral AI-run tracing: contract, recorder over the normalized agent-event stream, and
- * backend-free sinks. Vendor adapters live on their own subpaths (e.g. `./ai-trace/langfuse`)
- * so this entry never pulls an SDK.
+ * backend-free sinks. Vendor adapters are provider plugins (`ai-trace-langfuse` in
+ * `@jini-ai/provider-plugins`), so neither this entry nor this package ever pulls an SDK.
  */
 export type * from './types.js';
 export { createAiTraceRecorder, type AiTraceRecorder, type AiTraceRecorderOptions } from './recorder.js';

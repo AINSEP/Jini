@@ -1,22 +1,25 @@
 /**
- * @module ai-trace/langfuse
+ * @module ai-trace-langfuse/langfuse
  *
- * Langfuse backend for the AI-trace port. Maps run → Langfuse trace, model turn → generation,
+ * Langfuse backend for `@jini-ai/agent-runtime/ai-trace`'s sink port, shipped as the
+ * `ai-trace-langfuse` provider plugin (moved out of the former `@jini-ai/agent-runtime/ai-trace/langfuse`
+ * subpath 2026-10-25, Langfuse review #10). Maps run → Langfuse trace, model turn → generation,
  * tool call → span (child of the generation that requested it), failures → `level: 'ERROR'` with
  * the error class as `statusMessage`.
  *
  * Why the `langfuse` JS SDK client shape rather than Langfuse's OTel endpoint: the SDK client is
  * four methods (`trace`/`generation`/`span`/`flushAsync`) with Langfuse's own batching, retry and
- * upsert-by-id semantics, so this adapter is a pure mapping plus a lazy import. The OTel route
- * needs an OTel SDK, exporter and the GenAI attribute mapping — that belongs to the diagnostics
- * OTel provider plugin (separate workstream) and would add a second, generic OTel adapter, not
+ * upsert-by-id semantics, so this adapter is a pure mapping plus client construction. The OTel route
+ * needs an OTel SDK, exporter and the GenAI attribute mapping — that belongs to the
+ * `observability-opentelemetry` provider plugin and would add a second, generic OTel adapter, not
  * replace this one.
  *
- * The SDK is never imported by this file's static graph: {@link loadLangfuseAiTraceSink} imports
- * it only when a host configures Langfuse, so a host with tracing off pays nothing and needs no
- * dependency installed.
+ * The SDK is bundled into this plugin only. The former lazy `import('langfuse')` is gone: the host
+ * imports the plugin at all only when Langfuse is installed, enabled and configured, so a host with
+ * tracing off pays nothing and the runtime core needs no Langfuse dependency.
  */
-import type { AiCapturedText, AiTraceEvent, AiTraceSink } from './types.js';
+import { Langfuse } from 'langfuse';
+import type { AiCapturedText, AiTraceEvent, AiTraceSink } from '@jini-ai/agent-runtime/ai-trace';
 
 type Body = Record<string, unknown>;
 
@@ -95,28 +98,12 @@ export function createLangfuseAiTraceSink({ client }: { client: LangfuseClientPo
 export interface LangfuseSinkConfig {
   readonly publicKey: string;
   readonly secretKey: string;
-}
-
-export interface LangfuseSinkOptions {
   readonly baseUrl?: string;
   readonly environment?: string;
   readonly release?: string;
-  /** Injection point for tests and bundlers; defaults to a dynamic `import()` of the `langfuse` package. */
-  readonly importModule?: (specifier: string) => Promise<unknown>;
 }
 
-type LangfuseCtor = new (options: Body) => LangfuseClientPort;
-
-function langfuseCtor(mod: unknown): LangfuseCtor {
-  const record = (mod ?? {}) as { Langfuse?: unknown; default?: unknown };
-  const ctor = record.Langfuse ?? record.default;
-  if (typeof ctor !== 'function') throw new Error('ai-trace/langfuse: the `langfuse` package did not export a Langfuse client');
-  return ctor as LangfuseCtor;
-}
-
-/** Lazily imports the SDK and builds the sink. Rejects (never throws synchronously) when the SDK is absent. */
-export async function loadLangfuseAiTraceSink({ publicKey, secretKey }: LangfuseSinkConfig, { baseUrl, environment, release, importModule = (specifier) => import(specifier) }: LangfuseSinkOptions = {}): Promise<AiTraceSink> {
-  const Langfuse = langfuseCtor(await importModule('langfuse'));
-  const client = new Langfuse({ publicKey, secretKey, ...(baseUrl ? { baseUrl } : {}), ...(environment ? { environment } : {}), ...(release ? { release } : {}) });
-  return createLangfuseAiTraceSink({ client });
+/** Builds the SDK client (no network until the first flush) and its sink. */
+export function createLangfuseClient({ publicKey, secretKey, baseUrl, environment, release }: LangfuseSinkConfig): LangfuseClientPort {
+  return new Langfuse({ publicKey, secretKey, ...(baseUrl ? { baseUrl } : {}), ...(environment ? { environment } : {}), ...(release ? { release } : {}) });
 }

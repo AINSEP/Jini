@@ -1,0 +1,17 @@
+{
+  "id": "ai-trace-langfuse",
+  "name": "Langfuse AI-trace provider",
+  "version": "0.6.12",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "tovu": { "id": "jini/ai-trace-langfuse" },
+    "open-marketing": { "id": "jini/ai-trace-langfuse" }
+  },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "ai_trace", "id": "langfuse", "contractVersion": 1 }] },
+  "hooks": [],
+  "fields": [],
+  "integrity": {}
+}

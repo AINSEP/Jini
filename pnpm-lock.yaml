@@ -949,6 +949,9 @@ importers:
 
   packages/provider-plugins:
     devDependencies:
+      '@jini-ai/agent-runtime':
+        specifier: workspace:^
+        version: link:../agent-runtime
       '@jini-ai/analytics':
         specifier: workspace:^
         version: link:../analytics
@@ -982,6 +985,9 @@ importers:
       esbuild:
         specifier: ^0.28.1
         version: 0.28.1
+      langfuse:
+        specifier: 3.39.2
+        version: 3.39.2
       posthog-node:
         specifier: 5.55.1
         version: 5.55.1
@@ -5609,6 +5615,14 @@ packages:
     resolution: {integrity: sha512-hHaB8C/rfzDDtr/t8YZwxAuPJTT0zHyaPoVzcXwDYhYNAgH/4sIfVhi/XLLIY+bL/FqaIJnjATDbi8ObSELmxg==}
     engines: {node: '>=22.0.0'}
 
+  langfuse-core@3.39.2:
+    resolution: {integrity: sha512-+NkjTBF6mX3Z1muFhevxdZPksh7ZF2XvW0LoeCzNgmLrwpLml6g9mZQQEO1GXTbtd5kqB2PmZnkTCziZVOpOBA==}
+    engines: {node: '>=18'}
+
+  langfuse@3.39.2:
+    resolution: {integrity: sha512-GEn2EFkLUkaf19wewu5TuMFoiiY5AZwhuWl7jvtXrf4JASa54c5ObTGTCG71XGIjNw3PhomD/xD4ZRi6JX8EcQ==}
+    engines: {node: '>=18'}
+
   langium@3.3.1:
     resolution: {integrity: sha512-QJv/h939gDpvT+9SiLVlY7tZC3xB2qK57v0J04Sh9wpMb6MP1q8gB21L3WIo8T5P1MSMg3Ep14L7KkDCFG3y4w==}
     engines: {node: '>=16.0.0'}
@@ -6035,6 +6049,10 @@ packages:
 
   multimath@2.0.0:
     resolution: {integrity: sha512-toRx66cAMJ+Ccz7pMIg38xSIrtnbozk0dchXezwQDMgQmbGpfxjtv68H+L00iFL8hxDaVjrmwAFSb3I6bg8Q2g==}
+
+  mustache@4.2.0:
+    resolution: {integrity: sha512-71ippSywq5Yb7/tVYyGbkBggbU8H3u5Rz56fH60jGFgr8uHwxs+aSKeqmluIVzM0m0kB7xQjKS6qPfd0b2ZoqQ==}
+    hasBin: true
 
   nanoid@3.3.16:
     resolution: {integrity: sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==}
@@ -11732,6 +11750,14 @@ snapshots:
 
   kysely@0.29.6: {}
 
+  langfuse-core@3.39.2:
+    dependencies:
+      mustache: 4.2.0
+
+  langfuse@3.39.2:
+    dependencies:
+      langfuse-core: 3.39.2
+
   langium@3.3.1:
     dependencies:
       chevrotain: 11.0.3
@@ -12241,6 +12267,8 @@ snapshots:
     dependencies:
       glur: 1.1.2
       object-assign: 4.1.1
+
+  mustache@4.2.0: {}
 
   nanoid@3.3.16: {}
 

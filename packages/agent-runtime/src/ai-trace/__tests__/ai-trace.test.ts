@@ -1,21 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAiTraceRecorder, createRecordingAiTraceSink, createFanOutAiTraceSink, createLazyAiTraceSink, noopAiTraceSink, captureText, classifyToolError, normalizeAiUsage, type AiTraceEvent, type AiTraceSink } from '../index.js';
-import { createLangfuseAiTraceSink, loadLangfuseAiTraceSink, toLangfuseCall, type LangfuseCall, type LangfuseClientPort } from '../langfuse.js';
 import { SCENARIO_EVENTS, steppingClock } from './scenario.js';
-
-function fakeLangfuseClient(): LangfuseClientPort & { calls: LangfuseCall[]; flushed: number } {
-  const calls: LangfuseCall[] = [];
-  const client = {
-    calls,
-    flushed: 0,
-    trace: (body: Record<string, unknown>) => void calls.push({ method: 'trace', body }),
-    generation: (body: Record<string, unknown>) => void calls.push({ method: 'generation', body }),
-    span: (body: Record<string, unknown>) => void calls.push({ method: 'span', body }),
-    flushAsync: async () => void (client.flushed += 1),
-    shutdownAsync: async () => {},
-  };
-  return client;
-}
 
 function runScenario(sink: AiTraceSink, capture: 'off' | 'metadata' | 'full' = 'metadata'): void {
   const recorder = createAiTraceRecorder({ sink, runId: 'run-1', agentId: 'claude' }, { provider: 'anthropic', sessionId: 'chat-9', capture, now: steppingClock() });
@@ -24,7 +9,7 @@ function runScenario(sink: AiTraceSink, capture: 'off' | 'metadata' | 'full' = '
   recorder.finish({ outcome: 'succeeded' });
 }
 
-describe('swap proof: noop, recording and Langfuse sinks see the same trace', () => {
+describe('swap proof: noop and recording sinks see the same trace (the Langfuse mapping test lives with its provider plugin)', () => {
   it('records run → turn → 2 tool calls (one input_validation failure) → outcome', () => {
     const sink = createRecordingAiTraceSink();
     runScenario(sink);
@@ -36,22 +21,6 @@ describe('swap proof: noop, recording and Langfuse sinks see the same trace', ()
     expect(okTool.endedAt! - okTool.startedAt).toBeGreaterThan(0);
     expect(turn).toMatchObject({ model: 'claude-sonnet-4-5', costUsd: 0.0123, costSource: 'provider', stopReason: 'end_turn', usage: { inputTokens: 1800, outputTokens: 75, cacheReadTokens: 500, cacheWriteTokens: null, reasoningTokens: null }, output: { chars: 23 } });
     expect(finished).toMatchObject({ outcome: 'succeeded', error: null, totals: { turns: 1, toolCalls: 2, toolErrors: 1, inputTokens: 1800, outputTokens: 75, costUsd: 0.0123 } });
-  });
-
-  it('maps the same scenario 1:1 onto Langfuse trace/generation/spans with error levels', async () => {
-    const recording = createRecordingAiTraceSink();
-    const client = fakeLangfuseClient();
-    runScenario(createFanOutAiTraceSink({ sinks: [recording, createLangfuseAiTraceSink({ client }), noopAiTraceSink] }));
-    expect(client.calls).toEqual(recording.events.map((event) => toLangfuseCall({ event })));
-    expect(client.calls.map((c) => c.method)).toEqual(['trace', 'span', 'span', 'generation', 'trace']);
-    const [trace, failedSpan, okSpan, generation, final] = client.calls.map((c) => c.body);
-    expect(trace).toMatchObject({ id: 'run-1', name: 'agent:claude', sessionId: 'chat-9', tags: ['provider:anthropic'] });
-    expect(failedSpan).toMatchObject({ traceId: 'run-1', parentObservationId: generation!.id, name: 'tool:content_post_create', level: 'ERROR', statusMessage: 'input_validation' });
-    expect(okSpan).toMatchObject({ level: 'DEFAULT', statusMessage: undefined });
-    expect(generation).toMatchObject({ traceId: 'run-1', model: 'claude-sonnet-4-5', usageDetails: { input: 1800, output: 75, cache_read_input_tokens: 500 }, costDetails: { total: 0.0123 }, level: 'DEFAULT' });
-    expect(final).toMatchObject({ id: 'run-1', tags: ['outcome:succeeded'], metadata: { toolErrors: 1 } });
-    await createFanOutAiTraceSink({ sinks: [createLangfuseAiTraceSink({ client })] }).flush!();
-    expect(client.flushed).toBe(1);
   });
 
   it('noop sink accepts the whole scenario', () => {
@@ -170,24 +139,6 @@ describe('normalizeAiUsage', () => {
   it('returns null for absent or counter-less usage (copilot reports only duration)', () => {
     expect(normalizeAiUsage({ usage: null })).toBeNull();
     expect(normalizeAiUsage({ usage: { sessionDurationMs: 900 } })).toBeNull();
-  });
-});
-
-describe('loadLangfuseAiTraceSink (lazy SDK import, no network)', () => {
-  it('imports the SDK only when called and passes config through', async () => {
-    const constructed: Array<Record<string, unknown>> = [];
-    const client = fakeLangfuseClient();
-    const importModule = vi.fn(async () => ({ Langfuse: class { constructor(options: Record<string, unknown>) { constructed.push(options); return client; } } }));
-    const sink = await loadLangfuseAiTraceSink({ publicKey: 'pk-test', secretKey: 'sk-test' }, { baseUrl: 'http://langfuse.invalid', importModule });
-    expect(importModule).toHaveBeenCalledWith('langfuse');
-    expect(constructed).toEqual([{ publicKey: 'pk-test', secretKey: 'sk-test', baseUrl: 'http://langfuse.invalid' }]);
-    sink.record({ kind: 'run_finished', traceId: 't', at: 0, outcome: 'cancelled', error: null, totals: { turns: 0, toolCalls: 0, toolErrors: 0, inputTokens: null, outputTokens: null, costUsd: null } });
-    expect(client.calls).toHaveLength(1);
-  });
-
-  it('rejects with a clear message when the SDK is not installed or has no client export', async () => {
-    await expect(loadLangfuseAiTraceSink({ publicKey: 'p', secretKey: 's' }, { importModule: async () => { throw new Error("Cannot find package 'langfuse'"); } })).rejects.toThrow("Cannot find package 'langfuse'");
-    await expect(loadLangfuseAiTraceSink({ publicKey: 'p', secretKey: 's' }, { importModule: async () => ({}) })).rejects.toThrow('did not export a Langfuse client');
   });
 });
 

@@ -28,6 +28,17 @@ const repositoryOf = (manifest: BundledPackage['manifest']): string | undefined 
   return typeof value === 'string' ? value.replace(/^git\+/, '').replace(/^git:/, 'https:').replace(/\.git$/, '') : undefined;
 };
 
+/** Reviewed upstream license text checked in under `license-supplements/<repository>/` (with a
+ * `SOURCE` note) for packages whose repository ships none in its npm packages. */
+async function supplementFor(required: { packageRoot: string; item: BundledPackage }): Promise<BundledPackage | undefined> {
+  const repository = repositoryOf(required.item.manifest);
+  if (!repository) return undefined;
+  const root = path.join(required.packageRoot, 'license-supplements', repository.replace(/^https:\/\//, '').replace(/[^a-z0-9._-]/gi, '_'));
+  const names = await readdir(root).catch(() => [] as string[]);
+  if (!names.includes('LICENSE')) return undefined;
+  return { root, manifest: { name: `${repository} (license supplement)`, version: 'reviewed' }, names: names.sort() };
+}
+
 /** Preserve each input package's license/notice texts, not only esbuild's legal-comment excerpts.
  * A package that ships no license file (some upstream monorepos omit it from sub-packages) takes the
  * text of a bundled sibling from the same repository with the same declared license; the copy is
@@ -38,11 +49,13 @@ async function retainLicenses(required: { packageRoot: string; artifactRoot: str
   const bundled: BundledPackage[] = [];
   for (const root of [...roots].sort()) {
     const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as BundledPackage['manifest'];
-    bundled.push({ root, manifest, names: (await readdir(root)).filter(name => /^(?:licen[sc]e|copying|notice)(?:$|[.-])/i.test(name)).sort() });
+    const files = (await readdir(root, { withFileTypes: true })).filter(entry => entry.isFile()).map(entry => entry.name);
+    bundled.push({ root, manifest, names: files.filter(name => /^(?:licen[sc]e|copying|notice)(?:$|[.-])/i.test(name)).sort() });
   }
   for (const item of bundled) {
     const sibling = item.names.length ? item : bundled.find(other => other.names.length && other.manifest.license === item.manifest.license
-      && repositoryOf(other.manifest) !== undefined && repositoryOf(other.manifest) === repositoryOf(item.manifest));
+      && repositoryOf(other.manifest) !== undefined && repositoryOf(other.manifest) === repositoryOf(item.manifest))
+      ?? await supplementFor({ packageRoot: required.packageRoot, item });
     if (!sibling) throw new Error(`Missing license text for bundled package ${item.manifest.name}`);
     const target = path.join(required.artifactRoot, 'licenses', item.manifest.name.replace(/[^a-z0-9._-]/gi, '_'));
     await mkdir(target, { recursive: true });

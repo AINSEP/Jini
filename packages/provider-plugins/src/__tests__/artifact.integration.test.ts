@@ -34,6 +34,8 @@ const tierPolicy: PluginTierPolicy = { execution: 'in-process', siteErrors: () =
 
 /** Per plugin: the domain validator a host injects, and configuration whose initialization opens no connection. */
 const SPECS: Record<string, { contract: string; id: string; validate: (port: unknown) => boolean; input: (namespace: string) => Record<string, unknown>; probe?: (port: unknown) => unknown }> = {
+  'ai-trace-langfuse': { contract: 'ai_trace', id: 'langfuse', validate: port => typeof (port as { record?: unknown })?.record === 'function',
+    input: () => ({ publicKey: 'pk-lf-unused', secretKey: 'sk-lf-unused', baseUrl: 'http://langfuse.invalid' }) },
   'analytics-posthog': { contract: 'product_analytics', id: 'posthog', validate: port => typeof (port as { capture?: unknown })?.capture === 'function',
     input: () => ({ apiKey: 'phc_unused', host: 'https://posthog.invalid' }) },
   'fixture-provider': { contract: 'fixture', id: 'fixture', validate: port => typeof (port as { read?: unknown })?.read === 'function', input: namespace => ({ value: namespace }),
