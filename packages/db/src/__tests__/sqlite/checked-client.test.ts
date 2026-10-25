@@ -201,6 +201,20 @@ describe("leased SQLite transactions", () => {
     await assert.rejects(withSqliteTransaction({ client: f.client, kernel: checkedFixture().kernel, work: async () => 2 }), /matching checked/);
   });
 
+  test("a public transaction queued behind an owned one runs once the owner's turn ends", async () => {
+    const f = checkedFixture();
+    const entered = deferred();
+    const release = deferred();
+    const owned = withSqliteTransaction({ ...f, work: async () => { entered.resolve(); await release.promise; return "owned"; } });
+    await entered.promise;
+    const queued = f.kernel.transaction(async () => f.kernel.query(sql`select value`));
+    release.resolve();
+    assert.deepEqual(await Promise.allSettled([owned, queued]), [
+      { status: "fulfilled", value: "owned" }, { status: "fulfilled", value: [{ value: 1 }] },
+    ]);
+    assert.deepEqual(f.controls, ["BEGIN IMMEDIATE", "COMMIT", "BEGIN IMMEDIATE", "COMMIT"]);
+  });
+
   test("refuses an independently open kernel transaction without disrupting its owner", async () => {
     const f = checkedFixture();
     const entered = deferred();
@@ -217,27 +231,48 @@ describe("leased SQLite transactions", () => {
     assert.deepEqual(f.controls, ["BEGIN IMMEDIATE", "COMMIT"]);
   });
 
-  for (const timing of ["before", "after"] as const) {
-    test(`quarantines shared callers after commit fails ${timing} the native commit`, async () => {
-      const f = checkedFixture();
-      f.state.commit = timing;
-      const entered = deferred();
-      const release = deferred();
-      const running = withSqliteTransaction({ ...f, work: async () => { entered.resolve(); await release.promise; return 1; } });
-      await entered.promise;
-      const queued = assert.rejects(f.kernel.query(sql`select value`), /quarantined/);
-      const failed = assert.rejects(running, (error) => error instanceof SqliteClientError && error.code === "commit_failed" && error.cause === f.commitFailure);
-      release.resolve();
-      await failed;
-      await queued;
-      assert.deepEqual(f.controls, timing === "before" ? ["BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"] : ["BEGIN IMMEDIATE", "COMMIT"]);
-      const same = createCheckedSqliteClient({ database: f.database });
-      assert.throws(() => same.prepare("select value"), /quarantined/);
-      assert.throws(() => same.exec("ROLLBACK"), /quarantined/);
-      await assert.rejects(withSqliteTransaction({ ...f, work: async () => 2 }), /quarantined/);
-      assert.equal(f.state.closes, 0);
-    });
-  }
+  test("quarantines shared callers after commit fails after the native commit", async () => {
+    const f = checkedFixture();
+    f.state.commit = "after";
+    const entered = deferred();
+    const release = deferred();
+    const running = withSqliteTransaction({ ...f, work: async () => { entered.resolve(); await release.promise; return 1; } });
+    await entered.promise;
+    const queued = assert.rejects(f.kernel.query(sql`select value`), /quarantined/);
+    const failed = assert.rejects(running, (error) => error instanceof SqliteClientError && error.code === "commit_failed" && error.cause === f.commitFailure);
+    release.resolve();
+    await failed;
+    await queued;
+    assert.deepEqual(f.controls, ["BEGIN IMMEDIATE", "COMMIT"]);
+    const same = createCheckedSqliteClient({ database: f.database });
+    assert.throws(() => same.prepare("select value"), /quarantined/);
+    assert.throws(() => same.exec("ROLLBACK"), /quarantined/);
+    await assert.rejects(withSqliteTransaction({ ...f, work: async () => 2 }), /quarantined/);
+    assert.equal(f.state.closes, 0);
+  });
+
+  test("a commit refused before applying and then rolled back is a known outcome, not quarantined", async () => {
+    const f = checkedFixture();
+    f.state.commit = "before";
+    const entered = deferred();
+    const release = deferred();
+    const running = withSqliteTransaction({ ...f, work: async () => { entered.resolve(); await release.promise; return 1; } });
+    await entered.promise;
+    const queued = f.kernel.query(sql`select value`);
+    release.resolve();
+    await assert.rejects(running, (error) => error instanceof SqliteClientError && error.code === "commit_failed" && error.cause === f.commitFailure);
+    assert.deepEqual(await queued, [{ value: 1 }]);
+    assert.deepEqual(f.controls, ["BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"]);
+    f.state.commit = "ok";
+    assert.equal(await withSqliteTransaction({ ...f, work: async () => 2 }), 2);
+  });
+
+  test("a stray ROLLBACK failing with nothing open does not quarantine the handle", () => {
+    const f = checkedFixture();
+    f.state.failRollback = true;
+    assert.throws(() => f.client.exec("ROLLBACK"), (error) => error instanceof SqliteClientError && error.code === "rollback_failed");
+    assert.deepEqual(f.client.prepare("select value").all(), [{ value: 1 }]);
+  });
 
   test("preserves commit plus rollback failures as typed causes", async () => {
     const f = checkedFixture();

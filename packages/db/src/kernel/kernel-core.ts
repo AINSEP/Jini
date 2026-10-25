@@ -12,6 +12,9 @@ import {
 import { TurnLock } from "./turn-lock.js";
 import { ownedTransactions } from "./owned-transaction.js";
 
+/** An owned transaction's hook that runs before its turn is released. */
+interface OwnedTurn { onSettled?: () => void }
+
 /**
  * @file The transaction rules every driver shares, so they cannot differ by dialect: a test that
  * passes on PGlite passes on SQLite for the same reason.
@@ -101,10 +104,10 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     }
   }
 
-  async function transaction<T>(fn: () => Promise<T>, owned = false): Promise<T> {
+  async function transaction<T>(fn: () => Promise<T>, owned?: OwnedTurn): Promise<T> {
     require("interactiveTransactions");
     await driver.ready;
-    if (owned) assertOwnedAvailable();
+    if (owned !== undefined) assertOwnedAvailable();
     const current = scope.getStore();
     if (current?.kind === "transaction") return fn();
     if (current?.kind === "run") {
@@ -114,12 +117,14 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     }
     if (joinsForeign()) return fn();
     return takingTurn(lock, "exclusive", async () => {
-      if (owned) assertOwnedAvailable();
+      if (owned !== undefined) assertOwnedAvailable();
       ownTransactions += 1;
       try {
         return await driver.begin((tx) => scope.run({ kind: "transaction", db: tx }, fn));
       } finally {
         ownTransactions -= 1;
+        // Still inside the turn: the next queued caller must not see this owner's state.
+        owned?.onSettled?.();
       }
     });
   }
@@ -158,7 +163,7 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
   };
   ownedTransactions.set(kernel as StorageKernel<unknown>, {
     assertAvailable: assertOwnedAvailable,
-    transaction: (work) => transaction(work, true),
+    transaction: (work, optional = {}) => transaction(work, optional),
   });
   return kernel;
 }

@@ -55,18 +55,32 @@ function checkedStatement({ statement, state }: { statement: IntegerStatement; s
   };
 }
 
+/** Quarantine only an uncertain outcome: a transaction still open, or a COMMIT that may have applied. */
+function controlFailure({ database, state, command, cause }: { database: IntegerSource; state: CheckedState; command: string; cause: unknown }, _optional: {} = {}): SqliteClientError {
+  const open = database.inTransaction;
+  if (command === "COMMIT") {
+    state.quarantined = true;
+    // Still open: nothing applied yet, so a following ROLLBACK can settle it and lift the quarantine.
+    state.cleanupAllowed = open;
+    return new SqliteClientError({ code: "commit_failed" }, { cause });
+  }
+  state.quarantined = open;
+  return new SqliteClientError({ code: "rollback_failed" }, { cause });
+}
+
 function execChecked({ database, state, source }: { database: IntegerSource; state: CheckedState; source: string }, _optional: {} = {}): unknown {
   const command = source.trim().replace(/;$/, "").toUpperCase();
-  // Cleanup must remain possible after an uncertain COMMIT quarantines the handle.
-  if (command !== "ROLLBACK" || !state.cleanupAllowed) assertCheckedAvailable({ state });
+  const cleanup = command === "ROLLBACK" && state.cleanupAllowed;
+  // Cleanup must remain possible after a failed COMMIT quarantines the handle.
+  if (!cleanup) assertCheckedAvailable({ state });
   if (command === "ROLLBACK") state.cleanupAllowed = false;
   try {
-    return database.exec(source);
+    const result = database.exec(source);
+    if (cleanup) state.quarantined = false;
+    return result;
   } catch (cause) {
     if (command !== "COMMIT" && command !== "ROLLBACK") throw cause;
-    state.quarantined = true;
-    if (command === "COMMIT") state.cleanupAllowed = database.inTransaction;
-    throw new SqliteClientError({ code: command === "COMMIT" ? "commit_failed" : "rollback_failed" }, { cause });
+    throw controlFailure({ database, state, command, cause });
   }
 }
 
