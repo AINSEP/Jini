@@ -15,7 +15,7 @@
  */
 import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
 import { join } from 'node:path';
-import { createNativeAgentRuntime, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createNativeAgentRuntime, type AiTraceSink, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
 
 import { createToolRegistry, type ToolRegistry } from '@jini-ai/core';
 import {
@@ -25,6 +25,8 @@ import {
   createRunLifecycle,
   createToolExecutor,
   resumableFromProcessExit,
+  withAiTracing,
+  type AiTracingOptions,
   type AgentExecutor,
   type EventLog,
   type RunLifecycle,
@@ -77,6 +79,8 @@ export interface CreateJiniKernelBaseOptions {
   readonly storage: JiniKernelStorage;
   /** Extra `createAgentExecutor` options (e.g. `mcpJsonInjection`). `lifecycle`/`journal`/`classifyFailure` are kernel-owned. */
   readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>;
+  /** Optional AI-run tracing: every run's normalized agent events are also recorded to `sink`. Absent = no tracing, no cost. */
+  readonly aiTrace?: AiTracingOptions & { readonly sink: AiTraceSink };
 }
 
 /**
@@ -90,6 +94,12 @@ export function classifyRunFailureForRetry(context: {
 }): boolean {
   return resumableFromProcessExit({ code: context.code, signal: context.signal },
     context.sideEffects === undefined ? {} : { sideEffects: context.sideEffects });
+}
+
+function tracedIfConfigured(lifecycle: RunLifecycle, aiTrace: CreateJiniKernelBaseOptions['aiTrace']): RunLifecycle {
+  if (!aiTrace) return lifecycle;
+  const { sink, ...options } = aiTrace;
+  return withAiTracing({ lifecycle, sink }, options);
 }
 
 async function closeFailedAcquisition(
@@ -168,7 +178,7 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     }
 
     journal = createRunByteJournal({ eventLog: journalEventLog });
-    lifecycle = createRunLifecycle({ eventLog });
+    lifecycle = tracedIfConfigured(createRunLifecycle({ eventLog }), options.aiTrace);
     await lifecycle.rehydrate({});
   } catch (error) {
     await closeFailedAcquisition({ featureConnection, opened });
