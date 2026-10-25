@@ -110,5 +110,7 @@ describe('describeToolTool', () => {
       { id: 'page.fill' },
       { id: 'page.read', description: 'Read a page', readOnly: true, inputSchema: { type: 'object' } },
     ]);
+    // toEqual ignores undefined-valued keys; the published descriptor must not carry them at all.
+    expect(Object.keys(published[0] as object)).toEqual(['id']);
   });
 });

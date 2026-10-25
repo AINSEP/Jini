@@ -59,6 +59,8 @@ describe('startRunTool', () => {
     await startRunTool.handler({ args: { contextRef: 'c1', agentId: '', idempotencyKey: 42 }, ctx: ctx });
     await startRunTool.handler({ args: { contextRef: 'c1', agentId: 7, idempotencyKey: '' }, ctx: ctx });
     expect(postDaemonJson).toHaveBeenNthCalledWith(1, { baseUrl: 'http://d.example', route: '/api/runs', body: { contextRef: 'c1' } }, { fetchImpl: ctx.fetchImpl });
+    // toHaveBeenCalledWith ignores undefined-valued keys; the body must not carry them.
+    expect(postDaemonJson.mock.calls.map(([request]) => Object.keys(request.body))).toEqual([['contextRef'], ['contextRef']]);
     expect(postDaemonJson).toHaveBeenNthCalledWith(2,{ baseUrl: 'http://d.example', route: '/api/runs', body: { contextRef: 'c1' } }, { fetchImpl: ctx.fetchImpl });
   });
 
@@ -108,6 +110,7 @@ describe('cancelRunTool', () => {
     await cancelRunTool.handler({ args: { runId: 'r1', reason: 5 }, ctx: ctx });
     expect(postDaemonJson).toHaveBeenCalledTimes(2);
     expect(postDaemonJson).toHaveBeenNthCalledWith(1, { baseUrl: 'http://d.example', route: '/api/runs/r1/cancel', body: {} }, { fetchImpl: ctx.fetchImpl });
+    expect(postDaemonJson.mock.calls.map(([request]) => Object.keys(request.body))).toEqual([[], []]);
     expect(postDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/runs/r1/cancel', body: {} }, { fetchImpl: ctx.fetchImpl });
   });
 });

@@ -146,9 +146,20 @@ describe('sanitizeTokensFile boundaries', () => {
       inf: { accessToken: 'b', expiresAt: Infinity, savedAt: 1 },
       nan: { accessToken: 'c', expiresAt: NaN, savedAt: 1 },
     } } });
-    expect(out.servers.zero).toEqual({ accessToken: 'a', tokenType: 'Bearer', savedAt: 1, expiresAt: 0 });
-    expect(out.servers.inf).toEqual({ accessToken: 'b', tokenType: 'Bearer', savedAt: 1 });
-    expect(out.servers.nan).toEqual({ accessToken: 'c', tokenType: 'Bearer', savedAt: 1 });
+    expect(out.servers.zero).toStrictEqual({ accessToken: 'a', tokenType: 'Bearer', savedAt: 1, expiresAt: 0 });
+    expect(out.servers.inf).toStrictEqual({ accessToken: 'b', tokenType: 'Bearer', savedAt: 1 });
+    expect(out.servers.nan).toStrictEqual({ accessToken: 'c', tokenType: 'Bearer', savedAt: 1 });
+  });
+
+  // Stryker L3 F3: isPlainObject's Boolean(v) guard and the per-entry object check — null is
+  // typeof 'object', so each needs its own null case; absent optionals must not appear as keys.
+  it('treats a null file, null servers map and null entry as empty, never throwing', () => {
+    expect(sanitizeTokensFile({ raw: null })).toStrictEqual({ servers: {} });
+    expect(sanitizeTokensFile({ raw: { servers: null } })).toStrictEqual({ servers: {} });
+    expect(sanitizeTokensFile({ raw: { servers: [{ accessToken: 'a' }] } })).toStrictEqual({ servers: {} });
+    expect(sanitizeTokensFile({ raw: { servers: { a: null, b: [], c: { accessToken: 'x', savedAt: 1 } } } })).toStrictEqual({
+      servers: { c: { accessToken: 'x', tokenType: 'Bearer', savedAt: 1 } },
+    });
   });
 
   it('stamps savedAt from the injected clock when missing or non-finite, and keeps a finite one', () => {
