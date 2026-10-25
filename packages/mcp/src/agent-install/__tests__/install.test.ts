@@ -398,3 +398,35 @@ describe('planAgentInstall — characterization pins (before refactor)', () => {
     expect(plan).toMatchObject({ snippet: 'mcp_servers:\n  n:\n  injected: true:\n    command: "/usr/bin/node"\n    args: ["/app/cli.js","mcp"]\n    env:\n      K: x\n  evil: "v"' });
   });
 });
+
+// Stryker L3 (2026-10-25): codex/kimi removeArgv and the copilot/cline/json entry keys could be
+// emptied without a failing test. Exact plans for the remaining installers.
+describe('planAgentInstall — exact uninstall argv and JSON entries (F3)', () => {
+  it.each([
+    ['codex', ['mcp', 'remove', 'jini']],
+    ['kimi', ['mcp', 'remove', 'jini']],
+  ] as const)('%s removeArgv', (slug, removeArgv) => {
+    const plan = planAgentInstall({ slug, spec: spec(), ctx: ctx() });
+    if (plan.kind !== 'cli') throw new Error('expected cli');
+    expect(plan.removeArgv).toEqual(removeArgv);
+    expect(plan.getArgv).toEqual(['mcp', 'get', 'jini']);
+  });
+
+  it.each([
+    ['cursor', '/home/u/.cursor/mcp.json', ['mcpServers'], { type: 'stdio', command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'], env: { A: '1' } }],
+    ['copilot', '/home/u/.copilot/mcp-config.json', ['mcpServers'], { type: 'local', tools: ['*'], command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'], env: { A: '1' } }],
+    ['opencode', '/home/u/.config/opencode/opencode.json', ['mcp'], { type: 'local', command: ['/usr/bin/node', '/app/cli.js', 'mcp'], enabled: true, environment: { A: '1' } }],
+    ['openclaw', '/home/u/.openclaw/openclaw.json', ['mcp', 'servers'], { command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'], env: { A: '1' } }],
+  ] as const)('%s json plan', (slug, configPath, keyPath, entry) => {
+    const plan = planAgentInstall({ slug, spec: spec({ A: '1' }), ctx: ctx() });
+    if (plan.kind !== 'json') throw new Error('expected json');
+    expect(plan).toMatchObject({ configPath, keyPath, serverKey: 'jini' });
+    expect(plan.entry).toStrictEqual(entry);
+  });
+
+  it('cline json entry keeps autoApprove empty and the server enabled', () => {
+    const plan = planAgentInstall({ slug: 'cline', spec: spec(), ctx: ctx() });
+    if (plan.kind !== 'json') throw new Error('expected json');
+    expect(plan.entry).toMatchObject({ disabled: false, autoApprove: [] });
+  });
+});
