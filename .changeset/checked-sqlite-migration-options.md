@@ -1,5 +1,5 @@
 ---
-"@jini-ai/db": minor
+"@jini-ai/db": patch
 ---
 
 Add opt-in checked SQLite clients and leased transaction sessions, plus batch migration atomicity,
