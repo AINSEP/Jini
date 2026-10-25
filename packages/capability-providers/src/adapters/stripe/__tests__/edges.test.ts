@@ -83,3 +83,23 @@ describe('apiBase normalisation and id encoding', () => {
     expect(fetchFn.mock.calls[0]?.[0]).toBe('https://stripe.test/v1/charges/ch%2F..%2Fx');
   });
 });
+
+describe('response-shape guards (survivor follow-ups)', () => {
+  it('a 2xx JSON null body is treated as an empty object, not dereferenced', async () => {
+    const { p } = provider(new Response('null', { status: 200 }));
+    expect(await p.getCharge({ id: 'ch_1' })).toEqual({ id: '', status: 'pending', amountCents: 0, currency: '', customerRef: '', createdAt: 42 });
+  });
+  it.each([
+    ['error: null', { error: null }],
+    ['error: a string', { error: 'boom' }],
+    ['error.message: a number', { error: { message: 5 } }],
+  ])('a non-2xx with %s falls back to the generic message', async (_label, body) => {
+    const { p } = provider(json(503, body));
+    await expect(p.charge({ amountCents: 1, currency: 'usd', customerRef: 'cus_1' })).rejects.toMatchObject({ message: 'Stripe request failed (503).', status: 503 });
+  });
+  it('an empty secretKey error carries its message and 401 status', () => {
+    expect(() => new StripePaymentsProvider({ secretKey: '' }, { fetchFn: vi.fn() as unknown as typeof fetch })).toThrowError(
+      expect.objectContaining({ name: 'StripePaymentsProviderError', status: 401, message: 'StripePaymentsProvider requires a non-empty options.secretKey' }),
+    );
+  });
+});

@@ -135,3 +135,38 @@ describe('WebSocketRealtimeProvider — socket bookkeeping', () => {
     expect(a.send).toHaveBeenCalledWith({ data: JSON.stringify({ type: 'event', channel: 'd', event: 2 }) });
   });
 });
+
+describe('WebSocketRealtimeProvider — survivor follow-ups', () => {
+  it('an unrecognised type (e.g. wrong case) does not unsubscribe an existing subscription', async () => {
+    const server = new FakeServer();
+    const provider = new WebSocketRealtimeProvider({ server });
+    const socket = connect(server);
+    socket.emit('message', subscribeMessage('c'));
+    socket.emit('message', JSON.stringify({ type: 'UNSUBSCRIBE', channel: 'c' }));
+    socket.emit('message', JSON.stringify({ type: 'leave', channel: 'c' }));
+    await provider.publish({ channel: 'c', event: 1 });
+    expect(socket.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('two in-process subscribers on one channel both receive', async () => {
+    const provider = new WebSocketRealtimeProvider({ server: new FakeServer() });
+    const a = vi.fn();
+    const b = vi.fn();
+    provider.subscribe({ channel: 'c', handler: a });
+    provider.subscribe({ channel: 'c', handler: b });
+    await provider.publish({ channel: 'c', event: 'x' });
+    expect(a).toHaveBeenCalledWith({ event: 'x' });
+    expect(b).toHaveBeenCalledWith({ event: 'x' });
+  });
+
+  it('a stale unsubscribe called again after the same handler re-subscribed does not remove the new subscription', async () => {
+    const provider = new WebSocketRealtimeProvider({ server: new FakeServer() });
+    const handler = vi.fn();
+    const first = provider.subscribe({ channel: 'c', handler });
+    first();
+    provider.subscribe({ channel: 'c', handler });
+    first();
+    await provider.publish({ channel: 'c', event: 1 });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+});
