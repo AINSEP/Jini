@@ -1327,3 +1327,36 @@ test("ConsoleCredentialedRequestAuditLog: a label containing a newline is writte
   new ConsoleCredentialedRequestAuditLog({ log: ({ line }) => lines.push(line), prefix: "[audit]" }).record({ entry: { label: "a\nforged status=200", host: "h", method: "GET", status: 0, bodyBytes: 0, at: FIXED_NOW } });
   assert.equal(lines[0], `[audit] request label=a\nforged status=200 host=h method=GET status=0 bodyBytes=0 at=${FIXED_NOW}`);
 });
+
+test.each([
+  ["username only", "https://sneaky@api.basic.example/v4/domains", "url must not embed credentials (user:pass@) — the server injects the real Authorization header itself"],
+  ["password only", "https://:hunter2@api.basic.example/v4/domains", "url must not embed credentials (user:pass@) — the server injects the real Authorization header itself"],
+  ["ftp scheme", "ftp://api.basic.example/v4/domains", "url must use http or https"],
+  ["file scheme", "file:///etc/passwd", "url must use http or https"],
+  ["relative url", "/v4/domains", "url must be a valid absolute URL"],
+  ["blank url", "   ", "url must be a non-empty string"],
+])("makeCredentialedRequest: %s is refused before any send", async (_label, url, message) => {
+  const writeDeps = await seedBasicAndBearer();
+  const httpClient = new FakeHttpClient();
+  const deps = makeDeps({ httpClient }, writeDeps);
+  await assert.rejects(
+    () => makeCredentialedRequest(deps, { workspaceId: WORKSPACE, label: "basic.example", method: "GET", url }),
+    (err: unknown) => {
+      assert.ok(err instanceof CredentialedRequestValidationError);
+      assert.equal((err as Error).message, message);
+      return true;
+    }
+  );
+  assert.deepEqual(httpClient.calls, []);
+});
+
+test.each(["get", "HEAD", "OPTIONS", "TRACE", ""])("makeCredentialedRequest: method %j is refused", async (method) => {
+  const writeDeps = await seedBasicAndBearer();
+  const httpClient = new FakeHttpClient();
+  const deps = makeDeps({ httpClient }, writeDeps);
+  await assert.rejects(
+    () => makeCredentialedRequest(deps, { workspaceId: WORKSPACE, label: "basic.example", method, url: "https://api.basic.example/v4/domains" }),
+    (err: unknown) => err instanceof CredentialedRequestValidationError && (err as Error).message === "method must be one of GET, POST, PUT, PATCH, DELETE"
+  );
+  assert.deepEqual(httpClient.calls, []);
+});
