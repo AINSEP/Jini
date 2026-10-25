@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createAgentPluginLayout } from '../../layout.js';
 import { createSeedBundledModule } from '../../seed-bundled.js';
+import { createBundledSourceArchiveModule } from '../../bundled-source-archive.js';
+import type { PackingForSource, SeedBundledAgentPluginsOptional } from '../../seed-bundled.js';
 import { BUNDLED_DIGESTS_FILENAME } from '../../bundled-digests.js';
 import { ACTIVATIONS_FILENAME } from '../../activation.js';
 import type { AgentPluginLifecyclePorts, FilesystemPort } from '../../ports.js';
@@ -96,5 +98,49 @@ describe('faults become report entries', () => {
     expect(report.outcomes).toHaveLength(1);
     expect(report.outcomes[0]).toMatchObject({ pluginId: 'seeded-one', status: 'failed' });
     expect((report.outcomes[0] as { reason: string }).reason).toContain(`${ACTIVATIONS_FILENAME} could not be read (EISDIR`);
+  });
+});
+
+describe('opt-in packing during seeding', () => {
+  test.each(['shared', 'per-source'] as const)('%s canonical packing installs the paired snapshot and preserves activation and ledger behavior', async mode => {
+    const sourceRoot = await sourceWithPlugin();
+    const sourceDir = path.join(sourceRoot, 'seeded-one');
+    await fs.writeFile(path.join(sourceDir, 'excluded.txt'), 'not installed');
+    const layout = createAgentPluginLayout({ root: await tempDir() });
+    const packing = { digestEncoding: 'canonical-files-v1' as const, excludeNames: ['excluded.txt'] };
+    const seen: { sourceDir: string; dirName: string }[] = [];
+    const forSource: PackingForSource = async (required, optional) => {
+      seen.push(required);
+      expect(optional).toEqual({});
+      return packing;
+    };
+    const optional: SeedBundledAgentPluginsOptional = { packing: mode === 'shared' ? packing : forSource };
+    const context = { ...ports, layout, onEvent: () => undefined };
+    const { seedBundledAgentPlugins } = createSeedBundledModule(context);
+    const baseline = await createBundledSourceArchiveModule(context).packAgentPluginDirectory(sourceDir);
+    const packed = await createBundledSourceArchiveModule(context).packAgentPluginDirectory(sourceDir, packing);
+    expect(packed.sha256).not.toBe(baseline.sha256);
+    const report = await seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, optional);
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'seeded', archiveDigest: packed.sha256, activationRecorded: true }]);
+    expect(report.ledgerFailure).toBeUndefined();
+    expect(seen).toEqual(mode === 'shared' ? [] : [{ sourceDir, dirName: 'seeded-one' }]);
+    const workspace = layout.forWorkspace({ workspaceId: 'ws' });
+    const installed = path.join(workspace.pluginPackagesDir({ pluginId: 'seeded-one' }), packed.sha256);
+    expect(await fs.readFile(path.join(installed, 'skills/seeded-one/SKILL.md'), 'utf8')).toBe('# Seeded\n');
+    await expect(fs.stat(path.join(installed, 'excluded.txt'))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await fs.readFile(path.join(workspace.root, BUNDLED_DIGESTS_FILENAME), 'utf8')).toContain(packed.sha256);
+    expect(await fs.readFile(path.join(workspace.root, ACTIVATIONS_FILENAME), 'utf8')).toContain('"enabled": false');
+    const repeated = await seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, optional);
+    expect(repeated.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'seeded', archiveDigest: packed.sha256, activationRecorded: false }]);
+  });
+
+  test('a failed per-source policy uses the existing per-plugin failure report', async () => {
+    const sourceRoot = await sourceWithPlugin();
+    const layout = createAgentPluginLayout({ root: await tempDir() });
+    const api = createSeedBundledModule({ ...ports, layout });
+    const report = await api.seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, {
+      packing: async () => { throw new Error('packing policy unavailable'); },
+    });
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'packing policy unavailable' }]);
   });
 });

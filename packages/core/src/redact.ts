@@ -212,8 +212,10 @@ export interface SecretRedactionOptions {
   redactPii?: boolean;
   /** Exact trusted registration IDs; credential patterns always take precedence. */
   diagnosticToolIds?: readonly string[];
-  /** Conservative by default; aggressive also masks bare 20+ character opaque runs. */
-  policy?: 'conservative' | 'aggressive';
+  /** Conservative by default; aggressive masks opaque runs; exact-only replaces only supplied secrets. */
+  policy?: 'conservative' | 'aggressive' | 'exact-only';
+  /** Literal replacement under exact-only. Defaults to '[REDACTED:exact_secret]'; ignored otherwise. */
+  marker?: string;
   exactSecrets?: ReadonlyArray<string | undefined | null>;
   extraPatterns?: readonly SecretRedactionPattern[];
 }
@@ -266,10 +268,11 @@ function isMaskedValue(value: string): boolean {
 
 /**
  * Returns `input` with every recognised secret / PII pattern replaced by a
- * `[REDACTED:<kind>]` marker. Idempotent — re-running on already redacted
+ * `[REDACTED:<kind>]` marker. Under the default policies, idempotent — re-running on already redacted
  * text only matches new tokens. Defaults to conservative; `{ policy: 'aggressive' }`
  * additionally masks bare 20+ character opaque runs. Exact secrets and extra patterns
- * are honored under either policy.
+ * are honored under either heuristic policy. Exact-only replaces only supplied secrets in one pass,
+ * preserves unmatched characters, and inserts the optional literal marker without reprocessing it.
  *
  * Empty / non-string input passes through unchanged so the caller can use
  * this as a no-op on optional fields.
@@ -295,8 +298,15 @@ export function redactSecretsWithCounts({ input }: { input: string }, options: S
   if (!input) return { redacted: input, counts };
   const marker: Marker = (name) => {
     counts[name] = (counts[name] ?? 0) + 1;
+    if (options.policy === 'exact-only') return options.marker ?? '[REDACTED:exact_secret]';
     return `[REDACTED:${name}]`;
   };
+  if (options.policy === 'exact-only') {
+    return {
+      redacted: redactExactSecrets({ text: input, marker, secrets: options.exactSecrets ?? [] }, { singlePass: true }),
+      counts,
+    };
+  }
   let out = redactExactSecrets({ text: input, marker, secrets: options.exactSecrets ?? [] });
   out = redactUrlCredentials({ text: out, marker });
   out = applyPatterns({ text: out, marker, patterns: credentialPatterns(options.extraPatterns ?? []) });
@@ -347,10 +357,17 @@ function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: r
 /** Masks caller-supplied secrets verbatim, longest first, ignoring empty and non-string entries. */
 function redactExactSecrets(
   { text, marker, secrets }: RedactionPass & { secrets: ReadonlyArray<string | undefined | null> },
+  options: { singlePass?: boolean } = {},
 ): string {
   const usable = [...new Set(secrets.filter(
     (secret): secret is string => typeof secret === 'string' && secret.length > 0,
   ))].sort((a, b) => b.length - a.length);
+  if (options.singlePass) {
+    if (usable.length === 0) return text;
+    // Match the original text once: a marker can contain a supplied secret or '$' literally.
+    const alternatives = usable.map(secret => secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return text.replace(new RegExp(alternatives.join('|'), 'g'), () => marker('exact_secret'));
+  }
   let out = text;
   for (const secret of usable) {
     const escaped = secret.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
