@@ -248,6 +248,24 @@ function recordedAnswerLabel({ answer, closed, t }: {
   return answer ?? closed ?? t('Answered');
 }
 
+/** A single answered card: closed with its label, plus the optimistic bubble until a receipt owns it.
+ * @complexity O(1), no effects.
+ */
+function answeredSurface({ answerRecorded, answer, closed, call, standalone, t }: {
+  answerRecorded: McpUiSurfaceCardProps['answerRecorded'];
+  answer: string | undefined;
+  closed: string | undefined;
+  call: McpUiSurfaceCardProps['call'];
+  standalone: boolean;
+  t: ReturnType<typeof useT>;
+}, _options = {}) {
+  // MOVE: The accepted-input receipt owns its bubble; the closed card retains the question's context.
+  if (answerRecorded) return <ClosedSurface call={call} label={recordedAnswerLabel({ answer, closed, t })} />;
+  if (answer === undefined) return undefined;
+  const label = answer === 'Declined' ? t('Declined') : answer;
+  return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: standalone ? surfaceAnswerLabel({ call, label }) : label }]} /></>;
+}
+
 /** Rendering priority stays receipt, answer, closure, then the live documents. */
 function SurfaceCardContent({ resources, single, answerRecorded, answer, closed, call, standalone, t,
   sandboxProxyUrl, toolCall, onOpenLink, maxHeight, expiry }: {
@@ -265,14 +283,8 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   maxHeight: number | undefined;
   expiry: ReturnType<typeof useSurfaceExpiry>;
 }) {
-  // MOVE: The accepted-input receipt owns its bubble; the closed card retains the question's context.
-  if (single !== undefined) {
-    if (answerRecorded) return <ClosedSurface call={call} label={recordedAnswerLabel({ answer, closed, t })} />;
-    if (answer !== undefined) {
-      const label = answer === 'Declined' ? t('Declined') : answer;
-      return <><ClosedSurface call={call} label={label} /><MidRunUserMessage events={[{ text: standalone ? surfaceAnswerLabel({ call, label }) : label }]} /></>;
-    }
-  }
+  const answered = single === undefined ? undefined : answeredSurface({ answerRecorded, answer, closed, call, standalone, t });
+  if (answered !== undefined) return answered;
   if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
 
   if (resources.length === 0) {

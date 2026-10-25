@@ -35,6 +35,12 @@ function message(events: AgentEvent[], runStatus: ChatMessage['runStatus'] = 'ru
 function receipt(surfaceUri = uri): AgentEvent {
   return acceptedInputUserEvent({ input: { id: `answer:${surfaceUri}`, text: 'Agent plugins: GitHub', answerText: 'GitHub', surfaceUri } }, { receipt: 'accepted' });
 }
+/** Text outside tool panels: an enclosing call's own input legitimately renders its raw values. */
+function transcriptText(container: HTMLElement) {
+  const copy = container.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll('.op-card').forEach(node => node.remove());
+  return copy.textContent;
+}
 function bubbles(container: HTMLElement) {
   return [...container.querySelectorAll('.jini-message-user .jini-message-content')].map(node => node.textContent);
 }
@@ -51,9 +57,9 @@ it.each([false, true])('uses the resource question for live title/labels with an
   await userEvent.click(screen.getByRole('button', { name: 'Use' }));
   await waitFor(() => expect(bubbles(view.container)).toEqual(['Agent plugins: GitHub']));
   expect(view.container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Agent plugins: GitHub');
-  expect(view.container.textContent).not.toContain('github');
-  expect(view.container.textContent).not.toContain('Lets the assistant');
-  expect(screen.queryByRole('button')).toBeNull();
+  expect(transcriptText(view.container)).not.toContain('github');
+  expect(transcriptText(view.container)).not.toContain('Lets the assistant');
+  for (const name of ['Use', "Don't ask again", 'Skip']) expect(screen.queryByRole('button', { name })).toBeNull();
   expect(screen.queryByText('Waiting for your answer above')).toBeNull();
   expect(execute).toHaveBeenCalledTimes(1);
 });
