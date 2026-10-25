@@ -1191,3 +1191,56 @@ test("REMOVE_POLICY_PERMISSION is NOT grant-clamped — de-escalation never need
 
   assert.deepEqual(await repos.policyPermissions.listByPolicyId({ workspaceId: WORKSPACE, policyId: policy.id }), []);
 });
+
+// F1 fix wave (Stryker L1 §4: admin-crud-service.ts:345,347,357 survived). The non-owner-manager
+// case above is answered by `assertOwnerTargetMayBeModified` first, so the seeded-owner guard is
+// only load-bearing when the caller is itself an owner: a SECOND owner resetting the seeded owner.
+async function buildSecondOwnerUser() {
+  const seeded = await buildSeededDeps();
+  const { deps, repos, ownerPrincipalId } = seeded;
+  const { principal: secondOwner } = await createUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "second-owner", password: "second-owner-pw" } });
+  const ownerRole = (await repos.roles.list({ workspaceId: WORKSPACE })).find((role) => role.name === "owner");
+  assert.ok(ownerRole);
+  await assignRole({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: secondOwner.id, roleId: ownerRole.id } });
+  return { ...seeded, secondOwner };
+}
+
+test("SECURITY: a second OWNER cannot reset the seeded owner's password (seeded-owner guard)", async () => {
+  const { deps, repos, ownerPrincipalId, secondOwner } = await buildSecondOwnerUser();
+  const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId });
+  await assert.rejects(
+    () => resetUserPassword({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: secondOwner.id, principalId: ownerPrincipalId, password: "attacker-pw", seededOwnerPrincipalId: ownerPrincipalId } }),
+    (error: unknown) => error instanceof OwnerRequiredError &&
+      error.message === "the seeded owner's password can only be reset by the owner itself, never by another caller",
+  );
+  assert.deepEqual(await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId }), before);
+  // The seeded owner's original password still works; the attacker's does not.
+  await login({ deps, input: { workspaceId: WORKSPACE, username: "admin", password: SEED_OWNER_PASSWORD } });
+  await assert.rejects(() => login({ deps, input: { workspaceId: WORKSPACE, username: "admin", password: "attacker-pw" } }), AuthInvalidCredentialsError);
+});
+
+test("RESET_PASSWORD: the guard is target-specific — the same second owner MAY reset a non-seeded user", async () => {
+  const { deps, ownerPrincipalId, secondOwner } = await buildSecondOwnerUser();
+  const { principal: target } = await createUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "plain-user", password: "old-pw-1" } });
+  await resetUserPassword({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: secondOwner.id, principalId: target.id, password: "new-pw-1", seededOwnerPrincipalId: ownerPrincipalId } });
+  await login({ deps, input: { workspaceId: WORKSPACE, username: "plain-user", password: "new-pw-1" } });
+  await assert.rejects(() => login({ deps, input: { workspaceId: WORKSPACE, username: "plain-user", password: "old-pw-1" } }), AuthInvalidCredentialsError);
+});
+
+test("RESET_PASSWORD: the seeded owner may reset its OWN password (the documented recovery path)", async () => {
+  const { deps, ownerPrincipalId } = await buildSecondOwnerUser();
+  await resetUserPassword({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: ownerPrincipalId, password: "rotated-pw", seededOwnerPrincipalId: ownerPrincipalId } });
+  await login({ deps, input: { workspaceId: WORKSPACE, username: "admin", password: "rotated-pw" } });
+  await assert.rejects(() => login({ deps, input: { workspaceId: WORKSPACE, username: "admin", password: SEED_OWNER_PASSWORD } }), AuthInvalidCredentialsError);
+});
+
+test("RESET_PASSWORD: an empty password is refused with 'password is required' and nothing is written", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  const { principal: target } = await createUser({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "pw-target", password: "keep-me-1" } });
+  const before = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id });
+  await assert.rejects(
+    () => resetUserPassword({ deps, input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: target.id, password: "", seededOwnerPrincipalId: ownerPrincipalId } }),
+    (error: unknown) => error instanceof IdentityValidationError && error.message === "password is required",
+  );
+  assert.deepEqual(await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: target.id }), before);
+});
