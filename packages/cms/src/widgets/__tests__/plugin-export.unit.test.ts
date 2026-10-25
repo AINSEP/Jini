@@ -178,3 +178,35 @@ describe('plugin export occurrence resolution', () => {
     expect([...result.keys()]).toEqual(['plugin:2']);
   });
 });
+
+describe('plugin export template refusals and fallbacks (coverage)', () => {
+  it.each([
+    ['an object prop', { label: { nested: true } }],
+    ['an array prop', { label: ['a'] }],
+    ['a null prop', { label: null }],
+  ])('a slot naming %s refuses the whole export', (_label, props) => {
+    expect(() => fillPluginExportTemplate({ definition: { ...definition, props } })).toThrow('non-scalar plugin export slot');
+  });
+
+  it.each([[1, '1'], [false, 'false']])('scalar non-string props (%j) are stringified', (label, text) => {
+    expect(fillPluginExportTemplate({ definition: { ...definition, props: { label } } })).toContain(`<span>${text}</span>`);
+  });
+
+  it('a definition without a host bag refuses a host slot as unknown (never reads the prototype)', () => {
+    const { host: _host, ...withoutHost } = definition;
+    expect(() => fillPluginExportTemplate({ definition: withoutHost })).toThrow('unknown plugin export slot');
+  });
+
+  it('a definition whose consent category is not a known category resolves to no output (fallback kept)', async () => {
+    const port: PluginExportsPort = { resolve: async () => ({ ...definition, consent: 'tracking' as PluginExportTemplate['consent'] }) };
+    expect((await resolve(snippet(), port)).size).toBe(0);
+  });
+
+  it('refs without an id or a config are skipped without calling the port', async () => {
+    let calls = 0;
+    const port: PluginExportsPort = { resolve: async () => { calls++; return definition; } };
+    const results = await resolvePluginExportEmbeds({ refs: [{ id: '', config }, { id: 'x' }] as never, port, workspaceId: 'site-a' });
+    expect(results.size).toBe(0);
+    expect(calls).toBe(0);
+  });
+});

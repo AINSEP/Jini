@@ -52,3 +52,7 @@ test("redirectPathKey keeps an encoded slash distinct from a separator and toler
   assert.equal(redirectPathKey({ path: "/a//" }, {}), "/a");
   assert.equal(redirectPathKey({ path: "/A/B" }, {}), "/A/B");
 });
+
+test("an empty path (or only slashes) keys as the root '/'", () => {
+  for (const path of ["", "/", "//", "///"]) assert.equal(redirectPathKey({ path }, {}), "/");
+});

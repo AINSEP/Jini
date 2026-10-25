@@ -284,3 +284,16 @@ describe('consent CSS compiler', () => {
     expect(css).not.toContain('border-radius:0!important');
   });
 });
+
+describe('box-shadow bounds (coverage: plain-colour shadows and the 3–4 length rule)', () => {
+  it.each(['box-shadow:0 2px 4px #000000', 'box-shadow:0 2px 4px 1px #abc'])('a shadow with a plain colour is accepted: %s', declaration => {
+    const result = compileConsentCss({ css: `#jini-consent{${declaration}}` });
+    expect(result.problems).toEqual([]);
+    expect(result.css).toContain(`${root}{${declaration}}`);
+  });
+  it.each(['box-shadow:0 2px #000', 'box-shadow:0 1px 2px 3px 4px #000', 'box-shadow:#000', 'box-shadow:0 2px 4px'])('a shadow with the wrong number of lengths, or no colour, is refused: %s', declaration => {
+    const result = compileConsentCss({ css: `#jini-consent{${declaration}}` });
+    expect(result.problems).not.toEqual([]);
+    expect(result.css).not.toContain(declaration);
+  });
+});

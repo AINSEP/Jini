@@ -319,3 +319,21 @@ test("menus_assign_location reports the menu it displaced from the location", as
   assert.equal(swapped.displacedMenu?.id, first.menu.id);
   assert.deepEqual(swapped.displacedMenu?.locations, []);
 });
+
+// The domain hook's own collision guard (tool-registrations.ts normalizeMenuUpdateInput). The
+// executor's shared normalizer refuses these first, so call the hook directly: a host or a future
+// executor that skips the shared pass must still get the refusal, never a silent overwrite.
+for (const target of [
+  { id: "private-menu-id", menuId: "other-private-id" },
+  { menuId: "private-menu-id", menu_id: "other-private-id" },
+]) {
+  test(`the update hook itself refuses alias collisions (${Object.keys(target).join(", ")})`, async () => {
+    const registration = registrationFor({ deps: fakeDeps(), toolId: "menus_update_menu_tree" });
+    assert.ok(registration.normalizeInput);
+    await assert.rejects(async () => registration.normalizeInput!({ input: { ...target, expectedVersion: 1 } }), (error: unknown) => {
+      assert.ok(error instanceof ToolInputError);
+      assert.equal(error.message, "Conflicting inputs for the menu target. Send only 'id', not multiple id/menuId spellings.");
+      return true;
+    });
+  });
+}

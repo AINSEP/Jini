@@ -48,3 +48,20 @@ describe('runtime-script exemption', () => {
     expect(out).not.toContain('data-jini-consent-runtime');
   });
 });
+
+describe('trusted-URL and necessary-script edges (coverage)', () => {
+  const body = (html: string, options: object) => transform(html, options);
+  it('an unparseable external URL is never trusted (gated), even with a page origin', () => {
+    const out = body('<script src="https://[::1/x.js"></script>', { pageOrigin: 'https://site.example', resourceOrigins: ['https://site.example'] });
+    expect(out).toContain('<template data-jini-consent-script');
+  });
+  it('a content-only necessary entry never exempts a script that has a src', () => {
+    const out = body('<script src="https://tags.example/a.js"></script>', { necessaryScripts: [{ content: '' }] });
+    expect(out).toContain('<template data-jini-consent-script');
+  });
+  it('a src necessary entry exempts exactly that external script', () => {
+    const out = body('<script src="https://tags.example/a.js"></script><script src="https://tags.example/b.js"></script>', { necessaryScripts: [{ src: 'https://tags.example/a.js' }] });
+    expect(out.startsWith('<script src="https://tags.example/a.js"></script>')).toBe(true);
+    expect(out).toContain('<template data-jini-consent-script data-category="marketing"><script src="https://tags.example/b.js"></script></template>');
+  });
+});
