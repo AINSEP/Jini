@@ -412,7 +412,8 @@ content-model · [README](packages/cms/README.md)
 |---|---|---|---|---|
 | `@jini-ai/cms` | Content kernel contracts and services; same framework-free owner as core. | `executeCommand`, `EventBusPort`, `OutboxPort` | universal | none yet |
 | `@jini-ai/cms/core` | Content events/outbox contracts, audited commands, registries and domain ports. | `executeCommand`, `EventBusPort`, `OutboxPort` | universal | Tovu: website; Jini: cms-forms, commerce |
-| `@jini-ai/cms/forms` | Forms definitions, submissions, delivery planning and the Forms email sender. | `createFormDefinition`, `planFormDeliveries`, `createFormsEmailSender` | universal | Tovu: website |
+| `@jini-ai/cms/forms` | Forms definitions, submissions and delivery planning. | `createFormDefinition`, `planFormDeliveries` | universal | Tovu: website |
+| `@jini-ai/cms/forms/email-sender` | Forms email sender; needs the optional `@jini-ai/platform` peer. | `createFormsEmailSender` | universal | none yet |
 | `@jini-ai/cms/navigation` | Navigation trees, target validation and audited navigation mutations. | `createNavMenuReadModel`, `menuVersionConflictError`, `createMenu` | universal | Tovu: website |
 | `@jini-ai/cms/media` | Media/rendition services, blob storage, transforms and journaled garbage collection. | `MediaRecord`, `AssetBlobRecord`, `computeBlobStorageKey` | node | Tovu: website |
 | `@jini-ai/cms/settings` | Scoped settings definitions/defaults, revisions, changes and change feeds. | `getEffective`, `InMemorySettingsRepo`, `SettingsRepoPort` | universal | Tovu: admin, website |

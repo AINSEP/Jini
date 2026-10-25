@@ -17,4 +17,4 @@ export * from "./repo.memory.js";
 export * from "./field-registry.js";
 
 export * from "./delivery/index.js";
-export { createFormsEmailSender, type FormsEmailSenderDeps, type FormEmailAction, type FormEmailActionInput } from "./email-sender.js";
+// The optional platform peer is required only by the dedicated /forms/email-sender entry.

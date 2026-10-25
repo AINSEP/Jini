@@ -10,7 +10,9 @@ See [API integration](API-INTEGRATION.md) for current signatures and migration e
 
 ## Forms email sender
 
-`@jini-ai/cms/forms`: `createFormsEmailSender({ deps })`, `FormsEmailSenderDeps`, `FormEmailAction`, `FormEmailActionInput`.
+`@jini-ai/cms/forms/email-sender`: `createFormsEmailSender({ deps })`, `FormsEmailSenderDeps`, `FormEmailAction`, `FormEmailActionInput`.
+Install the optional peer `@jini-ai/platform@^0.6.15` when using this sender; that release includes
+`@jini-ai/platform/mail/senders`. The `@jini-ai/cms/forms` entry loads without platform installed.
 Tokens use stable field ids, never labels; built-in collisions use `field.<id>`.
 Built-ins: `site_name`, canonical `site_url`, and ISO `submitted_at`; templates/hosts own formatting.
 Files, hidden fields, IPs, credentials, undeclared keys, defaults and owner recipients are excluded.
