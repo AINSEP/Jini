@@ -3,6 +3,8 @@ import type {
 } from './ports.js';
 
 const EPOCH = new Date(0).toISOString();
+const settleError = (errors: unknown[]): unknown =>
+  errors.length === 1 ? errors[0] : new AggregateError(errors, 'transaction rollback failed');
 
 /** A stored fenced row; the original request digest stays with it for replay comparison. */
 export type InMemoryFencedRow<E> = FencedClaim<E> & {
@@ -14,7 +16,8 @@ export type InMemoryFencedRow<E> = FencedClaim<E> & {
  * Caller-owned in-memory unit of work. Writers join it with a commit and a rollback action; it
  * settles exactly once, and joining or settling a settled transaction throws. If any joined commit
  * throws, every joined rollback runs (including for writes whose commit already ran), the
- * transaction settles rolled-back, and the error propagates.
+ * transaction settles rolled-back, and the error propagates. Each rollback runs even when an earlier
+ * one throws; a single error propagates as itself, several (the commit error first) as an AggregateError.
  */
 export class InMemoryTransaction {
   #status: 'open' | 'committed' | 'rolled-back' = 'open';
@@ -31,15 +34,23 @@ export class InMemoryTransaction {
     try {
       for (const write of this.#joined) write.commit();
     } catch (error) {
-      this.rollback();
-      throw error;
+      throw settleError([error, ...this.#rollbackAll()]);
     }
     this.#status = 'committed';
   }
   rollback(): void {
     this.#assertOpen();
+    const errors = this.#rollbackAll();
+    if (errors.length > 0) throw settleError(errors);
+  }
+  /** Undo every joined write; one throwing rollback must not leave the later writes (e.g. a released outbox row) in place. */
+  #rollbackAll(): unknown[] {
     this.#status = 'rolled-back';
-    for (const write of this.#joined) write.rollback();
+    const errors: unknown[] = [];
+    for (const write of this.#joined) {
+      try { write.rollback(); } catch (error) { errors.push(error); }
+    }
+    return errors;
   }
   #assertOpen(): void {
     if (this.#status !== 'open') throw new TypeError(`transaction already ${this.#status}`);

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import type { Empty, EnqueueIntent, Fence, FencedClaim, FencedEnqueuePort, FencedOutboxPort } from './ports.js';
+import type { Empty, EnqueueIntent, EnqueueReceipt, Fence, FencedClaim, FencedEnqueuePort, FencedOutboxPort } from './ports.js';
 
 /** One open host transaction the suite enqueues into, next to a host intent write. */
 export interface FencedConformanceTransaction<Tx> {
@@ -34,6 +34,18 @@ const CONFLICT = { status: 'conflict', reason: 'request-digest-mismatch' } as co
 const conflicting = (subject: Subject) => intent(subject, { event: subject.conflictingEvent, requestDigest: 'digest-2' });
 const claim = (subject: Subject, ms = 0) => subject.outbox.claimReady({ scope: SCOPE, batchSize: 10, nowIso: at(ms), claimLeaseMs: LEASE_MS });
 
+/** A second writer enqueues the conflicting intent in its own transaction and always settles it. */
+async function contend(subject: Subject): Promise<EnqueueReceipt | 'rejected'> {
+  const second = await subject.begin();
+  const receipt = await subject.outbox.enqueueWithReceipt({ intent: conflicting(subject) }, { transaction: second.transaction })
+    .catch(() => undefined);
+  if (receipt?.status === 'conflict') await second.commit();
+  else await second.rollback();
+  return receipt ?? 'rejected';
+}
+/** One macrotask, so a host that does not serialize transactions starts the contender while the first is open. */
+const nextTurn = () => new Promise<void>(resolve => { setTimeout(resolve, 0); });
+
 /** Enqueue, claim and pass the dispatch fence: the row is now `dispatching` with a lease ending at LEASE_MS. */
 async function dispatching(subject: Subject): Promise<FencedClaim<unknown>> {
   await subject.outbox.enqueueWithReceipt({ intent: intent(subject) });
@@ -67,15 +79,21 @@ const CASES: Record<string, (subject: Subject) => Promise<void>> = {
   },
   'overlapping transactions never both insert one key': async (subject) => {
     const first = await subject.begin();
-    const second = await subject.begin();
-    assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: intent(subject) }, { transaction: first.transaction }), { status: 'inserted' });
-    // A real database may block this insert until `first` settles, so it is awaited only after that commit.
-    const racing = subject.outbox.enqueueWithReceipt({ intent: conflicting(subject) }, { transaction: second.transaction })
-      .then(receipt => receipt, () => undefined);
-    await first.commit();
-    const receipt = await racing;
-    if (receipt === undefined) await second.rollback();
-    else { assert.deepEqual(receipt, CONFLICT); await second.commit(); }
+    // A serialized host queues the second begin, and a real database may block its insert, until
+    // `first` settles, so the contender is awaited only after that commit.
+    let contender: Promise<EnqueueReceipt | 'rejected'> | undefined;
+    try {
+      assert.deepEqual(await subject.outbox.enqueueWithReceipt({ intent: intent(subject) }, { transaction: first.transaction }), { status: 'inserted' });
+      contender = contend(subject);
+      await nextTurn();
+      await first.commit();
+    } catch (error) {
+      await first.rollback().catch(() => undefined);
+      await contender?.catch(() => undefined);
+      throw error;
+    }
+    const outcome = await contender;
+    if (outcome !== 'rejected') assert.deepEqual(outcome, CONFLICT);
     const rows = await claim(subject);
     assert.equal(rows.length, 1);
     assert.deepEqual(rows[0]!.event, subject.event);

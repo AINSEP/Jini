@@ -128,6 +128,7 @@ export interface FencedEnqueuePort<E, Tx> {
    * rolls back with the caller's own intent writes, and enqueue never opens, commits or retries
    * another. Reject closed or unsupported sessions. Without one, the insert commits on its own.
    * A key inserted by another still-open transaction is never inserted twice: wait for it or reject.
+   * An abandoned open transaction keeps its key reserved indefinitely, so callers settle it (finally).
    */
   enqueueWithReceipt(required: { intent: EnqueueIntent<E> }, optional?: { transaction?: Tx }): Promise<EnqueueReceipt>;
 }
