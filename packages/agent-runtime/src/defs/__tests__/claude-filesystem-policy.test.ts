@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync, symlinkSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { assertClaudeFilesystemSupport, claudeFilesystemSettings, validateFilesystemLaunch } from '../../claude-filesystem-policy.js';
+import { assertClaudeFilesystemSupport, claudeFilesystemRuntimePaths, claudeFilesystemSettings, validateFilesystemLaunch } from '../../claude-filesystem-policy.js';
 import { claudeAgentDef } from '../claude.js';
 import { buildClaudeMcpConfigArgs } from '../shared.js';
 
@@ -192,5 +192,61 @@ describe('personal configuration disclosure contract', () => {
     expect(args[args.indexOf('--setting-sources') + 1]).toBe('');
     expect(args).not.toContain('--disable-slash-commands');
     expect(args.join(' ')).not.toContain('OUTSIDE_CANARY');
+  });
+});
+
+// Stryker L3 (2026-10-25): version-floor edges on major/minor, the missing-executable catch, the
+// strict version regex, and claudeFilesystemRuntimePaths had no test.
+describe('Claude enforcement availability — floor edges and fail-open paths', () => {
+  function executable() {
+    const { base } = fixture();
+    const launchPath = join(base, 'claude'); writeFileSync(launchPath, 'never executed');
+    return launchPath;
+  }
+  it.each([
+    ['1.99.999 (Claude Code)', false], ['2.0.999 (Claude Code)', false], ['2.1.0 (Claude Code)', false],
+    ['2.2.0 (Claude Code)', true], ['2.10.0 (Claude Code)', true], ['10.0.0 (Claude Code)', true],
+    ['  2.1.285 (Claude Code)  \n', true],
+  ])('floor 2.1.285: %j → %s', async (stdout, expected) => {
+    const probe = vi.fn().mockResolvedValue({ stdout, stderr: '' });
+    await expect(assertClaudeFilesystemSupport({ agentId: 'claude', launchPath: executable(), env: {} }, { probe })).resolves.toBe(expected);
+  });
+  it.each(['v2.1.300 (Claude Code)', '2.1.300 (Claude Code) beta', '2.1.300 (Claude)', '2.1 (Claude Code)', '2.1.300  Claude Code'])(
+    'treats non-official version text %j as unknown (undefined), after two probes', async stdout => {
+      const probe = vi.fn().mockResolvedValue({ stdout, stderr: '' });
+      await expect(assertClaudeFilesystemSupport({ agentId: 'claude', launchPath: executable(), env: {} }, { probe })).resolves.toBeUndefined();
+      expect(probe).toHaveBeenCalledTimes(2);
+    });
+  it('a launch path that cannot be stat-ed is unknown (undefined) and never probed', async () => {
+    const probe = vi.fn();
+    const { base } = fixture();
+    await expect(assertClaudeFilesystemSupport({ agentId: 'claude', launchPath: join(base, 'missing-claude'), env: {} }, { probe })).resolves.toBeUndefined();
+    expect(probe).not.toHaveBeenCalled();
+  });
+  it.each(['openclaude', 'OpenClaude.exe', 'openclaude.cmd'])('%s is an unsupported fork', async name => {
+    const probe = vi.fn();
+    await expect(assertClaudeFilesystemSupport({ agentId: 'claude', launchPath: `/x/${name}`, env: {} }, { probe })).resolves.toBe(false);
+    expect(probe).not.toHaveBeenCalled();
+  });
+  it('openclaudex is NOT the fork and is probed', async () => {
+    const { base } = fixture();
+    const launchPath = join(base, 'openclaudex'); writeFileSync(launchPath, 'x');
+    const probe = vi.fn().mockResolvedValue({ stdout: '2.1.300 (Claude Code)', stderr: '' });
+    await expect(assertClaudeFilesystemSupport({ agentId: 'claude', launchPath, env: {} }, { probe })).resolves.toBe(true);
+  });
+});
+
+describe('claudeFilesystemRuntimePaths', () => {
+  it.each(['cli.js', 'cli.mjs', 'cli.cjs'])('a JS entrypoint (%s) grants its package directory, via a symlinked launcher', name => {
+    const { base } = fixture();
+    const pkg = join(base, 'pkg'); mkdirSync(pkg);
+    const entry = join(pkg, name); writeFileSync(entry, '');
+    const launcher = join(base, 'claude'); symlinkSync(entry, launcher);
+    expect(claudeFilesystemRuntimePaths({ launchPath: launcher }, {})).toEqual([launcher, realpathSync(pkg), realpathSync(process.execPath)]);
+  });
+  it.each(['claude', 'claude.json', 'cli.jsx'])('a native binary (%s) grants only itself, deduplicated', name => {
+    const { base } = fixture();
+    const bin = join(realpathSync(base), name); writeFileSync(bin, '');
+    expect(claudeFilesystemRuntimePaths({ launchPath: bin }, {})).toEqual([bin, realpathSync(process.execPath)]);
   });
 });
