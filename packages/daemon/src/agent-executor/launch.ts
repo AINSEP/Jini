@@ -963,13 +963,16 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   const claudeConfigDirIsolationEnabled = options.claudeConfigDirIsolationEnabled ?? false;
   const promptAugmenter = options.promptAugmenter;
 
-  const filesystemTemps = new Map<string, string>();
+  const filesystemTemps = new Map<string, string[]>();
 
-  /** Remove only this run's private temp directory, on startup failure or child cleanup. */
+  /** Remove this run's private temp directories on startup failure, exit, crash or cancellation.
+   * O(d) removals for d staged directories; each failure is reported without skipping the others.
+   */
   async function cleanupFilesystemTemp({ runId }: { runId: string }, _optional = {}) {
-    const path = filesystemTemps.get(runId);
-    if (!path) return;
-    await fsPromises.rm(path, { recursive: true, force: true }).catch(() => console.warn('[agent-executor] private temp cleanup failed'));
+    const paths = filesystemTemps.get(runId);
+    if (!paths) return;
+    await Promise.all(paths.map(path => fsPromises.rm(path, { recursive: true, force: true })
+      .catch(() => console.warn('[agent-executor] private temp cleanup failed'))));
     filesystemTemps.delete(runId);
   }
 
@@ -1072,13 +1075,21 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       // Refuse a runtime-folder symlink escaping the site before creating anything beneath it.
       validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [runtimeDir] }, {});
       input.filesystemTempDir = await fsPromises.realpath(await fsPromises.mkdtemp(join(runtimeDir, 'tmp-')));
-      filesystemTemps.set(input.runId, input.filesystemTempDir);
+      filesystemTemps.set(input.runId, [input.filesystemTempDir]);
       // Recheck after creation too: swapping the runtime symlink must never grant outside temp access.
       validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [input.filesystemTempDir] }, {});
       input.filesystemSharedTempRoots = [spawnEnv.TMPDIR, spawnEnv.TMP, spawnEnv.TEMP].filter((path): path is string => Boolean(path));
       spawnEnv.TMPDIR = input.filesystemTempDir;
       spawnEnv.TMP = input.filesystemTempDir;
       spawnEnv.TEMP = input.filesystemTempDir;
+      if (def.id === 'claude' && process.platform !== 'win32') {
+        // Claude shortens long Bash socket paths to shared scratch. Keep even the /private alias
+        // plus /claude-<uid> below 44 bytes, and isolate it with mkdtemp's private 0700 directory.
+        const runtimeTemp = await fsPromises.mkdtemp('/tmp/jini-');
+        filesystemTemps.get(input.runId)!.push(runtimeTemp);
+        input.filesystemRuntimeTempBase = runtimeTemp;
+        spawnEnv.CLAUDE_CODE_TMPDIR = runtimeTemp;
+      }
       if (supported === false) {
         input.filesystemNotice = 'files and shell are not folder-limited for this agent';
         console.warn('[agent-executor] files and shell are not folder-limited for this agent');
@@ -1133,7 +1144,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     return { systemPromptOverlay, overlayDelivery };
   }
 
-  /** Resolve the launch environment and retain its temp override for both policy builds.
+  /** Resolve the launch environment before staging the run's private temp overrides.
    * Mutates only this run's input; O(e) for e environment entries plus executable resolution I/O.
    */
   async function resolveRunLaunch({ input, def }: { input: MutableRunInput; def: RuntimeAgentDef }, _options = {}) {
@@ -1148,8 +1159,6 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     );
 
     const spawnEnv = applyAgentLaunchEnvFn({ env: { ...resolvedEnv }, launch });
-    // Use the actual child override, including its absence, rather than the daemon's environment.
-    input.filesystemRuntimeTempBase = spawnEnv.CLAUDE_CODE_TMPDIR ?? '';
     return { launch, spawnEnv };
   }
 
