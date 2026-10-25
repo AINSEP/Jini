@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createInMemoryEventLog, createRunLifecycle } from '../index.js';
 
 // F1 fix wave (Stryker L8 §4 run-lifecycle.ts:231,263,277,278,288): journal summarisation on
@@ -79,5 +79,24 @@ describe('RunLifecycle.rehydrate — F1 journal summarisation', () => {
     const lifecycle = createRunLifecycle({ eventLog });
     await lifecycle.rehydrate({});
     expect((await lifecycle.start({ contextRef: 'ctx' }, { idempotencyKey: 'k1' })).run.id).toBe('r');
+  });
+});
+
+describe('RunLifecycle.start — F1 failed start append cleanup', () => {
+  it('a failing start append clears the run from the correlation store, the index and the idempotency map', async () => {
+    const inner = createInMemoryEventLog({});
+    let failStart = true;
+    const eventLog = { ...inner, append: async (input: Parameters<typeof inner.append>[0], options?: Parameters<typeof inner.append>[1]) => {
+      if (failStart && input.event === 'start') throw new Error('disk full');
+      return inner.append(input, options);
+    } } as typeof inner;
+    const clearRun = vi.fn();
+    const lifecycle = createRunLifecycle({ eventLog }, { delegatedResultCorrelation: { record: vi.fn(), matches: vi.fn(() => false), clearRun } });
+    await expect(lifecycle.start({ contextRef: 'ctx' }, { runId: 'r-fail', idempotencyKey: 'k' })).rejects.toThrow(new Error('disk full'));
+    expect(clearRun).toHaveBeenCalledWith({ runId: 'r-fail' });
+    expect(await lifecycle.get({ runId: 'r-fail' })).toBeUndefined();
+    failStart = false;
+    const retry = await lifecycle.start({ contextRef: 'ctx' }, { idempotencyKey: 'k' });
+    expect(retry.run.id).not.toBe('r-fail');
   });
 });
