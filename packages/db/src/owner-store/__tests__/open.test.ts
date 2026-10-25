@@ -1,15 +1,58 @@
 import Database from "better-sqlite3";
 import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { sql } from "kysely";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { sourceChecksum } from "../../migrate/checksum.js";
 import { ownerStoreDdl, ownerStoreMigration } from "../migrations/0000_owner_store.js";
-import { OwnerStoreRecoveryError } from "../open.js";
+import { openOwnerStore, OwnerStoreRecoveryError } from "../open.js";
 import { fixture, input } from "./fixture.js";
 
 const fixtures: ReturnType<typeof fixture>[] = [];
 afterEach(async () => { for (const item of fixtures.splice(0)) await item.cleanup(); });
 function setup() { const item = fixture(); fixtures.push(item); return item; }
+
+test.each(["win32", "darwin", "linux"])("rejects resolved path aliases before opening a database on %s", async platform => {
+  const f = setup();
+  const open = vi.fn(f.required.open);
+  const original = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", { value: platform });
+  try {
+    await expect(openOwnerStore({ ...f.required, open, keyFilePath: relative(process.cwd(), f.required.filePath) }))
+      .rejects.toThrow("Owner database and key paths must differ");
+  } finally { Object.defineProperty(process, "platform", original); }
+  expect(open).not.toHaveBeenCalled();
+  expect(existsSync(f.required.filePath)).toBe(false);
+});
+
+test.each(["win32", "darwin"])("rejects case-only database/key aliases before creating files on %s", async platform => {
+  const f = setup();
+  const keyFilePath = join(f.directory, "OWNER.DB");
+  const open = vi.fn(f.required.open);
+  const original = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", { value: platform });
+  try {
+    await expect(openOwnerStore({ ...f.required, open, keyFilePath })).rejects.toThrow("Owner database and key paths must differ");
+  } finally { Object.defineProperty(process, "platform", original); }
+  expect(open).not.toHaveBeenCalled();
+  expect(existsSync(f.required.filePath)).toBe(false);
+  expect(existsSync(keyFilePath)).toBe(false);
+});
+
+test.each([
+  ["linux", "OWNER.DB"], ["win32", "owner.db.key"], ["darwin", "owner.db.key"],
+])("allows distinct %s paths through to the opener (%s)", async (platform, keyName) => {
+  const f = setup();
+  const stopped = new Error("opener reached");
+  // Stop before native I/O so Linux case sensitivity is verified even on a macOS host.
+  const open = vi.fn(() => { throw stopped; });
+  const original = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", { value: platform });
+  try {
+    await expect(openOwnerStore({ ...f.required, open, keyFilePath: join(f.directory, keyName) })).rejects.toBe(stopped);
+  } finally { Object.defineProperty(process, "platform", original); }
+  expect(open).toHaveBeenCalledOnce();
+});
 
 test("real-file reopen keeps credentials, grants, independent ledger and WAL", async () => {
   const f = setup();
