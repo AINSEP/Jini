@@ -37,3 +37,11 @@ test("an integer enum must list numbers: numeric values compile, a string value 
   expect(() => compileInputSchema({ schema: root([1, "3"]) })).toThrow(expect.objectContaining({ code: "invalid_definition" }));
   expect(() => compileInputSchema({ schema: root([]) })).toThrow(SavedRequestError);
 });
+
+test("an equal minimum and maximum is a valid single-value range; min > max is refused", () => {
+  const root = (minimum: number, maximum: number) => ({ type: "object", additionalProperties: false, properties: { n: { type: "integer", minimum, maximum } } });
+  const validator = compileInputSchema({ schema: root(2, 2) });
+  expect(validator.validate({ n: 2 }).valid).toBe(true);
+  expect(validator.validate({ n: 3 }).valid).toBe(false);
+  expect(() => compileInputSchema({ schema: root(3, 2) })).toThrow(expect.objectContaining({ code: "invalid_definition" }));
+});

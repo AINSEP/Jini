@@ -1360,3 +1360,17 @@ test.each(["get", "HEAD", "OPTIONS", "TRACE", ""])("makeCredentialedRequest: met
   );
   assert.deepEqual(httpClient.calls, []);
 });
+
+test.each([
+  ["label", { label: 5 }, "label must be a non-empty string"],
+  ["url", { url: 5 }, "url must be a non-empty string"],
+])("makeCredentialedRequest: a non-string %s is a validation error, not a TypeError", async (_field, patch, message) => {
+  const writeDeps = await seedBasicAndBearer();
+  const httpClient = new FakeHttpClient();
+  const deps = makeDeps({ httpClient }, writeDeps);
+  await assert.rejects(
+    () => makeCredentialedRequest(deps, { workspaceId: WORKSPACE, label: "basic.example", method: "GET", url: "https://api.basic.example/v4", ...patch } as never),
+    (err: unknown) => err instanceof CredentialedRequestValidationError && (err as Error).message === message
+  );
+  assert.deepEqual(httpClient.calls, []);
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { validateBaseUrlResolved } from '../ssrf-guard.js';
+import { assertExternalAssetUrl, validateBaseUrlResolved } from '../ssrf-guard.js';
 
 /**
  * SSRF edges for `validateBaseUrlResolved` (Stryker L6: 19 survivors). The IP-literal shortcut
@@ -97,4 +97,18 @@ describe('sync URL checks', () => {
   it('trailing slashes are stripped before parsing (a bare-host URL with many slashes stays valid)', async () => {
     expect(await validateBaseUrlResolved({ baseUrl: 'https://cdn.example.com///' }, { lookup: async () => [publicAddr] })).toEqual({ ok: true });
   });
+});
+
+describe('survivor follow-ups', () => {
+  it.each(['http://100.200.30.4/a', 'http://203.0.113.255/a'])('multi-digit public literal %s skips DNS', async (baseUrl) => {
+    const lookup = vi.fn(async () => [internalAddr]);
+    expect(await validateBaseUrlResolved({ baseUrl }, { lookup })).toEqual({ ok: true });
+    expect(lookup).not.toHaveBeenCalled();
+  });
+});
+
+it.each([5, null, {}, ''])('assertExternalAssetUrl refuses a non-string or empty url (%j) as empty, without DNS', async (rawUrl) => {
+  const lookup = vi.fn(async () => [publicAddr]);
+  expect(await assertExternalAssetUrl({ rawUrl: rawUrl as string }, { lookup })).toEqual({ ok: false, error: 'empty download url' });
+  expect(lookup).not.toHaveBeenCalled();
 });

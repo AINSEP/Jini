@@ -31,7 +31,7 @@ function clientFor(outcome: HttpResponse | Error = { status: 200, headers: {}, b
 }
 
 test.each([
-  [200, "ok"], [204, "ok"], [299, "ok"],
+  [200, "ok"], [204, "ok"], [299, "ok"], [199, "unavailable"], [300, "unavailable"],
   [401, "refused"], [403, "refused"],
   [301, "unavailable"], [302, "unavailable"], [307, "unavailable"], [308, "unavailable"],
   [400, "unavailable"], [404, "unavailable"], [429, "unavailable"],

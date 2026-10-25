@@ -101,3 +101,17 @@ describe("verifySignature: time window", () => {
     expect(verify({ toleranceSeconds: 0, nowSeconds: ts + 1 })).toBe(false);
   });
 });
+
+describe("verifySignature: survivor follow-ups", () => {
+  it("a valid digest under an unknown key is not a signature", () => {
+    expect(verify({ header: `t=${ts},v2=${sig}` })).toBe(false);
+    expect(verify({ header: `t=${ts},x=${sig},v1=${"0".repeat(64)}` })).toBe(false);
+  });
+
+  it("a header signed with a non-finite timestamp never verifies, even with a matching HMAC", () => {
+    const nanHeader = signPayload({ vocabulary, secret, rawBody, timestampSeconds: Number.NaN });
+    expect(verify({ header: nanHeader })).toBe(false);
+    const infHeader = signPayload({ vocabulary, secret, rawBody, timestampSeconds: Number.POSITIVE_INFINITY });
+    expect(verify({ header: infHeader, nowSeconds: Number.POSITIVE_INFINITY })).toBe(false);
+  });
+});
