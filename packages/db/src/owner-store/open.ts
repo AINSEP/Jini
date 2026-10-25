@@ -29,7 +29,7 @@ export class OwnerStoreRecoveryError extends Error {
  * @example const store = await openOwnerStore({ filePath, keyFilePath, open });
  */
 export async function openOwnerStore(required: OpenOwnerStoreInput, options: OpenOwnerStoreOptions = {}): Promise<OpenedOwnerStore> {
-  if (resolve(required.filePath) === resolve(required.keyFilePath)) throw new TypeError("Owner database and key paths must differ");
+  if (comparablePath({ filePath: required.filePath }) === comparablePath({ filePath: required.keyFilePath })) throw new TypeError("Owner database and key paths must differ");
   const client = openSqliteConnection({ filePath: required.filePath, open: ({ filePath }) => required.open(filePath, {}) });
   try {
     const kernel = sqliteKernel<OwnerStoreDatabase>(client);
@@ -58,6 +58,14 @@ export async function openOwnerStore(required: OpenOwnerStoreInput, options: Ope
     closeSqliteConnection(client);
     throw error;
   }
+}
+
+/** Paths may not exist yet; fold case on hosts whose default filesystems alias case variants.
+ * @complexity O(n) time and space in the resolved path length; no filesystem access.
+ */
+function comparablePath({ filePath }: { filePath: string }): string {
+  const absolute = resolve(filePath);
+  return process.platform === "win32" || process.platform === "darwin" ? absolute.toLowerCase() : absolute;
 }
 
 /** Never auto-generate over missing recovery material; wx settles competing initializers. */
