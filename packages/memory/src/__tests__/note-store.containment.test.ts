@@ -55,6 +55,8 @@ describe('note ids are refused at the file-path boundary', () => {
     writeFileSync(join(d, 'notes', 'b'.repeat(97) + '.md'), entryFile('long'));
     writeFileSync(join(d, 'notes', 'ok.txt'), entryFile('txt'));
     writeFileSync(join(d, 'notes', 'ok.md.bak'), entryFile('bak'));
+    writeFileSync(join(d, 'notes', 'a-b.md'), entryFile('hyphen'));
+    expect(await store.readEntry({ dataDir: d, id: 'a-b' })).toBeNull();
     expect((await store.listEntries({ dataDir: d })).map((e) => e.id)).toEqual([id]);
   });
 
@@ -108,6 +110,23 @@ describe('realpath containment', () => {
     const store = createNoteStore(config);
     await store.upsertEntry({ dataDir: d, input: { id: 'x', name: 'x', type: 'user' } });
     expect(existsSync(join(d, 'real', 'x.md'))).toBe(true);
+  });
+
+  it('a notes dir that resolves to the data root itself is contained (rel === "")', async () => {
+    const d = dataDir();
+    symlinkSync(d, join(d, 'notes'));
+    const store = createNoteStore(config);
+    await store.upsertEntry({ dataDir: d, input: { id: 'x', name: 'x', type: 'user' } });
+    expect(existsSync(join(d, 'x.md'))).toBe(true);
+  });
+
+  it('readConfig: enabled unless the file says enabled:false', async () => {
+    for (const [raw, enabled] of [['{"enabled":true}', true], ['{}', true], ['{"enabled":"no"}', true], ['{"enabled":false}', false], ['null', true]] as const) {
+      const d = dataDir();
+      mkdirSync(join(d, 'notes'));
+      writeFileSync(join(d, 'notes', '.config.json'), raw);
+      expect(await createNoteStore(config).readConfig({ dataDir: d })).toEqual({ enabled });
+    }
   });
 
   it('a symlinked entry file is never read through', async () => {

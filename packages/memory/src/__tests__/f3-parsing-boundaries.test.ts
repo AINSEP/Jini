@@ -16,6 +16,7 @@ describe('parseEntryFrontmatter', () => {
     ['padded values are trimmed', '---\nname:   A  \ndescription:\tB \ntype:  user \n---\nbody', { name: 'A', description: 'B', type: 'user' }, 'body'],
     ['no newline after the closing fence', '---\nname: A\n---body', { name: 'A', description: '', type: '' }, 'body'],
     ['unknown keys and indented keys ignored', '---\nname: A\n  type: x\ntitle: T\nxname: Z\n---\n', { name: 'A', description: '', type: '' }, ''],
+    ['no space after the colon', '---\nname:A\ntype:user\n---\n', { name: 'A', description: '', type: 'user' }, ''],
     ['value containing a colon', '---\ndescription: a: b\n---\n', { name: '', description: 'a: b', type: '' }, ''],
   ])('%s', (_label, raw, data, body) => {
     expect(parseEntryFrontmatter({ raw })).toEqual({ data, body });
@@ -27,6 +28,10 @@ describe('parseEntryFrontmatter', () => {
     ['empty input', ''],
   ])('%s → empty fields and the raw text as body', (_label, raw) => {
     expect(parseEntryFrontmatter({ raw })).toEqual({ data: EMPTY, body: raw });
+  });
+
+  it('render collapses LF and CRLF in every field', () => {
+    expect(renderEntryFrontmatter({ fields: { name: 'a\nb', description: 'c\nd', type: 'e\nf' }, body: '' })).toBe('---\nname: a b\ndescription: c d\ntype: e f\n---\n\n\n');
   });
 
   it('render → parse round-trips, collapsing newlines in fields and leading body whitespace', () => {
