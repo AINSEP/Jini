@@ -478,6 +478,20 @@ Fetch-query caches accept the shared `Clock` from `@jini-ai/core/primitives` thr
 by default and idle retention five minutes. Browser HTTP defaults now use injected
 native fetch ports and have no platform imports.
 
+The built-in `@jini-ai/ui/fetch-query` provider accepts those same optional ports:
+
+```tsx
+<FetchQueryProvider environment={environment} clock={clock} scheduler={scheduler}>
+  <Records />
+</FetchQueryProvider>
+```
+
+`clock.nowMs()` controls cache timestamps and freshness. The scheduler's
+`schedule({ callback, delayMs })` returns a handle; `cancel({ handle })` releases it.
+Omitted ports retain real-clock/native-timer defaults. Keep the injected objects stable:
+replacing `environment`, `clock` or `scheduler` recreates the cache and disposes the previous
+scope's timers and subscriptions. Timing injection applies only to the built-in provider.
+
 The A2UI interpreter uses that same core `Clock` with `nowMs()`; import the clock type
 directly from `@jini-ai/core/primitives`. The obsolete `A2uiClockPort` re-export is removed.
 Create the basic catalog with `createLabCatalog({})` and inject it through
