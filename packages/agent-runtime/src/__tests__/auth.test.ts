@@ -523,3 +523,65 @@ describe('auth characterization (pinned before the complexity refactor)', () => 
     });
   });
 });
+
+// Stryker L3 (2026-10-25): 21 Regex + 17 Conditional survivors — each alternation was only reached
+// together with another, and spacing/quote variants of the placeholder key were never pinned.
+// One case per alternation (alone), plus near-misses that must NOT be flagged.
+describe('auth failure classifiers — one alternation per case', () => {
+  it.each([
+    ['Authentication Required', true], ['you are NOT authenticated', true], ['not logged in', true],
+    ['Unauthenticated', true], ['run `agent login`', true], ['set CURSOR_API_KEY', true],
+    ['authentication succeeded', false], ['logged in as bob', false], ['   ', false], ['', false],
+  ])('cursor: %j → %s', (text, expected) => {
+    expect(isCursorAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['Authentication required. Please visit the URL to log in: https://x', true],
+    ['Error: authentication timed out.', true], ['You are not logged into Antigravity', true],
+    ['https://accounts.google.com/o/oauth2/auth?client=antigravity', true],
+    ['authentication required', false], ['please visit our docs', false],
+    ['https://accounts.google.com/o/oauth2/auth?client=other', false], ['accountsXgoogle.com/o/oauth2/auth antigravity', false],
+  ])('antigravity: %j → %s', (text, expected) => {
+    expect(isAntigravityAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['DEEPSEEK_API_KEY=<your-key>', true], ['key=<YOUR-KEY>', true],
+    ['api_key="<your-key>"', true], ["api_key = '<your-key>'", true], ['API_KEY  =  "<your-key>"', true],
+    ['api_key=<your-key>', true], // matches the KEY=<your-key> alternation
+    ['api_key = <your-key>', false], ['api_key = "<real-key>"', false],
+    ['edit ~/.deepseek/config.toml and set api key', true], ['edit ~/.deepseek/config.toml and set api_key', true],
+    ['edit ~/.deepseek/config.toml and set api-key', true], ['edit ~/.deepseek/config.toml and set apikey', true],
+    ['edit ~/.deepseek/config.toml', false], ['set api key in ~/.other/config.toml', false],
+    ['DEEPSEEK_API_KEY missing', true], ['DEEPSEEK_API_KEY not set', true], ['DEEPSEEK_API_KEY required', true],
+    ['DEEPSEEK_API_KEY unauthorized', true], ['DEEPSEEK_API_KEY auth error', true], ['DEEPSEEK_API_KEY loaded', false],
+    ['  \n ', false],
+  ])('deepseek: %j → %s', (text, expected) => {
+    expect(isDeepSeekAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['~/.reasonix/config.json: apiKey missing', true], ['~/.reasonix/config.json api_key', true],
+    ['~/.reasonix/config.json not set', true], ['~/.reasonix/config.json required', true],
+    ['~/.reasonix/config.json unauthorized', true], ['~/.reasonix/config.json invalid', true],
+    ['~/.reasonix/config.json loaded', false],
+    ['DEEPSEEK_API_KEY missing', true], ['DEEPSEEK_API_KEY not set', true], ['DEEPSEEK_API_KEY required', true],
+    ['DEEPSEEK_API_KEY unauthorized', true], ['DEEPSEEK_API_KEY invalid', true], ['DEEPSEEK_API_KEY auth', true],
+    ['DEEPSEEK_API_KEY loaded', false], ['missing config', false],
+  ])('reasonix: %j → %s', (text, expected) => {
+    expect(isReasonixAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['{"authenticated":true}', false], ['{"loggedIn":true}', false], ['{"authenticated":false,"loggedIn":true}', false],
+    ['{"authenticated":false}', true], ['{"loggedIn":false}', true], ['{"other":1}', false], ['null', false],
+    ['x "authenticated" : true not authenticated', false], ['x "loggedIn":true not logged in', false],
+    ['x "authenticated" :  false', true], ['x "loggedIn" : false', true],
+    ['not authenticated', true], ['not loggedin', true], ['not logged_in', true], ['not logged-in', true],
+    ['authentication required', true], ['please sign in', true], ['please log in', true], ['please signin', true],
+    ['please login', true], ['please sign-in', true], ['signed in fine', false],
+  ])('claude: %j → %s', (text, expected) => {
+    expect(isClaudeAuthFailureText({ text })).toBe(expected);
+  });
+});
