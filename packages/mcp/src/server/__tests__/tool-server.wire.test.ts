@@ -436,7 +436,8 @@ describe('typed delegated publication — real MCP wire and existing daemon owne
     expect((await call()).isError).toBe(true);
     response = Response.json(operation({ id: 'different' }));
     expect((await call()).isError).toBe(true);
-    for (const inputSchema of [null, 'invalid', { type: 'string' }]) {
+    // `inputSchema: null` is a schema-less family (74791593): returned as info, never published — not malformed.
+    for (const inputSchema of ['invalid', { type: 'string' }]) {
       response = Response.json(operation({ inputSchema }));
       const malformed = await call();
       expect(malformed.isError).toBe(true);

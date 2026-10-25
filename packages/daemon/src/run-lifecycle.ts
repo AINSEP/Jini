@@ -649,6 +649,17 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     }
   }
 
+  /** Settles like `promise`, or rejects with the signal's reason once it aborts; the listener is always released. */
+  function abortable({ promise }: { promise: Promise<unknown> | undefined }, { signal }: { signal: AbortSignal | undefined }): Promise<unknown> {
+    if (!signal) return Promise.resolve(promise);
+    if (signal.aborted) return Promise.reject(signal.reason);
+    return new Promise((resolve, reject) => {
+      const onAbort = (): void => { reject(signal.reason); };
+      signal.addEventListener('abort', onAbort, { once: true });
+      Promise.resolve(promise).then(resolve, reject).finally(() => { signal.removeEventListener('abort', onAbort); });
+    });
+  }
+
   /** Registers a terminal waiter; an abort removes it again so a cancelled wait retains nothing. */
   function parkTerminalWaiter({ record }: { record: RunRecord }, { signal }: { signal: AbortSignal | undefined }): Promise<RunStatus> {
     signal?.throwIfAborted();
@@ -1099,7 +1110,9 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       // a waiter parked inside that window would never be resolved by anyone. Failing the wait with
       // the same error that failed the start is the only honest terminal answer, and awaiting first
       // means `terminalWaiters` can only ever hold waiters for a run that really does exist.
-      await record.startPromise;
+      // The abort signal is observed during that wait too: a stalled start append must not strand
+      // a caller that has already given up (a pre-aborted signal rejects at once).
+      await abortable({ promise: record.startPromise }, { signal });
       if (isTerminalRunState({ state: record.status.state })) {
         return toPublicStatus(record);
       }

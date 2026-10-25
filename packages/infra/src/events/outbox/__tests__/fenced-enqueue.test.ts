@@ -133,6 +133,30 @@ describe('fenced outbox conformance: contender failure paths', () => {
     expect(unhandled).toEqual([]);
   });
 
+  it('an awaitOverlap hook that throws synchronously surfaces its error; the contender is settled, nothing unhandled', async () => {
+    const hookFailed = new Error('overlap hook failed');
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => { unhandled.push(reason); };
+    const settledContender = vi.fn();
+    const base = await createSubject();
+    const contended = withContender(base, async (begin) => {
+      const opened = await begin();
+      return { ...opened, commit: async () => { settledContender('commit'); await opened.commit(); },
+        rollback: async () => { settledContender('rollback'); await opened.rollback(); } };
+    });
+    const subject = { ...contended, awaitOverlap: (_required: { transaction: unknown }): Promise<void> => { throw hookFailed; } };
+    process.on('unhandledRejection', record);
+    try {
+      await expect(overlapCase(async () => subject)()).rejects.toBe(hookFailed);
+      await new Promise(resolve => { setTimeout(resolve, 10); });
+    } finally {
+      process.off('unhandledRejection', record);
+    }
+    expect(unhandled).toEqual([]);
+    expect(settledContender).toHaveBeenCalledTimes(1);
+    expect(await base.outbox.claimReady({ scope: 'conformance', batchSize: 10, nowIso: NOW, claimLeaseMs: 1_000 })).toEqual([]);
+  });
+
   it('a contender commit that rejects after a conflict receipt is rolled back; the commit error surfaces', async () => {
     const commitFailed = new Error('contender commit failed');
     const rollback = vi.fn();
