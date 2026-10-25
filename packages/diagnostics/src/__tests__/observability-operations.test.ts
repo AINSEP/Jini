@@ -88,3 +88,24 @@ test("describeReportedError redacts secret shapes from message and stack, and ca
   assert.ok(described.message.length <= 1024);
   assert.deepEqual(describeReportedError({ error: "plain" }), { type: "string", message: "plain" });
 });
+
+test("combineObservabilityPorts: noop-only is the noop, one live port is returned as-is", async () => {
+  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const { isNoopObservabilityPort } = await import("../observability/noop.js");
+  assert.ok(isNoopObservabilityPort(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createNoopObservabilityPort({})] })));
+  const live = createPort(CONFIG, new InMemorySpanExporter());
+  assert.equal(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), live] }), live);
+});
+
+test("combineObservabilityPorts: two live ports each get the operation, its nested report, and its end; a throwing reporter does not stop the other", async () => {
+  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const a = new InMemorySpanExporter(); const b = new InMemorySpanExporter();
+  const scopeA = createAsyncScope(); const scopeB = createAsyncScope();
+  const broken = { ...createPort(CONFIG, a, { scope: scopeA }), reportError: () => { throw new Error("tracker down"); } };
+  const port = combineObservabilityPorts({ ports: [broken, createPort(CONFIG, b, { scope: scopeB })] });
+  const tracker = port.trackOperation({ name: "tool.call" });
+  assert.equal(tracker.run(() => { port.reportError({ error: new RangeError("x"), context: { operation: "tool.call" } }); return 5; }), 5);
+  tracker.end({ outcome: "failed", failed: true });
+  assert.deepEqual(a.getFinishedSpans().map((s) => s.name), ["tool.call"]);
+  assert.deepEqual(b.getFinishedSpans().map((s) => [s.name, s.events[0]?.attributes["exception.type"]]), [["tool.call", "RangeError"]]);
+});
