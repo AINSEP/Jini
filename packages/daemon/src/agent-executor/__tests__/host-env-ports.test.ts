@@ -66,3 +66,21 @@ it('threads the host snapshot and bound capabilities through a real executor run
   await executor.run({ runId: run.id, agentId: def.id, prompt: 'question', cwd: '/work' }).catch(() => undefined);
   expect(calls).toEqual([{ args: ['--host-partials'], env: { PATH: '/host/bin', HOME: '/host/home' } }]);
 });
+
+// F1 fix wave (Stryker L8 §4 launch.ts:193-208 `typeof env[key]==='string'` → true survived):
+// a present-but-non-string allowlisted key must not leak into the snapshot as a key at all.
+it('F1: allowlisted and host-configured keys with non-string values are dropped, not copied as undefined', () => {
+  const state = createAgentRuntimeState({});
+  state.executable.envNames.agentHomeEnvVar = 'HOST_RUNTIME_HOME';
+  const env = { CODEX_HOME: undefined, CLAUDE_CONFIG_DIR: 42 as unknown as string, HOST_RUNTIME_HOME: undefined, NPM_CONFIG_PREFIX: '/npm', FNM_DIR: '/fnm' };
+  const selected = selectAgentExecutorHostEnv({ env }, { runtimeState: state });
+  expect(selected).toEqual({ NPM_CONFIG_PREFIX: '/npm', FNM_DIR: '/fnm' });
+  for (const key of ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'HOST_RUNTIME_HOME']) expect(Object.keys(selected)).not.toContain(key);
+});
+
+it('F1: every documented config key is carried (first, middle and last of the list)', () => {
+  const keys = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'VELA_OPENCODE_BIN', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'];
+  const env = Object.fromEntries(keys.map((k) => [k, `/v/${k}`]));
+  const state = createAgentRuntimeState({});
+  expect(selectAgentExecutorHostEnv({ env }, { runtimeState: state })).toEqual(env);
+});
