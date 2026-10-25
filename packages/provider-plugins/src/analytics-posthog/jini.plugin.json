@@ -1,0 +1,17 @@
+{
+  "id": "analytics-posthog",
+  "name": "PostHog product-analytics provider",
+  "version": "0.6.12",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "tovu": { "id": "jini/analytics-posthog" },
+    "open-marketing": { "id": "jini/analytics-posthog" }
+  },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "product_analytics", "id": "posthog", "contractVersion": 1 }] },
+  "hooks": [],
+  "fields": [],
+  "integrity": {}
+}

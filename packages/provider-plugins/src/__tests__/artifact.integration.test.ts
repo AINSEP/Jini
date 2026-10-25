@@ -34,6 +34,8 @@ const tierPolicy: PluginTierPolicy = { execution: 'in-process', siteErrors: () =
 
 /** Per plugin: the domain validator a host injects, and configuration whose initialization opens no connection. */
 const SPECS: Record<string, { contract: string; id: string; validate: (port: unknown) => boolean; input: (namespace: string) => Record<string, unknown>; probe?: (port: unknown) => unknown }> = {
+  'analytics-posthog': { contract: 'product_analytics', id: 'posthog', validate: port => typeof (port as { capture?: unknown })?.capture === 'function',
+    input: () => ({ apiKey: 'phc_unused', host: 'https://posthog.invalid' }) },
   'fixture-provider': { contract: 'fixture', id: 'fixture', validate: port => typeof (port as { read?: unknown })?.read === 'function', input: namespace => ({ value: namespace }),
     probe: port => (port as { read(required: Record<string, never>): unknown }).read({}) },
   'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => typeof (port as { trackRequest?: unknown })?.trackRequest === 'function',
