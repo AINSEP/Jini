@@ -39,7 +39,7 @@ export class DaemonResponseTooLargeError extends Error {
 }
 
 export interface DaemonRequestOptions {
-  /** Exact host-registered IDs that may appear in diagnostics; credentials are always redacted. */
+  /** Exact host-registered IDs; inert since daemon diagnostics use the conservative policy, which keeps every ID. */
   diagnosticToolIds?: readonly string[];
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
@@ -131,9 +131,11 @@ function formatConnectionFailure(err: unknown, baseUrl: string, options: DaemonR
 
 /** Remove URL credentials, queries and fragments before ordinary secret/control redaction.
  * Even short query tokens are secrets; token-length heuristics cannot protect them.
- * @complexity O(n) in diagnostic text, plus URL parsing for each URL.
+ * Conservative core policy preserves slugs/tool IDs; unknown unlabelled opaque credentials lose
+ * heuristic masking. Configured header values (the run credential) still use exact-secret masking.
+ * @complexity Local scans of diagnostic text and header values, plus core's exact-secret replacements.
  */
-function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions): string {
+export function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions = {}): string {
   const redacted = text.replace(/https?:\/\/[^\s<>"']+/gi, url => {
     try {
       const parsed = new URL(url);
@@ -147,7 +149,11 @@ function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOption
       return '[redacted URL]';
     }
   });
-  return sanitizeUntrustedText({ text: redacted }, options.diagnosticToolIds === undefined ? {} : { diagnosticToolIds: options.diagnosticToolIds });
+  const headerSecrets = Object.values(options.headers ?? {}).flatMap(value => [value, value.replace(/^(?:Bearer|Basic)\s+/i, '')]);
+  return sanitizeUntrustedText({ text: redacted }, {
+    policy: 'conservative',
+    exactSecrets: headerSecrets,
+  });
 }
 
 /** Formats a non-2xx daemon response into a message safe to surface as an MCP tool error. */

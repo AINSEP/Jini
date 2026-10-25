@@ -5,6 +5,13 @@ import { sanitizeUntrustedText, stripControlSequences } from '../index.js';
 const ESC = String.fromCharCode(0x1b);
 
 describe('sanitizeUntrustedText', () => {
+  it.each(['conservative', 'aggressive'] as const)('honors %s policy while masking known and labelled credentials', policy => {
+    const id = 'plugin_documentation_read';
+    const secret = 'known.opaque+credential-value';
+    const result = sanitizeUntrustedText({ text: `${id} ${secret} api_key=${id}` }, { policy, exactSecrets: [secret] });
+    expect(result).toBe(`${policy === 'conservative' ? id : '[redacted]'} [redacted] api_key=[redacted]`);
+  });
+
   it('retains exact recovery hints and schema keywords, masking unknown identifiers', () => {
     const text = 'Call settings_list_definitions to see valid keys. additionalProperties assistant_ask_choice forms_create_definition source_control_get_capabilities pages_write_region someVeryLongReadableIdentifier a_long_readable_identifier';
     expect(sanitizeUntrustedText({ text }, { diagnosticToolIds: ['settings_list_definitions', 'assistant_ask_choice', 'forms_create_definition', 'source_control_get_capabilities'] })).toBe('Call settings_list_definitions to see valid keys. additionalProperties assistant_ask_choice forms_create_definition source_control_get_capabilities pages_write_region [redacted] [redacted]');

@@ -156,14 +156,14 @@ describe('getDaemonJson / postDaemonJson', () => {
     await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: ['settings_list_definitions', 'forms_create_definition'] })).rejects.toThrow(message);
   });
 
-  it('keeps a trusted dotted recovery hint while masking glued and token secrets', async () => {
+  it('keeps a dotted recovery hint while masking known glued and token secrets', async () => {
     const id = 'content_read.backup_restore_point';
     const opaque = 'x7Qm2Pz9Vb4Nc8Ld1Rf6Yt3Wk5';
     const hint = `backup_restore_point 'missing' was not found — call ${id} without id to list valid ids`;
     const message = `${hint}; ${id}_${opaque} api_key=${id} sk-proj-${opaque} ${opaque}`;
     const fetchImpl = vi.fn(async () => streamResponse(400, [new TextEncoder().encode(JSON.stringify({ error: { message } }))]));
-    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id] }).catch((error: Error) => error) as Error;
-    expect(error.message).toBe(`HTTP 400: [redacted] 'missing' was not found — call ${id} without id to list valid ids; content_read.[redacted] api_key=[redacted] [redacted] [redacted]`);
+    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id], headers: { Authorization: `Bearer ${opaque}` } }).catch((error: Error) => error) as Error;
+    expect(error.message).toBe(`HTTP 400: ${hint}; ${id}_[redacted] api_key=[redacted] sk-proj-[redacted] [redacted]`);
   });
 
   it.each([
@@ -172,11 +172,11 @@ describe('getDaemonJson / postDaemonJson', () => {
     'settings_list_definitions_deadbeefcafebabefeedfaceabcdefab',
     'additionalPropertiesdeadbeefcafebabefeedfaceabcdefab',
     'a_long_readable_identifier',
-  ])('masks the entire opaque diagnostic token %s through the daemon error path', async token => {
+  ])('masks the caller-known opaque credential %s through the daemon error path', async token => {
     const fetchImpl = vi.fn(async () => streamResponse(400, [
       new TextEncoder().encode(JSON.stringify({ error: { message: `failed ${token}; use settings_list_definitions; source_control_get_capabilities; additionalProperties` } })),
     ]));
-    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/delegated-tool-calls' }, { fetchImpl, diagnosticToolIds: ['settings_list_definitions', 'source_control_get_capabilities'] }).catch((error: Error) => error) as Error;
+    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/delegated-tool-calls' }, { fetchImpl, diagnosticToolIds: ['settings_list_definitions', 'source_control_get_capabilities'], headers: { Authorization: `Bearer ${token}` } }).catch((error: Error) => error) as Error;
     expect(error.message).toBe('HTTP 400: failed [redacted]; use settings_list_definitions; source_control_get_capabilities; additionalProperties');
     expect(error.message).not.toContain(token);
   });
@@ -184,12 +184,12 @@ describe('getDaemonJson / postDaemonJson', () => {
   it.each([
     ['forms_create_definition', `forms_create_definition: title is required. Schema for 'forms_create_definition': {"additionalProperties":false}`],
     ['source_control_get_capabilities', 'Call source_control_get_capabilities before retrying this operation.'],
-  ])('preserves the registered %s diagnostic without exposing glued or labelled secrets', async (id, diagnostic) => {
+  ])('preserves the %s diagnostic without exposing known glued or labelled secrets', async (id, diagnostic) => {
     const opaque = 'deadbeefcafebabefeedfaceabcdefab';
     const message = `${diagnostic} ${id}_${opaque} api_key=${id} ${opaque}`;
     const fetchImpl = vi.fn(async () => streamResponse(400, [new TextEncoder().encode(JSON.stringify({ error: { message } }))]));
-    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id] }).catch((error: Error) => error) as Error;
-    expect(error.message).toBe(`HTTP 400: ${diagnostic} [redacted] api_key=[redacted] [redacted]`);
+    const error = await getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, diagnosticToolIds: [id], headers: { Authorization: `Bearer ${opaque}` } }).catch((error: Error) => error) as Error;
+    expect(error.message).toBe(`HTTP 400: ${diagnostic} ${id}_[redacted] api_key=[redacted] [redacted]`);
   });
 
   it('rejects via a declared content-length over the byte cap without reading the body', async () => {
@@ -488,8 +488,8 @@ describe('daemon-client pinned branches (characterization)', () => {
 
   it('rethrows a non-size body read error without URL redaction (reported, not fixed)', async () => {
     // Only the byte-cap failure is re-wrapped through safeDiagnostic; any other read failure escapes raw,
-    // relying on handleToolCall's sanitizeUntrustedText for redaction. A URL with a query inside such a
-    // message is therefore not stripped here.
+    // relying on handleToolCall's safeDiagnostic pass for redaction. A URL with a query inside such a
+    // message is therefore not stripped here (the final MCP catch strips it).
     const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.error(new Error('read http://d.example/x?q=1 broke')); } });
     const fetchImpl = vi.fn(async () => new Response(stream));
     await expect(getDaemonJson(BASE, { fetchImpl })).rejects.toThrow(/^read http:\/\/d\.example\/x\?q=1 broke$/);
