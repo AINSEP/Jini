@@ -26,6 +26,9 @@ export interface AiTracingOptions extends Pick<AiTraceRecorderOptions, 'capture'
 export interface TracedRunLifecycle extends RunLifecycle {
   /** Records the prompt text for a run's trace (subject to the capture mode). No-op for unknown runs. */
   noteRunInput(args: { runId: string; input: string }): void;
+  /** Host teardown: releases every open trace WITHOUT finishing it (no terminal outcome is invented)
+   * and cancels background terminal waits, so a retained lifecycle keeps no recorder or waiter. Never throws. */
+  dispose(): void;
 }
 
 /**
@@ -38,6 +41,7 @@ export interface TracedRunLifecycle extends RunLifecycle {
 export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; sink: AiTraceSink }, options: AiTracingOptions = {}): TracedRunLifecycle {
   const recorders = new Map<string, { recorder: AiTraceRecorder; unsubscribe?: () => void }>();
   const { providerOf = ({ agentId }) => agentId, sessionOf = ({ contextRef }) => contextRef, ...recorderOptions } = options;
+  const teardown = new AbortController();
 
   /** Only tracing effects are contained; the underlying lifecycle's errors still propagate. */
   function safely({ action }: { action: () => void }): void {
@@ -81,10 +85,11 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
 
   /** A failed subscription has already recorded run_started: finish the trace from the run's real
    * terminal state instead of dropping it. Background only, so tracing never affects the run; when
-   * the outcome cannot be read it is not invented and the recorder is just released. */
+   * the outcome cannot be read (or `dispose` cancels the wait) it is not invented and the recorder
+   * is just released. */
   function finishWhenTerminal({ runId }: { runId: string }): void {
     // waitForTerminal resolves only terminal states, whose labels are exactly AiRunOutcome's.
-    void Promise.resolve().then(() => lifecycle.waitForTerminal({ runId }))
+    void Promise.resolve().then(() => lifecycle.waitForTerminal({ runId }, { signal: teardown.signal }))
       .then((status) => close({ runId, outcome: status.state as AiRunOutcome }))
       .catch(() => { recorders.delete(runId); });
   }
@@ -107,6 +112,13 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
     // rides the first model turn (where backends show a generation's input) rather than run_started.
     noteRunInput({ runId, input }) {
       safely({ action: () => recorders.get(runId)?.recorder.noteInput({ input }) });
+    },
+    dispose() {
+      teardown.abort();
+      for (const [runId, entry] of recorders) {
+        recorders.delete(runId);
+        safely({ action: () => entry.unsubscribe?.() });
+      }
     },
   };
 }

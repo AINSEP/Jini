@@ -130,8 +130,9 @@ export interface RunLifecycle {
    * `suspendSlowRunNotice`.
    */
   resumeSlowRunNotice(args: { readonly runId: string }): void;
-  /** Resolves once `runId` reaches a terminal state; resolves immediately if it already has. */
-  waitForTerminal(args: { readonly runId: string }): Promise<RunStatus>;
+  /** Resolves once `runId` reaches a terminal state; resolves immediately if it already has.
+   * Aborting `signal` rejects with its reason and unregisters the waiter (a caller tearing down). */
+  waitForTerminal(args: { readonly runId: string }, optional?: { readonly signal?: AbortSignal }): Promise<RunStatus>;
   /**
    * Replays buffered history after `options.afterCursor` (or from the
    * beginning if omitted/null) and then subscribes `onEvent` for live
@@ -648,6 +649,24 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
     }
   }
 
+  /** Registers a terminal waiter; an abort removes it again so a cancelled wait retains nothing. */
+  function parkTerminalWaiter({ record }: { record: RunRecord }, { signal }: { signal: AbortSignal | undefined }): Promise<RunStatus> {
+    signal?.throwIfAborted();
+    return new Promise((resolve, reject) => {
+      const onAbort = (): void => {
+        const index = record.terminalWaiters.indexOf(waiter);
+        if (index >= 0) record.terminalWaiters.splice(index, 1);
+        reject(signal?.reason);
+      };
+      const waiter = (status: RunStatus): void => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve(status);
+      };
+      record.terminalWaiters.push(waiter);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+  }
+
   function resolveTerminalWaiters(record: RunRecord): void {
     const waiters = record.terminalWaiters.splice(0, record.terminalWaiters.length);
     const status = toPublicStatus(record);
@@ -1073,7 +1092,7 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       } });
     },
 
-    async waitForTerminal({ runId }: { readonly runId: string }): Promise<RunStatus> {
+    async waitForTerminal({ runId }: { readonly runId: string }, { signal }: { readonly signal?: AbortSignal } = {}): Promise<RunStatus> {
       const record = requireRun(runId);
       // Awaited (and *propagated*, unlike in `get`/`list`) before any waiter is registered. A run
       // whose durable start append rejects is unwound, and nothing ever calls `finish()` for it — so
@@ -1084,9 +1103,7 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
       if (isTerminalRunState({ state: record.status.state })) {
         return toPublicStatus(record);
       }
-      return new Promise((resolve) => {
-        record.terminalWaiters.push(resolve);
-      });
+      return parkTerminalWaiter({ record }, { signal });
     },
 
     async stream({ runId, onEvent }: { readonly runId: string; readonly onEvent: (event: RunProtocolEvent) => void }, options: StreamOptions = {}

@@ -64,7 +64,8 @@ export type ProductAnalyticsConsentRevision = (input: { userId: string }) => str
 
 export interface ProductAnalyticsGuardOptions {
   /** Required for async consent: the guard cannot observe settings changes on its own, so without
-   * it every promised answer is dropped (fail closed). Synchronous consent needs none. A failed
+   * it every promised answer is dropped (fail closed) and the wrapper warns once on the console.
+   * Synchronous consent needs none. A failed
    * revision read drops the event, just like a failed consent read. */
   consentRevision?: ProductAnalyticsConsentRevision;
 }
@@ -103,6 +104,18 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
   if (isNoopProductAnalytics(inner)) return inner;
   // Keep generations only while decisions are in flight; past users do not accumulate here.
   const pending = new Map<string, { generation: number; count: number }>();
+  let reportedMissingRevision = false;
+  /** Once per wrapper: an async consent with no revision is a host misconfiguration (every promised
+   * approval is dropped), so say so instead of losing all events silently. The wrapper has no
+   * diagnostic hook, hence the console. Guarded locally: a throw escaping into `whenAllowed`'s catch
+   * would skip attaching handlers to the consent promise and leave a rejection unhandled. */
+  const reportMissingRevision = (): void => {
+    if (reportedMissingRevision) return;
+    reportedMissingRevision = true;
+    try {
+      console.warn("[analytics/product] async consent without consentRevision: every promised approval is dropped (fail closed). Pass { consentRevision } to withProductAnalyticsGuards.");
+    } catch { /* Diagnostics never fail the feature. */ }
+  };
   /** Runs `send` only after a current explicit approval; synchronous answers stay synchronous. */
   const whenAllowed = ({ userId, send }: { userId: string; send: () => void }): void => {
     if (!isPseudonymousId(userId)) return;
@@ -131,6 +144,7 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
       // Without a revision an async approval cannot see a revoke that lands while it is in flight
       // (no later denial need ever arrive), so it fails closed: analytics only after consent.
       const canSeeRevoke = consentRevision !== undefined;
+      if (!canSeeRevoke) reportMissingRevision();
       void Promise.resolve(decision).then((allowed) => settle({ allowed: canSeeRevoke && allowed }), () => settle({ allowed: false }));
     } catch { settle({ allowed: false }); }
   };

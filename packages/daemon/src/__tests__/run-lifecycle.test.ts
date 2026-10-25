@@ -528,6 +528,35 @@ describe('RunLifecycle — finish', () => {
     const status = await lifecycle.waitForTerminal({ runId: run.id });
     expect(status.state).toBe('succeeded');
   });
+
+  it('an aborted waitForTerminal() rejects with the abort reason and unregisters its waiter', async () => {
+    const { lifecycle } = makeLifecycle();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    const controller = new AbortController();
+    const waiting = lifecycle.waitForTerminal({ runId: run.id }, { signal: controller.signal });
+    await Promise.resolve();
+    const removed = vi.spyOn(controller.signal, 'removeEventListener');
+    const reason = new Error('teardown');
+    controller.abort(reason);
+    await expect(waiting).rejects.toBe(reason);
+    await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+    // A still-registered waiter would run on finish() and remove its abort listener.
+    expect(removed).not.toHaveBeenCalled();
+  });
+
+  it('a pre-aborted waitForTerminal() rejects at once; an un-aborted one resolves and releases its listener', async () => {
+    const { lifecycle } = makeLifecycle();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    const reason = new Error('already closed');
+    await expect(lifecycle.waitForTerminal({ runId: run.id }, { signal: AbortSignal.abort(reason) })).rejects.toBe(reason);
+    const controller = new AbortController();
+    const removed = vi.spyOn(controller.signal, 'removeEventListener');
+    const waiting = lifecycle.waitForTerminal({ runId: run.id }, { signal: controller.signal });
+    await lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: false });
+    await expect(waiting).resolves.toMatchObject({ state: 'failed' });
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function));
+    controller.abort();
+  });
 });
 
 describe('RunLifecycle — cancel', () => {
