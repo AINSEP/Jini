@@ -1,6 +1,7 @@
 /** Automatic-use policy for one execution context. Catalog, trust, consent and presentation are ports. */
 import type { AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
 import type { AgentPluginSkillRequest, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
+import type { AgentPluginLifecyclePorts } from './ports.js';
 
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
@@ -15,6 +16,7 @@ export interface AutomaticAgentPluginMatch { id: string; name: string; why: stri
 export interface AutomaticAgentPluginLoadResult {
   status: 'loaded' | 'installed-but-inactive' | 'excluded' | 'untrusted' | 'missing' | 'already-loaded'
     | 'off' | 'cancelled' | 'unavailable';
+  /** Delivered content, or the resolver's safe refusal for an explicit skill/file request. */
   guidance: string;
 }
 
@@ -29,10 +31,10 @@ function describeMatch({ plugin }: { plugin: AgentPluginSearchCandidate }, _opti
  * @returns A bounded note in relevance order, with discovery for every omitted match.
  * @complexity O(p) metadata formatting; output is bounded independently of plugin count.
  */
-function relevantPluginNote({ matches }: { matches: readonly AgentPluginSearchCandidate[] }, _options = {}): string {
+function relevantPluginNote({ matches, formatPluginToolPointer }: { matches: readonly AgentPluginSearchCandidate[]; formatPluginToolPointer: AgentPluginLifecyclePorts['formatPluginToolPointer'] }, _options = {}): string {
   if (!matches.length) return '';
   const header = 'Relevant agent plugins for this request:\n';
-  const footer = '\nLoad one with load_agent_plugin({ pluginId }) before acting on that part.';
+  const footer = `\nLoad one with ${formatPluginToolPointer({ pluginId: '<pluginId>', file: 'SKILL.md' })} before acting on that part.`;
   const more = (remaining: number) => remaining ? `\n+${remaining} more relevant: search_agent_plugin_local({ query: <same request>, offset: 0 }); page with nextOffset` : '';
   const lines: string[] = [];
   const bytes = (text: string) => new TextEncoder().encode(text).length;
@@ -45,6 +47,7 @@ function relevantPluginNote({ matches }: { matches: readonly AgentPluginSearchCa
   return header + lines.join('\n') + more(matches.length - lines.length) + footer;
 }
 export interface AutomaticAgentPluginPorts {
+  formatPluginToolPointer: AgentPluginLifecyclePorts['formatPluginToolPointer'];
   list(input: Record<string, never>, options?: Record<string, never>): Promise<readonly AgentPluginSearchCandidate[]>;
   rank(input: { query: string; candidates: readonly AgentPluginSearchCandidate[]; limit: number }, options?: Record<string, never>): readonly AgentPluginSearchMatch[];
   /** Must recheck activation/trust and return real guidance, never a pointer to unopened guidance. */
@@ -117,13 +120,14 @@ export function createAutomaticAgentPluginUse(
     return matches.filter(plugin => selected.includes(plugin.pluginId));
   }
   /** Resolve through the host's activation/trust owner; delivery is recorded only by the caller.
-   * Refusals and read failures remain retryable and never expose host diagnostics. O(1) bookkeeping.
+   * Explicit content requests retain safe resolver refusals so the model can correct its request;
+   * thrown host diagnostics remain private. Failures stay retryable. O(1) bookkeeping.
    */
   async function resolveOneGuidance({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
     if (signal?.aborted) return { status: 'cancelled', guidance: '' };
     try {
       const result = await ports.resolve({ pluginId: plugin.pluginId, ...request }, {});
-      if (!result.ok) return { status: result.code ?? 'unavailable', guidance: '' };
+      if (!result.ok) return { status: result.code ?? 'unavailable', guidance: request.skill !== undefined || request.file !== undefined ? result.reason : '' };
       if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
       return { status: 'loaded', guidance: result.promptPrefix };
     } catch {
@@ -145,7 +149,8 @@ export function createAutomaticAgentPluginUse(
       const result = await resolveOneGuidance({ plugin: match }, { signal });
       if (result.status !== 'loaded') continue;
       if (new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
-        guidance.push(`Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit. Load the full instructions with load_agent_plugin(${JSON.stringify({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' })}); use the same call with file '<relative path>' for supporting references.`);
+        const pointer = ports.formatPluginToolPointer({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
+        guidance.push(`Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit. Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`);
         continue;
       }
       recordDelivery({ plugin: match, result });
@@ -184,7 +189,7 @@ export function createAutomaticAgentPluginUse(
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
     // Relevance is disclosure, never evidence that the model has read any guidance.
     const shouldLoad = !!input.capabilities?.length;
-    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches });
+    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches, formatPluginToolPointer: ports.formatPluginToolPointer });
     rememberAutoSelection();
     await publishUsage();
     return result;
@@ -232,7 +237,7 @@ export function createAutomaticAgentPluginUse(
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
     prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => prepare(input) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
-     * Returns a concrete status; guidance is nonempty only when freshly delivered.
+     * Returns a concrete status and delivered content or a safe explicit-request refusal.
      * @example await controller.load({ pluginId: 'my-plugin' });
      */
     load: (input: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}) => enqueue({ operation: () => load(input) }),

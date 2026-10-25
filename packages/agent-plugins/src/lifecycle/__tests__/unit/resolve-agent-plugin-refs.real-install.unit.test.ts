@@ -37,7 +37,8 @@ test('a real install injects exact skill markdown and refuses an absent pinned r
     if (!result.ok) throw new Error(result.reason);
     expect(result.promptPrefix).toContain(markdown);
     expect(result.promptPrefix).toContain('files: ["examples/card.tsx","references/foundations.md"]');
-    expect(result.promptPrefix).toContain('load_agent_plugin({"pluginId":"interface-design","skill":"interface-design","file":"<relative path>"})');
+    expect(result.promptPrefix).toContain('host_read_plugin({"pluginId":"interface-design","skill":"interface-design","file":"<relative path>"})');
+    expect(result.promptPrefix).not.toContain('load_agent_plugin');
     expect(result.promptPrefix).not.toContain(installed.packageRoot);
     expect(result.promptPrefix).not.toContain(root);
     expect(result.promptPrefix).not.toContain('NOT_READABLE_TEXT');

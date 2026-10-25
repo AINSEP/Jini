@@ -132,7 +132,8 @@ function formatConnectionFailure(err: unknown, baseUrl: string, options: DaemonR
 /** Remove URL credentials, queries and fragments before ordinary secret/control redaction.
  * Even short query tokens are secrets; token-length heuristics cannot protect them.
  * Opaque runs stay masked except identifier-shaped slugs/tool IDs; configured header values
- * (the run credential) also use exact-secret masking.
+ * (the run credential) also use exact-secret masking at eight characters or more;
+ * short header values would otherwise erase ordinary words from recovery hints.
  * @complexity Local scans of diagnostic text and header values, plus core's exact-secret replacements.
  */
 export function safeDiagnostic({ text }: { text: string }, options: DaemonRequestOptions = {}): string {
@@ -149,7 +150,8 @@ export function safeDiagnostic({ text }: { text: string }, options: DaemonReques
       return '[redacted URL]';
     }
   });
-  const headerSecrets = Object.values(options.headers ?? {}).flatMap(value => [value, value.replace(/^(?:Bearer|Basic)\s+/i, '')]);
+  const headerSecrets = Object.values(options.headers ?? {}).flatMap(value => [value, value.replace(/^(?:Bearer|Basic)\s+/i, '')])
+    .filter(value => value.length >= 8);
   return sanitizeUntrustedText({ text: redacted }, {
     keepIdentifiers: true,
     exactSecrets: headerSecrets,
