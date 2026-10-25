@@ -20,6 +20,18 @@ function recordingTransport() {
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 50));
 
+test("obs2 #1: credential-shaped error codes never reach Sentry exception types", async () => {
+  const { items, transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  const code = "AKIA" + "A".repeat(16);
+  port.reportError({ error: Object.assign(new Error("request failed"), { code }), context: { operation: "tool.call" } });
+  await flush(); await dispose();
+  const events = items.filter((item) => item.type === "event");
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.payload.exception.values[0].type, "[REDACTED:credential]");
+  assert.ok(!JSON.stringify(items).includes(code));
+});
+
 test("review #4: independent operations start distinct traces; a nested one shares its parent's", async () => {
   const { items, transport } = recordingTransport();
   const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });

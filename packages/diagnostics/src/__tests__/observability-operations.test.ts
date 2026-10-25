@@ -5,6 +5,7 @@ import { InMemorySpanExporter, createAsyncScope, createPort } from "./observabil
 import { createNoopObservabilityPort } from "../observability/noop.js";
 import { createHookObservabilityPort } from "../observability/hooks.js";
 import { describeReportedError } from "../observability/errors.js";
+import { errorType } from "../observability/otel.js";
 import type { ObservabilityConfigEnabled } from "../observability/config.js";
 
 /** Feature-level operations and error reports: the two signals no transport names. */
@@ -118,6 +119,34 @@ test("review #2: a secret in Error.name is redacted and capped in the error type
   createPort(CONFIG, exporter).reportError({ error, context: { operation: "tool.call" } });
   const exported = JSON.stringify(exporter.getFinishedSpans().map((s) => [s.status, s.events, s.attributes]));
   assert.ok(!exported.includes(SECRET));
+});
+
+test("obs2 #1: a credential-shaped error.code is redacted before OTel and error-tracker delivery", () => {
+  const code = "AKIA" + "A".repeat(16);
+  const error = Object.assign(new TypeError("request failed"), { code });
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter);
+  port.reportError({ error, context: { operation: "tool.call" } });
+  port.trackDbQuery({ system: "sqlite" }).end({ operation: "select", error });
+  const label = "[REDACTED:credential]";
+  assert.equal(describeReportedError({ error }).type, label);
+  const spans = exporter.getFinishedSpans();
+  assert.equal(spans.length, 2);
+  for (const span of spans) {
+    assert.equal(span.status.description, label);
+    assert.equal(span.events[0]?.attributes["exception.type"], label);
+  }
+  assert.equal(spans[1]?.attributes["error.type"], label);
+  assert.ok(!JSON.stringify(spans).includes(code));
+});
+
+test("error labels retain safe code precedence, class fallback and the redact-before-cap order", () => {
+  assert.equal(errorType(Object.assign(new TypeError("hidden"), { code: "ECONNRESET" })), "ECONNRESET");
+  assert.equal(errorType(Object.assign(new TypeError("hidden"), { code: "invalid code" })), "TypeError");
+  const error = new Error("hidden");
+  error.name = `${"x".repeat(60)} ${SECRET}`;
+  assert.equal(errorType(error), `${"x".repeat(60)} [RE`);
+  assert.equal(errorType(null), "object");
 });
 
 test("review #1: secret-shaped operation attribute strings are redacted before the SDK sees them", () => {

@@ -9,13 +9,14 @@ type Attributes = Record<string, string | number>;
 
 /** A low-cardinality error label: a SCREAMING_CASE code (ECONNREFUSED, SQLITE_BUSY), else the class
  * name. Messages are never exported: they carry SQL fragments, hostnames, emails, even credentials.
- * `Error.name` is writable, so it is a secret channel too (review 2026-10-25 #2): redacted, then capped
+ * Both `error.code` and `Error.name` are writable secret channels (review 2026-10-25 #2):
+ * select the label, then redact and cap it
  * to {@link MAX_ERROR_TYPE} (redact first: a cut could leave a secret prefix too short to match). */
 export function errorType(error: unknown): string {
  const code = (error as { code?: unknown } | null)?.code;
- if (typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code)) return code;
- if (error instanceof Error) return redactLabel(String(error.name)).slice(0, MAX_ERROR_TYPE) || 'Error';
- return typeof error;
+ const label = typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code)
+  ? code : error instanceof Error ? String(error.name) : typeof error;
+ return redactLabel(label).slice(0, MAX_ERROR_TYPE) || 'Error';
 }
 
 const MAX_ERROR_TYPE = 64;

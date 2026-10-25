@@ -11,6 +11,15 @@ record; `normalizeIngestContext({ input, dailySalt }, { hash })` uses coarse req
 salt/info prefix so the derivation bytes do not change during migration. Never persist a daily
 salt beside analytics data. `LocalBufferSink` is process-local and advertises no durability.
 
+`@jini-ai/analytics/product` is the browser-safe product event/identity port. Its guards reuse the
+same platform-neutral privacy validator as visitor ingestion. For consent backed by mutable async
+settings, pass `withProductAnalyticsGuards({ inner, consent }, { consentRevision: ({ userId }) => revision })`.
+The revision callback must synchronously read the current settings revision and change on every
+consent update (including revoke/regrant), before outstanding consent reads can settle. The guard
+checks it immediately before capture or identify. A denial or failed consent read also invalidates
+pending approvals for that user; without a revision callback, settings changes are only observed
+when a consent check reports them. Global telemetry settings may use a single global revision.
+
 This capability is independent of CMS content: any marketing, website or other application may
 supply the ports. The move from the former platform analytics entry preserves behavior and tests.
 
