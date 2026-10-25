@@ -250,3 +250,20 @@ describe('claudeFilesystemRuntimePaths', () => {
     expect(claudeFilesystemRuntimePaths({ launchPath: bin }, {})).toEqual([bin, realpathSync(process.execPath)]);
   });
 });
+
+describe('launch-boundary and settings refusals (F3 coverage)', () => {
+  it('refuses a filesystemRoot that is a file, with the specific reason', () => {
+    const { site } = fixture();
+    expect(() => validateFilesystemLaunch({ filesystemRoot: join(site, 'inside.txt'), cwd: site }, {})).toThrow('filesystemRoot must be a directory');
+  });
+  it('checks imagePaths when extraAllowedDirs is absent, and accepts neither', () => {
+    const { site, outside } = fixture();
+    expect(validateFilesystemLaunch({ filesystemRoot: site, cwd: site }, {})).toBe(realpathSync(site));
+    expect(validateFilesystemLaunch({ filesystemRoot: site, cwd: site, imagePaths: ['inside.txt'] }, {})).toBe(realpathSync(site));
+    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, imagePaths: [join(outside, 'outside-canary.txt')] }, {})).toThrow();
+  });
+  it.each(['[]', 'null', '"text"', '3'])('refuses host settings %s that are not a JSON object', settings => {
+    expect(() => claudeFilesystemSettings({ options: { filesystemRoot: '/site', settings } }, { platform: 'linux', homeDir: '/h', tempDir: '/t' }))
+      .toThrow('Host settings must be a JSON object');
+  });
+});
