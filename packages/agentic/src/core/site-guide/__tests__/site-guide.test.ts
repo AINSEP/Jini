@@ -25,7 +25,7 @@ describe('site guide read-only contract', () => {
     const guide = createSiteGuide({ authorize: async () => false, facts: { read: async () => ({ site: { status: 'ok', data: { enabled: false } } }) } });
     expect(await guide.run({ caller, operation: 'overview' })).toEqual({
       operation: 'overview', topics: [{ id: 'site', title: 'How this site works', summary: 'Learn the available building blocks before planning or building.', source: 'core' }],
-      facts: {}, callerPermissions: [], enrichment: 'ok',
+      facts: {}, enrichment: 'ok',
     });
   });
   it('overview is small; explain filters write pointers/workflows for a read-only caller', async () => {
@@ -35,7 +35,7 @@ describe('site guide read-only contract', () => {
     expect(overview.topics).toEqual([{ id: 'forms', title: 'Forms', summary: 'Native submissions', source: 'core' }]);
     const explained = await guide.run({ caller, operation: 'explain', topic: 'forms' });
     expect(explained.topics[0]).toEqual({ id: 'forms', title: 'Forms', summary: 'Native submissions', source: 'core', explanation: 'Use native definitions.', pointers: [{ label: 'Read forms', tool: 'forms_list' }], workflows: [] });
-    expect(explained.callerPermissions).toEqual(['forms.read']);
+    expect(explained).not.toHaveProperty('callerPermissions');
     expect(JSON.stringify(explained)).not.toContain('PRIVATE_CANARY');
   });
   it('rereads facts and permissions rather than caching between calls', async () => {
@@ -97,7 +97,7 @@ describe('site guide read-only contract', () => {
   it('authorizer failure denies the topic, even when plugin enrichment is present', async () => {
     const f = fixture();
     const result = await createSiteGuide({ ...f.ports, authorize: async () => { throw new Error('PRIVATE_CANARY'); } }).run({ caller, operation: 'overview' });
-    expect(result.topics).toEqual([]); expect(result.callerPermissions).toEqual([]); expect(f.factRequests).toEqual([]);
+    expect(result.topics).toEqual([]); expect(result).not.toHaveProperty('callerPermissions'); expect(f.factRequests).toEqual([]);
   });
   it('bounds a hung contribution/facts port, retaining core with explicit unavailable facts', async () => {
     const f = fixture(); const never = () => new Promise<never>(() => {});
