@@ -12,22 +12,29 @@ export type InMemoryFencedRow<E> = FencedClaim<E> & {
 
 /**
  * Caller-owned in-memory unit of work. Writers join it with a commit and a rollback action; it
- * settles exactly once, and joining or settling a settled transaction throws.
+ * settles exactly once, and joining or settling a settled transaction throws. If any joined commit
+ * throws, every joined rollback runs (including for writes whose commit already ran), the
+ * transaction settles rolled-back, and the error propagates.
  */
 export class InMemoryTransaction {
   #status: 'open' | 'committed' | 'rolled-back' = 'open';
   readonly #joined: { commit: () => void; rollback: () => void }[] = [];
 
   get status(): 'open' | 'committed' | 'rolled-back' { return this.#status; }
-  /** Register a write that lands on commit and is undone on rollback, e.g. a host intent record. */
+  /** Register a write that lands on commit and is undone on rollback, even after its commit ran. */
   join(required: { commit: () => void; rollback: () => void }, _optional: Empty = {}): void {
     this.#assertOpen();
     this.#joined.push(required);
   }
   commit(): void {
     this.#assertOpen();
+    try {
+      for (const write of this.#joined) write.commit();
+    } catch (error) {
+      this.rollback();
+      throw error;
+    }
     this.#status = 'committed';
-    for (const write of this.#joined) write.commit();
   }
   rollback(): void {
     this.#assertOpen();
@@ -42,9 +49,8 @@ export class InMemoryTransaction {
 /**
  * Reference fenced adapter for tests and hosts. Each async method mutates synchronously before
  * returning its promise, so competing claims cannot interleave inside a transition. It opens no real
- * DB: a row enqueued in a transaction is visible only to that transaction until it commits, and two
- * open transactions do not see each other's keys, so cross-transaction uniqueness is a real host
- * adapter's job and needs its own conformance run.
+ * DB: a row enqueued in a transaction is claimable only once it commits, and its key stays reserved
+ * meanwhile: any other writer enqueueing that key is rejected (a real DB would block it instead).
  */
 export class InMemoryFencedOutbox<E> implements FencedOutboxPort<E>, FencedEnqueuePort<E, InMemoryTransaction> {
   readonly rows = new Map<string, InMemoryFencedRow<E>>();
@@ -57,7 +63,8 @@ export class InMemoryFencedOutbox<E> implements FencedOutboxPort<E>, FencedEnque
     const { transaction } = optional;
     if (transaction && transaction.status !== 'open') throw new TypeError('enqueue requires an open transaction');
     const original = [...this.rows.values()].find(candidate => candidate.scope === intent.scope
-      && candidate.idempotencyKey === intent.idempotencyKey && this.#visible({ id: candidate.id, transaction }));
+      && candidate.idempotencyKey === intent.idempotencyKey);
+    if (original && !this.#visible({ id: original.id, transaction })) throw new Error('idempotency key is reserved by another open transaction');
     if (original) {
       return original.requestDigest === intent.requestDigest ? { status: 'existing' }
         : { status: 'conflict', reason: 'request-digest-mismatch' };

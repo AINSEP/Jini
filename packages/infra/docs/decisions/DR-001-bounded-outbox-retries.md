@@ -41,9 +41,11 @@ conflicts without touching the original row. A supplied transaction is the calle
 session, shared with its intent writes; enqueue never opens, commits or retries one, and closed
 sessions are rejected. An earlier draft declared these types with no adapter or tests and was
 removed; they return with `InMemoryFencedOutbox` as the reference adapter and
-`fencedOutboxConformance` as the contract cases hosts run against their own adapters. The reference
-adapter does not model concurrent transactions, so cross-transaction uniqueness is proven only by a
-host adapter's conformance run. Storage/schema owners stay with the host. This addition leaves CMS's
+`fencedOutboxConformance` as the contract cases hosts run against their own adapters. A key enqueued
+in an open transaction stays reserved: a concurrent writer must wait or be rejected, never insert a
+second row, and a conformance case races two open transactions on one key. The reference adapter
+rejects (it cannot block); if any joined write's commit throws, it rolls back every joined write.
+Storage/schema owners stay with the host. This addition leaves CMS's
 separate co-persistence decision in place.
 
 `createSerialPump` reuses the drainer's private scheduling lifecycle with an inert construction,

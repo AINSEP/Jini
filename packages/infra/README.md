@@ -79,11 +79,15 @@ same-digest replay `{ status: 'existing' }`, and a different digest
 `{ status: 'conflict', reason: 'request-digest-mismatch' }` with the original row preserved. With
 `{ transaction: liveSession }` the insert joins the caller's exact live session and commits or rolls
 back with the caller's own intent writes; enqueue never opens, commits or retries a transaction.
+While that transaction is open its key is reserved: another writer waits or is rejected, never
+inserting a second row (`InMemoryFencedOutbox` rejects).
 
 `InMemoryFencedOutbox` (with `InMemoryTransaction`) is a reference adapter implementing both ports.
 `fencedOutboxConformance({ createSubject })` returns framework-neutral `{ name, run }` cases
-(receipts, transaction commit/rollback, fencing, lease recovery, uncertainty); run them against
-every host adapter, e.g. `for (const c of cases) it(c.name, c.run)`. Jini runs them against the
+(receipts, conflict preservation, transaction commit/rollback, overlapping transactions, fencing
+by token/scope/expiry, lease recovery, uncertainty); the subject supplies `event` and a deep-unequal
+`conflictingEvent`. Run them against every host adapter, e.g.
+`for (const c of cases) it(c.name, c.run)`. Jini runs them against the
 reference adapter; it does not run them against any real database.
 
 Claims include a mandatory token, expiry and one-based attempts. The worker authorizes each claim,
