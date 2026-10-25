@@ -191,6 +191,8 @@ export function createPluginProviderHost(required: {
       }, initializeTimeoutMs);
     });
     wakers.add(wake);
+    // The factory may already have retired the generation (e.g. a borrowed callback shut the host down).
+    wake();
     return Promise.race([input.produced, stopped]).finally(() => { wakers.delete(wake); clearTimeout(timer); });
   }
   async function initialize(
