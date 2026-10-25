@@ -32,6 +32,7 @@ describe('title regex edges (F3)', () => {
     ['CJK filler and punctuation', '帮我做一个登录页面，要好看', '登录页面'],
     ['pure punctuation', '?!', ''],
     ['bare URL', 'http://x.test/a', ''],
+    ['punctuation-only clause with no word tokens', '--- ...', ''],
   ])('%s', (_label, prompt, expected) => {
     expect(deriveConversationTitle({ prompt })).toBe(expected);
   });
