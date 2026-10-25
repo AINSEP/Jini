@@ -76,3 +76,13 @@ test("PostHog provider (real posthog-node, recording fetch): capture/identify be
   expect(events.map((e) => [e.event, e.distinct_id])).toEqual([["$identify", "u1"], ["assistant_tool_call", "u1"]]);
   expect(events[1]?.properties).toMatchObject({ tool_id: "pages_list", outcome: "completed", $geoip_disable: true });
 });
+
+test("an async consent (a settings read) delays the event until it answers true; false or a rejection drops it", async () => {
+  const { port, events } = recordingPort();
+  const answers = [Promise.resolve(true), Promise.resolve(false), Promise.reject(new Error("db down"))];
+  const guarded = withProductAnalyticsGuards({ inner: port, consent: () => answers.shift()! });
+  for (const userId of ["u1", "u2", "u3"]) guarded.capture({ name: "assistant_tool_call", userId });
+  expect(events).toEqual([]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(events.map((e) => e.userId)).toEqual(["u1"]);
+});

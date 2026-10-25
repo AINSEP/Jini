@@ -110,3 +110,17 @@ test("owner 10-25: user.id is the pseudonymous principal id; e-mail- or secret-s
   for (const id of ["user_7f3a", "owner@example.com", "ghp_abcdefghijklmnopqrstuvwxyz0123456789"]) await executor.execute({ ...CALL, principal: { id } as never });
   expect(fake.operations.map((op) => op.start["user.id"])).toEqual(["user_7f3a", UNIDENTIFIED_USER_LABEL, UNIDENTIFIED_USER_LABEL]);
 });
+
+test("withToolCallAnalytics: one tool_call product event per call, after it settles, with the same id/user rules; throws pass through", async () => {
+  const { withToolCallAnalytics } = await import("../index.js");
+  const events: unknown[] = [];
+  const analytics = { capture: (event: unknown) => { events.push(event); } };
+  const ok = withToolCallAnalytics({ inner: executorReturning(() => ({ executionId: "e", status: "failed", errorKind: "validation", error: "x" })), analytics }, { isRegisteredTool: () => true });
+  await ok.execute(CALL);
+  const throwing = withToolCallAnalytics({ inner: { ...executorReturning(() => ({ executionId: "e", status: "completed" })), execute: async () => { throw new ToolInputError({ message: "unknown tool" }); } }, analytics }, { isRegisteredTool: () => false });
+  await expect(throwing.execute({ ...CALL, toolId: "nope" })).rejects.toThrow("unknown tool");
+  expect(events).toEqual([
+    { name: "tool_call", userId: "p1", properties: { tool_id: "pages_list", outcome: "failed", failed: true, error_kind: "validation" } },
+    { name: "tool_call", userId: "p1", properties: { tool_id: UNREGISTERED_TOOL_LABEL, outcome: "threw", failed: true } },
+  ]);
+});

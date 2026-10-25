@@ -46,7 +46,7 @@ const TOOL_ID_SHAPE = /^[A-Za-z][\w.:-]{0,127}$/;
 /** Host check, when it has one: is this id a tool the registry knows? */
 export type IsRegisteredTool = (input: { toolId: string }) => boolean;
 
-function toolLabel({ toolId }: { toolId: string }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool | undefined }): string {
+export function toolCallLabel({ toolId }: { toolId: string }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool | undefined }): string {
   const shapeOk = TOOL_ID_SHAPE.test(toolId) && redactSecrets({ input: toolId }) === toolId;
   return shapeOk && (isRegisteredTool?.({ toolId }) ?? true) ? toolId : UNREGISTERED_TOOL_LABEL;
 }
@@ -84,7 +84,7 @@ export function withToolCallObservability({ inner, observability }: { inner: Too
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
       { signal, emitSurface }: { signal?: AbortSignal; emitSurface?: SurfaceEmitter } = {},
     ): Promise<ToolExecutionResult> => {
-      const attributes = { "tool.id": toolLabel({ toolId }, { isRegisteredTool }), "agent.run.id": run.id, "user.id": pseudonymousUserId({ principal }) };
+      const attributes = { "tool.id": toolCallLabel({ toolId }, { isRegisteredTool }), "agent.run.id": run.id, "user.id": pseudonymousUserId({ principal }) };
       const context = { operation: TOOL_CALL_OPERATION, attributes };
       const tracker = observability.trackOperation({ name: TOOL_CALL_OPERATION, attributes });
       let result: ToolExecutionResult;
