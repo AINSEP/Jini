@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/vibecoding",
   "version": "0.6.12",
-  "description": "Conversational artifact authoring: a target-agnostic edit loop — addressable parts, validated replace, operation-level undo/redo, and per-turn snapshot/rewind. Framework-free in `/core`; tagged-region HTML documents behind ./html; filesystem targets behind ./node and the chat/preview surface behind ./react.",
+  "description": "Conversational artifact authoring: a target-agnostic edit loop \u2014 addressable parts, validated replace, operation-level undo/redo, and per-turn snapshot/rewind. Framework-free in `/core`; tagged-region HTML documents behind ./html; filesystem targets behind ./node and the chat/preview surface behind ./react.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -92,16 +92,17 @@
     "typescript": "^5.9.2",
     "vitest": "^3.2.4",
     "@jini-ai/core": "workspace:*",
-    "parse5": "^8.0.1"
+    "parse5": "^8.0.1",
+    "@jini-ai/platform": "workspace:^"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^"
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
-    "parse5": "^7.3.0 || ^8.0.1"
+    "parse5": "^7.3.0 || ^8.0.1",
+    "@jini-ai/platform": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -111,6 +112,9 @@
       "optional": true
     },
     "parse5": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
       "optional": true
     }
   }

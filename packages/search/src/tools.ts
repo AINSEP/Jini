@@ -14,7 +14,7 @@
  */
 import {
   buildDomainRegistrations, createApprovalHandler, indexCatalogById, optionalString, readToolLimit, requireInputRecord, requireNoInput, requireString, ToolInputError,
-  type AgentToolDefinition, type ApprovalAnswer, type DerivedRiskByToolId, type RememberedApprovalPort, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration,
+  type AgentToolDefinition, type ApprovalAnswer, type AgentToolSideEffect, type RememberedApprovalPort, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration,
 } from '@jini-ai/core';
 import type { ProviderRegistry } from '@jini-ai/core/provider-registry';
 import type { SearchProvider, SearchQuery } from './contract.js';
@@ -102,7 +102,8 @@ export const catalog: AgentToolDefinition[] = [
 ];
 
 /** Independently derived from the calls each handler below makes. */
-export const derivedRisk: DerivedRiskByToolId = new Map([
+// Spell out the readonly map because the guard cannot resolve the registration kit's type alias.
+export const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // service.query -> provider.query + access.visibleKeys: reads only.
   ['search_query', 'none'],
   // service.status -> targets.get + state.counts: reads only.

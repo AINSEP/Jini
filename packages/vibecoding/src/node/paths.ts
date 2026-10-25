@@ -9,7 +9,7 @@ export const DEFAULT_PROJECT_LIMITS: ProjectLimits = {
   maxFiles: 2_000, maxFileBytes: 2 * 1024 * 1024, maxTreeBytes: 64 * 1024 * 1024,
   maxDepth: 32, maxChanges: 100, validationTimeoutMs: 30_000,
 };
-const EXCLUDED = new Set(['node_modules', '.git', 'dist', 'build', 'out', 'coverage',
+const EXCLUDED: ReadonlySet<string> = new Set(['node_modules', '.git', 'dist', 'build', 'out', 'coverage',
   '.next', '.nuxt', '.angular', '.vite', '.cache', '.turbo']);
 const DEVICE = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i;
 // Platform's atomic writer stages `.<name>.<pid>.<uuid>.tmp` beside the destination. A crash

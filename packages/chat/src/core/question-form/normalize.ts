@@ -90,7 +90,7 @@ function parseAllowCustom(question: Record<string, unknown>): boolean | undefine
   return question.allowCustom === true || question.custom === true || undefined;
 }
 
-const TYPE_ALIASES = new Map<string, QuestionType>(
+const TYPE_ALIASES: ReadonlyMap<string, QuestionType> = new Map<string, QuestionType>(
   (
     [
       ['radio', ['radio', 'single', 'choice']],
