@@ -69,7 +69,7 @@ export function useMediaPage(props: MediaPageProps, _optional: Record<string, ne
   };
 }
 
-const TAB_ICONS = new Map([['images', ImageIcon], ['videos', VideoIcon], ['external-providers', CloudIcon]]);
+const TAB_ICONS: ReadonlyMap<string, typeof ImageIcon> = new Map([['images', ImageIcon], ['videos', VideoIcon], ['external-providers', CloudIcon]]);
 /** Module tab ids are namespaced (`media.images`); the page and its tabs use the last segment. */
 function shortTabId({ id }: { id: string }, _optional: Record<string, never> = {}) {
   return id.slice(id.lastIndexOf('.') + 1);

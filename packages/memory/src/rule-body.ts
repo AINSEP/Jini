@@ -29,7 +29,7 @@ export interface ParsedRuleBody {
 
 const LABELED_LINE_RE = /^([A-Za-z][A-Za-z ]*?):\s*(.*)$/;
 
-const RULE_LABEL_FIELDS = new Map<string, keyof ParsedRuleBody>([
+const RULE_LABEL_FIELDS: ReadonlyMap<string, keyof ParsedRuleBody> = new Map<string, keyof ParsedRuleBody>([
   ['assertion', 'assertion'],
   ['check', 'check'],
   ['verified by', 'rationale'],

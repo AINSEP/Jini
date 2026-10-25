@@ -41,6 +41,11 @@
       "types": "./dist/store/projects/sqlite.d.ts",
       "import": "./dist/store/projects/sqlite.js",
       "default": "./dist/store/projects/sqlite.js"
+    },
+    "./owner-store": {
+      "types": "./dist/owner-store/index.d.ts",
+      "import": "./dist/owner-store/index.js",
+      "default": "./dist/owner-store/index.js"
     }
   },
   "files": [

@@ -140,7 +140,7 @@ export function suggestRegionHandle(
 
 // Stylesheets and metadata need no content address. Requiring nested elements to carry handles
 // would impose a stricter contract than "every top-level section" and make ordinary pages unusable.
-const UNTAGGABLE_TOP_LEVEL_ELEMENTS = new Set(["style", "script", "template", "link", "meta", "base", "title"]);
+const UNTAGGABLE_TOP_LEVEL_ELEMENTS: ReadonlySet<string> = new Set(["style", "script", "template", "link", "meta", "base", "title"]);
 
 /** Find untagged top-level content; reserve each suggestion so a batch never creates duplicates. */
 export function untaggedTopLevelSections(

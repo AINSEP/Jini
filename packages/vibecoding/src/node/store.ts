@@ -1,7 +1,7 @@
 import * as fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { withFileLock, writeFileAtomicAsync, writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+import type { ProjectFilesystemPort } from '../core/project-filesystem.js';
 import { ProjectError, type ProjectLimits, type RevisionToken } from '../core/project.js';
 import { assertCandidatePaths, portablePathKey, type ProjectPaths } from './paths.js';
 
@@ -32,7 +32,7 @@ export interface Current {
   readonly observed: Readonly<Record<string, Fingerprint>>;
 }
 export type StoreCheckpoint = 'objects' | 'manifest' | 'journal' | 'delete' | 'write' | 'prune' | 'clear';
-export interface StoreInput { root: string; stateDir: string; paths: ProjectPaths; limits: ProjectLimits }
+export interface StoreInput { root: string; stateDir: string; paths: ProjectPaths; limits: ProjectLimits; filesystem: ProjectFilesystemPort }
 export interface StoreOptions {
   /** Internal deterministic process-crash seam; never needed by the public factory. */
   checkpoint?: (input: { step: StoreCheckpoint }) => void | Promise<void>;
@@ -160,7 +160,7 @@ export async function prepareDirectories({ root, stateDir }: { root: string; sta
 /** Content-addressed persistence and idempotent roll-forward. Call mutations inside locked().
  * @complexity O(bytes + files log files + files × depth²) for capture; memory bounded by maxTreeBytes.
  */
-export function createProjectStore({ root, stateDir, paths, limits }: StoreInput, options: StoreOptions = {}) {
+export function createProjectStore({ root, stateDir, paths, limits, filesystem }: StoreInput, options: StoreOptions = {}) {
   const currentPath = resolve(stateDir, 'current.json');
   const objectPath = (hash: string) => { assertHash(hash); return resolve(stateDir, 'objects', hash); };
   const manifestPath = (hash: string) => { assertHash(hash); return resolve(stateDir, 'manifests', `${hash}.json`); };
@@ -205,14 +205,14 @@ export function createProjectStore({ root, stateDir, paths, limits }: StoreInput
     const revisionId = digest({ bytes: JSON.stringify(value) });
     const existing = await statIfPresent(manifestPath(revisionId));
     if (existing) await manifest({ revisionId });
-    else await writeJsonFileAtomicAsync({ filePath: manifestPath(revisionId), data: value }, { createParent: true });
+    else await filesystem.writeJsonFileAtomicAsync({ filePath: manifestPath(revisionId), data: value }, { createParent: true });
     await checkpoint('manifest');
     return revisionId;
   }
   async function writeObject({ file, bytes }: { file: ManifestFile; bytes: Uint8Array }): Promise<void> {
     const exists = await statIfPresent(objectPath(file.hash));
     if (exists) await object({ file });
-    else await writeFileAtomicAsync({ filePath: objectPath(file.hash), content: bytes }, { createParent: true });
+    else await filesystem.writeFileAtomicAsync({ filePath: objectPath(file.hash), content: bytes }, { createParent: true });
   }
   async function observations({ files }: Manifest): Promise<Readonly<Record<string, Fingerprint>>> {
     const result: Record<string, Fingerprint> = Object.create(null);
@@ -314,13 +314,13 @@ export function createProjectStore({ root, stateDir, paths, limits }: StoreInput
     // Empty folders blocking a directory-to-file transition must be removed before writing it.
     for (const file of writes) await removeBlockingFolder({ path: file.path, before });
     for (const file of writes) {
-      await writeFileAtomicAsync({ filePath: await regularPath({ paths, path: file.path }), content: bytes.get(file.path)! },
+      await filesystem.writeFileAtomicAsync({ filePath: await regularPath({ paths, path: file.path }), content: bytes.get(file.path)! },
         { createParent: true, refuseSymlink: true, defaultMode: 0o644 });
       await checkpoint('write');
     }
     await prune({ before, after });
     const settled: Current = { ...current, pending: null, observed: await observations(after) };
-    await writeJsonFileAtomicAsync({ filePath: currentPath, data: settled });
+    await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: settled });
     await checkpoint('clear');
     return settled;
   }
@@ -399,7 +399,7 @@ export function createProjectStore({ root, stateDir, paths, limits }: StoreInput
     if (current?.generation === Number.MAX_SAFE_INTEGER) throw new ProjectError({ code: 'LIMIT', message: 'generation exhausted' });
     const next: Current = { version: 1, root, revision: revisionId, generation: (current?.generation ?? 0) + 1,
       pending: captured ? null : { from: current?.revision ?? null }, observed: captured ?? {} };
-    await writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
+    await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
     await checkpoint('journal');
     return captured ? next : materialize({ current: next });
   }
@@ -407,7 +407,7 @@ export function createProjectStore({ root, stateDir, paths, limits }: StoreInput
   async function observe({ current, observed }: { current: Current; observed: Current['observed'] }): Promise<Current> {
     if (JSON.stringify(current.observed) === JSON.stringify(observed)) return current;
     const next = { ...current, observed };
-    await writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
+    await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
     return next;
   }
   /** Both stacks pin manifests and blobs. Expired snapshots do not pin storage indefinitely. */
@@ -421,7 +421,7 @@ export function createProjectStore({ root, stateDir, paths, limits }: StoreInput
   }
   return {
     readCurrent, manifest, object, prepare, scan, select, collect, preflight, observe, readWorkingFile,
-    locked: <T>(run: () => Promise<T>) => withFileLock({ lockPath: resolve(stateDir, 'project.lock'), run }, { staleMs: Infinity, createParent: true }),
+    locked: <T>(run: () => Promise<T>) => filesystem.withFileLock({ lockPath: resolve(stateDir, 'project.lock'), run }, { staleMs: Infinity, createParent: true }),
     recover,
   };
 }

@@ -58,8 +58,9 @@ function reapProbe({ timer, lines, child }: {
  */
 export async function probeMcpBridge(
   { entry }: { readonly entry: { readonly command: string; readonly args: readonly string[]; readonly env?: Readonly<Record<string, string>> } },
-  { spawn = nodeSpawn, baseEnv = buildAgentEnv({ hostEnv: process.env }), timeoutMs = 15_000, now = Date.now }: {
+  { spawn = nodeSpawn, hostEnv = process.env, baseEnv = buildAgentEnv({ hostEnv }), timeoutMs = 15_000, now = Date.now }: {
     readonly spawn?: typeof nodeSpawn;
+    readonly hostEnv?: Readonly<Record<string, string | undefined>>;
     readonly baseEnv?: Readonly<Record<string, string>>;
     readonly timeoutMs?: number;
     readonly now?: () => number;

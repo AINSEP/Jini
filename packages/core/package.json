@@ -27,7 +27,8 @@
       "./text": "universal",
       "./settings": "universal",
       "./settings/express": "node",
-      "./plugin-directory": "universal"
+      "./plugin-directory": "universal",
+      "./filesystem": "universal"
     },
     "isolation": {
       "entries": {
@@ -155,6 +156,11 @@
       "types": "./plugin-directory.d.ts",
       "import": "./plugin-directory.js",
       "default": "./plugin-directory.js"
+    },
+    "./filesystem": {
+      "types": "./dist/filesystem.d.ts",
+      "import": "./dist/filesystem.js",
+      "default": "./dist/filesystem.js"
     }
   },
   "files": [

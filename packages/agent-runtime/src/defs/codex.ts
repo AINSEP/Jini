@@ -328,6 +328,9 @@ export const codexAgentDef = {
     // rather than dropped.
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
+      { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
+      { id: 'gpt-6-sol', label: 'GPT-6 Sol' },
+      { id: 'gpt-6-luna', label: 'GPT-6 Luna' },
       { id: 'gpt-6-astra', label: 'gpt-6-astra' },
       { id: 'gpt-5.6-sol', label: 'gpt-5.6-sol' },
       { id: 'gpt-5.6-terra', label: 'gpt-5.6-terra' },
@@ -349,7 +352,7 @@ export const codexAgentDef = {
     ],
     // Asserted against a live `codex debug models` run (codex-cli 0.153.4). See
     // `RuntimeAgentDef.fallbackModelsAssertedAt` and `scripts/check-model-fallback-freshness.ts`.
-    fallbackModelsAssertedAt: '2026-09-05',
+    fallbackModelsAssertedAt: '2026-10-24',
     // The OLD-CLI path only. A Codex build new enough to answer `debug models` gets its effort list
     // derived from that catalog instead (see `deriveReasoningOptions` below), which is what makes
     // `max` and `ultra` reachable. This list is deliberately NOT widened to match: it is what a build

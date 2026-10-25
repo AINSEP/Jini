@@ -29,8 +29,8 @@ class SchemaProjectionError extends Error {
   constructor(readonly reason: OperationSchemaFallbackReason) { super(reason); }
 }
 const EMPTY_SCHEMA = { type: 'object', additionalProperties: false, properties: {}, required: [] };
-const SCHEMA_KEYS = new Set(['type', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'const', 'anyOf', '$defs', 'definitions', '$ref', '$schema', 'title', 'description', 'default', 'examples']);
-const TYPES = new Set(['object', 'array', 'string', 'integer', 'number', 'boolean', 'null']);
+const SCHEMA_KEYS: ReadonlySet<string> = new Set(['type', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'const', 'anyOf', '$defs', 'definitions', '$ref', '$schema', 'title', 'description', 'default', 'examples']);
+const TYPES: ReadonlySet<string> = new Set(['object', 'array', 'string', 'integer', 'number', 'boolean', 'null']);
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

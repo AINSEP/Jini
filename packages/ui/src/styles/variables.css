@@ -250,7 +250,7 @@
 /* Chat uses its own stylesheet so hosts can load it independently of the admin palette.
    Aliases live on :root only so nested theme/scheme scopes inherit ChatPane's component-local
    values. Moving that component wiring is a later step. Classic retains its existing scoped
-   host bridge in Tovu. */
+   host application bridge. */
 :root {
   --jini-chat-font-body: var(--jini-theme-chat-font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Noto Sans", Roboto, "Helvetica Neue", Arial, sans-serif);
   --jini-chat-font-mono: var(--jini-theme-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);

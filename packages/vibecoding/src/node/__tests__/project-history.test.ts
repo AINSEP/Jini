@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
-import { openFileTreeProject } from '../project.js';
+import { openFileTreeProject } from './filesystem.js';
 import { createVibecodingSession } from '../../session.js';
 
 const roots: string[] = [];

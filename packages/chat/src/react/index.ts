@@ -388,3 +388,12 @@ export type { AssistantChatsPort, AssistantChatsClientPorts, AssistantChatsClien
 
 export { useFabPosition } from "./hooks/fab-position.js";
 export type { FabPositionInput, FabPositionResult } from "./hooks/fab-position.js";
+
+// ChatPane consumers can compose the same accepted-input, run-state and plugin-usage behavior.
+export type { ChatMessage } from '../core/messages.js';
+export { isTerminalRunStatus } from '../core/messages.js';
+export { AGENT_PLUGIN_STATE_CHANGED, readAgentPluginChatState, writeAgentPluginChatState } from '../core/agent-plugin-chat-state.js';
+export type { AgentPluginUsage, AgentPluginUsage as Usage } from '../core/agent-plugin-chat-state.js';
+export { acceptedInputEvent, acceptedInputUserEvent, projectAcceptedInputEvents } from '../core/accepted-input.js';
+export type { AcceptedChatInput } from '../core/accepted-input.js';
+export { isAwaitingAnswer } from '../core/run-activity.js';

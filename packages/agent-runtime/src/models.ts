@@ -1,4 +1,4 @@
-import { concreteModelOptions } from './model-discovery-shared.js';
+import { concreteModelOptions } from './core/model-discovery-shared.js';
 import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module models

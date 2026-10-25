@@ -3,7 +3,7 @@ import { validatePluginIdentity } from '@jini-ai/core/plugin-directory';
 import {
   checkAdminSurfaceActionSchema, exceedsAdminSurfacePayloadLimit, validateAdminSurfaceActionValue,
   type AdminSurfaceActionSchema,
-} from '../admin-surfaces/action-schema.js';
+} from '../contracts/admin-surface-action-schema.js';
 
 /** Matches the CMS consent vocabulary without introducing a dependency on CMS. */
 export type AgentPluginExportConsent = 'necessary' | 'functional' | 'analytics' | 'marketing';
@@ -32,7 +32,7 @@ export type ParseAgentPluginExportsResult =
   | { readonly ok: false; readonly errors: readonly string[] };
 
 type Entry = Readonly<Record<string, unknown>>;
-const KNOWN_KEYS = new Set(['template', 'props', 'consent', 'staticExport', 'version', 'minVersion', 'aliases', 'hostLinks', 'styles', 'assets']);
+const KNOWN_KEYS: ReadonlySet<string> = new Set(['template', 'props', 'consent', 'staticExport', 'version', 'minVersion', 'aliases', 'hostLinks', 'styles', 'assets']);
 const isObject = (value: unknown): value is Entry => typeof value === 'object' && value !== null && !Array.isArray(value);
 const isName = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(value);
 const isVersion = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 1;

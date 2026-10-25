@@ -95,8 +95,8 @@ export interface AgentPluginSearchMatch extends AgentPluginSearchCandidate {
 
 /** These describe the conversation or target, not a plugin's topic. Prose-only hits remain
  * available to explicit search without silently loading unrelated guidance. */
-const INCIDENTAL_TERMS = new Set('a an and are as at be build can could create do for from get help i in is it make me my new of on or please the this to use want we with you your site sites page pages website websites plugin plugins tell which load just don t anything'.split(' '));
-const DEPLOYMENT_TERMS = new Set('deploy deployment deploying deployed publish publishing published host hosting hosted'.split(' '));
+const INCIDENTAL_TERMS: ReadonlySet<string> = new Set('a an and are as at be build can could create do for from get help i in is it make me my new of on or please the this to use want we with you your site sites page pages website websites plugin plugins tell which load just don t anything'.split(' '));
+const DEPLOYMENT_TERMS: ReadonlySet<string> = new Set('deploy deployment deploying deployed publish publishing published host hosting hosted'.split(' '));
 function automaticTerms(query: string): string[] {
   return [...new Set((query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(term => !INCIDENTAL_TERMS.has(term)))];
 }

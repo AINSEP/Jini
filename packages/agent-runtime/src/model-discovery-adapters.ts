@@ -11,7 +11,7 @@ import { execAgentFile } from './invocation.js';
 import { scheduleProbeProcess } from './probe-scheduler.js';
 import { probeCopilotSdk, probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
-import { ModelProbeError, modelIdentityKind, withModelProbeTimeout } from './model-discovery-shared.js';
+import { ModelProbeError, modelIdentityKind, withModelProbeTimeout } from './core/model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration, DiscoveredModel, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
 import type { ProviderModelsKind } from './providers/types.js';
 
@@ -118,7 +118,7 @@ export async function probeProviderApi(agentId: string, context: ModelDiscoveryC
 }
 type CliCache = { path(env: ModelDiscoveryContext['env'], home: string): string; models(data: Record<string, unknown>): DiscoveredModel[] };
 const optionCacheModels = (data: Record<string, unknown>) => configurationCacheModels(data.additionalModelOptionsCache);
-const CLI_CACHES = new Map<string, CliCache>([
+const CLI_CACHES: ReadonlyMap<string, CliCache> = new Map<string, CliCache>([
   ['codex', { path: (env, home) => join(env.CODEX_HOME || join(home, '.codex'), 'models_cache.json'), models: (data) => configurationCacheModels(data.models) }],
   ['opencode', { path: (env, home) => join(env.XDG_CACHE_HOME || join(home, '.cache'), 'opencode/models.json'), models: opencodeCacheModels }],
   ['claude', { path: (env, home) => join(env.CLAUDE_CONFIG_DIR || home, '.claude.json'), models: optionCacheModels }],
@@ -181,14 +181,14 @@ async function probeCodeBuddyCatalog(agentId: string, context: ModelDiscoveryCon
   catch { return probeCliCache(agentId, context, deps, signal); }
 }
 /** Agents with a dedicated discovery category, checked before any declared listing command. */
-const AGENT_PROBES = new Map<string, AgentProbe>([
+const AGENT_PROBES: ReadonlyMap<string, AgentProbe> = new Map<string, AgentProbe>([
   ['claude', probeClaudeCatalog],
   ['pi', probeRpc], ['copilot', probeRpc], ['droid', probeRpc],
   // UNVERIFIED CLI-owned effective credential adapters; OAuth/unknown endpoints require host ports.
   ['aider', probeProviderApi], ['qwen', probeProviderApi], ['mimo', probeProviderApi],
   ['codebuddy', probeCodeBuddyCatalog],
 ]);
-const DISK_CACHE_LISTINGS = new Set(['codex', 'opencode']);
+const DISK_CACHE_LISTINGS: ReadonlySet<string> = new Set(['codex', 'opencode']);
 async function probeDeclaredListing(agentId: string, context: ModelDiscoveryContext, configuration: AgentDiscoveryConfiguration, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
   // Only disk-cache adapters reserve two seconds for recovery. Antigravity has no disk
   // fallback, so its declared listing timeout can use the full outer discovery budget.
