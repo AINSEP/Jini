@@ -1,5 +1,8 @@
 /** SQLite connection policy and restore operations; inject the consumer's opener. */
 export type { SqliteClient, SqliteOpener, SqliteOpenOptions, SqliteStatement } from "./types.js";
+export { createCheckedSqliteClient, type CheckedSqliteClient, type IntegerSource, type IntegerStatement } from "./checked-client.js";
+export { SqliteClientError } from "./checked-state.js";
+export { withSqliteTransaction, type TransactionSession, type Work } from "./transaction.js";
 export { openSqliteConnection, DEFAULT_PRAGMAS } from "./open.js";
 export { SqliteDbOpsAdapter, type SqliteDbOpsAdapterDeps } from "./db-ops.js";
 export type { SqliteBackupSource, SqliteRecoveryHook, OpenSqliteConnectionOptions } from "./restore-types.js";

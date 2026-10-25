@@ -2,9 +2,10 @@
  * Guards the `./db/sqlite` public surface — the driver counterpart to the `db/core` barrel test.
  *
  * The exact-export assertion is load-bearing beyond catching typos: it is what would fail if
- * someone re-introduced an ORM-typed export here. This package's surface is deliberately limited
- * to structural shapes and `better-sqlite3` interfaces, because those cross a package boundary
- * cleanly and ORM class types (with private/protected members) provably do not. See `open.ts`.
+ * someone re-introduced an eagerly loaded ORM helper here. Connection helpers keep structural
+ * shapes across package boundaries, since ORM classes' private/protected members make separately
+ * installed copies incompatible (see `open.ts`); the opt-in transaction facade uses a supplied
+ * kernel without loading Kysely, preserving connection-only imports without that optional peer.
  */
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,8 +28,8 @@ describe('@jini-ai/infra/db/sqlite barrel', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('exports exactly the runtime surface it promises, and no ORM-typed helper', () => {
-    expect(Object.keys(sqlite).sort()).toEqual(['DEFAULT_PRAGMAS', 'SqliteDbOpsAdapter', 'inspectSqliteDatabase', 'openSqliteConnection', 'verifySqliteIntegrity']);
+  it('exports exactly the runtime surface it promises', () => {
+    expect(Object.keys(sqlite).sort()).toEqual(['DEFAULT_PRAGMAS', 'SqliteClientError', 'SqliteDbOpsAdapter', 'createCheckedSqliteClient', 'inspectSqliteDatabase', 'openSqliteConnection', 'verifySqliteIntegrity', 'withSqliteTransaction']);
   });
 
   it('re-exports a working connection opener', () => {

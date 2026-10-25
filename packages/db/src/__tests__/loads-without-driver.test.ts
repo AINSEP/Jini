@@ -33,7 +33,7 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
     probe: `m.restorePointFilename({ scopeId: "a/b", watermarkAtCapture: 3, timestamp: 4 }) === "restore-point-a_b-wm3-4.db" && m.sanitizeForFilename({ value: "a/b" }) === "a_b" && m.PGLITE_SOCKET_FILE === ".s.PGSQL.5432"`,
   },
   sqlite: {
-    dirs: ["sqlite", "core"],
+    dirs: ["sqlite", "core", "kernel"],
     probe: `(() => {
       const pragmas = [];
       const calls = [];
@@ -266,6 +266,9 @@ describe("@jini-ai/db in an install with no database driver present", () => {
         expect(packages.length).toBeGreaterThan(0);
         for (const url of packages) expect(url, `tools loaded an optional peer other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
       } else if (!SUBPATHS[subpath]!.kernel) expect(packages).toEqual([]);
+      else if (subpath === "migrate") {
+        for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/core`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/core)\//);
+      }
       else if (subpath === "secrets-vault") {
         for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/platform`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/platform)\//);
       } else for (const url of packages) expect(url, `${subpath} loaded a package other than kysely`).toMatch(/\/node_modules\/kysely\//);
