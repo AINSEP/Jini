@@ -539,3 +539,88 @@ describe('remote-run-events — remaining contract surface', () => {
     expect(onInternalError).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * F1 fix wave (Stryker L8 §2.1 / AP1 / AP3): the surviving mutants after the first F1 pass, each
+ * killed by asserting WHICH refusal came back (full body), not just `ok: false`.
+ */
+describe('remote-run-events — F1 exact-refusal pins', () => {
+  const badRequest = (message: string, path?: string, issue?: string) => ({
+    ok: false,
+    error: path === undefined
+      ? { code: 'BAD_REQUEST', message }
+      : { code: 'BAD_REQUEST', message, details: { kind: 'validation', issues: [{ path, message: issue }] } },
+  });
+
+  it('a missing Authorization header never matches a configured token that is literally "null"', () => {
+    // `presented === null` must short-circuit: TextEncoder would otherwise encode null as "null".
+    const gate = requireRemoteToolBridgeToken({}, { tokenConfig: { tokenEnvVar: TOKEN_ENV_VAR }, env: { [TOKEN_ENV_VAR]: 'null' } });
+    const res = makeJsonRes();
+    const next = vi.fn();
+    gate({ headers: {}, get: () => undefined } as any, res as any, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  for (const route of [remoteToolUseRoute, remoteToolResultRoute]) {
+    const name = route === remoteToolUseRoute ? 'tool-use' : 'tool-result';
+    it.each([[{}], [{ runId: '' }], [{ runId: 7 }]])(`${name}: runId path param %j → exact BAD_REQUEST`, (params) => {
+      expect(route.parse({ body: { toolUseId: 'tu', toolId: 't', content: 'c' }, query: {}, params: params as any })).toEqual(badRequest('runId must be a non-empty path parameter'));
+    });
+    it.each([['array', ['toolUseId']], ['null', null], ['string', 'x'], ['number', 1]])(`${name}: %s body → "body must be a JSON object"`, (_l, body) => {
+      expect(route.parse({ body, query: {}, params: { runId: 'r1' } })).toEqual(badRequest('body must be a JSON object'));
+    });
+    it.each([['absent', undefined], ['empty', ''], ['whitespace only', '   '], ['non-string', 5]])(`${name}: toolUseId %s → exact issue`, (_l, toolUseId) => {
+      expect(route.parse({ body: { toolUseId, toolId: 't', content: 'c' }, query: {}, params: { runId: 'r1' } })).toEqual(badRequest('toolUseId must be a non-empty string', 'toolUseId', 'required non-empty string'));
+    });
+  }
+
+  it.each([['absent', undefined], ['empty', ''], ['whitespace only', ' \t'], ['non-string', {}]])('tool-use: toolId %s → exact issue', (_l, toolId) => {
+    expect(remoteToolUseRoute.parse({ body: { toolUseId: 'tu', toolId }, query: {}, params: { runId: 'r1' } })).toEqual(badRequest('toolId must be a non-empty string', 'toolId', 'required non-empty string'));
+  });
+
+  it('tool-use: an untrimmed but non-blank toolUseId is kept verbatim', () => {
+    expect(remoteToolUseRoute.parse({ body: { toolUseId: ' tu ', toolId: 't' }, query: {}, params: { runId: 'r1' } })).toEqual({ ok: true, value: { runId: 'r1', toolUseId: ' tu ', toolId: 't', input: undefined } });
+  });
+
+  it.each([['absent', undefined], ['number', 42], ['null', null]])('tool-result: content %s → exact issue', (_l, content) => {
+    expect(remoteToolResultRoute.parse({ body: { toolUseId: 'tu', content }, query: {}, params: { runId: 'r1' } })).toEqual(badRequest('content must be a string', 'content', 'required string'));
+  });
+
+  it.each([['string', 'yes'], ['number', 1], ['null', null]])('tool-result: isError %s → exact issue', (_l, isError) => {
+    expect(remoteToolResultRoute.parse({ body: { toolUseId: 'tu', content: 'c', isError }, query: {}, params: { runId: 'r1' } })).toEqual(badRequest('isError must be a boolean when provided', 'isError', 'boolean when provided'));
+  });
+
+  it.each([[true], [false]])('tool-result: isError %s is carried through parse exactly', (isError) => {
+    expect(remoteToolResultRoute.parse({ body: { toolUseId: 'tu', content: 'c', isError }, query: {}, params: { runId: 'r1' } })).toEqual({ ok: true, value: { runId: 'r1', toolUseId: 'tu', content: 'c', isError } });
+  });
+
+  it('an unknown run is NOT_FOUND on both routes and the recorder is never called', async () => {
+    const deps = makeDeps();
+    const recordToolUse = vi.spyOn(deps.recorder, 'recordToolUse');
+    const recordToolResult = vi.spyOn(deps.recorder, 'recordToolResult');
+    expect(await remoteToolUseRoute.handle({ input: { runId: 'ghost', toolUseId: 'tu', toolId: 't' }, deps })).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'run "ghost" was not found' } });
+    expect(await remoteToolResultRoute.handle({ input: { runId: 'ghost', toolUseId: 'tu', content: 'c' }, deps })).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'run "ghost" was not found' } });
+    expect(recordToolUse).not.toHaveBeenCalled();
+    expect(recordToolResult).not.toHaveBeenCalled();
+  });
+
+  it('tool-result forwards isError only when provided: absent stays absent, false stays false', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const recordToolResult = vi.spyOn(deps.recorder, 'recordToolResult');
+    await remoteToolResultRoute.handle({ input: { runId: run.id, toolUseId: 'tu-a', content: 'a' }, deps });
+    await remoteToolResultRoute.handle({ input: { runId: run.id, toolUseId: 'tu-b', content: 'b', isError: false }, deps });
+    expect(recordToolResult.mock.calls[0]![0]).toEqual({ runId: run.id, record: { toolUseId: 'tu-a', content: 'a' } });
+    expect('isError' in recordToolResult.mock.calls[0]![0].record).toBe(false);
+    expect(recordToolResult.mock.calls[1]![0]).toEqual({ runId: run.id, record: { toolUseId: 'tu-b', content: 'b', isError: false } });
+  });
+
+  it('tool-use forwards exactly toolUseId/toolId/input to the recorder', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const recordToolUse = vi.spyOn(deps.recorder, 'recordToolUse');
+    await remoteToolUseRoute.handle({ input: { runId: run.id, toolUseId: 'tu', toolId: 'echo', input: { a: [1, 2] } }, deps });
+    expect(recordToolUse).toHaveBeenCalledWith({ runId: run.id, record: { toolUseId: 'tu', toolId: 'echo', input: { a: [1, 2] } } });
+  });
+});
