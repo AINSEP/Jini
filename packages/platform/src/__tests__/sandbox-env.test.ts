@@ -205,10 +205,15 @@ describe('@jini-ai/platform — sandbox-env — dirs and env overlay', () => {
     }
   });
 
-  it('is a no-op when the runtime config is disabled', () => {
-    const runtime = resolveSandboxRuntimeConfig(false, '/should-not-be-touched');
+  it('is a no-op when the runtime config is disabled', async () => {
+    // F1: a fresh tmp parent + absent child, never a path at the filesystem root — a mutant that
+    // ignores `enabled` used to create `/should-not-be-touched/**` on the host (Stryker L1 §2.2).
+    const parent = await makeTempDir('jini-sandbox-disabled-');
+    const dataDir = join(parent, 'should-not-be-touched');
+    const runtime = resolveSandboxRuntimeConfig(false, dataDir);
     expect(() => ensureSandboxRuntimeDirs(runtime)).not.toThrow();
-    expect(existsSync('/should-not-be-touched')).toBe(false);
+    expect(existsSync(dataDir)).toBe(false);
+    for (const dir of Object.values(runtime.roots)) expect(existsSync(dir)).toBe(false);
   });
 
   it('returns baseEnv unchanged when disabled', () => {
@@ -236,5 +241,60 @@ describe('@jini-ai/platform — sandbox-env — dirs and env overlay', () => {
       sandboxAgentProfilesConfigPath(CONFIG, runtime),
     );
     expect(env.NPM_CONFIG_USERCONFIG).toBe(join(runtime.roots.toolConfigDir, 'npmrc'));
+  });
+});
+
+// F1 fix wave (Stryker L1 §4 sandbox-env.ts:74-91,135,144 — trim, `some`→`every`, `relative===''`).
+describe('@jini-ai/platform — sandbox-env — F1 allowed-roots containment', () => {
+  async function roots() {
+    const a = fs.realpathSync.native(await makeTempDir('jini-root-a-'));
+    const b = fs.realpathSync.native(await makeTempDir('jini-root-b-'));
+    const c = fs.realpathSync.native(await makeTempDir('jini-root-c-'));
+    return { a, b, c };
+  }
+  const envFor = (value: string) => ({ FAKE_SANDBOX_MODE: '1', FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS: value });
+
+  it('padded entries are trimmed and empty segments dropped', async () => {
+    const { a, b } = await roots();
+    const env = envFor(`  ${a}  ${path.delimiter}${path.delimiter} ${b}\t`);
+    expect(sandboxImportAllowedRoots(CONFIG, env)).toEqual([a, b]);
+  });
+
+  it.each(['', '   ', path.delimiter])('a blank roots value %j means no allowed roots', (value) => {
+    expect(sandboxImportAllowedRoots(CONFIG, envFor(value))).toEqual([]);
+  });
+
+  it('a relative entry anywhere in the list is refused with the env var name and the entry', async () => {
+    const { a } = await roots();
+    expect(() => sandboxImportAllowedRoots(CONFIG, envFor(`${a}${path.delimiter}rel/dir`))).toThrow(
+      new Error('FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS entries must be absolute paths. Got: rel/dir'),
+    );
+  });
+
+  it('a project under ANY one of several roots is allowed (first, middle, last); under none is refused', async () => {
+    const { a, b, c } = await roots();
+    const env = envFor([a, b, c].join(path.delimiter));
+    for (const root of [a, b, c]) {
+      expect(isSandboxImportedProjectRootAllowed(CONFIG, join(root, 'proj'), env)).toBe(true);
+      expect(sandboxImportedProjectRootUnavailableReason(CONFIG, join(root, 'proj', 'deep'), env)).toBeNull();
+    }
+    const outside = fs.realpathSync.native(await makeTempDir('jini-outside-'));
+    expect(isSandboxImportedProjectRootAllowed(CONFIG, outside, env)).toBe(false);
+    expect(sandboxImportedProjectRootUnavailableReason(CONFIG, outside, env)).toBe(
+      'Imported-folder projects are not available in FAKE_SANDBOX_MODE unless their root is under FAKE_SANDBOX_IMPORT_ALLOWED_ROOTS.',
+    );
+  });
+
+  it('the root itself counts as inside; a sibling sharing its name prefix and a parent-escape do not', async () => {
+    const { a } = await roots();
+    const env = envFor(a);
+    expect(isSandboxImportedProjectRootAllowed(CONFIG, a, env)).toBe(true);
+    expect(isSandboxImportedProjectRootAllowed(CONFIG, `${a}-sibling`, env)).toBe(false);
+    expect(isSandboxImportedProjectRootAllowed(CONFIG, join(a, '..', 'escape'), env)).toBe(false);
+  });
+
+  it('sandboxing on with no roots configured refuses every imported root', async () => {
+    const { a } = await roots();
+    expect(isSandboxImportedProjectRootAllowed(CONFIG, a, { FAKE_SANDBOX_MODE: 'true' })).toBe(false);
   });
 });
