@@ -1,5 +1,12 @@
 # @jini-ai/platform
 
+## 0.6.12
+
+### Patch Changes
+
+- platform: `listProcessUsage()` RSS/CPU sampler for macOS, Windows and Linux; `@jini-ai/platform/secrets` adds `sealWithPassphrase`/`openWithPassphrase` (portable passphrase envelope for encrypted exports); internal mail engine contracts, provider-error redaction, domain reads and per-provider delivery wrapper (not yet exported).
+  - @jini-ai/core@0.6.12
+
 ## 0.6.11
 
 ### Patch Changes
