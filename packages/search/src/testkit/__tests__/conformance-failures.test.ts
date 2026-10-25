@@ -236,6 +236,30 @@ describe('queries', () => {
     const wide = broken(base => ({ query: async (ctx, required) => ok({ hits: (await pageOf(base, ctx, required)).hits.map(hit => ({ ...hit, highlights: [{ start: 0, end: 9999 }] })) }) }));
     await expect(runCase(wide, FIND)).rejects.toThrow(/highlight 0\.\.9999 of .* is outside its \d+-char snippet/);
   });
+  // Stryker L5 (2026-10-25): every term of `integral && start>=0 && start<end && end<=len` survived
+  // alone. One broken range per term, plus the valid edge (end === length) that must pass.
+  test.each([
+    ['non-integer start', (_len: number) => ({ start: 0.5, end: 2 })],
+    ['non-integer end', (_len: number) => ({ start: 0, end: 1.5 })],
+    ['negative start', (_len: number) => ({ start: -1, end: 2 })],
+    ['empty range', (_len: number) => ({ start: 2, end: 2 })],
+    ['reversed range', (_len: number) => ({ start: 3, end: 1 })],
+    ['end one past the snippet', (len: number) => ({ start: 0, end: len + 1 })],
+  ])('a highlight with a %s is caught', async (_label, range) => {
+    const bad = broken(base => ({ query: async (ctx, required) => ok({ hits: (await pageOf(base, ctx, required)).hits.map(hit => ({ ...hit, highlights: [{ start: 0, end: 1 }, range(hit.snippet.length)] })) }) }));
+    await expect(runCase(bad, FIND)).rejects.toThrow(/highlight .* is outside its \d+-char snippet/);
+  });
+  test('a highlight ending exactly at the snippet end passes', async () => {
+    const edge = broken(base => ({ query: async (ctx, required) => ok({ hits: (await pageOf(base, ctx, required)).hits.map(hit => ({ ...hit, highlights: [{ start: 0, end: hit.snippet.length }] })) }) }));
+    await expect(runCase(edge, FIND)).resolves.toBeUndefined();
+  });
+  test('more hits than the limit are caught', async () => {
+    const extra = broken(base => ({ query: async (ctx, required) => {
+      const page = await pageOf(base, ctx, required);
+      return ok({ ...page, hits: [...page.hits, ...Array.from({ length: (required.query.limit ?? 10) + 1 }, () => page.hits[0]!)] });
+    } }));
+    await expect(runCase(extra, FIND)).rejects.toThrow(/query returned \d+ hits for limit \d+/);
+  });
   test('empty query text that is accepted', async () => {
     const lax = broken(base => ({ query: (ctx, required) => required.query.text.trim() === '' ? ok({ hits: [] }) : base.query(ctx, required) }));
     await expect(runCase(lax, 'empty or whitespace query text is rejected as invalid_request')).rejects.toThrow('query text "" returned ok, expected rejected (invalid_request)');
