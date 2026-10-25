@@ -231,14 +231,11 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       'packages/http-kit/src/bad-r2-ui-other-subpath.ts',
       `import { x } from '@jini-ai/ui/other';\nexport { x };\n`,
     );
-    // R2 exception #5 (endpoint-policy.parity.test.ts's relative reach into agent-runtime/src) —
-    // named on BOTH the exact file and the exact resolved target, not either alone. Three cases,
-    // two of them from THIS SAME real fixture file (can't duplicate the literal path, so the
-    // "different target" case is a second import statement in the one file that holds the exempt
-    // import): the real file+target combo (must NOT be flagged); the same file reaching a
-    // DIFFERENT target in the same other package (must still be flagged — the target is part of
-    // the gate, not just the file); and a DIFFERENT file making the identical reach (must still be
-    // flagged — the file is part of the gate, not just the target).
+    // Former R2 exception (endpoint-policy.parity.test.ts's relative reach into agent-runtime/src),
+    // retired in 69efa711: the parity test now imports `@jini-ai/agent-runtime`, which Vitest
+    // aliases to source, so the stale-dist reason for the reach is gone. All three cases — the
+    // formerly exempt file+target combo, the same file reaching a DIFFERENT target, and a DIFFERENT
+    // file making the identical reach — must now be flagged, so the exemption cannot quietly return.
     write(
       root,
       'packages/ui/src/__tests__/utils/endpoint-policy.parity.test.ts',
@@ -720,8 +717,8 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [!has(engineViolations, 'R2-deep-path', 'ok-r2-ui-mcp-ui.ts'), 'R2 must NOT flag the gated @jini-ai/ui/mcp-ui import'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-ui-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini-ai/ui/<subpath> — the exemption is the exact literal, not a pattern'],
       [
-        !engineViolations.some((v) => v.file.endsWith('endpoint-policy.parity.test.ts') && v.reason.includes('connection-guard.js')),
-        'R2 must NOT flag endpoint-policy.parity.test.ts\'s documented relative reach into agent-runtime/src/providers/connection-guard.js',
+        engineViolations.some((v) => v.file.endsWith('endpoint-policy.parity.test.ts') && v.reason.includes('connection-guard.js')),
+        'R2 must flag endpoint-policy.parity.test.ts reaching into agent-runtime/src/providers/connection-guard.js — the exception was retired once the test imported the source-aliased package',
       ],
       [
         engineViolations.some((v) => v.file.endsWith('endpoint-policy.parity.test.ts') && v.reason.includes('some-other-file.js')),
