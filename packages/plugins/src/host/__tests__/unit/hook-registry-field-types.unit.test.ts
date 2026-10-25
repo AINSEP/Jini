@@ -49,3 +49,38 @@ describe("failure threshold", () => {
     expect(events.at(-1)).toMatchObject({ pluginId: "q", workspaceId: "w3" });
   });
 });
+
+describe("failure count resets", () => {
+  it("a success clears only that workspace's count", async () => {
+    const events: PluginQuarantineEvent[] = [];
+    const registry = createHookRegistry({ failureThreshold: 2, onQuarantine: async (event) => { events.push(event); } });
+    let failIn = new Set(["w1", "w2"]);
+    registry.attach("p", "built-in", (draft) => { if (failIn.has(draft.workspaceId)) throw new Error("x"); return {}; }, []);
+    await expect(registry.runBeforeSave(entry("w1"))).rejects.toThrow();
+    await expect(registry.runBeforeSave(entry("w2"))).rejects.toThrow();
+    failIn = new Set(["w2"]);
+    await registry.runBeforeSave(entry("w1"));
+    failIn = new Set(["w1", "w2"]);
+    await expect(registry.runBeforeSave(entry("w1"))).rejects.toThrow();
+    expect(events).toEqual([]);
+    await expect(registry.runBeforeSave(entry("w2"))).rejects.toThrow();
+    expect(events.map(e => e.workspaceId)).toEqual(["w2"]);
+  });
+});
+
+describe("re-attach resets", () => {
+  it("re-attaching a plugin clears its counts in every workspace", async () => {
+    const events: PluginQuarantineEvent[] = [];
+    const registry = createHookRegistry({ failureThreshold: 2, onQuarantine: async (event) => { events.push(event); } });
+    const boom = () => { throw new Error("x"); };
+    registry.attach("p", "built-in", boom, []);
+    await expect(registry.runBeforeSave(entry("w1"))).rejects.toThrow();
+    await expect(registry.runBeforeSave(entry("w2"))).rejects.toThrow();
+    registry.attach("p", "built-in", boom, []);
+    await expect(registry.runBeforeSave(entry("w1"))).rejects.toThrow();
+    await expect(registry.runBeforeSave(entry("w2"))).rejects.toThrow();
+    expect(events).toEqual([]);
+    await expect(registry.runBeforeSave(entry("w1"))).rejects.toThrow();
+    expect(events.map(e => e.workspaceId)).toEqual(["w1"]);
+  });
+});
