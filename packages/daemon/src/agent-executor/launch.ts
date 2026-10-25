@@ -527,13 +527,21 @@ function nativeBuildOptions({ input, permissionMode }: { input: AgentBuildInput;
   };
 }
 
-/** Preserve explicit empty restrictions and settings: they have meaning to the native CLI. */
-function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
+/** The filesystem sandbox fields, in their historical key order (split out of
+ * {@link settingsBuildOptions} to keep each builder under the CCN-10 gate; behaviour unchanged). */
+function filesystemBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
   return {
     ...(input.filesystemRoot !== undefined ? { filesystemRoot: input.filesystemRoot } : {}),
     ...(input.filesystemSharedTempRoots ? { filesystemSharedTempRoots: input.filesystemSharedTempRoots } : {}),
     ...(input.filesystemTempDir ? { filesystemTempDir: input.filesystemTempDir } : {}),
     ...(input.filesystemRuntimeReadPaths ? { filesystemRuntimeReadPaths: input.filesystemRuntimeReadPaths } : {}),
+  };
+}
+
+/** Preserve explicit empty restrictions and settings: they have meaning to the native CLI. */
+function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = {}): RuntimeBuildOptions {
+  return {
+    ...filesystemBuildOptions({ input }, {}),
     ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
     ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
     ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
@@ -1165,6 +1173,20 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       : undefined;
   }
 
+  /** The optional `wireChildLifecycle` inputs, present only when configured (split out of
+   * {@link wireRunInput} to keep it under the CCN-10 gate; behaviour unchanged). */
+  function optionalLifecycleWiring({ input, def, modelCatalog, mcpBridge }: {
+    input: AgentExecutorRunInput; def: RuntimeAgentDef; modelCatalog: ModelCatalogSnapshot | undefined; mcpBridge: McpBridgeDelivery | null;
+  }, _options = {}) {
+    return {
+      ...(mcpBridge && supportsMessageRelay({ def }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
+      ...(input.model ? { startingModel: input.model } : {}),
+      ...(modelCatalog ? { modelCatalog } : {}),
+      ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}),
+      ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}),
+    };
+  }
+
   function wireRunInput({ input, def, streamFormat, child, modelCatalog, cleanupStagedFiles, writtenMcpJsonPath, mcpBridge }: {
     input: AgentExecutorRunInput; def: RuntimeAgentDef; streamFormat: SupportedStreamFormat; child: ChildProcess;
     modelCatalog: ModelCatalogSnapshot | undefined; cleanupStagedFiles: () => Promise<void>;
@@ -1173,9 +1195,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const formatForStdin = { streamFormat };
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
-          ...(mcpBridge && supportsMessageRelay({ def }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
-          ...(input.model ? { startingModel: input.model } : {}),
-          ...(modelCatalog ? { modelCatalog } : {}),
+          ...optionalLifecycleWiring({ input, def, modelCatalog, mcpBridge }, {}),
           runId: input.runId,
           def,
           streamFormat: formatForStdin.streamFormat,
@@ -1187,8 +1207,6 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           onCleanupFailure: onCleanupFailureFn,
           cleanupStagedFiles,
           journal,
-          ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}),
-          ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}),
           continuation,
           classifyFailure,
           bufferedStdoutMaxBytes,

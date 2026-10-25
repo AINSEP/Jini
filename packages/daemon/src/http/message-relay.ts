@@ -19,16 +19,27 @@ export interface MessageRelayHttpDeps {
 export function createMessageRelayClaimHandler({ agentExecutor, runScopedCallers }: MessageRelayHttpDeps, _options = {}): RequestHandler {
   return (req, res, next) => {
     try {
-      const token = bearerTokenFromHeader({ header: req.get('authorization') });
-      const caller = token ? runScopedCallers?.resolveCaller({ token }) : undefined;
-      if (runScopedCallers && !caller) { res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'a live run credential is required' } }); return; }
-      const runId = caller?.runId ?? req.params.runId;
-      if (!runId || runId !== req.params.runId) { res.status(404).json({ error: { code: 'NOT_FOUND', message: 'run was not found' } }); return; }
+      const runId = authorizedClaimRunId({ authorization: req.get('authorization'), pathRunId: req.params.runId, runScopedCallers });
+      if (runId === 401) { res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'a live run credential is required' } }); return; }
+      if (runId === 404) { res.status(404).json({ error: { code: 'NOT_FOUND', message: 'run was not found' } }); return; }
       const body: unknown = req.body;
       if (!validClaim(body)) { res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'body must contain only via: tool-result or check_messages' } }); return; }
       res.json({ messages: agentExecutor.claimUserMessages({ runId, via: body.via }) });
     } catch (error) { next(error); }
   };
+}
+
+/** The run this claim may read, or the refusal status. A run credential determines scope and the
+ * path only has to agree with it; without a resolver (explicit loopback trust) the path decides. */
+function authorizedClaimRunId({ authorization, pathRunId, runScopedCallers }: {
+  authorization: string | undefined; pathRunId: string | undefined; runScopedCallers: RunScopedCallerResolver | undefined;
+}): string | 401 | 404 {
+  const token = bearerTokenFromHeader({ header: authorization });
+  const caller = token ? runScopedCallers?.resolveCaller({ token }) : undefined;
+  if (runScopedCallers && !caller) return 401;
+  const runId = caller?.runId ?? pathRunId;
+  if (!runId || runId !== pathRunId) return 404;
+  return runId;
 }
 
 /** Strict receipt-channel validation; no caller-selected run or principal is accepted. */
