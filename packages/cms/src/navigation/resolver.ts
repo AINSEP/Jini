@@ -37,6 +37,7 @@ import type {
   NavItemNode,
   NavLocationKey,
   NavMenuDoc,
+  NavMenuEntry,
   NavTarget,
   ResolvedNav,
   ResolvedNavItem,
@@ -111,13 +112,7 @@ export async function resolveForLocation(
 ): Promise<ResolvedNav | null> {
   const { deps, input } = required;
 
-  const binding = await deps.bindingRepo.findByLocation({
-    workspaceId: input.workspaceId,
-    locationKey: input.locationKey,
-  });
-  if (!binding) return null;
-
-  const menu = await deps.menuRepo.findById({ workspaceId: input.workspaceId, id: binding.menuId });
+  const menu = await findBoundMenu({ deps, input });
   if (!menu) return null;
 
   const context: NavResolveContext = {
@@ -133,6 +128,24 @@ export async function resolveForLocation(
     title: menu.title,
     items,
   };
+}
+
+/** Select a location's stored menu without resolving its presentation. Shared by tree and HTML
+ * renderers; stale bindings and cross-workspace ids return null so hosts can retain their fallback.
+ * @returns The bound menu, or null when the binding or menu is missing.
+ * @complexity Two indexed repository reads, O(1) additional space. Repository faults propagate.
+ */
+export async function findBoundMenu(
+  required: {
+    deps: Pick<ResolveForLocationDeps, "menuRepo" | "bindingRepo">;
+    input: Pick<ResolveForLocationServiceInput, "workspaceId" | "locationKey">;
+  },
+  _optional: Record<string, never> = {},
+): Promise<NavMenuEntry | null> {
+  const { deps, input } = required;
+  const binding = await deps.bindingRepo.findByLocation({ workspaceId: input.workspaceId, locationKey: input.locationKey });
+  if (!binding) return null;
+  return deps.menuRepo.findById({ workspaceId: input.workspaceId, id: binding.menuId });
 }
 
 export interface ResolveMenuDocRequired {
