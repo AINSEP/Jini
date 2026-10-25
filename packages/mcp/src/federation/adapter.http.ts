@@ -1,4 +1,5 @@
 import type { FederationMessages } from "./messages.js";
+import type { TextReadOptions } from "@jini-ai/platform/fetch-with-timeout";
 import type { McpToolCallRequiredArgs, McpToolCallOptions, McpHttpRequestRequiredArgs, McpHttpRequestOptions } from "./ports.js";
 import {
   buildInitializeParams,
@@ -439,7 +440,7 @@ export async function connectMcpHttpSession(deps: Omit<McpHttpSessionDependencie
 /**
  * The production {@link McpHttpExchange}: one `fetch` per exchange.
  *
- * Deliberately logic-free — the same discipline as `spawnMcpStdioChannel`. Everything above it is
+ * Deliberately thin — the same discipline as `spawnMcpStdioChannel`. Everything above it is
  * already under test through the exchange seam, and code that only runs when a real network exists
  * is code that only fails in production.
  *
@@ -448,9 +449,15 @@ export async function connectMcpHttpSession(deps: Omit<McpHttpSessionDependencie
  * re-send that header to whatever host the server nominated. Refusing to follow means a redirect is
  * a visible failure rather than a silent credential disclosure.
  *
+ * Byte caps and strict UTF-8 are opt-in and require the optional `@jini-ai/platform` >=0.6.15
+ * peer. The default path never loads that peer and retains unlimited `response.text()`.
+ *
  * @complexity O(n) in the response body length.
  */
-export function createFetchMcpHttpExchange({ fetch: fetchImpl }: { fetch: typeof fetch }): McpHttpExchange {
+export function createFetchMcpHttpExchange(
+  { fetch: fetchImpl }: { fetch: typeof fetch },
+  optional: TextReadOptions = {},
+): McpHttpExchange {
   return {
     async send(request, options = {}) {
       const response = await fetchImpl(request.url, {
@@ -466,7 +473,9 @@ export function createFetchMcpHttpExchange({ fetch: fetchImpl }: { fetch: typeof
         contentType: (response.headers.get("content-type") ?? "").toLowerCase(),
         sessionId: response.headers.get("mcp-session-id") ?? undefined,
         wwwAuthenticate: response.headers.get("www-authenticate") ?? undefined,
-        text: await response.text(),
+        text: optional.maxResponseBytes === undefined && !optional.strictUtf8
+          ? await response.text()
+          : await (await import("@jini-ai/platform/fetch-with-timeout")).readFetchResponseText({ response }, optional),
       };
     },
   };
