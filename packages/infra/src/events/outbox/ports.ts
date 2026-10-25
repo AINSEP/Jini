@@ -66,3 +66,56 @@ export interface OutboxWorkerOptions {
   claimLeaseMs?: number;
   retryPolicyForEvent?: OutboxRetryPolicyResolver | undefined;
 }
+
+/** Reserved optional object for boundaries with no current options. */
+export type Empty = Record<string, never>;
+/** Host-canonicalized request identity; neither digest nor canonical bytes are recomputed here. */
+export type Intent<E> = {
+  event: E; scope: string; idempotencyKey: string;
+  requestDigest: string; canonicalRequest: string;
+};
+export type EnqueueReceipt =
+  | { kind: 'inserted' | 'existing'; id: string }
+  | { kind: 'conflict'; reason: 'digest-mismatch' | 'request-mismatch' };
+/** Every transition checks identity, scope, token, allowed state and an unexpired lease atomically. */
+export type Fence = { id: string; scope: string; claimToken: string; nowIso: string };
+/** Detached lease receipt; attempts is one-based and incremented atomically by claimReady. */
+export type FencedClaim<E> = Intent<E> & {
+  id: string; claimToken: string; leaseExpiresAt: string; attempts: number;
+};
+export type Completion =
+  | { status: 'delivered' | 'denied' | 'failed' | 'uncertain' }
+  | { status: 'pending'; nextAttemptAt: string };
+/** Only confirmed-no-effect permits a retry; throws and unrecognized results are uncertain. */
+export type DispatchResult = {
+  kind: 'delivered' | 'permanent-failure' | 'confirmed-no-effect' | 'uncertain';
+};
+
+/**
+ * Opt-in durable fencing contract, independent of the legacy OutboxPort and host schema.
+ * Adapters own atomic transitions; uncertain rows require host reconciliation, never auto-reclaim.
+ * @example await outbox.enqueueWithReceipt(intent, { transaction: liveSession });
+ */
+export interface FencedOutboxPort<E, Tx> {
+  /**
+   * Atomically insert under unique (scope, idempotencyKey), or compare BOTH digest and exact
+   * canonical request with the original. Conflicts preserve that row, including its event.
+   * A supplied transaction is the caller's exact live session: enqueue and any journal append
+   * join it without opening, committing or retrying another transaction. Reject unsupported
+   * or closed sessions. The caller must roll back its intent/journal on conflict or failure.
+   */
+  enqueueWithReceipt(input: Intent<E>, options?: { transaction?: Tx }): Promise<EnqueueReceipt>;
+  /** Move at most limit expired leased/dispatching rows in scope to uncertain, never pending. */
+  recoverExpired(input: { scope: string; nowIso: string; limit: number }, options?: Empty): Promise<number>;
+  /** Claim only due pending rows in scope; persist a fresh token, lease and incremented attempts. */
+  claimReady(input: { scope: string; batchSize: number; nowIso: string; claimLeaseMs: number }, options?: Empty): Promise<readonly FencedClaim<E>[]>;
+  /** Atomically persist leased → dispatching under the complete fence; false denies dispatch. */
+  beginDispatch(input: Fence, options?: Empty): Promise<boolean>;
+  /**
+   * Atomically complete under the fence. Leased rows permit denied, failed or uncertain;
+   * dispatching rows permit delivered, failed, uncertain or pending. Other transitions return
+   * false, including attempts to release uncertain/terminal rows. Pending requires a confirmed
+   * no-effect outcome. A failure here must never be interpreted as a transport failure/retry.
+   */
+  complete(input: Fence & { completion: Completion }, options?: Empty): Promise<boolean>;
+}

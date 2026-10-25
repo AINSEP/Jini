@@ -59,3 +59,63 @@ await processOutbox({ outbox, bus, clock, logger, random: Math.random,
 The host's outbox and bus receive `{ event }` objects. Claims receive `{ batchSize, nowIso,
 claimLeaseMs }`; storage remains host-owned. Start the drainer only after the delivering process
 subscribes its real handlers. Importing the entry or creating a scheduler starts no background work.
+
+### Opt-in fenced delivery
+
+`processFencedOutbox(input, options = {})` accepts `scope`, `outbox: FencedOutboxPort<Event, Tx>`,
+`authorize({ claim }, options = {})`, `dispatch({ claim }, options = {})`, and the same injected
+clock, scheduler, randomness and logger as `processOutbox`. Its second argument is the existing
+`OutboxWorkerOptions`. It returns the number of claims, including denied/unresolved attempts.
+It never changes `OutboxPort`, its four statuses or the legacy worker's recovery behavior.
+
+The host adapter implements five methods: `enqueueWithReceipt`, `recoverExpired`, `claimReady`,
+`beginDispatch` and `complete`. Enqueue accepts an `Intent<Event>` (event, scope, idempotency key,
+digest and exact canonical request) and returns `EnqueueReceipt`. Unique `(scope, idempotencyKey)`
+must atomically compare both request representations and preserve the original row on conflict.
+With `{ transaction: liveSession }`, enqueue and its journal join the caller's **exact** live session;
+adapters reject unsupported sessions and never open, commit or retry a replacement transaction.
+The caller rolls back its intent on conflict or failure. Storage and schema remain host-owned.
+
+Claims include a mandatory token, expiry and one-based attempts. The worker authorizes each claim,
+persists `leased → dispatching` under a scope/id/token/state/expiry fence, and rechecks expiry after
+that await before dispatch. Expired leased **and** dispatching rows recover into `uncertain`, which
+is excluded from automatic claims. Transport returns `DispatchResult`:
+
+| kind | completion |
+|---|---|
+| `delivered` | delivered |
+| `permanent-failure` | failed |
+| `confirmed-no-effect` | pending with existing retry policy/backoff, or failed at its cap |
+| `uncertain`, invalid result, throw, timeout | uncertain; host reconciliation required |
+
+Late results never release uncertain rows. Completion acknowledgement failure never becomes a
+delivery retry: storage may have committed before throwing. An unavailable fence prevents dispatch;
+unavailable storage can leave a leased/dispatching marker until recovery rather than immediately
+recording literal uncertainty. Only host reconciliation can resolve uncertain effects. The port
+contract and DI tests do not establish real host-adapter atomicity; adapters need conformance tests.
+
+### Independent serial pump
+
+`createSerialPump({ scheduler, intervalMs, callback }, { onError } = {})` has no outbox dependency.
+Construction schedules nothing. `intervalMs` must be a positive safe integer. `start({}, {})` is
+idempotent while running and waits the full interval before the first callback. Each subsequent
+callback waits the same interval after settlement, regardless of its result or failure. Callback
+and error-reporter arguments follow the `(input, options = {})` convention.
+
+`stop({}, {})` is terminal and idempotent: it cancels queued work and awaits the **entire** active
+callback, including rejection. A throwing error reporter cannot end the loop. Each instance owns
+its lifecycle independently. The legacy `startOutboxDrainer` keeps its initial zero delay, full-batch
+acceleration, nonnegative interval and bounded-drain shutdown behavior through the same private
+scheduling mechanism.
+
+```ts
+import { createSerialPump, processFencedOutbox } from '@jini-ai/infra/events/outbox';
+
+const pump = createSerialPump({ scheduler, intervalMs: 1000,
+  callback: async () => processFencedOutbox({ scope, outbox, authorize, dispatch,
+    clock, scheduler, random: Math.random, logger }),
+}, { onError: ({ error }) => logger.error({ message: 'pump failed' }, { error }) });
+pump.start({});
+// During host shutdown:
+await pump.stop({});
+```

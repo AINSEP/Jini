@@ -2,6 +2,15 @@ import { nowIso } from '@jini-ai/core/primitives';
 import type { EventEnvelope, OutboxClaim, OutboxRecord, OutboxRetryPolicy, OutboxWorkerArgs, OutboxWorkerOptions, Scheduler } from './ports.js';
 import { computeOutboxBackoffMs, MAX_OUTBOX_ATTEMPTS, resolvePolicy } from './policy.js';
 import type { ResolvedPolicy } from './policy.js';
+import type { Completion, DispatchResult, Empty, Fence, FencedClaim, FencedOutboxPort } from './ports.js';
+
+type RetryRow<Event extends EventEnvelope> = Pick<OutboxRecord<Event>, 'id' | 'event' | 'attempts'>;
+type WorkerServices<Event extends EventEnvelope> = Pick<OutboxWorkerArgs<Event>, 'clock' | 'scheduler' | 'random' | 'logger'>;
+type FencedWorkerArgs<Event extends EventEnvelope, Tx> = WorkerServices<Event> & {
+  scope: string; outbox: FencedOutboxPort<Event, Tx>;
+  authorize(input: { claim: FencedClaim<Event> }, options?: Empty): Promise<boolean>;
+  dispatch(input: { claim: FencedClaim<Event> }, options?: Empty): Promise<DispatchResult>;
+};
 
 type PublishOutcome = { ok: true } | { ok: false; error: unknown };
 const TIMED_OUT = Symbol('delivery timed out');
@@ -13,13 +22,13 @@ function claim(row: OutboxRecord): OutboxClaim {
 const DEFAULT_RETRY_POLICY: OutboxRetryPolicy = { maxAttempts: MAX_OUTBOX_ATTEMPTS, backoffMs: computeOutboxBackoffMs };
 type FailurePlan = { delayMs: number; nextStatus: 'pending' | 'failed' };
 
-function failureStatus(required: { row: OutboxRecord; retry: OutboxRetryPolicy }): 'pending' | 'failed' {
+function failureStatus(required: { row: Pick<OutboxRecord, 'attempts'>; retry: OutboxRetryPolicy }): 'pending' | 'failed' {
   return required.row.attempts >= required.retry.maxAttempts ? 'failed' : 'pending';
 }
-function report<Event extends EventEnvelope>(required: { args: OutboxWorkerArgs<Event>; message: string; error: unknown }): void {
+function report<Event extends EventEnvelope>(required: { args: WorkerServices<Event>; message: string; error: unknown }): void {
   try { required.args.logger.error({ message: required.message }, { error: required.error }); } catch { /* Reporter cannot kill a background delivery. */ }
 }
-function reportPolicyFailure<Event extends EventEnvelope>(required: { args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; error: unknown }): void {
+function reportPolicyFailure<Event extends EventEnvelope>(required: { args: WorkerServices<Event>; row: RetryRow<Event>; error: unknown }): void {
   report({ args: required.args, error: required.error,
     message: `[outbox-worker] the retry policy for outbox event "${required.row.event.name}" (${required.row.id}) failed; using the default policy for this row` });
 }
@@ -32,7 +41,7 @@ function reportPolicyFailure<Event extends EventEnvelope>(required: { args: Outb
  * an outcome and still terminates: at worst the row gets the bounded default schedule and cap.
  */
 function retryPolicyFor<Event extends EventEnvelope>(required: {
-  args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; policy: ResolvedPolicy;
+  args: WorkerServices<Event>; row: RetryRow<Event>; policy: ResolvedPolicy;
 }): OutboxRetryPolicy {
   try {
     const custom = required.policy.retryPolicyForEvent?.({ event: required.row.event });
@@ -47,7 +56,7 @@ function retryPolicyFor<Event extends EventEnvelope>(required: {
   }
 }
 
-function planWith(required: { row: OutboxRecord; retry: OutboxRetryPolicy; random: () => number; error: unknown }): FailurePlan {
+function planWith(required: { row: Pick<OutboxRecord, 'attempts'>; retry: OutboxRetryPolicy; random: () => number; error: unknown }): FailurePlan {
   const { row, retry, error } = required;
   const delayMs = retry.backoffMs({ attempts: row.attempts, random: required.random, error });
   if (!Number.isFinite(delayMs) || delayMs < 0) throw new RangeError(`retry delay ${delayMs}ms is not finite and nonnegative; fix the host retry policy`);
@@ -67,7 +76,7 @@ function planWith(required: { row: OutboxRecord; retry: OutboxRetryPolicy; rando
  * because they take that failure's error. No single up-front check can validate both.
  */
 function failurePlan<Event extends EventEnvelope>(required: {
-  args: OutboxWorkerArgs<Event>; row: OutboxRecord<Event>; retry: OutboxRetryPolicy; error: unknown;
+  args: WorkerServices<Event>; row: RetryRow<Event>; retry: OutboxRetryPolicy; error: unknown;
 }): FailurePlan {
   const { args, row, retry, error } = required;
   if (retry !== DEFAULT_RETRY_POLICY) {
@@ -87,7 +96,7 @@ function failurePlan<Event extends EventEnvelope>(required: {
  *
  * @complexity O(1) beyond the awaited promise itself.
  */
-async function settleWithin(required: { publishing: Promise<PublishOutcome>; scheduler: Scheduler; timeoutMs: number }): Promise<PublishOutcome | typeof TIMED_OUT> {
+async function settleWithin<Outcome>(required: { publishing: Promise<Outcome>; scheduler: Scheduler; timeoutMs: number }): Promise<Outcome | typeof TIMED_OUT> {
   let task: ReturnType<Scheduler['schedule']> | undefined;
   const timeout = new Promise<typeof TIMED_OUT>(resolve => {
     task = required.scheduler.schedule({ delayMs: required.timeoutMs, callback: () => resolve(TIMED_OUT) });
@@ -260,5 +269,118 @@ export async function processOutbox<Event extends EventEnvelope>(
   const policy = resolvePolicy({ options: optional });
   const rows = await required.outbox.claimPending({ batchSize: policy.batchSize, nowIso: nowIso({ clock: required.clock }), claimLeaseMs: policy.claimLeaseMs });
   for (const row of rows) await deliver({ args: required, row, policy });
+  return rows.length;
+}
+
+/** Build a fresh transition fence from host time, never the earlier batch-claim instant. */
+function currentFence<Event extends EventEnvelope, Tx>(input: {
+  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>;
+}): Fence {
+  return { id: input.row.id, scope: input.args.scope, claimToken: input.row.claimToken,
+    nowIso: nowIso({ clock: input.args.clock }) };
+}
+
+/** Reject expired, malformed or cross-scope receipts before an irreversible effect. */
+function isLiveClaim<Event extends EventEnvelope, Tx>(input: {
+  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>;
+}): boolean {
+  return input.row.scope === input.args.scope && input.row.claimToken.length > 0
+    && input.args.clock.nowMs() < Date.parse(input.row.leaseExpiresAt);
+}
+
+/**
+ * Classify untrusted host transport results conservatively. A malformed result (including a
+ * throwing getter) cannot establish absence of effects; the captured promise maps throws below.
+ */
+function dispatchKind(input: { result: unknown }): DispatchResult['kind'] {
+  if (typeof input.result !== 'object' || input.result === null) return 'uncertain';
+  const kind: unknown = Reflect.get(input.result, 'kind');
+  switch (kind) {
+    case 'delivered': case 'permanent-failure': case 'confirmed-no-effect': return kind;
+    default: return 'uncertain';
+  }
+}
+
+/** Reuse worker retry policy only after the host confirms the attempt had no effect. */
+function fencedCompletion<Event extends EventEnvelope, Tx>(input: {
+  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>; retry: OutboxRetryPolicy;
+  kind: DispatchResult['kind'];
+}): Completion {
+  switch (input.kind) {
+    case 'delivered': return { status: 'delivered' };
+    case 'permanent-failure': return { status: 'failed' };
+    case 'uncertain': return { status: 'uncertain' };
+    case 'confirmed-no-effect': {
+      const plan = failurePlan({ ...input, error: { kind: input.kind } });
+      if (plan.nextStatus === 'failed') return { status: 'failed' };
+      return { status: 'pending', nextAttemptAt: addMs(nowIso({ clock: input.args.clock }), plan.delayMs) };
+    }
+    default: { const exhaustive: never = input.kind; throw new TypeError(`unknown dispatch kind: ${String(exhaustive)}`); }
+  }
+}
+
+/**
+ * Authorization and the durable begin marker precede dispatch. A failed/unavailable fence never
+ * reaches transport. Recheck expiry AFTER awaiting storage: begin may have used up the lease.
+ */
+async function dispatchFenced<Event extends EventEnvelope, Tx>(input: {
+  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>; policy: ResolvedPolicy;
+  retry: OutboxRetryPolicy;
+}): Promise<Completion | undefined> {
+  const { args, row, policy, retry } = input;
+  if (!isLiveClaim(input)) return;
+  if (row.attempts > retry.maxAttempts) return { status: 'failed' };
+  if (await args.authorize({ claim: row }, {}) !== true) return { status: 'denied' };
+  if (await args.outbox.beginDispatch(currentFence(input), {}) !== true) return;
+  if (!isLiveClaim(input)) return;
+  // Capture both synchronous and asynchronous failures; a late result is observed but never
+  // writes over uncertainty or releases a row for an automatic retry.
+  const publishing = (async () => dispatchKind({ result: await args.dispatch({ claim: row }, {}) }))()
+    .catch(() => 'uncertain' as const);
+  const outcome = await settleWithin({ publishing, scheduler: args.scheduler, timeoutMs: policy.deliveryTimeoutMs });
+  const kind = outcome === TIMED_OUT ? 'uncertain' : outcome;
+  return fencedCompletion({ ...input, kind });
+}
+
+/**
+ * Keep storage acknowledgements outside outcome/retry classification: complete may have committed
+ * before throwing. Leave its durable state fenced for recovery/reconciliation rather than retrying.
+ */
+async function deliverFenced<Event extends EventEnvelope, Tx>(input: {
+  args: FencedWorkerArgs<Event, Tx>; row: FencedClaim<Event>; policy: ResolvedPolicy;
+}): Promise<void> {
+  try {
+    const retry = retryPolicyFor(input);
+    const completion = await dispatchFenced({ ...input, retry });
+    if (completion === undefined) return;
+    const accepted = await input.args.outbox.complete({ ...currentFence(input), completion }, {});
+    if (!accepted) report({ args: input.args, message: '[fenced-outbox] completion fence rejected; host reconciliation required', error: completion });
+  } catch (error) {
+    report({ args: input.args, message: '[fenced-outbox] attempt unresolved; durable fence retained for host recovery', error });
+  }
+}
+
+/**
+ * Recover expired leases into uncertainty, then process a bounded batch of due pending rows.
+ * Only explicit confirmed-no-effect results use the existing retry policy. Throws, invalid results
+ * and timeouts cannot release an attempt; late results never overwrite uncertainty. A storage
+ * acknowledgement failure leaves the durable dispatch marker for host reconciliation, since it
+ * may have committed before throwing. Hosts supply atomic storage; no tables or sessions open here.
+ *
+ * @param input Host ports, scope, authorization gate and effect dispatcher.
+ * @param options Existing outbox bounds and per-event retry policy, with unchanged defaults.
+ * @returns Number of claimed rows, including denied or unresolved attempts.
+ * @throws RangeError for invalid bounds; recovery/claim storage failures propagate before dispatch.
+ * @example await processFencedOutbox({ scope, outbox, authorize, dispatch, clock, scheduler, random, logger });
+ * @complexity O(batchSize) sequential gate/transport/storage calls, with bounded transport waits.
+ */
+export async function processFencedOutbox<Event extends EventEnvelope, Tx>(
+  input: FencedWorkerArgs<Event, Tx>, options: OutboxWorkerOptions = {},
+): Promise<number> {
+  const policy = resolvePolicy({ options });
+  await input.outbox.recoverExpired({ scope: input.scope, nowIso: nowIso({ clock: input.clock }), limit: policy.batchSize }, {});
+  const rows = await input.outbox.claimReady({ scope: input.scope, batchSize: policy.batchSize,
+    nowIso: nowIso({ clock: input.clock }), claimLeaseMs: policy.claimLeaseMs }, {});
+  for (const row of rows) await deliverFenced({ args: input, row, policy });
   return rows.length;
 }
