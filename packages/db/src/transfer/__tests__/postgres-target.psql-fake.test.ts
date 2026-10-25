@@ -29,11 +29,13 @@ const URL_ = "postgres://u:p@db.test:5433/app";
 describe("psql adapter", () => {
   it("drops every PG* parent variable, keeps the rest, and pins argv for a query", async () => {
     const psql = fakePsql({ stdout: "a\tb\n\nc\td\n" });
-    const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: psql.spawn, parentEnv: { PATH: "/bin", PGPASSWORD: "leak", PGHOST: "evil", PG: "x", pgx: "lower-kept", UNSET: undefined } });
+    const target = createPsqlPostgresTarget({ connectionString: URL_ }, { spawnProcess: psql.spawn, parentEnv: { PATH: "/bin", PGPASSWORD: "leak", PGHOST: "evil", PG: "x", PGOPTIONS: "-c evil=1", NOTPG: "kept", pgx: "lower-kept", UNSET: undefined } });
     await expect(target.query("select 1")).resolves.toEqual({ ok: true, value: [["a", "b"], ["c", "d"]] });
     const { args, env } = psql.calls[0]!;
     expect(args).toEqual(["-X", "-q", "-v", "ON_ERROR_STOP=1", "-t", "-A", "-F", "\t", "-c", "select 1"]);
-    expect(env).toEqual({ PATH: "/bin", pgx: "lower-kept", PGHOST: "db.test", PGPORT: "5433", PGDATABASE: "app", PGUSER: "u", PGPASSWORD: "p", PGCONNECT_TIMEOUT: "5", PGAPPNAME: "database-transfer" });
+    expect("UNSET" in env).toBe(false);
+    expect("PGOPTIONS" in env).toBe(false);
+    expect(env).toStrictEqual({ PATH: "/bin", NOTPG: "kept", pgx: "lower-kept", PGHOST: "db.test", PGPORT: "5433", PGDATABASE: "app", PGUSER: "u", PGPASSWORD: "p", PGCONNECT_TIMEOUT: "5", PGAPPNAME: "database-transfer" });
     expect(target.describe()).toEqual({ host: "db.test", port: "5433", database: "app", user: "u" });
   });
 
