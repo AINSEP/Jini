@@ -90,12 +90,26 @@ test("describeReportedError redacts secret shapes from message and stack, and ca
   assert.deepEqual(describeReportedError({ error: "plain" }), { type: "string", message: "plain" });
 });
 
-test("combineObservabilityPorts: noop-only is the noop, one live port is returned as-is", async () => {
+test("combineObservabilityPorts: noop-only is the noop; one live port still delivers its signals", async () => {
   const { combineObservabilityPorts } = await import("../observability/fanout.js");
   const { isNoopObservabilityPort } = await import("../observability/noop.js");
   assert.ok(isNoopObservabilityPort(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createNoopObservabilityPort({})] })));
-  const live = createPort(CONFIG, new InMemorySpanExporter());
-  assert.equal(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), live] }), live);
+  const exporter = new InMemorySpanExporter();
+  const port = combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createPort(CONFIG, exporter)] });
+  port.trackOperation({ name: "tool.call" }).end({ outcome: "completed", failed: false });
+  assert.deepEqual(exporter.getFinishedSpans().map((s) => s.name), ["tool.call"]);
+});
+
+test("recheck #2: a single live adapter is isolated too: its start, end and report throws never reach the caller", async () => {
+  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const down = () => { throw new Error("adapter down"); };
+  const throwsOnStart = combineObservabilityPorts({ ports: [{ ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: down, reportError: down }] });
+  const fallback = throwsOnStart.trackOperation({ name: "tool.call" });
+  assert.equal(fallback.run(() => "done"), "done");
+  assert.doesNotThrow(() => fallback.end({ outcome: "completed", failed: false }));
+  assert.doesNotThrow(() => throwsOnStart.reportError({ error: new Error("x"), context: { operation: "tool.call" } }));
+  const throwsOnEnd = combineObservabilityPorts({ ports: [{ ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: () => ({ run: <T>(fn: () => T) => fn(), end: down }) }] });
+  assert.doesNotThrow(() => throwsOnEnd.trackOperation({ name: "tool.call" }).end({ outcome: "completed", failed: false }));
 });
 
 test("combineObservabilityPorts: two live ports each get the operation, its nested report, and its end; a throwing reporter does not stop the other", async () => {

@@ -33,8 +33,8 @@ function fanOut<K extends Signal>(live: readonly ObservabilityPort[], signal: K,
 /**
  * Sends every signal to each enabled adapter: the "both configured" answer (say OpenTelemetry for
  * traces and an error tracker for incidents), with no adapter knowing about the other. Noop ports are
- * dropped; none left returns the shared noop (still zero-cost), one left is returned as-is, so a
- * single-adapter install pays nothing for this either. Only two or more allocate a combined tracker.
+ * dropped; none left returns the shared noop (still zero-cost). One left is still wrapped: returning
+ * the raw port would let its throws (creating a tracker, ending it, reporting) reach the caller.
  * @param required The candidate ports, in nesting order (outermost first).
  * @returns A port; every signal reaches every adapter, and one adapter throwing (creating a tracker,
  *   ending it, or reporting) never skips the rest or reaches the caller.
@@ -43,7 +43,6 @@ function fanOut<K extends Signal>(live: readonly ObservabilityPort[], signal: K,
 export function combineObservabilityPorts({ ports }: { ports: readonly ObservabilityPort[] }): ObservabilityPort {
  const live = ports.filter((port) => !isNoopObservabilityPort(port));
  if (live.length === 0) return createNoopObservabilityPort({});
- if (live.length === 1) return live[0]!;
  return {
   trackRequest: (...args) => fanOut(live, 'trackRequest', args),
   trackDbQuery: (...args) => fanOut(live, 'trackDbQuery', args),
