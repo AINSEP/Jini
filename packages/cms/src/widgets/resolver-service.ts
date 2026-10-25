@@ -1,4 +1,4 @@
-import { resolvePluginExportEmbeds, type PluginExportsPort } from "./html/plugin-export.js";
+import type { PluginExportsPort } from "./html/plugin-export.js";
 import { isNonArrayRecord } from "@jini-ai/core";
 import { resolveGalleryEmbeds } from "./gallery-resolver.js";
 import { isPlausibleMediaRefId } from "./markers/media-reference.js";
@@ -1286,7 +1286,10 @@ async function resolveContentTypeEmbeds(
  * synthetic instance on the SAME registered contact-form resolver so the two cannot drift.
  */
 export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> = {
-  plugin: (refs, deps, context) => resolvePluginExportEmbeds({ refs, port: deps.pluginExports, workspaceId: context.workspaceId }),
+  // Template filling needs parse5, which this universal module must not load: the node-only
+  // `resolveHtmlPageEmbeds` (`html/resolve-html-page-embeds.ts`) overrides this entry with the real
+  // resolver. Reached from here, every plugin occurrence keeps its authored fallback.
+  plugin: async () => new Map(),
   widget: resolveWidgetTypeEmbeds,
   form: resolveFormTypeEmbeds,
   taxonomy: (refs, deps) => resolveTaxonomyEmbeds({ refs, deps }),

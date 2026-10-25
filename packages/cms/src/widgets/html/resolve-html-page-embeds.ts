@@ -2,6 +2,17 @@ import type { UUID } from "@jini-ai/core/primitives";
 import { HTML_EMBED_RESOLVERS, THEME_OWNED_MARKER_TYPES, type ResolveHtmlPageEmbedsDeps } from "../resolver-service.js";
 import type { WidgetRenderIR, WidgetResolveContext } from "../types.js";
 import { scanHtmlEmbeds, type PageHtmlEmbedRef } from "./html-embeds.js";
+import { resolvePluginExportEmbeds } from "./plugin-export.js";
+
+/**
+ * {@link HTML_EMBED_RESOLVERS} with the parse5-backed plugin resolver swapped in. The universal
+ * registry cannot import it (`@jini-ai/cms/widgets` must stay parse5-free), so this node-only entry
+ * injects it; hosts keep passing their admission port as `deps.pluginExports`.
+ */
+const RESOLVERS: typeof HTML_EMBED_RESOLVERS = {
+  ...HTML_EMBED_RESOLVERS,
+  plugin: (refs, deps, context) => resolvePluginExportEmbeds({ refs, port: deps.pluginExports, workspaceId: context.workspaceId }),
+};
 
 /**
  * Resolved embed IR, keyed by embed type then by the referenced id (`resolved.get(ref.type)?.get(
@@ -55,7 +66,7 @@ export async function resolveHtmlPageEmbeds(
 
   const result = new Map<string, ReadonlyMap<string, WidgetRenderIR>>();
   for (const [type, typeRefs] of refsByType) {
-    const resolver = HTML_EMBED_RESOLVERS[type];
+    const resolver = RESOLVERS[type];
     if (!resolver) {
       // A theme-structural type (`menu`/`partial`) is not a failure at THIS stage — it is deferred,
       // by design, to `static-render.ts`'s later pass (see `THEME_OWNED_MARKER_TYPES`'s own doc). Only
