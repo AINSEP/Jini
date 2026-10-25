@@ -57,6 +57,10 @@ export async function withSqliteTransaction<T>(
   const lease: SqliteLease = { active: true, acquired: false };
   state.lease = lease;
   const session = sessionFor({ kernel, state, lease });
+  const revoke = () => {
+    lease.active = false;
+    if (state.lease === lease) delete state.lease;
+  };
   try {
     return await state.context.run(lease, () => control.transaction(async () => {
       // Reserve first to reject overlaps, but let earlier shared runs finish before taking control.
@@ -64,7 +68,7 @@ export async function withSqliteTransaction<T>(
       const result = await work({ session });
       if (optional.rollbackOnFailedOutcome === true && isFailedOutcome({ value: result })) throw new FailedOutcome({ outcome: result });
       return result;
-    }));
+    }, { onSettled: revoke }));
   } catch (error) {
     if (error instanceof FailedOutcome) return error.outcome as T;
     if (error instanceof AggregateError) {
@@ -72,8 +76,8 @@ export async function withSqliteTransaction<T>(
     }
     throw error;
   } finally {
-    lease.active = false;
-    delete state.lease;
+    // Backstop for failures before the turn was taken; normally revoked inside the turn.
+    revoke();
   }
 }
 

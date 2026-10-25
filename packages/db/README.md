@@ -228,8 +228,9 @@ Connection-only imports still load no runtime Kysely dependency; sessions use th
 failed-Outcome policy rolls back. Omission or `false` commits resolved values, including
 `{ ok: false }`; `true` rolls that result back and returns the identical object after successful
 cleanup. Thrown errors roll back. Retained sessions, overlapping helpers and entry into existing
-transactions are refused. Uncertain commits and failed rollbacks quarantine the shared wrapper;
-queued and future SQL fails. Native control errors remain causes of typed `commit_failed` /
+transactions are refused. Uncertain outcomes (a COMMIT that may have applied, or a transaction a
+failed ROLLBACK left open) quarantine the shared wrapper; queued and future SQL fails. A failed
+COMMIT followed by a successful ROLLBACK, or a stray ROLLBACK with nothing open, is not quarantined. Native control errors remain causes of typed `commit_failed` /
 `rollback_failed` errors; combined failures use `AggregateError`. Other codes are `quarantined`,
 `session_expired` and `transaction_busy`. The host retains responsibility for the native handle.
 The exported error constructor is `new SqliteClientError({ code }, { cause })`; its second object
