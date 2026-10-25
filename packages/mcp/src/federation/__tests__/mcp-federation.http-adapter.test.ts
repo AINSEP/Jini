@@ -605,3 +605,19 @@ test("close never sends the DELETE when credential lookup outlasts the close dea
 
   assert.equal(exchange.sent.some((request) => request.method === "DELETE"), false);
 });
+
+// Stryker L3 (2026-10-25): `serverProtocolVersion || CLIENT_PROTOCOL_VERSION` survived — every test's
+// server negotiated the same version the client offers, so the fallback and the switch were invisible.
+test("mcp-protocol-version: the client's version before negotiation, the server's after", async () => {
+  const exchange = new ScriptedMcpHttpExchange({ respond: ({ request }) => {
+    if (request.message?.method === "initialize") {
+      return { body: { jsonrpc: "2.0", id: request.message?.id, result: { ...INIT_RESULT, protocolVersion: "2025-03-26" } }, sessionId: "sess-1" };
+    }
+    return (politeServer())(request);
+  } });
+  const session = await connect(exchange);
+  await session.listTools();
+  assert.equal(exchange.sent[0]?.headers["mcp-protocol-version"], "2025-06-18");
+  assert.equal(exchange.lastRequestFor({ method: "notifications/initialized" })?.headers["mcp-protocol-version"], "2025-03-26");
+  assert.equal(exchange.lastRequestFor({ method: "tools/list" })?.headers["mcp-protocol-version"], "2025-03-26");
+});
