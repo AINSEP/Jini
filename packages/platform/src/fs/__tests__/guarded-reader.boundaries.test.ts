@@ -2,7 +2,7 @@ import { once } from "node:events";
 import nodeFs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { createGuardedFileReader, FsFilePathError, type GuardedReaderFilesystem, type GuardedReaderLimits } from "../guarded-reader.js";
 
 const roots: string[] = [];
@@ -201,4 +201,47 @@ test("readBytes reports an Error stream failure by its message", async () => {
 test("resolving the root itself passes the effective-target deny check", () => {
   const dir = root();
   expect(reader(dir).resolve({ relativePath: "." })).toBe(nodeFs.realpathSync(dir));
+});
+
+// --- F1 fix wave: path-normalisation corpus (Stryker L1 §4 guarded-reader.ts:80-98) ---------------
+// Each spelling below names the denied `secrets` segment or `.env` leaf only after one specific
+// normalisation step (empty segment, ".", "..", stream suffix, trailing dot/space, Unicode fold).
+for (const [spelling, kind] of [
+  ["a//secrets/k.txt", "segment"],
+  ["./secrets/k.txt", "segment"],
+  ["x/../secrets/k.txt", "segment"],
+  ["a/./secrets/./k.txt", "segment"],
+  ["SECRETS/k.txt", "segment"],
+  ["secrets./k.txt", "segment"],
+  ["secrets /k.txt", "segment"],
+  ["secrets::$DATA/k.txt", "segment"],
+  ["ſecrets/k.txt", "segment"], // LONG S folds to s
+  [".env", "leaf"],
+  ["a//.env", "leaf"],
+  ["x/../.env", "leaf"],
+  [".ENV", "leaf"],
+  [".env.", "leaf"],
+  [".env ", "leaf"],
+  [".env::$DATA", "leaf"],
+  [".env:stream", "leaf"],
+] as const) {
+  test(`F1: ${JSON.stringify(spelling)} is refused as a denied ${kind} before any filesystem access`, () => {
+    const exists = vi.fn(() => false);
+    const message = refusal(() => reader(root(), { filesystem: { existsSync: exists } }).resolve({ relativePath: spelling })).message;
+    expect(message).toBe(kind === "segment"
+      ? `path '${spelling}' contains a denied path segment (${JSON.stringify(spelling.split(/[\\/]/).find((s) => /ecrets/i.test(s))).replace(/"/g, "'")}) and cannot be accessed`
+      : `path '${spelling}' matches a denied filename pattern and cannot be accessed`);
+    expect(exists).not.toHaveBeenCalled();
+  });
+}
+
+for (const spelling of ["secretsX/k.txt", "my-secrets/k.txt", ".envrc", "x.env", "env", "a/.env/../ok.txt"]) {
+  test(`F1: near-miss ${JSON.stringify(spelling)} is NOT denied by the lexical check`, () => {
+    const dir = root({ [spelling.replace(/\/[^/]*\/\.\.\//, "/")]: "ok" });
+    expect(() => reader(dir).resolve({ relativePath: spelling })).not.toThrow();
+  });
+}
+
+test("F1: '..' above the root is popped in the deny check, so the denied segment behind it is still named", () => {
+  expect(refusal(() => reader(root()).resolve({ relativePath: "../../secrets" })).message).toBe("path '../../secrets' contains a denied path segment ('secrets') and cannot be accessed");
 });
