@@ -329,16 +329,17 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     };
   }
 
-  /** Format a selected skill's file inventory without host paths or unregistered tool pointers. O(files). */
-// Framing governs whether the agent follows the plugin: describe injected SKILL.md as complete
-// instructions and let it require its references. Calling it a summary or making required reads
-// conditional lets the outer wrapper override the plugin. The inventory-framing test pins this.
+  // Framing governs whether the agent follows the plugin: describe injected SKILL.md as complete
+  // instructions and let it require its references. Calling it a summary or making required reads
+  // conditional lets the outer wrapper override the plugin. The inventory-framing test pins this.
+  /** Format a selected skill's file inventory using the host's registered tool pointer. O(files). */
   function renderSkillInventory(
     { pluginRefId, skill, file, files, fileNote }: { pluginRefId: string; skill: string; file: string | undefined; files: readonly string[]; fileNote: string | undefined },
     _options = {},
   ): string {
     const framing = file === undefined || file === 'SKILL.md' ? "The SKILL.md above is this Agent Plugin's own instructions — follow them, including any files it directs you to load before starting work." : "The content above is the requested skill file.";
-    return `\n\n${framing} Readable supporting files are listed relative to this skill folder. Request one with load_agent_plugin(${JSON.stringify({ pluginId: pluginRefId, skill, file: '<relative path>' })}).\nfiles: ${JSON.stringify(files)}${fileNote ? `\n${fileNote}` : ""}`;
+    const pointer = ports.formatPluginToolPointer({ pluginId: pluginRefId, skill, file: '<relative path>' });
+    return `\n\n${framing} Readable supporting files are listed relative to this skill folder. Request one with ${pointer}.\nfiles: ${JSON.stringify(files)}${fileNote ? `\n${fileNote}` : ""}`;
   }
 
   // Parity with `inject`'s own failure: a pinned ref whose eponymous skill is missing must fail

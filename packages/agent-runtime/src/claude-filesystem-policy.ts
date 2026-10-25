@@ -99,7 +99,7 @@ export function claudeFilesystemSettings(required: { options: RuntimeBuildOption
   platform = process.platform, homeDir = homedir(), tempDir = tmpdir(), uid,
 }: { platform?: NodeJS.Platform; homeDir?: string; tempDir?: string; uid?: number | null | undefined } = {}): string {
   const { options } = required;
-  const runtimeTempPaths = claudeRuntimeTempPaths({ options, platform, tempDir }, { uid });
+  const runtimeTempPaths = claudeRuntimeTempPaths({ options, platform }, { uid });
   const settings = options.settings ? JSON.parse(options.settings) as Record<string, unknown> : {};
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Host settings must be a JSON object');
   const permissions = settings.permissions as Record<string, unknown> | undefined;
@@ -112,24 +112,20 @@ export function claudeFilesystemSettings(required: { options: RuntimeBuildOption
   });
 }
 
-/** Exact per-UID runtime scratch and its short Bash fallback; never grants the base directory.
- * Mirrors CLAUDE_CODE_TMPDIR selection: macOS defaults to /tmp, Linux to the child's os.tmpdir().
+/** Exact scratch subtree inside the executor's private per-run CLAUDE_CODE_TMPDIR.
+ * Missing bases grant nothing; long bases are refused so Bash cannot fall back to shared scratch.
  * Pure, O(p) time/space for p path bytes; invalid Unix host facts throw before policy generation.
  */
-function claudeRuntimeTempPaths({ options, platform, tempDir }: {
-  options: RuntimeBuildOptions; platform: NodeJS.Platform; tempDir: string;
+function claudeRuntimeTempPaths({ options, platform }: {
+  options: RuntimeBuildOptions; platform: NodeJS.Platform;
 }, { uid }: { uid?: number | null | undefined } = {}): string[] {
   if (platform === 'win32') return [];
-  const unixUid = requireUnixUid({}, { uid });
-  const defaultBase = platform === 'darwin' ? '/tmp' : options.filesystemTempDir ?? tempDir;
-  // The child's own CLAUDE_CODE_TMPDIR (executor-resolved), never the daemon's ambient environment.
-  const base = options.filesystemRuntimeTempBase || defaultBase;
+  const base = options.filesystemRuntimeTempBase;
+  if (!base) return [];
   if (!isAbsolute(base)) throw new Error('Runtime temp base must be absolute');
-  const runtimeTemp = resolve(base, `claude-${unixUid}`);
-  const paths = [runtimeTemp];
-  // Claude keeps its own files under the override, but shortens sandboxed Bash's TMPDIR for sockets.
-  if (Buffer.byteLength(runtimeTemp) > 44) paths.push(resolve(defaultBase, `claude-${unixUid}`));
-  return [...new Set(paths.flatMap(path => claudeTempAliases({ path, platform }, {})))];
+  const runtimeTemp = resolve(base, `claude-${requireUnixUid({}, { uid })}`);
+  if (Buffer.byteLength(runtimeTemp) > 44) throw new Error('Runtime temp path must not exceed 44 bytes');
+  return claudeTempAliases({ path: runtimeTemp, platform }, {});
 }
 
 /** The host UID that names Claude's scratch subtree; fails closed rather than granting a guessed path. O(1). */
@@ -146,9 +142,8 @@ function claudeTempAliases({ path, platform }: { path: string; platform: NodeJS.
 }
 
 /** Build explicit filesystem exceptions; shared temp and the rest of home remain denied.
- * Owner 2026-10-25: Claude's exact per-UID runtime subtree is a read/write infrastructure
- * exception so Bash can track cwd. It permits cross-session scratch access for the same UID;
- * strict session scratch isolation needs a separate design. Shared temp parents stay denied.
+ * Claude's exact scratch subtree in the executor-created per-run directory is a read/write
+ * infrastructure exception so Bash can track cwd. Shared and other runs' scratch stay denied.
  * Pure, O(r + t) for r runtime paths and t shared temp roots; no filesystem access.
  */
 function filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths }: {

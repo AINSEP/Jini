@@ -98,6 +98,8 @@ describe('describeToolTool', () => {
     const publishing: McpToolContext = { ...ctx, publishTool: async ({ descriptor }) => { published.push(descriptor); } };
     getDaemonJson.mockResolvedValueOnce({ id: 'page.fill', description: 7, readOnly: 'yes' });
     await describeToolTool.handler({ args: { id: 'page.fill' }, ctx: publishing });
+    getDaemonJson.mockResolvedValueOnce({ id: 'page.list', inputSchema: null });
+    await describeToolTool.handler({ args: { id: 'page.list' }, ctx: publishing });
     getDaemonJson.mockResolvedValueOnce({ id: 'page.read', description: 'Read a page', readOnly: true, inputSchema: { type: 'object' } });
     await describeToolTool.handler({ args: { id: 'page.read' }, ctx: publishing });
     expect(published).toEqual([
