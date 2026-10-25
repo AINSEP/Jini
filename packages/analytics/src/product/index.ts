@@ -53,7 +53,8 @@ export function isNoopProductAnalytics(port: ProductAnalyticsPort): boolean {
 }
 
 /** May this user's activity be sent to the product-analytics vendor? The host's consent record decides.
- * A promise is fine (a settings read): the event waits for the answer and is dropped unless it is `true`. */
+ * A promise is fine (a settings read) when `consentRevision` is also given: the event waits for the
+ * answer and is dropped unless it is `true`. */
 export type ProductAnalyticsConsent = (input: { userId: string }) => boolean | Promise<boolean>;
 
 /** Synchronous snapshot of the host's consent revision, checked again immediately before delivery.
@@ -62,8 +63,9 @@ export type ProductAnalyticsConsent = (input: { userId: string }) => boolean | P
 export type ProductAnalyticsConsentRevision = (input: { userId: string }) => string | number;
 
 export interface ProductAnalyticsGuardOptions {
-  /** Required for async consent backed by mutable settings: the guard cannot observe settings
-   * changes on its own. A failed revision read drops the event, just like a failed consent read. */
+  /** Required for async consent: the guard cannot observe settings changes on its own, so without
+   * it every promised answer is dropped (fail closed). Synchronous consent needs none. A failed
+   * revision read drops the event, just like a failed consent read. */
   consentRevision?: ProductAnalyticsConsentRevision;
 }
 
@@ -126,7 +128,10 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
       revision = consentRevision?.({ userId });
       const decision = consent({ userId });
       if (typeof decision === "boolean") return settle({ allowed: decision });
-      void Promise.resolve(decision).then((allowed) => settle({ allowed }), () => settle({ allowed: false }));
+      // Without a revision an async approval cannot see a revoke that lands while it is in flight
+      // (no later denial need ever arrive), so it fails closed: analytics only after consent.
+      const canSeeRevoke = consentRevision !== undefined;
+      void Promise.resolve(decision).then((allowed) => settle({ allowed: canSeeRevoke && allowed }), () => settle({ allowed: false }));
     } catch { settle({ allowed: false }); }
   };
   return {
