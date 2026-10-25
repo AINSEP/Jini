@@ -1,6 +1,6 @@
 import { expect, test, vi } from 'vitest';
-import { processFencedOutbox, type DispatchResult } from '../index.js';
-import { deferredValue, fencedFixture, intent } from './fenced-fixtures.js';
+import { createSerialPump, processFencedOutbox, type DispatchResult } from '../index.js';
+import { deferredValue, fencedFixture, intent, manualScheduler } from './fenced-fixtures.js';
 import { NOW } from './fixtures.js';
 
 const bounds = { batchSize: 2, deliveryTimeoutMs: 10, claimLeaseMs: 100 };
@@ -21,8 +21,7 @@ test('authorization sees the detached envelope and a durable marker precedes dis
   expect(f.stored().status).toBe('delivered');
   expect(f.outbox.recoverExpired).toHaveBeenCalledWith({ scope: 'scope-a', nowIso: NOW, limit: 2 }, {});
   expect(f.outbox.claimReady).toHaveBeenCalledWith({ scope: 'scope-a', nowIso: NOW, batchSize: 2, claimLeaseMs: 100 }, {});
-  expect(f.manual.tasks).toHaveLength(1);
-  expect(f.manual.tasks[0]!.cancelled).toBe(true);
+  expect(f.manual.tasks.map(task => [task.delayMs, task.cancelled])).toEqual([[10, true], [10, true], [10, true]]);
 });
 
 test('concurrent workers cannot dispatch the same pending row twice', async () => {
@@ -85,6 +84,30 @@ test('an expired lease that never began dispatch is retried; an expired dispatch
   g.advance(100);
   expect(await processFencedOutbox(g.args, bounds)).toBe(0);
   expect(g.stored().status).toBe('uncertain');
+});
+
+test.each(['authorize', 'beginDispatch'] as const)('a hung %s is bounded: no completion, and the pump can stop', async gate => {
+  const f = await fencedFixture();
+  const hung = () => new Promise<boolean>(() => {});
+  if (gate === 'authorize') f.args.authorize.mockImplementation(hung);
+  else f.outbox.beginDispatch.mockImplementation(hung);
+  const pumpTimer = manualScheduler();
+  const pump = createSerialPump({ scheduler: pumpTimer.scheduler, intervalMs: 5, callback: () => processFencedOutbox(f.args, bounds) });
+  pump.start({});
+  pumpTimer.tasks[0]!.callback();
+  await new Promise(resolve => setImmediate(resolve));
+  let stopped = false;
+  const stopping = pump.stop({}).then(() => { stopped = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  expect(stopped).toBe(false);
+  f.manual.tasks.at(-1)?.callback();
+  await new Promise(resolve => setImmediate(resolve));
+  expect(stopped).toBe(true);
+  await stopping;
+  expect(f.outbox.beginDispatch).toHaveBeenCalledTimes(gate === 'authorize' ? 0 : 1);
+  expect(f.args.dispatch).not.toHaveBeenCalled();
+  expect(f.outbox.complete).not.toHaveBeenCalled();
+  expect(f.stored().status).toBe('leased');
 });
 
 test('expiry at claim receipt prevents authorization and dispatch', async () => {
@@ -156,7 +179,7 @@ test('timeout stays uncertain after late success and is never automatically recl
   await entered.promise;
   expect(f.stored().status).toBe('dispatching');
   f.advance(10);
-  f.manual.tasks[0]!.callback();
+  f.manual.tasks.at(-1)!.callback();
   await processing;
   expect(f.stored().status).toBe('uncertain');
   expect(f.outbox.complete).toHaveBeenCalledTimes(1);

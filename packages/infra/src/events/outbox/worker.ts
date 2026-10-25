@@ -320,6 +320,19 @@ function fencedCompletion<Event extends EventEnvelope, Tx>(input: {
 }
 
 /**
+ * Bound a pre-dispatch gate by the delivery timeout so a hung host call cannot hold the batch (or a
+ * pump's stop()) forever. Nothing has been sent yet, so a timeout records no completion; the lease
+ * expires and recovery decides. A late result is ignored and a late rejection stays handled.
+ */
+async function boundedGate<Event extends EventEnvelope, Tx>(input: {
+  args: FencedWorkerArgs<Event, Tx>; policy: ResolvedPolicy; start: () => Promise<boolean>;
+}): Promise<boolean | typeof TIMED_OUT> {
+  const gate = Promise.resolve().then(input.start);
+  gate.catch(() => {});
+  return settleWithin({ publishing: gate, scheduler: input.args.scheduler, timeoutMs: input.policy.deliveryTimeoutMs });
+}
+
+/**
  * Authorization and the durable begin marker precede dispatch. A failed/unavailable fence never
  * reaches transport. Recheck expiry AFTER awaiting storage: begin may have used up the lease.
  */
@@ -330,8 +343,10 @@ async function dispatchFenced<Event extends EventEnvelope, Tx>(input: {
   const { args, row, policy, retry } = input;
   if (!isLiveClaim(input)) return;
   if (row.attempts > retry.maxAttempts) return { status: 'failed' };
-  if (await args.authorize({ claim: row }, {}) !== true) return { status: 'denied' };
-  if (await args.outbox.beginDispatch(currentFence(input), {}) !== true) return;
+  const authorized = await boundedGate({ ...input, start: () => args.authorize({ claim: row }, {}) });
+  if (authorized === TIMED_OUT) return;
+  if (authorized !== true) return { status: 'denied' };
+  if (await boundedGate({ ...input, start: () => args.outbox.beginDispatch(currentFence(input), {}) }) !== true) return;
   if (!isLiveClaim(input)) return;
   // Capture both synchronous and asynchronous failures; a late result is observed but never
   // writes over uncertainty or releases a row for an automatic retry.

@@ -90,7 +90,9 @@ excluded from automatic claims. Transport returns `DispatchResult`:
 | `uncertain`, invalid result, throw, timeout | uncertain; host reconciliation required |
 
 Late results never release uncertain rows. Completion acknowledgement failure never becomes a
-delivery retry: storage may have committed before throwing. An unavailable fence prevents dispatch;
+delivery retry: storage may have committed before throwing. `authorize` and `beginDispatch` are
+each bounded by `deliveryTimeoutMs`; a hung gate records no completion and the lease expiry decides,
+so a pump's `stop()` cannot wait on it forever. An unavailable fence prevents dispatch;
 unavailable storage can leave a leased/dispatching marker until recovery rather than immediately
 recording literal uncertainty. Only host reconciliation can resolve uncertain effects. The port
 contract and DI tests do not establish real host-adapter atomicity; adapters need conformance tests.
