@@ -310,6 +310,25 @@ describe('RunLifecycle — a durable start that has not committed yet', () => {
     await expect(waiting).rejects.toThrow('start append failed');
   });
 
+  it('an abort ends a waitForTerminal() parked behind a stalled start append; the start failure still reaches un-aborted waiters', async () => {
+    const { eventLog, fail } = gatedStartLog();
+    const lifecycle = createRunLifecycle({ eventLog });
+    const starting = lifecycle.start({ contextRef: 'ctx-stall' }, { runId: 'stalled-run' });
+    await settleQueues();
+    const reason = new Error('caller gave up');
+    await expect(lifecycle.waitForTerminal({ runId: 'stalled-run' }, { signal: AbortSignal.abort(reason) })).rejects.toBe(reason);
+    const controller = new AbortController();
+    const removed = vi.spyOn(controller.signal, 'removeEventListener');
+    const aborted = lifecycle.waitForTerminal({ runId: 'stalled-run' }, { signal: controller.signal });
+    const plain = lifecycle.waitForTerminal({ runId: 'stalled-run' }, { signal: new AbortController().signal });
+    controller.abort(reason);
+    await expect(aborted).rejects.toBe(reason);
+    fail(new Error('start append failed'));
+    await expect(starting).rejects.toThrow('start append failed');
+    await expect(plain).rejects.toThrow('start append failed');
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function));
+  });
+
   it('still serves get(), list(), and waitForTerminal() normally once a slow start append commits', async () => {
     const { eventLog, commit } = gatedStartLog();
     const lifecycle = createRunLifecycle({ eventLog });
@@ -534,7 +553,8 @@ describe('RunLifecycle — finish', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     const controller = new AbortController();
     const waiting = lifecycle.waitForTerminal({ runId: run.id }, { signal: controller.signal });
-    await Promise.resolve();
+    // One timer turn: past the (abortable) start wait, so the waiter is parked when the abort lands.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const removed = vi.spyOn(controller.signal, 'removeEventListener');
     const reason = new Error('teardown');
     controller.abort(reason);

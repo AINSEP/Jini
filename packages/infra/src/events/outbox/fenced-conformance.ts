@@ -79,7 +79,9 @@ function overlapBarrier(subject: Subject): { issued: (transaction: unknown) => v
   if (!awaitOverlap) return { issued: () => {}, reached: nextTurn() };
   let issued: (transaction: unknown) => void = () => {};
   const reached = new Promise<void>((resolve, reject) => {
-    issued = (transaction) => { awaitOverlap.call(subject, { transaction }).then(resolve, reject); };
+    // Deferred a microtask so a hook that throws synchronously rejects `reached` (and reaches the
+    // barrier-failure cleanup) instead of escaping contend() before its enqueue is settled.
+    issued = (transaction) => { Promise.resolve().then(() => awaitOverlap.call(subject, { transaction })).then(resolve, reject); };
   });
   return { issued, reached };
 }

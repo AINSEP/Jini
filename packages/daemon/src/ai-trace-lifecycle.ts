@@ -98,7 +98,9 @@ export function withAiTracing({ lifecycle, sink }: { lifecycle: RunLifecycle; si
     ...lifecycle,
     async start(required, optional = {}) {
       const result = await lifecycle.start(required, optional);
-      if (result.started) {
+      // dispose() may run while the underlying start is pending; opening afterwards would leave a
+      // recorder and subscription behind that no teardown will ever release.
+      if (result.started && !teardown.signal.aborted) {
         // Not awaited: a slow or hung event-log replay must not delay the committed start. The
         // recorder is registered synchronously; replay delivers anything emitted before subscribing.
         void open({ runId: result.run.id, contextRef: required.contextRef, agentId: optional.agentId ?? 'unknown' }).catch((error: unknown) => {

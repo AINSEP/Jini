@@ -111,6 +111,18 @@ unavailable storage can leave a leased/dispatching marker until recovery rather 
 recording literal uncertainty. Only host reconciliation can resolve uncertain effects. The port
 contract and DI tests do not establish real host-adapter atomicity; run the conformance cases.
 
+`fencedOutboxConformance({ createSubject })` returns framework-neutral cases a host adapter runs
+against fresh subjects. A subject may supply `awaitOverlap({ transaction })`: it resolves once the
+contender's enqueue issued in `transaction` has reached the store (inserted, or blocked behind the
+first writer's key), and only then does the overlap case commit the first writer. Supply it when
+`begin` or enqueue can outlast a macrotask (a network database). Without it the case falls back to
+one timer turn, which **cannot prove overlap** for a slow concurrent host: the contender may not
+have reached the store yet, so an adapter with no concurrent-key protection can still pass through
+ordinary committed-row conflict detection. A host that serializes transactions must omit it (its
+second `begin` waits for the first commit, so the barrier could never resolve). The hook is invoked
+on a microtask, so a synchronous throw is reported like a rejection: the case fails with that error
+after the contender's enqueue is settled and its transaction rolled back.
+
 ### Independent serial pump
 
 `createSerialPump({ scheduler, intervalMs, callback }, { onError } = {})` has no outbox dependency.

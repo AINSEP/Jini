@@ -178,6 +178,27 @@ describe('AI trace lifecycle failure containment and terminal observation', () =
     expect(sink.events.map((event) => event.kind)).toEqual(['run_started']);
   });
 
+  it('dispose() during a pending underlying start opens no recorder or subscription afterwards', async () => {
+    const { lifecycle, sink, unsubscribed } = fixture();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const stream = vi.fn(lifecycle.stream);
+    const start: RunLifecycle['start'] = async (args, optional = {}) => { await gate; return lifecycle.start(args, optional); };
+    const traced = withAiTracing({ lifecycle: { ...lifecycle, start, stream }, sink });
+    const pending = traced.start({ contextRef: 'chat' });
+    traced.dispose();
+    release();
+    const result = await pending;
+    expect(result.started).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stream).not.toHaveBeenCalled();
+    expect(sink.events).toEqual([]);
+    traced.noteRunInput({ runId: result.run.id, input: 'late' });
+    await traced.finish({ runId: result.run.id, ...success });
+    expect(sink.events).toEqual([]);
+    expect(unsubscribed).not.toHaveBeenCalled();
+  });
+
   it('recheck #3: an unreadable terminal state after a failed subscription releases the trace without inventing an outcome', async () => {
     const { lifecycle, sink } = fixture();
     const waited = vi.fn(async () => { throw new Error('unknown run'); });
