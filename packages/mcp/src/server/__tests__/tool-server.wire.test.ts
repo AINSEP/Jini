@@ -436,8 +436,12 @@ describe('typed delegated publication — real MCP wire and existing daemon owne
     expect((await call()).isError).toBe(true);
     response = Response.json(operation({ id: 'different' }));
     expect((await call()).isError).toBe(true);
-    response = Response.json(operation({ inputSchema: { type: 'string' } }));
-    expect((await call()).isError).toBe(true);
+    for (const inputSchema of [null, 'invalid', { type: 'string' }]) {
+      response = Response.json(operation({ inputSchema }));
+      const malformed = await call();
+      expect(malformed.isError).toBe(true);
+      expect(malformed.content).toEqual([expect.objectContaining({ type: 'text', text: expect.stringContaining('content.read.inputSchema') })]);
+    }
     response = Response.json({ hits: [{ id: 'content.read', score: 1 }] });
     expect((await client.callTool({ name: 'search_tools', arguments: { query: 'read content' } })).isError).toBeUndefined();
     expect((await client.listTools()).tools).toHaveLength(2);

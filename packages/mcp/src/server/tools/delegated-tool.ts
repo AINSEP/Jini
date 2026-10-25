@@ -314,7 +314,9 @@ export function createTypedDelegatedToolTool(
   options: CreateExecuteDelegatedToolToolOptions = {},
 ): McpToolDef {
   const { descriptor, wireName } = tool;
-  const inputSchema = ToolSchema.shape.inputSchema.parse(descriptor.inputSchema);
+  const parsedSchema = ToolSchema.shape.inputSchema.safeParse(descriptor.inputSchema);
+  if (!parsedSchema.success) throw new Error(`${descriptor.id}.inputSchema: ${parsedSchema.error.message}`);
+  const inputSchema = parsedSchema.data;
   const readOnly = isReadOnlyTool({ descriptor });
   const gateway = readOnly
     ? createExecuteReadonlyDelegatedToolTool({ runId }, options)

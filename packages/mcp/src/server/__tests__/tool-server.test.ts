@@ -38,6 +38,7 @@ vi.mock('../../client/client.js', () => ({
 import { createMcpToolServer, type McpServerLike, type McpToolServerRequiredArgs, type McpToolServerOptions, type McpTransportLike } from '../tool-server.js';
 import type { McpToolDef } from '../tool-protocol.js';
 import type { McpResourceDef } from '../resource-protocol.js';
+import { TOOL_CATALOG_TOOLS } from '../tools/tool-catalog-tools.js';
 
 function flushAsync(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -119,6 +120,44 @@ beforeEach(() => {
 });
 
 describe('createMcpToolServer', () => {
+  it('describes a schema-less family without publication or notification, then publishes and executes its concrete card', async () => {
+    const server = makeFakeServer();
+    const notified = vi.fn(async () => {});
+    server.sendToolListChanged = notified;
+    const family = { id: 'content_read', description: 'content_read is a namespace, not a tool. Call content_read.theme.' };
+    const card = { id: 'content_read.theme', description: 'Read themes', readOnly: true,
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false } };
+    const fetchImpl = vi.fn<typeof fetch>(async (url, init) => {
+      if (init?.method === 'POST') return Response.json({ result: { themes: [] } });
+      return Response.json(String(url).endsWith('/api/tools/content_read') ? family : card);
+    });
+    const handle = createMcpToolServer(...splitServerFixture(baseOptions({
+      tools: TOOL_CATALOG_TOOLS, fetchImpl, delegatedTools: { runId: 'run' },
+      createServer: () => server, createTransport: () => new FakeTransport(),
+    })));
+    const running = handle.run({});
+    await flushAsync();
+    try {
+      const before = await server.listTools();
+      expect(await server.callTool({ params: { name: 'describe_tool', arguments: { id: family.id } } }))
+        .toEqual({ content: [{ type: 'text', text: JSON.stringify(family) }] });
+      expect(await server.listTools()).toEqual(before);
+      expect(notified).not.toHaveBeenCalled();
+      await server.callTool({ params: { name: 'describe_tool', arguments: { id: card.id } } });
+      const { tools } = await server.listTools() as { tools: Array<{ name: string; annotations?: { title?: string }; inputSchema: unknown }> };
+      const published = tools.find(tool => tool.annotations?.title === card.id);
+      expect(published?.inputSchema).toEqual(card.inputSchema);
+      expect(notified).toHaveBeenCalledOnce();
+      expect(await server.callTool({ params: { name: published!.name, arguments: {} } }))
+        .toEqual({ content: [{ type: 'text', text: JSON.stringify({ themes: [] }) }] });
+      const post = fetchImpl.mock.calls.find(([, init]) => init?.method === 'POST');
+      expect(JSON.parse(String(post?.[1]?.body))).toMatchObject({ runId: 'run', toolId: card.id, input: {}, requireReadOnly: true });
+    } finally {
+      hoisted.onIdleRef.current?.({});
+      await running;
+    }
+  });
+
   it('preserves host-registered recovery IDs through its real tool-call context and sanitizer', async () => {
     const server = makeFakeServer();
     const transport = new FakeTransport();
