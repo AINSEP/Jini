@@ -198,7 +198,7 @@ function parityCss({ colors }: { colors: Colors | null }, _options = {}): string
   // MOVE: Derived text and button fills must use the same validated palette as the root.
   const rootColors = colors ? `--consent-bg:${colors.background}!important;--consent-fg:${colors.text}!important;background:${colors.background}!important;color:${colors.text}!important;` : '';
   return `\n/* ENGINE PARITY BLOCK */
-#jini-consent{position:fixed!important;z-index:2147483000!important;visibility:visible!important;opacity:1!important;transform:none!important;clip:auto!important;clip-path:none!important;filter:none!important;pointer-events:auto!important;isolation:isolate!important}
+#jini-consent{position:fixed!important;z-index:2147483647!important;visibility:visible!important;opacity:1!important;transform:none!important;clip:auto!important;clip-path:none!important;filter:none!important;pointer-events:auto!important;isolation:isolate!important}
 ${root}{display:block!important;${rootColors}background-image:none!important;min-width:0!important;max-height:85dvh!important;overflow:auto!important;box-sizing:border-box!important}
 ${root} :is(h2,p,label,legend,fieldset,details,form,.jini-consent-initial,.jini-consent-actions){background:transparent!important}
 ${root} :is(h2,p,label,legend,details,form,.jini-consent-initial,.jini-consent-actions){color:inherit!important}
