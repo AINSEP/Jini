@@ -92,13 +92,17 @@ export function redactJsonText({ text }: { text: string }, opts: RedactionOption
 
 // Delimited stack/quoted paths may contain spaces. Other paths end at whitespace or punctuation.
 // Each alternative consumes one path in a forward scan; no nested repetitions or wildcard retries.
-const LOCAL_PATH_RE = /(["'(])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~\/|\/)[^"'()\r\n]*)(["')])|(^|[\s="'(<[\]{},;`])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~\/|\/)[^\s"'`()<>[\]{},;]*)/g;
-const QUOTED_LOCAL_PATH_RE = /(["'])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~\/|\/)[^"'\r\n]*)\1/g;
+// `<`/`>` stay inside a plain path: an upstream username redaction yields `/Users/<USER>/…`, whose
+// tail would otherwise escape after a masked `/Users/` prefix.
+const LOCAL_PATH_RE = /(["'(])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~[\\/]|\/)[^"'()\r\n]*)(["')])|(^|[\s="'(<[\]{},;`])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~[\\/]|\/)[^\s"'`()[\]{},;]*)/g;
+const QUOTED_LOCAL_PATH_RE = /(["'])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~[\\/]|\/)[^"'\r\n]*)\1/g;
 
 /** Decode local file URLs independently of the host OS; invalid URLs are always masked. O(n). */
 function decodedLocalPath({ value }: { value: string }, _options = {}): string | undefined {
   // Treat ~ as a lexical root, never expand it using the current user's home directory.
   if (value.startsWith('~/')) return `/${value}`;
+  // A home-relative Windows path (`~\…`, as a host's home redaction writes it) gets a UNC-shaped root.
+  if (value.startsWith('~\\')) return `\\\\${value}`;
   if (!value.startsWith('file://')) return value;
   try {
     const url = new URL(value);
@@ -113,16 +117,21 @@ function maskedLocalPath({ value, keepRoots }: { value: string; keepRoots: reado
   const coordinates = /(?::\d+){1,2}$/.exec(value)?.[0] ?? '';
   const path = decodedLocalPath({ value: value.slice(0, value.length - coordinates.length) });
   if (path === undefined) return `<path>${coordinates}`;
+  return `${retainedPath({ path, keepRoots }) ?? '<path>'}${coordinates}`;
+}
+
+/** The first retained root containing `path`, as `app:///<relative>`; undefined outside all roots. O(r). */
+function retainedPath({ path, keepRoots }: { path: string; keepRoots: readonly string[] }, _options = {}): string | undefined {
   const windows = /^(?:[A-Za-z]:[\\/]|\\\\)/.test(path);
   const paths = windows ? win32 : posix;
   for (const entry of keepRoots) {
     const root = decodedLocalPath({ value: entry });
     if (root === undefined || !paths.isAbsolute(root)) continue;
     if (pathContains({ root, target: path }, { separator: windows ? '\\' : '/', caseSensitive: !windows })) {
-      return `app:///${paths.relative(root, path).split(paths.sep).join('/')}${coordinates}`;
+      return `app:///${paths.relative(root, path).split(paths.sep).join('/')}`;
     }
   }
-  return `<path>${coordinates}`;
+  return undefined;
 }
 
 /**

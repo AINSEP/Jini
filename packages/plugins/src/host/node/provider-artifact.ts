@@ -19,11 +19,10 @@ export async function loadProviderPluginArtifact<H extends HookPoints>(required:
   contract: string; id: string; input: Readonly<Record<string, unknown>>;
 }, optional: {
   factoryOptions?: Readonly<Record<string, unknown>>;
-  hostOptions?: Parameters<typeof createPluginProviderHost>[1];
 } = {}): Promise<PluginProviderResource> {
   if (required.load.record.status !== 'valid') throw new Error('provider artifact discovery failed');
   const contributions = createPluginContributionRegistry({});
-  const host = createPluginProviderHost({ contributions, contracts: required.contracts }, optional.hostOptions);
+  const host = createPluginProviderHost({ contributions, contracts: required.contracts });
   try {
     const loaded = await loadPlugin({ ...required.load, providerContributions: { registry: contributions, isSelected: () => true } });
     if (!loaded.loaded) throw new Error(`provider artifact load failed: ${loaded.reason}`);

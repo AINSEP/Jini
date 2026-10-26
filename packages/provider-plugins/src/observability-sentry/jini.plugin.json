@@ -34,11 +34,6 @@
             "name": "environment",
             "label": "Environment",
             "hint": "Optional; blank = local/desktop/fly automatically."
-          },
-          {
-            "name": "release",
-            "label": "Release",
-            "hint": "Optional application release identifier."
           }
         ]
       }

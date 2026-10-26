@@ -29,6 +29,15 @@ it.each([
   expect(maskLocalPaths({ text: `"${text}"` }, { keepRoots: [root] })).toBe(`"${expected}"`);
 });
 
+it('masks a whole username-redacted or home-relative Windows path, and can retain either', () => {
+  expect(maskLocalPaths({ text: 'at /Users/<USER>/Sites/shop/a.md:1:1' })).toBe('at <path>:1:1');
+  expect(maskLocalPaths({ text: String.raw`open C:\Users\<USER>\Sites\shop\a.md` })).toBe('open <path>');
+  expect(maskLocalPaths({ text: String.raw`open ~\Sites\shop\a.md` })).toBe('open <path>');
+  expect(maskLocalPaths({ text: String.raw`at ~\AppData\App\main.ts:4:2 and ~\Sites\a.md` }, { keepRoots: [String.raw`~\AppData\App`] }))
+    .toBe('at app:///main.ts:4:2 and <path>');
+  expect(maskLocalPaths({ text: 'at /Users/<USER>/App/main.ts:4:2' }, { keepRoots: ['/Users/<USER>/App'] })).toBe('at app:///main.ts:4:2');
+});
+
 it.each(['/opt/app-other/private.txt', '/opt/app/../private.txt', '/opt/app/../../private.txt'])('does not keep a sibling or traversal escape %s', text => {
   expect(maskLocalPaths({ text }, { keepRoots: ['/opt/app'] })).toBe('<path>');
 });
