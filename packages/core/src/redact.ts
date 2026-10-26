@@ -575,14 +575,16 @@ function isCoveredField(reach: number | undefined, separator: boolean, { end, cl
 }
 
 /** Extent finder for label values whose starts increase between calls. An unquoted value runs to
- * whitespace. A quoted value runs through its closing quote and any text glued after it, or to the
- * line end when the quote never closes, so spaces, `;` and `&` inside quotes stay in the value; a
- * value never ends before the old `\S+` end.
+ * whitespace. A quoted value runs through its closing quote (a backslash-escaped quote does not
+ * close it) and any text glued after it up to whitespace, `;`, `&` or `,` (`"abc def"hunter2` once
+ * left `hunter2`), or to the line end when the quote never closes, so spaces, `;` and `&` inside
+ * quotes stay in the value; a value never ends before the old `\S+` end.
  * @complexity Amortized O(1) per call; all calls together scan the text once per finder. */
 function labelValueExtents(text: string): (start: number) => LabelValue {
   const runEnd = forwardFinder(text, /\s/);
+  const gluedEnd = forwardFinder(text, /[\s;&,]/);
   const lineEnd = forwardFinder(text, /[\r\n]/);
-  const closers = new Map([['"', forwardFinder(text, /"/)], ["'", forwardFinder(text, /'/)]]);
+  const closers = new Map([['"', unescapedQuoteFinder(text, /"/)], ["'", unescapedQuoteFinder(text, /'/)]]);
   return (start) => {
     const whitespace = runEnd(start);
     const closer = closers.get(text[start] ?? '');
@@ -590,9 +592,31 @@ function labelValueExtents(text: string): (start: number) => LabelValue {
     const closing = closer(start + 1);
     const line = lineEnd(start);
     return closing < line
-      ? { end: Math.max(whitespace, closing + 1), closingQuote: closing, quoted: true }
+      ? { end: Math.max(whitespace, gluedEnd(closing + 1)), closingQuote: closing, quoted: true }
       : { end: line, closingQuote: -1, quoted: true };
   };
+}
+
+/** `forwardFinder` for a quote that skips backslash-escaped ones: an odd run of backslashes before a
+ * quote escapes it (`\\"` is an escaped backslash, then a real quote). Same non-decreasing `from` rule.
+ * @complexity O(n) over all calls: each quote's backslash run is counted once. */
+function unescapedQuoteFinder(text: string, quote: RegExp): (from: number) => number {
+  const next = forwardFinder(text, quote);
+  let found = -1;
+  return (from) => {
+    if (from > found) {
+      found = next(from);
+      while (found < text.length && isBackslashEscaped(text, found)) found = next(found + 1);
+    }
+    return found;
+  };
+}
+
+/** True when an odd run of backslashes ends right before `index`. */
+function isBackslashEscaped(text: string, index: number): boolean {
+  let backslashes = 0;
+  while (text[index - 1 - backslashes] === '\\') backslashes++;
+  return backslashes % 2 === 1;
 }
 
 /** `find(from)`: the first index at or after `from` matching `pattern`, or `text.length`. `from` must

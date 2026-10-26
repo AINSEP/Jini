@@ -91,6 +91,22 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       'password=[REDACTED:labeled_secret]'],
     ['an unclosed quoted label value with spaces', `password="${skPrefix()};hunter2 battery\nnext`, [], ['hunter2', 'battery'],
       'password=[REDACTED:labeled_secret]\nnext'],
+    // Text glued after a closing quote stays in the value, up to whitespace or ; & , like an unquoted value.
+    ['a suffix glued after a quoted header value with spaces', 'api-key="abc def"hunter2', [], ['abc', 'def', 'hunter2'],
+      'api-key=[REDACTED:labeled_secret]'],
+    ['a suffix glued after a quoted label value with spaces', 'password="abc def"hunter2;next=1', [], ['abc', 'def', 'hunter2'],
+      'password=[REDACTED:labeled_secret];next=1'],
+    // A backslash-escaped quote does not close a quoted value; an escaped backslash before a quote does not escape it.
+    ['an escaped quote inside a quoted label value', 'password="abc\\" hunter2"', [], ['abc', 'hunter2'],
+      'password=[REDACTED:labeled_secret]'],
+    ['an escaped quote inside a quoted header value', 'api-key="abc\\" hunter2" next', [], ['abc', 'hunter2'],
+      'api-key=[REDACTED:labeled_secret] next'],
+    ['an escaped quote inside a single-quoted label value', "password='abc\\' hunter2'", [], ['abc', 'hunter2'],
+      'password=[REDACTED:labeled_secret]'],
+    ['an escaped backslash then an escaped quote inside a quoted label value', 'password="abc\\\\\\" hunter2" next', [], ['abc', 'hunter2'],
+      'password=[REDACTED:labeled_secret] next'],
+    ['an escaped backslash before the closing quote of a label value', 'password="abc\\\\" next', [], ['abc'],
+      'password=[REDACTED:labeled_secret] next'],
     ['a JWT glued after a hyphen', `token-${jwt()}`, [], ['hdr', 'pay', 'sig'],
       'token-[REDACTED:jwt]'],
     ['URL userinfo after a scheme longer than 32 characters', `a${'1'.repeat(40)}://user:pw@host`, [], ['user', 'pw'],
@@ -112,12 +128,12 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       .toEqual({ redacted: '[REDACTED:exact_secret] [REDACTED:exact_secret]', counts: { exact_secret: 2 } });
   });
 
-  // 10 MiB MCP responses reach these paths synchronously; each input was quadratic. Two guards are
+  // 10 MiB MCP responses reach these paths synchronously; each input was quadratic. Three guards are
   // smaller than 10 MiB, still far past where the quadratic forms blew the budget: dense label fields
   // yield ~3 spans per 10 bytes, and the span pipeline (collect, sort, merge) alone needs ~3.5 s for
   // 10 MiB of them (the old rewinding scan took 7.6 s on 160 KB); scanning every offset of a 5 MiB
   // secret in 10 MiB takes ~470 ms warm, ~490 ms cold at 4 MiB (the old scan-from-every-hit took
-  // 0.9 s on 64 KB).
+  // 0.9 s on 64 KB); skipping an escaped quote every 3 bytes takes ~570 ms at 10 MiB, ~220 ms at 4 MiB.
   it.each([
     ['unterminated marker prefixes', '[REDACTED:'.repeat(20_000), ['x']],
     ['many markers beside many exact matches', '[redacted] x '.repeat(20_000), ['x']],
@@ -125,6 +141,7 @@ describe('@jini-ai/core — redact — characterization pins', () => {
     ['a 10 MiB run of JWT header prefixes', 'eyJ-'.repeat(2_621_440), []],
     ['a 640 KiB run of covered label fields', 'api-key=x;'.repeat(65_536), []],
     ['a 10 MiB run of scheme separators', 'a://b'.repeat(2_097_152), []],
+    ['a 4 MiB run of backslash-escaped quotes in a label value', `password="${'\\\\\\"'.repeat(1_398_101)}`, []],
     ['a 2 MiB run holding a 1 MiB exact secret at every offset', 'a'.repeat(2 * 1_048_576), ['a'.repeat(1_048_576)]],
   ])('stays linear on %s', (_label, input, exactSecrets) => {
     const started = performance.now();
