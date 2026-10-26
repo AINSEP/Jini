@@ -99,6 +99,7 @@ describe('handleReceipt', () => {
     expect(await status(post(choice), { allow: async () => false })).toBe(429);
     expect(await status(post(choice, { 'content-type': 'text/plain' }))).toBe(415);
     expect(await status(new Request(`${ORIGIN}/_consent`, { method: 'POST', body: '{}', headers: { origin: ORIGIN } }))).toBe(415);
+    expect(await status(new Request(`${ORIGIN}/_consent`, { method: 'POST', headers: { origin: ORIGIN } }))).toBe(415);
     expect(await status(post(choice, { 'content-length': '5000' }))).toBe(413);
     expect(await status(post({ ...choice, pad: 'x'.repeat(100) }), { maxBytes: 64 })).toBe(413);
     for (const body of ['{', '[]', 'null', '"x"']) expect(await status(post(body))).toBe(400);

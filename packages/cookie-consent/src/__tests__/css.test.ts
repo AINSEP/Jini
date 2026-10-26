@@ -89,6 +89,7 @@ describe('compileConsentCss', () => {
     const good = '#jini-consent{box-shadow:0 2px 8px rgba(0,0,0,0.2);max-width:100%;border-width:1px 2px;border-style:dashed;font-family:"Inter", sans-serif;margin:0}'
       + ' #jini-consent button{min-height:44px;letter-spacing:normal;text-transform:uppercase;text-align:center;gap:4px 8px;margin-top:2px;margin-left:0;font-weight:bold}';
     expect(compileConsentCss({ css: good }).problems).toEqual([]);
+    expect(compileConsentCss({ css: '#jini-consent{box-shadow:0 2px 8px #000000}' }).problems).toEqual([]);
     expect(compileConsentCss({ css: '#jini-consent{box-shadow:none;max-width:480px} #jini-consent p{letter-spacing:1px;border-color:#abc}' }).problems).toEqual([]);
     for (const bad of ['#jini-consent{box-shadow:0 0 999px #000}', '#jini-consent{box-shadow:0 0 #000}', '#jini-consent{box-shadow:0 0 1px 1px 1px #000}',
       '#jini-consent{box-shadow:0 0 1px}', '#jini-consent{box-shadow:0 0 1px#000}', '#jini-consent{box-shadow:0 0 1px rgba(300,0,0,1)}',
@@ -174,9 +175,13 @@ describe('parseConsentCss', () => {
     ]);
   });
 
+  test('stray semicolons and whitespace between declarations are skipped', () => {
+    expect(parseConsentCss({ css: '#a{ ;x:1;; y:2 }' })[0]!.declarations.map(d => d.property)).toEqual(['x', 'y']);
+  });
+
   test('malformed CSS throws a syntax error with an offset', () => {
     for (const css of ['/* open', '#a{font-family:"open}', '#a{x:f(}', '#a{x:f)}', '#a{x}', '#a{x:1 {}', '{x:1}', '#a{x:1',
-      '@media (max-width:1px){@media (max-width:1px){}}', '@import "x";', '@media (max-width:1px){#a{x:1}', '#a{x:[1}']) {
+      '@media (max-width:1px){@media (max-width:1px){}}', '@import "x";', '@media (max-width:1px){#a{x:1}', '#a{x:[1}', '#a{x:1;', '#a{ ']) {
       expect(() => parseConsentCss({ css }), css).toThrow(expect.objectContaining({ offset: expect.any(Number) }));
     }
   });

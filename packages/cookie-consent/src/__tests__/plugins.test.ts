@@ -22,6 +22,16 @@ describe('createPluginRegistry', () => {
     expect(seen).toHaveBeenCalledTimes(1);
   });
 
+  test('defining one slot leaves contributions parked for other kinds; refusals without onProblem are silent', () => {
+    const registry = createPluginRegistry();
+    registry.registerPlugin({ id: 'later', kind: 'consent-log-sink' });
+    registry.registerPlugin({ id: 'stats', kind: 'tracker-signature', srcHosts: [] });
+    registry.defineSlot({ slot: SIGNATURE_SLOT });
+    expect(registry.list({ kind: 'tracker-signature' })).toHaveLength(1);
+    expect(registry.list({ kind: 'consent-log-sink' })).toEqual([]);
+    expect(() => registry.registerPlugin({ id: 'Bad Id', kind: 'tracker-signature', srcHosts: [] })).not.toThrow();
+  });
+
   test('disposing a parked contribution before its slot exists means it never registers', () => {
     const registry = createPluginRegistry();
     const dispose = registry.registerPlugin({ id: 'stats', kind: 'tracker-signature', srcHosts: [] });
