@@ -76,9 +76,9 @@ describe('@jini-ai/core — redact — characterization pins', () => {
     ['a short secret with & after api_key=', 'GET /x?api_key=abc&hunter2', ['abc&hunter2'], ['&hunter2'],
       'GET /x?api_key=[REDACTED:exact_secret]'],
     ['a short secret with ! after Bearer', 'Bearer abc!hunter2', ['abc!hunter2'], ['!hunter2'],
-      'Bearer [REDACTED:exact_secret]'],
+      'Bearer [REDACTED:bearer_token]'],
     ['a short secret with a unicode delimiter after Bearer', 'Bearer abcéhunter2', ['abcéhunter2'], ['hunter2'],
-      'Bearer [REDACTED:exact_secret]'],
+      'Bearer [REDACTED:bearer_token]'],
     ['two overlapping secrets', 'x abcdef y', ['abcd', 'cdef'], ['ef'],
       'x [REDACTED:exact_secret] y'],
     ['a secret echoed JSON-escaped', '{"error":"bad ab\\"cd"}', ['ab"cd'], [],
@@ -131,7 +131,7 @@ describe('@jini-ai/core — redact — characterization pins', () => {
 
   // 10 MiB MCP responses reach these paths synchronously; each input was quadratic. Three guards are
   // smaller than 10 MiB, still far past where the quadratic forms blew up: dense label fields yield
-  // ~3 spans per 10 bytes, and the span pipeline (collect, sort, merge) alone needs ~3.5 s for
+  // ~3 spans per 10 bytes, and the old span pipeline (collect, sort, merge) alone needed ~3.5 s for
   // 10 MiB of them (the old rewinding scan took 7.6 s on 160 KB); scanning every offset of a 5 MiB
   // secret in 10 MiB takes ~470 ms warm, ~490 ms cold at 4 MiB (the old scan-from-every-hit took
   // 0.9 s on 64 KB); skipping an escaped quote every 3 bytes takes ~570 ms at 10 MiB, ~220 ms at 4 MiB.
