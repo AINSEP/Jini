@@ -153,8 +153,8 @@ describe('region resolvers', () => {
   test('REGION_SLOT accepts live resolvers and the data form; refuses anything else', () => {
     const resolver = live(() => 'us');
     expect(REGION_SLOT.accept({ contribution: resolver as never })).toBe(resolver);
-    const data = REGION_SLOT.accept({ contribution: { id: 'd', kind: REGION_KIND, header: 'cf-ipcountry', usValues: ['US', 'PR'] } }) as RegionResolver;
-    expect(data.resolve({ request: request({ 'cf-ipcountry': 'PR' }) })).toBe('us');
+    const data = REGION_SLOT.accept({ contribution: { id: 'd', kind: REGION_KIND, header: 'x-country-code', usValues: ['US', 'PR'] } }) as RegionResolver;
+    expect(data.resolve({ request: request({ 'x-country-code': 'PR' }) })).toBe('us');
     expect(REGION_SLOT.accept({ contribution: { id: 'd', kind: REGION_KIND, header: 'bad header' } })).toMatch(/resolve\(\) or a header name/);
     expect(typeof REGION_SLOT.accept({ contribution: { id: 'd', kind: REGION_KIND } })).toBe('string');
   });
