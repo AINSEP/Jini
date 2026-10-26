@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, lstatSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createConnection, createServer as createNetServer, type Server } from "node:net";
@@ -29,7 +29,18 @@ beforeEach(async () => {
   });
 });
 
+// FU-B (Codex on F2): every spawned child is registered at spawn time and killed + reaped in teardown,
+// so a readiness wait that stalls or an assertion that fails never leaves a process behind.
+const children: ChildProcess[] = [];
+const reap = async (child: ChildProcess) => {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  child.kill("SIGKILL");
+  await exited;
+};
+
 afterEach(async () => {
+  for (const child of children.splice(0)) await reap(child);
   vi.restoreAllMocks();
   if (previousTrace === undefined) delete process.env.JINI_JSON_IPC_TRACE;
   else process.env.JINI_JSON_IPC_TRACE = previousTrace;
@@ -80,9 +91,17 @@ describe("prepareIpcPath — live socket is never treated as stale", () => {
   it("unlinks a STALE socket (file present, nobody listening → ECONNREFUSED) so a new server can bind", async () => {
     const socketPath = join(root, "stale.sock");
     const child = spawn(process.execPath, ["-e", `require("node:net").createServer().listen(${JSON.stringify(socketPath)}, () => console.log("up"))`], { stdio: ["ignore", "pipe", "inherit"] });
-    await new Promise<void>((resolve) => child.stdout!.once("data", () => resolve()));
-    child.kill("SIGKILL");
-    await new Promise((resolve) => child.once("exit", resolve));
+    children.push(child);
+    // Bounded readiness: a spawn error, an early exit or 5 s of silence fails the test instead of hanging.
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("child never reported ready")), 5_000);
+      const settle = (fn: () => void) => () => { clearTimeout(timer); fn(); };
+      child.stdout!.once("data", settle(resolve));
+      child.once("error", (error) => settle(() => reject(error))());
+      child.once("exit", (code) => settle(() => reject(new Error(`child exited before ready (${code})`)))());
+    });
+    child.removeAllListeners("exit");
+    await reap(child);
     expect(lstatSync(socketPath).isSocket()).toBe(true);
     const server = await createJsonIpcServer({ handler: async () => "reborn", socketPath });
     try {
