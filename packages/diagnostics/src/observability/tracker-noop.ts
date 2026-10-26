@@ -1,8 +1,8 @@
 import type { Tracker, TrackerSpan } from "./tracker-types.js";
 
 const SPAN: TrackerSpan<unknown> = Object.freeze({ setOutcome() {} });
-const trace = async <T, Outcome>(_name: string, work: (span: TrackerSpan<Outcome>) => T | Promise<T>): Promise<T> => work(SPAN);
-const NOOP: Tracker = Object.freeze({ capture() {}, error() {}, trace: trace as Tracker["trace"] });
+const trace = async <T, Outcome>({ run }: { name: string; run: (span: TrackerSpan<Outcome>) => T | Promise<T> }): Promise<T> => run(SPAN);
+const NOOP: Tracker = Object.freeze({ capture() {}, error() {}, metric() {}, trace: trace as Tracker["trace"] });
 
 /** Shared inert facade for unconfigured hosts and optional collaborators. Work still runs once,
  * returning its result or original application error. No provider or process state is touched.

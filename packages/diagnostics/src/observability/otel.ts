@@ -93,6 +93,8 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
  }
 
  return {
+  // This structural tracing adapter has no metrics exporter; the provider plugin supplies it.
+  metric() {},
   trackRequest(input, { requestId } = {}) {
    // The id the response echoes is recorded on the span, so a reported id finds its trace.
    const span = start({ name: input.method, kind: 'server', attributes: {

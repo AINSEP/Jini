@@ -56,7 +56,16 @@ export interface OperationTracker extends TrackerScope { end(outcome: OperationT
  * adapters own redaction (see `describeReportedError`), exactly as they do for request targets.
  */
 export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes }; }
+/** Vendor-neutral numeric measurement; names and units are fixed labels, never user text. */
+export interface MetricInput { name: string; value: number; }
+export interface MetricOptions {
+ kind?: 'counter' | 'gauge' | 'histogram';
+ unit?: string;
+ attributes?: OperationAttributes;
+}
 export interface ObservabilityPort {
+ /** Records one measurement; adapters without a metrics backend use a no-op. */
+ metric(input: MetricInput, options?: MetricOptions): void | Promise<void>;
  trackRequest(input: RequestTrackingInput, options?: RequestTrackingOptions): RequestTracker;
  trackDbQuery(input: DbQueryTrackingInput): DbQueryTracker;
  trackOutboundCall(input: OutboundCallTrackingInput): OutboundCallTracker;

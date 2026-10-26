@@ -13,6 +13,7 @@ export function createNoopObservabilityPort(_required: Record<string, never>): O
   trackAgentRun: () => NOOP_SIGNAL_TRACKER,
   trackOperation: () => NOOP_SIGNAL_TRACKER,
   reportError: () => {},
+  metric: () => {},
  };
  NOOP_PORTS.add(port);
  return port;

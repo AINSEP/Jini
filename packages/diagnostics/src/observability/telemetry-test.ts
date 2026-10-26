@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Tracker } from "./tracker-types.js";
 
-export type TelemetryTestSignal = "error" | "span" | "analytics";
+export type TelemetryTestSignal = "error" | "span" | "analytics" | "metric";
 export interface TelemetryTestResult {
   /** Local provider acceptance, not confirmation of remote delivery. Consent can refuse analytics. */
   providers: { providerId: string; signals: TelemetryTestSignal[] }[];
@@ -15,6 +15,7 @@ export interface TelemetryTestProbe {
 function testSignal({ method, input }: { method: string; input: { name?: string; context?: { operation?: string } } }): TelemetryTestSignal | undefined {
   if (method === "reportError" && input.context?.operation === "telemetry.test") return "error";
   if (method === "trackOperation" && input.name === "telemetry.test") return "span";
+  if (method === "metric" && input.name === "telemetry.test") return "metric";
   if (method === "capture" && input.name === "telemetry_test") return "analytics";
   return undefined;
 }
@@ -37,10 +38,11 @@ export function createTelemetryTestProbe(_required: Record<string, never>, _opti
     },
     async send({ tracker, error, userId }: { tracker: Tracker; error: Error; userId: string }, _optional = {}): Promise<TelemetryTestResult> {
       return active.run(new Map(), async () => {
-        await tracker.trace("telemetry.test", async () => {
-          tracker.error(error, { operation: "telemetry.test" });
+        await tracker.trace({ name: "telemetry.test", run: async () => {
+          tracker.metric({ name: "telemetry.test", value: 1 }, { kind: "counter" });
+          tracker.error({ error: error }, { context: { operation: "telemetry.test" } });
           await tracker.capture({ name: "telemetry_test", userId });
-        });
+        } });
         return { providers: [...active.getStore()!].map(([providerId, signals]) => ({ providerId, signals: [...signals] })) };
       });
     },
