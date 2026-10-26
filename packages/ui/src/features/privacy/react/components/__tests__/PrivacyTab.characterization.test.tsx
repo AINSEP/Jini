@@ -9,8 +9,6 @@ const COPY = {
   consentKicker: 'Help improve this product',
   consentLead: 'Choose what you share. You can change this anytime.',
   consentFooter: 'Nothing is shared unless you opt in.',
-  declineLabel: "Don't share",
-  shareLabel: 'Share usage',
   metricsLabel: 'Anonymous metrics',
   metricsHint: 'Feature usage and performance data, with no personal content.',
   contentLabel: 'Conversation and tool content',
@@ -54,15 +52,6 @@ describe('PrivacyTab label characterization', () => {
       expect(container.querySelector('.jini-section-head h4')).toHaveProperty('textContent', expected.consentKicker);
       expect(container.querySelector('.jini-section-head p')).toHaveProperty('textContent', expected.consentLead);
       expect(container.querySelector('.jini-settings-subsection > p')).toHaveProperty('textContent', expected.consentFooter);
-      expect(container.querySelector('[role="group"]')).toHaveAttribute('aria-label', expected.consentKicker);
-      expect(container.querySelector('.jini-privacy-consent-action')).toHaveProperty('textContent', expected.declineLabel);
-      expect(container.querySelector('.jini-privacy-consent-action--primary')).toHaveProperty('textContent', expected.shareLabel);
-      expect(Array.from(container.querySelectorAll('dt'), (node) => node.textContent)).toEqual([
-        expected.metricsLabel, expected.contentLabel,
-      ]);
-      expect(Array.from(container.querySelectorAll('dd'), (node) => node.textContent)).toEqual([
-        expected.metricsHint, expected.contentHint,
-      ]);
       expect(Array.from(container.querySelectorAll('.jini-toggle-row-label'), (node) => node.textContent)).toEqual([
         expected.metricsLabel, expected.contentLabel,
       ]);
@@ -82,7 +71,7 @@ describe('PrivacyTab label characterization', () => {
     const onChange = vi.fn<(next: PrivacyConsentState) => void>();
     render(<PrivacyTab state={{ ...STATE, installationId: 'existing-id' }} onChange={onChange} />);
     clock.mockReturnValue(NOW + 100);
-    await userEvent.click(screen.getByRole('button', { name: "Don't share" }));
+    await userEvent.click(screen.getByRole('button', { name: /Anonymous metrics/ }));
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith({
       telemetry: { metrics: false, content: false },

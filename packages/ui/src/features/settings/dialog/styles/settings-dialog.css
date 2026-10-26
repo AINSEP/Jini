@@ -1274,16 +1274,11 @@ select.jini-input {
 /* ============================================================
    Privacy tab
    ============================================================
-   `PrivacyTab.tsx`'s disclosure list was a bare `<dl>`/`<dt>`/`<dd>` (browser
-   default `<dd>` indent leaking through), its consent buttons
-   (`jini-privacy-consent-action*`) were unstyled text, and its toggle
-   switches (`jini-toggle-row*`) had NO rules anywhere in this file — not
-   even a partial match; `grep -i "toggle|switch"` against the file returned
-   nothing before this. Reference: `od-settings-privacy.png` — the two
-   disclosure items read as plain title+description pairs, the two consent
-   buttons sit side by side with the primary one filled, and the granular
-   toggles are real switches once a consent decision exists
-   (`hasMadeConsentDecision`). */
+   `PrivacyTab.tsx`'s toggle switches (`jini-toggle-row*`) had NO rules
+   anywhere in this file — not even a partial match; `grep -i
+   "toggle|switch"` against the file returned nothing before this. The two
+   choices show once, as these switches (the disclosure list and
+   share/decline buttons that repeated them were removed 2026-10-26). */
 
 /* `PrivacyTab.tsx` puts its two `jini-section-head` headings ("Help improve
    this product", "Installation ID") in a bare `<h4>` with no className of
@@ -1299,66 +1294,6 @@ select.jini-input {
   font-size: 14px;
   font-weight: 600;
   color: var(--jini-text-strong);
-}
-
-.jini-settings-privacy-disclosure {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.jini-settings-privacy-disclosure > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.jini-settings-privacy-disclosure dt {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.jini-settings-privacy-disclosure dd {
-  margin: 0;
-  font-size: 12px;
-  color: var(--jini-text-muted);
-}
-
-.jini-privacy-consent-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.jini-privacy-consent-action {
-  flex: 1 1 0;
-  padding: 9px 16px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--jini-text);
-  background: var(--jini-bg-panel);
-  border: 1px solid var(--jini-border-strong);
-  border-radius: var(--jini-radius-sm);
-  cursor: pointer;
-}
-
-.jini-privacy-consent-action:hover {
-  border-color: var(--jini-text-muted);
-}
-
-.jini-privacy-consent-action--primary {
-  color: var(--jini-accent-ink);
-  background: var(--jini-accent);
-  border-color: var(--jini-accent);
-}
-
-.jini-privacy-consent-action--primary:hover,
-.jini-privacy-consent-action--primary.is-active {
-  background: var(--jini-accent-hover);
-  border-color: var(--jini-accent-hover);
 }
 
 .jini-settings-privacy-toggles {

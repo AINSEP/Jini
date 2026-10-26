@@ -22,23 +22,14 @@ function decidedState(overrides: Partial<PrivacyConsentState> = {}): PrivacyCons
 }
 
 describe('PrivacyTab', () => {
-  it('shows only the consent card (no toggles/installation id) before a decision is made', () => {
+  it('shows the two choices once, as toggles that start off, before a decision is made', () => {
     render(<PrivacyTab state={undecidedState()} onChange={() => {}} now={() => NOW} />);
-    expect(screen.getByRole('button', { name: 'Share usage' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Anonymous metrics/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Anonymous metrics/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /Conversation and tool content/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getAllByText('Feature usage and performance data, with no personal content.')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: "Don't share" })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share usage' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Installation ID')).not.toBeInTheDocument();
-  });
-
-  it('marks "Don\'t share" as active once a decision was made to share nothing', () => {
-    render(
-      <PrivacyTab
-        state={decidedState({ telemetry: { metrics: false, content: false } })}
-        onChange={() => {}}
-        now={() => NOW}
-      />,
-    );
-    expect(screen.getByRole('button', { name: "Don't share" })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Share usage' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('shows the toggles and installation id once a decision has been made', () => {
@@ -48,20 +39,20 @@ describe('PrivacyTab', () => {
     expect(screen.getByRole('button', { name: /Conversation and tool content/ })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('"Share usage" opts into both categories and generates an installation id', async () => {
+  it('the first toggle records the decision and generates an installation id', async () => {
     const onChange = vi.fn();
     render(<PrivacyTab state={undecidedState()} onChange={onChange} now={() => NOW} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Share usage' }));
+    await userEvent.click(screen.getByRole('button', { name: /Anonymous metrics/ }));
     const next = onChange.mock.calls[0]![0] as PrivacyConsentState;
-    expect(next.telemetry).toEqual({ metrics: true, content: true });
+    expect(next.telemetry).toEqual({ metrics: true });
     expect(next.installationId).toBeTruthy();
     expect(next.privacyDecisionAt).toBe(NOW);
   });
 
-  it('"Don\'t share" declines both categories and clears the installation id', async () => {
+  it('turning the last category off clears the installation id', async () => {
     const onChange = vi.fn();
     render(<PrivacyTab state={decidedState()} onChange={onChange} now={() => NOW} />);
-    await userEvent.click(screen.getByRole('button', { name: "Don't share" }));
+    await userEvent.click(screen.getByRole('button', { name: /Anonymous metrics/ }));
     const next = onChange.mock.calls[0]![0] as PrivacyConsentState;
     expect(next.telemetry).toEqual({ metrics: false, content: false });
     expect(next.installationId).toBeNull();
@@ -107,8 +98,6 @@ describe('PrivacyTab', () => {
           consentKicker: 'Custom kicker',
           consentLead: 'Custom lead',
           consentFooter: 'Custom footer',
-          declineLabel: 'Custom decline',
-          shareLabel: 'Custom share',
           metricsLabel: 'Custom metrics',
           metricsHint: 'Custom metrics hint',
           contentLabel: 'Custom content',
@@ -123,8 +112,6 @@ describe('PrivacyTab', () => {
     expect(screen.getByText('Custom kicker')).toBeInTheDocument();
     expect(screen.getByText('Custom lead')).toBeInTheDocument();
     expect(screen.getByText('Custom footer')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Custom decline' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Custom share' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Custom metrics/ })).toBeInTheDocument();
     expect(screen.getAllByText('Custom metrics hint').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Custom content/ })).toBeInTheDocument();
@@ -148,11 +135,11 @@ describe('PrivacyTab', () => {
 
   it('renders translated copy when mounted under an I18nProvider with a matching dictionary', () => {
     render(
-      <I18nProvider dictionaries={{ fr: { 'Share usage': 'Partager' } }} initialLocale="fr">
+      <I18nProvider dictionaries={{ fr: { 'Anonymous metrics': 'Mesures anonymes' } }} initialLocale="fr">
         <PrivacyTab state={undecidedState()} onChange={() => {}} now={() => NOW} />
       </I18nProvider>,
     );
-    expect(screen.getByRole('button', { name: 'Partager' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mesures anonymes/ })).toBeInTheDocument();
   });
 
   describe('agentHandle', () => {
@@ -163,8 +150,6 @@ describe('PrivacyTab', () => {
 
     it('derives one distinct handle per control from the single base the host passes', () => {
       render(<PrivacyTab state={decidedState()} onChange={() => {}} now={() => NOW} agentHandle="settings-privacy" />);
-      expect(screen.getByRole('button', { name: "Don't share" })).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-privacy-decline');
-      expect(screen.getByRole('button', { name: 'Share usage' })).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-privacy-share');
       expect(screen.getByRole('button', { name: /Anonymous metrics/ })).toHaveAttribute(
         AGENT_ELEMENT_ATTRIBUTE,
         'settings-privacy-metrics-toggle',

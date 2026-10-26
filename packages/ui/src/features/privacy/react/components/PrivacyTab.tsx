@@ -3,10 +3,7 @@ import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import {
   hasMadeConsentDecision,
-  isSharingEnabled,
-  nextStateForDeclineAll,
   nextStateForDeleteMyData,
-  nextStateForShareAll,
   nextStateForTelemetryPatch,
 } from '../../rules.js';
 import type { PrivacyConsentState } from '../../types.js';
@@ -15,8 +12,6 @@ export interface PrivacyTabLabels {
   consentKicker?: string;
   consentLead?: string;
   consentFooter?: string;
-  declineLabel?: string;
-  shareLabel?: string;
   metricsLabel?: string;
   metricsHint?: string;
   contentLabel?: string;
@@ -78,8 +73,6 @@ function resolveConsentLabels(
     consentKicker: labels.consentKicker ?? t('Help improve this product'),
     consentLead: labels.consentLead ?? t('Choose what you share. You can change this anytime.'),
     consentFooter: labels.consentFooter ?? t('Nothing is shared unless you opt in.'),
-    declineLabel: labels.declineLabel ?? t("Don't share"),
-    shareLabel: labels.shareLabel ?? t('Share usage'),
     metricsLabel: labels.metricsLabel ?? t('Anonymous metrics'),
     metricsHint: labels.metricsHint ?? t('Feature usage and performance data, with no personal content.'),
     contentLabel: labels.contentLabel ?? t('Conversation and tool content'),
@@ -100,7 +93,7 @@ function resolveInstallationLabels(
 }
 
 /**
- * Telemetry consent card (share/decline + two per-category toggles) over a
+ * Telemetry consent card (two per-category toggles) over a
  * generic `{ metrics, content }` shape, plus an installation-id
  * generate/rotate ("Delete my data") flow. Origin: `PrivacySection.tsx`,
  * mounted by `SettingsDialog.tsx`'s `privacy` tab — flagged "likely
@@ -111,11 +104,10 @@ function resolveInstallationLabels(
 export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandle }: PrivacyTabProps) {
   const t = useT();
   const decided = hasMadeConsentDecision(state);
-  const sharing = decided ? isSharingEnabled(state.telemetry) : undefined;
 
   const labelOverrides = labels ?? {};
   const {
-    consentKicker, consentLead, consentFooter, declineLabel, shareLabel,
+    consentKicker, consentLead, consentFooter,
     metricsLabel, metricsHint, contentLabel, contentHint,
   } = resolveConsentLabels({ labels: labelOverrides }, { t });
   const {
@@ -132,87 +124,56 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
           </div>
         </div>
 
-        <dl className="jini-settings-privacy-disclosure">
-          <div>
-            <dt>{metricsLabel}</dt>
-            <dd>{metricsHint}</dd>
-          </div>
-          <div>
-            <dt>{contentLabel}</dt>
-            <dd>{contentHint}</dd>
-          </div>
-        </dl>
+        {/* One presentation of the two choices: the toggles. A text list plus "Don't share" /
+            "Share usage" buttons above them repeated the same two options (owner, 2026-10-26).
+            Off is the default, and the first toggle records the decision. */}
+        <div className="jini-settings-privacy-toggles">
+          <ToggleRow
+            label={metricsLabel}
+            hint={metricsHint}
+            checked={state.telemetry.metrics === true}
+            onChange={(v) => onChange(nextStateForTelemetryPatch(state, { metrics: v }, now()))}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'metrics-toggle' }) } : {})}
+          />
+          <ToggleRow
+            label={contentLabel}
+            hint={contentHint}
+            checked={state.telemetry.content === true}
+            onChange={(v) => onChange(nextStateForTelemetryPatch(state, { content: v }, now()))}
+            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'content-toggle' }) } : {})}
+          />
+        </div>
 
         <p className="jini-hint">{consentFooter}</p>
-
-        <div className="jini-privacy-consent-actions" role="group" aria-label={consentKicker}>
-          <button
-            type="button"
-            className={`jini-privacy-consent-action${sharing === false ? ' is-active' : ''}`}
-            aria-pressed={sharing === false}
-            onClick={() => onChange(nextStateForDeclineAll(state, now()))}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'decline', role: 'button', label: declineLabel }) })}
-          >
-            {declineLabel}
-          </button>
-          <button
-            type="button"
-            className={`jini-privacy-consent-action jini-privacy-consent-action--primary${sharing === true ? ' is-active' : ''}`}
-            aria-pressed={sharing === true}
-            onClick={() => onChange(nextStateForShareAll(state, now()))}
-            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'share', role: 'button', label: shareLabel }) })}
-          >
-            {shareLabel}
-          </button>
-        </div>
       </div>
 
       {decided ? (
-        <>
-          <div className="jini-settings-privacy-toggles">
-            <ToggleRow
-              label={metricsLabel}
-              hint={metricsHint}
-              checked={state.telemetry.metrics === true}
-              onChange={(v) => onChange(nextStateForTelemetryPatch(state, { metrics: v }, now()))}
-              {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'metrics-toggle' }) } : {})}
-            />
-            <ToggleRow
-              label={contentLabel}
-              hint={contentHint}
-              checked={state.telemetry.content === true}
-              onChange={(v) => onChange(nextStateForTelemetryPatch(state, { content: v }, now()))}
-              {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'content-toggle' }) } : {})}
+        <div className="jini-settings-subsection">
+          <div className="jini-section-head">
+            <div>
+              <h4>{installationIdLabel}</h4>
+              <p className="jini-hint">{installationIdHint}</p>
+            </div>
+          </div>
+          <div className="jini-settings-field">
+            <input
+              type="text"
+              readOnly
+              value={state.installationId ?? optedOutLabel}
+              aria-label={installationIdLabel}
+              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'installation-id', role: 'field', label: installationIdLabel }) })}
             />
           </div>
-
-          <div className="jini-settings-subsection">
-            <div className="jini-section-head">
-              <div>
-                <h4>{installationIdLabel}</h4>
-                <p className="jini-hint">{installationIdHint}</p>
-              </div>
-            </div>
-            <div className="jini-settings-field">
-              <input
-                type="text"
-                readOnly
-                value={state.installationId ?? optedOutLabel}
-                aria-label={installationIdLabel}
-                {...agentHandleProps({}, { base: agentHandle, ...({ action: 'installation-id', role: 'field', label: installationIdLabel }) })}
-              />
-            </div>
-            <button
-              type="button"
-              className="jini-button jini-button-ghost"
-              onClick={() => onChange(nextStateForDeleteMyData(state, now()))}
-              {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete-my-data', role: 'button', label: deleteMyDataLabel }) })}
-            >
-              <Icon name="trash" size={13} />
-              <span>{deleteMyDataLabel}</span>
-            </button>
-          </div>
-        </>
+          <button
+            type="button"
+            className="jini-button jini-button-ghost"
+            onClick={() => onChange(nextStateForDeleteMyData(state, now()))}
+            {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete-my-data', role: 'button', label: deleteMyDataLabel }) })}
+          >
+            <Icon name="trash" size={13} />
+            <span>{deleteMyDataLabel}</span>
+          </button>
+        </div>
       ) : null}
     </section>
   );
