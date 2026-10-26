@@ -59,11 +59,7 @@ describe('createNodeAgentPluginEffects', () => {
     expect(createNodeAgentPluginEffects({}).filesystem).toBe(nativeFilesystem);
   });
 
-  test('sleep waits on a real timer and resolves', async () => {
-    const started = performance.now();
-    await expect(createNodeAgentPluginEffects({}).clock.sleep({ ms: 20 })).resolves.toBeUndefined();
-    expect(performance.now() - started).toBeGreaterThanOrEqual(15);
-  });
+  // `clock.sleep` is pinned with a controlled timer in node-sleep.unit.test.ts (FU-B).
 
   test.each<[string, unknown, boolean]>([
     ['ESRCH (no such process)', Object.assign(new Error('x'), { code: 'ESRCH' }), false],
