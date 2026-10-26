@@ -105,3 +105,14 @@ describe('accepted-input answer ownership', () => {
     expect(projected.flatMap(event => acceptedInputEvent({ event })?.data.text ?? [])).toEqual(['A26 UCLA', 'A26 UCLA']);
   });
 });
+
+// FU-B (Codex on F3): `labels.push(...selections)` spreads every selection as a call argument, so a
+// large enough array exceeds the engine's argument limit and throws — breaking "never throws".
+describe('questionAnswerText — very large multi-select answers (FU-B)', () => {
+  it('a million string selections still produce text instead of throwing', () => {
+    const selections = Array.from({ length: 1_000_000 }, (_, i) => (i === 0 ? 'first' : 'x'));
+    const text = questionAnswerText({ answer: { submitted: true, choice: 'one', selections } });
+    expect(text?.startsWith('one, first, x, x')).toBe(true);
+    expect(text?.length).toBe('one, first'.length + 999_999 * ', x'.length);
+  });
+});
