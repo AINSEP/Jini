@@ -14,3 +14,5 @@ export function createAsyncLocalSpanScope(_required: Record<string, never>): Spa
  const storage = new AsyncLocalStorage<TraceSpanPort>();
  return { active: () => storage.getStore(), run: ({ span, fn }) => storage.run(span, fn) };
 }
+
+export { reportErrorOnce, redactedError, runWithErrorReportScope, type ErrorReportScope } from './report-error.js';

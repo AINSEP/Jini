@@ -538,6 +538,27 @@ function buildModule(ports: ActivationPorts) {
     );
   }
 
+  /** Reconcile a mirror from current canonical state inside the activation owner's existing queue
+   * and file lock. Resolving before queueing can let an older request overwrite a newer decision.
+   * @returns Whether the face changed. @throws The same strict-read/lock errors as a normal write.
+   * @complexity One canonical read and O(p) in the workspace's recorded activations.
+   */
+  async function reconcileAgentPluginActivation(
+    required: Omit<SetAgentPluginActivationRequired, "enabled"> & { resolveEnabled: () => Promise<boolean> },
+    optional: SetAgentPluginActivationOptional = {},
+  ): Promise<boolean> {
+    assertPluginId(required.pluginId);
+    return lockedActivationsWrite(required.workspaceRoot, async (lock) => {
+      const enabled = await required.resolveEnabled();
+      const current = await readPluginsBagStrict(required.workspaceRoot);
+      assertTargetEntryReadable(required.workspaceRoot, current, required.pluginId);
+      const active = normalizeActivationEntry(required.pluginId, current[required.pluginId])?.enabled ?? true;
+      if (active === enabled) return false;
+      await writeActivationDecision(current, { ...required, enabled }, optional, lock);
+      return true;
+    });
+  }
+
   /**
    * The write half of {@link setAgentPluginActivation}, over a bag the caller has ALREADY read strictly
    * inside its own {@link lockedActivationsWrite} turn — so {@link recordBundledAgentPluginIfAbsent} can
@@ -861,7 +882,7 @@ function buildModule(ports: ActivationPorts) {
     }
   }
 
-  return { isAgentPluginActive, filterActiveAgentPlugins, readAgentPluginActivations, assertAgentPluginActivationsWritable, isAgentPluginRecordedAsBundled, resolveAgentPluginActivation, normalizeActivations, setAgentPluginActivation, recordBundledAgentPluginIfAbsent, enableBundledAgentPluginUnlessOperatorDisabled, deleteAgentPluginActivation };
+  return { reconcileAgentPluginActivation, isAgentPluginActive, filterActiveAgentPlugins, readAgentPluginActivations, assertAgentPluginActivationsWritable, isAgentPluginRecordedAsBundled, resolveAgentPluginActivation, normalizeActivations, setAgentPluginActivation, recordBundledAgentPluginIfAbsent, enableBundledAgentPluginUnlessOperatorDisabled, deleteAgentPluginActivation };
 }
 
 const instances = new WeakMap<ActivationPorts, ReturnType<typeof buildModule>>();
@@ -883,6 +904,7 @@ export function createAgentPluginActivations(
 ) {
   const activation = createActivationModule(Object.keys(optional).length ? { ...required, ...optional } : required);
   return {
+    reconcileAgentPluginActivation: activation.reconcileAgentPluginActivation,
     setAgentPluginActivation: activation.setAgentPluginActivation,
     recordBundledAgentPluginIfAbsent: activation.recordBundledAgentPluginIfAbsent,
     enableBundledAgentPluginUnlessOperatorDisabled: activation.enableBundledAgentPluginUnlessOperatorDisabled,

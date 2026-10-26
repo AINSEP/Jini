@@ -14,3 +14,5 @@ export {
 } from './navigation.js';
 
 export { createAdminShellNavigation } from './shell-navigation.js';
+
+export { createBrowserTelemetry, installBrowserErrorListeners, type BrowserTelemetry, type BrowserTelemetryDeps, type BrowserTelemetryPayload } from './telemetry.js';
