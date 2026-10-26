@@ -35,14 +35,15 @@ describe('note ids are refused at the file-path boundary', () => {
   ])('readEntry and deleteEntry ignore an invalid id (%s)', async (_label, id) => {
     const d = dataDir();
     const store = createNoteStore(config);
-    mkdirSync(join(d, 'notes'));
-    // A file the invalid id would reach if it were joined unchecked.
-    writeFileSync(join(d, 'secret.md'), entryFile('outside'));
-    writeFileSync(join(d, 'notes', 'a'.repeat(97) + '.md'), entryFile('long'));
+    // FU-B (Codex on F3): plant a readable entry at EXACTLY the path this invalid id would reach if it
+    // were joined unchecked, so a broken id check reads/deletes it instead of passing via "missing file".
+    const target = join(d, 'notes', `${id}.md`);
+    mkdirSync(join(target, '..'), { recursive: true });
+    const content = entryFile('target');
+    writeFileSync(target, content);
     expect(await store.readEntry({ dataDir: d, id })).toBeNull();
     await store.deleteEntry({ dataDir: d, id });
-    expect(readFileSync(join(d, 'secret.md'), 'utf8')).toContain('SECRET outside');
-    expect(existsSync(join(d, 'notes', 'a'.repeat(97) + '.md'))).toBe(true);
+    expect(readFileSync(target, 'utf8')).toBe(content);
   });
 
   it('accepts an id of exactly 96 chars, and lists only valid ids', async () => {
