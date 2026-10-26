@@ -26,6 +26,8 @@ interface SurfaceFieldBase {
   /** Help text, wired up with `aria-describedby`. */
   readonly hint?: string;
   readonly required?: boolean;
+  /** A required control may be left blank when this other public control equals the given text. */
+  readonly requiredUnless?: { readonly field: string; readonly equals: string };
   readonly disabled?: boolean;
 }
 
@@ -142,14 +144,17 @@ export interface FieldReadSpec {
   readonly label: string;
   readonly kind: SurfaceField['kind'];
   readonly required: boolean;
+  readonly requiredUnless?: { readonly field: string; readonly equals: string };
+  readonly hint?: string;
 }
 
-/** Projects fields down to what the inline script needs, so the generated JS carries no labels, hints, or option lists it will never read. */
+/** Projects fields to runtime validation data; conditional requirements also carry their guidance. */
 export function toFieldReadSpecs(fields: readonly SurfaceField[]): readonly FieldReadSpec[] {
   return fields.map((field) => ({
     name: field.name,
     label: field.label,
     kind: field.kind,
     required: field.required === true,
+    ...(field.requiredUnless ? { requiredUnless: field.requiredUnless, ...(field.hint ? { hint: field.hint } : {}) } : {}),
   }));
 }
