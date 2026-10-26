@@ -22,7 +22,8 @@ export interface AgentSpanOptions { agent: AgentRunTrackingInput & AgentRunTrack
 /** Provider failures never escape. Application callback errors retain their original identity.
  * The name/callback and Error/context signatures are the owner-approved facade API. */
 export interface Tracker {
-  capture(event: ProductEvent, options?: Record<string, never>): void;
+  /** Awaitable local admission; does not wait for remote delivery. */
+  capture(event: ProductEvent, options?: Record<string, never>): void | Promise<void>;
   error(error: Error, context?: TrackerErrorContext): void;
   span<T>(name: string, work: (span: TrackerSpan<RequestTrackingOutcome>) => T | Promise<T>, options: RequestSpanOptions): Promise<T>;
   span<T>(name: string, work: (span: TrackerSpan<AgentRunTrackingOutcome>) => T | Promise<T>, options: AgentSpanOptions): Promise<T>;

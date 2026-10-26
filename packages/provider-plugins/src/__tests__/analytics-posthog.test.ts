@@ -38,6 +38,16 @@ test("plugin setup only registers the product-analytics factory", () => {
   expect(registered).toEqual([{ contract: "product_analytics", id: "posthog", contractVersion: 1, factory: createPostHogProvider }]);
 });
 
+test('the factory rejects private keys and credential-bearing hosts before constructing an SDK', () => {
+  const apiKey = ['phc', 'fixture'].join('_');
+  expect(() => createPostHogProvider({ apiKey: ['phx', 'private', 'fixture'].join('_'), host: 'https://posthog.invalid' }))
+    .toThrow(new TypeError('Use a PostHog project key starting with phc_, not a personal API key.'));
+  const host = new URL('https://posthog.invalid');
+  host.username = ['fixture', 'user'].join('-'); host.password = ['fixture', 'password'].join('-');
+  expect(() => createPostHogProvider({ apiKey, host: host.href }))
+    .toThrow(new TypeError('Use an HTTP or HTTPS host URL without credentials.'));
+});
+
 test("the factory port behind the host's guards: consent false sends nothing; PII-shaped properties are dropped", async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: " phc_test_dummy ", host: "https://posthog.invalid" }, { fetch, flushAt: 1 });
@@ -64,7 +74,7 @@ test.each([
 });
 
 test("dispose never throws when the SDK shutdown fails", async () => {
-  const resource = createPostHogProvider({ apiKey: "phc", host: "https://posthog.invalid" }, { fetch: async () => { throw new Error("offline"); }, flushAt: 1 });
+  const resource = createPostHogProvider({ apiKey: ['phc', 'fixture'].join('_'), host: "https://posthog.invalid" }, { fetch: async () => { throw new Error("offline"); }, flushAt: 1 });
   resource.port.capture({ name: "x", userId: "u1" });
   await expect(resource.dispose({})).resolves.toBeUndefined();
 });
