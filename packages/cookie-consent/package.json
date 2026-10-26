@@ -1,0 +1,66 @@
+{
+  "name": "@jini-ai/cookie-consent",
+  "version": "0.6.12",
+  "description": "Standalone, vendor-free cookie consent: a consent-state contract any banner can drive, a ~3 KB browser client, a pure-string banner renderer with owner CSS, web-standard receipts and open plugin slots.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/cookie-consent"
+  },
+  "jini": {
+    "domain": "capability",
+    "kind": "consent",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./policy": "universal",
+      "./plugins": "universal",
+      "./render": "universal",
+      "./client": "browser",
+      "./server": "universal",
+      "./node": "node"
+    }
+  },
+  "type": "module",
+  "sideEffects": ["./dist/client.min.js"],
+  "main": "./dist/contract.js",
+  "types": "./dist/contract.d.ts",
+  "exports": {
+    ".": { "types": "./dist/contract.d.ts", "import": "./dist/contract.js", "default": "./dist/contract.js" },
+    "./policy": { "types": "./dist/policy.d.ts", "import": "./dist/policy.js", "default": "./dist/policy.js" },
+    "./plugins": { "types": "./dist/plugins.d.ts", "import": "./dist/plugins.js", "default": "./dist/plugins.js" },
+    "./render": { "types": "./dist/render/index.d.ts", "import": "./dist/render/index.js", "default": "./dist/render/index.js" },
+    "./client": { "types": "./dist/client/index.d.ts", "import": "./dist/client/index.js", "default": "./dist/client/index.js" },
+    "./client.min.js": "./dist/client.min.js",
+    "./banner.css": "./dist/banner.css",
+    "./server": { "types": "./dist/server/index.d.ts", "import": "./dist/server/index.js", "default": "./dist/server/index.js" },
+    "./node": { "types": "./dist/node/index.d.ts", "import": "./dist/node/index.js", "default": "./dist/node/index.js" }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "!dist/**/__tests__/**",
+    "!dist/**/*.test.*",
+    "!dist/**/*.map"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "esbuild": "^0.28.1",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
