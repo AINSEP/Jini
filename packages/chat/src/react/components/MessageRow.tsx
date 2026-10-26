@@ -37,7 +37,7 @@ import { usageEndLabel, usageLayout, usageLineMeetsActions, useMessageUsage, use
  * see that module's header for the conditions.
  *
  * Both message roles also carry a per-message copy affordance
- * (`CopyMessageButton` below), rendered inside a `.jini-message-actions` row.
+ * (`CopyMessageButton`), rendered inside a `.jini-message-actions` row.
  * Assistant rows render that row as an extension seam: `branch`/thumbs-up/
  * thumbs-down are meant to join `copy` there later, as siblings in the same
  * row, once their backends (conversation branching, feedback storage) exist
@@ -59,7 +59,6 @@ import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus, IsAnswered
 import { assistantContentFromEvents, isAwaitingAnswer, isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
-import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import { useRunActivity } from '../hooks/useRunActivity.js';
 import { useAnsweredCards, type AnsweredCards } from '../hooks/useAnsweredCards.js';
 import { interleaveMessageBlocks, splitMidRunBlocks, type MessageBlock } from '../message-blocks.js';
@@ -69,7 +68,7 @@ import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 import { SentAttachmentButton } from './SentAttachment.js';
 import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
-import { Icon } from './Icon.js';
+import { CopyMessageButton } from './CopyMessageButton.js';
 import { Markdown } from './Markdown.js';
 import { ToolCard } from './ToolCard.js';
 import { QuestionForm } from './QuestionForm.js';
@@ -160,13 +159,6 @@ function UsageSummary({ usage, showTotal, message, awaitingAnswer }: { usage: Ch
   );
 }
 
-interface CopyMessageButtonProps {
-  /** The raw markdown source to place on the clipboard — never rendered/flattened text. */
-  text: string;
-  /** Accessible name while idle; swaps to a "Copied" label once the copy lands. */
-  label: string;
-}
-
 function messageBlocks(
   { message, rows, registry, content = message.content }: { message: ChatMessage; rows: ToolTimelineRow[]; registry: ExtEventRendererRegistry; content?: string },
   { toolCallDisplay = 'show', includeThinking = false }: { toolCallDisplay?: ToolCallDisplay; includeThinking?: boolean } = {},
@@ -238,39 +230,6 @@ function AssistantMessageFooter(
       ) : null}
       {runInProgress ? <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} isAnsweredCard={isAnsweredCard} /> : null}
   </>;
-}
-
-/**
- * Quiet, icon-only copy affordance shared by the user- and assistant-message
- * action rows below. Delegates the actual clipboard write (and its
- * secure-context fallback) to `useCopyToClipboard`; this component only owns
- * the icon swap and the accessible announcement of the transient state.
- * @param props.text - Exact string to copy, verbatim.
- * @param props.label - Idle accessible name (already translated by the caller).
- * @complexity O(1) — one child hook call, no branching beyond the copied-state read.
- */
-function CopyMessageButton({ text, label }: CopyMessageButtonProps) {
-  const t = useT();
-  const { copied, copy } = useCopyToClipboard();
-  return (
-    <>
-      <button
-        type="button"
-        className="jini-message-action-btn"
-        aria-label={copied ? t('Copied') : label}
-        onClick={() => {
-          void copy(text);
-        }}
-      >
-        <Icon name={copied ? 'check' : 'copy'} />
-      </button>
-      {/* Visually hidden, not decorative: the icon swap above says nothing to a screen reader on
-          its own, so this polite live region announces the same transient state in words. */}
-      <span className="jini-message-copy-status" aria-live="polite">
-        {copied ? t('Copied to clipboard') : ''}
-      </span>
-    </>
-  );
 }
 
 /** Stable empty list for a message with no attachments. */
@@ -393,6 +352,7 @@ function AssistantMessageRow({
     ? <ToolCallGroup key={key} rows={rows} renderRow={renderToolCard} failureOnly={toolCallDisplay === 'hidden'} />
     : <div className="jini-message-tools" key={key}>{rows.map(renderToolCard)}</div>);
   const flatTools = flatToolGroups({ message, rows: timeline.rows, registry, displayBlocks }, { toolCallDisplay });
+  const flatExtGroups = extGroups.filter(group => group.name !== MID_RUN_USER_MESSAGE_EXT_EVENT_NAME);
 
   const renderExtGroup = (group: ExtEventGroup) => {
     const transcriptRow = group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME;
@@ -492,13 +452,18 @@ function AssistantMessageRow({
           <>
             {renderTextSegments(visibleContent, 'text')}
             {flatTools.map((group) => renderTools(group.rows, group.key))}
-            {extGroups.length > 0 ? <div className="jini-message-ext-events">{extGroups.map(renderExtGroup)}</div> : null}
+            {flatExtGroups.length > 0 ? <div className="jini-message-ext-events">{flatExtGroups.map(renderExtGroup)}</div> : null}
           </>
         )}
       {footer && <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />}
     </div>
   );
-  if (blocks === null) return renderAssistantSection({ section: null, key: message.id, footer: true });
+  // The lossless fallback keeps the host's text intact; user receipts still own separate rows,
+  // in their original receipt order, outside the assistant's actions and usage footer.
+  if (blocks === null) return <>
+    {renderAssistantSection({ section: null, key: message.id, footer: true })}
+    {extGroups.filter(group => group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME).map(renderExtGroup)}
+  </>;
   // A reply boundary without reported usage renders nothing; it must not create an empty row's gap.
   const visibleBlocks = blocks.filter(block => block.kind !== 'reply-end' || (showUsageLine && usage.replies[block.index] !== undefined));
   const { sections, footerIndex } = transcriptSections({ blocks: visibleBlocks, runInProgress });
