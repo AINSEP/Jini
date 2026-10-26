@@ -266,7 +266,10 @@ describe('MediaProvidersTab', () => {
     expect(screen.getByText('Custom default is https://alpha.example.com')).toBeInTheDocument();
     expect(screen.getByText('Custom saved ••••5678')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Alpha Images Custom clear' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Alpha Images Custom show' })).toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: 'Custom show Alpha Images Custom API key' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(toggle);
+    expect(screen.getByRole('button', { name: 'Custom hide Alpha Images Custom API key' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Custom save changes' })).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText('Bravo Video Custom API key'), 'sk-1');

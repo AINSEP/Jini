@@ -101,9 +101,9 @@ describe('useUsersConfirmation', () => {
     act(() => controller.requestDestructive({ principalId: 'alice', kind: 'reset' }));
     expect(result.current.reset).toBe(true);
     expect(result.current.confirm).toMatchObject({ open: true, title: 'Reset password?', confirmLabel: 'Reset password', tone: 'warning', agentMayConfirm: false });
-    const { container } = render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
+    const { baseElement } = render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
     const fields = () => [screen.getByLabelText('New password').getAttribute('type'), screen.getByLabelText('Confirm new password').getAttribute('type'),
-      ...Array.from(container.querySelectorAll('.jini-secret-toggle')).map(button => button.getAttribute('aria-label'))];
+      ...Array.from(baseElement.querySelectorAll('.jini-secret-toggle')).map(button => button.getAttribute('aria-label'))];
     expect(fields()).toEqual(['password', 'password', 'Show New password', 'Show Confirm new password']);
     act(() => result.current.toggleConfirm());
     expect(fields()).toEqual(['password', 'text', 'Show New password', 'Hide Confirm new password']);

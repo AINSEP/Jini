@@ -250,6 +250,7 @@ function PasswordControl({ spec, value, inputId, shared, reveal, placeholder }: 
       <SecretInput
         id={inputId}
         label={t(spec.label)}
+        aria-label={t(spec.label)}
         revealed={reveal.revealed}
         onRevealedChange={reveal.onToggle}
         toggleAttrs={reveal.agentProps}
