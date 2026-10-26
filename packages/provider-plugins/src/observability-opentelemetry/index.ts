@@ -3,6 +3,9 @@ import { hasProviderAuthHeader, PluginProviderStartupError, type PluginSdk } fro
 import { resolveObservabilityConfig } from '@jini-ai/diagnostics/observability';
 import { createOtelObservabilityAdapter, type OtelAdapterOptions } from './opentelemetry.js';
 import { attributionOf } from '../attribution.js';
+import manifest from './jini.plugin.json' with { type: 'json' };
+
+const authHeaderNames = manifest.contributes.providers[0]!.settings.find(field => field.name === 'token')!.requiredUnless!.headerNames;
 
 const text = (value: unknown, name: string): string | undefined => {
   if (value === undefined) return undefined;
@@ -57,7 +60,7 @@ function usesBasicAuthorization({ auth, username }: OtlpCredentials, _optional =
 function usesLegacyAuthorization({ auth, username, token, headers }: OtlpCredentials & { headers: Record<string, string> | undefined }, _optional = {}): boolean {
   if (token?.trim()) return false;
   if (auth === 'grafana-cloud' && !username?.trim()) return false;
-  return Object.entries(headers ?? {}).some(([name, value]) => hasProviderAuthHeader({ text: `${name}=${value}`, names: ['Authorization', 'x-api-key'] }));
+  return Object.entries(headers ?? {}).some(([name, value]) => hasProviderAuthHeader({ text: `${name}=${value}`, names: authHeaderNames }));
 }
 
 /**
