@@ -1,4 +1,6 @@
+import { useId, type ChangeEvent } from 'react';
 import { useT } from '../../../i18n/index.js';
+import { SecretInput } from '../../../../react/components/SecretInput.js';
 import { agentCliEnvValue, cliEnvFieldsForAgent } from '../../rules.js';
 import type { AgentCliEnvFieldSpec, LocalCliConfig } from '../../types.js';
 
@@ -28,6 +30,7 @@ export interface AgentCliEnvFieldsProps {
  */
 export function AgentCliEnvFields({ agentId, fields, config, onChange }: AgentCliEnvFieldsProps) {
   const t = useT();
+  const idBase = useId();
   const relevant = cliEnvFieldsForAgent(fields, agentId);
   if (relevant.length === 0) return null;
 
@@ -37,27 +40,34 @@ export function AgentCliEnvFields({ agentId, fields, config, onChange }: AgentCl
       <div className="jini-agent-cli-env-body">
         <p className="jini-field-hint">{t("Environment variables passed to this CLI when it runs.")}</p>
         <div className="jini-agent-cli-env-grid">
-          {relevant.map((field) => (
-            <label className="jini-field" key={`${field.agentId}:${field.envKey}`}>
-              <span className="jini-field-label">{field.label}</span>
-              <input
-                className="jini-input"
-                type={field.secret ? 'password' : 'text'}
-                value={agentCliEnvValue(config, agentId, field.envKey)}
-                placeholder={field.placeholder}
-                spellCheck={false}
-                /* Per-field, because this input is both kinds at once. A `secret` field renders
-                   `type="password"`, and Chrome deliberately ignores `autoComplete="off"` on
-                   credential-shaped fields — the same defect fixed on `ByokProviderForm`'s API-key
-                   input; see its comment for the full reasoning. A NON-secret field (a proxy URL, a
-                   config path) keeps `off`: `new-password` there would invite Chrome to offer to
-                   GENERATE a password for a field that holds a file path. */
-                autoComplete={field.secret ? 'new-password' : 'off'}
-                data-testid={`jini-agent-cli-env-${agentId}-${field.envKey}`}
-                onChange={(event) => onChange(agentId, field.envKey, event.target.value)}
-              />
-            </label>
-          ))}
+          {relevant.map((field) => {
+            const id = `${idBase}-${field.envKey}`;
+            const input = {
+              id,
+              className: 'jini-input',
+              value: agentCliEnvValue(config, agentId, field.envKey),
+              placeholder: field.placeholder,
+              spellCheck: false,
+              'data-testid': `jini-agent-cli-env-${agentId}-${field.envKey}`,
+              onChange: (event: ChangeEvent<HTMLInputElement>) => onChange(agentId, field.envKey, event.target.value),
+            };
+            /* Per-field, because this input is both kinds at once. A `secret` field is a password
+               input, and Chrome deliberately ignores `autoComplete="off"` on credential-shaped
+               fields — the same defect fixed on `ByokProviderForm`'s API-key input; see its comment
+               for the full reasoning. A NON-secret field (a proxy URL, a config path) keeps `off`:
+               `new-password` there would invite Chrome to offer to GENERATE a password for a field
+               that holds a file path. */
+            return (
+              // A `<div>` + `<label htmlFor>`: the secret field's eye toggle must stay out of a
+              // wrapping label, or its "Show …" name would join the input's own.
+              <div className="jini-field" key={`${field.agentId}:${field.envKey}`}>
+                <label className="jini-field-label" htmlFor={id}>{field.label}</label>
+                {field.secret
+                  ? <SecretInput {...input} label={field.label} autoComplete="new-password" />
+                  : <input {...input} type="text" autoComplete="off" />}
+              </div>
+            );
+          })}
         </div>
       </div>
     </details>

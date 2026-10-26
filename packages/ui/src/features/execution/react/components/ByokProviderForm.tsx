@@ -10,6 +10,7 @@ import {
   showsBaseUrlField,
 } from '../../rules.js';
 import { SearchableModelSelect } from './SearchableModelSelect.js';
+import { SecretInput } from '../../../../react/components/SecretInput.js';
 import { useByokFieldValidation } from '../hooks/use-byok-field-validation.hooks.js';
 import type {
   ByokConfig,
@@ -318,15 +319,16 @@ function ByokApiKeyField({
 }: ByokApiKeyFieldProps) {
   const t = useT();
   const keyInputId = useId();
-  const KeyField = apiKeyActions ? 'div' : 'label';
   /** Deliberately NOT folded into `missing` above: that set drives `is-missing` styling and the
    *  Test-connection disable, and a wrong-SHAPED key must never reach either. */
   const keyFormatWarning = apiKeyFormatWarning(config, preset, presets);
   return (
     <>
-    <KeyField className="jini-field" onBlurCapture={() => validation.markTouched({ field: 'apiKey' })}>
+    {/* A `<div>` with a `<label htmlFor>`, never a wrapping `<label>`: the eye toggle's
+        "Show API key" name would otherwise join the input's own accessible name. */}
+    <div className="jini-field" onBlurCapture={() => validation.markTouched({ field: 'apiKey' })}>
       <span className="jini-field-label">
-        <ByokApiKeyLabel keyInputId={apiKeyActions ? keyInputId : undefined} />
+        <ByokApiKeyLabel keyInputId={keyInputId} />
         {preset?.apiKeyConsoleUrl ? (
           <a
             className="jini-field-link"
@@ -338,38 +340,30 @@ function ByokApiKeyField({
           </a>
         ) : null}
       </span>
-      <span className="jini-field-input-row">
-        <input
-          {...(apiKeyActions ? { id: keyInputId } : {})}
-          className={'jini-input' + missingClass(validation, 'apiKey')}
-          type={revealKey ? 'text' : 'password'}
-          /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on credential-shaped
-             fields (a long-standing intentional decision, not a bug). `off` here is what let the
-             reported autofill through: Chrome filled this field with the admin's own saved
-             PASSWORD, the form sent it, and the provider answered with its own "API key not
-             valid" — a true message about a string the operator never typed. `new-password` is
-             the value Chrome/Safari/Firefox actually honor for "this is not a saved-login
-             field", which suppresses both the credential dropdown and the silent fill.
+      <SecretInput
+        id={keyInputId}
+        label={t('API key')}
+        revealed={revealKey}
+        onRevealedChange={onToggleReveal}
+        className={'jini-input' + missingClass(validation, 'apiKey')}
+        /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on credential-shaped
+           fields (a long-standing intentional decision, not a bug). `off` here is what let the
+           reported autofill through: Chrome filled this field with the admin's own saved
+           PASSWORD, the form sent it, and the provider answered with its own "API key not
+           valid" — a true message about a string the operator never typed. `new-password` is
+           the value Chrome/Safari/Firefox actually honor for "this is not a saved-login
+           field", which suppresses both the credential dropdown and the silent fill.
 
-             Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on
-             this field — a suggestion popup, not a silently wrong value. */
-          autoComplete="new-password"
-          spellCheck={false}
-          placeholder={apiKeyPlaceholder}
-          value={config.apiKey}
-          onChange={(event) => patch({ apiKey: event.target.value })}
-          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'api-key', role: 'field', label: t('API key') }) })}
-        />
-        <button
-          type="button"
-          className="jini-input-affix-btn"
-          aria-pressed={revealKey}
-          onClick={onToggleReveal}
-          {...agentHandleProps({}, { base: agentHandle, ...({ action: 'reveal-key', role: 'button', label: t('Reveal API key') }) })}
-        >
-          {revealKey ? t('Hide') : t('Show')}
-        </button>
-      </span>
+           Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on
+           this field — a suggestion popup, not a silently wrong value. */
+        autoComplete="new-password"
+        spellCheck={false}
+        placeholder={apiKeyPlaceholder}
+        value={config.apiKey}
+        onChange={(event) => patch({ apiKey: event.target.value })}
+        toggleAttrs={agentHandleProps({}, { base: agentHandle, ...({ action: 'reveal-key', role: 'button', label: t('Reveal API key') }) })}
+        {...agentHandleProps({}, { base: agentHandle, ...({ action: 'api-key', role: 'field', label: t('API key') }) })}
+      />
       {apiKeyActions ? <span className="jini-byok-key-actions">{apiKeyActions}</span> : null}
       <span className="jini-field-hint">{t('Stored only by this host.')}</span>
       {/* Advisory, never a gate: `Save`/`Test connection` stay exactly as enabled as they were,
@@ -385,7 +379,7 @@ function ByokApiKeyField({
           {t(keyFormatWarning.message, keyFormatWarning.vars)}
         </span>
       ) : null}
-    </KeyField>
+    </div>
     {/* No wrapper styling of its own — `.jini-byok-card` is a flex column with a 14px gap, so a
         bare sibling inherits the card's own field rhythm. A host that wants a tighter coupling to
         the field above can supply its own margin from the outside. */}
@@ -394,25 +388,15 @@ function ByokApiKeyField({
   );
 }
 
-/** "API key *". With host key actions the field is a `<div>`, so the name gets its own `<label>`
- *  pointing at the input by id; otherwise the whole field is already the label. */
-function ByokApiKeyLabel({ keyInputId }: { keyInputId: string | undefined }) {
+/** "API key *". The field is a `<div>` (the eye toggle must stay out of any wrapping label), so
+ *  the name gets its own `<label>` pointing at the input by id. */
+function ByokApiKeyLabel({ keyInputId }: { keyInputId: string }) {
   const t = useT();
-  if (keyInputId) {
-    return (
-      <label className="jini-field-label" htmlFor={keyInputId}>
-        <span>{t('API key')}</span>
-        <span className="jini-field-required" aria-hidden="true">*</span>
-      </label>
-    );
-  }
   return (
-    <>
-      {t('API key')}
-      <span className="jini-field-required" aria-hidden="true">
-        *
-      </span>
-    </>
+    <label className="jini-field-label" htmlFor={keyInputId}>
+      <span>{t('API key')}</span>
+      <span className="jini-field-required" aria-hidden="true">*</span>
+    </label>
   );
 }
 
