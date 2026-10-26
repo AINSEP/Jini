@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { GENERATED_MARKER_RE, redactSecrets, redactSecretsWithCounts } from '../redact.js';
+import { AGENT_FAILURE_SECRET_SHAPE_RE, GENERATED_MARKER_RE, redactSecrets, redactSecretsWithCounts } from '../redact.js';
 import { sanitizeUntrustedText } from '../text/sanitize-untrusted-text.js';
 
 // Characterization pins for redactSecretsWithCounts: span union over the original text, the
@@ -10,6 +10,7 @@ import { sanitizeUntrustedText } from '../text/sanitize-untrusted-text.js';
 const npmToken = (): string => ['np', 'm_'].join('') + 'n'.repeat(36);
 const githubToken = (): string => ['gh', 'p_'].join('') + 'g'.repeat(36);
 const skPrefix = (): string => ['s', 'k-'].join('') + 's'.repeat(20);
+const jwt = (): string => ['ey', 'J'].join('') + 'hdr.' + ['ey', 'J'].join('') + 'pay.sig';
 
 describe('@jini-ai/core — redact — characterization pins', () => {
   it('masks a provider api-key header the core header rule cannot anchor, keeping its separator', () => {
@@ -81,6 +82,23 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       'x [REDACTED:exact_secret] y'],
     ['a secret echoed JSON-escaped', '{"error":"bad ab\\"cd"}', ['ab"cd'], [],
       '{"error":"bad [REDACTED:exact_secret]"}'],
+    // Inside quotes only the closing quote ends a labeled value; an unclosed quote runs to the line end.
+    ['a vendor token before ; inside a quoted label value', `password="${skPrefix()};hunter2"`, [], ['hunter2'],
+      'password=[REDACTED:labeled_secret]'],
+    ['a vendor token before a space inside a quoted label value', `password="${skPrefix()} hunter2" next`, [], ['hunter2'],
+      'password=[REDACTED:labeled_secret] next'],
+    ['one byte after a vendor token in an unclosed quoted label value', `password="${skPrefix()}%`, [], ['%'],
+      'password=[REDACTED:labeled_secret]'],
+    ['an unclosed quoted label value with spaces', `password="${skPrefix()};hunter2 battery\nnext`, [], ['hunter2', 'battery'],
+      'password=[REDACTED:labeled_secret]\nnext'],
+    ['a JWT glued after a hyphen', `token-${jwt()}`, [], ['hdr', 'pay', 'sig'],
+      'token-[REDACTED:jwt]'],
+    ['URL userinfo after a scheme longer than 32 characters', `a${'1'.repeat(40)}://user:pw@host`, [], ['user', 'pw'],
+      `a${'1'.repeat(40)}://[REDACTED:url_credentials]@host`],
+    ['overlapping occurrences of one secret', 'x ababa y', ['aba'], ['ba'],
+      'x [REDACTED:exact_secret] y'],
+    ['a chain of overlapping occurrences of one secret', 'x abababab abab y', ['abab'], ['ba'],
+      'x [REDACTED:exact_secret] [REDACTED:exact_secret] y'],
   ])('leaves no secret value in %s', (_label, input, exactSecrets, otherValues, expected) => {
     const redacted = redactSecrets({ input }, { exactSecrets });
     expect(redacted).toBe(expected);
@@ -94,15 +112,30 @@ describe('@jini-ai/core — redact — characterization pins', () => {
       .toEqual({ redacted: '[REDACTED:exact_secret] [REDACTED:exact_secret]', counts: { exact_secret: 2 } });
   });
 
-  // 10 MiB MCP responses reach these paths synchronously; each input was quadratic.
+  // 10 MiB MCP responses reach these paths synchronously; each input was quadratic. Two guards are
+  // smaller than 10 MiB, still far past where the quadratic forms blew the budget: dense label fields
+  // yield ~3 spans per 10 bytes, and the span pipeline (collect, sort, merge) alone needs ~3.5 s for
+  // 10 MiB of them (the old rewinding scan took 7.6 s on 160 KB); scanning every offset of a 5 MiB
+  // secret in 10 MiB takes ~470 ms warm, ~490 ms cold at 4 MiB (the old scan-from-every-hit took
+  // 0.9 s on 64 KB).
   it.each([
     ['unterminated marker prefixes', '[REDACTED:'.repeat(20_000), ['x']],
     ['many markers beside many exact matches', '[redacted] x '.repeat(20_000), ['x']],
     ['a long dotted run (URL scheme and email local part)', 'a.'.repeat(20_000), []],
     ['a 10 MiB run of JWT header prefixes', 'eyJ-'.repeat(2_621_440), []],
+    ['a 640 KiB run of covered label fields', 'api-key=x;'.repeat(65_536), []],
+    ['a 10 MiB run of scheme separators', 'a://b'.repeat(2_097_152), []],
+    ['a 2 MiB run holding a 1 MiB exact secret at every offset', 'a'.repeat(2 * 1_048_576), ['a'.repeat(1_048_576)]],
   ])('stays linear on %s', (_label, input, exactSecrets) => {
     const started = performance.now();
     redactSecrets({ input }, { exactSecrets });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('matches the agent-failure shapes in linear time on a 10 MiB run of JWT header prefixes', () => {
+    const input = 'eyJ-'.repeat(2_621_440);
+    const started = performance.now();
+    expect(input.replace(AGENT_FAILURE_SECRET_SHAPE_RE, '[REDACTED]')).toBe(input);
     expect(performance.now() - started).toBeLessThan(500);
   });
 

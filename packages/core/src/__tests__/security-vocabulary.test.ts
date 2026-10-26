@@ -8,10 +8,18 @@ import {
 } from '../redact.js';
 
 describe('baseline security vocabulary', () => {
-  it('pins the original agent-failure expression, alternative order and global flag', () => {
+  // The JWT alternative only gained a linear-time guard; its matches must equal the original's.
+  it('matches exactly what the original agent-failure expression matched, with the global flag', () => {
     const original = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[\w.-]+|gh[pousr]_[\w]+|github_pat_[\w]+|ya29\.[\w.-]+|eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)/g;
-    expect(AGENT_FAILURE_SECRET_SHAPE_RE.source).toBe(original.source);
     expect(AGENT_FAILURE_SECRET_SHAPE_RE.flags).toBe('g');
+    const corpus = [
+      'eyJa.b', 'x-eyJa.b.c', 'eyJa-eyJb.c', 'aeyJb.c', '_eyJb.c', 'eyJ-eyJ-eyJ', 'eyJa-eyJb', 'ghp_x-eyJa.b',
+      'AIza-eyJa.b', 'sk-eyJa.b', 'eyJa.eyJb.eyJc.eyJd', '-eyJa.b -eyJc.d', 'eyJ-'.repeat(50) + '.x',
+    ];
+    for (const text of corpus) {
+      expect([...text.matchAll(AGENT_FAILURE_SECRET_SHAPE_RE)].map(m => [m.index, m[0]]))
+        .toEqual([...text.matchAll(original)].map(m => [m.index, m[0]]));
+    }
   });
 
   it.each([

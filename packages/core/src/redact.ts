@@ -63,7 +63,9 @@ export const SECRET_SHAPE_PATTERNS: readonly SecretShapePattern[] = [
 ];
 
 /** Broad token shapes for agent-failure text; consumers retain their plain [REDACTED] pipeline. */
-export const AGENT_FAILURE_SECRET_SHAPE_RE = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[\w.-]+|gh[pousr]_[\w]+|github_pat_[\w]+|ya29\.[\w.-]+|eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)/g;
+// The JWT shape skips an `eyJ` start when an earlier start sits in the same `[\w-]` run (see the
+// `jwt` rule below): matches are unchanged, but `'eyJ-'.repeat(n)` no longer rescans the run per start.
+export const AGENT_FAILURE_SECRET_SHAPE_RE = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[\w.-]+|gh[pousr]_[\w]+|github_pat_[\w]+|ya29\.[\w.-]+|(?<!\beyJ[\w-]*?)eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)/g;
 
 /**
  * Exact path SEGMENT names refused at any depth, matched case-insensitively against each segment
@@ -146,11 +148,12 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // JSON Web Tokens. The "header.payload.signature" triple is distinctive
   // enough that false positives are rare (the literal "eyJ" prefix is the
   // base64 encoding of '{"' which is how every JOSE header starts).
-  // A match may start only where the segment alphabet does not continue backwards. With `\b`,
-  // `'eyJ-'.repeat(n)` started at every `eyJ` and rescanned the whole run each time (quadratic;
-  // bounding each segment to 8192 still took ~3 s at 160 KB). All starts inside one run share its
-  // end, so the first is the only one that can match; a JWT glued after `-` is no longer matched.
-  { name: 'jwt', regex: /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g },
+  // A match starts where `\b` would allow (`-eyJ...` included), but only at the FIRST such start in
+  // its segment run. With `\b` alone, `'eyJ-'.repeat(n)` started at every `eyJ` and rescanned the
+  // whole run each time (quadratic; bounding each segment to 8192 still took ~3 s at 160 KB). All
+  // starts inside one run share its end, so the first is the only one that can match. The lazy
+  // lookbehind stops at the nearest earlier start, so each run position is read back at most once.
+  { name: 'jwt', regex: /(?<!\w)(?<!(?<!\w)eyJ[A-Za-z0-9_-]*?)eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g },
 
   // Bearer tokens in HTTP Authorization header copy/paste. We only match
   // the value, not the literal 'Bearer ', so the marker stays readable in
@@ -278,9 +281,12 @@ export const NON_SECRET_TOKEN_RE = /^(?:ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}|deleg
 // Reject a masked header/query value before matching, so a following field's credential
 // remains available to the global scan rather than being consumed beside the marker.
 // `Authorization: Bearer <token>` names the bearer rule's value, not a label value `Bearer`.
+// Only the value's first character is matched; forward-only finders supply its end (see
+// labelValueExtents). Matching `\S+` and rewinding to skip a covered field rescanned the rest of
+// the run per label: quadratic on `'api-key=x;'.repeat(n)`.
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
   LABELED_SECRET_RE.source.replace(/\\S\+$/,
-    `(?!Bearer\\s+(?:[A-Za-z0-9_.+/=-]|${GENERATED_MARKER}(?:\\s|$)))(?!${GENERATED_MARKER}[;&])(\\S+)`),
+    `(?!Bearer\\s+(?:[A-Za-z0-9_.+/=-]|${GENERATED_MARKER}(?:\\s|$)))(?!${GENERATED_MARKER}[;&])(\\S)`),
   LABELED_SECRET_RE.flags,
 );
 // Provider failures also echo short bearer values. Exclude our own marker on subsequent passes.
@@ -292,12 +298,12 @@ const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s]+)/gi;
 // URL userinfo and signed query values have explicit credential context; unlike opaque runs,
 // they are safe to recognize in the conservative policy. Keep scheme/host and query names
 // readable for debugging without exposing credentials that authorize access to the resource.
-// RFC 3986 schemes are short, so the scheme is bounded: an unbounded run rescanned the suffix
-// from every start (`'a.'.repeat(20000)` blocked ~3.6 s). With no leading `\b` the bounded
-// scheme may start mid-word, so glued text before a scheme cannot hide its userinfo. Matching
-// starts at `://` and checks the scheme in a lookbehind: trying a scheme at every position still
-// cost up to 32 steps each, ~2 s on 10 MiB of `'eyJ-'`.
-const URL_CREDENTIALS_RE = /:\/\/(?<=[a-z][a-z0-9+.-]{0,31}:\/\/)([^/\s?#@]+)@/gi;
+// Matching starts at `://` and reads the userinfo forward to `@` within the authority. Only the
+// scheme character right before `://` is checked, so a scheme of any length (glued text included)
+// cannot hide its userinfo: an unbounded scheme run rescanned the suffix from every start
+// (`'a.'.repeat(20000)` blocked ~3.6 s), trying a bounded scheme at every position cost ~2 s on
+// 10 MiB of `'eyJ-'`, and a 32-character scheme lookbehind missed longer schemes.
+const URL_CREDENTIALS_RE = /:\/\/(?<=[a-z0-9+.-]:\/\/)([^/\s?#@]+)@/gi;
 const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|access_token|refresh_token)=)([^&#\s,;"']+)/gi;
 // A secret word must END a name segment (split at . _ - or the name's end): api_key, apiKey,
 // authtoken, X-Amz-Signature and custom.Token-value are masked, while author, keyword, design,
@@ -346,7 +352,8 @@ export function redactSecrets({ input }: { input: string }, options: SecretRedac
  * of a known secret visible; protecting spans exempted secrets overlapping a marker; and
  * overlapping secrets left a tail behind. Opt-in aggressive opaque
  * rules are collected before PII rules so a numeric token keeps the opaque category when tied.
- * @complexity O(n·r + n·s + k log k) for n input chars, r rules, s exact-secret bytes and k spans.
+ * @complexity O(n·(r + e) + s + k log k) for n input chars, r rules, e exact-secret needles, s needle
+ * chars and k spans.
  */
 export function redactSecretsWithCounts({ input }: { input: string }, options: SecretRedactionOptions = {}): {
   redacted: string;
@@ -519,35 +526,89 @@ function collectUrlSecretParams(pass: SpanPass): void {
   });
 }
 
-/** Label values (`password=...`): only the captured value is masked, so the label stays readable
+/** Label values (`password=...`): only the value is masked, so the label stays readable
  * even when no whitespace separates it; a glued credential suffix fails the complete-marker check.
- * A label whose value an earlier rule already masks through its end, or up to a `;`/`&` field
- * separator, is skipped and the scan resumes at the value, so `api-key=x;password=y` and
- * `?password=x&page=2` keep the following field instead of masking it beside the first value.
- * @complexity O(n + k) for n chars and k earlier spans; each skip resumes past the label. */
+ * A label whose value an earlier rule already masks (see {@link isCoveredField}) is skipped and the
+ * scan resumes at the value, so `api-key=x;password=y` and `?password=x&page=2` keep the following
+ * field instead of masking it beside the first value. A masked value resumes the scan past its end.
+ * @complexity O(n + k) for n chars and k earlier spans; each skip resumes past the label and value
+ * ends come from forward-only finders, so no run is rescanned. */
 function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]): void {
-  const ends = new Map<number, number[]>();
+  // Per earlier span start: the furthest end, and whether some span from it ends on a `;`/`&`
+  // (scalars rather than per-start end lists: dense fields yield millions of spans).
+  const furthest = new Map<number, number>();
+  const separatorEnds = new Set<number>();
   for (const { start, end } of earlier) {
-    const list = ends.get(start);
-    if (list) list.push(end);
-    else ends.set(start, [end]);
+    furthest.set(start, Math.max(furthest.get(start) ?? end, end));
+    if (text[end] === ';' || text[end] === '&') separatorEnds.add(start);
   }
+  const extentOf = labelValueExtents(text);
   const regex = new RegExp(MASK_AWARE_LABELED_SECRET_RE.source, MASK_AWARE_LABELED_SECRET_RE.flags);
   for (let match = regex.exec(text); match; match = regex.exec(text)) {
-    const value = match[2] ?? '';
-    const end = match.index + match[0].length;
-    const start = end - value.length;
-    if (isCoveredField(text, ends, start, end) || isMaskedValue(value)) regex.lastIndex = start;
-    else add(start, end, CATEGORY.labeledSecret);
+    const start = match.index + match[0].length - 1;
+    const value = extentOf(start);
+    const at = !value.quoted || furthest.has(start) ? start : start + 1;
+    if (isCoveredField(furthest.get(at), separatorEnds.has(at), value) || isMaskedValue(text.slice(start, value.end))) {
+      regex.lastIndex = start;
+      continue;
+    }
+    add(start, value.end, CATEGORY.labeledSecret);
+    regex.lastIndex = value.end;
   }
 }
 
-/** True when an earlier span starting at the label value (inside its quotes, for a quoted value)
- * reaches the value's end, its closing quote, or a `;`/`&` field separator. */
-function isCoveredField(text: string, ends: ReadonlyMap<number, readonly number[]>, start: number, end: number): boolean {
-  const quoted = /["']/.test(text[start] ?? '') ? 1 : 0;
-  const spanEnds = ends.get(start) ?? ends.get(start + quoted) ?? [];
-  return spanEnds.some((spanEnd) => spanEnd >= end - quoted || /[;&]/.test(text[spanEnd] ?? ''));
+/** Where a label value ends; `closingQuote` is -1 for an unquoted or unclosed value. */
+interface LabelValue {
+  end: number;
+  closingQuote: number;
+  quoted: boolean;
+}
+
+/** True when an earlier span starting at the label value (inside its opening quote, for a quoted
+ * value) masks it: `reach` is the furthest such span end and `separator` says one ends on `;`/`&`.
+ * Inside quotes only the closing quote ends the value (`;` and `&` are value text:
+ * `password="sk-...;hunter2"` once left `hunter2`); an unquoted value is covered through its end or
+ * up to a `;`/`&` field separator. */
+function isCoveredField(reach: number | undefined, separator: boolean, { end, closingQuote, quoted }: LabelValue): boolean {
+  const target = closingQuote === end - 1 ? closingQuote : end;
+  return (reach ?? -1) >= target || (!quoted && separator);
+}
+
+/** Extent finder for label values whose starts increase between calls. An unquoted value runs to
+ * whitespace. A quoted value runs through its closing quote and any text glued after it, or to the
+ * line end when the quote never closes, so spaces, `;` and `&` inside quotes stay in the value; a
+ * value never ends before the old `\S+` end.
+ * @complexity Amortized O(1) per call; all calls together scan the text once per finder. */
+function labelValueExtents(text: string): (start: number) => LabelValue {
+  const runEnd = forwardFinder(text, /\s/);
+  const lineEnd = forwardFinder(text, /[\r\n]/);
+  const closers = new Map([['"', forwardFinder(text, /"/)], ["'", forwardFinder(text, /'/)]]);
+  return (start) => {
+    const whitespace = runEnd(start);
+    const closer = closers.get(text[start] ?? '');
+    if (!closer) return { end: whitespace, closingQuote: -1, quoted: false };
+    const closing = closer(start + 1);
+    const line = lineEnd(start);
+    return closing < line
+      ? { end: Math.max(whitespace, closing + 1), closingQuote: closing, quoted: true }
+      : { end: line, closingQuote: -1, quoted: true };
+  };
+}
+
+/** `find(from)`: the first index at or after `from` matching `pattern`, or `text.length`. `from` must
+ * not decrease between calls: one search answers every later `from` up to its result, since nothing
+ * matched between the earlier `from` and that result.
+ * @complexity O(n) over all calls for n chars. */
+function forwardFinder(text: string, pattern: RegExp): (from: number) => number {
+  const regex = new RegExp(pattern.source, 'g');
+  let found = -1;
+  return (from) => {
+    if (from > found) {
+      regex.lastIndex = from;
+      found = regex.exec(text)?.index ?? text.length;
+    }
+    return found;
+  };
 }
 
 /** Opt-in bare opaque runs; whole trusted dotted IDs and non-secret diagnostic tokens stay readable. */
@@ -590,19 +651,57 @@ function exactNeedles(secrets: ReadonlyArray<string | undefined | null>): Set<st
 /** Caller-supplied secrets as plain substrings at any length and every occurrence, overlapping
  * ones included (a secret glued into other text stays masked). Matching the original text means
  * a short secret can no longer break a label or prefix before that rule sees it; it can only split
- * a label word visually, which is accepted because every value is still covered.
- * @complexity O(needles x text) time; consecutive overlapping hits of one needle share a span. */
+ * a label word visually, which is accepted because every value is still covered. Occurrences arrive
+ * in start order and each one either extends the current run or starts the next, so the runs are
+ * exactly the union of all occurrences.
+ * @complexity O(e·n + s) for e needles, n text chars and s needle chars; consecutive overlapping
+ * hits of one needle share a span. */
 function collectExactSecrets({ text, add, secrets }: SpanPass & { secrets: ReadonlyArray<string | undefined | null> }): void {
   for (const needle of exactNeedles(secrets)) {
     let runStart = -1;
     let runEnd = -1;
-    for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
+    forEachOccurrence(text, needle, (at) => {
       if (at > runEnd) {
         add(runStart, runEnd, CATEGORY.exactSecret);
         runStart = at;
       }
       runEnd = at + needle.length;
-    }
+    });
     add(runStart, runEnd, CATEGORY.exactSecret);
   }
+}
+
+/** Calls `visit` with the start of every occurrence of `needle` in order, overlapping ones included.
+ * Knuth-Morris-Pratt: after a hit the scan keeps the needle's longest border instead of retrying one
+ * character later (which cost Θ(n·m) on long overlapping needles), so no text character is read
+ * twice; while no partial match is pending, native indexOf skips to the next occurrence.
+ * @complexity O(n + m) time, O(m) space for n text and m needle chars. */
+function forEachOccurrence(text: string, needle: string, visit: (start: number) => void): void {
+  const border = borderTable(needle);
+  let matched = 0;
+  let at = text.indexOf(needle);
+  while (at !== -1 && at < text.length) {
+    const char = text.charCodeAt(at);
+    while (matched > 0 && char !== needle.charCodeAt(matched)) matched = border[matched - 1] ?? 0;
+    if (char === needle.charCodeAt(matched)) matched += 1;
+    if (matched === needle.length) {
+      visit(at + 1 - needle.length);
+      matched = border[matched - 1] ?? 0;
+    }
+    at = matched === 0 ? text.indexOf(needle, at + 1) : at + 1;
+  }
+}
+
+/** KMP failure table: `border[i]` is the length of the longest proper prefix of `needle[0..i]` that
+ * is also its suffix. @complexity O(m) time and space. */
+function borderTable(needle: string): Int32Array {
+  const border = new Int32Array(needle.length);
+  let length = 0;
+  for (let i = 1; i < needle.length; i += 1) {
+    const char = needle.charCodeAt(i);
+    while (length > 0 && char !== needle.charCodeAt(length)) length = border[length - 1] ?? 0;
+    if (char === needle.charCodeAt(length)) length += 1;
+    border[i] = length;
+  }
+  return border;
 }
