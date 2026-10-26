@@ -124,8 +124,8 @@ describe('useUsersConfirmation (pins)', () => {
 
   it('renders one shared eye per reset field and routes changes through the controller', () => {
     const { wrapper, controller } = harness({ state: { pending: { kind: 'reset', user: alice } } });
-    const { container } = render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
-    expect(container.querySelectorAll('.jini-secret-toggle')).toHaveLength(2);
+    const { baseElement } = render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
+    expect(baseElement.querySelectorAll('.jini-secret-toggle')).toHaveLength(2);
     const input = screen.getByLabelText('New password');
     expect(input).toHaveAttribute('type', 'password');
     expect(input).toHaveAttribute('autocomplete', 'new-password');
