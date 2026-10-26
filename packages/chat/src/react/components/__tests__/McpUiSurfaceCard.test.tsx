@@ -19,6 +19,8 @@ import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerM
 import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
 import { fakeClock } from '../../hooks/__tests__/fake-surface-expiry-clock.js';
 import { clearExtEventRenderers, extEventSlot, getExtEventRenderer } from '../../ext-event-renderer-registry.js';
+import type { ChatMessage } from '../../../core/index.js';
+import { MessageRow } from '../MessageRow.js';
 
 const SANDBOX_URL = new URL('https://sandbox.example.test/sandbox_proxy.html');
 
@@ -42,6 +44,30 @@ afterEach(() => {
 });
 
 describe('McpUiSurfaceCard', () => {
+  it('keeps the privacy-policy question and chosen label together live and on transcript replay', () => {
+    registerMcpUiSurfaceRenderer({ sandboxProxyUrl: SANDBOX_URL });
+    const question = { title: 'Replace or update the privacy policy?', options: [
+      { value: 'replace', label: 'Replace' }, { value: 'update', label: 'Update' },
+    ] };
+    const message: ChatMessage = { id: 'privacy', role: 'assistant', content: '', runStatus: 'running', events: [
+      { kind: 'tool_use', id: 'choice', name: 'assistant_ask_choice', input: question },
+      { kind: 'ext', name: MCP_UI_EXT_EVENT_NAME, data: resourceEvent('ui://question/privacy', '<h1>Replace or update the privacy policy?</h1>') },
+      { kind: 'ext', name: 'user_message', data: { id: 'picked', toolUseId: 'choice', text: 'Update', optimistic: true } },
+    ] };
+    const live = render(<MessageRow message={message} runStreaming />);
+    expect(live.container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Replace or update the privacy policy?: Update');
+    expect(live.container.querySelectorAll('.jini-message-user')).toHaveLength(1);
+    expect(live.container.querySelector('iframe')).toBeNull();
+    live.unmount();
+    const { container } = render(<MessageRow message={{ ...message, runStatus: 'succeeded', events: [
+      ...message.events!.slice(0, 2),
+      { kind: 'tool_result', toolUseId: 'choice', content: '{"submitted":true,"choice":"update"}', isError: false },
+    ] }} />);
+    expect(container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Replace or update the privacy policy?: Update');
+    expect(container.querySelectorAll('.jini-message-user')).toHaveLength(1);
+    expect(container.querySelector('iframe')).toBeNull();
+  });
+
   it('keeps the same choice summary before and after result replay, with exactly one receipt-owned bubble', () => {
     const events = [resourceEvent('ui://question/replay', '<form>Choose</form>')];
     const call = { id: 'question', name: 'assistant_ask_choice', input: {
