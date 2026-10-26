@@ -1,8 +1,9 @@
-/** @file PostHog's cookie-consent adapter: the browser module imported when the policy allows analytics.
+/** @file PostHog's cookie-consent adapter: the browser module imported for grants or off-mode identity cleanup.
  * Built to `server/consent-adapter.mjs` and served same-origin by `consent.ts`. Anonymous mode sends
  * only an aggregate pageview; full mode loads the pinned posthog-js SDK. The browser checks that SDK
- * against its SHA-256 (SRI) and never runs other bytes. Types only from the consent package. */
-import type { ConsentAdapter, Revoker, StoragePrefixes } from '@jini-ai/cookie-consent';
+ * against its SHA-256 (SRI) and never runs other bytes. Reuses the consent package's generic storage purge. */
+import { purgeStorage } from '@jini-ai/cookie-consent/client';
+import type { ConsentAdapter, ConsentState, Revoker, StoragePrefixes } from '@jini-ai/cookie-consent';
 
 /** Public browser config only: the project key is publishable, `host` is the same-origin collector path. */
 export interface PostHogConsentConfig {
@@ -25,6 +26,7 @@ export interface PostHogConsentPorts {
   loadSdk(required: { src: string; integrity: string }, optional?: object): Promise<PostHogSdk>;
   location: { origin: string; pathname: string; hostname: string };
   request?: typeof fetch;
+  doc?: Document;
 }
 
 /** One aggregate pageview, shared by browser and collector. A constant subject never links visitors
@@ -36,9 +38,9 @@ export function anonymousPageview({ apiKey, siteId }: { apiKey: string; siteId?:
   } });
 }
 
-/** Cookieless aggregate delivery; no SDK, identity, replay, DOM capture or storage access.
+/** Cookieless aggregate delivery; no SDK, identity, replay, DOM capture or storage creation.
  * Fetch failures are isolated like SDK loading failures. @complexity O(1), one request. */
-async function grantAnonymous({ config, signal, ports }: { config: PostHogConsentConfig; signal: AbortSignal; ports: PostHogConsentPorts }): Promise<Revoker> {
+async function grantAnonymous({ config, signal, ports }: { config: PostHogConsentConfig; signal: AbortSignal; ports: PostHogConsentPorts }, _optional = {}): Promise<Revoker> {
   await (ports.request ?? fetch)(config.host + '/e/', { method: 'POST', credentials: 'omit', referrerPolicy: 'no-referrer',
     headers: { 'content-type': 'application/json' }, body: anonymousPageview(config), signal }).catch(() => undefined);
   return { revoke: () => true };
@@ -137,10 +139,18 @@ export function loadVerifiedSdk({ src, integrity, doc }: { src: string; integrit
  * @example createPostHogConsentAdapter({ ports: browserPorts() }) */
 export function createPostHogConsentAdapter({ ports }: { ports: PostHogConsentPorts }, _optional = {}): ConsentAdapter<PostHogConsentConfig> {
   let client: PostHogClient | null = null;
+  /** Remove only this provider's leftovers; storage can be unavailable in embedded browsers.
+   * @complexity O(cookies + local keys), no storage creation or network. */
+  function onState({ state }: { state: ConsentState }, _optional = {}): void {
+    if (state.analyticsLevel !== 'full' && ports.doc) purgeStorage({ doc: ports.doc, storage: POSTHOG_STORAGE });
+  }
   return {
+    onState,
     id: 'posthog', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, storage: POSTHOG_STORAGE,
     async grant({ config, state, signal }): Promise<Revoker | null> {
       if (signal.aborted) return null;
+      onState({ state });
+      if (state.analyticsLevel === 'none') return null;
       if (state.analyticsLevel === 'anonymous') return grantAnonymous({ config, signal, ports });
       let sdk: PostHogSdk;
       try { sdk = await ports.loadSdk({ src: config.sdk, integrity: config.integrity }); } catch { return null; }   // nothing ran
@@ -164,10 +174,11 @@ export function createPostHogConsentAdapter({ ports }: { ports: PostHogConsentPo
 
 /** Browser defaults. Read lazily so the module can be imported (and tested) without a DOM. */
 function browserPorts(): PostHogConsentPorts {
-  const page = globalThis as unknown as { document: LoaderDocument; location: PostHogConsentPorts['location'] };
+  const page = globalThis as unknown as { document: Document; location: PostHogConsentPorts['location'] };
   return {
     loadSdk: ({ src, integrity }) => loadVerifiedSdk({ src, integrity, doc: page.document }),
     get location() { return page.location; },
+    get doc() { return page.document; },
   };
 }
 

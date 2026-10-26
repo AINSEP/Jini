@@ -5,7 +5,7 @@
 import { ADAPTER_KIND, CONFIG_ID, CONSENT_COOKIE, OPEN_EVENT, OPTIONAL, READY_EVENT, REGION_COOKIE, STATE_EVENT,
   type AdapterContribution, type ClientConfig, type ConsentAction, type ConsentAdapter, type ConsentState, type Contribution,
   type Evidence, type Flags, type JiniConsentApi, type LazyAdapter, type Optional, type PageConfig, type PluginRegistry,
-  type RawContribution, type Revoker, type StoredChoice } from '../contract.js';
+  type RawContribution, type Revoker, type StoragePrefixes, type StoredChoice } from '../contract.js';
 import { choicesFor, DAY_MS, effective, parseStored, RECEIPT_ID, regionFrom } from '../policy.js';
 import { ADAPTER_SLOT, createPluginRegistry } from '../plugins.js';
 import { activateInert, installOpeners, purge, readCookie, writeCookie } from './dom.js';
@@ -24,7 +24,8 @@ const quiet = (fn: () => void) => { try { fn(); } catch { /* a broken plugin or 
 /** @example createCookieConsent({ config, ports: browserPorts(window) }, { evidence: { mode: 'local' } }) */
 export function createCookieConsent({ config, ports }: { config: ClientConfig; ports: ClientPorts }, options: ClientOptions = {}): JiniConsentApi {
   const { doc } = ports;
-  const { plugins, durable } = resolveOptions(options);
+  const plugins = options.plugins ?? createPluginRegistry({}, { slots: [ADAPTER_SLOT] });
+  const durable = durableEvidence(options);
   const slots = new Map<string, Slot>();
   const listeners = new Set<(s: ConsentState) => void>();
   const ran = new Set<Optional>();                                    // categories whose raw inert tags executed
@@ -42,13 +43,14 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     writeCookie(doc, { name: CONSENT_COOKIE, value: JSON.stringify(stored), maxAgeS: maxAgeMs / 1000 }, { domain: config.cookieDomain });
   }
 
-  /** Abort is checked after the import and handed to grant(), so a withdrawal during either wait wins. */
+  /** Off-mode adapters load for identity cleanup even at none; only permitted levels grant.
+   * Abort is checked after the import and handed to grant(), so a withdrawal during either wait wins. */
   function start(slot: Slot): void {
     const ctl = new AbortController();
-    const load = slot.adapter ? Promise.resolve(slot.adapter)
-      : ports.importModule((slot.entry as LazyAdapter).src).then(m => (slot.adapter = m.default));
+    const load = Promise.resolve(slot.adapter ?? ports.importModule((slot.entry as LazyAdapter).src).then(m => (slot.adapter = m.default)));
     const result = load.then(adapter => {
-      if (ctl.signal.aborted) return null;                              // withdrawn first: nothing ran
+      quiet(() => adapter.onState?.({ state }));
+      if (ctl.signal.aborted || anonymous && state.analyticsLevel === 'none') return null;                              // withdrawn first: nothing ran
       return Promise.resolve().then(() => adapter.grant({ config: slot.entry.config ?? adapter.config, state, signal: ctl.signal }))
         .then(r => (r === null ? null : r ?? {}), () => ({}));         // a grant that threw may have run code
     }, () => null);                                                     // import failed: nothing ran
@@ -68,9 +70,11 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   function reconcile(next: ConsentState): void {
     const stops: Promise<boolean>[] = [];
     for (const slot of slots.values()) {
-      const allowed = next.allowed[slot.entry.category];
-      if (allowed && !slot.run) start(slot);
-      if (!allowed && slot.run) stops.push(stop(slot));
+      const allowed = anonymous ? next.analyticsLevel === 'anonymous' : next.allowed[slot.entry.category];
+      if (allowed) {
+        if (!slot.run) start(slot);
+      }
+      else if (slot.run) stops.push(stop(slot));
       quiet(() => slot.adapter?.onState?.({ state: next }));
     }
     // Raw tags cannot promise anonymous behavior; only declared adapters can.
@@ -116,11 +120,11 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   }
 
   function addSlot(entry: AdapterContribution): void {
-    if (anonymous && !entry.supportsAnonymous) return;
+    if (anonymous && (!entry.supportsAnonymous || entry.category !== 'analytics')) return;
     const slot: Slot = { entry, adapter: isLive(entry) ? entry : undefined };
     slots.set(entry.id, slot);
-    if (state.allowed[entry.category]) start(slot);
-    else if (!anonymous) purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
+    if (anonymous || state.allowed[entry.category]) start(slot);
+    else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
     quiet(() => slot.adapter?.onState?.({ state }));                    // lazy adapters get state once loaded
   }
   function syncSlots(items: readonly Contribution[]): void {
@@ -159,9 +163,8 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   return api;
 }
 
-function resolveOptions(options: ClientOptions): { plugins: PluginRegistry; durable: Extract<Evidence, { mode: 'durable' }> | null } {
-  const plugins = options.plugins ?? createPluginRegistry({}, { slots: [ADAPTER_SLOT] });
-  return { plugins, durable: options.evidence?.mode === 'durable' ? options.evidence : null };
+function durableEvidence({ evidence }: ClientOptions, _optional = {}): Extract<Evidence, { mode: 'durable' }> | null {
+  return evidence?.mode === 'durable' ? evidence : null;
 }
 
 export function browserPorts(win: Window & typeof globalThis): ClientPorts {
@@ -199,5 +202,11 @@ export function boot(win: Window & typeof globalThis = window, { ports = browser
   if (config.banner === 'jini') bindBanner?.({ api, doc: win.document });
   win.document.dispatchEvent(new CustomEvent(READY_EVENT, { detail: api }));
   return api;
+}
+/** Delete only the caller's storage prefixes; blocked localStorage is tolerated.
+ * @example purgeStorage({ doc: document, storage: { cookies: ['vendor_'], local: ['vendor_'] } })
+ * @complexity O(cookies + local keys), O(keys) temporary space; no new identity or network. */
+export function purgeStorage({ doc, storage }: { doc: Document; storage: StoragePrefixes }, _optional = {}): void {
+  purge(doc, storage);
 }
 export { bindBanner, installOpeners } from './dom.js';
