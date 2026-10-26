@@ -13,8 +13,16 @@ import { createInMemoryEventLog } from '../../../event-log.js';
 import { createSqliteEventLog, openSqliteEventLog } from '../sqlite.js';
 
 let dir: string;
+// FU-B (Codex on F1): every handle a test acquires is registered here and closed unconditionally,
+// BEFORE its files are removed, so an assertion failing mid-test (as mutation runs force) leaks none.
+const handles: Database.Database[] = [];
+const track = (db: Database.Database): Database.Database => { handles.push(db); return db; };
+const openTracked = (file: string, settings?: Database.Options) => track(new Database(file, settings)) as never;
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'jini-sqlite-f1-')); });
-afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => {
+  for (const db of handles.splice(0)) if (db.open) db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
 
 describe('createSqliteEventLog — borrowed connection validation', () => {
   it.each([
@@ -28,7 +36,7 @@ describe('createSqliteEventLog — borrowed connection validation', () => {
   });
 
   it('a borrowed connection works and closing the adapter leaves the host handle open', async () => {
-    const db = new Database(':memory:');
+    const db = track(new Database(':memory:'));
     const log = createSqliteEventLog({ db: db as never });
     await log.append({ runId: 'r', event: 'start', data: 1 });
     await log.close({});
@@ -41,7 +49,7 @@ describe('createSqliteEventLog — borrowed connection validation', () => {
 describe('openSqliteEventLog — owned connection', () => {
   it('opens the file in WAL journal mode', async () => {
     let opened: Database.Database | undefined;
-    const log = openSqliteEventLog({ file: join(dir, 'e.db'), open: (file, settings) => (opened = new Database(file, settings)) as never });
+    const log = openSqliteEventLog({ file: join(dir, 'e.db'), open: (file, settings) => (opened = track(new Database(file, settings))) as never });
     expect(opened!.pragma('journal_mode', { simple: true })).toBe('wal');
     await log.close({});
     expect(opened!.open).toBe(false);
@@ -51,7 +59,7 @@ describe('openSqliteEventLog — owned connection', () => {
 
 describe('append — dedupe keys', () => {
   it('a fresh key appends; the same key returns the original entry; a different key appends again', async () => {
-    const log = openSqliteEventLog({ file: join(dir, 'd.db'), open: (file, settings) => new Database(file, settings) as never });
+    const log = openSqliteEventLog({ file: join(dir, 'd.db'), open: openTracked });
     const first = await log.append({ runId: 'r', event: 'agent', data: { n: 1 } }, { dedupeKey: 'k1' });
     expect(first).toMatchObject({ id: '1', event: 'agent', data: { n: 1 } });
     const replayed = await log.append({ runId: 'r', event: 'agent', data: { n: 999 } }, { dedupeKey: 'k1' });
@@ -66,7 +74,7 @@ describe('append — dedupe keys', () => {
 describe('replay from the start — parity with the in-memory reference', () => {
   it.each([0, 1, 2])('maxEntriesPerRun=%d after 3 appends: same replay shape as createInMemoryEventLog', async (maxEntriesPerRun) => {
     const clock = { nowMs: () => 1_000 };
-    const sqlite = openSqliteEventLog({ file: join(dir, `p${maxEntriesPerRun}.db`), open: (file, settings) => new Database(file, settings) as never }, { maxEntriesPerRun, clock });
+    const sqlite = openSqliteEventLog({ file: join(dir, `p${maxEntriesPerRun}.db`), open: openTracked }, { maxEntriesPerRun, clock });
     const memory = createInMemoryEventLog({}, { maxEntriesPerRun, now: clock.nowMs });
     for (const log of [sqlite, memory]) {
       for (const n of [1, 2, 3]) await log.append({ runId: 'r', event: 'agent', data: { n } });
