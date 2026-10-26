@@ -75,3 +75,26 @@ it("the default Sentry provider sends the actual fixed diagnostic exception with
   expect(items.map(item => item.type)).toEqual(["event"]);
   expect(items[0]!.payload.exception!.values.map(value => value.value)).toEqual(["Tovu test error — safe to ignore"]);
 });
+
+it.each([200, 401, 429])("Sentry export reports the actual HTTP %i without endpoint credentials", async statusCode => {
+  const reports: ProviderTelemetryReport[] = [];
+  const resource = createSentryProvider({ dsn: `https://${['public', 'fixture'].join('')}@sentry.test/123` }, {
+    reportTelemetry: (report: ProviderTelemetryReport) => { reports.push(report); },
+    transport: (options: Parameters<typeof createTransport>[0]) => createTransport(options, async () => ({ statusCode })),
+  });
+  resource.port.reportError({ error: new Error("fixed diagnostic"), context: { operation: "telemetry.test" } });
+  await resource.dispose({});
+  expect(reports).toEqual([{ phase: 'export', outcome: statusCode === 200 ? 'ok' : 'failed', host: 'sentry.test',
+    ...(statusCode === 200 ? {} : { errorClass: 'Error', statusCode }) }]);
+});
+
+it("Sentry reports a rejected transport using safe error labels only", async () => {
+  const reports: ProviderTelemetryReport[] = [];
+  const resource = createSentryProvider({ dsn: `https://${['public', 'fixture'].join('')}@sentry.test/123` }, {
+    reportTelemetry: (report: ProviderTelemetryReport) => { reports.push(report); },
+    transport: () => ({ send: async () => { throw new TypeError('private endpoint detail'); }, flush: async () => true }),
+  });
+  resource.port.reportError({ error: new Error("fixed diagnostic"), context: { operation: "telemetry.test" } });
+  await resource.dispose({});
+  expect(reports).toEqual([{ phase: 'export', outcome: 'failed', host: 'sentry.test', errorClass: 'TypeError' }]);
+});

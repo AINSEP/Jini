@@ -91,6 +91,16 @@ async function buildArtifact(required: { packageRoot: string; staging: string; i
     banner: { js: 'import { createRequire as __jiniCreateRequire } from "node:module"; const require = __jiniCreateRequire(import.meta.url);' },
   });
   assertSelfContained({ metafile: result.metafile });
+  if (required.id === 'analytics-posthog') {
+    // Pin and bundle the full no-external SDK, including replay, into the installed plugin.
+    // Browsers request this same-origin file only after the consent bridge has a choice.
+    const browser = await build({ absWorkingDir: required.packageRoot,
+      stdin: { contents: "export { default } from 'posthog-js/dist/module.full.no-external.js';", resolveDir: required.packageRoot },
+      outfile: path.join(artifactRoot, 'server/posthog-browser.js'), bundle: true, platform: 'browser',
+      format: 'esm', target: 'es2020', metafile: true, legalComments: 'inline', sourcemap: false });
+    assertSelfContained({ metafile: browser.metafile });
+    await retainLicenses({ packageRoot: required.packageRoot, artifactRoot, metafile: browser.metafile });
+  }
   await retainLicenses({ packageRoot: required.packageRoot, artifactRoot, metafile: result.metafile });
   // The existing installer owns exact-file hashing, including retained license files.
   manifest.integrity = await computePluginIntegrity({ sourceDir: artifactRoot });

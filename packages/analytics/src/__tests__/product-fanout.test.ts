@@ -1,6 +1,19 @@
 import { expect, it } from "vitest";
 import { fanOutProductAnalytics, type ProductAiGeneration, type ProductAnalyticsPort, type ProductEvent } from "../product/index.js";
 
+it("awaits and contains a rejected AI generation while every healthy provider receives metadata", async () => {
+  let failures = 0;
+  const received: ProductAiGeneration[] = [];
+  const event = { userId: "owner", properties: { model: "fixture" }, input: "private prompt" };
+  const port = fanOutProductAnalytics({ ports: [
+    { capture() {}, identify() {}, captureAiGeneration: () => Promise.reject(new Error("private SDK detail")) },
+    { capture() {}, identify() {}, captureAiGeneration: value => { received.push(value); } },
+  ] }, { onFailure: () => { failures++; } });
+  await port.captureAiGeneration!(event);
+  expect(failures).toBe(1);
+  expect(received).toEqual([{ userId: "owner", properties: { model: "fixture" } }]);
+});
+
 it("fans out events and identities, contains a broken provider, and reports fixed diagnostics through the hook", () => {
   const received: unknown[] = [];
   let failures = 0;

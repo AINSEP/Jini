@@ -63,20 +63,32 @@ function rewriteJson(body: string, basePath: string): string {
   return JSON.stringify(parsed, (key, value: unknown) => (typeof value === 'string' && (key === 'href' || key === 'url' || key === 'src') ? prefix(value, basePath) : value));
 }
 function rewriteHtml(html: string, basePath: string): string {
-  return html.replace(HTML_URL_REWRITE, (_match, attr: string, quote: string, value: string) => {
+  return rewriteCss(html, basePath).replace(HTML_URL_REWRITE, (_match, attr: string, quote: string, value: string) => {
     if (attr !== 'srcset') return `${attr}=${quote}${prefix(value, basePath)}${quote}`;
     for (const { start, end } of srcsetRanges(value).reverse()) value = value.slice(0, start) + prefix(value.slice(start, end), basePath) + value.slice(end);
     return `${attr}=${quote}${value}${quote}`;
   });
 }
+/** Root-relative CSS URLs keep working in inline styles and stylesheets under an export prefix. */
+function rewriteCss(body: string, basePath: string): string {
+  return body.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (_match, quote: string, value: string) => `url(${quote}${prefix(value.trim(), basePath)}${quote})`);
+}
 /** Same bounded text transforms as the exporter origin; crawl the raw body before applying these. */
 export function rewriteRouteBodyForBasePath(required: { path: string; body: string; basePath: string }): string {
   const { path, body, basePath } = required;
   if (!basePath || path === '/feed.xml') return body;
-  if (path === '/sitemap.xml') return body.replace(/<loc>([^<]*)<\/loc>/g, (_match, value: string) => `<loc>${prefix(value, basePath)}</loc>`);
+  if (path === '/sitemap.xml') return body.replace(/<((?:[\w-]+:)?loc)>([^<]*)<\/\1>/g, (_match, tag: string, value: string) => `<${tag}>${prefix(value, basePath)}</${tag}>`);
   if (path === '/robots.txt') return body.replace(/^Sitemap: (.*)$/gm, (_match, value: string) => `Sitemap: ${prefix(value.trim(), basePath)}`);
   if (isJsonRoute(path)) return rewriteJson(body, basePath);
   return rewriteHtml(body, basePath);
+}
+/** Rewrite asset output only; discovery still uses the raw stylesheet/manifest response. */
+export function rewriteAssetBodyForBasePath(required: { body: string; contentType: string; basePath: string }): string {
+  const { body, contentType, basePath } = required;
+  if (!basePath) return body;
+  if (/\bjson\b/.test(contentType)) return rewriteJson(body, basePath);
+  if (!/^text\/css\b/.test(contentType)) return body;
+  return rewriteCss(body, basePath);
 }
 type RedirectDecision = { kind: 'failed'; reason: string } | { kind: 'redirect-to'; location: string };
 /** Live Location wins; a manifest target is a fallback only for a genuine 3xx. */
@@ -110,6 +122,9 @@ export function extractAssetUrls(required: { html: string; prefixes: readonly st
   for (const match of required.html.matchAll(HTML_URL_SCAN)) candidates.push(...attributeUrls(match[1]!, match[3]!));
   // JSON link fields too (a see-more JSON batch's covers), as `rewriteJson` prefixes them.
   for (const [, url = ''] of required.html.matchAll(/"(?:href|src|url)"\s*:\s*"([^"\\]+)"/g)) candidates.push(url);
+  // Sitemaps/feeds and inline styles can name assets without an HTML URL attribute.
+  for (const [, url = ''] of required.html.matchAll(/<(?:[\w-]+:)?(?:loc|url)>([^<]+)<\//g)) candidates.push(url);
+  candidates.push(...extractCssUrls({ css: required.html, cssUrl: '/', prefixes: required.prefixes }));
   const found = new Set<string>();
   for (const url of candidates) if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
   return [...found];

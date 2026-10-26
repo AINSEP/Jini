@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import { createTelemetryDeliveryMonitor, describeTelemetryFailure } from "../delivery.js";
 
 describe("provider delivery evidence", () => {
+  it("logs a recurring outage after recovery without resetting another provider's dedupe", () => {
+    const warnings: string[] = [];
+    const monitor = createTelemetryDeliveryMonitor({ warn: message => { warnings.push(message); } });
+    const report = { phase: "export" as const, outcome: "failed" as const, host: "collector.test", statusCode: 429 };
+    for (const providerId of ["a", "a", "b"]) monitor.report({ providerId, report });
+    monitor.report({ providerId: "a", report: { ...report, outcome: "ok" } });
+    for (const providerId of ["a", "a", "b"]) monitor.report({ providerId, report });
+    expect(warnings).toEqual([
+      "observability: a export failed (Error, HTTP 429, host collector.test)",
+      "observability: b export failed (Error, HTTP 429, host collector.test)",
+      "observability: a export failed (Error, HTTP 429, host collector.test)",
+    ]);
+  });
   it("records every result with time, logs each distinct failure once, and preserves recovery", () => {
     const warnings: string[] = [];
     let at = "2026-10-26T01:00:00.000Z";

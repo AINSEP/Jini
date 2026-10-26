@@ -38,7 +38,7 @@ export function describeTelemetryFailure({ error }: { error: unknown }, _options
   } catch { return { errorClass: "Error" }; }
 }
 
-/** Keeps delivery evidence separate from configuration and logs each distinct failure once.
+/** Keeps delivery evidence separate from configuration and logs each distinct failure until recovery.
  * @param required Host warning sink; receives sanitized adapter fields only.
  * @param optional Injected wall clock for status timestamps.
  * @returns Per-provider reporter and detached status reader. @complexity O(p + f) retained state.
@@ -48,7 +48,7 @@ export function createTelemetryDeliveryMonitor(
   { now = () => new Date().toISOString() }: { now?: () => string } = {},
 ): TelemetryDeliveryMonitor {
   const statuses = new Map<string, { lastExport: ProviderTelemetryStatus | null; lastShutdown: ProviderTelemetryStatus | null }>();
-  const logged = new Set<string>();
+  const logged = new Map<string, Set<string>>();
   return {
     register({ providerId }: { providerId: string }, _options = {}): void {
       statuses.set(providerId, { lastExport: null, lastShutdown: null });
@@ -59,10 +59,12 @@ export function createTelemetryDeliveryMonitor(
       if (report.phase === "export") state.lastExport = status;
       else state.lastShutdown = status;
       statuses.set(providerId, state);
-      if (report.outcome !== "failed") return;
-      const kind = JSON.stringify([providerId, report.phase, report.errorClass, report.statusCode, report.host]);
-      if (logged.has(kind)) return;
-      logged.add(kind);
+      if (report.outcome !== "failed") { logged.delete(providerId); return; }
+      const kind = JSON.stringify([report.phase, report.errorClass, report.statusCode, report.host]);
+      const failures = logged.get(providerId) ?? new Set<string>();
+      if (failures.has(kind)) return;
+      failures.add(kind);
+      logged.set(providerId, failures);
       try { warn(`observability: ${providerId} ${report.phase} failed (${report.errorClass ?? "Error"}${report.statusCode === undefined ? "" : `, HTTP ${report.statusCode}`}, host ${report.host})`); }
       catch { /* A broken log sink must not fail an exporter callback or shutdown. */ }
     },

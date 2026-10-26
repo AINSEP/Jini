@@ -85,8 +85,23 @@ function privateClient({ config }: { config: SentryConfigEnabled }, { transport 
  */
 export function createSentryObservabilityAdapter({ config }: { config: SentryConfigEnabled }, options: SentryAdapterOptions = {}): ObservabilityAdapter {
   const owned = options.client === undefined;
-  const client = (options.client ?? privateClient({ config }, { transport: options.transport })) as NodeClient;
   const reporter = createProviderTelemetryReporter({ endpoint: config.dsn }, options);
+  const transport: NonNullable<NodeOptions["transport"]> = (input) => {
+    const inner = (options.transport ?? makeNodeTransport)(input);
+    return { ...inner, async send(envelope) {
+      try {
+        const result = await inner.send(envelope);
+        const statusCode = result.statusCode;
+        const ok = statusCode !== undefined && statusCode >= 200 && statusCode < 300;
+        reporter.result({ phase: "export", outcome: ok ? "ok" : "failed", error: { statusCode } });
+        return result;
+      } catch (error) {
+        reporter.result({ phase: "export", outcome: "failed", error });
+        throw error;
+      }
+    } };
+  };
+  const client = (options.client ?? privateClient({ config }, { transport })) as NodeClient;
   const active = new AsyncLocalStorage<Span>();
   // A span keeps the scope it started in, so tags set here reach its transaction as well as exceptions.
   const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); scope.setTags(config.tags ?? {}); return fn(); });

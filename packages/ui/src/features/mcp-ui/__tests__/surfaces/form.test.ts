@@ -44,6 +44,33 @@ describe('renderFormDocument credential autofill guard', () => {
 });
 
 describe('renderFormDocument', () => {
+  it('accepts an entered or kept alternate credential, and restores the requirement when an entered alternative is cleared', () => {
+    for (const saved of [false, true]) {
+      const surface = mountSurface(renderFormDocument({ ...SPEC, baseParams: {}, fields: [
+        { kind: 'enum', name: 'auth', label: 'Authentication', value: 'bearer', options: [{ value: 'bearer' }] },
+        { kind: 'string', name: 'token', label: 'Token', required: true, secret: true, requiredUnless: { field: 'auth', equals: 'none', orPresent: 'headers' } },
+        { kind: 'string', name: 'headers', label: 'Headers', secret: true, ...(saved ? { hasSavedValue: true } : {}) },
+      ] }));
+      const token = surface.doc.querySelector<HTMLInputElement>('input[name="token"]')!;
+      const headers = surface.doc.querySelector<HTMLInputElement>('input[name="headers"]')!;
+      expect(token.required).toBe(!saved);
+      expect(headers.value).toBe('');
+      if (!saved) {
+        headers.value = 'Authorization=Custom fixture';
+        headers.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(token.required).toBe(false);
+        headers.value = ' ';
+        headers.dispatchEvent(new Event('input', { bubbles: true }));
+        expect(token.required).toBe(true);
+        surface.submit();
+        expect(surface.api.callTool).not.toHaveBeenCalled();
+        headers.value = 'Authorization=Custom fixture';
+      }
+      surface.submit();
+      expect(surface.api.callTool).toHaveBeenCalledWith(SPEC.toolName, { auth: 'bearer', token: '', headers: saved ? '' : 'Authorization=Custom fixture' });
+    }
+  });
+
   it('requires a token until the explicit local choice, updating accessibility and allowing a blank submit', () => {
     const surface = mountSurface(renderFormDocument({ ...SPEC, baseParams: {}, fields: [
       { kind: 'string', name: 'token', label: 'Token', secret: true, required: true, requiredUnless: { field: 'auth', equals: 'none' }, hint: 'Choose "No authentication" only for a local collector.' },
@@ -67,6 +94,34 @@ describe('renderFormDocument', () => {
     auth.dispatchEvent(new Event('change', { bubbles: true }));
     surface.submit();
     expect(surface.api.callTool).toHaveBeenCalledWith(SPEC.toolName, { token: '', auth: 'none' });
+  });
+
+  it('updates conditional asterisks from an initially optional field and keeps a saved required secret filled', () => {
+    const surface = mountSurface(renderFormDocument({ ...SPEC, baseParams: {}, fields: [
+      { kind: 'enum', name: 'auth', label: 'Authentication', value: 'token', options: [{ value: 'grafana-cloud' }, { value: 'token' }, { value: 'none' }] },
+      { kind: 'string', name: 'username', label: 'Instance ID', requiredWhen: { field: 'auth', in: ['grafana-cloud'] } },
+      { kind: 'string', name: 'token', label: 'Token', required: true, secret: true, hasSavedValue: true, requiredUnless: { field: 'auth', equals: 'none' } },
+    ] }));
+    const auth = surface.doc.querySelector<HTMLSelectElement>('select[name="auth"]')!;
+    const username = surface.doc.querySelector<HTMLInputElement>('input[name="username"]')!;
+    const token = surface.doc.querySelector<HTMLInputElement>('input[name="token"]')!;
+    const mark = (control: HTMLInputElement) => control.labels![0]!.querySelector<HTMLElement>('.mcpui-required')!;
+    expect(username.required).toBe(false);
+    expect(mark(username).hidden).toBe(true);
+    expect(mark(token).hidden).toBe(false);
+    expect(token.required).toBe(false);
+    expect(token.value).toBe('');
+    auth.value = 'grafana-cloud';
+    auth.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(username.required).toBe(true);
+    expect(username.getAttribute('aria-required')).toBe('true');
+    expect(mark(username).hidden).toBe(false);
+    surface.submit();
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.status()).toBe('Please complete: Instance ID');
+    username.value = '123456';
+    surface.submit();
+    expect(surface.api.callTool).toHaveBeenCalledWith(SPEC.toolName, { auth: 'grafana-cloud', username: '123456', token: '' });
   });
 
   it('reveals and re-masks a multiline secret without changing its value or calling a tool', () => {
@@ -586,30 +641,30 @@ it('an alternative submit action collects checked fields and carries its own act
 });
 
 // Exact hashes include the intended detail-layout fix (c4c19234) and shared requiredUnless script
-// (4b31ffd20); all other emitted bytes stay pinned.
+// (4b31ffd20), plus live requiredWhen marks and saved-value presence; all other emitted bytes stay pinned.
 describe('renderFormDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, FormSurfaceSpec, string]> = [
-    ['shared spec with an untargeted cancel', SPEC, '17c325fc582fa815dae74d03d892d4238ea2030e0eb6fc2619e6d9de54109c02'],
-    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, '824ceaac2d1d20e2427cc1efb6fc7e9f6cfbc7c8eba2d0ecf2cea2a037b021d7'],
+    ['shared spec with an untargeted cancel', SPEC, '03f4b34754188d67c07bc5822ca1bb2aafb3e7935f81b6ed2849441adf2204b7'],
+    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, 'a22fd51dd21ceda68668dabbde2f5dfe9f843d20a68d257873e19ff39da91bd6'],
     ['every option, with a tool-routed cancel', {
       ...SPEC, warning: 'Careful <now>', danger: true,
       fields: [...SPEC.fields, { kind: 'string', name: 'key', label: 'Key', secret: true, multiline: true }],
       additionalSubmitActions: [{ id: 'later', label: 'Later', params: { when: 'later' } }],
       cancel: { label: 'Stop', toolName: 'cancel_tool', params: { reason: 'x' } },
       text: { working: 'W', showSecret: 'Reveal' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
-    }, '6bba77b10c0ce1cd1ccdb949efbc9374b31b49eedc204796252ef306797eb52a'],
-    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '263df9e46bfe6675d1cb7fffe8d659dbcbc125ce469cda968a89f4872d8f42d9'],
+    }, '13f9dcf59c246cadae1fda8bdc3ebfcfa5312319fa6b2f2919c3bc6b72396f15'],
+    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '44327913223c03dc8a678b7eed0cb465f29fe16e9f57cade8c7177c5df11632f'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderFormDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('e9157df4b49bbfef5b062111e99b289b6b120540e0c7f147a766d29ee2a6c23d');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('168ce1b1d295180bc4e3878221b0c86b8ede01d1fde37da42f737e3860d71789');
   });
 
   it('pins the unframed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('26fdbd23f82850f8438ed2c2d5a4841ffa91c9b2a782005f8e66871afb5437db');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('a3aadf57552b2772f21557012c186681345f147400b6625f5a469fd10b59ec67');
   });
 });

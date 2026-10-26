@@ -1,6 +1,6 @@
 import { ExportPathError } from "./contracts.js";
 import type { DroppedReference, ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, ManifestSkip, RouteManifest } from './contracts.js';
-import { extractAssetUrls, extractHtmlReferences, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
+import { extractAssetUrls, extractHtmlReferences, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, rewriteAssetBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
 
 const BASE_PATH_REWRITE_WARNING = "base-path rewriting is a best-effort TEXT rewrite over already-rendered responses — it cannot rewrite a path a theme's own JavaScript constructs at runtime from a string (same category of gap as the unreferenced-theme-file warning, just invisible to this rewrite instead of to the asset crawl).";
 interface RunContext { args: ExportSiteArgs; baseUrl: string; basePath: string; timeoutMs: number }
@@ -90,21 +90,27 @@ async function writeRoutes(ctx: RunContext, routes: readonly ManifestRoute[]): P
   }
   return { succeeded, failed, assets, skipped: state.skipped };
 }
-async function fetchAsset(required: { ctx: RunContext; url: string }): Promise<ExportedAsset | { reason: string }> {
+async function fetchAsset(required: { ctx: RunContext; url: string; crawlCss: boolean }): Promise<{ asset: ExportedAsset; children: string[] } | { reason: string }> {
   const { ctx, url } = required;
   const outputFile = outputFileForUrl({ url });
   const response = await request(ctx, url);
   if (!response.ok) { await response.body?.cancel(); return { reason: `GET ${url} -> ${response.status}` }; }
-  const data = Buffer.from(await response.arrayBuffer());
+  let data = Buffer.from(await response.arrayBuffer());
   const contentType = response.headers.get('content-type');
+  const children = stylesheetChildren({ ctx, asset: { url, outputFile, data, contentType }, crawlCss: required.crawlCss });
+  if (/^(?:text\/css|application\/(?:[\w.+-]*\+)?json)\b/.test(contentType ?? '')) {
+    data = Buffer.from(rewriteAssetBodyForBasePath({ body: data.toString('utf8'), contentType: contentType!, basePath: ctx.basePath }));
+  }
   await ctx.args.writer.write({ outputDir: ctx.args.outputDir, outputFile, data });
-  return { url, outputFile, data, contentType };
+  return { asset: { url, outputFile, data, contentType }, children };
 }
-/** Only a stylesheet reached from HTML is scanned: one CSS hop, never recursive. */
+/** Stylesheets and JSON manifests reached from a route are scanned once; never recursive. */
 function stylesheetChildren(required: { ctx: RunContext; asset: ExportedAsset; crawlCss: boolean }): string[] {
   const { ctx, asset } = required;
-  if (!required.crawlCss || !asset.url.split('?')[0]!.endsWith('.css')) return [];
-  return extractCssUrls({ css: asset.data.toString('utf8'), cssUrl: asset.url, prefixes: ctx.args.assetUrlPrefixes });
+  if (!required.crawlCss) return [];
+  if (asset.url.split('?')[0]!.endsWith('.css')) return extractCssUrls({ css: asset.data.toString('utf8'), cssUrl: asset.url, prefixes: ctx.args.assetUrlPrefixes });
+  if (/\bjson\b/.test(asset.contentType ?? '')) return extractAssetUrls({ html: asset.data.toString('utf8'), prefixes: ctx.args.assetUrlPrefixes });
+  return [];
 }
 function assetFailureReason(required: { ctx: RunContext; url: string; error: unknown }): string {
   const { ctx, url, error } = required;
@@ -119,10 +125,10 @@ async function writeAssets(ctx: RunContext, initial: readonly string[]): Promise
     if (seen.has(url)) continue;
     seen.add(url);
     try {
-      const outcome = await fetchAsset({ ctx, url });
+      const outcome = await fetchAsset({ ctx, url, crawlCss });
       if ('reason' in outcome) { failed.push({ url, reason: outcome.reason }); continue; }
-      succeeded.push(outcome);
-      for (const child of stylesheetChildren({ ctx, asset: outcome, crawlCss })) queue.push({ url: child, crawlCss: false });
+      succeeded.push(outcome.asset);
+      for (const child of outcome.children) queue.push({ url: child, crawlCss: false });
     } catch (error) { failed.push({ url, reason: assetFailureReason({ ctx, url, error }) }); }
   }
   return { succeeded, failed };

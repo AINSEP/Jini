@@ -7,6 +7,12 @@ export interface BrowserAnalyticsContribution {
   /** Exact origins required by this contribution, including anonymous delivery. */
   readonly origins: readonly string[];
   readonly supportsStatic: boolean;
+  /** Server-only same-origin asset/collection adapter. Never serialized into page source.
+   * The host admits collection with its existing consent owner before invoking this port. */
+  readonly http?: {
+    readonly path: string;
+    handle(required: { method: string; path: string; body: Uint8Array; contentType: string }, optional?: Record<string, never>): Promise<{ status: number; body: string | Uint8Array; contentType?: string; cacheControl?: string }>;
+  };
   /** Mode changes retire identities/replay synchronously before starting the next mode. */
   readonly supportsLiveConsent?: boolean;
   /** Host-owned live check; a changed revision retires this page's SDKs until reload. */
@@ -36,15 +42,25 @@ export function renderBrowserAnalytics(required: {
   const configurations = JSON.stringify([...new Map(contributions.filter(item => item.configuration).map(item => [item.configuration!.url, item.configuration!] as const)).values()]).replace(/</g, '\\u003c');
   // A plugin source is executable trusted code; escape script end tags at the HTML sink too.
   const source = `(function(){
-    var factories=[${factories}], controllers=null, invalidated=false;
+    var factories=[${factories}], controllers=null, invalidated=false, active=false, checks=[];
     var resolveMode=${resolveBrowserAnalyticsMode.toString()};
     var initial=${initial}, surface=${JSON.stringify(required.surface)};
     if(surface==='site')window.jiniBrowserAnalyticsLive=${contributions.every(item => item.supportsLiveConsent === true)};
+    function adminMode(mode){
+      if(mode!=='full')return 'pending';
+      try{return window.localStorage.getItem('jini:metrics-withdrawal')==='1'?'pending':mode;}catch(e){return mode;}
+    }
+    function requestedMode(state){
+      state=state||{};
+      var mode=resolveMode({hasChoice:state.hasChoice===true,analytics:state.analytics===true,
+        gpc:state.gpc===true||navigator.globalPrivacyControl===true});
+      return surface==='admin'?adminMode(mode):mode;
+    }
     function apply(state){
       if(invalidated)return;
-      var gpc=state&&state.gpc===true||navigator.globalPrivacyControl===true;
-      var mode=resolveMode({hasChoice:!!state&&state.hasChoice,analytics:!!state&&state.analytics,gpc:gpc});
-      if(surface==='admin'&&mode!=='full')mode='pending';
+      var mode=requestedMode(state);
+      var wasActive=active;active=mode!=='pending';
+      if(active&&!wasActive)checks.forEach(function(check){check();});
       if(mode==='pending'&&!controllers)return;
       if(!controllers)controllers=factories.map(function(factory){try{return factory();}catch(e){return function(){};}});
       controllers.forEach(function(control){try{control(mode);}catch(e){window.jiniBrowserAnalyticsLive=false;}});
@@ -76,20 +92,23 @@ export function renderBrowserAnalytics(required: {
     // Check its opaque revision, and fail closed if the host can no longer confirm it.
     var configurations=${configurations};
     configurations.forEach(function(config){
-      var running=false;
+      var running=false, failures=0;
       async function check(){
-        if(running||invalidated)return;
+        if(running||invalidated||!active||document.visibilityState==='hidden')return;
         running=true;
         try{
           var response=await fetch(config.url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(5000)});
           if(!response.ok)throw new Error('configuration unavailable');
           var revisions=await response.json();
           if(!Array.isArray(revisions)||revisions.indexOf(config.revision)===-1)invalidate();
-        }catch(e){invalidate();}finally{running=false;}
+          failures=0;
+        }catch(e){failures+=1;if(failures>=2)invalidate();}finally{running=false;}
       }
-      var timer=setInterval(function(){if(invalidated)clearInterval(timer);else check();},5000);
+      checks.push(check);
+      // Only an explicit choice activates checks; hidden tabs generate no periodic traffic.
+      var timer=setInterval(function(){if(invalidated)clearInterval(timer);else check();},120000);
       window.addEventListener('focus',check);
-      check();
+      document.addEventListener('visibilitychange',check);
     });
     apply(initial||(surface==='site'?window.jiniConsent:null));
   })();`.replace(/<\/script/gi, '<\\/script');

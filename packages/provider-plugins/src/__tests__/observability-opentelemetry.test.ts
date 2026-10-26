@@ -9,6 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
 import { afterEach, test } from "vitest";
 
 import { SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
@@ -460,4 +461,50 @@ test("site attribution: every exported span's resource carries the host's attrib
     assert.deepEqual({ ...span.resource.attributes }, { "service.name": "tovu", "tovu.site.id": "site-123", "tovu.site.slug": "blog", "deployment.environment": "local", "tovu.project.id": "proj-9" });
   }
   await resource.dispose({});
+});
+
+
+test('explicit OTLP authentication modes enforce Grafana credentials and token-only ignores a username', () => {
+  const token = 'fixture-token';
+  assert.deepEqual(otlpAuthHeaders({ auth: 'grafana-cloud', username: ' 123456 ', token }), { Authorization: `Basic ${Buffer.from('123456:fixture-token').toString('base64')}` });
+  assert.deepEqual(otlpAuthHeaders({ auth: 'bearer', username: '123456', token }), { Authorization: 'Bearer fixture-token' });
+  assert.throws(() => otlpAuthHeaders({ auth: 'grafana-cloud', token }), { name: 'TypeError', message: 'Username / instance ID is required for Grafana Cloud' });
+  for (const auth of ['grafana-cloud', 'bearer']) assert.throws(() => otlpAuthHeaders({ auth, username: '123456', token: ' ' }), { name: 'TypeError', message: 'Token is required' });
+});
+
+
+test('legacy token auth retains its inferred scheme until the saved settings are migrated', () => {
+  assert.deepEqual(otlpAuthHeaders({ auth: 'token', username: '123456', token: 'fixture-token' }), { Authorization: `Basic ${Buffer.from('123456:fixture-token').toString('base64')}` });
+  assert.deepEqual(otlpAuthHeaders({ auth: 'token', token: 'fixture-token' }), { Authorization: 'Bearer fixture-token' });
+});
+
+
+test('the manifest defaults to Grafana Cloud and declares both conditional requirements and all auth choices', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../observability-opentelemetry/jini.plugin.json', import.meta.url), 'utf8'));
+  const fields = manifest.contributes.providers[0].settings;
+  const auth = fields.find((field: { name: string }) => field.name === 'auth');
+  assert.equal(auth.default, 'grafana-cloud');
+  assert.deepEqual(auth.options, [
+    { value: 'grafana-cloud', label: 'Grafana Cloud (instance ID + token)' },
+    { value: 'bearer', label: 'Token only (Bearer)' },
+    { value: 'none', label: 'No authentication (local collector, advanced)' },
+  ]);
+  assert.deepEqual(fields.find((field: { name: string }) => field.name === 'username').requiredWhen, { field: 'auth', in: ['grafana-cloud'] });
+  const token = fields.find((field: { name: string }) => field.name === 'token');
+  assert.equal(token.required, true);
+  assert.deepEqual(token.requiredUnless, { field: 'auth', equals: 'none', orPresent: 'headers' });
+});
+
+
+test('normalized legacy modes preserve a raw Authorization header, while explicit tokens and none remain authoritative', () => {
+  const headers = { authorization: 'Custom fixture', 'X-Extra': 'kept' };
+  assert.deepEqual(otlpAuthHeaders({ auth: 'bearer', headers }), headers);
+  assert.deepEqual(otlpAuthHeaders({ auth: 'grafana-cloud', username: '123456', headers }), headers);
+  assert.deepEqual(otlpAuthHeaders({ auth: 'bearer', token: 'new-fixture', headers }), { Authorization: 'Bearer new-fixture', 'X-Extra': 'kept' });
+  assert.deepEqual(otlpAuthHeaders({ auth: 'none', headers }), { 'X-Extra': 'kept' });
+  assert.throws(() => otlpAuthHeaders({ auth: 'grafana-cloud', headers }), { name: 'TypeError', message: 'Username / instance ID is required for Grafana Cloud' });
+  const incomplete: readonly (Record<string, string> | undefined)[] = [undefined, { 'X-Extra': 'kept' }, { Authorization: ' ' }];
+  for (const headers of incomplete) {
+    assert.throws(() => otlpAuthHeaders({ auth: 'bearer', headers }), { name: 'TypeError', message: 'Token is required' });
+  }
 });

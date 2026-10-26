@@ -265,3 +265,18 @@ export async function allowsAnalyticsProof(
     return record?.choices.analytics === true && record.gpc !== true;
   } catch { return false; }
 }
+
+/** Browser collection requires a current explicit choice, including rejection for anonymous counts.
+ * This does not expose receipt evidence to the browser adapter. Read/config failures stay pending.
+ * @complexity O(1), one config and one receipt read; no external I/O. */
+export async function readRequestBrowserAnalyticsMode(
+  { ports, request }: { ports: Pick<ConsentHttpPorts, 'config' | 'records' | 'clock' | 'readReceiptId' | 'reportError'>; request: Request },
+  { cookieName = DEFAULT_CONSENT_COOKIE_NAME }: { cookieName?: string } = {},
+): Promise<'pending' | 'anonymous' | 'full'> {
+  try {
+    const config = await ports.config.get({});
+    const { record } = await currentRecord({ ports, request, config }, { cookieName });
+    if (!record) return 'pending';
+    return record.choices.analytics && !record.gpc && request.get('sec-gpc') !== '1' && request.get('dnt') !== '1' ? 'full' : 'anonymous';
+  } catch { return 'pending'; }
+}

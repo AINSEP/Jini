@@ -93,7 +93,11 @@ function formOutcome(result: CommentSubmitResult): "comment-pending" | "comment-
  * @returns An Express handler preserving the source route's normalization and HTTP responses.
  * @complexity O(body length) normalization and hashing plus the ingress port's work.
  */
-export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional: { formRedirect?: (required: { request: Request }) => string | undefined } = {}): RequestHandler {
+export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional: {
+  formRedirect?: (required: { request: Request }) => string | undefined;
+  /** Best-effort notification after ingress accepts; failure cannot undo the committed comment. */
+  onAccepted?: (required: { request: Request; submission: CommentSubmission; comment: { id: string; status: string } }) => void | Promise<void>;
+} = {}): RequestHandler {
   assertSubmitDeps(deps);
   return async (req, res) => {
     try {
@@ -103,6 +107,10 @@ export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional
       const result: CommentSubmitResult = rateLimit.allowed
         ? await deps.ingressPolicy.submit(submission)
         : { ok: false, reason: "rate-limited" };
+      if (result.ok) {
+        try { await optional.onAccepted?.({ request: req, submission, comment: result.comment }); }
+        catch { /* A notification cannot turn an accepted comment into a failed submission. */ }
+      }
 
       const redirect = optional.formRedirect?.({ request: req });
       if (redirect !== undefined) {

@@ -130,6 +130,7 @@ function cancelPlanOf(spec: FormSurfaceSpec): { toolName: string; params: Readon
 /** The inline runtime script that reads, validates and submits the fields. @complexity O(n) in the field count plus the script length. */
 function formScript(spec: FormSurfaceSpec, text: FormText): string {
   const cancelPlan = cancelPlanOf(spec);
+  const hasAlternatives = spec.fields.some(field => field.requiredUnless?.orPresent);
   return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
@@ -234,26 +235,59 @@ ${SURFACE_SCRIPT_PRELUDE}
   }
 
   // Presentation only; the host's save rule validates the effective settings and kept secrets.
-  function requiredNow(field) {
+${hasAlternatives ? `  function hasAlternative(field) {
+    var name = field.requiredUnless && field.requiredUnless.orPresent;
+    if (!name) return false;
+    var control = form.elements[name];
+    return FIELDS.some(function(item) { return item.name === name && item.hasSavedValue; }) || Boolean(control && control.value.trim() !== "");
+  }
+` : ''}  function requiredNow(field) {
     var condition = field.requiredUnless;
     var other = condition && form.elements[condition.field];
-    return field.required && (!condition || !other || other.value !== condition.equals);
+    var when = field.requiredWhen;
+    var controlling = when && form.elements[when.field];
+    var required = when ? Boolean(controlling && when.in.indexOf(controlling.value) !== -1) : field.required;
+${hasAlternatives ? `    if (hasAlternative(field)) return false;
+` : ''}    return required && (!condition || !other || other.value !== condition.equals);
   }
   function refreshRequirements() {
     for (var i = 0; i < FIELDS.length; i++) {
       var field = FIELDS[i];
-      if (!field.requiredUnless) continue;
+      if (!field.requiredUnless && !field.requiredWhen && !field.hasSavedValue) continue;
       var control = form.elements[field.name];
       var required = requiredNow(field);
-      control.required = required;
-      control.setAttribute("aria-required", String(required));
+      control.required = required && !field.hasSavedValue;
+      control.setAttribute("aria-required", String(required && !field.hasSavedValue));
       var label = control.labels && control.labels[0];
       var mark = label && label.querySelector(".mcpui-required");
+      if (label && !mark) {
+        mark = document.createElement("span");
+        mark.className = "mcpui-required";
+        mark.setAttribute("aria-hidden", "true");
+        mark.textContent = "*";
+        label.appendChild(mark);
+      }
       if (mark) mark.hidden = !required;
     }
   }
   form.addEventListener("change", refreshRequirements);
   refreshRequirements();
+
+  // Collect field values and validation feedback before the submit path performs any effects.
+  function readFields() {
+    var params = {};
+    var missing = [];
+    var missingMessage;
+    for (var i = 0; i < FIELDS.length; i++) {
+      var value = readField(FIELDS[i]);
+      if (requiredNow(FIELDS[i]) && !FIELDS[i].hasSavedValue && isBlank(FIELDS[i], value)) {
+        missing.push(FIELDS[i].label);
+        if ((FIELDS[i].requiredUnless || FIELDS[i].requiredWhen) && FIELDS[i].hint) missingMessage = FIELDS[i].label + " is required. " + FIELDS[i].hint;
+      }
+      params[FIELDS[i].name] = value;
+    }
+    return { params: params, missing: missing, missingMessage: missingMessage };
+  }
 
   // NOT wired to the form's "submit" event. Per the WHATWG form submission algorithm, the
   // sandboxed-forms browsing-context check runs BEFORE that event is ever dispatched, so in the
@@ -284,18 +318,10 @@ ${SURFACE_SCRIPT_PRELUDE}
     var params = {};
     var key;
     for (key in BASE_PARAMS) if (Object.prototype.hasOwnProperty.call(BASE_PARAMS, key)) params[key] = BASE_PARAMS[key];
-    var missing = [];
-    var missingMessage;
-    for (var i = 0; i < FIELDS.length; i++) {
-      var value = readField(FIELDS[i]);
-      if (requiredNow(FIELDS[i]) && isBlank(FIELDS[i], value)) {
-        missing.push(FIELDS[i].label);
-        if (FIELDS[i].requiredUnless && FIELDS[i].hint) missingMessage = FIELDS[i].label + " is required. " + FIELDS[i].hint;
-      }
-      params[FIELDS[i].name] = value;
-    }
-    if (missing.length > 0) {
-      setStatus(missingMessage || TEXT.missingPrefix + missing.join(", "), "invalid");
+    var fields = readFields();
+    Object.assign(params, fields.params);
+    if (fields.missing.length > 0) {
+      setStatus(fields.missingMessage || TEXT.missingPrefix + fields.missing.join(", "), "invalid");
       return;
     }
     for (key in actionParams) if (Object.prototype.hasOwnProperty.call(actionParams, key)) params[key] = actionParams[key];

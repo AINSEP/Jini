@@ -94,8 +94,8 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
   }
 
   const validation = assertValidSubmission({ deps, definition, body: input.body });
-  await assertWithinRateLimit({ deps, input, definition });
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
+  await assertWithinRateLimit({ deps, input, definition });
 
   const records = buildSubmissionRecords({ deps, input, definition, data: validation.data });
   const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });

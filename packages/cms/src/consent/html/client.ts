@@ -25,6 +25,11 @@ export const CONSENT_CLIENT = String.raw`(function () {
   var hasChoice = state.hasRecord || Boolean(withdrawal);
   var releasedAnalytics = false;
   function publishConsent() {
+    // The server cannot see a failed-save withdrawal marker until the next durable save.
+    // Mirror the effective local choice so the initial banner and floating UI agree.
+    document.documentElement.classList.toggle('jini-consent-has-choice', hasChoice);
+    var banner = document.getElementById('jini-consent');
+    if (banner) banner.dataset.hasRecord = String(hasChoice);
     // Consumers observe the effective denial too, even when saving a withdrawal fails.
     window.jiniConsent = { hasChoice: hasChoice, analytics: choices.analytics === true && !gpc, gpc: gpc };
     window.dispatchEvent(new CustomEvent('jini:consent-changed', { detail: window.jiniConsent }));
@@ -274,6 +279,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
   });
   document.addEventListener('DOMContentLoaded', function () {
     var banner = document.getElementById('jini-consent');
+    banner.dataset.hasRecord = String(hasChoice);
     if (gpc) {
       banner.querySelector('[data-jini-gpc-note]').hidden = false;
       banner.querySelector('[name=gpc]').value = '1';

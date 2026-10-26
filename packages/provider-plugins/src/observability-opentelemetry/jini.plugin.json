@@ -32,15 +32,17 @@
           {
             "name": "username",
             "label": "Username / instance ID",
-            "hint": "Grafana Cloud: instance ID + an access-policy token. Blank: the token is sent as a Bearer token."
+            "requiredWhen": { "field": "auth", "in": ["grafana-cloud"] },
+            "hint": "Required for Grafana Cloud. Find the instance ID in your Grafana Cloud OTLP connection details."
           },
           {
             "name": "auth",
             "label": "Authentication",
             "required": true,
-            "default": "token",
+            "default": "grafana-cloud",
             "options": [
-              { "value": "token", "label": "Token" },
+              { "value": "grafana-cloud", "label": "Grafana Cloud (instance ID + token)" },
+              { "value": "bearer", "label": "Token only (Bearer)" },
               { "value": "none", "label": "No authentication (local collector, advanced)" }
             ]
           },
@@ -49,7 +51,7 @@
             "label": "Token",
             "secret": true,
             "required": true,
-            "requiredUnless": { "field": "auth", "equals": "none" },
+            "requiredUnless": { "field": "auth", "equals": "none", "orPresent": "headers" },
             "hint": "Choose \"No authentication\" only for a local collector."
           },
           {

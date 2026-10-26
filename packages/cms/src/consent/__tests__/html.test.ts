@@ -706,6 +706,21 @@ describe('review regressions: withdrawal reconciliation', () => {
     const form = dom.window.document.querySelector('#jini-consent form');
     form.dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector(`button[value=${action}]`) }));
   }
+  it('restores floating UI from a failed first choice marker while preserving native preferences reopening', async () => {
+    const cookieJar = new CookieJar();
+    marker(cookieJar, { functional: '0', analytics: '0', marketing: '0' });
+    const html = gateConsentHtml({ html: page, config: { ...config, reopen: 'link' }, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' }, { necessaryScripts });
+    const result = await browser(html, false, { cookieJar });
+    try {
+      expect(result.runtimeErrors).toEqual([]);
+      expect(result.dom.window.jiniConsent).toEqual({ hasChoice: true, analytics: false, gpc: false });
+      expect(result.dom.window.document.documentElement.classList.contains('jini-consent-has-choice')).toBe(true);
+      expect(result.dom.window.document.querySelector('#jini-consent').dataset.hasRecord).toBe('true');
+      expect(result.dom.window.getComputedStyle(result.dom.window.document.documentElement).getPropertyValue('--jini-floating-ui-display')).toBe('');
+      result.dom.window.location.hash = '#jini-consent';
+      expect(result.dom.window.getComputedStyle(result.dom.window.document.documentElement).getPropertyValue('--jini-floating-ui-display')).toBe('none');
+    } finally { result.dom.window.close(); }
+  });
   it('preserves a legacy parent-domain withdrawal as denial on HTTPS without posting its forged acceptance', async () => {
     const cookieJar = new CookieJar();
     const value = encodeURIComponent(new URLSearchParams({ functional: '0', analytics: '0', marketing: '0', body: 'policyVersion=1&gpc=0&action=accept' }).toString());
@@ -1154,4 +1169,17 @@ describe('metadata, preload and host-link consent regressions', () => {
       expect(runtimeErrors).toEqual([]);
     } finally { dom.window.close(); }
   });
+});
+
+it('US opt-out defaults retain the same-origin CSP until an explicit saved marketing grant', () => {
+  const input = { record: null, gpc: false, regionMode: 'opt-out' as const, config };
+  const pending = new JSDOM(renderConsentHead(input));
+  const granted = new JSDOM(renderConsentHead({ ...input, record: accepted }));
+  try {
+    const policy = pending.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]')!.getAttribute('content');
+    expect(policy).toContain("script-src 'self' 'unsafe-inline'");
+    expect(policy).toContain("connect-src 'self'");
+    expect(policy).not.toMatch(/posthog|jsdelivr/);
+    expect(granted.window.document.querySelector('meta[http-equiv="Content-Security-Policy"]')).toBeNull();
+  } finally { pending.window.close(); granted.window.close(); }
 });
