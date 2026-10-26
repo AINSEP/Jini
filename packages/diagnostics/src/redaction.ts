@@ -1,4 +1,6 @@
 import { SECRET_SHAPE_PATTERNS } from "@jini-ai/core";
+import { pathContains } from "@jini-ai/core/primitives";
+import { posix, win32 } from "node:path";
 
 const SENSITIVE_KEY_RE = /token|password|secret|key|dsn|authorization|cookie/i;
 
@@ -86,4 +88,57 @@ export function redactJsonText({ text }: { text: string }, opts: RedactionOption
     return redactText({ text }, opts);
   }
   return JSON.stringify(redactJsonValue({ value: parsed }, opts), null, 2);
+}
+
+// Delimited stack/quoted paths may contain spaces. Other paths end at whitespace or punctuation.
+// Each alternative consumes one path in a forward scan; no nested repetitions or wildcard retries.
+const LOCAL_PATH_RE = /(["'(])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~\/|\/)[^"'()\r\n]*)(["')])|(^|[\s="'(<[\]{},;`])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~\/|\/)[^\s"'`()<>[\]{},;]*)/g;
+const QUOTED_LOCAL_PATH_RE = /(["'])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~\/|\/)[^"'\r\n]*)\1/g;
+
+/** Decode local file URLs independently of the host OS; invalid URLs are always masked. O(n). */
+function decodedLocalPath({ value }: { value: string }, _options = {}): string | undefined {
+  // Treat ~ as a lexical root, never expand it using the current user's home directory.
+  if (value.startsWith('~/')) return `/${value}`;
+  if (!value.startsWith('file://')) return value;
+  try {
+    const url = new URL(value);
+    const pathname = decodeURIComponent(url.pathname);
+    if (url.hostname && url.hostname !== 'localhost') return `\\\\${url.hostname}${pathname.replace(/\//g, '\\')}`;
+    return pathname.replace(/^\/([A-Za-z]:\/)/, '$1');
+  } catch { return undefined; }
+}
+
+/** Keep only a lexically contained app-relative path; no filesystem or cwd is consulted. O(nr). */
+function maskedLocalPath({ value, keepRoots }: { value: string; keepRoots: readonly string[] }, _options = {}): string {
+  const coordinates = /(?::\d+){1,2}$/.exec(value)?.[0] ?? '';
+  const path = decodedLocalPath({ value: value.slice(0, value.length - coordinates.length) });
+  if (path === undefined) return `<path>${coordinates}`;
+  const windows = /^(?:[A-Za-z]:[\\/]|\\\\)/.test(path);
+  const paths = windows ? win32 : posix;
+  for (const entry of keepRoots) {
+    const root = decodedLocalPath({ value: entry });
+    if (root === undefined || !paths.isAbsolute(root)) continue;
+    if (pathContains({ root, target: path }, { separator: windows ? '\\' : '/', caseSensitive: !windows })) {
+      return `app:///${paths.relative(root, path).split(paths.sep).join('/')}${coordinates}`;
+    }
+  }
+  return `<path>${coordinates}`;
+}
+
+/**
+ * Mask local paths in error text; explicitly retained roots expose only app-relative filenames.
+ * Supports POSIX, home-relative, Windows, UNC and file URLs on every host OS. Never reads files.
+ * @returns Masked text, with stack line/column suffixes preserved. Malformed file URLs are masked.
+ * @complexity O(nr) time, O(n) output space for text length n and a fixed set of r retained roots.
+ */
+export function maskLocalPaths(
+  { text }: { text: string }, { keepRoots = [] }: { keepRoots?: readonly string[] } = {},
+): string {
+  // Consume quoted filenames first: parentheses and spaces are legal filename characters.
+  const quotedText = text.replace(QUOTED_LOCAL_PATH_RE, (_match, quote: string, value: string) =>
+    `${quote}${maskedLocalPath({ value, keepRoots })}${quote}`);
+  return quotedText.replace(LOCAL_PATH_RE, (_match, open: string | undefined, quoted: string | undefined, close: string, lead: string, plain: string) => {
+    const masked = maskedLocalPath({ value: quoted ?? plain, keepRoots });
+    return quoted === undefined ? `${lead}${masked}` : `${open}${masked}${close}`;
+  });
 }

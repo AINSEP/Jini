@@ -3,6 +3,13 @@ import type { PluginSdk } from '@jini-ai/plugins/host';
 import { attributionOf } from '../attribution.js';
 import { createSentryObservabilityAdapter, type SentryAdapterOptions } from './sentry.js';
 
+/** Optional release input is validated before client construction. O(1), no effects. */
+function releaseInput({ release }: Readonly<Record<string, unknown>>, _options = {}): { release?: string } {
+  if (release === undefined) return {};
+  if (typeof release !== 'string') throw new TypeError('release must be a string');
+  return { release };
+}
+
 /**
  * Builds the configured adapter. Hosts select this plugin only when a DSN is configured.
  * The rate defaults to 0: errors only.
@@ -18,7 +25,7 @@ export function createSentryProvider(required: Readonly<Record<string, unknown>>
   if (typeof tracesSampleRate !== 'number' || !(tracesSampleRate >= 0 && tracesSampleRate <= 1)) throw new TypeError('tracesSampleRate must be within 0..1');
   const tags = attributionOf(required.attribution).attributes;
   const resolvedEnvironment = environment || tags['deployment.environment'];
-  const config = { enabled: true as const, dsn: dsn.trim(), tracesSampleRate, tags, ...(resolvedEnvironment ? { environment: resolvedEnvironment } : {}) };
+  const config = { enabled: true as const, dsn: dsn.trim(), tracesSampleRate, tags, ...releaseInput(required), ...(resolvedEnvironment ? { environment: resolvedEnvironment } : {}) };
   const { port, dispose } = createSentryObservabilityAdapter({ config }, optional as SentryAdapterOptions);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }

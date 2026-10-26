@@ -54,7 +54,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
     try {
       const attributes = context.route ? { ...context.attributes, route: context.route } : context.attributes;
       reportErrorOnce({ observability, error: failure, operation: context.operation ?? "application.error" }, {
-        ...(attributes ? { attributes } : {}), exactSecrets: context.exactSecrets,
+        ...(attributes ? { attributes } : {}), exactSecrets: context.exactSecrets, level: context.level,
       });
     } catch { failed(); }
   };

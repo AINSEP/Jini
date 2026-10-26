@@ -9,12 +9,19 @@ const nonEmpty = (value: unknown, name: string): string => {
   return value.trim();
 };
 
+/** Accept the explicit profile-less policy without changing existing capture payloads. O(1). */
+function personProfileInput({ personProfiles }: Readonly<Record<string, unknown>>, _options = {}): { personProfiles?: 'never' } {
+  if (personProfiles === undefined) return {};
+  if (personProfiles !== 'never') throw new TypeError('personProfiles must be never when provided');
+  return { personProfiles };
+}
+
 /**
  * Builds the configured adapter. The host wraps the returned port in `withProductAnalyticsGuards`.
  * @returns `{ port, dispose }`. @throws TypeError on a missing or nonpublishable key or unsafe host.
  */
 export function createPostHogProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
-  const config = { enabled: true as const, apiKey: nonEmpty(required.apiKey, 'apiKey'), host: nonEmpty(required.host, 'host'), attribution: attributionOf(required.attribution), includePromptsAndResponses: required.includePromptsAndResponses === 'true' };
+  const config = { enabled: true as const, apiKey: nonEmpty(required.apiKey, 'apiKey'), host: nonEmpty(required.host, 'host'), attribution: attributionOf(required.attribution), includePromptsAndResponses: required.includePromptsAndResponses === 'true', ...personProfileInput(required) };
   validatePostHogBrowserConfig(config);
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config }, optional as PostHogAdapterOptions);
   return { port: { ...port, browserAnalytics: ({ surface }: { surface: 'site' | 'admin' }, _options = {}) => postHogBrowserContribution({
