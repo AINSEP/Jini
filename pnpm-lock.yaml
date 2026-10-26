@@ -745,6 +745,9 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
     devDependencies:
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
       '@jini-ai/daemon':
         specifier: workspace:*
         version: link:../daemon

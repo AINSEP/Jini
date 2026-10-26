@@ -26,8 +26,8 @@ interface SurfaceFieldBase {
   /** Help text, wired up with `aria-describedby`. */
   readonly hint?: string;
   readonly required?: boolean;
-  /** Waive on an exact public choice, or a nonblank alternative control (a kept secret counts). */
-  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string };
+  /** Waive on an exact choice or an alternative control; headerNames restricts entered headers. Kept secrets are validated by the host. */
+  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string; readonly headerNames?: readonly string[] };
   /** Require only while the controlling public field matches one of these choices. */
   readonly requiredWhen?: { readonly field: string; readonly in: readonly string[] };
   readonly disabled?: boolean;
@@ -149,7 +149,7 @@ export interface FieldReadSpec {
   readonly kind: SurfaceField['kind'];
   readonly required: boolean;
   readonly hasSavedValue?: boolean;
-  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string };
+  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string; readonly headerNames?: readonly string[] };
   /** Require only while the controlling public field matches one of these choices. */
   readonly requiredWhen?: { readonly field: string; readonly in: readonly string[] };
   readonly hint?: string;

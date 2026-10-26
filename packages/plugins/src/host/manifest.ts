@@ -26,7 +26,7 @@
  */
 
 import type { PluginTier, PluginManifest, PluginValidationError } from './manifest-types.js';
-export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginProviderDeclaration, PluginProviderSettingField, PluginProviderSettingOption, PluginValidationError } from './manifest-types.js';
+export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginProviderDeclaration, PluginProviderSettingsMigration, PluginProviderSettingField, PluginProviderSettingOption, PluginValidationError } from './manifest-types.js';
 import * as semver from "semver";
 import { PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
 import { validatePluginProviderDeclarations } from './provider-contributions.js';

@@ -71,6 +71,11 @@ function enqueueDiscovered(required: { state: RouteQueue; routes: readonly Manif
     state.queue.push(next);
   }
 }
+/** Discovery uses the response route's format, so prose cannot masquerade as a manifest. */
+function routeAssetFormat({ path }: { path: string }, _optional = {}): 'html' | 'json' | 'xml' {
+  if (/\.json(?:[?#]|$)/i.test(path)) return 'json';
+  return /\.xml(?:[?#]|$)/i.test(path) ? 'xml' : 'html';
+}
 async function writeRoutes(ctx: RunContext, routes: readonly ManifestRoute[]): Promise<{ succeeded: ExportedRoute[]; failed: FailedRoute[]; assets: Set<string>; skipped: ManifestSkip[] }> {
   const succeeded: ExportedRoute[] = [], failed: FailedRoute[] = [];
   const assets = new Set<string>();
@@ -84,7 +89,7 @@ async function writeRoutes(ctx: RunContext, routes: readonly ManifestRoute[]): P
       succeeded.push(outcome.route);
       const html = outcome.crawlHtml;
       if (html === undefined) continue;
-      for (const url of extractAssetUrls({ html, prefixes: ctx.args.assetUrlPrefixes })) assets.add(url);
+      for (const url of extractAssetUrls({ html, prefixes: ctx.args.assetUrlPrefixes }, { format: routeAssetFormat({ path: route.path }) })) assets.add(url);
       enqueueDiscovered({ state, routes: ctx.args.discoverRoutes?.({ path: route.path, html }) ?? [] });
     } catch (error) { failed.push({ path: route.path, kind: route.kind, reason: failureReason(ctx, route.path, error) }); }
   }
@@ -109,7 +114,7 @@ function stylesheetChildren(required: { ctx: RunContext; asset: ExportedAsset; c
   const { ctx, asset } = required;
   if (!required.crawlCss) return [];
   if (asset.url.split('?')[0]!.endsWith('.css')) return extractCssUrls({ css: asset.data.toString('utf8'), cssUrl: asset.url, prefixes: ctx.args.assetUrlPrefixes });
-  if (/\bjson\b/.test(asset.contentType ?? '')) return extractAssetUrls({ html: asset.data.toString('utf8'), prefixes: ctx.args.assetUrlPrefixes });
+  if (/\bjson\b/.test(asset.contentType ?? '')) return extractAssetUrls({ html: asset.data.toString('utf8'), prefixes: ctx.args.assetUrlPrefixes }, { format: 'json' });
   return [];
 }
 function assetFailureReason(required: { ctx: RunContext; url: string; error: unknown }): string {

@@ -90,7 +90,7 @@ test('rewriteRouteBodyForBasePath prefixes sitemap locations and robots sitemap 
 test('rewriteRouteBodyForBasePath prefixes HTML attributes but not data- attributes or relative values', () => {
   assert.equal(
     rewriteRouteBodyForBasePath({ path: '/p', body: `<a href="/a"><img src='rel.png'><x data-href="/d"><v poster="/b/p"><a href="">`, basePath: '/b' }),
-    `<a href="/b/a"><img src='rel.png'><x data-href="/b/d"><v poster="/b/p"><a href="">`,
+    `<a href="/b/a"><img src='rel.png'><x data-href="/d"><v poster="/b/p"><a href="">`,
   );
 });
 
@@ -116,7 +116,7 @@ test('extractHtmlReferences skips empty attribute values except form actions', (
 test('extractAssetUrls keeps prefixed same-site URLs once, without fragments, ignoring protocol-relative ones', () => {
   const html = `<img src="/assets/a.png#f"><img src="/assets/a.png"><img src="//assets/x"><a href="/other"><img srcset="/assets/s.png 1x, /elsewhere 2x">`
     + `{"href": "/assets/j.png#k", "url":"//assets/no", "src" : "/nope", "title": "/assets/t.png"}`;
-  assert.deepEqual(extractAssetUrls({ html, prefixes: ['/assets/'] }), ['/assets/a.png', '/assets/s.png', '/assets/j.png']);
+  assert.deepEqual(extractAssetUrls({ html, prefixes: ['/assets/'] }), ['/assets/a.png', '/assets/s.png']);
 });
 
 test('extractAssetUrls returns nothing without prefixes', () => {
@@ -157,4 +157,25 @@ test('renderRedirectStub escapes the visible location text', () => {
 
 test('extractAssetUrls never keeps protocol-relative URLs, even under a root prefix', () => {
   assert.deepEqual(extractAssetUrls({ html: '<img src="//cdn.test/a.png"><img srcset="//cdn.test/b.png 1x, /c.png 2x">{"src":"//cdn.test/d"}', prefixes: ['/'] }), ['/c.png']);
+});
+
+
+test('HTML rewriting and crawling only touch actual URL attributes and style positions', () => {
+  const inert = `<article><code>background:url(/assets/sample.png)</code><pre>src="/assets/text.png" {"src":"/assets/json.png"}</pre>&lt;img src="/assets/escaped.png"&gt;</article><!-- <img src="/assets/comment.png"> --><script>const sample = '<img src="/assets/script.png">';</script>`;
+  const real = `<IMG SRC = /assets/image.png><source srcset="/assets/a.png 1x, /assets/b.png 2x"><video poster='/assets/poster.png'></video><meta property="og:image" content="/assets/og.png"><meta content="/assets/tw.png" name="twitter:image"><meta name="description" content="url(/assets/description.png)"><link rel="manifest" href="/assets/site.webmanifest"><style>.x{background:url(/assets/style.png)}</style><div style="background:url('/assets/inline.png')" data-src="/assets/data.png"></div>`;
+  const body = inert + real;
+  const rewritten = rewriteRouteBodyForBasePath({ path: '/', body, basePath: '/repo' });
+  assert.equal(rewritten.slice(0, inert.length), inert);
+  const expected = ['image', 'a', 'b', 'poster', 'og', 'tw', 'style', 'inline'].map(name => `/assets/${name}.png`).concat('/assets/site.webmanifest');
+  assert.deepEqual(new Set(extractAssetUrls({ html: body, prefixes: ['/assets/'] })), new Set(expected));
+  for (const url of expected) assert.ok(rewritten.includes('/repo' + url), url);
+  assert.ok(rewritten.includes('content="url(/assets/description.png)"'));
+  assert.ok(rewritten.includes('data-src="/assets/data.png"'));
+});
+
+
+test('manifest and sitemap crawling require their explicit response formats', () => {
+  const prefixes = ['/assets/'];
+  assert.deepEqual(extractAssetUrls({ html: '{"icons":[{"src":"/assets/icon.png"}],"description":"url(/assets/sample.png)"}', prefixes }, { format: 'json' }), ['/assets/icon.png']);
+  assert.deepEqual(extractAssetUrls({ html: '<urlset><image:loc>/assets/map.png</image:loc></urlset>', prefixes }, { format: 'xml' }), ['/assets/map.png']);
 });

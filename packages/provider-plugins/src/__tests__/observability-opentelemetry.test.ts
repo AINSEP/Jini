@@ -492,7 +492,7 @@ test('the manifest defaults to Grafana Cloud and declares both conditional requi
   assert.deepEqual(fields.find((field: { name: string }) => field.name === 'username').requiredWhen, { field: 'auth', in: ['grafana-cloud'] });
   const token = fields.find((field: { name: string }) => field.name === 'token');
   assert.equal(token.required, true);
-  assert.deepEqual(token.requiredUnless, { field: 'auth', equals: 'none', orPresent: 'headers' });
+  assert.deepEqual(token.requiredUnless, { field: 'auth', equals: 'none', orPresent: 'headers', headerNames: ['Authorization', 'x-api-key'] });
 });
 
 
@@ -506,5 +506,28 @@ test('normalized legacy modes preserve a raw Authorization header, while explici
   const incomplete: readonly (Record<string, string> | undefined)[] = [undefined, { 'X-Extra': 'kept' }, { Authorization: ' ' }];
   for (const headers of incomplete) {
     assert.throws(() => otlpAuthHeaders({ auth: 'bearer', headers }), { name: 'TypeError', message: 'Token is required' });
+  }
+});
+
+
+test('the plugin owns legacy read migrations and only declared auth headers satisfy the manifest and factory', async () => {
+  const { migrateProviderSettings, isProviderSettingRequired } = await import('@jini-ai/plugins/host');
+  const provider = JSON.parse(readFileSync(new URL('../observability-opentelemetry/jini.plugin.json', import.meta.url), 'utf8')).contributes.providers[0];
+  for (const [settings, auth] of [
+    [{ auth: 'token', username: '123' }, 'grafana-cloud'], [{ auth: 'token' }, 'bearer'],
+    [{ username: '123' }, 'grafana-cloud'], [{}, 'bearer'], [{ username: ' ', auth: 'token' }, 'bearer'],
+    [{ auth: 'bearer', username: '123' }, 'bearer'], [{ auth: 'none', username: '123' }, 'none'],
+  ] as const) {
+    const before = structuredClone(settings);
+    assert.equal(migrateProviderSettings({ providers: [provider], settings }).auth, auth);
+    assert.deepEqual(settings, before);
+  }
+  const field = provider.settings.find((field: { name: string }) => field.name === 'token');
+  for (const auth of ['bearer', 'grafana-cloud']) for (const headers of ['X-Scope-OrgID=1', 'authorization=Bearer fixture', 'X-API-Key=fixture']) {
+    const values = { auth, username: '123', headers };
+    const missing = isProviderSettingRequired({ field, values });
+    assert.equal(missing, headers.startsWith('X-Scope'));
+    if (missing) assert.throws(() => otlpAuthHeaders({ ...values, headers: otlpHeadersOf(headers) }), /Token is required/);
+    else assert.deepEqual(otlpAuthHeaders({ ...values, headers: otlpHeadersOf(headers) }), otlpHeadersOf(headers));
   }
 });

@@ -30,6 +30,11 @@ export interface ElectronWebRequestLike {
 
 export interface ElectronSessionLike {
   webRequest: ElectronWebRequestLike;
+  /** URL capture requires these native operations before a pooled session can be reused. */
+  clearStorageData?(): Promise<void>;
+  clearCache?(): Promise<void>;
+  clearAuthCache?(): Promise<void>;
+  closeAllConnections?(): Promise<void>;
 }
 
 export interface ElectronWebContentsLike {

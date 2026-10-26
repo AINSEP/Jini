@@ -34,6 +34,21 @@ export class PluginProviderError extends Error {
     super(required.message); this.name = 'PluginProviderError';
   }
 }
+/** Explicit plugin-authored startup guidance. Raw SDK errors must never be shown to users. */
+export class PluginProviderStartupError extends Error {
+  readonly reason: string;
+  readonly action: string;
+  constructor({ reason, action, cause }: { reason: string; action: string; cause?: unknown }, _optional = {}) {
+    super(reason, { cause });
+    this.name = 'PluginProviderStartupError';
+    this.reason = reason;
+    this.action = action;
+  }
+}
+
+/** Applying saved settings either succeeds, requires a browser/process refresh, or fails to start. */
+export type PluginProviderApplyResult = 'now' | 'restart' | { appliesAt: 'failed'; reason: string; action: string };
+
 interface Acquired {
   readonly snapshot: PluginContributionsSnapshot;
   readonly lease: PluginProviderLease;

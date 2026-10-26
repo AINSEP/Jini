@@ -53,3 +53,17 @@ it('a declared alternative credential can satisfy a requirement, including a pre
       .toEqual(["provider setting 'token' has a malformed requiredUnless"]);
   }
 });
+
+
+it('only manifest-declared authentication headers waive the token requirement', () => {
+  const token = { ...field, requiredUnless: { field: 'auth', equals: 'none', orPresent: 'headers', headerNames: ['Authorization', 'x-api-key'] } };
+  for (const headers of ['X-Scope-OrgID=1', 'Authorization=', 'NotAuthorization=abc', 'Authorization=abc,broken', 'saved']) {
+    expect(isProviderSettingRequired({ field: token, values: { auth: 'bearer', headers } })).toBe(true);
+  }
+  for (const headers of ['authorization=Bearer fixture', 'X-API-Key=fixture,X-Scope-OrgID=1']) {
+    expect(isProviderSettingRequired({ field: token, values: { auth: 'bearer', headers } })).toBe(false);
+  }
+  for (const headerNames of [[], false, [''], ['bad name'], [42]]) {
+    expect(providerSettingsErrors({ settings: [{ ...token, requiredUnless: { ...token.requiredUnless, headerNames } }] })).toEqual(["provider setting 'token' has a malformed requiredUnless"]);
+  }
+});
