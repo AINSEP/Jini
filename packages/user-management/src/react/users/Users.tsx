@@ -1,4 +1,4 @@
-import { type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useId, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
 import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
 import { agentHandle } from "@jini-ai/agentic";
@@ -10,6 +10,7 @@ import { useUsers, type UsersController, type UsersDependencies, type UsersOptio
 import type { ReactNode } from "react";
 import type { Translate } from "@jini-ai/ui/panel-kit";
 import { InfoTip } from "@jini-ai/ui/admin-widgets";
+import { SecretInput } from "@jini-ai/ui";
 import { useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
 import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
 
@@ -109,6 +110,7 @@ interface NewUserFormProps {
 
 /** The "New user" form — extracted from `Users` verbatim; own scope for `formError`/`saving`. */
 function NewUserForm({ username, setUsername, email, setEmail, password, setPassword, saving, formError, onCreate, t }: NewUserFormProps) {
+  const passwordLabelId = useId();
   return (
     <form onSubmit={onCreate} className="notice integrations-form form-measure">
       {formError ? <span className="save-error">{formError}</span> : null}
@@ -130,8 +132,10 @@ function NewUserForm({ username, setUsername, email, setEmail, password, setPass
           {...agentHandle({ handle: "users-new-email" }, { role: "field", label: "The new user's email address" })}
         />
       </label>
+      {/* The wrapping label keeps the field's layout; `aria-labelledby` keeps the eye toggle's
+          "Show password" name out of the input's own accessible name. */}
       <label>
-        {t("Password")}
+        <span id={passwordLabelId}>{t("Password")}</span>
         {/* `autoComplete="new-password"`, NOT `"off"` — Chrome deliberately ignores `off` on
             credential-shaped fields (a long-standing intentional decision, not a bug). Without
             this, this form's `type="email"` input right above reads to Chrome as a login pair, and
@@ -142,8 +146,10 @@ function NewUserForm({ username, setUsername, email, setEmail, password, setPass
             `fc64f2d9`, superseding an earlier `autoComplete="off"` attempt that did not work).
             Known trade-off, not fixed here: Chrome may now offer to GENERATE a password on this
             field — a suggestion popup, not a silently wrong value. */}
-        <input
-          type="password"
+        <SecretInput
+          label={t("Password")}
+          toggleLabels={{ show: t("Show password"), hide: t("Hide password") }}
+          aria-labelledby={passwordLabelId}
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

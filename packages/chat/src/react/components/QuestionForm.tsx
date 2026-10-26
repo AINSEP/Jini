@@ -13,10 +13,11 @@ import { useUserTextGuard } from '../hooks/useUserTextGuard.js';
  * classes — unstyled semantic markup, host supplies CSS); every user-facing
  * string wrapped in `useT()`.
  */
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, type ChangeEvent, type CSSProperties, type ReactNode } from 'react';
 import type { DirectionCard, FormOption, QuestionForm as QuestionFormType } from '../../core/index.js';
 import { formatFormAnswers, formOptionValueForLabel, redactQuestionAnswers, isSecretQuestion, withoutSecretQuestionDefaults, questionTextInputProps, questionTextareaProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
+import { SecretInput } from '@jini-ai/ui';
 
 export interface QuestionFormFileSubmission {
   questionId: string;
@@ -318,6 +319,17 @@ function DirectionCardsControl(ctx: FieldContext) {
   );
 }
 
+/** A credential-shaped text question gets the shared eye toggle (hidden by default). */
+function TextControl({ q, value, locked, update, t }: FieldContext) {
+  const shared = { className: 'qf-input', value: stringValue(value), placeholder: q.placeholder, disabled: locked, onChange: (e: ChangeEvent<HTMLInputElement>) => update(q.id, e.target.value) };
+  const props = questionTextInputProps({ question: q });
+  if (props.type === 'password') {
+    const { type: _type, ...secretProps } = props;
+    return <SecretInput {...secretProps} {...shared} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
+  }
+  return <input {...props} {...shared} />;
+}
+
 /** date/time/datetime-local and url/email/tel share one plain input whose `type` is the question type. */
 function TypedInputControl({ q, value, locked, update }: FieldContext) {
   return <input type={q.type} className="qf-input" value={stringValue(value)} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />;
@@ -328,7 +340,7 @@ const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNo
   checkbox: CheckboxControl,
   select: SelectControl,
   'direction-cards': DirectionCardsControl,
-  text: ({ q, value, locked, update }) => <input {...questionTextInputProps({ question: q })} className="qf-input" value={stringValue(value)} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
+  text: TextControl,
   number: ({ q, value, locked, update }) => <input type="number" className="qf-input" value={stringValue(value)} placeholder={q.placeholder} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
   range: ({ q, value, locked, update }) => (
     <div className="qf-range-wrap">

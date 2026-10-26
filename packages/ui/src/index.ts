@@ -116,6 +116,7 @@ export * from './browser/index.js';
 // not reach this published package's public surface.
 export { Icon, ICON_PATH_DATA, type IconName } from './react/components/Icon.js';
 export * from './react/components/RemixIcon.js';
+export { SecretInput, type SecretInputProps } from './react/components/SecretInput.js';
 export * from './react/components/AgentIcon.js';
 export * from './react/components/Toast.js';
 export * from './react/components/Loading.js';
