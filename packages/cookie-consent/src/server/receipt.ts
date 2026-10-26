@@ -1,4 +1,4 @@
-/** @file Web-standard receipts (Request -> Response): Express, Workers, Vercel functions and Deno mount the
+/** @file Web-standard receipts (Request -> Response): Express, edge workers, serverless functions and Deno mount the
  * same function. The response never sets a cookie: the browser client owns the cookie, so a slow Accept
  * response can't overwrite a newer Reject. */
 // MOVED-FROM: @jini-ai/cms consent/policy.ts createConsentRecord/readConsentRecord and consent/express receipt

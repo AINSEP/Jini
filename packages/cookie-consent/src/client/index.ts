@@ -186,7 +186,8 @@ export function boot(win: Window & typeof globalThis = window, { ports = browser
   if (!page) return undefined;
   const { evidence, ...config } = page;
   const api = createCookieConsent({ config, ports }, { evidence });
-  const queued = (win.jiniConsentQueue as RawContribution[] | undefined) ?? [];
+  // Before boot the queue is a plain array; an already-replaced queue object has nothing left to drain.
+  const queued = Array.isArray(win.jiniConsentQueue) ? (win.jiniConsentQueue as RawContribution[]) : [];
   win.jiniConsent = api;
   win.jiniConsentQueue = { push: (...items) => items.forEach(item => api.plugins.registerPlugin(item, { source: 'queue' })) };
   win.jiniConsentQueue.push(...queued);
