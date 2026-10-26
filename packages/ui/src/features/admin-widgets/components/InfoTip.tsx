@@ -15,8 +15,9 @@ import { infoTipBubbleStyle, infoTipLines } from "./InfoTip.rules.js";
  * preference, with the hook's headroom guard choosing below near the viewport's top; near a side
  * edge (or a host panel marked `data-jini-tip-bounds`) it shifts by its real width, never squeezes.
  * Keep state and DOM measurement in the injectable hook so rendering can use fixed fake state.
- * Touch has no hover, so a tap (or Enter/Space) pins the tip open until a second tap, an outside
- * tap, blur or Escape; a hover-opened tip still closes when the pointer leaves.
+ * Touch has no hover, so a tap pins the tip open until a second tap, an outside tap, blur, Escape
+ * or a 2.5 s timeout; Enter/Space pin it without the timeout. A hover- or mouse-click-opened tip
+ * closes when the pointer leaves, and only one tip is open at a time.
  */
 export interface InfoTipProps {
   /** The explanation the bubble shows; newlines separate lines, and "• " lines show as a hanging list. */
@@ -46,7 +47,7 @@ export interface InfoTipProps {
 /** Focus/hover tooltip that portals outside clipping ancestors; Escape dismisses in place. */
 export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: handle, icon }: InfoTipProps) {
   const inline = preferredPlacement === "inline";
-  const { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, handleIconKeyDown } = useTip({}, { placement: inline ? undefined : preferredPlacement });
+  const { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, pointerDown, handleIconKeyDown } = useTip({}, { placement: inline ? undefined : preferredPlacement });
   const autoId = useId();
   const { name, textId, describedBy } = infoTipNaming({ label, autoId }, { triggerLabel, descriptionId });
 
@@ -64,6 +65,7 @@ export function InfoTip({ label, triggerLabel, descriptionId, placement: preferr
         onMouseLeave={leave}
         onFocus={show}
         onBlur={hide}
+        onPointerDown={pointerDown}
         onClick={toggle}
         onKeyDown={handleIconKeyDown}
         {...(handle ? agentHandle({ handle }, { role: "button", label: name }) : {})}

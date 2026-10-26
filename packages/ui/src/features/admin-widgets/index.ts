@@ -6,7 +6,7 @@ export { InfoTip } from './components/InfoTip.js';
 export type { InfoTipProps } from './components/InfoTip.js';
 export { useInfoTip } from './components/InfoTip.hooks.js';
 export type { InfoTipController } from './components/InfoTip.hooks.js';
-export { TIP_BOUNDS_ATTRIBUTE } from './components/InfoTip.hooks.js';
+export { TIP_BOUNDS_ATTRIBUTE, TAP_TIP_MS, claimOpenTip } from './components/InfoTip.hooks.js';
 export { placeInfoTipBubble, infoTipBubbleStyle } from './components/InfoTip.rules.js';
 export type { InfoTipPlacement } from './components/InfoTip.rules.js';
 export { SeeMore, resolveSeeMoreView } from './components/SeeMore/SeeMore.js';
