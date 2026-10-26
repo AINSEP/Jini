@@ -178,6 +178,28 @@ describe('native URL capture without a downloaded browser', () => {
     }
   });
 
+  it('fails at the deadline when cleanup sticks, keeping that lease until cleanup settles', async () => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    const stuck = new Promise<void>(resolve => { release = resolve; });
+    let resets = 0;
+    const a = fixture({ clearStorage: async () => { if (++resets === 2) await stuck; } });
+    const c = fixture();
+    const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
+    try {
+      const failed = expect(a.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
+      await vi.advanceTimersByTimeAsync(URL_CAPTURE_TIMEOUT_MS);
+      await failed;
+    } finally { vi.useRealTimers(); }
+    try {
+      await c.service.captureUrl(request, options);
+      expect(c.options.webPreferences.partition).not.toBe(a.options.webPreferences.partition);
+    } finally { release(); }
+    // Let the released cleanup return its lease before the next test.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect([...a.sessions.values()][0]).toEqual({ storage: 2, cache: 2, auth: 2, connections: 2 });
+  });
+
   it('does not navigate when clearing previous storage fails, and allows a later clean capture', async () => {
     let clears = 0;
     const f = fixture({ clearStorage: async () => { if (++clears === 1) throw new Error('native details'); } });

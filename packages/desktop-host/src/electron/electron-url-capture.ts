@@ -1,7 +1,7 @@
 /** URL extension of RenderService: native Chromium, never a second browser installation.
  * Shares the existing render-window lifetime and two exclusive, memory-only capture sessions.
  */
-import { RenderServiceError } from '../render-service.js';
+import { RenderServiceError, withRenderTimeout } from '../render-service.js';
 import { isCaptureUrlAllowed, readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_CAPTURE_TIMEOUT_MS, type UrlCaptureRequest, type UrlCaptureResult } from '../url-capture.js';
 import { withRenderWindow } from './render-window.js';
 import type { ElectronBrowserWindowFactory, ElectronSessionLike, ElectronWebContentsLike } from './electron-surfaces.js';
@@ -100,17 +100,28 @@ export async function captureElectronUrl(
     if (error instanceof RenderServiceError) throw error;
     throw new RenderServiceError({ code: 'load-failed', message: 'native page capture failed' });
   } finally {
-    try {
-      // Destruction stops navigation first. A timed-out preparation must settle before its
-      // cleanup or a new capture can touch the same session. A stuck reset retains its lease.
-      await initialReset?.catch(() => {});
-      if (captureSession) {
-        captureSession.webRequest.onBeforeRequest({ listener: null });
-        await resetCaptureSession({ session: captureSession });
-      }
-    } finally {
-      captureSlots[slot] = false;
+    // A stuck reset keeps its lease but must not hold the caller past the capture deadline.
+    await withRenderTimeout({ promise: releaseCaptureSlot({ slot, session: captureSession, initialReset }) },
+      { timeoutMs: URL_CAPTURE_TIMEOUT_MS });
+  }
+}
+
+/** Return a lease only once its session is reset; the next capture resets again before use.
+ * @throws RenderServiceError when the reset fails (the lease is still returned). @complexity O(1).
+ */
+async function releaseCaptureSlot({ slot, session, initialReset }: {
+  slot: number; session: ElectronSessionLike | undefined; initialReset: Promise<void> | undefined;
+}, _options = {}): Promise<void> {
+  try {
+    // Destruction stops navigation first. A timed-out preparation must settle before its
+    // cleanup or a new capture can touch the same session.
+    await initialReset?.catch(() => {});
+    if (session) {
+      session.webRequest.onBeforeRequest({ listener: null });
+      await resetCaptureSession({ session });
     }
+  } finally {
+    captureSlots[slot] = false;
   }
 }
 
