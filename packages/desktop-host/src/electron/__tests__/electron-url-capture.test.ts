@@ -5,14 +5,15 @@ import { readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_CAPTURE_TIMEOUT_MS } 
 
 const request = { url: 'http://127.0.0.1:4312/', viewport: { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true }, fullPage: true, maxPageHeightPx: 8000, settleMs: 0 };
 
-function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url } = {}) {
+function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url, clearStorage = async () => {} } = {}, _options = {}) {
   let policy: any;
   let options: any;
   let destroyed = false;
   const calls: string[] = [];
   const commands: Array<[string, unknown]> = [];
+  const sessions = new Map<string, { storage: number; cache: number; auth: number; connections: number }>();
   const wc = {
-    session: { webRequest: { onBeforeRequest: (input: any) => { calls.push('onBeforeRequest'); policy = input.listener; } } },
+    session: {} as any,
     once: () => {}, on: () => {},
     getURL: () => finalUrl, getTitle: () => 'Page',
     executeJavaScript: async () => 9000,
@@ -25,6 +26,18 @@ function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.ur
   const factory = ((_required: {}, input: unknown) => {
     destroyed = false;
     options = input;
+    const partition = options.webPreferences.partition;
+    if (!sessions.has(partition)) sessions.set(partition, { storage: 0, cache: 0, auth: 0, connections: 0 });
+    const counts = sessions.get(partition)!;
+    wc.session = {
+      clearStorageData: async () => { counts.storage++; await clearStorage(); },
+      clearCache: async () => { counts.cache++; },
+      clearAuthCache: async () => { counts.auth++; },
+      closeAllConnections: async () => { counts.connections++; },
+      webRequest: { onBeforeRequest: (input: any) => {
+        if (input.listener) { calls.push('onBeforeRequest'); policy = input.listener; }
+      } },
+    };
     return { webContents: wc, loadURL: async ({ url }: { url: string }) => {
       calls.push(`loadURL:${url}`);
       if (hang) await new Promise(() => {});
@@ -34,7 +47,7 @@ function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.ur
       isDestroyed: () => destroyed, destroy: () => { destroyed = true; } };
   }) as unknown as ElectronBrowserWindowFactory;
   const service = createElectronRenderService({ createBrowserWindow: factory });
-  return { service, calls, commands, get options() { return options; }, get destroyed() { return destroyed; },
+  return { service, calls, commands, sessions, get options() { return options; }, get destroyed() { return destroyed; },
     refused(url: string, method = 'GET') { let result: unknown; policy({ details: { url, method }, callback: (value: unknown) => { result = value; } }); return result; } };
 }
 
@@ -97,15 +110,82 @@ describe('native URL capture without a downloaded browser', () => {
     expect(f.destroyed).toBe(true);
   });
 
-  it('caps PNG output and never shares a session partition across captures', async () => {
+  it('reuses at most two isolated partitions and clears storage, caches and connections for every capture', async () => {
     const f = fixture();
-    await f.service.captureUrl({ ...request, fullPage: false }, { allowedOrigins: ['http://127.0.0.1:4312'] });
-    const first = f.options.webPreferences.partition;
-    await f.service.captureUrl({ ...request, fullPage: false }, { allowedOrigins: ['http://127.0.0.1:4312'] });
-    expect(f.options.webPreferences.partition).not.toBe(first);
+    for (let i = 0; i < 20; i++) {
+      await f.service.captureUrl({ ...request, fullPage: false }, { allowedOrigins: ['http://127.0.0.1:4312'] });
+      expect(f.options.webPreferences.partition).toMatch(/^jini-url-capture-[01]$/);
+    }
+    expect(f.sessions.size).toBeLessThanOrEqual(2);
+    expect([...f.sessions.values()].reduce((sum, session) => sum + session.storage, 0)).toBe(40);
+    for (const session of f.sessions.values()) {
+      expect(session.cache).toBe(session.storage);
+      expect(session.auth).toBe(session.storage);
+      expect(session.connections).toBe(session.storage);
+    }
+  });
+
+  it('caps PNG output and clears the failed capture session', async () => {
     const large = fixture({ png: Buffer.alloc(URL_CAPTURE_MAX_BYTES + 1) });
     await expect(large.service.captureUrl({ ...request, fullPage: false }, { allowedOrigins: ['http://127.0.0.1:4312'] })).rejects.toMatchObject({ code: 'load-failed' });
     expect(large.destroyed).toBe(true);
+    expect([...large.sessions.values()][0]).toEqual({ storage: 2, cache: 2, auth: 2, connections: 2 });
+  });
+
+  it('keeps concurrent services on separate partitions and bounds capacity without a waiting queue', async () => {
+    const a = fixture({ hang: true });
+    const b = fixture({ hang: true });
+    const c = fixture();
+    const first = new AbortController();
+    const second = new AbortController();
+    const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
+    const aResult = expect(a.service.captureUrl(request, { ...options, signal: first.signal })).rejects.toMatchObject({ code: 'aborted' });
+    const bResult = expect(b.service.captureUrl(request, { ...options, signal: second.signal })).rejects.toMatchObject({ code: 'aborted' });
+    try {
+      expect(a.options.webPreferences.partition).not.toBe(b.options.webPreferences.partition);
+      await expect(c.service.captureUrl(request, options)).rejects.toMatchObject({ message: 'native capture capacity reached' });
+      expect(c.options).toBeUndefined();
+    } finally {
+      first.abort(); second.abort();
+      await Promise.all([aResult, bResult]);
+    }
+    await c.service.captureUrl(request, options);
+    expect([...a.sessions.values()][0]!.storage).toBe(2);
+    expect([...b.sessions.values()][0]!.storage).toBe(2);
+  });
+
+  it('holds the partition until asynchronous cleanup finishes', async () => {
+    let release!: () => void;
+    let resets = 0;
+    const cleanup = new Promise<void>(resolve => { release = resolve; });
+    const a = fixture({ clearStorage: async () => { if (++resets === 2) await cleanup; } });
+    const b = fixture({ hang: true });
+    const c = fixture();
+    const controller = new AbortController();
+    const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
+    const pending = a.service.captureUrl(request, options);
+    const aborted = expect(b.service.captureUrl(request, { ...options, signal: controller.signal })).rejects.toMatchObject({ code: 'aborted' });
+    try {
+      await vi.waitFor(() => expect(resets).toBe(2));
+      await expect(c.service.captureUrl(request, options)).rejects.toMatchObject({ message: 'native capture capacity reached' });
+      release();
+      await pending;
+      await c.service.captureUrl(request, options);
+      expect(c.options.webPreferences.partition).toBe(a.options.webPreferences.partition);
+    } finally {
+      release(); controller.abort();
+      await Promise.all([pending, aborted]);
+    }
+  });
+
+  it('does not navigate when clearing previous storage fails, and allows a later clean capture', async () => {
+    let clears = 0;
+    const f = fixture({ clearStorage: async () => { if (++clears === 1) throw new Error('native details'); } });
+    const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
+    await expect(f.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'load-failed', message: 'native capture session cleanup failed' });
+    expect(f.calls).not.toContain(`loadURL:${request.url}`);
+    expect(f.destroyed).toBe(true);
+    await f.service.captureUrl(request, options);
   });
 
   it('rejects invalid size and wait requests', () => {

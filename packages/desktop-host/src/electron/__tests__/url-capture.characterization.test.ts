@@ -23,6 +23,10 @@ function fixture(_required: Record<string, never>, options: {
   const factory: ElectronBrowserWindowFactory = (required, nativeOptions) => {
     const win = fake.factory(required, nativeOptions);
     const page = win.webContents;
+    Object.assign(page.session, {
+      clearStorageData: async () => {}, clearCache: async () => {},
+      clearAuthCache: async () => {}, closeAllConnections: async () => {},
+    });
     page.getURL = () => options.finalUrl ?? request.url;
     page.getTitle = () => 't'.repeat(301);
     page.executeJavaScript = async expression => {

@@ -149,7 +149,8 @@
     "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/platform": "workspace:^",
-    "undici": "^7.25.0"
+    "undici": "^7.25.0",
+    "parse5": "7.3.0"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
@@ -157,7 +158,8 @@
   "peerDependencies": {
     "typescript": "^5.6.0",
     "@jini-ai/platform": "^0.6.10",
-    "undici": "^7.25.0"
+    "undici": "^7.25.0",
+    "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
     "typescript": {

@@ -50,13 +50,21 @@ function settingNameValid(value: unknown): boolean {
   return typeof value === 'string' && SETTING_NAME.test(value);
 }
 
+/** Header alternatives use an explicit allowlist, with HTTP token names only. */
+function headerNamesValid({ headerNames, orPresent }: { headerNames: unknown; orPresent: unknown }, _optional = {}): boolean {
+  if (headerNames === undefined) return true;
+  return settingNameValid(orPresent) && Array.isArray(headerNames) && headerNames.length > 0
+    && headerNames.every(name => typeof name === 'string' && /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name));
+}
+
 /** A conditional requirement is an exact match or a named alternative, never executable plugin logic. */
 function requiredUnlessValid(value: unknown): boolean {
   if (value === undefined) return true;
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const { field, equals, orPresent } = value as Record<string, unknown>;
+  const { field, equals, orPresent, headerNames } = value as Record<string, unknown>;
   return settingNameValid(field) && typeof equals === 'string'
-    && (orPresent === undefined || settingNameValid(orPresent));
+    && (orPresent === undefined || settingNameValid(orPresent))
+    && headerNamesValid({ headerNames, orPresent });
 }
 
 /** A conditional requirement names public string choices, never executable plugin logic.
@@ -115,6 +123,40 @@ export function providerSettingsErrors({ settings }: { settings: unknown }, _opt
   return problems;
 }
 
+type MigrationFields = readonly import('./manifest-types.js').PluginProviderSettingField[];
+const publicSetting = ({ fields, name }: { fields: MigrationFields; name: unknown }, _optional = {}) =>
+  fields.some(field => field.name === name && !field.secret);
+
+/** Migration conditions only inspect declared public settings, so redacted reads behave identically. */
+function migrationConditionValid({ when, whenPresent, fields }: { when: unknown; whenPresent: unknown; fields: MigrationFields }, _optional = {}): boolean {
+  if (!when || !requiredWhenValid(when)) return false;
+  const condition = when as Record<string, unknown>;
+  return optionalOf(condition.orAbsent, 'boolean') && publicSetting({ fields, name: condition.field })
+    && (whenPresent === undefined || publicSetting({ fields, name: whenPresent }));
+}
+
+/** Migrations may assign public string fields only. */
+function migrationAssignmentsValid({ set, fields }: { set: unknown; fields: MigrationFields }, _optional = {}): boolean {
+  if (!set || typeof set !== 'object' || Array.isArray(set)) return false;
+  const assignments = Object.entries(set);
+  return assignments.length > 0 && assignments.every(([name, value]) => typeof value === 'string' && publicSetting({ fields, name }));
+}
+
+/** Validate the hook before a host reads it; malformed lists never reach migration execution. */
+function migrationValid({ rule, fields }: { rule: unknown; fields: MigrationFields }, _optional = {}): boolean {
+  if (!rule || typeof rule !== 'object' || Array.isArray(rule)) return false;
+  const { when, whenPresent, set } = rule as Record<string, unknown>;
+  return migrationConditionValid({ when, whenPresent, fields }) && migrationAssignmentsValid({ set, fields });
+}
+
+/** Reject malformed migration hooks before a host can read them. */
+function migrationsValid({ provider }: { provider: import('./manifest-types.js').PluginProviderDeclaration }, _optional = {}): boolean {
+  if (provider.settingsMigrations === undefined) return true;
+  return Array.isArray(provider.settings) && providerSettingsErrors({ settings: provider.settings }).length === 0
+    && Array.isArray(provider.settingsMigrations)
+    && provider.settingsMigrations.every(rule => migrationValid({ rule, fields: provider.settings! }));
+}
+
 /** Collect static declaration errors; provider code is supported only by tier-3 admission. */
 export function validatePluginProviderDeclarations(
   required: { value: unknown; tier: unknown; capabilities: unknown }, _optional: Record<string, never> = {},
@@ -127,6 +169,7 @@ export function validatePluginProviderDeclarations(
     const declaration = { value };
     if (!isPluginProviderDeclaration(declaration)) { errors.push(error('provider requires { contract, id, contractVersion: 1 } with core provider ids')); continue; }
     errors.push(...providerSettingsErrors({ settings: declaration.value.settings }).map(error));
+    if (!migrationsValid({ provider: declaration.value })) errors.push(error('provider settingsMigrations are malformed or assign secret fields'));
     const key = `${declaration.value.contract}:${declaration.value.id}`;
     if (seen.has(key)) errors.push(error(`duplicate provider declaration '${key}'`));
     seen.add(key);

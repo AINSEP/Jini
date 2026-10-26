@@ -107,6 +107,15 @@ export interface PluginProviderDeclaration {
    * "configured?" without executing the plugin. Secret fields are sealed by the host and never shown back.
    */
   readonly settings?: readonly PluginProviderSettingField[];
+  /** Ordered read-time public-setting migrations; never rewrite persisted rows or secrets. */
+  readonly settingsMigrations?: readonly PluginProviderSettingsMigration[];
+}
+
+/** A plugin-owned migration of retired public choices, applied to a copy on read. */
+export interface PluginProviderSettingsMigration {
+  readonly when: { readonly field: string; readonly in: readonly string[]; readonly orAbsent?: boolean };
+  readonly whenPresent?: string;
+  readonly set: Readonly<Record<string, string>>;
 }
 
 /** One declared provider setting; `name` is the factory input key. */
@@ -115,8 +124,8 @@ export interface PluginProviderSettingField {
   readonly label: string;
   readonly secret?: boolean;
   readonly required?: boolean;
-  /** Waive on an exact choice, or when `orPresent` names a nonblank alternative (kept secrets count). */
-  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string };
+  /** Waive on an exact choice or a nonblank alternative. With `headerNames`, only a listed nonblank Name=Value header qualifies. */
+  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string; readonly headerNames?: readonly string[] };
   /** Require this field only when the controlling public setting is one of these values. */
   readonly requiredWhen?: { readonly field: string; readonly in: readonly string[] };
   readonly hint?: string;

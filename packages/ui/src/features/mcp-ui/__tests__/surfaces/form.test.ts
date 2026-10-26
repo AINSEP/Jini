@@ -71,6 +71,24 @@ describe('renderFormDocument', () => {
     }
   });
 
+  it('a header alternative only waives the token when a declared authentication header is entered', () => {
+    const surface = mountSurface(renderFormDocument({ ...SPEC, baseParams: {}, fields: [
+      { kind: 'enum', name: 'auth', label: 'Authentication', value: 'bearer', options: [{ value: 'bearer' }] },
+      { kind: 'string', name: 'token', label: 'Token', required: true, secret: true,
+        requiredUnless: { field: 'auth', equals: 'none', orPresent: 'headers', headerNames: ['Authorization', 'x-api-key'] } },
+      { kind: 'string', name: 'headers', label: 'Headers', secret: true },
+    ] }));
+    const token = surface.doc.querySelector<HTMLInputElement>('input[name="token"]')!;
+    const headers = surface.doc.querySelector<HTMLInputElement>('input[name="headers"]')!;
+    for (const value of ['X-Scope-OrgID=1', 'Authorization=', 'authorization=Bearer fixture', 'x-api-key=fixture']) {
+      headers.value = value;
+      headers.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(token.required).toBe(value === 'X-Scope-OrgID=1' || value === 'Authorization=');
+    }
+    surface.submit();
+    expect(surface.api.callTool).toHaveBeenCalledWith(SPEC.toolName, { auth: 'bearer', token: '', headers: 'x-api-key=fixture' });
+  });
+
   it('requires a token until the explicit local choice, updating accessibility and allowing a blank submit', () => {
     const surface = mountSurface(renderFormDocument({ ...SPEC, baseParams: {}, fields: [
       { kind: 'string', name: 'token', label: 'Token', secret: true, required: true, requiredUnless: { field: 'auth', equals: 'none' }, hint: 'Choose "No authentication" only for a local collector.' },

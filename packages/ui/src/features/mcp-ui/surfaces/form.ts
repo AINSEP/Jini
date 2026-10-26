@@ -239,7 +239,14 @@ ${hasAlternatives ? `  function hasAlternative(field) {
     var name = field.requiredUnless && field.requiredUnless.orPresent;
     if (!name) return false;
     var control = form.elements[name];
-    return FIELDS.some(function(item) { return item.name === name && item.hasSavedValue; }) || Boolean(control && control.value.trim() !== "");
+    var value = control && control.value.trim();
+    if (!value) return FIELDS.some(function(item) { return item.name === name && item.hasSavedValue; });
+    var names = field.requiredUnless.headerNames;
+    if (!names) return true;
+    var pairs = value.split(",").map(function(pair) { return /^([^=\\s][^=]*?)\\s*=\\s*(.+)$/.exec(pair.trim()); });
+    return pairs.every(Boolean) && pairs.some(function(pair) {
+      return names.some(function(name) { return name.toLowerCase() === pair[1].toLowerCase(); }) && pair[2].trim() !== "";
+    });
   }
 ` : ''}  function requiredNow(field) {
     var condition = field.requiredUnless;

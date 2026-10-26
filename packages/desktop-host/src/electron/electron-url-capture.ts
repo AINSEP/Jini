@@ -1,11 +1,31 @@
 /** URL extension of RenderService: native Chromium, never a second browser installation.
- * Shares the existing render-window lifetime; each URL capture has a private memory session.
+ * Shares the existing render-window lifetime and two exclusive, memory-only capture sessions.
  */
-import { randomUUID } from 'node:crypto';
 import { RenderServiceError } from '../render-service.js';
 import { isCaptureUrlAllowed, readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_CAPTURE_TIMEOUT_MS, type UrlCaptureRequest, type UrlCaptureResult } from '../url-capture.js';
 import { withRenderWindow } from './render-window.js';
-import type { ElectronBrowserWindowFactory, ElectronWebContentsLike } from './electron-surfaces.js';
+import type { ElectronBrowserWindowFactory, ElectronSessionLike, ElectronWebContentsLike } from './electron-surfaces.js';
+
+// Electron retains partitions for the process lifetime. The leases must therefore span every
+// render service/bridge in this process, with no waiting queue or per-site partition registry.
+const captureSlots = [false, false];
+
+/** Clear native credentials, storage and network state before reuse; failures deny capture.
+ * @throws RenderServiceError if the host cannot reset a session. @complexity O(1) native calls.
+ */
+async function resetCaptureSession({ session }: { session: ElectronSessionLike }, _options = {}): Promise<void> {
+  if (!session.clearStorageData || !session.clearCache || !session.clearAuthCache || !session.closeAllConnections) {
+    throw new RenderServiceError({ code: 'not-implemented', message: 'native capture session cleanup unavailable' });
+  }
+  try {
+    await session.closeAllConnections();
+    await session.clearStorageData();
+    await session.clearCache();
+    await session.clearAuthCache();
+  } catch {
+    throw new RenderServiceError({ code: 'load-failed', message: 'native capture session cleanup failed' });
+  }
+}
 
 export interface ElectronUrlCaptureOptions { allowedOrigins?: readonly string[]; signal?: AbortSignal }
 
@@ -22,21 +42,32 @@ export async function captureElectronUrl(
   if (!isCaptureUrlAllowed({ url: request.url, allowedOrigins })) {
     throw new RenderServiceError({ code: 'navigation-blocked', message: 'capture URL must stay on the site origin' });
   }
+  const slot = captureSlots.indexOf(false);
+  if (slot < 0) throw new RenderServiceError({ code: 'load-failed', message: 'native capture capacity reached' });
+  captureSlots[slot] = true;
+  let captureSession: ElectronSessionLike | undefined;
+  let initialReset: Promise<void> | undefined;
   let blockedRequests = 0;
   const factory: ElectronBrowserWindowFactory = (required, options) => {
-    return createBrowserWindow(required, { ...options, useContentSize: true,
+    const window = createBrowserWindow(required, { ...options, useContentSize: true,
       webPreferences: { ...options?.webPreferences, sandbox: true, nodeIntegration: false,
         contextIsolation: true, webSecurity: true, backgroundThrottling: false,
-        partition: `capture-${randomUUID()}` },
+        partition: `jini-url-capture-${slot}` },
     });
+    captureSession = window.webContents.session;
+    return window;
   };
   try {
     return await withRenderWindow({ createBrowserWindow: factory, url: request.url,
       options: { viewport: request.viewport, timeoutMs: URL_CAPTURE_TIMEOUT_MS, ...(signal ? { signal } : {}) },
       prepare: async window => {
+        initialReset = resetCaptureSession({ session: window.webContents.session });
+        await initialReset;
+        if (window.isDestroyed()) return;
         // Electron can crash the main process if device emulation targets an unloaded webContents.
         // Bootstrap before the strict request policy; emulation still precedes site navigation.
         await window.loadURL({ url: 'about:blank' });
+        if (window.isDestroyed()) return;
         window.webContents.session.webRequest.onBeforeRequest({ listener: ({ details, callback }) => {
           const cancel = details.method !== 'GET' || !isCaptureUrlAllowed({ url: details.url, allowedOrigins });
           if (cancel) blockedRequests++;
@@ -68,6 +99,18 @@ export async function captureElectronUrl(
   } catch (error) {
     if (error instanceof RenderServiceError) throw error;
     throw new RenderServiceError({ code: 'load-failed', message: 'native page capture failed' });
+  } finally {
+    try {
+      // Destruction stops navigation first. A timed-out preparation must settle before its
+      // cleanup or a new capture can touch the same session. A stuck reset retains its lease.
+      await initialReset?.catch(() => {});
+      if (captureSession) {
+        captureSession.webRequest.onBeforeRequest({ listener: null });
+        await resetCaptureSession({ session: captureSession });
+      }
+    } finally {
+      captureSlots[slot] = false;
+    }
   }
 }
 

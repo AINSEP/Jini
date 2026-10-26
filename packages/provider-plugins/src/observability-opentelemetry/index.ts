@@ -1,5 +1,5 @@
 /** `observability-opentelemetry`: setup only registers the factory; the SDK provider starts when a host initializes it. */
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import { hasProviderAuthHeader, PluginProviderStartupError, type PluginSdk } from '@jini-ai/plugins/host';
 import { resolveObservabilityConfig } from '@jini-ai/diagnostics/observability';
 import { createOtelObservabilityAdapter, type OtelAdapterOptions } from './opentelemetry.js';
 import { attributionOf } from '../attribution.js';
@@ -57,7 +57,7 @@ function usesBasicAuthorization({ auth, username }: OtlpCredentials, _optional =
 function usesLegacyAuthorization({ auth, username, token, headers }: OtlpCredentials & { headers: Record<string, string> | undefined }, _optional = {}): boolean {
   if (token?.trim()) return false;
   if (auth === 'grafana-cloud' && !username?.trim()) return false;
-  return Object.entries(headers ?? {}).some(([name, value]) => name.toLowerCase() === 'authorization' && value.trim() !== '');
+  return Object.entries(headers ?? {}).some(([name, value]) => hasProviderAuthHeader({ text: `${name}=${value}`, names: ['Authorization', 'x-api-key'] }));
 }
 
 /**
@@ -74,6 +74,15 @@ export function otlpAuthHeaders({ auth, username, token, headers }: { auth?: str
   if (!authorization) return headers;
   const extra = Object.entries(headers ?? {}).filter(([name]) => name.toLowerCase() !== 'authorization');
   return { ...Object.fromEntries(extra), Authorization: authorization };
+}
+
+/** Only explicit, fixed plugin guidance leaves this boundary; SDK errors remain private causes. */
+function startOpenTelemetryAdapter(required: Parameters<typeof createOtelObservabilityAdapter>[0], optional: OtelAdapterOptions = {}) {
+  try { return createOtelObservabilityAdapter(required, optional); }
+  catch (cause) {
+    throw new PluginProviderStartupError({ reason: 'The OpenTelemetry exporter could not initialize.',
+      action: 'Check the OTLP endpoint and authentication settings, then save again.', cause });
+  }
 }
 
 /**
@@ -97,7 +106,7 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
   const resourceAttributes = attributionOf(required.attribution).attributes;
   const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
     reportTelemetry: optional.reportTelemetry as OtelAdapterOptions['reportTelemetry'], info: optional.info as OtelAdapterOptions['info'] };
-  const { port, dispose } = createOtelObservabilityAdapter({ config }, options);
+  const { port, dispose } = startOpenTelemetryAdapter({ config }, options);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
 

@@ -22,6 +22,10 @@
         "contract": "observability",
         "id": "opentelemetry",
         "contractVersion": 1,
+        "settingsMigrations": [
+          { "when": { "field": "auth", "in": ["token"], "orAbsent": true }, "whenPresent": "username", "set": { "auth": "grafana-cloud" } },
+          { "when": { "field": "auth", "in": ["token"], "orAbsent": true }, "set": { "auth": "bearer" } }
+        ],
         "settings": [
           {
             "name": "endpoint",
@@ -51,7 +55,7 @@
             "label": "Token",
             "secret": true,
             "required": true,
-            "requiredUnless": { "field": "auth", "equals": "none", "orPresent": "headers" },
+            "requiredUnless": { "field": "auth", "equals": "none", "orPresent": "headers", "headerNames": ["Authorization", "x-api-key"] },
             "hint": "Choose \"No authentication\" only for a local collector."
           },
           {

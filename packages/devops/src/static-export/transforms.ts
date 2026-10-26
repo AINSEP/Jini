@@ -1,9 +1,6 @@
+import { htmlUrlLocations } from './html-url-locations.js';
+export { htmlUrlLocations, exportUrlLocations } from './html-url-locations.js';
 import { ExportPathError } from './contracts.js';
-
-// Crawling and rewriting must recognize the same URL attributes.
-const HTML_URL_ATTRIBUTES = ['href', 'src', 'srcset', 'poster'] as const;
-const HTML_URL_REWRITE = new RegExp(`\\b(${HTML_URL_ATTRIBUTES.join('|')})=(["'])([^"']*)\\2`, 'g');
-const HTML_URL_SCAN = new RegExp(`\\b(${HTML_URL_ATTRIBUTES.join('|')})=(["'])([^"']+)\\2`, 'g');
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!); }
 function safeHref(value: string): string {
@@ -63,18 +60,27 @@ function rewriteJson(body: string, basePath: string): string {
   return JSON.stringify(parsed, (key, value: unknown) => (typeof value === 'string' && (key === 'href' || key === 'url' || key === 'src') ? prefix(value, basePath) : value));
 }
 function rewriteHtml(html: string, basePath: string): string {
-  return rewriteCss(html, basePath).replace(HTML_URL_REWRITE, (_match, attr: string, quote: string, value: string) => {
-    if (attr !== 'srcset') return `${attr}=${quote}${prefix(value, basePath)}${quote}`;
-    for (const { start, end } of srcsetRanges(value).reverse()) value = value.slice(0, start) + prefix(value.slice(start, end), basePath) + value.slice(end);
-    return `${attr}=${quote}${value}${quote}`;
-  });
+  const output: string[] = [];
+  let offset = 0;
+  for (const { start, end, kind } of htmlUrlLocations({ html })) {
+    if (kind === 'action') continue;
+    let value = html.slice(start, end);
+    if (kind === 'css') value = rewriteCss(value, basePath);
+    else if (kind === 'srcset') {
+      for (const range of srcsetRanges(value).reverse()) value = value.slice(0, range.start) + prefix(value.slice(range.start, range.end), basePath) + value.slice(range.end);
+    } else value = prefix(value, basePath);
+    output.push(html.slice(offset, start), value);
+    offset = end;
+  }
+  output.push(html.slice(offset));
+  return output.join('');
 }
 /** Root-relative CSS URLs keep working in inline styles and stylesheets under an export prefix. */
 function rewriteCss(body: string, basePath: string): string {
   return body.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (_match, quote: string, value: string) => `url(${quote}${prefix(value.trim(), basePath)}${quote})`);
 }
 /** Same bounded text transforms as the exporter origin; crawl the raw body before applying these. */
-export function rewriteRouteBodyForBasePath(required: { path: string; body: string; basePath: string }): string {
+export function rewriteRouteBodyForBasePath(required: { path: string; body: string; basePath: string }, _optional = {}): string {
   const { path, body, basePath } = required;
   if (!basePath || path === '/feed.xml') return body;
   if (path === '/sitemap.xml') return body.replace(/<((?:[\w-]+:)?loc)>([^<]*)<\/\1>/g, (_match, tag: string, value: string) => `<${tag}>${prefix(value, basePath)}</${tag}>`);
@@ -106,27 +112,41 @@ export function renderRedirectStub(required: { location: string }, optional: { b
 }
 /** HTML URL attributes; form actions are diagnostic references, never crawled as assets. */
 export function* extractHtmlReferences(required: { html: string }, _optional: Record<string, never> = {}): Generator<{ url: string; attribute: string }> {
-  const references = [...required.html.matchAll(HTML_URL_SCAN)]
-    .filter(match => required.html[match.index! - 1] !== '-')
-    .map(match => ({ index: match.index!, attribute: match[1]!, value: match[3]! }));
-  for (const match of required.html.matchAll(/<form\b[^>]*?\baction=(["'])([^"']*)\1/g)) {
-    references.push({ index: match.index!, attribute: 'action', value: match[2]! });
-  }
-  for (const { attribute, value } of references.sort((a, b) => a.index - b.index)) {
-    for (const url of attributeUrls(attribute, value)) yield { url, attribute };
+  for (const { start, end, kind, attribute } of htmlUrlLocations(required)) {
+    if (kind === 'css' || (start === end && kind !== 'action')) continue;
+    for (const url of attributeUrls(kind, required.html.slice(start, end))) yield { url, attribute: attribute! };
   }
 }
-/** Shared href/src/srcset/poster scan, preserving data-URL commas and ignoring external references. */
-export function extractAssetUrls(required: { html: string; prefixes: readonly string[] }): string[] {
+/** JSON manifests use parsed link values; prose resembling JSON never becomes an asset reference. */
+function jsonUrls({ body }: { body: string }, _optional = {}): string[] {
+  const urls: string[] = [];
+  try {
+    JSON.parse(body, (key, value: unknown) => {
+      if (typeof value === 'string' && ['src', 'url', 'href'].includes(key)) urls.push(value);
+      return value;
+    });
+  } catch { /* A non-JSON response has no manifest link positions. */ }
+  return urls;
+}
+/** Format chooses the discovery positions before any prefix filtering. */
+function assetCandidates(required: { html: string; prefixes: readonly string[] }, optional: { format?: 'html' | 'json' | 'xml' } = {}): string[] {
+  if (optional.format === 'json') return jsonUrls({ body: required.html });
+  if (optional.format === 'xml') return [...required.html.matchAll(/<(?:[\w-]+:)?(?:loc|url)>([^<]+)<\//g)].map(match => match[1]!);
   const candidates: string[] = [];
-  for (const match of required.html.matchAll(HTML_URL_SCAN)) candidates.push(...attributeUrls(match[1]!, match[3]!));
-  // JSON link fields too (a see-more JSON batch's covers), as `rewriteJson` prefixes them.
-  for (const [, url = ''] of required.html.matchAll(/"(?:href|src|url)"\s*:\s*"([^"\\]+)"/g)) candidates.push(url);
-  // Sitemaps/feeds and inline styles can name assets without an HTML URL attribute.
-  for (const [, url = ''] of required.html.matchAll(/<(?:[\w-]+:)?(?:loc|url)>([^<]+)<\//g)) candidates.push(url);
-  candidates.push(...extractCssUrls({ css: required.html, cssUrl: '/', prefixes: required.prefixes }));
+  for (const { start, end, kind } of htmlUrlLocations(required)) {
+    const value = required.html.slice(start, end);
+    if (kind === 'css') candidates.push(...extractCssUrls({ css: value, cssUrl: '/', prefixes: required.prefixes }));
+    else if (kind !== 'action') candidates.push(...attributeUrls(kind, value));
+  }
+  return candidates;
+}
+
+/** Crawl only positions matching the response format; HTML text and script contents stay inert. */
+export function extractAssetUrls(required: { html: string; prefixes: readonly string[] }, optional: { format?: 'html' | 'json' | 'xml' } = {}): string[] {
   const found = new Set<string>();
-  for (const url of candidates) if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
+  for (const url of assetCandidates(required, optional)) {
+    if (!url.startsWith('//') && required.prefixes.some(prefix => url.startsWith(prefix))) found.add(url.split('#')[0]!);
+  }
   return [...found];
 }
 /** A single CSS hop, resolved against the stylesheet URL and restricted to the same synthetic origin. */

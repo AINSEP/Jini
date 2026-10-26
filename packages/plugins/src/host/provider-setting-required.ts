@@ -8,7 +8,9 @@ function requirementWaived({ condition, values }: {
   if (values[condition.field] === condition.equals) return true;
   if (!condition.orPresent) return false;
   const alternative = values[condition.orPresent];
-  return typeof alternative === 'string' && alternative.trim() !== '';
+  if (typeof alternative !== 'string' || alternative.trim() === '') return false;
+  if (!condition.headerNames) return true;
+  return hasProviderAuthHeader({ text: alternative, names: condition.headerNames });
 }
 
 /**
@@ -27,4 +29,13 @@ export function isProviderSettingRequired({ field, values }: {
     ? when.in.some((choice) => choice === values[when.field])
     : field.required === true;
   return required && !requirementWaived({ condition: field.requiredUnless, values });
+}
+
+
+/** Match only declared nonblank Name=Value headers; malformed lists never waive a requirement.
+ * @complexity O(h * n) in header text and the manifest's small name allowlist. */
+export function hasProviderAuthHeader({ text, names }: { text: string; names: readonly string[] }, _optional = {}): boolean {
+  const pairs = text.split(',').map(pair => /^([^=\s][^=]*?)\s*=\s*(.+)$/.exec(pair.trim()));
+  if (pairs.some(pair => !pair)) return false;
+  return pairs.some(pair => names.some(name => name.toLowerCase() === pair![1]!.toLowerCase()) && pair![2]!.trim() !== '');
 }

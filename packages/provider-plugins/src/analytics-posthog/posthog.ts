@@ -85,12 +85,12 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
         ...(input === undefined ? {} : { $ai_input: [{ role: 'user', content: input }] }),
         ...(output === undefined ? {} : { $ai_output_choices: [{ role: 'assistant', content: output }] }),
       } : {};
-      client.capture({ distinctId: userId, event: '$ai_generation', properties: { ...mapped, ...content, ...attributes, $process_person_profile: false }, ...(groups ? { groups } : {}) });
+      client.capture({ distinctId: userId, event: '$ai_generation', properties: { ...mapped, ...content, ...attributes, ...(userId.startsWith('visitor:') ? { $process_person_profile: false } : {}) }, ...(groups ? { groups } : {}) });
     },
     capture({ name, userId, properties }) {
       // Domain/outbox IDs are the host-neutral idempotency key; retries retain vendor dedupe.
-      // Server events count actions, including ephemeral visitors; only explicit identify sets a profile.
-      const merged = { ...properties, ...attributes, ...(typeof properties?.eventId === 'string' ? { $insert_id: properties.eventId } : {}), $process_person_profile: false };
+      // Visitor subjects are ephemeral; owner events retain the SDK's person-profile behavior.
+      const merged = { ...properties, ...attributes, ...(typeof properties?.eventId === 'string' ? { $insert_id: properties.eventId } : {}), ...(userId.startsWith('visitor:') ? { $process_person_profile: false } : {}) };
       client.capture({ distinctId: userId, event: name, properties: merged, ...(groups ? { groups } : {}) });
     },
     // Sent as the `$identify` event itself rather than `client.identify` (Codex fix-lane MED): the SDK's
