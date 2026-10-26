@@ -55,8 +55,13 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
       const merged = { ...properties, ...attributes };
       client.capture({ distinctId: userId, event: name, ...(Object.keys(merged).length ? { properties: merged } : {}), ...(groups ? { groups } : {}) });
     },
+    // Sent as the `$identify` event itself rather than `client.identify` (Codex fix-lane MED): the SDK's
+    // identify puts traits under `$set` and nothing else on the event, so it could carry neither the
+    // site attribution nor `$groups`. Traits set person properties, minus the keys the host attributes.
     identify({ userId, traits }) {
-      client.identify({ distinctId: userId, ...(traits ? { properties: { ...traits } } : {}) });
+      const set = Object.fromEntries(Object.entries(traits ?? {}).filter(([key]) => !attributes || !(key in attributes)));
+      const properties = { ...(Object.keys(set).length ? { $set: set } : {}), ...attributes };
+      client.capture({ distinctId: userId, event: "$identify", ...(Object.keys(properties).length ? { properties } : {}), ...(groups ? { groups } : {}) });
     },
   };
   return { port, dispose: async () => { try { await client.shutdown(2_000); } catch { /* best-effort */ } } };
