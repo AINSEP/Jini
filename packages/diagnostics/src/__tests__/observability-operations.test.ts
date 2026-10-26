@@ -182,3 +182,53 @@ test("review #3: fan-out isolates each adapter's tracker creation and end; the c
   assert.doesNotThrow(() => tracker.end({ outcome: "completed", failed: false }));
   assert.deepEqual(c.getFinishedSpans().map((s) => s.name), ["tool.call"]);
 });
+
+test("combineObservabilityPorts: a tracker whose run() throws before, after, or instead of its callback never blocks the work or later scopes; the callback runs exactly once", async () => {
+  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const noop = createNoopObservabilityPort({});
+  const scoped: string[] = [];
+  const withRun = (run: <T>(fn: () => T) => T) => ({ ...noop, trackOperation: () => ({ run, end() {} }) });
+  const recordingScope = withRun((fn) => { scoped.push("entered"); return fn(); });
+  const cases = {
+    before: withRun(() => { throw new Error("scope down"); }),
+    after: withRun((fn) => { fn(); throw new Error("scope down after"); }),
+    never: withRun(() => undefined as never),
+  };
+  for (const [name, broken] of Object.entries(cases)) {
+    scoped.length = 0;
+    let calls = 0;
+    const port = combineObservabilityPorts({ ports: [broken, recordingScope] });
+    const value = port.trackOperation({ name: "op" }).run!(() => { calls += 1; return `ok:${calls}`; });
+    assert.equal(value, "ok:1", name);
+    assert.equal(calls, 1, `${name}: exactly one callback execution`);
+    assert.deepEqual(scoped, ["entered"], `${name}: the later scope still ran`);
+  }
+  // The work's own error reaches the caller unchanged, even when the scope throws on its way out.
+  const failure = new Error("work failed");
+  const rethrowing = withRun((fn) => { try { return fn(); } catch { throw new Error("adapter replaced the error"); } });
+  const port = combineObservabilityPorts({ ports: [rethrowing, recordingScope] });
+  let calls = 0;
+  assert.throws(() => port.trackOperation({ name: "op" }).run!(() => { calls += 1; throw failure; }), (error) => error === failure);
+  assert.equal(calls, 1);
+});
+
+test("combineObservabilityPorts: every signal fans out, and a tracker without run() is simply skipped as a scope", async () => {
+  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const noop = createNoopObservabilityPort({});
+  const seen: string[] = [];
+  const recording = (tag: string) => ({
+    trackRequest: () => { seen.push(`${tag}:request`); return { end() {} }; },
+    trackDbQuery: () => { seen.push(`${tag}:db`); return { end() {} }; },
+    trackOutboundCall: () => { seen.push(`${tag}:outbound`); return { end() {} }; },
+    trackAgentRun: () => { seen.push(`${tag}:agent`); return { end() {} }; },
+    trackOperation: () => { seen.push(`${tag}:op`); return { end() {} }; },
+    reportError: () => { seen.push(`${tag}:error`); },
+  });
+  const port = combineObservabilityPorts({ ports: [recording("a"), noop, recording("b")] as never });
+  port.trackRequest({ method: "GET", path: "/" }).end({ statusCode: 200 });
+  port.trackDbQuery({ operation: "select" } as never).end({} as never);
+  port.trackOutboundCall({ method: "GET", url: "https://x.test" } as never).end({} as never);
+  port.trackAgentRun({ agentId: "a" } as never).end({} as never);
+  assert.equal(port.trackOperation({ name: "op" }).run!(() => "unscoped"), "unscoped");
+  assert.deepEqual(seen, ["a:request", "b:request", "a:db", "b:db", "a:outbound", "b:outbound", "a:agent", "b:agent", "a:op", "b:op"]);
+});

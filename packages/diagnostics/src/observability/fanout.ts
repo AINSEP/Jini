@@ -13,12 +13,35 @@ function isolatedStart<T>(start: () => T, fallback: () => T): T {
  try { return start(); } catch { return fallback(); }
 }
 
+/** One adapter's scope around `inner`, contained (Codex wave-2 MED): an adapter's run() that throws
+ * before calling `inner` runs the work unscoped; one that throws after it keeps the work's own result
+ * or error; one that returns without calling it still gets the work run. `inner` runs exactly once. */
+function containedScope<R>(run: <V>(fn: () => V) => V, inner: () => R): () => R {
+ return () => {
+  let called = false;
+  let failed: { error: unknown } | undefined;
+  let result: R;
+  const once = (): R => {
+   called = true;
+   try { result = inner(); return result; } catch (error) { failed = { error }; throw error; }
+  };
+  try {
+   const value = run(once);
+   return called ? value : inner();
+  } catch {
+   if (!called) return inner();
+   if (failed) throw failed.error;
+   return result!;
+  }
+ };
+}
+
 /** One tracker over several: run() nests every scope (so each adapter sees the work as its own
  * child), end() settles all. The first tracker's extra fields (a request id) are kept. Each end() is
  * isolated: one adapter throwing at settle time must neither skip the rest nor turn work that already
  * happened (a tool call that changed state) into a failed request for the caller. */
 function combine<O, T extends Tracker<O>>(trackers: readonly T[]): T {
- const run = <R>(fn: () => R): R => trackers.reduceRight<() => R>((inner, t) => (t.run ? () => t.run!(inner) : inner), fn)();
+ const run = <R>(fn: () => R): R => trackers.reduceRight<() => R>((inner, t) => (t.run ? containedScope(t.run, inner) : inner), fn)();
  const end = (outcome: O) => { for (const t of trackers) { try { t.end(outcome); } catch { /* settle the rest */ } } };
  return { ...trackers[0]!, run, end };
 }
