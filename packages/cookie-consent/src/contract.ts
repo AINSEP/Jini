@@ -49,8 +49,8 @@ export interface ConsentState {
   analyticsLevel: 'none' | 'anonymous' | 'full';
   /** What the banner shows: the choice (or region default), GPC-clamped. */
   choices: Choices;
-  /** What may RUN. Anonymous analytics needs no choice; durable grants await their receipt.
-   * Adapters, inert tags, host features and the server gate all read this, never `choices`. */
+  /** Full category permissions; durable grants await their receipt. Never read `choices` as permission.
+   * Anonymous analytics keeps allowed.analytics false; adapters/collectors use analyticsLevel. */
   allowed: Choices;
   action: ConsentAction | null;
   at: number | null;
@@ -89,9 +89,11 @@ export interface ConsentAdapter<C = unknown> extends Contribution<typeof ADAPTER
   config?: C;
   storage?: StoragePrefixes;
   grant(required: GrantInput<C>, optional?: object): Promise<Revoker | null> | Revoker | null;
+  /** Receives levels for cleanup even without a grant; must never start denied analytics. */
   onState?(required: { state: ConsentState }, optional?: object): void;
 }
-/** Page-config form: `src` is imported only on grant. An adapter that must signal before any grant (a
+/** Page-config form: `src` is imported on grant, or for cleanup when off and supportsAnonymous.
+ * An adapter that must signal before any grant in other banner modes (a
  * consent-mode default) registers a live adapter through window.jiniConsentQueue instead. */
 export interface LazyAdapter extends Contribution<typeof ADAPTER_KIND> {
   category: Optional; src: string; config?: unknown; storage?: StoragePrefixes;

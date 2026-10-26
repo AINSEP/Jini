@@ -60,7 +60,7 @@ A runnable example is in `examples/cookie-consent-standalone` (it includes a slo
 The slot set is open. Each kind is a string. A contribution for a kind that no slot defines yet waits until `defineSlot` arrives. Every register or inject call takes `(required, optional)` objects.
 
 - **Browser adapters** (`kind: 'consent-adapter'`, category `functional` | `analytics` | `marketing`). There are two forms:
-  - Lazy: `{ id, kind, category, src, config }` goes in the page config's `plugins`, and the module at `src` is imported only after a grant.
+  - Lazy: `{ id, kind, category, src, config }` goes in the page config's `plugins`, and the module at `src` is imported on grant, or for cleanup in off mode when `supportsAnonymous: true`.
   - Live: the module is pushed before or after the client loads:
 
     ```js
@@ -68,7 +68,7 @@ The slot set is open. Each kind is a string. A contribution for a kind that no s
       grant({ config, state, signal }) { /* start the vendor */ return { revoke() { /* stop it */ return true; } }; } });
     ```
 
-  Adapters must read `state.analyticsLevel` (`none` | `anonymous` | `full`). Only adapters declaring `supportsAnonymous: true` can run in off mode. Anonymous means no cookies, localStorage, sessionStorage, cross-page identifier, person profiles, IP geolocation, replay or form-input capture. Hosts must pass the server decision to collectors; a browser payload never sets its own level.
+  In off mode `allowed.analytics` is always `false`; `state.analyticsLevel` is `anonymous` (or `none` under GPC/DNT). Adapters must read `state.analyticsLevel` (`none` | `anonymous` | `full`). Only adapters declaring `supportsAnonymous: true` can run in off mode. Anonymous means no cookies/localStorage/sessionStorage created, no cross-page identifier, person profiles, IP geolocation, replay or form-input capture. Adapters remove their own leftover identity at anonymous/none levels; off-mode adapters may be imported for this cleanup without a grant. Hosts must pass the server decision to collectors; a browser payload never sets its own level.
 
   If `revoke()` returns false (or is missing), the page reloads so that it ends up clean.
 - **Server region resolvers** (`kind: 'region-resolver'`). There are two forms:

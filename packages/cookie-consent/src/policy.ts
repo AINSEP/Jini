@@ -36,7 +36,7 @@ export function clamp({ flags, gpc }: { flags: Flags; gpc: boolean }, _optional 
 
 /** Region default, policy-version + age expiry, GPC clamp, and (durable mode) no grant without a receipt.
  * A region default with no stored choice (the opt-out model) is never "waiting", so it runs as configured.
- * Anonymous delivery ignores stored grants and enables only analytics, still subject to the privacy signal.
+ * Anonymous delivery ignores stored grants; its level permits only anonymous-capable adapters, subject to the privacy signal.
  * @example effective({ stored, policy: '2026-10-26', region: 'opt-in', gpc: false, nowMs: Date.now() }, { durable: true })
  * @complexity O(1). */
 export function effective(
@@ -59,8 +59,8 @@ function current({ stored, policy, nowMs, maxAgeMs, anonymous }: { stored: Store
 /** Runtime permissions differ from choices for anonymous delivery and unconfirmed durable grants.
  * @complexity O(1). */
 function permissionFor({ choices, live, durable, anonymous, gpc }: { choices: Choices; live: StoredChoice | null; durable: boolean; anonymous: boolean; gpc: boolean }, _optional = {}): Pick<ConsentState, 'allowed' | 'analyticsLevel'> {
-  const allowed = anonymous ? { ...DENIED, analytics: !gpc } : live && durable && !live.r ? DENIED : choices;
-  return { allowed, analyticsLevel: allowed.analytics ? anonymous ? 'anonymous' : 'full' : 'none' };
+  const allowed = anonymous || live && durable && !live.r ? DENIED : choices;
+  return { allowed, analyticsLevel: anonymous && !gpc ? 'anonymous' : allowed.analytics ? 'full' : 'none' };
 }
 
 function receiptOf(stored: StoredChoice): ReceiptStatus {

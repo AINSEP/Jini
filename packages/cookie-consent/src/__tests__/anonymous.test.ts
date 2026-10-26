@@ -28,6 +28,7 @@ function page({ gpc = false, dnt = '0' } = {}) {
   window.jiniConsentQueue = [
     { id: 'safe', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, grant },
     { id: 'unsafe', kind: 'consent-adapter', category: 'analytics', grant: unsafe },
+    { id: 'marketing', kind: 'consent-adapter', category: 'marketing', supportsAnonymous: true, grant: unsafe },
   ];
   const cookieWrite = vi.spyOn(Document.prototype, 'cookie', 'set');
   const cookieRead = vi.spyOn(Document.prototype, 'cookie', 'get');
@@ -39,11 +40,20 @@ function page({ gpc = false, dnt = '0' } = {}) {
 }
 
 test('off boots anonymous adapters without controls, persistence, raw tags or receipts, even after accept', async () => {
+  const events: ConsentState[] = [];
+  document.addEventListener('jini:consent', event => events.push((event as CustomEvent<ConsentState>).detail), { once: true });
   const f = page();
+  expect(f.api!.get().allowed.analytics).toBe(false);
+  expect(events[0]).toMatchObject({ allowed: { analytics: false }, analyticsLevel: 'anonymous' });
+  const listener = vi.fn();
+  f.api!.subscribe({ listener });
+  await new Promise(r => setTimeout(r, 0));
+  expect(f.unsafe).not.toHaveBeenCalled();
   expect(f.api, 'off still emits a client config').toBeDefined();
   await f.api!.set({ action: 'accept' });
   await new Promise(r => setTimeout(r, 0));
   expect(f.api!.get().analyticsLevel).toBe('anonymous');
+  expect(listener).toHaveBeenCalledWith(expect.objectContaining({ allowed: expect.objectContaining({ analytics: false }), analyticsLevel: 'anonymous' }));
   expect(f.grant).toHaveBeenCalledOnce();
   expect(f.grant.mock.calls[0]![0].state.analyticsLevel).toBe('anonymous');
   expect(f.unsafe).not.toHaveBeenCalled();
@@ -76,7 +86,7 @@ test('DNT browser boundary clamps a US no-choice grant just like GPC', () => {
 
 test('server: off is anonymous; GPC/DNT deny it, US defaults remain, EU/UK/unknown stay strict', () => {
   const read = (cookieHeader: string, options = {}) => readConsent({ cookieHeader, ...client }, options);
-  expect(read('', { anonymous: true }).analyticsLevel).toBe('anonymous');
+  expect(read('', { anonymous: true })).toMatchObject({ allowed: { analytics: false }, analyticsLevel: 'anonymous' });
   for (const options of [{ secGpc: '1' }, { dnt: '1' }]) {
     expect(read('jini_region=us', { ...options, anonymous: true }).allowed.analytics).toBe(false);
     expect(read('jini_region=us', options).allowed.analytics).toBe(false);
@@ -127,4 +137,19 @@ test('off ignores a previous durable grant or pending receipt without rewriting 
   expect(f.network).not.toHaveBeenCalled();
   vi.restoreAllMocks();
   document.cookie = 'jini_consent=; Path=/; Max-Age=0';
+});
+
+for (const gpc of [false, true]) test(`off lazy adapters receive the current level for cleanup (privacy signal ${gpc})`, async () => {
+  Object.defineProperty(navigator, 'globalPrivacyControl', { value: gpc, configurable: true });
+  document.head.innerHTML = renderBanner({ mode: 'off', client, copy: {} }).head;
+  const grant = vi.fn(() => ({ revoke: () => true }));
+  const onState = vi.fn();
+  const importModule = vi.fn(async () => ({ default: { id: 'safe', kind: 'consent-adapter' as const, category: 'analytics' as const, supportsAnonymous: true as const, grant, onState } }));
+  window.jiniConsentQueue = [{ id: 'safe', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, src: '/adapter.js' }];
+  const api = boot(window, { ports: { ...browserPorts(window), importModule, fetch: vi.fn() } })!;
+  await new Promise(r => setTimeout(r, 0));
+  expect(importModule).toHaveBeenCalledOnce();
+  expect(onState).toHaveBeenCalledWith({ state: api.get() });
+  expect(api.get().allowed.analytics).toBe(false);
+  expect(grant).toHaveBeenCalledTimes(gpc ? 0 : 1);
 });
