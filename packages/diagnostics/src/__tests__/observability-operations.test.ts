@@ -212,6 +212,39 @@ test("combineObservabilityPorts: a tracker whose run() throws before, after, or 
   assert.equal(calls, 1);
 });
 
+test("combineObservabilityPorts: app work runs exactly once and its recorded outcome wins, whatever a tracker's run() does with the callback", async () => {
+  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const noop = createNoopObservabilityPort({});
+  const withRun = (run: <T>(fn: () => T) => T) => ({ ...noop, trackOperation: () => ({ run, end() {} }) });
+  // A tracker that calls the callback twice must not run the app's mutation twice.
+  const twice = withRun((fn) => { fn(); return fn(); });
+  let calls = 0;
+  const value = combineObservabilityPorts({ ports: [twice] }).trackOperation({ name: "op" }).run!(() => { calls += 1; return `ok:${calls}`; });
+  assert.equal(calls, 1, "the second call replays the recorded outcome");
+  assert.equal(value, "ok:1");
+  // A tracker that swallows the callback's error and returns normally must not hide it from the caller.
+  const failure = new Error("work failed");
+  const swallowing = withRun(((fn: () => unknown) => { try { return fn(); } catch { return "swallowed"; } }) as never);
+  let failing = 0;
+  assert.throws(() => combineObservabilityPorts({ ports: [swallowing] }).trackOperation({ name: "op" }).run!(() => { failing += 1; throw failure; }), (error) => error === failure);
+  assert.equal(failing, 1);
+  // A tracker that replaces a successful result cannot change what the caller gets.
+  const replacing = withRun((() => "replaced") as never);
+  assert.equal(combineObservabilityPorts({ ports: [replacing] }).trackOperation({ name: "op" }).run!(() => "real"), "real");
+  // A tracker that wraps async work in its own promise: the caller gets the work's promise, and the
+  // dropped wrapper's rejection is observed (never an unhandled rejection).
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const wrapping = withRun(((fn: () => Promise<unknown>) => fn().then(() => { throw new Error("wrapper failed"); })) as never);
+    const work = Promise.resolve("async-real");
+    assert.equal(combineObservabilityPorts({ ports: [wrapping] }).trackOperation({ name: "op" }).run!(() => work), work);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.deepEqual(unhandled, []);
+  } finally { process.off("unhandledRejection", onUnhandled); }
+});
+
 test("combineObservabilityPorts: every signal fans out, and a tracker without run() is simply skipped as a scope", async () => {
   const { combineObservabilityPorts } = await import("../observability/fanout.js");
   const noop = createNoopObservabilityPort({});
