@@ -25,8 +25,20 @@
         "settings": [
           {
             "name": "baseUrl",
-            "label": "Langfuse URL",
-            "hint": "Optional; defaults to Langfuse Cloud."
+            "label": "Region / host",
+            "default": "https://cloud.langfuse.com",
+            "options": [
+              {
+                "value": "https://cloud.langfuse.com",
+                "label": "EU Cloud"
+              },
+              {
+                "value": "https://us.cloud.langfuse.com",
+                "label": "US Cloud"
+              }
+            ],
+            "allowCustom": true,
+            "hint": "Custom: your self-hosted Langfuse URL."
           },
           {
             "name": "publicKey",

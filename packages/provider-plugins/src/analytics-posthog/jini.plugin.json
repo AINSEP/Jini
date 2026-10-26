@@ -25,15 +25,28 @@
         "settings": [
           {
             "name": "host",
-            "label": "PostHog host",
+            "label": "Region / host",
             "required": true,
-            "hint": "e.g. https://eu.i.posthog.com"
+            "default": "https://us.i.posthog.com",
+            "options": [
+              {
+                "value": "https://us.i.posthog.com",
+                "label": "US Cloud"
+              },
+              {
+                "value": "https://eu.i.posthog.com",
+                "label": "EU Cloud"
+              }
+            ],
+            "allowCustom": true,
+            "hint": "Custom: your self-hosted PostHog URL."
           },
           {
             "name": "apiKey",
             "label": "Project API key",
             "secret": true,
-            "required": true
+            "required": true,
+            "hint": "PostHog → Project settings → Project API key (starts with phc_)."
           }
         ]
       }

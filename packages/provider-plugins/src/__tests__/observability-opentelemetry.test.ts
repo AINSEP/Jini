@@ -18,7 +18,7 @@ import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/no
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
 import { createOtelFactories, createOtelObservabilityAdapter } from "../observability-opentelemetry/opentelemetry.js";
-import plugin, { createOpenTelemetryProvider, otlpHeadersOf } from "../observability-opentelemetry/index.js";
+import plugin, { createOpenTelemetryProvider, otlpAuthHeaders, otlpHeadersOf } from "../observability-opentelemetry/index.js";
 
 const TEST_CONFIG: ObservabilityConfigEnabled = {
   enabled: true,
@@ -372,6 +372,8 @@ test.each([
   [{ endpoint: "http://c" }, "serviceName must be non-empty"],
   [{ serviceName: "s", tracerName: "", endpoint: "http://c" }, "tracerName must be non-empty"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: "x" }, "headers must be Name=Value pairs separated by commas"],
+  [{ serviceName: "s", tracerName: "t", endpoint: "http://c", token: 1 }, "token must be a string"],
+  [{ serviceName: "s", tracerName: "t", endpoint: "http://c", username: 1 }, "username must be a string"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: null }, "headers must be an object of strings"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: ["a"] }, "headers must be an object of strings"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: { a: "ok", b: 1 } }, "headers must be an object of strings"],
@@ -394,6 +396,40 @@ test("settings-card headers: the OTLP `Name=Value,Name=Value` text form becomes 
   assert.deepEqual(otlpHeadersOf(""), undefined);
   assert.deepEqual(otlpHeadersOf({ a: "b" }), { a: "b" });
   for (const bad of ["novalue", "=x", "a=b,,c"]) assert.throws(() => otlpHeadersOf(bad), { name: "TypeError", message: "headers must be Name=Value pairs separated by commas" });
+});
+
+test("card auth: username + token → Basic, token alone → Bearer, replacing any Authorization in the extra headers", () => {
+  const token = ["tok", "en", "-", String(Date.now())].join("");
+  const basic = `Basic ${Buffer.from(`123456:${token}`).toString("base64")}`;
+  assert.deepEqual(otlpAuthHeaders({ username: " 123456 ", token: ` ${token} `, headers: { authorization: "Basic old", "X-Scope-OrgID": "a" } }), { "X-Scope-OrgID": "a", Authorization: basic });
+  assert.deepEqual(otlpAuthHeaders({ username: " ", token }), { Authorization: `Bearer ${token}` });
+});
+
+test("card auth: no token keeps a card saved before these fields (raw headers) unchanged", () => {
+  assert.deepEqual(otlpAuthHeaders({ username: "123456", token: " ", headers: { Authorization: "Basic saved" } }), { Authorization: "Basic saved" });
+  assert.equal(otlpAuthHeaders({}), undefined);
+});
+
+test("the factory sends the Basic header it built from the card's username + token", async () => {
+  const token = ["glc", "_", String(Date.now())].join("");
+  let resolveAuth!: (value: string | undefined) => void;
+  const authorization = new Promise<string | undefined>((resolve) => { resolveAuth = resolve; });
+  const collector = createServer(async (request, response) => {
+    for await (const _chunk of request) { /* drain */ }
+    response.writeHead(200, { "content-type": "application/json" }).end("{}");
+    resolveAuth(request.headers.authorization);
+  });
+  await new Promise<void>((resolve) => collector.listen(0, "127.0.0.1", resolve));
+  const address = collector.address() as { port: number };
+  const resource = createOpenTelemetryProvider({ serviceName: "s", tracesEndpoint: `http://127.0.0.1:${address.port}/v1/traces`, username: "123456", token, headers: "X-Extra=1" });
+  try {
+    resource.port.trackOperation({ name: "op" }).end({ outcome: "ok", failed: false });
+    await resource.dispose({});
+    assert.equal(await authorization, `Basic ${Buffer.from(`123456:${token}`).toString("base64")}`);
+  } finally {
+    collector.closeAllConnections();
+    await new Promise<void>((resolve) => collector.close(() => resolve()));
+  }
 });
 
 test("a settings card supplies no tracer name: the service name is the tracer name", async () => {

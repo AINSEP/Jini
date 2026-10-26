@@ -27,13 +27,24 @@
             "name": "endpoint",
             "label": "OTLP endpoint",
             "required": true,
-            "hint": "Any OTLP/HTTP endpoint, e.g. https://otlp.example.com/otlp (traces go to /v1/traces)."
+            "hint": "Any OTLP/HTTP endpoint, e.g. https://otlp-gateway-prod-us-east-0.grafana.net/otlp (traces go to /v1/traces)."
+          },
+          {
+            "name": "username",
+            "label": "Username / instance ID",
+            "hint": "Grafana Cloud: instance ID + an access-policy token. Blank: the token is sent as a Bearer token."
+          },
+          {
+            "name": "token",
+            "label": "Token",
+            "secret": true,
+            "hint": "Sent as Authorization: Basic (with a username) or Bearer."
           },
           {
             "name": "headers",
-            "label": "OTLP headers",
+            "label": "Extra headers (advanced)",
             "secret": true,
-            "hint": "Name=Value pairs separated by commas, e.g. Authorization=Basic <base64 of instance-id:token>."
+            "hint": "Optional Name=Value pairs separated by commas."
           }
         ]
       }

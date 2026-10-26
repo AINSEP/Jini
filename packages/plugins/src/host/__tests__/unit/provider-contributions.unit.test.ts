@@ -55,9 +55,14 @@ describe('provider contributions on the existing plugin pipeline', () => {
     const validate = (value: unknown) => validateManifest({ ...manifestHost, capabilityVocabulary: ['providers.register'], manifest: value as PluginManifest, folderName: manifest.id, builtInIds: [] }).errors;
     const settings = [{ name: 'endpoint', label: 'OTLP endpoint', required: true, hint: 'https://…' }, { name: 'headers', label: 'Headers', secret: true }];
     expect(validate({ ...manifest, contributes: { providers: [{ ...declaration, settings }] } })).toEqual([]);
+    const host = { name: 'host', label: 'Host', default: 'https://us.example.test', options: [{ value: 'https://us.example.test', label: 'US' }, { value: 'https://eu.example.test', label: 'EU' }], allowCustom: true };
+    expect(validate({ ...manifest, contributes: { providers: [{ ...declaration, settings: [host] }] } })).toEqual([]);
     for (const bad of [
       'endpoint', [{ name: 'endpoint' }], [{ name: '9bad', label: 'x' }], [{ name: 'a', label: '' }], [{ name: 'a', label: 'A', secret: 'yes' }],
       [{ name: 'a', label: 'A', required: 1 }], [{ name: 'a', label: 'A', hint: 3 }], [{ name: 'a', label: 'A' }, { name: 'a', label: 'B' }], [null],
+      [{ name: 'a', label: 'A', default: 1 }], [{ name: 'a', label: 'A', secret: true, default: 'x' }], [{ name: 'a', label: 'A', secret: true, options: [{ value: 'x', label: 'X' }] }],
+      [{ name: 'a', label: 'A', options: [] }], [{ name: 'a', label: 'A', options: [{ value: '', label: 'X' }] }], [{ name: 'a', label: 'A', options: [{ value: 'x' }] }],
+      [{ name: 'a', label: 'A', options: 'x' }], [{ name: 'a', label: 'A', allowCustom: true }], [{ name: 'a', label: 'A', options: [{ value: 'x', label: 'X' }], allowCustom: 'yes' }],
     ]) {
       const errors = validate({ ...manifest, contributes: { providers: [{ ...declaration, settings: bad }] } });
       expect(errors.map(error => error.code), JSON.stringify(bad)).toEqual(['PROVIDERS_INVALID']);

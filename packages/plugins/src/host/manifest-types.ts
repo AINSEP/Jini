@@ -116,6 +116,18 @@ export interface PluginProviderSettingField {
   readonly secret?: boolean;
   readonly required?: boolean;
   readonly hint?: string;
+  /** Public fields only: the value a host prefills and uses while none is saved (e.g. a vendor's cloud host). */
+  readonly default?: string;
+  /** Public fields only: a host renders a select of these choices instead of free text. */
+  readonly options?: readonly PluginProviderSettingOption[];
+  /** With `options`: also offer "Custom…" free text (e.g. a self-hosted URL). */
+  readonly allowCustom?: boolean;
+}
+
+/** One choice of a {@link PluginProviderSettingField}'s `options`. */
+export interface PluginProviderSettingOption {
+  readonly value: string;
+  readonly label: string;
 }
 
 /** One validation-vocabulary entry (errors.spec.md §3). `file` names the offending packaged file
