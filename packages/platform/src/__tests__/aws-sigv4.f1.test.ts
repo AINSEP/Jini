@@ -52,4 +52,17 @@ describe('signSigV4 — F1 canonicalisation', () => {
     signSigV4({ method: 'GET', path: '/o', query: '', headers: noToken, body: Buffer.alloc(0), region: 'r', service: 's3', credentials: { ...CREDENTIALS, sessionToken: '' }, now: NOW });
     expect('x-amz-security-token' in noToken).toBe(false);
   });
+
+  it('FU-B: case-colliding headers leave ONE spelling in the outgoing map, holding exactly the signed value', () => {
+    // A caller-supplied `X-Amz-Date` must not survive beside the generated `x-amz-date`: a transport
+    // that combined the two would send a value different from the one that was signed.
+    const headers: Record<string, string> = { Host: 'b.s3.amazonaws.com', 'X-Amz-Date': '19990101T000000Z', 'X-Meta': 'a', 'x-meta': 'b' };
+    const result = signSigV4({ method: 'GET', path: '/o', query: '', headers, body: Buffer.alloc(0), region: 'us-east-1', service: 's3', credentials: CREDENTIALS, now: NOW });
+    expect(Object.keys(headers).sort()).toEqual(['authorization', 'host', 'x-amz-content-sha256', 'x-amz-date', 'x-meta']);
+    expect(headers['x-amz-date']).toBe(result.amzDate);
+    // Multi-value headers are comma-joined (AWS canonical form), in input order.
+    expect(headers['x-meta']).toBe('a,b');
+    // The signature is the one for exactly that lower-case map.
+    expect(result.authorization).toBe(sign({ headers: { host: 'b.s3.amazonaws.com', 'x-meta': 'a,b' } }));
+  });
 });
