@@ -233,6 +233,28 @@ ${SURFACE_SCRIPT_PRELUDE}
     return value === "";
   }
 
+  // Presentation only; the host's save rule validates the effective settings and kept secrets.
+  function requiredNow(field) {
+    var condition = field.requiredUnless;
+    var other = condition && form.elements[condition.field];
+    return field.required && (!condition || !other || other.value !== condition.equals);
+  }
+  function refreshRequirements() {
+    for (var i = 0; i < FIELDS.length; i++) {
+      var field = FIELDS[i];
+      if (!field.requiredUnless) continue;
+      var control = form.elements[field.name];
+      var required = requiredNow(field);
+      control.required = required;
+      control.setAttribute("aria-required", String(required));
+      var label = control.labels && control.labels[0];
+      var mark = label && label.querySelector(".mcpui-required");
+      if (mark) mark.hidden = !required;
+    }
+  }
+  form.addEventListener("change", refreshRequirements);
+  refreshRequirements();
+
   // NOT wired to the form's "submit" event. Per the WHATWG form submission algorithm, the
   // sandboxed-forms browsing-context check runs BEFORE that event is ever dispatched, so in the
   // real target sandbox (MCP_UI_VIEW_SANDBOX grants "allow-scripts" and nothing else -- no
@@ -263,13 +285,17 @@ ${SURFACE_SCRIPT_PRELUDE}
     var key;
     for (key in BASE_PARAMS) if (Object.prototype.hasOwnProperty.call(BASE_PARAMS, key)) params[key] = BASE_PARAMS[key];
     var missing = [];
+    var missingMessage;
     for (var i = 0; i < FIELDS.length; i++) {
       var value = readField(FIELDS[i]);
-      if (FIELDS[i].required && isBlank(FIELDS[i], value)) missing.push(FIELDS[i].label);
+      if (requiredNow(FIELDS[i]) && isBlank(FIELDS[i], value)) {
+        missing.push(FIELDS[i].label);
+        if (FIELDS[i].requiredUnless && FIELDS[i].hint) missingMessage = FIELDS[i].label + " is required. " + FIELDS[i].hint;
+      }
       params[FIELDS[i].name] = value;
     }
     if (missing.length > 0) {
-      setStatus(TEXT.missingPrefix + missing.join(", "), "invalid");
+      setStatus(missingMessage || TEXT.missingPrefix + missing.join(", "), "invalid");
       return;
     }
     for (key in actionParams) if (Object.prototype.hasOwnProperty.call(actionParams, key)) params[key] = actionParams[key];

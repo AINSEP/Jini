@@ -35,10 +35,22 @@
             "hint": "Grafana Cloud: instance ID + an access-policy token. Blank: the token is sent as a Bearer token."
           },
           {
+            "name": "auth",
+            "label": "Authentication",
+            "required": true,
+            "default": "token",
+            "options": [
+              { "value": "token", "label": "Token" },
+              { "value": "none", "label": "No authentication (local collector, advanced)" }
+            ]
+          },
+          {
             "name": "token",
             "label": "Token",
             "secret": true,
-            "hint": "Sent as Authorization: Basic (with a username) or Bearer."
+            "required": true,
+            "requiredUnless": { "field": "auth", "equals": "none" },
+            "hint": "Choose \"No authentication\" only for a local collector."
           },
           {
             "name": "headers",

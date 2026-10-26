@@ -34,9 +34,11 @@ export function otlpHeadersOf(value: unknown): Record<string, string> | undefine
  * The card's generic OTLP auth: `token` alone → `Authorization: Bearer <token>`; with `username` (a
  * Grafana Cloud instance ID, a collector user) → `Authorization: Basic base64(username:token)`. Built
  * here so nobody hand-encodes base64. It replaces any `Authorization` in the extra `headers`; with no
- * token, those headers (a card saved before these fields existed) apply unchanged.
+ * token, those headers (a card saved before these fields existed) apply unchanged. Explicit
+ * `auth: 'none'` ignores the token and removes Authorization from extra headers too.
  */
-export function otlpAuthHeaders({ username, token, headers }: { username?: string | undefined; token?: string | undefined; headers?: Record<string, string> | undefined }): Record<string, string> | undefined {
+export function otlpAuthHeaders({ auth, username, token, headers }: { auth?: string | undefined; username?: string | undefined; token?: string | undefined; headers?: Record<string, string> | undefined }, _optional: Record<string, never> = {}): Record<string, string> | undefined {
+  if (auth === 'none') return headers && Object.fromEntries(Object.entries(headers).filter(([name]) => name.toLowerCase() !== 'authorization'));
   if (!token?.trim()) return headers;
   const authorization = username?.trim() ? `Basic ${Buffer.from(`${username.trim()}:${token.trim()}`).toString('base64')}` : `Bearer ${token.trim()}`;
   const extra = Object.entries(headers ?? {}).filter(([name]) => name.toLowerCase() !== 'authorization');
@@ -45,7 +47,7 @@ export function otlpAuthHeaders({ username, token, headers }: { username?: strin
 
 /**
  * Builds the configured adapter. Hosts select this plugin only when an endpoint is configured.
- * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, username?, token?, headers? }`; credentials are
+ * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, auth?, username?, token?, headers? }`; credentials are
  *   `token` (+ `username`; see {@link otlpAuthHeaders}) and/or `headers` (object or the card's `Name=Value,…` text). `tracerName` defaults to `serviceName`. `attribution.attributes`
  *   (host-named, e.g. which site) go on every span's resource.
  * @param optional `{ spanProcessors? }` test seam.
@@ -59,7 +61,7 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
     serviceName: serviceName ?? '', tracerName: text(required.tracerName, 'tracerName') ?? serviceName ?? '',
   }, { ...(endpoint === undefined ? {} : { endpoint }), ...(tracesEndpoint === undefined ? {} : { tracesEndpoint }) });
   if (!config.enabled) throw new TypeError('an OTLP endpoint is required');
-  const headers = otlpAuthHeaders({ username: text(required.username, 'username'), token: text(required.token, 'token'), headers: otlpHeadersOf(required.headers) });
+  const headers = otlpAuthHeaders({ auth: text(required.auth, 'auth'), username: text(required.username, 'username'), token: text(required.token, 'token'), headers: otlpHeadersOf(required.headers) });
   const spanProcessors = optional.spanProcessors as OtelAdapterOptions['spanProcessors'];
   const resourceAttributes = attributionOf(required.attribution).attributes;
   const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes };
