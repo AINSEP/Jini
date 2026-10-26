@@ -93,7 +93,7 @@ function startOpenTelemetryAdapter(required: Parameters<typeof createOtelObserva
  * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, auth?, username?, token?, headers? }`; credentials are
  *   `token` (+ `username`; see {@link otlpAuthHeaders}) and/or `headers` (object or the card's `Name=Value,…` text). `tracerName` defaults to `serviceName`. `attribution.attributes`
  *   (host-named, e.g. which site) go on every span's resource.
- * @param optional `{ spanProcessors? }` test seam.
+ * @param optional `{ spanProcessors?, metricReaders? }` test seams.
  * @returns `{ port, dispose }`. @throws TypeError on missing endpoint or malformed input.
  */
 export function createOpenTelemetryProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
@@ -106,8 +106,10 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
   if (!config.enabled) throw new TypeError('an OTLP endpoint is required');
   const headers = otlpAuthHeaders({ auth: text(required.auth, 'auth'), username: text(required.username, 'username'), token: text(required.token, 'token'), headers: otlpHeadersOf(required.headers) });
   const spanProcessors = optional.spanProcessors as OtelAdapterOptions['spanProcessors'];
+  const metricReaders = optional.metricReaders as OtelAdapterOptions['metricReaders'];
+  // General endpoint is the shared collector base; signal overrides select only their own route.
   const resourceAttributes = attributionOf(required.attribution).attributes;
-  const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
+  const options: OtelAdapterOptions = { endpoint, metricReaders, ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
     reportTelemetry: optional.reportTelemetry as OtelAdapterOptions['reportTelemetry'], info: optional.info as OtelAdapterOptions['info'] };
   const { port, dispose } = startOpenTelemetryAdapter({ config }, options);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };

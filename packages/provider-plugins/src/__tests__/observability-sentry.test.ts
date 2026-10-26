@@ -36,6 +36,7 @@ test('memory diagnostic severity is a warning in the destination envelope', asyn
 test("obs2 #1: credential-shaped error codes never reach Sentry exception types", async () => {
   const { items, transport } = recordingTransport();
   const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  assert.equal(port.supportsMetric, false);
   const code = "AKIA" + "A".repeat(16);
   port.reportError({ error: Object.assign(new Error("request failed"), { code }), context: { operation: "tool.call" } });
   await flush(); await dispose();

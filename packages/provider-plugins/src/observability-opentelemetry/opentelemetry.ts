@@ -26,15 +26,16 @@
  * (provider shutdown: flushes the batch queue, stops its timer) for the host's teardown.
  */
 // Span lifecycle rationale: @jini-ai/diagnostics src/observability/otel.ts.
-import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Span, type Tracer } from "@opentelemetry/api";
+import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Meter, type Span, type Tracer } from "@opentelemetry/api";
 import { getSharedConfigurationDefaults, OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createOtlpHttpExportDelegate, httpAgentFactoryFromOptions } from "@opentelemetry/otlp-exporter-base/node-http";
-import { JsonTraceSerializer, TraceExporterMetricsHelper } from "@opentelemetry/otlp-transformer";
+import { JsonTraceSerializer, TraceExporterMetricsHelper, JsonMetricsSerializer, MetricsExporterMetricsHelper, type ISerializer, type IExporterMetricsHelper } from "@opentelemetry/otlp-transformer";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { BatchSpanProcessor, ParentBasedSampler, AlwaysOnSampler, type ReadableSpan, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { MeterProvider, PeriodicExportingMetricReader, type IMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { createOtelObservabilityPort, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
+import { createOtelObservabilityPort, redactOperationAttributes, type MetricInput, type MetricOptions, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 
@@ -43,6 +44,10 @@ export interface OtelAdapterOptions extends ProviderTelemetryOptions {
   headers?: Readonly<Record<string, string>>;
   /** Test seam: replace the OTLP batch pipeline with explicit SDK span processors. */
   spanProcessors?: SpanProcessor[];
+  /** Test seam: explicit readers suppress the OTLP metrics pipeline, including an empty array. */
+  metricReaders?: IMetricReader[] | undefined;
+  /** Shared collector base; metrics keep their own route when tracing has an override. */
+  endpoint?: string | undefined;
   /** Host attribution (e.g. which site sent the span), added to the resource; `service.name` stays the host's. */
   resourceAttributes?: Readonly<Record<string, string>>;
 }
@@ -57,31 +62,41 @@ export interface OtelAdapterOptions extends ProviderTelemetryOptions {
  */
 const OTLP_SPAN_EXPORTER_COMPONENT = "otlp_http_span_exporter";
 const BATCH_DEFAULTS = { maxExportBatchSize: 512, maxQueueSize: 2048, scheduledDelayMillis: 5000, exportTimeoutMillis: 30_000 };
-const LIMITS = { attributeValueLengthLimit: Infinity, attributeCountLimit: 128 };
-const SPAN_LIMITS = { ...LIMITS, linkCountLimit: 128, eventCountLimit: 128, attributePerEventCountLimit: 128, attributePerLinkCountLimit: 128 };
+const LIMITS = { attributeValueLengthLimit: 1024, attributeCountLimit: 64 };
+const SPAN_LIMITS = { ...LIMITS, linkCountLimit: 128, eventCountLimit: 128, attributePerEventCountLimit: 64, attributePerLinkCountLimit: 64 };
 
-/** OTLP/HTTP JSON trace exporter from injected `url` + `headers` only; never reads the environment. */
-export function createInjectedOtlpTraceExporter({ url, headers }: { url: string; headers?: Readonly<Record<string, string>> }): OTLPExporterBase<ReadableSpan[]> {
+/** Shared SDK transport owner for both signals: explicit settings only, no OTEL_* credentials.
+ * @returns An OTLP/HTTP JSON exporter. @complexity O(h) request headers, bounded SDK queue/timeout.
+ */
+function createInjectedOtlpExporter<T, Response>(
+  { url, serializer, component, helper }: { url: string; serializer: ISerializer<T, Response>; component: string; helper: IExporterMetricsHelper<T> },
+  { headers }: { headers?: Readonly<Record<string, string>> } = {},
+): OTLPExporterBase<T> {
   const requestHeaders = { "Content-Type": "application/json", ...headers };
   return new OTLPExporterBase(createOtlpHttpExportDelegate({
     ...getSharedConfigurationDefaults(), url, headers: async () => ({ ...requestHeaders }),
     agentFactory: httpAgentFactoryFromOptions({ keepAlive: true }),
-  }, JsonTraceSerializer, OTLP_SPAN_EXPORTER_COMPONENT, TraceExporterMetricsHelper, undefined));
+  }, serializer, component, helper, undefined));
 }
 
-type SpanExporter = Pick<OTLPExporterBase<ReadableSpan[]>, "export" | "shutdown" | "forceFlush">;
-/** Observe the real export callback before the batch processor consumes failures for diagnostics.
+/** OTLP/HTTP JSON trace exporter from injected settings only. */
+export function createInjectedOtlpTraceExporter({ url }: { url: string }, options: { headers?: Readonly<Record<string, string>> } = {}): OTLPExporterBase<ReadableSpan[]> {
+  return createInjectedOtlpExporter({ url, serializer: JsonTraceSerializer, component: OTLP_SPAN_EXPORTER_COMPONENT, helper: TraceExporterMetricsHelper }, options);
+}
+
+type SignalExporter<T> = Pick<OTLPExporterBase<T>, "export" | "shutdown" | "forceFlush">;
+/** Observe the real trace/metric export callback before the SDK consumes failures for diagnostics.
  * @returns The same SDK exporter protocol; credentials and raw errors stay at the adapter edge.
  * @complexity O(1) around an export, independent of the batch size.
  */
-export function createReportingSpanExporter(
-  { exporter, reporter }: { exporter: SpanExporter; reporter: ReturnType<typeof createProviderTelemetryReporter> }, _options = {},
-): SpanExporter {
+export function createReportingExporter<T>(
+  { exporter, reporter }: { exporter: SignalExporter<T>; reporter: ReturnType<typeof createProviderTelemetryReporter> }, _options = {},
+): SignalExporter<T> {
   return {
-    export(spans, callback) {
+    export(signal, callback) {
       let completed = false;
       try {
-        exporter.export(spans, (result) => {
+        exporter.export(signal, (result) => {
           completed = true;
           reporter.result({ phase: "export", outcome: result.code === 0 ? "ok" : "failed", error: result.error });
           // BatchSpanProcessor also forwards failures to the process-wide OTel diagnostic logger.
@@ -124,12 +139,14 @@ function adaptSpan({ span }: { span: Span }): TraceSpanPort {
  * as an explicit context (`trace.setSpan(ROOT_CONTEXT, parent)`), not through a registered global
  * context manager — the same "never take over @opentelemetry/api's process-wide registration" rule
  * this file's header gives for the provider.
+ * @param required The injected SDK tracer. @returns A structural tracer with explicit root/parent context.
+ * @complexity O(1) per span.
  */
-function adaptTracer({ tracer }: { tracer: Tracer }): TracerPort {
+export function adaptTracer({ tracer }: { tracer: Tracer }, _options = {}): TracerPort {
   return {
     startSpan: ({ name, kind, attributes }, { parent } = {}) => {
       const parentSpan = parent ? sdkSpans.get(parent) : undefined;
-      const context = parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : undefined;
+      const context = parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : ROOT_CONTEXT;
       return adaptSpan({ span: tracer.startSpan(name, { kind: SDK_SPAN_KINDS[kind], attributes }, context) });
     },
   };
@@ -150,14 +167,14 @@ export function createOtelFactories(_required: Record<string, never>, options: O
   shutdown: () => Promise<void>;
 } {
   const providers: NodeTracerProvider[] = [];
-  const exporterPipelines = new WeakMap<object, SpanExporter>();
+  const exporterPipelines = new WeakMap<object, SignalExporter<ReadableSpan[]>>();
   return {
     shutdown: async () => { await Promise.all(providers.map((provider) => provider.shutdown())); },
     exporterFactory: {
       create: ({ endpoint }) => {
         if (options.spanProcessors !== undefined) return undefined;
-        const exporter = createInjectedOtlpTraceExporter({ url: endpoint, ...(options.headers ? { headers: options.headers } : {}) });
-        exporterPipelines.set(exporter, createReportingSpanExporter({ exporter,
+        const exporter = createInjectedOtlpTraceExporter({ url: endpoint }, options);
+        exporterPipelines.set(exporter, createReportingExporter({ exporter,
           reporter: createProviderTelemetryReporter({ endpoint }, options) }));
         return exporter;
       },
@@ -183,6 +200,74 @@ export function createOtelFactories(_required: Record<string, never>, options: O
   };
 }
 
+/** Resolve the metrics signal independently of a trace-only route override.
+ * @param required The resolved trace URL; the standard suffix preserves collector path prefixes.
+ * @param options Shared collector base, when configured.
+ * @returns The OTLP metrics URL; custom trace-only routes fall back to the origin's standard route.
+ * @throws TypeError for an invalid fallback trace URL. @complexity O(u) URL length.
+ */
+export function resolveMetricsEndpoint(
+  { tracesEndpoint }: { tracesEndpoint: string },
+  { endpoint }: { endpoint?: string | undefined } = {},
+): string {
+  if (endpoint?.trim()) return `${endpoint.trim().replace(/\/+$/, "")}/v1/metrics`;
+  if (/\/v1\/traces(?=[?#]|$)/.test(tracesEndpoint)) return tracesEndpoint.replace(/\/v1\/traces(?=[?#]|$)/, "/v1/metrics");
+  return new URL("/v1/metrics", tracesEndpoint).href;
+}
+
+/** Creates the SDK-owned aggregation and periodic OTLP export pipeline from injected config only.
+ * @returns A private provider; its shutdown flushes the reader and stops its timer.
+ * @complexity O(h + r) headers and resource attributes at setup; SDK bounds series per instrument.
+ */
+function createMetricProvider({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): MeterProvider {
+  const endpoint = resolveMetricsEndpoint({ tracesEndpoint: config.endpoint }, options);
+  const readers = options.metricReaders ?? [new PeriodicExportingMetricReader({
+    exporter: createReportingExporter({
+      exporter: createInjectedOtlpExporter({
+        url: endpoint, serializer: JsonMetricsSerializer, component: "otlp_http_metric_exporter", helper: MetricsExporterMetricsHelper,
+      }, options),
+      reporter: createProviderTelemetryReporter({ endpoint }, options),
+    }),
+    exportIntervalMillis: 60_000, exportTimeoutMillis: 30_000,
+  })];
+  return new MeterProvider({ resource: resourceFromAttributes({ ...options.resourceAttributes, [ATTR_SERVICE_NAME]: config.serviceName }), readers });
+}
+
+type Measurement = { meter: Meter; name: string; value: number; settings: { unit?: string }; attributes: ReturnType<typeof redactOperationAttributes> };
+/** One recorder per kind (a table keeps `metric` under the complexity ceiling); the SDK returns the
+ * instrument already registered under the same name. An unknown kind from an untyped caller throws,
+ * which the fan-out contains. */
+const RECORD_METRIC: Readonly<Record<NonNullable<MetricOptions["kind"]>, (measurement: Measurement) => void>> = {
+  counter: ({ meter, name, value, settings, attributes }) => meter.createCounter(name, settings).add(value, attributes),
+  gauge: ({ meter, name, value, settings, attributes }) => meter.createGauge(name, settings).record(value, attributes),
+  histogram: ({ meter, name, value, settings, attributes }) => meter.createHistogram(name, settings).record(value, attributes),
+};
+
+/** Lazily owns one private SDK meter; the SDK reuses instruments and bounds attribute cardinality.
+ * No global provider registration. Readers export cumulative counter sums, last-value gauges and histograms.
+ * @param required Configured service identity and trace route.
+ * @param options Same injected headers/resource as tracing; readers replace all metrics network I/O.
+ * @returns A metric port and shutdown hook; no pipeline starts until the first measurement.
+ * @complexity O(a) per measurement for a attribute text; storage belongs to SDK instruments/readers.
+ */
+function createMetrics({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): {
+  metric: ObservabilityAdapter["port"]["metric"]; shutdown(): Promise<void>;
+} {
+  let provider: MeterProvider | undefined;
+  let closed = false;
+  return {
+    metric({ name, value }: MetricInput, { kind = "gauge", unit, attributes = {} }: MetricOptions = {}) {
+      if (closed || !Number.isFinite(value)) return;
+      // Reject rather than truncate: distinct dynamic names must never alias one instrument.
+      if (name.length > 255) return;
+      provider ??= createMetricProvider({ config }, options);
+      RECORD_METRIC[kind]({ meter: provider.getMeter(config.tracerName), name, value,
+        settings: unit === undefined ? {} : { unit }, attributes: redactOperationAttributes({ attributes }) });
+    },
+    async shutdown() { closed = true; await provider?.shutdown(); },
+  };
+}
+
 /**
  * The adapter plus its lifecycle (review 2026-10-25 #6): the host registers `dispose` with its own
  * teardown, so a closed site flushes and stops its provider.
@@ -192,10 +277,11 @@ export function createOtelFactories(_required: Record<string, never>, options: O
 export function createOtelObservabilityAdapter({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): ObservabilityAdapter {
   const reporter = createProviderTelemetryReporter({ endpoint: config.endpoint }, options);
   const { shutdown, ...factories } = createOtelFactories({}, options);
-  const port = createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) });
+  const metrics = createMetrics({ config }, options);
+  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) }), metric: metrics.metric, supportsMetric: true };
   reporter.initialized({ message: "OpenTelemetry exporting" });
   return { port, dispose: async () => {
-    try { await shutdown(); reporter.result({ phase: "shutdown", outcome: "ok" }); }
+    try { await Promise.all([shutdown(), metrics.shutdown()]); reporter.result({ phase: "shutdown", outcome: "ok" }); }
     catch (error) { reporter.result({ phase: "shutdown", outcome: "failed", error }); /* teardown is best-effort */ }
   } };
 }

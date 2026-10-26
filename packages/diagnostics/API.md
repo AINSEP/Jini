@@ -1,6 +1,6 @@
 # Diagnostics API and migration
 
-Public standalone functions and factories accept a required-argument object followed, when needed, by an optional-settings object. Tracker methods use their dedicated event, Error/context and name/callback signatures below. Redaction export names are retained; the clock types now come from `@jini-ai/core/primitives`. The previous positional signatures have no compatibility wrappers.
+Public standalone functions and factories accept a required-argument object followed, when needed, by an optional-settings object. Tracker methods follow the same required/optional object rule. Redaction export names are retained; the clock types now come from `@jini-ai/core/primitives`. The previous positional signatures have no compatibility wrappers.
 
 ## Root bundle API
 
@@ -97,19 +97,55 @@ consent guard and site attribution have been applied; the facade does not apply 
 
 ```ts
 const tracker = createTracker({ productAnalytics, observability }, { warn });
-tracker.capture({ name: "post_created", userId, properties });
-tracker.error(error, { route: "/posts/:id" });
-const result = await tracker.span("deploy", async (span) => {
+tracker.capture({ name: "post_created", userId }, { properties });
+tracker.error({ error }, { context: { route: "/posts/:id" } });
+const result = await tracker.trace({ name: "deploy", run: async (span) => {
   const result = await deploy();
   span.setOutcome({ outcome: "published", failed: false });
   return result;
-});
+} }, { attributes: { target: "production" } });
+tracker.metric({ name: "publish.duration", value: 150 }, { kind: "histogram", unit: "ms" });
+tracker.metric({ name: "queue.size", value: 3 }); // gauge by default
 ```
 
 Missing providers are inert. Provider faults are contained and emit one fixed warning per
 facade; provider error text is never logged. Callback failures still reject with the original
-application error, reported once through the existing redaction/deduplication owner.
-The optional third span argument selects the existing lifecycle: `{ request: { method, path,
+application error, reported through the existing redaction/deduplication owner. Deduplication is
+scoped to a tracker instance and request/trace occurrence, and starts only after at least one
+provider accepts the report. Failed/noop delivery remains retryable; unscoped calls are independent.
+The optional second `trace` argument selects the existing lifecycle: `{ request: { method, path,
 requestId? } }`, `{ agent: { runId, conversationId?, agentName? } }`, or operation attributes.
 Overloads give each callback its corresponding typed `setOutcome` payload. The facade ends
-the lifecycle after the callback settles; its first explicit outcome wins.
+the lifecycle after the callback settles; its first explicit outcome wins unless the callback
+throws, which overrides success with failure. Explicit canceled outcomes remain canceled.
+
+
+`capture` keeps the analytics port's required `userId`: consent and pseudonymous identity remain
+owned by that port. Event `properties` belong to the optional second object. `error` takes the
+error in the required object and its optional `context` in the second. Old positional signatures
+have no aliases or compatibility wrappers.
+
+`metric({ name, value }, { kind?, unit?, attributes? })` fans out through `ObservabilityPort.metric`.
+Kinds are `counter` (increments), `gauge` (latest value, the default), and `histogram` (distribution).
+Names, units and attribute keys/values must be fixed, low-cardinality labels; never pass user text.
+Missing providers and no-op helpers discard measurements. Throwing/rejecting providers are isolated.
+The diagnostic test probe sends a counter and includes a `metric` receipt only when that
+provider declares `supportsMetric: true`; callable noop methods do not imply acceptance.
+
+The OpenTelemetry provider plugin lazily starts a private SDK meter on the first finite measurement.
+It exports OTLP/HTTP JSON to the configured collector base plus `/v1/metrics`, independently of a
+`tracesEndpoint` override. Direct adapter callers use the trace URL with `/v1/traces`
+replaced by `/v1/metrics` unless they supply the shared collector base in `options.endpoint`;
+a custom trace-only path falls back to `/v1/metrics` at the same origin.
+Headers/auth, service identity and resource attribution are shared with tracing; no environment
+credentials or global meter registration are used. Export happens every 60 seconds and at disposal,
+with a 30-second export timeout; disposal stops both pipelines. `metricReaders` replaces the default
+metrics exporter for tests (including `[]` to suppress export). Non-finite values and metric
+names longer than 255 characters are ignored. Attributes admit at most 64 bounded label keys;
+operation/metric string values retain the 256-character redaction cap. OTel spans also enforce
+64 attributes and 1,024-character string values at the SDK boundary. Request targets prefer
+route templates; unmatched paths strip query/fragment and replace id/email/token-like segments.
+The shared helper takes `redactRequestTarget({ path }, { routePattern? })`.
+Sentry inherits the no-op measurement method: its configured adapter owns errors and traces.
+PostHog only registers product analytics, so metrics are no-ops for that plugin; measurements are
+never recast as product events and do not bypass the existing analytics consent owner.

@@ -1,10 +1,10 @@
 import { isNoopProductAnalytics } from "@jini-ai/analytics/product";
 import type { AgentRunTrackingOutcome, OperationTrackingOutcome, RequestTrackingOutcome, TrackerScope } from "./ports.js";
-import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerErrorContext, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
+import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
 import { createNoopTracker } from "./tracker-noop.js";
 import { isNoopObservabilityPort } from "./noop.js";
 import { combineObservabilityPorts } from "./fanout.js";
-import { reportErrorOnce, redactedError } from "./report-error.js";
+import { reportErrorOnce, redactedError, runWithErrorReportScope } from "./report-error.js";
 
 type SpanOutcome = OperationTrackingOutcome | RequestTrackingOutcome | AgentRunTrackingOutcome;
 type SpanOptions = OperationSpanOptions | RequestSpanOptions | AgentSpanOptions;
@@ -39,9 +39,19 @@ function spanOutcome({ options, failure }: { options: SpanOptions; failure?: { e
   return { outcome: failure ? "error" : "completed", failed: failure !== undefined };
 }
 
+/** Cancellation is an explicit semantic outcome; all other thrown work is a failure.
+ * @returns The final lifecycle outcome, preserving a known request route. @complexity O(1).
+ */
+function thrownOutcome({ options, outcome, error }: { options: SpanOptions; outcome: SpanOutcome | undefined; error: unknown }, _options = {}): SpanOutcome {
+  if (outcome && "status" in outcome && outcome.status === "canceled") return outcome;
+  if (outcome && "outcome" in outcome && ["canceled", "cancelled"].includes(outcome.outcome)) return outcome;
+  if (outcome && "statusCode" in outcome) return { ...outcome, statusCode: 500 };
+  return spanOutcome({ options, failure: { error } });
+}
+
 /** One facade over existing ports: consent/identity remain on the composed providers, error
  * deduplication/redaction stays with reportErrorOnce, scope containment stays with fanout.
- * Missing providers do nothing; spans still run work exactly once and preserve its result/error.
+ * Missing providers do nothing; trace still runs work exactly once and preserves its result/error.
  * @param required Optional, already-composed providers; an empty object disables telemetry.
  * @param optional A warning sink, called once with a fixed message on any provider failure.
  * @complexity O(1) facade state; delivery/redaction costs remain with the existing ports.
@@ -50,7 +60,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
   if ((!required.observability || isNoopObservabilityPort(required.observability)) && (!required.productAnalytics || isNoopProductAnalytics(required.productAnalytics))) return createNoopTracker({});
   const failed = createTrackerWarning({}, optional);
   const observability = combineObservabilityPorts({ ports: required.observability ? [required.observability] : [] }, { onFailure: failed });
-  const error = (failure: Error, context: TrackerErrorContext = {}): void => {
+  const error: Tracker["error"] = ({ error: failure }, { context = {} } = {}): void => {
     try {
       const attributes = context.route ? { ...context.attributes, route: context.route } : context.attributes;
       reportErrorOnce({ observability, error: failure, operation: context.operation ?? "application.error" }, {
@@ -58,25 +68,28 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
       });
     } catch { failed(); }
   };
-  async function span<T>(name: string, work: (span: TrackerSpan<SpanOutcome>) => T | Promise<T>, options: SpanOptions = {}): Promise<T> {
-    const lifecycle = startSpan({ observability, name, options });
-    let outcome: SpanOutcome | undefined;
-    const handle: TrackerSpan<SpanOutcome> = { setOutcome: (value) => { outcome ??= value; } };
-    const run = <R>(fn: () => R): R => lifecycle.run ? lifecycle.run(fn) : fn();
-    try {
-      return await run(() => work(handle));
-    } catch (failure) {
-      run(() => error(failure instanceof Error ? failure : redactedError({ error: failure }), { operation: name }));
-      outcome ??= spanOutcome({ options, failure: { error: failure } });
-      throw failure;
-    } finally {
-      // Request callbacks normally settle with their response outcome, including disconnects.
-      lifecycle.end(outcome ?? spanOutcome({ options }));
-    }
+  async function trace<T>({ name, run: work }: { name: string; run: (span: TrackerSpan<SpanOutcome>) => T | Promise<T> }, options: SpanOptions = {}): Promise<T> {
+    return runWithErrorReportScope({ scope: { reported: false }, work: async () => {
+      const lifecycle = startSpan({ observability, name, options });
+      let outcome: SpanOutcome | undefined;
+      const handle: TrackerSpan<SpanOutcome> = { setOutcome: (value) => { outcome ??= value; } };
+      const run = <R>(fn: () => R): R => lifecycle.run ? lifecycle.run(fn) : fn();
+      try {
+        return await run(() => work(handle));
+      } catch (failure) {
+        run(() => error({ error: failure instanceof Error ? failure : redactedError({ error: failure }) }, { context: { operation: name } }));
+        outcome = thrownOutcome({ options, outcome, error: failure });
+        throw failure;
+      } finally {
+        // Request callbacks normally settle with their response outcome, including disconnects.
+        lifecycle.end(outcome ?? spanOutcome({ options }));
+      }
+    } }, { reuseCurrent: true });
   }
   return {
-    capture(event) { try { return Promise.resolve(required.productAnalytics?.capture(event)).catch(failed); } catch { failed(); } },
+    capture(input, options = {}) { try { return Promise.resolve(required.productAnalytics?.capture({ ...input, ...options })).catch(failed); } catch { failed(); } },
+    metric(input, options = {}) { observability.metric(input, options); },
     error,
-    span: span as Tracker["span"],
+    trace: trace as Tracker["trace"],
   };
 }

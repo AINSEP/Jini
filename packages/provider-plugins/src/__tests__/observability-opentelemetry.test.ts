@@ -295,7 +295,7 @@ test("the plugin factory exports through the default OTLP batch pipeline with it
   assert.equal(span.kind, 2); // OTLP SERVER
   const attributes = new Map(span.attributes.map((attribute: { key: string; value: { stringValue?: string; intValue?: string | number } }) => [attribute.key, attribute.value]));
   assert.deepEqual(attributes.get("http.method"), { stringValue: "POST" });
-  assert.deepEqual(attributes.get("http.target"), { stringValue: "/posts/42" });
+  assert.deepEqual(attributes.get("http.target"), { stringValue: "/posts/:id" });
   assert.deepEqual(attributes.get("http.route"), { stringValue: "/posts/:id" });
   assert.equal(Number((attributes.get("http.status_code") as { intValue: string | number }).intValue), 201);
   await dispose({});
@@ -530,4 +530,43 @@ test('the plugin owns legacy read migrations and only declared auth headers sati
     if (missing) assert.throws(() => otlpAuthHeaders({ ...values, headers: otlpHeadersOf(headers) }), /Token is required/);
     else assert.deepEqual(otlpAuthHeaders({ ...values, headers: otlpHeadersOf(headers) }), otlpHeadersOf(headers));
   }
+});
+
+test("structural roots explicitly pass ROOT_CONTEXT and explicit parents stay linked", async () => {
+  const { ROOT_CONTEXT, trace } = await import("@opentelemetry/api");
+  const { adaptTracer } = await import("../observability-opentelemetry/opentelemetry.js");
+  const contexts: unknown[] = [];
+  const sdkSpan = {
+    updateName() {}, setAttribute() {}, setStatus() {}, addEvent() {}, end() {},
+    spanContext: () => ({ traceId: "1".repeat(32), spanId: "2".repeat(16), traceFlags: 1 }),
+  };
+  const tracer = adaptTracer({ tracer: { startSpan(_name, _options, context) {
+    contexts.push(context);
+    return sdkSpan;
+  } } as import("@opentelemetry/api").Tracer });
+  const parent = tracer.startSpan({ name: "root", kind: "internal", attributes: {} });
+  tracer.startSpan({ name: "child", kind: "internal", attributes: {} }, { parent });
+  tracer.startSpan({ name: "independent", kind: "internal", attributes: {} });
+  assert.equal(contexts[0], ROOT_CONTEXT);
+  assert.equal(contexts[2], ROOT_CONTEXT);
+  assert.equal(trace.getSpan(contexts[1] as import("@opentelemetry/api").Context), sdkSpan);
+});
+
+test("span admission caps attribute count and value length, including late attributes and events", async () => {
+  const { createOtelFactories } = await import("../observability-opentelemetry/opentelemetry.js");
+  const finished: import("@opentelemetry/sdk-trace-base").ReadableSpan[] = [];
+  const processor: import("@opentelemetry/sdk-trace-base").SpanProcessor = {
+    onStart() {}, onEnd(span) { finished.push(span); }, async shutdown() {}, async forceFlush() {},
+  };
+  const factories = createOtelFactories({}, { spanProcessors: [processor] });
+  try {
+    const provider = factories.tracerProviderFactory.create({ serviceName: "limits", exporter: undefined });
+    const span = provider.getTracer({ name: "limits" }).startSpan({ name: "bounded", kind: "internal", attributes: { long: "x".repeat(2000) } });
+    for (let i = 0; i < 100; i++) span.setAttribute({ name: `key${i}`, value: "value" });
+    span.addEvent({ name: "bounded", attributes: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`key${i}`, "x".repeat(2000)])) });
+    span.end({});
+    assert.equal(Object.keys(finished[0]!.attributes).length, 64);
+    assert.equal(String(finished[0]!.attributes.long).length, 1024);
+    assert.equal(Object.keys(finished[0]!.events[0]!.attributes!).length, 64);
+  } finally { await factories.shutdown(); }
 });

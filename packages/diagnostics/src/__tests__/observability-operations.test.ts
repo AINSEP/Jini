@@ -5,7 +5,7 @@ import { InMemorySpanExporter, createAsyncScope, createPort } from "./observabil
 import { createNoopObservabilityPort } from "../observability/noop.js";
 import { createHookObservabilityPort } from "../observability/hooks.js";
 import { describeReportedError } from "../observability/errors.js";
-import { errorType } from "../observability/otel.js";
+import { errorType, redactOperationAttributes } from "../observability/otel.js";
 import type { ObservabilityConfigEnabled } from "../observability/config.js";
 
 /** Feature-level operations and error reports: the two signals no transport names. */
@@ -250,6 +250,7 @@ test("combineObservabilityPorts: every signal fans out, and a tracker without ru
   const noop = createNoopObservabilityPort({});
   const seen: string[] = [];
   const recording = (tag: string) => ({
+    metric: () => { seen.push(`${tag}:metric`); },
     trackRequest: () => { seen.push(`${tag}:request`); return { end() {} }; },
     trackDbQuery: () => { seen.push(`${tag}:db`); return { end() {} }; },
     trackOutboundCall: () => { seen.push(`${tag}:outbound`); return { end() {} }; },
@@ -263,5 +264,38 @@ test("combineObservabilityPorts: every signal fans out, and a tracker without ru
   port.trackOutboundCall({ method: "GET", url: "https://x.test" } as never).end({} as never);
   port.trackAgentRun({ agentId: "a" } as never).end({} as never);
   assert.equal(port.trackOperation({ name: "op" }).run!(() => "unscoped"), "unscoped");
-  assert.deepEqual(seen, ["a:request", "b:request", "a:db", "b:db", "a:outbound", "b:outbound", "a:agent", "b:agent", "a:op", "b:op"]);
+  port.metric({ name: "queue.size", value: 3 });
+  assert.deepEqual(seen, ["a:request", "b:request", "a:db", "b:db", "a:outbound", "b:outbound", "a:agent", "b:agent", "a:op", "b:op", "a:metric", "b:metric"]);
+});
+
+
+test("request targets prefer final route templates and scrub unmatched ids, emails and tokens", () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter);
+  port.trackRequest({ method: "GET", path: "/users/alice@example.test/private-value" }).end({ statusCode: 200, routePattern: "/users/:email/:id" });
+  const paths = [
+    "/users/123?token=hidden#secret", "/users/507f191e810c19729de860ea",
+    "/users/550e8400-e29b-41d4-a716-446655440000", "/users/alice%40example.test",
+    "/users/eyJhbGciOiJIUzI1NiJ9.payload.signature", "/users/opaque-bearer-value-abcdef",
+    "/users/%25encoded", "/users/%ZZ", "/users/deadbeef",
+  ];
+  for (const path of paths) port.trackRequest({ method: "GET", path }).end({ statusCode: 404, routePattern: "unmatched" });
+  assert.equal(exporter.spans[0]!.attributes["http.target"], "/users/:email/:id");
+  for (const span of exporter.spans.slice(1)) assert.equal(span.attributes["http.target"], "/users/:param");
+});
+
+test("attribute keys follow the bounded label allow-list before SDK admission", () => {
+  const safe = redactOperationAttributes({ attributes: {
+    "tool.id": "publish", "person@example.test": "hidden", "https://secret.test": "hidden",
+    ["x".repeat(65)]: "hidden", [SECRET]: "hidden", "line\nbreak": "hidden",
+  } });
+  assert.deepEqual(safe, { "tool.id": "publish" });
+});
+
+
+test("attribute admission caps the number of labels and their text before any provider sees them", () => {
+  const attributes = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`label${i}`, "x".repeat(2000)]));
+  const safe = redactOperationAttributes({ attributes });
+  assert.equal(Object.keys(safe).length, 64);
+  assert.ok(Object.values(safe).every(value => String(value).length <= 256));
 });

@@ -121,6 +121,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
   // A span keeps the scope it started in, so tags set here reach its transaction as well as exceptions.
   const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); scope.setTags(config.tags ?? {}); return fn(); });
   const port: ObservabilityAdapter["port"] = {
+    // Numeric metrics have no matching configured Sentry pipeline; inherit the port's no-op.
     ...createNoopObservabilityPort({}),
     ...(submitURL ? { crashUpload({ release, environment }: { release: string; environment: string }, _options = {}) {
       return { submitURL, globalExtra: { sentry: JSON.stringify({ release, environment }) } };
@@ -149,6 +150,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
         inClient(() => (span ? withActiveSpan(span, capture) : capture()));
       } catch {
         // Best-effort, as in every adapter: a broken SDK must not turn a handled failure into a crash.
+        return false;
       }
     },
   };

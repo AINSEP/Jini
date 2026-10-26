@@ -3,7 +3,7 @@ import { createTransport } from "@sentry/node";
 import { createTracker } from "@jini-ai/diagnostics/observability/node";
 import type { ProviderTelemetryReport } from "@jini-ai/diagnostics/observability";
 import { createProviderTelemetryReporter } from "../telemetry-reporter.js";
-import { createReportingSpanExporter, createOtelObservabilityAdapter } from "../observability-opentelemetry/opentelemetry.js";
+import { createReportingExporter, createOtelObservabilityAdapter } from "../observability-opentelemetry/opentelemetry.js";
 import { createOpenTelemetryProvider } from "../observability-opentelemetry/index.js";
 import { createSentryProvider } from "../observability-sentry/index.js";
 
@@ -12,7 +12,7 @@ it("reports actual exporter callbacks, sanitizes all failures, and protects the 
   const secret = ["private", "diagnostic", "token"].join("-");
   const failure = Object.assign(new Error(`https://user:${secret}@collector.test/${secret}?token=${secret}`), { name: secret, code: 401, headers: { authorization: secret } });
   let reject = true;
-  const exporter = createReportingSpanExporter({
+  const exporter = createReportingExporter({
     reporter: createProviderTelemetryReporter({ endpoint: `https://user:${secret}@collector.test/${secret}?token=${secret}` }, { reportTelemetry: report => { reports.push(report); } }),
     exporter: { export(_spans, callback) { callback(reject ? { code: 1, error: failure } : { code: 0 }); }, forceFlush: async () => {}, shutdown: async () => {} },
   });
@@ -32,7 +32,7 @@ it("reports actual exporter callbacks, sanitizes all failures, and protects the 
 it("reports synchronous export and shutdown failures without throwing from adapter disposal", async () => {
   const reports: ProviderTelemetryReport[] = [];
   const reporter = createProviderTelemetryReporter({ endpoint: "https://collector.test/private/path" }, { reportTelemetry: report => { reports.push(report); } });
-  const exporter = createReportingSpanExporter({ reporter, exporter: {
+  const exporter = createReportingExporter({ reporter, exporter: {
     export() { throw new TypeError("private transport detail"); }, forceFlush: async () => {}, shutdown: async () => {},
   } });
   exporter.export([], () => {});
@@ -70,7 +70,7 @@ it("the default Sentry provider sends the actual fixed diagnostic exception with
   });
   const resource = createSentryProvider({ dsn: `https://${["public", "test"].join("")}@sentry.test/123` }, { transport });
   const tracker = createTracker({ observability: resource.port });
-  await tracker.span("telemetry.test", async () => tracker.error(new Error("Tovu test error — safe to ignore"), { operation: "telemetry.test" }));
+  await tracker.trace({ name: "telemetry.test", run: async () => tracker.error({ error: new Error("Tovu test error — safe to ignore") }, { context: { operation: "telemetry.test" } }) });
   await resource.dispose({});
   expect(items.map(item => item.type)).toEqual(["event"]);
   expect(items[0]!.payload.exception!.values.map(value => value.value)).toEqual(["Tovu test error — safe to ignore"]);
