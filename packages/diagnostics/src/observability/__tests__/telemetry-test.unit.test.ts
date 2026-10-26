@@ -2,8 +2,24 @@ import { expect, it } from "vitest";
 import { createTelemetryTestProbe } from "../telemetry-test.js";
 import { createTracker } from "../tracker.js";
 import { createNoopObservabilityPort } from "../noop.js";
-import { withProductAnalyticsGuards } from "@jini-ai/analytics/product";
+import { fanOutProductAnalytics, withProductAnalyticsGuards } from "@jini-ai/analytics/product";
 import type { ErrorReport } from "../ports.js";
+
+it("waits for delayed consent admission before returning analytics receipts", async () => {
+  const probe = createTelemetryTestProbe({});
+  let decide!: (allowed: boolean) => void;
+  const decision = new Promise<boolean>(resolve => { decide = resolve; });
+  let finished = false;
+  const analytics = withProductAnalyticsGuards({ consent: () => decision, inner: {
+    capture(input) { probe.accepted({ providerId: "analytics", method: "capture", input }); }, identify() {},
+  } }, { consentRevision: () => 1 });
+  const tracker = createTracker({ productAnalytics: fanOutProductAnalytics({ ports: [analytics] }) });
+  const pending = probe.send({ tracker, userId: "site:test", error: new Error("Diagnostic") }).then(result => { finished = true; return result; });
+  await Promise.resolve(); await Promise.resolve();
+  expect(finished).toBe(false);
+  decide(true);
+  expect(await pending).toEqual({ providers: [{ providerId: "analytics", signals: ["analytics"] }] });
+});
 
 it("sends exactly one diagnostic per signal through the facade, with local acceptance and consent", async () => {
   const probe = createTelemetryTestProbe({});

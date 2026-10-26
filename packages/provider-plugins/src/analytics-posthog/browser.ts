@@ -12,6 +12,8 @@ export function postHogBrowserContribution(required: {
   apiKey: string; host: string; sessionReplay: boolean; surface: 'site' | 'admin';
   attributes: Readonly<Record<string, string>>;
 }, _optional = {}): BrowserAnalyticsContribution {
+  // This is also a callable adapter boundary: never serialize unvalidated credentials.
+  validatePostHogBrowserConfig(required);
   const config = JSON.stringify({ ...required, sdk: SDK_URL }).replace(/</g, '\\u003c');
   return {
     supportsStatic: false,
@@ -86,6 +88,18 @@ export function postHogBrowserContribution(required: {
       };
     }`,
   };
+}
+
+/** Reject private tokens and credential-bearing endpoints before any browser source exists.
+ * Errors are fixed copy: submitted values must never enter diagnostics. O(input bytes).
+ */
+export function validatePostHogBrowserConfig({ apiKey, host }: { apiKey: string; host: string }, _optional = {}): void {
+  if (!/^phc_[A-Za-z0-9_]+$/.test(apiKey)) throw new TypeError('Use a PostHog project key starting with phc_, not a personal API key.');
+  let url: URL;
+  try { url = new URL(host); } catch { throw new TypeError('Use an HTTP or HTTPS host URL without credentials.'); }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+    throw new TypeError('Use an HTTP or HTTPS host URL without credentials.');
+  }
 }
 
 /** Cloud SDK extensions use a separate asset origin; self-hosted installations keep their host. */

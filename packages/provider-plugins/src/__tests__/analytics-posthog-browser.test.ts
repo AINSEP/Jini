@@ -12,7 +12,7 @@ function fixture({ replay = false, surface = 'site', returningId = 'opaque-retur
     config.loaded(instance);
     return instance;
   } };
-  const contribution = postHogBrowserContribution({ apiKey: ['fake', 'browser', 'token'].join('_'), host: 'https://collector.example', sessionReplay: replay,
+  const contribution = postHogBrowserContribution({ apiKey: ['phc', 'fake', 'browser', 'token'].join('_'), host: 'https://collector.example', sessionReplay: replay,
     surface, attributes: { site_id: 'site-1' } });
   const factory = runInNewContext(`(${contribution.source})`, { location: { origin: 'https://site.example' } });
   const mode = factory({ loadSdk: async () => { loads++; return { default: sdk }; } });
@@ -20,6 +20,20 @@ function fixture({ replay = false, surface = 'site', returningId = 'opaque-retur
 }
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
+
+it('refuses personal keys and credential-bearing hosts before producing public source', () => {
+  const valid = { apiKey: ['phc', 'fixture'].join('_'), host: 'https://collector.example', sessionReplay: false, surface: 'site' as const, attributes: {} };
+  expect(() => postHogBrowserContribution({ ...valid, apiKey: ['phx', 'private', 'fixture'].join('_') }))
+    .toThrow(new TypeError('Use a PostHog project key starting with phc_, not a personal API key.'));
+  const credentialHost = new URL(valid.host);
+  credentialHost.username = ['fixture', 'user'].join('-');
+  const usernameHost = credentialHost.href;
+  credentialHost.password = ['fixture', 'password'].join('-');
+  for (const host of [credentialHost.href, usernameHost, 'https://collector.example/?token=fixture', 'file:///collector', 'invalid']) {
+    expect(() => postHogBrowserContribution({ ...valid, host })).toThrow(new TypeError('Use an HTTP or HTTPS host URL without credentials.'));
+  }
+  expect(postHogBrowserContribution(valid).origins).toEqual(['https://cdn.jsdelivr.net', 'https://collector.example']);
+});
 
 it('uses a pinned SDK and does no SDK work while pending', async () => {
   const f = fixture(); f.mode('pending'); await flush();

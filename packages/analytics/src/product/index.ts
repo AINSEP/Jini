@@ -41,7 +41,8 @@ export interface ProductAiGeneration { userId: string; properties: ProductEventP
 export interface ProductAnalyticsPort {
   /** Optional trusted browser contribution; it contains only publishable browser configuration. */
   browserAnalytics?(required: { surface: 'site' | 'admin' }, optional?: Record<string, never>): import('./browser.js').BrowserAnalyticsContribution;
-  capture(event: ProductEvent): void;
+  /** Resolves after local consent/admission only; remote delivery remains in the background. */
+  capture(event: ProductEvent): void | Promise<void>;
   identify(identity: ProductIdentity): void;
   /** Optional capability; providers without LLM analytics keep their existing contract. */
   captureAiGeneration?(required: ProductAiGeneration, optional?: Record<string, never>): void;
@@ -139,19 +140,19 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
     } catch { /* Diagnostics never fail the feature. */ }
   };
   /** Runs `send` only after a current explicit approval; synchronous answers stay synchronous. */
-  const whenAllowed = ({ userId, send }: { userId: string; send: () => void }): void => {
+  const whenAllowed = ({ userId, send }: { userId: string; send: () => void | Promise<void> }): void | Promise<void> => {
     if (!isPseudonymousId(userId)) return;
     const state = pending.get(userId) ?? { generation: 0, count: 0 };
     pending.set(userId, state);
     state.count += 1;
     const generation = state.generation;
     let revision: string | number | undefined;
-    const settle = ({ allowed }: { allowed: boolean }): void => {
+    const settle = ({ allowed }: { allowed: boolean }): void | Promise<void> => {
       try {
         if (allowed !== true) { state.generation += 1; return; }
         if (generation !== state.generation) return;
         if (consentRevision && consentRevision({ userId }) !== revision) return;
-        try { send(); } catch { /* A vendor failure must not invalidate other pending approvals. */ }
+        try { return Promise.resolve(send()).catch(() => {}); } catch { /* A vendor failure must not invalidate other pending approvals. */ }
       } catch {
         state.generation += 1; // Failed checks fail closed; analytics never fails the feature.
       } finally {
@@ -167,7 +168,7 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
       // (no later denial need ever arrive), so it fails closed: analytics only after consent.
       const canSeeRevoke = consentRevision !== undefined;
       if (!canSeeRevoke) reportMissingRevision();
-      void Promise.resolve(decision).then((allowed) => settle({ allowed: canSeeRevoke && allowed }), () => settle({ allowed: false }));
+      return Promise.resolve(decision).then((allowed) => settle({ allowed: canSeeRevoke && allowed }), () => settle({ allowed: false }));
     } catch { settle({ allowed: false }); }
   };
   return {
@@ -184,7 +185,7 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
       if (!EVENT_NAME.test(name)) return;
       const safe = safeProperties(properties);
       if (safe === null) return;
-      whenAllowed({ userId, send: () => inner.capture({ name, userId, ...(safe ? { properties: safe } : {}) }) });
+      return whenAllowed({ userId, send: () => inner.capture({ name, userId, ...(safe ? { properties: safe } : {}) }) });
     },
     identify({ userId, traits }) {
       const safe = safeProperties(traits);

@@ -75,7 +75,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
     }
   }
   return {
-    capture(event) { try { void Promise.resolve(required.productAnalytics?.capture(event)).catch(failed); } catch { failed(); } },
+    capture(event) { try { return Promise.resolve(required.productAnalytics?.capture(event)).catch(failed); } catch { failed(); } },
     error,
     span: span as Tracker["span"],
   };
