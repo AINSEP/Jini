@@ -32,16 +32,26 @@ export function isPluginProviderDeclaration(
 }
 
 const SETTING_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
-const optionalOf = (value: unknown, type: 'boolean' | 'string'): boolean => value === undefined || typeof value === type;
+
+function optionalOf(value: unknown, type: 'boolean' | 'string'): boolean {
+  return value === undefined || typeof value === type;
+}
+
+function optionalFlagsValid({ secret, required, hint }: Record<string, unknown>): boolean {
+  return optionalOf(secret, 'boolean') && optionalOf(required, 'boolean') && optionalOf(hint, 'string');
+}
+
+function labelValid(label: unknown): boolean {
+  return typeof label === 'string' && label.trim() !== '' && label.length <= 120;
+}
 
 /** One setting field's problem in words, or undefined. */
 function settingFieldProblem({ field }: { field: unknown }, _optional: Record<string, never> = {}): string | undefined {
   if (!field || typeof field !== 'object' || Array.isArray(field)) return 'a provider setting must be an object';
-  const { name, label, secret, required, hint } = field as Record<string, unknown>;
+  const { name, label } = field as Record<string, unknown>;
   if (typeof name !== 'string' || !SETTING_NAME.test(name)) return 'a provider setting name must be 1-64 letters, digits or _ (starting with a letter)';
-  if (typeof label !== 'string' || !label.trim() || label.length > 120) return `provider setting '${name}' needs a label of 1-120 characters`;
-  if (!optionalOf(secret, 'boolean') || !optionalOf(required, 'boolean') || !optionalOf(hint, 'string')) return `provider setting '${name}' has a malformed secret/required/hint`;
-  return undefined;
+  if (!labelValid(label)) return `provider setting '${name}' needs a label of 1-120 characters`;
+  return optionalFlagsValid(field as Record<string, unknown>) ? undefined : `provider setting '${name}' has a malformed secret/required/hint`;
 }
 
 /** Declared provider settings (see `PluginProviderDeclaration.settings`): problems in words. */
