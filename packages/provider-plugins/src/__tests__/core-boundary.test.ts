@@ -1,17 +1,50 @@
 /**
  * Obs #3 / Langfuse #10 boundary: vendor SDKs live only in this distribution's plugin sources.
- * Scans every other workspace package's source imports and manifest dependency fields. What this does
- * NOT catch: a vendor reached through an unlisted transitive dependency, or a computed import
- * specifier (`import(name)`); the packed-install test covers what the plugins themselves bundle.
+ * Scans every other workspace package's source imports and manifest dependency fields. Specifiers are
+ * read with the TypeScript parser (Codex wave-2 MED: a regex missed ``import(`langfuse`)`` and
+ * `import /* c *\/ ('langfuse')`), so every static `import`/`export … from`, `import x = require()`,
+ * `import()`, `require()`/`require.resolve()` and `import('x')` type form counts, and text inside
+ * comments or ordinary strings does not. What this does NOT catch: a vendor reached through an
+ * unlisted transitive dependency, or a computed specifier (`import(name)`, a template with `${}`);
+ * the packed-install test covers what the plugins themselves bundle.
  */
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { expect, it } from 'vitest';
 
 const packagesRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const VENDOR = /^(?:@opentelemetry\/|@sentry\/|posthog-(?:node|js)$|langfuse(?:$|-)|stripe$)/;
-const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)['"]([^'"]+)['"]/gm;
+const VENDOR_WORD = /opentelemetry|sentry|posthog|langfuse|stripe/;
+
+/** A literal module name: a string or a template without substitutions. */
+const literalText = (node: ts.Node | undefined): string | undefined =>
+  node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) ? node.text : undefined;
+
+const isRequireCallee = (callee: ts.Expression): boolean => (ts.isIdentifier(callee) && callee.text === 'require')
+  || (ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && callee.expression.text === 'require' && callee.name.text === 'resolve');
+
+/** The module specifier one node names, if it is an import/export/require form. */
+function specifierOf(node: ts.Node): string | undefined {
+  if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return literalText(node.moduleSpecifier);
+  if (ts.isExternalModuleReference(node)) return literalText(node.expression);
+  if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) return literalText(node.argument.literal);
+  if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || isRequireCallee(node.expression))) return literalText(node.arguments[0]);
+  return undefined;
+}
+
+/** Every literal module specifier in one source text, parsed (never pattern-matched). */
+export function moduleSpecifiers({ text, fileName }: { text: string; fileName: string }): string[] {
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    const specifier = specifierOf(node);
+    if (specifier !== undefined) found.push(specifier);
+    ts.forEachChild(node, visit);
+  };
+  visit(ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false, fileName.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS));
+  return found;
+}
 
 async function sourceFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
@@ -33,7 +66,10 @@ async function manifestOffenders({ name, root }: { name: string; root: string })
 async function sourceOffenders({ root }: { root: string }): Promise<string[]> {
   const offenders: string[] = [];
   for (const file of await sourceFiles(path.join(root, 'src')).catch(() => [])) {
-    for (const match of (await readFile(file, 'utf8')).matchAll(SPECIFIER)) if (VENDOR.test(match[1]!)) offenders.push(`${path.relative(packagesRoot, file)}: ${match[1]}`);
+    const text = await readFile(file, 'utf8');
+    // Parsing is the slow part; a literal vendor specifier always contains one of these words verbatim.
+    if (!VENDOR_WORD.test(text)) continue;
+    for (const specifier of moduleSpecifiers({ text, fileName: file })) if (VENDOR.test(specifier)) offenders.push(`${path.relative(packagesRoot, file)}: ${specifier}`);
   }
   return offenders;
 }
@@ -47,7 +83,7 @@ it('no core package imports or declares a vendor SDK', async () => {
     offenders.push(...await manifestOffenders({ name, root }), ...await sourceOffenders({ root }));
   }
   expect(offenders).toEqual([]);
-});
+}, 60_000);
 
 it.each(['@opentelemetry/api', '@sentry/node', 'posthog-node', 'posthog-js', 'langfuse', 'stripe'])('the scan recognizes %s', (specifier) => {
   expect(VENDOR.test(specifier)).toBe(true);
@@ -55,4 +91,31 @@ it.each(['@opentelemetry/api', '@sentry/node', 'posthog-node', 'posthog-js', 'la
 
 it.each(['@jini-ai/diagnostics', 'stripe-like', 'posthog', 'node:fs'])('the scan ignores %s', (specifier) => {
   expect(VENDOR.test(specifier)).toBe(false);
+});
+
+it.each(['@opentelemetry/api', '@sentry/node', 'posthog-node', 'langfuse-core', 'stripe'])('the pre-filter never skips a file naming %s', (specifier) => {
+  expect(VENDOR_WORD.test(`import x from '${specifier}';`)).toBe(true);
+});
+
+it.each([
+  ['a template-literal dynamic import', 'await import(`langfuse`);'],
+  ['a commented dynamic import', "await import /* why */ ('langfuse');"],
+  ['a multi-line require', "const s = require(\n  'stripe'\n);"],
+  ['require.resolve', "require.resolve('@sentry/node');"],
+  ['a re-export', "export * from '@opentelemetry/api';"],
+  ['a type-only import', "import type { PostHog } from 'posthog-node';"],
+  ['an import type node', "type L = import('langfuse').Langfuse;"],
+  ['import-equals require', "import Stripe = require('stripe');"],
+  ['a side-effect import', "import 'posthog-js';"],
+])('the parser finds the vendor in %s', (_name, text) => {
+  expect(moduleSpecifiers({ text, fileName: 'probe.ts' }).filter(specifier => VENDOR.test(specifier))).toHaveLength(1);
+});
+
+it.each([
+  ['a line comment', "// import 'stripe';"],
+  ['a block comment', "/* require('langfuse') */"],
+  ['an ordinary string', "const text = \"import('stripe')\";"],
+  ['a computed import', "const name = 'stripe'; await import(name); await import(`${name}`);"],
+])('the parser ignores %s', (_name, text) => {
+  expect(moduleSpecifiers({ text, fileName: 'probe.tsx' }).filter(specifier => VENDOR.test(specifier))).toEqual([]);
 });

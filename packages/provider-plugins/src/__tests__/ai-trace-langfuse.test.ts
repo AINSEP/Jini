@@ -52,7 +52,7 @@ describe('ai-trace-langfuse factory', () => {
     expect(registered).toEqual([{ contract: 'ai_trace', id: 'langfuse', contractVersion: 1, factory: createLangfuseProvider }]);
   });
 
-  it('records through an injected client and shuts it down on dispose', async () => {
+  it('records through a borrowed (injected) client and never closes it: dispose and sink shutdown only flush', async () => {
     const client = fakeLangfuseClient();
     let shutdowns = 0;
     client.shutdownAsync = async () => { shutdowns += 1; };
@@ -60,8 +60,10 @@ describe('ai-trace-langfuse factory', () => {
     const sink: AiTraceSink = resource.port;
     runScenario(sink);
     expect(client.calls.map((c) => c.method)).toEqual(['trace', 'span', 'span', 'generation', 'trace']);
+    await sink.shutdown!();
     await resource.dispose({});
-    expect(shutdowns).toBe(1);
+    expect(shutdowns).toBe(0);
+    expect(client.flushed).toBe(2);
   });
 
   it('builds a real SDK client from configuration without any network call', async () => {
