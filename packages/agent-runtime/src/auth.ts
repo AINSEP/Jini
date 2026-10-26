@@ -121,9 +121,10 @@ export function isDeepSeekAuthFailureText({ text }: { text: string }): boolean {
     (/~\/\.deepseek\/config\.toml/i.test(value) && /api[_ -]?key|KEY=/i.test(value)) ||
     // The qualifier must not itself match "DEEPSEEK_API_KEY": it used to include `api[_ -]?key`,
     // which made this conjunction true for ANY mention of the variable, so a healthy probe that
-    // merely named it was reported as unauthenticated (F3 fix wave 2026-10-25).
+    // merely named it was reported as unauthenticated (F3 fix wave 2026-10-25). Explicit negative
+    // states (`empty`, `invalid`) are named instead, so they still classify as missing auth (FU-B).
     (/DEEPSEEK_API_KEY/i.test(value) &&
-      /auth|missing|not set|required|unauthorized/i.test(value))
+      /auth|missing|not set|required|unauthorized|empty|invalid/i.test(value))
   );
 }
 
