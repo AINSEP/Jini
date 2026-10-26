@@ -55,14 +55,15 @@ function renderForm(config: ByokConfig, preset: ProviderPreset) {
 }
 
 function keyInput(): HTMLInputElement {
-  return screen.getByLabelText(/API key/i, { exact: false }) as HTMLInputElement;
+  // `selector: 'input'`: the eye toggle's "Show API key" name matches /API key/ too.
+  return screen.getByLabelText(/API key/i, { selector: 'input' }) as HTMLInputElement;
 }
 
 describe('ByokProviderForm — reveal toggle is scoped to one provider', () => {
   it('re-hides when the card switches to a different provider', async () => {
     const { rerender } = renderForm(configFor(PRESET_A, 'key-for-A'), PRESET_A);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show API key' }));
     expect(keyInput()).toHaveAttribute('type', 'text');
     expect(keyInput()).toHaveValue('key-for-A');
 
@@ -88,7 +89,7 @@ describe('ByokProviderForm — reveal toggle is scoped to one provider', () => {
     // fields has to leave the reveal alone.
     const { rerender } = renderForm(configFor(PRESET_A, 'key-for-A'), PRESET_A);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show API key' }));
     expect(keyInput()).toHaveAttribute('type', 'text');
 
     rerender(

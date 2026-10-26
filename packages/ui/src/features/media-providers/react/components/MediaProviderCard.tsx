@@ -1,7 +1,7 @@
-import { Fragment } from 'react';
+import { Fragment, useId } from 'react';
 import { agentHandleProps } from '@jini-ai/agentic';
 import type { I18nContextValue } from '../../../i18n/index.js';
-import { Icon } from '../../../../react/components/Icon.js';
+import { SecretInput } from '../../../../react/components/SecretInput.js';
 import {
   isEntryPresent,
   isMarkerOnlyEntry,
@@ -117,12 +117,18 @@ function ApiKeyField({
   keyVisible,
   onToggleKeyVisible,
 }: CardFieldContext & { maskedLabel: string | null; keyVisible: boolean; onToggleKeyVisible: () => void }) {
+  const inputId = useId();
   return (
-    <label className="jini-media-provider-field jini-media-provider-field--secret">
-      <span className="jini-field-label jini-sr-only">{labels.apiKeyLabel}</span>
-      <input
+    <div className="jini-media-provider-field jini-media-provider-field--secret">
+      <label htmlFor={inputId} className="jini-field-label jini-sr-only">{labels.apiKeyLabel}</label>
+      <SecretInput
+        id={inputId}
+        label={`${option.label} ${labels.apiKeyLabel}`}
+        revealed={keyVisible}
+        onRevealedChange={onToggleKeyVisible}
+        toggleLabels={{ show: `${labels.showKeyLabel} ${option.label} ${labels.apiKeyLabel}`, hide: `${labels.hideKeyLabel} ${option.label} ${labels.apiKeyLabel}` }}
+        toggleAttrs={agentHandleProps({}, { base: providerHandle, ...({ action: 'reveal-key', role: 'button', label: `${option.label} ${labels.showKeyLabel}` }) })}
         className="jini-input"
-        type={keyVisible ? 'text' : 'password'}
         /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on
            credential-shaped fields, which is how a saved password gets autofilled into
            an API-key box. Same defect, same fix, same reasoning as
@@ -135,17 +141,7 @@ function ApiKeyField({
         onChange={(event) => onUpdate({ apiKey: event.target.value })}
         {...agentHandleProps({}, { base: providerHandle, ...({ action: 'api-key', role: 'field', label: `${option.label} ${labels.apiKeyLabel}` }) })}
       />
-      <button
-        type="button"
-        className="jini-input-affix-btn"
-        aria-pressed={keyVisible}
-        aria-label={`${option.label} ${keyVisible ? labels.hideKeyLabel : labels.showKeyLabel}`}
-        onClick={onToggleKeyVisible}
-        {...agentHandleProps({}, { base: providerHandle, ...({ action: 'reveal-key', role: 'button', label: `${option.label} ${labels.showKeyLabel}` }) })}
-      >
-        <Icon name={keyVisible ? 'eye-off' : 'eye'} size={14} />
-      </button>
-    </label>
+    </div>
   );
 }
 

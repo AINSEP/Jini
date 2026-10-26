@@ -48,21 +48,15 @@ const confirmationCopy = {
   reset: { title: 'Reset password?', label: 'Reset password', tone: 'warning' as const, body: 'Every active session for this user will be signed out.', consequence: 'revokes every active session' },
   disable: { title: 'Disable this user?', label: 'Disable', tone: 'warning' as const, body: 'They will not be able to sign in until re-enabled.', consequence: 'revokes sign-in access' },
 };
-/** A password field's reveal state: its input type and its toggle button's label. */
-function revealState({ shown, name }: { shown: boolean; name: string }, _optional: Record<string, never> = {}) {
-  return shown ? { type: 'text' as const, label: `Hide ${name} password` } : { type: 'password' as const, label: `Show ${name} password` };
-}
 export function useUsersConfirmation(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
   const { state: s, controller: c } = useUsersView({});
   const kind = s.pending?.kind ?? 'disable', reset = kind === 'reset', mismatch = s.newPassword !== s.confirmPassword;
-  const copy = confirmationCopy[kind], shownNew = revealState({ shown: s.showNewPassword, name: 'new' }), shownConfirm = revealState({ shown: s.showConfirmPassword, name: 'confirm' });
+  const copy = confirmationCopy[kind];
   return { s, reset, mismatch, error: mismatch ? 'Passwords do not match.' : s.passwordError, copy,
     confirm: { open: s.pending !== null, title: copy.title, confirmLabel: copy.label, tone: copy.tone, consequence: copy.consequence, pending: s.confirming, agentMayConfirm: false,
       onConfirm: async () => { await c.confirmDestructive({}); }, onCancel: () => c.cancelDestructive({}) },
     newPassword: ({ value }: { value: string }) => c.setDraft({ patch: { newPassword: value } }),
     confirmPassword: ({ value }: { value: string }) => c.setDraft({ patch: { confirmPassword: value } }),
-    newType: shownNew.type, confirmType: shownConfirm.type,
     toggleNew: () => c.togglePasswordVisible({ field: 'new' }), toggleConfirm: () => c.togglePasswordVisible({ field: 'confirm' }),
-    newLabel: shownNew.label, confirmLabel: shownConfirm.label,
   };
 }
