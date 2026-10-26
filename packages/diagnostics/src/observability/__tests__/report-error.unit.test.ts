@@ -18,6 +18,8 @@ const fakeSecret = () => ["sk", "live", "Q".repeat(12) + "z".repeat(12)].join("_
 test("an error object is reported once, with its operation and attributes", () => {
   const { port, reports } = recording();
   const failure = new Error("boom");
+  // Runner paths can resemble email addresses to the privacy filter; this case has no private data.
+  failure.stack = "Error: boom\n    at fixture (fixture.ts:1:1)";
   assert.equal(reportErrorOnce({ observability: port, error: failure, operation: "site.publish" }, { attributes: { status: 500 } }), true);
   assert.equal(reportErrorOnce({ observability: port, error: failure, operation: "http.request" }), false);
   assert.equal(reports.length, 1);

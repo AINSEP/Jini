@@ -452,8 +452,8 @@ export function handleMessageDelta({ state, data, onEvent }: { state: AnthropicS
     state.stopReason = data.delta.stop_reason;
   }
   if (isRecord(data.usage)) {
-    state.usage = data.usage;
-    onEvent({ type: 'usage', usage: data.usage });
+    state.usage = { ...state.usage, ...data.usage };
+    onEvent({ type: 'usage', usage: state.usage });
   }
 }
 
@@ -464,7 +464,7 @@ export function handleAnthropicErrorFrame({ data, onEvent, apiKey }: { data: Rec
   onEvent({ type: 'error', message: redactSecrets({ input: errorDetail }, { exactSecrets: [apiKey] }), ...(errorType ? { code: errorType } : {}) });
 }
 
-/** The SSE event's dispatch key: `data.type` when present (every real Anthropic frame carries one), else the record's `event:` line, else `''` — a key that intentionally matches no entry in {@link ANTHROPIC_FRAME_HANDLERS} (`message_start`/`message_stop`/`ping`/future event types fall through as no-ops, same as before this frame was a lookup table). */
+/** The SSE event's dispatch key: `data.type` when present (every real Anthropic frame carries one), else the record's `event:` line, else `''` — a key that intentionally matches no entry in {@link ANTHROPIC_FRAME_HANDLERS} (`message_stop`/`ping`/future event types fall through as no-ops, same as before this frame was a lookup table). */
 export function anthropicFrameKind({ data, frameEvent }: { data: Record<string, unknown>; frameEvent: string | null }): string {
   if (typeof data.type === 'string') return data.type;
   return frameEvent ?? '';
@@ -481,6 +481,11 @@ type AnthropicFrameHandler = (
 
 /** One entry per SSE event kind this adapter reacts to. Replaces a sequential if-chain over `kind` — every branch below is now a single object-key lookup instead of N nesting-penalized `if` statements (see `runSingleAnthropicRequest`'s doc for the resulting flat loop). */
 const ANTHROPIC_FRAME_HANDLERS: Record<string, AnthropicFrameHandler> = {
+  message_start: (state, data) => {
+    // Input usage arrives at message_start; message_delta supplies cumulative output usage.
+    if (isRecord(data.message) && isRecord(data.message.usage)) state.usage = data.message.usage;
+    return { action: 'continue' };
+  },
   content_block_start: (state, data) => {
     handleContentBlockStart({ state: state, data: data });
     return { action: 'continue' };
@@ -628,7 +633,7 @@ async function runSingleAnthropicRequest(
     if (!data) continue; // malformed/empty keep-alive frame, or a non-object payload
 
     const handler = ANTHROPIC_FRAME_HANDLERS[anthropicFrameKind({ data: data, frameEvent: frame.event })];
-    if (!handler) continue; // `message_start`, `message_stop`, `ping`, or a future event type — nothing to do
+    if (!handler) continue; // `message_stop`, `ping`, or a future event type — nothing to do
 
     const outcome = handler(state, data, onEvent, options.apiKey);
     if (outcome.action === 'end') {

@@ -60,7 +60,7 @@ describe("one tracker facade", () => {
     tracker.capture(event);
     expect(scope.reported).toBe(true);
     expect(reports).toHaveLength(1);
-    expect((reports[0]!.error as Error).message).toBe("refused [REDACTED]");
+    expect((reports[0]!.error as Error).message).toBe("refused [REDACTED:exact_secret]");
     expect(reports[0]!.context).toEqual({ operation: "application.error", attributes: { route: "/posts/:id" } });
   });
 
