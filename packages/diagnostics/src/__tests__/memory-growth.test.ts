@@ -30,57 +30,78 @@ test('aggregation deduplicates pids, rounds after summing, groups by kind, and o
   expect(aggregateProcessMemory({ processes: [] })).toEqual([]);
 });
 
-test('fake clock: sustained +300 MB requires a full sixty minutes, no drop and sufficient observations', () => {
+test('fake clock: a +300 MB rise of the post-GC floor requires a full sixty minutes', () => {
   let at = 0;
   const detector = createMemoryGrowthDetector({ now: () => at });
   for (let i = 0; i < 12; i++) {
     at = i * 5 * MINUTE;
-    expect(detector.observe({ processes: [row(1, 1000 + i * 25)] })).toEqual([]);
+    expect(detector.observe({ processes: [row(1, 1000 + i * 34)] })).toEqual([]);
   }
   at = 60 * MINUTE;
-  const result = detector.observe({ processes: [row(1, 1300)] });
+  const result = detector.observe({ processes: [row(1, 1408)] });
   expect(result).toEqual([{ kind: 'renderer', reason: 'sustained-growth', series:
-    Array.from({ length: 13 }, (_, i) => ({ at: i * 5 * MINUTE, rssMb: 1000 + i * 25 })) }]);
+    Array.from({ length: 13 }, (_, i) => ({ at: i * 5 * MINUTE, rssMb: 1000 + i * 34 })) }]);
   expect(JSON.stringify(result)).not.toContain('"id"');
 });
 
-test('a drop, insufficient growth, observation gap, or backwards clock cannot manufacture a steady slope', () => {
-  for (const scenario of ['drop', 'below', 'gap', 'backwards']) {
+test('a leak under a GC sawtooth still warns: drops lower the floor, they do not erase the rise', () => {
+  let at = 0;
+  const detector = createMemoryGrowthDetector({ now: () => at });
+  let result: ReturnType<typeof detector.observe> = [];
+  for (let i = 0; i <= 12; i++) {
+    at = i * 5 * MINUTE;
+    result = detector.observe({ processes: [row(1, 1000 + i * 34 + (i % 2 ? 200 : 0))] });
+    if (i < 12) expect(result).toEqual([]);
+  }
+  expect(result.map(warning => warning.reason)).toEqual(['sustained-growth']);
+});
+
+test('GC sawtooth peaks, a single spike, insufficient floor growth, a gap or a backwards clock never warn', () => {
+  const rssAt: Record<string, (i: number) => number> = {
+    // Peaks climb past +300 MB and 2 GB, but every third sample is collected back to the floor.
+    sawtooth: i => (i % 3 === 2 ? 1000 : 1000 + i * 120),
+    spike: i => (i === 12 ? 2500 : 1000),
+    below: i => 1000 + i * 33,
+    gap: i => 1000 + i * 34,
+    backwards: i => 1000 + i * 34,
+  };
+  for (const [scenario, rss] of Object.entries(rssAt)) {
     let at = 0;
     const detector = createMemoryGrowthDetector({ now: () => at });
     for (let i = 0; i <= 12; i++) {
-      at = i * 5 * MINUTE;
       if (scenario === 'gap' && i > 0 && i < 12) continue;
-      if (scenario === 'backwards' && i === 12) at = MINUTE;
-      let rss = 1000 + i * 25;
-      if (scenario === 'drop' && i === 6) rss = 1100;
-      if (scenario === 'below') rss = 1000 + i * 24;
-      expect(detector.observe({ processes: [row(1, rss)] }), scenario).toEqual([]);
+      at = scenario === 'backwards' && i === 12 ? MINUTE : i * 5 * MINUTE;
+      expect(detector.observe({ processes: [row(1, rss(i))] }), scenario).toEqual([]);
     }
   }
 });
 
-test('RSS strictly above 2 GB warns immediately; per-process rate limit lasts 24 hours and survives history resets', () => {
+test('the 2 GB limit needs a fifteen-minute floor strictly above it; rate limit lasts 24 hours and survives history resets', () => {
   let at = 0;
   const detector = createMemoryGrowthDetector({ now: () => at });
-  expect(detector.observe({ processes: [row(1, 2000)] })).toEqual([]);
-  expect(detector.observe({ processes: [row(1, 2000.1)] })).toEqual([
-    { kind: 'renderer', reason: 'rss-limit', series: [{ at: 0, rssMb: 2000 }, { at: 0, rssMb: 2000 }] },
-  ]);
-  at = MINUTE;
-  expect(detector.observe({ processes: [row(1, 2400), row(2, 2400)] })).toHaveLength(1);
+  const observe = (minute: number, rssMb: number, ids = [1]) => {
+    at = minute * MINUTE;
+    return detector.observe({ processes: ids.map(id => row(id, rssMb)) });
+  };
+  for (const minute of [0, 5, 10]) expect(observe(minute, 2400)).toEqual([]);
+  expect(observe(15, 2000.1)).toEqual([{ kind: 'renderer', reason: 'rss-limit', series: [
+    { at: 0, rssMb: 2400 }, { at: 5 * MINUTE, rssMb: 2400 }, { at: 10 * MINUTE, rssMb: 2400 }, { at: 15 * MINUTE, rssMb: 2000 },
+  ] }]);
+  expect(observe(20, 2400)).toEqual([]);
   detector.reset({}, { keepRateLimits: true });
-  at = DAY - 1;
-  expect(detector.observe({ processes: [row(1, 2400), row(2, 2400)] })).toEqual([]);
-  at = DAY;
-  expect(detector.observe({ processes: [row(1, 2400), row(2, 2400)] }).map(value => value.kind)).toEqual(['renderer']);
+  const day = DAY / MINUTE;
+  for (const minute of [day - 5, day, day + 5, day + 10]) expect(observe(minute, 2400)).toEqual([]);
+  expect(observe(day + 15, 2400).map(value => value.reason)).toEqual(['rss-limit']);
   detector.reset();
-  expect(detector.observe({ processes: [row(1, 2400)] })).toHaveLength(1);
+  for (const minute of [day + 20, day + 25, day + 30]) expect(observe(minute, 2400)).toEqual([]);
+  expect(observe(day + 35, 2400)).toHaveLength(1);
+  const exact = createMemoryGrowthDetector({ now: () => at });
+  for (const minute of [0, 5, 10, 15]) { at = minute * MINUTE; expect(exact.observe({ processes: [row(1, 2000)] })).toEqual([]); }
 });
 
 test('kind changes/gone processes reset histories; duplicate IDs and changing fleets stay bounded', () => {
   let at = 0;
-  const detector = createMemoryGrowthDetector({ now: () => at }, { maxSamples: 3, maxProcesses: 2 });
+  const detector = createMemoryGrowthDetector({ now: () => at }, { maxSamples: 3, maxProcesses: 2, floorMs: 0 });
   expect(detector.observe({ processes: [row(1, 2400), row(1, 2400), row(2, 2400), row(3, 2400)] })).toHaveLength(2);
   detector.observe({ processes: [] });
   expect(detector.observe({ processes: [row(1, 2400, 'main')] })[0]!.kind).toBe('main');
