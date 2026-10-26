@@ -37,9 +37,10 @@ function selectedAnswerText(
   { result, input }: { result: Record<string, unknown>; input: unknown }, _options = {},
 ): string | undefined {
   const question = record(input);
-  const labels: string[] = [];
-  if (typeof result.choice === 'string') labels.push(optionLabel({ group: question.singleSelect ?? question, value: result.choice }));
-  labels.push(...multiSelectLabels({ selections: result.selections, question }));
+  const single = typeof result.choice === 'string' ? [optionLabel({ group: question.singleSelect ?? question, value: result.choice })] : [];
+  // concat, never push(...spread): spreading every selection as an argument throws past the engine's
+  // argument limit, and this path must never throw (FU-B).
+  const labels = single.concat(multiSelectLabels({ selections: result.selections, question }));
   if (labels.length > 0) return labels.join(', ');
   return Array.isArray(result.selections) && result.selections.length === 0 ? 'None selected' : undefined;
 }
