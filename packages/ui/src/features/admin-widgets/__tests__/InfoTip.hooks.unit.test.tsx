@@ -190,16 +190,65 @@ describe("useInfoTip", () => {
     expect(result.current.coords.left + 100).toBeLessThanOrEqual(900);
   });
 
-  it("re-measures an open tip when the page scrolls or resizes, so it follows its icon", () => {
+  it("re-measures an open tip on resize, so it follows its icon", () => {
     const { result } = renderHook(() => useInfoTip());
     attachIcon(result, { top: 400, bottom: 420, left: 500, width: 20 });
     act(() => result.current.show());
     expect(result.current.coords.top).toBe(400);
-    attachIcon(result, { top: 300, bottom: 320, left: 500, width: 20 });
-    act(() => { window.dispatchEvent(new Event("scroll")); });
-    expect(result.current.coords.top).toBe(300);
     attachIcon(result, { top: 250, bottom: 270, left: 500, width: 20 });
     act(() => { window.dispatchEvent(new Event("resize")); });
     expect(result.current.coords.top).toBe(250);
+  });
+
+  it("closes when a scroll moves its icon, but not for a scroll in an unrelated pane", () => {
+    const { result } = renderHook(() => useInfoTip());
+    const page = document.createElement("div");
+    const pane = document.createElement("div");
+    const icon = document.createElement("span");
+    icon.getBoundingClientRect = () => ({ top: 400, bottom: 420, left: 500, width: 20 }) as DOMRect;
+    page.append(icon);
+    document.body.append(page, pane);
+    result.current.iconRef.current = icon;
+    act(() => result.current.show());
+    act(() => { pane.dispatchEvent(new Event("scroll")); });
+    expect(result.current.open).toBe(true);
+    act(() => { page.dispatchEvent(new Event("scroll")); });
+    expect(result.current.open).toBe(false);
+    page.remove();
+    pane.remove();
+  });
+
+  it("opening one tip closes any other open tip", () => {
+    const first = renderHook(() => useInfoTip()).result;
+    const second = renderHook(() => useInfoTip()).result;
+    attachIcon(first, { top: 400, bottom: 420, left: 500, width: 20 });
+    attachIcon(second, { top: 400, bottom: 420, left: 500, width: 20 });
+    act(() => first.current.toggle());
+    act(() => second.current.show());
+    expect(first.current.open).toBe(false);
+    expect(second.current.open).toBe(true);
+  });
+
+  it("a mouse click opens without pinning; a touch tap pins and hides after 2.5 s; Enter pins with no timer", () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useInfoTip());
+      attachIcon(result, { top: 400, bottom: 420, left: 500, width: 20 });
+      act(() => { result.current.pointerDown!({ pointerType: "mouse" }); result.current.toggle(); });
+      act(() => result.current.leave());
+      expect(result.current.open).toBe(false);
+
+      act(() => { result.current.pointerDown!({ pointerType: "touch" }); result.current.toggle(); });
+      act(() => result.current.leave());
+      expect(result.current.open).toBe(true);
+      act(() => { vi.advanceTimersByTime(2500); });
+      expect(result.current.open).toBe(false);
+
+      act(() => result.current.toggle());
+      act(() => { vi.advanceTimersByTime(10_000); });
+      expect(result.current.open).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

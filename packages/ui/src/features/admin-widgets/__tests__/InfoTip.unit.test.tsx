@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InfoTip } from "../components/InfoTip.js";
 import type { InfoTipController } from "../components/InfoTip.hooks";
@@ -145,24 +145,82 @@ describe("InfoTip", () => {
 describe("InfoTip tap and description wiring", () => {
   const LABEL = "Off by default. Applies to new runs only.";
 
-  it("a click pins the tip open past the pointer leaving; a second click closes it", async () => {
+  /** A touch tap as the browser dispatches it: pointerdown (touch), then click. */
+  async function tap(user: ReturnType<typeof userEvent.setup>, target: Element) {
+    await user.pointer([{ keys: "[TouchA]", target }]);
+  }
+
+  it("a tap pins the tip open past the pointer leaving; a second tap closes it", async () => {
+    const user = userEvent.setup();
+    render(<InfoTip label={LABEL} triggerLabel="About subagents" />);
+    const icon = screen.getByRole("button", { name: "About subagents" });
+    await tap(user, icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    await user.unhover(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    await tap(user, icon);
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // Owner, 2026-10-25: a mouse-clicked "Soon" tip stayed up after the pointer moved on.
+  it("a mouse click does not pin: the tip closes as soon as the pointer leaves", async () => {
     const user = userEvent.setup();
     render(<InfoTip label={LABEL} triggerLabel="About subagents" />);
     const icon = screen.getByRole("button", { name: "About subagents" });
     await user.click(icon);
     expect(icon).toHaveAttribute("aria-expanded", "true");
     await user.unhover(icon);
-    expect(icon).toHaveAttribute("aria-expanded", "true");
-    await user.click(icon);
     expect(icon).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("a tap-opened tip hides by itself after 2.5 s", () => {
+    vi.useFakeTimers();
+    try {
+      render(<InfoTip label={LABEL} triggerLabel="About subagents" />);
+      const icon = screen.getByRole("button", { name: "About subagents" });
+      // user-event's pointer API waits on timers, so dispatch the tap's two events by hand.
+      const press = new MouseEvent("pointerdown", { bubbles: true });
+      Object.defineProperty(press, "pointerType", { value: "touch" });
+      fireEvent(icon, press);
+      fireEvent.click(icon);
+      act(() => { vi.advanceTimersByTime(2400); });
+      expect(icon).toHaveAttribute("aria-expanded", "true");
+      act(() => { vi.advanceTimersByTime(200); });
+      expect(icon).toHaveAttribute("aria-expanded", "false");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a tap outside closes a pinned tip", async () => {
     const user = userEvent.setup();
     render(<div><InfoTip label={LABEL} triggerLabel="About subagents" /><p>elsewhere</p></div>);
     const icon = screen.getByRole("button", { name: "About subagents" });
-    await user.click(icon);
-    await user.click(screen.getByText("elsewhere"));
+    await tap(user, icon);
+    await tap(user, screen.getByText("elsewhere"));
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("at most one tip is open: reaching a second trigger closes the first, even a pinned or focused one", async () => {
+    const user = userEvent.setup();
+    render(<div><InfoTip label={LABEL} triggerLabel="First" /><InfoTip label={LABEL} triggerLabel="Second" /></div>);
+    const first = screen.getByRole("button", { name: "First" });
+    const second = screen.getByRole("button", { name: "Second" });
+    await user.tab();
+    await user.keyboard("{Enter}");
+    expect(first).toHaveAttribute("aria-expanded", "true");
+    await user.hover(second);
+    expect(first).toHaveAttribute("aria-expanded", "false");
+    expect(second).toHaveAttribute("aria-expanded", "true");
+    expect(document.querySelectorAll(".info-tip-bubble")).toHaveLength(1);
+  });
+
+  it("a page scroll closes an open tip", async () => {
+    const user = userEvent.setup();
+    render(<InfoTip label={LABEL} triggerLabel="About subagents" />);
+    const icon = screen.getByRole("button", { name: "About subagents" });
+    await user.hover(icon);
+    fireEvent.scroll(document);
     expect(icon).toHaveAttribute("aria-expanded", "false");
   });
 

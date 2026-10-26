@@ -8,6 +8,28 @@ import { placeInfoTipBubble } from "./InfoTip.rules.js";
 /** Hosts mark a panel (e.g. an assistant dock) with this attribute to keep tips inside it. */
 export const TIP_BOUNDS_ATTRIBUTE = "data-jini-tip-bounds";
 
+/** How long a tap-opened tip stays up on its own; touch has no pointer-leave to close it. */
+export const TAP_TIP_MS = 2500;
+
+/** The close of the one tip open app-wide. A pinned or focused tip used to stay up beside the one
+ * the pointer had just reached (owner, 2026-10-25: two "Soon" tips open at once). */
+let closeOpenTip: (() => void) | null = null;
+
+/**
+ * Makes `close` the one open tip, closing whichever tip held that slot before. Hosts with their own
+ * tip state (e.g. a dock-header tip) can call it too, to join the same one-open rule.
+ * @param close Closes the claiming tip; identity must stay stable while it is open.
+ * @returns A release that empties the slot only if `close` still holds it.
+ * @complexity O(1).
+ */
+export function claimOpenTip(close: () => void): () => void {
+  if (closeOpenTip && closeOpenTip !== close) closeOpenTip();
+  closeOpenTip = close;
+  return () => {
+    if (closeOpenTip === close) closeOpenTip = null;
+  };
+}
+
 export interface InfoTipController {
   open: boolean;
   placement: "above" | "below";
@@ -22,9 +44,12 @@ export interface InfoTipController {
   hide: () => void;
   /** Pointer left the icon: closes only a hover-opened tip, never one the operator tapped open. */
   leave: () => void;
-  /** Tap/click/Enter/Space: pins an open tip so it survives the pointer leaving (touch has no
-   *  hover to keep it up), or closes a pinned one. Hover alone never pins. */
+  /** Tap/Enter/Space: pins an open tip so it survives the pointer leaving (touch has no hover to
+   *  keep it up), or closes a pinned one. Hover and mouse clicks never pin. */
   toggle: () => void;
+  /** Records the pointer type of the press a following click comes from; optional for injected
+   *  controllers. */
+  pointerDown?: (e: { pointerType: string }) => void;
   /** Escape closes in place; Enter/Space toggle like a button; blur covers Tab/Shift+Tab. */
   handleIconKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
 }
@@ -36,9 +61,16 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState<"above" | "below">("above");
   const [coords, setCoords] = useState<InfoTipController["coords"]>({ top: 0, left: 0 });
-  const [pinned, setPinned] = useState(false);
+  // "tap" pins auto-hide; "key" (Enter/Space) pins stay until blur or Escape.
+  const [pinned, setPinned] = useState<false | "tap" | "key">(false);
   const iconRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLSpanElement>(null);
+  const pointerTypeRef = useRef<string | null>(null);
+  // Stable identity for the one-open-tip slot; state setters never change.
+  const hide = useRef(() => {
+    setOpen(false);
+    setPinned(false);
+  }).current;
 
   // Placement math lives in `placeInfoTipBubble`; this only gathers the measurements. Before the
   // portal exists the bubble is unmeasured and the rules assume the worst-case width.
@@ -68,36 +100,55 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   useLayoutEffect(() => {
     if (open) place();
   }, [open, preferredPlacement]);
-  const hide = () => {
-    setOpen(false);
-    setPinned(false);
-  };
   const leave = () => {
     if (!pinned) setOpen(false);
   };
+  const pointerDown = (e: { pointerType: string }) => {
+    pointerTypeRef.current = e.pointerType;
+  };
   const toggle = () => {
+    const via = pointerTypeRef.current;
+    pointerTypeRef.current = null;
     if (open && pinned) {
       hide();
       return;
     }
     show();
-    setPinned(true);
+    // A mouse already has hover to hold the tip up; pinning on a mouse click is what left tips
+    // stuck open after the pointer moved on. No pointer press means Enter/Space.
+    if (via !== "mouse") setPinned(via ? "tap" : "key");
   };
 
-  // A tapped-open tip stays up until the operator taps elsewhere; the bubble itself is
-  // pointer-events:none, so "outside the icon" is every other target.
-  useDismissOnOutsideOrEscape({ onDismiss: hide }, { enabled: pinned, containerRef: iconRef });
-
-  // The bubble is position:fixed at measured viewport coordinates, so a scroll while it is open
-  // would leave it floating over the wrong content. Re-measure instead of closing: a pinned tip
-  // the operator is reading should follow its icon.
   useEffect(() => {
     if (!open) return;
+    return claimOpenTip(hide);
+  }, [open]);
+
+  // A tapped-open tip stays up until the operator taps elsewhere or it times out; the bubble
+  // itself is pointer-events:none, so "outside the icon" is every other target.
+  useDismissOnOutsideOrEscape({ onDismiss: hide }, { enabled: pinned !== false, containerRef: iconRef });
+  useEffect(() => {
+    if (pinned !== "tap") return;
+    const timer = setTimeout(hide, TAP_TIP_MS);
+    return () => clearTimeout(timer);
+  }, [pinned]);
+
+  // The bubble is position:fixed at measured viewport coordinates, so a scroll that moves the icon
+  // would leave it floating over the wrong content, and the pointer has usually left the icon
+  // without a mouseleave firing yet: close it. A scroll in an unrelated pane (a streaming chat)
+  // leaves it be. A resize re-measures instead, so it keeps following its icon.
+  useEffect(() => {
+    if (!open) return;
+    const closeIfMoved = (e: Event) => {
+      const icon = iconRef.current;
+      if (icon && e.target instanceof Node && !e.target.contains(icon)) return;
+      hide();
+    };
     const follow = () => show();
-    window.addEventListener("scroll", follow, true);
+    window.addEventListener("scroll", closeIfMoved, true);
     window.addEventListener("resize", follow);
     return () => {
-      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("scroll", closeIfMoved, true);
       window.removeEventListener("resize", follow);
     };
   }, [open]);
@@ -116,5 +167,5 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
     }
   }
 
-  return { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, handleIconKeyDown };
+  return { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, pointerDown, handleIconKeyDown };
 }
