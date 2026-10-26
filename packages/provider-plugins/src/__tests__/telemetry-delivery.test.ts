@@ -70,7 +70,7 @@ it("the default Sentry provider sends the actual fixed diagnostic exception with
   });
   const resource = createSentryProvider({ dsn: `https://${["public", "test"].join("")}@sentry.test/123` }, { transport });
   const tracker = createTracker({ observability: resource.port });
-  await tracker.span("telemetry.test", async () => tracker.error(new Error("Tovu test error — safe to ignore"), { operation: "telemetry.test" }));
+  await tracker.trace("telemetry.test", async () => tracker.error(new Error("Tovu test error — safe to ignore"), { operation: "telemetry.test" }));
   await resource.dispose({});
   expect(items.map(item => item.type)).toEqual(["event"]);
   expect(items[0]!.payload.exception!.values.map(value => value.value)).toEqual(["Tovu test error — safe to ignore"]);

@@ -37,7 +37,7 @@ export function createTelemetryTestProbe(_required: Record<string, never>, _opti
     },
     async send({ tracker, error, userId }: { tracker: Tracker; error: Error; userId: string }, _optional = {}): Promise<TelemetryTestResult> {
       return active.run(new Map(), async () => {
-        await tracker.span("telemetry.test", async () => {
+        await tracker.trace("telemetry.test", async () => {
           tracker.error(error, { operation: "telemetry.test" });
           await tracker.capture({ name: "telemetry_test", userId });
         });

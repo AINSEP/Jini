@@ -25,9 +25,9 @@ export interface Tracker {
   /** Awaitable local admission; does not wait for remote delivery. */
   capture(event: ProductEvent, options?: Record<string, never>): void | Promise<void>;
   error(error: Error, context?: TrackerErrorContext): void;
-  span<T>(name: string, work: (span: TrackerSpan<RequestTrackingOutcome>) => T | Promise<T>, options: RequestSpanOptions): Promise<T>;
-  span<T>(name: string, work: (span: TrackerSpan<AgentRunTrackingOutcome>) => T | Promise<T>, options: AgentSpanOptions): Promise<T>;
-  span<T>(name: string, work: (span: TrackerSpan) => T | Promise<T>, options?: OperationSpanOptions): Promise<T>;
+  trace<T>(name: string, work: (span: TrackerSpan<RequestTrackingOutcome>) => T | Promise<T>, options: RequestSpanOptions): Promise<T>;
+  trace<T>(name: string, work: (span: TrackerSpan<AgentRunTrackingOutcome>) => T | Promise<T>, options: AgentSpanOptions): Promise<T>;
+  trace<T>(name: string, work: (span: TrackerSpan) => T | Promise<T>, options?: OperationSpanOptions): Promise<T>;
 }
 
 export interface TrackerProviders {

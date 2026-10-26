@@ -41,7 +41,7 @@ function spanOutcome({ options, failure }: { options: SpanOptions; failure?: { e
 
 /** One facade over existing ports: consent/identity remain on the composed providers, error
  * deduplication/redaction stays with reportErrorOnce, scope containment stays with fanout.
- * Missing providers do nothing; spans still run work exactly once and preserve its result/error.
+ * Missing providers do nothing; trace still runs work exactly once and preserves its result/error.
  * @param required Optional, already-composed providers; an empty object disables telemetry.
  * @param optional A warning sink, called once with a fixed message on any provider failure.
  * @complexity O(1) facade state; delivery/redaction costs remain with the existing ports.
@@ -58,7 +58,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
       });
     } catch { failed(); }
   };
-  async function span<T>(name: string, work: (span: TrackerSpan<SpanOutcome>) => T | Promise<T>, options: SpanOptions = {}): Promise<T> {
+  async function trace<T>(name: string, work: (span: TrackerSpan<SpanOutcome>) => T | Promise<T>, options: SpanOptions = {}): Promise<T> {
     const lifecycle = startSpan({ observability, name, options });
     let outcome: SpanOutcome | undefined;
     const handle: TrackerSpan<SpanOutcome> = { setOutcome: (value) => { outcome ??= value; } };
@@ -77,6 +77,6 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
   return {
     capture(event) { try { return Promise.resolve(required.productAnalytics?.capture(event)).catch(failed); } catch { failed(); } },
     error,
-    span: span as Tracker["span"],
+    trace: trace as Tracker["trace"],
   };
 }
