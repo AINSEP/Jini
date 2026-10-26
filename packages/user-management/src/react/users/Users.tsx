@@ -588,8 +588,8 @@ interface RevealablePasswordFieldProps {
  *
  *  The toggle itself is icon-only (standard eye / eye-with-slash convention, per owner request —
  *  not a text "Show"/"Hide" link): the accessible name flips between "Show <label>"/"Hide <label>"
- *  via `aria-label` (screen reader), and `aria-pressed` mirrors `visible` so assistive tech gets
- *  the same on/off signal a text label would have given. The shared stroke icon keeps the
+ *  via `aria-label` (screen reader), which is the one on/off signal a text label would have given
+ *  (no `aria-pressed` on top: that announced the state twice). The shared stroke icon keeps the
  *  open-eye/eye-with-slash convention without duplicating glyphs in this screen.
  *
  *  The shared `.jini-secret` wrapper gives the icon its own space: the host's `.field input {

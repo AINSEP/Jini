@@ -109,7 +109,7 @@ it('a secret text or textarea question gets the shared eye toggle, named from ch
   expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
   fireEvent.click(screen.getByRole('button', { name: 'Mostrar Key' }));
   expect(input.type).toBe('text');
-  expect(screen.getByRole('button', { name: 'Ocultar Key' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Ocultar Key' })).not.toHaveAttribute('aria-pressed');
   fireEvent.click(screen.getByRole('button', { name: 'Mostrar Account JSON' }));
   expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
   fireEvent.click(screen.getByRole('button', { name: 'Ocultar Account JSON' }));

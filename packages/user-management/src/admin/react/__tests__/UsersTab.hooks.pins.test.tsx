@@ -118,8 +118,8 @@ describe('useUsersConfirmation (pins)', () => {
     render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
     expect(screen.getByLabelText('New password')).toHaveAttribute('type', 'text');
     expect(screen.getByLabelText('Confirm new password')).toHaveAttribute('type', 'text');
-    expect(screen.getByRole('button', { name: 'Hide New password' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Hide Confirm new password' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Hide New password' })).not.toHaveAttribute('aria-pressed');
+    expect(screen.getByRole('button', { name: 'Hide Confirm new password' })).not.toHaveAttribute('aria-pressed');
   });
 
   it('renders one shared eye per reset field and routes changes through the controller', () => {

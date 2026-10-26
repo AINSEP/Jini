@@ -52,13 +52,14 @@ function useSecretToggle(
     { value, labels: toggleLabels ?? { show: `${t('Show')} ${label}`, hide: `${t('Hide')} ${label}` } },
     { ...(revealed === undefined ? {} : { revealed }), ...(onRevealedChange ? { onRevealedChange } : {}) },
   );
+  // One signal only: the name flips Show/Hide, so no `aria-pressed` — both together made screen
+  // readers announce "Hide API key, toggle button, pressed" (Opus UI review 2026-10-26).
   const button = (
     <button
       {...toggleAttrs}
       type="button"
       className="jini-secret-toggle"
       aria-label={reveal.toggleLabel}
-      aria-pressed={reveal.revealed}
       title={reveal.toggleLabel}
       disabled={disabled}
       onClick={reveal.toggle}

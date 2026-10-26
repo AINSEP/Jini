@@ -41,7 +41,7 @@ describe("Login", () => {
     expect(toggle).toHaveAttribute("type", "button");
     await userEvent.click(toggle);
     expect(input).toHaveAttribute("type", "text");
-    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Hide password" })).not.toHaveAttribute("aria-pressed");
     await userEvent.click(screen.getByRole("button", { name: "Hide password" }));
     expect(input).toHaveAttribute("type", "password");
   });
