@@ -117,9 +117,9 @@ it('full mode preserves structural autocapture without DOM text, identifiers or 
 
 it('anonymous first load clears both the configured and legacy persistence before SDK startup', async () => {
   const f = fixture(); f.mode('anonymous');
-  expect(f.removed).toEqual(['ph_jini_site_site-1_posthog', 'ph_phc_fake_browser_token_posthog']);
+  expect(f.removed).toEqual(['ph_jini_site_site-1', 'ph_phc_fake_browser_token_posthog']);
   expect(f.cookies).toEqual([
-    'ph_jini_site_site-1_posthog=; Max-Age=0; Path=/', 'ph_jini_site_site-1_posthog=; Max-Age=0; Path=/; Domain=site.example',
+    'ph_jini_site_site-1=; Max-Age=0; Path=/', 'ph_jini_site_site-1=; Max-Age=0; Path=/; Domain=site.example',
     'ph_phc_fake_browser_token_posthog=; Max-Age=0; Path=/', 'ph_phc_fake_browser_token_posthog=; Max-Age=0; Path=/; Domain=site.example',
   ]);
   expect(f.configs).toHaveLength(0);
