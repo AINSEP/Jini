@@ -87,6 +87,7 @@ describe('native URL capture without a downloaded browser', () => {
     const f = fixture({ hang: true });
     const controller = new AbortController();
     const pending = f.service.captureUrl(request, { allowedOrigins: ['http://127.0.0.1:4312'], signal: controller.signal });
+    await vi.waitFor(() => expect(f.options).toBeDefined());
     controller.abort();
     await expect(pending).rejects.toMatchObject({ code: 'aborted' });
     expect(f.destroyed).toBe(true);
@@ -132,24 +133,38 @@ describe('native URL capture without a downloaded browser', () => {
     expect([...large.sessions.values()][0]).toEqual({ storage: 2, cache: 2, auth: 2, connections: 2 });
   });
 
-  it('keeps concurrent services on separate partitions and bounds capacity without a waiting queue', async () => {
+  it('keeps concurrent services exclusive and hands clean partitions to queued captures in FIFO order', async () => {
     const a = fixture({ hang: true });
     const b = fixture({ hang: true });
-    const c = fixture();
+    const c = fixture({ hang: true });
+    const d = fixture({ hang: true });
     const first = new AbortController();
     const second = new AbortController();
+    const third = new AbortController();
+    const fourth = new AbortController();
     const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
     const aResult = expect(a.service.captureUrl(request, { ...options, signal: first.signal })).rejects.toMatchObject({ code: 'aborted' });
     const bResult = expect(b.service.captureUrl(request, { ...options, signal: second.signal })).rejects.toMatchObject({ code: 'aborted' });
+    const cResult = expect(c.service.captureUrl(request, { ...options, signal: third.signal })).rejects.toMatchObject({ code: 'aborted' });
+    const dResult = expect(d.service.captureUrl(request, { ...options, signal: fourth.signal })).rejects.toMatchObject({ code: 'aborted' });
     try {
+      await vi.waitFor(() => expect(b.options).toBeDefined());
       expect(a.options.webPreferences.partition).not.toBe(b.options.webPreferences.partition);
-      await expect(c.service.captureUrl(request, options)).rejects.toMatchObject({ message: 'native capture capacity reached' });
       expect(c.options).toBeUndefined();
+      expect(d.options).toBeUndefined();
+      first.abort();
+      await aResult;
+      await vi.waitFor(() => expect(c.options).toBeDefined());
+      expect(c.options.webPreferences.partition).toBe(a.options.webPreferences.partition);
+      expect(d.options).toBeUndefined();
+      second.abort();
+      await bResult;
+      await vi.waitFor(() => expect(d.options).toBeDefined());
+      expect(d.options.webPreferences.partition).toBe(b.options.webPreferences.partition);
     } finally {
-      first.abort(); second.abort();
-      await Promise.all([aResult, bResult]);
+      first.abort(); second.abort(); third.abort(); fourth.abort();
+      await Promise.all([aResult, bResult, cResult, dResult]);
     }
-    await c.service.captureUrl(request, options);
     expect([...a.sessions.values()][0]!.storage).toBe(2);
     expect([...b.sessions.values()][0]!.storage).toBe(2);
   });
@@ -167,15 +182,83 @@ describe('native URL capture without a downloaded browser', () => {
     const aborted = expect(b.service.captureUrl(request, { ...options, signal: controller.signal })).rejects.toMatchObject({ code: 'aborted' });
     try {
       await vi.waitFor(() => expect(resets).toBe(2));
-      await expect(c.service.captureUrl(request, options)).rejects.toMatchObject({ message: 'native capture capacity reached' });
+      const queued = c.service.captureUrl(request, options);
+      expect(c.options).toBeUndefined();
       release();
       await pending;
-      await c.service.captureUrl(request, options);
+      await queued;
       expect(c.options.webPreferences.partition).toBe(a.options.webPreferences.partition);
     } finally {
       release(); controller.abort();
       await Promise.all([pending, aborted]);
     }
+  });
+
+  it('removes an aborted queued capture without blocking the next waiter or creating its window', async () => {
+    const a = fixture({ hang: true }), b = fixture({ hang: true }), c = fixture(), d = fixture();
+    const first = new AbortController(), second = new AbortController(), queued = new AbortController();
+    const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
+    const aResult = expect(a.service.captureUrl(request, { ...options, signal: first.signal })).rejects.toMatchObject({ code: 'aborted' });
+    const bResult = expect(b.service.captureUrl(request, { ...options, signal: second.signal })).rejects.toMatchObject({ code: 'aborted' });
+    const cancelled = expect(c.service.captureUrl(request, { ...options, signal: queued.signal })).rejects.toMatchObject({ code: 'aborted' });
+    const next = d.service.captureUrl(request, options);
+    try {
+      await vi.waitFor(() => expect(b.options).toBeDefined());
+      queued.abort();
+      await cancelled;
+      expect(c.options).toBeUndefined();
+      first.abort();
+      await next;
+      expect(d.options.webPreferences.partition).toBe(a.options.webPreferences.partition);
+      expect(c.options).toBeUndefined();
+    } finally {
+      first.abort(); second.abort(); queued.abort();
+      await Promise.all([aResult, bResult, cancelled, next]);
+    }
+  });
+
+  it('times out in the queue without a window while both partitions are still resetting', async () => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const a = fixture({ clearStorage: async () => { await held; } });
+    const b = fixture({ clearStorage: async () => { await held; } });
+    const c = fixture();
+    const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
+    const first = expect(a.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
+    const second = expect(b.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
+    try {
+      await vi.advanceTimersByTimeAsync(1000);
+      const queued = expect(c.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout', message: `render timed out after ${URL_CAPTURE_TIMEOUT_MS}ms` });
+      await vi.advanceTimersByTimeAsync(URL_CAPTURE_TIMEOUT_MS);
+      await Promise.all([first, second, queued]);
+      expect(c.options).toBeUndefined();
+    } finally {
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+      vi.useRealTimers();
+    }
+    await c.service.captureUrl(request, options);
+  });
+
+  it('charges queued time to the same render deadline instead of starting a fresh one', async () => {
+    vi.useFakeTimers();
+    const a = fixture({ hang: true }), b = fixture({ hang: true }), c = fixture({ hang: true });
+    const controller = new AbortController();
+    const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
+    const first = expect(a.service.captureUrl(request, { ...options, signal: controller.signal })).rejects.toMatchObject({ code: 'aborted' });
+    const second = expect(b.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
+    const third = expect(c.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
+    try {
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(c.options).toBeUndefined();
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(c.options).toBeDefined();
+      await vi.advanceTimersByTimeAsync(URL_CAPTURE_TIMEOUT_MS - 10_000);
+      await Promise.all([first, second, third]);
+      expect(c.destroyed).toBe(true);
+    } finally { controller.abort(); vi.useRealTimers(); }
   });
 
   it('fails at the deadline when cleanup sticks, keeping that lease until cleanup settles', async () => {
