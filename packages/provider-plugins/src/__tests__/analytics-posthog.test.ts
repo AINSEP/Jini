@@ -20,28 +20,17 @@ function recordingFetch() {
   return { batches, fetch };
 }
 
-test.each([undefined, 'never'] as const)('personProfiles=%s keeps every capture profile-less, including attempts to override the flag', async personProfiles => {
+test('every product capture is profile-less, including attempts to override the flag', async () => {
   const { batches, fetch } = recordingFetch();
-  const resource = createPostHogProvider({
-    apiKey: 'phc_test_dummy', host: 'https://posthog.invalid',
-    ...(personProfiles === undefined ? {} : { personProfiles }),
-  }, { fetch });
+  const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, { fetch });
   try {
     resource.port.capture({ name: 'app_started', userId: 'fixture-install' });
     resource.port.capture({ name: 'desktop_action', userId: 'fixture-install', properties: { action: 'open_admin', $process_person_profile: true } });
-    resource.port.identify({ userId: 'fixture-install', traits: { plan: 'fixture' } });
   } finally { await resource.dispose({}); }
   const events = batches.flatMap(batch => batch.body.batch);
   expect(events.map(event => [event.event, event.distinct_id, event.properties.$process_person_profile]))
-    .toEqual([['app_started', 'fixture-install', false], ['desktop_action', 'fixture-install', false],
-      ['$identify', 'fixture-install', personProfiles === 'never' ? false : undefined]]);
+    .toEqual([['app_started', 'fixture-install', false], ['desktop_action', 'fixture-install', false]]);
   expect(events[1]?.properties.action).toBe('open_admin');
-  expect(events[2]?.properties.$set).toEqual({ plan: 'fixture' });
-});
-
-test('personProfiles refuses unsupported modes before constructing a client', () => {
-  expect(() => createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid', personProfiles: 'always' }))
-    .toThrow(new TypeError('personProfiles must be never when provided'));
 });
 
 test("PostHog provider (real posthog-node, recording fetch): capture/identify become batch events; no GeoIP; dispose flushes", async () => {
