@@ -68,7 +68,7 @@ describe('limits and omissions', () => {
     expect((await read({ ...big, maxEntries: 2 })).truncated).toBe(false);
     expect((await read({ ...big, maxEntries: 1 })).truncated).toBe(true);
   });
-  it('binary, invalid UTF-8, symlink and hard-linked files are omitted with their reason', async () => {
+  it('binary, invalid UTF-8 and symlinked files are omitted with their reason (hard links are NOT refused by this viewer; snapshot hard-link rejection is tested separately)', async () => {
     await writeFile(path.join(root, 'bin'), Buffer.from([1, 0, 2]));
     await writeFile(path.join(root, 'bad-utf8'), Buffer.from([0xc3, 0x28]));
     await writeFile(path.join(container, 'outside'), 'secret');
