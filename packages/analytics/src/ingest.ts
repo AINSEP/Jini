@@ -438,7 +438,10 @@ function ipMatchesRange(ip: string, range: string): boolean {
 
 /** An `a.b.c.d/n` range as its masked network, or null for an IPv6 range, a bad address or prefix. */
 function parseIpv4Cidr(range: string): { network: number; mask: number } | null {
-  const [rangeIp = "", prefixRaw = ""] = range.split("/");
+  const fields = range.split("/");
+  // Exactly two fields: `10.0.0.0/0/24` would otherwise be read as /0 (FU-B).
+  if (fields.length !== 2) return null;
+  const [rangeIp = "", prefixRaw = ""] = fields;
   // Digits only, 0-32: `Number("")` and `Number("-1")` would otherwise read a malformed range as /0
   // and exclude every visitor.
   if (rangeIp.includes(":") || !/^\d{1,2}$/.test(prefixRaw) || Number(prefixRaw) > 32) return null;
