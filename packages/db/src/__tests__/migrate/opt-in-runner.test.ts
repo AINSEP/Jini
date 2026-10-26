@@ -228,3 +228,16 @@ describe("explicit legacy ledger mapping", () => {
     }
   });
 });
+
+
+describe("opt-in additive history compatibility", () => {
+  test("an older history opens a newer database without replay; default still refuses and known checksums remain enforced", async () => {
+    const { kernel } = fresh();
+    await runMigrations(kernel, steps, { ledgerTable: "project_history" });
+    await assert.rejects(runMigrations(kernel, steps.slice(0, 2), { ledgerTable: "project_history" }), /migration/i);
+    const report = await runMigrations(kernel, steps.slice(0, 2), { ledgerTable: "project_history", allowUnknownApplied: true });
+    assert.deepEqual(report.applied, []);
+    assert.deepEqual(await kernel.query(sql`SELECT id FROM project_history ORDER BY id`), steps.map(step => ({ id: step.id })));
+    await assert.rejects(runMigrations(kernel, [{ ...steps[0]!, checksum: "b".repeat(64) }], { ledgerTable: "project_history", allowUnknownApplied: true }), /checksum/i);
+  });
+});
