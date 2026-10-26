@@ -117,7 +117,8 @@ The optional second `trace` argument selects the existing lifecycle: `{ request:
 requestId? } }`, `{ agent: { runId, conversationId?, agentName? } }`, or operation attributes.
 Overloads give each callback its corresponding typed `setOutcome` payload. The facade ends
 the lifecycle after the callback settles; its first explicit outcome wins unless the callback
-throws, which overrides success with failure. Explicit canceled outcomes remain canceled.
+throws, which overrides success with failure. Canceled, interrupted and explicit failure
+outcomes keep their own labels.
 
 
 `capture` keeps the analytics port's required `userId`: consent and pseudonymous identity remain
