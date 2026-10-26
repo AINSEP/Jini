@@ -348,6 +348,19 @@ describe('boot, queue and banner', () => {
     expect(api.get().allowed.analytics).toBe(false);
   });
 
+  test('while the banner is open, other clicks keep their default (links navigate, preferences expand)', () => {
+    page('jini');
+    document.body.insertAdjacentHTML('beforeend', '<a href="/blog" id="nav">Blog</a>');
+    boot(window, { ports: makePorts(), bindBanner });
+    expect(document.documentElement.hasAttribute('data-consent-open')).toBe(true);
+    const clicks = [document.getElementById('nav')!, document.querySelector('#jini-consent summary')!].map(el => {
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+      el.dispatchEvent(click);
+      return click.defaultPrevented;
+    });
+    expect(clicks).toEqual([false, false]);
+  });
+
   test('a durable grant without a receipt keeps the banner open with its alert until the receipt lands', async () => {
     page('jini');
     const node = document.getElementById('jini-consent-config')!;
