@@ -20,12 +20,12 @@ it('a password TextField starts hidden and its eye toggle reveals and re-hides w
   expect(input.type).toBe('password');
   expect(input.getAttribute('spellcheck')).toBe('false');
   expect(toggle.getAttribute('type')).toBe('button');
-  expect(toggle.getAttribute('aria-pressed')).toBe('false');
+  expect(toggle.getAttribute('aria-pressed')).toBeNull();
   expect(toggle.closest('label')).toBeNull();
   fireEvent.change(input, { target: { value: 'sk-123' } });
   fireEvent.click(toggle);
   expect(input.type).toBe('text');
-  expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  expect(toggle.getAttribute('aria-pressed')).toBeNull();
   expect(toggle.getAttribute('aria-label')).toBe('Hide API key');
   fireEvent.click(toggle);
   expect(input.type).toBe('password');
@@ -40,7 +40,7 @@ it('re-hides once the value is cleared after a save, and takes host-translated n
   expect(input.type).toBe('text');
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(input.type).toBe('password');
-  expect(screen.getByRole('button', { name: 'Afficher la clé' }).getAttribute('aria-pressed')).toBe('false');
+  expect(screen.getByRole('button', { name: 'Afficher la clé' }).getAttribute('aria-pressed')).toBeNull();
 });
 
 it('can be revealed while still empty, so a paste is visible as it lands', () => {

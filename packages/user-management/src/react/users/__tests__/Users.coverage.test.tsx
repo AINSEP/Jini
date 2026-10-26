@@ -142,7 +142,7 @@ describe("NewUserForm", () => {
     expect(field.closest('label')).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Show password" }));
     expect(field).toHaveAttribute("type", "text");
-    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Hide password" })).not.toHaveAttribute("aria-pressed");
   });
 
   it("submits through onCreate", () => {
@@ -329,7 +329,7 @@ describe("UserResetPasswordDialog", () => {
   it("reveals only the new-password field through its own toggle, flipping its icon and labels", () => {
     renderWith(statefulResetHook());
     const [newToggle] = revealToggles();
-    expect(newToggle).toHaveAttribute("aria-pressed", "false");
+    expect(newToggle).not.toHaveAttribute("aria-pressed");
     // EyeIcon while hidden: the eye outline path plus its pupil circle.
     expect(newToggle!.querySelectorAll("svg path")).toHaveLength(1);
     expect(newToggle!.querySelectorAll("svg circle")).toHaveLength(1);
@@ -337,7 +337,7 @@ describe("UserResetPasswordDialog", () => {
     expect(newPasswordField()).toHaveAttribute("type", "text");
     expect(newPasswordField()).toHaveAttribute("autocomplete", "new-password");
     expect(confirmPasswordField()).toHaveAttribute("type", "password");
-    expect(newToggle).toHaveAttribute("aria-pressed", "true");
+    expect(newToggle).not.toHaveAttribute("aria-pressed");
     expect(newToggle).toHaveAttribute("aria-label", "Hide New password");
     expect(newToggle).toHaveAttribute("title", "Hide New password");
     // The shared eye-off glyph includes the diagonal slash.

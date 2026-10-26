@@ -40,9 +40,10 @@ function useSecretReveal(required: TextFieldProps, _optional: Record<string, nev
     if (required.value === '') setRevealed(false);
   }
   if (required.type !== 'password') return { type: required.type ?? 'text', toggle: null };
+  // The name flips Show/Hide; no `aria-pressed` on top, or screen readers hear the state twice.
   const labels = required.secretToggleLabels ?? { show: `Show ${required.label}`, hide: `Hide ${required.label}` };
   return { type: revealed ? 'text' : 'password', toggle: { 'data-jini-part': 'kit.secret-toggle', className: 'jini-secret-toggle', type: 'button' as const,
-    'aria-label': revealed ? labels.hide : labels.show, 'aria-pressed': revealed, disabled: required.disabled,
+    'aria-label': revealed ? labels.hide : labels.show, disabled: required.disabled,
     onClick: () => setRevealed(shown => !shown), children: eyeIcon({ revealed }) } };
 }
 export function useNativeTextField(required: TextFieldProps, _optional: Record<string, never> = {}) {

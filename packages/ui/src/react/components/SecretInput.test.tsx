@@ -24,18 +24,18 @@ describe('SecretInput', () => {
     expect(input).toHaveAttribute('spellcheck', 'false');
     const toggle = screen.getByRole('button', { name: 'Show API key' });
     expect(toggle).toHaveAttribute('type', 'button');
-    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle).not.toHaveAttribute('aria-pressed');
     expect(toggle).toHaveClass('jini-secret-toggle');
     expect(toggle.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     expect(container.querySelector('.jini-secret')?.contains(input)).toBe(true);
   });
 
-  it('flips password <-> text and its own name/pressed state on each press', async () => {
+  it('flips password <-> text and its own name (the only state signal) on each press', async () => {
     render(<Field initial="sk-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Show API key' }));
     expect(screen.getByLabelText('API key')).toHaveAttribute('type', 'text');
     const hide = screen.getByRole('button', { name: 'Hide API key' });
-    expect(hide).toHaveAttribute('aria-pressed', 'true');
+    expect(hide).not.toHaveAttribute('aria-pressed');
     await userEvent.click(hide);
     expect(screen.getByLabelText('API key')).toHaveAttribute('type', 'password');
   });
@@ -72,7 +72,7 @@ describe('SecretInput', () => {
     expect(screen.getByLabelText('Key')).toHaveAttribute('type', 'password');
     rerender(<SecretInput aria-label="Key" label="Key" value="v" readOnly revealed onRevealedChange={onRevealedChange} />);
     expect(screen.getByLabelText('Key')).toHaveAttribute('type', 'text');
-    expect(screen.getByRole('button', { name: 'Hide Key' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Hide Key' })).not.toHaveAttribute('aria-pressed');
   });
 
   it('takes a host translator\'s full names, extra toggle attrs, and disables with its input', () => {
@@ -98,7 +98,7 @@ describe('SecretTextarea', () => {
     expect(container.querySelector('.jini-secret.jini-secret--multiline')?.contains(area)).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: 'Show Service account JSON' }));
     expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
-    expect(screen.getByRole('button', { name: 'Hide Service account JSON' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Hide Service account JSON' })).not.toHaveAttribute('aria-pressed');
     await userEvent.click(screen.getByRole('button', { name: 'Hide Service account JSON' }));
     expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
   });
@@ -126,6 +126,6 @@ describe('SecretTextarea', () => {
     expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
     expect(area).toHaveAttribute('autocomplete', 'off');
     expect(screen.getByRole('button', { name: 'Show Key' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Show Key' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Show Key' })).not.toHaveAttribute('aria-pressed');
   });
 });
