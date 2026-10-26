@@ -23,3 +23,4 @@ export * from './bundled-initialization.js';
 export { PLUGIN_PROVIDER_CAPABILITY } from './provider-contributions.js';
 export type { PluginProviderResource, PluginProviderFactory, PluginProviderContribution, PluginProvidersSdk } from './provider-contributions.js';
 export * from './provider-host.js';
+export * from './provider-setting-required.js';
