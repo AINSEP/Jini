@@ -151,3 +151,29 @@ test("without a test transport the private client uses the SDK's own transport (
   const { dispose } = createSentryObservabilityAdapter({ config: CONFIG });
   await dispose();
 });
+
+test("site attribution: every exception and transaction carries the host's attributes as tags; a blank environment defaults to deployment.environment", async () => {
+  const { createSentryProvider } = await import("../observability-sentry/index.js");
+  const attribution = { attributes: { "tovu.site.id": "uuid-of-site-b", "tovu.site.slug": "site-b", "deployment.environment": "desktop", "tovu.project.id": "project-x" } };
+  const { items, transport } = recordingTransport();
+  const resource = createSentryProvider({ dsn: CONFIG.dsn, environment: "", tracesSampleRate: 1, attribution }, { transport });
+  const tracker = resource.port.trackOperation({ name: "site.publish" });
+  tracker.run(() => resource.port.reportError({ error: new Error("inside"), context: { operation: "site.publish" } }));
+  tracker.end({ outcome: "completed", failed: false });
+  resource.port.reportError({ error: new Error("outside"), context: { operation: "x" } });
+  await flush(); await resource.dispose({});
+  const sent = items.filter((item) => item.type === "event" || item.type === "transaction");
+  assert.deepEqual(sent.map((item) => item.type).sort(), ["event", "event", "transaction"]);
+  for (const item of sent) {
+    assert.deepEqual({ ...item.payload.tags, operation: undefined }, { ...attribution.attributes, operation: undefined }, `${item.type} carries the site tags`);
+    assert.equal(item.payload.environment, "desktop");
+  }
+  // An explicit card environment wins over the host's deployment environment.
+  const second = recordingTransport();
+  const explicit = createSentryProvider({ dsn: CONFIG.dsn, environment: "staging", attribution }, { transport: second.transport });
+  explicit.port.reportError({ error: new Error("boom"), context: { operation: "x" } });
+  await flush(); await explicit.dispose({});
+  assert.equal(second.items[0]?.payload.environment, "staging");
+  assert.equal(second.items[0]?.payload.tags["tovu.site.id"], "uuid-of-site-b");
+  assert.throws(() => createSentryProvider({ dsn: CONFIG.dsn, attribution: { attributes: { n: 1 } } }), { name: "TypeError" });
+});

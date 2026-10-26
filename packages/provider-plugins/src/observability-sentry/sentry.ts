@@ -36,7 +36,11 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { NodeClient, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
 import { createNoopObservabilityPort, describeReportedError, redactOperationAttributes, type ObservabilityAdapter } from "@jini-ai/diagnostics/observability";
 
-export interface SentryConfigEnabled { enabled: true; dsn: string; environment?: string; tracesSampleRate: number; }
+export interface SentryConfigEnabled {
+  enabled: true; dsn: string; environment?: string; tracesSampleRate: number;
+  /** Set on the scope of every signal (exceptions and transactions): the host's site attribution. */
+  tags?: Readonly<Record<string, string>>;
+}
 
 /** The client slice this adapter uses; a host's own `NodeClient` satisfies it. */
 export type SentryClient = Pick<NodeClient, "close" | "getOptions">;
@@ -85,7 +89,8 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
   const owned = options.client === undefined;
   const client = (options.client ?? privateClient({ config }, { transport: options.transport })) as NodeClient;
   const active = new AsyncLocalStorage<Span>();
-  const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); return fn(); });
+  // A span keeps the scope it started in, so tags set here reach its transaction as well as exceptions.
+  const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); scope.setTags(config.tags ?? {}); return fn(); });
   const port: ObservabilityAdapter["port"] = {
     ...createNoopObservabilityPort({}),
     trackOperation({ name, attributes = {} }) {
