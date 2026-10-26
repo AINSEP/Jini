@@ -87,10 +87,10 @@ test('rewriteRouteBodyForBasePath prefixes sitemap locations and robots sitemap 
   assert.equal(rewriteRouteBodyForBasePath({ path: '/robots.txt', body: 'Sitemap:  /s.xml  \nAllow: /a\n', basePath: '/b' }), 'Sitemap: /b/s.xml\nAllow: /a\n');
 });
 
-test('rewriteRouteBodyForBasePath prefixes HTML attributes but not data- attributes or relative values', () => {
+test('rewriteRouteBodyForBasePath prefixes HTML and script-read data-*-href attributes but not relative values', () => {
   assert.equal(
     rewriteRouteBodyForBasePath({ path: '/p', body: `<a href="/a"><img src='rel.png'><x data-href="/d"><v poster="/b/p"><a href="">`, basePath: '/b' }),
-    `<a href="/b/a"><img src='rel.png'><x data-href="/d"><v poster="/b/p"><a href="">`,
+    `<a href="/b/a"><img src='rel.png'><x data-href="/b/d"><v poster="/b/p"><a href="">`,
   );
 });
 
@@ -166,11 +166,10 @@ test('HTML rewriting and crawling only touch actual URL attributes and style pos
   const body = inert + real;
   const rewritten = rewriteRouteBodyForBasePath({ path: '/', body, basePath: '/repo' });
   assert.equal(rewritten.slice(0, inert.length), inert);
-  const expected = ['image', 'a', 'b', 'poster', 'og', 'tw', 'style', 'inline'].map(name => `/assets/${name}.png`).concat('/assets/site.webmanifest');
+  const expected = ['image', 'a', 'b', 'poster', 'og', 'tw', 'style', 'inline', 'data'].map(name => `/assets/${name}.png`).concat('/assets/site.webmanifest');
   assert.deepEqual(new Set(extractAssetUrls({ html: body, prefixes: ['/assets/'] })), new Set(expected));
   for (const url of expected) assert.ok(rewritten.includes('/repo' + url), url);
   assert.ok(rewritten.includes('content="url(/assets/description.png)"'));
-  assert.ok(rewritten.includes('data-src="/assets/data.png"'));
 });
 
 
