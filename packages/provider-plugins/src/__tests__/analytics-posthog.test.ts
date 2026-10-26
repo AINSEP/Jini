@@ -113,7 +113,7 @@ test("site attribution: identify events carry the host's attribution and $groups
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: "phc_test_dummy", host: "https://posthog.invalid",
     attribution: { attributes: { site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9" }, groups: { site: "site-123" } } }, { fetch, flushAt: 1 });
-  resource.port.identify({ userId: "u1", traits: { site_id: "spoofed", plan: "self-hosted" } });
+  resource.port.identify({ userId: "u1", traits: { site_id: "spoofed", plan: "self-hosted", constructor: "kept", toString: "kept too" } });
   resource.port.identify({ userId: "u2" });
   await resource.dispose({});
   const identifies = batches.flatMap((b) => b.body.batch).filter((e) => e.event === "$identify");
@@ -121,7 +121,8 @@ test("site attribution: identify events carry the host's attribution and $groups
   for (const event of identifies) {
     expect(event.properties).toMatchObject({ site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9", $groups: { site: "site-123" } });
   }
-  // The traits still set the person's properties, minus any key the host attributes authoritatively.
-  expect(identifies[0]?.properties.$set).toEqual({ plan: "self-hosted" });
+  // The traits still set the person's properties, minus any key the host attributes authoritatively
+  // (an own key only: a trait named like an Object.prototype member is kept).
+  expect(identifies[0]?.properties.$set).toEqual({ plan: "self-hosted", constructor: "kept", toString: "kept too" });
   expect(JSON.stringify(identifies)).not.toContain("spoofed");
 });
