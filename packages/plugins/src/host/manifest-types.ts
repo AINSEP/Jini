@@ -101,6 +101,21 @@ export interface PluginProviderDeclaration {
   readonly contract: string;
   readonly id: string;
   readonly contractVersion: 1;
+  /**
+   * The settings a host collects (on its own secure settings card) and passes to this provider's
+   * factory as `required[name]`. Declared here, not in code, so a host can render the card and decide
+   * "configured?" without executing the plugin. Secret fields are sealed by the host and never shown back.
+   */
+  readonly settings?: readonly PluginProviderSettingField[];
+}
+
+/** One declared provider setting; `name` is the factory input key. */
+export interface PluginProviderSettingField {
+  readonly name: string;
+  readonly label: string;
+  readonly secret?: boolean;
+  readonly required?: boolean;
+  readonly hint?: string;
 }
 
 /** One validation-vocabulary entry (errors.spec.md §3). `file` names the offending packaged file

@@ -18,7 +18,7 @@ import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/no
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
 import { createOtelFactories, createOtelObservabilityAdapter } from "../observability-opentelemetry/opentelemetry.js";
-import plugin, { createOpenTelemetryProvider } from "../observability-opentelemetry/index.js";
+import plugin, { createOpenTelemetryProvider, otlpHeadersOf } from "../observability-opentelemetry/index.js";
 
 const TEST_CONFIG: ObservabilityConfigEnabled = {
   enabled: true,
@@ -369,8 +369,8 @@ test.each([
   [{ serviceName: "s", tracerName: "t", tracesEndpoint: [] }, "tracesEndpoint must be a string"],
   [{ serviceName: "", tracerName: "t", endpoint: "http://c" }, "serviceName must be non-empty"],
   [{ tracerName: "t", endpoint: "http://c" }, "serviceName must be non-empty"],
-  [{ serviceName: "s", endpoint: "http://c" }, "tracerName must be non-empty"],
-  [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: "x" }, "headers must be an object of strings"],
+  [{ serviceName: "s", tracerName: "", endpoint: "http://c" }, "tracerName must be non-empty"],
+  [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: "x" }, "headers must be Name=Value pairs separated by commas"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: null }, "headers must be an object of strings"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: ["a"] }, "headers must be an object of strings"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: { a: "ok", b: 1 } }, "headers must be an object of strings"],
@@ -385,5 +385,20 @@ test("the factory builds a real OTLP exporter with headers when no test processo
 
 test("the factory without headers or test processors builds a plain OTLP exporter", async () => {
   const resource = createOpenTelemetryProvider({ serviceName: "s", tracerName: "t", tracesEndpoint: "http://127.0.0.1:9/v1/traces" });
+  await resource.dispose({});
+});
+
+test("settings-card headers: the OTLP `Name=Value,Name=Value` text form becomes the same generic headers object", () => {
+  assert.deepEqual(otlpHeadersOf("Authorization=Basic b3duZXI6dG9rZW4=, X-Scope-OrgID = tenant=a "), { Authorization: "Basic b3duZXI6dG9rZW4=", "X-Scope-OrgID": "tenant=a" });
+  assert.deepEqual(otlpHeadersOf(""), undefined);
+  assert.deepEqual(otlpHeadersOf({ a: "b" }), { a: "b" });
+  for (const bad of ["novalue", "=x", "a=b,,c"]) assert.throws(() => otlpHeadersOf(bad), { name: "TypeError", message: "headers must be Name=Value pairs separated by commas" });
+});
+
+test("a settings card supplies no tracer name: the service name is the tracer name", async () => {
+  const exporter = new InMemorySpanExporter();
+  const resource = createOpenTelemetryProvider({ serviceName: "svc", endpoint: "http://127.0.0.1:9", headers: "authorization=Bearer t" }, { spanProcessors: [new SimpleSpanProcessor(exporter)] });
+  resource.port.trackOperation({ name: "op" }).end({ outcome: "ok", failed: false });
+  assert.equal(exporter.getFinishedSpans()[0]?.instrumentationScope.name, "svc");
   await resource.dispose({});
 });

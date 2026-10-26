@@ -6,11 +6,43 @@
   "engine": 1,
   "tier": "tier-3",
   "extensions": {
-    "tovu": { "id": "jini/ai-trace-langfuse" },
-    "open-marketing": { "id": "jini/ai-trace-langfuse" }
+    "tovu": {
+      "id": "jini/ai-trace-langfuse"
+    },
+    "open-marketing": {
+      "id": "jini/ai-trace-langfuse"
+    }
   },
-  "capabilities": ["providers.register"],
-  "contributes": { "providers": [{ "contract": "ai_trace", "id": "langfuse", "contractVersion": 1 }] },
+  "capabilities": [
+    "providers.register"
+  ],
+  "contributes": {
+    "providers": [
+      {
+        "contract": "ai_trace",
+        "id": "langfuse",
+        "contractVersion": 1,
+        "settings": [
+          {
+            "name": "baseUrl",
+            "label": "Langfuse URL",
+            "hint": "Optional; defaults to Langfuse Cloud."
+          },
+          {
+            "name": "publicKey",
+            "label": "Public key",
+            "required": true
+          },
+          {
+            "name": "secretKey",
+            "label": "Secret key",
+            "secret": true,
+            "required": true
+          }
+        ]
+      }
+    ]
+  },
   "hooks": [],
   "fields": [],
   "integrity": {}

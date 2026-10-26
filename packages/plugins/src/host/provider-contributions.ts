@@ -31,6 +31,35 @@ export function isPluginProviderDeclaration(
     && declaration.contractVersion === 1;
 }
 
+const SETTING_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+const optionalOf = (value: unknown, type: 'boolean' | 'string'): boolean => value === undefined || typeof value === type;
+
+/** One setting field's problem in words, or undefined. */
+function settingFieldProblem({ field }: { field: unknown }, _optional: Record<string, never> = {}): string | undefined {
+  if (!field || typeof field !== 'object' || Array.isArray(field)) return 'a provider setting must be an object';
+  const { name, label, secret, required, hint } = field as Record<string, unknown>;
+  if (typeof name !== 'string' || !SETTING_NAME.test(name)) return 'a provider setting name must be 1-64 letters, digits or _ (starting with a letter)';
+  if (typeof label !== 'string' || !label.trim() || label.length > 120) return `provider setting '${name}' needs a label of 1-120 characters`;
+  if (!optionalOf(secret, 'boolean') || !optionalOf(required, 'boolean') || !optionalOf(hint, 'string')) return `provider setting '${name}' has a malformed secret/required/hint`;
+  return undefined;
+}
+
+/** Declared provider settings (see `PluginProviderDeclaration.settings`): problems in words. */
+export function providerSettingsErrors({ settings }: { settings: unknown }, _optional: Record<string, never> = {}): string[] {
+  if (settings === undefined) return [];
+  if (!Array.isArray(settings)) return ['provider settings must be a list of fields'];
+  const problems: string[] = [];
+  const names = new Set<string>();
+  for (const field of settings) {
+    const problem = settingFieldProblem({ field });
+    if (problem) { problems.push(problem); continue; }
+    const { name } = field as { name: string };
+    if (names.has(name)) problems.push(`duplicate provider setting '${name}'`);
+    names.add(name);
+  }
+  return problems;
+}
+
 /** Collect static declaration errors; provider code is supported only by tier-3 admission. */
 export function validatePluginProviderDeclarations(
   required: { value: unknown; tier: unknown; capabilities: unknown }, _optional: Record<string, never> = {},
@@ -42,6 +71,7 @@ export function validatePluginProviderDeclarations(
   for (const value of required.value) {
     const declaration = { value };
     if (!isPluginProviderDeclaration(declaration)) { errors.push(error('provider requires { contract, id, contractVersion: 1 } with core provider ids')); continue; }
+    errors.push(...providerSettingsErrors({ settings: declaration.value.settings }).map(error));
     const key = `${declaration.value.contract}:${declaration.value.id}`;
     if (seen.has(key)) errors.push(error(`duplicate provider declaration '${key}'`));
     seen.add(key);

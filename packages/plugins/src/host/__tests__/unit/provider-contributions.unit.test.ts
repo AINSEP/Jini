@@ -51,6 +51,18 @@ describe('provider contributions on the existing plugin pipeline', () => {
     expect(validate({ ...manifest, tier: 'tier-1' }).some(error => error.code === 'PROVIDERS_INVALID')).toBe(true);
     expect(pluginClaimsFromManifest({ ...manifestHost, manifest })).toEqual([{ kind: 'provider', key: 'fixture:fixture', mode: 'exclusive' }]);
   });
+  it('accepts declared provider settings (public + secret fields) and refuses malformed ones', () => {
+    const validate = (value: unknown) => validateManifest({ ...manifestHost, capabilityVocabulary: ['providers.register'], manifest: value as PluginManifest, folderName: manifest.id, builtInIds: [] }).errors;
+    const settings = [{ name: 'endpoint', label: 'OTLP endpoint', required: true, hint: 'https://…' }, { name: 'headers', label: 'Headers', secret: true }];
+    expect(validate({ ...manifest, contributes: { providers: [{ ...declaration, settings }] } })).toEqual([]);
+    for (const bad of [
+      'endpoint', [{ name: 'endpoint' }], [{ name: '9bad', label: 'x' }], [{ name: 'a', label: '' }], [{ name: 'a', label: 'A', secret: 'yes' }],
+      [{ name: 'a', label: 'A', required: 1 }], [{ name: 'a', label: 'A', hint: 3 }], [{ name: 'a', label: 'A' }, { name: 'a', label: 'B' }], [null],
+    ]) {
+      const errors = validate({ ...manifest, contributes: { providers: [{ ...declaration, settings: bad }] } });
+      expect(errors.map(error => error.code), JSON.stringify(bad)).toEqual(['PROVIDERS_INVALID']);
+    }
+  });
   it('keeps the SDK denial callable and refuses granted registration without host backing', () => {
     const provider = { ...declaration, factory: vi.fn(() => ({ port: 'ok', dispose() {} })) };
     expect(() => sdk.providers.register(provider)).toThrow(CapabilityDeniedError);

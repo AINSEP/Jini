@@ -9,9 +9,20 @@ const text = (value: unknown, name: string): string | undefined => {
   return value;
 };
 
-/** Generic OTLP headers (a collector's auth header), never a vendor-specific option. */
-function headersOf(value: unknown): Record<string, string> | undefined {
+const HEADER_PAIR = /^([^=\s][^=]*?)\s*=\s*(.+)$/;
+
+/** The OTLP text form a settings card holds (`Name=Value,Name=Value`, as in the OTLP exporter spec). */
+function headersFromText(value: string): Record<string, string> | undefined {
+  if (!value.trim()) return undefined;
+  const pairs = value.split(',').map((pair) => HEADER_PAIR.exec(pair.trim()));
+  if (pairs.some((pair) => !pair)) throw new TypeError('headers must be Name=Value pairs separated by commas');
+  return Object.fromEntries(pairs.map((pair) => [pair![1]!, pair![2]!.trim()]));
+}
+
+/** Generic OTLP headers (a collector's auth header), never a vendor-specific option: an object, or the card's text form. */
+export function otlpHeadersOf(value: unknown): Record<string, string> | undefined {
   if (value === undefined) return undefined;
+  if (typeof value === 'string') return headersFromText(value);
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('headers must be an object of strings');
   const entries = Object.entries(value);
   if (entries.some(([, header]) => typeof header !== 'string')) throw new TypeError('headers must be an object of strings');
@@ -20,18 +31,20 @@ function headersOf(value: unknown): Record<string, string> | undefined {
 
 /**
  * Builds the configured adapter. Hosts select this plugin only when an endpoint is configured.
- * @param required `{ serviceName, tracerName, endpoint? , tracesEndpoint?, headers? }`; credentials ride `headers`.
+ * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, headers? }`; credentials ride `headers` (object or
+ *   the settings card's `Name=Value,…` text). `tracerName` defaults to `serviceName`.
  * @param optional `{ spanProcessors? }` test seam.
  * @returns `{ port, dispose }`. @throws TypeError on missing endpoint or malformed input.
  */
 export function createOpenTelemetryProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
   const endpoint = text(required.endpoint, 'endpoint');
   const tracesEndpoint = text(required.tracesEndpoint, 'tracesEndpoint');
+  const serviceName = text(required.serviceName, 'serviceName');
   const config = resolveObservabilityConfig({
-    serviceName: text(required.serviceName, 'serviceName') ?? '', tracerName: text(required.tracerName, 'tracerName') ?? '',
+    serviceName: serviceName ?? '', tracerName: text(required.tracerName, 'tracerName') ?? serviceName ?? '',
   }, { ...(endpoint === undefined ? {} : { endpoint }), ...(tracesEndpoint === undefined ? {} : { tracesEndpoint }) });
   if (!config.enabled) throw new TypeError('an OTLP endpoint is required');
-  const headers = headersOf(required.headers);
+  const headers = otlpHeadersOf(required.headers);
   const spanProcessors = optional.spanProcessors as OtelAdapterOptions['spanProcessors'];
   const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}) };
   const { port, dispose } = createOtelObservabilityAdapter({ config }, options);
