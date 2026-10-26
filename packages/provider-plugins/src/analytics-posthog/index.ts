@@ -2,7 +2,8 @@
 import type { PluginSdk } from '@jini-ai/plugins/host';
 import { createPostHogProductAnalyticsAdapter, type PostHogAdapterOptions } from './posthog.js';
 import { attributionOf } from '../attribution.js';
-import { postHogBrowserContribution, validatePostHogBrowserConfig } from './browser.js';
+import { postHogBrowserContribution } from './browser.js';
+import { postHogConsentContribution, validatePostHogBrowserConfig } from './consent.js';
 
 const nonEmpty = (value: unknown, name: string): string => {
   if (typeof value !== 'string' || !value.trim()) throw new TypeError(`${name} must be a non-empty string`);
@@ -17,10 +18,14 @@ export function createPostHogProvider(required: Readonly<Record<string, unknown>
   const config = { enabled: true as const, apiKey: nonEmpty(required.apiKey, 'apiKey'), host: nonEmpty(required.host, 'host'), attribution: attributionOf(required.attribution), includePromptsAndResponses: required.includePromptsAndResponses === 'true' };
   validatePostHogBrowserConfig(config);
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config }, optional as PostHogAdapterOptions);
+  const sessionReplay = required.sessionReplay === 'true';
+  const siteId = config.attribution?.attributes.site_id;
   return { port: { ...port, browserAnalytics: ({ surface }: { surface: 'site' | 'admin' }, _options = {}) => postHogBrowserContribution({
-    apiKey: config.apiKey, host: config.host, sessionReplay: required.sessionReplay === 'true', surface,
-    attributes: config.attribution?.attributes.site_id ? { site_id: config.attribution.attributes.site_id } : {},
-  }) }, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
+    apiKey: config.apiKey, host: config.host, sessionReplay, surface, attributes: siteId ? { site_id: siteId } : {},
+  }),
+  /** Cookie-consent adapter for public pages; the host picks the same-origin mount path. */
+  consentAdapter: ({ path }: { path: string }, _options = {}) => postHogConsentContribution({ apiKey: config.apiKey, host: config.host, sessionReplay, siteId, path }),
+  }, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
 
 export default {

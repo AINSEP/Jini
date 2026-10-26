@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import type { BrowserAnalyticsContribution } from '@jini-ai/analytics/product';
+import { forwardCollectorEvent, POSTHOG_BROWSER_VERSION, SDK_FILE, validatePostHogBrowserConfig } from './consent.js';
 
+// TODO(P4): this bridge retires with the old consent engine; consent.ts keeps the shared pieces.
 /** Pinned browser distribution; no SDK is fetched until the existing consent owner has a choice. */
-export const POSTHOG_BROWSER_VERSION = '1.260.2';
+export { POSTHOG_BROWSER_VERSION, validatePostHogBrowserConfig };
 const BROWSER_PATH = '/_jini/browser-analytics/posthog';
 
 /** Browser settings contain only the project's publishable ingestion token, never personal API keys.
@@ -12,7 +14,7 @@ const BROWSER_PATH = '/_jini/browser-analytics/posthog';
 export function postHogBrowserContribution(required: {
   apiKey: string; host: string; sessionReplay: boolean; surface: 'site' | 'admin';
   attributes: Readonly<Record<string, string>>;
-}, { request = fetch, loadAsset = () => readFile(new URL('./posthog-browser.js', import.meta.url), 'utf8') }: { request?: typeof fetch; loadAsset?: () => Promise<string> } = {}): BrowserAnalyticsContribution {
+}, { request = fetch, loadAsset = () => readFile(new URL(`./${SDK_FILE}`, import.meta.url), 'utf8') }: { request?: typeof fetch; loadAsset?: () => Promise<string> } = {}): BrowserAnalyticsContribution {
   // This is also a callable adapter boundary: never serialize unvalidated credentials.
   validatePostHogBrowserConfig(required);
   const attributes = required.attributes.site_id ? { site_id: required.attributes.site_id } : {};
@@ -27,13 +29,8 @@ export function postHogBrowserContribution(required: {
       if (method === 'GET' && path === `/sdk-${POSTHOG_BROWSER_VERSION}.js`) {
         return { status: 200, body: await loadAsset(), contentType: 'text/javascript; charset=utf-8', cacheControl: 'public, max-age=31536000, immutable' };
       }
-      if (method !== 'POST' || !/^\/(?:e|batch|i\/v0\/e|s)\/?$/.test(path)) return { status: 404, body: '' };
-      // Never forward visitor cookies, IP headers, referrers or vendor Set-Cookie responses.
-      // Only a fixed collector path can leave the server; redirects cannot widen that boundary.
-      const response = await request(required.host.replace(/\/$/, '') + path + '?ip=0', { method: 'POST',
-        headers: { 'content-type': contentType }, body: Buffer.from(body), redirect: 'error', signal: AbortSignal.timeout(5000) });
-      await response.body?.cancel();
-      return { status: response.ok ? 200 : 502, body: response.ok ? '1' : '' };
+      if (method !== 'POST') return { status: 404, body: '' };
+      return forwardCollectorEvent({ host: required.host, path, body, contentType }, { request });
     } },
     source: `function(options){
       var config=${config}, current='pending', client=null, loading=null, generation=0;
@@ -148,16 +145,3 @@ export function postHogBrowserContribution(required: {
     }`,
   };
 }
-
-/** Reject private tokens and credential-bearing endpoints before any browser source exists.
- * Errors are fixed copy: submitted values must never enter diagnostics. O(input bytes).
- */
-export function validatePostHogBrowserConfig({ apiKey, host }: { apiKey: string; host: string }, _optional = {}): void {
-  if (!/^phc_[A-Za-z0-9_]+$/.test(apiKey)) throw new TypeError('Use a PostHog project key starting with phc_, not a personal API key.');
-  let url: URL;
-  try { url = new URL(host); } catch { throw new TypeError('Use an HTTP or HTTPS host URL without credentials.'); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
-    throw new TypeError('Use an HTTP or HTTPS host URL without credentials.');
-  }
-}
-

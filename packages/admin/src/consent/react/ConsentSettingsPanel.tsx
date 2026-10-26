@@ -17,6 +17,8 @@ export interface ConsentSettingsView {
   enabled: boolean;
   /** Optional for older hosts; omitted means the dynamic code exception is off. */
   allowUnsafeEval?: boolean;
+  /** Optional for older hosts; omitted uses the Jini banner when consent is enabled. */
+  bannerMode?: 'jini' | 'headless' | 'off';
   regionMode: 'auto' | 'opt-in' | 'opt-out';
   policyVersion: string;
   privacyPolicyUrl: string;
