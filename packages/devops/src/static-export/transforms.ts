@@ -1,5 +1,5 @@
 import { htmlUrlLocations } from './html-url-locations.js';
-export { htmlUrlLocations, exportUrlLocations } from './html-url-locations.js';
+export { exportUrlLocations } from './html-url-locations.js';
 import { ExportPathError } from './contracts.js';
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!); }
@@ -113,7 +113,7 @@ export function renderRedirectStub(required: { location: string }, optional: { b
 /** HTML URL attributes; form actions are diagnostic references, never crawled as assets. */
 export function* extractHtmlReferences(required: { html: string }, _optional: Record<string, never> = {}): Generator<{ url: string; attribute: string }> {
   for (const { start, end, kind, attribute } of htmlUrlLocations(required)) {
-    if (kind === 'css' || (start === end && kind !== 'action')) continue;
+    if (kind === 'css' || attribute?.startsWith('data-') || (start === end && kind !== 'action')) continue;
     for (const url of attributeUrls(kind, required.html.slice(start, end))) yield { url, attribute: attribute! };
   }
 }

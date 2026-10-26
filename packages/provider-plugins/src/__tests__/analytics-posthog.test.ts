@@ -155,7 +155,7 @@ test("LLM analytics maps neutral metadata to PostHog's event contract with autho
   expect(events.map((event) => [event.event, event.distinct_id])).toEqual([["$ai_generation", "site:s1"], ["$ai_generation", "site:s1"]]);
   expect(events[0]?.properties).toMatchObject({ $ai_model: "model-1", $ai_provider: "anthropic", $ai_input_tokens: 12, $ai_output_tokens: 4, $ai_cache_read_input_tokens: 2,
     $ai_latency: 1.5, $ai_total_cost_usd: 0.01, cost_source: "provider", $ai_trace_id: "r1", $ai_span_id: "r1:turn:0", $ai_is_error: false, tool_call_count: 1,
-    site_id: "s1", site_slug: "blog", environment: "local", $groups: { site: "s1" } });
+    site_id: "s1", site_slug: "blog", environment: "local", $groups: { site: "s1" }, $process_person_profile: false });
   expect(events[1]?.properties).toMatchObject({ $ai_trace_id: "r2", $ai_is_error: true });
   for (const key of ["$ai_model", "$ai_input_tokens", "$ai_output_tokens", "$ai_total_cost_usd"]) expect(events[1]?.properties).not.toHaveProperty(key);
   expect(JSON.stringify(events)).not.toMatch(/private|spoofed/);
@@ -205,7 +205,7 @@ test('server visitor counters cannot create person profiles, even through caller
 });
 
 
-test('visitor suppression is authoritative while owner capture and AI events keep their profile policy', async () => {
+test('visitor suppression is authoritative, owner capture keeps its profile policy, and AI generations never create profiles', async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid' }, { fetch, flushAt: 1 });
   resource.port.capture({ name: 'visitor_event', userId: 'visitor:ephemeral', properties: { $process_person_profile: true } });
@@ -215,5 +215,5 @@ test('visitor suppression is authoritative while owner capture and AI events kee
   resource.port.captureAiGeneration!({ userId: 'visitor:ephemeral', properties: {} });
   await resource.dispose({});
   const events = batches.flatMap(batch => batch.body.batch);
-  expect(events.map(event => event.properties.$process_person_profile)).toEqual([false, undefined, true, undefined, false]);
+  expect(events.map(event => event.properties.$process_person_profile)).toEqual([false, undefined, true, false, false]);
 });

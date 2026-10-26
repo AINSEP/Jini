@@ -21,10 +21,12 @@ function isImageMetadata({ element }: { element: Element }, _optional = {}): boo
   return property === 'og:image' || property === 'twitter:image';
 }
 
-/** Attribute kinds are shared by rewriting, crawling and diagnostic references. */
+/** Attribute kinds are shared by rewriting, crawling and diagnostic references. Script-read
+ *  `data-*-href`/`-src` values (the see-more button's batch URL) are URLs too; references skip them. */
 function attributeKind({ element, name }: { element: Element; name: string }, _optional = {}): HtmlUrlLocation['kind'] | undefined {
-  if (URL_ATTRIBUTES.has(name)) return 'url';
-  if (name === 'srcset') return 'srcset';
+  const urlName = /^data-(?:[\w-]*-)?(href|src|srcset|poster)$/.exec(name)?.[1] ?? name;
+  if (URL_ATTRIBUTES.has(urlName)) return 'url';
+  if (urlName === 'srcset') return 'srcset';
   if (name === 'style') return 'css';
   if (name === 'action' && element.tagName === 'form') return 'action';
   if (name === 'content' && element.tagName === 'meta' && isImageMetadata({ element })) return 'url';
@@ -63,7 +65,7 @@ export function htmlUrlLocations({ html }: { html: string }, _optional = {}): Ht
     if ('tagName' in node) locations.push(...elementLocations({ element: node, html }));
     if ('content' in node) pending.push(node.content);
   }
-  return [...new Map(locations.map(location => [location.start, location])).values()].sort((a, b) => a.start - b.start);
+  return locations.sort((a, b) => a.start - b.start);
 }
 
 
