@@ -1,7 +1,7 @@
-/** @file PostHog's cookie-consent adapter: the browser module the consent client imports only on an
- * analytics grant. Built to `server/consent-adapter.mjs` and served same-origin by `consent.ts`, so no
- * PostHog byte reaches a visitor before a choice. The SDK is the pinned posthog-js file; the browser
- * checks it against its SHA-256 (SRI) and never runs other bytes. Types only from the consent package. */
+/** @file PostHog's cookie-consent adapter: the browser module imported when the policy allows analytics.
+ * Built to `server/consent-adapter.mjs` and served same-origin by `consent.ts`. Anonymous mode sends
+ * only an aggregate pageview; full mode loads the pinned posthog-js SDK. The browser checks that SDK
+ * against its SHA-256 (SRI) and never runs other bytes. Types only from the consent package. */
 import type { ConsentAdapter, Revoker, StoragePrefixes } from '@jini-ai/cookie-consent';
 
 /** Public browser config only: the project key is publishable, `host` is the same-origin collector path. */
@@ -24,6 +24,24 @@ export interface PostHogConsentPorts {
   /** Resolves the SDK only when the bytes matched `integrity`; rejects before any SDK code ran otherwise. */
   loadSdk(required: { src: string; integrity: string }, optional?: object): Promise<PostHogSdk>;
   location: { origin: string; pathname: string; hostname: string };
+  request?: typeof fetch;
+}
+
+/** One aggregate pageview, shared by browser and collector. A constant subject never links visitors
+ * or pages. No SDK: 1.260.2 probes localStorage even with memory persistence. @complexity O(1). */
+export function anonymousPageview({ apiKey, siteId }: { apiKey: string; siteId?: string | undefined }, _optional = {}): string {
+  return JSON.stringify({ api_key: apiKey, event: '$pageview', properties: {
+    distinct_id: 'visitor:ephemeral', $process_person_profile: false, $geoip_disable: true,
+    surface: 'site', ...(siteId ? { site_id: siteId } : {}),
+  } });
+}
+
+/** Cookieless aggregate delivery; no SDK, identity, replay, DOM capture or storage access.
+ * Fetch failures are isolated like SDK loading failures. @complexity O(1), one request. */
+async function grantAnonymous({ config, signal, ports }: { config: PostHogConsentConfig; signal: AbortSignal; ports: PostHogConsentPorts }): Promise<Revoker> {
+  await (ports.request ?? fetch)(config.host + '/e/', { method: 'POST', credentials: 'omit', referrerPolicy: 'no-referrer',
+    headers: { 'content-type': 'application/json' }, body: anonymousPageview(config), signal }).catch(() => undefined);
+  return { revoke: () => true };
 }
 
 /** Every key posthog-js 1.260.2 writes: `ph_<name>` persistence and the `__ph_opt_in_out_*` flag. */
@@ -120,8 +138,10 @@ export function loadVerifiedSdk({ src, integrity, doc }: { src: string; integrit
 export function createPostHogConsentAdapter({ ports }: { ports: PostHogConsentPorts }, _optional = {}): ConsentAdapter<PostHogConsentConfig> {
   let client: PostHogClient | null = null;
   return {
-    id: 'posthog', kind: 'consent-adapter', category: 'analytics', storage: POSTHOG_STORAGE,
-    async grant({ config, signal }): Promise<Revoker | null> {
+    id: 'posthog', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, storage: POSTHOG_STORAGE,
+    async grant({ config, state, signal }): Promise<Revoker | null> {
+      if (signal.aborted) return null;
+      if (state.analyticsLevel === 'anonymous') return grantAnonymous({ config, signal, ports });
       let sdk: PostHogSdk;
       try { sdk = await ports.loadSdk({ src: config.sdk, integrity: config.integrity }); } catch { return null; }   // nothing ran
       if (signal.aborted) return null;                                       // withdrawn while the SDK downloaded

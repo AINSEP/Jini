@@ -28,14 +28,15 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   const slots = new Map<string, Slot>();
   const listeners = new Set<(s: ConsentState) => void>();
   const ran = new Set<Optional>();                                    // categories whose raw inert tags executed
+  const anonymous = config.banner === 'off';
   const maxAgeMs = (config.maxAgeDays ?? 180) * DAY_MS;
-  const region = regionFrom({ configured: config.regionMode, hint: readCookie(doc, REGION_COOKIE) });
-  const fromCookie = () => parseStored({ raw: readCookie(doc, CONSENT_COOKIE) });
+  const region = regionFrom({ configured: config.regionMode, hint: anonymous ? null : readCookie(doc, REGION_COOKIE) });
+  const fromCookie = () => anonymous ? null : parseStored({ raw: readCookie(doc, CONSENT_COOKIE) });
   let stored = fromCookie();
   let state = compute();
 
   function compute(): ConsentState {
-    return effective({ stored, policy: config.policy, region, gpc: ports.gpc(), nowMs: ports.now() }, { maxAgeMs, durable: !!durable });
+    return effective({ stored, policy: config.policy, region, gpc: ports.gpc(), nowMs: ports.now() }, { maxAgeMs, durable: !!durable, anonymous });
   }
   function persist(): void {
     writeCookie(doc, { name: CONSENT_COOKIE, value: JSON.stringify(stored), maxAgeS: maxAgeMs / 1000 }, { domain: config.cookieDomain });
@@ -61,7 +62,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const revoker = await run.result;
     if (!revoker) return false;
     const clean = revoker.revoke ? await Promise.resolve().then(() => revoker.revoke!()).catch(() => false) : false;
-    purge(doc, slot.adapter?.storage ?? slot.entry.storage);
+    if (!anonymous) purge(doc, slot.adapter?.storage ?? slot.entry.storage);
     return !clean;
   }
   function reconcile(next: ConsentState): void {
@@ -72,7 +73,8 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
       if (!allowed && slot.run) stops.push(stop(slot));
       quiet(() => slot.adapter?.onState?.({ state: next }));
     }
-    activateInert(doc, { allowed: next.allowed, ran });
+    // Raw tags cannot promise anonymous behavior; only declared adapters can.
+    if (!anonymous) activateInert(doc, { allowed: next.allowed, ran });
     const rawRevoked = OPTIONAL.some(c => ran.has(c) && !next.allowed[c]);
     void Promise.all(stops).then(dirty => { if (rawRevoked || dirty.includes(true)) ports.reload(); });
   }
@@ -103,6 +105,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   }
 
   async function set({ action }: { action: ConsentAction }, { choices: picked = {} }: { choices?: Partial<Flags> } = {}): Promise<ConsentState> {
+    if (anonymous) return apply();
     const previousId = stored?.r;
     stored = { v: 1, p: config.policy, c: choicesFor({ action, picked }), t: ports.now(), a: action, ...(durable ? { q: 1 as const } : {}) };
     persist();
@@ -113,10 +116,11 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   }
 
   function addSlot(entry: AdapterContribution): void {
+    if (anonymous && !entry.supportsAnonymous) return;
     const slot: Slot = { entry, adapter: isLive(entry) ? entry : undefined };
     slots.set(entry.id, slot);
     if (state.allowed[entry.category]) start(slot);
-    else purge(doc, entry.storage);                                     // leftovers of an expired or withdrawn choice
+    else if (!anonymous) purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
     quiet(() => slot.adapter?.onState?.({ state }));                    // lazy adapters get state once loaded
   }
   function syncSlots(items: readonly Contribution[]): void {
@@ -163,7 +167,7 @@ function resolveOptions(options: ClientOptions): { plugins: PluginRegistry; dura
 export function browserPorts(win: Window & typeof globalThis): ClientPorts {
   return {
     doc: win.document, fetch: win.fetch.bind(win), now: Date.now, reload: () => win.location.reload(),
-    gpc: () => (win.navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true,
+    gpc: () => (win.navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true || win.navigator.doNotTrack === '1',
     importModule: src => import(/* @vite-ignore */ src) as Promise<{ default: ConsentAdapter }>,
   };
 }

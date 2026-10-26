@@ -25,7 +25,7 @@ export type ConsentAction = typeof ACTIONS[number];
 export type RegionMode = 'opt-in' | 'opt-out';
 /** A resolver's definite answer. Resolvers return null for "unknown: ask the next one". */
 export type RegionHint = 'us' | 'strict';
-/** jini = the built-in banner; headless = "My own" banner over the API; off = nothing is emitted. */
+/** jini = the built-in banner; headless = "My own" banner; off = anonymous analytics only, no UI. */
 export const BANNER_MODES = ['jini', 'headless', 'off'] as const;
 export type BannerMode = typeof BANNER_MODES[number];
 /** durable = a server stores receipts and grants wait for one; local = browser-only evidence (static
@@ -43,10 +43,13 @@ export interface ConsentState {
   policy: string;
   status: 'pending' | 'set';
   region: RegionMode;
+  /** Effective privacy opt-out: GPC or DNT. The historical field name is retained on receipts. */
   gpc: boolean;
+  /** Analytics adapters/collectors must enforce this level, not just allowed.analytics. */
+  analyticsLevel: 'none' | 'anonymous' | 'full';
   /** What the banner shows: the choice (or region default), GPC-clamped. */
   choices: Choices;
-  /** What may RUN. Equals `choices` except durable-mode grants still awaiting their receipt.
+  /** What may RUN. Anonymous analytics needs no choice; durable grants await their receipt.
    * Adapters, inert tags, host features and the server gate all read this, never `choices`. */
   allowed: Choices;
   action: ConsentAction | null;
@@ -81,6 +84,8 @@ export interface GrantInput<C> { config: C; state: ConsentState; signal: AbortSi
 /** Lives in the vendor's plugin. grant() returns null when it ran no vendor code (signal aborted first). */
 export interface ConsentAdapter<C = unknown> extends Contribution<typeof ADAPTER_KIND> {
   category: Optional;
+  /** Only adapters explicitly implementing the anonymous restrictions may run at that level. */
+  supportsAnonymous?: true;
   config?: C;
   storage?: StoragePrefixes;
   grant(required: GrantInput<C>, optional?: object): Promise<Revoker | null> | Revoker | null;
@@ -90,6 +95,7 @@ export interface ConsentAdapter<C = unknown> extends Contribution<typeof ADAPTER
  * consent-mode default) registers a live adapter through window.jiniConsentQueue instead. */
 export interface LazyAdapter extends Contribution<typeof ADAPTER_KIND> {
   category: Optional; src: string; config?: unknown; storage?: StoragePrefixes;
+  supportsAnonymous?: true;
 }
 export type AdapterContribution = ConsentAdapter | LazyAdapter;
 

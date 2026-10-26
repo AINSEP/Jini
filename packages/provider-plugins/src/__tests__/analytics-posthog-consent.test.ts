@@ -50,7 +50,7 @@ describe('postHogConsentContribution (server)', () => {
 
   it('describes a lazy analytics adapter the consent registry accepts, with public config only', () => {
     const { adapter, http } = postHogConsentContribution(base);
-    expect(adapter).toEqual({ id: 'posthog', kind: 'consent-adapter', category: 'analytics', src: '/_consent/posthog/consent-adapter.mjs',
+    expect(adapter).toEqual({ id: 'posthog', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, src: '/_consent/posthog/consent-adapter.mjs',
       storage: POSTHOG_STORAGE, config: { apiKey: key, host: '/_consent/posthog', sdk: '/_consent/posthog/sdk-1.260.2.js',
         integrity: POSTHOG_SDK_INTEGRITY, sessionReplay: false, siteId: 'site-1' } });
     expect(http.path).toBe('/_consent/posthog');
@@ -113,6 +113,7 @@ describe('PostHog consent adapter (browser module)', () => {
       persistence_name: 'jini_site_site-1', person_profiles: 'identified_only', disable_session_recording: true, request_batching: false,
       mask_all_text: true, mask_all_element_attributes: true, disable_external_dependency_loading: true, ip: false });
     expect(f.identified).toEqual(['visitor:anon-1']);
+    expect(f.inits[0]!.before_send({ event: '$pageview' }).properties.$process_person_profile).toBe(true);
   });
 
   it('runs nothing when the SDK fails its integrity check or the choice is withdrawn mid-download', async () => {

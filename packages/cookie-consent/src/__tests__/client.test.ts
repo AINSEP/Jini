@@ -49,10 +49,12 @@ describe('grant and withdraw', () => {
     await api.set({ action: 'accept' });
     await flush();
     expect(stats.grant).toHaveBeenCalledTimes(1);
+    expect(api.get().analyticsLevel).toBe('full');
     expect(document.documentElement.getAttribute('data-consent')).toBe('set');
 
     const rejecting = api.set({ action: 'reject' });
     expect(api.get().allowed.analytics).toBe(false);          // synchronous: before the promise settles
+    expect(api.get().analyticsLevel).toBe('none');
     expect(cookieChoice()?.a).toBe('reject');
     await rejecting;
     await flush();

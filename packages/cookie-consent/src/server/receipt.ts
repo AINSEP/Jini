@@ -56,7 +56,7 @@ export async function handleReceipt({ request, ports }: { request: Request; port
 
 async function toRecord({ request, body, action, policy, ports, options }: { request: Request; body: Body; action: ConsentAction; policy: string; ports: ReceiptPorts; options: ReceiptOptions }): Promise<ConsentRecord> {
   // eslint-disable-next-line no-restricted-syntax -- the Global Privacy Control request header, not a spec id
-  const gpc = request.headers.get('sec-gpc') === '1' || body.gpc === true;
+  const gpc = request.headers.get('sec-gpc') === '1' || request.headers.get('dnt') === '1' || body.gpc === true;
   const flags = choicesFor({ action, picked: isFlags(body.choices) ? body.choices : {} });
   const regionMode = await (options.region ? options.region({ request }) : regionFrom({ configured: options.regionMode ?? 'auto', hint: cookie(request.headers.get('cookie'), REGION_COOKIE) }));
   return { id: ports.ids(), timestamp: new Date(ports.now()).toISOString(), policyVersion: policy, regionMode, gpc, action, choices: clamp({ flags, gpc }) };
@@ -102,9 +102,10 @@ function cookie(header: string | null | undefined, name: string): string | null 
  * own events, never proof. Proof is the receipt. No file read per event. @complexity O(cookie header). */
 export function readConsent(
   { cookieHeader, policy, regionMode }: { cookieHeader: string | null | undefined; policy: string; regionMode: 'auto' | RegionMode },
-  { secGpc, nowMs = Date.now(), maxAgeMs = DEFAULT_MAX_AGE_MS, regionHint }: { secGpc?: string | null; nowMs?: number; maxAgeMs?: number; regionHint?: 'us' | null } = {},
+  { secGpc, dnt, anonymous = false, nowMs = Date.now(), maxAgeMs = DEFAULT_MAX_AGE_MS, regionHint }: { secGpc?: string | null; dnt?: string | null; anonymous?: boolean; nowMs?: number; maxAgeMs?: number; regionHint?: 'us' | null } = {},
 ): ConsentState {
-  const hint = regionHint === undefined ? cookie(cookieHeader, REGION_COOKIE) : regionHint;
-  return effective({ stored: parseStored({ raw: cookie(cookieHeader, CONSENT_COOKIE) }), policy, gpc: secGpc === '1',
-    region: regionFrom({ configured: regionMode, hint }), nowMs }, { maxAgeMs, durable: true });
+  const header = anonymous ? null : cookieHeader;
+  const hint = regionHint === undefined ? cookie(header, REGION_COOKIE) : regionHint;
+  return effective({ stored: parseStored({ raw: cookie(header, CONSENT_COOKIE) }), policy, gpc: secGpc === '1' || dnt === '1',
+    region: regionFrom({ configured: regionMode, hint }), nowMs }, { maxAgeMs, durable: true, anonymous });
 }
