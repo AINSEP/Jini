@@ -14,7 +14,7 @@ export interface LoginProps extends LoginHookProps, LoginOptions {
 export function Login({ onLogin, port, translate, productName, initialUsername, useLoginHook = useLogin }: LoginProps) {
   const { username, setUsername, password, setPassword, error, busy, submit } = useLoginHook({ onLogin, port, translate }, { initialUsername });
   const t = translate;
-  const passwordLabelId = useId();
+  const passwordInputId = useId();
 
   return (
     <div className="login-screen">
@@ -25,12 +25,12 @@ export function Login({ onLogin, port, translate, productName, initialUsername, 
           {t("Username")}
           <input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
         </label>
-        {/* `aria-labelledby`: the eye toggle inside this label must not join the input's name. */}
-        <label>
-          <span id={passwordLabelId}>{t("Password")}</span>
-          <SecretInput label={t("Password")} toggleLabels={{ show: t("Show password"), hide: t("Hide password") }} aria-labelledby={passwordLabelId}
+        {/* A sibling label keeps the eye toggle's name out of the input's accessible name. */}
+        <div>
+          <label htmlFor={passwordInputId}>{t("Password")}</label>
+          <SecretInput id={passwordInputId} label={t("Password")} toggleLabels={{ show: t("Show password"), hide: t("Hide password") }}
             autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
+        </div>
         {error ? <div className="login-error">{error}</div> : null}
         <button disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</button>
       </form>

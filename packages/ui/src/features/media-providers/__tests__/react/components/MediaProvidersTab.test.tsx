@@ -142,11 +142,15 @@ describe('MediaProvidersTab', () => {
 
     const input = screen.getByLabelText('Alpha Images API key');
     expect(input).toHaveAttribute('type', 'password');
+    expect(input.closest('.jini-secret')).not.toBeNull();
+    expect(input.closest('label')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show Alpha Images API key' })).toHaveAttribute('aria-pressed', 'false');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Alpha Images Show' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show Alpha Images API key' }));
     expect(input).toHaveAttribute('type', 'text');
 
-    await userEvent.click(screen.getByRole('button', { name: 'Alpha Images Hide' }));
+    expect(screen.getByRole('button', { name: 'Hide Alpha Images API key' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide Alpha Images API key' }));
     expect(input).toHaveAttribute('type', 'password');
   });
 

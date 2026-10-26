@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { renderHook, cleanup } from '@testing-library/react';
+import { render, renderHook, screen, fireEvent, cleanup } from '@testing-library/react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { UsersViewContext } from '../hooks/UsersPage.hooks.js';
 import { useUserRow, useUsersConfirmation } from '../hooks/UsersTab.hooks.js';
@@ -7,6 +7,9 @@ import { createUsersController } from '../../controllers/users.controller.js';
 import type { UsersController } from '../../controllers/users.controller.js';
 import type { UserAction, UsersState } from '../../models.js';
 import { fixtures, alice } from '../../__tests__/people.fixtures.js';
+import { KitProvider } from '@jini-ai/ui-kit/react';
+import { usersKitNeeds } from '../index.js';
+import { UsersConfirmation } from '../components/UsersConfirmation.js';
 
 afterEach(cleanup);
 
@@ -111,9 +114,29 @@ describe('useUsersConfirmation (pins)', () => {
   });
 
   it('shown password fields are text with hide labels', () => {
-    const { wrapper } = harness({ state: { showNewPassword: true, showConfirmPassword: true } });
-    const { result } = renderHook(() => useUsersConfirmation(), { wrapper });
-    expect([result.current.newType, result.current.confirmType, result.current.newLabel, result.current.confirmLabel]).toEqual(['text', 'text', 'Hide new password', 'Hide confirm password']);
+    const { wrapper } = harness({ state: { pending: { kind: 'reset', user: alice }, showNewPassword: true, showConfirmPassword: true } });
+    render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
+    expect(screen.getByLabelText('New password')).toHaveAttribute('type', 'text');
+    expect(screen.getByLabelText('Confirm new password')).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Hide New password' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Hide Confirm new password' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('renders one shared eye per reset field and routes changes through the controller', () => {
+    const { wrapper, controller } = harness({ state: { pending: { kind: 'reset', user: alice } } });
+    const { container } = render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
+    expect(container.querySelectorAll('.jini-secret-toggle')).toHaveLength(2);
+    const input = screen.getByLabelText('New password');
+    expect(input).toHaveAttribute('type', 'password');
+    expect(input).toHaveAttribute('autocomplete', 'new-password');
+    expect(input.closest('label')).toBeNull();
+    const value = ['fake', 'credential'].join('-');
+    fireEvent.change(input, { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Show New password' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show Confirm new password' }));
+    expect(controller.setDraft).toHaveBeenCalledWith({ patch: { newPassword: value } });
+    expect(vi.mocked(controller.togglePasswordVisible).mock.calls).toEqual([[{ field: 'new' }], [{ field: 'confirm' }]]);
+    expect(controller.confirmDestructive).not.toHaveBeenCalled();
   });
 
   it('handlers drive the controller: confirm, cancel, drafts and visibility toggles', async () => {
