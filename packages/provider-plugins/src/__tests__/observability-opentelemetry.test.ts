@@ -13,7 +13,7 @@ import { afterEach, test } from "vitest";
 
 import { SpanKind, SpanStatusCode, trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor, type ReadableSpan } from "@opentelemetry/sdk-trace-base";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
@@ -118,7 +118,7 @@ test("SDK factories reject an exporter of the wrong kind before starting a provi
 test("without test processors the SDK factories build a real OTLP exporter and accept it into the batch pipeline", async () => {
   const { exporterFactory, tracerProviderFactory } = createOtelFactories({});
   const exporter = exporterFactory.create({ endpoint: "http://127.0.0.1:9/v1/traces" });
-  assert.ok(exporter instanceof OTLPTraceExporter);
+  assert.ok(exporter instanceof OTLPExporterBase);
   const tracer = tracerProviderFactory.create({ serviceName: "tovu-default", exporter }).getTracer({ name: "tovu.test" });
   const span = tracer.startSpan({ name: "unended", kind: "internal", attributes: {} });
   assert.equal(typeof span.end, "function", "a provider built on the OTLP batch processor hands out live spans");
@@ -225,23 +225,34 @@ test("the plugin factory exports through the default OTLP batch pipeline with it
   const after: Array<() => unknown> = [];
   const t = { signal: new AbortController().signal, after: (fn: () => unknown) => { after.push(fn); } };
   try {
-  let receive!: (request: { method: string | undefined; url: string | undefined; contentType: string | undefined; authorization: string | undefined; body: string }) => void;
+  let receive!: (request: { method: string | undefined; url: string | undefined; contentType: string | undefined; authorization: string | undefined; leak: unknown; encoding: unknown; body: string }) => void;
   const received = new Promise<Parameters<typeof receive>[0]>((resolve, reject) => {
     receive = resolve;
     t.signal.addEventListener("abort", () => reject(t.signal.reason), { once: true });
   });
-  const originalCompression = process.env.OTEL_EXPORTER_OTLP_TRACES_COMPRESSION;
-  process.env.OTEL_EXPORTER_OTLP_TRACES_COMPRESSION = "none";
+  // Codex wave-2 HIGH: injected config only. Every standard OTEL_* variable an operator might have
+  // set is hostile here; none may change the endpoint, headers, compression, sampling or resource.
+  const hostileEnv: Record<string, string> = {
+    OTEL_EXPORTER_OTLP_HEADERS: "x-leak=env-secret", OTEL_EXPORTER_OTLP_TRACES_HEADERS: "authorization=Bearer env-token",
+    OTEL_EXPORTER_OTLP_ENDPOINT: "http://127.0.0.1:9", OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://127.0.0.1:9/env-traces",
+    OTEL_EXPORTER_OTLP_TRACES_COMPRESSION: "gzip", OTEL_EXPORTER_OTLP_COMPRESSION: "gzip", OTEL_EXPORTER_OTLP_TRACES_TIMEOUT: "1",
+    OTEL_TRACES_SAMPLER: "always_off", OTEL_SERVICE_NAME: "env-service", OTEL_RESOURCE_ATTRIBUTES: "env.leak=1",
+    OTEL_BSP_MAX_EXPORT_BATCH_SIZE: "0", OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT: "0",
+  };
+  const originalEnv = Object.fromEntries(Object.keys(hostileEnv).map((name) => [name, process.env[name]]));
+  Object.assign(process.env, hostileEnv);
   t.after(() => {
-    if (originalCompression === undefined) delete process.env.OTEL_EXPORTER_OTLP_TRACES_COMPRESSION;
-    else process.env.OTEL_EXPORTER_OTLP_TRACES_COMPRESSION = originalCompression;
+    for (const [name, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
   });
   const collector = createServer(async (request, response) => {
     let body = "";
     for await (const chunk of request) body += chunk.toString();
     response.writeHead(200, { "content-type": "application/json" });
     response.end("{}");
-    receive({ method: request.method, url: request.url, contentType: request.headers["content-type"], authorization: request.headers.authorization, body });
+    receive({ method: request.method, url: request.url, contentType: request.headers["content-type"], authorization: request.headers.authorization, leak: request.headers["x-leak"], encoding: request.headers["content-encoding"], body });
   });
   t.after(() => {
     collector.closeAllConnections();
@@ -266,11 +277,14 @@ test("the plugin factory exports through the default OTLP batch pipeline with it
   assert.equal(request.url, "/configured-traces");
   assert.equal(request.contentType, "application/json");
   assert.equal(request.authorization, "Basic b3duZXI6dG9rZW4=");
+  assert.equal(request.leak, undefined, "OTEL_EXPORTER_OTLP_HEADERS was ignored");
+  assert.equal(request.encoding, undefined, "OTEL_*_COMPRESSION was ignored");
   const payload = JSON.parse(request.body);
   assert.equal(payload.resourceSpans.length, 1);
   const [resourceSpans] = payload.resourceSpans;
   const service = resourceSpans.resource.attributes.find((attribute: { key: string }) => attribute.key === "service.name");
   assert.deepEqual(service.value, { stringValue: "tovu-default-pipeline-test" });
+  assert.equal(resourceSpans.resource.attributes.some((attribute: { key: string }) => attribute.key === "env.leak"), false, "OTEL_RESOURCE_ATTRIBUTES was ignored");
   assert.equal(resourceSpans.scopeSpans.length, 1);
   const [scope] = resourceSpans.scopeSpans;
   assert.equal(scope.scope.name, "tovu.observability");

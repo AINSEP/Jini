@@ -27,10 +27,12 @@
  */
 // Span lifecycle rationale: @jini-ai/diagnostics src/observability/otel.ts.
 import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Span, type Tracer } from "@opentelemetry/api";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { getSharedConfigurationDefaults, OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
+import { createOtlpHttpExportDelegate, httpAgentFactoryFromOptions } from "@opentelemetry/otlp-exporter-base/node-http";
+import { JsonTraceSerializer, TraceExporterMetricsHelper } from "@opentelemetry/otlp-transformer";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { BatchSpanProcessor, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { BatchSpanProcessor, ParentBasedSampler, AlwaysOnSampler, type ReadableSpan, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { createOtelObservabilityPort, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
@@ -40,6 +42,28 @@ export interface OtelAdapterOptions {
   headers?: Readonly<Record<string, string>>;
   /** Test seam: replace the OTLP batch pipeline with explicit SDK span processors. */
   spanProcessors?: SpanProcessor[];
+}
+
+/**
+ * Injected configuration only (Codex wave-2 HIGH, 2026-10-25): the SDK's convenience
+ * `OTLPTraceExporter` merges `OTEL_EXPORTER_OTLP_*` variables (headers, endpoint, compression,
+ * timeout) under the given options, so credentials an operator left in the environment would ride
+ * every export to whichever collector a site's settings card names. The exporter is assembled from
+ * the SDK's own OTLP/HTTP parts with every option stated, and the provider below states the sampler,
+ * span limits and batch settings the SDK would otherwise default from `OTEL_*` variables.
+ */
+const OTLP_SPAN_EXPORTER_COMPONENT = "otlp_http_span_exporter";
+const BATCH_DEFAULTS = { maxExportBatchSize: 512, maxQueueSize: 2048, scheduledDelayMillis: 5000, exportTimeoutMillis: 30_000 };
+const LIMITS = { attributeValueLengthLimit: Infinity, attributeCountLimit: 128 };
+const SPAN_LIMITS = { ...LIMITS, linkCountLimit: 128, eventCountLimit: 128, attributePerEventCountLimit: 128, attributePerLinkCountLimit: 128 };
+
+/** OTLP/HTTP JSON trace exporter from injected `url` + `headers` only; never reads the environment. */
+export function createInjectedOtlpTraceExporter({ url, headers }: { url: string; headers?: Readonly<Record<string, string>> }): OTLPExporterBase<ReadableSpan[]> {
+  const requestHeaders = { "Content-Type": "application/json", ...headers };
+  return new OTLPExporterBase(createOtlpHttpExportDelegate({
+    ...getSharedConfigurationDefaults(), url, headers: async () => ({ ...requestHeaders }),
+    agentFactory: httpAgentFactoryFromOptions({ keepAlive: true }),
+  }, JsonTraceSerializer, OTLP_SPAN_EXPORTER_COMPONENT, TraceExporterMetricsHelper, undefined));
 }
 
 const SDK_SPAN_KINDS: Record<TraceSpanKind, SpanKind> = { server: SpanKind.SERVER, client: SpanKind.CLIENT, internal: SpanKind.INTERNAL };
@@ -98,7 +122,7 @@ export function createOtelFactories(_required: Record<string, never>, options: O
     exporterFactory: {
       create: ({ endpoint }) => {
         if (options.spanProcessors !== undefined) return undefined;
-        return new OTLPTraceExporter({ url: endpoint, ...(options.headers ? { headers: { ...options.headers } } : {}) });
+        return createInjectedOtlpTraceExporter({ url: endpoint, ...(options.headers ? { headers: options.headers } : {}) });
       },
     },
     tracerProviderFactory: {
@@ -107,10 +131,13 @@ export function createOtelFactories(_required: Record<string, never>, options: O
         if (spanProcessors === undefined) {
           // The diagnostics port treats exporters as opaque. Narrow at the SDK boundary rather
           // than casting an arbitrary port value into a live processor's exporter dependency.
-          if (!(exporter instanceof OTLPTraceExporter)) throw new TypeError("OpenTelemetry requires an OTLP trace exporter");
-          spanProcessors = [new BatchSpanProcessor(exporter)];
+          if (!(exporter instanceof OTLPExporterBase)) throw new TypeError("OpenTelemetry requires an OTLP trace exporter");
+          spanProcessors = [new BatchSpanProcessor(exporter as OTLPExporterBase<ReadableSpan[]>, BATCH_DEFAULTS)];
         }
-        const provider = new NodeTracerProvider({ resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName }), spanProcessors });
+        const provider = new NodeTracerProvider({
+          resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName }), spanProcessors,
+          sampler: new ParentBasedSampler({ root: new AlwaysOnSampler() }), generalLimits: LIMITS, spanLimits: SPAN_LIMITS,
+        });
         providers.push(provider);
         return { getTracer: ({ name }) => adaptTracer({ tracer: provider.getTracer(name) }) };
       },
