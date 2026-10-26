@@ -40,7 +40,7 @@ export function createTelemetryTestProbe(_required: Record<string, never>, _opti
       return active.run(new Map(), async () => {
         await tracker.trace({ name: "telemetry.test", run: async () => {
           tracker.metric({ name: "telemetry.test", value: 1 }, { kind: "counter" });
-          tracker.error({ error: error }, { context: { operation: "telemetry.test" } });
+          tracker.error({ error }, { context: { operation: "telemetry.test" } });
           await tracker.capture({ name: "telemetry_test", userId });
         } });
         return { providers: [...active.getStore()!].map(([providerId, signals]) => ({ providerId, signals: [...signals] })) };

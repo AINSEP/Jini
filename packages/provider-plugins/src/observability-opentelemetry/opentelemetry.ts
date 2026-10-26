@@ -26,7 +26,7 @@
  * (provider shutdown: flushes the batch queue, stops its timer) for the host's teardown.
  */
 // Span lifecycle rationale: @jini-ai/diagnostics src/observability/otel.ts.
-import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Span, type Tracer } from "@opentelemetry/api";
+import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Meter, type Span, type Tracer } from "@opentelemetry/api";
 import { getSharedConfigurationDefaults, OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createOtlpHttpExportDelegate, httpAgentFactoryFromOptions } from "@opentelemetry/otlp-exporter-base/node-http";
 import { JsonTraceSerializer, TraceExporterMetricsHelper, JsonMetricsSerializer, MetricsExporterMetricsHelper, type ISerializer, type IExporterMetricsHelper } from "@opentelemetry/otlp-transformer";
@@ -232,8 +232,18 @@ function createMetricProvider({ config }: { config: ObservabilityConfigEnabled }
   return new MeterProvider({ resource: resourceFromAttributes({ ...options.resourceAttributes, [ATTR_SERVICE_NAME]: config.serviceName }), readers });
 }
 
+type Measurement = { meter: Meter; name: string; value: number; settings: { unit?: string }; attributes: ReturnType<typeof redactOperationAttributes> };
+/** One recorder per kind (a table keeps `metric` under the complexity ceiling); the SDK returns the
+ * instrument already registered under the same name. An unknown kind from an untyped caller throws,
+ * which the fan-out contains. */
+const RECORD_METRIC: Readonly<Record<NonNullable<MetricOptions["kind"]>, (measurement: Measurement) => void>> = {
+  counter: ({ meter, name, value, settings, attributes }) => meter.createCounter(name, settings).add(value, attributes),
+  gauge: ({ meter, name, value, settings, attributes }) => meter.createGauge(name, settings).record(value, attributes),
+  histogram: ({ meter, name, value, settings, attributes }) => meter.createHistogram(name, settings).record(value, attributes),
+};
+
 /** Lazily owns one private SDK meter; the SDK reuses instruments and bounds attribute cardinality.
- * No global provider registration. Readers aggregate counter deltas, last-value gauges and histograms.
+ * No global provider registration. Readers export cumulative counter sums, last-value gauges and histograms.
  * @param required Configured service identity and trace route.
  * @param options Same injected headers/resource as tracing; readers replace all metrics network I/O.
  * @returns A metric port and shutdown hook; no pipeline starts until the first measurement.
@@ -248,15 +258,8 @@ function createMetrics({ config }: { config: ObservabilityConfigEnabled }, optio
     metric({ name, value }: MetricInput, { kind = "gauge", unit, attributes = {} }: MetricOptions = {}) {
       if (closed || !Number.isFinite(value)) return;
       provider ??= createMetricProvider({ config }, options);
-      const meter = provider.getMeter(config.tracerName);
-      const settings = unit === undefined ? {} : { unit };
-      const safe = redactOperationAttributes({ attributes });
-      switch (kind) {
-        case "counter": meter.createCounter(name, settings).add(value, safe); return;
-        case "gauge": meter.createGauge(name, settings).record(value, safe); return;
-        case "histogram": meter.createHistogram(name, settings).record(value, safe); return;
-        default: { const invalid: never = kind; throw new TypeError(`Unknown metric kind: ${invalid}`); }
-      }
+      RECORD_METRIC[kind]({ meter: provider.getMeter(config.tracerName), name, value,
+        settings: unit === undefined ? {} : { unit }, attributes: redactOperationAttributes({ attributes }) });
     },
     async shutdown() { closed = true; await provider?.shutdown(); },
   };
