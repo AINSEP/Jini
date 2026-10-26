@@ -1085,6 +1085,8 @@ test("ingestHit CIDR edge cases: /0 matches everything; NaN prefix, bad octets a
     // Each octet rule alone, inside a /16 that would otherwise contain the wrapped value.
     ["10.0.0.0/16", "10.0.0.256", false], ["10.0.0.0/16", "10.0.0.x", false], ["10.0.0.0/16", "10.0.1.-1", false],
     ["10.0.0.0/8x", "10.0.0.0", false], ["10.0.0/8", "0.0.0.1", false],
+    // FU-B (Codex on F5): a range must have exactly two slash-separated fields; "/0/24" was read as /0.
+    ["10.0.0.0/0/24", "203.0.113.1", false], ["10.0.0.0/24/", "10.0.0.1", false], ["10.0.0.0//24", "10.0.0.1", false],
   ] as const) {
     const { deps } = makeDeps({ config: makeConfigPort(makeConfig({ excludedIpRanges: [range] })) });
     const result = await ingestHit({ input: { beacon: makeBeacon(), context: makeContext({ ip }) }, deps });
