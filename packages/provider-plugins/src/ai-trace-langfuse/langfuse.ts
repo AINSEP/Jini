@@ -80,10 +80,19 @@ export function toLangfuseCall({ event }: { event: AiTraceEvent }): LangfuseCall
   return (MAPPERS[event.kind] as (e: AiTraceEvent) => LangfuseCall)(event);
 }
 
-export function createLangfuseAiTraceSink({ client }: { client: LangfuseClientPort }): AiTraceSink {
+/** Host attribution (e.g. which site ran the agent) on every trace call: metadata entries and tags. */
+function attributed({ call, attribution }: { call: LangfuseCall; attribution: { attributes: Readonly<Record<string, string>>; tags: readonly string[] } | undefined }): LangfuseCall {
+  if (!attribution || call.method !== 'trace') return call;
+  const { body } = call;
+  return { method: call.method, body: { ...body, metadata: { ...(body.metadata as Body | undefined), ...attribution.attributes },
+    // Both trace calls (`run_started`, `run_finished`) always carry a tags list.
+    tags: [...(body.tags as string[]), ...attribution.tags] } };
+}
+
+export function createLangfuseAiTraceSink({ client, attribution }: { client: LangfuseClientPort; attribution?: { attributes: Readonly<Record<string, string>>; tags: readonly string[] } }): AiTraceSink {
   return {
     record(event) {
-      const call = toLangfuseCall({ event });
+      const call = attributed({ call: toLangfuseCall({ event }), attribution });
       client[call.method](call.body);
     },
     flush: async () => {

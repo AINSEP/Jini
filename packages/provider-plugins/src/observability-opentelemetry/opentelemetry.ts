@@ -42,6 +42,8 @@ export interface OtelAdapterOptions {
   headers?: Readonly<Record<string, string>>;
   /** Test seam: replace the OTLP batch pipeline with explicit SDK span processors. */
   spanProcessors?: SpanProcessor[];
+  /** Host attribution (e.g. which site sent the span), added to the resource; `service.name` stays the host's. */
+  resourceAttributes?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -135,7 +137,7 @@ export function createOtelFactories(_required: Record<string, never>, options: O
           spanProcessors = [new BatchSpanProcessor(exporter as OTLPExporterBase<ReadableSpan[]>, BATCH_DEFAULTS)];
         }
         const provider = new NodeTracerProvider({
-          resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName }), spanProcessors,
+          resource: resourceFromAttributes({ ...options.resourceAttributes, [ATTR_SERVICE_NAME]: serviceName }), spanProcessors,
           sampler: new ParentBasedSampler({ root: new AlwaysOnSampler() }), generalLimits: LIMITS, spanLimits: SPAN_LIMITS,
         });
         providers.push(provider);

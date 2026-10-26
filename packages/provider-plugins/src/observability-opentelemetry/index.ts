@@ -2,6 +2,7 @@
 import type { PluginSdk } from '@jini-ai/plugins/host';
 import { resolveObservabilityConfig } from '@jini-ai/diagnostics/observability';
 import { createOtelObservabilityAdapter, type OtelAdapterOptions } from './opentelemetry.js';
+import { attributionOf } from '../attribution.js';
 
 const text = (value: unknown, name: string): string | undefined => {
   if (value === undefined) return undefined;
@@ -32,7 +33,8 @@ export function otlpHeadersOf(value: unknown): Record<string, string> | undefine
 /**
  * Builds the configured adapter. Hosts select this plugin only when an endpoint is configured.
  * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, headers? }`; credentials ride `headers` (object or
- *   the settings card's `Name=Value,…` text). `tracerName` defaults to `serviceName`.
+ *   the settings card's `Name=Value,…` text). `tracerName` defaults to `serviceName`. `attribution.attributes`
+ *   (host-named, e.g. which site) go on every span's resource.
  * @param optional `{ spanProcessors? }` test seam.
  * @returns `{ port, dispose }`. @throws TypeError on missing endpoint or malformed input.
  */
@@ -46,7 +48,8 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
   if (!config.enabled) throw new TypeError('an OTLP endpoint is required');
   const headers = otlpHeadersOf(required.headers);
   const spanProcessors = optional.spanProcessors as OtelAdapterOptions['spanProcessors'];
-  const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}) };
+  const resourceAttributes = attributionOf(required.attribution).attributes;
+  const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes };
   const { port, dispose } = createOtelObservabilityAdapter({ config }, options);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
