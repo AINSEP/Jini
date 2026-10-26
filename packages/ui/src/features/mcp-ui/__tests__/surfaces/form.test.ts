@@ -44,6 +44,31 @@ describe('renderFormDocument credential autofill guard', () => {
 });
 
 describe('renderFormDocument', () => {
+  it('requires a token until the explicit local choice, updating accessibility and allowing a blank submit', () => {
+    const surface = mountSurface(renderFormDocument({ ...SPEC, baseParams: {}, fields: [
+      { kind: 'string', name: 'token', label: 'Token', secret: true, required: true, requiredUnless: { field: 'auth', equals: 'none' }, hint: 'Choose "No authentication" only for a local collector.' },
+      { kind: 'enum', name: 'auth', label: 'Authentication', value: 'token', options: [{ value: 'token', label: 'Token' }, { value: 'none', label: 'No authentication (local collector, advanced)' }] },
+    ] }));
+    const token = surface.doc.querySelector<HTMLInputElement>('input[name="token"]')!;
+    const auth = surface.doc.querySelector<HTMLSelectElement>('select[name="auth"]')!;
+    expect(token.required).toBe(true);
+    surface.submit();
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.status()).toBe('Token is required. Choose "No authentication" only for a local collector.');
+    auth.value = 'none';
+    auth.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(token.required).toBe(false);
+    expect(token.getAttribute('aria-required')).toBe('false');
+    expect(token.labels![0]!.querySelector<HTMLElement>('.mcpui-required')!.hidden).toBe(true);
+    auth.value = 'token';
+    auth.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(token.required).toBe(true);
+    auth.value = 'none';
+    auth.dispatchEvent(new Event('change', { bubbles: true }));
+    surface.submit();
+    expect(surface.api.callTool).toHaveBeenCalledWith(SPEC.toolName, { token: '', auth: 'none' });
+  });
+
   it('reveals and re-masks a multiline secret without changing its value or calling a tool', () => {
     const surface = mountSurface(renderFormDocument({
       ...SPEC,

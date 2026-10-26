@@ -115,6 +115,8 @@ export interface PluginProviderSettingField {
   readonly label: string;
   readonly secret?: boolean;
   readonly required?: boolean;
+  /** Waive `required` only when this public setting has the exact declared value. */
+  readonly requiredUnless?: { readonly field: string; readonly equals: string };
   readonly hint?: string;
   /** Public fields only: the value a host prefills and uses while none is saved (e.g. a vendor's cloud host). */
   readonly default?: string;

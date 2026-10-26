@@ -410,6 +410,13 @@ test("card auth: no token keeps a card saved before these fields (raw headers) u
   assert.equal(otlpAuthHeaders({}), undefined);
 });
 
+test('explicit no authentication ignores a saved token and removes Authorization regardless of casing', () => {
+  const token = ['local', String(Date.now()), 'test'].join('-');
+  assert.deepEqual(otlpAuthHeaders({ auth: 'none', username: '123456', token, headers: { Authorization: token, authorization: token, 'X-Extra': '1' } }), { 'X-Extra': '1' });
+  assert.equal(otlpAuthHeaders({ auth: 'none', token }), undefined);
+  assert.deepEqual(otlpAuthHeaders({ token }), { Authorization: `Bearer ${token}` });
+});
+
 test("the factory sends the Basic header it built from the card's username + token", async () => {
   const token = ["glc", "_", String(Date.now())].join("");
   let resolveAuth!: (value: string | undefined) => void;
