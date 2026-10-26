@@ -30,17 +30,48 @@ export function otlpHeadersOf(value: unknown): Record<string, string> | undefine
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
+type OtlpCredentials = { auth?: string | undefined; username?: string | undefined; token?: string | undefined };
+
+/** Validate explicit modes and build their header value without exposing credentials in errors.
+ * Legacy callers without a mode, or with the former token mode, retain username/token inference.
+ * @throws TypeError on missing explicit-mode credentials. @complexity O(c) credential text length.
+ */
+function otlpAuthorization({ auth, username, token }: OtlpCredentials, _optional = {}): string | undefined {
+  if (auth === 'grafana-cloud' && !username?.trim()) throw new TypeError('Username / instance ID is required for Grafana Cloud');
+  const value = token?.trim();
+  if (!value) {
+    if (auth) throw new TypeError('Token is required');
+    return undefined;
+  }
+  return usesBasicAuthorization({ auth, username }) ? `Basic ${Buffer.from(`${username!.trim()}:${value}`).toString('base64')}` : `Bearer ${value}`;
+}
+
+/** Explicit modes win; legacy callers infer Basic only from a saved username. O(u) username text. */
+function usesBasicAuthorization({ auth, username }: OtlpCredentials, _optional = {}): boolean {
+  return auth === 'grafana-cloud' || ((auth === undefined || auth === 'token') && Boolean(username?.trim()));
+}
+
+/** A legacy raw Authorization header remains usable after the saved auth choice is normalized.
+ * Explicit tokens still replace raw auth; Grafana still requires its instance ID. O(b) header/credential text.
+ */
+function usesLegacyAuthorization({ auth, username, token, headers }: OtlpCredentials & { headers: Record<string, string> | undefined }, _optional = {}): boolean {
+  if (token?.trim()) return false;
+  if (auth === 'grafana-cloud' && !username?.trim()) return false;
+  return Object.entries(headers ?? {}).some(([name, value]) => name.toLowerCase() === 'authorization' && value.trim() !== '');
+}
+
 /**
- * The card's generic OTLP auth: `token` alone → `Authorization: Bearer <token>`; with `username` (a
- * Grafana Cloud instance ID, a collector user) → `Authorization: Basic base64(username:token)`. Built
- * here so nobody hand-encodes base64. It replaces any `Authorization` in the extra `headers`; with no
- * token, those headers (a card saved before these fields existed) apply unchanged. Explicit
- * `auth: 'none'` ignores the token and removes Authorization from extra headers too.
+ * Grafana Cloud uses Basic base64(instance:token); token-only uses Bearer; none removes auth.
+ * Built here so nobody hand-encodes base64. It replaces any Authorization in the extra headers;
+ * callers without an explicit mode or token keep older raw-header settings unchanged.
+ * Explicit authenticated modes fail before exporter construction if their credentials are absent.
+ * @throws TypeError with fixed text, never credential values. @complexity O(h) extra headers.
  */
 export function otlpAuthHeaders({ auth, username, token, headers }: { auth?: string | undefined; username?: string | undefined; token?: string | undefined; headers?: Record<string, string> | undefined }, _optional: Record<string, never> = {}): Record<string, string> | undefined {
   if (auth === 'none') return headers && Object.fromEntries(Object.entries(headers).filter(([name]) => name.toLowerCase() !== 'authorization'));
-  if (!token?.trim()) return headers;
-  const authorization = username?.trim() ? `Basic ${Buffer.from(`${username.trim()}:${token.trim()}`).toString('base64')}` : `Bearer ${token.trim()}`;
+  if (usesLegacyAuthorization({ auth, username, token, headers })) return headers;
+  const authorization = otlpAuthorization({ auth, username, token });
+  if (!authorization) return headers;
   const extra = Object.entries(headers ?? {}).filter(([name]) => name.toLowerCase() !== 'authorization');
   return { ...Object.fromEntries(extra), Authorization: authorization };
 }

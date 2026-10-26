@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { describe, expect, it } from 'vitest';
-import { allowsAnalyticsProof, readRequestAnalyticsProof, registerConsentHttp, type ConsentHttpPorts } from '../express/index.js';
+import { allowsAnalyticsProof, readRequestAnalyticsProof, readRequestBrowserAnalyticsMode, registerConsentHttp, type ConsentHttpPorts } from '../express/index.js';
 import { createConsentFileRecords } from '../node/index.js';
 import { CONSENT_MAX_AGE_MS, type ConsentRecord } from '../types.js';
 import { accepted, config, now } from './fixtures.js';
@@ -76,4 +76,18 @@ it('the file-record adapter retires only its validated active filename', async (
   await records.retire!({ id: accepted.id });
   expect(paths).toEqual([`/site/receipts/${accepted.id}.json`]);
   await expect(records.retire!({ id: '../escape' })).rejects.toThrow('Invalid consent receipt ID.');
+});
+
+it('same-origin browser collection needs a current explicit choice; reject and GPC stay anonymous', async () => {
+  const f = fixture();
+  expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request({ cookie: '' }) })).toBe('pending');
+  expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request() })).toBe('full');
+  expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request({ 'sec-gpc': '1' }) })).toBe('anonymous');
+  expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request({ dnt: '1' }) })).toBe('anonymous');
+  await f.ports.records.save({ record: { ...accepted, action: 'reject', choices: { necessary: true, functional: false, analytics: false, marketing: false } } });
+  expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request() })).toBe('anonymous');
+  await f.ports.records.retire!({ id: accepted.id });
+  expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request() })).toBe('pending');
+  f.ports.config.get = async () => { throw new Error('unavailable'); };
+  expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request() })).toBe('pending');
 });

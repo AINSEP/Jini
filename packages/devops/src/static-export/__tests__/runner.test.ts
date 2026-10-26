@@ -62,6 +62,37 @@ test('exports real response bytes/content types, route tree, redirect destinatio
   assert.equal(f.initByPath.get('/old')?.redirect, 'manual');
 });
 
+test('exports media referenced only by inline CSS, sitemap XML, a stylesheet or a JSON manifest before applying the base path', async () => {
+  const f = fixture();
+  const originalFetch = f.args.fetch;
+  f.args.assetUrlPrefixes = ['/assets/', '/m/'];
+  f.args.fetch = async (input, options) => {
+    const pathname = new URL(input.url).pathname;
+    f.fetched.push(pathname);
+    if (pathname === '/') return new Response('<link href="/assets/main.css"><link rel="manifest" href="/assets/app.webmanifest"><div style="background:url(/m/inline/original.svg)"></div>', { headers: { 'content-type': 'text/html' } });
+    if (pathname === '/sitemap.xml') return new Response('<image:loc>/m/sitemap/original.svg</image:loc>', { headers: { 'content-type': 'application/xml' } });
+    if (pathname === '/assets/main.css') return new Response('a{background:url(/m/css/original.svg)}', { headers: { 'content-type': 'text/css' } });
+    if (pathname === '/assets/app.webmanifest') return new Response('{"icons":[{"src":"/m/manifest/original.svg"}]}', { headers: { 'content-type': 'application/manifest+json' } });
+    if (pathname.startsWith('/m/')) return new Response('<svg/>', { headers: { 'content-type': 'image/svg+xml' } });
+    return originalFetch(input, options);
+  };
+  const report = await exportSite(f.args, { basePath: '/preview' });
+  assert.deepEqual(report.assets.failed, []);
+  for (const key of ['inline', 'sitemap', 'css', 'manifest']) {
+    const file = `m/${key}/original.svg`;
+    assert.equal(String(f.writes.get(file)), '<svg/>');
+    assert.equal(f.fetched.filter(url => url === '/' + file).length, 1);
+    const asset = report.assets.succeeded.find(asset => asset.outputFile === file);
+    assert.equal(asset?.contentType, 'image/svg+xml');
+  }
+  assert.equal(String(f.writes.get('assets/main.css')), 'a{background:url(/preview/m/css/original.svg)}');
+  assert.equal(String(f.writes.get('assets/app.webmanifest')), '{"icons":[{"src":"/preview/m/manifest/original.svg"}]}');
+  assert.match(String(f.writes.get('index.html')), /url\(\/preview\/m\/inline\/original\.svg\)/);
+  assert.equal(String(f.writes.get('sitemap.xml')), '<image:loc>/preview/m/sitemap/original.svg</image:loc>');
+  assert.equal(f.fetched.some(url => url.startsWith('/preview/')), false);
+  for (const asset of report.assets.succeeded) assert.deepEqual(asset.data, f.writes.get(asset.outputFile));
+});
+
 test('second export with clean:false replaces its HTML and binary files while keeping foreign files', async () => {
   const outputDir = await realpath(await mkdtemp(path.join(tmpdir(), 'static-export-rebuild-')));
   const f = fixture();

@@ -26,13 +26,17 @@ interface SurfaceFieldBase {
   /** Help text, wired up with `aria-describedby`. */
   readonly hint?: string;
   readonly required?: boolean;
-  /** A required control may be left blank when this other public control equals the given text. */
-  readonly requiredUnless?: { readonly field: string; readonly equals: string };
+  /** Waive on an exact public choice, or a nonblank alternative control (a kept secret counts). */
+  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string };
+  /** Require only while the controlling public field matches one of these choices. */
+  readonly requiredWhen?: { readonly field: string; readonly in: readonly string[] };
   readonly disabled?: boolean;
 }
 
 export interface StringField extends SurfaceFieldBase {
   readonly kind: 'string';
+  /** A sealed saved value satisfies validation while the requirement remains visible. */
+  readonly hasSavedValue?: boolean;
   readonly value?: string;
   readonly placeholder?: string;
   readonly multiline?: boolean;
@@ -144,7 +148,10 @@ export interface FieldReadSpec {
   readonly label: string;
   readonly kind: SurfaceField['kind'];
   readonly required: boolean;
-  readonly requiredUnless?: { readonly field: string; readonly equals: string };
+  readonly hasSavedValue?: boolean;
+  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string };
+  /** Require only while the controlling public field matches one of these choices. */
+  readonly requiredWhen?: { readonly field: string; readonly in: readonly string[] };
   readonly hint?: string;
 }
 
@@ -155,6 +162,9 @@ export function toFieldReadSpecs(fields: readonly SurfaceField[]): readonly Fiel
     label: field.label,
     kind: field.kind,
     required: field.required === true,
-    ...(field.requiredUnless ? { requiredUnless: field.requiredUnless, ...(field.hint ? { hint: field.hint } : {}) } : {}),
+    ...(field.requiredUnless ? { requiredUnless: field.requiredUnless } : {}),
+    ...(field.requiredWhen ? { requiredWhen: field.requiredWhen } : {}),
+    ...(field.kind === 'string' && field.hasSavedValue ? { hasSavedValue: true } : {}),
+    ...((field.requiredUnless || field.requiredWhen) && field.hint ? { hint: field.hint } : {}),
   }));
 }

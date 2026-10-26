@@ -18,13 +18,22 @@ const fakeSecret = () => ["sk", "live", "Q".repeat(12) + "z".repeat(12)].join("_
 test("an error object is reported once, with its operation and attributes", () => {
   const { port, reports } = recording();
   const failure = new Error("boom");
-  // Runner paths can resemble email addresses to the privacy filter; this case has no private data.
-  failure.stack = "Error: boom\n    at fixture (fixture.ts:1:1)";
   assert.equal(reportErrorOnce({ observability: port, error: failure, operation: "site.publish" }, { attributes: { status: 500 } }), true);
   assert.equal(reportErrorOnce({ observability: port, error: failure, operation: "http.request" }), false);
   assert.equal(reports.length, 1);
   assert.equal(reports[0]!.error, failure, "nothing to redact: the original error object is handed over");
   assert.deepEqual(reports[0]!.context, { operation: "site.publish", attributes: { status: 500 } });
+});
+
+test("versioned package stack frames retain the original error and complete stack", () => {
+  const { port, reports } = recording();
+  const failure = new Error("boom");
+  failure.stack = "Error: boom\n    at run (/workspace/node_modules/.pnpm/vitest@4.0.1/node_modules/vitest/dist/runner.js:42:7)\n    at load (/workspace/pkg@1.2.3/index.js:8:2)";
+  const stack = failure.stack;
+  reportErrorOnce({ observability: port, error: failure, operation: "site.publish" });
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0]!.error, failure);
+  assert.equal((reports[0]!.error as Error).stack, stack);
 });
 
 test("message and stack are redacted before the port sees them", () => {

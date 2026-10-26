@@ -153,8 +153,8 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // the redacted output ("Authorization: Bearer [REDACTED:bearer_token]").
   { name: 'bearer_token', regex: /(?<=\bBearer\s+)[A-Za-z0-9._~+/-]{16,}={0,2}/g },
 
-  // Email addresses. Conservative enough to require a TLD-like trailer.
-  { name: 'email', regex: /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g },
+  // Alphabetic TLDs preserve versioned package paths in error stacks (e.g. pkg@1.2.3).
+  { name: 'email', regex: /\b[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g },
 
   // IPv4. Reject all-zero / 255.255.255.255-ish junk shapes by gating on
   // each octet being 0-255.

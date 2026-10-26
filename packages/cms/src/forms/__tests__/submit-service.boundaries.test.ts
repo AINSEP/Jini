@@ -51,7 +51,7 @@ function fixture(fields: FieldDescriptor[], status: FormDefinitionRecord["status
 
 const settle = () => new Promise<void>((resolve) => { setTimeout(resolve, 0); });
 
-test("timing: a fast valid submission consumes rate admission but creates no claim, IDs, upload, row or event; the same token can retry", async () => {
+test("timing: a fast valid submission preserves rate admission but creates no claim, IDs, upload, row or event; the same token can retry", async () => {
   const f = fixture([textField, fileField("photo")]);
   await f.ready;
   let nowMs = 0;
@@ -71,16 +71,16 @@ test("timing: a fast valid submission consumes rate admission but creates no cla
   });
   nowMs = 999;
   await assert.rejects(submitForm({ deps: f.deps, input }, { attempts }), FormSubmissionTooFastError);
-  assert.deepEqual([checks, allocated, f.stored, await f.rows(), f.events(), f.dispatches()], [2, 0, [], [], 0, 0]);
+  assert.deepEqual([checks, allocated, f.stored, await f.rows(), f.events(), f.dispatches()], [0, 0, [], [], 0, 0]);
   nowMs = 1000;
   const results = await Promise.all([submitForm({ deps: f.deps, input }, { attempts }), submitForm({ deps: f.deps, input }, { attempts })]);
   await settle();
   assert.deepEqual(results, [{ status: "accepted" }, { status: "accepted" }]);
-  assert.deepEqual([checks, f.stored, (await f.rows()).length, f.events(), f.dispatches()], [4, ["photo"], 1, 1, 1]);
+  assert.deepEqual([checks, f.stored, (await f.rows()).length, f.events(), f.dispatches()], [2, ["photo"], 1, 1, 1]);
   assert.equal(Object.hasOwn((await f.rows())[0]!.data, "_attempt"), false);
 });
 
-test("timing: honeypot, validation and throttling retain their order before known-fast evidence", async () => {
+test("timing: honeypot and validation precede timing, which precedes rate admission", async () => {
   const f = fixture([textField]);
   await f.ready;
   let checks = 0;
@@ -90,6 +90,9 @@ test("timing: honeypot, validation and throttling retain their order before know
   assert.deepEqual(await submitForm({ deps: f.deps, input: f.input({ _hp: "filled", _attempt: "issued" }) }, { attempts }), { status: "accepted" });
   await assert.rejects(submitForm({ deps: f.deps, input: f.input({ _attempt: "issued" }) }, { attempts }), FormSubmissionValidationError);
   assert.equal(checks, 0);
+  await assert.rejects(submitForm({ deps: f.deps, input: f.input({ name: "Ada", _attempt: "issued" }) }, { attempts }), FormSubmissionTooFastError);
+  assert.deepEqual([checks, await f.rows(), f.events()], [0, [], 0]);
+  f.deps.clock = { nowMs: () => 1000 };
   await assert.rejects(submitForm({ deps: f.deps, input: f.input({ name: "Ada", _attempt: "issued" }) }, { attempts }), FormRateLimitExceededError);
   assert.deepEqual([checks, await f.rows(), f.events()], [1, [], 0]);
 });

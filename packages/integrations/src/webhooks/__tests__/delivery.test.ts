@@ -734,3 +734,25 @@ test("a transport failure that throws a non-Error value is recorded with a gener
   assert.equal(row?.lastResponseStatus, null);
   assert.equal(row?.lastError, "unknown webhook delivery error");
 });
+
+test('form webhook envelopes exclude consent evidence before storage and on old queued retries', async () => {
+  const rig = makeRig();
+  const { subscription } = await createSubscription({ deps: { clock: rig.clock, repo: rig.subscriptionRepo, idGenerator: rig.idGenerator, isAllowedTarget: async () => true },
+    input: { workspaceId: 'workspace-1', ownerPrincipalId: 'principal-1', label: 'Forms', targetUrl: 'https://example.com/hooks', topics: ['form.submission.received'], createdByPrincipalId: 'principal-1' } });
+  const privatePayload = { submissionId: 's1', deliveryMode: 'live', analyticsProvenance: { granted: true, subjectId: 'visitor:local', consentProof: { receiptId: 'private-receipt', policyVersion: '1' } } };
+  const { enqueued } = await enqueueDelivery({ deps: rig, input: { event: { id: 'e1', name: 'form.submission.received', workspaceId: 'workspace-1', occurredAt: nowIso({ clock: rig.clock }), payload: privatePayload } } });
+  const stored = (await rig.envelopeStore.find({ deliveryId: enqueued[0]!.id }))!;
+  assert.deepEqual(stored.data, { submissionId: 's1' });
+  assert.equal(privatePayload.analyticsProvenance.consentProof.receiptId, 'private-receipt');
+  // Recreate a durable pre-fix envelope: upgrading must also protect its next delivery attempt.
+  await rig.envelopeStore.save({ deliveryId: enqueued[0]!.id, envelope: { ...stored, data: privatePayload } });
+  const signer = createFixedSecretSigner({ secrets: new Map([[subscription.id, Buffer.from('fixture-signing-key')]]), vocabulary });
+  const httpClient = new RecordingHttpClient();
+  await processDueDeliveries({ deps: { ...rig, signer, httpClient, headers } });
+  assert.equal(httpClient.calls.length, 1);
+  const raw = httpClient.calls[0]!.request.body as string;
+  assert.deepEqual(JSON.parse(raw).data, { submissionId: 's1' });
+  assert.equal(raw.includes('private-receipt'), false);
+  assert.equal(raw.includes('analyticsProvenance'), false);
+  assert.deepEqual((await rig.envelopeStore.find({ deliveryId: enqueued[0]!.id }))!.data, privatePayload);
+});

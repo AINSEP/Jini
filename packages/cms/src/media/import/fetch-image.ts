@@ -3,23 +3,12 @@
 // array can exercise them directly. Composition supplies the guarded client; never construct an
 // unguarded one here. It must check/pin DNS peers and recheck every redirect to prevent SSRF/rebinding.
 import type { FetchImageRequired, FetchImageOptional, ValidateImageBytesRequired } from "./ports.js";
+import { mediaFileExtension } from "../file-extension.js";
 
 // Request/fetched-content refusal is distinct from an upload validator's already-in-hand byte checks.
 export class MediaImportValidationError extends Error {
   constructor({ message }: { message: string }) { super(message); }
 }
-
-// An extension derived from the sniffed type cannot contradict the payload's actual bytes.
-const EXTENSION_BY_CONTENT_TYPE: Readonly<Record<string, string>> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "image/avif": "avif",
-  "image/svg+xml": "svg",
-  "video/mp4": "mp4",
-  "video/webm": "webm",
-};
 
 export interface FetchedImage {
   readonly bytes: Uint8Array;
@@ -52,7 +41,7 @@ export function parseImportUrl({ raw }: { raw: string }): URL {
 // Bound/sanitize path punctuation, controls, and traversal-like names. This labels an upload, not
 // its filesystem location: content-addressed storage must not derive a path from this display name.
 export function buildImportFilename({ url, contentType }: { url: URL; contentType: string }, { override }: { override?: string } = {}): string {
-  const extension = EXTENSION_BY_CONTENT_TYPE[contentType] ?? "bin";
+  const extension = mediaFileExtension({ contentType });
   const rawName = override ?? decodeLastPathSegment(url);
   const slug = rawName
     .replace(/\.[a-zA-Z0-9]{1,5}$/, "")

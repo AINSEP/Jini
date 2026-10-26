@@ -78,3 +78,24 @@ test.each([true, false])("comment HTTP budget allowed=%s uses the host IP and ga
   assert.equal(status, 422);
   assert.deepEqual(payload, { error: "comment was not accepted", reason: allowed ? "invalid" : "rate-limited" });
 });
+
+test.each([true, false])('accepted comment notification is request-specific and only runs on success (%s)', async accepted => {
+  const seen: unknown[] = [];
+  const handler = createCommentSubmitHandler({ workspaceId: 'workspace-1', ipHashSalt: 'host-owned-salt',
+    clientIp: () => '203.0.113.1', rateLimiter: { check: async () => ({ allowed: true }) },
+    ingressPolicy: { submit: async () => accepted ? { ok: true, comment: { id: 'comment-1', status: 'pending' } } : { ok: false, reason: 'invalid' } },
+  }, { onAccepted: ({ request, submission, comment }) => {
+    seen.push([request, submission.entryId, comment]);
+    throw new Error('notification failed');
+  } });
+  for (const entryId of ['entry-1', 'entry-2']) {
+    const request = { body: { entryId, body: 'hello' } } as Request;
+    let status: number | undefined, payload: unknown;
+    const response = { status(code: number) { status = code; return this; }, json(value: unknown) { payload = value; return this; } };
+    await handler(request, response as Response, () => assert.fail('unexpected next'));
+    assert.equal(status, accepted ? 201 : 422);
+    assert.deepEqual(payload, accepted ? { id: 'comment-1', status: 'pending' } : { error: 'comment was not accepted', reason: 'invalid' });
+    if (accepted) assert.deepEqual(seen.at(-1), [request, entryId, { id: 'comment-1', status: 'pending' }]);
+  }
+  assert.equal(seen.length, accepted ? 2 : 0);
+});

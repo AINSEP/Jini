@@ -18,6 +18,7 @@
 import { PostHog, type PostHogOptions } from "posthog-node";
 
 import type { ProductAnalyticsAdapter, ProductAnalyticsPort } from "@jini-ai/analytics/product";
+import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 
 export interface PostHogConfigEnabled {
   enabled: true; apiKey: string; host: string;
@@ -26,7 +27,7 @@ export interface PostHogConfigEnabled {
   attribution?: { readonly attributes: Readonly<Record<string, string>>; readonly groups: Readonly<Record<string, string>> };
 }
 
-export interface PostHogAdapterOptions {
+export interface PostHogAdapterOptions extends ProviderTelemetryOptions {
   /** Test seam: a fetch that records batches instead of sending them (no network). */
   fetch?: PostHogOptions["fetch"];
   /** Batch size before a send; tests use 1. */
@@ -38,6 +39,7 @@ export interface PostHogAdapterOptions {
  * @complexity O(1) per event; delivery is batched in the background by the SDK.
  */
 export function createPostHogProductAnalyticsAdapter({ config }: { config: PostHogConfigEnabled }, options: PostHogAdapterOptions = {}): ProductAnalyticsAdapter {
+  const reporter = createProviderTelemetryReporter({ endpoint: config.host }, options);
   const client = new PostHog(config.apiKey, {
     host: config.host,
     flushAt: options.flushAt ?? 20,
@@ -46,6 +48,21 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
     enableExceptionAutocapture: false,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
+  // Reuse the SDK's fetch owner so its Node transport and any supplied fetch keep their semantics.
+  const send = client.fetch.bind(client);
+  client.fetch = async (url, init) => {
+    try {
+      const response = await send(url, init);
+      reporter.result({ phase: "export", outcome: response.status >= 200 && response.status < 300 ? "ok" : "failed", error: { status: response.status } });
+      return response;
+    } catch (error) {
+      reporter.result({ phase: "export", outcome: "failed", error });
+      throw error;
+    }
+  };
+  // Capture V1 wraps its HTTP failure in `cause`; retain the safe status from that failure.
+  client.on("error", error => reporter.result({ phase: "export", outcome: "failed", error: error instanceof Error ? error.cause ?? error : error }));
+  reporter.initialized({ message: "PostHog reporting" });
   const attributes = config.attribution?.attributes;
   const groups = config.attribution && Object.keys(config.attribution.groups).length ? { ...config.attribution.groups } : undefined;
   const port: ProductAnalyticsPort = {
@@ -72,8 +89,9 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
     },
     capture({ name, userId, properties }) {
       // Domain/outbox IDs are the host-neutral idempotency key; retries retain vendor dedupe.
-      const merged = { ...properties, ...attributes, ...(typeof properties?.eventId === 'string' ? { $insert_id: properties.eventId } : {}) };
-      client.capture({ distinctId: userId, event: name, ...(Object.keys(merged).length ? { properties: merged } : {}), ...(groups ? { groups } : {}) });
+      // Server events count actions, including ephemeral visitors; only explicit identify sets a profile.
+      const merged = { ...properties, ...attributes, ...(typeof properties?.eventId === 'string' ? { $insert_id: properties.eventId } : {}), $process_person_profile: false };
+      client.capture({ distinctId: userId, event: name, properties: merged, ...(groups ? { groups } : {}) });
     },
     // Sent as the `$identify` event itself rather than `client.identify` (Codex fix-lane MED): the SDK's
     // identify puts traits under `$set` and nothing else on the event, so it could carry neither the

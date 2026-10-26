@@ -19,7 +19,7 @@ export function fanOutProductAnalytics({ ports }: { ports: readonly ProductAnaly
         // Each provider owns its opt-in, even when another provider requests content.
         // Recheck even a single provider: its policy can rotate during async consent.
         const { input: _input, output: _output, ...metadata } = event;
-        port.captureAiGeneration?.(port.includeAiContent === true ? event : metadata);
+        return port.captureAiGeneration?.(port.includeAiContent === true ? event : metadata);
       }),
     } : {}),
   };

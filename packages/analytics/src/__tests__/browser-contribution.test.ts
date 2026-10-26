@@ -6,27 +6,28 @@ import { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalytics
 const contribution: BrowserAnalyticsContribution = { supportsStatic: false, origins: ['https://collector.example'],
   source: 'function(){window.created++;return function(mode){window.modes.push(mode);};}' };
 
-function bridge({ surface = 'site', choice, gpc = false, configuration, request = async () => ({ ok: true, json: async () => ['current'] }) }: {
+function bridge({ surface = 'site', choice, gpc = false, configuration, marker = false, request = async () => ({ ok: true, json: async () => ['current'] }) }: {
   surface?: 'site' | 'admin'; choice?: { hasChoice: boolean; analytics: boolean }; gpc?: boolean;
-  configuration?: BrowserAnalyticsContribution['configuration'];
+  configuration?: BrowserAnalyticsContribution['configuration']; marker?: boolean;
   request?: () => Promise<{ ok: boolean; json: () => Promise<string[]> }>;
 } = {}) {
   const listeners = new Map<string, (event: any) => void>();
-  const writes: [string, string][] = [], broadcasts: unknown[] = [], checks: (() => void)[] = [];
+  const writes: [string, string][] = [], broadcasts: unknown[] = [], checks: (() => void)[] = [], intervals: number[] = [];
+  const document = { visibilityState: 'visible', addEventListener: (name: string, callback: (event: any) => void) => listeners.set(name, callback) };
   let receive!: (event: { data: unknown }) => void;
   const window = { created: 0, modes: [] as string[], jiniConsent: choice, jiniBrowserAnalyticsLive: true,
-    localStorage: { setItem: (key: string, value: string) => { writes.push([key, value]); } },
+    localStorage: { getItem: (key: string) => key === 'jini:metrics-withdrawal' && marker ? '1' : null, setItem: (key: string, value: string) => { writes.push([key, value]); } },
     addEventListener: (name: string, callback: (event: any) => void) => listeners.set(name, callback) };
   const html = renderBrowserAnalytics({ contributions: [{ ...contribution, ...(configuration ? { configuration } : {}) }], surface, delivery: 'live', ...(surface === 'admin' ? { consent: choice } : {}) });
   runInNewContext(html.slice(html.indexOf('>') + 1, html.lastIndexOf('</script>')), {
-    window, navigator: { globalPrivacyControl: gpc }, fetch: request,
-    AbortSignal: { timeout: () => undefined }, setInterval: (check: () => void) => { checks.push(check); return 1; }, clearInterval() {},
+    window, document, navigator: { globalPrivacyControl: gpc }, fetch: request,
+    AbortSignal: { timeout: () => undefined }, setInterval: (check: () => void, ms: number) => { checks.push(check); intervals.push(ms); return 1; }, clearInterval() {},
     BroadcastChannel: class {
       set onmessage(callback: typeof receive) { receive = callback; }
       postMessage(state: unknown) { broadcasts.push(state); }
     },
   });
-  return { window, writes, broadcasts, check: () => checks.forEach(check => check()),
+  return { window, writes, broadcasts, intervals, visibility: (state: string) => { document.visibilityState = state; listeners.get('visibilitychange')?.({}); }, focus: () => listeners.get('focus')?.({}), check: () => checks.forEach(check => check()),
     storage: (key: string | null, newValue: string | null) => listeners.get('storage')!({ key, newValue }),
     broadcast: (data: unknown) => receive({ data }),
     update: (detail: unknown) => listeners.get(surface === 'site' ? 'jini:consent-changed' : 'jini:metrics-consent-changed')!({ detail }) };
@@ -103,10 +104,12 @@ it('a changed provider configuration retires controllers permanently until reloa
   expect(b.window.modes).toEqual(['full', 'pending']);
 });
 
-it('configuration-check failure stops browser analytics instead of keeping stale credentials active', async () => {
+it('one transient configuration-check failure is tolerated, two consecutive failures stop analytics', async () => {
   const b = bridge({ surface: 'admin', choice: { hasChoice: true, analytics: true }, configuration: { url: '/configuration', revision: 'current' },
     request: async () => { throw new Error('offline'); } });
   await setImmediate();
+  expect(b.window.modes).toEqual(['full']);
+  b.check(); await setImmediate();
   expect(b.window.modes).toEqual(['full', 'pending']);
 });
 
@@ -118,4 +121,24 @@ it('injects once, before body end, and excludes unsupported static contributions
   expect(injectBrowserAnalytics({ ...input, delivery: 'static' })).toBe(input.html);
   expect(injectBrowserAnalytics({ ...input, contributions: [] })).toBe(input.html);
   expect(injectBrowserAnalytics({ ...input, delivery: 'static', contributions: [{ ...contribution, supportsStatic: true }] })).toContain('data-jini-browser-analytics');
+});
+
+it('never checks configuration before a choice and bounds checks to visible two-minute polls', async () => {
+  let requests = 0;
+  const b = bridge({ configuration: { url: '/configuration', revision: 'current' }, request: async () => {
+    requests++; return { ok: true, json: async () => ['current'] };
+  } });
+  b.check(); b.focus(); b.visibility('visible'); await setImmediate();
+  expect(requests).toBe(0); expect(b.window.created).toBe(0);
+  expect(b.intervals).toEqual([120000]);
+  b.update({ hasChoice: true, analytics: false }); await setImmediate();
+  expect(requests).toBe(1);
+  b.visibility('hidden'); b.check(); b.focus(); await setImmediate(); expect(requests).toBe(1);
+  b.visibility('visible'); await setImmediate(); expect(requests).toBe(2);
+  b.check(); await setImmediate(); expect(requests).toBe(3);
+});
+
+it('an unsaved admin withdrawal marker denies a previously durable grant on reload', () => {
+  const b = bridge({ surface: 'admin', choice: { hasChoice: true, analytics: true }, marker: true });
+  expect(b.window.created).toBe(0); expect(b.window.modes).toEqual([]);
 });

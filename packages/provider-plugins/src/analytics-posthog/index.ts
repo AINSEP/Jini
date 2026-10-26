@@ -19,7 +19,7 @@ export function createPostHogProvider(required: Readonly<Record<string, unknown>
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config }, optional as PostHogAdapterOptions);
   return { port: { ...port, browserAnalytics: ({ surface }: { surface: 'site' | 'admin' }, _options = {}) => postHogBrowserContribution({
     apiKey: config.apiKey, host: config.host, sessionReplay: required.sessionReplay === 'true', surface,
-    attributes: config.attribution?.attributes ?? {},
+    attributes: config.attribution?.attributes.site_id ? { site_id: config.attribution.attributes.site_id } : {},
   }) }, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
 

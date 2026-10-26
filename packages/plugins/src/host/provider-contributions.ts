@@ -45,12 +45,28 @@ function labelValid(label: unknown): boolean {
   return typeof label === 'string' && label.trim() !== '' && label.length <= 120;
 }
 
-/** A conditional requirement is one exact string match, never executable plugin logic. */
+/** Declared references use the same setting-name grammar. O(1). */
+function settingNameValid(value: unknown): boolean {
+  return typeof value === 'string' && SETTING_NAME.test(value);
+}
+
+/** A conditional requirement is an exact match or a named alternative, never executable plugin logic. */
 function requiredUnlessValid(value: unknown): boolean {
   if (value === undefined) return true;
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const { field, equals } = value as Record<string, unknown>;
-  return typeof field === 'string' && SETTING_NAME.test(field) && typeof equals === 'string';
+  const { field, equals, orPresent } = value as Record<string, unknown>;
+  return settingNameValid(field) && typeof equals === 'string'
+    && (orPresent === undefined || settingNameValid(orPresent));
+}
+
+/** A conditional requirement names public string choices, never executable plugin logic.
+ * @complexity O(k) in declared choices; no effects. */
+function requiredWhenValid(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const { field, in: choices } = value as Record<string, unknown>;
+  return typeof field === 'string' && SETTING_NAME.test(field)
+    && Array.isArray(choices) && choices.length > 0 && choices.every((choice) => typeof choice === 'string' && choice.trim() !== '');
 }
 
 const optionValid = (option: unknown): boolean => {
@@ -79,6 +95,7 @@ function settingFieldProblem({ field }: { field: unknown }, _optional: Record<st
   if (!labelValid(label)) return `provider setting '${name}' needs a label of 1-120 characters`;
   if (!optionalFlagsValid(field as Record<string, unknown>)) return `provider setting '${name}' has a malformed secret/required/hint/allowCustom`;
   if (!requiredUnlessValid((field as Record<string, unknown>).requiredUnless)) return `provider setting '${name}' has a malformed requiredUnless`;
+  if (!requiredWhenValid((field as Record<string, unknown>).requiredWhen)) return `provider setting '${name}' has a malformed requiredWhen`;
   return choicesProblem({ name, field: field as Record<string, unknown> });
 }
 

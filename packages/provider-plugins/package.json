@@ -55,6 +55,7 @@
     "@sentry/node": "11.6.0",
     "esbuild": "^0.28.1",
     "langfuse": "3.39.2",
+    "posthog-js": "1.260.2",
     "posthog-node": "5.55.1",
     "tsx": "^4.19.0",
     "typescript": "^5.9.3"

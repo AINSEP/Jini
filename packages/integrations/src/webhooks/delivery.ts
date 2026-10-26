@@ -111,14 +111,14 @@ export async function enqueueDelivery(
       deadAt: null,
     };
 
-    const envelope: WebhookEventEnvelope = {
+    const envelope = publicWebhookEnvelope({ envelope: {
       deliveryId: record.id,
       eventId: event.id,
       topic: event.name,
       workspaceId: event.workspaceId,
       occurredAt: event.occurredAt,
       data: event.payload,
-    };
+    } });
     // A durable adapter must co-persist the envelope in the same insert as the row, closing the
     // crash gap before the following save. That save remains the real write for memory adapters;
     // for an adapter with co-persistence it only repeats the same envelope harmlessly.
@@ -128,6 +128,14 @@ export async function enqueueDelivery(
   }
 
   return { enqueued };
+}
+
+/** Consent proof and import provenance are private CMS metadata, never webhook data.
+ * Preserve the public form payload and leave the immutable source envelope untouched. O(fields). */
+function publicWebhookEnvelope({ envelope }: { envelope: WebhookEventEnvelope }, _options = {}): WebhookEventEnvelope {
+  if (envelope.topic !== 'form.submission.received') return envelope;
+  const { analyticsProvenance: _proof, deliveryMode: _mode, ...data } = envelope.data;
+  return { ...envelope, data };
 }
 
 /**
@@ -361,7 +369,8 @@ async function attemptOneDelivery(
     if (!storedEnvelope) {
       return { ok: false, error: `no envelope recorded for delivery '${row.id}'`, responseStatus: null };
     }
-    const envelope = await runBeforeDispatchHooks(deps.hooks, { subscription, envelope: storedEnvelope });
+    // Older queued events and hooks also pass this boundary before signing/sending.
+    const envelope = publicWebhookEnvelope({ envelope: await runBeforeDispatchHooks(deps.hooks, { subscription, envelope: storedEnvelope }) });
 
     const rawBody = JSON.stringify(envelope);
     const timestampSeconds = Math.floor(Date.parse(nowIso({ clock: deps.clock })) / 1000);

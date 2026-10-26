@@ -79,7 +79,7 @@ test("dispose never throws when the SDK shutdown fails", async () => {
   await expect(resource.dispose({})).resolves.toBeUndefined();
 });
 
-test("events without properties and identities without traits are sent bare; the default batch size holds until dispose flushes", async () => {
+test("events without properties retain the server privacy flag and identities without traits remain bare; dispose flushes the default batch", async () => {
   const { batches, fetch } = recordingFetch();
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config: { enabled: true, apiKey: "phc_test_dummy", host: "https://posthog.invalid" } }, { fetch: fetch as never });
   port.capture({ name: "theme_changed", userId: "u2" });
@@ -88,6 +88,8 @@ test("events without properties and identities without traits are sent bare; the
   await dispose();
   const events = batches.flatMap((b) => b.body.batch);
   expect(events.map((e) => [e.event, e.distinct_id])).toEqual([["theme_changed", "u2"], ["$identify", "u2"]]);
+  expect(events[0]?.properties.$process_person_profile).toBe(false);
+  expect(events[1]?.properties).not.toHaveProperty('$process_person_profile');
 });
 
 test("without an injected fetch an idle client is built and shut down with nothing to send", async () => {
@@ -172,4 +174,32 @@ test("LLM content setting is explicit and guarded by operator consent; input and
   const events = batches.flatMap((b) => b.body.batch);
   expect(events).toHaveLength(1);
   expect(events[0]?.properties).toMatchObject({ $ai_trace_id: "r", $ai_input: [{ role: "user", content: "Hello" }], $ai_output_choices: [{ role: "assistant", content: "Welcome" }] });
+});
+
+test.each([200, 401, 429])('PostHog factory reports real HTTP %i with no private response text', async status => {
+  const reports: import('@jini-ai/diagnostics/observability').ProviderTelemetryReport[] = [];
+  const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, {
+    reportTelemetry: (report: import('@jini-ai/diagnostics/observability').ProviderTelemetryReport) => { reports.push(report); },
+    fetch: async () => ({ status, text: async () => 'private provider response', json: async () => ({}) }), flushAt: 1,
+  });
+  resource.port.capture({ name: 'telemetry_test', userId: 'owner' });
+  await resource.dispose({});
+  expect(reports.at(-1)).toEqual({ phase: 'export', outcome: status === 200 ? 'ok' : 'failed', host: 'posthog.invalid',
+    ...(status === 200 ? {} : { errorClass: 'Error', statusCode: status }) });
+  expect(JSON.stringify(reports)).not.toContain('private provider response');
+});
+
+
+test('server visitor counters cannot create person profiles, even through caller or attribution overrides', async () => {
+  const { batches, fetch } = recordingFetch();
+  const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid',
+    attribution: { attributes: { $process_person_profile: 'true' }, groups: {} } }, { fetch, flushAt: 1 });
+  resource.port.capture({ name: 'form_submitted', userId: 'visitor:ephemeral', properties: { eventId: 'committed-event', $process_person_profile: true } });
+  await resource.dispose({});
+  const events = batches.flatMap(batch => batch.body.batch);
+  expect(events).toHaveLength(1);
+  const event = events[0]!;
+  expect({ name: event.event, subject: event.distinct_id, profiles: event.properties.$process_person_profile,
+    insertId: event.properties.$insert_id, geoipDisabled: event.properties.$geoip_disable })
+    .toEqual({ name: 'form_submitted', subject: 'visitor:ephemeral', profiles: false, insertId: 'committed-event', geoipDisabled: true });
 });

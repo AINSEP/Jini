@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
 
 describe('@jini-ai/core — redact — redactSecrets', () => {
+  it('preserves versioned paths while redacting email addresses with alphabetic TLDs', () => {
+    const stack = 'at run (/workspace/node_modules/.pnpm/vitest@4.0.1/node_modules/vitest/runner.js:42:7)\nat load (/workspace/pkg@1.2.3/index.js:8:2)';
+    expect(redactSecrets({ input: stack })).toBe(stack);
+    expect(redactSecrets({ input: 'person@example.com person@sub.example.co.uk' }))
+      .toBe('[REDACTED:email] [REDACTED:email]');
+  });
   it('passes empty input through unchanged', () => {
     expect(redactSecrets({ input: '' })).toBe('');
   });

@@ -120,7 +120,9 @@ export function renderConsentHead({ record, gpc, regionMode = 'opt-in', config }
   // First-party code can inject remote scripts, and a local stylesheet can import remote
   // CSS/fonts that HTML traversal cannot see. Enforce the same grants in the browser.
   // Each choice reloads, so restrictive policy can be removed only after a saved grant.
-  const resourcePolicyMeta = choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins, allowUnsafeEval }) })}">`;
+  // A regional opt-out default is not that grant: unlabelled first-party snippets must not
+  // load a remote tracker while the consent bridge is still pending.
+  const resourcePolicyMeta = record !== null && choices.marketing ? '' : `<meta http-equiv="Content-Security-Policy" content="${escapeHtml({ text: resourcePolicy({ choices, origins, allowUnsafeEval }) })}">`;
   const nonceAttr = nonce === undefined ? '' : ` nonce="${escapeHtml({ text: nonce })}"`;
   return `${resourcePolicyMeta}${consentStyle({ config, nonceAttr })}<script type="application/json" id="jini-consent-config"${nonceAttr}>${state}</script><script data-jini-consent-runtime="${escapeHtml({ text: runtimeToken ?? '' })}"${nonceAttr}>${CONSENT_CLIENT}</script>`;
 }
