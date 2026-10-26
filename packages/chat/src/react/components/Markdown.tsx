@@ -185,7 +185,7 @@ function parseRule(lines: string[], i: number): ParsedBlock | null {
 }
 
 // Collects the run of consecutive lines matching `marker`, each with that
-// marker stripped — the shared shape of blockquotes and bullet lists.
+// marker stripped — the shape of blockquotes.
 function collectMarked(lines: string[], start: number, marker: RegExp): { items: string[]; next: number } {
   const items: string[] = [];
   let i = start;
@@ -202,10 +202,29 @@ function parseQuote(lines: string[], i: number): ParsedBlock | null {
   return { block: { kind: 'bq', text: items.join('\n') }, next };
 }
 
+// A list item runs on over the following lines until a blank line or another block starts
+// (CommonMark's lazy continuation). Without it, a wrapped item such as "- **Grafana Cloud (instance
+// ID +\n  token)**" split into an item and a paragraph, and both halves showed raw `**`.
+function collectItem(lines: string[], i: number, marker: RegExp): { item: string; next: number } {
+  let item = lines[i]!.replace(marker, '');
+  let j = i + 1;
+  while (j < lines.length && lines[j]!.trim() !== '' && !isBlockStart(lines, j)) {
+    item += `\n${lines[j]!.trim()}`;
+    j += 1;
+  }
+  return { item, next: j };
+}
+
 function parseBulletList(lines: string[], i: number): ParsedBlock | null {
   if (!BULLET_ITEM.test(lines[i]!)) return null;
-  const { items, next } = collectMarked(lines, i, BULLET_ITEM);
-  return { block: { kind: 'ul', items }, next };
+  const items: string[] = [];
+  let j = i;
+  while (j < lines.length && BULLET_ITEM.test(lines[j]!)) {
+    const { item, next } = collectItem(lines, j, BULLET_ITEM);
+    items.push(item);
+    j = next;
+  }
+  return { block: { kind: 'ul', items }, next: j };
 }
 
 function parseTable(lines: string[], i: number): ParsedBlock | null {
@@ -223,8 +242,9 @@ function parseOrderedList(lines: string[], i: number): ParsedBlock | null {
   const items: string[] = [];
   let j = i;
   while (j < lines.length && ORDERED_ITEM.test(lines[j]!)) {
-    items.push(lines[j]!.replace(ORDERED_ITEM, ''));
-    j = nextLooseListLine(lines, j + 1);
+    const { item, next } = collectItem(lines, j, ORDERED_ITEM);
+    items.push(item);
+    j = nextLooseListLine(lines, next);
   }
   return { block: { kind: 'ol', start, items }, next: j };
 }

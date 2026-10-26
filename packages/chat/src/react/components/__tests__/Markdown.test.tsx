@@ -193,6 +193,25 @@ describe('Markdown', () => {
     expect(container.innerHTML).toBe('<ul><li>a</li><li>b</li></ul>');
   });
 
+  it('renders bold that wraps onto the next line of a list item, with no raw asterisks', () => {
+    const { container } = render(<Markdown>{'- **Grafana Cloud (instance ID +\n  token)** default\n- Token only\n\n1. **No\n   auth**'}</Markdown>);
+    expect(container.querySelectorAll('ul > li')).toHaveLength(2);
+    expect(container.querySelector('ul > li strong')).toHaveTextContent('Grafana Cloud (instance ID + token)');
+    expect(container.querySelector('ol > li strong')).toHaveTextContent('No auth');
+    expect(container.textContent).not.toContain('**');
+  });
+
+  it('renders bold that spans a line break inside a paragraph', () => {
+    const { container } = render(<Markdown>{'The **token is\nrequired** here.'}</Markdown>);
+    expect(container.querySelector('p strong')).toHaveTextContent('token is required');
+    expect(container.textContent).not.toContain('**');
+  });
+
+  it('ends a list item at the next block start, not only at a blank line', () => {
+    const { container } = render(<Markdown>{'- a\n  more a\n# Heading'}</Markdown>);
+    expect(container.innerHTML).toBe('<ul><li>a\nmore a</li></ul><h1>Heading</h1>');
+  });
+
   it('starts a paragraph on the line right after a heading', () => {
     const { container } = render(<Markdown>{'# Title\nbody'}</Markdown>);
     expect(container.innerHTML).toBe('<h1>Title</h1><p>body</p>');
