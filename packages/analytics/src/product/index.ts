@@ -23,6 +23,7 @@ import type { JsonObject } from "@jini-ai/core/primitives";
 
 import { validateEventProps } from "../privacy.js";
 export { createAiGenerationSink } from "./ai-generations.js";
+export { fanOutProductAnalytics } from "./fanout.js";
 
 export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
 

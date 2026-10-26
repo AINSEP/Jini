@@ -20,3 +20,6 @@ export function createObservabilityPort(
  if (!config.enabled) return createNoopObservabilityPort({});
  return createOtelObservabilityPort({ config, exporterFactory, tracerProviderFactory }, options);
 }
+
+export type * from "./tracker-types.js";
+export { createNoopTracker } from "./tracker-noop.js";

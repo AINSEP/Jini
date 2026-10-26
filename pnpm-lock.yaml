@@ -760,6 +760,9 @@ importers:
 
   packages/diagnostics:
     dependencies:
+      '@jini-ai/analytics':
+        specifier: workspace:^
+        version: link:../analytics
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
