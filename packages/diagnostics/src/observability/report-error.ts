@@ -42,7 +42,7 @@ const redact = (text: string, exactSecrets: ExactSecrets): string => redactSecre
  * `exactSecrets` (e.g. the credential a failing call used) are blanked even without a known shape.
  * @complexity O(n) in message + stack length.
  */
-export function redactedError({ error }: { error: unknown }, { exactSecrets }: { exactSecrets?: ExactSecrets } = {}): unknown {
+export function redactedError({ error }: { error: unknown }, { exactSecrets }: { exactSecrets?: ExactSecrets } = {}): Error {
   if (!(error instanceof Error)) return new Error(redact(typeof error === "string" ? error : `non-Error thrown: ${typeof error}`, exactSecrets));
   const message = redact(error.message, exactSecrets);
   const stack = error.stack === undefined ? undefined : redact(error.stack, exactSecrets);

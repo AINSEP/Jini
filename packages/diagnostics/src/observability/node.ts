@@ -16,3 +16,5 @@ export function createAsyncLocalSpanScope(_required: Record<string, never>): Spa
 }
 
 export { reportErrorOnce, redactedError, runWithErrorReportScope, type ErrorReportScope } from './report-error.js';
+
+export { createTracker, createTrackerWarning } from "./tracker.js";

@@ -1,6 +1,6 @@
 # Diagnostics API and migration
 
-All public functions and factories accept a required-argument object followed, when needed, by an optional-settings object. Redaction export names are retained; the clock types now come from `@jini-ai/core/primitives`. The previous positional signatures have no compatibility wrappers.
+Public standalone functions and factories accept a required-argument object followed, when needed, by an optional-settings object. Tracker methods use their dedicated event, Error/context and name/callback signatures below. Redaction export names are retained; the clock types now come from `@jini-ai/core/primitives`. The previous positional signatures have no compatibility wrappers.
 
 ## Root bundle API
 
@@ -87,3 +87,29 @@ Import `Clock` from `@jini-ai/core/primitives`; `ClockPort` and `DiagnosticsCloc
 `redactSecretShapes`, `redactText`, `redactJsonValue` and `redactJsonText` retain their argument and result shapes. `SECRET_PATTERNS`, `PEM_PATTERN_NAME` and `SecretPattern` remain available from `./redaction/secrets-only` as the existing scanner vocabulary backed by core's `SECRET_SHAPE_PATTERNS`. All eleven regex sources remain unchanged. Diagnostics imports the catalog only, preserving its own replacement and disclosure policies; it never calls core `redactSecrets`. Root text/JSON bundle redaction now also catches the eleven standalone credential formats, while identifiers, hashes, paths and model names remain readable.
 
 Off-origin redirect messages identify "the inspected origin"; the origin boundary and discarded-content behavior are unchanged.
+
+## Tracker facade
+
+`createTracker` from `@jini-ai/diagnostics/observability/node` composes optional existing
+`ProductAnalyticsPort` and `ObservabilityPort` providers. `Tracker` and `createNoopTracker`
+are available from the universal `observability` entry. Supply analytics after the existing
+consent guard and site attribution have been applied; the facade does not apply them twice.
+
+```ts
+const tracker = createTracker({ productAnalytics, observability }, { warn });
+tracker.capture({ name: "post_created", userId, properties });
+tracker.error(error, { route: "/posts/:id" });
+const result = await tracker.span("deploy", async (span) => {
+  const result = await deploy();
+  span.setOutcome({ outcome: "published", failed: false });
+  return result;
+});
+```
+
+Missing providers are inert. Provider faults are contained and emit one fixed warning per
+facade; provider error text is never logged. Callback failures still reject with the original
+application error, reported once through the existing redaction/deduplication owner.
+The optional third span argument selects the existing lifecycle: `{ request: { method, path,
+requestId? } }`, `{ agent: { runId, conversationId?, agentName? } }`, or operation attributes.
+Overloads give each callback its corresponding typed `setOutcome` payload. The facade ends
+the lifecycle after the callback settles; its first explicit outcome wins.
