@@ -59,7 +59,7 @@ describe('renderFormDocument', () => {
     const click = () => surface.asUser(() => toggle.dispatchEvent(new Event('click', { bubbles: true })));
 
     click();
-    expect(toggle.textContent).toBe('Hide');
+    expect(toggle.getAttribute('aria-label')).toBe('Hide Credential');
     expect(toggle.getAttribute('aria-pressed')).toBe('true');
     expect(textarea.getAttribute('style')).toBe('-webkit-text-security: none;');
     expect(textarea.value).toBe(credential);
@@ -67,11 +67,44 @@ describe('renderFormDocument', () => {
     expect(surface.api.requestTeardown).not.toHaveBeenCalled();
 
     click();
-    expect(toggle.textContent).toBe('Show');
+    expect(toggle.getAttribute('aria-label')).toBe('Show Credential');
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
     expect(textarea.getAttribute('style')).toBe('-webkit-text-security: disc;');
     expect(textarea.value).toBe(credential);
     expect(surface.api.callTool).not.toHaveBeenCalled();
+  });
+
+  it('gives a single-line secret an eye toggle that unmasks it without submitting, and re-masks after a save', async () => {
+    const surface = mountSurface(renderFormDocument({
+      ...SPEC,
+      fields: [{ kind: 'string', name: 'token', label: 'Token', secret: true, required: true }],
+      baseParams: {},
+    }));
+    const input = surface.doc.querySelector<HTMLInputElement>('input[name="token"]')!;
+    const toggle = surface.doc.querySelector<HTMLButtonElement>('button[data-mcpui-secret-toggle]')!;
+    expect(input.type).toBe('password');
+    expect(input.getAttribute('spellcheck')).toBe('false');
+    expect(toggle.type).toBe('button');
+    expect(toggle.getAttribute('aria-controls')).toBe(input.id);
+    expect(toggle.getAttribute('aria-label')).toBe('Show Token');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    input.value = 'sk-live-123';
+    surface.asUser(() => toggle.dispatchEvent(new Event('click', { bubbles: true })));
+    expect(input.type).toBe('text');
+    expect(input.getAttribute('autocomplete')).toBe('new-password');
+    expect(toggle.getAttribute('aria-label')).toBe('Hide Token');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    // A script-dispatched click is not a person: it must not unmask anything.
+    toggle.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(input.type).toBe('text');
+    surface.submit();
+    expect(surface.calls[0]?.params).toEqual({ token: 'sk-live-123' });
+    surface.calls[0]!.resolve({});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(input.type).toBe('password');
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(toggle.getAttribute('aria-label')).toBe('Show Token');
   });
 
   it('keeps Enter for multiline secret entry and submits every newline and space unchanged', () => {
@@ -100,12 +133,13 @@ describe('renderFormDocument', () => {
     }));
     const toggle = surface.doc.querySelector<HTMLButtonElement>('button[data-mcpui-secret-toggle]')!;
     const click = () => surface.asUser(() => toggle.dispatchEvent(new Event('click', { bubbles: true })));
-    expect(toggle.textContent).toBe('Afficher <clé>');
-    expect(toggle.children).toHaveLength(0);
+    expect(toggle.getAttribute('aria-label')).toBe('Afficher <clé> Credential');
+    // Only the two decorative eye glyphs: host text never becomes markup.
+    expect([...toggle.children].map((child) => child.tagName.toLowerCase())).toEqual(['svg', 'svg']);
     click();
-    expect(toggle.textContent).toBe('Masquer "clé"');
+    expect(toggle.getAttribute('aria-label')).toBe('Masquer "clé" Credential');
     click();
-    expect(toggle.textContent).toBe('Afficher <clé>');
+    expect(toggle.getAttribute('aria-label')).toBe('Afficher <clé> Credential');
     expect(surface.api.callTool).not.toHaveBeenCalled();
   });
 
@@ -530,26 +564,26 @@ it('an alternative submit action collects checked fields and carries its own act
 describe('renderFormDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, FormSurfaceSpec, string]> = [
-    ['shared spec with an untargeted cancel', SPEC, '6c87cf26a2fa4491185aa424a71c80fe6e0c69298bf707cefd12396dd4b35656'],
-    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, 'f5501bc23289059d2b92be383a54e4ae5286c64d363cdb4e7c2ab62be96472ed'],
+    ['shared spec with an untargeted cancel', SPEC, '00b761cb3f0e7bd3fb1621c48841f2527aaf17dce2bf90c2f4f4c159190075a7'],
+    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, '040e4d52b5d9102741f969afa06c63acfab79bff2ad713977f5a4e61c0c3eae4'],
     ['every option, with a tool-routed cancel', {
       ...SPEC, warning: 'Careful <now>', danger: true,
       fields: [...SPEC.fields, { kind: 'string', name: 'key', label: 'Key', secret: true, multiline: true }],
       additionalSubmitActions: [{ id: 'later', label: 'Later', params: { when: 'later' } }],
       cancel: { label: 'Stop', toolName: 'cancel_tool', params: { reason: 'x' } },
       text: { working: 'W', showSecret: 'Reveal' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
-    }, '254d9a5b2bc0e6b9ab1eb1854a61317d5ddf9c5b01c27cf1bf167be0ecc1c390'],
-    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '7975f57db5d633bc3ecfc8eb30603b15df4ff0c951f7d5c38c828df46782cd51'],
+    }, '55c78df547e607a683289218f1d192107d441750fe0d8b7ff70e0aac0992d05f'],
+    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '9c5e175a6f1a3f8f2782e304a4106b58c929721179c51fbf61c6b9c1e04b8c3e'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderFormDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('405ebd687a67c9d9b3a1938605ec9a463eb603427c8e8b37b83fd3174ae6f886');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('75d05ec59736014679eb3a9791a4aa09c3a72018eecceb0e694a78628f42ba29');
   });
 
   it('pins the unframed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('30fe210fabcf130778e0ca66e149f460cadff385ed076d70befa5d3da8177e4a');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('7792ddccc4e5b956c3f96d2793f0dfecb0d14f1490aae5c9d7ee7fc6a4da5afe');
   });
 });

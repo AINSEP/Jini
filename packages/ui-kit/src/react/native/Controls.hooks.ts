@@ -1,4 +1,4 @@
-import { createElement, useId } from 'react';
+import { createElement, useId, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import type { BaseProps, ButtonProps, IconButtonProps, TextFieldProps, TextAreaProps, SelectProps, CheckboxProps, ToastProps, NoticeProps, SpinnerProps, BadgeProps } from '../types.js';
 export function useNativeButton(required: ButtonProps, _optional: Record<string, never> = {}) {
@@ -19,9 +19,38 @@ function useField(required: BaseProps & { label: string; disabled?: boolean; req
   return { id: required.attrs?.id ?? generated, label: required.label, labelAttrs: { 'data-jini-part': 'kit.field-label', className: 'jini-field' },
     props: { ...required.attrs, className: `jini-input ${required.className ?? ''}`.trim(), disabled: required.disabled, required: required.required } };
 }
+/** Eye / eye-off glyphs, decorative: the button's aria-label carries the meaning. */
+const EYE_PATHS = ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z', 'M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z'];
+const EYE_OFF_PATHS = ['M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a17.8 17.8 0 0 1-2.16 3.19M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M14.12 14.12a3 3 0 1 1-4.24-4.24', 'M2 2l20 20'];
+function eyeIcon(required: { revealed: boolean }, _optional: Record<string, never> = {}) {
+  const paths = (required.revealed ? EYE_OFF_PATHS : EYE_PATHS).map(d => createElement('path', { key: d, d }));
+  return createElement('svg', { 'aria-hidden': true, focusable: 'false', viewBox: '0 0 24 24', width: 18, height: 18, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, paths);
+}
+/**
+ * The show/hide state of a password field. Starts hidden, and re-hides when the value is cleared
+ * — the usual sign a save succeeded — so a revealed secret never outlives its submit.
+ * @complexity O(1).
+ */
+function useSecretReveal(required: TextFieldProps, _optional: Record<string, never> = {}) {
+  const [revealed, setRevealed] = useState(false);
+  const [lastValue, setLastValue] = useState(required.value);
+  // Re-hide on the transition to empty only: an empty field may be revealed before typing.
+  if (required.value !== lastValue) {
+    setLastValue(required.value);
+    if (required.value === '') setRevealed(false);
+  }
+  if (required.type !== 'password') return { type: required.type ?? 'text', toggle: null };
+  const labels = required.secretToggleLabels ?? { show: `Show ${required.label}`, hide: `Hide ${required.label}` };
+  return { type: revealed ? 'text' : 'password', toggle: { 'data-jini-part': 'kit.secret-toggle', className: 'jini-secret-toggle', type: 'button' as const,
+    'aria-label': revealed ? labels.hide : labels.show, 'aria-pressed': revealed, disabled: required.disabled,
+    onClick: () => setRevealed(shown => !shown), children: eyeIcon({ revealed }) } };
+}
 export function useNativeTextField(required: TextFieldProps, _optional: Record<string, never> = {}) {
   const vm = useField(required);
-  return { ...vm, props: { ...vm.props, id: vm.id, ref: required.ref, type: required.type ?? 'text', value: required.value,
+  const reveal = useSecretReveal(required);
+  return { ...vm, toggle: reveal.toggle, props: { ...vm.props, id: vm.id, ref: required.ref, type: reveal.type, value: required.value,
+    // Off on a secret: once revealed as type="text", enhanced spellcheck would send it to a cloud service.
+    spellCheck: reveal.toggle ? false : undefined,
     placeholder: required.placeholder, onChange: (event: ChangeEvent<HTMLInputElement>) => {
       if (!required.disabled) required.onValueChange({ value: event.currentTarget.value });
     } } };

@@ -176,20 +176,29 @@ ${SURFACE_SCRIPT_PRELUDE}
     control.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
-  // A reveal button only changes presentation: replacing a textarea with a password input would
-  // discard line breaks. Listen on the form so clicks on the button's contents work too.
+  // The eye toggle only changes presentation. A textarea stays a textarea (a password input would
+  // discard line breaks) and flips its CSS masking; a single-line input flips password <-> text.
+  // Listen on the form so clicks on the button's icon work too.
+  function setRevealed(button, reveal) {
+    var control = document.getElementById(button.getAttribute("data-mcpui-secret-toggle"));
+    if (!control) return;
+    if (control.tagName === "TEXTAREA") control.setAttribute("style", "-webkit-text-security: " + (reveal ? "none" : "disc") + ";");
+    else control.type = reveal ? "text" : "password";
+    button.setAttribute("aria-pressed", reveal ? "true" : "false");
+    button.setAttribute("aria-label", button.getAttribute(reveal ? "data-mcpui-hide-secret" : "data-mcpui-show-secret"));
+  }
+  // Re-mask every secret once a save succeeds, so nothing stays readable on screen behind the result.
+  function concealSecrets() {
+    var toggles = form.querySelectorAll("button[data-mcpui-secret-toggle]");
+    for (var t = 0; t < toggles.length; t++) setRevealed(toggles[t], false);
+  }
   form.addEventListener("click", function (event) {
     if (event.isTrusted !== true) return;
     var target = event.target;
     if (!target || typeof target.closest !== "function") return;
     var button = target.closest("button[data-mcpui-secret-toggle]");
     if (!button || button.disabled) return;
-    var control = document.getElementById(button.getAttribute("data-mcpui-secret-toggle"));
-    if (!control) return;
-    var reveal = button.getAttribute("aria-pressed") !== "true";
-    control.setAttribute("style", "-webkit-text-security: " + (reveal ? "none" : "disc") + ";");
-    button.setAttribute("aria-pressed", reveal ? "true" : "false");
-    button.textContent = button.getAttribute(reveal ? "data-mcpui-hide-secret" : "data-mcpui-show-secret");
+    setRevealed(button, button.getAttribute("aria-pressed") !== "true");
   });
 
   // form.elements[name] yields a RadioNodeList when several controls share a name and the BARE
@@ -268,6 +277,7 @@ ${SURFACE_SCRIPT_PRELUDE}
     setBusy(true);
     setStatus(TEXT.working, "pending");
     api.callTool(TOOL, params).then(function () {
+      concealSecrets();
       setStatus(TEXT.done, "done");
       api.requestTeardown();
     }, function (error) {
