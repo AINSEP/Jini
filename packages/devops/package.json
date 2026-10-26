@@ -24,6 +24,7 @@
       "./checks/published-types": "node",
       "./checks/coverage": "node",
       "./checks/node": "node",
+      "./checks/memory-soak": "universal",
       "./local-dev": "node",
       "./deploy/node": "node",
       "./static-export/failure-summary": "universal",
@@ -95,6 +96,11 @@
       "types": "./dist/checks/node.d.ts",
       "import": "./dist/checks/node.js",
       "default": "./dist/checks/node.js"
+    },
+    "./checks/memory-soak": {
+      "types": "./dist/checks/memory-soak.d.ts",
+      "import": "./dist/checks/memory-soak.js",
+      "default": "./dist/checks/memory-soak.js"
     },
     "./local-dev": {
       "types": "./dist/local-dev/index.d.ts",
