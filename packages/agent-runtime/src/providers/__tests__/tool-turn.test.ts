@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test, expect, vi } from 'vitest';
-import type { ProviderToolDescriptor as ToolDescriptor, ProviderToolTurnInput, ProviderToolTurnOptions, ProviderProtocol as ByokProtocol, ProviderToolResult as ByokToolResult, ProviderTurnAdapters, ProviderToolCall, ProviderToolSnapshotOptions, ProviderTurnEvent } from '../tool-turn.js';
+import type { ProviderToolDescriptor as ToolDescriptor, ProviderToolTurnInput, ProviderToolTurnOptions, ProviderProtocol as ByokProtocol, ProviderTurnAdapters, ProviderToolCall, ProviderToolSnapshotOptions, ProviderTurnEvent } from '../tool-turn.js';
 import { runProviderToolTurn, providerTurnAdapters, ProviderToolProjectionError } from '../tool-turn.js';
 import { startStubProviderServer, runFixtureTurn as runByokProviderTurn } from './transport-fixture.js';
 type ByokProviderTurnInput = Omit<ProviderToolTurnInput, 'adapters'> & ProviderToolTurnOptions;

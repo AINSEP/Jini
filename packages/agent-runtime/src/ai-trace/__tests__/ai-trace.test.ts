@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAiTraceRecorder, createRecordingAiTraceSink, createFanOutAiTraceSink, createLazyAiTraceSink, noopAiTraceSink, captureText, classifyToolError, normalizeAiUsage, type AiTraceEvent, type AiTraceSink } from '../index.js';
+import { createAiTraceRecorder, createRecordingAiTraceSink, createLazyAiTraceSink, noopAiTraceSink, captureText, classifyToolError, normalizeAiUsage, type AiTraceEvent, type AiTraceSink } from '../index.js';
 import { SCENARIO_EVENTS, steppingClock } from './scenario.js';
 
 function runScenario(sink: AiTraceSink, capture: 'off' | 'metadata' | 'full' = 'metadata'): void {

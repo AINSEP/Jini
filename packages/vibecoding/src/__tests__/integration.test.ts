@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import * as core from '../index.js';
 import { createHtmlRegionTarget, isValidRegionHandle, type HtmlDocumentStore } from '../html/index.js';

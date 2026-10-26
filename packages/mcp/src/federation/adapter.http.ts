@@ -1,6 +1,6 @@
 import type { FederationMessages } from "./messages.js";
 import type { TextReadOptions } from "@jini-ai/platform/fetch-with-timeout";
-import type { McpToolCallRequiredArgs, McpToolCallOptions, McpHttpRequestRequiredArgs, McpHttpRequestOptions } from "./ports.js";
+import type { McpToolCallRequiredArgs, McpToolCallOptions } from "./ports.js";
 import {
   buildInitializeParams,
   CLIENT_PROTOCOL_VERSION,

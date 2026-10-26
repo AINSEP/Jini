@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '../../index.js';
-import { RUN_PROTOCOL_VERSION, type RunProtocolEvent } from '@jini-ai/protocol';
+import { RUN_PROTOCOL_VERSION } from '@jini-ai/protocol';
 import { isLocalSameOrigin } from '@jini-ai/core';
 import {
   handleRunEventStreamRequest,

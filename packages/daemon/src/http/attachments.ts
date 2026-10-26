@@ -99,7 +99,7 @@
  * correlation-id-bearing generic `INTERNAL_ERROR`, with the real error reaching a host-owned sink —
  * the same `reportInternalError` shape `media.ts`/`delegated-tools.ts` use.
  */
-import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rmdir, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rmdir } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, resolve } from 'node:path';
 import type { Express, Request, Response } from 'express';

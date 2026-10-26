@@ -77,9 +77,6 @@ function privateClient({ config }: { config: SentryConfigEnabled }, { transport 
 }
 
 /**
- * Builds the Sentry-backed port over one client, plus its teardown.
- * @param required Enabled Sentry configuration (DSN, environment, traces sample rate).
- * @param options Optional transport override for tests; optional host-owned client to reuse.
  * @returns `{ port, dispose }`: operations become Sentry spans and error reports become events;
  *   `dispose` closes a private client (removing the SDK's `beforeExit` listeners) and never throws.
  * @throws SDK construction errors (an invalid DSN) during setup.

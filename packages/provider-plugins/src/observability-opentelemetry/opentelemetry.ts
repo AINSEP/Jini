@@ -105,8 +105,6 @@ function adaptTracer({ tracer }: { tracer: Tracer }): TracerPort {
 /**
  * Creates structural SDK factories; no provider, exporter or background timer starts until invoked.
  * A host constructs its port once at boot, not per request.
- * @param _required Empty required object; all SDK overrides are optional.
- * @param options OTLP headers; optional test processors, which prevent constructing a real exporter.
  * @returns Factories which preserve service identity and do not register the provider globally.
  * @complexity O(1) setup cost (one provider, one span processor, one exporter); each tracked span is
  * O(1) — the SDK's real cost (the batching queue and its periodic HTTP export) lives in the span
@@ -150,8 +148,6 @@ export function createOtelFactories(_required: Record<string, never>, options: O
 /**
  * The adapter plus its lifecycle (review 2026-10-25 #6): the host registers `dispose` with its own
  * teardown, so a closed site flushes and stops its provider.
- * @param required Enabled diagnostics configuration.
- * @param options OTLP headers; optional SDK test processors.
  * @returns `{ port, dispose }`; `dispose` never throws.
  * @complexity O(1) setup.
  */

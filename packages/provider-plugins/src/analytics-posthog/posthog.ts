@@ -34,9 +34,6 @@ export interface PostHogAdapterOptions {
 }
 
 /**
- * Builds the PostHog-backed port over one private client, plus its teardown.
- * @param required Enabled PostHog configuration (project API key, ingestion host).
- * @param options Optional fetch override and batch size.
  * @returns `{ port, dispose }`; `dispose` flushes and shuts the client down and never throws.
  * @complexity O(1) per event; delivery is batched in the background by the SDK.
  */
