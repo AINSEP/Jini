@@ -30,7 +30,7 @@ it("sends exactly one diagnostic per signal through the facade, with local accep
   let consent = false;
   const tracker = createTracker({
     observability: { ...createNoopObservabilityPort({}),
-      metric(input) { metrics.push(input); probe.accepted({ providerId: "metrics", method: "metric", input }); },
+      metric(input) { metrics.push(input); probe.accepted({ providerId: "metrics", method: "metric", input, supportsMetric: true }); },
       trackOperation(input) { spans.push(input.name); probe.accepted({ providerId: "traces", method: "trackOperation", input }); return { run: fn => fn(), end() {} }; },
       reportError(input) { reports.push(input); probe.accepted({ providerId: "errors", method: "reportError", input }); },
     },
@@ -59,4 +59,15 @@ it("isolates simultaneous diagnostic scopes", async () => {
   } });
   const results = await Promise.all(["a", "b"].map(providerId => probe.send({ tracker: trackerFor(providerId), userId: "site:test", error: new Error("Diagnostic") })));
   expect(results).toEqual([{ providers: [{ providerId: "a", signals: ["error"] }] }, { providers: [{ providerId: "b", signals: ["error"] }] }]);
+});
+
+
+it("metric receipts require a provider capability even when the method is callable", async () => {
+  const probe = createTelemetryTestProbe({});
+  const tracker = createTracker({ observability: { ...createNoopObservabilityPort({}), metric(input) {
+    for (const [providerId, supportsMetric] of [["sentry", false], ["posthog", false], ["legacy", undefined], ["otel", true]] as const) {
+      probe.accepted({ providerId, method: "metric", input, supportsMetric });
+    }
+  } } });
+  expect(await probe.send({ tracker, error: new Error("diagnostic"), userId: "site:test" })).toEqual({ providers: [{ providerId: "otel", signals: ["metric"] }] });
 });

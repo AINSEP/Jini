@@ -58,8 +58,10 @@ describe("one tracker facade", () => {
     const secret = ["private", "fixture", "value"].join("-");
     const failure = new Error(`refused ${secret}`);
     const scope = { reported: false };
-    runWithErrorReportScope({ scope, work: () => tracker.error({ error: failure }, { context: { route: "/posts/:id", exactSecrets: [secret] } }) });
-    tracker.error({ error: failure });
+    runWithErrorReportScope({ scope, work: () => {
+      tracker.error({ error: failure }, { context: { route: "/posts/:id", exactSecrets: [secret] } });
+      tracker.error({ error: failure });
+    } });
     tracker.capture({ name: event.name, userId: event.userId });
     expect(scope.reported).toBe(true);
     expect(reports).toHaveLength(1);
@@ -132,7 +134,6 @@ describe("one tracker facade", () => {
     const tracker = createTracker({ observability }, { warn: (message) => { warnings.push(message); } });
     const failure = new Error("publish failed");
     await expect(tracker.trace({ name: "site.publish", run: () => { throw failure; } })).rejects.toBe(failure);
-    tracker.error({ error: failure });
     expect(reports).toHaveLength(1);
     expect(reports[0]!.context.operation).toBe("site.publish");
     expect(outcomes).toEqual([{ outcome: "error", failed: true }]);
@@ -232,9 +233,38 @@ for (const asynchronous of [false, true]) {
   });
 }
 
-it("does not turn metrics into product events when only analytics is configured", () => {
-  const events: ProductEvent[] = [];
-  const tracker = createTracker({ productAnalytics: { capture(input) { events.push(input); }, identify() {} } });
-  tracker.metric({ name: "jobs", value: 1 }, { kind: "counter" });
-  expect(events).toEqual([]);
+it("deduplicates nested reports in a trace, while reused errors reach independent traces and trackers", async () => {
+  const reports: ErrorReport[] = [];
+  const error = new Error("reused");
+  const observability = { ...createNoopObservabilityPort({}), reportError(report: ErrorReport) { reports.push(report); } };
+  const first = createTracker({ observability });
+  const second = createTracker({ observability });
+  for (let occurrence = 0; occurrence < 2; occurrence++) {
+    await expect(first.trace({ name: "outer", run: async () => {
+      first.error({ error });
+      second.error({ error });
+      await first.trace({ name: "inner", run: () => { throw error; } });
+    } })).rejects.toBe(error);
+  }
+  expect(reports).toHaveLength(4);
+});
+
+it("a throw overrides earlier operation, request and agent success while explicit cancellation survives", async () => {
+  const outcomes: unknown[] = [];
+  const observability: ObservabilityPort = { ...createNoopObservabilityPort({}),
+    trackOperation: () => ({ run: fn => fn(), end: value => { outcomes.push(value); } }),
+    trackRequest: () => ({ run: fn => fn(), end: value => { outcomes.push(value); } }),
+    trackAgentRun: () => ({ run: fn => fn(), end: value => { outcomes.push(value); } }),
+  };
+  const tracker = createTracker({ observability });
+  const failure = new Error("after success");
+  await expect(tracker.trace({ name: "operation", run: span => { span.setOutcome({ outcome: "completed", failed: false }); throw failure; } })).rejects.toBe(failure);
+  await expect(tracker.trace({ name: "request", run: span => { span.setOutcome({ statusCode: 200, routePattern: "/posts/:id" }); throw failure; } }, { request: { method: "GET", path: "/posts/1" } })).rejects.toBe(failure);
+  await expect(tracker.trace({ name: "agent", run: span => { span.setOutcome({ status: "succeeded" }); throw failure; } }, { agent: { runId: "one" } })).rejects.toBe(failure);
+  await expect(tracker.trace({ name: "agent", run: span => { span.setOutcome({ status: "canceled" }); throw failure; } }, { agent: { runId: "two" } })).rejects.toBe(failure);
+  await expect(tracker.trace({ name: "operation", run: span => { span.setOutcome({ outcome: "canceled", failed: false }); throw failure; } })).rejects.toBe(failure);
+  expect(outcomes).toEqual([
+    { outcome: "error", failed: true }, { statusCode: 500, routePattern: "/posts/:id" },
+    { status: "failed", error: failure }, { status: "canceled" }, { outcome: "canceled", failed: false },
+  ]);
 });

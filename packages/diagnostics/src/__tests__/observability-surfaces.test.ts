@@ -161,11 +161,11 @@ describe("parenting through the injected scope", () => {
 });
 
 describe("request target redaction", () => {
- it("strips the query string and blanks secret-shaped path values, keeping ids", () => {
+ it("prefers route templates over secret-shaped paths and ids", () => {
   const { exporter, port } = setup();
   port.trackRequest({ method: "GET", path: "/hooks/ghp_abcdefghijklmnopqrstuvwxyz0123456789/posts/507f191e810c19729de860ea?token=t#frag" })
    .end({ statusCode: 200, routePattern: "/hooks/:secret/posts/:id" });
-  expect(exporter.getFinishedSpans()[0]!.attributes["http.target"]).toBe("/hooks/[REDACTED:credential]/posts/507f191e810c19729de860ea");
+  expect(exporter.getFinishedSpans()[0]!.attributes["http.target"]).toBe("/hooks/:secret/posts/:id");
  });
 });
 

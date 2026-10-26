@@ -46,8 +46,8 @@ export interface OtelAdapterOptions extends ProviderTelemetryOptions {
   spanProcessors?: SpanProcessor[];
   /** Test seam: explicit readers suppress the OTLP metrics pipeline, including an empty array. */
   metricReaders?: IMetricReader[] | undefined;
-  /** Resolved metric route; defaults to the configured trace route with /v1/traces replaced. */
-  metricsEndpoint?: string;
+  /** Shared collector base; metrics keep their own route when tracing has an override. */
+  endpoint?: string | undefined;
   /** Host attribution (e.g. which site sent the span), added to the resource; `service.name` stays the host's. */
   resourceAttributes?: Readonly<Record<string, string>>;
 }
@@ -62,8 +62,8 @@ export interface OtelAdapterOptions extends ProviderTelemetryOptions {
  */
 const OTLP_SPAN_EXPORTER_COMPONENT = "otlp_http_span_exporter";
 const BATCH_DEFAULTS = { maxExportBatchSize: 512, maxQueueSize: 2048, scheduledDelayMillis: 5000, exportTimeoutMillis: 30_000 };
-const LIMITS = { attributeValueLengthLimit: Infinity, attributeCountLimit: 128 };
-const SPAN_LIMITS = { ...LIMITS, linkCountLimit: 128, eventCountLimit: 128, attributePerEventCountLimit: 128, attributePerLinkCountLimit: 128 };
+const LIMITS = { attributeValueLengthLimit: 1024, attributeCountLimit: 64 };
+const SPAN_LIMITS = { ...LIMITS, linkCountLimit: 128, eventCountLimit: 128, attributePerEventCountLimit: 64, attributePerLinkCountLimit: 64 };
 
 /** Shared SDK transport owner for both signals: explicit settings only, no OTEL_* credentials.
  * @returns An OTLP/HTTP JSON exporter. @complexity O(h) request headers, bounded SDK queue/timeout.
@@ -139,12 +139,14 @@ function adaptSpan({ span }: { span: Span }): TraceSpanPort {
  * as an explicit context (`trace.setSpan(ROOT_CONTEXT, parent)`), not through a registered global
  * context manager — the same "never take over @opentelemetry/api's process-wide registration" rule
  * this file's header gives for the provider.
+ * @param required The injected SDK tracer. @returns A structural tracer with explicit root/parent context.
+ * @complexity O(1) per span.
  */
-function adaptTracer({ tracer }: { tracer: Tracer }): TracerPort {
+export function adaptTracer({ tracer }: { tracer: Tracer }, _options = {}): TracerPort {
   return {
     startSpan: ({ name, kind, attributes }, { parent } = {}) => {
       const parentSpan = parent ? sdkSpans.get(parent) : undefined;
-      const context = parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : undefined;
+      const context = parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : ROOT_CONTEXT;
       return adaptSpan({ span: tracer.startSpan(name, { kind: SDK_SPAN_KINDS[kind], attributes }, context) });
     },
   };
@@ -200,15 +202,14 @@ export function createOtelFactories(_required: Record<string, never>, options: O
 
 /** Resolve the metrics signal independently of a trace-only route override.
  * @param required The resolved trace URL; the standard suffix preserves collector path prefixes.
- * @param options Explicit metrics URL or shared collector base, in that precedence order.
+ * @param options Shared collector base, when configured.
  * @returns The OTLP metrics URL; custom trace-only routes fall back to the origin's standard route.
  * @throws TypeError for an invalid fallback trace URL. @complexity O(u) URL length.
  */
 export function resolveMetricsEndpoint(
   { tracesEndpoint }: { tracesEndpoint: string },
-  { endpoint, metricsEndpoint }: { endpoint?: string | undefined; metricsEndpoint?: string | undefined } = {},
+  { endpoint }: { endpoint?: string | undefined } = {},
 ): string {
-  if (metricsEndpoint?.trim()) return metricsEndpoint.trim();
   if (endpoint?.trim()) return `${endpoint.trim().replace(/\/+$/, "")}/v1/metrics`;
   if (/\/v1\/traces(?=[?#]|$)/.test(tracesEndpoint)) return tracesEndpoint.replace(/\/v1\/traces(?=[?#]|$)/, "/v1/metrics");
   return new URL("/v1/metrics", tracesEndpoint).href;
@@ -257,6 +258,8 @@ function createMetrics({ config }: { config: ObservabilityConfigEnabled }, optio
   return {
     metric({ name, value }: MetricInput, { kind = "gauge", unit, attributes = {} }: MetricOptions = {}) {
       if (closed || !Number.isFinite(value)) return;
+      // Reject rather than truncate: distinct dynamic names must never alias one instrument.
+      if (name.length > 255) return;
       provider ??= createMetricProvider({ config }, options);
       RECORD_METRIC[kind]({ meter: provider.getMeter(config.tracerName), name, value,
         settings: unit === undefined ? {} : { unit }, attributes: redactOperationAttributes({ attributes }) });
@@ -275,7 +278,7 @@ export function createOtelObservabilityAdapter({ config }: { config: Observabili
   const reporter = createProviderTelemetryReporter({ endpoint: config.endpoint }, options);
   const { shutdown, ...factories } = createOtelFactories({}, options);
   const metrics = createMetrics({ config }, options);
-  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) }), metric: metrics.metric };
+  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) }), metric: metrics.metric, supportsMetric: true };
   reporter.initialized({ message: "OpenTelemetry exporting" });
   return { port, dispose: async () => {
     try { await Promise.all([shutdown(), metrics.shutdown()]); reporter.result({ phase: "shutdown", outcome: "ok" }); }

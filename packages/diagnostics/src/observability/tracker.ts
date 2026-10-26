@@ -4,7 +4,7 @@ import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracke
 import { createNoopTracker } from "./tracker-noop.js";
 import { isNoopObservabilityPort } from "./noop.js";
 import { combineObservabilityPorts } from "./fanout.js";
-import { reportErrorOnce, redactedError } from "./report-error.js";
+import { reportErrorOnce, redactedError, runWithErrorReportScope } from "./report-error.js";
 
 type SpanOutcome = OperationTrackingOutcome | RequestTrackingOutcome | AgentRunTrackingOutcome;
 type SpanOptions = OperationSpanOptions | RequestSpanOptions | AgentSpanOptions;
@@ -39,6 +39,16 @@ function spanOutcome({ options, failure }: { options: SpanOptions; failure?: { e
   return { outcome: failure ? "error" : "completed", failed: failure !== undefined };
 }
 
+/** Cancellation is an explicit semantic outcome; all other thrown work is a failure.
+ * @returns The final lifecycle outcome, preserving a known request route. @complexity O(1).
+ */
+function thrownOutcome({ options, outcome, error }: { options: SpanOptions; outcome: SpanOutcome | undefined; error: unknown }, _options = {}): SpanOutcome {
+  if (outcome && "status" in outcome && outcome.status === "canceled") return outcome;
+  if (outcome && "outcome" in outcome && ["canceled", "cancelled"].includes(outcome.outcome)) return outcome;
+  if (outcome && "statusCode" in outcome) return { ...outcome, statusCode: 500 };
+  return spanOutcome({ options, failure: { error } });
+}
+
 /** One facade over existing ports: consent/identity remain on the composed providers, error
  * deduplication/redaction stays with reportErrorOnce, scope containment stays with fanout.
  * Missing providers do nothing; trace still runs work exactly once and preserves its result/error.
@@ -59,20 +69,22 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
     } catch { failed(); }
   };
   async function trace<T>({ name, run: work }: { name: string; run: (span: TrackerSpan<SpanOutcome>) => T | Promise<T> }, options: SpanOptions = {}): Promise<T> {
-    const lifecycle = startSpan({ observability, name, options });
-    let outcome: SpanOutcome | undefined;
-    const handle: TrackerSpan<SpanOutcome> = { setOutcome: (value) => { outcome ??= value; } };
-    const run = <R>(fn: () => R): R => lifecycle.run ? lifecycle.run(fn) : fn();
-    try {
-      return await run(() => work(handle));
-    } catch (failure) {
-      run(() => error({ error: failure instanceof Error ? failure : redactedError({ error: failure }) }, { context: { operation: name } }));
-      outcome ??= spanOutcome({ options, failure: { error: failure } });
-      throw failure;
-    } finally {
-      // Request callbacks normally settle with their response outcome, including disconnects.
-      lifecycle.end(outcome ?? spanOutcome({ options }));
-    }
+    return runWithErrorReportScope({ scope: { reported: false }, work: async () => {
+      const lifecycle = startSpan({ observability, name, options });
+      let outcome: SpanOutcome | undefined;
+      const handle: TrackerSpan<SpanOutcome> = { setOutcome: (value) => { outcome ??= value; } };
+      const run = <R>(fn: () => R): R => lifecycle.run ? lifecycle.run(fn) : fn();
+      try {
+        return await run(() => work(handle));
+      } catch (failure) {
+        run(() => error({ error: failure instanceof Error ? failure : redactedError({ error: failure }) }, { context: { operation: name } }));
+        outcome = thrownOutcome({ options, outcome, error: failure });
+        throw failure;
+      } finally {
+        // Request callbacks normally settle with their response outcome, including disconnects.
+        lifecycle.end(outcome ?? spanOutcome({ options }));
+      }
+    } }, { reuseCurrent: true });
   }
   return {
     capture(input, options = {}) { try { return Promise.resolve(required.productAnalytics?.capture({ ...input, ...options })).catch(failed); } catch { failed(); } },

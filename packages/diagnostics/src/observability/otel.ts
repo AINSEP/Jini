@@ -21,6 +21,8 @@ export function errorType(error: unknown): string {
 
 const MAX_ERROR_TYPE = 64;
 const MAX_ATTRIBUTE_TEXT = 256;
+const MAX_ATTRIBUTES = 64;
+const ATTRIBUTE_KEY = /^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/;
 
 function redactLabel(text: string): string {
  return redactSecretShapes({ text, policy: {} }).text;
@@ -33,14 +35,36 @@ function redactLabel(text: string): string {
  * @param required The caller's attributes. @returns A fresh, redacted copy. @complexity O(total text). */
 export function redactOperationAttributes({ attributes }: { attributes: Readonly<Record<string, string | number>> }): Attributes {
  const safe: Attributes = {};
- for (const [name, value] of Object.entries(attributes)) safe[name] = typeof value === 'string' ? redactLabel(value).slice(0, MAX_ATTRIBUTE_TEXT) : value;
+ for (const name of Object.keys(attributes)) {
+  if (Object.keys(safe).length >= MAX_ATTRIBUTES) break;
+  // Keys are a bounded label allow-list too: never export emails, URLs or credential-shaped keys.
+  if (!ATTRIBUTE_KEY.test(name) || redactLabel(name) !== name) continue;
+  const value = attributes[name]!;
+  safe[name] = typeof value === 'string' ? redactLabel(value).slice(0, MAX_ATTRIBUTE_TEXT) : value;
+ }
  return safe;
 }
 
-/** Query and fragment are dropped (tokens ride there most often); secret-shaped path values are
- * blanked. Ids stay: an operator searches by them, and a route pattern alone cannot name a record. */
-export function redactRequestTarget(path: string): string {
- return redactSecretShapes({ text: path.replace(/[?#][\s\S]*$/, ''), policy: {} }).text;
+/** Decode before classifying; malformed encodings and non-label segments fail closed.
+ * Only short alphabetic route words survive; ids, emails and opaque tokens become placeholders.
+ * @returns A safe path segment. @complexity O(s) segment text.
+ */
+function safePathSegment({ segment }: { segment: string }, _options = {}): string {
+ let decoded: string;
+ try { decoded = decodeURIComponent(segment); } catch { return ':param'; }
+ if (decoded === '') return '';
+ if (!/^[a-zA-Z-]{1,24}$/.test(decoded)) return ':param';
+ if (/^[a-fA-F]{8,}$/.test(decoded) || decoded.length >= 16) return ':param';
+ return decoded;
+}
+
+/** Prefer a router-owned template. Otherwise drop query/fragment and replace sensitive-looking
+ * segments; raw ids no longer cross the export boundary (correlation belongs on explicit ids).
+ * @returns A bounded request target. @complexity O(p) path text.
+ */
+export function redactRequestTarget({ path }: { path: string }, { routePattern }: { routePattern?: string } = {}): string {
+ if (routePattern && routePattern !== 'unmatched') return routePattern.replace(/[?#][\s\S]*$/, '').slice(0, 1024);
+ return path.replace(/[?#][\s\S]*$/, '').split('/').map(segment => safePathSegment({ segment })).join('/').slice(0, 1024);
 }
 
 /** Scheme, host and explicit port only. Paths carry bot tokens and signed-URL keys; userinfo carries passwords. */
@@ -93,18 +117,20 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
  }
 
  return {
+  supportsMetric: false,
   // This structural tracing adapter has no metrics exporter; the provider plugin supplies it.
   metric() {},
   trackRequest(input, { requestId } = {}) {
    // The id the response echoes is recorded on the span, so a reported id finds its trace.
    const span = start({ name: input.method, kind: 'server', attributes: {
-    'http.method': input.method, 'http.target': redactRequestTarget(input.path), ...(requestId ? { 'http.request.id': requestId } : {}),
+    'http.method': input.method, 'http.target': redactRequestTarget({ path: input.path }), ...(requestId ? { 'http.request.id': requestId } : {}),
    } });
    return { ...(requestId ? { requestId } : {}), run: runIn(span), end: once((outcome) => {
     // Routing finishes after startSpan, so open with a provisional name and assign the final
     // pattern at end. The consumer port needs no separate rename operation to express that timing.
     span.updateName({ name: `${input.method} ${outcome.routePattern}` });
     span.setAttribute({ name: 'http.route', value: outcome.routePattern });
+    span.setAttribute({ name: 'http.target', value: redactRequestTarget({ path: input.path }, { routePattern: outcome.routePattern }) });
     span.setAttribute({ name: 'http.status_code', value: outcome.statusCode });
     if (outcome.statusCode >= 500) span.setStatus({ code: 'error' });
     span.end({});
@@ -149,6 +175,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     if (!active) span.end({});
    } catch {
     // Reporting is best-effort: a broken exporter must not turn an already-handled failure into a crash.
+    return false;
    }
   },
   trackAgentRun({ runId }, { conversationId, agentName } = {}) {
