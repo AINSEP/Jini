@@ -217,7 +217,6 @@ test('server visitor counters cannot create person profiles, even through caller
     .toEqual({ name: 'form_submitted', subject: 'visitor:ephemeral', profiles: false, insertId: 'committed-event', geoipDisabled: true });
 });
 
-
 test('visitor suppression is authoritative, owner capture keeps its profile policy, and AI generations never create profiles', async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid' }, { fetch, flushAt: 1 });
@@ -229,4 +228,14 @@ test('visitor suppression is authoritative, owner capture keeps its profile poli
   await resource.dispose({});
   const events = batches.flatMap(batch => batch.body.batch);
   expect(events.map(event => event.properties.$process_person_profile)).toEqual([false, undefined, true, false, false]);
+});
+
+test("the port offers a cookie-consent adapter with only public config, mounted where the host says", async () => {
+  const resource = createPostHogProvider({ apiKey: "phc_test_dummy", host: "https://posthog.invalid", sessionReplay: "true",
+    attribution: { attributes: { site_id: "site-123" }, groups: {} } });
+  const { adapter, http } = (resource.port as unknown as { consentAdapter(required: { path: string }): { adapter: { config: Record<string, unknown> }; http: { path: string } } })
+    .consentAdapter({ path: "/_consent/posthog" });
+  expect(http.path).toBe("/_consent/posthog");
+  expect(adapter.config).toMatchObject({ apiKey: "phc_test_dummy", host: "/_consent/posthog", sessionReplay: true, siteId: "site-123" });
+  await resource.dispose({});
 });

@@ -32,6 +32,7 @@ const BANNER_FIELDS: readonly { key: TextKey; label: string; multiline?: boolean
   { key: 'preferencesLabel', label: 'Preferences label' }, { key: 'privacyPolicyUrl', label: 'Privacy policy page URL' },
   { key: 'secondaryLinkLabel', label: 'Second link text' }, { key: 'secondaryLinkUrl', label: 'Second link URL' },
 ];
+const BANNER_MODE_LABELS = { jini: 'Jini banner', headless: 'My own', off: 'None' } as const;
 const REGION_LABELS: Readonly<Record<ConsentSettingsView['regionMode'], string>> = {
   auto: 'Automatic (unknown region: opt-in)', 'opt-in': 'Opt-in everywhere (EU / UK)', 'opt-out': 'Opt-out everywhere (California)',
 };
@@ -67,11 +68,32 @@ function Field({ label, field, problems, children }: { label: string; field: str
   return <div className="jini-consent-settings-field"><label htmlFor={id} className="jini-field-label">{label}</label>{children(attributes)}<FieldProblems id={`${id}-problems`} problems={own} /></div>;
 }
 
-/** Banner copy and its links. Text is always plain text; the engine never renders it as HTML. */
-export function ConsentBannerFields({ value, onChange, disabled = false, problems, dictionary, limits = {} }: ConsentFieldsProps) {
+/** Host-supplied banner modes. Native radios provide keyboard selection; the hint keeps its space
+ * while hidden, and the parent fieldset supplies the disabled state. */
+function BannerModeFields({ value, onChange, dictionary, modes }: Pick<ConsentFieldsProps, 'value' | 'onChange' | 'dictionary'> & { modes: readonly NonNullable<ConsentSettingsView['bannerMode']>[] }) {
+  const id = useId();
+  const t = translator(dictionary);
+  const handlers = useConsentSettingsPanel({ value, onChange });
+  return <fieldset className="jini-consent-banner-modes" aria-describedby={value.bannerMode === 'headless' ? `${id}-mode-hint` : undefined}>
+      <legend>{t('Banner mode')}</legend>
+      <div className="jini-consent-banner-options">{modes.map(mode => <label key={mode}>
+        <input type="radio" name={`${id}-banner-mode`} value={mode} checked={(value.bannerMode ?? 'jini') === mode} onChange={handlers.bannerMode({ mode })} />
+        <span>{t(BANNER_MODE_LABELS[mode])}</span>
+      </label>)}</div>
+      <p id={`${id}-mode-hint`} className="jini-hint jini-consent-banner-mode-hint" style={{ visibility: value.bannerMode === 'headless' ? 'visible' : 'hidden' }}>
+        {t('Your banner calls window.jiniConsent.set(...)')}
+      </p>
+    </fieldset>;
+}
+
+/** Banner copy and its links. Optional host modes report only a mode patch; the host's independent
+ * enabled switch stays authoritative. Text is always plain text.
+ * @example <ConsentBannerFields value={value} onChange={onChange} bannerModes={['jini', 'headless', 'off']} /> */
+export function ConsentBannerFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, bannerModes }: ConsentFieldsProps & { bannerModes?: readonly NonNullable<ConsentSettingsView['bannerMode']>[] | undefined }) {
   const t = translator(dictionary);
   const handlers = useConsentSettingsPanel({ value, onChange });
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Banner text')}</legend>
+    {bannerModes && <BannerModeFields value={value} onChange={onChange} dictionary={dictionary} modes={bannerModes} />}
     {BANNER_FIELDS.map(({ key, label, multiline }) => <Field key={key} label={t(label)} field={key} problems={problems}>{aria => multiline
       ? <textarea className="jini-input" value={value[key] ?? ''} maxLength={limits[key] ?? 2000} rows={3} onChange={handlers.text(key)} {...aria} />
       : <input className="jini-input" type="text" value={value[key] ?? ''} maxLength={limits[key] ?? 2000} onChange={handlers.text(key)} {...aria} />}</Field>)}

@@ -6,6 +6,7 @@ export function useConsentSettingsPanel({ value, onChange }: Pick<ConsentSetting
   return {
     toggle: () => onChange({ patch: { enabled: !value.enabled } }),
     toggleUnsafeEval: () => onChange({ patch: { allowUnsafeEval: value.allowUnsafeEval !== true } }),
+    bannerMode: ({ mode }: { mode: NonNullable<ConsentSettingsView['bannerMode']> }, _optional = {}) => () => onChange({ patch: { bannerMode: mode } }),
     region: (event: ChangeEvent<HTMLSelectElement>) => onChange({ patch: { regionMode: event.target.value as ConsentSettingsView['regionMode'] } }),
     placement: (event: ChangeEvent<HTMLSelectElement>) => onChange({ patch: { placement: event.target.value } }),
     text: (key: keyof ConsentSettingsView) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange({ patch: { [key]: event.target.value } }),

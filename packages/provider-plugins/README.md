@@ -18,6 +18,13 @@ returns `@jini-ai/analytics/product`'s `ProductAnalyticsPort`, which the host wr
 `ai-trace-langfuse` returns an `@jini-ai/agent-runtime/ai-trace` sink, which the host combines with
 `createFanOutAiTraceSink` and hands to the daemon's `withAiTracing`.
 
+Cookie consent: the PostHog port's `consentAdapter({ path })` returns `{ adapter, http }`. Mount `http`
+at `path` (same origin) and list `adapter` (a lazy `consent-adapter` entry for `@jini-ai/cookie-consent`)
+in the page's consent config. The browser imports `consent-adapter.mjs` only on an analytics grant; it
+loads the pinned posthog-js file (copied byte for byte; the build checks its SHA-256) with SRI, so other
+bytes never run. Events go through the same-origin collector with `ip=0`. Sentry and OpenTelemetry are
+server-only and set nothing in the visitor's browser, so they have no consent adapter.
+
 Licenses: each artifact carries `licenses/<package>/` for every bundled package. A package that
 ships no license file takes a bundled sibling's text from the same repository and declared license,
 or a reviewed upstream copy under `license-supplements/<repository>/` (with a `SOURCE` note); the
