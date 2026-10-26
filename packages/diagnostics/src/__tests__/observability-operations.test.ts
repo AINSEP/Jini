@@ -225,7 +225,7 @@ test("combineObservabilityPorts: every signal fans out, and a tracker without ru
     reportError: () => { seen.push(`${tag}:error`); },
   });
   const port = combineObservabilityPorts({ ports: [recording("a"), noop, recording("b")] as never });
-  port.trackRequest({ method: "GET", path: "/" }).end({ statusCode: 200 });
+  port.trackRequest({ method: "GET", path: "/" }).end({ statusCode: 200 } as never);
   port.trackDbQuery({ operation: "select" } as never).end({} as never);
   port.trackOutboundCall({ method: "GET", url: "https://x.test" } as never).end({} as never);
   port.trackAgentRun({ agentId: "a" } as never).end({} as never);
