@@ -36,22 +36,31 @@ export function clamp({ flags, gpc }: { flags: Flags; gpc: boolean }, _optional 
 
 /** Region default, policy-version + age expiry, GPC clamp, and (durable mode) no grant without a receipt.
  * A region default with no stored choice (the opt-out model) is never "waiting", so it runs as configured.
+ * Anonymous delivery ignores stored grants and enables only analytics, still subject to the privacy signal.
  * @example effective({ stored, policy: '2026-10-26', region: 'opt-in', gpc: false, nowMs: Date.now() }, { durable: true })
  * @complexity O(1). */
 export function effective(
   { stored, policy, region, gpc, nowMs }: { stored: StoredChoice | null; policy: string; region: RegionMode; gpc: boolean; nowMs: number },
-  { maxAgeMs = DEFAULT_MAX_AGE_MS, durable = false }: { maxAgeMs?: number; durable?: boolean } = {},
+  { maxAgeMs = DEFAULT_MAX_AGE_MS, durable = false, anonymous = false }: { maxAgeMs?: number; durable?: boolean; anonymous?: boolean } = {},
 ): ConsentState {
-  const live = current({ stored, policy, nowMs, maxAgeMs });
-  const choices = clamp({ flags: live?.c ?? flags(region === 'opt-out'), gpc });
-  const base = { contract: 1, policy, region, gpc, choices } as const;
-  if (!live) return { ...base, status: 'pending', allowed: choices, action: null, at: null, receipt: 'none' };
-  return { ...base, status: 'set', allowed: durable && !live.r ? DENIED : choices, action: live.a, at: live.t, receipt: receiptOf(live) };
+  // Banner-off never revives an old identity or consent grant, even in an opt-out region.
+  const live = current({ stored, policy, nowMs, maxAgeMs, anonymous });
+  const choices = clamp({ flags: anonymous ? DENIED : live?.c ?? flags(region === 'opt-out'), gpc });
+  const base = { contract: 1, policy, region, gpc, choices, ...permissionFor({ choices, live, durable, anonymous, gpc }) } as const;
+  if (!live) return { ...base, status: 'pending', action: null, at: null, receipt: 'none' };
+  return { ...base, status: 'set', action: live.a, at: live.t, receipt: receiptOf(live) };
 }
 
 /** Unparseable, future (beyond skew) and expired choices are all stale. @complexity O(1). */
-function current({ stored, policy, nowMs, maxAgeMs }: { stored: StoredChoice | null; policy: string; nowMs: number; maxAgeMs: number }): StoredChoice | null {
-  return stored && stored.p === policy && stored.t <= nowMs + SKEW_MS && nowMs - stored.t <= maxAgeMs ? stored : null;
+function current({ stored, policy, nowMs, maxAgeMs, anonymous }: { stored: StoredChoice | null; policy: string; nowMs: number; maxAgeMs: number; anonymous: boolean }): StoredChoice | null {
+  return !anonymous && stored && stored.p === policy && stored.t <= nowMs + SKEW_MS && nowMs - stored.t <= maxAgeMs ? stored : null;
+}
+
+/** Runtime permissions differ from choices for anonymous delivery and unconfirmed durable grants.
+ * @complexity O(1). */
+function permissionFor({ choices, live, durable, anonymous, gpc }: { choices: Choices; live: StoredChoice | null; durable: boolean; anonymous: boolean; gpc: boolean }, _optional = {}): Pick<ConsentState, 'allowed' | 'analyticsLevel'> {
+  const allowed = anonymous ? { ...DENIED, analytics: !gpc } : live && durable && !live.r ? DENIED : choices;
+  return { allowed, analyticsLevel: allowed.analytics ? anonymous ? 'anonymous' : 'full' : 'none' };
 }
 
 function receiptOf(stored: StoredChoice): ReceiptStatus {

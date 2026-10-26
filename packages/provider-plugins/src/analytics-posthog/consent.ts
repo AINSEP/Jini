@@ -2,9 +2,9 @@
  * it chooses and lists `adapter` (a lazy `consent-adapter` entry) in the consent page config. The browser
  * imports the adapter only on an analytics grant; the adapter then loads the pinned SDK with SRI. */
 import { readFile } from 'node:fs/promises';
-import type { LazyAdapter } from '@jini-ai/cookie-consent';
+import type { ConsentState, LazyAdapter } from '@jini-ai/cookie-consent';
 import type { BrowserAnalyticsContribution } from '@jini-ai/analytics/product';
-import { POSTHOG_STORAGE, type PostHogConsentConfig } from './consent-adapter.js';
+import { anonymousPageview, POSTHOG_STORAGE, type PostHogConsentConfig } from './consent-adapter.js';
 
 /** posthog-js version and the SHA-256 (SRI form) of its `dist/module.full.no-external.js`, which the build
  * copies byte for byte. The build refuses any other bytes; browsers refuse them too. */
@@ -14,6 +14,7 @@ export const POSTHOG_SDK_INTEGRITY = 'sha256-QseGEOjBof8yWCWcE77LNGmWaKgfCRry6AF
 export const SDK_FILE = 'posthog-browser.js';
 export const ADAPTER_FILE = 'consent-adapter.mjs';
 type AssetHandler = NonNullable<BrowserAnalyticsContribution['http']>['handle'];
+type ConsentAssetHandler = (required: Parameters<AssetHandler>[0] & { analyticsLevel?: ConsentState['analyticsLevel'] }) => ReturnType<AssetHandler>;
 
 /** Reject private tokens and credential-bearing endpoints before any browser config exists.
  * Errors are fixed copy: submitted values must never enter diagnostics. O(input bytes).
@@ -44,22 +45,29 @@ export async function forwardCollectorEvent(required: { host: string; path: stri
 export function postHogConsentContribution(
   required: { apiKey: string; host: string; sessionReplay: boolean; siteId?: string | undefined; path: string },
   { request = fetch, loadAsset = name => readFile(new URL(`./${name}`, import.meta.url), 'utf8') }: { request?: typeof fetch; loadAsset?: (name: string) => Promise<string> } = {},
-): { adapter: LazyAdapter & { config: PostHogConsentConfig }; http: { path: string; handle: AssetHandler } } {
+): { adapter: LazyAdapter & { config: PostHogConsentConfig }; http: { path: string; handle: ConsentAssetHandler } } {
   validatePostHogBrowserConfig(required);
   if (!/^(?:\/[a-z0-9_-]+)+$/i.test(required.path)) throw new TypeError('Mount the consent assets at a plain absolute path such as /_consent/posthog.');
   const sdk = `/sdk-${POSTHOG_BROWSER_VERSION}.js`;
   const config: PostHogConsentConfig = { apiKey: required.apiKey, host: required.path, sdk: required.path + sdk, integrity: POSTHOG_SDK_INTEGRITY,
     sessionReplay: required.sessionReplay, ...(required.siteId ? { siteId: required.siteId } : {}) };
   const script = async (name: string, cacheControl: string) => ({ status: 200, body: await loadAsset(name), contentType: 'text/javascript; charset=utf-8', cacheControl });
-  const handle: AssetHandler = async ({ method, path, body, contentType }) => {
+  const handle: ConsentAssetHandler = async ({ method, path, body, contentType, analyticsLevel }) => {
     if (method === 'GET' && path === sdk) return script(SDK_FILE, 'public, max-age=31536000, immutable');
     // Unversioned and tiny: revalidate so a plugin update reaches visitors on their next grant.
     if (method === 'GET' && path === `/${ADAPTER_FILE}`) return script(ADAPTER_FILE, 'no-cache');
     if (method !== 'POST') return { status: 404, body: '' };
+    // The host's decision wins over stale browser settings and forged payload fields. In anonymous
+    // mode only aggregate pageviews leave; replay, batches and all supplied identities are refused.
+    if (analyticsLevel === 'anonymous') {
+      if (!/^\/e\/?$/.test(path)) return { status: 403, body: '' };
+      body = new TextEncoder().encode(anonymousPageview(config));
+      contentType = 'application/json';
+    }
     return forwardCollectorEvent({ host: required.host, path, body, contentType }, { request });
   };
   return {
-    adapter: { id: 'posthog', kind: 'consent-adapter', category: 'analytics', src: `${required.path}/${ADAPTER_FILE}`, config, storage: POSTHOG_STORAGE },
+    adapter: { id: 'posthog', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, src: `${required.path}/${ADAPTER_FILE}`, config, storage: POSTHOG_STORAGE },
     http: { path: required.path, handle },
   };
 }

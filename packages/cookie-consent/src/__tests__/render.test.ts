@@ -8,8 +8,12 @@ const config = (over: object = {}) => ({ mode: 'jini' as const, client, copy: {}
 const pageConfig = (head: string) => JSON.parse(new RegExp(`<script type="application/json" id="${CONFIG_ID}">(.*?)</script>`).exec(head)![1]!);
 
 describe('renderBanner modes', () => {
-  test('off (or an unknown mode from stored settings) emits nothing', () => {
-    expect(renderBanner(config({ mode: 'off' }))).toEqual({ head: '', body: '', htmlAttrs: '', problems: [] });
+  test('off emits only the anonymous runtime; an unknown mode emits nothing', () => {
+    const off = renderBanner(config({ mode: 'off' }), { clientSrc: '/client.js' });
+    expect(pageConfig(off.head).banner).toBe('off');
+    expect(off.head).toContain('src="/client.js"');
+    expect(off.head).not.toContain('<style');
+    expect(off.body).toBe('');
     expect(renderBanner(config({ mode: 'popup' as never })).head).toBe('');
   });
 

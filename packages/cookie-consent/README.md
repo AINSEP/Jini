@@ -43,12 +43,12 @@ const response = await handleReceipt({ request, ports: { store, policy: () => '2
 - **Modes:**
   - `jini` is the built-in banner.
   - `headless` is your own banner. It drives `window.jiniConsent` (`get`, `set`, `subscribe`, `open`, `setOpen`).
-  - `off` renders nothing.
+  - `off` renders the client config without banner UI and permits anonymous analytics only. It writes no consent cookie or receipt and ignores earlier choices. Raw inert tags stay blocked.
 - **Evidence:**
   - `durable`: a grant only takes effect once the server has stored its receipt.
   - `local`: the record stays in the browser (static export, Electron, `file:`) and is labelled as browser-only.
-- Denial applies before any network call. Global Privacy Control turns off analytics and marketing, and nothing can turn them back on. The receipt response never sets a cookie.
-- **Server-side gate:** `readConsent({ cookieHeader, policy, regionMode })` from `./server`.
+- Denial applies before any network call. Global Privacy Control or DNT turns off analytics and marketing (including anonymous analytics), and nothing can turn them back on. The receipt response never sets a cookie.
+- **Server-side gate:** `readConsent({ cookieHeader, policy, regionMode }, { secGpc, dnt, anonymous })` from `./server`. Bind `anonymous: true` when the banner is off. The historical `gpc` state/receipt field records the effective GPC-or-DNT opt-out.
 - **Inert tags:**
   - `<script type="text/plain" data-consent-category="analytics">` runs only once its category is allowed.
   - `<iframe data-consent-category data-src>` loads only once its category is allowed.
@@ -67,6 +67,8 @@ The slot set is open. Each kind is a string. A contribution for a kind that no s
     (window.jiniConsentQueue ||= []).push({ id: 'stats', kind: 'consent-adapter', category: 'analytics',
       grant({ config, state, signal }) { /* start the vendor */ return { revoke() { /* stop it */ return true; } }; } });
     ```
+
+  Adapters must read `state.analyticsLevel` (`none` | `anonymous` | `full`). Only adapters declaring `supportsAnonymous: true` can run in off mode. Anonymous means no cookies, localStorage, sessionStorage, cross-page identifier, person profiles, IP geolocation, replay or form-input capture. Hosts must pass the server decision to collectors; a browser payload never sets its own level.
 
   If `revoke()` returns false (or is missing), the page reloads so that it ends up clean.
 - **Server region resolvers** (`kind: 'region-resolver'`). There are two forms:

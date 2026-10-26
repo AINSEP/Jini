@@ -20,7 +20,7 @@ export const DEFAULT_COPY: Readonly<BannerCopy> = Object.freeze({
   title: 'Cookies', message: 'We use optional cookies for analytics and marketing only if you agree.',
   acceptLabel: 'Accept', rejectLabel: 'Reject', preferencesLabel: 'Preferences', saveLabel: 'Save preferences',
   doNotSellLabel: 'Do not sell or share my personal information', categoriesLegend: 'Cookie categories',
-  gpcNote: 'Global Privacy Control is on, so analytics and marketing stay off.',
+  gpcNote: 'Your browser privacy signal is on, so analytics and marketing stay off.',
   errorMessage: 'Your choice could not be saved yet. Optional cookies stay off until it is.',
   reopenLabel: 'Privacy choices', privacyLabel: 'Privacy policy', privacyPolicyUrl: '',
   categoryLabels: { necessary: 'Necessary (always on)', functional: 'Functional', analytics: 'Analytics', marketing: 'Marketing' },
@@ -66,12 +66,12 @@ export function resolveCopy(input: BannerCopyInput = {}): BannerCopy {
 /** @example renderBanner({ mode: 'jini', client: { contract: 1, policy: '2026-10-26', regionMode: 'auto' }, copy: {} }, { clientSrc: '/consent/client.min.js', evidence: { mode: 'local' } })
  * @complexity O(copy + CSS length). */
 export function renderBanner({ mode, client, copy }: RenderBannerConfig, options: RenderBannerOptions = {}): RenderedBanner {
-  if (!BANNER_MODES.includes(mode) || mode === 'off') return EMPTY;
+  if (!BANNER_MODES.includes(mode)) return EMPTY;
   const evidence = options.evidence ?? { mode: 'local' };
   const n = options.nonce ? ` nonce="${esc(options.nonce)}"` : '';
   const head = `<script type="application/json" id="${CONFIG_ID}">${json({ ...client, banner: mode, evidence })}</script>${clientScript(options, n)}`;
   const htmlAttrs = previewAttrs(options.preview);
-  if (mode === 'headless') return { head, body: '', htmlAttrs, problems: [] };
+  if (mode !== 'jini') return { head, body: '', htmlAttrs, problems: [] };
   const compiled = compileConsentCss({ css: options.customCss ?? '', tokens: options.appearance ?? {} });
   const style = `<style data-jini-consent-style${n}>${BASE_CSS}${compiled.css}</style>`;
   return { head: style + head, body: markup({ copy: resolveCopy(copy), options, evidence }), htmlAttrs, problems: compiled.problems };
