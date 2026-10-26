@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
+import { expectLinearTime } from './fixtures/linear-time.js';
 
 describe('@jini-ai/core — redact — redactSecrets', () => {
   it('passes empty input through unchanged', () => {
@@ -172,9 +173,11 @@ describe('@jini-ai/core — redact — redactSecrets', () => {
   // `key_` isolates this rule; a `key-` run is slow in an older rule and is not covered here.
   it('scans a long separator-free secret-word run in linear time', () => {
     const input = `?${'key_'.repeat(50_000)}`;
-    const started = performance.now();
     expect(redactSecrets({ input })).toBe(input);
-    expect(performance.now() - started).toBeLessThan(500);
+    expectLinearTime({ size: 400_000, prepare: (count) => {
+      const run = `?${'key_'.repeat(count)}`;
+      return () => redactSecrets({ input: run });
+    } });
   });
 
   it('stops URL secret values at surrounding quotes and text', () => {

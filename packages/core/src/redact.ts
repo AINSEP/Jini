@@ -158,7 +158,11 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // Bearer tokens in HTTP Authorization header copy/paste. We only match
   // the value, not the literal 'Bearer ', so the marker stays readable in
   // the redacted output ("Authorization: Bearer [REDACTED:bearer_token]").
-  { name: 'bearer_token', regex: /(?<=\bBearer\s+)[A-Za-z0-9._~+/-]{16,}={0,2}/g },
+  // The leading lookahead runs the lookbehind only where a token character starts. Without it the
+  // lookbehind ran at every offset and read the whole whitespace run back each time, so any long
+  // whitespace run was quadratic (64 KiB of spaces took ~18 s), and sanitizeUntrustedText redacts
+  // before it truncates. Matches are identical: a token always starts with one of these characters.
+  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/-])(?<=\bBearer\s+)[A-Za-z0-9._~+/-]{16,}={0,2}/g },
 
   // Email addresses. Conservative enough to require a TLD-like trailer. The local part is
   // bounded at the RFC 5321 limit of 64: an unbounded run rescanned the suffix from every word

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AGENT_FAILURE_SECRET_SHAPE_RE, GENERATED_MARKER_RE, redactSecrets, redactSecretsWithCounts } from '../redact.js';
 import { sanitizeUntrustedText } from '../text/sanitize-untrusted-text.js';
+import { expectLinearTime } from './fixtures/linear-time.js';
 
 // Characterization pins for redactSecretsWithCounts: span union over the original text, the
 // merged-span category rule and linear-time guards. Every credential-shaped value is built at
@@ -129,37 +130,54 @@ describe('@jini-ai/core — redact — characterization pins', () => {
   });
 
   // 10 MiB MCP responses reach these paths synchronously; each input was quadratic. Three guards are
-  // smaller than 10 MiB, still far past where the quadratic forms blew the budget: dense label fields
-  // yield ~3 spans per 10 bytes, and the span pipeline (collect, sort, merge) alone needs ~3.5 s for
+  // smaller than 10 MiB, still far past where the quadratic forms blew up: dense label fields yield
+  // ~3 spans per 10 bytes, and the span pipeline (collect, sort, merge) alone needs ~3.5 s for
   // 10 MiB of them (the old rewinding scan took 7.6 s on 160 KB); scanning every offset of a 5 MiB
   // secret in 10 MiB takes ~470 ms warm, ~490 ms cold at 4 MiB (the old scan-from-every-hit took
   // 0.9 s on 64 KB); skipping an escaped quote every 3 bytes takes ~570 ms at 10 MiB, ~220 ms at 4 MiB.
+  // These were `< 500 ms` wall-clock pins, which flaked under machine load; expectLinearTime checks
+  // growth instead. The whitespace runs pin the bearer lookbehind (64 KiB of spaces took ~18 s).
   it.each([
-    ['unterminated marker prefixes', '[REDACTED:'.repeat(20_000), ['x']],
-    ['many markers beside many exact matches', '[redacted] x '.repeat(20_000), ['x']],
-    ['a long dotted run (URL scheme and email local part)', 'a.'.repeat(20_000), []],
-    ['a 10 MiB run of JWT header prefixes', 'eyJ-'.repeat(2_621_440), []],
-    ['a 640 KiB run of covered label fields', 'api-key=x;'.repeat(65_536), []],
-    ['a 10 MiB run of scheme separators', 'a://b'.repeat(2_097_152), []],
-    ['a 4 MiB run of backslash-escaped quotes in a label value', `password="${'\\\\\\"'.repeat(1_398_101)}`, []],
-    ['a 2 MiB run holding a 1 MiB exact secret at every offset', 'a'.repeat(2 * 1_048_576), ['a'.repeat(1_048_576)]],
-  ])('stays linear on %s', (_label, input, exactSecrets) => {
-    const started = performance.now();
-    redactSecrets({ input }, { exactSecrets });
-    expect(performance.now() - started).toBeLessThan(500);
+    ['unterminated marker prefixes', 20_000, (n: number) => '[REDACTED:'.repeat(n), () => ['x']],
+    ['many markers beside many exact matches', 20_000, (n: number) => '[redacted] x '.repeat(n), () => ['x']],
+    ['a long dotted run (URL scheme and email local part)', 20_000, (n: number) => 'a.'.repeat(n), () => []],
+    ['a 10 MiB run of JWT header prefixes', 2_621_440, (n: number) => 'eyJ-'.repeat(n), () => []],
+    ['a 640 KiB run of covered label fields', 65_536, (n: number) => 'api-key=x;'.repeat(n), () => []],
+    ['a 10 MiB run of scheme separators', 2_097_152, (n: number) => 'a://b'.repeat(n), () => []],
+    ['a 4 MiB run of backslash-escaped quotes in a label value', 1_398_101,
+      (n: number) => `password="${'\\\\\\"'.repeat(n)}`, () => []],
+    ['a 2 MiB run holding a 1 MiB exact secret at every offset', 1_048_576, (n: number) => 'a'.repeat(2 * n),
+      (n: number) => ['a'.repeat(n)]],
+    ['1 MiB of spaces after Bearer', 1_048_576, (n: number) => `Authorization: Bearer${' '.repeat(n)}x`, () => []],
+    ['a plain 1 MiB whitespace run', 1_048_576, (n: number) => ' '.repeat(n), () => []],
+  ])('stays linear on %s', (_label, size, buildInput, buildExactSecrets) => {
+    expectLinearTime({ size, prepare: (count) => {
+      const input = buildInput(count);
+      const exactSecrets = buildExactSecrets(count);
+      return () => redactSecrets({ input }, { exactSecrets });
+    } });
   });
 
   it('matches the agent-failure shapes in linear time on a 10 MiB run of JWT header prefixes', () => {
     const input = 'eyJ-'.repeat(2_621_440);
-    const started = performance.now();
     expect(input.replace(AGENT_FAILURE_SECRET_SHAPE_RE, '[REDACTED]')).toBe(input);
-    expect(performance.now() - started).toBeLessThan(500);
+    expectLinearTime({ size: 2_621_440, prepare: (count) => {
+      const run = 'eyJ-'.repeat(count);
+      return () => run.replace(AGENT_FAILURE_SECRET_SHAPE_RE, '[REDACTED]');
+    } });
   });
 
   it('sanitizes unterminated marker prefixes in linear time', () => {
-    const started = performance.now();
-    sanitizeUntrustedText({ text: '[REDACTED:'.repeat(20_000) }, { maxLength: Infinity });
-    expect(performance.now() - started).toBeLessThan(500);
+    expectLinearTime({ size: 160_000, prepare: (count) => {
+      const text = '[REDACTED:'.repeat(count);
+      return () => sanitizeUntrustedText({ text }, { maxLength: Infinity });
+    } });
+  });
+
+  it('keeps a bearer token after a long whitespace run', () => {
+    const token = 'b'.repeat(20);
+    expect(redactSecrets({ input: `Authorization: Bearer${' '.repeat(100_000)}${token}` }))
+      .toBe(`Authorization: Bearer${' '.repeat(100_000)}[REDACTED:bearer_token]`);
   });
 
   it('masks URL userinfo behind a scheme glued onto a long word', () => {
