@@ -1,0 +1,5 @@
+{
+  "cloudflare": { "kind": "region-resolver", "id": "cloudflare", "header": "cf-ipcountry" },
+  "vercel": { "kind": "region-resolver", "id": "vercel", "header": "x-vercel-ip-country" },
+  "netlify": { "kind": "region-resolver", "id": "netlify", "header": "x-country" }
+}

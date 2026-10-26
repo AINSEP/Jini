@@ -5,7 +5,8 @@ import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderBanner } from '@jini-ai/cookie-consent/render';
-import { handleReceipt } from '@jini-ai/cookie-consent/server';
+import { handleReceipt, REGION_SLOT, resolveRegion } from '@jini-ai/cookie-consent/server';
+import { createPluginRegistry } from '@jini-ai/cookie-consent/plugins';
 import { createConsentFileRecords, createNodeConsentFiles } from '@jini-ai/cookie-consent/node';
 
 const PORT = Number(process.env.PORT ?? 4321);
@@ -22,6 +23,20 @@ const atomicWrite = async ({ filePath, data }, { createParent, mode }) => {
 };
 const store = createConsentFileRecords({ directory: path.join(here, 'receipts'), files: createNodeConsentFiles({ atomicWrite }) });
 const ports = { store, policy: () => POLICY, ids: () => crypto.randomUUID(), now: Date.now };
+
+// Region: register only the host that really sits in front of this server (CONSENT_INGRESS), since anyone
+// can send the header straight to an unproxied server. Unset, unknown, or a host with no country header
+// (Fly) means no resolver: every visitor gets the strict banner.
+const hosts = JSON.parse(await readFile(path.join(here, 'region-plugins.json'), 'utf8'));
+const regions = createPluginRegistry({}, { slots: [REGION_SLOT], onProblem: problem => console.warn('region plugin refused:', problem) });
+if (Object.hasOwn(hosts, process.env.CONSENT_INGRESS ?? '')) regions.registerPlugin(hosts[process.env.CONSENT_INGRESS], { source: 'region-plugins.json' });
+
+/** Set-Cookie for the page response: `us` relaxes to opt-out; anything else clears a stale or forged cookie. */
+async function regionCookie(req) {
+  const request = { header: name => req.headers[name.toLowerCase()] ?? null, ip: null };
+  const hint = await resolveRegion({ resolvers: regions.list({ kind: 'region-resolver' }), request });
+  return hint === 'us' ? 'jini_region=us; Path=/; SameSite=Lax' : 'jini_region=; Path=/; Max-Age=0; SameSite=Lax';
+}
 
 function page() {
   const { head, body, problems } = renderBanner(
@@ -53,7 +68,7 @@ async function send(res, response) {
 }
 
 createServer(async (req, res) => {
-  const reply = (type, text) => { res.writeHead(200, { 'content-type': type }); res.end(text); };
+  const reply = (type, text, headers = {}) => { res.writeHead(200, { 'content-type': type, ...headers }); res.end(text); };
   try {
     if (req.url === '/_consent') return await send(res, await handleReceipt({ request: await toRequest(req), ports }));
     if (req.url === '/consent/client.min.js') return reply('text/javascript', await readFile(clientFile));
@@ -61,7 +76,7 @@ createServer(async (req, res) => {
       await new Promise(r => setTimeout(r, VENDOR_DELAY_MS));
       return reply('text/javascript', await readFile(path.join(here, 'fake-vendor.js')));
     }
-    if (req.url === '/' || req.url === '/privacy') return reply('text/html; charset=utf-8', page());
+    if (req.url === '/' || req.url === '/privacy') return reply('text/html; charset=utf-8', page(), { 'set-cookie': await regionCookie(req) });
     res.writeHead(404); res.end();
   } catch (error) {
     console.error(error);
