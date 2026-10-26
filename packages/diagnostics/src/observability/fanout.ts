@@ -13,26 +13,38 @@ function isolatedStart<T>(start: () => T, fallback: () => T): T {
  try { return start(); } catch { return fallback(); }
 }
 
+type Outcome<R> = { ok: true; value: R } | { ok: false; error: unknown };
+
+const replay = <R>(outcome: Outcome<R>): R => {
+ if (outcome.ok) return outcome.value;
+ throw outcome.error;
+};
+
+/** A value a tracker returned instead of the recorded one is dropped; if it is a promise, its
+ * rejection is observed here so dropping it never becomes an unhandled rejection. */
+function discard(value: unknown): void {
+ if (typeof (value as PromiseLike<unknown> | undefined)?.then === 'function') (value as Promise<unknown>).then(undefined, () => {});
+}
+
 /** One adapter's scope around `inner`, contained (Codex wave-2 MED): an adapter's run() that throws
  * before calling `inner` runs the work unscoped; one that throws after it keeps the work's own result
- * or error; one that returns without calling it still gets the work run. `inner` runs exactly once. */
+ * or error; one that returns without calling it still gets the work run. `inner` runs exactly once
+ * (Codex fix-lane HIGH): its outcome is recorded, a second call from the tracker replays it instead of
+ * re-running app work, and the caller always gets that recorded outcome, so a tracker that swallows
+ * the work's error or substitutes a result cannot hide or change it. */
 function containedScope<R>(run: <V>(fn: () => V) => V, inner: () => R): () => R {
  return () => {
-  let called = false;
-  let failed: { error: unknown } | undefined;
-  let result: R;
+  let outcome: Outcome<R> | undefined;
   const once = (): R => {
-   called = true;
-   try { result = inner(); return result; } catch (error) { failed = { error }; throw error; }
+   if (!outcome) {
+    try { outcome = { ok: true, value: inner() }; } catch (error) { outcome = { ok: false, error }; }
+   }
+   return replay(outcome);
   };
-  try {
-   const value = run(once);
-   return called ? value : inner();
-  } catch {
-   if (!called) return inner();
-   if (failed) throw failed.error;
-   return result!;
-  }
+  let returned: unknown;
+  try { returned = run(once); } catch { /* the adapter's own fault: contained */ }
+  if (outcome?.ok !== true || returned !== outcome.value) discard(returned);
+  return once();
  };
 }
 
