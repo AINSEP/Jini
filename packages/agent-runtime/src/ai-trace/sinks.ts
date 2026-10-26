@@ -3,7 +3,21 @@
  * The two backend-free sinks: `noop` (tracing off costs one no-op call per event) and
  * `recording` (in-memory; tests, local debugging, and the swap-proof reference).
  */
-import type { AiTraceEvent, AiTraceSink } from './types.js';
+import type { AiCapturedText, AiContentCapture, AiTraceEvent, AiTraceSink } from './types.js';
+
+/** Preserve each destination's content policy when another sink opts into full capture.
+ * No prompt, response, reasoning, tool text or error prose crosses a metadata-only boundary.
+ * @complexity O(1); captured text is never copied. */
+function eventForCapture({ event, mode }: { event: AiTraceEvent; mode: AiContentCapture }): AiTraceEvent {
+  if (mode === 'full') return event;
+  const text = (value: AiCapturedText | null | undefined) => mode === 'off' || !value ? null : { chars: value.chars };
+  switch (event.kind) {
+    case 'run_started': return { ...event, input: text(event.input) };
+    case 'model_turn': return { ...event, input: text(event.input), output: text(event.output), reasoning: text(event.reasoning), errorContent: text(event.errorContent), error: event.error === null ? null : 'model_error' };
+    case 'tool_call': return { ...event, input: text(event.input), output: text(event.output) };
+    case 'run_finished': return { ...event, error: event.error === null ? null : { ...event.error, message: 'run_error', content: text(event.error.content) } };
+  }
+}
 
 export const noopAiTraceSink: AiTraceSink = { record: () => {} };
 
@@ -21,13 +35,15 @@ export function createRecordingAiTraceSink(_required: Record<string, never> = {}
  * @param required - Independent backend ports; each is attempted even when an earlier one fails.
  * @param options - Optional failure reporter, itself guarded so logging cannot break a run.
  * @returns A port that contains record, flush, and shutdown failures per sink.
+ * Full content is requested only by explicit sink opt-in; other destinations receive their own policy.
  * @complexity O(s) delivery and cleanup for s sinks; cleanup runs concurrently.
  */
 export function createFanOutAiTraceSink({ sinks }: { sinks: readonly AiTraceSink[] }, { onSinkError }: { onSinkError?: (error: unknown) => void } = {}): AiTraceSink {
   return {
+    capture: sinks.some((sink) => sink.capture === 'full') ? 'full' : 'metadata',
     record: (event) => {
       for (const sink of sinks) {
-        try { sink.record(event); } catch (error) { reportError({ error, onError: onSinkError }); }
+        try { sink.record(eventForCapture({ event, mode: sink.capture ?? 'metadata' })); } catch (error) { reportError({ error, onError: onSinkError }); }
       }
     },
     flush: async () => {

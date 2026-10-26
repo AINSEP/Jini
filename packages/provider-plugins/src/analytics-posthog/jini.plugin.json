@@ -24,6 +24,16 @@
         "contractVersion": 1,
         "settings": [
           {
+            "name": "includePromptsAndResponses",
+            "label": "Include prompts and responses",
+            "default": "false",
+            "options": [
+              { "value": "false", "label": "Off (metadata only)" },
+              { "value": "true", "label": "On" }
+            ],
+            "hint": "Off by default. On sends redacted, bounded prompt and response text after operator telemetry consent. Applies on next start."
+          },
+          {
             "name": "host",
             "label": "Region / host",
             "required": true,

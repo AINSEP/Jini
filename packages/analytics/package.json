@@ -43,6 +43,7 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
+    "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
