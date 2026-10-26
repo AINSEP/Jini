@@ -1,6 +1,6 @@
 {
   "id": "ai-trace-langfuse",
-  "name": "Langfuse AI-trace provider",
+  "name": "Langfuse",
   "version": "0.6.12",
   "sdkRange": "^0.1.0 || ^1.0.0",
   "engine": 1,

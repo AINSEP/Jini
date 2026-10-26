@@ -1,6 +1,6 @@
 {
   "id": "analytics-posthog",
-  "name": "PostHog product-analytics provider",
+  "name": "PostHog",
   "version": "0.6.12",
   "sdkRange": "^0.1.0 || ^1.0.0",
   "engine": 1,

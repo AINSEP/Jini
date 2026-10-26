@@ -1,6 +1,6 @@
 {
   "id": "observability-opentelemetry",
-  "name": "OpenTelemetry observability provider",
+  "name": "OpenTelemetry",
   "version": "0.6.12",
   "sdkRange": "^0.1.0 || ^1.0.0",
   "engine": 1,
