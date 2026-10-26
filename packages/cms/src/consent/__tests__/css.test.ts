@@ -275,7 +275,7 @@ describe('consent CSS compiler', () => {
   it('locks action parity and visibility while leaving compact geometry customizable', () => {
     const { css } = compileConsentCss({});
     expect(css).toContain('visibility:visible!important;opacity:1!important;transform:none!important');
-    expect(css).toContain('z-index:2147483000!important');
+    expect(css).toContain('z-index:2147483647!important');
     expect(css).not.toMatch(/(?:min-height|font-size|line-height|gap):[^;}]+!important/);
     expect(css).not.toContain('flex:1');
     expect(css).toContain(`${root} .jini-consent-actions{display:grid!important}`);
