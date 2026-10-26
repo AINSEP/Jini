@@ -12,7 +12,10 @@ export const NativeIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(f
 });
 export const NativeTextField = forwardRef<HTMLInputElement, TextFieldProps>(function NativeTextField(props, ref) {
   const vm = useNativeTextField({ ...props, ref });
-  return <label htmlFor={vm.id} {...vm.labelAttrs}><span className="jini-field-label">{vm.label}</span><input {...vm.props} /></label>;
+  const field = <label htmlFor={vm.id} {...vm.labelAttrs}><span className="jini-field-label">{vm.label}</span><input {...vm.props} /></label>;
+  // The eye toggle sits OUTSIDE the label (its name would otherwise join the input's accessible name),
+  // in one wrapper with it so a host can pin it inside the input's right edge.
+  return vm.toggle ? <span className="jini-secret">{field}<button {...vm.toggle} /></span> : field;
 });
 export const NativeTextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function NativeTextArea(props, ref) {
   const vm = useNativeTextArea({ ...props, ref });
