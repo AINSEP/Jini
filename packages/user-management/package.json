@@ -98,7 +98,7 @@
     "argon2": "^0.44.0",
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
-    "@jini-ai/ui": "^0.4.8 || ^0.5.0",
+    "@jini-ai/ui": "^0.5.7",
     "@jini-ai/admin": "^0.4.6",
     "@jini-ai/agentic": "^0.4.4",
     "@jini-ai/ui-kit": "^0.1.3"

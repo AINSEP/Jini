@@ -110,7 +110,7 @@ interface NewUserFormProps {
 
 /** The "New user" form — extracted from `Users` verbatim; own scope for `formError`/`saving`. */
 function NewUserForm({ username, setUsername, email, setEmail, password, setPassword, saving, formError, onCreate, t }: NewUserFormProps) {
-  const passwordLabelId = useId();
+  const passwordInputId = useId();
   return (
     <form onSubmit={onCreate} className="notice integrations-form form-measure">
       {formError ? <span className="save-error">{formError}</span> : null}
@@ -132,10 +132,10 @@ function NewUserForm({ username, setUsername, email, setEmail, password, setPass
           {...agentHandle({ handle: "users-new-email" }, { role: "field", label: "The new user's email address" })}
         />
       </label>
-      {/* The wrapping label keeps the field's layout; `aria-labelledby` keeps the eye toggle's
-          "Show password" name out of the input's own accessible name. */}
-      <label>
-        <span id={passwordLabelId}>{t("Password")}</span>
+      {/* A sibling label keeps the eye toggle's "Show password" name out of the input's own
+          accessible name, and keeps the interactive toggle outside the label. */}
+      <div>
+        <label htmlFor={passwordInputId}>{t("Password")}</label>
         {/* `autoComplete="new-password"`, NOT `"off"` — Chrome deliberately ignores `off` on
             credential-shaped fields (a long-standing intentional decision, not a bug). Without
             this, this form's `type="email"` input right above reads to Chrome as a login pair, and
@@ -149,7 +149,7 @@ function NewUserForm({ username, setUsername, email, setEmail, password, setPass
         <SecretInput
           label={t("Password")}
           toggleLabels={{ show: t("Show password"), hide: t("Hide password") }}
-          aria-labelledby={passwordLabelId}
+          id={passwordInputId}
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -160,7 +160,7 @@ function NewUserForm({ username, setUsername, email, setEmail, password, setPass
             label: "The new user's password — a credential field, so only a human can fill it",
           })}
         />
-      </label>
+      </div>
       <button
         type="submit"
         disabled={saving}
@@ -566,31 +566,6 @@ function UserDeleteDialog({ confirmingDelete, setConfirmingDelete, deleteSaving,
   );
 }
 
-/** Open-eye glyph — standard "reveal" affordance, shown while a `RevealablePasswordField` is
- *  hidden (click to show). House stroke-icon convention (`viewBox="0 0 18 18"`, `fill="none"`,
- *  `stroke="currentColor"`, `strokeWidth={1.5}`, `aria-hidden`) — same shape `Media.tsx`'s
- *  `PlaceholderIcon`/`ExpandIcon`/`CloseIcon` and `nav.ts`'s panel icons use throughout this app. */
-function EyeIcon() {
-  return (
-    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
-      <path d="M1.5 9S4.5 4 9 4s7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5Z" strokeLinejoin="round" />
-      <circle cx="9" cy="9" r="2" />
-    </svg>
-  );
-}
-
-/** Same glyph with a slash through it — standard "hide" affordance, shown while the field is
- *  currently revealed (click to hide). */
-function EyeOffIcon() {
-  return (
-    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
-      <path d="M1.5 9S4.5 4 9 4s7.5 5 7.5 5-3 5-7.5 5-7.5-5-7.5-5Z" strokeLinejoin="round" />
-      <circle cx="9" cy="9" r="2" />
-      <path d="M3 3 15 15" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 interface RevealablePasswordFieldProps {
   id: string;
   label: string;
@@ -612,47 +587,37 @@ interface RevealablePasswordFieldProps {
  *  twice.
  *
  *  The toggle itself is icon-only (standard eye / eye-with-slash convention, per owner request —
- *  not a text "Show"/"Hide" link): the accessible name still flips between "Show password"/"Hide
- *  password" via `aria-label` (screen reader), and `aria-pressed` mirrors `visible` so assistive
- *  tech gets the same on/off signal a text label would have given.
+ *  not a text "Show"/"Hide" link): the accessible name flips between "Show <label>"/"Hide <label>"
+ *  via `aria-label` (screen reader), and `aria-pressed` mirrors `visible` so assistive tech gets
+ *  the same on/off signal a text label would have given. The shared stroke icon keeps the
+ *  open-eye/eye-with-slash convention without duplicating glyphs in this screen.
  *
- *  The input's inline `flex`/`minWidth` override neutralizes `styles.css`'s `.field input { width:
- *  100% }` fighting the toggle button for room inside the `.editor-actions` row below — an inline
- *  style wins on specificity without adding a new class to a stylesheet this feature doesn't own. */
+ *  The shared `.jini-secret` wrapper gives the icon its own space: the host's `.field input {
+ *  width: 100% }` must not make the input fight a sibling toggle for room. */
 function RevealablePasswordField({ id, label, value, onChange, visible, onToggleVisible, agentBase, t }: RevealablePasswordFieldProps) {
-  const toggleLabel = visible ? t("Hide password") : t("Show password");
   return (
     <div className="field">
       <label className="field-label" htmlFor={id}>
         {label}
       </label>
-      <span className="editor-actions">
-        <input
-          id={id}
-          type={visible ? "text" : "password"}
-          // `new-password`, not `off` (Chrome ignores `off`): without it Chrome filled a saved
-          // login into "New password" only. Kept while revealed as `type="text"`, too.
-          autoComplete="new-password"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ flex: "1 1 auto", minWidth: 0 }}
-          {...agentHandle({ handle: agentBase }, {
-            role: "field",
-            label: `${label} — a credential field, so only a human can fill it`,
-          })}
-        />
-        <button
-          type="button"
-          className="link-button"
-          aria-label={toggleLabel}
-          aria-pressed={visible}
-          title={toggleLabel}
-          onClick={onToggleVisible}
-          {...agentHandle({ handle: `${agentBase}-reveal` }, { role: "button", label: `Show or hide the ${label.toLowerCase()} field's characters` })}
-        >
-          <span style={{ display: "inline-flex", width: 16, height: 16 }}>{visible ? <EyeOffIcon /> : <EyeIcon />}</span>
-        </button>
-      </span>
+      <SecretInput
+        id={id}
+        label={label}
+        toggleLabels={{ show: `${t("Show")} ${label}`, hide: `${t("Hide")} ${label}` }}
+        revealed={visible}
+        onRevealedChange={onToggleVisible}
+        toggleAttrs={agentHandle({ handle: `${agentBase}-reveal` }, { role: "button", label: `Show or hide the ${label.toLowerCase()} field's characters` })}
+        // `new-password`, not `off` (Chrome ignores `off`): without it Chrome filled a saved
+        // login into "New password" only. Kept while revealed as `type="text"`, too.
+        autoComplete="new-password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ flex: "1 1 auto", minWidth: 0 }}
+        {...agentHandle({ handle: agentBase }, {
+          role: "field",
+          label: `${label} — a credential field, so only a human can fill it`,
+        })}
+      />
     </div>
   );
 }

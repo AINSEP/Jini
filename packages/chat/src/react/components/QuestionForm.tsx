@@ -17,7 +17,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, type Cha
 import type { DirectionCard, FormOption, QuestionForm as QuestionFormType } from '../../core/index.js';
 import { formatFormAnswers, formOptionValueForLabel, redactQuestionAnswers, isSecretQuestion, withoutSecretQuestionDefaults, questionTextInputProps, questionTextareaProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
-import { SecretInput } from '@jini-ai/ui';
+import { SecretInput, SecretTextarea } from '@jini-ai/ui';
 
 export interface QuestionFormFileSubmission {
   questionId: string;
@@ -325,9 +325,19 @@ function TextControl({ q, value, locked, update, t }: FieldContext) {
   const props = questionTextInputProps({ question: q });
   if (props.type === 'password') {
     const { type: _type, ...secretProps } = props;
-    return <SecretInput {...secretProps} {...shared} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
+    return <SecretInput {...secretProps} {...shared} aria-label={q.label} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
   }
   return <input {...props} {...shared} />;
+}
+
+/** A credential-shaped textarea gets the same eye toggle; `SecretTextarea` owns the masking style. */
+function TextareaControl({ q, value, locked, update, t }: FieldContext) {
+  const shared = { className: 'qf-textarea', value: stringValue(value), placeholder: q.placeholder, disabled: locked, rows: 3, onChange: (e: ChangeEvent<HTMLTextAreaElement>) => update(q.id, e.target.value) };
+  const props = questionTextareaProps({ question: q });
+  if (isSecretQuestion({ question: q })) {
+    return <SecretTextarea {...props} {...shared} aria-label={q.label} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
+  }
+  return <textarea {...props} {...shared} />;
 }
 
 /** date/time/datetime-local and url/email/tel share one plain input whose `type` is the question type. */
@@ -367,7 +377,7 @@ const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNo
       <span aria-hidden />
     </label>
   ),
-  textarea: ({ q, value, locked, update }) => <textarea {...questionTextareaProps({ question: q })} className="qf-textarea" value={stringValue(value)} placeholder={q.placeholder} disabled={locked} rows={3} onChange={(e) => update(q.id, e.target.value)} />,
+  textarea: TextareaControl,
 };
 
 function OptionCopy({ option }: { option: FormOption }) {

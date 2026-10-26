@@ -1,9 +1,11 @@
 import { useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { createAdmin } from '@jini-ai/admin/core/module';
-import { roles, members } from '../index.js';
+import { roles, members, usersKitNeeds } from '../index.js';
+import { KitProvider } from '@jini-ai/ui-kit/react';
+import { UsersConfirmation } from '../components/UsersConfirmation.js';
 import { createUsersController } from '../../controllers/users.controller.js';
 import type { UsersController } from '../../controllers/users.controller.js';
 import { createRolesController } from '../../controllers/roles.controller.js';
@@ -99,14 +101,14 @@ describe('useUsersConfirmation', () => {
     act(() => controller.requestDestructive({ principalId: 'alice', kind: 'reset' }));
     expect(result.current.reset).toBe(true);
     expect(result.current.confirm).toMatchObject({ open: true, title: 'Reset password?', confirmLabel: 'Reset password', tone: 'warning', agentMayConfirm: false });
-    expect([result.current.newType, result.current.confirmType, result.current.newLabel, result.current.confirmLabel])
-      .toEqual(['password', 'password', 'Show new password', 'Show confirm password']);
+    const { container } = render(<KitProvider needs={[usersKitNeeds]} guard="off"><UsersConfirmation /></KitProvider>, { wrapper });
+    const fields = () => [screen.getByLabelText('New password').getAttribute('type'), screen.getByLabelText('Confirm new password').getAttribute('type'),
+      ...Array.from(container.querySelectorAll('.jini-secret-toggle')).map(button => button.getAttribute('aria-label'))];
+    expect(fields()).toEqual(['password', 'password', 'Show New password', 'Show Confirm new password']);
     act(() => result.current.toggleConfirm());
-    expect([result.current.newType, result.current.confirmType, result.current.newLabel, result.current.confirmLabel])
-      .toEqual(['password', 'text', 'Show new password', 'Hide confirm password']);
+    expect(fields()).toEqual(['password', 'text', 'Show New password', 'Hide Confirm new password']);
     act(() => result.current.toggleNew());
-    expect([result.current.newType, result.current.confirmType, result.current.newLabel, result.current.confirmLabel])
-      .toEqual(['text', 'text', 'Hide new password', 'Hide confirm password']);
+    expect(fields()).toEqual(['text', 'text', 'Hide New password', 'Hide Confirm new password']);
     act(() => { result.current.newPassword({ value: 'one' }); result.current.confirmPassword({ value: 'two' }); });
     expect(result.current.error).toBe('Passwords do not match.');
     act(() => result.current.confirm.onCancel());

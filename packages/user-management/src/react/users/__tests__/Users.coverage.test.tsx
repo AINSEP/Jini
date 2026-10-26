@@ -135,6 +135,16 @@ describe("NewUserForm", () => {
     expect(field).toHaveAttribute("autocomplete", "new-password");
   });
 
+  it("gives the new-user password the shared eye toggle without renaming the field", () => {
+    renderUsers(fakeController({ formOpen: true, password: "plainword" }));
+    const field = screen.getByLabelText("Password");
+    expect(field).toHaveAccessibleName("Password");
+    expect(field.closest('label')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+    expect(field).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("submits through onCreate", () => {
     const onCreate = vi.fn(async (e: { preventDefault: () => void }) => { e.preventDefault(); });
     renderUsers(fakeController({ formOpen: true, username: "carol", password: "plainword", onCreate }));
@@ -244,7 +254,7 @@ function confirmPasswordField(): HTMLElement {
 }
 
 function revealToggles(): HTMLElement[] {
-  return within(dialogTitled(RESET)).getAllByRole("button", { name: "Show password", hidden: true });
+  return ["Show New password", "Show Confirm new password"].map(name => within(dialogTitled(RESET)).getByRole("button", { name, hidden: true }));
 }
 
 describe("UserResetPasswordDialog", () => {
@@ -328,10 +338,10 @@ describe("UserResetPasswordDialog", () => {
     expect(newPasswordField()).toHaveAttribute("autocomplete", "new-password");
     expect(confirmPasswordField()).toHaveAttribute("type", "password");
     expect(newToggle).toHaveAttribute("aria-pressed", "true");
-    expect(newToggle).toHaveAttribute("aria-label", "Hide password");
-    expect(newToggle).toHaveAttribute("title", "Hide password");
-    // EyeOffIcon adds the slash path on top of EyeIcon's outline.
-    expect(newToggle!.querySelectorAll("svg path")).toHaveLength(2);
+    expect(newToggle).toHaveAttribute("aria-label", "Hide New password");
+    expect(newToggle).toHaveAttribute("title", "Hide New password");
+    // The shared eye-off glyph includes the diagonal slash.
+    expect(newToggle!.querySelector("svg path")).toHaveAttribute("d", "m3 3 18 18");
   });
 
   it("reveals only the confirm field through its own toggle", () => {
@@ -347,7 +357,7 @@ describe("UserResetPasswordDialog", () => {
     fireEvent.click(newToggle!);
     fireEvent.click(newToggle!);
     expect(newPasswordField()).toHaveAttribute("type", "password");
-    expect(newToggle).toHaveAttribute("aria-label", "Show password");
+    expect(newToggle).toHaveAttribute("aria-label", "Show New password");
   });
 
   it("clears the target, the new password and the error on Cancel", async () => {

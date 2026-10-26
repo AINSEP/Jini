@@ -82,12 +82,38 @@ it('sensitive question text is masked and no raw answer escapes submit or draft 
   expect(input.value).toBe('');
   expect(input.autocomplete).toBe('new-password');
   fireEvent.change(input, { target: { value: 'short-passphrase' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Show Access' }));
+  expect(input.type).toBe('text');
+  expect(calls).toEqual([]);
   expect(drafts).toEqual([{ q: '[token removed]' }]);
   expect(changes).toEqual(['[token removed]']);
   fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
   expect(calls).toEqual([{ text: '[form answers — f]\n- Access: [token removed]\n' + CREDENTIAL_CARD_GUIDANCE, answers: { q: '[token removed]' } }]);
   expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);
   expect(screen.getByRole('status').textContent).toBe(SECRET_REDACTED_NOTICE);
+});
+
+it('a secret text or textarea question gets the shared eye toggle, named from chat\'s own translator', () => {
+  const form = { id: 'f', title: 'Question', questions: [
+    { id: 'k', name: 'apiKey', label: 'Key', type: 'text' as const },
+    { id: 'j', name: 'serviceAccountSecret', label: 'Account JSON', type: 'textarea' as const },
+  ] };
+  const t = (key: string) => ({ Show: 'Mostrar', Hide: 'Ocultar' } as Record<string, string>)[key] ?? key;
+  const { container } = render(<JiniChatProvider transport={createFakeChatTransport()} i18n={{ locale: 'es', t }}><QuestionForm form={form} interactive onSubmit={() => undefined} /></JiniChatProvider>);
+  const input = container.querySelector('input')!;
+  const area = container.querySelector('textarea')!;
+  expect(input.closest('.jini-secret')).not.toBeNull();
+  expect(area.closest('.jini-secret--multiline')).not.toBeNull();
+  expect(input).toHaveAccessibleName('Key');
+  expect(area).toHaveAccessibleName('Account JSON');
+  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+  fireEvent.click(screen.getByRole('button', { name: 'Mostrar Key' }));
+  expect(input.type).toBe('text');
+  expect(screen.getByRole('button', { name: 'Ocultar Key' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(screen.getByRole('button', { name: 'Mostrar Account JSON' }));
+  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
+  fireEvent.click(screen.getByRole('button', { name: 'Ocultar Account JSON' }));
+  expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
 });
 
 it('ordinary labelled answers still pass secret-shaped pasted text through the guard', () => {

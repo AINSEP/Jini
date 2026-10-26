@@ -26,7 +26,7 @@ function renderForm(overrides: Partial<Parameters<typeof ByokProviderForm>[0]> =
 describe('ByokProviderForm apiKeyActions', () => {
   it('defers missing feedback until each field blurs, while keeping incomplete probes disabled', () => {
     const { rerender } = renderForm({ config: { ...CONFIG, apiKey: '', model: '' }, deferMissingFeedback: true });
-    const key = screen.getByLabelText(/API key/);
+    const key = screen.getByLabelText(/API key/, { selector: 'input' });
     const model = screen.getByRole('combobox', { name: /Model/ });
     expect(key).not.toHaveClass('is-missing');
     expect(model).not.toHaveClass('is-missing');
@@ -44,13 +44,13 @@ describe('ByokProviderForm apiKeyActions', () => {
     expect(screen.getByRole('button', { name: 'Test connection' })).toBeDisabled();
   });
 
-  it('keeps Show on the key input line and puts host buttons in a row under it, outside the key field name', () => {
+  it('keeps the eye toggle inside the key input and puts host buttons in a row under it, outside the key field name', () => {
     renderForm({ apiKeyActions: <button type="button">Save key</button> });
-    const input = screen.getByLabelText(/API key/);
-    const row = input.closest('.jini-field-input-row') as HTMLElement;
-    expect(within(row).getByRole('button', { name: 'Show' })).toBeInTheDocument();
-    expect(within(row).queryByRole('button', { name: 'Save key' })).toBeNull();
-    const actions = row.nextElementSibling as HTMLElement;
+    const input = screen.getByLabelText(/API key/, { selector: 'input' });
+    const secret = input.closest('.jini-secret') as HTMLElement;
+    expect(within(secret).getByRole('button', { name: 'Show API key' })).toBeInTheDocument();
+    expect(within(secret).queryByRole('button', { name: 'Save key' })).toBeNull();
+    const actions = secret.nextElementSibling as HTMLElement;
     expect(actions).toHaveClass('jini-byok-key-actions');
     expect(within(actions).getByRole('button', { name: 'Save key' })).toBeInTheDocument();
     expect(input).toHaveAccessibleName('API key');

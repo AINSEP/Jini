@@ -205,7 +205,7 @@ describe('SourceConfigList — BYOK-key-shaped source (same component, different
 
     expect(screen.queryByLabelText('Trust level')).toBeNull();
 
-    await userEvent.type(screen.getByLabelText('API Key', { exact: false }), 'sk-ant-1234567890wxyz');
+    await userEvent.type(screen.getByLabelText('API Key', { selector: 'input' }), 'sk-ant-1234567890wxyz');
     await userEvent.type(screen.getByLabelText('Model', { exact: false }), 'claude-sonnet-4-5');
     await userEvent.click(screen.getByRole('button', { name: 'Add source' }));
 
@@ -254,7 +254,7 @@ describe('SourceConfigList — BYOK-key-shaped source (same component, different
     render(<SourceConfigList<ByokKeySource> dependencies={dependencies} fieldSpecs={BYOK_FIELD_SPECS} />);
     await waitFor(() => expect(screen.getByText('No sources configured yet.')).toBeInTheDocument());
 
-    await userEvent.type(screen.getByLabelText('API Key', { exact: false }), 'sk-ant-draft-key');
+    await userEvent.type(screen.getByLabelText('API Key', { selector: 'input' }), 'sk-ant-draft-key');
     await userEvent.type(screen.getByLabelText('Model', { exact: false }), 'claude-sonnet-4-5');
     await userEvent.click(screen.getByRole('button', { name: 'Test' }));
 

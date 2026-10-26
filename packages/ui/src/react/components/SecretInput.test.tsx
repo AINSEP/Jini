@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { SecretInput } from './SecretInput.js';
+import { SecretInput, SecretTextarea } from './SecretInput.js';
 
 function Field({ initial = '' }: { initial?: string }) {
   const [value, setValue] = useState(initial);
@@ -48,6 +48,10 @@ describe('SecretInput', () => {
       </form>,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Show Token' }));
+    const toggle = screen.getByRole('button', { name: 'Hide Token' });
+    toggle.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByLabelText('Token')).toHaveAttribute('type', 'password');
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -79,5 +83,49 @@ describe('SecretInput', () => {
     const toggle = screen.getByRole('button', { name: 'Mostrar clave' });
     expect(toggle).toHaveAttribute('data-agent-handle', 'reveal');
     expect(toggle).toBeDisabled();
+  });
+});
+
+describe('SecretTextarea', () => {
+  it('masks with -webkit-text-security until the eye is pressed, keeping a host style', async () => {
+    const { container } = render(
+      <SecretTextarea aria-label="Service account JSON" label="Service account JSON" defaultValue={'{\n}'} style={{ minHeight: 40 }} />,
+    );
+    const area = screen.getByRole('textbox', { name: 'Service account JSON' });
+    expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+    expect(area).toHaveStyle({ minHeight: '40px', whiteSpace: 'pre-wrap' });
+    expect(area).toHaveAttribute('spellcheck', 'false');
+    expect(container.querySelector('.jini-secret.jini-secret--multiline')?.contains(area)).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Show Service account JSON' }));
+    expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
+    expect(screen.getByRole('button', { name: 'Hide Service account JSON' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide Service account JSON' }));
+    expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+  });
+
+  it('preserves safe replacement text until reveal, blocking edits to mask characters', async () => {
+    const value = `KEY=${['fake', 'credential'].join('-')}`;
+    render(<SecretTextarea aria-label="Env" label="Env" value={value} maskedValue="KEY=••••" onChange={() => undefined} />);
+    const area = screen.getByRole('textbox', { name: 'Env' });
+    expect(area).toHaveValue('KEY=••••');
+    expect(area).toHaveAttribute('readonly');
+    expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
+    await userEvent.click(screen.getByRole('button', { name: 'Show Env' }));
+    expect(area).toHaveValue(value);
+    expect(area).not.toHaveAttribute('readonly');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide Env' }));
+    expect(area).toHaveValue('KEY=••••');
+  });
+
+  it('re-hides a multiline secret when cleared, retaining the disabled and autocomplete attributes', async () => {
+    const value = ['fake', 'credential'].join('-');
+    const { rerender } = render(<SecretTextarea aria-label="Key" label="Key" value={value} readOnly autoComplete="off" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Show Key' }));
+    rerender(<SecretTextarea aria-label="Key" label="Key" value="" readOnly autoComplete="off" disabled />);
+    const area = screen.getByRole('textbox', { name: 'Key' });
+    expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('disc');
+    expect(area).toHaveAttribute('autocomplete', 'off');
+    expect(screen.getByRole('button', { name: 'Show Key' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Show Key' })).toHaveAttribute('aria-pressed', 'false');
   });
 });
