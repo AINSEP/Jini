@@ -69,7 +69,9 @@ export function postHogBrowserContribution(required: {
         });
       }
       function clearPersistence(){
-        var names=['ph_jini_'+config.surface+'_'+(config.attributes.site_id||'site')+'_posthog','ph_'+config.apiKey+'_posthog'];
+        // posthog-js stores a named persistence as 'ph_'+persistence_name (no suffix); the token
+        // form is the SDK default for clients created before the named instance.
+        var names=['ph_jini_'+config.surface+'_'+(config.attributes.site_id||'site'),'ph_'+config.apiKey+'_posthog'];
         // Previous pages may have granted before this page ever constructed an SDK instance.
         names.forEach(function(name){try{localStorage.removeItem(name);}catch(e){}});
         var domains=[null,location.hostname], parts=(location.hostname||'').split('.');
