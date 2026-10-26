@@ -30,7 +30,9 @@ type ConsentReceiptPorts = Pick<ConsentHttpPorts, 'records' | 'clock' | 'readRec
 /** Shared by the page gate, the choice endpoint and request-level reads. */
 const DEFAULT_CONSENT_COOKIE_NAME = 'jini_consent';
 
-function isPublicPage(request: Request): boolean {
+/** Whether a request can serve consent-gated public HTML; admin/API validators stay intact.
+ * @example isPublicPage({ request }); @complexity O(path length), O(1) space, no I/O. */
+export function isPublicPage({ request }: { request: Pick<Request, 'method' | 'path'> }, _options = {}): boolean {
   return ['GET', 'HEAD'].includes(request.method) && !/^\/(?:admin|api|theme-assets|assets|\.well-known)(?:\/|$)/.test(request.path);
 }
 
@@ -200,7 +202,7 @@ export function registerConsentHttp({ app, ports }: { app: Express; ports: Conse
     }
   });
   app.use((request, response, next) => {
-    if (!isPublicPage(request)) { next(); return; }
+    if (!isPublicPage({ request })) { next(); return; }
     const prepare = () => prepareDelivery({ request, response, ports, state }, { delivery });
     captureConsentHtml({ response, transform: async ({ body }) => {
       const policy = await prepare();
