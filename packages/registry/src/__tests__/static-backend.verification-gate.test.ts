@@ -42,4 +42,13 @@ describe('search ordering', () => {
     expect(results.map(r => r.entry.name)).not.toContain('v/other');
     expect(await b.search({ query: 'chart' }, { limit: 1 })).toEqual(results.slice(0, 1));
   });
+
+  // FU-B (Codex on F2): two query terms give UNEQUAL scores (1 vs 0.5), so reversing the score order,
+  // or dropping the name tie-break, changes this literal expectation.
+  it('two-term query: the full match (score 1) ranks first, then the half matches by name; limit keeps the top one', async () => {
+    const b = backend([entry('v/beta', { title: 'graph' }), entry('v/alpha', { title: 'chart' }), entry('v/other'), entry('v/zeta', { title: 'chart graph' })]);
+    const results = await b.search({ query: 'chart graph' });
+    expect(results.map((r) => [r.entry.name, r.score])).toEqual([['v/zeta', 1], ['v/alpha', 0.5], ['v/beta', 0.5]]);
+    expect((await b.search({ query: 'chart graph' }, { limit: 1 })).map((r) => r.entry.name)).toEqual(['v/zeta']);
+  });
 });
