@@ -88,6 +88,7 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     maxAgentPluginArchiveBytes,
     seedBundledAgentPlugins: createSeedBundledModule(context).seedBundledAgentPlugins,
     retireBundledAgentPlugins: createRetireBundledModule(context).retireBundledAgentPlugins,
+    reconcileAgentPluginActivation: activation.reconcileAgentPluginActivation,
     setAgentPluginActivation: activation.setAgentPluginActivation,
     recordBundledAgentPluginIfAbsent: activation.recordBundledAgentPluginIfAbsent,
     enableBundledAgentPluginUnlessOperatorDisabled: activation.enableBundledAgentPluginUnlessOperatorDisabled,
