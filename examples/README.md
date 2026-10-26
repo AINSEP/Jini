@@ -22,6 +22,8 @@ pnpm playground
   safely inspect and modify from the Playground.
 - [`minimal-host/`](minimal-host/README.md) — the headless consumer and package-neutrality
   acceptance proof.
+- [`cookie-consent-standalone/`](cookie-consent-standalone/README.md) — `@jini-ai/cookie-consent`
+  on plain `node:http`, with a late-loading fake vendor.
 
 Everything here consumes Jini. Publishable engine implementation stays under `packages/`;
 internal architecture work, automation, and product adapters stay under `foundry/`.
