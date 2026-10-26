@@ -7,8 +7,44 @@ import { withRenderWindow } from './render-window.js';
 import type { ElectronBrowserWindowFactory, ElectronSessionLike, ElectronWebContentsLike } from './electron-surfaces.js';
 
 // Electron retains partitions for the process lifetime. The leases must therefore span every
-// render service/bridge in this process, with no waiting queue or per-site partition registry.
+// render service/bridge in this process, without a per-site partition registry.
 const captureSlots = [false, false];
+const captureWaiters = new Set<(required: { slot: number }) => void>();
+
+/** Lease a partition in arrival order, charging queued time to the caller's deadline.
+ * Timed-out/aborted waiters are removed; a simultaneous handoff returns its lease.
+ * @throws RenderServiceError on timeout/abort. @complexity O(1) time/space per waiter.
+ */
+async function acquireCaptureSlot({ deadline }: { deadline: number }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<number> {
+  if (signal?.aborted) throw new RenderServiceError({ code: 'aborted', message: 'render aborted before starting' });
+  const slot = captureSlots.indexOf(false);
+  if (slot >= 0) {
+    captureSlots[slot] = true;
+    return slot;
+  }
+  let assigned: number | undefined;
+  let receive!: (required: { slot: number }) => void;
+  const promise = new Promise<number>(resolve => {
+    receive = ({ slot }, _options = {}) => { assigned = slot; resolve(slot); };
+    captureWaiters.add(receive);
+  });
+  try {
+    return await withRenderTimeout({ promise }, { timeoutMs: Math.max(0, deadline - Date.now()), signal });
+  } catch (error) {
+    if (assigned !== undefined) returnCaptureSlot({ slot: assigned });
+    throw error;
+  } finally { captureWaiters.delete(receive); }
+}
+
+/** Hand a clean partition straight to the oldest waiter, keeping it exclusive during handoff.
+ * @complexity O(1) time/space; the Set preserves insertion order and supports cancellation.
+ */
+function returnCaptureSlot({ slot }: { slot: number }, _options = {}): void {
+  const receive = captureWaiters.values().next().value;
+  if (!receive) { captureSlots[slot] = false; return; }
+  captureWaiters.delete(receive);
+  receive({ slot });
+}
 
 /** Clear native credentials, storage and network state before reuse; failures deny capture.
  * @throws RenderServiceError if the host cannot reset a session. @complexity O(1) native calls.
@@ -31,6 +67,7 @@ export interface ElectronUrlCaptureOptions { allowedOrigins?: readonly string[];
 
 /** Capture a validated own-origin page, bounded in time, CSS pixels and encoded PNG bytes.
  * The host factory denies popups, downloads and permissions on the private session.
+ * FIFO lease waiting, rendering and caller-visible cleanup share one capture deadline.
  * @throws RenderServiceError on refusal, timeout or native renderer failure.
  * @complexity O(pixels), capped at 1280×8000 CSS pixels and device scale 2.
  */
@@ -42,9 +79,8 @@ export async function captureElectronUrl(
   if (!isCaptureUrlAllowed({ url: request.url, allowedOrigins })) {
     throw new RenderServiceError({ code: 'navigation-blocked', message: 'capture URL must stay on the site origin' });
   }
-  const slot = captureSlots.indexOf(false);
-  if (slot < 0) throw new RenderServiceError({ code: 'load-failed', message: 'native capture capacity reached' });
-  captureSlots[slot] = true;
+  const deadline = Date.now() + URL_CAPTURE_TIMEOUT_MS;
+  const slot = await acquireCaptureSlot({ deadline }, { signal });
   let captureSession: ElectronSessionLike | undefined;
   let initialReset: Promise<void> | undefined;
   let blockedRequests = 0;
@@ -58,8 +94,9 @@ export async function captureElectronUrl(
     return window;
   };
   try {
+    if (Date.now() >= deadline) throw new RenderServiceError({ code: 'timeout', message: `render timed out after ${URL_CAPTURE_TIMEOUT_MS}ms` });
     return await withRenderWindow({ createBrowserWindow: factory, url: request.url,
-      options: { viewport: request.viewport, timeoutMs: URL_CAPTURE_TIMEOUT_MS, ...(signal ? { signal } : {}) },
+      options: { viewport: request.viewport, timeoutMs: deadline - Date.now(), ...(signal ? { signal } : {}) },
       prepare: async window => {
         initialReset = resetCaptureSession({ session: window.webContents.session });
         await initialReset;
@@ -102,7 +139,7 @@ export async function captureElectronUrl(
   } finally {
     // A stuck reset keeps its lease but must not hold the caller past the capture deadline.
     await withRenderTimeout({ promise: releaseCaptureSlot({ slot, session: captureSession, initialReset }) },
-      { timeoutMs: URL_CAPTURE_TIMEOUT_MS });
+      { timeoutMs: Math.max(0, deadline - Date.now()) });
   }
 }
 
@@ -121,7 +158,7 @@ async function releaseCaptureSlot({ slot, session, initialReset }: {
       await resetCaptureSession({ session });
     }
   } finally {
-    captureSlots[slot] = false;
+    returnCaptureSlot({ slot });
   }
 }
 
