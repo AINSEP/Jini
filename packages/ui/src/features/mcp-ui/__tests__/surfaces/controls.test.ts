@@ -77,9 +77,16 @@ describe('renderTextInput', () => {
   });
 
   it('renders a masked password input when secret is true, with autocomplete new-password (Chrome ignores off)', () => {
-    const input = parse(renderTextInput({ name: 'secretKey', label: 'Secret Key', secret: true })).querySelector('input')!;
+    const doc = parse(renderTextInput({ name: 'secretKey', label: 'Secret Key', secret: true }));
+    const input = doc.querySelector('input')!;
     expect(input.type).toBe('password');
     expect(input.getAttribute('autocomplete')).toBe('new-password');
+    const toggle = doc.querySelector('button')!;
+    expect(toggle.type).toBe('button');
+    expect(toggle.getAttribute('aria-label')).toBe('Show Secret Key');
+    expect(toggle.getAttribute('aria-controls')).toBe(input.id);
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(toggle.parentElement?.className).toBe('mcpui-secret');
   });
 
   it('renders a plain text input when secret is omitted or explicitly false, with no autocomplete override', () => {
@@ -98,6 +105,7 @@ describe('renderTextInput', () => {
     ).querySelector('input')!;
     expect(input.type).toBe('number');
     expect(input.hasAttribute('autocomplete')).toBe(false);
+    expect(input.parentElement?.querySelector('button')).toBeNull();
   });
 
   it('masks a secret textarea while retaining multiline, assistance settings and a non-submit reveal button', () => {
@@ -117,7 +125,7 @@ describe('renderTextInput', () => {
     const button = doc.querySelector('button')!;
     expect(button.type).toBe('button');
     expect(button.disabled).toBe(true);
-    expect(button.textContent).toBe('Show');
+    expect(button.getAttribute('aria-label')).toBe('Show P');
     expect(button.getAttribute('aria-controls')).toBe(textarea.id);
     expect(button.getAttribute('aria-pressed')).toBe('false');
   });
@@ -136,10 +144,10 @@ describe('renderTextInput', () => {
       name: 'p', label: 'P', secret: true, multiline: true, showSecret: '<Afficher>', hideSecret: 'Masquer "clé"',
     }));
     const toggle = doc.querySelector('button')!;
-    expect(toggle.textContent).toBe('<Afficher>');
-    expect(toggle.getAttribute('data-mcpui-show-secret')).toBe('<Afficher>');
-    expect(toggle.getAttribute('data-mcpui-hide-secret')).toBe('Masquer "clé"');
-    expect(toggle.children).toHaveLength(0);
+    expect(toggle.getAttribute('aria-label')).toBe('<Afficher> P');
+    expect(toggle.getAttribute('data-mcpui-show-secret')).toBe('<Afficher> P');
+    expect(toggle.getAttribute('data-mcpui-hide-secret')).toBe('Masquer "clé" P');
+    expect([...toggle.children].map((child) => child.tagName.toLowerCase())).toEqual(['svg', 'svg']);
   });
 
   it('rejects empty or numeric secret prefills even when number takes presentation precedence', () => {
