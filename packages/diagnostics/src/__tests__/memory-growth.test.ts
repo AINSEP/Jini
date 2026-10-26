@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { aggregateProcessMemory, createMemoryGrowthDetector } from '../memory-growth.js';
-import { createTracker } from '../observability/node.js';
+import { createTracker, runWithErrorReportScope } from '../observability/node.js';
 import { createNoopObservabilityPort } from '../observability/noop.js';
 import type { ErrorReport } from '../observability/ports.js';
 
@@ -11,9 +11,11 @@ test('warning severity survives the existing tracker/dedupe facade without alter
   const reports: ErrorReport[] = [];
   const tracker = createTracker({ observability: { ...createNoopObservabilityPort({}), reportError: report => { reports.push(report); } } });
   const warning = new Error('memory growth');
-  tracker.error(warning, { operation: 'process.memory_growth', level: 'warning' });
-  tracker.error(warning, { operation: 'process.memory_growth', level: 'warning' });
-  tracker.error(new Error('ordinary'), { operation: 'ordinary' });
+  runWithErrorReportScope({ scope: { reported: false }, work: () => {
+    tracker.error({ error: warning }, { context: { operation: 'process.memory_growth', level: 'warning' } });
+    tracker.error({ error: warning }, { context: { operation: 'process.memory_growth', level: 'warning' } });
+  } });
+  tracker.error({ error: new Error('ordinary') }, { context: { operation: 'ordinary' } });
   expect(reports.map(report => report.context)).toEqual([
     { operation: 'process.memory_growth', level: 'warning' }, { operation: 'ordinary' },
   ]);

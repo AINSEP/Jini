@@ -58,14 +58,25 @@ export interface OperationTracker extends TrackerScope { end(outcome: OperationT
 export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error' }; }
 /** Native crash upload configuration. Provider-specific field names stay opaque to hosts. */
 export interface CrashUpload { submitURL: string; globalExtra: Readonly<Record<string, string>>; }
+/** Vendor-neutral numeric measurement; names and units are fixed labels, never user text. */
+export interface MetricInput { name: string; value: number; }
+export interface MetricOptions {
+ kind?: 'counter' | 'gauge' | 'histogram';
+ unit?: string;
+ attributes?: OperationAttributes;
+}
 export interface ObservabilityPort {
+ /** Explicit capability: a callable noop metric does not imply local metric admission. */
+ readonly supportsMetric?: boolean;
+ /** Records one measurement; adapters without a metrics backend use a no-op. */
+ metric(input: MetricInput, options?: MetricOptions): void | Promise<void>;
  trackRequest(input: RequestTrackingInput, options?: RequestTrackingOptions): RequestTracker;
  trackDbQuery(input: DbQueryTrackingInput): DbQueryTracker;
  trackOutboundCall(input: OutboundCallTrackingInput): OutboundCallTracker;
  trackAgentRun(input: AgentRunTrackingInput, options?: AgentRunTrackingOptions): AgentRunTracker;
  trackOperation(input: OperationTrackingInput): OperationTracker;
- /** Called inside a tracker's run() it is attributed to that tracker's work. Never throws. */
- reportError(report: ErrorReport): void;
+ /** Called inside a tracker's run() it is attributed to that tracker's work. False refuses local admission; void accepts it. */
+ reportError(report: ErrorReport): boolean | void | Promise<boolean | void>;
  /** Configuration only; the host owns crash collection, consent and upload lifecycle. */
  crashUpload?(required: { release: string; environment: string }, optional?: Record<string, never>): CrashUpload;
 }

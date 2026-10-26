@@ -4,6 +4,9 @@
  * subpath 2026-10-25); `posthog-node` is bundled into this artifact only. Owner 2026-10-25: "since
  * PostHog is free, let's just use that, but it has to be an adapter so we can swap it out later."
  *
+ * Numeric tracker metrics are intentionally inert here: this plugin owns product events only,
+ * and does not register an observability/metrics provider.
+ *
  * Server-side only (`posthog-node`). A host loads this plugin only when it is installed, enabled and
  * configured with a project key, so an install without PostHog never loads the SDK. The host wraps
  * the port in `withProductAnalyticsGuards` (`@jini-ai/analytics/product`): consent, pseudonymous ids

@@ -8,7 +8,7 @@ import type { ObservabilityPort } from "./ports.js";
  * 2026-10-25): request 5xx, process guards, assistant failures and `trackAsyncOperation` all come
  * through here, so each failure reaches the error tracker ONCE and already redacted.
  *
- * Once: an error object is reported at most once per process (a publish failure reported by its
+ * Once: an error object is reported at most once per port in an occurrence (a publish failure reported by its
  * operation and then surfacing as the request's 500 is one incident, not two), and a request whose
  * work already reported something is not reported again as a bare 5xx (`runWithErrorReportScope`).
  * Redacted: message and stack go through Jini's `redactSecrets` before the port sees them; the port's
@@ -19,18 +19,17 @@ import type { ObservabilityPort } from "./ports.js";
 type Attributes = Readonly<Record<string, string | number>>;
 
 /** Per-request state: did anything inside this request report an error yet? */
-export interface ErrorReportScope { reported: boolean }
+export interface ErrorReportScope { reported: boolean; errors?: WeakMap<ObservabilityPort, WeakSet<object>> }
 
 const requestScope = new AsyncLocalStorage<ErrorReportScope>();
-const reportedErrors = new WeakSet<object>();
 
 /**
  * Runs `work` (normally Express's `next`) with `scope` as the current request's report scope, so a
  * report from anywhere inside it marks the request as reported.
  * @complexity O(1) around `work`.
  */
-export function runWithErrorReportScope<T>({ scope, work }: { scope: ErrorReportScope; work: () => T }, _options = {}): T {
-  return requestScope.run(scope, work);
+export function runWithErrorReportScope<T>({ scope, work }: { scope: ErrorReportScope; work: () => T }, { reuseCurrent = false }: { reuseCurrent?: boolean } = {}): T {
+  return requestScope.run(reuseCurrent ? requestScope.getStore() ?? scope : scope, work);
 }
 
 type ExactSecrets = readonly string[] | undefined;
@@ -54,25 +53,48 @@ export function redactedError({ error }: { error: unknown }, { exactSecrets }: {
   return copy;
 }
 
+/** Mark only successful hand-offs; scope owns the weak per-port incident inventory.
+ * @returns Local acceptance. @complexity O(1) time/space per error.
+ */
+function recordAdmission(
+  { result, scope, observability, error }: { result: boolean | void; scope: ErrorReportScope | undefined; observability: ObservabilityPort; error: unknown },
+  _options = {},
+): boolean {
+  if (result === false) return false;
+  if (!scope) return true;
+  scope.reported = true;
+  if (typeof error === "object" && error !== null) {
+    scope.errors ??= new WeakMap();
+    const errors = scope.errors.get(observability) ?? new WeakSet<object>();
+    errors.add(error);
+    scope.errors.set(observability, errors);
+  }
+  return true;
+}
+
+/** Only an object successfully admitted to this port in this scope is a duplicate. @complexity O(1). */
+function alreadyReported({ scope, observability, error }: { scope: ErrorReportScope | undefined; observability: ObservabilityPort; error: unknown }, _options = {}): boolean {
+  return typeof error === "object" && error !== null && scope?.errors?.get(observability)?.has(error) === true;
+}
+
 /**
- * Reports `error` once to the observability port, redacted, labelled with `operation` and the
- * given attributes. Never throws: a failing adapter must not turn one error into two.
- * @returns Whether a report was sent (false: no port, or this error object was already reported).
- * @complexity O(n) in the error's message + stack length.
+ * Reports once per port and occurrence, after redaction. Without a request/trace scope each call
+ * is an independent occurrence. Failed/noop delivery leaves both dedup and bare-5xx fallback open.
+ * @returns Synchronous local admission; pending async admission returns false and marks on success.
+ * @complexity O(n) in the error's message + stack length; scope state is weakly held.
  */
 export function reportErrorOnce(
   required: { observability: ObservabilityPort | undefined; error: unknown; operation: string },
   optional: { attributes?: Attributes; exactSecrets?: ExactSecrets; level?: 'warning' | 'error' } = {},
 ): boolean {
   const { observability, error, operation } = required;
-  const isObject = typeof error === "object" && error !== null;
-  if (!observability || (isObject && reportedErrors.has(error))) return false;
-  if (isObject) reportedErrors.add(error);
   const scope = requestScope.getStore();
-  if (scope) scope.reported = true;
+  if (!observability) return false;
+  if (alreadyReported({ scope, observability, error })) return false;
   try {
-    observability.reportError({ error: redactedError({ error }, { exactSecrets: optional.exactSecrets }), context: { operation,
-      ...(optional.attributes ? { attributes: optional.attributes } : {}), ...(optional.level ? { level: optional.level } : {}) } });
-  } catch { /* never let reporting fail the caller */ }
-  return true;
+    const result = observability.reportError({ error: redactedError({ error }, { exactSecrets: optional.exactSecrets }), context: { operation, ...(optional.attributes ? { attributes: optional.attributes } : {}), ...(optional.level ? { level: optional.level } : {}) } });
+    const accepted = (result: boolean | void) => recordAdmission({ result, scope, observability, error });
+    if (result instanceof Promise) { void result.then(accepted).catch(() => {}); return false; }
+    return accepted(result);
+  } catch { return false; /* never let reporting fail the caller */ }
 }

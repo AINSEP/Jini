@@ -1,4 +1,4 @@
-import type { ObservabilityPort, TrackerScope } from './ports.js';
+import type { ErrorReport, ObservabilityPort, TrackerScope } from './ports.js';
 import { createNoopObservabilityPort, isNoopObservabilityPort } from './noop.js';
 
 type Tracker<O> = Partial<TrackerScope> & { end(outcome: O): void };
@@ -70,6 +70,17 @@ function fanOut<K extends Signal>(live: readonly ObservabilityPort[], signal: K,
  return combine(trackers as unknown as Tracker<unknown>[], failed) as ReturnType<ObservabilityPort[K]>;
 }
 
+/** Preserve admission through fan-out; false/noop and rejected providers never consume an incident.
+ * @returns Local hand-off evidence, never an exporter delivery guarantee. @complexity O(1).
+ */
+function handOffError({ port, report, failed }: { port: ObservabilityPort; report: ErrorReport; failed: () => void }, _options = {}): boolean | Promise<boolean> {
+ try {
+  const result = port.reportError(report);
+  if (result instanceof Promise) return result.then(value => value !== false, () => { failed(); return false; });
+  return result !== false;
+ } catch { failed(); return false; }
+}
+
 /**
  * Sends every signal to each enabled adapter: the "both configured" answer (say OpenTelemetry for
  * traces and an error tracker for incidents), with no adapter knowing about the other. Noop ports are
@@ -86,13 +97,22 @@ export function combineObservabilityPorts({ ports }: { ports: readonly Observabi
  const live = ports.filter((port) => !isNoopObservabilityPort(port));
  if (live.length === 0) return createNoopObservabilityPort({});
  return {
+  get supportsMetric() { return live.some(port => port.supportsMetric === true); },
   trackRequest: (...args) => fanOut(live, 'trackRequest', args, failed),
   trackDbQuery: (...args) => fanOut(live, 'trackDbQuery', args, failed),
   trackOutboundCall: (...args) => fanOut(live, 'trackOutboundCall', args, failed),
   trackAgentRun: (...args) => fanOut(live, 'trackAgentRun', args, failed),
   trackOperation: (...args) => fanOut(live, 'trackOperation', args, failed),
+  metric: (input, options = {}) => {
+   for (const port of live) { try { void Promise.resolve(port.metric(input, options)).catch(failed); } catch { failed(); /* keep reaching the rest */ } }
+  },
   reportError: (report) => {
-   for (const port of live) { try { void Promise.resolve(port.reportError(report)).catch(failed); } catch { failed(); /* reportError never throws; keep reaching the rest */ } }
+   // reportError never throws; keep reaching the rest even when one provider refuses admission.
+   const results = live.map(port => handOffError({ port, report, failed }));
+   if (results.includes(true)) return true;
+   // One fulfilled admission is enough; a stalled destination must not delay another's receipt.
+   const admissions = results.map(async result => { if (!await result) throw new Error('Report refused'); return true; });
+   return Promise.any(admissions).catch(() => false);
   },
  };
 }
