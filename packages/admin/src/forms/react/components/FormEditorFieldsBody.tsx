@@ -66,6 +66,13 @@ export function FormEditorFieldsBody(props: FormEditorFieldsBodyProps) {
         <FormEditorModeSwitch props={props} handlers={handlers} />
       </div>
 
+      <div className="field-group">
+        <p><strong>{t("Basic spam protection is on.")}</strong></p>
+        <p className="muted">{t("Hidden-field checks, submission timing when available, duplicate suppression, and rate limits.")}</p>
+        <p className="muted">{t("Live server defaults: wait 1 second; up to 5 submissions per minute per IP address and form.")}</p>
+        <p className="muted">{t("Exported forms use their destination's protection; timing and duplicate suppression may be unavailable. Custom embeds need the generated hidden controls for hidden-field checks.")}</p>
+      </div>
+
       <FormEditorActions props={props} />
     </>
   );

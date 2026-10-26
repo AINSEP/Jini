@@ -18,14 +18,24 @@
  * an IP-derived hash). One Node process makes check-then-claim atomic with no await between them;
  * a restart or a second machine only forgets recent claims, which stores a duplicate rather than
  * dropping a submission. Same one-process-lifetime shape as the forms rate limiter.
+ *
+ * Live timing (Phase 1): the same store observes token issuance separately, without claiming a
+ * submission. Unknown, evicted, stale and wrong-scope tokens supply no timing evidence. This is a
+ * deliberately bypassable heuristic; it cannot prove humanity or require tokens from static/API
+ * clients. Issuance remembers only token/scope/time for two hours, at most 10,000 entries.
  */
 import type { SubmitFormInput } from "./types.js";
 
-/** The hidden field carrying a form's per-response attempt token. Never stored, never validated. */
+/** The hidden per-response token. Never persisted; only known live issuance supplies timing evidence. */
 export const FORM_ATTEMPT_FIELD = "_attempt";
 
 /** How long after a submission is accepted an identical attempt is answered without a second row. */
 export const DUPLICATE_SUBMISSION_WINDOW_MS = 60_000;
+
+/** Live issuance expires independently of accepted claims; old/static pages remain compatible. */
+export const FORM_ATTEMPT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+/** Conservative server-observed delay; unknown issuance never prevents a submission. */
+export const MIN_FORM_SUBMISSION_AGE_MS = 1000;
 
 /** Upper bound on remembered attempts; past it the oldest is forgotten (a duplicate, never a drop). */
 const MAX_REMEMBERED_ATTEMPTS = 10_000;
@@ -34,10 +44,24 @@ type Attempt =
   | { kind: "pending"; accepted: Promise<boolean> }
   | { kind: "accepted"; atMs: number };
 
+type IssuedAttempt = { workspaceId: string; slug: string; issuedAtMs: number };
+
 /** Returned by {@link SubmissionAttempts.once} when `submit` was skipped as a duplicate. */
 export const DUPLICATE_ATTEMPT = Symbol("duplicate form submission attempt");
 
 export interface SubmissionAttempts {
+  /**
+   * Remember a live token without claiming a submission or retaining answers/IP. Repeated issuance
+   * cannot reset unexpired evidence. At most 10,000 records, lazily pruned after two hours.
+   * @complexity O(1) amortized, O(10,000) bounded space; no timers or durable effects.
+   */
+  issue(required: IssuedAttempt & { attemptToken: string }, optional?: Record<string, never>): void;
+  /**
+   * Return server-observed age only for known matching scope; missing/stale/rollback evidence skips
+   * timing. No caller timestamp is trusted. No durable effects or errors for unknown evidence.
+   * @complexity O(1).
+   */
+  ageMs(required: { workspaceId: string; slug: string; attemptToken: unknown; nowMs: number }, optional?: Record<string, never>): number | undefined;
   /** Hash one attempt with the host-supplied hash, without retaining the source IP or body. */
   key(required: { input: SubmitFormInput; attemptToken: unknown }, optional?: Record<string, never>): string;
   /**
@@ -88,6 +112,16 @@ export function createSubmissionAttempts(
   { windowMs = DUPLICATE_SUBMISSION_WINDOW_MS, maxEntries = MAX_REMEMBERED_ATTEMPTS }: { windowMs?: number; maxEntries?: number } = {},
 ): SubmissionAttempts {
   const attempts = new Map<string, Attempt>();
+  // Rendering never claims a submission. Keeping issuance separate preserves the accepted window
+  // and failure-release behavior, including the static/NAT fallback described above.
+  const issued = new Map<string, IssuedAttempt>();
+
+  const pruneIssued = ({ nowMs }: { nowMs: number }, _optional: Record<string, never> = {}): void => {
+    for (const [token, entry] of issued) {
+      if (nowMs - entry.issuedAtMs < FORM_ATTEMPT_MAX_AGE_MS) break;
+      issued.delete(token);
+    }
+  };
 
   const prune = (nowMs: number): void => {
     for (const [key, attempt] of attempts) {
@@ -124,6 +158,25 @@ export function createSubmissionAttempts(
   };
 
   return {
+    issue({ workspaceId, slug, attemptToken, issuedAtMs }, _optional = {}) {
+      if (!Number.isFinite(issuedAtMs)) return;
+      pruneIssued({ nowMs: issuedAtMs });
+      if (issued.has(attemptToken)) return;
+      while (issued.size >= MAX_REMEMBERED_ATTEMPTS) issued.delete(issued.keys().next().value!);
+      issued.set(attemptToken, { workspaceId, slug, issuedAtMs });
+    },
+    ageMs({ workspaceId, slug, attemptToken, nowMs }, _optional = {}) {
+      if (typeof attemptToken !== "string") return undefined;
+      const entry = issued.get(attemptToken);
+      if (!entry || entry.workspaceId !== workspaceId || entry.slug !== slug) return undefined;
+      const age = nowMs - entry.issuedAtMs;
+      if (age >= FORM_ATTEMPT_MAX_AGE_MS) {
+        issued.delete(attemptToken);
+        return undefined;
+      }
+      // Clock rollback, cross-worker/restart loss, stale pages and eviction lose evidence, never data.
+      return age >= 0 ? age : undefined;
+    },
     key: (required, optional = {}) => submissionAttemptKey({ ...required, hash }, optional),
     async once({ key, nowMs, submit }, _optional = {}) {
       for (;;) {

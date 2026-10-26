@@ -1,4 +1,14 @@
 /** Stable domain error types; callers map them to their own transport errors. */
+export const FORM_SUBMISSION_TOO_FAST_MESSAGE = "Please wait a moment, then submit again.";
+
+/** Retryable timing refusal before any upload, attempt claim or durable write. */
+export class FormSubmissionTooFastError extends Error {
+  readonly code = "FORMS_SUBMISSION_TOO_FAST";
+  constructor(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
+    super(FORM_SUBMISSION_TOO_FAST_MESSAGE);
+  }
+}
+
 export class FormFieldValidationError extends Error {
   readonly fieldErrors: Array<{ field: string; reason: string }>;
   constructor({ message, fieldErrors = [] }: { message: string; fieldErrors?: Array<{ field: string; reason: string }> | undefined }) { super(message); this.fieldErrors = fieldErrors; }

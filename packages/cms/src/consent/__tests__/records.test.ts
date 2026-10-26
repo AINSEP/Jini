@@ -7,6 +7,21 @@ import { CONSENT_MAX_AGE_MS } from '../types.js';
 import { accepted } from './fixtures.js';
 
 describe('consent proof storage', () => {
+  it('retires active proof while preserving immutable evidence through the bounded file writer', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-retire-'));
+    const files = createNodeConsentFiles({ atomicWrite: async ({ filePath, data }, options) => {
+      if (options.createParent) await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, JSON.stringify(data), { mode: options.mode });
+    } });
+    const records = createConsentFileRecords({ directory: root, files });
+    try {
+      await records.save({ record: accepted });
+      await records.retire!({ id: accepted.id });
+      expect(await records.read({ id: accepted.id })).toBe(null);
+      expect(JSON.parse(await fs.readFile(path.join(root, 'retired', `${accepted.id}.json`), 'utf8'))).toEqual(accepted);
+      await expect(records.retire!({ id: accepted.id })).resolves.toBeUndefined();
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  });
   it('creates a private receipt directory and counts only stored receipt files', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-health-'));
     const directory = path.join(root, 'receipts');

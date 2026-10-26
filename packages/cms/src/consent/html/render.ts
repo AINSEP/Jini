@@ -47,6 +47,7 @@ export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: {
   const reopen = config.reopen === 'link' ? 'link' : 'corner';
   const manage = consentManage({ config, record, reopen });
   // MOVE: The sole no-sale control is the native POST button, so opting out also works without JS.
+  // Only a resolved opt-out mode removes first-layer rejection; unknown modes keep the safe opt-in UI.
   return `<section id="jini-consent" class="jini-consent" data-has-record="${record !== null}" data-placement="${placement}" data-reopen="${reopen}" aria-label="Cookie preferences">
 ${manage[0]}<div class="jini-consent-initial"><h2>${e(config.title)}</h2><p>${e(config.message)}</p>
 <p>${regionMode === 'opt-out' ? 'You may opt out of optional cookies at any time.' : 'Optional cookies and scripts stay paused until you agree.'}</p></div>
@@ -54,8 +55,8 @@ ${policyLinks({ config })}
 <p data-jini-gpc-note${gpc ? '' : ' hidden'}>Global Privacy Control is on. Analytics and marketing are disabled.</p>
 <form method="post" action="${e(endpoint)}"><input type="hidden" name="policyVersion" value="${e(config.policyVersion)}"><input type="hidden" name="gpc" value="${gpc ? '1' : '0'}">
 <p role="alert" data-jini-consent-error hidden></p>
-<div class="jini-consent-actions jini-consent-initial"><button name="action" value="reject">${e(config.rejectLabel)}</button><button name="action" value="accept">${e(config.acceptLabel)}</button></div>
-<button id="jini-consent-do-not-sell" name="action" value="do-not-sell" data-jini-do-not-sell-button>Do Not Sell or Share</button>
+<div class="jini-consent-actions jini-consent-initial">${regionMode === 'opt-out' ? '' : `<button name="action" value="reject">${e(config.rejectLabel)}</button>`}<button name="action" value="accept">${e(config.acceptLabel)}</button></div>
+<button id="jini-consent-do-not-sell" name="action" value="do-not-sell" data-jini-do-not-sell-button>${regionMode === 'opt-out' ? 'Do not sell or share my info' : 'Do Not Sell or Share'}</button>
 <details id="jini-consent-preferences"${record === null ? '' : ' open'}><summary>${e(config.preferencesLabel)}</summary><fieldset><legend>Cookie categories</legend>${categories}</fieldset>
 <div class="jini-consent-actions"><button name="action" value="save">Save preferences</button><button name="action" value="reject">${e(config.rejectLabel)}</button></div></details></form>${manage[1]}</section>`;
 }

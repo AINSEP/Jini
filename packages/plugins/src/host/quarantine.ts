@@ -7,6 +7,8 @@ import type { PluginQuarantineEvent } from "./hook-registry.js";
 export interface QuarantinePluginRequired {
   readonly deps: {
     readonly clock: ClockPort;
+    /** Called only when the first durable quarantine transition commits. */
+    readonly onQuarantined?: (required: { pluginId: string; workspaceId: string }, optional: Record<string, never>) => void;
     readonly repo: PluginActivationRepoPort;
   };
   readonly input: PluginQuarantineEvent;
@@ -40,5 +42,9 @@ export async function quarantinePlugin(
     quarantineFailureCount: input.consecutiveFailures,
   };
   await deps.repo.save(activation);
+  if (!existing.quarantinedAt) {
+    try { deps.onQuarantined?.({ pluginId: input.pluginId, workspaceId: input.workspaceId }, {}); }
+    catch { /* An optional observer cannot undo the committed quarantine. */ }
+  }
   return { activation };
 }

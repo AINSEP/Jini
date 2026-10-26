@@ -1,7 +1,7 @@
 Spec ID: SPEC-JINI-CMS-FORMS-API
-Version: 2.1.0
-Last Edited: 2026-10-04
-Hash: sha256:f46561c84130721a18e5b17fdc13afa3f5c53b90efb9c77443af96cc03943cd3
+Version: 2.2.0
+Last Edited: 2026-10-26
+Hash: sha256:5c3621ad6e1d5972ced0deb392ac4ab7a25bd81b44afbc192d7767f32e64e380
 spec_mode: reverse_spec
 Hash basis: UTF-8 Markdown body from the first heading through EOF
 
@@ -112,3 +112,11 @@ These names are also reachable through the current export map. Parameter declara
 ## Current manifest boundary
 
 The current `package.json` exposes `.`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+
+## Phase 1 live API addendum (2026-10-26)
+
+The active consumed entry is `@jini-ai/cms/forms` (`packages/cms/src/forms/index.ts`), with `forms/express` and `forms/submission-attempts` subpaths; the earlier private `cms-forms` snapshot above is historical. See [DR-004](../decisions/DR-004-basic-live-submission-timing.md).
+
+- `createSubmissionAttempts({hash}, {windowMs?, maxEntries?} = {})` retains its existing claim API and adds `issue({workspaceId, slug, attemptToken, issuedAtMs}, {})` and `ageMs({workspaceId, slug, attemptToken, nowMs}, {})`. The latter returns a nonnegative age or `undefined` when timing evidence is unavailable. `FORM_ATTEMPT_MAX_AGE_MS` is two hours; `MIN_FORM_SUBMISSION_AGE_MS` is 1000.
+- `submitForm({deps,input}, {attempts?, definitionView?, validateEmails?, dispatch?} = {})` applies the timing rule only when the shared attempts owner has usable issuance evidence. The success contract remains `{status:"accepted"}` for persisted submissions, duplicates and honeypot discards.
+- `FormSubmissionTooFastError({}, {})` has fixed copy and stable code `FORMS_SUBMISSION_TOO_FAST`. The Express adapter maps it to JSON 422 or a safe native 303 with `{kind:"too-fast",slug}` and the existing eligible-text flash cookie. Neither token nor answers enter the redirect query.

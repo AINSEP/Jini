@@ -108,6 +108,9 @@ export async function setActiveTheme(
     );
   }
 
+  // Repeating the active value is not a theme transition and must not advance its revision time.
+  if (existing.activeThemeId === input.activeThemeId) return { settings: existing, availableThemeIds: [...allowed] };
+
   const settings: PresentationSettingsRecord = {
     ...existing,
     activeThemeId: input.activeThemeId,

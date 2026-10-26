@@ -25,6 +25,13 @@ function props(overrides: Partial<FormEditorFieldsBodyProps> = {}): FormEditorFi
 }
 
 describe("FormEditorFieldsBody inputs", () => {
+  it("explains live protection defaults, exported limits and embed requirements", () => {
+    render(<FormEditorFieldsBody {...props()} />);
+    expect(screen.getByText("Basic spam protection is on.").textContent).toBe("Basic spam protection is on.");
+    expect(screen.getByText("Hidden-field checks, submission timing when available, duplicate suppression, and rate limits.").textContent).toBe("Hidden-field checks, submission timing when available, duplicate suppression, and rate limits.");
+    expect(screen.getByText("Live server defaults: wait 1 second; up to 5 submissions per minute per IP address and form.").textContent).toBe("Live server defaults: wait 1 second; up to 5 submissions per minute per IP address and form.");
+    expect(screen.getByText("Exported forms use their destination's protection; timing and duplicate suppression may be unavailable. Custom embeds need the generated hidden controls for hidden-field checks.").textContent).toBe("Exported forms use their destination's protection; timing and duplicate suppression may be unavailable. Custom embeds need the generated hidden controls for hidden-field checks.");
+  });
   it("sends name and slug edits to their callbacks", () => {
     const p = props();
     render(<FormEditorFieldsBody {...p} />);

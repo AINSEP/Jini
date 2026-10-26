@@ -33,12 +33,13 @@ import {
   FormDefinitionNotFoundError,
   FormRateLimitExceededError,
   FormSubmissionValidationError,
+  FormSubmissionTooFastError,
 } from "./errors.js";
 import { HONEYPOT_KEY, isHoneypotTripped, validateSubmissionPayload, type SubmissionValidationResult } from "./forms.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
 import type { FormDefinitionViewPort } from "./ports.js";
 import { assertSubmissionEmails } from "./submission-email-validation.js";
-import { DUPLICATE_ATTEMPT, FORM_ATTEMPT_FIELD, type SubmissionAttempts } from "./submission-attempts.js";
+import { DUPLICATE_ATTEMPT, FORM_ATTEMPT_FIELD, MIN_FORM_SUBMISSION_AGE_MS, type SubmissionAttempts } from "./submission-attempts.js";
 import { FORM_SUBMISSION_RECEIVED_EVENT, type FormDefinitionRecord, type FormSubmissionRecord, type FormFileStoragePort, type FormFileReference, type FormFileInput } from "./types.js";
 
 export interface SubmitFormDeps {
@@ -74,6 +75,8 @@ export interface SubmitFormRequired {
  * opens its persistence transaction, and a copy that must wait for the first copy waits there,
  * outside any database transaction. The `_attempt` field is removed from the body before
  * validation; it is never stored.
+ * Known live-issued tokens are additionally checked after rate admission and before claims or
+ * uploads. A retryable timing error leaves no durable effects; unavailable evidence skips timing.
  * @returns Accepted for a valid submission, a duplicate, or a honeypot discard; package errors propagate.
  * @complexity O(f + k) package validation plus O(b log b) attempt hashing; fixed-count persistence
  * effects, background dispatch.
@@ -92,6 +95,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
 
   const validation = assertValidSubmission({ deps, definition, body: input.body });
   await assertWithinRateLimit({ deps, input, definition });
+  assertSubmissionTiming({ deps, input, attemptToken }, optional);
 
   const records = buildSubmissionRecords({ deps, input, definition, data: validation.data });
   const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });
@@ -113,6 +117,18 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
 }
 
 type AcceptedSubmission = Extract<SubmissionValidationResult, { valid: true }>;
+
+/** Known live issuance is a conservative filter, not proof of humanity. Missing timing evidence
+ * leaves API/static/cached callers compatible; refusal creates no claim or persistence effects.
+ * @throws FormSubmissionTooFastError for a matching server age below one second.
+ * @complexity O(1). */
+function assertSubmissionTiming(
+  { deps, input, attemptToken }: { deps: SubmitFormDeps; input: SubmitFormInput; attemptToken: unknown },
+  { attempts }: Pick<SubmitFormOptional, "attempts"> = {},
+): void {
+  const age = attempts?.ageMs({ workspaceId: input.workspaceId, slug: input.slug, attemptToken, nowMs: deps.clock.nowMs() });
+  if (age !== undefined && age < MIN_FORM_SUBMISSION_AGE_MS) throw new FormSubmissionTooFastError({}, {});
+}
 
 // Only hosts that opted into attempt dedupe send the token; elsewhere `_attempt` stays in the
 // body and is validated like any other key.

@@ -10,6 +10,8 @@ export * from './errors.js';
 export * from './fanout.js';
 export * from './hooks.js';
 export * from './instrumentation.js';
+export * from './delivery.js';
+export type { TelemetryTestResult, TelemetryTestSignal } from './telemetry-test.js';
 
 /** Selects an adapter from explicit config; disabled telemetry never invokes either factory.
  * @param options Adapter options (host span scope); ignored when telemetry is disabled. */

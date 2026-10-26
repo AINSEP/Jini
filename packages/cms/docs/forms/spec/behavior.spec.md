@@ -1,7 +1,7 @@
 Spec ID: SPEC-JINI-CMS-FORMS-BEHAVIOR
-Version: 2.1.0
-Last Edited: 2026-10-04
-Hash: sha256:2acbf8e16b1902aac9d6000a8172887f331313953cd8ded7d36f7fed31f2604f
+Version: 2.2.0
+Last Edited: 2026-10-26
+Hash: sha256:eae39677b50814d5ba2f68dc824a6f83bf708f7f3054b9ab693ab194b31df154
 spec_mode: reverse_spec
 Hash basis: UTF-8 Markdown body from the first heading through EOF
 
@@ -53,3 +53,13 @@ Evidence: `src/forms.ts`, `src/write-service.ts`, `src/submit-service.ts`, `src/
 Known test integration drift: `src/__tests__/eventing.fixture.ts` uses positional subscription, and `src/__tests__/change-set.fixture.ts` uses positional insert. CMS core now declares object arguments for both. Those fixtures do not establish compatibility with the current exported host ports.
 
 Decision rationale: [Anonymous submissions isolate spam and notification failures](../decisions/DR-001-anonymous-submission-containment.md).
+
+## Phase 1 live timing addendum (2026-10-26)
+
+This addendum governs the active `@jini-ai/cms/forms` implementation under `packages/cms/src/forms`, superseding older snapshot statements above about missing attempt coordination, transactions and HTTP adapters. See [DR-004](../decisions/DR-004-basic-live-submission-timing.md).
+
+- A host opting into attempts strips `_attempt` before validation/body hashing. Its app-scoped store also observes live-issued opaque tokens by workspace/slug/server time, independently of the existing 60-second pending/accepted claim map.
+- Issuance retains at most 10,000 records for at most two hours. Lazy pruning/capacity eviction uses no timer and retains no answers/IP. Re-registering an unexpired token cannot reset its age or change its scope.
+- After valid answers and host rate admission, a known correctly scoped token aged 0–999 ms throws `FormSubmissionTooFastError`. At 1000 ms it proceeds. Missing, unknown, stale, evicted, mismatched and rollback-clock observations skip timing. Client timestamps never establish age.
+- Timing refusal allocates no submission IDs and creates no claim, upload, submission, outbox event or conversion. The same token can retry. Existing honeypot behavior, host quotas, dedupe, rollback, upload compensation and asynchronous notification delivery remain effective.
+- Tovu's existing committed-event visitor integration owns conversion counting; no additional observation/capture is introduced. Exported receivers remain a separate Phase 1B parity/migration task. Phase 2 vendor checks are excluded.

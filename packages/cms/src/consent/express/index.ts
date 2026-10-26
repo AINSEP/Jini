@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import express, { type Express, type Request, type Response } from 'express';
 import { createConsentRecord, googleConsentSignals, readConsentRecord, resolveConsentChoices, resolveConsentRegion } from '../policy.js';
-import { CONSENT_MAX_AGE_MS, DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRecordPort } from '../types.js';
+import { CONSENT_MAX_AGE_MS, DENIED_CHOICES, type ConsentChoices, type ConsentConfig, type ConsentRecord, type ConsentRecordPort, type ConsentAnalyticsProof } from '../types.js';
+export type { ConsentAnalyticsProof } from '../types.js';
 import { gateConsentHtml } from '../html/index.js';
 import { inertConsentBody, captureConsentHtml, CONSENT_MAX_HTML_BYTES } from './response.js';
 import type { ConsentGateOptions } from '../html/gate.js';
+export { captureConsentHtml } from './response.js';
 
 export type ConsentReceiptProof = { id: string | null; present: boolean };
 
@@ -79,7 +81,7 @@ function respondError(response: Response, status: number, error: string): void {
 }
 
 export type ConsentDelivery = 'live' | 'static';
-export type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins']; categoryOrigins?: ConsentGateOptions['categoryOrigins']; delivery?: ConsentDelivery | ((required: { request: Request }) => ConsentDelivery); maxHtmlBytes?: number };
+export type ConsentHttpOptions = { endpoint?: string; cookieName?: string; nonce?: string | ((required: { request: Request; response: Response }) => string | undefined); necessaryScripts?: ConsentGateOptions['necessaryScripts']; resourceOrigins?: ConsentGateOptions['resourceOrigins'] | ((required: { request: Request }) => readonly string[]); categoryOrigins?: ConsentGateOptions['categoryOrigins']; delivery?: ConsentDelivery | ((required: { request: Request }) => ConsentDelivery); maxHtmlBytes?: number };
 
 const UNAVAILABLE_CONFIG: ConsentConfig = { enabled: true, regionMode: 'opt-in', policyVersion: 'unavailable', privacyPolicyUrl: '', title: 'Cookie preferences', message: 'Optional content is paused while preferences are unavailable.', acceptLabel: 'Accept all', rejectLabel: 'Reject non-essential', preferencesLabel: 'Cookie preferences' };
 
@@ -112,7 +114,11 @@ async function saveChoice({ request, response, ports }: { request: Request; resp
   const created = newRecord({ request, ports, config });
   if ('error' in created) return respondError(response, 400, created.error);
   const { record } = created;
+  const previous = receiptProof({ cookieHeader: request.get('cookie') ?? '', cookieName, ports }).id;
   await ports.records.save({ record });
+  // A replaced receipt must not authorize detached work. Retire before the new receipt is
+  // acknowledged; adapters retain the immutable original outside active lookup.
+  if (previous && /^[a-zA-Z0-9_-]{16,128}$/.test(previous)) await ports.records.retire?.({ id: previous });
   response.cookie(cookieName, record.id, { httpOnly: true, sameSite: 'lax', secure: new URL(origin).protocol === 'https:', path: '/', maxAge: CONSENT_MAX_AGE_MS });
   if (request.get('accept')?.includes('application/json')) { response.json({ record, signals: googleConsentSignals({ choices: record.choices }) }); return; }
   response.redirect(303, redirectDestination({ request, origin }));
@@ -135,7 +141,8 @@ async function deliveryConfig({ ports, state }: { ports: ConsentHttpPorts; state
 /** @complexity O(1). */
 function gateOptions({ request, response }: { request: Request; response: Response }, { nonce, necessaryScripts, resourceOrigins, categoryOrigins }: ConsentHttpOptions): ConsentGateOptions {
   const requestNonce = typeof nonce === 'function' ? nonce({ request, response }) : nonce;
-  return { runtimeToken: randomUUID(), ...(requestNonce === undefined ? {} : { nonce: requestNonce }), ...(necessaryScripts === undefined ? {} : { necessaryScripts }), ...(resourceOrigins === undefined ? {} : { resourceOrigins }), ...(categoryOrigins === undefined ? {} : { categoryOrigins }) };
+  const origins = typeof resourceOrigins === 'function' ? resourceOrigins({ request }) : resourceOrigins;
+  return { runtimeToken: randomUUID(), ...(requestNonce === undefined ? {} : { nonce: requestNonce }), ...(necessaryScripts === undefined ? {} : { necessaryScripts }), ...(origins === undefined ? {} : { resourceOrigins: origins }), ...(categoryOrigins === undefined ? {} : { categoryOrigins }) };
 }
 
 /** Gate one enabled HTML body; any failure returns inert text under the blocking policy.
@@ -227,4 +234,34 @@ export async function readRequestConsentChoices({ ports, request }: { ports: Pic
     ports.reportError({ operation: 'read', error });
     return { ...DENIED_CHOICES };
   }
+}
+
+/** Analytics needs an explicit, current choice even when optional tags use regional defaults.
+ * GPC and DNT always deny external identified analytics. O(1), one receipt read. */
+export async function readRequestAnalyticsProof(
+  { ports, request }: { ports: Pick<ConsentHttpPorts, 'config' | 'records' | 'clock' | 'readReceiptId' | 'reportError'>; request: Request },
+  { cookieName = DEFAULT_CONSENT_COOKIE_NAME }: { cookieName?: string } = {},
+): Promise<ConsentAnalyticsProof | undefined> {
+  if (request.get('sec-gpc') === '1' || request.get('dnt') === '1' || !ports.records.retire) return undefined;
+  try {
+    const config = await ports.config.get({});
+    const { record } = await currentRecord({ ports, request, config }, { cookieName });
+    if (!record?.choices.analytics || record.gpc) return undefined;
+    return { receiptId: record.id, policyVersion: record.policyVersion };
+  } catch { return undefined; }
+}
+
+/** Recheck detached work against the active receipt, expiry and published policy. A changed
+ * choice retires its previous proof; missing adapters/proofs fail closed. O(1), one receipt read. */
+export async function allowsAnalyticsProof(
+  { ports, proof }: { ports: Pick<ConsentHttpPorts, 'config' | 'records' | 'clock'>; proof: ConsentAnalyticsProof },
+  _optional = {},
+): Promise<boolean> {
+  if (!ports.records.retire) return false;
+  try {
+    const config = await ports.config.get({});
+    if (config.policyVersion !== proof.policyVersion) return false;
+    const record = readConsentRecord({ value: await ports.records.read({ id: proof.receiptId }), policyVersion: config.policyVersion, nowMs: ports.clock.nowMs() });
+    return record?.choices.analytics === true && record.gpc !== true;
+  } catch { return false; }
 }

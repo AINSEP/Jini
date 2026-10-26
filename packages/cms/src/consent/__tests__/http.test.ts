@@ -218,16 +218,21 @@ describe('availability and delivery regressions', () => {
     const off = await site({ delivery: 'static', enabled: false });
     expect(await (await fetch(off.base)).text()).toBe(off.html);
   });
-  it('does not bake the export visitor receipt, GPC or opt-out region into shared HTML', async () => {
+  it.each([
+    ['auto', null], ['auto', 'US-CA'], ['opt-out', 'US-CA'],
+  ] as const)('does not bake the export visitor receipt, GPC or region into shared HTML: %s / %s', async (configuredMode, region) => {
     const { base, ports } = await site({ delivery: 'static' });
     let receiptReads = 0;
-    ports.config.get = async () => ({ ...config, regionMode: 'opt-out' });
+    ports.config.get = async () => ({ ...config, regionMode: configuredMode });
     ports.records.read = async () => { receiptReads++; return accepted; };
-    const response = await fetch(base, { headers: { cookie: `jini_consent=${accepted.id}`, 'sec-gpc': '1', 'x-edge-region': 'US-CA' } });
+    const headers: Record<string, string> = { cookie: `jini_consent=${accepted.id}`, 'sec-gpc': '1' };
+    if (region !== null) headers['x-edge-region'] = region;
+    const response = await fetch(base, { headers });
     const html = await response.text();
     expect(response.status).toBe(200);
     expect(html).toContain('"hasRecord":false');
     expect(html).toContain('"optOut":false');
+    expect(html).toContain('<div class="jini-consent-actions jini-consent-initial"><button name="action" value="reject">Reject non-essential</button><button name="action" value="accept">Accept all</button></div>');
     expect(html).toContain('"gpc":false');
     expect(html).toContain('"choices":{"necessary":true,"functional":false,"analytics":false,"marketing":false}');
     expect(receiptReads).toBe(0);

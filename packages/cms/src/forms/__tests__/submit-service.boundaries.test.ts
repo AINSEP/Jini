@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError } from "../errors.js";
+import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../errors.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
 import { createSubmissionAttempts } from "../submission-attempts.js";
 import { submitForm, type SubmitFormDeps, type SubmitFormInput } from "../submit-service.js";
@@ -50,6 +50,102 @@ function fixture(fields: FieldDescriptor[], status: FormDefinitionRecord["status
 }
 
 const settle = () => new Promise<void>((resolve) => { setTimeout(resolve, 0); });
+
+test("timing: a fast valid submission consumes rate admission but creates no claim, IDs, upload, row or event; the same token can retry", async () => {
+  const f = fixture([textField, fileField("photo")]);
+  await f.ready;
+  let nowMs = 0;
+  let checks = 0;
+  let allocated = 0;
+  f.deps.clock = { nowMs: () => nowMs };
+  f.deps.idGen = { newId: () => `new-${++allocated}` };
+  f.deps.rateLimiter = { check: () => { checks += 1; return { allowed: true }; } };
+  const attempts = createSubmissionAttempts({ hash: (value) => value });
+  attempts.issue({ workspaceId: "ws", slug: "form", attemptToken: "issued", issuedAtMs: 0 });
+  const input = f.input({ name: "Ada", photo, _attempt: "issued" });
+  await assert.rejects(submitForm({ deps: f.deps, input }, { attempts }), (error: unknown) => {
+    assert.ok(error instanceof FormSubmissionTooFastError);
+    assert.equal(error.code, "FORMS_SUBMISSION_TOO_FAST");
+    assert.equal(error.message, "Please wait a moment, then submit again.");
+    return true;
+  });
+  nowMs = 999;
+  await assert.rejects(submitForm({ deps: f.deps, input }, { attempts }), FormSubmissionTooFastError);
+  assert.deepEqual([checks, allocated, f.stored, await f.rows(), f.events(), f.dispatches()], [2, 0, [], [], 0, 0]);
+  nowMs = 1000;
+  const results = await Promise.all([submitForm({ deps: f.deps, input }, { attempts }), submitForm({ deps: f.deps, input }, { attempts })]);
+  await settle();
+  assert.deepEqual(results, [{ status: "accepted" }, { status: "accepted" }]);
+  assert.deepEqual([checks, f.stored, (await f.rows()).length, f.events(), f.dispatches()], [4, ["photo"], 1, 1, 1]);
+  assert.equal(Object.hasOwn((await f.rows())[0]!.data, "_attempt"), false);
+});
+
+test("timing: honeypot, validation and throttling retain their order before known-fast evidence", async () => {
+  const f = fixture([textField]);
+  await f.ready;
+  let checks = 0;
+  f.deps.rateLimiter = { check: () => { checks += 1; return { allowed: false, retryAfterSeconds: 60 }; } };
+  const attempts = createSubmissionAttempts({ hash: (value) => value });
+  attempts.issue({ workspaceId: "ws", slug: "form", attemptToken: "issued", issuedAtMs: 0 });
+  assert.deepEqual(await submitForm({ deps: f.deps, input: f.input({ _hp: "filled", _attempt: "issued" }) }, { attempts }), { status: "accepted" });
+  await assert.rejects(submitForm({ deps: f.deps, input: f.input({ _attempt: "issued" }) }, { attempts }), FormSubmissionValidationError);
+  assert.equal(checks, 0);
+  await assert.rejects(submitForm({ deps: f.deps, input: f.input({ name: "Ada", _attempt: "issued" }) }, { attempts }), FormRateLimitExceededError);
+  assert.deepEqual([checks, await f.rows(), f.events()], [1, [], 0]);
+});
+
+test("timing: failed persistence releases a mature token, compensates its upload and commits only its retry", async () => {
+  const f = fixture([textField, fileField("photo")]);
+  await f.ready;
+  f.deps.clock = { nowMs: () => 1000 };
+  const attempts = createSubmissionAttempts({ hash: (value) => value });
+  attempts.issue({ workspaceId: "ws", slug: "form", attemptToken: "issued", issuedAtMs: 0 });
+  let failNext = true;
+  const events: Parameters<SubmitFormDeps["outbox"]["enqueue"]>[0][] = [];
+  f.deps.outbox = { enqueue: async (event) => {
+    if (failNext) { failNext = false; throw new Error("outbox unavailable"); }
+    events.push(event);
+  } };
+  const input = f.input({ name: "Ada", photo, _attempt: "issued" });
+  const run = () => submitForm({ deps: f.deps, input }, { attempts });
+  await assert.rejects(run(), { message: "outbox unavailable" });
+  assert.deepEqual([await f.rows(), events, f.dispatches()], [[], [], 0]);
+  assert.deepEqual(f.discarded.map(reference => reference.mediaId), ["media-photo"]);
+
+  assert.deepEqual(await run(), { status: "accepted" });
+  assert.deepEqual(await run(), { status: "accepted" });
+  assert.deepEqual(f.stored, ["photo", "photo"], "a duplicate never uploads again");
+  assert.deepEqual(f.discarded.map(reference => reference.mediaId), ["media-photo"], "only the failed attempt is compensated");
+  assert.deepEqual((await f.rows()).map(row => ({ id: row.id, data: row.data })), [{ id: "id-3", data: {
+    name: "Ada", photo: { mediaId: "media-photo", filename: "photo.png", contentType: "image/png", byteSize: 9 },
+  } }]);
+  assert.deepEqual(events, [{
+    id: "id-4", name: FORM_SUBMISSION_RECEIVED_EVENT, occurredAt: "1970-01-01T00:00:01.000Z",
+    workspaceId: "ws", aggregateId: "id-3",
+    payload: { workspaceId: "ws", formDefinitionId: "form", submissionId: "id-3" },
+  }]);
+});
+
+test("timing: absent, unknown, expired, wrong-scope and clock-rollback evidence keeps valid callers compatible", async () => {
+  const cases = [
+    { attemptToken: undefined, issuedWorkspace: "ws", issuedSlug: "form", issuedAtMs: 0, nowMs: 0 },
+    { attemptToken: "unknown", issuedWorkspace: "ws", issuedSlug: "form", issuedAtMs: 0, nowMs: 0 },
+    { attemptToken: "issued", issuedWorkspace: "other", issuedSlug: "form", issuedAtMs: 0, nowMs: 0 },
+    { attemptToken: "issued", issuedWorkspace: "ws", issuedSlug: "other", issuedAtMs: 0, nowMs: 0 },
+    { attemptToken: "issued", issuedWorkspace: "ws", issuedSlug: "form", issuedAtMs: 1, nowMs: 0 },
+    { attemptToken: "issued", issuedWorkspace: "ws", issuedSlug: "form", issuedAtMs: 0, nowMs: 7_200_000 },
+  ];
+  for (const c of cases) {
+    const f = fixture([textField]);
+    await f.ready;
+    f.deps.clock = { nowMs: () => c.nowMs };
+    const attempts = createSubmissionAttempts({ hash: (value) => value });
+    attempts.issue({ workspaceId: c.issuedWorkspace, slug: c.issuedSlug, attemptToken: "issued", issuedAtMs: c.issuedAtMs });
+    assert.deepEqual(await submitForm({ deps: f.deps, input: f.input({ name: "Ada", _attempt: c.attemptToken }) }, { attempts }), { status: "accepted" });
+    assert.deepEqual((await f.rows()).map(row => row.data), [{ name: "Ada" }]);
+    assert.equal(f.events(), 1);
+  }
+});
 
 test("submitForm: a file submission without a transaction port is refused per file field before any upload", async () => {
   const f = fixture([fileField("front"), fileField("back")]);

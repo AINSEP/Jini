@@ -15,7 +15,7 @@ let f: RuntimeFixture;
 afterEach(() => { f?.close(); });
 
 /** Acceptance over the real SQLite durable store, with recording launch/attach ports. */
-async function harness({ launch }: { launch?: RunAcceptancePorts['launch'] } = {}) {
+async function harness({ launch, onAccepted }: { launch?: RunAcceptancePorts['launch']; onAccepted?: NonNullable<RunAcceptancePorts['onAccepted']> } = {}) {
   f = runtimeFixture();
   await createChatHistoryStore({ kernel: f.kernel, scope: { scopeId: 'ws', ownerKind: 'user', ownerId: 'alice' }, isDaemonRunId }).create({ id: 'c' });
   const ledger = createChatRunLedger({ kernel: f.kernel, isDaemonRunId }, { now: () => 150 });
@@ -26,6 +26,7 @@ async function harness({ launch }: { launch?: RunAcceptancePorts['launch'] } = {
   let minted = 0;
   const ports: RunAcceptancePorts = {
     store,
+    ...(onAccepted ? { onAccepted } : {}),
     // Hosts strip host-only envelope fields before anything is persisted.
     sanitizeContextRef: ({ contextRef }) => { sanitized.push(contextRef); const { hostOnly: _drop, ...rest } = JSON.parse(contextRef); return JSON.stringify(rest); },
     now: () => 100,
@@ -40,6 +41,17 @@ const input = (over: Partial<{ principalId: string; messageId: string }> = {}) =
   ({ principalId: 'alice', workspaceId: 'ws', conversationId: 'c', messageId: 'a1', request: request(), ...over });
 
 describe('createRunAcceptance().accept', () => {
+  it('observes only newly committed logical runs, excluding replay and unauthorized acceptance', async () => {
+    const accepted: string[] = [];
+    const h = await harness({ onAccepted: ({ run }) => { accepted.push(run.messageId); } });
+    expect(await h.acceptance.accept(input({ principalId: 'mallory' }))).toBeNull();
+    const first = await h.acceptance.accept(input());
+    const replay = await h.acceptance.accept(input());
+    expect(replay?.runId).toBe(first?.runId);
+    expect(accepted).toEqual(['a1']);
+    expect((await h.store.load({ messageId: 'a1' }, {}))?.message.runStatus).toBe('queued');
+  });
+
   it('durably accepts the sanitized request, then launches and attaches the queued attempt', async () => {
     const h = await harness();
     const run = await h.acceptance.accept(input());
