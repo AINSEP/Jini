@@ -6,11 +6,39 @@
   "engine": 1,
   "tier": "tier-3",
   "extensions": {
-    "tovu": { "id": "jini/observability-opentelemetry" },
-    "open-marketing": { "id": "jini/observability-opentelemetry" }
+    "tovu": {
+      "id": "jini/observability-opentelemetry"
+    },
+    "open-marketing": {
+      "id": "jini/observability-opentelemetry"
+    }
   },
-  "capabilities": ["providers.register"],
-  "contributes": { "providers": [{ "contract": "observability", "id": "opentelemetry", "contractVersion": 1 }] },
+  "capabilities": [
+    "providers.register"
+  ],
+  "contributes": {
+    "providers": [
+      {
+        "contract": "observability",
+        "id": "opentelemetry",
+        "contractVersion": 1,
+        "settings": [
+          {
+            "name": "endpoint",
+            "label": "OTLP endpoint",
+            "required": true,
+            "hint": "Any OTLP/HTTP endpoint, e.g. https://otlp.example.com/otlp (traces go to /v1/traces)."
+          },
+          {
+            "name": "headers",
+            "label": "OTLP headers",
+            "secret": true,
+            "hint": "Name=Value pairs separated by commas, e.g. Authorization=Basic <base64 of instance-id:token>."
+          }
+        ]
+      }
+    ]
+  },
   "hooks": [],
   "fields": [],
   "integrity": {}

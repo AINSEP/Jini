@@ -6,11 +6,38 @@
   "engine": 1,
   "tier": "tier-3",
   "extensions": {
-    "tovu": { "id": "jini/observability-sentry" },
-    "open-marketing": { "id": "jini/observability-sentry" }
+    "tovu": {
+      "id": "jini/observability-sentry"
+    },
+    "open-marketing": {
+      "id": "jini/observability-sentry"
+    }
   },
-  "capabilities": ["providers.register"],
-  "contributes": { "providers": [{ "contract": "observability", "id": "sentry", "contractVersion": 1 }] },
+  "capabilities": [
+    "providers.register"
+  ],
+  "contributes": {
+    "providers": [
+      {
+        "contract": "observability",
+        "id": "sentry",
+        "contractVersion": 1,
+        "settings": [
+          {
+            "name": "dsn",
+            "label": "DSN",
+            "secret": true,
+            "required": true
+          },
+          {
+            "name": "environment",
+            "label": "Environment",
+            "hint": "Optional, e.g. production."
+          }
+        ]
+      }
+    ]
+  },
   "hooks": [],
   "fields": [],
   "integrity": {}

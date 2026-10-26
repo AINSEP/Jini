@@ -6,11 +6,39 @@
   "engine": 1,
   "tier": "tier-3",
   "extensions": {
-    "tovu": { "id": "jini/analytics-posthog" },
-    "open-marketing": { "id": "jini/analytics-posthog" }
+    "tovu": {
+      "id": "jini/analytics-posthog"
+    },
+    "open-marketing": {
+      "id": "jini/analytics-posthog"
+    }
   },
-  "capabilities": ["providers.register"],
-  "contributes": { "providers": [{ "contract": "product_analytics", "id": "posthog", "contractVersion": 1 }] },
+  "capabilities": [
+    "providers.register"
+  ],
+  "contributes": {
+    "providers": [
+      {
+        "contract": "product_analytics",
+        "id": "posthog",
+        "contractVersion": 1,
+        "settings": [
+          {
+            "name": "host",
+            "label": "PostHog host",
+            "required": true,
+            "hint": "e.g. https://eu.i.posthog.com"
+          },
+          {
+            "name": "apiKey",
+            "label": "Project API key",
+            "secret": true,
+            "required": true
+          }
+        ]
+      }
+    ]
+  },
   "hooks": [],
   "fields": [],
   "integrity": {}
