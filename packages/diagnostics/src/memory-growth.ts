@@ -28,18 +28,27 @@ export function aggregateProcessMemory({ processes }: { processes: readonly Proc
     ...(group.heap === undefined ? {} : { heapUsedMb: Math.round(group.heap / MB) }) }));
 }
 
-/** A full window must be monotonic; a GC drop restarts the evidence, never a leak alarm.
+/** Lowest reading in [from, to]: one GC drop lowers it, a transient spike never raises it. O(w). */
+function floorMb({ series, from, to }: { series: readonly Point[]; from: number; to: number }, _options = {}): number {
+  let floor = Infinity;
+  for (const point of series) if (point.at >= from && point.at <= to) floor = Math.min(floor, point.rssMb);
+  return floor;
+}
+
+/** Floors, never raw readings: RSS peaks are mostly uncollected V8 garbage (GC sawtooth), so a GC
+ * drop never raises an alarm and a real leak shows as a rising post-GC floor. The limit needs a
+ * full floor span above it; growth compares the late floor with the early floor of a full window.
  * @complexity O(w) in bounded window points. No effects.
  */
-function growthReason({ series, at, windowMs, growthMb, limitMb }: {
-  series: readonly Point[]; at: number; windowMs: number; growthMb: number; limitMb: number;
+function growthReason({ series, at, windowMs, floorMs, growthMb, limitMb }: {
+  series: readonly Point[]; at: number; windowMs: number; floorMs: number; growthMb: number; limitMb: number;
 }, _options = {}): MemoryGrowthWarning['reason'] | undefined {
   const first = series[0]!;
-  const last = series[series.length - 1]!;
-  if (last.rssMb > limitMb) return 'rss-limit';
-  if (at - first.at < windowMs || last.rssMb - first.rssMb < growthMb) return;
-  if (series.some((point, index) => index > 0 && point.rssMb < series[index - 1]!.rssMb)) return;
-  return 'sustained-growth';
+  if (at - first.at < floorMs) return;
+  const late = floorMb({ series, from: at - floorMs, to: at });
+  if (late > limitMb) return 'rss-limit';
+  if (at - first.at < windowMs) return;
+  return late - floorMb({ series, from: first.at, to: first.at + floorMs }) >= growthMb ? 'sustained-growth' : undefined;
 }
 
 /** Small rolling windows keyed by local process identity. Gone processes are forgotten; kind
@@ -50,9 +59,9 @@ function growthReason({ series, at, windowMs, growthMb, limitMb }: {
  * @complexity O(p*w) per observation; O(min(p,maxProcesses)*maxSamples) retained state.
  */
 export function createMemoryGrowthDetector({ now }: { now: () => number }, {
-  windowMs = 60 * 60_000, growthMb = 300, limitMb = 2000, rateLimitMs = 24 * 60 * 60_000,
+  windowMs = 60 * 60_000, floorMs = 15 * 60_000, growthMb = 300, limitMb = 2000, rateLimitMs = 24 * 60 * 60_000,
   maxSamples = 64, maxProcesses = 512, maxGapMs = 10 * 60_000,
-}: { windowMs?: number; growthMb?: number; limitMb?: number; rateLimitMs?: number; maxSamples?: number; maxProcesses?: number; maxGapMs?: number } = {}): MemoryGrowthDetector {
+}: { windowMs?: number; floorMs?: number; growthMb?: number; limitMb?: number; rateLimitMs?: number; maxSamples?: number; maxProcesses?: number; maxGapMs?: number } = {}): MemoryGrowthDetector {
   type History = { kind: string; series: Point[]; warnedAt?: number };
   const histories = new Map<number, History>();
   /** A changed kind or backwards clock cannot join two different process lifetimes. */
@@ -87,7 +96,7 @@ export function createMemoryGrowthDetector({ now }: { now: () => number }, {
       for (const row of selected) {
         const history = historyFor({ row, at });
         append({ history, at, rssBytes: row.rssBytes });
-        const reason = growthReason({ series: history.series, at, windowMs, growthMb, limitMb });
+        const reason = growthReason({ series: history.series, at, windowMs, floorMs, growthMb, limitMb });
         if (!reason || at - (history.warnedAt ?? -Infinity) < rateLimitMs) continue;
         history.warnedAt = at;
         warnings.push({ kind: row.kind, reason, series: history.series.map(point => ({ at: point.at, rssMb: Math.round(point.rssMb) })) });
