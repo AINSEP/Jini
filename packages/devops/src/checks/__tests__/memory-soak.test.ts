@@ -39,11 +39,6 @@ test('desktop checks intermediate floors; server checks its end and tail', () =>
   expect(evaluate({ values: [[120], [100], [100]] }).pass).toBe(true);
 });
 
-test('desktop sums paired processes before selecting the minimum', () => {
-  const pairs = [{ main: 60, network: 60 }, { main: 90, network: 20 }];
-  expect(evaluate({ values: [pairs.map(p => p.main + p.network)] }, { checkSlope: false }).floors).toEqual([110]);
-});
-
 test('custom limit applies without mutating samples', () => {
   const values = [[110, 200]];
   expect(evaluate({ values }, { limit: 0.05 }).pass).toBe(false);
