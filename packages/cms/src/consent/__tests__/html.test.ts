@@ -5,6 +5,7 @@ import { gateConsentHtml, renderConsentUi, renderConsentHead, consentPolicyHref 
 import { CONSENT_CLIENT } from '../html/client.js';
 import { stripConsentRuntime } from '../html/static.js';
 import { CONSENT_CSS } from '../html/styles.js';
+import { resolveConsentRegion } from '../policy.js';
 import { MENU_DROPDOWN_SCRIPT } from '../../navigation/dropdown.js';
 import { LISTING_SEE_MORE_SCRIPT } from '../../listing/see-more-script.js';
 import { accepted, config } from './fixtures.js';
@@ -34,6 +35,65 @@ async function browser(html: string, browserGpc = false, { cookieJar, fetch }: {
   await new Promise<void>(resolve => setImmediate(resolve));
   return { dom, requests, runtimeErrors, reloads };
 }
+
+describe('region-based first consent screen', () => {
+  it.each([
+    ['auto', 'US', 'opt-out'], ['auto', 'US-CA', 'opt-out'], ['auto', ' us-tx ', 'opt-out'],
+    ['auto', 'DE', 'opt-in'], ['auto', 'GB', 'opt-in'], ['auto', 'CH', 'opt-in'],
+    ['auto', null, 'opt-in'], ['auto', '', 'opt-in'], ['auto', 'unknown', 'opt-in'],
+    ['opt-in', 'US-CA', 'opt-in'], ['opt-out', 'DE', 'opt-out'],
+  ] as const)('renders %s policy in region %s as %s without JavaScript', (configuredMode, region, expectedMode) => {
+    const regionMode = resolveConsentRegion({ configuredMode, region });
+    expect(regionMode).toBe(expectedMode);
+    const dom = new JSDOM(renderConsentUi({ config: { ...config, regionMode: configuredMode }, record: null, regionMode, gpc: false, endpoint: '/api/site-consent' }));
+    try {
+      const document = dom.window.document;
+      const actions = [...document.querySelectorAll('.jini-consent-initial button')];
+      expect(actions.map((button: HTMLButtonElement) => button.textContent)).toEqual(expectedMode === 'opt-out' ? ['Accept all'] : ['Reject non-essential', 'Accept all']);
+      for (const button of actions) { expect(button.disabled).toBe(false); expect(button.tabIndex).toBe(0); }
+      const preferences = document.querySelector('#jini-consent-preferences');
+      expect(preferences.open).toBe(false);
+      expect(preferences.querySelector('summary').textContent).toBe('Cookie preferences');
+      expect(preferences.querySelector('summary').tabIndex).toBe(0);
+      // The existing submit control looks like a link and works without a JavaScript click bridge.
+      const noSale = document.querySelector('[data-jini-do-not-sell-button]');
+      expect(noSale.closest('details')).toBeNull();
+      expect(noSale.hidden).toBe(false); expect(noSale.disabled).toBe(false); expect(noSale.tabIndex).toBe(0);
+      expect(noSale.type).toBe('submit'); expect(noSale.name).toBe('action'); expect(noSale.value).toBe('do-not-sell');
+      expect(noSale.form.getAttribute('method')).toBe('post');
+      if (expectedMode === 'opt-out') expect(noSale.textContent).toBe('Do not sell or share my info');
+    } finally { dom.window.close(); }
+  });
+
+  it.each(['save', 'do-not-sell'] as const)('uses the existing %s action to opt out from the first screen', async action => {
+    const submissions: string[] = [];
+    const choices = { necessary: true, functional: true, analytics: false, marketing: false };
+    const html = gateConsentHtml({ html: page, config, record: null, regionMode: 'opt-out', gpc: false, endpoint: '/api/site-consent' }, { necessaryScripts });
+    const { dom, runtimeErrors, reloads } = await browser(html, false, { fetch: async (_url, options) => {
+      submissions.push(options.body.toString());
+      return { ok: true, json: async () => ({ record: { ...accepted, regionMode: 'opt-out', action, choices }, signals: { analytics_storage: 'denied', ad_storage: 'denied' } }) };
+    } });
+    try {
+      const document = dom.window.document;
+      expect(document.querySelector('.jini-consent-initial button[value="reject"]')).toBeNull();
+      if (action === 'save') {
+        document.querySelector('#jini-consent-preferences summary').click();
+        expect(document.querySelector('#jini-consent-preferences').open).toBe(true);
+        for (const category of ['analytics', 'marketing']) {
+          const input = document.querySelector(`[name="${category}"]`);
+          expect(input.checked).toBe(true); expect(input.disabled).toBe(false);
+          input.click();
+        }
+      }
+      document.querySelector(`button[value="${action}"]`).click();
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(submissions).toEqual([action === 'save' ? 'policyVersion=1&gpc=0&functional=on&action=save' : 'policyVersion=1&gpc=0&functional=on&analytics=on&marketing=on&action=do-not-sell']);
+      expect(document.querySelector('[name="analytics"]').checked).toBe(false);
+      expect(document.querySelector('[name="marketing"]').checked).toBe(false);
+      expect(runtimeErrors).toEqual([]); expect(reloads).toHaveLength(1);
+    } finally { dom.window.close(); }
+  });
+});
 
 describe('delivered HTML consent boundary', () => {
   it('leaves disabled HTML byte-identical and safely gates every optional/unknown script', () => {
@@ -213,7 +273,14 @@ describe('consent security regressions', () => {
   it('opt-out defaults still honor navigator GPC and persistent rejection', async () => {
     const html = gateConsentHtml({ html: page, config, record: null, gpc: false, regionMode: 'opt-out', endpoint: '/api/site-consent' }, { necessaryScripts });
     const yes = await browser(html), gpc = await browser(html, true);
-    try { expect(yes.requests).toEqual(['https://tags.example/track.js']); expect(gpc.requests).toEqual([]); expect(yes.dom.window.dataLayer[1][2].ad_storage).toBe('granted'); }
+    try {
+      expect(yes.requests).toEqual(['https://tags.example/track.js']); expect(gpc.requests).toEqual([]); expect(yes.dom.window.dataLayer[1][2].ad_storage).toBe('granted');
+      for (const category of ['analytics', 'marketing']) {
+        const input = gpc.dom.window.document.querySelector(`[name="${category}"]`);
+        expect(input.checked).toBe(false); expect(input.disabled).toBe(true);
+      }
+      expect(gpc.dom.window.document.querySelector('.jini-consent-initial button[value="reject"]')).toBeNull();
+    }
     finally { yes.dom.window.close(); gpc.dom.window.close(); }
   });
   it('static HTML retains denied templates without a broken endpoint, banner or runtime', () => {

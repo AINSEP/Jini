@@ -25,6 +25,8 @@ export async function readConsentReceiptStorage({ directory }: { directory: stri
 export interface ConsentFilePorts {
   readText(required: { filePath: string }, optional?: Record<string, never>): Promise<string | null>;
   writeJson(required: { filePath: string; record: ConsentRecord }, optional?: Record<string, never>): Promise<void>;
+  /** Preserve evidence outside active receipt lookup. Missing files are already inactive. */
+  retire?(required: { filePath: string }, optional?: Record<string, never>): Promise<void>;
 }
 
 /** Host injects the existing platform/fs writer rather than copying its durability lifecycle. */
@@ -77,6 +79,21 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
     }
   }
   return {
+    async retire({ filePath }) {
+      const text = await this.readText({ filePath });
+      if (text === null) return;
+      // Publish the archive durably before unlinking the active receipt. A crash can only leave
+      // the old choice active before the replacement save has been acknowledged to the visitor.
+      const archived = path.join(path.dirname(filePath), 'retired', path.basename(filePath));
+      if (await this.readText({ filePath: archived }) === null) await this.writeJson({ filePath: archived, record: JSON.parse(text) as ConsentRecord });
+      try { await filesystem.unlink(filePath); }
+      catch (error) { if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) throw error; }
+      inventories.delete(path.dirname(filePath));
+      if (platform !== 'win32') {
+        const directory = await filesystem.open(path.dirname(filePath), 'r');
+        try { await directory.sync(); } finally { await directory.close(); }
+      }
+    },
     async readText({ filePath }) {
       try {
         const handle = await filesystem.open(filePath, 'r');
@@ -124,6 +141,7 @@ export function createConsentFileRecords({ directory, files }: { directory: stri
     return path.join(directory, `${id}.json`);
   };
   return {
+    ...(files.retire ? { retire: async ({ id }: { id: string }) => files.retire!({ filePath: filePath(id) }) } : {}),
     async read({ id }) {
       const text = await files.readText({ filePath: filePath(id) });
       if (text === null) return null;

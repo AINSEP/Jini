@@ -1,7 +1,7 @@
 Spec ID: SPEC-JINI-CMS-FORMS-ERRORS
-Version: 2.0.0
-Last Edited: 2026-10-03T04:10:53Z
-Hash: sha256:0c069e0eca67f359946da65934752f735adf8f8488ac74d9c24a1645454dbaca
+Version: 2.2.0
+Last Edited: 2026-10-26
+Hash: sha256:4966f1901f6a49da8292e617b8dad41d4646107296609f7c14a6075bfcc911d3
 spec_mode: reverse_spec
 
 
@@ -33,3 +33,7 @@ Subscription registration errors reject `registerFormNotifySubscriber`. Once sub
 Notification registration calls `bus.subscribe({eventName: "form.submission.received", handler})` and returns the host bus unsubscriber.
 
 The host owns transport status codes, public redaction, retry policies and monitoring. Evidence: `src/errors.ts`, `src/ports.ts` and service implementations.
+
+## Phase 1 timing rejection (2026-10-26)
+
+`FormSubmissionTooFastError({}, {})` extends `Error`, with `.code === "FORMS_SUBMISSION_TOO_FAST"` and exactly `Please wait a moment, then submit again.` The Express adapter returns JSON 422 `{error,code}` or native HTML 303 with the same visible retry copy and eligible text flashed. No claim/upload/row/event is created. Missing/expired/unknown/mismatched/rollback timing evidence is compatible, not an error. All prior validation and rate failures take precedence. See [DR-004](../decisions/DR-004-basic-live-submission-timing.md).

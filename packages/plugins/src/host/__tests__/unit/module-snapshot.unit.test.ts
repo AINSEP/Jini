@@ -7,7 +7,7 @@ import path from "node:path";
 import { test, type TestContext } from "../support/fixture-runner.js";
 
 import type { PluginManifest } from "../support/manifest.js";
-import { PluginSnapshotIntegrityError, snapshotPluginModuleGraph } from "../../node/module-snapshot.js";
+import { PluginSnapshotIntegrityError, snapshotPluginModuleGraph, type PluginModuleSnapshotLifecycle } from "../../node/module-snapshot.js";
 
 /**
  * @file `snapshotPluginModuleGraph` against a real installed package on disk: the verified copy, each
@@ -71,4 +71,17 @@ test("a failed copy removes the half-written snapshot and rethrows", async t => 
     { writeSnapshotFile: async () => { throw failure; } },
   ), (error: unknown) => error === failure);
   assert.deepEqual(readdirSync(p.runtimeRoot), []);
+});
+
+test("a snapshot owner for a different runtime root is refused before copying into it", async t => {
+  const p = installed(t);
+  let copied = false;
+  const lifecycle: PluginModuleSnapshotLifecycle = {
+    runtimeRoot: path.join(p.tmp, "another-runtime"), ready: Promise.resolve(),
+    createSnapshot: async () => { copied = true; return "unused"; }, dispose: async () => {},
+  };
+  await assert.rejects(snapshotPluginModuleGraph(
+    { pluginRoot: p.pluginRoot, manifest: p.manifest({ "server/index.mjs": digest(ENTRY) }) }, { lifecycle },
+  ), { code: "SNAPSHOT_ROOT_MISMATCH" });
+  assert.equal(copied, false);
 });

@@ -2,9 +2,72 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { createSubmissionAttempts, DUPLICATE_ATTEMPT } from "../submission-attempts.js";
+import { createSubmissionAttempts, DUPLICATE_ATTEMPT, FORM_ATTEMPT_MAX_AGE_MS } from "../submission-attempts.js";
 
 const identity = (value: string): string => value;
+
+test("issuance: only a known scoped token supplies server age; rollback and expiry skip timing", () => {
+  const attempts = createSubmissionAttempts({ hash: identity });
+  const scope = { workspaceId: "ws", slug: "contact", attemptToken: "issued" };
+  attempts.issue({ ...scope, issuedAtMs: 100 });
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 100 }), 0);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 1099 }), 999);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 1100 }), 1000);
+  for (const attemptToken of [undefined, null, 42, ["issued"], "unknown"]) {
+    assert.equal(attempts.ageMs({ ...scope, attemptToken, nowMs: 100 }), undefined);
+  }
+  assert.equal(attempts.ageMs({ ...scope, workspaceId: "other", nowMs: 100 }), undefined);
+  assert.equal(attempts.ageMs({ ...scope, slug: "other", nowMs: 100 }), undefined);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 99 }), undefined);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: Number.NaN }), undefined);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 100 + FORM_ATTEMPT_MAX_AGE_MS - 1 }), FORM_ATTEMPT_MAX_AGE_MS - 1);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 100 + FORM_ATTEMPT_MAX_AGE_MS }), undefined);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 100 }), undefined, "expired evidence cannot be resurrected by clock rollback");
+});
+
+test("issuance: at 10,000 entries the oldest is evicted without affecting newer evidence", () => {
+  const attempts = createSubmissionAttempts({ hash: identity });
+  const scope = { workspaceId: "ws", slug: "contact" };
+  for (let i = 0; i <= 10_000; i++) attempts.issue({ ...scope, attemptToken: `token-${i}`, issuedAtMs: 0 });
+  assert.equal(attempts.ageMs({ ...scope, attemptToken: "token-0", nowMs: 0 }), undefined);
+  assert.equal(attempts.ageMs({ ...scope, attemptToken: "token-1", nowMs: 0 }), 0);
+  assert.equal(attempts.ageMs({ ...scope, attemptToken: "token-10000", nowMs: 0 }), 0);
+});
+
+test("issuance: registering again neither resets age nor changes scope and never claims a submit", async () => {
+  const attempts = createSubmissionAttempts({ hash: identity });
+  const scope = { workspaceId: "ws", slug: "contact", attemptToken: "issued" };
+  attempts.issue({ ...scope, issuedAtMs: 0 });
+  attempts.issue({ ...scope, slug: "other", issuedAtMs: 100 });
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 100 }), 100);
+  assert.equal(attempts.ageMs({ ...scope, slug: "other", nowMs: 100 }), undefined);
+  const run = () => attempts.once({ key: "issued", nowMs: () => 100, submit: async () => "stored" });
+  assert.equal(await run(), "stored");
+  assert.equal(await run(), DUPLICATE_ATTEMPT);
+  assert.equal(attempts.ageMs({ ...scope, nowMs: 101 }), 101);
+});
+
+test("issuance: expired records are forgotten as new pages are issued", () => {
+  const attempts = createSubmissionAttempts({ hash: identity });
+  const scope = { workspaceId: "ws", slug: "contact" };
+  attempts.issue({ ...scope, attemptToken: "old", issuedAtMs: 0 });
+  attempts.issue({ ...scope, attemptToken: "fresh", issuedAtMs: FORM_ATTEMPT_MAX_AGE_MS });
+  // Looking back with a rolled-back clock cannot resurrect the pruned old record.
+  assert.equal(attempts.ageMs({ ...scope, attemptToken: "old", nowMs: 0 }), undefined);
+  assert.equal(attempts.ageMs({ ...scope, attemptToken: "fresh", nowMs: FORM_ATTEMPT_MAX_AGE_MS }), 0);
+});
+
+test("issuance: invalid server times do not create evidence or reset a previously issued token", () => {
+  const attempts = createSubmissionAttempts({ hash: identity });
+  const scope = { workspaceId: "ws", slug: "contact" };
+  attempts.issue({ ...scope, attemptToken: "known", issuedAtMs: 0 });
+  for (const issuedAtMs of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+    attempts.issue({ ...scope, attemptToken: "invalid", issuedAtMs });
+    attempts.issue({ ...scope, attemptToken: "known", issuedAtMs });
+    assert.equal(attempts.ageMs({ ...scope, attemptToken: "invalid", nowMs: 1000 }), undefined);
+    assert.equal(attempts.ageMs({ ...scope, attemptToken: "known", nowMs: 1000 }), 1000);
+  }
+});
 
 function deferred(): { promise: Promise<string>; resolve: (value: string) => void; reject: (error: Error) => void } {
   let resolve!: (value: string) => void;

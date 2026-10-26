@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Request, Response } from "express";
 import { afterEach, test, vi } from "vitest";
-import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError } from "../../errors.js";
+import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../../errors.js";
 import type { FormDefinitionRecord } from "../../types.js";
 import {
   createFormSubmitHandler,
@@ -87,6 +87,27 @@ async function send(deps: CreateFormSubmitHandlerRequired, req: Request): Promis
 }
 
 const HTML_HEADERS = { accept: "text/html,application/xhtml+xml", host: "site.example" };
+
+test("a JSON timing refusal answers 422 with fixed retry copy and no flash cookie", async () => {
+  const { deps, calls } = harness({ submit: async () => { throw new FormSubmissionTooFastError({}, {}); } });
+  const sent = await send(deps, request({ slug: "contact", body: { name: "Ada", _attempt: "issued" } }));
+  assert.equal(sent.status, 422);
+  assert.deepEqual(sent.json, { error: "Please wait a moment, then submit again.", code: "FORMS_SUBMISSION_TOO_FAST" });
+  assert.deepEqual([sent.cookies, calls.lookups], [[], []]);
+});
+
+test("a native timing refusal redirects with a retry result and flashes only eligible text", async () => {
+  const { deps, calls } = harness({ submit: async () => { throw new FormSubmissionTooFastError({}, {}); } });
+  const sent = await send(deps, request({ slug: "contact", headers: { ...HTML_HEADERS, referer: "http://site.example/contact?keep=1" },
+    body: { name: "Ada", email: "ada@example.com", message: "Hello", consent: "on", _hp: "", _attempt: "issued", photo: { bytes: new Uint8Array([1]) }, extra: "excluded" },
+  }));
+  assert.deepEqual(sent.redirect, { status: 303, location: "/contact?keep=1&form_result=too-fast&form_slug=contact" });
+  assert.deepEqual(calls.encodedResults, [{ kind: "too-fast", slug: "contact" }]);
+  assert.deepEqual(calls.flashPayloads, [{ slug: "contact", values: { name: "Ada", email: "ada@example.com", message: "Hello" } }]);
+  assert.deepEqual(sent.cookies, [{ name: "form_flash", value: JSON.stringify(calls.flashPayloads[0]),
+    options: { httpOnly: true, path: "/", maxAge: 120000, sameSite: "lax", secure: false },
+  }]);
+});
 
 afterEach(() => { vi.restoreAllMocks(); });
 

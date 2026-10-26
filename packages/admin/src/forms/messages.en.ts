@@ -1,5 +1,9 @@
 import type { FormsTranslator } from "./models.js";
 export const formsMessagesEn = {
+  "Basic spam protection is on.": "Basic spam protection is on.",
+  "Hidden-field checks, submission timing when available, duplicate suppression, and rate limits.": "Hidden-field checks, submission timing when available, duplicate suppression, and rate limits.",
+  "Live server defaults: wait 1 second; up to 5 submissions per minute per IP address and form.": "Live server defaults: wait 1 second; up to 5 submissions per minute per IP address and form.",
+  "Exported forms use their destination's protection; timing and duplicate suppression may be unavailable. Custom embeds need the generated hidden controls for hidden-field checks.": "Exported forms use their destination's protection; timing and duplicate suppression may be unavailable. Custom embeds need the generated hidden controls for hidden-field checks.",
   "Created / Updated": "Created / Updated",
   "Created {created} · Updated {updated}": "Created {created} · Updated {updated}",
   "Created {date}": "Created {date}",

@@ -64,7 +64,8 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
   const headers = otlpAuthHeaders({ auth: text(required.auth, 'auth'), username: text(required.username, 'username'), token: text(required.token, 'token'), headers: otlpHeadersOf(required.headers) });
   const spanProcessors = optional.spanProcessors as OtelAdapterOptions['spanProcessors'];
   const resourceAttributes = attributionOf(required.attribution).attributes;
-  const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes };
+  const options: OtelAdapterOptions = { ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
+    reportTelemetry: optional.reportTelemetry as OtelAdapterOptions['reportTelemetry'], info: optional.info as OtelAdapterOptions['info'] };
   const { port, dispose } = createOtelObservabilityAdapter({ config }, options);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }

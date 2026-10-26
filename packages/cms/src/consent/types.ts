@@ -51,10 +51,15 @@ export interface ConsentRecord {
   action: ConsentAction;
 }
 
+/** Internal delivery evidence; never an analytics property or a visitor identity. */
+export interface ConsentAnalyticsProof { receiptId: string; policyVersion: string }
+
 /** save must be durable before resolving, and must not overwrite an existing ID. */
 export interface ConsentRecordPort {
   read(required: { id: string }, optional?: Record<string, never>): Promise<unknown>;
   save(required: { record: ConsentRecord }, optional?: Record<string, never>): Promise<void>;
+  /** Remove a superseded choice from active lookup while retaining its immutable evidence. */
+  retire?(required: { id: string }, optional?: Record<string, never>): Promise<void>;
 }
 
 export const CONSENT_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;

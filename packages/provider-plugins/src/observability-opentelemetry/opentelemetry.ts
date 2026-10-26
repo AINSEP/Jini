@@ -36,8 +36,9 @@ import { BatchSpanProcessor, ParentBasedSampler, AlwaysOnSampler, type ReadableS
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { createOtelObservabilityPort, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
+import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 
-export interface OtelAdapterOptions {
+export interface OtelAdapterOptions extends ProviderTelemetryOptions {
   /** OTLP/HTTP request headers (e.g. a collector's `Authorization`); any OTLP endpoint, no vendor-specific code. */
   headers?: Readonly<Record<string, string>>;
   /** Test seam: replace the OTLP batch pipeline with explicit SDK span processors. */
@@ -66,6 +67,38 @@ export function createInjectedOtlpTraceExporter({ url, headers }: { url: string;
     ...getSharedConfigurationDefaults(), url, headers: async () => ({ ...requestHeaders }),
     agentFactory: httpAgentFactoryFromOptions({ keepAlive: true }),
   }, JsonTraceSerializer, OTLP_SPAN_EXPORTER_COMPONENT, TraceExporterMetricsHelper, undefined));
+}
+
+type SpanExporter = Pick<OTLPExporterBase<ReadableSpan[]>, "export" | "shutdown" | "forceFlush">;
+/** Observe the real export callback before the batch processor consumes failures for diagnostics.
+ * @returns The same SDK exporter protocol; credentials and raw errors stay at the adapter edge.
+ * @complexity O(1) around an export, independent of the batch size.
+ */
+export function createReportingSpanExporter(
+  { exporter, reporter }: { exporter: SpanExporter; reporter: ReturnType<typeof createProviderTelemetryReporter> }, _options = {},
+): SpanExporter {
+  return {
+    export(spans, callback) {
+      let completed = false;
+      try {
+        exporter.export(spans, (result) => {
+          completed = true;
+          reporter.result({ phase: "export", outcome: result.code === 0 ? "ok" : "failed", error: result.error });
+          // BatchSpanProcessor also forwards failures to the process-wide OTel diagnostic logger.
+          // Keep the raw transport error out of that second, host-controlled reporting path too.
+          callback(result.code === 0 ? result : { code: result.code, error: new Error("OpenTelemetry export failed") });
+        });
+      } catch (error) {
+        if (completed) throw error;
+        reporter.result({ phase: "export", outcome: "failed", error });
+        // The batch processor's diagnostics may have a logger elsewhere in the host. Do not hand
+        // that global path the raw transport error (which can contain the destination and headers).
+        callback({ code: 1, error: new Error("OpenTelemetry export failed") });
+      }
+    },
+    forceFlush: () => exporter.forceFlush(),
+    shutdown: () => exporter.shutdown(),
+  };
 }
 
 const SDK_SPAN_KINDS: Record<TraceSpanKind, SpanKind> = { server: SpanKind.SERVER, client: SpanKind.CLIENT, internal: SpanKind.INTERNAL };
@@ -117,12 +150,16 @@ export function createOtelFactories(_required: Record<string, never>, options: O
   shutdown: () => Promise<void>;
 } {
   const providers: NodeTracerProvider[] = [];
+  const exporterPipelines = new WeakMap<object, SpanExporter>();
   return {
     shutdown: async () => { await Promise.all(providers.map((provider) => provider.shutdown())); },
     exporterFactory: {
       create: ({ endpoint }) => {
         if (options.spanProcessors !== undefined) return undefined;
-        return createInjectedOtlpTraceExporter({ url: endpoint, ...(options.headers ? { headers: options.headers } : {}) });
+        const exporter = createInjectedOtlpTraceExporter({ url: endpoint, ...(options.headers ? { headers: options.headers } : {}) });
+        exporterPipelines.set(exporter, createReportingSpanExporter({ exporter,
+          reporter: createProviderTelemetryReporter({ endpoint }, options) }));
+        return exporter;
       },
     },
     tracerProviderFactory: {
@@ -132,7 +169,8 @@ export function createOtelFactories(_required: Record<string, never>, options: O
           // The diagnostics port treats exporters as opaque. Narrow at the SDK boundary rather
           // than casting an arbitrary port value into a live processor's exporter dependency.
           if (!(exporter instanceof OTLPExporterBase)) throw new TypeError("OpenTelemetry requires an OTLP trace exporter");
-          spanProcessors = [new BatchSpanProcessor(exporter as OTLPExporterBase<ReadableSpan[]>, BATCH_DEFAULTS)];
+          // Factory callers can construct several exporters; retain each endpoint's own reporter.
+          spanProcessors = [new BatchSpanProcessor(exporterPipelines.get(exporter) ?? exporter as OTLPExporterBase<ReadableSpan[]>, BATCH_DEFAULTS)];
         }
         const provider = new NodeTracerProvider({
           resource: resourceFromAttributes({ ...options.resourceAttributes, [ATTR_SERVICE_NAME]: serviceName }), spanProcessors,
@@ -152,7 +190,12 @@ export function createOtelFactories(_required: Record<string, never>, options: O
  * @complexity O(1) setup.
  */
 export function createOtelObservabilityAdapter({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): ObservabilityAdapter {
+  const reporter = createProviderTelemetryReporter({ endpoint: config.endpoint }, options);
   const { shutdown, ...factories } = createOtelFactories({}, options);
   const port = createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) });
-  return { port, dispose: async () => { try { await shutdown(); } catch { /* teardown is best-effort */ } } };
+  reporter.initialized({ message: "OpenTelemetry exporting" });
+  return { port, dispose: async () => {
+    try { await shutdown(); reporter.result({ phase: "shutdown", outcome: "ok" }); }
+    catch (error) { reporter.result({ phase: "shutdown", outcome: "failed", error }); /* teardown is best-effort */ }
+  } };
 }

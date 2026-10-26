@@ -6,7 +6,8 @@ const WITHDRAWAL_COOKIE = 'jini_consent_withdrawal';
 /** Vanilla enhancement: forms remain ordinary POST forms without this script.
  * Signals are queued before any released tag. A changed choice reloads to stop already-running
  * scripts; a new grant is released only after the server durably saved its receipt.
- * A withdrawal never waits for evidence: when its save fails it applies at once, a client marker
+ * Analytics-only changes may stay live when the host contribution can retire its own SDK and no
+ * other analytics resources have run. A withdrawal never waits for evidence: when its save fails it applies at once, a client marker
  * keeps it on later pages (until the receipt lifetime) and the save is retried there.
  * Script release is ordered and each template is consumed once. O(s + l) for s deferred elements and l late listeners. */
 export const CONSENT_CLIENT = String.raw`(function () {
@@ -21,6 +22,13 @@ export const CONSENT_CLIENT = String.raw`(function () {
   var gpc = state.gpc || navigator.globalPrivacyControl === true;
   var withdrawal = readWithdrawal();
   var choices = restrict(gpc ? state.gpcChoices : state.choices, withdrawal && withdrawal.choices);
+  var hasChoice = state.hasRecord || Boolean(withdrawal);
+  var releasedAnalytics = false;
+  function publishConsent() {
+    // Consumers observe the effective denial too, even when saving a withdrawal fails.
+    window.jiniConsent = { hasChoice: hasChoice, analytics: choices.analytics === true && !gpc, gpc: gpc };
+    window.dispatchEvent(new CustomEvent('jini:consent-changed', { detail: window.jiniConsent }));
+  }
   function enforceResourcePolicy() {
     if ((gpc || withdrawal) && choices.marketing !== true) {
       // navigator GPC may be absent from the request headers, and an unsaved withdrawal is unknown to the server;
@@ -36,6 +44,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
   function signal(command, signals) {
     // Google consumes gtag-style Arguments entries, not arbitrary arrays/objects.
     (function () { window.dataLayer.push(arguments); })('consent', command, signals);
+    if (command === 'update') publishConsent();
   }
   function signalsFor(values) {
     var result = {};
@@ -85,6 +94,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
   }
   signal('default', signalsFor({ necessary: true }));
   if (state.hasRecord || state.optOut || withdrawal) signal('update', signalsFor(choices));
+  publishConsent();
   function releasedScript(original) {
     var script = document.createElement('script');
     for (var attribute of original.attributes) script.setAttribute(attribute.name, attribute.value);
@@ -119,6 +129,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
       var scripts = Array.from(document.querySelectorAll('template[data-jini-consent-script],template[data-jini-consent-resource]'));
       for (var template of scripts) {
         if (!['functional', 'analytics', 'marketing'].includes(template.dataset.category) || choices[template.dataset.category] !== true) continue;
+        if (template.dataset.category === 'analytics') releasedAnalytics = true;
         if (template.hasAttribute('data-jini-consent-resource')) { template.replaceWith(template.content); continue; }
         var original = template.content.querySelector('script');
         if (!original) continue;
@@ -139,6 +150,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
       }
       document.querySelectorAll('[data-jini-consent-attributes]').forEach(function (element) {
         if (!['functional', 'analytics', 'marketing'].includes(element.dataset.jiniConsentCategory) || choices[element.dataset.jiniConsentCategory] !== true) return;
+        if (element.dataset.jiniConsentCategory === 'analytics') releasedAnalytics = true;
         var attributes = JSON.parse(element.dataset.jiniConsentAttributes);
         Object.keys(attributes).forEach(function (name) { element.setAttribute(name, attributes[name]); });
         element.removeAttribute('data-jini-consent-attributes');
@@ -241,6 +253,13 @@ export const CONSENT_CLIENT = String.raw`(function () {
     if (location.hash === '#jini-consent') history.replaceState(null, '', location.pathname + location.search);
     window.location.reload();
   }
+  function canSwitchAnalyticsLive(previous, hadChoice) {
+    // Arbitrary optional tags cannot be unloaded safely, and a first choice changes the banner's
+    // server-rendered structure. Only the trusted analytics contribution promises live teardown.
+    if (!hadChoice || window.jiniBrowserAnalyticsLive !== true || releasedAnalytics) return false;
+    if (previous.functional !== choices.functional || previous.marketing !== choices.marketing) return false;
+    return !document.querySelector('template[data-category="analytics"],[data-jini-consent-category="analytics"],[data-consent-category="analytics"]');
+  }
   // Delegation also supports footer controls inserted after the initial document load.
   document.addEventListener('click', function (event) {
     if (!(event.target instanceof Element)) return;
@@ -274,12 +293,20 @@ export const CONSENT_CLIENT = String.raw`(function () {
       buttons.forEach(function (button) { button.disabled = true; });
       banner.querySelector('[data-jini-consent-error]').hidden = true;
       await serializeSave(async function () {
+        var previous = choices;
+        var hadChoice = hasChoice;
         try {
           var result = await save(formAction(form), data);
           choices = result.record.choices;
+          hasChoice = true;
           syncForm(banner);
           clearWithdrawal();
           signal('update', result.signals);
+          if (canSwitchAnalyticsLive(previous, hadChoice)) {
+            if (location.hash === '#jini-consent') history.replaceState(null, '', location.pathname + location.search);
+            buttons.forEach(function (button) { button.disabled = false; });
+            return;
+          }
           reloadAfterChoice();
         } catch (failure) {
           var next = restrict(choices, submittedChoices(form, event.submitter.value));
@@ -288,6 +315,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
             // and reload so optional scripts that already run stop. The save is retried later.
             var retry = failure.retry !== false;
             choices = next;
+            hasChoice = true;
             syncForm(banner);
             writeWithdrawal(next, retry, true);
             signal('update', signalsFor(next));

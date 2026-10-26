@@ -37,7 +37,7 @@ export interface SetAgentPluginEnabledResult {
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
-  const { setAgentPluginActivation, readAgentPluginActivations } = createActivationModule(ports);
+  const { setAgentPluginActivation, readAgentPluginActivations, resolveAgentPluginActivation } = createActivationModule(ports);
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
   const persistentState = createPersistentStateModule(ports);
 
@@ -74,12 +74,18 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     // (PLUGIN_UPDATE_PENDING) until a boot recovers it.
     await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports, workspaceId: input.workspaceId, pluginId: input.pluginId }) });
     const warnings = await enablementWarnings({ input, workspaceRoot, installed, plugin });
+    const previous = await resolveAgentPluginActivation(workspaceRoot, input.pluginId);
     const written = await setAgentPluginActivation({
       workspaceRoot,
       pluginId: input.pluginId,
       enabled: input.enabled,
       actor: input.actor,
     });
+
+    if ((previous.verdict === "active") !== written.plugins[input.pluginId]!.enabled) {
+      try { ports.onActivationChanged?.({ pluginId: input.pluginId, workspaceId: input.workspaceId, enabled: written.plugins[input.pluginId]!.enabled, actor: input.actor }, {}); }
+      catch { /* An optional observer cannot undo the committed activation. */ }
+    }
 
     // Always present: setAgentPluginActivation asserts the same id grammar its normalizer keeps and
     // writes a boolean `enabled`, so the record it returns holds this entry (the former

@@ -35,6 +35,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { NodeClient, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
 import { createNoopObservabilityPort, describeReportedError, redactOperationAttributes, type ObservabilityAdapter } from "@jini-ai/diagnostics/observability";
+import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 
 export interface SentryConfigEnabled {
   enabled: true; dsn: string; environment?: string; tracesSampleRate: number;
@@ -45,7 +46,7 @@ export interface SentryConfigEnabled {
 /** The client slice this adapter uses; a host's own `NodeClient` satisfies it. */
 export type SentryClient = Pick<NodeClient, "close" | "getOptions">;
 
-export interface SentryAdapterOptions {
+export interface SentryAdapterOptions extends ProviderTelemetryOptions {
   /** Test seam: a transport that records envelopes instead of sending them. */
   transport?: NodeOptions["transport"];
   /** A client the host already initialized: reused as-is, never closed by `dispose`. */
@@ -85,6 +86,7 @@ function privateClient({ config }: { config: SentryConfigEnabled }, { transport 
 export function createSentryObservabilityAdapter({ config }: { config: SentryConfigEnabled }, options: SentryAdapterOptions = {}): ObservabilityAdapter {
   const owned = options.client === undefined;
   const client = (options.client ?? privateClient({ config }, { transport: options.transport })) as NodeClient;
+  const reporter = createProviderTelemetryReporter({ endpoint: config.dsn }, options);
   const active = new AsyncLocalStorage<Span>();
   // A span keeps the scope it started in, so tags set here reach its transaction as well as exceptions.
   const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); scope.setTags(config.tags ?? {}); return fn(); });
@@ -117,5 +119,6 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       }
     },
   };
+  reporter.initialized({ message: "Sentry reporting" });
   return { port, dispose: async () => { if (!owned) return; try { await client.close(2_000); } catch { /* best-effort */ } } };
 }

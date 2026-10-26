@@ -307,11 +307,11 @@ export interface IngestHitResult {
  * @complexity O(p + r) over the excluded-paths and excluded-IP-ranges config lists (both small,
  *   operator-configured lists — not user-variable-sized collections).
  */
-function findExclusionReason(input: {
+export function findExclusionReason(input: {
   beacon: IngestBeacon;
   ip: string;
   config: AnalyticsSiteConfig;
-}): IngestDropReason | null {
+}, _optional: Record<string, never> = {}): IngestDropReason | null {
   const { beacon, ip, config } = input;
 
   if (config.honorDoNotTrack && beacon.dnt) return "dnt";

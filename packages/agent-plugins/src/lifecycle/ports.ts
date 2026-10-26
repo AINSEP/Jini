@@ -33,6 +33,8 @@ export interface AgentPluginOutboundGuardPort {
   assertAllowed(required: { readonly url: string }): Promise<void>;
 }
 export interface AgentPluginLifecyclePorts {
+  /** Observe a real activation transition after the serialized durable write. No config is exposed. */
+  readonly onActivationChanged?: ((required: { pluginId: string; workspaceId: string; enabled: boolean; actor: string }, optional: Record<string, never>) => void) | undefined;
   /** Optional host admission serializes cross-kind identity checking and publication. */
   readonly identityAdmission?: (<T>(required: { id: string; localId: string; run: () => Promise<T> }, optional?: Record<string, never>) => Promise<T>) | undefined;
   readonly onEvent?: ((required: { readonly event: string; readonly message: string }) => void) | undefined;
@@ -62,5 +64,5 @@ export interface AgentPluginLifecyclePorts {
 }
 
 /** Application policy/effects are required; observers and metadata translators are optional. */
-export type AgentPluginLifecycleRequired = Omit<AgentPluginLifecyclePorts, 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;
-export type AgentPluginLifecycleOptional = Pick<AgentPluginLifecyclePorts, 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;
+export type AgentPluginLifecycleRequired = Omit<AgentPluginLifecyclePorts, 'onActivationChanged' | 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;
+export type AgentPluginLifecycleOptional = Pick<AgentPluginLifecyclePorts, 'onActivationChanged' | 'onEvent' | 'readServerMetadata' | 'migrateBeforeSeed' | 'formatBundledUninstallRecovery' | 'identityAdmission'>;

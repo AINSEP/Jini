@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError } from "../errors.js";
+import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../errors.js";
 import type { FieldDescriptor } from "../types.js";
 import type { FormDefinitionRepoPort } from "../ports.js";
 import type { SubmitFormInput } from "../submit-service.js";
@@ -13,6 +13,7 @@ export type FormSubmissionRedirectResult =
       values?: Readonly<Record<string, string>>;
     }
   | { kind: "rate-limited"; slug: string; retryAfterSeconds: number }
+  | { kind: "too-fast"; slug: string; values?: Readonly<Record<string, string>> }
   | { kind: "error"; slug: string };
 
 /** The host owns the existing query/cookie wire format and safe site target policy. */
@@ -176,6 +177,8 @@ function setFormFlashCookie(req: Request, res: Response, payload: { slug: string
  *  the HTML/validation-failure path, never on every submission. A workspace/slug with no matching
  *  definition (should not happen — `submitForm` just resolved the same slug successfully enough to
  *  reach validation) degrades to an empty field list rather than throwing. */
+// Timing failures reuse this same declared-field allowlist and bounded cookie, without echoing
+// their attempt token or file bytes. Native navigation requires selecting files again.
 async function setFormFlashCookieForValidationFailure(
   req: Request,
   res: Response,
@@ -202,10 +205,13 @@ function outcomeForSuccess(slug: string, result: { status: "accepted" }): FormSu
   return { redirectResult: { kind: "success", slug }, json: { status: 201, body: result } };
 }
 
-/** Maps `submitForm`'s three typed failure modes (REQ-05/07's error taxonomy) to both response
+/** Maps `submitForm`'s typed failure modes (REQ-05/07's error taxonomy and Phase 1 timing) to both response
  *  shapes at once; an error `submitForm` never actually raises today still degrades to a generic
  *  500/`"error"` pair rather than throwing out of this mapper. */
 function outcomeForError(slug: string, err: unknown): FormSubmitOutcome {
+  if (err instanceof FormSubmissionTooFastError) {
+    return { redirectResult: { kind: "too-fast", slug }, json: { status: 422, body: { error: err.message, code: err.code } } };
+  }
   if (err instanceof FormDefinitionNotFoundError) {
     return { redirectResult: { kind: "error", slug }, json: { status: 404, body: { error: err.message, code: "FORMS_DEFINITION_NOT_FOUND" } } };
   }
@@ -258,7 +264,7 @@ export function createFormSubmitHandler(
       });
       sendFormSubmitOutcome(req, res, outcomeForSuccess(slug, result), deps);
     } catch (err) {
-      if (err instanceof FormSubmissionValidationError && wantsHtmlResponse(req)) {
+      if (isFlashableFailure({ error: err }) && wantsHtmlResponse(req)) {
         try {
           await setFormFlashCookieForValidationFailure(req, res, deps, slug, body);
         } catch (flashErr) {
@@ -268,4 +274,10 @@ export function createFormSubmitHandler(
       sendFormSubmitOutcome(req, res, outcomeForError(slug, err), deps);
     }
   };
+}
+
+/** Timing retries reuse the existing eligible-text flash; tokens and file bytes never enter it.
+ * @complexity O(1). */
+function isFlashableFailure({ error }: { error: unknown }, _optional: Record<string, never> = {}): boolean {
+  return error instanceof FormSubmissionValidationError || error instanceof FormSubmissionTooFastError;
 }

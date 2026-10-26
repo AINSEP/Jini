@@ -24,6 +24,16 @@
         "contractVersion": 1,
         "settings": [
           {
+            "name": "sessionReplay",
+            "label": "Session replay",
+            "default": "false",
+            "options": [
+              { "value": "false", "label": "Off" },
+              { "value": "true", "label": "On (analytics consent required)" }
+            ],
+            "hint": "Off by default. Replay requires analytics consent; inputs and text are masked. Browser analytics requires Cookieless server hash mode in the PostHog project."
+          },
+          {
             "name": "includePromptsAndResponses",
             "label": "Include prompts and responses",
             "default": "false",

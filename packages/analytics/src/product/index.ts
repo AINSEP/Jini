@@ -24,6 +24,8 @@ import type { JsonObject } from "@jini-ai/core/primitives";
 import { validateEventProps } from "../privacy.js";
 export { createAiGenerationSink } from "./ai-generations.js";
 export { fanOutProductAnalytics } from "./fanout.js";
+export { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalyticsMode } from './browser.js';
+export type { BrowserAnalyticsMode, BrowserAnalyticsConsent, BrowserAnalyticsContribution } from './browser.js';
 
 export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
 
@@ -37,6 +39,8 @@ export interface ProductAiGeneration { userId: string; properties: ProductEventP
 
 /** The port features call. Never throws, never blocks: delivery is the adapter's background job. */
 export interface ProductAnalyticsPort {
+  /** Optional trusted browser contribution; it contains only publishable browser configuration. */
+  browserAnalytics?(required: { surface: 'site' | 'admin' }, optional?: Record<string, never>): import('./browser.js').BrowserAnalyticsContribution;
   capture(event: ProductEvent): void;
   identify(identity: ProductIdentity): void;
   /** Optional capability; providers without LLM analytics keep their existing contract. */
