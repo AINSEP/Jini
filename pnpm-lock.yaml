@@ -991,6 +991,9 @@ importers:
       '@jini-ai/capability-providers':
         specifier: workspace:^
         version: link:../capability-providers
+      '@jini-ai/cookie-consent':
+        specifier: workspace:^
+        version: link:../cookie-consent
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics

@@ -203,3 +203,13 @@ test('server visitor counters cannot create person profiles, even through caller
     insertId: event.properties.$insert_id, geoipDisabled: event.properties.$geoip_disable })
     .toEqual({ name: 'form_submitted', subject: 'visitor:ephemeral', profiles: false, insertId: 'committed-event', geoipDisabled: true });
 });
+
+test("the port offers a cookie-consent adapter with only public config, mounted where the host says", async () => {
+  const resource = createPostHogProvider({ apiKey: "phc_test_dummy", host: "https://posthog.invalid", sessionReplay: "true",
+    attribution: { attributes: { site_id: "site-123" }, groups: {} } });
+  const { adapter, http } = (resource.port as unknown as { consentAdapter(required: { path: string }): { adapter: { config: Record<string, unknown> }; http: { path: string } } })
+    .consentAdapter({ path: "/_consent/posthog" });
+  expect(http.path).toBe("/_consent/posthog");
+  expect(adapter.config).toMatchObject({ apiKey: "phc_test_dummy", host: "/_consent/posthog", sessionReplay: true, siteId: "site-123" });
+  await resource.dispose({});
+});

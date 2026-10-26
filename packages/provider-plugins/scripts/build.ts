@@ -1,10 +1,13 @@
 /** Build-time bundling only. Installed artifacts require no package manager or vendor SDK peers. */
 import { build, type Metafile } from 'esbuild';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { isBuiltin } from 'node:module';
 import { mkdir, mkdtemp, readdir, readFile, rename, rm, copyFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
+import { ADAPTER_FILE, POSTHOG_SDK_INTEGRITY, SDK_FILE } from '../src/analytics-posthog/consent.js';
 
 interface CatalogEntry { readonly id: string; readonly version: string; readonly path: string }
 
@@ -43,9 +46,9 @@ async function supplementFor(required: { packageRoot: string; item: BundledPacka
  * A package that ships no license file (some upstream monorepos omit it from sub-packages) takes the
  * text of a bundled sibling from the same repository with the same declared license; the copy is
  * recorded in `LICENSE-SOURCE`. Anything else still fails the build. */
-async function retainLicenses(required: { packageRoot: string; artifactRoot: string; metafile: Metafile }): Promise<void> {
+async function retainLicenses(required: { packageRoot: string; artifactRoot: string; inputs: readonly string[] }): Promise<void> {
   const roots = new Set<string>();
-  for (const input of Object.keys(required.metafile.inputs)) roots.add(await owningPackage({ input: path.resolve(required.packageRoot, input) }));
+  for (const input of required.inputs) roots.add(await owningPackage({ input: path.resolve(required.packageRoot, input) }));
   const bundled: BundledPackage[] = [];
   for (const root of [...roots].sort()) {
     const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as BundledPackage['manifest'];
@@ -74,6 +77,23 @@ function assertSelfContained(required: { metafile: Metafile }): void {
   }
 }
 
+/** The full no-external SDK (replay included) is copied byte for byte so its SHA-256 is the pinned one;
+ * browsers request it same-origin only after a consent choice. The consent adapter is bundled for the browser.
+ * @throws When the installed posthog-js file is not the pinned one. */
+export async function addPostHogBrowserFiles(required: { packageRoot: string; artifactRoot: string }): Promise<void> {
+  const sdk = createRequire(path.join(required.packageRoot, 'package.json')).resolve('posthog-js/dist/module.full.no-external.js');
+  const bytes = await readFile(sdk);
+  if (`sha256-${createHash('sha256').update(bytes).digest('base64')}` !== POSTHOG_SDK_INTEGRITY) {
+    throw new Error(`posthog-js file does not match the pinned digest: ${sdk}`);
+  }
+  await writeFile(path.join(required.artifactRoot, 'server', SDK_FILE), bytes);
+  const adapter = await build({ absWorkingDir: required.packageRoot, entryPoints: [path.join(required.packageRoot, 'src/analytics-posthog/consent-adapter.ts')],
+    outfile: path.join(required.artifactRoot, 'server', ADAPTER_FILE), bundle: true, platform: 'browser', format: 'esm', target: 'es2020',
+    minify: true, metafile: true, legalComments: 'inline', sourcemap: false });
+  assertSelfContained({ metafile: adapter.metafile });
+  await retainLicenses({ packageRoot: required.packageRoot, artifactRoot: required.artifactRoot, inputs: [sdk, ...Object.keys(adapter.metafile.inputs)] });
+}
+
 async function buildArtifact(required: { packageRoot: string; staging: string; id: string; version: string }): Promise<CatalogEntry> {
   const source = path.join(required.packageRoot, 'src', required.id);
   const manifest = JSON.parse(await readFile(path.join(source, 'jini.plugin.json'), 'utf8')) as { id: string; version: string; integrity: Record<string, string> };
@@ -91,17 +111,8 @@ async function buildArtifact(required: { packageRoot: string; staging: string; i
     banner: { js: 'import { createRequire as __jiniCreateRequire } from "node:module"; const require = __jiniCreateRequire(import.meta.url);' },
   });
   assertSelfContained({ metafile: result.metafile });
-  if (required.id === 'analytics-posthog') {
-    // Pin and bundle the full no-external SDK, including replay, into the installed plugin.
-    // Browsers request this same-origin file only after the consent bridge has a choice.
-    const browser = await build({ absWorkingDir: required.packageRoot,
-      stdin: { contents: "export { default } from 'posthog-js/dist/module.full.no-external.js';", resolveDir: required.packageRoot },
-      outfile: path.join(artifactRoot, 'server/posthog-browser.js'), bundle: true, platform: 'browser',
-      format: 'esm', target: 'es2020', metafile: true, legalComments: 'inline', sourcemap: false });
-    assertSelfContained({ metafile: browser.metafile });
-    await retainLicenses({ packageRoot: required.packageRoot, artifactRoot, metafile: browser.metafile });
-  }
-  await retainLicenses({ packageRoot: required.packageRoot, artifactRoot, metafile: result.metafile });
+  if (required.id === 'analytics-posthog') await addPostHogBrowserFiles({ packageRoot: required.packageRoot, artifactRoot });
+  await retainLicenses({ packageRoot: required.packageRoot, artifactRoot, inputs: Object.keys(result.metafile.inputs) });
   // The existing installer owns exact-file hashing, including retained license files.
   manifest.integrity = await computePluginIntegrity({ sourceDir: artifactRoot });
   await writeFile(path.join(artifactRoot, 'jini.plugin.json'), JSON.stringify(manifest, null, 2) + '\n');
