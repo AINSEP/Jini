@@ -11,7 +11,7 @@ import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@jini-ai/protocol';
+import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import {
   AGENT_DEFS,
   agentCapabilities,

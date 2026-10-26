@@ -10,8 +10,6 @@ const nonEmpty = (value: unknown, name: string): string => {
 
 /**
  * Builds the configured adapter. The host wraps the returned port in `withProductAnalyticsGuards`.
- * @param required `{ apiKey, host }`: the project API key and the ingestion host URL.
- * @param optional `{ fetch?, flushAt? }` test seams.
  * @returns `{ port, dispose }`. @throws TypeError on a missing key or host.
  */
 export function createPostHogProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {

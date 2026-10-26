@@ -1,4 +1,4 @@
-import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "../agent-tools.js";
+import type { AgentToolDefinition } from "../agent-tools.js";
 /**
  * @file The Settings domain's agent-tool catalog, instantiating the naming/callability
  * convention every other domain catalog in this package already uses.

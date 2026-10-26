@@ -80,7 +80,6 @@ import {
 } from './event-translation.js';
 import {
   errorMessage,
-  isRecord,
 } from './values.js';
 import {
   MCP_BRIDGE_UNAVAILABLE,
