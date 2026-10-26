@@ -20,6 +20,19 @@ function recordingFetch() {
   return { batches, fetch };
 }
 
+test('every product capture is profile-less, including attempts to override the flag', async () => {
+  const { batches, fetch } = recordingFetch();
+  const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, { fetch });
+  try {
+    resource.port.capture({ name: 'app_started', userId: 'fixture-install' });
+    resource.port.capture({ name: 'desktop_action', userId: 'fixture-install', properties: { action: 'open_admin', $process_person_profile: true } });
+  } finally { await resource.dispose({}); }
+  const events = batches.flatMap(batch => batch.body.batch);
+  expect(events.map(event => [event.event, event.distinct_id, event.properties.$process_person_profile]))
+    .toEqual([['app_started', 'fixture-install', false], ['desktop_action', 'fixture-install', false]]);
+  expect(events[1]?.properties.action).toBe('open_admin');
+});
+
 test("PostHog provider (real posthog-node, recording fetch): capture/identify become batch events; no GeoIP; dispose flushes", async () => {
   const { batches, fetch } = recordingFetch();
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config: { enabled: true, apiKey: "phc_test_dummy", host: "https://posthog.invalid" } }, { fetch: fetch as never, flushAt: 1 });

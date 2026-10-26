@@ -3,6 +3,7 @@ import type { AgentRunTrackingInput, AgentRunTrackingOptions, AgentRunTrackingOu
 
 /** Signals share one dependency; each method retains its own typed payload. */
 export interface TrackerErrorContext {
+  level?: 'warning' | 'error';
   operation?: string;
   attributes?: OperationAttributes;
   /** Convenience label for callers that only know the route. */
