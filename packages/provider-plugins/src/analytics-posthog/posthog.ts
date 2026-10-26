@@ -21,6 +21,7 @@ import type { ProductAnalyticsAdapter, ProductAnalyticsPort } from "@jini-ai/ana
 
 export interface PostHogConfigEnabled {
   enabled: true; apiKey: string; host: string;
+  includePromptsAndResponses?: boolean;
   /** Host attribution on every event: properties that the event cannot override, and `$groups`. */
   attribution?: { readonly attributes: Readonly<Record<string, string>>; readonly groups: Readonly<Record<string, string>> };
 }
@@ -51,6 +52,27 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
   const attributes = config.attribution?.attributes;
   const groups = config.attribution && Object.keys(config.attribution.groups).length ? { ...config.attribution.groups } : undefined;
   const port: ProductAnalyticsPort = {
+    includeAiContent: config.includePromptsAndResponses === true,
+    captureAiGeneration({ userId, properties, input, output }, _optional: Record<string, never> = {}) {
+      // PostHog LLM analytics manual-capture contract (2026-10-25 knowledge; no web fetch):
+      // $ai_generation; $ai_latency is seconds, token counters are counts, $ai_total_cost_usd is
+      // USD. Unknown counters/costs are omitted, never invented as zero. Trace/span ids here are
+      // the normalized recorder's ids, not invented OpenTelemetry SDK context ids.
+      const fields: Readonly<Record<string, string>> = {
+        model: '$ai_model', provider: '$ai_provider', inputTokens: '$ai_input_tokens',
+        outputTokens: '$ai_output_tokens', cacheReadTokens: '$ai_cache_read_input_tokens',
+        cacheWriteTokens: '$ai_cache_creation_input_tokens', reasoningTokens: '$ai_reasoning_tokens',
+        latencySeconds: '$ai_latency', costUsd: '$ai_total_cost_usd', costSource: 'cost_source',
+        traceId: '$ai_trace_id', spanId: '$ai_span_id', isError: '$ai_is_error',
+        toolCallCount: 'tool_call_count', ttftSeconds: '$ai_time_to_first_token',
+      };
+      const mapped = Object.fromEntries(Object.entries(properties).filter(([key]) => Object.hasOwn(fields, key)).map(([key, value]) => [fields[key]!, value]));
+      const content = config.includePromptsAndResponses === true ? {
+        ...(input === undefined ? {} : { $ai_input: [{ role: 'user', content: input }] }),
+        ...(output === undefined ? {} : { $ai_output_choices: [{ role: 'assistant', content: output }] }),
+      } : {};
+      client.capture({ distinctId: userId, event: '$ai_generation', properties: { ...mapped, ...content, ...attributes, $process_person_profile: false }, ...(groups ? { groups } : {}) });
+    },
     capture({ name, userId, properties }) {
       const merged = { ...properties, ...attributes };
       client.capture({ distinctId: userId, event: name, ...(Object.keys(merged).length ? { properties: merged } : {}), ...(groups ? { groups } : {}) });

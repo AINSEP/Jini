@@ -18,10 +18,11 @@
  * Vendor adapters are provider plugins (`analytics-posthog` in `@jini-ai/provider-plugins`), loaded
  * by the host only when installed, enabled and configured; the contract names no vendor.
  */
-import { redactSecrets } from "@jini-ai/core";
+import { redactSecrets, redactSecretsWithCounts } from "@jini-ai/core";
 import type { JsonObject } from "@jini-ai/core/primitives";
 
 import { validateEventProps } from "../privacy.js";
+export { createAiGenerationSink } from "./ai-generations.js";
 
 export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
 
@@ -30,10 +31,17 @@ export interface ProductEvent { name: string; userId: string; properties?: Produ
 /** Who the user is, in pseudonymous traits only (a plan, a role, a locale — never a name or e-mail). */
 export interface ProductIdentity { userId: string; traits?: ProductEventProperties; }
 
+/** A model generation's neutral metadata. Text is separate so metadata-only providers cannot leak it. */
+export interface ProductAiGeneration { userId: string; properties: ProductEventProperties; input?: string; output?: string; }
+
 /** The port features call. Never throws, never blocks: delivery is the adapter's background job. */
 export interface ProductAnalyticsPort {
   capture(event: ProductEvent): void;
   identify(identity: ProductIdentity): void;
+  /** Optional capability; providers without LLM analytics keep their existing contract. */
+  captureAiGeneration?(required: ProductAiGeneration, optional?: Record<string, never>): void;
+  /** Explicit provider opt-in only. The default records counts and metadata, never transcript text. */
+  readonly includeAiContent?: boolean;
 }
 
 /** What a vendor provider subpath returns: the port plus the host-owned teardown (flush + close). */
@@ -89,6 +97,15 @@ function safeProperties(properties: ProductEventProperties | undefined): Product
   return safe;
 }
 
+/** Explicit opt-in text is still redacted and bounded before delivery. O(n) in supplied text. */
+function generationContent({ input, output }: { input?: string; output?: string }, _optional: Record<string, never> = {}): { input?: string; output?: string } {
+  const content: { input?: string; output?: string } = {};
+  // Redact before truncating: a cut through a credential can hide its recognizable shape.
+  if (input !== undefined) content.input = redactSecretsWithCounts({ input }).redacted.slice(0, 16_000);
+  if (output !== undefined) content.output = redactSecretsWithCounts({ input: output }).redacted.slice(0, 16_000);
+  return content;
+}
+
 /**
  * Wraps a vendor port with the rules every product-analytics vendor must get, so no adapter and no
  * call site can skip them: CONSENT first (no consent, nothing leaves — checked per event, so a
@@ -98,7 +115,7 @@ function safeProperties(properties: ProductEventProperties | undefined): Product
  * @param required The vendor port and the host's consent decision.
  * @param options A synchronous host consent revision for revocation without a subsequent event.
  * @returns A guarded port; the noop stays the noop (zero cost when no vendor is configured).
- * @complexity O(p) per event in its property count; O(d) state for in-flight consent decisions.
+ * @complexity O(p + t) per event for properties and opt-in text; O(d) in-flight consent decisions.
  */
 export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, { consentRevision }: ProductAnalyticsGuardOptions = {}): ProductAnalyticsPort {
   if (isNoopProductAnalytics(inner)) return inner;
@@ -149,6 +166,15 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
     } catch { settle({ allowed: false }); }
   };
   return {
+    ...(inner.captureAiGeneration ? {
+      includeAiContent: inner.includeAiContent === true,
+      captureAiGeneration({ userId, properties, ...content }: ProductAiGeneration, _optional: Record<string, never> = {}) {
+        const safe = safeProperties(properties);
+        if (!safe) return;
+        const safeContent = inner.includeAiContent === true ? generationContent(content) : {};
+        whenAllowed({ userId, send: () => inner.captureAiGeneration?.({ userId, properties: safe, ...safeContent }) });
+      },
+    } : {}),
     capture({ name, userId, properties }) {
       if (!EVENT_NAME.test(name)) return;
       const safe = safeProperties(properties);

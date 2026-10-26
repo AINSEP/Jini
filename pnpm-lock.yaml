@@ -325,6 +325,9 @@ importers:
 
   packages/analytics:
     dependencies:
+      '@jini-ai/agent-runtime':
+        specifier: workspace:^
+        version: link:../agent-runtime
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
