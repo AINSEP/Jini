@@ -2,15 +2,16 @@
  * @module MidRunUserMessage
  *
  * Renders a message the human sent while a run was going (`ChatPane`'s `deliverMidRunMessage`) as a
- * user bubble inside the running turn, at the point in the stream where the live agent received it.
+ * separate user row between assistant sections, at the point in the stream where the live agent received it.
  * The daemon records each one as a `user_message` run event (`AgentExecutor.sendUserMessage`), which
  * the run-event translator surfaces as `kind: 'ext'` with that name; this claims it.
  *
- * It is an event of the assistant turn, not a `ChatMessage` of its own, because the agent folded it
+ * It is stored as an event of the assistant turn, not a `ChatMessage` of its own, because the agent folded it
  * into the turn it was already running — there is no separate reply to hang off it.
  */
 import { acceptedInputEvent, type AcceptedChatInput } from '../../core/accepted-input.js';
 import { SentAttachmentButton } from './SentAttachment.js';
+import { CopyMessageButton } from './CopyMessageButton.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
 import { useT } from '../hooks/context.js';
@@ -44,6 +45,9 @@ export function MidRunUserMessage({ events, runStreaming = false, transcriptRow 
     queued={runStreaming && (input.deliveryState ?? receipt?.data.deliveryState) === 'queued'} />)}</>;
 }
 
+/** One receipt's text, files and shared copy action; queued state belongs to this input alone.
+ * @complexity O(a) time/space for a attachments; clipboard and gallery effects stay with their owners.
+ */
 function MidRunInput({ input, queued, transcriptRow }: { input: AcceptedChatInput; queued: boolean; transcriptRow: boolean }) {
   const t = useT();
   const attachments = input.attachments ?? [];
@@ -55,6 +59,9 @@ function MidRunInput({ input, queued, transcriptRow }: { input: AcceptedChatInpu
       {attachments.length > 0 && <div className="jini-message-attachments">
         {attachments.map(attachment => <SentAttachmentButton key={attachment.path} attachment={attachment} onOpen={gallery.open} />)}
       </div>}
+      <div className="jini-message-actions jini-message-actions--user">
+        <CopyMessageButton text={input.text} label={t('Copy message')} />
+      </div>
       {gallery.opened !== null && <AttachmentPreviewModal attachment={gallery.opened} onClose={gallery.close} navigation={gallery.navigation} />}
     </div>
   );
