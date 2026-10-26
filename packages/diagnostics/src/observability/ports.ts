@@ -55,7 +55,9 @@ export interface OperationTracker extends TrackerScope { end(outcome: OperationT
  * opposed to an expected failure a tracker's outcome already records. `error` is handed over raw:
  * adapters own redaction (see `describeReportedError`), exactly as they do for request targets.
  */
-export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes }; }
+export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error' }; }
+/** Native crash upload configuration. Provider-specific field names stay opaque to hosts. */
+export interface CrashUpload { submitURL: string; globalExtra: Readonly<Record<string, string>>; }
 export interface ObservabilityPort {
  trackRequest(input: RequestTrackingInput, options?: RequestTrackingOptions): RequestTracker;
  trackDbQuery(input: DbQueryTrackingInput): DbQueryTracker;
@@ -64,6 +66,8 @@ export interface ObservabilityPort {
  trackOperation(input: OperationTrackingInput): OperationTracker;
  /** Called inside a tracker's run() it is attributed to that tracker's work. Never throws. */
  reportError(report: ErrorReport): void;
+ /** Configuration only; the host owns crash collection, consent and upload lifecycle. */
+ crashUpload?(required: { release: string; environment: string }, optional?: Record<string, never>): CrashUpload;
 }
 export interface RequestObservation extends RequestTrackingOutcome {
  requestId: string; method: string; durationMs: number;

@@ -22,6 +22,8 @@ import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "
 
 export interface PostHogConfigEnabled {
   enabled: true; apiKey: string; host: string;
+  /** Explicit profile-less capture policy; capture already enforces it by default. */
+  personProfiles?: 'never';
   includePromptsAndResponses?: boolean;
   /** Host attribution on every event: properties that the event cannot override, and `$groups`. */
   attribution?: { readonly attributes: Readonly<Record<string, string>>; readonly groups: Readonly<Record<string, string>> };
@@ -98,7 +100,8 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
     // site attribution nor `$groups`. Traits set person properties, minus the keys the host attributes.
     identify({ userId, traits }) {
       const set = Object.fromEntries(Object.entries(traits ?? {}).filter(([key]) => !attributes || !Object.hasOwn(attributes, key)));
-      const properties = { ...(Object.keys(set).length ? { $set: set } : {}), ...attributes };
+      const properties = { ...(Object.keys(set).length ? { $set: set } : {}), ...attributes,
+        ...(config.personProfiles === 'never' ? { $process_person_profile: false } : {}) };
       client.capture({ distinctId: userId, event: "$identify", ...(Object.keys(properties).length ? { properties } : {}), ...(groups ? { groups } : {}) });
     },
   };

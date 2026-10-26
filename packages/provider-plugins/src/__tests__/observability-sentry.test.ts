@@ -20,6 +20,19 @@ function recordingTransport() {
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 50));
 
+test('memory diagnostic severity is a warning in the destination envelope', async () => {
+  const { items, transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  port.reportError({ error: new Error('process memory growth'), context: {
+    operation: 'desktop.memory_growth', level: 'warning', attributes: { process: 'renderer', rss_0_mb: 1000, rss_1_mb: 1300 },
+  } });
+  await dispose();
+  const events = items.filter(item => item.type === 'event');
+  assert.equal(events.length, 1);
+  assert.equal(events[0]!.payload.level, 'warning');
+  assert.deepEqual(events[0]!.payload.contexts.operation, { process: 'renderer', rss_0_mb: 1000, rss_1_mb: 1300 });
+});
+
 test("obs2 #1: credential-shaped error codes never reach Sentry exception types", async () => {
   const { items, transport } = recordingTransport();
   const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
@@ -176,4 +189,53 @@ test("site attribution: every exception and transaction carries the host's attri
   assert.equal(second.items[0]?.payload.environment, "staging");
   assert.equal(second.items[0]?.payload.tags["tovu.site.id"], "uuid-of-site-b");
   assert.throws(() => createSentryProvider({ dsn: CONFIG.dsn, attribution: { attributes: { n: 1 } } }), { name: "TypeError" });
+});
+
+test('release reaches the private client and delivered event without global initialization or default integrations', async () => {
+  const { createSentryProvider } = await import('../observability-sentry/index.js');
+  const { items, transport } = recordingTransport();
+  const options = vi.spyOn(NodeClient.prototype, 'getOptions');
+  const init = vi.spyOn(NodeClient.prototype, 'init');
+  const previousClient = getCurrentScope().getClient();
+  try {
+    const resource = createSentryProvider({ dsn: CONFIG.dsn, release: 'fixture-app@1.2.3' }, { transport });
+    try {
+      resource.port.reportError({ error: new Error('fixture failure'), context: { operation: 'fixture' } });
+      await flush();
+      const clientOptions = options.mock.results.find(result => result.value?.release === 'fixture-app@1.2.3')?.value;
+      assert.equal(clientOptions?.release, 'fixture-app@1.2.3');
+      assert.deepEqual(clientOptions?.integrations, []);
+      assert.equal(clientOptions?.enableRuntimeChannelInjection, false);
+      assert.equal(init.mock.calls.length, 0);
+      assert.equal(getCurrentScope().getClient(), previousClient);
+    } finally { await resource.dispose({}); }
+    assert.deepEqual(items.filter(item => item.type === 'event').map(item => item.payload.release), ['fixture-app@1.2.3']);
+    assert.throws(() => createSentryProvider({ dsn: CONFIG.dsn, release: 42 }), { name: 'TypeError', message: 'release must be a string' });
+  } finally { options.mockRestore(); init.mockRestore(); }
+});
+
+test.each([
+  ['https://public@sentry.invalid/123', 'https://sentry.invalid/api/123/minidump/?sentry_key=public'],
+  ['https://public:fixture-secret@sentry.invalid/prefix/123', 'https://sentry.invalid/prefix/api/123/minidump/?sentry_key=public'],
+  ['http://public@localhost:9000/123', 'http://localhost:9000/api/123/minidump/?sentry_key=public'],
+])('crashUpload derives only publishable upload configuration from %s', async (dsn, submitURL) => {
+  const { transport } = recordingTransport();
+  const resource = createSentryObservabilityAdapter({ config: { ...CONFIG, dsn } }, { transport });
+  try {
+    assert.deepEqual(resource.port.crashUpload?.({ release: 'fixture-app@1.2.3', environment: 'fixture' }), {
+      submitURL, globalExtra: { sentry: JSON.stringify({ release: 'fixture-app@1.2.3', environment: 'fixture' }) },
+    });
+  } finally { await resource.dispose(); }
+});
+
+test('crashUpload is absent on noop and when a borrowed client has no usable configured DSN', async () => {
+  const { createNoopObservabilityPort } = await import('@jini-ai/diagnostics/observability');
+  assert.equal(Object.hasOwn(createNoopObservabilityPort({}), 'crashUpload'), false);
+  for (const dsn of ['', 'not-a-dsn', 'https://sentry.invalid/123', 'https://public@sentry.invalid/no-project']) {
+    const resource = createSentryObservabilityAdapter({ config: { ...CONFIG, dsn } }, {
+      client: { close: async () => true, getOptions: () => ({}) } as never,
+    });
+    assert.equal(Object.hasOwn(resource.port, 'crashUpload'), false);
+    await resource.dispose();
+  }
 });

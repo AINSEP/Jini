@@ -15,6 +15,7 @@ export {
   redactJsonValue,
   redactJsonText,
   redactText,
+  maskLocalPaths,
   type RedactionOptions,
 } from "./redaction.js";
 
@@ -53,4 +54,5 @@ export {
 } from "./agent-logs.js";
 
 export { createNodeDiagnosticsPorts } from "./node-ports.js";
+export { aggregateProcessMemory, createMemoryGrowthDetector, type ProcessMemoryReading, type MemoryKindSummary, type MemoryGrowthWarning } from './memory-growth.js';
 export type { DiagnosticsFilesystemPort, DiagnosticsSystemPort, DiagnosticsArchivePort, DiagnosticsArchiveFactoryPort, DiagnosticsPorts } from "./ports.js";

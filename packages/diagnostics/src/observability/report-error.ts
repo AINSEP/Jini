@@ -62,7 +62,7 @@ export function redactedError({ error }: { error: unknown }, { exactSecrets }: {
  */
 export function reportErrorOnce(
   required: { observability: ObservabilityPort | undefined; error: unknown; operation: string },
-  optional: { attributes?: Attributes; exactSecrets?: ExactSecrets } = {},
+  optional: { attributes?: Attributes; exactSecrets?: ExactSecrets; level?: 'warning' | 'error' } = {},
 ): boolean {
   const { observability, error, operation } = required;
   const isObject = typeof error === "object" && error !== null;
@@ -71,7 +71,8 @@ export function reportErrorOnce(
   const scope = requestScope.getStore();
   if (scope) scope.reported = true;
   try {
-    observability.reportError({ error: redactedError({ error }, { exactSecrets: optional.exactSecrets }), context: { operation, ...(optional.attributes ? { attributes: optional.attributes } : {}) } });
+    observability.reportError({ error: redactedError({ error }, { exactSecrets: optional.exactSecrets }), context: { operation,
+      ...(optional.attributes ? { attributes: optional.attributes } : {}), ...(optional.level ? { level: optional.level } : {}) } });
   } catch { /* never let reporting fail the caller */ }
   return true;
 }

@@ -39,6 +39,7 @@ import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "
 
 export interface SentryConfigEnabled {
   enabled: true; dsn: string; environment?: string; tracesSampleRate: number;
+  release?: string;
   /** Set on the scope of every signal (exceptions and transactions): the host's site attribution. */
   tags?: Readonly<Record<string, string>>;
 }
@@ -69,12 +70,25 @@ function sanitizedError(error: unknown): Error {
 function privateClient({ config }: { config: SentryConfigEnabled }, { transport }: { transport?: NodeOptions["transport"] | undefined }): NodeClient {
   return new NodeClient({
     dsn: config.dsn, environment: config.environment, tracesSampleRate: config.tracesSampleRate,
+    ...(config.release === undefined ? {} : { release: config.release }),
     // No default integrations: they patch globals. Collect nothing personal (Sentry 11's successor to
     // sendDefaultPii): no user/IP, cookies, headers, query strings, bodies or local variable values.
     integrations: [], stackParser: defaultStackParser, transport: transport ?? makeNodeTransport,
     enableRuntimeChannelInjection: false,
     dataCollection: { userInfo: false, cookies: false, httpHeaders: false, urlQueryParams: false, httpBodies: [], stackFrameVariables: false },
   });
+}
+
+/** Derive the native endpoint without exposing a DSN's optional secret key. Invalid DSN: absent.
+ * @complexity O(n) in DSN length; configuration only, with no network or global registration. */
+function minidumpEndpoint({ dsn }: { dsn: string }, _options = {}): string | undefined {
+  try {
+    const url = new URL(dsn);
+    const parts = url.pathname.replace(/\/+$/, '').split('/');
+    const project = parts.pop();
+    if (!/^https?:$/.test(url.protocol) || !url.username || !/^\d+$/.test(project ?? '')) return undefined;
+    return `${url.protocol}//${url.host}${parts.join('/')}/api/${project}/minidump/?sentry_key=${encodeURIComponent(decodeURIComponent(url.username))}`;
+  } catch { return undefined; }
 }
 
 /**
@@ -102,11 +116,15 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
     } };
   };
   const client = (options.client ?? privateClient({ config }, { transport })) as NodeClient;
+  const submitURL = minidumpEndpoint({ dsn: config.dsn });
   const active = new AsyncLocalStorage<Span>();
   // A span keeps the scope it started in, so tags set here reach its transaction as well as exceptions.
   const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); scope.setTags(config.tags ?? {}); return fn(); });
   const port: ObservabilityAdapter["port"] = {
     ...createNoopObservabilityPort({}),
+    ...(submitURL ? { crashUpload({ release, environment }: { release: string; environment: string }, _options = {}) {
+      return { submitURL, globalExtra: { sentry: JSON.stringify({ release, environment }) } };
+    } } : {}),
     trackOperation({ name, attributes = {} }) {
       const parentSpan = active.getStore();
       const safe = redactOperationAttributes({ attributes });
@@ -127,7 +145,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
     reportError({ error, context }) {
       try {
         const span = active.getStore();
-        const capture = () => captureException(sanitizedError(error), { tags: { operation: context.operation }, contexts: { operation: redactOperationAttributes({ attributes: context.attributes ?? {} }) } });
+        const capture = () => captureException(sanitizedError(error), { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: { operation: redactOperationAttributes({ attributes: context.attributes ?? {} }) } });
         inClient(() => (span ? withActiveSpan(span, capture) : capture()));
       } catch {
         // Best-effort, as in every adapter: a broken SDK must not turn a handled failure into a crash.
