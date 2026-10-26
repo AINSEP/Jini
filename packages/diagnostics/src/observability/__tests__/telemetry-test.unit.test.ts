@@ -26,9 +26,11 @@ it("sends exactly one diagnostic per signal through the facade, with local accep
   const reports: ErrorReport[] = [];
   const spans: string[] = [];
   const events: string[] = [];
+  const metrics: unknown[] = [];
   let consent = false;
   const tracker = createTracker({
     observability: { ...createNoopObservabilityPort({}),
+      metric(input) { metrics.push(input); probe.accepted({ providerId: "metrics", method: "metric", input }); },
       trackOperation(input) { spans.push(input.name); probe.accepted({ providerId: "traces", method: "trackOperation", input }); return { run: fn => fn(), end() {} }; },
       reportError(input) { reports.push(input); probe.accepted({ providerId: "errors", method: "reportError", input }); },
     },
@@ -37,10 +39,11 @@ it("sends exactly one diagnostic per signal through the facade, with local accep
     } }),
   });
   const send = () => probe.send({ tracker, userId: "site:test", error: new Error("Diagnostic — safe to ignore") });
-  expect(await send()).toEqual({ providers: [{ providerId: "traces", signals: ["span"] }, { providerId: "errors", signals: ["error"] }] });
+  expect(await send()).toEqual({ providers: [{ providerId: "traces", signals: ["span"] }, { providerId: "metrics", signals: ["metric"] }, { providerId: "errors", signals: ["error"] }] });
   expect(events).toEqual([]);
   consent = true;
-  expect(await send()).toEqual({ providers: [{ providerId: "traces", signals: ["span"] }, { providerId: "errors", signals: ["error"] }, { providerId: "analytics", signals: ["analytics"] }] });
+  expect(await send()).toEqual({ providers: [{ providerId: "traces", signals: ["span"] }, { providerId: "metrics", signals: ["metric"] }, { providerId: "errors", signals: ["error"] }, { providerId: "analytics", signals: ["analytics"] }] });
+  expect(metrics).toEqual([{ name: "telemetry.test", value: 1 }, { name: "telemetry.test", value: 1 }]);
   expect(spans).toEqual(["telemetry.test", "telemetry.test"]);
   expect(events).toEqual(["telemetry_test"]);
   expect(reports.map(report => (report.error as Error).message)).toEqual(["Diagnostic — safe to ignore", "Diagnostic — safe to ignore"]);

@@ -1,5 +1,5 @@
 import type { ProductAnalyticsPort, ProductEvent } from "@jini-ai/analytics/product";
-import type { AgentRunTrackingInput, AgentRunTrackingOptions, AgentRunTrackingOutcome, ObservabilityPort, OperationAttributes, OperationTrackingOutcome, RequestTrackingInput, RequestTrackingOptions, RequestTrackingOutcome } from "./ports.js";
+import type { AgentRunTrackingInput, AgentRunTrackingOptions, AgentRunTrackingOutcome, ObservabilityPort, OperationAttributes, OperationTrackingOutcome, RequestTrackingInput, RequestTrackingOptions, RequestTrackingOutcome, MetricInput, MetricOptions } from "./ports.js";
 
 /** Signals share one dependency; each method retains its own typed payload. */
 export interface TrackerErrorContext {
@@ -20,14 +20,16 @@ export interface RequestSpanOptions { request: RequestTrackingInput & RequestTra
 export interface AgentSpanOptions { agent: AgentRunTrackingInput & AgentRunTrackingOptions; }
 
 /** Provider failures never escape. Application callback errors retain their original identity.
- * The name/callback and Error/context signatures are the owner-approved facade API. */
+ * Required fields precede optional settings; no provider-specific types cross this boundary. */
 export interface Tracker {
   /** Awaitable local admission; does not wait for remote delivery. */
-  capture(event: ProductEvent, options?: Record<string, never>): void | Promise<void>;
-  error(error: Error, context?: TrackerErrorContext): void;
-  trace<T>(name: string, work: (span: TrackerSpan<RequestTrackingOutcome>) => T | Promise<T>, options: RequestSpanOptions): Promise<T>;
-  trace<T>(name: string, work: (span: TrackerSpan<AgentRunTrackingOutcome>) => T | Promise<T>, options: AgentSpanOptions): Promise<T>;
-  trace<T>(name: string, work: (span: TrackerSpan) => T | Promise<T>, options?: OperationSpanOptions): Promise<T>;
+  capture(input: Pick<ProductEvent, "name" | "userId">, options?: Pick<ProductEvent, "properties">): void | Promise<void>;
+  error(input: { error: Error }, options?: { context?: TrackerErrorContext }): void;
+  trace<T>(input: { name: string; run: (span: TrackerSpan<RequestTrackingOutcome>) => T | Promise<T> }, options: RequestSpanOptions): Promise<T>;
+  trace<T>(input: { name: string; run: (span: TrackerSpan<AgentRunTrackingOutcome>) => T | Promise<T> }, options: AgentSpanOptions): Promise<T>;
+  trace<T>(input: { name: string; run: (span: TrackerSpan) => T | Promise<T> }, options?: OperationSpanOptions): Promise<T>;
+  /** Numeric measurement; defaults to a gauge. Fixed names and low-cardinality attributes only. */
+  metric(input: MetricInput, options?: MetricOptions): void;
 }
 
 export interface TrackerProviders {

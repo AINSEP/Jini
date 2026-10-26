@@ -8,7 +8,7 @@ export interface RequestHookOptions {
  * @param required Clock and request ID generator, scoped by the host.
  * @param options Optional logging, metrics and tracing adapters.
  * @returns Request tracking with exactly one completion event per request; DB, outbound,
- *   agent-run and operation signals and error reports go straight to the tracing adapter (the no-op without one).
+ *   agent-run and operation signals, numeric metrics and error reports go straight to the tracing adapter (the no-op without one).
  * @throws Hook errors propagate to the caller; adapters choose their own error policy.
  */
 export function createHookObservabilityPort(
@@ -34,6 +34,7 @@ export function createHookObservabilityPort(
   trackOutboundCall: (input) => signals.trackOutboundCall(input),
   trackAgentRun: (input, options) => signals.trackAgentRun(input, options),
   trackOperation: (input) => signals.trackOperation(input),
+  metric: (input, options = {}) => signals.metric(input, options),
   reportError: (report) => signals.reportError(report),
  };
 }

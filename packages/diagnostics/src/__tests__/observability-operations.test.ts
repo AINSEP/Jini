@@ -250,6 +250,7 @@ test("combineObservabilityPorts: every signal fans out, and a tracker without ru
   const noop = createNoopObservabilityPort({});
   const seen: string[] = [];
   const recording = (tag: string) => ({
+    metric: () => { seen.push(`${tag}:metric`); },
     trackRequest: () => { seen.push(`${tag}:request`); return { end() {} }; },
     trackDbQuery: () => { seen.push(`${tag}:db`); return { end() {} }; },
     trackOutboundCall: () => { seen.push(`${tag}:outbound`); return { end() {} }; },
@@ -263,5 +264,6 @@ test("combineObservabilityPorts: every signal fans out, and a tracker without ru
   port.trackOutboundCall({ method: "GET", url: "https://x.test" } as never).end({} as never);
   port.trackAgentRun({ agentId: "a" } as never).end({} as never);
   assert.equal(port.trackOperation({ name: "op" }).run!(() => "unscoped"), "unscoped");
-  assert.deepEqual(seen, ["a:request", "b:request", "a:db", "b:db", "a:outbound", "b:outbound", "a:agent", "b:agent", "a:op", "b:op"]);
+  port.metric({ name: "queue.size", value: 3 });
+  assert.deepEqual(seen, ["a:request", "b:request", "a:db", "b:db", "a:outbound", "b:outbound", "a:agent", "b:agent", "a:op", "b:op", "a:metric", "b:metric"]);
 });

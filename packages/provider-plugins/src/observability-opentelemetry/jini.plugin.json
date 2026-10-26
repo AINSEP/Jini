@@ -27,7 +27,7 @@
             "name": "endpoint",
             "label": "OTLP endpoint",
             "required": true,
-            "hint": "Any OTLP/HTTP endpoint, e.g. https://otlp-gateway-prod-us-east-0.grafana.net/otlp (traces go to /v1/traces)."
+            "hint": "Any OTLP/HTTP endpoint, e.g. https://otlp-gateway-prod-us-east-0.grafana.net/otlp (traces go to /v1/traces; metrics to /v1/metrics)."
           },
           {
             "name": "username",

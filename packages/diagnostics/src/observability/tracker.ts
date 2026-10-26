@@ -1,6 +1,6 @@
 import { isNoopProductAnalytics } from "@jini-ai/analytics/product";
 import type { AgentRunTrackingOutcome, OperationTrackingOutcome, RequestTrackingOutcome, TrackerScope } from "./ports.js";
-import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerErrorContext, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
+import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
 import { createNoopTracker } from "./tracker-noop.js";
 import { isNoopObservabilityPort } from "./noop.js";
 import { combineObservabilityPorts } from "./fanout.js";
@@ -50,7 +50,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
   if ((!required.observability || isNoopObservabilityPort(required.observability)) && (!required.productAnalytics || isNoopProductAnalytics(required.productAnalytics))) return createNoopTracker({});
   const failed = createTrackerWarning({}, optional);
   const observability = combineObservabilityPorts({ ports: required.observability ? [required.observability] : [] }, { onFailure: failed });
-  const error = (failure: Error, context: TrackerErrorContext = {}): void => {
+  const error: Tracker["error"] = ({ error: failure }, { context = {} } = {}): void => {
     try {
       const attributes = context.route ? { ...context.attributes, route: context.route } : context.attributes;
       reportErrorOnce({ observability, error: failure, operation: context.operation ?? "application.error" }, {
@@ -58,7 +58,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
       });
     } catch { failed(); }
   };
-  async function trace<T>(name: string, work: (span: TrackerSpan<SpanOutcome>) => T | Promise<T>, options: SpanOptions = {}): Promise<T> {
+  async function trace<T>({ name, run: work }: { name: string; run: (span: TrackerSpan<SpanOutcome>) => T | Promise<T> }, options: SpanOptions = {}): Promise<T> {
     const lifecycle = startSpan({ observability, name, options });
     let outcome: SpanOutcome | undefined;
     const handle: TrackerSpan<SpanOutcome> = { setOutcome: (value) => { outcome ??= value; } };
@@ -66,7 +66,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
     try {
       return await run(() => work(handle));
     } catch (failure) {
-      run(() => error(failure instanceof Error ? failure : redactedError({ error: failure }), { operation: name }));
+      run(() => error({ error: failure instanceof Error ? failure : redactedError({ error: failure }) }, { context: { operation: name } }));
       outcome ??= spanOutcome({ options, failure: { error: failure } });
       throw failure;
     } finally {
@@ -75,7 +75,8 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
     }
   }
   return {
-    capture(event) { try { return Promise.resolve(required.productAnalytics?.capture(event)).catch(failed); } catch { failed(); } },
+    capture(input, options = {}) { try { return Promise.resolve(required.productAnalytics?.capture({ ...input, ...options })).catch(failed); } catch { failed(); } },
+    metric(input, options = {}) { observability.metric(input, options); },
     error,
     trace: trace as Tracker["trace"],
   };

@@ -91,6 +91,9 @@ export function combineObservabilityPorts({ ports }: { ports: readonly Observabi
   trackOutboundCall: (...args) => fanOut(live, 'trackOutboundCall', args, failed),
   trackAgentRun: (...args) => fanOut(live, 'trackAgentRun', args, failed),
   trackOperation: (...args) => fanOut(live, 'trackOperation', args, failed),
+  metric: (input, options = {}) => {
+   for (const port of live) { try { void Promise.resolve(port.metric(input, options)).catch(failed); } catch { failed(); /* keep reaching the rest */ } }
+  },
   reportError: (report) => {
    for (const port of live) { try { void Promise.resolve(port.reportError(report)).catch(failed); } catch { failed(); /* reportError never throws; keep reaching the rest */ } }
   },
