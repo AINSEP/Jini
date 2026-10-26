@@ -7,7 +7,7 @@ export interface TelemetryTestResult {
   providers: { providerId: string; signals: TelemetryTestSignal[] }[];
 }
 export interface TelemetryTestProbe {
-  accepted(required: { providerId: string; method: string; input: unknown }, optional?: Record<string, never>): void;
+  accepted(required: { providerId: string; method: string; input: unknown; supportsMetric?: boolean | undefined }, optional?: Record<string, never>): void;
   send(required: { tracker: Tracker; error: Error; userId: string }, optional?: Record<string, never>): Promise<TelemetryTestResult>;
 }
 
@@ -27,11 +27,12 @@ function testSignal({ method, input }: { method: string; input: { name?: string;
 export function createTelemetryTestProbe(_required: Record<string, never>, _options = {}): TelemetryTestProbe {
   const active = new AsyncLocalStorage<Map<string, Set<TelemetryTestSignal>>>();
   return {
-    accepted({ providerId, method, input }: { providerId: string; method: string; input: unknown }, _optional = {}): void {
+    accepted({ providerId, method, input, supportsMetric }: { providerId: string; method: string; input: unknown; supportsMetric?: boolean | undefined }, _optional = {}): void {
       const receipts = active.getStore();
       if (!receipts || !input || typeof input !== "object") return;
       const signal = testSignal({ method, input: input as { name?: string; context?: { operation?: string } } });
       if (!signal) return;
+      if (signal === "metric" && supportsMetric !== true) return;
       const signals = receipts.get(providerId) ?? new Set<TelemetryTestSignal>();
       signals.add(signal);
       receipts.set(providerId, signals);

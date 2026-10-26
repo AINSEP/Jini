@@ -1,7 +1,7 @@
 /** `observability-opentelemetry`: setup only registers the factory; the SDK provider starts when a host initializes it. */
 import type { PluginSdk } from '@jini-ai/plugins/host';
 import { resolveObservabilityConfig } from '@jini-ai/diagnostics/observability';
-import { createOtelObservabilityAdapter, resolveMetricsEndpoint, type OtelAdapterOptions } from './opentelemetry.js';
+import { createOtelObservabilityAdapter, type OtelAdapterOptions } from './opentelemetry.js';
 import { attributionOf } from '../attribution.js';
 
 const text = (value: unknown, name: string): string | undefined => {
@@ -78,7 +78,7 @@ export function otlpAuthHeaders({ auth, username, token, headers }: { auth?: str
 
 /**
  * Builds the configured adapter. Hosts select this plugin only when an endpoint is configured.
- * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, metricsEndpoint?, auth?, username?, token?, headers? }`; credentials are
+ * @param required `{ serviceName, tracerName?, endpoint?, tracesEndpoint?, auth?, username?, token?, headers? }`; credentials are
  *   `token` (+ `username`; see {@link otlpAuthHeaders}) and/or `headers` (object or the card's `Name=Value,…` text). `tracerName` defaults to `serviceName`. `attribution.attributes`
  *   (host-named, e.g. which site) go on every span's resource.
  * @param optional `{ spanProcessors?, metricReaders? }` test seams.
@@ -96,9 +96,8 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
   const spanProcessors = optional.spanProcessors as OtelAdapterOptions['spanProcessors'];
   const metricReaders = optional.metricReaders as OtelAdapterOptions['metricReaders'];
   // General endpoint is the shared collector base; signal overrides select only their own route.
-  const metricsEndpoint = resolveMetricsEndpoint({ tracesEndpoint: config.endpoint }, { endpoint, metricsEndpoint: text(required.metricsEndpoint, 'metricsEndpoint') });
   const resourceAttributes = attributionOf(required.attribution).attributes;
-  const options: OtelAdapterOptions = { metricsEndpoint, metricReaders, ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
+  const options: OtelAdapterOptions = { endpoint, metricReaders, ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
     reportTelemetry: optional.reportTelemetry as OtelAdapterOptions['reportTelemetry'], info: optional.info as OtelAdapterOptions['info'] };
   const { port, dispose } = createOtelObservabilityAdapter({ config }, options);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };

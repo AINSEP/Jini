@@ -7,12 +7,13 @@ const NOOP_PORTS = new WeakSet<ObservabilityPort>();
 /** Creates disabled telemetry; every request shares one frozen tracker without allocation. */
 export function createNoopObservabilityPort(_required: Record<string, never>): ObservabilityPort {
  const port: ObservabilityPort = {
+  supportsMetric: false,
   trackRequest: () => NOOP_TRACKER,
   trackDbQuery: () => NOOP_SIGNAL_TRACKER,
   trackOutboundCall: () => NOOP_SIGNAL_TRACKER,
   trackAgentRun: () => NOOP_SIGNAL_TRACKER,
   trackOperation: () => NOOP_SIGNAL_TRACKER,
-  reportError: () => {},
+  reportError: () => false,
   metric: () => {},
  };
  NOOP_PORTS.add(port);

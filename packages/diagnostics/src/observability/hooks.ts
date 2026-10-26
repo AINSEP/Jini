@@ -17,6 +17,7 @@ export function createHookObservabilityPort(
 ): ObservabilityPort {
  const signals = tracing ?? createNoopObservabilityPort({});
  return {
+  get supportsMetric() { return signals.supportsMetric === true; },
   trackRequest(input, options = {}) {
    const requestId = options.requestId ?? requestIdGenerator.generate({});
    const startedAt = clock.nowMs();

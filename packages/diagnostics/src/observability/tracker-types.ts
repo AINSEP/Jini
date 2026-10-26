@@ -10,7 +10,7 @@ export interface TrackerErrorContext {
   exactSecrets?: readonly string[];
 }
 
-/** Record a semantic outcome; the facade owns ending the underlying lifecycle. First outcome wins. */
+/** Record a semantic outcome; the facade owns ending the underlying lifecycle. First outcome wins unless work throws; explicit cancellation is preserved. */
 export interface TrackerSpan<Outcome = OperationTrackingOutcome> {
   setOutcome(outcome: Outcome): void;
 }

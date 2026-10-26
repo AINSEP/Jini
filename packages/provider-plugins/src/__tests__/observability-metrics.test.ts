@@ -15,6 +15,7 @@ test("the SDK aggregates counter increments, defaults to last-value gauge, and e
   const reader = new PeriodicExportingMetricReader({ exporter, exportIntervalMillis: 60_000, exportTimeoutMillis: 5000 });
   const before = metrics.getMeterProvider();
   const { port, dispose } = createOpenTelemetryProvider({ ...CONFIG, attribution: { attributes: { site_id: "site-1" }, groups: {} } }, { spanProcessors: [], metricReaders: [reader] });
+  assert.equal(port.supportsMetric, true);
   const tracker = createTracker({ observability: port });
   try {
     tracker.metric({ name: "jobs", value: 2 }, { kind: "counter", unit: "{job}" });
@@ -51,55 +52,53 @@ test("the SDK aggregates counter increments, defaults to last-value gauge, and e
   assert.equal(metrics.getMeterProvider(), before);
 });
 
-for (const override of [false, true]) {
-  test(`metrics use the configured OTLP collector, auth and resource; signal override=${override}`, async () => {
-    const requests: { url: string | undefined; authorization: string | undefined; contentType: string | undefined; leak: string | undefined; body: string }[] = [];
-    const reports: ProviderTelemetryReport[] = [];
-    const server = createServer((req, res) => {
-      let body = "";
-      req.setEncoding("utf8");
-      req.on("data", chunk => { body += chunk; });
-      req.on("end", () => {
-        requests.push({ url: req.url, authorization: req.headers.authorization, contentType: req.headers["content-type"], leak: req.headers["x-env-leak"] as string | undefined, body });
-        res.writeHead(200, { "content-type": "application/json" }); res.end("{}");
-      });
+test("metrics use the configured OTLP collector, auth and resource", async () => {
+  const requests: { url: string | undefined; authorization: string | undefined; contentType: string | undefined; leak: string | undefined; body: string }[] = [];
+  const reports: ProviderTelemetryReport[] = [];
+  const server = createServer((req, res) => {
+    let body = "";
+    req.setEncoding("utf8");
+    req.on("data", chunk => { body += chunk; });
+    req.on("end", () => {
+      requests.push({ url: req.url, authorization: req.headers.authorization, contentType: req.headers["content-type"], leak: req.headers["x-env-leak"] as string | undefined, body });
+      res.writeHead(200, { "content-type": "application/json" }); res.end("{}");
     });
-    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address();
-    assert.ok(address && typeof address !== "string");
-    const base = `http://127.0.0.1:${address.port}/collector`;
-    const oldHeaders = process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS;
-    process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS = "X-Env-Leak=must-not-be-sent";
-    try {
-      const token = ["fixture", "collector", "token"].join("-");
-      const { port, dispose } = createOpenTelemetryProvider({
-        serviceName: "wire-metrics", endpoint: base, tracesEndpoint: `${base}/trace-override`,
-        ...(override ? { metricsEndpoint: `${base}/metric-override` } : {}), auth: "bearer", token,
-      }, { spanProcessors: [], reportTelemetry: (report: ProviderTelemetryReport) => { reports.push(report); } });
-      createTracker({ observability: port }).metric({ name: "jobs", value: 2 }, { kind: "counter", unit: "{job}" });
-      await dispose({}); // Final collection exports pending measurements and stops the timer.
-      assert.equal(requests.length, 1);
-      const [request] = requests;
-      assert.equal(request!.url, override ? "/collector/metric-override" : "/collector/v1/metrics");
-      assert.equal(request!.authorization, `Bearer ${token}`);
-      assert.equal(request!.contentType, "application/json");
-      assert.equal(request!.leak, undefined);
-      const payload = JSON.parse(request!.body);
-      const [resource] = payload.resourceMetrics;
-      assert.deepEqual(resource.resource.attributes.find((attribute: { key: string }) => attribute.key === "service.name").value, { stringValue: "wire-metrics" });
-      const [metric] = resource.scopeMetrics[0].metrics;
-      assert.equal(metric.name, "jobs");
-      assert.equal(metric.unit, "{job}");
-      assert.equal(metric.sum.isMonotonic, true);
-      assert.equal(Number(metric.sum.dataPoints[0].asDouble ?? metric.sum.dataPoints[0].asInt), 2);
-      assert.ok(reports.some(report => report.phase === "export" && report.outcome === "ok"));
-    } finally {
-      if (oldHeaders === undefined) delete process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS;
-      else process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS = oldHeaders;
-      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    }
   });
-}
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const base = `http://127.0.0.1:${address.port}/collector`;
+  const oldHeaders = process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS;
+  process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS = "X-Env-Leak=must-not-be-sent";
+  try {
+    const token = ["fixture", "collector", "token"].join("-");
+    const { port, dispose } = createOpenTelemetryProvider({
+      serviceName: "wire-metrics", endpoint: base, tracesEndpoint: `${base}/trace-override`,
+      auth: "bearer", token,
+    }, { spanProcessors: [], reportTelemetry: (report: ProviderTelemetryReport) => { reports.push(report); } });
+    createTracker({ observability: port }).metric({ name: "jobs", value: 2 }, { kind: "counter", unit: "{job}" });
+    await dispose({}); // Final collection exports pending measurements and stops the timer.
+    assert.equal(requests.length, 1);
+    const [request] = requests;
+    assert.equal(request!.url, "/collector/v1/metrics");
+    assert.equal(request!.authorization, `Bearer ${token}`);
+    assert.equal(request!.contentType, "application/json");
+    assert.equal(request!.leak, undefined);
+    const payload = JSON.parse(request!.body);
+    const [resource] = payload.resourceMetrics;
+    assert.deepEqual(resource.resource.attributes.find((attribute: { key: string }) => attribute.key === "service.name").value, { stringValue: "wire-metrics" });
+    const [metric] = resource.scopeMetrics[0].metrics;
+    assert.equal(metric.name, "jobs");
+    assert.equal(metric.unit, "{job}");
+    assert.equal(metric.sum.isMonotonic, true);
+    assert.equal(Number(metric.sum.dataPoints[0].asDouble ?? metric.sum.dataPoints[0].asInt), 2);
+    assert.ok(reports.some(report => report.phase === "export" && report.outcome === "ok"));
+  } finally {
+    if (oldHeaders === undefined) delete process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS;
+    else process.env.OTEL_EXPORTER_OTLP_METRICS_HEADERS = oldHeaders;
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
 
 test("an explicit empty reader list disables metric export and invalid numeric input stays inert", async () => {
   const reports: ProviderTelemetryReport[] = [];
@@ -116,5 +115,21 @@ test("trace-only endpoints keep metrics on their own standard route", async () =
   assert.equal(resolveMetricsEndpoint({ tracesEndpoint: "https://collector.test/otlp/v1/traces" }), "https://collector.test/otlp/v1/metrics");
   assert.equal(resolveMetricsEndpoint({ tracesEndpoint: "https://collector.test/custom-traces" }), "https://collector.test/v1/metrics");
   assert.equal(resolveMetricsEndpoint({ tracesEndpoint: "https://collector.test/custom-traces" }, { endpoint: " https://collector.test/otlp/ " }), "https://collector.test/otlp/v1/metrics");
-  assert.equal(resolveMetricsEndpoint({ tracesEndpoint: "https://collector.test/custom-traces" }, { endpoint: "https://ignored.test", metricsEndpoint: " https://collector.test/custom-metrics " }), "https://collector.test/custom-metrics");
+});
+
+test("metrics reject overlong names and bound attributes before aggregation", async () => {
+  const exporter = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
+  const reader = new PeriodicExportingMetricReader({ exporter, exportIntervalMillis: 60_000 });
+  const { port, dispose } = createOpenTelemetryProvider(CONFIG, { spanProcessors: [], metricReaders: [reader] });
+  try {
+    port.metric({ name: "x".repeat(256), value: 99 });
+    const name = "x".repeat(255);
+    port.metric({ name, value: 1 }, { attributes: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`label${i}`, "x".repeat(2000)])) });
+    await reader.forceFlush();
+    const measurements = exporter.getMetrics()[0]!.scopeMetrics[0]!.metrics;
+    assert.deepEqual(measurements.map(metric => metric.descriptor.name), [name]);
+    const attributes = measurements[0]!.dataPoints[0]!.attributes;
+    assert.equal(Object.keys(attributes).length, 64);
+    assert.ok(Object.values(attributes).every(value => String(value).length <= 256));
+  } finally { await dispose({}); }
 });

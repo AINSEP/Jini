@@ -132,6 +132,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
         inClient(() => (span ? withActiveSpan(span, capture) : capture()));
       } catch {
         // Best-effort, as in every adapter: a broken SDK must not turn a handled failure into a crash.
+        return false;
       }
     },
   };

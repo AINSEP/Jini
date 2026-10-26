@@ -64,6 +64,8 @@ export interface MetricOptions {
  attributes?: OperationAttributes;
 }
 export interface ObservabilityPort {
+ /** Explicit capability: a callable noop metric does not imply local metric admission. */
+ readonly supportsMetric?: boolean;
  /** Records one measurement; adapters without a metrics backend use a no-op. */
  metric(input: MetricInput, options?: MetricOptions): void | Promise<void>;
  trackRequest(input: RequestTrackingInput, options?: RequestTrackingOptions): RequestTracker;
@@ -71,8 +73,8 @@ export interface ObservabilityPort {
  trackOutboundCall(input: OutboundCallTrackingInput): OutboundCallTracker;
  trackAgentRun(input: AgentRunTrackingInput, options?: AgentRunTrackingOptions): AgentRunTracker;
  trackOperation(input: OperationTrackingInput): OperationTracker;
- /** Called inside a tracker's run() it is attributed to that tracker's work. Never throws. */
- reportError(report: ErrorReport): void;
+ /** Called inside a tracker's run() it is attributed to that tracker's work. False refuses local admission; void accepts it. */
+ reportError(report: ErrorReport): boolean | void | Promise<boolean | void>;
 }
 export interface RequestObservation extends RequestTrackingOutcome {
  requestId: string; method: string; durationMs: number;
