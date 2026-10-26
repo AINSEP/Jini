@@ -1,10 +1,10 @@
 import { isNoopProductAnalytics } from "@jini-ai/analytics/product";
 import type { AgentRunTrackingOutcome, OperationTrackingOutcome, RequestTrackingOutcome, TrackerScope } from "./ports.js";
-import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
+import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerErrorContext, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
 import { createNoopTracker } from "./tracker-noop.js";
 import { isNoopObservabilityPort } from "./noop.js";
 import { combineObservabilityPorts } from "./fanout.js";
-import { reportErrorOnce, redactedError, runWithErrorReportScope } from "./report-error.js";
+import { reportErrorOnce, runWithErrorReportScope } from "./report-error.js";
 
 type SpanOutcome = OperationTrackingOutcome | RequestTrackingOutcome | AgentRunTrackingOutcome;
 type SpanOptions = OperationSpanOptions | RequestSpanOptions | AgentSpanOptions;
@@ -39,14 +39,15 @@ function spanOutcome({ options, failure }: { options: SpanOptions; failure?: { e
   return { outcome: failure ? "error" : "completed", failed: failure !== undefined };
 }
 
-/** Cancellation is an explicit semantic outcome; all other thrown work is a failure.
+/** A throw replaces only an earlier success: cancellation, interruption and an explicit failure
+ * keep their more specific labels (a 503, `quota_exceeded`, `interrupted`).
  * @returns The final lifecycle outcome, preserving a known request route. @complexity O(1).
  */
 function thrownOutcome({ options, outcome, error }: { options: SpanOptions; outcome: SpanOutcome | undefined; error: unknown }, _options = {}): SpanOutcome {
-  if (outcome && "status" in outcome && outcome.status === "canceled") return outcome;
-  if (outcome && "outcome" in outcome && ["canceled", "cancelled"].includes(outcome.outcome)) return outcome;
-  if (outcome && "statusCode" in outcome) return { ...outcome, statusCode: 500 };
-  return spanOutcome({ options, failure: { error } });
+  if (!outcome) return spanOutcome({ options, failure: { error } });
+  if ("statusCode" in outcome) return outcome.statusCode >= 500 ? outcome : { ...outcome, statusCode: 500 };
+  if ("status" in outcome) return outcome.status === "succeeded" ? { status: "failed", error } : outcome;
+  return outcome.failed || ["canceled", "cancelled"].includes(outcome.outcome) ? outcome : spanOutcome({ options, failure: { error } });
 }
 
 /** One facade over existing ports: consent/identity remain on the composed providers, error
@@ -60,7 +61,9 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
   if ((!required.observability || isNoopObservabilityPort(required.observability)) && (!required.productAnalytics || isNoopProductAnalytics(required.productAnalytics))) return createNoopTracker({});
   const failed = createTrackerWarning({}, optional);
   const observability = combineObservabilityPorts({ ports: required.observability ? [required.observability] : [] }, { onFailure: failed });
-  const error: Tracker["error"] = ({ error: failure }, { context = {} } = {}): void => {
+  // Takes unknown so trace hands a thrown non-Error over as-is: reportErrorOnce redacts it, and the
+  // same object then dedups as it propagates through nested traces (a fresh wrapper never would).
+  const report = ({ failure }: { failure: unknown }, { context = {} }: { context?: TrackerErrorContext } = {}): void => {
     try {
       const attributes = context.route ? { ...context.attributes, route: context.route } : context.attributes;
       reportErrorOnce({ observability, error: failure, operation: context.operation ?? "application.error" }, {
@@ -68,6 +71,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
       });
     } catch { failed(); }
   };
+  const error: Tracker["error"] = ({ error: failure }, options = {}) => report({ failure }, options);
   async function trace<T>({ name, run: work }: { name: string; run: (span: TrackerSpan<SpanOutcome>) => T | Promise<T> }, options: SpanOptions = {}): Promise<T> {
     return runWithErrorReportScope({ scope: { reported: false }, work: async () => {
       const lifecycle = startSpan({ observability, name, options });
@@ -77,7 +81,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
       try {
         return await run(() => work(handle));
       } catch (failure) {
-        run(() => error({ error: failure instanceof Error ? failure : redactedError({ error: failure }) }, { context: { operation: name } }));
+        run(() => report({ failure }, { context: { operation: name } }));
         outcome = thrownOutcome({ options, outcome, error: failure });
         throw failure;
       } finally {

@@ -268,3 +268,25 @@ it("a throw overrides earlier operation, request and agent success while explici
     { status: "failed", error: failure }, { status: "canceled" }, { outcome: "canceled", failed: false },
   ]);
 });
+
+it("a throw keeps an earlier explicit failure or interruption instead of flattening it to a generic error", async () => {
+  const outcomes: unknown[] = [];
+  const recordEnd = () => ({ run: <T>(fn: () => T) => fn(), end: (value: unknown) => { outcomes.push(value); } });
+  const observability: ObservabilityPort = { ...createNoopObservabilityPort({}), trackOperation: recordEnd, trackRequest: recordEnd, trackAgentRun: recordEnd };
+  const tracker = createTracker({ observability });
+  const failure = new Error("after failure");
+  await expect(tracker.trace({ name: "operation", run: span => { span.setOutcome({ outcome: "quota_exceeded", failed: true }); throw failure; } })).rejects.toBe(failure);
+  await expect(tracker.trace({ name: "request", run: span => { span.setOutcome({ statusCode: 503, routePattern: "/posts/:id" }); throw failure; } }, { request: { method: "GET", path: "/posts/1" } })).rejects.toBe(failure);
+  await expect(tracker.trace({ name: "agent", run: span => { span.setOutcome({ status: "interrupted" }); throw failure; } }, { agent: { runId: "one" } })).rejects.toBe(failure);
+  expect(outcomes).toEqual([{ outcome: "quota_exceeded", failed: true }, { statusCode: 503, routePattern: "/posts/:id" }, { status: "interrupted" }]);
+});
+
+it("a thrown non-Error object is reported once as it propagates through nested traces", async () => {
+  const reports: ErrorReport[] = [];
+  const tracker = createTracker({ observability: { ...createNoopObservabilityPort({}), reportError(report: ErrorReport) { reports.push(report); } } });
+  const thrown = { code: "SDK_REJECTED" };
+  await expect(tracker.trace({ name: "outer", run: () => tracker.trace({ name: "inner", run: () => { throw thrown; } }) })).rejects.toBe(thrown);
+  expect(reports).toHaveLength(1);
+  expect(reports[0]!.context.operation).toBe("inner");
+  expect((reports[0]!.error as Error).message).toBe("non-Error thrown: object");
+});
