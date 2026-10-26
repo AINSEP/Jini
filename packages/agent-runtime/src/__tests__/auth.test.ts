@@ -628,3 +628,22 @@ describe('auth — re-score survivors (F3)', () => {
     if (agentId !== 'antigravity' && agentId !== 'cursor-agent') expect(result?.message).toContain('HostX');
   });
 });
+
+// FU-B (Codex on F3): the self-match fix must not lose explicit NEGATIVE credential states. Before
+// the fix these were true only by accident (the qualifier matched the variable name itself).
+describe('isDeepSeekAuthFailureText — explicit negative states vs healthy mentions (FU-B)', () => {
+  it.each([
+    ['DEEPSEEK_API_KEY is empty', true], ['DEEPSEEK_API_KEY invalid', true], ['DEEPSEEK_API_KEY is INVALID', true],
+    ['error: DEEPSEEK_API_KEY empty', true],
+    ['DEEPSEEK_API_KEY loaded', false], ['using DEEPSEEK_API_KEY from the environment', false],
+    ['DEEPSEEK_API_KEY=sk-…redacted', false],
+  ])('%j → %s', (text, expected) => {
+    expect(isDeepSeekAuthFailureText({ text })).toBe(expected);
+  });
+
+  it('classifyAgentAuthFailure reports an empty / invalid key as missing auth, and a healthy mention as null', () => {
+    expect(classifyAgentAuthFailure({ agentId: 'deepseek', text: 'DEEPSEEK_API_KEY is empty' })?.status).toBe('missing');
+    expect(classifyAgentAuthFailure({ agentId: 'deepseek', text: 'DEEPSEEK_API_KEY invalid' })?.status).toBe('missing');
+    expect(classifyAgentAuthFailure({ agentId: 'deepseek', text: 'using DEEPSEEK_API_KEY from the environment' })).toBeNull();
+  });
+});
