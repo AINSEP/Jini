@@ -23,6 +23,7 @@ import {
  * - Default ledger `<ledgerTable>(id, checksum, applied_at)`, created by the runner inside the first step's
  *   transaction (so a step's pre-change backup has no trace of the runner), same on every dialect.
  * - Before anything is applied, every recorded id must be one this runtime knows
+ *   (unless an additive history opts into `allowUnknownApplied`)
  *   ({@link UnknownAppliedMigrationError}) with the checksum this runtime has
  *   ({@link MigrationChecksumError}). Nothing is applied on a mismatch.
  * - Serialized: by default each pending step runs in ONE kernel transaction that first takes
@@ -49,6 +50,8 @@ type LedgerDb = Record<string, LedgerRow>;
 export interface MigrationOptions {
   /** The ledger table (REQUIRED, no default); also the migration lock's key. */
   ledgerTable: string;
+  /** Additive host histories may be opened by an older runtime; known checksums still must match. */
+  allowUnknownApplied?: boolean;
   /** Where to copy an existing database before the first pending step changes it (see the file header). */
   backupPath?: string;
   /** Postgres only: the schema holding the ledger, created with it when missing. */
@@ -133,9 +136,10 @@ async function readLedger(ledger: Ledger): Promise<LedgerRow[]> {
 function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationStep[], options: MigrationOptions): void {
   const known = new Map(steps.map((step) => [step.id, step]));
   const unknown = rows.filter((row) => !known.has(row.id)).map((row) => row.id);
-  if (unknown.length > 0) throw new UnknownAppliedMigrationError(unknown, options.appName);
+  if (unknown.length > 0 && !options.allowUnknownApplied) throw new UnknownAppliedMigrationError(unknown, options.appName);
   for (const row of rows) {
-    const step = known.get(row.id) as MigrationStep;
+    const step = known.get(row.id);
+    if (!step) continue;
     if (row.checksum !== step.checksum) throw new MigrationChecksumError(row.id, row.checksum, step.checksum);
   }
   if (options.historyCheck === "ordered-prefix" && rows.some((row, index) => row.id !== steps[index]?.id)) {
