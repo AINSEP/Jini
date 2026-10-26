@@ -77,6 +77,8 @@ export interface AiTraceModelTurn {
   /** Error text follows the same capture policy as prompts; `error` is a safe label outside full mode. */
   readonly errorContent?: AiCapturedText | null;
   readonly errorCode?: string | null;
+  /** Calls requested by this generation, including tools still pending when the turn closes. */
+  readonly toolCallCount?: number;
 }
 
 export interface AiTraceToolCall {
@@ -121,6 +123,8 @@ export type AiTraceEvent = AiTraceRunStarted | AiTraceModelTurn | AiTraceToolCal
  * block: adapters buffer and send in `flush`. Hosts call `shutdown` once on process exit.
  */
 export interface AiTraceSink {
+  /** Requested content policy. Absent means metadata; fan-out preserves each sink's policy. */
+  readonly capture?: AiContentCapture;
   record(event: AiTraceEvent): void;
   flush?(): Promise<void>;
   shutdown?(): Promise<void>;

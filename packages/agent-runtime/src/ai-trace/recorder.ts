@@ -25,6 +25,7 @@ import type { AiContentCapture, AiCostSource, AiRunOutcome, AiTokenUsage, AiTrac
 type AgentEvent = Record<string, unknown>;
 
 interface OpenTurn {
+  toolCallCount: number;
   readonly id: string;
   readonly index: number;
   readonly startedAt: number;
@@ -98,7 +99,7 @@ export function createAiTraceRecorder(
 ): AiTraceRecorder {
   const now = options.now ?? Date.now;
   const traceId = options.traceId ?? runId;
-  const captureOptions = { mode: options.capture ?? 'metadata', maxChars: options.maxCapturedChars, exactSecrets: options.exactSecrets };
+  const captureOptions = { mode: options.capture ?? sink.capture ?? 'metadata', maxChars: options.maxCapturedChars, exactSecrets: options.exactSecrets };
   const capture = (text: string | null | undefined) => captureText({ text }, captureOptions);
   const keepText = captureOptions.mode === 'full';
   /** Streamed text: `full` redacts the kept text; other modes report the count without having kept it. */
@@ -142,7 +143,7 @@ export function createAiTraceRecorder(
 
   function ensureTurn(): OpenTurn {
     if (!started) start({});
-    turn ??= { id: `${traceId}:turn:${totals.turns}`, index: totals.turns, startedAt: lastBoundary, output: '', outputChars: 0, reasoning: '', reasoningChars: 0, firstTokenAt: null, ttftMs: null, stopReason: null, error: null, errorCode: null, usage: null, reportedCost: null };
+    turn ??= { toolCallCount: 0, id: `${traceId}:turn:${totals.turns}`, index: totals.turns, startedAt: lastBoundary, output: '', outputChars: 0, reasoning: '', reasoningChars: 0, firstTokenAt: null, ttftMs: null, stopReason: null, error: null, errorCode: null, usage: null, reportedCost: null };
     return turn;
   }
 
@@ -198,7 +199,7 @@ export function createAiTraceRecorder(
     const usage = open.usage;
     const { costUsd, costSource } = resolveCost({ usage, reported: open.reportedCost });
     const errorContent = capture(open.error);
-    record({ kind: 'model_turn', traceId, turnId: open.id, index: open.index, startedAt: open.startedAt, endedAt, model, input: open.index === 0 ? capture(runInput) : null, output: captureStreamed(open.output, open.outputChars), reasoning: captureStreamed(open.reasoning, open.reasoningChars), usage, costUsd, costSource, ttftMs: ttftOf(open), stopReason: open.stopReason, error: open.error === null ? null : errorContent?.text ?? 'model_error', errorContent, errorCode: safeCode({ code: open.errorCode }) });
+    record({ kind: 'model_turn', traceId, turnId: open.id, toolCallCount: open.toolCallCount, index: open.index, startedAt: open.startedAt, endedAt, model, input: open.index === 0 ? capture(runInput) : null, output: captureStreamed(open.output, open.outputChars), reasoning: captureStreamed(open.reasoning, open.reasoningChars), usage, costUsd, costSource, ttftMs: ttftOf(open), stopReason: open.stopReason, error: open.error === null ? null : errorContent?.text ?? 'model_error', errorContent, errorCode: safeCode({ code: open.errorCode }) });
     addToTotals(usage, costUsd);
     turn = null;
     lastBoundary = endedAt;
@@ -245,6 +246,7 @@ export function createAiTraceRecorder(
       const scopedId = `${turnId}:tool:${id}`;
       if (seenTools.has(scopedId)) return;
       seenTools.add(scopedId);
+      ensureTurn().toolCallCount += 1;
       // HTTP adapters report usage while streaming and emit tool_use only after the stream ends,
       // so usage leaves this request open until its delayed calls have been attributed.
       const tools = pending.get(id) ?? [];

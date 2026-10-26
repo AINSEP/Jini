@@ -15,7 +15,7 @@ const nonEmpty = (value: unknown, name: string): string => {
  * @returns `{ port, dispose }`. @throws TypeError on a missing key or host.
  */
 export function createPostHogProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
-  const config = { enabled: true as const, apiKey: nonEmpty(required.apiKey, 'apiKey'), host: nonEmpty(required.host, 'host'), attribution: attributionOf(required.attribution) };
+  const config = { enabled: true as const, apiKey: nonEmpty(required.apiKey, 'apiKey'), host: nonEmpty(required.host, 'host'), attribution: attributionOf(required.attribution), includePromptsAndResponses: required.includePromptsAndResponses === 'true' };
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config }, optional as PostHogAdapterOptions);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
