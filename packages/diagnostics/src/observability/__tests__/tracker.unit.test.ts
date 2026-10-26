@@ -10,13 +10,13 @@ const event: ProductEvent = { name: "post_created", userId: "principal-1" };
 
 /** DI fakes only: exercise facade behavior through the existing provider contracts. */
 describe("one tracker facade", () => {
-  it("without providers, all methods are safe and span returns the callback result exactly once", async () => {
+  it("without providers, all methods are safe and trace returns the callback result exactly once", async () => {
     const tracker = createTracker({});
     let calls = 0;
     tracker.capture(event);
     tracker.error(new Error("expected"));
     const result = { id: "result" };
-    expect(await tracker.span("deploy", () => { calls++; return result; })).toBe(result);
+    expect(await tracker.trace("deploy", () => { calls++; return result; })).toBe(result);
     expect(calls).toBe(1);
   });
 
@@ -29,7 +29,7 @@ describe("one tracker facade", () => {
     allowed = true;
     tracker.capture(event);
     tracker.error(new Error("incident"));
-    expect(await tracker.span("deploy", async () => 42)).toBe(42);
+    expect(await tracker.trace("deploy", async () => 42)).toBe(42);
     expect(events).toEqual([event]);
   });
 
@@ -74,7 +74,7 @@ describe("one tracker facade", () => {
     tracker.capture(event);
     tracker.capture(event);
     tracker.error(new Error("application failure"));
-    expect(await tracker.span("deploy", async () => "published")).toBe("published");
+    expect(await tracker.trace("deploy", async () => "published")).toBe("published");
     expect(warnings).toEqual([WARNING]);
   });
 
@@ -102,7 +102,7 @@ describe("one tracker facade", () => {
       }) };
       const warnings: string[] = [];
       const tracker = createTracker({ observability }, { warn: (message) => { warnings.push(message); } });
-      expect(await tracker.span("deploy", async () => { calls++; return "application result"; })).toBe("application result");
+      expect(await tracker.trace("deploy", async () => { calls++; return "application result"; })).toBe("application result");
       expect(calls).toBe(1);
       expect(warnings).toEqual([WARNING]);
     });
@@ -113,7 +113,7 @@ describe("one tracker facade", () => {
       const warnings: string[] = [];
       const observability: ObservabilityPort = { ...createNoopObservabilityPort({}), trackOperation: () => invalid as never };
       const tracker = createTracker({ observability }, { warn: (message) => { warnings.push(message); } });
-      expect(await tracker.span("deploy", () => "published")).toBe("published");
+      expect(await tracker.trace("deploy", () => "published")).toBe("published");
       expect(warnings).toEqual([WARNING]);
     });
   }
@@ -128,7 +128,7 @@ describe("one tracker facade", () => {
     };
     const tracker = createTracker({ observability }, { warn: (message) => { warnings.push(message); } });
     const failure = new Error("publish failed");
-    await expect(tracker.span("site.publish", () => { throw failure; })).rejects.toBe(failure);
+    await expect(tracker.trace("site.publish", () => { throw failure; })).rejects.toBe(failure);
     tracker.error(failure);
     expect(reports).toHaveLength(1);
     expect(reports[0]!.context.operation).toBe("site.publish");
@@ -142,7 +142,7 @@ describe("one tracker facade", () => {
       starts.push({ input, options });
       return { end: (outcome) => { outcomes.push(outcome); } };
     } };
-    await createTracker({ observability }).span("http.request", async (span) => {
+    await createTracker({ observability }).trace("http.request", async (span) => {
       span.setOutcome({ statusCode: 201, routePattern: "/admin/posts/:id" });
       span.setOutcome({ statusCode: 500, routePattern: "unmatched" });
     }, { request: { method: "POST", path: "/admin/posts/123", requestId: "request-1" } });
@@ -155,7 +155,7 @@ describe("one tracker facade", () => {
     const observability: ObservabilityPort = { ...createNoopObservabilityPort({}), trackAgentRun: (input, options) => {
       starts.push({ input, options }); return { run: (fn) => fn(), end: (outcome) => { outcomes.push(outcome); } };
     } };
-    await createTracker({ observability }).span("assistant.run", async (span) => { span.setOutcome({ status: "canceled" }); },
+    await createTracker({ observability }).trace("assistant.run", async (span) => { span.setOutcome({ status: "canceled" }); },
       { agent: { runId: "run-1", conversationId: "chat-1", agentName: "agent-1" } });
     expect(starts).toEqual([{ input: { runId: "run-1" }, options: { conversationId: "chat-1", agentName: "agent-1" } }]);
     expect(outcomes).toEqual([{ status: "canceled" }]);

@@ -99,7 +99,7 @@ consent guard and site attribution have been applied; the facade does not apply 
 const tracker = createTracker({ productAnalytics, observability }, { warn });
 tracker.capture({ name: "post_created", userId, properties });
 tracker.error(error, { route: "/posts/:id" });
-const result = await tracker.span("deploy", async (span) => {
+const result = await tracker.trace("deploy", async (span) => {
   const result = await deploy();
   span.setOutcome({ outcome: "published", failed: false });
   return result;
@@ -109,7 +109,7 @@ const result = await tracker.span("deploy", async (span) => {
 Missing providers are inert. Provider faults are contained and emit one fixed warning per
 facade; provider error text is never logged. Callback failures still reject with the original
 application error, reported once through the existing redaction/deduplication owner.
-The optional third span argument selects the existing lifecycle: `{ request: { method, path,
+The optional third `trace` argument selects the existing lifecycle: `{ request: { method, path,
 requestId? } }`, `{ agent: { runId, conversationId?, agentName? } }`, or operation attributes.
 Overloads give each callback its corresponding typed `setOutcome` payload. The facade ends
 the lifecycle after the callback settles; its first explicit outcome wins.
