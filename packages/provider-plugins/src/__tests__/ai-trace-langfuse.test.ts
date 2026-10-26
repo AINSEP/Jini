@@ -60,10 +60,11 @@ describe('ai-trace-langfuse factory', () => {
     const sink: AiTraceSink = resource.port;
     runScenario(sink);
     expect(client.calls.map((c) => c.method)).toEqual(['trace', 'span', 'span', 'generation', 'trace']);
+    await sink.flush!();
     await sink.shutdown!();
     await resource.dispose({});
     expect(shutdowns).toBe(0);
-    expect(client.flushed).toBe(2);
+    expect(client.flushed).toBe(3);
   });
 
   it('builds a real SDK client from configuration without any network call', async () => {
@@ -134,5 +135,22 @@ describe('Langfuse mapping edges (pure, no client)', () => {
     const client = createLangfuseClient({ publicKey: 'pk', secretKey: 'sk' });
     expect(typeof client.span).toBe('function');
     await client.shutdownAsync();
+  });
+});
+
+describe('site attribution', () => {
+  it('every trace call carries the host attribution as metadata and tags; spans and generations are untouched', () => {
+    const client = fakeLangfuseClient();
+    const resource = createLangfuseProvider({ publicKey: 'pk', secretKey: 'sk',
+      attribution: { attributes: { site_id: 'site-123', site_slug: 'blog', environment: 'local', project_id: 'proj-9' }, tags: ['site:blog'] } }, { client });
+    runScenario(resource.port);
+    const traces = client.calls.filter((c) => c.method === 'trace').map((c) => c.body);
+    expect(traces).toHaveLength(2);
+    for (const trace of traces) {
+      expect(trace.metadata).toMatchObject({ site_id: 'site-123', site_slug: 'blog', environment: 'local', project_id: 'proj-9' });
+      expect(trace.tags).toContain('site:blog');
+    }
+    expect(traces[0]!.tags).toEqual(['provider:anthropic', 'site:blog']);
+    expect(client.calls.filter((c) => c.method !== 'trace').every((c) => !('site_id' in ((c.body.metadata as object | undefined) ?? {})))).toBe(true);
   });
 });

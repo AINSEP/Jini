@@ -1,6 +1,7 @@
 /** `ai-trace-langfuse`: setup only registers the factory; the Langfuse client is built when a host initializes it. */
 import type { PluginSdk } from '@jini-ai/plugins/host';
 import { createLangfuseAiTraceSink, createLangfuseClient, type LangfuseClientPort } from './langfuse.js';
+import { attributionOf } from '../attribution.js';
 
 function textOf(value: unknown, name: string, { required }: { required: boolean }): string | undefined {
   if (value === undefined && !required) return undefined;
@@ -21,7 +22,7 @@ export function createLangfuseProvider(required: Readonly<Record<string, unknown
     .map((name) => [name, textOf(required[name], name, { required: false })] as const).filter(([, value]) => value !== undefined));
   const borrowed = optional.client as LangfuseClientPort | undefined;
   const client = borrowed ? borrowedView({ client: borrowed }) : createLangfuseClient({ ...config, ...extras });
-  const port = createLangfuseAiTraceSink({ client });
+  const port = createLangfuseAiTraceSink({ client, attribution: attributionOf(required.attribution) });
   return { port, dispose: async (_required: Record<string, never>, _optional: Record<string, never> = {}) => { await client.shutdownAsync(); } };
 }
 

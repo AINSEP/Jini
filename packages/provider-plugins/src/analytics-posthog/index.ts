@@ -1,6 +1,7 @@
 /** `analytics-posthog`: setup only registers the factory; the PostHog client is built when a host initializes it. */
 import type { PluginSdk } from '@jini-ai/plugins/host';
 import { createPostHogProductAnalyticsAdapter, type PostHogAdapterOptions } from './posthog.js';
+import { attributionOf } from '../attribution.js';
 
 const nonEmpty = (value: unknown, name: string): string => {
   if (typeof value !== 'string' || !value.trim()) throw new TypeError(`${name} must be a non-empty string`);
@@ -14,7 +15,7 @@ const nonEmpty = (value: unknown, name: string): string => {
  * @returns `{ port, dispose }`. @throws TypeError on a missing key or host.
  */
 export function createPostHogProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
-  const config = { enabled: true as const, apiKey: nonEmpty(required.apiKey, 'apiKey'), host: nonEmpty(required.host, 'host') };
+  const config = { enabled: true as const, apiKey: nonEmpty(required.apiKey, 'apiKey'), host: nonEmpty(required.host, 'host'), attribution: attributionOf(required.attribution) };
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config }, optional as PostHogAdapterOptions);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }

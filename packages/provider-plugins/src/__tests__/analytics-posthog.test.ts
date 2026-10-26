@@ -93,3 +93,18 @@ test("a rejected SDK shutdown is swallowed by dispose", async () => {
     expect(shutdown).toHaveBeenCalledTimes(1);
   } finally { shutdown.mockRestore(); }
 });
+
+test("site attribution: every captured event carries the host's attribution properties (not overridable by the event) and its $groups", async () => {
+  const { batches, fetch } = recordingFetch();
+  const resource = createPostHogProvider({ apiKey: "phc_test_dummy", host: "https://posthog.invalid",
+    attribution: { attributes: { site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9" }, groups: { site: "site-123" } } }, { fetch, flushAt: 1 });
+  resource.port.capture({ name: "post_published", userId: "u1", properties: { site_id: "spoofed", outcome: "ok" } });
+  resource.port.capture({ name: "plugin_toggled", userId: "u1" });
+  await resource.dispose({});
+  const events = batches.flatMap((b) => b.body.batch).filter((e) => e.event !== "$groupidentify");
+  expect(events).toHaveLength(2);
+  for (const event of events) {
+    expect(event.properties).toMatchObject({ site_id: "site-123", site_slug: "blog", environment: "local", project_id: "proj-9", $groups: { site: "site-123" } });
+  }
+  expect(events[0]?.properties.outcome).toBe("ok");
+});

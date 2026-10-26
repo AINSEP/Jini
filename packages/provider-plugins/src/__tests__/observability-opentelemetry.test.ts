@@ -369,6 +369,7 @@ test.each([
   [{ serviceName: "s", tracerName: "t", tracesEndpoint: [] }, "tracesEndpoint must be a string"],
   [{ serviceName: "", tracerName: "t", endpoint: "http://c" }, "serviceName must be non-empty"],
   [{ tracerName: "t", endpoint: "http://c" }, "serviceName must be non-empty"],
+  [{ endpoint: "http://c" }, "serviceName must be non-empty"],
   [{ serviceName: "s", tracerName: "", endpoint: "http://c" }, "tracerName must be non-empty"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: "x" }, "headers must be Name=Value pairs separated by commas"],
   [{ serviceName: "s", tracerName: "t", endpoint: "http://c", headers: null }, "headers must be an object of strings"],
@@ -400,5 +401,20 @@ test("a settings card supplies no tracer name: the service name is the tracer na
   const resource = createOpenTelemetryProvider({ serviceName: "svc", endpoint: "http://127.0.0.1:9", headers: "authorization=Bearer t" }, { spanProcessors: [new SimpleSpanProcessor(exporter)] });
   resource.port.trackOperation({ name: "op" }).end({ outcome: "ok", failed: false });
   assert.equal(exporter.getFinishedSpans()[0]?.instrumentationScope.name, "svc");
+  await resource.dispose({});
+});
+
+test("site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service", async () => {
+  const exporter = new InMemorySpanExporter();
+  const resource = createOpenTelemetryProvider({ serviceName: "tovu", endpoint: "http://127.0.0.1:9",
+    attribution: { attributes: { "tovu.site.id": "site-123", "tovu.site.slug": "blog", "deployment.environment": "local", "tovu.project.id": "proj-9", "service.name": "spoofed" } } },
+  { spanProcessors: [new SimpleSpanProcessor(exporter)] });
+  resource.port.trackRequest({ method: "GET", path: "/" }).end({ statusCode: 200, routePattern: "/" });
+  resource.port.trackOperation({ name: "site.publish" }).end({ outcome: "published", failed: false });
+  const spans = exporter.getFinishedSpans();
+  assert.equal(spans.length, 2);
+  for (const span of spans) {
+    assert.deepEqual({ ...span.resource.attributes }, { "service.name": "tovu", "tovu.site.id": "site-123", "tovu.site.slug": "blog", "deployment.environment": "local", "tovu.project.id": "proj-9" });
+  }
   await resource.dispose({});
 });

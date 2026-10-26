@@ -19,7 +19,11 @@ import { PostHog, type PostHogOptions } from "posthog-node";
 
 import type { ProductAnalyticsAdapter, ProductAnalyticsPort } from "@jini-ai/analytics/product";
 
-export interface PostHogConfigEnabled { enabled: true; apiKey: string; host: string; }
+export interface PostHogConfigEnabled {
+  enabled: true; apiKey: string; host: string;
+  /** Host attribution on every event: properties that the event cannot override, and `$groups`. */
+  attribution?: { readonly attributes: Readonly<Record<string, string>>; readonly groups: Readonly<Record<string, string>> };
+}
 
 export interface PostHogAdapterOptions {
   /** Test seam: a fetch that records batches instead of sending them (no network). */
@@ -44,9 +48,12 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
     enableExceptionAutocapture: false,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
+  const attributes = config.attribution?.attributes;
+  const groups = config.attribution && Object.keys(config.attribution.groups).length ? { ...config.attribution.groups } : undefined;
   const port: ProductAnalyticsPort = {
     capture({ name, userId, properties }) {
-      client.capture({ distinctId: userId, event: name, ...(properties ? { properties: { ...properties } } : {}) });
+      const merged = { ...properties, ...attributes };
+      client.capture({ distinctId: userId, event: name, ...(Object.keys(merged).length ? { properties: merged } : {}), ...(groups ? { groups } : {}) });
     },
     identify({ userId, traits }) {
       client.identify({ distinctId: userId, ...(traits ? { properties: { ...traits } } : {}) });
