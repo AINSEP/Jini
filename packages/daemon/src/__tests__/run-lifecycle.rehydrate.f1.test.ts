@@ -72,6 +72,30 @@ describe('RunLifecycle.rehydrate — F1 journal summarisation', () => {
     expect(fresh.run.id).not.toBe('r');
   });
 
+  // FU-B (Codex on F1): each malformed field on its own, probed with its ORIGINAL (non-string) value,
+  // so removing either `typeof === 'string'` check fails exactly one case.
+  it('a numeric contextRef is not restored: a list filtered by that very value finds nothing', async () => {
+    const eventLog = createInMemoryEventLog({});
+    await eventLog.append({ runId: 'r', event: 'start', data: { contextRef: 7, idempotencyKey: 'k-ok' } });
+    await eventLog.append({ runId: 'r', event: 'end', data: { status: 'succeeded' } });
+    const lifecycle = createRunLifecycle({ eventLog });
+    await lifecycle.rehydrate({});
+    expect(await lifecycle.list({}, { contextRef: 7 as unknown as string })).toEqual([]);
+    // The well-formed sibling field IS restored, so the entry itself was read.
+    expect((await lifecycle.start({ contextRef: 'ctx' }, { idempotencyKey: 'k-ok' })).run.id).toBe('r');
+  });
+
+  it('a numeric idempotencyKey is not restored: a start replaying that very value gets a fresh run', async () => {
+    const eventLog = createInMemoryEventLog({});
+    await eventLog.append({ runId: 'r', event: 'start', data: { contextRef: 'ctx-ok', idempotencyKey: 9 } });
+    await eventLog.append({ runId: 'r', event: 'end', data: { status: 'succeeded' } });
+    const lifecycle = createRunLifecycle({ eventLog });
+    await lifecycle.rehydrate({});
+    expect((await lifecycle.list({}, { contextRef: 'ctx-ok' })).map((run) => run.id)).toEqual(['r']);
+    const fresh = await lifecycle.start({ contextRef: 'ctx' }, { idempotencyKey: 9 as unknown as string });
+    expect(fresh.run.id).not.toBe('r');
+  });
+
   it('a string idempotencyKey on the start entry IS restored (start replays onto the rehydrated run)', async () => {
     const eventLog = createInMemoryEventLog({});
     await eventLog.append({ runId: 'r', event: 'start', data: { contextRef: 'ctx', idempotencyKey: 'k1' } });
