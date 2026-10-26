@@ -7,7 +7,7 @@ never become dependencies or peers of a core `@jini-ai/*` package.
 | plugin id | provider (`contract` / `id`) | factory `required` input | factory `optional` input |
 |---|---|---|---|
 | `fixture-provider` | `fixture` / `fixture` | `{ value }` | — (conformance fixture) |
-| `observability-opentelemetry` | `observability` / `opentelemetry` | `{ serviceName, tracerName, endpoint?, tracesEndpoint?, headers? }` — any OTLP/HTTP endpoint; credentials ride `headers` | `{ spanProcessors? }` (tests) |
+| `observability-opentelemetry` | `observability` / `opentelemetry` | `{ serviceName, tracerName, endpoint?, tracesEndpoint?, username?, token?, headers? }` — any OTLP/HTTP endpoint; `token` (+ `username`) becomes `Authorization: Bearer` (or `Basic`), extra `headers` ride as given | `{ spanProcessors? }` (tests) |
 | `ai-trace-langfuse` | `ai_trace` / `langfuse` | `{ publicKey, secretKey, baseUrl?, environment?, release? }` | `{ client? }` (tests) |
 | `analytics-posthog` | `product_analytics` / `posthog` | `{ apiKey, host }` | `{ fetch?, flushAt? }` (tests) |
 | `observability-sentry` | `observability` / `sentry` | `{ dsn, environment?, tracesSampleRate? }` (rate default 0) | `{ client?, transport? }` (host-owned client is never closed) |

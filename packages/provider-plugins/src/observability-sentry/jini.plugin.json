@@ -27,12 +27,13 @@
             "name": "dsn",
             "label": "DSN",
             "secret": true,
-            "required": true
+            "required": true,
+            "hint": "Sentry → Project settings → Client Keys (DSN)."
           },
           {
             "name": "environment",
             "label": "Environment",
-            "hint": "Optional, e.g. production."
+            "hint": "Optional; blank = local/desktop/fly automatically."
           }
         ]
       }
