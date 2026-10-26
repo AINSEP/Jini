@@ -1,5 +1,5 @@
 import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentCliEnvFields } from '../../../react/components/AgentCliEnvFields.js';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
@@ -84,7 +84,8 @@ function renderForm(preset: ProviderPreset, apiKey: string) {
 }
 
 function keyInput(): HTMLInputElement {
-  return screen.getByLabelText(/API key/i, { exact: false }) as HTMLInputElement;
+  // `selector: 'input'`: the eye toggle's "Show API key" name matches /API key/ too.
+  return screen.getByLabelText(/API key/i, { selector: 'input' }) as HTMLInputElement;
 }
 
 describe('ByokProviderForm — API-key autofill suppression', () => {
@@ -98,9 +99,9 @@ describe('ByokProviderForm — API-key autofill suppression', () => {
   it('keeps autocomplete="new-password" while the key is revealed as plain text', () => {
     // `type` flips to `text` on reveal; the autofill suppression must not flip with it, or a
     // revealed field becomes fillable again.
-    const { container } = renderForm(GOOGLE_PRESET, 'AIzaSyExample');
-    const revealButton = container.querySelector('.jini-input-affix-btn') as HTMLButtonElement;
-    revealButton.click();
+    renderForm(GOOGLE_PRESET, 'AIzaSyExample');
+    fireEvent.click(screen.getByRole('button', { name: 'Show API key' }));
+    expect(keyInput()).toHaveAttribute('type', 'text');
     expect(keyInput().getAttribute('autocomplete')).toBe('new-password');
   });
 });

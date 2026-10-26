@@ -302,6 +302,20 @@ describe('LocalCliAgentCard — CLI env fields', () => {
     expect(screen.getByTestId('jini-agent-cli-env-claude-ANTHROPIC_API_KEY')).toHaveAttribute('type', 'password');
     expect(screen.getByTestId('jini-agent-cli-env-claude-ANTHROPIC_BASE_URL')).toHaveAttribute('type', 'text');
   });
+
+  it('reveals a CLI secret with the shared eye while leaving ordinary fields unchanged', async () => {
+    renderCard();
+    const input = screen.getByTestId('jini-agent-cli-env-claude-ANTHROPIC_API_KEY');
+    const plain = screen.getByTestId('jini-agent-cli-env-claude-ANTHROPIC_BASE_URL');
+    expect(input.closest('.jini-secret')).not.toBeNull();
+    expect(input.closest('label')).toBeNull();
+    await userEvent.click(screen.getByText('Advanced: proxy & custom paths'));
+    await userEvent.click(screen.getByRole('button', { name: 'Show API key' }));
+    expect(input).toHaveAttribute('type', 'text');
+    expect(input).toHaveAttribute('autocomplete', 'new-password');
+    expect(plain).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Hide API key', hidden: true })).toHaveAttribute('aria-pressed', 'true');
+  });
 });
 
 describe('LocalCliAgentCard — reasoning picker', () => {

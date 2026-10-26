@@ -52,9 +52,9 @@ describe('SourceConfigField', () => {
     render(<SourceConfigField spec={spec} value="sk-secret" onChange={vi.fn()} />);
     const input = screen.getByDisplayValue('sk-secret');
     expect(input).toHaveAttribute('type', 'password');
-    await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Show API Key' }));
     expect(input).toHaveAttribute('type', 'text');
-    await userEvent.click(screen.getByRole('button', { name: 'Hide' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Hide API Key' }));
     expect(input).toHaveAttribute('type', 'password');
   });
 
@@ -62,7 +62,7 @@ describe('SourceConfigField', () => {
     const onChange = vi.fn();
     const spec: SourceFieldSpec = { key: 'apiKey', label: 'API Key', kind: 'password' };
     render(<SourceConfigField spec={spec} value="" onChange={onChange} />);
-    await userEvent.type(screen.getByLabelText('API Key', { exact: false }), 's');
+    await userEvent.type(screen.getByLabelText('API Key', { selector: 'input' }), 's');
     expect(onChange).toHaveBeenCalledWith('s');
   });
 
@@ -164,27 +164,27 @@ describe('SourceConfigField', () => {
       const spec: SourceFieldSpec = { key: 'apiKey', label: 'API Key', kind: 'password' };
       const { rerender } = render(<SourceConfigField spec={spec} value="sk-first" onChange={vi.fn()} />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Show' }));
-      expect(screen.getByLabelText('API Key', { exact: false })).toHaveAttribute('type', 'text');
+      await userEvent.click(screen.getByRole('button', { name: 'Show API Key' }));
+      expect(screen.getByLabelText('API Key', { selector: 'input' })).toHaveAttribute('type', 'text');
 
       // Successful submit: the form resets values, this component stays mounted.
       rerender(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
 
-      expect(screen.getByLabelText('API Key', { exact: false })).toHaveAttribute('type', 'password');
+      expect(screen.getByLabelText('API Key', { selector: 'input' })).toHaveAttribute('type', 'password');
     });
 
     it('masks each env VALUE but keeps its NAME visible, and reveals on demand (existing-secret reveal-gate)', async () => {
       const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
       render(<SourceConfigField spec={spec} value={'GITHUB_TOKEN=ghp_liveSecret\nDEBUG=true'} onChange={vi.fn()} />);
 
-      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      const box = screen.getByLabelText('Env', { selector: 'textarea' }) as HTMLTextAreaElement;
       expect(box.value).toContain('GITHUB_TOKEN=');
       expect(box.value).not.toContain('ghp_liveSecret');
       // Masked text is not the real value, so it must not be editable.
       expect(box).toHaveAttribute('readonly');
 
-      await userEvent.click(screen.getByRole('button', { name: 'Show' }));
-      expect((screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement).value).toContain('ghp_liveSecret');
+      await userEvent.click(screen.getByRole('button', { name: 'Show Env' }));
+      expect((screen.getByLabelText('Env', { selector: 'textarea' }) as HTMLTextAreaElement).value).toContain('ghp_liveSecret');
     });
 
     it('is immediately editable for a first-time/empty secret-textarea — nothing to reveal, so no reveal-gate blocks input', async () => {
@@ -198,7 +198,7 @@ describe('SourceConfigField', () => {
       const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
       render(<SourceConfigField spec={spec} value="" onChange={onChange} />);
 
-      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      const box = screen.getByLabelText('Env', { selector: 'textarea' }) as HTMLTextAreaElement;
       // No reveal-gate at all when there is nothing stored: not read-only, and
       // no "Show" click is required before typing works.
       expect(box).not.toHaveAttribute('readonly');
@@ -218,12 +218,12 @@ describe('SourceConfigField', () => {
       const { rerender } = render(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
 
       rerender(<SourceConfigField spec={spec} value="G" onChange={vi.fn()} />);
-      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      const box = screen.getByLabelText('Env', { selector: 'textarea' }) as HTMLTextAreaElement;
       expect(box).not.toHaveAttribute('readonly');
       expect(box.value).toBe('G');
 
       rerender(<SourceConfigField spec={spec} value="GITHUB_TOKEN=ghp_newSecret" onChange={vi.fn()} />);
-      const boxAfterMore = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      const boxAfterMore = screen.getByLabelText('Env', { selector: 'textarea' }) as HTMLTextAreaElement;
       expect(boxAfterMore).not.toHaveAttribute('readonly');
       expect(boxAfterMore.value).toBe('GITHUB_TOKEN=ghp_newSecret');
     });
@@ -232,8 +232,9 @@ describe('SourceConfigField', () => {
       const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
       const { rerender } = render(<SourceConfigField spec={spec} value="GITHUB_TOKEN=ghp_old" onChange={vi.fn()} />);
       rerender(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
+      expect(screen.getByLabelText('Env', { selector: 'textarea' })).not.toHaveAttribute('readonly');
       rerender(<SourceConfigField spec={spec} value="GITHUB_TOKEN=ghp_new" onChange={vi.fn()} />);
-      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      const box = screen.getByLabelText('Env', { selector: 'textarea' }) as HTMLTextAreaElement;
       expect(box).not.toHaveAttribute('readonly');
       expect(box.value).toBe('GITHUB_TOKEN=ghp_new');
     });
