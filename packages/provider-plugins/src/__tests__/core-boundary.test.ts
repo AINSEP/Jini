@@ -8,7 +8,8 @@
  * unlisted transitive dependency, or a computed specifier (`import(name)`, a template with `${}`);
  * the packed-install test covers what the plugins themselves bundle.
  */
-import { readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -16,7 +17,6 @@ import { expect, it } from 'vitest';
 
 const packagesRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const VENDOR = /^(?:@opentelemetry\/|@sentry\/|posthog-(?:node|js)$|langfuse(?:$|-)|stripe$)/;
-const VENDOR_WORD = /opentelemetry|sentry|posthog|langfuse|stripe/;
 
 /** A literal module name: a string or a template without substitutions. */
 const literalText = (node: ts.Node | undefined): string | undefined =>
@@ -66,9 +66,9 @@ async function manifestOffenders({ name, root }: { name: string; root: string })
 async function sourceOffenders({ root }: { root: string }): Promise<string[]> {
   const offenders: string[] = [];
   for (const file of await sourceFiles(path.join(root, 'src')).catch(() => [])) {
+    // Every file is parsed: no raw-text pre-filter (Codex fix-lane MED), since an escaped literal
+    // (`'lang\u0066use'`) names a vendor without containing its name verbatim.
     const text = await readFile(file, 'utf8');
-    // Parsing is the slow part; a literal vendor specifier always contains one of these words verbatim.
-    if (!VENDOR_WORD.test(text)) continue;
     for (const specifier of moduleSpecifiers({ text, fileName: file })) if (VENDOR.test(specifier)) offenders.push(`${path.relative(packagesRoot, file)}: ${specifier}`);
   }
   return offenders;
@@ -93,10 +93,6 @@ it.each(['@jini-ai/diagnostics', 'stripe-like', 'posthog', 'node:fs'])('the scan
   expect(VENDOR.test(specifier)).toBe(false);
 });
 
-it.each(['@opentelemetry/api', '@sentry/node', 'posthog-node', 'langfuse-core', 'stripe'])('the pre-filter never skips a file naming %s', (specifier) => {
-  expect(VENDOR_WORD.test(`import x from '${specifier}';`)).toBe(true);
-});
-
 it.each([
   ['a template-literal dynamic import', 'await import(`langfuse`);'],
   ['a commented dynamic import', "await import /* why */ ('langfuse');"],
@@ -118,4 +114,15 @@ it.each([
   ['a computed import', "const name = 'stripe'; await import(name); await import(`${name}`);"],
 ])('the parser ignores %s', (_name, text) => {
   expect(moduleSpecifiers({ text, fileName: 'probe.tsx' }).filter(specifier => VENDOR.test(specifier))).toEqual([]);
+});
+
+it('the complete scanner finds a vendor named through escaped literal text (Codex fix-lane MED)', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'jini-boundary-'));
+  try {
+    await mkdir(path.join(root, 'src'));
+    // Neither file contains a vendor word verbatim; the parser decodes both literals to `langfuse`.
+    await writeFile(path.join(root, 'src', 'unicode.ts'), "await import('lang\\u0066use');\n");
+    await writeFile(path.join(root, 'src', 'hex.ts'), "require('\\x6cangfuse');\n");
+    expect((await sourceOffenders({ root })).map(offender => offender.split(': ')[1])).toEqual(['langfuse', 'langfuse']);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
