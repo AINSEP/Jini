@@ -131,6 +131,34 @@ body {
   min-width: 0;
 }
 .mcpui-textarea { resize: vertical; min-height: 72px; font-family: var(--jini-mcpui-font); }
+/* A secret control's eye toggle sits inside the field's right edge. The control is padded so long
+   values never run under it; the button is a 40px tap target centred on the input, transparent,
+   so it overhangs the ~36px input invisibly instead of resizing the field. */
+.mcpui-secret { position: relative; display: flex; flex-direction: column; }
+.mcpui-secret > .mcpui-input, .mcpui-secret > .mcpui-textarea { padding-right: 44px; }
+.mcpui-secret-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  margin-top: -20px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--jini-mcpui-radius-sm);
+  background: transparent;
+  color: var(--jini-mcpui-text-soft);
+  cursor: pointer;
+}
+.mcpui-secret > .mcpui-textarea + .mcpui-secret-toggle { top: 0; margin-top: -2px; }
+.mcpui-secret-toggle:hover:not([disabled]) { color: var(--jini-mcpui-text-strong); }
+.mcpui-secret-toggle[disabled] { opacity: 0.55; cursor: default; }
+.mcpui-secret-toggle:focus-visible { outline: 2px solid var(--jini-mcpui-accent-ring); outline-offset: -6px; }
+.mcpui-secret-toggle[aria-pressed="true"] .mcpui-secret-icon-show,
+.mcpui-secret-toggle:not([aria-pressed="true"]) .mcpui-secret-icon-hide { display: none; }
 .mcpui-checkbox { margin: 3px 0 0; accent-color: var(--jini-mcpui-accent); }
 .mcpui-choice-group { border: 0; padding: 0; margin: 0; min-width: 0; }
 .mcpui-choice { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; margin: 6px 0 0; }

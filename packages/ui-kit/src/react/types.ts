@@ -17,10 +17,12 @@ export interface TextFieldProps extends BaseProps {
   readonly label: string; readonly value: string; readonly onValueChange: ValuePort<string>;
   readonly disabled?: boolean; readonly required?: boolean; readonly placeholder?: string;
   readonly type?: 'text' | 'password' | 'email' | 'search' | 'url' | 'tel' | 'number'; readonly ref?: Ref<HTMLInputElement>;
+  /** `type: 'password'` only: the eye toggle's full accessible names. Default "Show <label>" / "Hide <label>". */
+  readonly secretToggleLabels?: { readonly show: string; readonly hide: string };
 }
-export interface TextAreaProps extends Omit<TextFieldProps, 'type' | 'ref'> { readonly rows?: number; readonly ref?: Ref<HTMLTextAreaElement> }
+export interface TextAreaProps extends Omit<TextFieldProps, 'type' | 'ref' | 'secretToggleLabels'> { readonly rows?: number; readonly ref?: Ref<HTMLTextAreaElement> }
 export interface SelectOption { readonly value: string; readonly label: string; readonly disabled?: boolean }
-export interface SelectProps extends Omit<TextFieldProps, 'type' | 'placeholder' | 'ref'> { readonly options: readonly SelectOption[]; readonly ref?: Ref<HTMLSelectElement> }
+export interface SelectProps extends Omit<TextFieldProps, 'type' | 'placeholder' | 'ref' | 'secretToggleLabels'> { readonly options: readonly SelectOption[]; readonly ref?: Ref<HTMLSelectElement> }
 export interface CheckboxProps extends BaseProps { readonly label: string; readonly checked: boolean; readonly onCheckedChange: (required: { checked: boolean }, optional?: Record<string, never>) => void; readonly disabled?: boolean; readonly ref?: Ref<HTMLInputElement> }
 export interface SwitchProps extends CheckboxProps {}
 export interface DialogProps extends BaseProps { readonly open: boolean; readonly title: string; readonly children?: ReactNode; readonly onClose: ActionPort; readonly pending?: boolean; readonly closeLabel?: string; readonly ref?: Ref<HTMLDialogElement> }

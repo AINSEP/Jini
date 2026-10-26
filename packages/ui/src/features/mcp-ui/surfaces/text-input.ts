@@ -8,7 +8,7 @@
 import { escapeHtml } from '../escape.js';
 import { fieldDescribedBy, fieldElementId, renderFieldLabel } from './document.js';
 
-/** Labels the host can translate for a multiline secret's reveal toggle. */
+/** Verbs the host can translate for a secret's reveal toggle; the field label is appended. */
 export interface SecretInputText {
   readonly showSecret: string;
   readonly hideSecret: string;
@@ -30,8 +30,8 @@ export interface TextInputProps extends Partial<SecretInputText> {
   readonly disabled?: boolean;
   /** `'number'` also constrains the on-screen keyboard on touch devices, which `'text'` would not. */
   readonly inputType?: 'text' | 'number';
-  /** Renders as `<input type="password">`, or a masked textarea with a show/hide toggle when
-   *  multiline. No `<textarea type="password">` exists, so multiline uses CSS text security.
+  /** Renders as `<input type="password">`, or a masked textarea when multiline — either way with
+   *  an eye show/hide toggle. No `<textarea type="password">` exists, so multiline uses CSS text security.
    *  Ignored for presentation when `inputType` is `'number'` (no such thing as a masked number) —
    *  same precedence `multiline`'s own doc comment already gives `inputType: 'number'`.
    *  A supplied value is always rejected: masking cannot protect a secret serialized into HTML. */
@@ -67,37 +67,55 @@ function resolveInputType(props: Pick<TextInputProps, 'inputType' | 'secret'>): 
   return props.secret === true ? 'password' : 'text';
 }
 
-/** The reveal toggle a multiline secret carries. @complexity O(n) in the label lengths. */
+/** Eye / eye-off glyphs. Both ship; CSS shows the one matching `aria-pressed`, so the inline script
+ *  never builds markup. `currentColor` keeps them on the surface's theme tokens in light and dark. */
+const EYE_ICON =
+  '<svg class="mcpui-secret-icon-show" aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>' +
+  '<svg class="mcpui-secret-icon-hide" aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a17.8 17.8 0 0 1-2.16 3.19M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M2 2l20 20"/></svg>';
+
+/**
+ * The eye toggle every secret control carries, inside the field's right edge. Its accessible name
+ * is the host's verb plus the field label ("Show Token"); the full show/hide names ride on data
+ * attributes so the form script swaps them without knowing the label.
+ * @complexity O(n) in the label lengths.
+ */
 function renderSecretToggle(props: TextInputProps, id: string): string {
-  const showSecret = props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret;
-  const hideSecret = props.hideSecret ?? DEFAULT_SECRET_INPUT_TEXT.hideSecret;
-  return `<button type="button" class="mcpui-button" data-mcpui-secret-toggle="${escapeHtml(id)}" data-mcpui-show-secret="${escapeHtml(showSecret)}" data-mcpui-hide-secret="${escapeHtml(hideSecret)}" aria-controls="${escapeHtml(id)}" aria-pressed="false"${booleanAttribute('disabled', props.disabled)}>${escapeHtml(showSecret)}</button>`;
+  const show = `${props.showSecret ?? DEFAULT_SECRET_INPUT_TEXT.showSecret} ${props.label}`;
+  const hide = `${props.hideSecret ?? DEFAULT_SECRET_INPUT_TEXT.hideSecret} ${props.label}`;
+  return `<button type="button" class="mcpui-secret-toggle" data-mcpui-secret-toggle="${escapeHtml(id)}" data-mcpui-show-secret="${escapeHtml(show)}" data-mcpui-hide-secret="${escapeHtml(hide)}" aria-label="${escapeHtml(show)}" aria-controls="${escapeHtml(id)}" aria-pressed="false"${booleanAttribute('disabled', props.disabled)}>${EYE_ICON}</button>`;
+}
+
+/** Wraps a secret control so its toggle sits inside the field's right edge. @complexity O(n) in the rendered length. */
+function withSecretToggle(control: string, props: TextInputProps, id: string): string {
+  return `<div class="mcpui-secret">${control}${renderSecretToggle(props, id)}</div>`;
 }
 
 /** The `<textarea>` control, masked with a reveal toggle when secret. @complexity O(n) in the rendered length. */
 function renderTextarea(props: TextInputProps, required: { id: string; common: string }): string {
   const secret = props.secret === true;
-  return `<textarea class="mcpui-textarea"${required.common}${optionalAttribute('rows', props.rows)}` +
+  const control = `<textarea class="mcpui-textarea"${required.common}${optionalAttribute('rows', props.rows)}` +
     // Password inputs strip line breaks. CSS masking keeps the textarea's actual value intact,
     // and disables browser text assistance that could retain or alter a pasted credential.
     (secret ? ' data-mcpui-secret style="-webkit-text-security: disc;" autocomplete="off" spellcheck="false"' : '') +
-    `>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>` +
-    (secret ? renderSecretToggle(props, required.id) : '');
+    `>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>`;
+  return secret ? withSecretToggle(control, props, required.id) : control;
 }
 
-/** The single-line `<input>` control. @complexity O(n) in the rendered length. */
-function renderInput(props: TextInputProps, required: { type: 'text' | 'number' | 'password'; common: string }): string {
+/** The single-line `<input>` control, with the eye toggle when masked. @complexity O(n) in the rendered length. */
+function renderInput(props: TextInputProps, required: { id: string; type: 'text' | 'number' | 'password'; common: string }): string {
   const { type, common } = required;
-  return `<input class="mcpui-input" type="${type}"${common}` +
+  const control = `<input class="mcpui-input" type="${type}"${common}` +
     optionalAttribute('value', props.value) +
     // A stored secret (e.g. a cloud provider's access key or a database password) must never be
     // autofilled with a saved website login. `new-password`, not `off`: Chrome ignores `off` on
     // password inputs by design and fills the saved login anyway.
-    (type === 'password' ? optionalAttribute('autocomplete', 'new-password') : '') +
+    // spellcheck off: once revealed as `type="text"`, enhanced spellcheck would ship the secret out.
+    (type === 'password' ? optionalAttribute('autocomplete', 'new-password') + optionalAttribute('spellcheck', 'false') : '') +
     (type === 'number'
       ? optionalAttribute('min', props.min) + optionalAttribute('max', props.max) + optionalAttribute('step', props.step)
       : '') +
     '>';
+  return type === 'password' ? withSecretToggle(control, props, required.id) : control;
 }
 
 /**
@@ -124,7 +142,7 @@ export function renderTextInput(props: TextInputProps): string {
   const type = resolveInputType(props);
   const control = props.multiline === true && type !== 'number'
     ? renderTextarea(props, { id, common })
-    : renderInput(props, { type, common });
+    : renderInput(props, { id, type, common });
 
   return `<div class="mcpui-field">\n${renderFieldLabel(props)}\n${control}\n</div>`;
 }

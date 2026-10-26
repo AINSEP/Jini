@@ -155,16 +155,16 @@ describe('buildOutcomeSurface frame size', () => {
 describe('renderOutcomeDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, Parameters<typeof renderOutcomeDocument>[0], string]> = [
-    ['success with link and details', PUBLISH_SUCCESS, '55cbbaf00a1c494efa946236f4d330b5dc2b277d9e4b34e8812316d4f95ccf5d'],
-    ['partial with custom link label, app, lang and tokens', { ...PUBLISH_SUCCESS, state: 'partial', openLinkLabel: 'View', app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#123456' } }, '1448668d10856589276a1d3e1d8a1132096dd152a01847dd38024ec353ff04d9'],
-    ['failure with link', { ...PUBLISH_FAILURE, openLinkUrl: 'https://x.test/"</script>' }, '96d5e6d19957ad3e17e0bce8e9071ad2d79c7fd8d3064e680b091e296bd53206'],
-    ['failure without link', PUBLISH_FAILURE, '0f60232d4e14f4e88e0b6ab2d4bfcfb3aac8a4631575d9e45a46fa07f204fde3'],
+    ['success with link and details', PUBLISH_SUCCESS, 'b4223955a6710bf9ee31a89f9d9076d8a4b994b8b444d78816fd8642c6289f9f'],
+    ['partial with custom link label, app, lang and tokens', { ...PUBLISH_SUCCESS, state: 'partial', openLinkLabel: 'View', app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#123456' } }, 'f5f660b275637bfb7cd66c2b46c82401a3736d8ef3ac99e13fcca4a080db234e'],
+    ['failure with link', { ...PUBLISH_FAILURE, openLinkUrl: 'https://x.test/"</script>' }, '8f605b00157e5b738c1e4cd4d5a85671a1e9a3b6e89df76cf2eb6a77ce182c2a'],
+    ['failure without link', PUBLISH_FAILURE, '4a19a77fd11570b82b600abd009730292c2cdd1e289dc86e8328d6d831e4d1e2'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderOutcomeDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://h/x/1', preferredFrameSize: ['1px', '2px'] }))).toBe('e8eb2d29102d545f192a498ad66063f4c716b8b5d0f75c28667be7fc88596cc1');
+    expect(digest(buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://h/x/1', preferredFrameSize: ['1px', '2px'] }))).toBe('982f33f9002bdb123b3c87a049e6989e166e55ccb5e90117d6c2ddd73a044fc6');
   });
 });
