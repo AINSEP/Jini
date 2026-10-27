@@ -5,6 +5,7 @@ import type {
   FederatedCallConfirmationOutcome,
   FederatedCallConfirmationRequest,
   FederatedCallTarget,
+  FederatedGateVerdict,
   FederatedMcpConnectionConfig,
   McpSessionPort,
   RemoteToolResult,
@@ -114,12 +115,14 @@ export interface FederationDeps {
    * @param call - The tool's identity as admitted (remote name, declared annotations) plus the
    *   connection's origin, so the gate can tell a preset (no row to compare against) from a roster
    *   connection (re-checked against its current row every call).
+   * @returns `"current-grants-checked"` only when it checked this call against the roster row's current
+   *   allowlist and write list; anything else keeps the admitted-grants check ({@link FederatedGateVerdict}).
    * @throws Whatever the composition root's terminal error is — for OAuth connections,
    * `assistant/external-mcp-oauth.ts`'s `ExternalMcpReauthRequiredError`, whose message tells the
    * model in words not to retry. For a revoked roster connection,
    * `assistant/external-mcp-revocation.ts`'s `ExternalMcpConnectionRevokedError`.
    */
-  readonly assertConnectionUsable?: ((required: { connectionId: string; call: FederatedCallTarget }) => void | Promise<void>) | undefined;
+  readonly assertConnectionUsable?: ((required: { connectionId: string; call: FederatedCallTarget }) => void | FederatedGateVerdict | Promise<void | FederatedGateVerdict>) | undefined;
   /**
    * Called when a live call throws {@link McpAuthFailedError} — the remote itself rejected our
    * authentication (HTTP 401), discovered mid-session rather than at boot. HTTP 403 is a call-level
@@ -291,13 +294,14 @@ async function assertCallAllowed({ ctx, deps, config, call }: {
 }): Promise<void> {
   // Liveness AND revocation first — see `FederationDeps.assertConnectionUsable` for why this
   // precedes the permission check rather than following it.
-  await deps.assertConnectionUsable?.({ connectionId: config.connectionId, call });
+  const verdict = await deps.assertConnectionUsable?.({ connectionId: config.connectionId, call });
 
   // "May write" against the grants this connection was admitted with — for every connection whose
   // CURRENT grants no host gate re-reads: a preset has no roster row, so the revocation gate skips
-  // it, and a host may wire no gate at all. A roster connection with a gate is checked against its
-  // current row above instead, so a write grant added after boot works on the next call.
-  if (!gateReadsCurrentGrants({ deps, config })) assertAdmittedGrants({ deps, config, call });
+  // it, a host may wire no gate at all, and a liveness-only gate vouches for nothing. A roster
+  // connection whose gate says it checked the current row is not re-checked here, so a write grant
+  // added after boot works on the next call.
+  if (!gateCheckedCurrentGrants({ verdict, config })) assertAdmittedGrants({ deps, config, call });
 
   // ONE evaluator, run before anything crosses the network — not after, so a denied principal's
   // arguments are never even sent to a third party. `entityId` is the connection, so a
@@ -311,13 +315,13 @@ async function assertCallAllowed({ ctx, deps, config, call }: {
 }
 
 /**
- * Whether the host gate owns this connection's grant check: `FederationDeps.assertConnectionUsable`
- * must re-read a roster connection's current row (allowlist and write list) every call, so the
- * admitted snapshot would only refuse a grant the operator has since added.
+ * Whether the host gate owned this call's grant check: it said it re-read a roster connection's
+ * current row (allowlist and write list), so the admitted snapshot would only refuse a grant the
+ * operator has since added. Anything else (no gate, a liveness-only gate, a preset) is not proof.
  * @complexity O(1).
  */
-function gateReadsCurrentGrants({ deps, config }: { deps: FederationDeps; config: FederatedMcpConnectionConfig }): boolean {
-  return deps.assertConnectionUsable !== undefined && config.origin?.kind === "roster";
+function gateCheckedCurrentGrants({ verdict, config }: { verdict: void | FederatedGateVerdict; config: FederatedMcpConnectionConfig }): boolean {
+  return verdict === "current-grants-checked" && config.origin?.kind === "roster";
 }
 
 /**

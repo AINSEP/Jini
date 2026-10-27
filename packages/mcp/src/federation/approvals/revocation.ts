@@ -1,4 +1,4 @@
-import type { FederatedCallTarget } from "../ports.js";
+import type { FederatedCallTarget, FederatedGateVerdict } from "../ports.js";
 import { refusalForAdmittedToolUnderCurrentGrants } from "../trust.js";
 import { revocationReasonForToolRefusal } from "./revocation-reason.js";
 import { scopeOption } from "./scope-option.js";
@@ -73,14 +73,14 @@ export function createFederatedConnectionRevocationGate(required: {
   scope?: string;
   webhooks?: FederatedRevocationWebhookPort;
   onDiagnostic?: (required: FederatedRevocationDiagnostic) => void;
-} = {}): (required: { connectionId: string; call: FederatedCallTarget }) => Promise<void> {
+} = {}): (required: { connectionId: string; call: FederatedCallTarget }) => Promise<void | FederatedGateVerdict> {
   const report = (diagnostic: FederatedRevocationDiagnostic) => {
     try { optional.onDiagnostic?.(diagnostic); } catch { /* Diagnostics cannot bypass refusal. */ }
   };
   return async ({ connectionId, call }) => {
     if (call.origin?.kind === "preset") return;
     const { record, reason } = await readRosterRefusal({ roster: required.roster, connectionId, call }, { scope: optional.scope, report });
-    if (reason === null) return;
+    if (reason === null) return "current-grants-checked";
     const refusal = { serverId: connectionId, label: record?.label ?? null, remoteName: call.remoteName, reason };
     try { await optional.webhooks?.connectionRefused(refusal, scopeOption(optional.scope)); }
     catch (error) { report({ connectionId, stage: "webhook", error }); }

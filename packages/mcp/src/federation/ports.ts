@@ -101,7 +101,8 @@ export interface McpStdioChannel {
  * `admissionRevision` — see that file's `rosterRefusalFor`. A connection whose current grants no gate
  * re-reads (a preset, or any connection when the host wires no gate) is checked for "may write"
  * against the grants it was admitted with (`registrations.ts` `assertAdmittedGrants`), so a preset is
- * never exempt from it; a gated roster connection uses its current row, so a new grant needs no restart.
+ * never exempt from it; a roster connection whose gate returns {@link FederatedGateVerdict} uses its
+ * current row instead, so a new grant needs no restart.
  */
 export type FederatedConnectionOrigin =
   | { readonly kind: "preset" }
@@ -168,6 +169,12 @@ export interface FederatedCallTarget {
    *  list is known — the per-call write-grant check reads it. Absent means "re-derive", never "read". */
   readonly requiresWriteGrant?: boolean | undefined;
 }
+
+/** What `FederationDeps.assertConnectionUsable` returns when it has just checked this call against the
+ *  connection's CURRENT allowlist and write list. Only then is the admitted-grants snapshot skipped
+ *  (so a grant added after boot works without a restart); a liveness-only gate returns nothing and
+ *  the snapshot check still runs, failing closed. */
+export type FederatedGateVerdict = "current-grants-checked";
 
 /** How a locally-launched federated connection is started.
  *

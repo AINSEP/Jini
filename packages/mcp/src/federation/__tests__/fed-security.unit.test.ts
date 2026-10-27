@@ -46,7 +46,7 @@ async function run(options: Harness) {
       return allow() ? { allowed: true, reason: "matched" } : { allowed: false, reason: "not authorized" };
     } }),
     ...(options.noGate ? {} : { assertConnectionUsable: async (input: Parameters<NonNullable<FederationDeps["assertConnectionUsable"]>>[0]) => {
-      events.push("liveness"); await options.assertConnectionUsable?.(input);
+      events.push("liveness"); return options.assertConnectionUsable?.(input);
     } }),
     confirmCall: async ({ request }) => {
       events.push("card"); cards.push(request);
@@ -155,6 +155,13 @@ test("fed-security 1: a write grant added after boot takes effect on the next ca
     writeAllowed: [], assertConnectionUsable: revocationGate(() => roster(["create_project"])) });
   await h.result;
   assert.deepEqual(h.session.calls, [{ name: "create_project", arguments: { id: "one" } }]);
+});
+
+test("fed-security 1: a liveness-only gate does not vouch for grants, so a roster write tool admitted without 'may write' is refused", async () => {
+  const h = await run({ tool: { name: "create_project", inputSchema: schema, annotations: { readOnlyHint: false } }, writeAllowed: [],
+    assertConnectionUsable: async () => {} });
+  await assert.rejects(h.result, /EXTERNAL_MCP_WRITE_NOT_ALLOWED/);
+  assert.deepEqual(h.session.calls, []);
 });
 
 test("fed-security 1: with no host gate to read current grants, a roster write tool admitted without 'may write' is refused", async () => {

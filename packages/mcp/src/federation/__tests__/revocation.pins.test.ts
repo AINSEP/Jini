@@ -56,7 +56,7 @@ describe("createFederatedConnectionRevocationGate", () => {
   test("without a scope the roster read gets an empty options object", async () => {
     const seen: { scope?: string | undefined }[] = [];
     const gate = createFederatedConnectionRevocationGate({ roster: roster(row, seen), errorFactory });
-    await expect(gate({ connectionId: "service", call })).resolves.toBeUndefined();
+    await expect(gate({ connectionId: "service", call })).resolves.toBe("current-grants-checked");
     expect(seen).toEqual([{}]);
   });
 
@@ -138,7 +138,7 @@ describe("createFederatedConnectionRevocationGate", () => {
   test("an allowed call sends no webhook", async () => {
     let sent = 0;
     const gate = createFederatedConnectionRevocationGate({ roster: roster(row), errorFactory }, { webhooks: { connectionRefused: async () => { sent++; } } });
-    await expect(gate({ connectionId: "service", call })).resolves.toBeUndefined();
+    await expect(gate({ connectionId: "service", call })).resolves.toBe("current-grants-checked");
     expect(sent).toBe(0);
   });
 });
