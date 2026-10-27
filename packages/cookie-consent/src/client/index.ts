@@ -16,7 +16,7 @@ export interface ClientPorts {
 }
 export interface ClientOptions { plugins?: PluginRegistry; evidence?: Evidence | undefined }
 type Run = { ctl: AbortController; result: Promise<Revoker | null> };
-type Slot = { entry: AdapterContribution; adapter?: ConsentAdapter | undefined; run?: Run | undefined };
+type Slot = { entry: AdapterContribution; generation: number; adapter?: ConsentAdapter | undefined; run?: Run | undefined };
 const within = (p: Promise<unknown>, ms: number) => Promise.race([p, new Promise(r => setTimeout(r, ms))]);
 const quiet = (fn: () => void) => { try { fn(); } catch { /* a broken plugin or listener never blocks consent */ } };
 
@@ -33,18 +33,22 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   const region = regionFrom({ configured: config.regionMode, hint: anonymous ? null : readCookie(doc, REGION_COOKIE) });
   const fromCookie = () => anonymous ? null : parseStored({ raw: readCookie(doc, CONSENT_COOKIE) });
   let stored = fromCookie();
+  let cookiePersisted = true;
   let state = compute();
 
   function compute(): ConsentState {
     return effective({ stored, policy: config.policy, region, gpc: ports.gpc(), nowMs: ports.now() }, { maxAgeMs, durable: !!durable, anonymous });
   }
   function persist(): void {
-    writeCookie(doc, { name: CONSENT_COOKIE, value: JSON.stringify(stored), maxAgeS: maxAgeMs / 1000 }, { domain: config.cookieDomain });
+    const value = JSON.stringify(stored);
+    writeCookie(doc, { name: CONSENT_COOKIE, value, maxAgeS: maxAgeMs / 1000 }, { domain: config.cookieDomain });
+    cookiePersisted = readCookie(doc, CONSENT_COOKIE) === value;
   }
 
   /** Off-mode adapters load for identity cleanup even at none; only permitted levels grant.
    * Abort is checked after the import and handed to grant(), so a withdrawal during either wait wins. */
-  function start(slot: Slot): void {
+  function start({ slot }: { slot: Slot }, _options = {}): void {
+    slot.generation++;
     const ctl = new AbortController();
     const load = Promise.resolve(slot.adapter ?? ports.importModule((slot.entry as LazyAdapter).src).then(m => (slot.adapter = m.default)));
     const result = load.then(adapter => {
@@ -55,15 +59,17 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     }, () => null);                                                     // import failed: nothing ran
     slot.run = { ctl, result };
   }
-  /** Detached from set(): a hung import can never delay a withdrawal. Resolves true when a reload is needed. */
-  async function stop(slot: Slot): Promise<boolean> {
+  /** Detached from set(): a hung import can never delay a withdrawal. Resolves true when a reload is needed.
+   * A newer grant owns its storage even if this revoke finishes after another withdrawal. */
+  async function stop({ slot }: { slot: Slot }, _options = {}): Promise<boolean> {
     const run = slot.run!;
+    const generation = slot.generation;
     slot.run = undefined;
     run.ctl.abort();
     const revoker = await run.result;
     if (!revoker) return false;
     const clean = await Promise.resolve().then(() => revoker.revoke?.()).catch(() => false);
-    if (!anonymous) purge(doc, slot.adapter?.storage ?? slot.entry.storage);
+    if (!anonymous && slot.generation === generation) purge(doc, slot.adapter?.storage ?? slot.entry.storage);
     return !clean;
   }
   function reconcile(next: ConsentState): void {
@@ -71,9 +77,9 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     for (const slot of slots.values()) {
       const allowed = anonymous ? next.analyticsLevel === 'anonymous' : next.allowed[slot.entry.category];
       if (allowed) {
-        if (!slot.run) start(slot);
+        if (!slot.run) start({ slot });
       }
-      else if (slot.run) stops.push(stop(slot));
+      else if (slot.run) stops.push(stop({ slot }));
       quiet(() => slot.adapter?.onState?.({ state: next }));
     }
     // Raw tags cannot promise anonymous behavior; only declared adapters can.
@@ -120,9 +126,9 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
 
   function addSlot(entry: AdapterContribution): void {
     if (anonymous && (!entry.supportsAnonymous || entry.category !== 'analytics')) return;
-    const slot: Slot = { entry, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
+    const slot: Slot = { entry, generation: 0, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
     slots.set(entry.id, slot);
-    if (anonymous || state.allowed[entry.category]) start(slot);
+    if (anonymous || state.allowed[entry.category]) start({ slot });
     else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
     quiet(() => slot.adapter?.onState?.({ state }));                    // lazy adapters get state once loaded
   }
@@ -131,7 +137,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     for (const [id, slot] of slots) {
       if (ids.has(id)) continue;
       slots.delete(id);
-      if (slot.run) void stop(slot).then(dirty => { if (dirty) ports.reload(); });
+      if (slot.run) void stop({ slot }).then(dirty => { if (dirty) ports.reload(); });
     }
     for (const item of items as readonly AdapterContribution[]) if (!slots.has(item.id)) addSlot(item);
   }
@@ -139,6 +145,8 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
    * Returns true when the cookie held a different choice. */
   function adopt(): boolean {
     const latest = fromCookie();
+    // A refused cookie write leaves only this tab's choice; absence cannot supersede it.
+    if (!latest && !cookiePersisted) return false;
     if (latest?.t === stored?.t && latest?.a === stored?.a && latest?.r === stored?.r) return false;
     stored = latest;
     apply();

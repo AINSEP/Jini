@@ -227,6 +227,27 @@ describe('@jini-ai/http-kit — sse — createSseChannel', () => {
   });
 
   describe('end()', () => {
+    it('P11: drains events queued behind backpressure before ending the response', () => {
+      const res = makeRes();
+      res.write.mockReturnValueOnce(false);
+      const channel = createSseChannel<TestEvent>({ res: asResponse(res) });
+      channel.open();
+      channel.enqueue({ event: event('1') });
+      channel.enqueue({ event: event('2') });
+      expect(res.write).toHaveBeenCalledTimes(1);
+
+      channel.end();
+
+      expect(res.end).not.toHaveBeenCalled();
+      res.emitDrain();
+      expect(res.write.mock.calls).toEqual([
+        ['id: 1\nevent: data\ndata: {"opaqueCursor":"1","kind":"data"}\n\n'],
+        ['id: 2\nevent: data\ndata: {"opaqueCursor":"2","kind":"data"}\n\n'],
+      ]);
+      expect(res.end).toHaveBeenCalledOnce();
+      expect(channel.isClosed()).toBe(true);
+    });
+
     it('is idempotent and safe to call multiple times', () => {
       const res = makeRes();
       const channel = createSseChannel<TestEvent>({ res: asResponse(res) });

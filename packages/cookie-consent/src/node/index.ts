@@ -48,6 +48,13 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
   assertLimits({ maximumRecords, retentionMs });
   const writes = new Map<string, Promise<void>>();
   const inventories = new Map<string, Map<string, number>>();
+  /** Keep active-file removal and publication in the same directory queue so scans cannot race unlink.
+   * Operation failures propagate and invalidate only that directory's inventory. @complexity O(1) queue overhead. */
+  async function serialize({ directory, operation }: { directory: string; operation: () => Promise<void> }, _options = {}): Promise<void> {
+    const pending = (writes.get(directory) ?? Promise.resolve()).catch(() => undefined).then(operation);
+    writes.set(directory, pending);
+    try { await pending; } catch (error) { inventories.delete(directory); throw error; } finally { if (writes.get(directory) === pending) writes.delete(directory); }
+  }
   /** Serialize capacity checks/publication in this adapter. The host selects proof retention;
    * cookie expiry is not a legal proof-erasure policy. This bounded default is configurable,
    * and capacity eviction may shorten it; hosts needing longer proof retention must size accordingly.
@@ -82,20 +89,23 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
     }
   }
   return {
-    async retire({ filePath }) {
-      const text = await this.readText({ filePath });
-      if (text === null) return;
-      // Publish the archive durably before unlinking the active receipt. A crash can only leave
-      // the old choice active before the replacement save has been acknowledged to the visitor.
-      const archived = path.join(path.dirname(filePath), 'retired', path.basename(filePath));
-      if (await this.readText({ filePath: archived }) === null) await this.writeJson({ filePath: archived, record: JSON.parse(text) as ConsentRecord });
-      try { await filesystem.unlink(filePath); }
-      catch (error) { if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) throw error; }
-      inventories.delete(path.dirname(filePath));
-      if (platform !== 'win32') {
-        const directory = await filesystem.open(path.dirname(filePath), 'r');
-        try { await directory.sync(); } finally { await directory.close(); }
-      }
+    async retire({ filePath }, _options = {}) {
+      const directoryPath = path.dirname(filePath);
+      await serialize({ directory: directoryPath, operation: async () => {
+        const text = await this.readText({ filePath });
+        if (text === null) return;
+        // Publish the archive durably before unlinking the active receipt. A crash can only leave
+        // the old choice active before the replacement save has been acknowledged to the visitor.
+        const archived = path.join(directoryPath, 'retired', path.basename(filePath));
+        if (await this.readText({ filePath: archived }) === null) await this.writeJson({ filePath: archived, record: JSON.parse(text) as ConsentRecord });
+        try { await filesystem.unlink(filePath); }
+        catch (error) { if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) throw error; }
+        inventories.get(directoryPath)?.delete(path.basename(filePath));
+        if (platform !== 'win32') {
+          const directory = await filesystem.open(directoryPath, 'r');
+          try { await directory.sync(); } finally { await directory.close(); }
+        }
+      } });
     },
     async readText({ filePath }) {
       try {
@@ -110,9 +120,9 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
         throw error;
       }
     },
-    async writeJson({ filePath, record }) {
+    async writeJson({ filePath, record }, _options = {}) {
       const directoryPath = path.dirname(filePath);
-      const pending = (writes.get(directoryPath) ?? Promise.resolve()).catch(() => undefined).then(async () => {
+      await serialize({ directory: directoryPath, operation: async () => {
         if (JSON.stringify(record).length > 4096) throw new Error('Consent receipt exceeds 4096 bytes.');
         const retained = await inventory({ directory: directoryPath });
         if (retained.has(path.basename(filePath))) throw new Error('Consent receipt ID already exists.');
@@ -127,9 +137,7 @@ export function createNodeConsentFiles({ atomicWrite }: { atomicWrite: ConsentAt
             try { await directory.sync(); } finally { await directory.close(); }
           }
         } finally { await filesystem.unlink(staging); }
-      });
-      writes.set(directoryPath, pending);
-      try { await pending; } catch (error) { inventories.delete(directoryPath); throw error; } finally { if (writes.get(directoryPath) === pending) writes.delete(directoryPath); }
+      } });
     },
   };
 }

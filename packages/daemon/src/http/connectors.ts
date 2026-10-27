@@ -19,7 +19,8 @@
  * **SEC-005 throughout**: every provider call is wrapped so a raw storage/SQL/JWT/WebSocket error
  * never reaches the HTTP caller verbatim — matching `media.ts`/`delegated-tools.ts`'s
  * `reportInternalError` precedent exactly (a correlation-id-bearing generic `INTERNAL_ERROR`, the
- * real error only reaching a host-owned sink).
+ * real error only reaching a host-owned sink). Explicit `ClientFacingError` rejections retain
+ * their caller-safe API error without triggering that sink.
  *
  * **`NOT_CONFIGURED` (503)**: every route's very first check is whether its one required
  * capability slot (`deps.auth`/`deps.storage`/`deps.db`/`deps.realtime`) is even
@@ -46,7 +47,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
+import { ClientFacingError, defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
@@ -139,16 +140,21 @@ function notConfiguredError(capability: string): ReturnType<typeof createApiErro
   return createApiError({ code: 'NOT_CONFIGURED', message: `${capability} provider not configured` });
 }
 
-/** Runs one provider call, converting any thrown error into a redacted, correlation-id-bearing `INTERNAL_ERROR` (SEC-005) instead of letting it reach the HTTP caller verbatim. */
+/** Runs one provider call, preserving explicit caller-safe rejections and converting unexpected
+ * errors into a redacted, correlation-id-bearing `INTERNAL_ERROR` (SEC-005). */
 async function guardedCall<T>(
-  deps: ConnectorsHttpDeps,
-  source: ConnectorsInternalErrorContext['source'],
-  operation: string,
-  fn: () => Promise<T>,
+  { deps, source, operation, fn }: {
+    deps: ConnectorsHttpDeps;
+    source: ConnectorsInternalErrorContext['source'];
+    operation: string;
+    fn: () => Promise<T>;
+  },
+  _optional: Record<string, never> = {},
 ): Promise<Result<T>> {
   try {
     return ok({ value: await fn() });
   } catch (error) {
+    if (error instanceof ClientFacingError) return err({ error: error.apiError });
     const correlationId = randomUUID();
     const sink = deps.onInternalError ?? defaultInternalErrorSink;
     sink({ source, operation, correlationId, error });
@@ -208,7 +214,7 @@ export interface ConnectorsOkResponse {
 export const connectorsAuthSignUpRoute = defineJsonRoute<AuthCredentials, ConnectorsAuthUserResponse, ConnectorsHttpDeps>({
   method: 'post', path: '/api/connectors/auth/signup', parse: parseAuthCredentials, handle: async ({ input: credentials, deps }) => {
     if (!deps.auth) return err({ error: notConfiguredError('auth') });
-    const result = await guardedCall(deps, 'auth', 'signUp', () => deps.auth!.signUp(credentials));
+    const result = await guardedCall({ deps, source: 'auth', operation: 'signUp', fn: () => deps.auth!.signUp(credentials) });
     return result.ok ? ok({ value: { user: result.value } }) : result;
   }
 }, { requireSameOrigin: true, successStatus: 201 });
@@ -216,7 +222,7 @@ export const connectorsAuthSignUpRoute = defineJsonRoute<AuthCredentials, Connec
 export const connectorsAuthSignInRoute = defineJsonRoute<AuthCredentials, ConnectorsAuthSessionResponse, ConnectorsHttpDeps>({
   method: 'post', path: '/api/connectors/auth/signin', parse: parseAuthCredentials, handle: async ({ input: credentials, deps }) => {
     if (!deps.auth) return err({ error: notConfiguredError('auth') });
-    const result = await guardedCall(deps, 'auth', 'signIn', () => deps.auth!.signIn(credentials));
+    const result = await guardedCall({ deps, source: 'auth', operation: 'signIn', fn: () => deps.auth!.signIn(credentials) });
     return result.ok ? ok({ value: { session: result.value } }) : result;
   }
 }, { requireSameOrigin: true });
@@ -224,7 +230,7 @@ export const connectorsAuthSignInRoute = defineJsonRoute<AuthCredentials, Connec
 export const connectorsAuthSignOutRoute = defineJsonRoute<string, ConnectorsOkResponse, ConnectorsHttpDeps>({
   method: 'post', path: '/api/connectors/auth/signout', parse: parseAuthToken, handle: async ({ input: token, deps }) => {
     if (!deps.auth) return err({ error: notConfiguredError('auth') });
-    const result = await guardedCall(deps, 'auth', 'signOut', () => deps.auth!.signOut({ token }));
+    const result = await guardedCall({ deps, source: 'auth', operation: 'signOut', fn: () => deps.auth!.signOut({ token }) });
     return result.ok ? ok({ value: { ok: true } }) : result;
   }
 }, { requireSameOrigin: true });
@@ -232,7 +238,7 @@ export const connectorsAuthSignOutRoute = defineJsonRoute<string, ConnectorsOkRe
 export const connectorsAuthSessionRoute = defineJsonRoute<string, ConnectorsAuthVerifyResponse, ConnectorsHttpDeps>({
   method: 'post', path: '/api/connectors/auth/session', parse: parseAuthToken, handle: async ({ input: token, deps }) => {
     if (!deps.auth) return err({ error: notConfiguredError('auth') });
-    const result = await guardedCall(deps, 'auth', 'verifySession', () => deps.auth!.verifySession({ token }));
+    const result = await guardedCall({ deps, source: 'auth', operation: 'verifySession', fn: () => deps.auth!.verifySession({ token }) });
     return result.ok ? ok({ value: { user: result.value } }) : result;
   }
 }, { requireSameOrigin: true });
@@ -306,9 +312,9 @@ export const connectorsStoragePutRoute = defineJsonRoute<StoragePutRequest, Conn
   method: 'put', path: '/api/connectors/storage/:key', parse: parseStoragePut, handle: async ({ input: { key, dataBase64, contentType }, deps }) => {
     if (!deps.storage) return err({ error: notConfiguredError('storage') });
     const options: StoragePutOptions | undefined = contentType !== undefined ? { contentType } : undefined;
-    const result = await guardedCall(deps, 'storage', 'put', () =>
+    const result = await guardedCall({ deps, source: 'storage', operation: 'put', fn: () =>
       deps.storage!.put({ key, data: Buffer.from(dataBase64, 'base64') }, options),
-    );
+    });
     return result.ok ? ok({ value: { object: result.value } }) : result;
   }
 }, { requireSameOrigin: true });
@@ -316,7 +322,7 @@ export const connectorsStoragePutRoute = defineJsonRoute<StoragePutRequest, Conn
 export const connectorsStorageGetRoute = defineJsonRoute<string, ConnectorsStorageGetResponse, ConnectorsHttpDeps>({
   method: 'get', path: '/api/connectors/storage/:key', parse: parseStorageKey, handle: async ({ input: key, deps }) => {
     if (!deps.storage) return err({ error: notConfiguredError('storage') });
-    const result = await guardedCall(deps, 'storage', 'get', () => deps.storage!.get({ key }));
+    const result = await guardedCall({ deps, source: 'storage', operation: 'get', fn: () => deps.storage!.get({ key }) });
     if (!result.ok) return result;
     if (result.value === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: 'storage object not found' }) });
     return ok({ value: { dataBase64: Buffer.from(result.value).toString('base64') } });
@@ -326,7 +332,7 @@ export const connectorsStorageGetRoute = defineJsonRoute<string, ConnectorsStora
 export const connectorsStorageDeleteRoute = defineJsonRoute<string, ConnectorsOkResponse, ConnectorsHttpDeps>({
   method: 'delete', path: '/api/connectors/storage/:key', parse: parseStorageKey, handle: async ({ input: key, deps }) => {
     if (!deps.storage) return err({ error: notConfiguredError('storage') });
-    const result = await guardedCall(deps, 'storage', 'delete', () => deps.storage!.delete({ key }));
+    const result = await guardedCall({ deps, source: 'storage', operation: 'delete', fn: () => deps.storage!.delete({ key }) });
     return result.ok ? ok({ value: { ok: true } }) : result;
   }
 }, { requireSameOrigin: true });
@@ -334,7 +340,7 @@ export const connectorsStorageDeleteRoute = defineJsonRoute<string, ConnectorsOk
 export const connectorsStorageListRoute = defineJsonRoute<string | undefined, ConnectorsStorageListResponse, ConnectorsHttpDeps>({
   method: 'get', path: '/api/connectors/storage', parse: parseStorageListQuery, handle: async ({ input: prefix, deps }) => {
     if (!deps.storage) return err({ error: notConfiguredError('storage') });
-    const result = await guardedCall(deps, 'storage', 'list', () => deps.storage!.list({}, { prefix }));
+    const result = await guardedCall({ deps, source: 'storage', operation: 'list', fn: () => deps.storage!.list({}, { prefix }) });
     return result.ok ? ok({ value: { objects: result.value } }) : result;
   }
 });
@@ -421,7 +427,7 @@ export interface ConnectorsDbQueryResponse {
 export const connectorsDbInsertRoute = defineJsonRoute<DbInsertRequest, ConnectorsDbRecordResponse, ConnectorsHttpDeps>({
   method: 'post', path: '/api/connectors/db/:collection', parse: parseDbInsert, handle: async ({ input: { collection, record }, deps }) => {
     if (!deps.db) return err({ error: notConfiguredError('db') });
-    const result = await guardedCall(deps, 'db', 'insert', () => deps.db!.insert({ collection, record }));
+    const result = await guardedCall({ deps, source: 'db', operation: 'insert', fn: () => deps.db!.insert({ collection, record }) });
     return result.ok ? ok({ value: { record: result.value } }) : result;
   }
 }, { requireSameOrigin: true, successStatus: 201 });
@@ -429,7 +435,7 @@ export const connectorsDbInsertRoute = defineJsonRoute<DbInsertRequest, Connecto
 export const connectorsDbGetRoute = defineJsonRoute<DbCollectionIdParams, ConnectorsDbRecordResponse, ConnectorsHttpDeps>({
   method: 'get', path: '/api/connectors/db/:collection/:id', parse: parseDbCollectionId, handle: async ({ input: { collection, id }, deps }) => {
     if (!deps.db) return err({ error: notConfiguredError('db') });
-    const result = await guardedCall(deps, 'db', 'get', () => deps.db!.get({ collection, id }));
+    const result = await guardedCall({ deps, source: 'db', operation: 'get', fn: () => deps.db!.get({ collection, id }) });
     if (!result.ok) return result;
     if (result.value === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: 'record not found' }) });
     return ok({ value: { record: result.value } });
@@ -439,7 +445,7 @@ export const connectorsDbGetRoute = defineJsonRoute<DbCollectionIdParams, Connec
 export const connectorsDbUpdateRoute = defineJsonRoute<DbUpdateRequest, ConnectorsDbRecordResponse, ConnectorsHttpDeps>({
   method: 'patch', path: '/api/connectors/db/:collection/:id', parse: parseDbUpdate, handle: async ({ input: { collection, id, patch }, deps }) => {
     if (!deps.db) return err({ error: notConfiguredError('db') });
-    const result = await guardedCall(deps, 'db', 'update', () => deps.db!.update({ collection, id, patch }));
+    const result = await guardedCall({ deps, source: 'db', operation: 'update', fn: () => deps.db!.update({ collection, id, patch }) });
     if (!result.ok) return result;
     if (result.value === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: 'record not found' }) });
     return ok({ value: { record: result.value } });
@@ -449,7 +455,7 @@ export const connectorsDbUpdateRoute = defineJsonRoute<DbUpdateRequest, Connecto
 export const connectorsDbDeleteRoute = defineJsonRoute<DbCollectionIdParams, ConnectorsOkResponse, ConnectorsHttpDeps>({
   method: 'delete', path: '/api/connectors/db/:collection/:id', parse: parseDbCollectionId, handle: async ({ input: { collection, id }, deps }) => {
     if (!deps.db) return err({ error: notConfiguredError('db') });
-    const result = await guardedCall(deps, 'db', 'delete', () => deps.db!.delete({ collection, id }));
+    const result = await guardedCall({ deps, source: 'db', operation: 'delete', fn: () => deps.db!.delete({ collection, id }) });
     return result.ok ? ok({ value: { ok: true } }) : result;
   }
 }, { requireSameOrigin: true });
@@ -457,7 +463,7 @@ export const connectorsDbDeleteRoute = defineJsonRoute<DbCollectionIdParams, Con
 export const connectorsDbQueryRoute = defineJsonRoute<DbQueryRequest, ConnectorsDbQueryResponse, ConnectorsHttpDeps>({
   method: 'get', path: '/api/connectors/db/:collection', parse: parseDbQueryRequest, handle: async ({ input: { collection, query }, deps }) => {
     if (!deps.db) return err({ error: notConfiguredError('db') });
-    const result = await guardedCall(deps, 'db', 'query', () => deps.db!.query({ collection }, query));
+    const result = await guardedCall({ deps, source: 'db', operation: 'query', fn: () => deps.db!.query({ collection }, query) });
     return result.ok ? ok({ value: { records: result.value } }) : result;
   }
 });
@@ -492,7 +498,7 @@ function parseRealtimePublish(input: RouteInputContext): Result<RealtimePublishR
 export const connectorsRealtimePublishRoute = defineJsonRoute<RealtimePublishRequest, ConnectorsOkResponse, ConnectorsHttpDeps>({
   method: 'post', path: '/api/connectors/realtime/:channel/publish', parse: parseRealtimePublish, handle: async ({ input: { channel, event }, deps }) => {
     if (!deps.realtime) return err({ error: notConfiguredError('realtime') });
-    const result = await guardedCall(deps, 'realtime', 'publish', () => deps.realtime!.publish({ channel, event }));
+    const result = await guardedCall({ deps, source: 'realtime', operation: 'publish', fn: () => deps.realtime!.publish({ channel, event }) });
     return result.ok ? ok({ value: { ok: true } }) : result;
   }
 }, { requireSameOrigin: true });

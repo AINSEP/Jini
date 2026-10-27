@@ -10,7 +10,7 @@
  * caller-supplied readiness probe until it reports ready — racing the
  * child's own exit so a sidecar that crashes at startup fails fast instead
  * of hanging out the full timeout — then, on shutdown, ask the child to
- * stop gracefully with a caller-supplied request and fall back to a signal
+ * stop gracefully with a caller-supplied request (or SIGTERM by default) and fall back to a signal
  * kill if it doesn't exit in time. This file rebuilds exactly that,
  * transport-agnostic (the probe/shutdown-request functions are the
  * caller's business, not a specific IPC wire format this package invents).
@@ -130,13 +130,17 @@ async function waitUntilReady<T>(
   }
 }
 
-async function shutdownChild(child: ChildProcess, options: SidecarShutdownOptions = {}): Promise<void> {
+/** Use the host's shutdown request or SIGTERM, then bound the wait before SIGKILL. */
+async function shutdownChild({ child }: { child: ChildProcess }, options: SidecarShutdownOptions = {}): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return;
   if (options.requestShutdown != null) {
     try {
       await options.requestShutdown();
     } catch {
       // Fall through to process-level termination below.
     }
+  } else {
+    child.kill('SIGTERM');
   }
   const gracefulTimeoutMs = options.gracefulTimeoutMs ?? DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS;
   if (await waitForProcessExit(child, gracefulTimeoutMs)) return;
@@ -181,7 +185,7 @@ export function createNodeSidecarLauncher(_requiredArgs: Record<string, never>):
         waitUntilReady: (requiredArgs, optionalArgs = {}) => waitUntilReady(child, options.logPath ?? null, { ...optionalArgs, ...requiredArgs }),
         async shutdown(_requiredArgs, shutdownOptions) {
           try {
-            await shutdownChild(child, shutdownOptions);
+            await shutdownChild({ child }, shutdownOptions);
           } finally {
             await logHandle?.close().catch(() => undefined);
           }

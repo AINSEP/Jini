@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isLocalSameOrigin } from '@jini-ai/core';
+import { ClientFacingError } from '@jini-ai/http-kit';
 import {
   type AuthCredentials,
   type AuthProvider,
@@ -139,6 +140,26 @@ describe('auth routes', () => {
     const auth = makeAuthProvider();
     const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'secret' }, deps: makeDeps({ auth }) });
     expect(result).toEqual({ ok: true, value: { session: fakeSession } });
+  });
+
+  it('P3: a caller-safe credential rejection returns 401 without an internal-error alert', async () => {
+    // Reuse the HTTP kit's explicit safe-error contract; an ordinary provider exception must
+    // still be redacted by the separate SEC-005 test below.
+    const rejection = new ClientFacingError({ apiError: { code: 'UNAUTHORIZED', message: 'invalid email or password' } });
+    const auth = makeAuthProvider({ signIn: vi.fn(async () => { throw rejection; }) });
+    const onInternalError = vi.fn();
+    const app = makeApp();
+    registerConnectorsRoutes({ app: app as any, deps: makeDeps({ auth, onInternalError }), adapter: { ...adapter, onInternalError } });
+    const res = makeRes();
+
+    await app.handlers['POST /api/connectors/auth/signin']!({
+      body: { email: 'a@example.com', password: 'wrong-password' }, query: {}, params: {},
+    }, res);
+
+    expect(auth.signIn).toHaveBeenCalledWith({ email: 'a@example.com', password: 'wrong-password' });
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'UNAUTHORIZED', message: 'invalid email or password' } });
+    expect(onInternalError).not.toHaveBeenCalled();
   });
 
   it('signout: happy path returns ok:true', async () => {

@@ -96,6 +96,27 @@ describe('region-based first consent screen', () => {
 });
 
 describe('delivered HTML consent boundary', () => {
+  it('C7: gates SVG script URLs and foreign template children and preserves nested marketing restrictions', async () => {
+    const html = gateConsentHtml({ html: '<!doctype html><html><head></head><body><svg><script href="https://tags.example/href.js"></script><script xlink:href="https://tags.example/xlink.js"></script><template><image href="https://tags.example/pixel.png"></image></template></svg><math><template><mglyph src="https://tags.example/math.png"></mglyph></template></math></body></html>', config, record: null, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+    // These are live foreign elements, unlike the contents of an HTML template.
+    const parsed = new JSDOM(html);
+    try {
+      expect.soft(parsed.window.document.querySelectorAll('svg > script')).toHaveLength(0);
+      expect.soft(parsed.window.document.querySelector('svg template image')).toBeNull();
+      expect.soft(parsed.window.document.querySelector('math template mglyph')).toBeNull();
+    } finally { parsed.window.close(); }
+
+    const record = { ...accepted, choices: { necessary: true, functional: true, analytics: false, marketing: false } };
+    const nested = gateConsentHtml({ html: '<!doctype html><html><head></head><body><section data-consent-category="functional"><iframe data-consent-category="marketing" src="/marketing-frame"></iframe></section></body></html>', config, record, gpc: false, regionMode: 'opt-in', endpoint: '/api/site-consent' });
+    // Same-origin fetching is permitted by the CSP, so the gate must enforce the inner label.
+    const { dom, requests, runtimeErrors } = await browser(nested);
+    try {
+      expect(runtimeErrors).toEqual([]);
+      expect.soft(requests).toEqual([]);
+      expect.soft(dom.window.document.querySelector('iframe')).toBeNull();
+    } finally { dom.window.close(); }
+  });
+
   it('leaves disabled HTML byte-identical and safely gates every optional/unknown script', () => {
     expect(gateConsentHtml({ html: page, config: { ...config, enabled: false }, record: null, gpc: false, regionMode: 'opt-out', endpoint: '/api/site-consent' })).toBe(page);
     const html = gate();
@@ -706,6 +727,36 @@ describe('review regressions: withdrawal reconciliation', () => {
     const form = dom.window.document.querySelector('#jini-consent form');
     form.dispatchEvent(new dom.window.SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: form.querySelector(`button[value=${action}]`) }));
   }
+  it('P6: a cleared parent-domain withdrawal cannot hide first consent after the receipt expires', async () => {
+    const cookieJar = new CookieJar();
+    const value = encodeURIComponent('functional=0&analytics=0&marketing=0');
+    cookieJar.setCookieSync(`jini_consent_withdrawal=${value}; Domain=site.example; Path=/; Secure`, 'https://evil.site.example/');
+    const posted: string[] = [];
+    const fetch: FetchStub = async (_url, options) => {
+      posted.push(options.body.toString());
+      return { ok: true, json: async () => ({ record: accepted, signals: {} }) };
+    };
+    const first = await browser(gate(accepted), false, { cookieJar, fetch });
+    try {
+      submit(first.dom, 'accept');
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(posted).toEqual(['policyVersion=1&gpc=0&action=accept']);
+      expect(first.reloads).toHaveLength(1);
+      expect(first.runtimeErrors).toEqual([]);
+      expect(cookieJar.getCookiesSync('https://site.example/').some((cookie: { key: string }) => cookie.key === 'jini_consent_withdrawal')).toBe(true);
+    } finally { first.dom.window.close(); }
+
+    // The durable receipt is now absent/expired, while both withdrawal cookie scopes survive.
+    const next = await browser(gate(null), false, { cookieJar, fetch });
+    try {
+      expect(next.runtimeErrors).toEqual([]);
+      expect(posted).toHaveLength(1);
+      expect.soft(next.dom.window.jiniConsent.hasChoice).toBe(false);
+      expect.soft(next.dom.window.document.querySelector('#jini-consent').dataset.hasRecord).toBe('false');
+      expect.soft(next.dom.window.document.documentElement.classList.contains('jini-consent-has-choice')).toBe(false);
+    } finally { next.dom.window.close(); }
+  });
+
   it('restores floating UI from a failed first choice marker while preserving native preferences reopening', async () => {
     const cookieJar = new CookieJar();
     marker(cookieJar, { functional: '0', analytics: '0', marketing: '0' });

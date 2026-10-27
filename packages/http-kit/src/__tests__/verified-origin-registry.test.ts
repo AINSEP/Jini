@@ -279,6 +279,19 @@ test("redirect and egress allowlists require exact hosts, rejecting suffix and s
   }
 });
 
+test("P13: redirect and egress allowlists match Unicode hosts to their equivalent ASCII URL host", async () => {
+  const registry = makeRegistry({ redirectAllowlist: ["bücher.example"], egressAllowlist: ["bücher.example"] });
+  const target = { context: { workspaceId: WORKSPACE }, url: "https://xn--bcher-kva.example/path" };
+
+  assert.deepEqual(
+    await Promise.all([
+      registry.isAllowedRedirectTarget(target),
+      registry.isAllowedEgressTarget(target),
+    ]),
+    [true, true],
+  );
+});
+
 test("redirect and egress fail closed when their allowlist lookup rejects", async () => {
   const repo = new InMemoryOriginSettingRepo({ seeds: [{
     workspaceId: WORKSPACE,

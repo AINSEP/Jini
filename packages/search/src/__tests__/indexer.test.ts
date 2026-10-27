@@ -482,6 +482,26 @@ describe('createSearchIndexer — backfill', () => {
     expect(targets.current.building).toEqual(BUILDING);
   });
 
+  it('C5: keeps the live index when every write in a rebuild fails', async () => {
+    const vendor = makeProvider({ id: 'vendor' });
+    const builtin = makeProvider({ id: 'builtin' });
+    const { indexer, source, state, targets } = setup({ providers: [vendor, builtin] });
+    source.records.set('a', record('a', 1));
+    await indexer.handleEvent({ event: event('a') });
+    expect(state.row(ACTIVE, key('a'))?.status).toBe('indexed');
+
+    await indexer.startRebuild({ siteId: SITE, workspaceId: WS, providerId: 'builtin' });
+    builtin.next('upsert', async () => providerRejected({ code: 'unauthorized', message: 'bad key' }));
+    const result = await indexer.backfill({ siteId: SITE, workspaceId: WS });
+
+    expect(await state.counts({ target: BUILDING })).toEqual({ pending: 0, indexed: 0, unknown: 0, failed: 1 });
+    expect(result).toEqual({ done: true, written: 1, promoted: false });
+    expect(await targets.get({ siteId: SITE })).toEqual({ active: ACTIVE, building: BUILDING });
+    expect(state.row(ACTIVE, key('a'))?.status).toBe('indexed');
+    expect(state.deleted).toEqual([]);
+    expect(vendor.calls.filter(c => c.method === 'dropIndex')).toEqual([]);
+  });
+
   it('reports promoted:false when the CAS loses (someone else moved the pointer)', async () => {
     const builtin = makeProvider({ id: 'builtin' });
     const vendor = makeProvider({ id: 'vendor' });

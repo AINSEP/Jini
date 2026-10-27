@@ -82,6 +82,17 @@ function stripTrailingDot(host: string): string {
   return host.endsWith(".") ? host.slice(0, -1) : host;
 }
 
+/** Normalize a bare allowlisted host through the candidate's WHATWG/IDNA policy.
+ * URL delimiters and ports are not host entries; colons are valid only inside bracketed IPv6.
+ * Returns null for invalid entries; pure, O(host.length) time and space.
+ */
+function normalizeAllowlistedHost({ host }: { host: string }, _optional: Record<string, never> = {}): string | null {
+  const value = host.trim();
+  if (/[/\\?#@%]/u.test(value)) return null;
+  if (value.includes(":") && !value.endsWith("]")) return null;
+  return normalizeOriginCandidate({ rawUrl: `https://${value}` })?.host ?? null;
+}
+
 function effectivePort(origin: Pick<VerifiedOrigin, "scheme" | "port">): number {
   return origin.port ?? (origin.scheme === "https" ? 443 : 80);
 }
@@ -162,7 +173,7 @@ export class OriginRegistry implements OriginRegistryPort {
       if (target.scheme !== "https") return false;
 
       const allowlist = await loadAllowlist(ctx.workspaceId);
-      const allowSet = new Set(allowlist.map((host) => stripTrailingDot(host.trim().toLowerCase())));
+      const allowSet = new Set(allowlist.map((host) => normalizeAllowlistedHost({ host })));
       return allowSet.has(target.host);
     } catch {
       // Fail closed: an unverified origin, a repo error, or any unexpected

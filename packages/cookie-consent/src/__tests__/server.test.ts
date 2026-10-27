@@ -118,6 +118,12 @@ describe('readConsent', () => {
   const stored = (over: object = {}) => `jini_choices=${encodeURIComponent(JSON.stringify({ v: 1, p: 'p1', c: { functional: true, analytics: true, marketing: true }, t: NOW, a: 'accept', r: 'receipt-0000000001', ...over }))}`;
   const read = (cookieHeader: string | null, optional = {}) => readConsent({ cookieHeader, policy: 'p1', regionMode: 'auto' }, { nowMs: NOW, ...optional });
 
+  test('C18: a segment without an equals sign cannot shadow a valid consent cookie', () => {
+    expect(read(`jini_choicesX; ${stored()}`)).toMatchObject({
+      status: 'set', action: 'accept', receipt: 'stored', allowed: { analytics: true },
+    });
+  });
+
   test('a receipted grant is allowed; an unconfirmed one is not', () => {
     expect(read(stored()).allowed.analytics).toBe(true);
     expect(read(stored({ r: undefined, q: 1 })).allowed.analytics).toBe(false);

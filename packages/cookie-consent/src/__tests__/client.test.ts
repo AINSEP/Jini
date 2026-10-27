@@ -70,6 +70,54 @@ describe('returning visitors from the old engine', () => {
 });
 
 describe('grant and withdraw', () => {
+  test('C9: re-granted storage survives late revoke and unpersisted choices survive confirmation', async () => {
+    const page = new JSDOM('', { url: 'https://site.example/' });
+    let finishRevoke!: (clean: boolean) => void;
+    const revoking = new Promise<boolean>(resolve => { finishRevoke = resolve; });
+    const revoke = vi.fn(() => revoking);
+    let grants = 0;
+    const ports = makePorts({ doc: page.window.document });
+    const api = createCookieConsent({ config: config(), ports });
+    api.plugins.registerPlugin(adapter({
+      storage: { cookies: ['_stats_'], local: ['_stats_'] },
+      grant: vi.fn(() => {
+        grants++;
+        ports.doc.cookie = `_stats_id=${grants}; Path=/`;
+        page.window.localStorage.setItem('_stats_queue', String(grants));
+        return { revoke };
+      }),
+    }) as never);
+    try {
+      await api.set({ action: 'accept' });
+      await flush();
+      await api.set({ action: 'withdraw' });
+      await flush();
+      expect(revoke).toHaveBeenCalledTimes(1);                // old cleanup is waiting at its gate
+      await api.set({ action: 'accept' });
+      await flush();
+      expect(grants).toBe(2);
+      expect(page.window.localStorage.getItem('_stats_queue')).toBe('2');
+      finishRevoke(true);
+      await flush();
+      expect.soft(page.window.localStorage.getItem('_stats_queue')).toBe('2');
+      expect.soft(ports.doc.cookie).toContain('_stats_id=2');
+      expect(api.get().allowed.analytics).toBe(true);
+      expect(ports.reload).not.toHaveBeenCalled();
+
+      // A mismatched cookie domain refuses persistence without throwing. A confirmed choice
+      // must still be usable in this tab; an absent cookie is not a newer cross-tab choice.
+      ports.doc.cookie = `${CONSENT_COOKIE}=; Path=/; Max-Age=0`;
+      const blocked = createCookieConsent({ config: config({ cookieDomain: 'elsewhere.example' }), ports }, { evidence: DURABLE });
+      await blocked.set({ action: 'accept' });
+      await flush();
+      expect(ports.doc.cookie).not.toContain(`${CONSENT_COOKIE}=`);
+      expect.soft(blocked.get()).toMatchObject({ status: 'set', action: 'accept', receipt: 'stored', analyticsLevel: 'full' });
+    } finally {
+      finishRevoke(true);
+      page.window.close();
+    }
+  });
+
   test('accept runs a live adapter; reject is applied before any await and needs no reload', async () => {
     const ports = makePorts();
     const api = createCookieConsent({ config: config(), ports });

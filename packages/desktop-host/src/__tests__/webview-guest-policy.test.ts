@@ -39,6 +39,30 @@ test("Node stays off and context isolation stays on, whatever the page asked for
   assert.equal(webPreferences.preload, PRELOAD);
 });
 
+test("C12: page-selected webview preferences cannot disable the guest security boundary", () => {
+  const webPreferences = {
+    preload: "/evil.js",
+    nodeIntegration: true,
+    contextIsolation: false,
+    sandbox: false,
+    webSecurity: false,
+    allowRunningInsecureContent: true,
+    nodeIntegrationInSubFrames: true,
+    experimentalFeatures: true,
+  };
+  applyGuestWebPreferences({ webPreferences, preloadPath: PRELOAD });
+  assert.deepEqual(webPreferences, {
+    preload: PRELOAD,
+    nodeIntegration: false,
+    contextIsolation: true,
+    sandbox: true,
+    webSecurity: true,
+    allowRunningInsecureContent: false,
+    nodeIntegrationInSubFrames: false,
+    experimentalFeatures: false,
+  });
+});
+
 
 test("a missing preload path throws rather than silently producing a guest with no voice API", () => {
   // @ts-expect-error -- no preloadPath: the type rejects it, and this asserts the runtime does too.

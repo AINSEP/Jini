@@ -46,6 +46,11 @@ describe('renderConsentHead origin contract', () => {
 });
 
 describe('cssRequestsRemote escapes and @import preludes', () => {
+  it('C8: a closing parenthesis inside an image-set comment cannot conceal its remote candidate', () => {
+    const css = 'a{background:image-set(/* "/a.png") */ "https://tags.example/pixel.png" 1x)}';
+    expect(cssRequestsRemote({ css })).toBe(true);
+  });
+
   it('decodes an escaped line continuation, so a split @import is still seen', () => {
     expect(cssRequestsRemote({ css: '@im\\\nport "https://t.example/a.css";' })).toBe(true);
     expect(cssRequestsRemote({ css: '@im\\\nport "/local.css";' })).toBe(false);

@@ -55,6 +55,7 @@ import {
   removeUnadoptedUploads,
   reserveAttachmentRecords,
   sanitizeAttachmentName,
+  stageAttachmentClaim,
   verifyClaimedAttachments,
   writeBoundedAttachmentBody,
   type AttachmentRecord,
@@ -1041,6 +1042,63 @@ describe('createDiskAttachmentStore', () => {
   // that, per `image-prompt-delivery.ts`'s path-only prompt narration, can still use it), and it must
   // refuse a different run's claim rather than silently handing back someone else's file.
   describe('resolveForRun', () => {
+    it('resolves the exact site-staged path to the original verified bytes for the claiming run', async () => {
+      const { store } = await diskStore();
+      const site = await tempDirectory();
+      const { attachment, filePath } = await stage(store, 'batch-rfr-staged', 'a.txt', 'original');
+      const claim = await store.claim({ attachments: [attachment], runId: 'run-A' });
+      const staged = await stageAttachmentClaim({ claim, filesystemRoot: site });
+      cleanups.push(staged.cleanup);
+      const ref = staged.claim.attachments[0]!.path;
+
+      expect(ref).not.toBe(filePath);
+      await writeFile(ref, 'changed staged copy');
+      await expect(store.resolveForRun({ ref, runId: 'run-A' })).resolves.toEqual({
+        path: filePath, name: 'a.txt', kind: 'file', size: 8,
+      });
+      await expect(readFile(filePath, 'utf8')).resolves.toBe('original');
+      await expect(store.resolveForRun({ ref, runId: 'run-B' })).rejects.toMatchObject({
+        reason: 'attachment-unknown-or-claimed',
+      });
+      await expect(store.resolveForRun({ ref: `${staged.claim.batchDirectory}/../a.txt`, runId: 'run-A' }))
+        .resolves.toBeUndefined();
+      await expect(store.resolveForRun({ ref: resolve(site, 'a.txt'), runId: 'run-A' })).resolves.toBeUndefined();
+
+      await staged.cleanup();
+      await expect(store.resolveForRun({ ref, runId: 'run-A' })).resolves.toBeUndefined();
+      await expect(store.resolveForRun({ ref: attachment.path, runId: 'run-A' })).resolves.toMatchObject({ path: filePath });
+    });
+
+    it('rechecks original integrity and forgets staged aliases when the run is cleaned up', async () => {
+      const { store } = await diskStore();
+      const { attachment, filePath } = await stage(store, 'batch-rfr-staged-2', 'b.txt', 'original');
+      const claim = await store.claim({ attachments: [attachment], runId: 'run-A' });
+      const staged = await stageAttachmentClaim({ claim, filesystemRoot: await tempDirectory() });
+      cleanups.push(staged.cleanup);
+      const ref = staged.claim.attachments[0]!.path;
+
+      await expect(store.resolveForRun({ ref, runId: 'run-A' })).resolves.toMatchObject({ path: filePath });
+      await appendFile(filePath, 'changed');
+      await expect(store.resolveForRun({ ref, runId: 'run-A' })).rejects.toMatchObject({ reason: 'attachment-integrity' });
+      await store.cleanupRun({ runId: 'run-A' });
+      await expect(store.resolveForRun({ ref, runId: 'run-A' })).resolves.toBeUndefined();
+    });
+
+    it('does not resolve a staged path in another store with the same run and filename', async () => {
+      const first = await diskStore();
+      const second = await diskStore();
+      const firstUpload = await stage(first.store, 'batch-rfr-isolation', 'same.txt', 'first');
+      const secondUpload = await stage(second.store, 'batch-rfr-isolation', 'same.txt', 'second');
+      const claim = await first.store.claim({ attachments: [firstUpload.attachment], runId: 'run-A' });
+      await second.store.claim({ attachments: [secondUpload.attachment], runId: 'run-A' });
+      const staged = await stageAttachmentClaim({ claim, filesystemRoot: await tempDirectory() });
+      cleanups.push(staged.cleanup);
+      const ref = staged.claim.attachments[0]!.path;
+
+      await expect(first.store.resolveForRun({ ref, runId: 'run-A' })).resolves.toMatchObject({ path: firstUpload.filePath });
+      await expect(second.store.resolveForRun({ ref, runId: 'run-A' })).resolves.toBeUndefined();
+    });
+
     it('claims an unclaimed attachment for the given run, by its opaque id', async () => {
       const { store } = await diskStore();
       const { attachment, filePath } = await stage(store, 'batch-rfr-01', 'a.txt', 'contents');
@@ -2227,6 +2285,82 @@ async function spiedStore(): Promise<{ root: string; store: AttachmentStore & {
 }
 
 describe('handleAttachmentUpload', () => {
+  it('recovers when another upload tidies the shared batch before this upload opens its file', async () => {
+    const { store } = await spiedStore();
+    const createBatchDirectory = store.createBatchDirectory.getMockImplementation()!;
+    let resumeUpload!: () => void;
+    const paused = new Promise<void>((resolvePaused) => { resumeUpload = resolvePaused; });
+    let announceDirectory!: (directory: string) => void;
+    const directoryReady = new Promise<string>((resolveReady) => { announceDirectory = resolveReady; });
+    store.createBatchDirectory.mockImplementationOnce(async (...args) => {
+      const directory = await createBatchDirectory(...args);
+      announceDirectory(directory);
+      await paused;
+      return directory;
+    });
+    const deleteUnclaimed = store.deleteUnclaimed.getMockImplementation()!;
+    let announceCleanup!: () => void;
+    const cleanupFinished = new Promise<void>((resolveCleanup) => { announceCleanup = resolveCleanup; });
+    store.deleteUnclaimed.mockImplementationOnce(async (...args) => {
+      await deleteUnclaimed(...args);
+      announceCleanup();
+    });
+    const state = { activeUploads: 0 };
+    const url = await directUploadHarness({ deps: { store }, state });
+    const pendingUpload = upload(url, { batch: 'batch-race-open', name: 'kept.txt', body: 'kept' });
+    let response!: Response;
+    try {
+      const directory = await directoryReady;
+      const emptyUpload = await upload(url, { batch: 'batch-race-open', name: 'empty.txt', body: '' });
+      expect(emptyUpload.status).toBe(400);
+      await cleanupFinished;
+      await expect(stat(directory)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      resumeUpload();
+      response = await pendingUpload;
+    }
+    expect(response.status).toBe(201);
+    const { attachment } = await response.json() as { attachment: StoredAttachment };
+    const claim = await store.claim({ attachments: [attachment], runId: 'run-race' });
+    await expect(readFile(claim.attachments[0]!.path, 'utf8')).resolves.toBe('kept');
+    expect(state.activeUploads).toBe(0);
+  });
+
+  it('retries a batch removed before chmod without consuming or duplicating the upload body', async () => {
+    const { store } = await spiedStore();
+    store.createBatchDirectory.mockRejectedValueOnce(Object.assign(new Error('batch removed before chmod'), { code: 'ENOENT' }));
+    const state = { activeUploads: 0 };
+    const url = await directUploadHarness({ deps: { store }, state });
+
+    const response = await upload(url, { batch: 'batch-race-chmod', name: 'kept.txt', body: 'whole body' });
+
+    expect(response.status).toBe(201);
+    expect(store.createBatchDirectory).toHaveBeenCalledTimes(2);
+    const { attachment } = await response.json() as { attachment: StoredAttachment };
+    const claim = await store.claim({ attachments: [attachment], runId: 'run-chmod' });
+    await expect(readFile(claim.attachments[0]!.path, 'utf8')).resolves.toBe('whole body');
+    expect(state.activeUploads).toBe(0);
+  });
+
+  it.each([{ code: 'ENOENT', attempts: 2 }, { code: 'EACCES', attempts: 1 }])(
+    'bounds preparation attempts for $code and releases the upload slot',
+    async ({ code, attempts }) => {
+      const { store } = await spiedStore();
+      store.createBatchDirectory.mockRejectedValue(Object.assign(new Error('preparation failed'), { code }));
+      const onInternalError = vi.fn();
+      const state = { activeUploads: 0 };
+      const url = await directUploadHarness({ deps: { store, onInternalError }, state });
+
+      const response = await upload(url, { batch: 'batch-race-failure', name: 'a.txt', body: 'body' });
+
+      expect(response.status).toBe(500);
+      expect(store.createBatchDirectory).toHaveBeenCalledTimes(attempts);
+      expect(store.register).not.toHaveBeenCalled();
+      expect(onInternalError).toHaveBeenCalledTimes(1);
+      expect(state.activeUploads).toBe(0);
+    },
+  );
+
   it('serves an upload while one slot under the default cap of 4 is free, and releases its slot', async () => {
     const { store } = await spiedStore();
     const state = { activeUploads: 3 };

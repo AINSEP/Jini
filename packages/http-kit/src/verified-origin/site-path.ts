@@ -112,17 +112,23 @@ function resolveDotSegments(path: string): string {
  * relative to a real origin, etc. are exactly what `new URL()` already did before that caller
  * reaches this. Do not export this directly.
  *
- * Order is load-bearing: decode ONCE, then resolve dot segments, then compare the first segment
- * case-folded. Decoding first is what catches `/%61dmin` (over-refusal for Express and browsers, a
- * real match for a decoding proxy — see the module doc); resolving dot segments after the decode is
+ * Check the undecoded first segment too: Express mounts `/admin/..%2fpublic` under `/admin`,
+ * even though decoding and resolving dot segments produces `/public`.
+ * Order is load-bearing for the decoded check: decode ONCE, then resolve dot segments, then compare
+ * the first segment case-folded. Decoding first is what catches `/%61dmin` (over-refusal for Express
+ * and browsers, a real match for a decoding proxy — see the module doc); resolving dot segments after the decode is
  * what catches `/blog/%2e%2e/admin`. Exactly one decode pass models one decoding intermediary:
  * `/%2561dmin` would need two, so it stays allowed.
  *
- * @param pathname - An already-parsed `URL`'s `.pathname` (no query, no fragment).
+ * @param required.pathname - An already-parsed `URL`'s `.pathname` (no query, no fragment).
+ * @param required.reservedSegments - First segments reserved by the host, stored case-folded.
  * @returns `{ kind: "ok" }` when it is ordinary site content; otherwise the arm naming the refusal.
  * @complexity O(n) in the pathname length.
  */
-function checkDecodedSitePathname(pathname: string, reservedSegments: ReadonlySet<string>): SitePathCheck {
+function checkDecodedSitePathname(
+  { pathname, reservedSegments }: { pathname: string; reservedSegments: ReadonlySet<string> },
+  _optional: Record<string, never> = {},
+): SitePathCheck {
   let decoded: string;
   try {
     decoded = decodeURIComponent(pathname);
@@ -130,6 +136,9 @@ function checkDecodedSitePathname(pathname: string, reservedSegments: ReadonlySe
     return { kind: "malformed-encoding" };
   }
   if (decoded.includes("\\") || hasControlCharacter({ value: decoded }, {})) return { kind: "disallowed-character" };
+
+  const rawFirst = pathname.slice(1).split("/", 1).join("").toLowerCase();
+  if (reservedSegments.has(rawFirst)) return { kind: "reserved", surface: rawFirst };
 
   // `resolveDotSegments` always returns a path with a leading "/", so the first segment is
   // everything after it up to the next "/" — `split(..., 1)` yields exactly that one element.
@@ -167,7 +176,7 @@ export function checkSitePathname(
   { url, reservedSegments }: { url: URL; reservedSegments: ReadonlySet<string> },
   _optional: Record<string, never> = {},
 ): SitePathCheck {
-  return checkDecodedSitePathname(url.pathname, reservedSegments);
+  return checkDecodedSitePathname({ pathname: url.pathname, reservedSegments }, {});
 }
 
 /**

@@ -4,6 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawn: mocks.spawn }));
 import { createNodeSidecarLauncher } from '../sidecar.js';
+import { createTauriSidecarLauncher } from '../tauri/tauri-sidecar.js';
+import { createFakeTauriSidecarCommandApi } from '../tauri/testing.js';
 
 async function launch() {
   const child = Object.assign(new EventEmitter(), { pid: 123, exitCode: null, signalCode: null, kill: vi.fn() });
@@ -18,6 +20,56 @@ async function launch() {
 afterEach(() => {
   vi.useRealTimers();
   mocks.spawn.mockReset();
+});
+
+it('C11: sidecars receive SIGTERM and Tauri remembers prior exits for readiness and shutdown', async () => {
+  vi.useFakeTimers();
+  const { child, handle } = await launch();
+  child.kill.mockImplementation((signal: NodeJS.Signals) => {
+    queueMicrotask(() => {
+      Object.assign(child, { signalCode: signal });
+      child.emit('exit', null, signal);
+    });
+    return true;
+  });
+  const nodeShutdown = handle.shutdown({}, { gracefulTimeoutMs: 20 });
+  await vi.advanceTimersByTimeAsync(50);
+  await nodeShutdown;
+  expect.soft(child.kill.mock.calls).toEqual([['SIGTERM']]);
+
+  const api = createFakeTauriSidecarCommandApi({});
+  const tauri = await createTauriSidecarLauncher({ api }).launch({ command: 'fixture' });
+  const signals: Array<NodeJS.Signals | null> = [];
+  tauri.process.onExit({ listener: ({ signal }) => signals.push(signal) });
+  const tauriShutdown = tauri.shutdown({}, { gracefulTimeoutMs: 20 });
+  await vi.advanceTimersByTimeAsync(50);
+  await tauriShutdown;
+  expect.soft(signals).toEqual(['SIGTERM']);
+
+  // Deliver the one-shot exit before waitUntilReady can subscribe to it.
+  const crashedApi = createFakeTauriSidecarCommandApi({}, { exitImmediatelyWithCode: 7 });
+  const crashed = await createTauriSidecarLauncher({ api: crashedApi }).launch({ command: 'fixture' });
+  const exited = new Promise<void>(resolve => crashed.process.onExit({ listener: () => resolve() }));
+  await vi.advanceTimersByTimeAsync(0);
+  await exited;
+  // Tauri polls with node:timers/promises; use its real clock and a short deadline.
+  vi.useRealTimers();
+  await expect.soft(crashed.waitUntilReady({
+    probe: async () => false,
+    isReady: ({ status }) => status,
+  }, { pollIntervalMs: 1, timeoutMs: 20 })).rejects.toThrow(
+    'sidecar exited before reporting ready (code=7, signal=none)',
+  );
+
+  vi.useFakeTimers();
+  let shutdownComplete = false;
+  const crashedShutdown = crashed.shutdown({}, { gracefulTimeoutMs: 20 }).then(() => {
+    shutdownComplete = true;
+  });
+  await vi.advanceTimersByTimeAsync(0);
+  expect.soft(shutdownComplete).toBe(true);
+  await vi.advanceTimersByTimeAsync(50);
+  await crashedShutdown;
 });
 
 it('rejects a hanging probe at the readiness deadline and removes the exit listener', async () => {

@@ -291,13 +291,15 @@ export function createSearchIndexer(required: SearchIndexerRequired, optional: S
   };
 
   /**
-   * Flip building→active once nothing is in flight. `failed` rows do not block: they would block
-   * forever, and reconcile keeps retrying them against the new active target. The old generation
-   * served queries until this atomic flip, so it is dropped only after it.
+   * Flip building→active once nothing is in flight. Partial `failed` rows do not block: they would
+   * block forever, and reconcile keeps retrying them against the new active target. If every write
+   * failed, keep the old generation serving queries until a retry succeeds. It is dropped only
+   * after the atomic flip.
    */
   const promote = async (siteId: string, workspaceId: string, target: SearchTarget): Promise<boolean> => {
     const counts = await state.counts({ target });
     if (counts.pending + counts.unknown > 0) return false;
+    if (counts.indexed === 0 && counts.failed > 0) return false;
     const flipped = await targets.promote({ siteId, expected: target });
     if (flipped === false) return false;
     await dropRetired(siteId, workspaceId);
