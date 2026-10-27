@@ -9,6 +9,7 @@ export class WorkspaceMismatchError extends Error {
 // API key acts for a delegating user. Reject mismatches before a caller persists the row.
 // This helper performs no I/O or foreign-key checks: dependent domains own read-time orphan
 // tolerance and reconciliation, rather than making identity population depend on storage.
+// A delegator is optional, but its composite reference must be complete when supplied.
 export function appendActorReference(
   required: {
     referencingRowWorkspaceId: string;
@@ -28,6 +29,11 @@ export function appendActorReference(
   if (actorWorkspaceId !== referencingRowWorkspaceId) {
     throw new WorkspaceMismatchError({
       message: `actor workspace '${actorWorkspaceId}' does not match referencing row workspace '${referencingRowWorkspaceId}'`
+    });
+  }
+  if ((delegatedByWorkspaceId == null) !== (delegatedById == null)) {
+    throw new WorkspaceMismatchError({
+      message: 'delegator workspace and id must be provided together'
     });
   }
   if (delegatedByWorkspaceId != null && delegatedByWorkspaceId !== referencingRowWorkspaceId) {

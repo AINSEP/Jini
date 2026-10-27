@@ -24,6 +24,29 @@ const discover = (dir: string, versions?: ReadonlyMap<string, string>) =>
   discoverPlugins({ ...manifestHost, tierPolicy, builtIns: [], installDir: dir }, versions ? { versions } : {});
 
 describe('site discovery edges', () => {
+  it('C24: a stray copy cannot invalidate the plugin whose id its manifest claims', async () => {
+    const dir = await installDir();
+    await put(dir, 'seo', '1.0.0');
+    await put(dir, 'seo-bak', '1.0.0', JSON.stringify(manifest('seo', '1.0.0')));
+
+    const records = await discover(dir);
+    expect(records.map(({ id, status, manifest: validated }) => ({ id, status, hasManifest: validated !== undefined }))).toEqual([
+      { id: 'seo', status: 'valid', hasManifest: true },
+      { id: 'seo-bak', status: 'invalid', hasManifest: false },
+    ]);
+    expect(records[0]!.errors).toEqual([]);
+  });
+
+  it('C25: a manifest version must match its installed version folder', async () => {
+    const dir = await installDir();
+    await put(dir, 'demo', '2.0.0', JSON.stringify(manifest('demo', '1.0.0')));
+
+    const [record] = await discover(dir);
+    expect(record!.status).toBe('invalid');
+    expect(record!.errors.length).toBeGreaterThan(0);
+    expect(record!.manifest).toBeUndefined();
+  });
+
   it('propagates an unreadable install folder, but treats a missing one as empty', async () => {
     const dir = await installDir();
     expect(await discover(dir)).toEqual([]);

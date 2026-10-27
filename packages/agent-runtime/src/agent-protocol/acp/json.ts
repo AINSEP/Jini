@@ -24,7 +24,7 @@ export function errorMessage(err: unknown): string {
 }
 /**
  * Resolves the effective ACP timeout from an environment variable, falling
- * back to `fallbackMs` when the variable is absent or non-finite. Clamps the
+ * back to `fallbackMs` when the variable is absent, blank, or non-finite. Clamps the
  * result to `[0, MAX_TIMEOUT_MS]`.
  *
  * @param env - The process environment object to read the timeout var from.
@@ -40,7 +40,9 @@ export function resolveAcpTimeoutMs(
   fallbackMs: number,
   envVarName: string = DEFAULT_ACP_TIMEOUT_ENV_VAR,
 ): number {
-  const raw = Number(env[envVarName]);
+  const value = env[envVarName];
+  if (!value?.trim()) return fallbackMs;
+  const raw = Number(value);
   if (!Number.isFinite(raw)) return fallbackMs;
   return Math.min(MAX_TIMEOUT_MS, Math.max(0, Math.floor(raw)));
 }
@@ -53,7 +55,7 @@ export function resolveAcpTimeoutMs(
  * @returns The value cast as `UnknownRecord`, or `null` when the cast is unsafe.
  */
 export function asObject(value: unknown): UnknownRecord | null {
-  return value && typeof value === 'object' ? value as UnknownRecord : null;
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as UnknownRecord : null;
 }
 /**
  * Returns a short diagnostic string describing the JSON kind of `value`:

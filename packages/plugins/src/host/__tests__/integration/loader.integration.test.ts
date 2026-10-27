@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -80,6 +80,26 @@ function coreDeps(overrides: Partial<CapabilityScopedSdkCoreDeps> = {}): Capabil
 function definedPluginModule(setup: (sdk: PluginSdk) => void | Promise<void> = () => {}): unknown {
   return { default: { definition: { setup } } };
 }
+
+test("C27: a snapshot package-safety rejection is reported as INTEGRITY_FAILED", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "plugin-loader-snapshot-unsafe-"));
+  try {
+    const contents = "export default { definition: { setup() {} } };\n";
+    const entryPath = await writeFixtureEntry(dir, contents);
+    // Digest verification still succeeds, but the real snapshot owner rejects hard links.
+    await link(entryPath, path.join(dir, "entry-alias.mjs"));
+    const result = await loadPlugin({
+      record: record(),
+      manifest: manifest({ integrity: { "server/index.mjs": sha256(contents) } }),
+      entryPath,
+      coreDeps: coreDeps(),
+    }, { runtimeSdkVersion: "1.0.0" });
+
+    assert.deepEqual(result, { loaded: false, reason: "INTEGRITY_FAILED" });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("CIC U-001-ORD1 (ESCALATE_SECURITY): a tampered plugin's code is NEVER import()-ed — integrity is checked before step (3)", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "tovu-loader-tampered-"));

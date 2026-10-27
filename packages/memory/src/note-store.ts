@@ -300,6 +300,29 @@ export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOpti
   assertSafeSubdir(subdir);
   const events = new EventEmitter();
   events.setMaxListeners(64);
+  const mutationTails = new Map<string, Promise<void>>();
+
+  /**
+   * Serialize public mutations per directory in this store so index/config
+   * read-modify-writes cannot lose updates. Internal calls stay unqueued to
+   * avoid waiting on their own mutation. Rejections reach the caller without
+   * poisoning later work; settled directories release their queue state.
+   * O(1) scheduling per mutation, excluding the operation and path length.
+   */
+  function serializeMutation<T>({ dataDir, operation }: {
+    dataDir: string;
+    operation: () => Promise<T>;
+  }, _optional: Record<string, never> = {}): Promise<T> {
+    const key = path.resolve(dir({ dataDir }));
+    const previous = mutationTails.get(key) ?? Promise.resolve();
+    const result = previous.then(operation);
+    const tail = result.then(() => undefined, () => undefined);
+    mutationTails.set(key, tail);
+    void tail.then(() => {
+      if (mutationTails.get(key) === tail) mutationTails.delete(key);
+    });
+    return result;
+  }
 
   async function ensureDir(dirPath: string): Promise<void> {
     await fsp.mkdir(dirPath, { recursive: true });
@@ -711,15 +734,15 @@ export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOpti
     dir,
     deriveId,
     readConfig,
-    writeConfig,
+    writeConfig: (required, _optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => writeConfig(required) }),
     readIndex,
-    writeIndex,
+    writeIndex: (required, optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => writeIndex(required, optional) }),
     listEntries,
     listActiveEntries,
     readEntry,
-    upsertEntry,
-    deleteEntry,
-    updateTreeNode,
+    upsertEntry: (required, optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => upsertEntry(required, optional) }),
+    deleteEntry: (required, _optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => deleteEntry(required) }),
+    updateTreeNode: (required, _optional = {}) => serializeMutation({ dataDir: required.dataDir, operation: () => updateTreeNode(required) }),
     buildTree,
   };
 }

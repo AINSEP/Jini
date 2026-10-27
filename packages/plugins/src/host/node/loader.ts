@@ -18,6 +18,7 @@
  * without depending on real module resolution (CIC Verification Surface Rule).
  */
 import { PluginSnapshotIntegrityError } from "./module-snapshot.js";
+import { PluginInstallError } from "./install.js";
 import path from "node:path";
 import { admitBrowserProviderAssets } from "./browser-provider-assets.js";
 import { isPluginRelativePath, type AdmittedBrowserProvider } from "../browser-providers.js";
@@ -159,10 +160,11 @@ function isExecutionAdmitted(required: { tierPolicy: PluginTierPolicy; record: P
   return !(manifest.tier === "tier-2" && tierPolicy.execution !== "worker") && tierPolicy.allowLoad({ record, manifest });
 }
 
-/** Step (3): the only place plugin code is ever evaluated. */
+/** Step (3): the only place plugin code is ever evaluated. Snapshot safety refusals use the
+ * installer's typed error and are integrity failures, just like retained-byte mismatches. */
 async function importPluginModule(required: {
   importModule: PluginModuleImportPort; record: PluginDiscoveryRecord; pluginRoot: string; entryPath: string;
-}): Promise<{ moduleValue: unknown } | { reason: PluginLoadFailureReason }> {
+}, _optional: Record<string, never> = {}): Promise<{ moduleValue: unknown } | { reason: PluginLoadFailureReason }> {
   try {
     // Same-version replacement must evaluate the reviewed package again. Build this URL only at
     // step (3), after integrity and SDK compatibility have passed (CIC U-001 order unchanged).
@@ -173,6 +175,8 @@ async function importPluginModule(required: {
     return { moduleValue: { default: imported.exported } };
   } catch (error) {
     if (error instanceof PluginSnapshotIntegrityError) return { reason: "INTEGRITY_FAILED" };
+    if (error instanceof PluginInstallError &&
+        (error.code === "PLUGIN_PACKAGE_UNSAFE" || error.code === "PLUGIN_PACKAGE_TOO_LARGE")) return { reason: "INTEGRITY_FAILED" };
     return { reason: "CODE_ENTRY_MISSING" };
   }
 }

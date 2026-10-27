@@ -126,6 +126,13 @@ describe('createDsmlArtifactTextSuppressor', () => {
 });
 
 describe('createToolCallTextSuppressor', () => {
+  it('C41: preserves comparison prose containing a tool_call identifier', () => {
+    const s = createToolCallTextSuppressor();
+    const text = s.strip('x < tool_call.count && y > 0') + s.strip('; keep this explanation') + s.flush();
+    expect(text).toBe('x < tool_call.count && y > 0; keep this explanation');
+    expect(s.isSuppressing()).toBe(false);
+  });
+
   it('suppresses a <tool_call>...</tool_call> block', () => {
     const s = createToolCallTextSuppressor();
     expect(s.strip('a <tool_call>hidden</tool_call> b')).toBe('a  b');

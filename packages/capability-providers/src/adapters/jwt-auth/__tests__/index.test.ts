@@ -17,6 +17,19 @@ function craftToken(payloadRaw: string, secret: string, signatureOverride?: Buff
 }
 
 describe('JwtAuthProvider', () => {
+  it('C66: keeps a session valid just before its advertised expiry at a fractional second', async () => {
+    let clock = 1_000_999;
+    const auth = new JwtAuthProvider({ secret: 'test-secret' }, { sessionTtlMs: 1000, now: () => clock });
+    const credentials = { email: 'ada@example.com', password: 'hunter2' };
+    const user = await auth.signUp(credentials);
+    const session = await auth.signIn(credentials);
+
+    expect(session.expiresAt).toBe(1_001_999);
+    clock = session.expiresAt - 1;
+
+    expect(await auth.verifySession({ token: session.token })).toEqual(user);
+  });
+
   it('throws at construction when secret is empty', () => {
     expect(() => new JwtAuthProvider({ secret: '' }, {})).toThrow(/secret/);
   });

@@ -36,6 +36,7 @@
  * `resolveDaemonUrl` throws, and this file's own top-level error boundary turns that into a clean
  * stderr message + non-zero exit rather than an unhandled rejection.
  */
+import { existsSync, realpathSync } from 'node:fs';
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { createCheckMessagesTool, messageRelayInstructions, type McpMessageRelay } from '../server/message-relay.js';
@@ -318,7 +319,9 @@ async function resolveStartupTools({ toolIds, resolveBaseUrl, serverOptions }: {
 // Only run for real when this module is the actual process entrypoint (`node dist/bin/serve.js`,
 // or the `jini-mcp` bin shim pnpm/npm links to it) — not merely imported, e.g. by this file's own
 // tests importing the named `serve` export above. Mirrors the CLI entry point's identical guard.
-const isMainModule = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
+// Canonical paths recognize npm bin symlinks; a missing argv path is an unrelated import.
+const isMainModule = process.argv[1] !== undefined && existsSync(process.argv[1])
+  && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
 if (isMainModule) {
   await serve({});
 }

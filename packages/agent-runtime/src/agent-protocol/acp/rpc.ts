@@ -55,7 +55,7 @@ export function rpcErrorMessage(raw: unknown): string {
     return '';
   }
   const message =
-    typeof error.message === 'string'
+    typeof error.message === 'string' && error.message.trim()
       ? error.message
       : typeof error.code === 'number'
         ? String(error.code)

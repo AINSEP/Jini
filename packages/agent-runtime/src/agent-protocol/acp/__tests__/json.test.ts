@@ -24,6 +24,12 @@ describe('errorMessage', () => {
 });
 
 describe('resolveAcpTimeoutMs', () => {
+  it('C35: uses the fallback timeout when the environment value is blank', () => {
+    const timeouts = ['', '   '].map((value) =>
+      resolveAcpTimeoutMs({ [DEFAULT_ACP_TIMEOUT_ENV_VAR]: value }, 5000));
+    expect(timeouts).toEqual([5000, 5000]);
+  });
+
   it('reads the default env var name when no override is given', () => {
     expect(resolveAcpTimeoutMs({ [DEFAULT_ACP_TIMEOUT_ENV_VAR]: '5000' }, 1000)).toBe(5000);
   });
@@ -63,8 +69,8 @@ describe('asObject', () => {
     expect(asObject(obj)).toBe(obj);
   });
 
-  it('returns non-null for arrays too (the guard only excludes null/non-object)', () => {
-    expect(asObject([1, 2])).toEqual([1, 2]);
+  it('C37: rejects arrays instead of treating them as object records', () => {
+    expect(asObject([1, 2])).toBeNull();
   });
 
   it('returns null for null, undefined, and primitives', () => {

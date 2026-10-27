@@ -101,6 +101,8 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     function failed(error: unknown): void {
       state.stopping = false;
       state.replaceAfterExit = false;
+      // A failed replacement must not suppress recovery from a later crash.
+      state.deliberate = false;
       if (current === state) reportFailure(`failed to stop daemon: ${String(error)}`);
     }
     try {

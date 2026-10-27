@@ -43,7 +43,7 @@ describe("one durable user config", () => {
       expect(workspace.config({}).databases).toBe("inSite");
       expect(fs.existsSync(workspace.config({}).appData)).toBe(false);
       workspace.updateConfig({ patch: { sitesHome: "~/saved", siteRoots: ["~/extra"], databases: "appData" } });
-      expect(f.make().config({})).toMatchObject({ sitesHome: path.join(f.root, "saved"), siteRoots: [path.join(f.root, "extra")], databases: "appData" });
+      expect(f.make().config({})).toMatchObject({ sitesHome: path.join(f.root, "saved"), siteRoots: [path.join(f.root, "repo", "sites"), path.join(f.root, "extra")], databases: "appData" });
       const override = f.make({ PROJECT_HOME: "~/env", PROJECT_ROOTS: "~/one, ~/two" });
       expect(override.config({})).toMatchObject({ sitesHome: path.join(f.root, "env"), siteRoots: [path.join(f.root, "one"), path.join(f.root, "two")], databases: "appData" });
       expect(() => override.setHome({ path: "/ignored" })).toThrow("PROJECT_HOME overrides this setting. Unset it before changing the directory home.");
@@ -60,7 +60,7 @@ describe("one durable user config", () => {
       fs.mkdirSync(path.join(f.root, "real", "nested"), { recursive: true }); fs.symlinkSync(path.join(f.root, "real"), path.join(f.root, "alias"));
       f.make().updateConfig({ patch: { siteRoots: ["~/real", "~/alias", "~/real/nested"], databases: "appData" } });
       const second = f.make(); second.setHome({ path: "~/new" });
-      expect(f.make().config({})).toMatchObject({ siteRoots: [path.join(f.root, "real"), path.join(f.root, "real", "nested")], databases: "appData", sitesHome: path.join(f.root, "new") });
+      expect(f.make().config({})).toMatchObject({ siteRoots: [path.join(f.root, "repo", "sites"), path.join(f.root, "real"), path.join(f.root, "real", "nested")], databases: "appData", sitesHome: path.join(f.root, "new") });
       const bytes = fs.readFileSync(second.config({}).configPath, "utf8");
       expect(() => second.updateConfig({ patch: { databases: "invalid" as "inSite" } })).toThrow('databases must be "inSite" or "appData".');
       expect(fs.readFileSync(second.config({}).configPath, "utf8")).toBe(bytes);
@@ -100,7 +100,7 @@ it('incremental root writers reread inside the settings lock and preserve siblin
     const first = f.make(), second = f.make(); second.config({});
     first.updateRoots({ add: ['~/one'] }); second.updateConfig({ patch: { databases: 'appData' } });
     second.updateRoots({ add: ['~/two', '~/one'] }); first.updateRoots({ remove: ['~/one'] });
-    expect(f.make().config({})).toMatchObject({ siteRoots: [path.join(f.root, 'two')], databases: 'appData' });
+    expect(f.make().config({})).toMatchObject({ siteRoots: [path.join(f.root, 'repo', 'sites'), path.join(f.root, 'two')], databases: 'appData' });
     const locked = f.make({ PROJECT_ROOTS: '~/env' });
     expect(() => locked.updateRoots({ add: ['~/three'] })).toThrow('PROJECT_ROOTS overrides this setting. Unset it before changing site roots.');
   } finally { f.cleanup(); }

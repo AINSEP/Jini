@@ -393,6 +393,27 @@ describe('createA2uiInterpreter — rapid-fire updates stay consistent', () => {
 });
 
 describe('createA2uiInterpreter — adversarial: deleteSurface mid-flight action', () => {
+  it('C44: an actionResponse replaces the data model at an empty root responsePath', () => {
+    const interpreter = freshInterpreter();
+    expect(interpreter.applyAgentMessage({ raw: createSurfaceMsg('s1', {
+      dataModel: { old: true },
+      components: [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'confirm', wantResponse: true, responsePath: '' } } },
+        { id: 'label', component: 'Text', text: 'Go' },
+      ],
+    }) })).toEqual({ rendererMessages: [] });
+
+    const built = interpreter.buildAction({ surfaceId: 's1', componentId: 'root' });
+    if (!built.ok || built.kind !== 'agent') throw new Error('expected an agent action');
+    const actionId = (built.message as { action: { actionId?: string } }).action.actionId!;
+    expect(actionId).toBeTruthy();
+    expect(interpreter.applyAgentMessage({ raw: {
+      version: 'v1.0', actionId, actionResponse: { value: { answer: 'yes' } },
+    } })).toEqual({ rendererMessages: [] });
+
+    expect(interpreter.getSurface({ surfaceId: 's1' })?.dataModel).toEqual({ answer: 'yes' });
+  });
+
   it('a deleteSurface right after a wantResponse action was dispatched leaves a later actionResponse as a graceful no-op, not a crash', () => {
     const interpreter = freshInterpreter();
     interpreter.applyAgentMessage({ raw: createSurfaceMsg('s1') });

@@ -114,7 +114,8 @@ function hasRuleSubstring({ row, text, minimumLength }: {
 
 /**
  * A scorecard row covers a rule when the row shares enough signal with the
- * rule's name or check: a direct substring containment, or at least two
+ * rule's name or check: an exact name (including short names), a direct
+ * substring containment, or at least two
  * shared significant words (lenient on purpose — models paraphrase). This
  * per-pair test is intentionally fuzzy (see the module-level caveat on
  * `enforceVerify`'s unique row-consumption); it decides whether a
@@ -122,11 +123,15 @@ function hasRuleSubstring({ row, text, minimumLength }: {
  * unambiguous.
  * @internal
  */
-function rowCoversRule(rowText: string, rule: ActiveRuleForVerify): boolean {
+function rowCoversRule({ rowText, rule }: {
+  rowText: string;
+  rule: ActiveRuleForVerify;
+}, _optional: Record<string, never> = {}): boolean {
   const row = rowText.toLowerCase().trim();
   if (!row) return false;
   const name = rule.name.toLowerCase().trim();
   const check = (rule.check ?? '').toLowerCase().trim();
+  if (row === name) return true;
   if (hasRuleSubstring({ row, text: name, minimumLength: 5 })) return true;
   if (hasRuleSubstring({ row, text: check, minimumLength: 8 })) return true;
   const rowWords = significantWords(rowText);
@@ -148,7 +153,7 @@ function findUncoveredRules({ activeRules, rows }: {
   const usedRowIndices = new Set<number>();
   const uncoveredRules: string[] = [];
   for (const rule of activeRules) {
-    const index = rows.findIndex((row, i) => !usedRowIndices.has(i) && rowCoversRule(row.rule, rule));
+    const index = rows.findIndex((row, i) => !usedRowIndices.has(i) && rowCoversRule({ rowText: row.rule, rule }));
     if (index < 0) uncoveredRules.push(rule.name);
     else usedRowIndices.add(index);
   }

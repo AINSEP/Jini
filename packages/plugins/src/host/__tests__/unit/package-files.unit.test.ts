@@ -222,6 +222,34 @@ async function withFsPatch<K extends "open" | "readdir">(t: TestContext, key: K,
   try { await run(); } finally { spy.mock.restore(); syncBuiltinESMExports(); }
 }
 
+test("C26: a file growing beyond maxFileBytes after stat is omitted instead of returning a prefix", async (t) => {
+  const root = await tempRoot(t);
+  const file = path.join(root, "growing.txt");
+  await writeTree(root, { "growing.txt": "x" });
+  const originalOpen = fsPromises.open;
+  let grew = false;
+  await withFsPatch(t, "open", async (...args: Parameters<typeof fsPromises.open>) => {
+    const handle = await originalOpen(...args);
+    return new Proxy(handle, { get: (target, key) => {
+      if (key === "stat") return async () => {
+        const stats = await target.stat();
+        // Keep the observed one-byte size, then grow the real file before the read.
+        if (!grew) { await writeFile(file, "123456789"); grew = true; }
+        return stats;
+      };
+      const value = Reflect.get(target, key) as unknown;
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+  }, async () => {
+    const result = await readPluginPackageFiles({ input: { rootDir: root, containerDir: root } }, { limits: limits({ maxFileBytes: 8 }) });
+    assert.equal(grew, true, "fixture must grow the file between stat and read");
+    assert.deepEqual(result.files.map(({ relativePath, content, omitted }) => ({ relativePath, content, omitted })), [
+      { relativePath: "growing.txt", content: null, omitted: "too-large" },
+    ]);
+    assert.equal(result.truncated, false);
+  });
+});
+
 test("open faults: EMLINK reads as a symlink, anything else as unreadable", async (t) => {
   const root = await tempRoot(t);
   await writeTree(root, { "pkg/a.txt": "a", "pkg/b.txt": "b" });

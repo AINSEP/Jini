@@ -112,15 +112,21 @@ describe('retained host and capability policy', () => {
 });
 
 describe('storage object arguments preserve errors, defaults and handle ownership', () => {
-  it('keeps error names/messages, numeric-port fallback, and secure SSL fallback', () => {
+  it('keeps error names/messages and defaults, and rejects invalid Postgres configuration', () => {
     const error = new SqliteBackendConfigError({ message: 'configuration denied' });
     expect(error.name).toBe('SqliteBackendConfigError');
     expect(error.message).toBe('configuration denied');
     expect(resolveSqliteBackendConfig({}, { env: {} })).toEqual({ kind: 'sqlite' });
-    expect(resolveSqliteBackendConfig({}, { env: {
-      JINI_SQLITE_BACKEND: 'postgres', JINI_PG_HOST: 'h', JINI_PG_DATABASE: 'd',
-      JINI_PG_USER: 'u', JINI_PG_PORT: 'nonnumeric', JINI_PG_SSL_MODE: 'unknown',
-    } })).toEqual({ kind: 'postgres', postgres: { host: 'h', port: 5432, database: 'd', user: 'u', sslMode: 'require' } });
+    const env = {
+      JINI_SQLITE_BACKEND: 'postgres', JINI_PG_HOST: 'h', JINI_PG_DATABASE: 'd', JINI_PG_USER: 'u',
+    };
+    expect(resolveSqliteBackendConfig({}, { env })).toEqual({
+      kind: 'postgres', postgres: { host: 'h', port: 5432, database: 'd', user: 'u', sslMode: 'require' },
+    });
+    expect(() => resolveSqliteBackendConfig({}, { env: { ...env, JINI_PG_PORT: 'nonnumeric' } }))
+      .toThrow(SqliteBackendConfigError);
+    expect(() => resolveSqliteBackendConfig({}, { env: { ...env, JINI_PG_SSL_MODE: 'unknown' } }))
+      .toThrow(SqliteBackendConfigError);
   });
 
   it('requires an opener before making directories and preserves acquisition failures', () => {
@@ -173,9 +179,45 @@ describe('storage object arguments preserve errors, defaults and handle ownershi
       expect(getProject({ db, id: 'p' })).toBeNull();
     } finally { db.close(); }
   });
+
+  it('C29: undefined patch fields preserve existing project values in storage', () => {
+    const db = new Database(':memory:');
+    try {
+      migrate({ db });
+      insertProject({ db, project: {
+        id: 'p', name: 'Before', createdAt: 1, updatedAt: 2,
+        pendingPrompt: 'Continue', metadata: { theme: 'dark' }, customInstructions: 'Be brief',
+      } });
+
+      updateProject({ db, id: 'p', patch: {
+        name: 'After', pendingPrompt: undefined, metadata: undefined, customInstructions: undefined,
+      } }, { clock: { now: () => 77 } });
+
+      expect(getProject({ db, id: 'p' })).toEqual({
+        id: 'p', name: 'After', createdAt: 1, updatedAt: 77,
+        pendingPrompt: 'Continue', metadata: { theme: 'dark' }, customInstructions: 'Be brief',
+      });
+    } finally { db.close(); }
+  });
 });
 
 describe('awaiting input ranks form-bearing turns, not every assistant turn', () => {
+  it('C28: an answered question in another conversation does not hide outstanding project input', () => {
+    const db = new Database(':memory:');
+    try {
+      db.exec(`CREATE TABLE conversations (id TEXT, project_id TEXT);
+        CREATE TABLE messages (conversation_id TEXT, role TEXT, content TEXT, created_at INTEGER, position INTEGER);
+        INSERT INTO conversations VALUES ('c1', 'p'), ('c2', 'p');`);
+      const put = db.prepare('INSERT INTO messages VALUES (?, ?, ?, ?, ?)');
+      put.run('c1', 'assistant', '<question-form>First question</question-form>', 10, 1);
+      put.run('c2', 'assistant', '<question-form>Second question</question-form>', 20, 1);
+      put.run('c2', 'user', 'Second answer', 30, 2);
+
+      expect(listConversationsAwaitingInput({ db })).toEqual(new Set(['c1']));
+      expect(listProjectsAwaitingInput({ db })).toEqual(new Set(['p']));
+    } finally { db.close(); }
+  });
+
   for (const tag of ['question-form', 'ask-question']) {
     it(`keeps an unanswered ${tag} visible after a newer plain assistant turn, until the user replies`, () => {
       const db = new Database(':memory:');

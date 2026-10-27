@@ -423,7 +423,10 @@ async function swapVersion(required: { versionDir: string; liveVersion: string; 
 }
 
 /** Publishes the staged slot: a first install renames the whole slot, an upgrade swaps one version. */
-async function publishStaged(required: { live: string; staging: string; manifest: PluginManifest; versionAppend?: boolean | undefined }): Promise<void> {
+async function publishStaged(
+  required: { live: string; staging: string; manifest: PluginManifest; versionAppend?: boolean | undefined },
+  _optional: Record<string, never> = {},
+): Promise<void> {
   const { live, staging, manifest } = required;
   const stagedSlot = path.join(staging, "new");
   if (!(await exists(live))) { await rename(stagedSlot, live); return; }
@@ -431,6 +434,8 @@ async function publishStaged(required: { live: string; staging: string; manifest
   // Publish first, retire old versions second: discovery always sees a complete upgrade.
   if (required.versionAppend) return;
   for (const version of await readdir(live)) {
+    // Hidden slot metadata is not a version and must survive retirement, just as version readers preserve it.
+    if (version.startsWith('.')) continue;
     if (version !== manifest.version) await rm(path.join(live, version), { recursive: true, force: true });
   }
 }

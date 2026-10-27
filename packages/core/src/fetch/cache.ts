@@ -135,7 +135,7 @@ export class FetchQueryCache {
     const replacement = entry.replacement;
     const run = (): Promise<T> => {
       // A queued offline refresh may have been superseded before reconnection.
-      if (entry.pending !== pending) return (entry.pending ?? Promise.resolve(entry.state.data)) as Promise<T>;
+      if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
       this.publish(entry, { ...entry.state, isFetching: true });
       return fetch();
     };
@@ -151,7 +151,7 @@ export class FetchQueryCache {
     }).then(value => {
       // Only the current request may publish or clear invalidation. An older transport
       // need not support abort: its callers follow the replacement request instead.
-      if (entry.pending !== pending) return (entry.pending ?? entry.state.data) as Promise<T> | T;
+      if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
       // Arbitration and publication share this continuation: a microtask between them would
       // let an older result overwrite a replacement accepted after arbitration.
       if (replacement !== entry.replacement) {
@@ -163,7 +163,7 @@ export class FetchQueryCache {
       this.publish(entry, { data: value, error: null, status: 'success', isFetching: false });
       return value;
     }, error => {
-      if (entry.pending !== pending) return (entry.pending ?? entry.state.data) as Promise<T> | T;
+      if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
       // A replacement write is newer than this read's failure as well as its data.
       // Keep the write's timestamp and freshness; only settle the obsolete fetch flag.
       if (replacement !== entry.replacement) {
@@ -266,6 +266,13 @@ export class FetchQueryCache {
       // A paused request already owns its resumption; restarting it here would double-fetch.
       if (observer && !entry.pending) void this.load({ entry, fetch: observer.fetch, staleTime: observer.staleTime });
     }
+  }
+
+  /** Follow newer work, retaining cached data or propagating a failed cold replacement. */
+  private async supersedingResult<T>({ entry }: { entry: CacheEntry }, _options: Record<string, never> = {}): Promise<T> {
+    if (entry.pending) return entry.pending as Promise<T>;
+    if (entry.state.data === undefined && entry.state.error !== null) throw entry.state.error;
+    return entry.state.data as T;
   }
 
   private refresh(entry: CacheEntry): void {

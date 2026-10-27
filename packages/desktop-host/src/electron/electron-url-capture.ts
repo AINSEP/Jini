@@ -10,6 +10,7 @@ import type { ElectronBrowserWindowFactory, ElectronSessionLike, ElectronWebCont
 // render service/bridge in this process, without a per-site partition registry.
 const captureSlots = [false, false];
 const captureWaiters = new Set<(required: { slot: number }) => void>();
+const CAPTURE_CLEANUP_TIMEOUT_MS = 1_000;
 
 /** Lease a partition in arrival order, charging queued time to the caller's deadline.
  * Timed-out/aborted waiters are removed; a simultaneous handoff returns its lease.
@@ -67,7 +68,7 @@ export interface ElectronUrlCaptureOptions { allowedOrigins?: readonly string[];
 
 /** Capture a validated own-origin page, bounded in time, CSS pixels and encoded PNG bytes.
  * The host factory denies popups, downloads and permissions on the private session.
- * FIFO lease waiting, rendering and caller-visible cleanup share one capture deadline.
+ * FIFO lease waiting and rendering share one deadline; cleanup has its own bounded wait.
  * @throws RenderServiceError on refusal, timeout or native renderer failure.
  * @complexity O(pixels), capped at 1280×8000 CSS pixels and device scale 2.
  */
@@ -137,9 +138,10 @@ export async function captureElectronUrl(
     if (error instanceof RenderServiceError) throw error;
     throw new RenderServiceError({ code: 'load-failed', message: 'native page capture failed' });
   } finally {
-    // A stuck reset keeps its lease but must not hold the caller past the capture deadline.
+    // A stuck reset keeps its lease but must not hold the caller beyond the cleanup budget.
+    // Cleanup must not replace a completed capture or its original error near the render deadline.
     await withRenderTimeout({ promise: releaseCaptureSlot({ slot, session: captureSession, initialReset }) },
-      { timeoutMs: Math.max(0, deadline - Date.now()) });
+      { timeoutMs: CAPTURE_CLEANUP_TIMEOUT_MS }).catch(() => {});
   }
 }
 

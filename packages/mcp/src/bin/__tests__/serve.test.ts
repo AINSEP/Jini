@@ -1,3 +1,6 @@
+import { mkdtemp, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -347,6 +350,25 @@ describe('module top-level entrypoint guard', () => {
       delete process.env[RUN_ID_ENV_VAR];
     }
     vi.restoreAllMocks();
+  });
+
+  it('C20: reports missing run configuration when argv[1] is an npm-style jini-mcp bin symlink', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'jini-mcp-bin-'));
+    onTestFinished(() => rm(dir, { recursive: true, force: true }));
+    const modulePath = fileURLToPath(new URL('../serve.ts', import.meta.url));
+    const binPath = join(dir, 'jini-mcp');
+    await symlink(modulePath, binPath);
+    delete process.env[RUN_ID_ENV_VAR];
+    process.argv = ['node', binPath];
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    vi.resetModules();
+
+    // Exercise the real startup guard and early validation without starting stdio or HTTP.
+    await import('../serve.js');
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('missing required JINI_RUN_ID'));
   });
 
   it('runs serve() for real when process.argv[1] matches this module\'s own resolved path', async () => {

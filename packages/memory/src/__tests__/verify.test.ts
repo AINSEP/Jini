@@ -7,6 +7,22 @@ function extractorFor(scorecard: VerifyScorecard | null): (required: { output: s
 }
 
 describe('enforceVerify', () => {
+  it('C53: covers exact short rule names in passing scorecard rows', () => {
+    const result = enforceVerify({
+      assistantOutput: 'output',
+      activeRules: [{ name: 'Auth' }, { name: 'CORS' }, { name: 'TDD' }],
+      hadArtifact: true,
+      verifyEnabled: true,
+      extractScorecard: extractorFor({ rows: [
+        { rule: 'Auth', status: 'pass' },
+        { rule: 'CORS', status: 'pass' },
+        { rule: 'TDD', status: 'pass' },
+      ] }),
+    });
+
+    expect(result).toMatchObject({ status: 'pass', rulesCovered: 3, uncoveredRules: [], rowsTotal: 3, rowsFailed: 0 });
+  });
+
   it('skips with reason verify-disabled when the master switch is off', () => {
     const result = enforceVerify({
       assistantOutput: '',

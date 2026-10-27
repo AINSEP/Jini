@@ -70,15 +70,30 @@ describe('resolveSqliteBackendConfig', () => {
     expect(cfg.postgres?.sslMode).toBe('verify-full');
   });
 
-  it('falls back to a non-numeric port to 5432', () => {
-    const cfg = resolveSqliteBackendConfig({}, { env: {
+  it('C60: normalizes strict TLS configuration and rejects unknown SSL modes and invalid ports', () => {
+    const env = {
+      JINI_SQLITE_BACKEND: 'postgres',
+      JINI_PG_HOST: 'db.internal', JINI_PG_DATABASE: 'jini', JINI_PG_USER: 'jini_app',
+    };
+
+    for (const mode of ['VERIFY-FULL', 'verify-full ']) {
+      expect.soft(resolveSqliteBackendConfig({}, { env: { ...env, JINI_PG_SSL_MODE: mode } }).postgres?.sslMode)
+        .toBe('verify-full');
+    }
+    expect.soft(() => resolveSqliteBackendConfig({}, { env: { ...env, JINI_PG_SSL_MODE: 'verify_full' } }))
+      .toThrow(SqliteBackendConfigError);
+    expect.soft(() => resolveSqliteBackendConfig({}, { env: { ...env, JINI_PG_PORT: 'not-a-number' } }))
+      .toThrow(SqliteBackendConfigError);
+  });
+
+  it('rejects a non-numeric port with a typed configuration error', () => {
+    expect(() => resolveSqliteBackendConfig({}, { env: {
       JINI_SQLITE_BACKEND: 'postgres',
       JINI_PG_HOST: 'h',
       JINI_PG_PORT: 'not-a-number',
       JINI_PG_DATABASE: 'd',
       JINI_PG_USER: 'u',
-    } });
-    expect(cfg.postgres?.port).toBe(5432);
+    } })).toThrow(SqliteBackendConfigError);
   });
 
   it('throws when postgres is selected without a host', () => {

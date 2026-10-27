@@ -51,16 +51,19 @@ export function parseEntryFrontmatter({ raw }: { raw: string }): { data: EntryFr
 
 /**
  * Render an entry file: the three frontmatter fields (single-line-sanitized)
- * followed by the trimmed-leading-whitespace body.
+ * followed by the trimmed-leading-whitespace body, ending with a newline.
  *
  * @param fields - The frontmatter fields to write.
  * @param body - The markdown body.
  * @returns The full file contents, ready to write to disk.
  */
-export function renderEntryFrontmatter({ fields, body }: { fields: EntryFrontmatter; body: string }): string {
+export function renderEntryFrontmatter({ fields, body }: { fields: EntryFrontmatter; body: string }, _optional: Record<string, never> = {}): string {
   const safeName = fields.name.replace(/\r?\n/g, ' ').trim();
   const safeDescription = fields.description.replace(/\r?\n/g, ' ').trim();
   const safeType = fields.type.replace(/\r?\n/g, ' ').trim();
   const trimmedBody = body.replace(/^\s+/, '');
-  return `---\nname: ${safeName}\ndescription: ${safeDescription}\ntype: ${safeType}\n---\n\n${trimmedBody}\n`;
+  // Metadata-only edits feed the stored body back here; keep its existing
+  // newline rather than growing it on each render. Markdown spaces stay intact.
+  const ending = trimmedBody.endsWith('\n') ? '' : '\n';
+  return `---\nname: ${safeName}\ndescription: ${safeDescription}\ntype: ${safeType}\n---\n\n${trimmedBody}${ending}`;
 }

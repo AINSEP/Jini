@@ -55,6 +55,12 @@ describe('isJsonRpcId', () => {
 });
 
 describe('rpcErrorMessage', () => {
+  it('C36: returns a fallback for empty error messages with null or string ids', () => {
+    const messages = [null, 'request-1'].map((id) =>
+      rpcErrorMessage({ jsonrpc: '2.0', id, error: { code: -32000, message: '' } }));
+    expect(messages).toEqual(['-32000', '-32000']);
+  });
+
   it('returns "" for a non-object', () => {
     expect(rpcErrorMessage(null)).toBe('');
     expect(rpcErrorMessage('x')).toBe('');

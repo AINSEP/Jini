@@ -49,6 +49,40 @@ it('accepts the raw updater and stages only at the final quit with native boolea
   expect(vi.getTimerCount()).toBe(0);
 });
 
+it('P17: ignores a restart request while macOS is still staging an update', () => {
+  vi.useFakeTimers();
+  const native = nativeUpdater();
+  const host = setup(native.updater);
+  try {
+    native.downloaded('2');
+    expect(host.controller.beforeFinalQuit()).toBe(true);
+    expect(native.installs).toEqual([[false, false]]);
+
+    // Squirrel has not completed staging or initiated its own final quit.
+    host.controller.requestRestart();
+    expect(host.quits).toEqual([]);
+    expect(native.installs).toEqual([[false, false]]);
+    expect(native.updater.autoRunAppAfterInstall).toBe(false);
+  } finally {
+    host.controller.willQuit();
+  }
+});
+
+it('P18: releases the final quit immediately and cancels the fallback when installation throws synchronously', () => {
+  vi.useFakeTimers();
+  const native = nativeUpdater();
+  native.updater.quitAndInstall = () => { throw new Error('sync install'); };
+  const host = setup(native.updater);
+  try {
+    native.downloaded('2');
+    expect(host.controller.beforeFinalQuit()).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(host.logs).toContain('auto-update: sync install');
+  } finally {
+    host.controller.willQuit();
+  }
+});
+
 // REGRESSION: fails if timing defaults stop matching the reference desktop policy.
 it('defaults to 30s launch, 15m ticks and a 2m staging fallback', () => {
   const scheduled: Array<{ callback: () => void; ms: number }> = [];

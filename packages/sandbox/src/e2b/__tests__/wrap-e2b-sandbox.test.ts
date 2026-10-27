@@ -617,16 +617,26 @@ describe('wrapE2bSandbox', () => {
       vi.useRealTimers();
     });
 
-    it('resolves with the forwarded host once something answers', async () => {
+    it('C55: rejects an ingress 502 instead of reporting the preview ready', async () => {
+      const fake = createFakeHandle();
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 502 }));
+      const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG }, { fetchImpl });
+
+      try {
+        await expect(session.getPreview()).rejects.toMatchObject({ category: 'timeout' });
+      } finally {
+        await session.teardown();
+      }
+    });
+
+    it('rejects a non-success response from the forwarded host', async () => {
       const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
       vi.stubGlobal('fetch', fetchMock);
 
       const fake = createFakeHandle();
       const session = await wrapE2bSandbox({ handle: fake.handle, config: CONFIG });
 
-      const preview = await session.getPreview();
-
-      expect(preview).toEqual({ url: 'https://4000.sandbox.e2b.example' });
+      await expect(session.getPreview()).rejects.toMatchObject({ category: 'timeout' });
       expect(fetchMock).toHaveBeenCalledWith(
         'https://4000.sandbox.e2b.example',
         expect.objectContaining({ method: 'HEAD' }),

@@ -827,6 +827,40 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     });
   });
 
+  it("C57: rejects malformed replies and incomplete closes without throwing from socket handlers or waiting for timeout", async () => {
+    vi.useFakeTimers();
+    const malformed = makeFakeSocket();
+    const closed = makeFakeSocket();
+    const outcomes: { status: "resolved" | "rejected"; value: unknown }[] = [];
+    vi.mocked(createConnection).mockReturnValueOnce(malformed).mockReturnValueOnce(closed);
+    try {
+      // Observe settlement without awaiting a request that is stuck on the buggy code.
+      const observe = (socketPath: string, index: number) => requestJsonIpc({ socketPath, payload: { type: "X" } }, { timeoutMs: 1500 }).then(
+        (value) => { outcomes[index] = { status: "resolved", value }; },
+        (error: unknown) => { outcomes[index] = { status: "rejected", value: error }; },
+      );
+      void observe("/fake/malformed.sock", 0);
+      void observe("/fake/closed.sock", 1);
+      malformed.emit("connect");
+      closed.emit("connect");
+
+      expect.soft(() => malformed.emit("data", Buffer.from("{invalid\n"))).not.toThrow();
+      closed.emit("data", Buffer.from('{"ok":true,"result":'));
+      closed.emit("end");
+      closed.emit("close", false);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect.soft(outcomes[0]).toEqual({ status: "rejected", value: expect.any(SyntaxError) });
+      expect.soft(outcomes[1]).toEqual({ status: "rejected", value: expect.any(Error) });
+      expect.soft(vi.getTimerCount()).toBe(0);
+    } finally {
+      malformed.destroy();
+      closed.destroy();
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("replies with a parse-failure error when a client sends a non-JSON frame", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-badjson-"));
     const socketPath = testIpcPath(root);

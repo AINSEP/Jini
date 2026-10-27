@@ -70,7 +70,9 @@ export function createNodeDirectoryWorkspace(
     if (legacy.state === "unreadable") throw new Error("Legacy directory setting is unreadable; nothing was overwritten.");
     const oldHome = legacy.state === "ok" ? (legacy.value as { home?: unknown })?.home : path.join(homeDir, userConfig.legacyDefaultFolder ?? defaultFolder);
     if (typeof oldHome !== "string") throw new Error("Legacy directory setting has an invalid home.");
-    return [...new Set([oldHome, ...config.legacyHomes({}), home()])].map((root) => createDirectoryRegistry({ file: fileAt(path.join(root, registryName)), canonicalPath }));
+    // Legacy settings use the same home shorthand contract; current overrides must not redirect the import.
+    const expandedHome = resolveDirectoryHome({ homeDir, defaultFolder, envName, env: {}, setting: oldHome }, { cwd, ...directoryOptions });
+    return [...new Set([expandedHome, ...config.legacyHomes({}), home()])].map((root) => createDirectoryRegistry({ file: fileAt(path.join(root, registryName)), canonicalPath }));
   };
   const importOldCatalog = () => {
     const current = atHome();

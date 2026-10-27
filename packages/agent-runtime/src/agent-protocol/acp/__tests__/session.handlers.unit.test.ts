@@ -357,13 +357,15 @@ describe('handleMessageChunkUpdate', () => {
     expect(state.emittedTextChunk).toBe(false);
   });
 
-  it('sends nothing when a cumulative snapshot repeats with no new characters', () => {
+  it('preserves an identical chunk as incremental text', () => {
     const state = createAcpSessionState();
     state.emittedTextBuffer = 'Hello';
     const effects = fakeEffects();
     handleMessageChunkUpdate({ state, effects, update: { content: { text: 'Hello' } } });
-    expect(effects.emitVisibleTextDelta).not.toHaveBeenCalled();
-    expect(state.emittedTextChunk).toBe(false);
+    expect(effects.emitVisibleTextDelta).toHaveBeenCalledTimes(1);
+    expect(effects.emitVisibleTextDelta).toHaveBeenCalledWith('Hello');
+    expect(state.emittedTextChunk).toBe(true);
+    expect(state.emittedTextBuffer).toBe('HelloHello');
   });
 
   it('emits the delta directly when no DSML suppressor is armed', () => {
@@ -580,7 +582,7 @@ describe('handleInitializeAck', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects({ resumeSessionId: 'sess-old', effectiveCwd: '/work' });
     handleInitializeAck({ state, effects });
-    expect(effects.writeRpc).toHaveBeenCalledWith(2, 'session/load', { sessionId: 'sess-old', cwd: '/work' }, 'session/load');
+    expect(effects.writeRpc).toHaveBeenCalledWith(2, 'session/load', { sessionId: 'sess-old', cwd: '/work', mcpServers: [] }, 'session/load');
     expect(state.expectedId).toBe(2);
     expect(state.nextId).toBe(3);
   });

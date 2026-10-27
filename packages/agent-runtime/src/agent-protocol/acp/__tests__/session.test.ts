@@ -176,6 +176,45 @@ describe('attachAcpSession', () => {
   });
 
   describe('resume flow (resumeSessionId)', () => {
+    it('P15: resumes with MCP servers and accepts a load response without a session id', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      const controller = attachAcpSession(baseOptions(child, { send }), {
+        resumeSessionId: 'prior-session',
+        cwd: '/work',
+        mcpServers: [{ name: 'local-tools', command: '/fake-mcp', args: ['--stdio'], env: { MODE: 'test' } }],
+      });
+      try {
+        emitResult(child, 1, { agentCapabilities: { loadSession: true } });
+        const loadRequest = lastWrite(child);
+        // ACP LoadSessionResponse carries no sessionId or vendor session handle.
+        emitResult(child, loadRequest.id, {});
+
+        expect.soft(loadRequest).toEqual({
+          jsonrpc: '2.0', id: 2, method: 'session/load',
+          params: {
+            sessionId: 'prior-session', cwd: '/work',
+            mcpServers: [{
+              type: 'stdio', name: 'local-tools', command: '/fake-mcp', args: ['--stdio'],
+              env: [{ name: 'MODE', value: 'test' }],
+            }],
+          },
+        });
+        expect(writesOf(child).find((request) => request.method === 'session/prompt')).toEqual({
+          jsonrpc: '2.0', id: 3, method: 'session/prompt',
+          params: { sessionId: 'prior-session', prompt: [{ type: 'text', text: 'hello agent' }] },
+        });
+        expect(controller.hasFatalError()).toBe(false);
+        expect(send.mock.calls.filter(([event]) => event.event === 'error')).toEqual([]);
+        emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: 'Resumed.' });
+        emitResult(child, 3, { stopReason: 'end_turn' });
+        expect(controller.completedSuccessfully()).toBe(true);
+      } finally {
+        controller.abort();
+        child.emit('close', 0, null);
+      }
+    });
+
     it('sends session/load instead of session/new when resumeSessionId is set', () => {
       const child = new FakeAcpChild();
       (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { resumeSessionId: 'prior-session', cwd: '/work' }));
@@ -184,7 +223,7 @@ describe('attachAcpSession', () => {
         jsonrpc: '2.0',
         id: 2,
         method: 'session/load',
-        params: { sessionId: 'prior-session', cwd: '/work' },
+        params: { sessionId: 'prior-session', cwd: '/work', mcpServers: [] },
       });
     });
 
@@ -590,6 +629,24 @@ describe('attachAcpSession', () => {
       expect(send).not.toHaveBeenCalled();
     });
 
+    it('C38: preserves repeated incremental punctuation chunks', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      const controller = attachAcpSession(baseOptions(child, { send }));
+      try {
+        handshakeToSessionNew(child);
+        for (const text of ['.', '.', '.']) {
+          emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text });
+        }
+        const text = send.mock.calls
+          .filter(([event]) => event.event === 'agent' && event.payload.type === 'text_delta')
+          .map(([event]) => event.payload.delta).join('');
+        expect(text).toBe('...');
+      } finally {
+        controller.abort();
+      }
+    });
+
     it('handles a cumulative-snapshot text update (delta computed from the shared prefix)', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
@@ -622,17 +679,18 @@ describe('attachAcpSession', () => {
       expect(send).not.toHaveBeenCalled();
     });
 
-    it('sends nothing for a cumulative snapshot that repeats with no new characters', () => {
+    it('preserves an identical chunk as incremental text', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
       (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { send }));
       handshakeToSessionNew(child);
       emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: 'Hello' });
       send.mockClear();
-      // Same cumulative snapshot resent verbatim: startsWith matches, but the
-      // sliced delta is empty, so no text_delta should be emitted.
+      // Identical chunks provide no evidence of snapshot growth; treating them
+      // as incremental text preserves intentional repetition.
       emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: 'Hello' });
-      expect(send).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'text_delta', delta: 'Hello' } });
     });
   });
 
@@ -730,6 +788,25 @@ describe('attachAcpSession', () => {
   });
 
   describe('DSML artifact + tool-call text suppression interplay', () => {
+    it('C40: keeps artifact suppression armed after mixed tool-call XML and prose', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      const controller = attachAcpSession(baseOptions(child, { send }));
+      try {
+        handshakeToSessionNew(child);
+        emitUpdate(child, { sessionUpdate: 'tool_call', toolCallId: 'tc-1', title: 'write x.html', status: 'completed' });
+        emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: '<tool_call>internal tool input</tool_call>Preparing. ' });
+        emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: '<artifact>private file body</artifact>Done.' });
+
+        const text = send.mock.calls
+          .filter(([event]) => event.event === 'agent' && event.payload.type === 'text_delta')
+          .map(([event]) => event.payload.delta).join('');
+        expect(text).toBe('Preparing. Done.');
+      } finally {
+        controller.abort();
+      }
+    });
+
     it('arms the DSML suppressor on a completed artifact-write update and suppresses subsequent artifact echo text', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
@@ -842,11 +919,11 @@ describe('attachAcpSession', () => {
       handshakeToSessionNew(child);
       // Leave a dangling "<tool_c" candidate BEFORE the DSML suppressor is
       // armed, so arming (from the tool_call completion below) never
-      // reprocesses that text through the DSML suppressor — which would
-      // otherwise immediately disarm it again (strippedDelta compares
+      // reprocesses that text through the DSML suppressor — which, before
+      // the tool/artifact-stage comparison fix, could disarm it again (strippedDelta compared
       // against the *pre-tool-call-stripping* original delta, so any
       // tool-call suppression in the same chunk looks like "artifact text
-      // was consumed" and disarms it). This ordering keeps the DSML
+      // was consumed" and disarmed it). This ordering keeps the DSML
       // suppressor genuinely still armed by the time finishCleanPrompt's
       // flush() runs, so its `?.strip(...)` call is actually exercised
       // rather than short-circuited.
@@ -961,6 +1038,44 @@ describe('attachAcpSession', () => {
   });
 
   describe('permission requests', () => {
+    it('C39: pauses the stage watchdog while a human permission decision is pending', async () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      let resolveDecision!: (decision: { outcome: 'selected'; optionId: string }) => void;
+      const decision = new Promise<{ outcome: 'selected'; optionId: string }>((resolve) => {
+        resolveDecision = resolve;
+      });
+      const controller = attachAcpSession(baseOptions(child, { send }), {
+        stageTimeoutMs: 1000,
+        onPermissionRequest: () => decision,
+      });
+      try {
+        handshakeToSessionNew(child);
+        emitPermissionRequest(child, 17, [{ optionId: 'allow', kind: 'allow_once' }]);
+        vi.advanceTimersByTime(1001);
+        expect(controller.hasFatalError()).toBe(false);
+        expect(child.killed).toBe(false);
+
+        resolveDecision({ outcome: 'selected', optionId: 'allow' });
+        await Promise.resolve();
+        expect(lastWrite(child)).toEqual({
+          jsonrpc: '2.0', id: 17,
+          result: { outcome: { outcome: 'selected', optionId: 'allow' } },
+        });
+        vi.advanceTimersByTime(999);
+        expect(controller.hasFatalError()).toBe(false);
+        vi.advanceTimersByTime(1);
+        expect(controller.hasFatalError()).toBe(true);
+        expect(send).toHaveBeenCalledWith({ event: 'error', payload: {
+          message: 'ACP session/request_permission timed out after 1000ms',
+        } });
+      } finally {
+        resolveDecision({ outcome: 'selected', optionId: 'allow' });
+        await Promise.resolve();
+        controller.abort();
+      }
+    });
+
     it('rejects once by default and continues the run without a permission handler', async () => {
       const child = new FakeAcpChild();
       const send = vi.fn();

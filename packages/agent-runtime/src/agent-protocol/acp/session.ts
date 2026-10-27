@@ -506,7 +506,6 @@ export function applyDsmlArtifactSuppression({
   effects,
   suppressor,
   toolCallStrippedDelta,
-  delta,
   isCumulativeSnapshot,
 }: {
   state: AcpSessionState;
@@ -523,7 +522,7 @@ export function applyDsmlArtifactSuppression({
     wasSuppressingArtifact || strippedDelta !== toolCallStrippedDelta ? 'artifact_echo' : 'artifact_candidate',
   );
   const hasOpenArtifactCandidate = suppressor.isSuppressing() || suppressor.hasPendingCandidate();
-  const consumedArtifactText = wasSuppressingArtifact || strippedDelta !== delta;
+  const consumedArtifactText = wasSuppressingArtifact || strippedDelta !== toolCallStrippedDelta;
   const preserveIncrementalProse = shouldPreserveIncrementalProse({
     isCumulativeSnapshot,
     wasSuppressingArtifact,
@@ -570,7 +569,8 @@ export function handleMessageChunkUpdate({
   effects.emitAcpRawShapeDiagnostic(update);
   const text = extractAcpUpdateText(update);
   if (!text) return;
-  const isCumulativeSnapshot = text.startsWith(state.emittedTextBuffer);
+  const isCumulativeSnapshot = state.emittedTextBuffer.length > 0 &&
+    text.length > state.emittedTextBuffer.length && text.startsWith(state.emittedTextBuffer);
   const delta = isCumulativeSnapshot ? text.slice(state.emittedTextBuffer.length) : text;
   if (delta.length === 0) return;
   state.emittedTextChunk = true;
@@ -777,7 +777,12 @@ export function handleInitializeAck({ state, effects }: { state: AcpSessionState
     effects.writeRpc(
       state.nextId,
       'session/load',
-      { sessionId: effects.resumeSessionId, cwd: effects.effectiveCwd },
+      {
+        ...buildAcpSessionNewParams({ cwd: effects.effectiveCwd }, effects.mcpServers
+          ? { mcpServers: effects.mcpServers, envFormat: effects.envFormat }
+          : { envFormat: effects.envFormat }),
+        sessionId: effects.resumeSessionId,
+      },
       'session/load',
     );
   } else {
@@ -816,6 +821,20 @@ export function triggerSetModelIfNeeded({
   return true;
 }
 
+/** Records handshake identity, retaining the requested handle on an ID-free load ack.
+ * Mutates only the two session handles; performs no I/O.
+ * @complexity O(1) time and space.
+ */
+function recordSessionIdentity({ state, result }: {
+  state: AcpSessionState;
+  result: UnknownRecord;
+}, { resumeSessionId = null }: { resumeSessionId?: string | null | undefined } = {}): void {
+  // ACP load responses need not repeat the handle supplied in the request.
+  state.sessionId = asOptionalString(result.sessionId) ?? resumeSessionId;
+  // The durable handle for resuming this session on the next turn.
+  state.durableSessionId = asOptionalString(result.openCodeSessionId) ?? resumeSessionId;
+}
+
 /** Handles the `session/new` (or `session/load`) ack: records the session id, model config, and either triggers a model switch or sends the prompt. */
 export function handleSessionNewAck({
   state,
@@ -828,9 +847,7 @@ export function handleSessionNewAck({
   result: UnknownRecord;
   rawLine: string;
 }): void {
-  state.sessionId = asOptionalString(result.sessionId);
-  // The durable handle for resuming this session on the next turn.
-  state.durableSessionId = asOptionalString(result.openCodeSessionId);
+  recordSessionIdentity({ state, result }, { resumeSessionId: effects.resumeSessionId });
   // session/new acknowledged with a session id = handshake done.
   if (state.sessionId) notifySessionInit(effects);
   state.modelConfigId = resolveModelConfigId(findModelConfigOption(result.configOptions));
@@ -1064,7 +1081,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     // run-level inactivity watchdog's escape hatch. Without this, a caller
     // passing a zero stage timeout would schedule a 0ms timeout that fires on
     // the next tick and kills the session immediately.
-    if (stageWatchdogDisabled) return;
+    if (stageWatchdogDisabled || pendingPermissionRequests.size > 0) return;
     stageTimer = setTimeout(() => {
       fail(`ACP ${label} timed out after ${stageTimeoutMs}ms`);
     }, stageTimeoutMs);
@@ -1420,6 +1437,9 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
       return;
     }
     pendingPermissionRequests.set(requestId, () => logDecision());
+    // Human decision time is outside the agent's inactivity budget. All timer
+    // resets stay paused until the last pending permission response is sent.
+    clearStageTimer();
     try {
       if (!onPermissionRequest) {
         respond(defaultPermissionDecision({ optionRecords }, { permissionMode, cliParity: options.cliParity }));

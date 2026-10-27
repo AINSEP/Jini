@@ -157,6 +157,23 @@ describe("legacy home settings import", () => {
       userConfig: { appName: "Example", rootsEnvName: "PROJECT_ROOTS", legacySettingsFile },
     }, { env: {}, platform: "linux", readText: () => undefined });
   }
+  it("P24: expands a legacy tilde home and imports its catalog on the first mutation", () => {
+    const root = tempRoot(), legacySettingsFile = path.join(root, "old-settings.json"), site = path.join(root, "alpha");
+    const entry = record("alpha", site), at = "2026-10-26T12:00:00Z";
+    fs.mkdirSync(site);
+    fs.writeFileSync(legacySettingsFile, JSON.stringify({ home: "~" }));
+    const legacyCatalog = path.join(root, "catalog.json"), bytes = JSON.stringify({ version: 1, entries: [entry], migrations: [] });
+    fs.writeFileSync(legacyCatalog, bytes);
+    const workspace = legacyWorkspace(root, legacySettingsFile);
+    workspace.registry({}).opened({ path: site, at });
+    expect(workspace.registry({}).list({})).toEqual([{ ...entry, lastOpened: at }]);
+    expect(readJson(path.join(workspace.config({}).appData, "catalog.json"))).toMatchObject({
+      entries: [{ ...entry, lastOpened: at }], migrations: ["app-data-catalog-v1"],
+    });
+    expect(fs.readFileSync(legacyCatalog, "utf8")).toBe(bytes);
+    expect(readJson(legacySettingsFile)).toEqual({ home: "~" });
+  });
+
   it("imports the default-folder catalog when the legacy setting was never written", () => {
     const root = tempRoot(), legacySettingsFile = path.join(root, "old-settings.json"), site = path.join(root, "Project", "alpha");
     fs.mkdirSync(site, { recursive: true });

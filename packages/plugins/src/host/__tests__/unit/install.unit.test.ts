@@ -222,6 +222,21 @@ describe('package validation', () => {
 });
 
 describe('destination admission', () => {
+  it('P20: an upgrade preserves dotfiles and hidden metadata directories in the plugin slot', async () => {
+    const root = await tempRoot(); const deps = makeDeps(root);
+    await installFrom(await writePackage(path.join(root, 'v1'), baseManifest('demo')), deps);
+    const slot = path.join(deps.installDir, 'demo');
+    await mkdir(path.join(slot, '.meta'));
+    await writeFile(path.join(slot, '.meta', 'state.json'), '{"keep":true}');
+    await writeFile(path.join(slot, '.note'), 'keep');
+
+    await installFrom(await writePackage(path.join(root, 'v2'), baseManifest('demo', '2.0.0')), deps);
+
+    expect(await installedVersions(deps, 'demo')).toEqual(['.meta', '.note', '2.0.0']);
+    expect(await readFile(path.join(slot, '.meta', 'state.json'), 'utf8')).toBe('{"keep":true}');
+    expect(await readFile(path.join(slot, '.note'), 'utf8')).toBe('keep');
+  });
+
   it('installs, upgrades with retirement, replaces explicitly and refuses downgrades', async () => {
     const root = await tempRoot(); const deps = makeDeps(root);
     const v1 = await writePackage(path.join(root, 'v1'), baseManifest('demo'), { 'a.md': '1' });

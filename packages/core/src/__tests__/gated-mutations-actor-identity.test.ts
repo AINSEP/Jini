@@ -3,6 +3,16 @@ import { test } from "vitest";
 
 import { WorkspaceMismatchError, appendActorReference } from "../gated-mutations/actor-identity.js";
 
+test("C63: rejects a delegator id without its workspace instead of returning a torn composite reference", () => {
+  assert.throws(() => appendActorReference({
+    referencingRowWorkspaceId: "ws-1",
+    actorWorkspaceId: "ws-1",
+    actorId: "agent-1",
+  }, {
+    delegatedById: "user-1",
+  }), Error);
+});
+
 test("AC-23 / REQ-16: the populated reference carries the composite (actorWorkspaceId, actorId) pair exactly as given, for a direct (non-delegated) user action", () => {
   const ref = appendActorReference({
     referencingRowWorkspaceId: "ws-1",

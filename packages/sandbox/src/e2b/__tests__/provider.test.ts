@@ -41,6 +41,36 @@ beforeEach(() => {
 });
 
 describe('createE2bSandboxProvider', () => {
+  it('C54: releases failed boots and returns non-zero command exits as results', async () => {
+    // Keep SDK -> handle -> session translation real for both halves of this finding.
+    const { wrapE2bSandbox } = await vi.importActual<typeof import('../wrap-e2b-sandbox.js')>('../wrap-e2b-sandbox.js');
+    const { CommandExitError } = await vi.importActual<typeof import('@e2b/code-interpreter')>('@e2b/code-interpreter');
+    wrapE2bSandboxMock.mockImplementation(wrapE2bSandbox);
+    const run = vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 });
+    const cause = new Error('watch unavailable');
+    const watchDir = vi.fn().mockRejectedValueOnce(cause)
+      .mockResolvedValue({ stop: vi.fn().mockResolvedValue(undefined) });
+    const sandbox = { ...FAKE_SANDBOX, commands: { run }, files: { ...FAKE_SANDBOX.files, watchDir } };
+    const kill = vi.fn().mockResolvedValue(true);
+    sandboxCreate.mockResolvedValueOnce({ ...sandbox, kill });
+
+    await expect(createE2bSandboxProvider({}).boot({})).rejects.toMatchObject({ cause });
+
+    // Creation succeeded, so failed setup must release the paid VM before boot rejects.
+    expect.soft(kill).toHaveBeenCalledOnce();
+
+    sandboxCreate.mockResolvedValueOnce({ ...sandbox, kill: vi.fn().mockResolvedValue(true) });
+    const session = await createE2bSandboxProvider({}).boot({});
+    const result = { stdout: 'partial output', stderr: 'command failed', exitCode: 2 };
+    run.mockRejectedValue(new CommandExitError(result));
+    try {
+      await expect.soft(session.runCommand({ command: 'false' })).resolves.toEqual(result);
+      await expect(session.installDependencies({})).resolves.toEqual(result);
+    } finally {
+      await session.teardown();
+    }
+  });
+
   it('wraps SDK creation errors with the core category, message and original cause', async () => {
     const cause = Object.assign(new Error('bad credentials'), { name: 'AuthenticationError' });
     sandboxCreate.mockRejectedValueOnce(cause);

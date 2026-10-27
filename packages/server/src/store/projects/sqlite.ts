@@ -167,24 +167,27 @@ export function listLatestRunStatuses({ db }: { db: SqliteDb }) {
 }
 
 /**
- * Returns the set of project IDs whose latest form-bearing assistant message contains a
- * `<question-form>` or `<ask-question>` artifact and has not yet received a user reply.
+ * Returns the set of project IDs with any conversation whose latest form-bearing assistant
+ * message contains a `<question-form>` or `<ask-question>` artifact without a user reply.
  * Form filtering deliberately precedes ranking: a newer plain assistant turn does not consume
  * an outstanding question. Keep timestamp/position ordering for replies sharing a timestamp.
  * This is the data source for an "awaiting input" badge on a project list.
  * @param db - Open SQLite connection.
  */
-export function listProjectsAwaitingInput({ db }: { db: SqliteDb }) {
+export function listProjectsAwaitingInput(
+  { db }: { db: SqliteDb },
+  _optional: Record<string, never> = {},
+) {
   const rows = db
     .prepare(
-      `SELECT latest.projectId
+      `SELECT DISTINCT latest.projectId
          FROM (
            SELECT c.project_id AS projectId,
                   m.conversation_id AS conversationId,
                   m.created_at AS createdAt,
                   m.position AS position,
                   ROW_NUMBER() OVER (
-                    PARTITION BY c.project_id
+                    PARTITION BY m.conversation_id
                     ORDER BY m.created_at DESC, m.position DESC
                   ) AS rowNum
              FROM messages m
@@ -291,7 +294,8 @@ export function insertProject({ db, project: p }: { db: SqliteDb; project: DbRow
 }
 
 /**
- * Applies a partial patch to an existing project, preserving all unpatched fields.
+ * Applies a partial patch to an existing project, preserving omitted or undefined fields.
+ * Explicit nulls still clear nullable fields.
  * Returns null when the project does not exist; otherwise returns the updated record.
  * updatedAt defaults to Date.now() when the patch omits it.
  * @param db - Open SQLite connection.
@@ -308,7 +312,7 @@ export function updateProject(
   if (!existing) return null;
   const merged = {
     ...existing,
-    ...patch,
+    ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
     updatedAt: typeof patch.updatedAt === 'number' ? patch.updatedAt : (optional.clock ?? Date).now(),
   };
   db.prepare(

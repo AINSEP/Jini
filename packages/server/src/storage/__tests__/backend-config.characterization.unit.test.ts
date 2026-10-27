@@ -20,24 +20,30 @@ it('normalizes unknown backend names in the typed error message', () => {
 });
 
 it.each([
-  [undefined, 5432], ['', 5432], ['invalid', 5432], ['0', 5432], ['6543', 6543],
+  [undefined, 5432], ['6543', 6543],
 ] as const)('resolves Postgres port %j to %i', (input, port) => {
   expect(resolveSqliteBackendConfig({}, { env: { ...postgresEnv, JINI_PG_PORT: input } })).toEqual({
     kind: 'postgres', postgres: { host: 'db.internal', port, database: 'jini', user: 'app', sslMode: 'require' },
   });
 });
 
-it.each([['-1', -1], ['70000', 70000], ['123junk', 123], ['3.5', 3]] as const)(
-  'accepts invalid Postgres port %j as %i (reported, not fixed)', (input, port) => {
-    expect(resolveSqliteBackendConfig({}, { env: { ...postgresEnv, JINI_PG_PORT: input } }).postgres?.port).toBe(port);
+it.each(['', 'invalid', '0', '-1', '70000', '123junk', '3.5'] as const)(
+  'rejects invalid Postgres port %j with a typed configuration error', input => {
+    expect(() => resolveSqliteBackendConfig({}, { env: { ...postgresEnv, JINI_PG_PORT: input } }))
+      .toThrow(SqliteBackendConfigError);
   },
 );
 
 it.each([
-  [undefined, 'require'], ['', 'require'], ['require', 'require'],
-  ['disable', 'disable'], ['verify-full', 'verify-full'], ['VERIFY-FULL', 'require'], ['unknown', 'require'],
-] as const)('resolves SSL mode %j to %s without normalization', (input, sslMode) => {
+  [undefined, 'require'], ['require', 'require'],
+  ['disable', 'disable'], ['verify-full', 'verify-full'], ['VERIFY-FULL', 'verify-full'],
+] as const)('normalizes SSL mode %j to %s', (input, sslMode) => {
   expect(resolveSqliteBackendConfig({}, { env: { ...postgresEnv, JINI_PG_SSL_MODE: input } }).postgres?.sslMode).toBe(sslMode);
+});
+
+it.each(['', 'unknown'])('rejects unknown SSL mode %j with a typed configuration error', input => {
+  expect(() => resolveSqliteBackendConfig({}, { env: { ...postgresEnv, JINI_PG_SSL_MODE: input } }))
+    .toThrow(SqliteBackendConfigError);
 });
 
 it.each(['JINI_PG_HOST', 'JINI_PG_DATABASE', 'JINI_PG_USER'])(

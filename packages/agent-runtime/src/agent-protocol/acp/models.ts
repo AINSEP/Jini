@@ -6,7 +6,7 @@
  * stream and acp/types, acp/constants, acp/json, acp/rpc, and
  * acp/session-params.
  */
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createJsonLineStream } from '../core/index.js';
 import type { JsonRpcId, UnknownRecord, TimerHandle } from './types.js';
 import { ACP_PROTOCOL_VERSION, DEFAULT_TIMEOUT_MS, MODEL_CONFIG_OPTION_IDS } from './constants.js';
@@ -266,6 +266,7 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
 }: DetectAcpModelsOptions = { ...optionalArgs, ...requiredArgs };
   const effectiveTimeoutMs = resolveAcpTimeoutMs(env, timeoutMs);
   return await new Promise<ModelOption[]>((resolve, reject) => {
+    if (signal?.aborted) throw new Error('ACP model detection aborted');
     const child = spawnProcess(bin, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -286,16 +287,8 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
       settled = true;
       if (timer) clearTimeout(timer);
       signal?.removeEventListener('abort', abort);
-      try {
-        child.stdin.end();
-      } catch {}
-      if (!child.killed) child.kill('SIGTERM');
-      const killTimer = setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 250);
-      killTimer.unref();
-      // The process scheduler must retain its slot until exit, including the SIGKILL grace
-      // period. Returning at metadata receipt would overlap this child with the next probe.
-      if (closed) { clearTimeout(killTimer); fn(value); }
-      else child.once('close', () => { clearTimeout(killTimer); fn(value); });
+      if (closed) fn(value);
+      else finishAcpProbeProcess({ child, complete: () => fn(value) });
     };
 
     const fail = (message: string) => {
@@ -378,6 +371,53 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
       clientInfo: { name: clientName, version: clientVersion },
     });
   });
+}
+
+/**
+ * Ends a finished probe and completes after close, or after exit plus a pipe-drain grace.
+ * Descendants may inherit stdout, so waiting indefinitely for close can hold the scheduler slot.
+ * The process scheduler must retain its slot until exit, including the SIGKILL grace
+ * period. Returning at metadata receipt would overlap this child with the next probe.
+ * @param requiredArgs - The owned child and the callback that settles its probe result.
+ * @param _optionalArgs - Reserved optional controls.
+ * @returns Nothing; completes once and removes its timers and lifecycle listeners.
+ * @complexity O(1) time and space, excluding stream teardown.
+ */
+function finishAcpProbeProcess({ child, complete }: {
+  child: ChildProcessWithoutNullStreams;
+  complete: () => void;
+}, _optionalArgs = {}): void {
+  let completed = false;
+  let exitTimer: TimerHandle | null = null;
+  const settle = () => {
+    if (completed) return;
+    completed = true;
+    clearTimeout(killTimer);
+    if (exitTimer) clearTimeout(exitTimer);
+    child.removeListener('exit', afterExit);
+    child.removeListener('close', settle);
+    complete();
+  };
+  const afterExit = () => {
+    clearTimeout(killTimer);
+    child.removeListener('exit', afterExit);
+    exitTimer = setTimeout(() => {
+      child.stdin.destroy();
+      child.stdout.destroy();
+      child.stderr.destroy();
+      settle();
+    }, 250);
+    exitTimer.unref();
+  };
+  const killTimer = setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 250);
+  killTimer.unref();
+  child.once('close', settle);
+  child.once('exit', afterExit);
+  if (child.exitCode !== null || child.signalCode) afterExit();
+  try {
+    child.stdin.end();
+  } catch {}
+  if (!child.killed) child.kill('SIGTERM');
 }
 
 /** Retains native current selection. Session creation can write CLI state/start services;

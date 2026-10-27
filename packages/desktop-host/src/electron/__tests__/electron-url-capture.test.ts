@@ -5,7 +5,7 @@ import { readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_CAPTURE_TIMEOUT_MS } 
 
 const request = { url: 'http://127.0.0.1:4312/', viewport: { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true }, fullPage: true, maxPageHeightPx: 8000, settleMs: 0 };
 
-function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url, clearStorage = async () => {} } = {}, _options = {}) {
+function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url, clearStorage = async () => {}, captureDelayMs = 0 } = {}, _options = {}) {
   let policy: any;
   let options: any;
   let destroyed = false;
@@ -20,6 +20,7 @@ function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.ur
     capturePage: async () => ({ toPNG: () => png }),
     debugger: { attach: (version: string) => { calls.push(`debugger.attach:${version}`); }, sendCommand: async (method: string, params: unknown) => {
       calls.push(method);
+      if (method === 'Page.captureScreenshot' && captureDelayMs > 0) await new Promise(resolve => setTimeout(resolve, captureDelayMs));
       commands.push([method, params]); return { data: png.toString('base64') };
     } },
   };
@@ -109,6 +110,34 @@ describe('native URL capture without a downloaded browser', () => {
     const f = fixture({ finalUrl: 'http://169.254.169.254/' });
     await expect(f.service.captureUrl(request, { allowedOrigins: ['http://127.0.0.1:4312'] })).rejects.toMatchObject({ code: 'navigation-blocked' });
     expect(f.destroyed).toBe(true);
+  });
+
+  it('C33: preserves a successful capture when cleanup outlasts the remaining render deadline', async () => {
+    vi.useFakeTimers();
+    let resets = 0;
+    const f = fixture({
+      captureDelayMs: URL_CAPTURE_TIMEOUT_MS - 10,
+      clearStorage: async () => {
+        if (++resets === 2) await new Promise(resolve => setTimeout(resolve, 20));
+      },
+    });
+    try {
+      // The PNG is ready just before the deadline; the second storage reset is cleanup.
+      const captured = f.service.captureUrl(request, { allowedOrigins: ['http://127.0.0.1:4312'] }).then(
+        value => ({ status: 'fulfilled', value }), reason => ({ status: 'rejected', reason }),
+      );
+      await vi.advanceTimersByTimeAsync(URL_CAPTURE_TIMEOUT_MS + 30);
+      expect(await captured).toMatchObject({
+        status: 'fulfilled', value: { png: Buffer.from('png'), finalUrl: request.url, capturedHeight: 8000 },
+      });
+      expect(f.destroyed).toBe(true);
+      expect([...f.sessions.values()][0]).toEqual({ storage: 2, cache: 2, auth: 2, connections: 2 });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      // Finish cleanup and return the process-wide partition lease even when the assertion fails.
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
+    }
   });
 
   it('reuses at most two isolated partitions and clears storage, caches and connections for every capture', async () => {
@@ -261,7 +290,7 @@ describe('native URL capture without a downloaded browser', () => {
     } finally { controller.abort(); vi.useRealTimers(); }
   });
 
-  it('fails at the deadline when cleanup sticks, keeping that lease until cleanup settles', async () => {
+  it('preserves the capture when cleanup sticks, keeping that lease until cleanup settles', async () => {
     vi.useFakeTimers();
     let release!: () => void;
     const stuck = new Promise<void>(resolve => { release = resolve; });
@@ -270,9 +299,11 @@ describe('native URL capture without a downloaded browser', () => {
     const c = fixture();
     const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
     try {
-      const failed = expect(a.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
+      const captured = expect(a.service.captureUrl(request, options)).resolves.toMatchObject({
+        png: Buffer.from('png'), finalUrl: request.url, capturedHeight: 8000,
+      });
       await vi.advanceTimersByTimeAsync(URL_CAPTURE_TIMEOUT_MS);
-      await failed;
+      await captured;
     } finally { vi.useRealTimers(); }
     try {
       await c.service.captureUrl(request, options);

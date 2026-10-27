@@ -191,10 +191,9 @@ async function readSiteManifest(versionDir: string): Promise<{ missing: boolean;
  * @complexity O(1).
  */
 async function discoverOneSiteCandidate(
-  installDir: string,
-  idFolderName: string,
-  builtInIds: readonly string[],
-  host: DiscoverPluginsRequired,
+  { installDir, idFolderName, builtInIds, host }: {
+    installDir: string; idFolderName: string; builtInIds: readonly string[]; host: DiscoverPluginsRequired;
+  },
   options: DiscoverPluginsOptional = {},
 ): Promise<PluginDiscoveryRecord | null> {
   const idFolderPath = path.join(installDir, idFolderName);
@@ -209,7 +208,13 @@ async function discoverOneSiteCandidate(
     ? [{ code: "MANIFEST_MISSING", file: PLUGIN_MANIFEST_FILENAME, message: `${PLUGIN_MANIFEST_FILENAME} was not found` }]
     : [...validateManifest({ ...host, manifest: manifestValue, folderName: idFolderName, builtInIds }).errors, ...host.tierPolicy.siteErrors({ manifestValue })];
 
-  const id = readStringField(manifestValue, "id") ?? idFolderName;
+  const manifestVersion = readStringField(manifestValue, "version");
+  if (manifestVersion !== undefined && manifestVersion !== versionFolderName) {
+    errors.push({ code: "VERSION_FOLDER_MISMATCH", file: PLUGIN_MANIFEST_FILENAME,
+      message: `manifest version '${manifestVersion}' does not match its install version folder '${versionFolderName}'` });
+  }
+  // A valid manifest id already matches its folder; invalid manifests cannot claim another slot.
+  const id = idFolderName;
   const name = readStringField(manifestValue, "name") ?? idFolderName;
 
   return toDiscoveryRecord({ id, name, version: versionFolderName, source: "site", manifestValue, errors });
@@ -219,7 +224,10 @@ async function discoverOneSiteCandidate(
  * `validateManifest`, which only ever sees one candidate at a time): a case-insensitive id
  * collision between two SITE plugins can only be detected once every candidate is known, so this
  * runs as a whole-set post-pass over the already-built site records. */
-function markCaseInsensitiveDuplicates(records: readonly PluginDiscoveryRecord[]): PluginDiscoveryRecord[] {
+function markCaseInsensitiveDuplicates(
+  { records }: { records: readonly PluginDiscoveryRecord[] },
+  _optional: Record<string, never> = {},
+): PluginDiscoveryRecord[] {
   const countByLowerId = new Map<string, number>();
   for (const record of records) {
     const key = record.id.toLowerCase();
@@ -234,7 +242,7 @@ function markCaseInsensitiveDuplicates(records: readonly PluginDiscoveryRecord[]
       ...record.errors,
       { code: "ID_DUPLICATE", file: null, message: `id '${record.id}' collides case-insensitively with another installed site plugin` },
     ];
-    return { ...record, errors, status: "invalid" as const };
+    return { ...record, errors, status: "invalid" as const, manifest: undefined };
   });
 }
 
@@ -269,9 +277,9 @@ export async function discoverPlugins(
   if (installDir !== undefined) {
     const idFolders = await listInstalledPluginIdFolders(installDir);
     const candidates = await Promise.all(
-      idFolders.map((idFolderName) => discoverOneSiteCandidate(installDir, idFolderName, builtInIds, required, optional))
+      idFolders.map((idFolderName) => discoverOneSiteCandidate({ installDir, idFolderName, builtInIds, host: required }, optional))
     );
-    siteRecords = markCaseInsensitiveDuplicates(candidates.filter((r): r is PluginDiscoveryRecord => r !== null));
+    siteRecords = markCaseInsensitiveDuplicates({ records: candidates.filter((r): r is PluginDiscoveryRecord => r !== null) });
   }
 
   const records = orderTb01([...builtInRecords, ...siteRecords]);

@@ -13,7 +13,7 @@
  * this package (see package.json); importing this module is what actually requires it to be
  * installed. `./core` never imports from here.
  */
-import { Sandbox } from '@e2b/code-interpreter';
+import { Sandbox, type CommandExitError } from '@e2b/code-interpreter';
 
 import { SandboxOperationError } from '../core/errors.js';
 import type { BootOptions, SandboxProviderPort, SandboxSession } from '../core/ports.js';
@@ -67,21 +67,30 @@ function resolveSessionConfig(
  * Exported (not part of the package's public `./e2b` barrel) so `__tests__/to-e2b-handle.test.ts`
  * can exercise the translation directly against a fake `Sandbox`-shaped object, rather than only
  * indirectly through `boot`'s mocked-out `Sandbox.create` call.
+ * Foreground non-zero exits carry command output; infrastructure failures still reject.
  */
-export function toE2bHandle({ sandbox }: { sandbox: Sandbox }): E2bSandboxHandle {
+export function toE2bHandle({ sandbox }: { sandbox: Sandbox }, _options: Record<string, never> = {}): E2bSandboxHandle {
   function run(requiredArgs: { command: string }, optionalArgs?: Omit<E2bRunOptions, 'background'>): Promise<E2bCommandResult>;
   function run(requiredArgs: { command: string; background: true }, optionalArgs?: Omit<E2bRunOptions, 'background'>): Promise<E2bCommandHandle>;
   // Return the port union explicitly so overload compatibility does not require SDK-only members.
-  function run(requiredArgs: { command: string; background?: true }, optionalArgs: Omit<E2bRunOptions, 'background'> = {}): Promise<E2bCommandResult | E2bCommandHandle> {
+  async function run(requiredArgs: { command: string; background?: true }, optionalArgs: Omit<E2bRunOptions, 'background'> = {}): Promise<E2bCommandResult | E2bCommandHandle> {
     const { onStdout, onStderr, ...settings } = optionalArgs;
     const sdkOptions = {
       ...settings,
       ...(onStdout === undefined ? {} : { onStdout: (data: string) => onStdout({ data }) }),
       ...(onStderr === undefined ? {} : { onStderr: (data: string) => onStderr({ data }) }),
     };
-    return requiredArgs.background === true
-      ? sandbox.commands.run(requiredArgs.command, { ...sdkOptions, background: true })
-      : sandbox.commands.run(requiredArgs.command, sdkOptions);
+    if (requiredArgs.background === true) {
+      return sandbox.commands.run(requiredArgs.command, { ...sdkOptions, background: true });
+    }
+    try {
+      return await sandbox.commands.run(requiredArgs.command, sdkOptions);
+    } catch (error) {
+      // Match the SDK's error name at this adapter boundary, as categorizeE2bError does.
+      if (!(error instanceof Error) || error.name !== 'CommandExitError') throw error;
+      const result = error as CommandExitError;
+      return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode };
+    }
   }
   return {
     commands: { run },
@@ -116,8 +125,14 @@ export function createE2bSandboxProvider(_requiredArgs: Record<string, never>, c
         throw new SandboxOperationError({ category: categorizeE2bError({ error }), message: 'Failed to create the sandbox' }, { cause: error });
       }
 
-      return wrapE2bSandbox({ handle: toE2bHandle({ sandbox }), config: resolveSessionConfig({ config }) },
-        config.fetchImpl === undefined ? {} : { fetchImpl: config.fetchImpl });
+      try {
+        return await wrapE2bSandbox({ handle: toE2bHandle({ sandbox }), config: resolveSessionConfig({ config }) },
+          config.fetchImpl === undefined ? {} : { fetchImpl: config.fetchImpl });
+      } catch (error) {
+        // Preserve the setup failure even if best-effort VM cleanup also fails.
+        await Promise.allSettled([sandbox.kill()]);
+        throw error;
+      }
     },
   };
 }

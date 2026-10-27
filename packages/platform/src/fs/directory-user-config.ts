@@ -82,7 +82,8 @@ export function createDirectoryUserConfig(
   }
   function configuredRoots(saved: Partial<DirectoryUserConfig>): readonly string[] {
     const fromEnv = env[policy.rootsEnvName];
-    return fromEnv !== undefined ? fromEnv.split(",").map((root) => root.trim()).filter(Boolean) : saved.siteRoots ?? policy.sourceRoots ?? [];
+    // Saved roots are extras; policy roots remain implicit unless the environment overrides them.
+    return fromEnv !== undefined ? fromEnv.split(",").map((root) => root.trim()).filter(Boolean) : [...(policy.sourceRoots ?? []), ...(saved.siteRoots ?? [])];
   }
   // Prefer explicit settings, never coerce an existing regular file into a directory.
   function assertDirectories(checked: Partial<DirectoryUserConfig>): void {

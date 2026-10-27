@@ -303,7 +303,7 @@ export function createA2uiInterpreter({ catalog, clock, ids }: { catalog: Catalo
       const pending = surface.pendingActions.get(actionId);
       if (!pending) continue;
       surface.pendingActions.delete(actionId);
-      if ('value' in actionResponse && pending.responsePath) {
+      if ('value' in actionResponse && pending.responsePath !== undefined) {
         surface.dataModel = setAtPointer({ doc: surface.dataModel, pointer: pending.responsePath, value: actionResponse.value });
       }
       return [];

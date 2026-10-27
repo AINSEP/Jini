@@ -43,6 +43,35 @@ test("relays both child output streams to supplied sinks", () => {
   expect(stderr.read()?.toString()).toBe("diagnostic");
 });
 
+test("C56: keeps shared output sinks open across child spawns", async () => {
+  const first = harness({}, { platform: "linux" });
+  const second = harness({}, { platform: "linux" });
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const spawn = vi.fn().mockReturnValueOnce(first.native).mockReturnValueOnce(second.native);
+  const adapter = createNodeDaemonProcessAdapter(first.required, { ...first.options, spawn, stdout, stderr });
+  try {
+    adapter.spawnDaemonProcess();
+    const ended = Promise.all([first.stdout, first.stderr].map((stream) =>
+      new Promise<void>((resolve) => { stream.once("end", resolve); })));
+    first.stdout.end("first output\n");
+    first.stderr.end("first diagnostic\n");
+    await ended;
+
+    expect(stdout.writableEnded).toBe(false);
+    expect(stderr.writableEnded).toBe(false);
+    adapter.spawnDaemonProcess();
+    second.stdout.write("second output\n");
+    second.stderr.write("second diagnostic\n");
+    expect(stdout.read()?.toString()).toBe("first output\nsecond output\n");
+    expect(stderr.read()?.toString()).toBe("first diagnostic\nsecond diagnostic\n");
+  } finally {
+    for (const stream of [first.stdin, first.stdout, first.stderr, second.stdin, second.stdout, second.stderr, stdout, stderr]) {
+      stream.destroy();
+    }
+  }
+});
+
 test("drains both child output streams when no sinks are supplied", () => {
   const h = harness({});
   const stdoutResume = vi.spyOn(h.stdout, "resume");

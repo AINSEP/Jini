@@ -63,7 +63,7 @@ test("process launch uses platform quoting, detached groups and parent output re
     cwd: "/host", env: { HOST_ENV: "1" }, detached: true, windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"], windowsVerbatimArguments: true,
   });
-  expect(child.stdout.pipe).toHaveBeenCalledWith(stdout); expect(child.stderr.resume).toHaveBeenCalledOnce();
+  expect(child.stdout.pipe).toHaveBeenCalledWith(stdout, { end: false }); expect(child.stderr.resume).toHaveBeenCalledOnce();
 });
 
 test("POSIX termination signals the group and reuses platform descendant escalation", async () => {

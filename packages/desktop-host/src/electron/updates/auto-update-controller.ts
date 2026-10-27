@@ -221,15 +221,21 @@ export function createAutoUpdateController(deps: AutoUpdateControllerDeps, optio
     const isOwner = electUpdaterOwner({ instances: presence.readLive(), now: time, staleMs: timing.staleMs }) === pid;
     if (shouldCheckNow({ isOwner, lastCheckAt, now: time, busy: checking || readyVersion !== null, intervalMs: timing.checkIntervalMs })) check();
   }
+  /** Request a restart only before staging; a second quit could interrupt Squirrel's handoff.
+   * @complexity O(n) live presence records; effects are explanation or a quit request.
+   */
   function requestRestart(): void {
-    if (stopped) return;
+    if (stopped || installStarted) return;
     const count = otherInstances();
     const action = decideRestartClick({ updateReady: readyVersion !== null, otherInstances: count });
     if (action === 'others-open') deps.explainOthersOpen({ count });
     if (action !== 'restart') return;
     restartRequested = true; deps.quit();
   }
-  function startInstall(silent: boolean, relaunch: boolean): true {
+  /** Hand off installation with native flags; false lets the current quit proceed on a sync failure.
+   * Logs failures and cancels their fallback; successful handoffs retain it. @complexity O(1).
+   */
+  function startInstall({ silent, relaunch }: { silent: boolean; relaunch: boolean }, _options = {}): boolean {
     installStarted = true;
     updater.autoRunAppAfterInstall = relaunch;
     // Arm before the handoff so a synchronous failure cannot leave the held quit hanging.
@@ -239,7 +245,12 @@ export function createAutoUpdateController(deps: AutoUpdateControllerDeps, optio
       if (isNativeUpdater(updater)) updater.quitAndInstall(silent, relaunch);
       else updater.quitAndInstall({}, { isSilent: silent, isForceRunAfter: relaunch });
     }
-    catch (error) { log({ message: messages.error({ message: messageOf(error) }) }); deps.quit(); }
+    catch (error) {
+      timers.clear({ timer: fallback });
+      handles.splice(handles.indexOf(fallback), 1);
+      log({ message: messages.error({ message: messageOf(error) }) });
+      return false;
+    }
     return true;
   }
   return {
@@ -259,8 +270,8 @@ export function createAutoUpdateController(deps: AutoUpdateControllerDeps, optio
         otherInstances: readyVersion !== null && !installStarted ? otherInstances() : 0,
         restartRequested, installStarted });
       if (platform === 'win32' && !installStarted) updater.autoInstallOnAppQuit = action === 'install-on-quit';
-      if (action === 'stage-then-quit') return startInstall(false, false);
-      if (action === 'install-and-relaunch') return startInstall(true, true);
+      if (action === 'stage-then-quit') return startInstall({ silent: false, relaunch: false });
+      if (action === 'install-and-relaunch') return startInstall({ silent: true, relaunch: true });
       return false;
     },
     willQuit() {

@@ -25,7 +25,8 @@ const DSML_ARTIFACT_CLOSE_RE = /(?:<\/artifact>|<\/\s*\|?\s*DSML\s*>|<\s*\|?\s*\
 const DSML_OPEN_CANONICAL = 'dsmlartifact';
 const ARTIFACT_OPEN_CANONICAL = 'artifact';
 const ARTIFACT_CLOSE_CANONICALS = ['artifact', 'dsml'];
-const TOOL_CALL_OPEN_RE = /(?:<\s*tool_call\b[^>]*>|<\s*edit\s*>)/i;
+// Require tag syntax so comparison prose such as `x < tool_call.count && y > 0` stays visible.
+const TOOL_CALL_OPEN_RE = /(?:<tool_call(?=[\s/>])[^>&\r\n]*>|<edit[ \t]*>)/i;
 const TOOL_CALL_CLOSE_RE = /(?:<\/\s*tool_call\s*>|<\/\s*edit\s*>)/i;
 const TOOL_CALL_OPEN_CANONICALS = ['toolcall', 'edit'];
 const TOOL_CALL_CLOSE_CANONICALS = ['toolcall', 'edit'];

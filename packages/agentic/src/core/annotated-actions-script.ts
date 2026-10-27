@@ -46,9 +46,17 @@ export function createAnnotatedActionsScript(
     }
     function onStorage(event) {
       if (event.key !== null && event.key !== config.preferenceKey) return;
-      if (!enabled()) { stripNativeForms(); stop(); }
+      if (!enabled()) observeOptOut();
     }
-    if (!enabled()) { stripNativeForms(); return; }
+    // SPA and lazy-mounted forms must honor opt-out for the whole Document lifetime.
+    function observeOptOut() {
+      stop();
+      stripNativeForms();
+      observer = new MutationObserver(stripNativeForms);
+      observer.observe(doc.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['toolname'] });
+      window.addEventListener('pagehide', stop);
+    }
+    if (!enabled()) { observeOptOut(); return; }
     var context = [doc.modelContext, typeof navigator !== 'undefined' && navigator.modelContext].find(function (value) {
       return value && typeof value.registerTool === 'function';
     });
@@ -81,7 +89,8 @@ export function createAnnotatedActionsScript(
     function refresh() {
       registrations.forEach(function (controller) { controller.abort(); });
       registrations = [];
-      if (stopped || !enabled()) { stripNativeForms(); stop(); return; }
+      if (stopped) return;
+      if (!enabled()) { observeOptOut(); return; }
       var counts = new Map();
       doc.querySelectorAll('[data-toolname], form[toolname]').forEach(function (element) {
         if (!visible(element)) return;
