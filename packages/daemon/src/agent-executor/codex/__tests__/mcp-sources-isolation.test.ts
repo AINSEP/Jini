@@ -2,9 +2,8 @@
  * "Your MCP servers" OFF on Codex must leave Tovu's bridge as the ONLY MCP server, across every
  * source Codex loads (codex-rs config/src/loader/mod.rs; learn.chatgpt.com/docs/extend/mcp).
  * Project `.codex/config.toml` layers load only for a project the merged config trusts, so the
- * staged home drops the `projects` (trust) table. Layers outside the home (system, MDM, cloud
- * bundle, a project trusted elsewhere, plugins) are checked by asking the Codex binary before spawn
- * (see `mcp-preflight.test.ts`).
+ * staged home drops the `projects` (trust) table. Plugin, app and skill-installed servers are off on
+ * the CLI layer. Layers outside the home (system, MDM, cloud bundle) are machine policy, out of scope.
  * Fixture: a fake filesystem holding a personal entry in each source type.
  */
 import { join, resolve } from 'node:path';
@@ -127,6 +126,7 @@ describe('Codex with personal MCP OFF loads only the Tovu bridge', () => {
     for (const args of [create, resume]) {
       expect(args.join(' ')).toContain('-c features.plugins=false');
       expect(args.join(' ')).toContain('-c features.apps=false');
+      expect(args.join(' ')).toContain('-c features.skill_mcp_dependency_install=false');
       // A profile file (work.config.toml) is only read with --profile.
       expect(args).not.toContain('--profile');
     }
@@ -159,9 +159,10 @@ describe('Codex with personal MCP ON keeps personal servers', () => {
     expect(parse(staged)).toHaveProperty('projects');
   });
 
-  it('leaves plugins and apps on', () => {
+  it('leaves plugins, apps and skill MCP installs on', () => {
     const args = codexArgs({ userMcp: true });
     expect(args).not.toContain('features.plugins=false');
     expect(args).not.toContain('features.apps=false');
+    expect(args).not.toContain('features.skill_mcp_dependency_install=false');
   });
 });

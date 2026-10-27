@@ -100,8 +100,7 @@ import {
   writeMcpJsonIfNeeded,
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
-import { prepareCodexHomeIfNeeded } from './codex/home-staging.js';
-import { preflightCodexMcpIsolationIfNeeded } from './codex/mcp-preflight.js';
+import { prepareCodexHomeIfNeeded, withStagedCodexHome } from './codex/home-staging.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,
@@ -457,7 +456,7 @@ export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: No
           [stagedInstructionsFile.varName]: mergeEnvContentInstructions({ existingRaw: envPassthroughApplied[stagedInstructionsFile.varName], instructionsFilePath: stagedInstructionsFile.path }
           ),
         };
-  const codexHomeApplied = codexHomeDir === undefined ? instructionsApplied : { ...instructionsApplied, CODEX_HOME: codexHomeDir };
+  const codexHomeApplied = codexHomeDir === undefined ? instructionsApplied : withStagedCodexHome({ env: instructionsApplied, codexHomeDir });
   // Finding 1 of SEC-assistant-env-isolation-2026-09-07: same "only set when staged" shape as
   // codexHomeApplied above — mutually exclusive with it in practice (codexHomeDir is only ever set
   // for a 'codex-toml' bridge, claudeConfigDir only ever for a `claude`-id run), so both existing
@@ -1569,12 +1568,6 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
     await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { releaseStagedResources, failBeforeSpawn } }
     );
-
-    // Codex with personal MCP off: ask the binary, with this run's exact env, cwd and loader flags,
-    // which MCP servers it would load; anything but the bridge refuses the run before it starts.
-    await preflightCodexMcpIsolationIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge,
-      stagedHome: preparedCodexHome, launchPath: launch.launchPath, args, env: childEnv, cwd: input.cwd },
-      deps: { createCommandInvocation: createCommandInvocationFn, spawn: spawnFn, releaseStagedResources, failBeforeSpawn } });
 
     const invocation = createCommandInvocationFn({ command: launch.launchPath, args, env: childEnv });
 

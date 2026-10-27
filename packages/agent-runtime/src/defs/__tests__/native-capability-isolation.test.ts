@@ -16,7 +16,7 @@ const cases: { key: keyof NativeCapabilities; claude: string[]; codex: string[] 
   { key: 'workflows', claude: ['CronCreate', 'CronDelete', 'CronList', 'EnterWorktree', 'ExitWorktree', 'RemoteTrigger', 'Workflow'], codex: ['features.worktrees=false', 'features.remote_control=false'] },
   { key: 'userSettings', claude: [], codex: ['features.skills=false', 'features.plugins=false'] },
   // Home staging drops config-file MCP servers; plugin and app (connector) MCP sources need argv.
-  { key: 'userMcp', claude: [], codex: ['features.plugins=false', 'features.apps=false'] },
+  { key: 'userMcp', claude: [], codex: ['features.plugins=false', 'features.apps=false', 'features.skill_mcp_dependency_install=false'] },
   // The host's login-env port enforces this dimension outside Codex argv.
   { key: 'loginEnvironment', claude: [], codex: [] },
 ];

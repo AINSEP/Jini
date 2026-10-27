@@ -37,6 +37,16 @@ export function resolveSourceCodexHomeDir({ hostEnv }: { readonly hostEnv: NodeJ
   return override !== undefined && override.trim().length > 0 ? override : join(homedir(), '.codex');
 }
 
+/**
+ * The child env pointed at a staged `CODEX_HOME`. Drops `CODEX_INTERNAL_ORIGINATOR_OVERRIDE`: a
+ * first-party originator lets a mentioned skill install and start MCP servers (codex-rs
+ * `mcp_skill_dependencies.rs`), and `codex exec` is `codex_exec` without it.
+ */
+export function withStagedCodexHome({ env, codexHomeDir }: { readonly env: NodeJS.ProcessEnv; readonly codexHomeDir: string }, _options = {}): NodeJS.ProcessEnv {
+  const { CODEX_INTERNAL_ORIGINATOR_OVERRIDE: _originator, ...rest } = env;
+  return { ...rest, CODEX_HOME: codexHomeDir };
+}
+
 function defaultMkdtempCodexHome({ prefix }: { readonly prefix: string }): Promise<string> {
   return fsPromises.mkdtemp(join(tmpdir(), prefix));
 }
@@ -88,9 +98,10 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  * The staged `config.toml`. With personal MCP off the real home config must parse before its line
  * rewrite is trusted, and the staged home must declare only the bridge and trust no project (so
  * Codex's trust gate keeps project `.codex/config.toml` layers out unless another layer trusts
- * them). Every layer outside the home (system, MDM, cloud bundle, a project trusted elsewhere,
- * plugins) is checked by asking the Codex binary itself before spawn: `mcp-preflight.ts`. The
- * spawn-time refusal in {@link prepareCodexHomeIfNeeded} stays the backstop for every blocked case.
+ * them). Plugin, app and skill-installed servers are turned off on the CLI layer (`defs/codex.ts`).
+ * Layers outside the home (system, MDM, cloud bundle) are the machine owner's policy, which Off
+ * doesn't override (design note 2026-10-27, option N). The spawn-time refusal in
+ * {@link prepareCodexHomeIfNeeded} stays the backstop for every blocked case.
  * @throws {@link CodexMcpIsolationError} when the run can't be isolated.
  */
 function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome }: {

@@ -9,7 +9,6 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import type { McpJsonInjectionOptions } from '../index.js';
-import { parse } from 'smol-toml';
 
 class FakeChild extends EventEmitter {
   stdin = new PassThrough();
@@ -26,11 +25,11 @@ async function startFixture(
   { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude' | 'antigravity' | 'opencode'; hostEnv: NodeJS.ProcessEnv },
   policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number; mcpJsonInjection?: McpJsonInjectionOptions } = {},
   runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
-  { ownRuntimeState = true, codexMcpList }: { ownRuntimeState?: boolean; codexMcpList?: (env: NodeJS.ProcessEnv | undefined) => string } = {},
+  { ownRuntimeState = true }: { ownRuntimeState?: boolean } = {},
 ) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = new FakeChild();
-  const calls: { command: string; args: readonly string[]; env: NodeJS.ProcessEnv | undefined; cwd: string | undefined }[] = [];
+  const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
   const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery };
   const executor = createAgentExecutor({ lifecycle }, {
     ...policies, hostEnv, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
@@ -38,13 +37,8 @@ async function startFixture(
     resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
       configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    spawn: ((command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv; cwd?: string }) => {
-      calls.push({ command, args, env: options.env, cwd: options.cwd });
-      if (args[0] === 'mcp' && codexMcpList) {
-        const list = new FakeChild();
-        setImmediate(() => { list.stdout.end(codexMcpList(options.env)); setImmediate(() => list.emit('close', 0, null)); });
-        return list as unknown as ChildProcess;
-      }
+    spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+      calls.push({ args, env: options.env });
       queueMicrotask(() => child.emit('spawn'));
       return child as unknown as ChildProcess;
     }) as typeof nodeSpawn,
@@ -110,58 +104,29 @@ it('names every OFF switch, and the Full CLI switch when no single switch is the
     message: "Antigravity can't run with this chat's CLI tool limits. Turn on 'Full CLI access' in the assistant settings, or choose Claude or Codex." });
 });
 
-/** Staged files by path, written by {@link fakeBridgeStaging}. */
-const stagedFiles = new Map<string, string>();
 /** The host's MCP bridge staging with every effect faked: Codex can only turn personal MCP off by
  *  staging a run-scoped CODEX_HOME, and a host always delivers its bridge that way. */
 const fakeBridgeStaging: McpJsonInjectionOptions = {
   command: 'host-bridge', daemonUrl: 'http://site', linkSessionStore: async () => {}, removeDir: async () => {},
-  mkdtemp: async ({ prefix }) => `/fake-tmp/${prefix}x`, writeFile: async ({ path, content }) => { stagedFiles.set(path, content); },
+  mkdtemp: async ({ prefix }) => `/fake-tmp/${prefix}x`, writeFile: async () => {},
   readFile: async ({ path }) => { throw Object.assign(new Error(`ENOENT ${path}`), { code: 'ENOENT' }); },
 };
 
-/** A fake `codex mcp list --json`: like the real binary, it reads the servers from the `CODEX_HOME` in its own env. */
-function listStagedServers(env: NodeJS.ProcessEnv | undefined): string {
-  const config = parse(stagedFiles.get(`${env?.CODEX_HOME}/config.toml`) ?? '') as { mcp_servers?: Record<string, Record<string, unknown>> };
-  return JSON.stringify(Object.entries(config.mcp_servers ?? {}).map(([name, server]) => ({ name, enabled: server.enabled !== false,
-    transport: { type: 'stdio', command: server.command, args: server.args, env: server.env ?? null, env_vars: null, cwd: null } })));
-}
-
 it.each(['claude', 'codex'] as const)('still runs %s with personal MCP OFF', async agentId => {
   const policies = agentId === 'codex' ? { mcpJsonInjection: fakeBridgeStaging } : {};
-  const run = await startFixture({ agentId, hostEnv: {} }, policies, { ...parityRun, nativeCapabilities: hostDefaultCapabilities }, { codexMcpList: listStagedServers });
-  try { expect(run.calls).toHaveLength(agentId === 'codex' ? 2 : 1); } finally { run.child.emit('close', 0, null); }
+  const run = await startFixture({ agentId, hostEnv: {} }, policies, { ...parityRun, nativeCapabilities: hostDefaultCapabilities });
+  try { expect(run.calls).toHaveLength(1); } finally { run.child.emit('close', 0, null); }
 });
 
-// The preflight must load config exactly as the exec it guards: same binary, staged env, config cwd
-// and loader flags. Any drift (the host env instead of the staged one, a dropped `-c`) lets the list
-// vouch for a different config than the run loads.
-it('asks Codex for its MCP servers with the exec run\'s own binary, env, cwd and loader flags', async () => {
-  const run = await startFixture({ agentId: 'codex', hostEnv: { PATH: '/fake/bin' } }, { mcpJsonInjection: fakeBridgeStaging, codexDisablePlugins: true },
-    { ...parityRun, nativeCapabilities: hostDefaultCapabilities }, { codexMcpList: listStagedServers });
+// Option N (2026-10-27): no `codex mcp list` preflight. Listing configured servers can't vouch for
+// servers Codex adds at runtime, and a second process can drift from the exec it guards.
+it('runs Codex with personal MCP OFF as a single exec on the staged home', async () => {
+  const run = await startFixture({ agentId: 'codex', hostEnv: {} }, { mcpJsonInjection: fakeBridgeStaging },
+    { ...parityRun, nativeCapabilities: hostDefaultCapabilities });
   try {
-    const [list, exec] = run.calls;
-    expect(list!.args.slice(-2)).toEqual(['list', '--json']);
-    expect(exec!.args[0]).toBe('exec');
-    expect(list!.command).toBe(exec!.command);
-    expect(list!.env).toEqual(exec!.env);
-    expect(list!.env?.CODEX_HOME).toMatch(/^\/fake-tmp\/jini-codex-home-/);
-    const execCwd = exec!.args.includes('-C') ? exec!.args[exec!.args.indexOf('-C') + 1] : exec!.cwd;
-    expect(list!.cwd).toBe(execCwd);
-    const loaderFlags = (args: readonly string[]) => args.flatMap((token, i) => (['-c', '--enable', '--disable'].includes(token) ? [token, args[i + 1]] : []));
-    expect(loaderFlags(exec!.args)).toContain('features.apps=false');
-    expect(loaderFlags(exec!.args)).toContain('--disable');
-    expect(list!.args).toEqual(['mcp', ...loaderFlags(exec!.args), 'list', '--json']);
+    expect(run.calls.map(call => call.args[0])).toEqual(['exec']);
+    expect(run.calls[0]!.env?.CODEX_HOME).toMatch(/^\/fake-tmp\/jini-codex-home-/);
   } finally { run.child.emit('close', 0, null); }
-});
-
-it('refuses Codex before exec when the binary lists a server another config turns on', async () => {
-  const withExtra = (env: NodeJS.ProcessEnv | undefined) => JSON.stringify([...JSON.parse(listStagedServers(env)) as unknown[],
-    { name: 'corp_srv', enabled: true, transport: { type: 'stdio', command: 'corp', args: [], env: { TOKEN: 'corp-secret' } } }]);
-  const attempt = startFixture({ agentId: 'codex', hostEnv: {} }, { mcpJsonInjection: fakeBridgeStaging },
-    { ...parityRun, nativeCapabilities: hostDefaultCapabilities }, { codexMcpList: withExtra });
-  await expect(attempt).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-    message: "Codex can't run with 'Your MCP servers' off: another Codex config turns on the MCP server \"corp_srv\". Turn it on in the assistant settings, or choose Claude." });
 });
 
 it('runs antigravity in parity once personal MCP is ON', async () => {

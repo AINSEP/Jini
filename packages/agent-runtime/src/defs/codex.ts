@@ -237,7 +237,10 @@ const CODEX_CAPABILITY_OVERRIDES: ReadonlyArray<readonly [keyof NativeCapabiliti
   ['userSettings', ['features.skills=false', 'features.plugins=false']],
   // The staged CODEX_HOME drops config-file MCP servers; plugin-bundled servers and ChatGPT apps
   // (connectors) are other MCP sources, and only this CLI layer outranks a trusted project's config.
-  ['userMcp', ['features.plugins=false', 'features.apps=false']],
+  // `codex_apps` is a runtime-only server gated by `features.apps` alone (codex-rs `ext/mcp/src/lib.rs`,
+  // key verified in `features/src/lib.rs` at rust-v0.151.0). A mentioned skill can install and start
+  // its declared MCP servers (`mcp_skill_dependencies.rs`) unless `skill_mcp_dependency_install` is off.
+  ['userMcp', ['features.plugins=false', 'features.apps=false', 'features.skill_mcp_dependency_install=false']],
 ];
 
 // Capture-style resume: when the caller has a stored Codex thread id

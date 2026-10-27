@@ -161,6 +161,15 @@ describe('computeChildEnv', () => {
     computeChildEnv({ spawnEnv: spawnEnv, mcpBridge: bridge });
     expect(spawnEnv).toEqual(before);
   });
+
+  // A first-party originator lets a mentioned skill install and start MCP servers past the staged home.
+  it('drops the Codex originator override only when a CODEX_HOME is staged', () => {
+    const hostEnv = { ...spawnEnv, CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'codex_cli_rs' };
+    const staged = computeChildEnv({ spawnEnv: hostEnv, mcpBridge: null }, { codexHomeDir: '/tmp/jini-codex-home-x' });
+    expect(staged).not.toHaveProperty('CODEX_INTERNAL_ORIGINATOR_OVERRIDE');
+    expect(staged).toMatchObject({ PATH: '/bin', CODEX_HOME: '/tmp/jini-codex-home-x' });
+    expect(computeChildEnv({ spawnEnv: hostEnv, mcpBridge: null })).toBe(hostEnv);
+  });
 });
 
 describe('computeRuntimeContext', () => {
