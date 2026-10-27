@@ -122,7 +122,9 @@ export function injectBrowserAnalytics(required: Parameters<typeof renderBrowser
   if (required.html.includes('data-jini-browser-analytics')) return required.html;
   const script = renderBrowserAnalytics(required);
   if (!script) return required.html;
-  const end = required.html.toLowerCase().lastIndexOf('</body>');
+  // Match original offsets: Unicode lowercasing can change the HTML's UTF-16 length.
+  let end = -1;
+  for (const match of required.html.matchAll(/<\/body>/gi)) end = match.index;
   if (end === -1) return required.html + script;
   return required.html.slice(0, end) + script + required.html.slice(end);
 }

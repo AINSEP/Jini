@@ -729,6 +729,17 @@ test("ingestHit drops a hit for an excluded path", async () => {
   assert.equal(sink.all({}).length, 0);
 });
 
+test("C48: query strings and fragments cannot bypass an exact path exclusion", async () => {
+  for (const path of ["/admin?utm_source=x", "/admin#top"]) {
+    const { deps, sink } = makeDeps({ config: makeConfigPort(makeConfig({ excludedPaths: ["/admin"] })) });
+
+    const result = await ingestHit({ input: { beacon: makeBeacon({ path }), context: makeContext() }, deps });
+
+    assert.deepEqual(result, { accepted: false, reason: "excluded_path" }, path);
+    assert.equal(sink.all({}).length, 0);
+  }
+});
+
 test("ingestHit applies DNT and GPC independently according to operator settings", async () => {
   for (const [config, beacon, expected] of [
     [{ honorDoNotTrack: false }, { dnt: true }, { accepted: true }],
@@ -911,6 +922,17 @@ test("ingestHit does not exclude an IP against an excludedIpRanges CIDR entry wi
 
   assert.equal(result.accepted, true);
   assert.equal(sink.all({}).length, 1);
+});
+
+test("C47: empty and out-of-range CIDR prefixes do not exclude unrelated IPv4 hits", async () => {
+  for (const range of ["10.0.0.1/", "10.0.0.1/33"]) {
+    const { deps, sink } = makeDeps({ config: makeConfigPort(makeConfig({ excludedIpRanges: [range] })) });
+
+    const result = await ingestHit({ input: { beacon: makeBeacon(), context: makeContext({ ip: "10.1.0.2" }) }, deps });
+
+    assert.deepEqual(result, { accepted: true }, range);
+    assert.equal(sink.all({}).length, 1);
+  }
 });
 
 test("ingestHit does not exclude an IP when the request IP has the wrong number of octets to compare against a CIDR range", async () => {

@@ -25,6 +25,7 @@ import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
 // verification on `win32`, which has no POSIX permission-bit model.
 
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type { McpConfigFilesystemPort } from './config.js';
 import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
@@ -172,17 +173,29 @@ function sanitizeToken(raw: unknown, clock: Clock): StoredMcpToken | null {
 /**
  * Read and sanitize the MCP token store from `<dataDir>/mcp-tokens.json`.
  * Returns an empty store when the file does not exist or contains invalid JSON.
+ * Corrupt text is backed up through the owner-only writer before returning empty,
+ * so the next mutation cannot erase the recoverable bytes.
  * @param dataDir The resolved runtime data directory.
- * @returns The sanitized token file, never rejects on missing-file or corrupt-JSON.
+ * @returns The sanitized token file, or an empty store after missing-file or backed-up corrupt JSON.
+ * @throws On unexpected read errors or a failed backup; the damaged file is left untouched.
+ * @complexity O(n) time and space in the token file length, including a backup write on corruption.
  */
 export async function readTokensFile({ dataDir }: { dataDir: string }, options: McpTokenStoreOptions = {}): Promise<McpTokensFile> {
+  const filesystem = options.filesystem ?? defaultFilesystem;
+  let raw: string | undefined;
   try {
-    const raw = await (options.filesystem ?? defaultFilesystem).readText({ filePath: tokensFile(dataDir) });
+    raw = await filesystem.readText({ filePath: tokensFile(dataDir) });
     return sanitizeTokensFile({ raw: JSON.parse(raw) }, options);
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { ...EMPTY, servers: { ...EMPTY.servers } };
-    if (e.name === 'SyntaxError') {
+    if (e.name === 'SyntaxError' && raw !== undefined) {
+      // Different corrupt contents must not overwrite each other's recovery copy.
+      const digest = createHash('sha256').update(raw).digest('hex');
+      await filesystem.writeSecretText({
+        filePath: `${tokensFile(dataDir)}.corrupt-${digest}`,
+        contents: raw,
+      });
       console.error('[mcp-tokens] Corrupted JSON, returning empty:', e.message);
       return { ...EMPTY, servers: { ...EMPTY.servers } };
     }
@@ -224,7 +237,7 @@ export async function getToken(
   options: McpTokenStoreOptions = {},
 ): Promise<StoredMcpToken | null> {
   const file = await readTokensFile({ dataDir }, options);
-  return file.servers[serverId] ?? null;
+  return Object.hasOwn(file.servers, serverId) ? file.servers[serverId]! : null;
 }
 
 /** Atomically merge a new token for `serverId` into the tokens file. */

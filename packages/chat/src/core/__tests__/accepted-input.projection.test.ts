@@ -20,10 +20,15 @@ describe('accepted input projections', () => {
     expect(projected).toContainEqual(unrelated);
   });
 
-  it('keeps only the first bubble when an unmatched optimistic input and a receipt share an id', () => {
+  it('P27: confirms optimistic bubbles and applies changed receipt text by identity', () => {
     const local = acceptedInputUserEvent({ input: { id: 'x', text: 'draft' } });
-    const projected = projectAcceptedInputEvents({ events: [local, accepted('x', 'edited on the wire')] });
-    expect(projected).toEqual([local]);
+    const queued = acceptedInputUserEvent({ input: { id: 'x', text: 'draft', deliveryState: 'queued' } }, { receipt: 'accepted' });
+    const confirmed = projectAcceptedInputEvents({ events: [local, unrelated, queued] });
+    expect.soft(confirmed).toEqual([queued, unrelated]);
+
+    const renamed = accepted('x', 'edited on the wire');
+    const projected = projectAcceptedInputEvents({ events: [local, unrelated, renamed] });
+    expect(projected).toEqual([renamed, unrelated]);
   });
 
   it('recalls a user turn whose events hold no receipts as its own text', () => {

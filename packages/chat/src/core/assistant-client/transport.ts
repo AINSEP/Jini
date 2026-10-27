@@ -551,7 +551,9 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     const runId = mintByokRunId();
     const controller = new AbortController();
     byokAbortControllers.set(runId, controller);
-    input.signal?.addEventListener("abort", () => controller.abort());
+    // Conversation adoption may have yielded while the subscription was torn down.
+    if (input.signal?.aborted) controller.abort();
+    else input.signal?.addEventListener("abort", () => controller.abort());
 
     let response: Response;
     try {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { followDurableRun, type DurableRunBinding, type DurableSubscriptionPorts } from "../assistant-client/durable-run-subscription.js";
 import type { ChatMessage } from "../messages.js";
+import { createAgUiRunClient } from "../assistant-client/ag-ui-transport.js";
 
 const NOTICES = {
   toolStepLimit: { kind: "status" as const, label: "Limit" }, interrupted: { kind: "status" as const, label: "Interrupted" },
@@ -90,15 +91,40 @@ describe("followDurableRun with a binding and checkpoints", () => {
     expect(h.onDone).toHaveBeenCalledWith([]);
   });
 
-  it("stops following when the run is gone", async () => {
+  it("P26: settles an empty AG-UI start and a durable run that is gone", async () => {
+    const agUiHandlers = handlers();
+    const controller = new AbortController();
+    const client = createAgUiRunClient({ ports: {
+      endpoint: "/ag-ui", runIdPrefix: "ag:", mintId: () => "empty",
+      customEventNames: { usage: "usage", status: "status", extensionPrefix: "ext:" },
+      createAgent: () => ({ abortController: controller, abortRun: () => controller.abort(),
+        run: () => ({ subscribe: observer => { observer.complete(); } }),
+      }),
+    } });
+    const settled = vi.fn();
+    void client.startAgUiRun({ input: {
+      history: [{ id: "u", role: "user", content: "hi" }], conversationId: "c", signal: new AbortController().signal,
+    }, handlers: agUiHandlers }).then(settled, error => settled({ error }));
+    // The existing flush helper drains promise reactions without awaiting a hanging start.
+    await flush();
+    expect.soft(settled).toHaveBeenCalledWith({ runId: "ag:empty" });
+    expect.soft(agUiHandlers.onDone).toHaveBeenCalledTimes(1);
+    expect.soft(agUiHandlers.onDone).toHaveBeenCalledWith([]);
+    expect.soft(agUiHandlers.onError).not.toHaveBeenCalled();
+
     const { ports, streams, timers } = fakePorts(["gone"]);
     const h = handlers();
-    followDurableRun({ runId: "run", ports, notices: NOTICES, bindings: new Map(), handlers: { ...h, onCheckpoint: vi.fn() } });
-    timers[0]!();
-    await flush();
-    expect(streams[0]!.closed).toBe(true);
-    expect(timers).toHaveLength(1);
-    expect(h.onDone).not.toHaveBeenCalled();
+    const stop = followDurableRun({ runId: "run", ports, notices: NOTICES, bindings: new Map(), handlers: { ...h, onCheckpoint: vi.fn() } });
+    try {
+      timers[0]!();
+      await flush();
+      expect(streams[0]!.closed).toBe(true);
+      expect(timers).toHaveLength(1);
+      // Either terminal callback releases useRunStream's streaming state; silent stop does not.
+      expect([h.onDone.mock.calls.length, h.onError.mock.calls.length]).not.toEqual([0, 0]);
+    } finally {
+      stop();
+    }
   });
 
   it("ignores a read that lands after the caller stopped", async () => {

@@ -41,6 +41,10 @@ test("deriveDailySalt rejects an empty workspaceId", () => {
   assert.throws(() => deriveDailySalt({ ...{ rootKeySeed: ROOT_KEY_SEED, workspaceId: "", utcDate: "2026-07-10" }, saltContext: SALT_CONTEXT }), RangeError);
 });
 
+test("C50: deriveDailySalt rejects an empty root key seed", () => {
+  assert.throws(() => deriveDailySalt({ rootKeySeed: "", workspaceId: "workspace-1", utcDate: "2026-07-10", saltContext: SALT_CONTEXT }), RangeError);
+});
+
 test("deriveDailySalt rejects an empty utcDate", () => {
   assert.throws(() => deriveDailySalt({ ...{ rootKeySeed: ROOT_KEY_SEED, workspaceId: "workspace-1", utcDate: "" }, saltContext: SALT_CONTEXT }), RangeError);
 });

@@ -16,7 +16,8 @@ export interface DurableSubscriptionPorts {
 type CheckpointHandlers = RunHandlers & { onCheckpoint?: (message: ChatMessage) => void };
 
 /** SSE is a view of one attempt. The saved message owns terminal state and can point at a new
- * attempt after recovery; neither a browser 404 nor a closed stream may fail the logical run. */
+ * attempt after recovery; neither a browser 404 nor a closed stream may fail the logical run.
+ * An explicit "gone" result ends observation and releases the caller's streaming state. */
 export function followDurableRun(
   { runId: initialRunId, handlers, signal, binding, ports, notices, bindings }: { runId: string; handlers: CheckpointHandlers; signal?: AbortSignal; binding?: DurableRunBinding; ports: DurableSubscriptionPorts; notices: RunNotices; bindings: Map<string, DurableRunBinding> }, { logger = console }: { logger?: Pick<Console, "info"> } = {},
 ): () => void {
@@ -101,7 +102,7 @@ export function followDurableRun(
     try {
       const message = await ports.read({ runId, ...(messageId ? { messageId } : {}) }, { recover });
       if (stopped || !message) return;
-      if (message === "gone") { stop(); return; }
+      if (message === "gone") { stop(); handlers.onDone([]); return; }
       applySavedMessage(message);
     } finally {
       reading = false;

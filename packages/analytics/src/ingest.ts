@@ -316,7 +316,7 @@ export function findExclusionReason(input: {
 
   if (config.honorDoNotTrack && beacon.dnt) return "dnt";
   if (config.honorGlobalPrivacyControl && beacon.gpc) return "gpc";
-  if (isPathExcluded(beacon.path, config.excludedPaths)) return "excluded_path";
+  if (isPathExcluded(beacon.path.split(/[?#]/, 1)[0]!, config.excludedPaths)) return "excluded_path";
   if (isIpExcluded(ip, config.excludedIpRanges)) return "excluded_ip";
   return null;
 }
@@ -337,17 +337,18 @@ function pathMatchesGlob(path: string, pattern: string): boolean {
 
 /** Matches an IP against a small set of exact addresses or IPv4 CIDR ranges (v1: IPv4 CIDR only). */
 function isIpExcluded(ip: string, excludedRanges: readonly string[]): boolean {
-  return excludedRanges.some((range) => ipMatchesRange(ip, range));
+  return excludedRanges.some((range) => ipMatchesRange({ ip, range }));
 }
 
-function ipMatchesRange(ip: string, range: string): boolean {
+/** Matches exact IPs or IPv4 CIDRs; malformed prefixes never match, while an explicit /0 does. */
+function ipMatchesRange({ ip, range }: { ip: string; range: string }, _optional: Record<string, never> = {}): boolean {
   const mapped = IPV4_MAPPED_IPV6_PATTERN.exec(ip);
   if (mapped) ip = mapped[1]!;
   if (!range.includes("/")) return ip === range;
 
-  const [rangeIp = "", prefixRaw] = range.split("/");
+  const [rangeIp = "", prefixRaw = ""] = range.split("/");
   const prefix = Number(prefixRaw);
-  if (ip.includes(":") || rangeIp.includes(":") || Number.isNaN(prefix)) return false;
+  if (ip.includes(":") || rangeIp.includes(":") || !/^\d+$/.test(prefixRaw) || prefix > 32) return false;
 
   const ipInt = ipv4ToInt(ip);
   const rangeInt = ipv4ToInt(rangeIp);

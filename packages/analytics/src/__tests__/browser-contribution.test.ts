@@ -123,6 +123,13 @@ it('injects once, before body end, and excludes unsupported static contributions
   expect(injectBrowserAnalytics({ ...input, delivery: 'static', contributions: [{ ...contribution, supportsStatic: true }] })).toContain('data-jini-browser-analytics');
 });
 
+it('C49: inserts before the intact closing body tag after Turkish capital dotted I', () => {
+  const html = injectBrowserAnalytics({ html: '<html><body>İ</body></html>', contributions: [contribution], surface: 'site', delivery: 'live' });
+
+  expect(html).toContain('<body>İ<script data-jini-browser-analytics>');
+  expect(html).toContain('</script></body></html>');
+});
+
 it('never checks configuration before a choice and bounds checks to visible two-minute polls', async () => {
   let requests = 0;
   const b = bridge({ configuration: { url: '/configuration', revision: 'current' }, request: async () => {
