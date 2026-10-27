@@ -118,6 +118,7 @@ function generationContent({ input, output }: { input?: string; output?: string 
  * revoked consent stops the next one and invalidates pending approvals), then fixed event names,
  * pseudonymous ids, and the PII/secret property rules. Anything refused is dropped silently:
  * analytics must never fail the feature.
+ * Browser configuration is forwarded; the browser consent bridge admits its SDKs.
  * @param required The vendor port and the host's consent decision.
  * @param options A synchronous host consent revision for revocation without a subsequent event.
  * @returns A guarded port; the noop stays the noop (zero cost when no vendor is configured).
@@ -172,6 +173,7 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
     } catch { settle({ allowed: false }); }
   };
   return {
+    ...(inner.browserAnalytics ? { browserAnalytics: inner.browserAnalytics.bind(inner) } : {}),
     ...(inner.captureAiGeneration ? {
       includeAiContent: inner.includeAiContent === true,
       captureAiGeneration({ userId, properties, ...content }: ProductAiGeneration, _optional: Record<string, never> = {}) {

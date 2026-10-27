@@ -92,17 +92,20 @@ test("dispose never throws when the SDK shutdown fails", async () => {
   await expect(resource.dispose({})).resolves.toBeUndefined();
 });
 
-test("owner captures without properties are profile-less and identities without traits remain bare; dispose flushes the default batch", async () => {
+test("J1: server identify with or without traits must not create a person profile", async () => {
   const { batches, fetch } = recordingFetch();
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config: { enabled: true, apiKey: "phc_test_dummy", host: "https://posthog.invalid" } }, { fetch: fetch as never });
-  port.capture({ name: "theme_changed", userId: "u2" });
-  port.identify({ userId: "u2" });
-  expect(batches).toEqual([]);
-  await dispose();
+  try {
+    port.capture({ name: "theme_changed", userId: "u2" });
+    port.identify({ userId: "u2" });
+    port.identify({ userId: "u3", traits: { plan: "self-hosted" } });
+    expect(batches).toEqual([]);
+  } finally { await dispose(); }
   const events = batches.flatMap((b) => b.body.batch);
-  expect(events.map((e) => [e.event, e.distinct_id])).toEqual([["theme_changed", "u2"], ["$identify", "u2"]]);
+  expect(events.map((e) => [e.event, e.distinct_id])).toEqual([["theme_changed", "u2"], ["$identify", "u2"], ["$identify", "u3"]]);
   expect(events[0]?.properties.$process_person_profile).toBe(false);
-  expect(events[1]?.properties).not.toHaveProperty('$process_person_profile');
+  const identifies = events.filter((event) => event.event === "$identify");
+  expect(identifies.map((event) => event.properties.$process_person_profile)).toEqual([false, false]);
 });
 
 test("without an injected fetch an idle client is built and shut down with nothing to send", async () => {

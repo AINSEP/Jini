@@ -1,7 +1,7 @@
 /** Product analytics: the guard rules. The PostHog provider's SDK tests live with its plugin (`@jini-ai/provider-plugins`). */
 import { expect, test } from "vitest";
 
-import { createNoopProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards, type ProductEvent, type ProductAnalyticsPort } from "../product/index.js";
+import { createNoopProductAnalytics, fanOutProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards, type BrowserAnalyticsContribution, type ProductEvent, type ProductAnalyticsPort } from "../product/index.js";
 
 const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -9,6 +9,26 @@ function recordingPort(): { port: ProductAnalyticsPort; events: ProductEvent[] }
   const events: ProductEvent[] = [];
   return { events, port: { capture: (event) => { events.push(event); }, identify: () => {} } };
 }
+
+test("P21: guards and single-provider fanout preserve browser contributions for each surface", () => {
+  const contributions: Record<"site" | "admin", BrowserAnalyticsContribution> = {
+    site: { source: "function(){return function(mode){window.siteMode=mode;};}", origins: [], supportsStatic: true },
+    admin: { source: "function(){return function(mode){window.adminMode=mode;};}", origins: [], supportsStatic: false },
+  };
+  const { port } = recordingPort();
+  const inner: ProductAnalyticsPort = {
+    ...port,
+    browserAnalytics: ({ surface }) => contributions[surface],
+  };
+  const guarded = withProductAnalyticsGuards({ inner, consent: () => true });
+  const fanout = fanOutProductAnalytics({ ports: [inner] });
+
+  for (const surface of ["site", "admin"] as const) {
+    // Soft assertions expose both losses independently in this single finding's test.
+    expect.soft(guarded.browserAnalytics?.({ surface }), `guard: ${surface}`).toEqual(contributions[surface]);
+    expect.soft(fanout.browserAnalytics?.({ surface }), `fanout: ${surface}`).toEqual(contributions[surface]);
+  }
+});
 
 test("noop: one shared frozen port, and the guard keeps it as-is (zero cost when unconfigured)", () => {
   const noop = createNoopProductAnalytics({});

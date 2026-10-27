@@ -147,7 +147,7 @@ export interface CreateLocalNodeDaemonConfig<
   security?: Omit<Extract<JiniKernelSecurity, { readonly mode: 'sidecar-strict' }>, 'host'>;
   /** Invoked once the HTTP listener has fully closed, before the durable `EventLog` is closed. */
   onShutdown?: () => Promise<void> | void;
-  /** Defaults to `process.env`. */
+  /** Snapshotted per daemon; defaults to `process.env`. The caller's object is never mutated. */
   env?: NodeJS.ProcessEnv;
   /** Bind the preset and custom run handlers to the same owned runtime and explicit policies. */
   agentExecutor?: Parameters<typeof composeJiniKernel>[0]['agentExecutor'];
@@ -348,22 +348,15 @@ export async function createLocalNodeDaemon<const Packs extends readonly AnyPack
 export async function createLocalNodeDaemon(
   config: CreateLocalNodeDaemonConfig<readonly AnyPack[], string>,
 ): Promise<LocalNodeDaemon> {
-  const env = config.env ?? process.env;
   const host = normalizeDaemonBindHost(config.host ?? DEFAULT_HOST);
+  // Origin checks must retain this daemon's bind host without mutating the caller or process env.
+  const env = { ...(config.env ?? process.env), [DEFAULT_BIND_HOST_ENV_VAR]: host };
   const requestedPort = config.port ?? 0;
   const registryPath =
     config.discoveryFile === false ? null : (config.discoveryFile ?? resolveDaemonRegistryPath({ dataDir: config.dataDir }));
 
-  // `@jini-ai/http-kit`'s origin policy resolves `bindHost` from `JINI_BIND_HOST`. Setting it here,
-  // before any request can possibly be served, keeps every same-origin decision in sync with the
-  // host this daemon actually bound to.
-  env[DEFAULT_BIND_HOST_ENV_VAR] = host;
-
   const resolvedPortRef = { current: requestedPort };
-  // `env`, not `process.env`: when a caller injects its own environment, the line above wrote the
-  // bind host into *that* object, and `JINI_ALLOWED_ORIGINS`/`JINI_WEB_PORT` come from it too. The
-  // origin-guard middleware is already handed this same `env`; carrying it on the adapter is what
-  // makes the per-route `requireSameOrigin` guard evaluate the same supplied environment.
+  // The kernel's origin middleware and per-route guards must share the same daemon-local env.
   const adapter: AdapterContext = { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
 
   let shuttingDown = false;

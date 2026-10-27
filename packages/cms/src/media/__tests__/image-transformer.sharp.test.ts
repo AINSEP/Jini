@@ -38,6 +38,29 @@ test("SharpImageTransformer.transform actually resizes and re-encodes real image
   assert.notDeepStrictEqual(Buffer.from(result.bytes), sourcePng);
 });
 
+test("EXIF-6: phone photos are upright in the public WebP after EXIF is stripped", async () => {
+  const sourceJpeg = await sharp({
+    create: { width: 4, height: 2, channels: 3, background: { r: 10, g: 20, b: 30 } },
+  })
+    .jpeg()
+    .withMetadata({ orientation: 6 })
+    .toBuffer();
+  const sourceMeta = await sharp(sourceJpeg).metadata();
+  assert.deepStrictEqual([sourceMeta.width, sourceMeta.height, sourceMeta.orientation], [4, 2, 6]);
+
+  const result = await new SharpImageTransformer().transform({
+    bytes: new Uint8Array(sourceJpeg),
+    params: { format: "webp" },
+  });
+
+  assert.strictEqual(result.contentType, "image/webp");
+  const outMeta = await sharp(Buffer.from(result.bytes)).metadata();
+  assert.strictEqual(outMeta.format, "webp");
+  assert.strictEqual(outMeta.exif, undefined);
+  // Orientation 6 requires a quarter turn before discarding the EXIF tag.
+  assert.deepStrictEqual([outMeta.width, outMeta.height], [2, 4], "orientation 6 must swap the stored dimensions so the WebP is upright");
+});
+
 test("SharpImageTransformer.transform rejects genuinely invalid image bytes with a named ImageSourceCorruptError (not a silent fallback, and not an undifferentiated throw)", async () => {
   const transformer = new SharpImageTransformer();
   await assert.rejects(
@@ -203,6 +226,7 @@ test('a sharp loader that fails is reported as ImageTransformUnavailableError, n
 test('a non-Error rejection from the codec still surfaces as ImageSourceCorruptError carrying its text', async () => {
   const calls: unknown[][] = [];
   const failing: SharpInstance = {
+    rotate: () => { calls.push(['rotate']); return failing; },
     resize: (...args) => { calls.push(['resize', ...args]); return failing; },
     flatten: (options) => { calls.push(['flatten', options]); return failing; },
     toFormat: (...args) => { calls.push(['toFormat', ...args]); return failing; },
@@ -214,6 +238,6 @@ test('a non-Error rejection from the codec still surfaces as ImageSourceCorruptE
     assert.equal(error.message, "the source image could not be decoded/re-encoded (target format 'jpeg'): VipsJpeg: premature end of input");
     return true;
   });
-  // No resize without dimensions; JPEG is flattened onto white and encoded without a quality override.
-  assert.deepEqual(calls, [['load', undefined], ['flatten', { background: '#ffffff' }], ['toFormat', 'jpeg', undefined]]);
+  // Auto-orient without resizing; JPEG is flattened onto white and encoded without a quality override.
+  assert.deepEqual(calls, [['load', undefined], ['rotate'], ['flatten', { background: '#ffffff' }], ['toFormat', 'jpeg', undefined]]);
 });

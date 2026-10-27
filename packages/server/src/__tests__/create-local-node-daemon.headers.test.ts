@@ -1,10 +1,12 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { composeJiniKernel } from '../compose-jini-kernel.js';
 import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
 
 vi.mock('../compose-jini-kernel.js', () => ({ composeJiniKernel: vi.fn() }));
+
+afterEach(() => { vi.resetAllMocks(); });
 
 it('serves a response without advertising the framework, before opening any listener', async () => {
   const stopBeforeStorage = new Error('stop before storage or listener setup');
@@ -28,4 +30,24 @@ it('serves a response without advertising the framework, before opening any list
   } finally {
     socket.destroy();
   }
+});
+
+it('C64: each daemon captures its bind host without mutating the caller environment', async () => {
+  const env = { JINI_BIND_HOST: 'caller.example', JINI_ALLOWED_ORIGINS: 'https://trusted.example' };
+  const originalEnv = { ...env };
+  const stopBeforeStorage = new Error('stop before storage or listener setup');
+  const config = {
+    dataDir: '/unused-env-test', packs: [], env, discoveryFile: false as const,
+    open: () => { throw new Error('storage must not be opened'); },
+  };
+  vi.mocked(composeJiniKernel).mockRejectedValueOnce(stopBeforeStorage);
+  await expect(createLocalNodeDaemon({ ...config, host: '127.0.0.1' })).rejects.toBe(stopBeforeStorage);
+  const first = vi.mocked(composeJiniKernel).mock.calls.at(-1)![0];
+
+  vi.mocked(composeJiniKernel).mockRejectedValueOnce(stopBeforeStorage);
+  await expect(createLocalNodeDaemon({ ...config, host: '0.0.0.0' })).rejects.toBe(stopBeforeStorage);
+
+  expect.soft(env).toEqual(originalEnv);
+  expect.soft(first.env).toEqual({ ...originalEnv, JINI_BIND_HOST: '127.0.0.1' });
+  expect.soft(first.adapter.env).toEqual({ ...originalEnv, JINI_BIND_HOST: '127.0.0.1' });
 });

@@ -64,6 +64,7 @@ export class ImageSourceCorruptError extends Error {
 
 /** The narrow slice of `sharp`'s fluent API this adapter calls. */
 export interface SharpInstance {
+  rotate(): SharpInstance;
   resize(
     width?: number,
     height?: number,
@@ -117,7 +118,8 @@ function loadSharpFactory(loadSharp: () => SharpFactory): SharpFactory {
 }
 
 /**
- * Real `ImageTransformerPort` adapter. Applies `params.width`/`height`
+ * Real `ImageTransformerPort` adapter. Auto-orients pixels before EXIF is stripped,
+ * then applies `params.width`/`height`
  * (via `sharp().resize(...)`, only when at least one is set) then
  * `params.format` (via `sharp().toFormat(...)`, always — re-encode is
  * unconditional).
@@ -189,7 +191,7 @@ export class SharpImageTransformer implements ImageTransformerPort {
       let pipeline = sharpFactory(
         Buffer.from(input.bytes),
         preserveAnimation ? { animated: true } : undefined
-      );
+      ).rotate();
 
       if (input.params.width !== undefined || input.params.height !== undefined) {
         pipeline = pipeline.resize(input.params.width, input.params.height, {
