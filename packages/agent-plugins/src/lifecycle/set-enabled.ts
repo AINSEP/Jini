@@ -37,7 +37,7 @@ export interface SetAgentPluginEnabledResult {
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
-  const { setAgentPluginActivation, readAgentPluginActivations, resolveAgentPluginActivation } = createActivationModule(ports);
+  const { setAgentPluginActivation, readAgentPluginActivations, resolveAgentPluginActivation, enableBundledAgentPluginUnlessOperatorDisabled } = createActivationModule(ports);
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
   const persistentState = createPersistentStateModule(ports);
 
@@ -67,7 +67,15 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     return compatibility.missingRequires.map(id => `Needs ${id}`);
   }
 
-  async function setEnabledLocked({ input, workspaceRoot }: { readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string }): Promise<SetAgentPluginEnabledResult> {
+  /** The activation write: unconditional, or (`unlessOperatorDisabled`) the locked conditional enable that
+   *  leaves an operator's own "off" as it is. @returns The activations as written. */
+  async function writeDecision({ input, workspaceRoot, unlessOperatorDisabled }: { readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string; readonly unlessOperatorDisabled: boolean }) {
+    if (!unlessOperatorDisabled || !input.enabled) return setAgentPluginActivation({ workspaceRoot, pluginId: input.pluginId, enabled: input.enabled, actor: input.actor });
+    await enableBundledAgentPluginUnlessOperatorDisabled({ workspaceRoot, pluginId: input.pluginId, actor: input.actor });
+    return readAgentPluginActivations(workspaceRoot);
+  }
+
+  async function setEnabledLocked({ input, workspaceRoot, unlessOperatorDisabled }: { readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string; readonly unlessOperatorDisabled: boolean }): Promise<SetAgentPluginEnabledResult> {
     // Re-read under the lock: an uninstall or update may have finished while this call waited.
     const { installed, plugin } = await findInstalled({ workspaceRoot, pluginId: input.pluginId });
     // Boot recovery of an unfinished update would overwrite this decision, so it refuses
@@ -75,12 +83,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports, workspaceId: input.workspaceId, pluginId: input.pluginId }) });
     const warnings = await enablementWarnings({ input, workspaceRoot, installed, plugin });
     const previous = await resolveAgentPluginActivation(workspaceRoot, input.pluginId);
-    const written = await setAgentPluginActivation({
-      workspaceRoot,
-      pluginId: input.pluginId,
-      enabled: input.enabled,
-      actor: input.actor,
-    });
+    const written = await writeDecision({ input, workspaceRoot, unlessOperatorDisabled });
 
     if ((previous.verdict === "active") !== written.plugins[input.pluginId]!.enabled) {
       try { ports.onActivationChanged?.({ pluginId: input.pluginId, workspaceId: input.workspaceId, enabled: written.plugins[input.pluginId]!.enabled, actor: input.actor }, {}); }
@@ -98,14 +101,17 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
    * toggle never judges compatibility against a package that is mid-swap. The lock is a
    * non-reentrant file lock: no caller holds it around this function (checked 2026-10-21 in this
    * package and in the host admin route / `plugins_set_enabled` tool).
+   * @param optional.unlessOperatorDisabled - An enable a system actor makes on a bundled plugin (a sign-in's
+   *   connect defaults): every check above still runs, but the write is the activations-locked conditional
+   *   enable, so an operator's own "off" (any disabled record but the seeder's) stays; the result reads false.
    */
-  async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput, _optional: Record<string, never> = {}): Promise<SetAgentPluginEnabledResult> {
+  async function setAgentPluginEnabled(input: SetAgentPluginEnabledInput, optional: { readonly unlessOperatorDisabled?: boolean } = {}): Promise<SetAgentPluginEnabledResult> {
     const workspaceRoot = ports.layout.forWorkspace({ workspaceId: input.workspaceId }).root;
     // Checked once before locking so an unknown or ungrammatical id stays a not-installed refusal
     // and never creates workspace or lock directories (the lock path re-asserts the id grammar).
     await findInstalled({ workspaceRoot, pluginId: input.pluginId });
     return persistentState.withPluginLock({ workspaceRoot, pluginId: input.pluginId,
-      run: () => setEnabledLocked({ input, workspaceRoot }) });
+      run: () => setEnabledLocked({ input, workspaceRoot, unlessOperatorDisabled: optional.unlessOperatorDisabled === true }) });
   }
 
   return { setAgentPluginEnabled };
