@@ -204,11 +204,14 @@ export class SecretsVaultService {
     return { sealed, last4: hint?.last4 ?? null, tokenLength: hint?.length ?? null };
   }
 
-  /** Authorized runtime read; returns plaintext only to the caller that supplied exact ownership. */
-  async get(input: VaultIdentity, _options: VaultOptions = {}): Promise<{ summary: VaultSummary; payload: VaultMeta | null } | null> {
+  /** Authorized runtime read; returns plaintext only to the caller that supplied exact ownership.
+   * `provider`, when given, must match the row's group before its envelope is opened (a stale
+   * selection never decrypts another group's secret). */
+  async get(input: VaultIdentity, { provider }: { provider?: string } = {}): Promise<{ summary: VaultSummary; payload: VaultMeta | null } | null> {
     assertContext(input);
     await this.authorize({ action: "get", context: input });
     const record = await this.find(input);
+    if (record && provider !== undefined && record.provider !== provider) throw new VaultError({ code: "context" });
     return record ? { summary: summary(record), payload: await this.open(record) } : null;
   }
 

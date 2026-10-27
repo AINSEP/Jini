@@ -213,6 +213,17 @@ test("authorization and sealing failures do not persist; personal access always 
   await assert.rejects(service.delete({ ...context, expectedRevision: 1 }), /denied/);
 });
 
+test("an expected provider group is checked before opening; omitted keeps the identity-only read", async () => {
+  const { service, input, sealer } = fixture();
+  await service.put(input);
+  const open = vi.spyOn(sealer, "open");
+  await assert.rejects(service.get(context, { provider: "other" }), { code: "context" });
+  assert.equal(open.mock.calls.length, 0);
+  assert.deepEqual((await service.get(context, { provider: "example" }))?.payload, input.payload);
+  assert.deepEqual((await service.get(context))?.payload, input.payload);
+  assert.equal(await service.get({ ...context, id: "missing" }, { provider: "other" }), null);
+});
+
 test("default lookup uses one repo query and checks scope/policy before decrypting", async () => {
   const { service, input, repo, sealer, authorize } = fixture();
   await service.put(input);
