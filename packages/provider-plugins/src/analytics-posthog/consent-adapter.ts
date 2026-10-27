@@ -142,7 +142,9 @@ export function createPostHogConsentAdapter({ ports }: { ports: PostHogConsentPo
   /** Remove only this provider's leftovers; storage can be unavailable in embedded browsers.
    * @complexity O(cookies + local keys), no storage creation or network. */
   function onState({ state }: { state: ConsentState }, _optional = {}): void {
-    if (state.analyticsLevel !== 'full' && ports.doc) purgeStorage({ doc: ports.doc, storage: POSTHOG_STORAGE });
+    if (state.analyticsLevel === 'full' || !ports.doc) return;
+    // A sandboxed frame throws on document.cookie; cleanup must never block the anonymous pageview.
+    try { purgeStorage({ doc: ports.doc, storage: POSTHOG_STORAGE }); } catch { /* nothing readable to purge */ }
   }
   return {
     onState,
