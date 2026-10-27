@@ -8,13 +8,13 @@ import { VaultError } from "../credential-sets/index.js";
 test("retains published subpaths and declares adapter dependencies as optional peers", () => {
     const root = new URL("../../../", import.meta.url);
     const manifest = JSON.parse(readFileSync(new URL("package.json", root), "utf8"));
-    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./asset-cache", "./secrets", "./secrets/credential-sets", "./secrets/credential-sets/contracts", "./secrets/testing", "./http/guarded", "./mail", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./object-store", "./net", "./net/endpoint-policy", "./fs/file-lock", "./secrets/credential-token", "./web", "./command", "./process", "./toolchain", "./proxy-env", "./shell", "./child-environment"]);
+    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./asset-cache", "./secrets", "./secrets/credential-sets", "./secrets/credential-sets/contracts", "./secrets/testing", "./http/guarded", "./mail", "./mail/senders", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./object-store", "./net", "./net/endpoint-policy", "./fs/file-lock", "./secrets/credential-token", "./web", "./command", "./process", "./toolchain", "./proxy-env", "./shell", "./child-environment"]);
     for (const [subpath, source] of [["./asset-cache", "asset-cache"], ["./net/endpoint-policy", "net/endpoint-policy"], ["./secrets/credential-token", "secrets/credential-token"], ["./net", "net/index"], ["./fs/file-lock", "fs/file-lock"], ["./secrets", "secrets/index"], ["./secrets/credential-sets", "secrets/credential-sets/index"], ["./secrets/testing", "secrets/testing"], ["./http/guarded", "http/guarded/index"], ["./mail", "mail/index"], ["./mail/smtp", "mail/smtp"], ["./fs/guarded-reader", "fs/guarded-reader"], ["./fs/durable-json", "fs/durable-json"], ["./fs", "fs/index"], ["./object-store", "object-store/index"], ["./web", "web/index"], ["./command", "command"], ["./process", "process"], ["./toolchain", "toolchain"], ["./proxy-env", "proxy-env"], ["./shell", "shell"], ["./child-environment", "child-environment"]]) {
         expect(manifest.exports[subpath!]).toEqual({ types: `./dist/${source}.d.ts`, import: `./dist/${source}.js`, default: `./dist/${source}.js` });
         expect(existsSync(fileURLToPath(new URL(`src/${source}.ts`, root)))).toBe(true);
         expect(manifest.jini.entries[subpath!]).toBe(subpath === "./net/endpoint-policy" || subpath === "./secrets/credential-token" ? "universal" : "node");
     }
-    expect(manifest.dependencies).toEqual({ "@jini-ai/core": "^0.6.11" });
+    expect(manifest.dependencies).toEqual({ "@jini-ai/core": "^0.6.12" });
     const adapterPeers = { undici: "^7.25.0", parse5: "7.3.0", "hast-util-from-parse5": "8.0.3", "hast-util-to-mdast": "10.1.2", "mdast-util-to-markdown": "2.1.2", "mdast-util-gfm-table": "2.0.0" };
     expect(manifest.peerDependencies).toEqual(adapterPeers);
     expect(manifest.peerDependenciesMeta).toEqual(Object.fromEntries(Object.keys(adapterPeers).map(name => [name, { optional: true }])));

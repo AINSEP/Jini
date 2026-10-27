@@ -8,7 +8,7 @@ test("original filenames use server-validated MIME extensions rather than a clai
     ["image/svg+xml", "svg"], ["video/mp4", "mp4"], ["application/pdf", "pdf"],
     ["image/jpeg", "jpg"], ["audio/mpeg", "mp3"], ["video/webm", "webm"],
     ["audio/wav", "wav"], ["audio/flac", "flac"], ["audio/mp4", "m4a"], ["audio/ogg", "ogg"],
-  ]) {
+  ] as const) {
     assert.equal(mediaFileExtension({ contentType }), extension);
     assert.equal(buildImportFilename({ url: new URL("https://example.test/fake.exe"), contentType }), `fake.${extension}`);
   }

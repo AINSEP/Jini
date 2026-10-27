@@ -416,7 +416,8 @@ describe('secret-card lifecycle', () => {
 });
 
 // Exact hashes include the intended detail-layout fix (c4c19234) and shared requiredUnless script
-// (4b31ffd20), plus live requiredWhen marks and saved-value presence; all other emitted bytes stay pinned.
+// (4b31ffd20), plus live requiredWhen marks, saved-value presence and input-driven requirement refresh;
+// all other emitted bytes stay pinned.
 describe('secret-card exact emitted output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
@@ -427,13 +428,13 @@ describe('secret-card exact emitted output', () => {
     f.setAnswer({ status: 'received', params: { token: CANARY, label: 'Changed' } });
     expect(await f.run()).toEqual({ saved: true, id: 'saved-1' });
     expect(f.save.mock.calls).toEqual([[{ values: { token: CANARY, label: 'Changed' }, prep: { target: 'entry-1' }, signal: f.ctx.signal }]]);
-    expect(digest(f.emissions)).toBe('17dd37ebe05f87e3e5d53a14adc281d8382b0c0dbb0ffa50e7bd84c72ff9aa55');
+    expect(digest(f.emissions)).toBe('4a050f26341658947f4524ef4e62540520935b781ef52453308d547a48ba5236');
   });
 
   it('pins the default-option form, options cancel label fallback and success outcome', async () => {
     const f = fixture({ text: { cancelLabel: 'Options cancel' } });
     expect(await f.run()).toEqual({ saved: true, id: 'saved-1' });
-    expect(digest(f.emissions)).toBe('ec9a4751220c25b01f395979fee130d5f6b139e32761a9c289dfcd2d8df13379');
+    expect(digest(f.emissions)).toBe('d3044a8cf4e694bd3ce188189c9e79e89773399ed7c5d23898b366a029d35e1e');
   });
 
   it('pins the redacted failure outcome, result and fixed log metadata', async () => {
@@ -443,7 +444,7 @@ describe('secret-card exact emitted output', () => {
     const output = await f.run();
     expect(output).toEqual({ saved: false, reason: 'failed', message: 'Rejected [REDACTED:exact_secret]' });
     expect(logFailure.mock.calls).toEqual([[{ toolId: 'save_credential', exchangeId: 'exchange-1', saved: false }]]);
-    expect(digest(f.emissions)).toBe('b7c1480558d13a0df207fee5662e99f12a5e77f780e93dedf2e10f7fb65cdfd8');
+    expect(digest(f.emissions)).toBe('f83a649c5db6a36e873c53aa6a475e61a82fa7dc1081065ff12fed9a35975e34');
   });
 
   it.each([
@@ -455,7 +456,7 @@ describe('secret-card exact emitted output', () => {
     f.setAnswer(answer);
     expect(await f.run()).toEqual({ saved: false, reason });
     expect(f.save).not.toHaveBeenCalled();
-    expect(digest(f.emissions)).toBe('98b3539ef767303823cd73d8587c43405b8a81c2b63829c523461778cccaf6e7');
+    expect(digest(f.emissions)).toBe('8b56c9a6832096537f4324604dca8af6a778f029e972b84b85aac929cc2c76f9');
   });
 
   it('an abort raised while the submitted values are read wins over the save', async () => {

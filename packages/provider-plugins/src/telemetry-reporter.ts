@@ -10,14 +10,15 @@ export interface ProviderTelemetryReporter {
 }
 
 /** Adapter-edge sanitizer; a host receives the endpoint hostname only, never SDK error text.
- * @param required Configured destination; parsed once without logging its value.
+ * @param required Configured destination; parsed once without logging its value. Malformed URLs
+ *   report the fixed `invalid-endpoint` label so borrowed clients remain usable.
  * @param optional Borrowed host reporter and info log. Their failures cannot break telemetry.
  * @returns Safe lifecycle reporting callbacks. @complexity O(1) per report.
  */
 export function createProviderTelemetryReporter(
   { endpoint }: { endpoint: string }, optional: ProviderTelemetryOptions = {},
 ): ProviderTelemetryReporter {
-  const host = new URL(endpoint).hostname;
+  const host = URL.canParse(endpoint) ? new URL(endpoint).hostname : 'invalid-endpoint';
   return {
     initialized({ message }: { message: string }, _options = {}): void {
       try { optional.info?.(`observability: ${message} to ${host}`); } catch { /* Logging is borrowed. */ }

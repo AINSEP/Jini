@@ -14,8 +14,8 @@
  *
  * Privacy defaults (measured against posthog-node 5.55.1's options): GeoIP enrichment off (the
  * server's IP would otherwise be geolocated as the user's), no exception autocapture (errors belong
- * to the observability port), no feature-flag polling (no personal API key), person profiles only
- * for identified users. Browser autocapture/replay is the optional contribution in browser.ts;
+ * to the observability port), no feature-flag polling (no personal API key), all server capture
+ * events are profile-less. Browser autocapture/replay is the optional contribution in browser.ts;
  * the host connects it to its existing visitor/owner consent decisions.
  */
 import { PostHog, type PostHogOptions } from "posthog-node";
@@ -92,8 +92,8 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
     },
     capture({ name, userId, properties }) {
       // Domain/outbox IDs are the host-neutral idempotency key; retries retain vendor dedupe.
-      // Visitor subjects are ephemeral; owner events retain the SDK's person-profile behavior.
-      const merged = { ...properties, ...attributes, ...(typeof properties?.eventId === 'string' ? { $insert_id: properties.eventId } : {}), ...(userId.startsWith('visitor:') ? { $process_person_profile: false } : {}) };
+      // Product subjects include installation ids; all server captures must remain profile-less.
+      const merged = { ...properties, ...attributes, ...(typeof properties?.eventId === 'string' ? { $insert_id: properties.eventId } : {}), $process_person_profile: false };
       client.capture({ distinctId: userId, event: name, properties: merged, ...(groups ? { groups } : {}) });
     },
     // Sent as the `$identify` event itself rather than `client.identify` (Codex fix-lane MED): the SDK's

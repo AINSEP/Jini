@@ -97,6 +97,10 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
         && JSON.stringify(calls) === '[["selectFrom","secrets_vault"],["selectAll"],["where","workspace_id","=","workspace"],["where","id","=","missing"]]';
     })()`,
   },
+  "owner-store": {
+    dirs: ["owner-store", "owner-store/migrations"], kernel: true,
+    probe: `m.OWNER_STORE_LEDGER === "owner_migrations" && m.ownerStoreMigrations.length === 1 && m.ownerStoreMigrations[0] === m.ownerStoreMigration && m.ownerStoreMigration.id === "0000_owner_store" && typeof m.ownerStoreMigration.up === "function" && m.ownerStoreDdl.includes("CREATE TABLE owner_grants")`,
+  },
 };
 
 SUBPATHS.recovery = {
@@ -229,7 +233,7 @@ describe("@jini-ai/db in an install with no database driver present", () => {
     const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
     expect(manifest.dependencies["@jini-ai/platform"]).toBeUndefined();
     // The vault SQL repo imports the credential-sets/contracts leaf first published in platform 0.5.6.
-    expect(manifest.peerDependencies["@jini-ai/platform"]).toBe("^0.5.6");
+    expect(manifest.peerDependencies["@jini-ai/platform"]).toBe("^0.6.10");
     expect(manifest.peerDependenciesMeta["@jini-ai/platform"]).toEqual({ optional: true });
     expect(manifest.devDependencies["@jini-ai/platform"]).toBe("workspace:*");
     const result = runInFixture('await import("@jini-ai/db/secrets-vault");', noPlatformFixtureDir);

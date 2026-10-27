@@ -718,7 +718,7 @@ describe('review regressions: withdrawal reconciliation', () => {
       expect(result.dom.window.document.querySelector('#jini-consent').dataset.hasRecord).toBe('true');
       expect(result.dom.window.getComputedStyle(result.dom.window.document.documentElement).getPropertyValue('--jini-floating-ui-display')).toBe('');
       result.dom.window.location.hash = '#jini-consent';
-      expect(result.dom.window.getComputedStyle(result.dom.window.document.documentElement).getPropertyValue('--jini-floating-ui-display')).toBe('none');
+      expect(result.dom.window.document.documentElement.matches(':has(#jini-consent[data-reopen="link"]:target)')).toBe(true);
     } finally { result.dom.window.close(); }
   });
   it('preserves a legacy parent-domain withdrawal as denial on HTTPS without posting its forged acceptance', async () => {
