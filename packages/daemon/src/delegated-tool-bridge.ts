@@ -78,6 +78,27 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * `@jini-ai/chat`'s `UNKNOWN_MUTATION_ERROR`, copied because chat is only a dev dependency here.
+ * A test pins the two equal.
+ */
+const UNKNOWN_MUTATION_ERROR = "This operation may already be done. Its earlier outcome is unknown; verify the current state before repeating it.";
+
+/**
+ * Model-facing text for a remote tool-call failure, keyed by the `ToolRpcError` `code` string the
+ * remote executor throws. Matched by name and code, not by import, so this file shares nothing with
+ * the executor. An unknown outcome is marked so the durable run blocks a blind repeat.
+ */
+const TOOL_RPC_RESULTS: Readonly<Record<string, { content: string; outcome?: 'unknown' }>> = {
+  TOOL_NOT_DISPATCHED: { content: 'The site did not receive this call; nothing ran. You may retry it.' },
+  TOOL_OUTCOME_UNKNOWN: { content: UNKNOWN_MUTATION_ERROR, outcome: 'unknown' },
+};
+
+function failedResult({ error }: { readonly error: unknown }, _optional = {}): { content: string; outcome?: 'unknown' } {
+  const code = error instanceof Error && error.name === 'ToolRpcError' ? (error as { code?: unknown }).code : undefined;
+  return (typeof code === 'string' && Object.hasOwn(TOOL_RPC_RESULTS, code) ? TOOL_RPC_RESULTS[code] : undefined) ?? { content: errorMessage(error) };
+}
+
 export { serializeDelegatedToolOutput, resultContent } from './tool-result-media.js';
 
 /** Context shared by the helpers of one delegated call. */
@@ -260,7 +281,7 @@ export function createDelegatedToolBridge(requiredArgs: Pick<CreateDelegatedTool
         seam.settle();
         await lifecycle.emit({ runId: runId, input: {
           event: 'agent',
-          data: { type: 'tool_result', toolUseId, content: errorMessage(error), isError: true },
+          data: { type: 'tool_result', toolUseId, ...failedResult({ error }, {}), isError: true },
         } });
         throw error;
       }

@@ -120,6 +120,8 @@ export type RunAgentPayload =
    */
   | {
       type: 'tool_result'; toolUseId: string; content: string; isError?: boolean; media?: unknown;
+      /** The call may or may not have run; `@jini-ai/chat` keeps a repeat blocked until verified. */
+      outcome?: 'unknown';
       /** Optional v1 echo hint; only a daemon-verified match may replace content with a note. */
       delegatedToolUseId?: string;
     }

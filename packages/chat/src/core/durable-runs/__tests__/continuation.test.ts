@@ -30,6 +30,14 @@ test.each(["content_read", "execute_delegated_tool", "mcp__jini__execute_delegat
   },
 );
 
+test("an outcome-unknown result does not complete its call, so a repeat stays blocked", () => {
+  const events: AgentEvent[] = [
+    { kind: "tool_use", id: "lost", name: "content_write", input },
+    { kind: "tool_result", toolUseId: "lost", content: "unknown", isError: true, outcome: "unknown" },
+  ];
+  expect(hasUnknownToolCall({ events, toolId: "content_write", input }, {})).toBe(true);
+});
+
 // ---- continuationRequest / canonicalToolInput boundary pins ----
 
 const savedState: AgentPluginChatState = { decision: { selected: ["p1"] }, excluded: [] };
@@ -115,6 +123,15 @@ test("continuationRequest lists tool calls with results, unwrapping delegated ca
   ];
   const prompt = String(contextOf(durableRun({ message: { id: "m1", role: "assistant", content: "", events } })).prompt);
   expect(prompt).toContain(`Saved tool calls and results:\n${JSON.stringify({ call: { toolId: "save", input: { a: 1 } }, result: events[1] })}\n${JSON.stringify({ call: { toolId: "plain", input: null }, result: "OUTCOME UNKNOWN: verify state before repeating" })}`);
+});
+
+test("continuationRequest flags a call whose saved result has an unknown outcome", () => {
+  const events: AgentEvent[] = [
+    { kind: "tool_use", id: "u1", name: "plain", input: null },
+    { kind: "tool_result", toolUseId: "u1", content: "lost", isError: true, outcome: "unknown" },
+  ];
+  const prompt = String(contextOf(durableRun({ message: { id: "m1", role: "assistant", content: "", events } })).prompt);
+  expect(prompt).toContain(JSON.stringify({ call: { toolId: "plain", input: null }, result: "OUTCOME UNKNOWN: verify state before repeating" }));
 });
 
 test("continuationRequest throws on invalid accepted context JSON", () => {

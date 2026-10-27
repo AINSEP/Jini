@@ -5,6 +5,7 @@ import { createDelegatedToolBridge, serializeDelegatedToolOutput } from '../dele
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
 import { createToolExecutor, type ToolExecutionResult, type ToolExecutor } from '../tool-executor.js';
+import { UNKNOWN_MUTATION_ERROR } from '@jini-ai/chat/server/durable-runs';
 
 async function collectEvents(lifecycle: ReturnType<typeof createRunLifecycle>, runId: string): Promise<RunProtocolEvent[]> {
   const events: RunProtocolEvent[] = [];
@@ -504,4 +505,43 @@ it('a mixed batch emits a failed tool_result with all per-item evidence', async 
   await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
   const events = (await collectEvents(lifecycle, run.id)).filter(event => event.kind === 'agent').map(event => event.payload);
   expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'batch-1', content: JSON.stringify(output), isError: true });
+});
+
+describe('DelegatedToolBridge remote tool RPC failures', () => {
+  function rpcError(code: string): Error {
+    return Object.assign(new Error(`rpc ${code}`), { name: 'ToolRpcError', code });
+  }
+  async function resultFor(error: Error): Promise<RunAgentPayload | undefined> {
+    const toolExecutor: ToolExecutor = {
+      execute: vi.fn(async () => { throw error; }),
+      resumeConfirmation: vi.fn(),
+      cancel: vi.fn(),
+      getAuditRecord: vi.fn(() => null),
+    };
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor });
+    const { run } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    await expect(bridge.execute({ runId: run.id, toolUseId: 'call-1', toolId: 'write', principal: { id: 'user-1' }, input: {} })).rejects.toBe(error);
+    const events = (await collectEvents(lifecycle, run.id)).filter((event) => event.kind === 'agent').map((event) => event.payload as RunAgentPayload);
+    return events.find((event) => event.type === 'tool_result');
+  }
+
+  it('marks a call whose remote outcome is unknown with outcome "unknown" and the shared unknown-mutation text', async () => {
+    expect(await resultFor(rpcError('TOOL_OUTCOME_UNKNOWN'))).toEqual({
+      type: 'tool_result', toolUseId: 'call-1', content: UNKNOWN_MUTATION_ERROR, isError: true, outcome: 'unknown',
+    });
+  });
+
+  it('tells the model a never-dispatched call ran nothing, with no unknown outcome', async () => {
+    expect(await resultFor(rpcError('TOOL_NOT_DISPATCHED'))).toEqual({
+      type: 'tool_result', toolUseId: 'call-1', content: 'The site did not receive this call; nothing ran. You may retry it.', isError: true,
+    });
+  });
+
+  it('keeps the plain message for a ToolRpcError with another code and for a non-RPC error carrying a code', async () => {
+    expect(await resultFor(rpcError('OTHER'))).toMatchObject({ content: 'rpc OTHER' });
+    expect(await resultFor(Object.assign(new Error('fs'), { code: 'TOOL_OUTCOME_UNKNOWN' }))).toEqual({
+      type: 'tool_result', toolUseId: 'call-1', content: 'fs', isError: true,
+    });
+  });
 });

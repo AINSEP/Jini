@@ -417,6 +417,15 @@ describe('tool guards', () => {
     f.sql('UPDATE assistant_run_attempts SET attempt_base_json = ? WHERE message_id = ?', JSON.stringify([{ kind: 'tool_use', id: 't0', name: 'write', input: { a: 1 } }]), 'a1');
     expect(await guard(h, { toolUseId: 't2' })).toBe('unknown');
   });
+  it('reports a repeat of a call whose saved result has an unknown outcome as unknown', async () => {
+    const h = await setup();
+    await accepted(h);
+    f.sql('UPDATE ai_chat_messages SET events_json = ? WHERE id = ?', JSON.stringify([
+      { kind: 'tool_use', id: 't0', name: 'write', input: { a: 1 } },
+      { kind: 'tool_result', toolUseId: 't0', content: 'lost', isError: true, outcome: 'unknown' },
+    ]), 'a1');
+    expect(await guard(h, { toolUseId: 't2' })).toBe('unknown');
+  });
   it('ignores pending calls of other tools and completed identical calls', async () => {
     const h = await setup();
     await accepted(h);

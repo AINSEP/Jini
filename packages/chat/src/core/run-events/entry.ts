@@ -151,6 +151,8 @@ function toolResultEvent(payload: RunAgentPayload): AgentEvent {
     // is a rendering concern (`ToolCard`'s own `ToolResultMedia` already ignores anything that
     // isn't a recognized block), not a transport one.
     ...(Array.isArray(payload.media) ? { media: payload.media as readonly ToolResultMediaBlock[] } : {}),
+    // Saved into events_json so a recovered run still blocks a repeat of this call.
+    ...(payload.outcome === "unknown" ? { outcome: "unknown" as const } : {}),
   };
 }
 

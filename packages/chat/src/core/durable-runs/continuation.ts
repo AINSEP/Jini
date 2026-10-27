@@ -21,10 +21,15 @@ function delegatedCall(event: Extract<AgentEvent, { kind: "tool_use" }>): { tool
   return { toolId: event.name, input: event.input };
 }
 
+/** Results that settle their call. An outcome-unknown result does not: the call may have run. */
+function settledResults({ events }: { events: readonly AgentEvent[] }, _optional = {}): Map<string, AgentEvent> {
+  return new Map(events.flatMap((event) => event.kind === "tool_result" && event.outcome !== "unknown" ? [[event.toolUseId, event] as const] : []));
+}
+
 export function hasUnknownToolCall(
   { events, toolId, input }: { events: readonly AgentEvent[]; toolId: string; input: unknown }, _optional = {},
 ): boolean {
-  const completed = new Set(events.filter((event) => event.kind === "tool_result").map((event) => event.toolUseId));
+  const completed = settledResults({ events }, {});
   const canonical = canonicalToolInput({ value: input }, {});
   return events.some((event) => {
     if (event.kind !== "tool_use" || completed.has(event.id)) return false;
@@ -36,7 +41,7 @@ export function hasUnknownToolCall(
 }
 
 function toolHistory(events: readonly AgentEvent[]): string {
-  const results = new Map(events.filter((event) => event.kind === "tool_result").map((event) => [event.toolUseId, event]));
+  const results = settledResults({ events }, {});
   return events.filter((event) => event.kind === "tool_use").map((event) => {
     const result = results.get(event.id);
     return JSON.stringify({ call: delegatedCall(event), result: result ?? "OUTCOME UNKNOWN: verify state before repeating" });

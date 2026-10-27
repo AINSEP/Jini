@@ -51,6 +51,9 @@ export type AgentEvent =
       /** Typed media (currently just images) a renderer may show directly. Absent for the
        *  overwhelming majority of tool results, which carry none. */
       media?: readonly ToolResultMediaBlock[];
+      /** Set when the call may or may not have run (its tool RPC connection broke after sending).
+       *  Such a result does not complete the call: a repeat must verify state first. */
+      outcome?: 'unknown';
     }
   | {
       kind: 'usage';
