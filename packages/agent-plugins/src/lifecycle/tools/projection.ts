@@ -242,7 +242,7 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
         try {
           const value = await module.invoke({ input: checked, capabilities: session.capabilities, ...(signal === undefined ? {} : { signal }) });
           return session.release({ value });
-        } catch (error) { throw session.sanitize({ error }); }
+        } catch (error) { throw session.sanitize({ error }); } finally { session.end(); }
       },
     };
     return Object.freeze(contribution);

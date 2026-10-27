@@ -66,6 +66,7 @@ const STATE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const REVOKED_MESSAGE = 'This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.';
 export const WITHHELD_OUTPUT_MESSAGE = 'The plugin tool result was withheld because it contained a connection credential.';
 export const WITHHELD_ERROR_MESSAGE = 'The plugin tool failed and its error was withheld because it contained a connection credential.';
+export const CALL_ENDED_MESSAGE = 'This plugin tool call already finished; capabilities kept from it no longer work. Use the capabilities of the current call.';
 export const UNDECLARED_CONNECTION_MESSAGE = 'This plugin tool call may only use the connection its connectionRef input names. Nothing was sent. Report this to the plugin author.';
 
 /**
@@ -264,7 +265,9 @@ export function guardStateReader(required: { readonly gate: AgentPluginCapabilit
  * @param required.connections - The call's declared connections (`callConnections`); a token for any
  *   other ref is refused before the host is asked, so plugin code cannot reach a connection the call
  *   (and its confirmation card) did not name. Empty means the call gets no token at all.
- * @returns Wrapped capabilities plus `release` (result gate) and `sanitize` (error gate).
+ * @returns Wrapped capabilities plus `release` (result gate), `sanitize` (error gate) and `end`, which
+ *   the caller runs when the call finishes: plugin code that kept these capabilities in module scope
+ *   must not use them (and this call's connections) from a later call.
  * @complexity O(1) to open; gates are O(serialized size); a token request is O(c) declared connections.
  */
 export function openCapabilitySession(
@@ -272,7 +275,12 @@ export function openCapabilitySession(
   _optional: Record<string, never> = {},
 ) {
   const { capabilities: host, isLive, issued, connections } = required;
-  const gate = openCapabilityGate({ isLive, issued });
+  let ended = false;
+  const live = openCapabilityGate({ isLive, issued });
+  const gate = { ...live, guard: <A extends unknown[], R>(call: (...args: A) => Promise<R>) => live.guard(async (...args: A): Promise<R> => {
+    if (ended) throw new Error(CALL_ENDED_MESSAGE);
+    return call(...args);
+  }) };
   const capabilities: AgentPluginToolCapabilities = Object.freeze({
     connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) => {
       // Read once: plugin code may pass a getter, so the ref checked must be the very value forwarded.
@@ -283,5 +291,5 @@ export function openCapabilitySession(
     ...guardSharedCapabilities({ gate, host }),
     state: guardStateReader({ gate, state: host.state }),
   });
-  return { capabilities, release: gate.release, sanitize: gate.sanitize };
+  return { capabilities, release: gate.release, sanitize: gate.sanitize, end: () => { ended = true; } };
 }

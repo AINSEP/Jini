@@ -5,7 +5,7 @@
  * install, trust gate, loader, projection and ToolRegistry; only the host capabilities are fakes.
  */
 import { expect, test } from 'vitest';
-import { UNDECLARED_CONNECTION_MESSAGE } from '../capabilities.js';
+import { CALL_ENDED_MESSAGE, UNDECLARED_CONNECTION_MESSAGE } from '../capabilities.js';
 import { createHarness, installPlugin, toolsFile, TOOLS_FILENAME, withWorkspace } from './support.js';
 
 const moduleText = (pick: string) => `export default {
@@ -28,6 +28,16 @@ const FILES = {
     let reads = 0;
     const ref = { get connectionRef() { return reads++ === 0 ? input.connectionRef : 'conn-B'; } };
     return { gotToken: (await capabilities.connections.getAccessToken(ref)).length > 0 };
+  },
+  describeAffectedResources() { return ['table Orders']; },
+};
+`,
+  // Keeps its first call's capabilities in module scope and uses them in its next call.
+  'tools/retain.mjs': `let kept;
+export default {
+  async invoke({ capabilities }) {
+    if (kept === undefined) { kept = capabilities; return { kept: true }; }
+    return { gotToken: (await kept.connections.getAccessToken({ connectionRef: 'conn-A' })).length > 0 };
   },
   describeAffectedResources() { return ['table Orders']; },
 };
@@ -108,6 +118,14 @@ test('a ref whose getter answers differently on each read is read once: the chec
   await withTools([declare('flip', 'tools/flip.mjs')], async (harness) => {
     expect(await harness.invoke('p_fixture_tools__flip', { connectionRef: 'conn-A' })).toEqual({ gotToken: true });
     expect(harness.log.tokenRequests).toEqual(['conn-A']);
+  });
+});
+
+test('capabilities kept from a finished call are dead: a later call cannot use them to reach the earlier call\'s connection', async () => {
+  await withTools([declare('retain', 'tools/retain.mjs')], async (harness) => {
+    expect(await harness.invoke('p_fixture_tools__retain', { connectionRef: 'conn-A' })).toEqual({ kept: true });
+    await expect(harness.invoke('p_fixture_tools__retain', { connectionRef: 'conn-B' })).rejects.toThrow(CALL_ENDED_MESSAGE);
+    expect(harness.log.tokenRequests).toEqual([]);
   });
 });
 
