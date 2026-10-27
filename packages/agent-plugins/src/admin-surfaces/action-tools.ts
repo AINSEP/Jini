@@ -44,18 +44,25 @@ export function buildAdminSurfaceActionTools(required: {
   readonly surfaces: readonly AdminSurfaceToolSource[];
   readonly handlersFor: (input: { readonly pluginId: string; readonly surfaceId: string }) => Readonly<Record<string, AdminSurfaceActionHandler<AdminSurfaceToolContext>>>;
   readonly authorize: (input: { readonly context: AdminSurfaceToolContext }) => Promise<void>;
-}, optional: { readonly run?: (input: { readonly dispatch: () => Promise<AdminSurfaceActionOutcome> }) => Promise<unknown> } = {}): readonly AgentPluginAdditionalTool[] {
+}, optional: {
+  readonly run?: (input: { readonly dispatch: () => Promise<AdminSurfaceActionOutcome> }) => Promise<unknown>;
+  /** The host's opaque ref for a declared connection id. Given, every action discloses its surface's
+   *  declared connections, so the host can show and freeze their accounts before confirming. */
+  readonly connectionRefFor?: (input: { readonly pluginId: string; readonly connectionId: string }) => string;
+} = {}): readonly AgentPluginAdditionalTool[] {
   return required.surfaces.flatMap(({ pluginId, descriptor }) => descriptor.actions.map((action): AgentPluginAdditionalTool => {
     const name = `${descriptor.id.replace(/-/g, '_')}_${action.name.replace(/-/g, '_')}`;
+    const refFor = optional.connectionRefFor;
     return {
       pluginId,
+      ...(refFor && { connections: Object.freeze((descriptor.connections ?? []).map(({ id }) => refFor({ pluginId, connectionId: id }))) }),
       tool: {
         name, description: `${descriptor.title}: ${action.name}. Browser sign-in actions return a URL to show the user.`,
         effect: action.effect ?? 'write',
         inputSchema: { type: 'object', properties: { payload: action.input }, required: ['payload'], additionalProperties: false },
-        async handler({ auth, input }: AgentPluginToolInvocation) {
+        async handler({ auth, input, signal }: AgentPluginToolInvocation) {
           if (!auth.principalId) throw new ToolInputError({ message: 'Admin actions require an authenticated principal.' });
-          const context: AdminSurfaceToolContext = { ...auth, principalId: auth.principalId, pluginId, surfaceId: descriptor.id };
+          const context: AdminSurfaceToolContext = { ...auth, principalId: auth.principalId, pluginId, surfaceId: descriptor.id, ...(signal === undefined ? {} : { signal }) };
           await required.authorize({ context });
           const payload = checkedPayload({ input, action });
           const dispatcher = createAdminSurfaceActionDispatcher({ descriptor, handlers: required.handlersFor({ pluginId, surfaceId: descriptor.id }) });

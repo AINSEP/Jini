@@ -41,6 +41,8 @@ export interface AgentPluginAdditionalTool {
   readonly pluginId: string;
   readonly tool: AgentPluginContractTool;
   readonly describeAffectedResources: (required: { readonly input: unknown }) => readonly string[] | Promise<readonly string[]>;
+  /** Host connection refs the contribution's execution owner may use; disclosed so the host can freeze their accounts. */
+  readonly connections?: readonly string[];
 }
 /** One plugin's generation in the contract's snapshot shape; routes and widgets stay empty. */
 export interface AgentPluginToolSnapshot {
@@ -306,8 +308,9 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
         const scan = openCredentialScan({ issued: required.issuedTokens.forPlugin({ pluginId: extra.entry.pluginId }) });
         try {
           const resources = await extra.entry.describeAffectedResources({ input: input.input });
-          // Host-contributed tools run on their own execution owner, never this session's tokens.
-          return { effect: extra.entry.tool.effect ?? 'write', resources: checkedResources(input.toolId, resources, scan), connections: Object.freeze([]) };
+          // Host-contributed tools run on their own execution owner, never this session's tokens; that
+          // owner declares which connections it may use, so the host can pin their accounts too.
+          return { effect: extra.entry.tool.effect ?? 'write', resources: checkedResources(input.toolId, resources, scan), connections: extra.entry.connections ?? Object.freeze([]) };
         } catch (error) { throw scan.sanitize({ error }); }
       }
       const entry = byToolId.get(input.toolId);

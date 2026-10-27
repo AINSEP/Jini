@@ -27,6 +27,9 @@ export interface AdminSurfaceHandlerContext {
   readonly principalId?: string;
   readonly pluginId: string;
   readonly surfaceId: string;
+  /** The assistant call's signal when an admin action runs as a tool: the host keys that call's
+   *  confirmed accounts by it. Passed to the host's capabilities only, never to the plugin. */
+  readonly signal?: AbortSignal;
 }
 
 /** Which kind of host is running the surface, so a plugin picks its flow (for example a sign-in in
@@ -149,7 +152,7 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
   function sessionFor(self: AdmittedSurface, context: AdminSurfaceHandlerContext): { session: ReturnType<typeof openAdminSurfaceCapabilitySession>; context: AdminSurfacePluginContext } {
     const { pluginId, descriptor } = self.loaded;
     const principal = context.principalId === undefined ? {} : { principalId: context.principalId };
-    const capabilities = required.capabilities({ pluginId, workspaceId: context.workspaceId, ...principal });
+    const capabilities = required.capabilities({ pluginId, workspaceId: context.workspaceId, ...principal, ...(context.signal === undefined ? {} : { signal: context.signal }) });
     const session = openAdminSurfaceCapabilitySession({ capabilities, isLive: self.isLive, declared: descriptor, issued: self.issued }, { ...(principal.principalId !== undefined && { actorId: principal.principalId }) });
     const connectionIds = (descriptor.connections ?? []).map((connection) => connection.id);
     return { session, context: { workspaceId: context.workspaceId, ...principal, pluginId, surfaceId: descriptor.id, connectionIds, hostKind } };
