@@ -1,0 +1,30 @@
+/**
+ * Throwaway self-signed loopback TLS pair (CN/SAN 127.0.0.1, valid to 2126) for the remote tool
+ * RPC HTTPS tests. Test-only and trusted nowhere: a client accepts it only when handed it as `ca`.
+ * Regenerate: openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 36500
+ *   -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1,DNS:localhost
+ */
+export const LOOPBACK_TLS_CERT = `-----BEGIN CERTIFICATE-----
+MIICMjCCAdmgAwIBAgIJALp9dGQSXjDvMAoGCCqGSM49BAMCMBQxEjAQBgNVBAMM
+CTEyNy4wLjAuMTAgFw0yNjEwMjcwNTQ1MjFaGA8yMTI2MTAwMzA1NDUyMVowFDES
+MBAGA1UEAwwJMTI3LjAuMC4xMIIBSzCCAQMGByqGSM49AgEwgfcCAQEwLAYHKoZI
+zj0BAQIhAP////8AAAABAAAAAAAAAAAAAAAA////////////////MFsEIP////8A
+AAABAAAAAAAAAAAAAAAA///////////////8BCBaxjXYqjqT57PrvVV2mIa8ZR0G
+sMxTsPY7zjw+J9JgSwMVAMSdNgiG5wSTamZ44ROdJreBn36QBEEEaxfR8uEsQkf4
+vOblY6RA8ncDfYEt6zOg9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7L
+tkBoN79R9QIhAP////8AAAAA//////////+85vqtpxeehPO5ysL8YyVRAgEBA0IA
+BBM89i8Y5YHVa3lDOLp9sfz/0WxGZCM5LV1rSFw2Vkujl0w/cY2T9wb/YUnuEU7u
+++ODlcdWioUwF/Hk/xHvo3mjHjAcMBoGA1UdEQQTMBGHBH8AAAGCCWxvY2FsaG9z
+dDAKBggqhkjOPQQDAgNHADBEAiBllNPIMKjGCOEiQEydyt6EO0yRmAdE1fi0OvQS
+GLbdwQIgRnsVaCJi1mP6oQfZ/pfxPaH4Et8fU1koJSO4ff4YOWo=
+-----END CERTIFICATE-----`;
+export const LOOPBACK_TLS_KEY = `-----BEGIN PRIVATE KEY-----
+MIIBeQIBADCCAQMGByqGSM49AgEwgfcCAQEwLAYHKoZIzj0BAQIhAP////8AAAAB
+AAAAAAAAAAAAAAAA////////////////MFsEIP////8AAAABAAAAAAAAAAAAAAAA
+///////////////8BCBaxjXYqjqT57PrvVV2mIa8ZR0GsMxTsPY7zjw+J9JgSwMV
+AMSdNgiG5wSTamZ44ROdJreBn36QBEEEaxfR8uEsQkf4vOblY6RA8ncDfYEt6zOg
+9KE5RdiYwpZP40Li/hp/m47n60p8D54WK84zV2sxXs7LtkBoN79R9QIhAP////8A
+AAAA//////////+85vqtpxeehPO5ysL8YyVRAgEBBG0wawIBAQQgzJxXa1WYJXwy
+KhgEqcjmIu3b8xMGgd3AM3/bRRkXfwmhRANCAAQTPPYvGOWB1Wt5Qzi6fbH8/9Fs
+RmQjOS1da0hcNlZLo5dMP3GNk/cG/2FJ7hFO7vvjg5XHVoqFMBfx5P8R76N5
+-----END PRIVATE KEY-----`;

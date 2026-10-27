@@ -16,3 +16,10 @@ regexes = [
   '''^\s*"AWS AKIA key": \["AKIA" \+ "Q"\.repeat\(16\), "\[REDACTED:credential\]", "Q"\.repeat\(16\)\],\s*$''',
   '''^\s*"Google AIza key": \["AIza" \+ "x"\.repeat\(35\), "\[REDACTED:credential\]", "x"\.repeat\(35\)\],\s*$''',
 ]
+
+[[allowlists]]
+description = "Throwaway self-signed loopback TLS key for the remote tool RPC HTTPS tests, exact file only"
+condition = "AND"
+paths = ['''^packages/daemon/src/http/__tests__/fixtures/loopback-tls\.ts$''']
+regexTarget = "match"
+regexes = ['''^-----BEGIN PRIVATE KEY-----''']

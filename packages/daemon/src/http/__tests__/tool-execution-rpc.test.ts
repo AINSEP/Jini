@@ -3,7 +3,9 @@
  * `createRemoteToolExecutor` (client end), in-process on an ephemeral 127.0.0.1 port.
  */
 import * as http from 'node:http';
+import * as https from 'node:https';
 import * as net from 'node:net';
+import * as tls from 'node:tls';
 import type { AddressInfo } from 'node:net';
 import express, { type Request, type RequestHandler, type Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +13,12 @@ import { createToolRegistry, ToolInputError, type Principal, type SurfaceEmissio
 import { createToolExecutor, type ToolExecutor } from '../../tool-executor.js';
 import { createRemoteToolExecutor, ToolRpcError } from '../../remote-tool-executor.js';
 import { registerToolExecutionRoutes, type ToolExecutionRoutesOptional, type ToolExecutionRoutesRequired } from '../tool-execution-routes.js';
+import { createDelegatedToolBridge } from '../../delegated-tool-bridge.js';
+import { createInMemoryEventLog } from '../../event-log.js';
+import { createRunLifecycle } from '../../run-lifecycle.js';
+import { hasUnknownToolCall } from '@jini-ai/chat/server/durable-runs';
+import { translateRunAgentPayload, type RunAgentPayload } from '@jini-ai/chat/core/run-events';
+import { LOOPBACK_TLS_CERT, LOOPBACK_TLS_KEY } from './fixtures/loopback-tls.js';
 
 const TOKEN = 'tool-exec-secret';
 const env = { JINI_TOOL_EXEC_TOKEN: TOKEN };
@@ -31,7 +39,8 @@ async function listen(handler: http.RequestListener | net.Server): Promise<strin
   const server = handler instanceof net.Server ? handler : http.createServer(handler);
   servers.push(server as http.Server);
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
-  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const scheme = server instanceof tls.Server ? 'https' : 'http';
+  return `${scheme}://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 
 function executorWith(...registrations: ToolRegistration[]): ToolExecutor {
@@ -55,18 +64,18 @@ interface Served {
  */
 async function serve(
   required: Partial<ToolExecutionRoutesRequired> & Pick<ToolExecutionRoutesRequired, 'executor'>,
-  optional: ToolExecutionRoutesOptional & { before?: RequestHandler } = {},
+  optional: ToolExecutionRoutesOptional & { before?: RequestHandler; tls?: boolean } = {},
 ): Promise<Served> {
   const seen: Served['seen'] = [];
   const app = express();
   app.use((req, res, next) => { seen.push({ req, res, closeListeners: res.listenerCount('close') }); next(); });
   if (optional.before) app.use(optional.before);
   const router = express.Router();
-  const { before: _before, ...routeOptions } = optional;
+  const { before: _before, tls: _tls, ...routeOptions } = optional;
   registerToolExecutionRoutes({ app: router, listToolsFor: () => [], ...required }, { env, ...routeOptions });
   app.use(router);
   app.use(express.json({ limit: '128kb' }));
-  return { baseUrl: await listen(app), seen };
+  return { baseUrl: await listen(optional.tls ? https.createServer({ cert: LOOPBACK_TLS_CERT, key: LOOPBACK_TLS_KEY }, app) : app), seen };
 }
 
 function client(baseUrl: string, optional: Parameters<typeof createRemoteToolExecutor>[1] = {}): ToolExecutor {
@@ -237,6 +246,28 @@ describe('remote tool RPC — at-most-once', () => {
     expect(await rpcCode(client(malformed).execute({ principal, run, toolId: 'x', input: {} }))).toBe('TOOL_OUTCOME_UNKNOWN');
   });
 
+  it.each([
+    ['an empty result', '{"type":"result","result":{}}'],
+    ['a result without an executionId', '{"type":"result","result":{"status":"completed"}}'],
+    ['a result with an unknown status', '{"type":"result","result":{"executionId":"e","status":"exploded"}}'],
+    ['a throw without a message', '{"type":"throw","error":{"name":"Error"}}'],
+  ])('a terminal line carrying %s is TOOL_OUTCOME_UNKNOWN, never a settled call', async (_label, line) => {
+    const baseUrl = await listen((_req, res) => { res.writeHead(200); res.end(`${line}\n`); });
+    expect(await rpcCode(client(baseUrl).execute({ principal, run, toolId: 'x', input: {} }))).toBe('TOOL_OUTCOME_UNKNOWN');
+  });
+
+  it('a malformed terminal result reaches the bridge as an unknown outcome, so the durable-run guard refuses a blind repeat', async () => {
+    const baseUrl = await listen((_req, res) => { res.writeHead(200); res.end('{"type":"result","result":{}}\n'); });
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const bridge = createDelegatedToolBridge({ lifecycle, toolExecutor: client(baseUrl) });
+    const { run: started } = await lifecycle.start({ contextRef: 'delegated-tools' });
+    const input = { path: '/a', body: 'x' };
+    await expect(bridge.execute({ runId: started.id, toolUseId: 'call-1', toolId: 'write', principal, input })).rejects.toMatchObject({ code: 'TOOL_OUTCOME_UNKNOWN' });
+    const events = await agentEvents(lifecycle, started.id);
+    expect(events).toContainEqual(expect.objectContaining({ kind: 'tool_result', toolUseId: 'call-1', outcome: 'unknown' }));
+    expect(hasUnknownToolCall({ events, toolId: 'write', input })).toBe(true);
+  });
+
   it('a socket that never connected gives TOOL_NOT_DISPATCHED', async () => {
     const closed = await listen(() => undefined);
     const server = servers.pop()!;
@@ -264,6 +295,13 @@ describe('remote tool RPC — at-most-once', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 });
+
+/** The run's agent payloads as the chat client reads them back. */
+async function agentEvents(lifecycle: ReturnType<typeof createRunLifecycle>, runId: string) {
+  const payloads: RunAgentPayload[] = [];
+  await lifecycle.stream({ runId, onEvent: (event) => { if (event.kind === 'agent') payloads.push(event.payload as RunAgentPayload); } });
+  return payloads.flatMap((payload) => translateRunAgentPayload({ payload }) ?? []);
+}
 
 /** A raw request so status codes and headers are observable directly. */
 function rawRequest(baseUrl: string, { method, path, token, body, headers = {} }: { method: string; path: string; token?: string; body?: string; headers?: Record<string, string> }): Promise<{ status: number; headers: http.IncomingHttpHeaders; text: string }> {
@@ -338,6 +376,31 @@ describe('remote tool RPC — transport', () => {
     await expect(client(baseUrl, { request: request as unknown as typeof http.request }).execute({ principal, run, toolId: 'echo', input: {} })).resolves.toMatchObject({ status: 'completed' });
     expect(request).toHaveBeenCalledTimes(1);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['http', false, http.request],
+    ['https', true, ((url: URL, options: https.RequestOptions, callback?: (res: http.IncomingMessage) => void) => https.request(url, { ...options, ca: LOOPBACK_TLS_CERT }, callback)) as unknown as typeof http.request],
+  ] as const)('a %s listener serves the call through its request adapter on a socket with no idle timeout', async (_scheme, useTls, adapter) => {
+    const { baseUrl } = await serve({ executor: executorWith(tool('echo', async () => 'ok')) }, { tls: useTls });
+    const sockets: net.Socket[] = [];
+    const request = ((...args: Parameters<typeof http.request>) => adapter(...args).once('socket', (socket) => sockets.push(socket))) as typeof http.request;
+    await expect(client(baseUrl, { request }).execute({ principal, run, toolId: 'echo', input: {} })).resolves.toMatchObject({ status: 'completed', output: 'ok' });
+    expect(sockets).toHaveLength(1);
+    expect(sockets[0]!.timeout).toBeUndefined();
+  });
+
+  it('defaults to node:https for an https baseUrl, and a refused certificate is TOOL_NOT_DISPATCHED', async () => {
+    const execute = vi.fn();
+    const { baseUrl } = await serve({ executor: { ...executorWith(), execute } }, { tls: true });
+    const error = await client(baseUrl).execute({ principal, run, toolId: 'x', input: {} }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ name: 'ToolRpcError', code: 'TOOL_NOT_DISPATCHED', cause: { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' } });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('a request adapter that refuses the scheme synchronously is TOOL_NOT_DISPATCHED', async () => {
+    const error = await client('https://127.0.0.1:1', { request: http.request }).execute({ principal, run, toolId: 'x', input: {} }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ name: 'ToolRpcError', code: 'TOOL_NOT_DISPATCHED', cause: { code: 'ERR_INVALID_PROTOCOL' } });
   });
 
   it('getAuditRecord is null and resumeConfirmation throws: the far side owns both', () => {

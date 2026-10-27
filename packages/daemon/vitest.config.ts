@@ -12,6 +12,9 @@ export default defineConfig({
     { find: /^@jini-ai\/daemon\/store\/(.*)$/, replacement: `${jini}daemon/src/store/$1.ts` },
     { find: '@jini-ai/chat/store/legacy/sqlite', replacement: `${jini}chat/src/store/legacy/sqlite/index.ts` },
     { find: '@jini-ai/chat/store/sqlite', replacement: `${jini}chat/dist/store/sqlite/index.js` },
+    // The bridge → durable-run repeat-guard regression must run chat's current source, not a stale dist.
+    { find: '@jini-ai/chat/server/durable-runs', replacement: `${jini}chat/src/server/durable-runs/entry.ts` },
+    { find: '@jini-ai/chat/core/run-events', replacement: `${jini}chat/src/core/run-events/entry.ts` },
     { find: '@jini-ai/registry/tool-catalog/sqlite', replacement: `${jini}registry/src/tool-catalog/sqlite.ts` },
     ...['better-sqlite3', 'kysely', '@electric-sql/pglite', 'pg'].map(name => ({ find: name, replacement: peer(name) })),
   ] },
