@@ -217,13 +217,14 @@ const CODEX_SANDBOX_ARGS: Readonly<Record<CodexSandboxTier, Readonly<Record<Code
 };
 
 // Read-only prevents direct patches; disable every shell transport as well, and the
-// plugin/app MCP sources a locked run's staged home cannot drop.
+// plugin/app/skill-dependency MCP sources a locked run's staged home cannot drop.
 // CLI config overrides apply on BOTH create and resume, regardless of the saved session.
 const CODEX_NATIVE_TOOLS_LOCKED_ARGS: readonly string[] = [
   '-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false',
   '-c', 'features.code_mode=false', '-c', 'features.apply_patch_freeform=false',
   '-c', 'features.multi_agent=false', '-c', 'features.collab=false', '-c', 'features.plugins=false',
-  '-c', 'features.apps=false', '-c', 'approval_policy="never"',
+  '-c', 'features.apps=false', '-c', 'features.skill_mcp_dependency_install=false',
+  '-c', 'approval_policy="never"',
 ];
 
 // Per-turn overrides also apply to resumed sessions, ahead of persisted CLI defaults.
