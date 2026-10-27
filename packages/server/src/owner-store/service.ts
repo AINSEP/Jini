@@ -121,9 +121,12 @@ export class OwnerStoreService {
    * stay recorded, not thrown, and every cleanup still outstanding is reported as a "failed" row with
    * reasonCode "conflict" (the code delete refuses with), so a stalled or exhausted cleanup is never silent.
    * Each grant copies to one workspace only: a grant bound elsewhere is reported "failed"/"context", uncopied.
+   * @throws VaultError "context", with nothing changed, inside a caller's transaction: the binding would join it,
+   * and its rollback would erase the record of copies already made on another database.
    * @complexity O(r + n + payload bytes) for this consumer's r pending revocations and n granted entries.
    */
   async syncTo({ target }: { target: OwnerSyncTarget }, _options: VaultOptions = {}): Promise<VaultCopyResult[]> {
+    if (this.kernel.inTransaction()) throw new VaultError({ code: "context" });
     // Bound and committed before any copy, so no copy can exist without the workspace that tracks it.
     await this.kernel.run(db => db.updateTable("owner_grants").set({ workspace_id: target.workspaceId })
       .where("consumer_id", "=", target.consumerId).where("workspace_id", "is", null).execute());
