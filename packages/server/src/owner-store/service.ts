@@ -5,8 +5,10 @@ import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "@jini-ai/db/secr
 
 export const OWNER_WORKSPACE_ID = "owner";
 export interface OwnerGrant { entry_id: string; consumer_id: string; created_at: string }
-/** A revoked copy whose target cleanup has not yet succeeded; `attempts` counts failed cleanups. */
-export interface OwnerRevocation { entry_id: string; consumer_id: string; attempts: number; updated_at: string }
+/** A revoked copy whose target cleanup has not yet succeeded; `attempts` counts failed cleanups.
+ * `workspace_id` is the site workspace that holds the copy; only that workspace can settle it.
+ */
+export interface OwnerRevocation { entry_id: string; consumer_id: string; workspace_id: string; attempts: number; updated_at: string }
 export interface OwnerStoreDatabase extends SecretsVaultDatabase { owner_grants: OwnerGrant; owner_revocations: OwnerRevocation }
 export interface OwnerSyncTarget {
   consumerId: string;
@@ -97,17 +99,23 @@ export class OwnerStoreService {
   }
 
   /** Source lock orders sync against replacement/revoke; copies keep their immutable entry IDs.
-   * Outstanding cleanups for this consumer are retried first; their failures stay recorded, not thrown.
+   * Outstanding cleanups for this consumer are retried first (until the automatic cap); their failures
+   * stay recorded, not thrown, and every cleanup still outstanding is reported as a "failed" row with
+   * reasonCode "conflict" (the code delete refuses with), so a stalled or exhausted cleanup is never silent.
    * @complexity O(r + n + payload bytes) for this consumer's r pending revocations and n granted entries.
    */
   async syncTo({ target }: { target: OwnerSyncTarget }, _options: VaultOptions = {}): Promise<VaultCopyResult[]> {
     return this.kernel.transaction(async () => {
-      const pending = await this.kernel.run(db => db.selectFrom("owner_revocations").select("entry_id")
-        .where("consumer_id", "=", target.consumerId).where("attempts", "<", OWNER_REVOCATION_AUTO_ATTEMPTS).orderBy("entry_id").execute());
-      for (const row of pending) await this.cleanTarget({ entry: await this.requireEntry({ entryId: row.entry_id }), target });
-      const grants = await this.kernel.run(db => db.selectFrom("owner_grants").select("entry_id")
+      const pending = await this.kernel.run(db => db.selectFrom("owner_revocations").select(["entry_id", "attempts"])
         .where("consumer_id", "=", target.consumerId).orderBy("entry_id").execute());
       const results: VaultCopyResult[] = [];
+      for (const row of pending) {
+        const entry = await this.requireEntry({ entryId: row.entry_id });
+        const settled = row.attempts < OWNER_REVOCATION_AUTO_ATTEMPTS && (await this.cleanTarget({ entry, target })).ok;
+        if (!settled) results.push({ kind: entry.kind, id: entry.id, status: "failed", reasonCode: "conflict" });
+      }
+      const grants = await this.kernel.run(db => db.selectFrom("owner_grants").select("entry_id")
+        .where("consumer_id", "=", target.consumerId).orderBy("entry_id").execute());
       for (const grant of grants) {
         const entry = await this.requireEntry({ entryId: grant.entry_id });
         results.push(...await target.vault.copyToSite({ source: this.vault, sourceContext: ownerContext(entry),
@@ -149,9 +157,15 @@ export class OwnerStoreService {
     });
   }
 
-  /** Delete this entry's copy from one consumer and settle its pending record either way. */
+  /** Delete this entry's copy from one consumer and settle its pending record either way.
+   * A target in a different workspace than the recorded one is refused untouched: its empty
+   * lookup would prove nothing about the workspace that actually holds the copy.
+   */
   private async cleanTarget({ entry, target }: { entry: OwnerEntry; target: OwnerSyncTarget }): Promise<CleanupOutcome> {
     const key = { entry_id: entry.id, consumer_id: target.consumerId };
+    const recorded = await this.kernel.run(db => db.selectFrom("owner_revocations").select("workspace_id")
+      .where("entry_id", "=", key.entry_id).where("consumer_id", "=", key.consumer_id).executeTakeFirst());
+    if (recorded && recorded.workspace_id !== target.workspaceId) return { ok: false, error: new VaultError({ code: "context" }) };
     try {
       const scope = { ...ownerContext(entry), workspaceId: target.workspaceId };
       // Metadata-only lookup: a copy the target can no longer decrypt must still be deleted.
@@ -161,7 +175,7 @@ export class OwnerStoreService {
       // Committing revocation must not depend on another database's availability; the durable
       // pending row keeps the leftover copy tracked until a retry confirms it is gone.
       const updated_at = this.now({});
-      await this.kernel.run(db => db.insertInto("owner_revocations").values({ ...key, attempts: 1, updated_at })
+      await this.kernel.run(db => db.insertInto("owner_revocations").values({ ...key, workspace_id: target.workspaceId, attempts: 1, updated_at })
         .onConflict(conflict => conflict.columns(["entry_id", "consumer_id"])
           .doUpdateSet(eb => ({ attempts: eb("owner_revocations.attempts", "+", 1), updated_at }))).execute());
       return { ok: false, error };

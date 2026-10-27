@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { openWithPassphrase, sealWithPassphrase } from "@jini-ai/platform/secrets";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { exportOwnerStore, restoreOwnerStore } from "../backup.js";
 import { ownerContext } from "../service.js";
 import { fixture, input, target } from "./fixture.js";
@@ -53,7 +53,7 @@ test("restore keeps each host-selected hint, short-token length and hintless pay
   ]);
 });
 
-test("version-1 snapshots without hint fields still restore without guessing a token", async () => {
+test("snapshots without hint fields still restore without guessing a token", async () => {
   const source = await setup().open(), store = await setup().open();
   const entry = await source.put({ ...input, hintToken: input.payload.token });
   const original = await exportOwnerStore({ store: source, passphrase: "recovery" });
@@ -65,6 +65,65 @@ test("version-1 snapshots without hint fields still restore without guessing a t
   expect((await store.list({}))[0]).toMatchObject({ id: entry.id, last4: null, tokenLength: null });
   expect((await store.vault.get(entry))?.payload).toEqual(input.payload);
 });
+
+/** A source store whose only entry was revoked from a site that was down, so its copy is still there. */
+async function pendingSource() {
+  const source = await setup().open();
+  const entry = await source.put(input);
+  const site = target("one");
+  await source.grant({ entryId: entry.id, consumerId: site.consumerId });
+  await source.syncTo({ target: site });
+  vi.spyOn(site.vault, "delete").mockRejectedValueOnce(new Error("site unavailable"));
+  await expect(source.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
+  return { source, entry, site };
+}
+
+test("P2 hole: a pending cleanup survives backup and restore, so deletion stays refused", async () => {
+  const { source, entry, site } = await pendingSource();
+  const store = await setup().open();
+  const envelope = await exportOwnerStore({ store: source, passphrase: "recovery" });
+  expect(await restoreOwnerStore({ store, envelope, passphrase: "recovery" })).toEqual({ restored: 1 });
+  expect(await store.pendingRevocations({})).toEqual(await source.pendingRevocations({}));
+  await expect(store.delete({ entryId: entry.id, expectedRevision: 1 })).rejects.toMatchObject({ name: "OwnerRevocationPendingError" });
+  // The restored record still names the site's workspace, so the original copy is the one cleaned up.
+  await store.revoke({ entryId: entry.id, target: site });
+  expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.delete({ entryId: entry.id, expectedRevision: 1 })).toBe(true);
+});
+
+test("P2 hole: a version-1 snapshot, which carries no cleanup records, is refused before any write", async () => {
+  const { source } = await pendingSource();
+  const store = await setup().open();
+  const original = await exportOwnerStore({ store: source, passphrase: "recovery" });
+  const snapshot = JSON.parse(await openWithPassphrase({ envelope: original, passphrase: "recovery" }));
+  snapshot.version = 1;
+  delete snapshot.revocations;
+  const envelope = await sealWithPassphrase({ payload: JSON.stringify(snapshot), passphrase: "recovery" });
+  await expect(restoreOwnerStore({ store, envelope, passphrase: "recovery" })).rejects.toMatchObject({ code: "invalid-backup" });
+  expect(await store.list({})).toEqual([]);
+  expect(await store.pendingRevocations({})).toEqual([]);
+});
+
+test.each([
+  ["missing list", (s: Snapshot) => { s.revocations = undefined as never; }],
+  ["unknown entry", (s: Snapshot) => { s.revocations[0].entryId = "absent"; }],
+  ["duplicate pair", (s: Snapshot) => { s.revocations.push({ ...s.revocations[0] }); }],
+  ["missing workspace", (s: Snapshot) => { delete s.revocations[0].workspaceId; }],
+  ["empty consumer", (s: Snapshot) => { s.revocations[0].consumerId = ""; }],
+  ["zero attempts", (s: Snapshot) => { s.revocations[0].attempts = 0; }],
+  ["extra field", (s: Snapshot) => { s.revocations[0].sealed = {}; }],
+])("rejects a pending cleanup with a %s before restoring any rows", async (_name, patch) => {
+  const { source } = await pendingSource();
+  const store = await setup().open();
+  const original = await exportOwnerStore({ store: source, passphrase: "recovery" });
+  const snapshot = JSON.parse(await openWithPassphrase({ envelope: original, passphrase: "recovery" }));
+  patch(snapshot);
+  const envelope = await sealWithPassphrase({ payload: JSON.stringify(snapshot), passphrase: "recovery" });
+  await expect(restoreOwnerStore({ store, envelope, passphrase: "recovery" })).rejects.toMatchObject({ code: "invalid-backup" });
+  expect(await store.list({})).toEqual([]);
+  expect(await store.pendingRevocations({})).toEqual([]);
+});
+type Snapshot = { revocations: [Record<string, unknown>, ...Record<string, unknown>[]] };
 
 test.each([
   ["suffix type", { last4: 1234, tokenLength: 12 }],
@@ -117,7 +176,7 @@ test.each(["duplicate", "version", "extra-field"])("rejects an authenticated but
   const original = await exportOwnerStore({ store: source, passphrase: "recovery" });
   const snapshot = JSON.parse(await openWithPassphrase({ envelope: original, passphrase: "recovery" }));
   if (mode === "duplicate") snapshot.entries.push(snapshot.entries[0]);
-  if (mode === "version") snapshot.version = 2;
+  if (mode === "version") snapshot.version = 3;
   if (mode === "extra-field") snapshot.entries[0].sealed = {};
   const envelope = await sealWithPassphrase({ payload: JSON.stringify(snapshot), passphrase: "recovery" });
   await expect(restoreOwnerStore({ store, envelope, passphrase: "recovery" })).rejects.toMatchObject({ code: "invalid-backup" });
