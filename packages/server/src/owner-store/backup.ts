@@ -52,7 +52,7 @@ export async function restoreOwnerStore({ store, envelope, passphrase }: { store
     const row = await store.kernel.run(db => db.selectFrom("secrets_vault").select("id").executeTakeFirst());
     const grant = await store.kernel.run(db => db.selectFrom("owner_grants").select("entry_id").executeTakeFirst());
     if (row || grant) throw new OwnerStoreBackupError({ code: "not-empty" });
-    // Nondefaults first: the vault auto-selects the first row, then explicit defaults win.
+    // Nondefaults first: explicit false stays non-default, then explicit defaults select their group.
     for (const entry of [...entries].sort((a, b) => Number(a.isDefault) - Number(b.isDefault))) {
       const record = await store.vault.prepare({ ...entry, ...ownerContext(entry), expectedRevision: null });
       // Preserve the host-selected hint without guessing a token field in a structured payload.

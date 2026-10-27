@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { sql, type Kysely } from "kysely";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import type { VaultRecord } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import type { VaultPutRecord } from "@jini-ai/platform/secrets/credential-sets/contracts";
 import type { StorageKernel } from "../../kernel/port.js";
 import { sqliteKernel } from "../../kernel/sqlite/index.js";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../repo.sql.js";
@@ -39,9 +39,9 @@ beforeEach(async () => {
   repo = new SqlSecretsVaultRepo({ kernel: recording });
 });
 afterEach(async () => { await kernel.close(); });
-function record({ id, ...patch }: Partial<VaultRecord> & { id: string }, _optional = {}): VaultRecord {
+function record({ id, ...patch }: Partial<VaultPutRecord> & { id: string }, _optional = {}): VaultPutRecord {
   return { workspaceId: "ws", id, kind: "vendor", ownerKey: "deploy", principalId: null, binding: null,
-    provider: "host", label: id, isDefault: false, revision: 1, sealed: null, last4: null, tokenLength: null,
+    provider: "host", label: id, revision: 1, sealed: null, last4: null, tokenLength: null,
     meta: { accountLabel: null }, createdAt: "created", updatedAt: "updated", ...patch };
 }
 const group = { workspaceId: "ws", kind: "vendor" as const, ownerKey: "deploy", principalId: null, provider: "host" };
@@ -87,7 +87,7 @@ test("moving a default promotes its former group and joins the destination witho
   expect(moved.isDefault).toBe(false);
   expect(await repo.findDefault(group)).toEqual(record({ id: "b", isDefault: true, revision: 2 }));
   expect(await repo.findDefault({ ...group, provider: "new" })).toEqual(target);
-  const empty = await repo.put({ record: { ...moved, provider: null, revision: 3 }, expectedRevision: 2 });
+  const empty = await repo.put({ record: { ...moved, provider: null, isDefault: undefined, revision: 3 }, expectedRevision: 2 });
   expect(empty.isDefault).toBe(true);
 });
 

@@ -34,6 +34,10 @@ export interface VaultRecord extends VaultIdentity {
   updatedAt: string;
 }
 export type VaultSummary = Omit<VaultRecord, "sealed"> & { configured: boolean };
+/** Unspecified placement lets the repo auto-default a group's first row; false opts out.
+ * Persisted records and read models always contain a concrete boolean.
+ */
+export type VaultPutRecord = Omit<VaultRecord, "isDefault"> & { isDefault?: boolean | undefined };
 export interface VaultQuery {
   workspaceId: string;
   kind: VaultKind;
@@ -54,7 +58,7 @@ export interface VaultSingletonQuery {
 }
 /** Ordered CAS operations; default side effects affect later operations' revisions. */
 export type VaultBatchOp =
-  | { put: { record: VaultRecord; expectedRevision: number | null } }
+  | { put: { record: VaultPutRecord; expectedRevision: number | null } }
   | { delete: { workspaceId: string; id: string; expectedRevision: number } }
   | { patchMeta: { workspaceId: string; id: string; expectedRevision: number; patch: VaultMeta; updatedAt: string } };
 export type VaultBatchResult = VaultRecord | boolean;
@@ -99,14 +103,14 @@ export interface VaultRepoPort {
    */
   applyBatch?(input: { ops: readonly VaultBatchOp[] }, options?: VaultOptions): Promise<VaultBatchResult[]>;
   list(input: VaultQuery, options?: VaultOptions): Promise<VaultRecord[]>;
-  put(input: { record: VaultRecord; expectedRevision: number | null }, options?: VaultOptions): Promise<VaultRecord>;
+  put(input: { record: VaultPutRecord; expectedRevision: number | null }, options?: VaultOptions): Promise<VaultRecord>;
   /** Service-validated patch: top-level keys are plain JSON-path identifiers. */
   patchMeta(input: { workspaceId: string; id: string; expectedRevision: number; patch: VaultMeta; updatedAt: string }, options?: VaultOptions): Promise<VaultRecord>;
   delete(input: { workspaceId: string; id: string; expectedRevision: number }, options?: VaultOptions): Promise<boolean>;
 }
 
 /** Unambiguous scope encoding keeps adapter default/identity checks on the same contract. */
-export function vaultGroupKey({ record }: { record: VaultRecord }, _options: VaultOptions = {}): string {
+export function vaultGroupKey({ record }: { record: VaultDefaultQuery }, _options: VaultOptions = {}): string {
   return JSON.stringify([record.workspaceId, record.kind, record.ownerKey, record.principalId, record.provider]);
 }
 
@@ -114,12 +118,12 @@ export function vaultGroupKey({ record }: { record: VaultRecord }, _options: Vau
 // Provider groups defaults, but is not authenticated identity (see buildVaultAad).
 const IMMUTABLE_FIELDS = ["workspaceId", "kind", "ownerKey", "principalId", "id", "binding", "createdAt"] as const;
 
-function assertRevision({ record, existing, expectedRevision }: { record: VaultRecord; existing: VaultRecord | null; expectedRevision: number | null }): void {
+function assertRevision({ record, existing, expectedRevision }: { record: VaultPutRecord; existing: VaultRecord | null; expectedRevision: number | null }): void {
   if (expectedRevision === null ? existing !== null : existing?.revision !== expectedRevision) throw new VaultError({ code: "conflict" });
   if (!Number.isSafeInteger(record.revision) || record.revision !== (expectedRevision ?? 0) + 1) throw new VaultError({ code: "invalid-record" });
 }
 
-function assertSameIdentity({ record, existing }: { record: VaultRecord; existing: VaultRecord }): void {
+function assertSameIdentity({ record, existing }: { record: VaultPutRecord; existing: VaultRecord }): void {
   if (IMMUTABLE_FIELDS.some(field => record[field] !== existing[field])) throw new VaultError({ code: "context" });
   if (existing.kind === "vendor") {
     // Missing subtype identifies a pre-unification vendor; an explicit null is not a default.
@@ -131,7 +135,7 @@ function assertSameIdentity({ record, existing }: { record: VaultRecord; existin
 
 /** Adapters guard CAS and immutable identity even for callers below the service. */
 export function assertVaultReplacement(
-  { record, existing, expectedRevision }: { record: VaultRecord; existing: VaultRecord | null; expectedRevision: number | null },
+  { record, existing, expectedRevision }: { record: VaultPutRecord; existing: VaultRecord | null; expectedRevision: number | null },
   _options: VaultOptions = {},
 ): void {
   assertRevision({ record, existing, expectedRevision });

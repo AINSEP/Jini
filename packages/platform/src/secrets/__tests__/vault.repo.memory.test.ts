@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vitest";
-import { InMemoryVaultRepo, type VaultRecord } from "../credential-sets/index.js";
+import { InMemoryVaultRepo, type VaultRecord, type VaultPutRecord } from "../credential-sets/index.js";
 
-function row(id: string, patch: Partial<VaultRecord> = {}): VaultRecord {
+function row(id: string, patch: Partial<VaultPutRecord> = {}): VaultPutRecord {
   return { workspaceId: "ws", id, kind: "vendor", ownerKey: "deploy", principalId: null, binding: null,
-    provider: "host", label: id, isDefault: false, revision: 1, sealed: null, last4: null, tokenLength: null,
+    provider: "host", label: id, revision: 1, sealed: null, last4: null, tokenLength: null,
     meta: { accountLabel: null }, createdAt: "2026-10-11T00:00:00Z", updatedAt: "2026-10-11T00:00:00Z", ...patch };
 }
 const query = { workspaceId: "ws", kind: "vendor" as const, ownerKey: "deploy", principalId: null, provider: "host" };
@@ -80,7 +80,24 @@ test("converted custom null-provider group keeps independent labels/defaults and
 });
 
 describe("InMemoryVaultRepo putRecord", () => {
-  test("first row in a group becomes default even when submitted as non-default", async () => {
+  test("explicit false keeps an empty group without a default, including later saves and replacements", async () => {
+    const repo = new InMemoryVaultRepo({});
+    const first = await repo.put({ record: row("a", { isDefault: false }), expectedRevision: null });
+    assert.equal(first.isDefault, false);
+    assert.equal(await repo.findDefault(query), null);
+    await repo.put({ record: row("b", { isDefault: false }), expectedRevision: null });
+    await repo.put({ record: { ...first, revision: 2 }, expectedRevision: 1 });
+    assert.equal((await repo.list(query)).every(record => record.isDefault === false), true);
+    assert.equal(await repo.findDefault(query), null);
+  });
+
+  test("an undefined flag auto-defaults only the first row", async () => {
+    const repo = new InMemoryVaultRepo({});
+    assert.equal((await repo.put({ record: row("a", { isDefault: undefined }), expectedRevision: null })).isDefault, true);
+    assert.equal((await repo.put({ record: row("b", { isDefault: undefined }), expectedRevision: null })).isDefault, false);
+  });
+
+  test("first row in a group becomes default when the flag is omitted", async () => {
     const repo = new InMemoryVaultRepo({});
     assert.equal((await repo.put({ record: row("a"), expectedRevision: null })).isDefault, true);
   });

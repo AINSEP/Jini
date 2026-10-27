@@ -3,7 +3,7 @@ import { afterAll, beforeEach, describe, test } from "vitest";
 import Database from "better-sqlite3";
 import { PGlite } from "@electric-sql/pglite";
 import { sql, type Kysely } from "kysely";
-import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers, type VaultRecord } from "@jini-ai/platform/secrets/credential-sets";
+import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers, type VaultPutRecord } from "@jini-ai/platform/secrets/credential-sets";
 import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
 import { InMemoryKeyring } from "@jini-ai/platform/secrets/testing";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../secrets-vault/index.js";
@@ -17,9 +17,9 @@ const cases = [
   { name: "pglite", kernel: openPgliteKernel<SecretsVaultDatabase>({ PGlite }) },
 ];
 afterAll(async () => { for (const { kernel } of cases) await kernel.close(); });
-function row(id: string, patch: Partial<VaultRecord> = {}): VaultRecord {
+function row(id: string, patch: Partial<VaultPutRecord> = {}): VaultPutRecord {
   return { workspaceId: "ws", id, kind: "vendor", ownerKey: "deploy", principalId: null, binding: null,
-    provider: "host", label: id, isDefault: false, revision: 1, sealed: null, last4: null, tokenLength: null,
+    provider: "host", label: id, revision: 1, sealed: null, last4: null, tokenLength: null,
     meta: { accountLabel: null }, createdAt: "2026-10-11T00:00:00Z", updatedAt: "2026-10-11T00:00:00Z", ...patch };
 }
 const query = { workspaceId: "ws", kind: "vendor" as const, ownerKey: "deploy", principalId: null, provider: "host" };
@@ -51,6 +51,23 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
     await kernel.execute(kernel.dialect === "sqlite"
       ? sql`CREATE INDEX vault_promotion ON secrets_vault (workspace_id, kind, owner_key, principal_id, provider, updated_at DESC, id COLLATE BINARY DESC)`
       : sql`CREATE INDEX vault_promotion ON secrets_vault (workspace_id, kind, owner_key, principal_id, provider, updated_at DESC, id COLLATE "C" DESC)`);
+  });
+
+  test("explicit false stays non-default and omitted/undefined flags auto-default only the first row", async () => {
+    for (const adapter of [repo, new InMemoryVaultRepo({})]) {
+      const first = await adapter.put({ record: row("unattached", { isDefault: false }), expectedRevision: null });
+      assert.equal(first.isDefault, false);
+      assert.equal(await adapter.findDefault(query), null);
+      await adapter.put({ record: row("another", { isDefault: false }), expectedRevision: null });
+      await adapter.put({ record: { ...first, revision: 2 }, expectedRevision: 1 });
+      assert.equal((await adapter.list(query)).every(record => record.isDefault === false), true);
+      assert.equal(await adapter.findDefault(query), null);
+      const omitted = await adapter.put({ record: row("omitted", { provider: "omitted" }), expectedRevision: null });
+      const unspecified = await adapter.put({ record: row("undefined", { provider: "undefined", isDefault: undefined }), expectedRevision: null });
+      assert.equal(omitted.isDefault, true);
+      assert.equal(unspecified.isDefault, true);
+      assert.equal((await adapter.put({ record: row("later", { provider: "undefined", isDefault: undefined }), expectedRevision: null })).isDefault, false);
+    }
   });
 
   test("put/default/delete/CAS match the memory adapter under a partial UNIQUE default index", async () => {
@@ -256,7 +273,7 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
       assert.equal((await adapter.findDefault(query))?.id, "\u{10000}");
       assert.equal((await adapter.findDefault(query))?.revision, 2);
       assert.equal((await adapter.findDefault({ ...query, provider: "new" }))?.id, "target");
-      const empty = await adapter.put({ record: { ...moved, provider: null, revision: 3 }, expectedRevision: 2 });
+      const empty = await adapter.put({ record: { ...moved, provider: null, isDefault: undefined, revision: 3 }, expectedRevision: 2 });
       assert.equal(empty.isDefault, true);
       const selected = await adapter.put({ record: { ...empty, provider: "new", isDefault: true, revision: 4 }, expectedRevision: 3 });
       assert.equal(selected.isDefault, true);

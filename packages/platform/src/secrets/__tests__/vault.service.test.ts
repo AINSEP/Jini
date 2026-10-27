@@ -239,6 +239,20 @@ test("pre-C1 repo ports keep put/get working and never fall back to group reads 
   await assert.rejects(service.findOne(context), { code: "invalid-record" });
 });
 
+test("service saves preserve explicit false on creation and omitted updates", async () => {
+  const { service, repo, input } = fixture();
+  assert.equal((await service.put({ ...input, isDefault: false })).isDefault, false);
+  assert.equal((await service.put({ ...input, id: "b", label: "Other", isDefault: false })).isDefault, false);
+  assert.equal((await service.put({ ...input, expectedRevision: 1, payload: undefined })).isDefault, false);
+  assert.equal((await repo.list(query)).every(record => record.isDefault === false), true);
+});
+
+test("omitted default placement auto-defaults an empty provider after a move", async () => {
+  const { service, input } = fixture();
+  await service.put(input);
+  assert.equal((await service.put({ ...input, expectedRevision: 1, provider: "new", payload: undefined })).isDefault, true);
+});
+
 test("singleton reads ignore provider/default, use one query and reject substituted ownership before open", async () => {
   for (const kind of ["site-assistant", "personal-execution", "database-destination"] as const) {
     const { service, repo, input, sealer, authorize } = fixture();
@@ -292,8 +306,8 @@ test("provider moves preserve envelope, identity and hints, promote the old grou
   assert.equal((await repo.findDefault({ ...query, provider: "other" }))?.id, "target");
   assert.deepEqual((await service.get(context))?.payload, input.payload);
   await assert.rejects(service.put({ ...input, payload: undefined, expectedRevision: 1, provider: null }), { code: "conflict" });
-  // Empty destination groups retain the existing first-row default rule even with false input.
-  assert.equal((await service.put({ ...input, payload: undefined, expectedRevision: 2, provider: null, isDefault: false })).isDefault, true);
+  // Explicit false opts out even when moving into an empty destination group.
+  assert.equal((await service.put({ ...input, payload: undefined, expectedRevision: 2, provider: null, isDefault: false })).isDefault, false);
   assert.equal((await service.put({ ...input, payload: undefined, expectedRevision: 3, provider: "other" })).isDefault, false);
   assert.equal((await repo.findDefault({ ...query, provider: "other" }))?.id, "target");
   assert.deepEqual((await repo.find(context))?.sealed, before.sealed);
