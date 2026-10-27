@@ -62,10 +62,10 @@ describe('createPluginRegistry', () => {
     const dup = registry.registerPlugin({ id: 'c', kind: ADAPTER_KIND, category: 'marketing', src: '/c.mjs' });
     dup();
     expect(problems.map(p => [p.id, p.reason, p.source])).toEqual([
-      ['Bad Id', 'the id must be a short lowercase name', 'page'],
+      ['Bad Id', 'short lowercase id', 'page'],
       ['a', 'category must be functional, analytics or marketing', undefined],
-      ['b', 'an adapter needs grant() or a module src', undefined],
-      ['c', 'this id is already registered', undefined],
+      ['b', 'grant() or src needed', undefined],
+      ['c', 'duplicate id', undefined],
     ]);
     expect(registry.list({ kind: ADAPTER_KIND }).map(a => a.id)).toEqual(['c']);
   });

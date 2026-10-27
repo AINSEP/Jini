@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { CookieJar, JSDOM } from 'jsdom';
 import { ADAPTER_KIND, CONSENT_COOKIE, type ClientConfig, type ConsentAdapter, type ConsentState, type Evidence, type StoredChoice } from '../contract.js';
 import { boot, browserPorts, createCookieConsent, type ClientPorts } from '../client/index.js';
 import { bindBanner } from '../client/dom.js';
@@ -38,6 +39,35 @@ beforeEach(() => {
   delete window.jiniConsentQueue;
 });
 afterEach(() => { vi.restoreAllMocks(); });
+
+describe('returning visitors from the old engine', () => {
+  test.each(['accept', 'reject', 'save'] as const)('%s sticks across pages despite an old HttpOnly cookie', async action => {
+    const jar = new CookieJar();
+    const url = 'https://site.example/';
+    jar.setCookieSync('jini_consent=old_receipt_0123456789; HttpOnly; Secure; Path=/', url);
+    const rendered = renderBanner({ mode: 'jini', client: { contract: 1, policy: 'p1', regionMode: 'opt-in' }, copy: {} });
+    const first = new JSDOM(rendered.body, { url, cookieJar: jar });
+    const second = new JSDOM(rendered.body, { url: url + 'about', cookieJar: jar });
+    try {
+      const ports = makePorts({ doc: first.window.document });
+      const api = createCookieConsent({ config: config(), ports }, { evidence: DURABLE });
+      bindBanner({ api, doc: ports.doc });
+      expect(ports.doc.cookie).not.toContain('jini_consent=');
+      expect(api.get().status).toBe('pending');
+      expect((ports.doc.getElementById('jini-consent') as HTMLElement).hidden).toBe(false);
+      await api.set({ action }, { choices: { functional: true, analytics: false, marketing: false } });
+      await flush();
+      const nextPorts = makePorts({ doc: second.window.document, fetch: ports.fetch });
+      const next = createCookieConsent({ config: config(), ports: nextPorts }, { evidence: DURABLE });
+      bindBanner({ api: next, doc: nextPorts.doc });
+      expect(next.get()).toMatchObject({ status: 'set', action, receipt: 'stored', choices: api.get().choices });
+      expect((nextPorts.doc.getElementById('jini-consent') as HTMLElement).hidden).toBe(true);
+      expect(readConsent({ cookieHeader: jar.getCookieStringSync(url), policy: 'p1', regionMode: 'opt-in' }, { nowMs: NOW })).toEqual(next.get());
+      expect(ports.fetch).toHaveBeenCalledTimes(1);
+      expect(jar.getCookiesSync(url).find(c => c.key === 'jini_consent')).toMatchObject({ value: 'old_receipt_0123456789', httpOnly: true });
+    } finally { first.window.close(); second.window.close(); }
+  });
+});
 
 describe('grant and withdraw', () => {
   test('accept runs a live adapter; reject is applied before any await and needs no reload', async () => {

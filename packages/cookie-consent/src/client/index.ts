@@ -17,7 +17,6 @@ export interface ClientPorts {
 export interface ClientOptions { plugins?: PluginRegistry; evidence?: Evidence | undefined }
 type Run = { ctl: AbortController; result: Promise<Revoker | null> };
 type Slot = { entry: AdapterContribution; adapter?: ConsentAdapter | undefined; run?: Run | undefined };
-const isLive = (e: AdapterContribution): e is ConsentAdapter => typeof (e as ConsentAdapter).grant === 'function';
 const within = (p: Promise<unknown>, ms: number) => Promise.race([p, new Promise(r => setTimeout(r, ms))]);
 const quiet = (fn: () => void) => { try { fn(); } catch { /* a broken plugin or listener never blocks consent */ } };
 
@@ -52,7 +51,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
       quiet(() => adapter.onState?.({ state }));
       if (ctl.signal.aborted || anonymous && state.analyticsLevel === 'none') return null;                              // withdrawn first: nothing ran
       return Promise.resolve().then(() => adapter.grant({ config: slot.entry.config ?? adapter.config, state, signal: ctl.signal }))
-        .then(r => (r === null ? null : r ?? {}), () => ({}));         // a grant that threw may have run code
+        .then(r => r === undefined ? {} : r, () => ({}));             // a grant that threw may have run code
     }, () => null);                                                     // import failed: nothing ran
     slot.run = { ctl, result };
   }
@@ -63,7 +62,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     run.ctl.abort();
     const revoker = await run.result;
     if (!revoker) return false;
-    const clean = revoker.revoke ? await Promise.resolve().then(() => revoker.revoke!()).catch(() => false) : false;
+    const clean = await Promise.resolve().then(() => revoker.revoke?.()).catch(() => false);
     if (!anonymous) purge(doc, slot.adapter?.storage ?? slot.entry.storage);
     return !clean;
   }
@@ -85,8 +84,8 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   function apply(): ConsentState {
     const next = (state = compute());
     const html = doc.documentElement;
-    html.setAttribute('data-consent', next.status);
-    html.setAttribute('data-consent-region', next.region);
+    html.dataset.consent = next.status;
+    html.dataset.consentRegion = next.region;
     html.toggleAttribute('data-consent-gpc', next.gpc);
     reconcile(next);                                                    // stops start before any listener runs
     listeners.forEach(fn => quiet(() => fn(next)));
@@ -121,7 +120,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
 
   function addSlot(entry: AdapterContribution): void {
     if (anonymous && (!entry.supportsAnonymous || entry.category !== 'analytics')) return;
-    const slot: Slot = { entry, adapter: isLive(entry) ? entry : undefined };
+    const slot: Slot = { entry, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
     slots.set(entry.id, slot);
     if (anonymous || state.allowed[entry.category]) start(slot);
     else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice

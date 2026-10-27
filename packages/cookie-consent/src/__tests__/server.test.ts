@@ -115,12 +115,19 @@ describe('handleReceipt', () => {
 });
 
 describe('readConsent', () => {
-  const stored = (over: object = {}) => `jini_consent=${encodeURIComponent(JSON.stringify({ v: 1, p: 'p1', c: { functional: true, analytics: true, marketing: true }, t: NOW, a: 'accept', r: 'receipt-0000000001', ...over }))}`;
+  const stored = (over: object = {}) => `jini_choices=${encodeURIComponent(JSON.stringify({ v: 1, p: 'p1', c: { functional: true, analytics: true, marketing: true }, t: NOW, a: 'accept', r: 'receipt-0000000001', ...over }))}`;
   const read = (cookieHeader: string | null, optional = {}) => readConsent({ cookieHeader, policy: 'p1', regionMode: 'auto' }, { nowMs: NOW, ...optional });
 
   test('a receipted grant is allowed; an unconfirmed one is not', () => {
     expect(read(stored()).allowed.analytics).toBe(true);
     expect(read(stored({ r: undefined, q: 1 })).allowed.analytics).toBe(false);
+  });
+
+  test('the old engine cookie never supplies a choice, even if it contains new-format data', () => {
+    for (const legacy of ['jini_consent=old_receipt_0123456789', stored().replace('jini_choices=', 'jini_consent=')]) {
+      expect(read(legacy)).toMatchObject({ status: 'pending', action: null, allowed: { analytics: false } });
+      expect(read(`${legacy}; ${stored()}`)).toMatchObject({ status: 'set', action: 'accept', allowed: { analytics: true } });
+    }
   });
 
   test('GPC clamps; region comes from the hint or the region cookie', () => {
