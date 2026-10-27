@@ -1,4 +1,6 @@
-/** Owner-only store composition. Database adapters and crypto implementations retain their original owners. */
-export { openOwnerStore, OwnerStoreRecoveryError, type OpenOwnerStoreInput, type OpenOwnerStoreOptions, type OpenedOwnerStore } from "./open.js";
-export { OwnerStoreService, OwnerRevocationPendingError, OwnerUnreconciledError, OWNER_REVOCATION_AUTO_ATTEMPTS, OWNER_WORKSPACE_ID, ownerContext, type OwnerStoreDatabase, type OwnerGrant, type OwnerRevocation, type OwnerUnreconciled, type OwnerPutInput, type OwnerSyncTarget } from "./service.js";
-export { exportOwnerStore, restoreOwnerStore, OwnerStoreBackupError } from "./backup.js";
+/** Read-only legacy owner-store access. Shared keys are project references now: nothing writes,
+ * migrates or syncs an owner store; hosts only read one (or its backup) to import its entries.
+ */
+export { countLegacyOwnerStore, readLegacyOwnerStore, ownerContext, OwnerStoreRecoveryError, OWNER_WORKSPACE_ID,
+  type LegacyOwnerCounts, type LegacyOwnerDestination, type LegacyOwnerEntry, type LegacyOwnerSnapshot, type LegacyOwnerStoreFile } from "./legacy.js";
+export { readLegacyOwnerBackup, OwnerStoreBackupError } from "./backup.js";

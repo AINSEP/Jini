@@ -21,7 +21,7 @@ afterEach(() => vi.useRealTimers());
 
 /** Run through real launch composition and native protocol attachment with only OS effects replaced. */
 async function startFixture(
-  { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude'; hostEnv: NodeJS.ProcessEnv },
+  { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude' | 'antigravity' | 'opencode'; hostEnv: NodeJS.ProcessEnv },
   policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number } = {},
   runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
   { ownRuntimeState = true }: { ownRuntimeState?: boolean } = {},
@@ -76,6 +76,45 @@ it('threads individual permissions through the real executor to CLI argv', async
 it('refuses to ignore individual restrictions on an unsupported CLI even in parity mode', async () => {
   await expect(startFixture({ agentId: 'pi', hostEnv: {} }, {}, { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass',
     nativeCapabilities: { shell: false } })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
+});
+
+// Owner 2026-10-26: admin chat on Gemini (antigravity) failed every run with "This CLI has no
+// native-tool policy and audit adapter", because the host's default has personal MCP OFF and agy
+// cannot keep it off. Interim decision B (2026-10-27): keep refusing, but say which CLI and which
+// switch, and what to do.
+const hostDefaultCapabilities = { shell: true, fileWrite: true, userMcp: false, subagents: true,
+  userSettings: true, web: true, workflows: true, loginEnvironment: true };
+const parityRun = { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' } as const;
+
+it.each([
+  ['antigravity', "Antigravity can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex."],
+  ['opencode', "OpenCode can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex."],
+] as const)('refuses %s with personal MCP OFF, naming the CLI and the switch', async (agentId, message) => {
+  await expect(startFixture({ agentId, hostEnv: {} }, {}, { ...parityRun, nativeCapabilities: hostDefaultCapabilities }))
+    .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message });
+});
+
+it('names every OFF switch, and the Full CLI switch when no single switch is the cause', async () => {
+  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
+    nativeCapabilities: { ...hostDefaultCapabilities, shell: false } })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+    message: "Antigravity can't run with 'Bash/shell' and 'Your MCP servers' off. Turn them on in the assistant settings, or choose Claude or Codex." });
+  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { nativeToolAccess: true })).rejects.toMatchObject({
+    code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+    message: "Antigravity can't run with this chat's CLI tool limits. Turn on 'Full CLI access' in the assistant settings, or choose Claude or Codex." });
+});
+
+it.each(['claude', 'codex'] as const)('still runs %s with personal MCP OFF', async agentId => {
+  const run = await startFixture({ agentId, hostEnv: {} }, {}, { ...parityRun, nativeCapabilities: hostDefaultCapabilities });
+  try { expect(run.calls).toHaveLength(1); } finally { run.child.emit('close', 0, null); }
+});
+
+it('runs antigravity in parity once personal MCP is ON', async () => {
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
+    nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true } });
+  try {
+    expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions');
+    expect(run.calls[0]!.args.at(-2)).toBe('-p');
+  } finally { run.child.emit('close', 0, null); }
 });
 
 it('passes explicit plugin policy through the executor instead of consulting ambient env in buildArgs', async () => {

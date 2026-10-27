@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, type PathLike } from 'node:fs';
+import type { FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -117,26 +118,28 @@ describe('createNoteStore', () => {
       // on the next event-loop turn. Unserialized writers then read the same
       // snapshot before either writes; serialized writers need no second reader
       // to release the first, so the same fixture works after the fix.
-      const filesystem = {
+      // Each fake implements only the Node overload the store calls (string
+      // results, a write handle), so it is asserted to that method's own type.
+      const filesystem: NoteStoreFilesystemPort = {
         ...fs.promises,
-        mkdir: async (target: string) => fs.mkdirSync(target, { recursive: true }),
-        realpath: async (target: string) => fs.realpathSync(target),
-        lstat: async (target: string) => fs.lstatSync(target),
-        readFile: async (target: string) => {
+        mkdir: (async (target: PathLike) => fs.mkdirSync(target, { recursive: true })) as typeof fs.promises.mkdir,
+        realpath: (async (target: PathLike) => fs.realpathSync(target)) as typeof fs.promises.realpath,
+        lstat: (async (target: PathLike) => fs.lstatSync(target)) as typeof fs.promises.lstat,
+        readFile: (async (target: PathLike) => {
           const snapshot = fs.readFileSync(target, 'utf8');
-          if (target.endsWith('INDEX.md')) await new Promise<void>((resolve) => setImmediate(resolve));
+          if (String(target).endsWith('INDEX.md')) await new Promise<void>((resolve) => setImmediate(resolve));
           return snapshot;
-        },
-        open: async (target: string, flags: string) => {
+        }) as typeof fs.promises.readFile,
+        open: async (target: PathLike, flags?: string | number) => {
           const fd = fs.openSync(target, flags);
           return {
             writeFile: async (body: string) => { fs.writeFileSync(fd, body); },
             sync: async () => { fs.fsyncSync(fd); },
             close: async () => { fs.closeSync(fd); },
-          };
+          } as FileHandle;
         },
-        rename: async (source: string, target: string) => { fs.renameSync(source, target); },
-      } as NoteStoreFilesystemPort;
+        rename: async (source: PathLike, target: PathLike) => { fs.renameSync(source, target); },
+      };
       let sequence = 0;
       const concurrentStore = createNoteStore(config, { filesystem, now: () => 123, ids: () => `write-${++sequence}` });
       await concurrentStore.writeIndex({ dataDir, body: '# Notes\n\n' });

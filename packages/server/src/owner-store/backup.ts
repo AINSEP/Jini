@@ -1,19 +1,17 @@
-import { openWithPassphrase, sealWithPassphrase } from "@jini-ai/platform/secrets";
+import { openWithPassphrase } from "@jini-ai/platform/secrets";
 import { isCopyableKind } from "@jini-ai/platform/secrets/credential-sets";
-import { VAULT_KINDS, type VaultKind, type VaultMeta, type VaultOptions, type VaultSummary } from "@jini-ai/platform/secrets/credential-sets/contracts";
-import { ownerContext, type OwnerPutInput, type OwnerStoreService } from "./service.js";
+import { VAULT_KINDS, type VaultKind, type VaultOptions, type VaultSummary } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import type { LegacyOwnerEntry, LegacyOwnerSnapshot } from "./legacy.js";
 
 type BackupHint = Pick<VaultSummary, "last4" | "tokenLength">;
-type BackupEntry = Required<Pick<OwnerPutInput, "id" | "kind" | "ownerKey" | "binding" | "provider" | "label" | "isDefault">>
-  & BackupHint & { meta: VaultMeta; payload: VaultMeta | null };
-/** A pending target cleanup: the copy it tracks outlives any restore, so the record must too. */
+type BackupEntry = LegacyOwnerEntry & BackupHint;
+/** A pending target cleanup: the site may still hold the revoked copy, so the importer reports it. */
 type BackupRevocation = { entryId: string; consumerId: string; workspaceId: string; attempts: number; updatedAt: string };
-/** An active grant: its entry was synced to a site, so the copy is tracked by this record until revoked.
- * workspaceId is the one destination it is bound to (null before its first sync); losing it would let a
- * revoke naming any empty workspace drop the record while the real copy remains.
+/** An active grant: its entry was synced to a site, which keeps that copy.
+ * workspaceId is the one destination it was bound to (null before its first sync).
  */
 type BackupGrant = { entryId: string; consumerId: string; workspaceId: string | null; createdAt: string };
-/** unreconciled: entry IDs whose copies may sit at destinations no record names; deletion waits for reconciliation. */
+/** unreconciled: entry IDs whose copies may sit at destinations no record names (validated, not returned). */
 type BackupSnapshot = { entries: BackupEntry[]; grants: BackupGrant[]; revocations: BackupRevocation[]; unreconciled: string[] };
 const INVALID_BACKUP = "invalid-backup";
 /** Version 1 had no cleanup records, so it cannot show whether a revoked copy is still on a site. */
@@ -27,7 +25,7 @@ const GRANT_FIELDS = ["entryId", "consumerId", "workspaceId", "createdAt"];
 
 /** Fixed errors keep recovery diagnostics free of parsed secret values. */
 export class OwnerStoreBackupError extends Error {
-  readonly code: "invalid-backup" | "not-empty";
+  readonly code: "invalid-backup";
   constructor({ code }: { code: OwnerStoreBackupError["code"] }, _options: VaultOptions = {}) {
     super(`Owner store backup: ${code}`);
     this.name = "OwnerStoreBackupError";
@@ -35,76 +33,24 @@ export class OwnerStoreBackupError extends Error {
   }
 }
 
-/** Take one consistent logical snapshot and encrypt it with the platform passphrase envelope.
- * No owner key or sealed source envelope enters the portable document; active grants and pending
- * target cleanups do, so a restored store still refuses to delete an entry whose copy may remain.
- * @complexity O(n + payload bytes) reads and bounded platform KDF work; snapshot lives in memory.
- * @example const envelope = await exportOwnerStore({ store, passphrase });
- */
-export async function exportOwnerStore({ store, passphrase }: { store: OwnerStoreService; passphrase: string }, _options: VaultOptions = {}): Promise<string> {
-  const snapshot = await store.kernel.transaction(async () => {
-    const entries: BackupEntry[] = [];
-    for (const summary of await store.list({})) {
-      const entry = await store.vault.get(summary);
-      if (!entry) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
-      entries.push({ id: summary.id, kind: summary.kind, ownerKey: summary.ownerKey, binding: summary.binding,
-        provider: summary.provider, label: summary.label, isDefault: summary.isDefault, meta: summary.meta, payload: entry.payload,
-        last4: summary.last4, tokenLength: summary.tokenLength });
-    }
-    const grants = (await store.grants({})).map(row => ({ entryId: row.entry_id, consumerId: row.consumer_id,
-      workspaceId: row.workspace_id, createdAt: row.created_at }));
-    const revocations = (await store.pendingRevocations({})).map(row => ({ entryId: row.entry_id, consumerId: row.consumer_id,
-      workspaceId: row.workspace_id, attempts: row.attempts, updatedAt: row.updated_at }));
-    const unreconciled = (await store.kernel.run(db => db.selectFrom("owner_unreconciled").select("entry_id")
-      .orderBy("entry_id").execute())).map(row => row.entry_id);
-    return { entries, grants, revocations, unreconciled };
-  });
-  return sealWithPassphrase({ payload: JSON.stringify({ format: "jini-owner-store", version: BACKUP_VERSION, ...snapshot }), passphrase });
-}
-
-/** Authenticate and structurally validate before writing, then reuse vault parsing/sealing in
- * one transaction. Any row failure rolls back all rows. Active grants (with their bound destination),
- * pending cleanups and unreconciled marks are restored with their entries, so no synced copy loses the
- * record that blocks its entry's deletion. A version-1 snapshot recorded none of these, so every entry
- * it restores is marked unreconciled: deletion waits until the owner reconciles each site that may hold a copy.
- * Restored grants resume copying on the next sync. That re-copy reuses the same ID, so tracking holds, but
- * it bumps the target revision and can overwrite a value the site changed after the snapshot with the
- * snapshot's value.
- * @throws OwnerStoreBackupError for malformed snapshots or a nonempty destination; crypto/vault errors propagate.
+/** Authenticate, then structurally validate a legacy owner backup (v1 or v2) without writing anything.
+ * The importer, not this decoder, decides what reaches a project. Validation is unchanged from the
+ * old restore: unknown versions, duplicate IDs, malformed grants/cleanups and hint-policy breaks all
+ * fail as `invalid-backup` before any caller sees an entry.
+ * @throws OwnerStoreBackupError for malformed snapshots; passphrase/envelope errors propagate.
  * @complexity O(n + payload bytes) with bounded platform KDF work.
- * @example await restoreOwnerStore({ store, envelope, passphrase });
+ * @example const { entries, grants } = await readLegacyOwnerBackup({ envelope, passphrase });
  */
-export async function restoreOwnerStore({ store, envelope, passphrase }: { store: OwnerStoreService; envelope: string; passphrase: string }, _options: VaultOptions = {}): Promise<{ restored: number }> {
-  const { entries, grants, revocations, unreconciled } = parseSnapshot({ payload: await openWithPassphrase({ envelope, passphrase }) });
-  return store.kernel.transaction(async () => {
-    const row = await store.kernel.run(db => db.selectFrom("secrets_vault").select("id").executeTakeFirst());
-    const grant = await store.kernel.run(db => db.selectFrom("owner_grants").select("entry_id").executeTakeFirst());
-    if (row || grant) throw new OwnerStoreBackupError({ code: "not-empty" });
-    // Nondefaults first: explicit false stays non-default, then explicit defaults select their group.
-    for (const entry of [...entries].sort((a, b) => Number(a.isDefault) - Number(b.isDefault))) {
-      const record = await store.vault.prepare({ ...entry, ...ownerContext(entry), expectedRevision: null });
-      // Preserve the host-selected hint without guessing a token field in a structured payload.
-      await store.repo.put({ record: { ...record, last4: entry.last4, tokenLength: entry.tokenLength }, expectedRevision: null });
-    }
-    for (const row of grants) {
-      await store.kernel.run(db => db.insertInto("owner_grants").values({ entry_id: row.entryId, consumer_id: row.consumerId,
-        workspace_id: row.workspaceId, created_at: row.createdAt }).execute());
-    }
-    for (const row of revocations) {
-      await store.kernel.run(db => db.insertInto("owner_revocations").values({ entry_id: row.entryId, consumer_id: row.consumerId,
-        workspace_id: row.workspaceId, attempts: row.attempts, updated_at: row.updatedAt }).execute());
-    }
-    for (const entryId of unreconciled) {
-      await store.kernel.run(db => db.insertInto("owner_unreconciled").values({ entry_id: entryId }).execute());
-    }
-    return { restored: entries.length };
-  });
+export async function readLegacyOwnerBackup({ envelope, passphrase }: { envelope: string; passphrase: string }, _options: VaultOptions = {}): Promise<LegacyOwnerSnapshot> {
+  const snapshot = parseSnapshot({ payload: await openWithPassphrase({ envelope, passphrase }) });
+  const destination = (row: { entryId: string; consumerId: string }) => ({ entryId: row.entryId, consumerId: row.consumerId });
+  return { entries: snapshot.entries.map(({ last4: _last4, tokenLength: _length, ...entry }) => entry),
+    grants: snapshot.grants.map(destination), revocations: snapshot.revocations.map(destination) };
 }
 
-/** Reject unknown versions/duplicate IDs before any destination transaction is entered.
- * Version 1 (published @jini-ai/db 0.6.12 wrote it) is restored with every entry marked unreconciled:
- * its missing grant and cleanup records would otherwise make deleting an entry look safe while a copy
- * may still sit on a site.
+/** Reject unknown versions/duplicate IDs before any caller sees an entry.
+ * Version 1 (published @jini-ai/db 0.6.12 wrote it) has no grant or cleanup records, so every entry
+ * it holds comes back unreconciled: copies may sit on sites no record names.
  */
 function parseSnapshot({ payload }: { payload: string }): BackupSnapshot {
   let document: unknown;

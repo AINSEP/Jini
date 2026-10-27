@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile, lstat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   AGENT_SLUGS,
@@ -101,10 +104,10 @@ describe('planAgentInstall — JSON agents', () => {
     expect(plan.keyPath).toEqual(['mcp', 'servers']);
   });
 
-  it('antigravity targets the gemini config', () => {
+  it('antigravity targets the config/ registry the agy CLI reads', () => {
     const plan = planAgentInstall({ slug: 'antigravity', spec: spec(), ctx: ctx() });
     if (plan.kind !== 'json') throw new Error('expected json');
-    expect(plan.configPath).toBe('/home/u/.gemini/antigravity/mcp_config.json');
+    expect(plan.configPath).toBe('/home/u/.gemini/config/mcp_config.json');
   });
 
   it('cline resolves per-platform config paths', () => {
@@ -408,5 +411,87 @@ describe('planAgentInstall — characterization pins (before refactor)', () => {
     // A name containing a newline can inject extra YAML structure into the print-only snippet.
     const plan = planAgentInstall({ slug: 'hermes', spec: spec({ 'K: x\n  evil': 'v' }), ctx: ctx({ serverName: 'n:\n  injected: true' }) });
     expect(plan).toMatchObject({ snippet: 'mcp_servers:\n  n:\n  injected: true:\n    command: "/usr/bin/node"\n    args: ["/app/cli.js","mcp"]\n    env:\n      K: x\n  evil: "v"' });
+  });
+});
+
+// Real-filesystem checks for the antigravity path, against a throwaway HOME
+// only (never the real one). `installInto` is the read → merge → write a host
+// executor performs with the plan; the package itself ships no executor.
+describe('antigravity install against a temp HOME', () => {
+  const homes: string[] = [];
+  afterEach(async () => {
+    await Promise.all(homes.splice(0).map((home) => rm(home, { recursive: true, force: true })));
+  });
+
+  async function tempHome(): Promise<string> {
+    const home = await mkdtemp(path.join(tmpdir(), 'jini-agy-home-'));
+    homes.push(home);
+    return home;
+  }
+
+  async function readOrNull(file: string): Promise<string | null> {
+    try {
+      return await readFile(file, 'utf8');
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw err;
+    }
+  }
+
+  async function installInto(home: string): Promise<JsonInstallPlan> {
+    const plan = planAgentInstall({ slug: 'antigravity', spec: spec(), ctx: ctx({ home }) });
+    if (plan.kind !== 'json') throw new Error('expected json');
+    const next = applyJsonInstall({ existingText: await readOrNull(plan.configPath), plan });
+    await mkdir(path.dirname(plan.configPath), { recursive: true });
+    await writeFile(plan.configPath, next);
+    return plan;
+  }
+
+  const configFile = (home: string) => path.join(home, '.gemini', 'config', 'mcp_config.json');
+  const legacyFile = (home: string) => path.join(home, '.gemini', 'antigravity', 'mcp_config.json');
+  const entry = { command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'] };
+
+  it('a fresh HOME gets the bridge entry in config/ and no antigravity/ file', async () => {
+    const home = await tempHome();
+    const plan = await installInto(home);
+    expect(plan.configPath).toBe(configFile(home));
+    expect(JSON.parse((await readOrNull(configFile(home))) ?? 'null')).toEqual({ mcpServers: { jini: entry } });
+    expect(await readOrNull(legacyFile(home))).toBeNull();
+  });
+
+  it.skipIf(process.platform === 'win32')('an antigravity/ symlink to config/ ends with exactly one entry, still a symlink', async () => {
+    const home = await tempHome();
+    await mkdir(path.dirname(configFile(home)), { recursive: true });
+    await mkdir(path.dirname(legacyFile(home)), { recursive: true });
+    await writeFile(configFile(home), '{}\n');
+    await symlink(path.join('..', 'config', 'mcp_config.json'), legacyFile(home));
+    await installInto(home);
+    const viaLink = JSON.parse((await readOrNull(legacyFile(home))) ?? 'null');
+    expect(Object.keys(viaLink.mcpServers)).toEqual(['jini']);
+    expect(viaLink).toEqual(JSON.parse((await readOrNull(configFile(home))) ?? 'null'));
+    expect((await lstat(legacyFile(home))).isSymbolicLink()).toBe(true);
+  });
+
+  it('a regular-file antigravity/ config is left byte-for-byte untouched', async () => {
+    const home = await tempHome();
+    const ideText = '{ "mcpServers": { "ide-only": { "command": "ide" } } }';
+    await mkdir(path.dirname(legacyFile(home)), { recursive: true });
+    await writeFile(legacyFile(home), ideText);
+    await installInto(home);
+    expect(await readOrNull(legacyFile(home))).toBe(ideText);
+    expect((await lstat(legacyFile(home))).isSymbolicLink()).toBe(false);
+    expect(JSON.parse((await readOrNull(configFile(home))) ?? 'null')).toEqual({ mcpServers: { jini: entry } });
+  });
+
+  it("keeps the user's other servers and top-level keys in config/", async () => {
+    const home = await tempHome();
+    const existing = { theme: 'dark', mcpServers: { other: { command: 'other', args: ['x'] }, jini: { command: 'stale' } } };
+    await mkdir(path.dirname(configFile(home)), { recursive: true });
+    await writeFile(configFile(home), JSON.stringify(existing));
+    await installInto(home);
+    expect(JSON.parse((await readOrNull(configFile(home))) ?? 'null')).toEqual({
+      theme: 'dark',
+      mcpServers: { other: { command: 'other', args: ['x'] }, jini: entry },
+    });
   });
 });

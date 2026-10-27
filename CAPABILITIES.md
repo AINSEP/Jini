@@ -612,5 +612,6 @@ plugin-packaging · [README](packages/plugins/README.md)
 |---|---|---|---|---|
 | `@jini-ai/plugins/glue` | Validate host attachment vocabulary and gate/dispatch contributed capabilities; host loader is not implemented. | `validateGlueManifest`, `resolveCallSiteDispatch`, `buildGlueCapabilityGate` | universal | none yet |
 
-Owner credential composition: `@jini-ai/server/owner-store` owns `openOwnerStore`,
-`OwnerStoreService` and encrypted backups. `@jini-ai/db/owner-store` owns the pinned SQL history.
+Legacy owner credentials: `@jini-ai/server/owner-store` reads an old owner store or its encrypted backup,
+read-only, for a host to import (`countLegacyOwnerStore`, `readLegacyOwnerStore`, `readLegacyOwnerBackup`).
+`@jini-ai/db/owner-store` owns the pinned SQL history.

@@ -47,7 +47,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
 
   /** Off-mode adapters load for identity cleanup even at none; only permitted levels grant.
    * Abort is checked after the import and handed to grant(), so a withdrawal during either wait wins. */
-  function start({ slot }: { slot: Slot }, _options = {}): void {
+  function start(slot: Slot): void {
     slot.generation++;
     const ctl = new AbortController();
     const load = Promise.resolve(slot.adapter ?? ports.importModule((slot.entry as LazyAdapter).src).then(m => (slot.adapter = m.default)));
@@ -61,7 +61,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   }
   /** Detached from set(): a hung import can never delay a withdrawal. Resolves true when a reload is needed.
    * A newer grant owns its storage even if this revoke finishes after another withdrawal. */
-  async function stop({ slot }: { slot: Slot }, _options = {}): Promise<boolean> {
+  async function stop(slot: Slot): Promise<boolean> {
     const run = slot.run!;
     const generation = slot.generation;
     slot.run = undefined;
@@ -77,9 +77,9 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     for (const slot of slots.values()) {
       const allowed = anonymous ? next.analyticsLevel === 'anonymous' : next.allowed[slot.entry.category];
       if (allowed) {
-        if (!slot.run) start({ slot });
+        if (!slot.run) start(slot);
       }
-      else if (slot.run) stops.push(stop({ slot }));
+      else if (slot.run) stops.push(stop(slot));
       quiet(() => slot.adapter?.onState?.({ state: next }));
     }
     // Raw tags cannot promise anonymous behavior; only declared adapters can.
@@ -128,7 +128,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     if (anonymous && (!entry.supportsAnonymous || entry.category !== 'analytics')) return;
     const slot: Slot = { entry, generation: 0, adapter: typeof (entry as ConsentAdapter).grant === 'function' ? entry as ConsentAdapter : undefined };
     slots.set(entry.id, slot);
-    if (anonymous || state.allowed[entry.category]) start({ slot });
+    if (anonymous || state.allowed[entry.category]) start(slot);
     else purge(doc, entry.storage);                     // leftovers of an expired or withdrawn choice
     quiet(() => slot.adapter?.onState?.({ state }));                    // lazy adapters get state once loaded
   }
@@ -137,7 +137,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     for (const [id, slot] of slots) {
       if (ids.has(id)) continue;
       slots.delete(id);
-      if (slot.run) void stop({ slot }).then(dirty => { if (dirty) ports.reload(); });
+      if (slot.run) void stop(slot).then(dirty => { if (dirty) ports.reload(); });
     }
     for (const item of items as readonly AdapterContribution[]) if (!slots.has(item.id)) addSlot(item);
   }

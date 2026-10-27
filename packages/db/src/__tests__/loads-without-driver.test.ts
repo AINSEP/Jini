@@ -99,7 +99,7 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
   },
   "owner-store": {
     dirs: ["owner-store", "owner-store/migrations"], kernel: true,
-    probe: `m.OWNER_STORE_LEDGER === "owner_migrations" && m.ownerStoreMigrations.length === 2 && m.ownerStoreMigrations[0] === m.ownerStoreMigration && m.ownerStoreMigration.id === "0000_owner_store" && typeof m.ownerStoreMigration.up === "function" && m.ownerStoreDdl.includes("CREATE TABLE owner_grants") && m.ownerStoreMigrations[1] === m.ownerRevocationsMigration && m.ownerRevocationsDdl.includes("CREATE TABLE owner_revocations")`,
+    probe: `m.OWNER_STORE_LEDGER === "owner_migrations" && m.ownerStoreMigrations.length === 1 && m.ownerStoreMigrations[0] === m.ownerStoreMigration && m.ownerStoreMigration.id === "0000_owner_store" && typeof m.ownerStoreMigration.up === "function" && m.ownerStoreDdl.includes("CREATE TABLE owner_grants")`,
   },
 };
 
