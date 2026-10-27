@@ -1071,12 +1071,16 @@ describe('createLocalNodeDaemon', () => {
     expect(await res.json()).toEqual({ hasRun: true });
   });
 
-  it('reflects the resolved bind host onto env.JINI_BIND_HOST before serving any request', async () => {
-    const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], host: '127.0.0.1' });
-    daemonsToStop.push(daemon);
+  it('C64: the composed env carries the resolved bind host; process.env is never mutated', async () => {
+    const composeSpy = vi.spyOn(KernelCompositionModule, 'composeJiniKernel');
+    try {
+      const dataDir = makeTempDataDir();
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], host: '127.0.0.1' });
+      daemonsToStop.push(daemon);
 
-    expect(process.env.JINI_BIND_HOST).toBe('127.0.0.1');
+      expect(composeSpy.mock.calls[0]![0].env!.JINI_BIND_HOST).toBe('127.0.0.1');
+      expect(process.env.JINI_BIND_HOST).toBeUndefined();
+    } finally { composeSpy.mockRestore(); }
   });
 
   it('allows an unauthenticated request when no apiToken is configured (default)', async () => {
@@ -1758,8 +1762,9 @@ describe('L039a preset option forwarding pins', () => {
       daemonsToStop.push(daemon);
       const forwarded = composeSpy.mock.calls[0]![0];
       const featureOptions = forwarded.featureOptions!;
-      expect(forwarded.env).toBe(env);
-      expect(env.JINI_BIND_HOST).toBe('127.0.0.1');
+      // C64: a per-daemon snapshot of the caller's env plus the bind host; the caller's object stays untouched.
+      expect(forwarded.env).toEqual({ JINI_BIND_HOST: '127.0.0.1' });
+      expect(env).toEqual({});
       expect(forwarded.profile).toBe(supplied ? 'agent-core-v1' : 'local-daemon-v1');
       expect(featureOptions.runs).toEqual(supplied ? { onRunStarted, resolveRunInput } : {});
       expect(featureOptions.hostTools).toEqual(supplied ? { resolveWorkspaceRoot: resolver } : {});
