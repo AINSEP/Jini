@@ -207,13 +207,13 @@ describe('toolsToList', () => {
   // An embedded schema (a TipTap body under one property) keeps its own $defs; `#` is the tool root.
   const embedded = {
     type: 'object',
-    $defs: { rootOnly: { type: 'string' }, node: { type: 'number' } },
+    $defs: { rootOnly: { type: 'string' }, shared: { type: 'number' } },
     properties: {
       tag: { $ref: '#/$defs/rootOnly' },
       'body/doc': {
-        $defs: { node: { type: 'object', properties: { kids: { type: 'array', items: { $ref: '#/$defs/node' } } } } },
+        $defs: { node: { type: 'object', properties: { kids: { type: 'array', items: { $ref: '#/$defs/node' } } } }, shared: { type: 'string' } },
         type: 'object',
-        properties: { root: { $ref: '#/$defs/node' }, label: { $ref: '#/$defs/rootOnly' } },
+        properties: { root: { $ref: '#/$defs/node' }, label: { $ref: '#/$defs/rootOnly' }, count: { $ref: '#/$defs/shared' } },
       },
     },
   };
@@ -237,6 +237,36 @@ describe('toolsToList', () => {
     const bad = await call({ 'body/doc': { root: { kids: [7] } } });
     expect(bad.isError).toBe(true);
     expect(JSON.stringify(bad.content)).not.toContain('Unresolved');
+  });
+
+  it('leaves a ref the root $defs already resolves as written, even where an embedded $defs declares the same name', async () => {
+    const tool = makeTool({ inputSchema: embedded as McpToolDef['inputSchema'], handler: async () => 'ok' });
+    const listed = toolsToList({ tools: [tool] })[0]!.inputSchema as typeof embedded;
+    expect(listed.properties['body/doc'].properties.count.$ref).toBe('#/$defs/shared');
+    const call = (args: Record<string, unknown>) => handleToolCall({ name: 'noop', tools: buildToolIndex({ tools: [tool] }), ctx }, { rawArgs: args });
+    expect((await call({ 'body/doc': { count: 5 } })).isError).toBeUndefined();
+    expect((await call({ 'body/doc': { count: 'five' } })).isError).toBe(true);
+  });
+
+  it('never rewrites a "$ref" held as literal data (const, enum, default, examples); a property named const is still a schema', () => {
+    const literal = { $ref: '#/$defs/node' };
+    const schema = {
+      type: 'object',
+      properties: {
+        body: {
+          $defs: { node: { type: 'object' } },
+          type: 'object',
+          properties: {
+            kind: { const: literal }, mode: { enum: [literal] }, seed: { type: 'object', default: literal, examples: [literal] },
+            const: { $ref: '#/$defs/node' },
+          },
+        },
+      },
+    };
+    const listed = toolsToList({ tools: [makeTool({ inputSchema: schema as McpToolDef['inputSchema'] })] })[0]!.inputSchema as typeof schema;
+    const props = listed.properties.body.properties;
+    expect([props.kind.const, props.mode.enum[0], props.seed.default, props.seed.examples[0]]).toEqual([literal, literal, literal, literal]);
+    expect(props.const.$ref).toBe('#/properties/body/$defs/node');
   });
 });
 

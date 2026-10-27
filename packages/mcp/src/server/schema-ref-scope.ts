@@ -5,10 +5,17 @@
  * a strict validator then refuses every call that reaches the embedded schema. Rewriting each such
  * ref to the absolute pointer of the nearest enclosing `$defs` that declares the name keeps the
  * author's meaning (the same lexical lookup the Google provider projection applies) and leaves a
- * schema every client can resolve. Root-scoped refs and every other key stay untouched.
+ * schema every client can resolve. Only refs that would otherwise be unresolved change: one the
+ * root `$defs` declares already resolves as written, so it keeps its standard meaning even where an
+ * embedded `$defs` reuses the name. Literal data (`const`, `enum`, `default`, `examples`) is an
+ * instance value, not a schema, so a "$ref" string inside it is data and is never rewritten.
  */
 
 const LOCAL_DEFS_REF = '#/$defs/';
+/** Keywords whose values are literal instance data, never schemas. */
+const LITERAL_KEYWORDS = new Set(['const', 'enum', 'default', 'examples']);
+/** Keywords whose values map names to schemas: the names (a property called `const`) are not keywords. */
+const SCHEMA_MAP_KEYWORDS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas']);
 
 /** One enclosing `$defs`: its JSON pointer (URI-fragment encoded) and the names it declares. */
 interface DefsScope { readonly pointer: string; readonly names: ReadonlySet<string> }
@@ -22,14 +29,24 @@ function pointerSegment(key: string): string {
   return encodeURI(key.replace(/~/g, '~0').replace(/\//g, '~1'));
 }
 
-/** The ref rewritten to the innermost non-root scope declaring its name, else unchanged. */
+/** The ref rewritten to the innermost non-root scope declaring its name, unless the root resolves it as written. */
 function scopedRef(ref: string, scopes: readonly DefsScope[]): string {
   if (!ref.startsWith(LOCAL_DEFS_REF)) return ref;
   const rest = ref.slice(LOCAL_DEFS_REF.length);
   const name = decodeURIComponent(rest.split('/')[0]!).replace(/~1/g, '/').replace(/~0/g, '~');
+  // The root scope (pointer '', always first) already resolves `#/$defs/...` as written.
+  if (scopes[0]?.pointer === '' && scopes[0].names.has(name)) return ref;
   const owner = scopes.findLast(scope => scope.names.has(name));
-  // The root scope (pointer '') already resolves `#/$defs/...` as written.
-  return owner === undefined || owner.pointer === '' ? ref : `#${owner.pointer}/$defs/${rest}`;
+  return owner === undefined ? ref : `#${owner.pointer}/$defs/${rest}`;
+}
+
+/** One keyword's value inside a schema: a ref, literal data, a name-to-schema map, or more schema. */
+function scopeKeyword(key: string, child: unknown, pointer: string, scopes: readonly DefsScope[]): unknown {
+  if (key === '$ref' && typeof child === 'string') return scopedRef(child, scopes);
+  if (LITERAL_KEYWORDS.has(key)) return child;
+  const at = `${pointer}/${pointerSegment(key)}`;
+  if (!SCHEMA_MAP_KEYWORDS.has(key) || !isRecord(child)) return scopeValue(child, at, scopes);
+  return Object.fromEntries(Object.entries(child).map(([name, schema]) => [name, scopeValue(schema, `${at}/${pointerSegment(name)}`, scopes)]));
 }
 
 function scopeValue(value: unknown, pointer: string, scopes: readonly DefsScope[]): unknown {
@@ -37,17 +54,13 @@ function scopeValue(value: unknown, pointer: string, scopes: readonly DefsScope[
   if (!isRecord(value)) return value;
   const inner = isRecord(value.$defs) ? [...scopes, { pointer, names: new Set(Object.keys(value.$defs)) }] : scopes;
   const out: Record<string, unknown> = {};
-  for (const [key, child] of Object.entries(value)) {
-    out[key] = key === '$ref' && typeof child === 'string'
-      ? scopedRef(child, inner)
-      : scopeValue(child, `${pointer}/${pointerSegment(key)}`, inner);
-  }
+  for (const [key, child] of Object.entries(value)) out[key] = scopeKeyword(key, child, pointer, inner);
   return out;
 }
 
 /**
- * Returns a copy of `schema` whose `#/$defs/<name>` refs point at the nearest enclosing `$defs`
- * declaring `<name>`; the input is never mutated (published schemas are frozen).
+ * Returns a copy of `schema` whose `#/$defs/<name>` refs the root cannot resolve point at the nearest
+ * enclosing `$defs` declaring `<name>`; the input is never mutated (published schemas are frozen).
  * @param requiredArgs.schema - A tool input schema.
  * @returns The scoped copy; identical in content when every ref is already root-scoped.
  * @complexity O(s) time and space in the schema size, plus O(d) scope lookup per ref for d nested `$defs`.
