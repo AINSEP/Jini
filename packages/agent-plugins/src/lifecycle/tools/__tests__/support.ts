@@ -102,13 +102,13 @@ export function createHarness(optional: { readonly capabilities?: AgentPluginToo
     return projection.sync({ loaded: load.items, refusals: load.refusals }).refusals;
   }
   /** Authorizes a call through the contract's own registration (policy, then handler); rejects on deny. */
-  async function authorize(toolId: string, input: unknown): Promise<() => Promise<unknown>> {
+  async function authorize(toolId: string, input: unknown, signal: AbortSignal = new AbortController().signal): Promise<() => Promise<unknown>> {
     const principal = { id: 'member-1' };
     const run = { id: 'run-1' };
     const registration = buildPluginContributionToolRegistrations(ports).find(candidate => candidate.descriptor.id === toolId);
     if (!registration) throw new Error(`unknown ${toolId}`);
     if (await registration.policy.authorize({ principal, run, input, tool: registration.descriptor }) !== 'allow') throw new Error(`denied ${toolId}`);
-    return () => registration.handler({ executionId: 'exec-1', principal, run, input, signal: new AbortController().signal });
+    return () => registration.handler({ executionId: 'exec-1', principal, run, input, signal });
   }
   const invoke = async (toolId: string, input: unknown) => (await authorize(toolId, input))();
   return { log, tools, contributions, projection, enabled, refresh, authorize, invoke };

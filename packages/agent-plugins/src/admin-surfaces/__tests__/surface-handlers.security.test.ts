@@ -287,6 +287,18 @@ describe('a call\'s capabilities end with the call (one capability gate for tool
     expect((errors[0] as Error).message).toBe(CALL_ENDED_MESSAGE);
     expect(log.tokenRequests).toEqual([]);
   });
+  test('an action that keeps going after the user pressed Stop is refused a token; the host is never asked', async () => {
+    const stop = new AbortController();
+    const { host, log } = hostFor([loaded(saveModule(async ({ capabilities }) => {
+      stop.abort();
+      return { saved: (await capabilities.connections.getAccessToken({ connectionId: 'c1' })).length > 0 };
+    }))]);
+    const errors: unknown[] = [];
+    const dispatcher = createAdminSurfaceActionDispatcher({ descriptor: descriptorOf(), handlers: host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }) }, { onHandlerError: ({ error }) => errors.push(error) });
+    expect(await dispatcher.dispatch({ action: 'save', payload: { name: 'x' }, context: { ...CONTEXT, signal: stop.signal } })).toMatchObject({ ok: false, error: { code: 'action-failed' } });
+    expect((errors[0] as Error).message).toBe(CALL_ENDED_MESSAGE);
+    expect(log.tokenRequests).toEqual([]);
+  });
   test('a failed action ends its capabilities too', async () => {
     let kept: AdminSurfaceCapabilities | undefined;
     const { host } = hostFor([loaded(saveModule(async ({ capabilities }) => { kept = capabilities; throw new Error('boom'); }))]);

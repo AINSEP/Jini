@@ -4,11 +4,18 @@
  * provider. A per-call session wraps them so that (1) every capability stops working the moment the
  * plugin's tools are revoked, even for a module that kept a reference, and (2) an access token the
  * call obtained can never leave through the tool's result or error text, and (3) capabilities stop
- * working when the call that received them finishes, so plugin code that kept them in module scope
- * cannot use them (and that call's connections and confirmed account) from a later call. Those gates
+ * working once the call that received them finishes or the user stops it, so a stale reference kept
+ * in module scope, or code that ignores abort, cannot act after the call is over. Those gates
  * are `openCapabilityGate`, the ONE gate every session opens (tool calls here; admin-surface actions
  * and bootstrap in `../../admin-surfaces/surface-capabilities.ts`), and `runInCapabilitySession` is
  * the one way a caller runs plugin code inside a session, so each path retires it identically.
+ *
+ * Trust boundary: plugin code is trusted first-party code running in the host process with the
+ * host's own access (it can keep a token it was given, call `globalThis.fetch`, read the environment).
+ * Gate (3) is a guard against plugin bugs, not a security boundary. The boundaries that hold are
+ * against the model's tool arguments: ref binding (a call reaches only its top-level `connectionRef`),
+ * the account frozen at confirmation (host side), and the token scan on results and errors.
+ * Third-party executable plugins need a process sandbox first. See README "Trust boundary".
  *
  * Plugin state reaches a tool read-only: the plugin's admin surface writes its settings (for example
  * which of its products are on), and its tools must honor them, but an agent tool never changes them.
@@ -70,7 +77,7 @@ const STATE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const REVOKED_MESSAGE = 'This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.';
 export const WITHHELD_OUTPUT_MESSAGE = 'The plugin tool result was withheld because it contained a connection credential.';
 export const WITHHELD_ERROR_MESSAGE = 'The plugin tool failed and its error was withheld because it contained a connection credential.';
-export const CALL_ENDED_MESSAGE = 'This plugin call already finished; capabilities kept from it no longer work. Use the capabilities of the current call.';
+export const CALL_ENDED_MESSAGE = 'This plugin call already finished or was stopped; capabilities kept from it no longer work. Use the capabilities of the current call.';
 export const UNDECLARED_CONNECTION_MESSAGE = 'This plugin tool call may only use the connection its connectionRef input names. Nothing was sent. Report this to the plugin author.';
 
 /**
@@ -202,18 +209,21 @@ export type AgentPluginCredentialScan = ReturnType<typeof openCredentialScan>;
  * revoke, retire and scan the same way. One gate per invocation.
  * @param required.isLive - False once the contributing plugin's contributions are revoked.
  * @param required.issued - The plugin's token memory (see `createIssuedTokenMemories`).
- * @returns `guard` (wraps a capability so it refuses once revoked or once the call ended), `end`
+ * @param optional.signal - The call's abort signal: once it fires (the user pressed Stop) the call is
+ *   over for its capabilities too, even while plugin code that ignores abort keeps running.
+ * @returns `guard` (wraps a capability so it refuses once revoked or once the call ended or was stopped), `end`
  * (retires every guarded capability), `noteToken` (records a token the call obtained),
  * `mentionsToken`, and the `release` (result) and `sanitize` (error) gates.
  * @complexity O(1) to open; the scans are O(serialized size * remembered tokens).
  */
-export function openCapabilityGate(required: { readonly isLive: () => boolean; readonly issued: IssuedTokenMemory }, _optional: Record<string, never> = {}) {
+export function openCapabilityGate(required: { readonly isLive: () => boolean; readonly issued: IssuedTokenMemory }, optional: { readonly signal?: AbortSignal } = {}) {
   const { isLive, issued } = required;
+  const { signal } = optional;
   let ended = false;
   return {
     guard: <A extends unknown[], R>(call: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
       if (!isLive()) throw new Error(REVOKED_MESSAGE);
-      if (ended) throw new Error(CALL_ENDED_MESSAGE);
+      if (ended || signal?.aborted) throw new Error(CALL_ENDED_MESSAGE);
       return call(...args);
     },
     end: (): void => { ended = true; },
@@ -289,16 +299,17 @@ export function guardStateReader(required: { readonly gate: AgentPluginCapabilit
  * @param required.connections - The call's declared connections (`callConnections`); a token for any
  *   other ref is refused before the host is asked, so plugin code cannot reach a connection the call
  *   (and its confirmation card) did not name. Empty means the call gets no token at all.
+ * @param optional.signal - The call's abort signal; see `openCapabilityGate`.
  * @returns Wrapped capabilities plus `release` (result gate), `sanitize` (error gate) and `end`; run the
  *   call with `runInCapabilitySession` so `end` always runs when it finishes.
  * @complexity O(1) to open; gates are O(serialized size); a token request is O(c) declared connections.
  */
 export function openCapabilitySession(
   required: { readonly capabilities: AgentPluginToolCapabilities; readonly isLive: () => boolean; readonly issued: IssuedTokenMemory; readonly connections: readonly string[] },
-  _optional: Record<string, never> = {},
+  optional: { readonly signal?: AbortSignal } = {},
 ) {
   const { capabilities: host, isLive, issued, connections } = required;
-  const gate = openCapabilityGate({ isLive, issued });
+  const gate = openCapabilityGate({ isLive, issued }, optional);
   const capabilities: AgentPluginToolCapabilities = Object.freeze({
     connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) => {
       // Read once: plugin code may pass a getter, so the ref checked must be the very value forwarded.

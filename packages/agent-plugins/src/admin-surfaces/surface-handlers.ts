@@ -154,7 +154,7 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
     const { pluginId, descriptor } = self.loaded;
     const principal = context.principalId === undefined ? {} : { principalId: context.principalId };
     const capabilities = required.capabilities({ pluginId, workspaceId: context.workspaceId, ...principal, ...(context.signal === undefined ? {} : { signal: context.signal }) });
-    const session = openAdminSurfaceCapabilitySession({ capabilities, isLive: self.isLive, declared: descriptor, issued: self.issued }, { ...(principal.principalId !== undefined && { actorId: principal.principalId }) });
+    const session = openAdminSurfaceCapabilitySession({ capabilities, isLive: self.isLive, declared: descriptor, issued: self.issued }, { ...(principal.principalId !== undefined && { actorId: principal.principalId }), ...(context.signal !== undefined && { signal: context.signal }) });
     const connectionIds = (descriptor.connections ?? []).map((connection) => connection.id);
     return { session, context: { workspaceId: context.workspaceId, ...principal, pluginId, surfaceId: descriptor.id, connectionIds, hostKind } };
   }

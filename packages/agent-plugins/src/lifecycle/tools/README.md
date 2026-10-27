@@ -122,7 +122,9 @@ token is refused as an invalid list, and a hook error that does is withheld.
 The memory is per plugin, from `createIssuedTokenMemories()`, which the host creates once and
 passes to both the projection and `createAdminSurfaceHandlerHost`: a plugin's tools and handlers can
 share module scope, and Node keeps a module's scope across re-syncs.
-Those two gates are `openCapabilityGate({ isLive })` in `capabilities.ts`; the admin-surface session
+Capabilities also stop working once the call ends or its abort signal fires (the user pressed Stop),
+even while plugin code that ignores abort keeps running.
+Those gates are `openCapabilityGate({ isLive, issued }, { signal })` in `capabilities.ts`; the admin-surface session
 (`../../admin-surfaces/surface-capabilities.ts`) reuses it, so surface handlers revoke and scan the
 same way. Account actions (connect, switch, disconnect), writing plugin state and public config exist
 only on the admin-surface port: they are admin actions, never something an agent tool can do.
@@ -130,6 +132,17 @@ only on the admin-surface port: they are admin actions, never something an agent
 Any other context that runs a plugin's code and must honor its settings (form delivery, for example)
 gets the same `AgentPluginStateReader`: the host passes an object with `get` only, never its whole
 store, scoped to that plugin and workspace.
+
+## Trust boundary
+
+Plugin code is trusted first-party code (only bundled-digest packages may contribute it), loaded with
+`import()` into the host process, so it runs with the host's own access: it can keep a token it was
+given, call `globalThis.fetch`, read the environment. Capability lifetime (revoked, ended, stopped) is
+a guard against plugin bugs, not a security boundary; it cannot stop code from using a token it already
+holds or isolate concurrent calls of one plugin. The untrusted input is the model's tool arguments, and
+the boundaries against it are host side: ref binding (a call reaches only its top-level
+`connectionRef`), the account frozen at confirmation, and the token scan on results and errors.
+Third-party executable plugins need a process sandbox first.
 
 ## Host wiring
 

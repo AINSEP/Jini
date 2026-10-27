@@ -240,7 +240,7 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
         const checked = validatedInput(tool, input);
         const host = required.capabilities({ pluginId, workspaceId: auth.workspaceId,
           ...(auth.principalId === undefined ? {} : { principalId: auth.principalId }), ...(signal === undefined ? {} : { signal }) });
-        const session = openCapabilitySession({ capabilities: host, isLive, issued, connections: callConnections(checked) });
+        const session = openCapabilitySession({ capabilities: host, isLive, issued, connections: callConnections(checked) }, signal === undefined ? {} : { signal });
         return runInCapabilitySession({ session, run: async () => session.release({
           value: await module.invoke({ input: checked, capabilities: session.capabilities, ...(signal === undefined ? {} : { signal }) }),
         }) });

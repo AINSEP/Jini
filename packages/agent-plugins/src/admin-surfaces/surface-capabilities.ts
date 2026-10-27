@@ -299,6 +299,7 @@ function guardForms(required: { readonly gate: AgentPluginCapabilityGate; readon
  * @param required.declared - The surface's own capability declarations (the allowlists).
  * @param required.issued - The plugin's token memory, shared by all its calls (tools included).
  * @param optional.actorId - The signed-in admin; account actions are refused without one.
+ * @param optional.signal - The assistant call's abort signal when the action runs as a tool; see `openCapabilityGate`.
  * @returns Wrapped capabilities plus the shared `release` (result) and `sanitize` (error) gates and
  *   `end`; run the call with `runInCapabilitySession` so `end` always runs when it finishes.
  * @complexity O(1) to open; each check is bounded by the declared lists and the value caps.
@@ -308,10 +309,10 @@ export function openAdminSurfaceCapabilitySession(
     readonly capabilities: AdminSurfaceCapabilities; readonly isLive: () => boolean; readonly declared: AdminSurfaceCapabilityDeclarations;
     readonly issued: IssuedTokenMemory;
   },
-  optional: { readonly actorId?: string } = {},
+  optional: { readonly actorId?: string; readonly signal?: AbortSignal } = {},
 ) {
   const { capabilities: host, isLive, declared, issued } = required;
-  const gate = openCapabilityGate({ isLive, issued });
+  const gate = openCapabilityGate({ isLive, issued }, optional.signal === undefined ? {} : { signal: optional.signal });
   const input: ConnectionsInput = { gate, host: host.connections, declared: declared.connections ?? [], actorId: optional.actorId };
   const { deliveryAdapters } = declared;
   const deliveryBindings = deliveryAdapters === undefined || host.deliveryBindings === undefined ? undefined
