@@ -98,7 +98,8 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
     })()`,
   },
   "owner-store": {
-    dirs: ["owner-store", "owner-store/migrations"], kernel: true,
+    // migrate/ddl.js runs the step's DDL, so Kysely stays confined to kernel/migrate.
+    dirs: ["owner-store", "owner-store/migrations", "migrate"], kernel: true,
     probe: `m.OWNER_STORE_LEDGER === "owner_migrations" && m.ownerStoreMigrations.length === 1 && m.ownerStoreMigrations[0] === m.ownerStoreMigration && m.ownerStoreMigration.id === "0000_owner_store" && typeof m.ownerStoreMigration.up === "function" && m.ownerStoreDdl.includes("CREATE TABLE owner_grants")`,
   },
 };

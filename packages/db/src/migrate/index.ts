@@ -12,3 +12,4 @@ export {
   UnknownAppliedMigrationError,
 } from "./step.js";
 export { sourceChecksum } from "./checksum.js";
+export { executeDdl } from "./ddl.js";
