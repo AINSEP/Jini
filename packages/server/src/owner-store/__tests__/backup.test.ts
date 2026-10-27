@@ -9,7 +9,7 @@ const fixtures: ReturnType<typeof fixture>[] = [];
 afterEach(async () => { for (const item of fixtures.splice(0)) await item.cleanup(); });
 function setup() { const item = fixture(); fixtures.push(item); return item; }
 
-test("backup restores under a different owner key without activating grants or exporting key material", async () => {
+test("backup restores under a different owner key with its active grants and without exporting key material", async () => {
   const sourceFixture = setup(), destinationFixture = setup();
   const source = await sourceFixture.open(), store = await destinationFixture.open();
   const entry = await source.put({ ...input, hintToken: input.payload.token });
@@ -26,10 +26,8 @@ test("backup restores under a different owner key without activating grants or e
   expect((await store.vault.get({ ...ownerContext(entry), id: entry.id }))?.payload).toEqual(input.payload);
   expect((await store.list({}))[0]).toMatchObject({ last4: "cape", tokenLength: input.payload.token.length });
   expect((await store.repo.find(entry))?.sealed?.ciphertext).not.toBe((await source.repo.find(entry))?.sealed?.ciphertext);
-  expect(await store.grants({})).toEqual([]);
+  expect(await store.grants({})).toEqual(await source.grants({}));
   const site = target("one");
-  expect(await store.syncTo({ target: site })).toEqual([]);
-  await store.grant({ entryId: entry.id, consumerId: site.consumerId });
   expect(await store.syncTo({ target: site })).toEqual([{ kind: "vendor", id: entry.id, status: "copied", last4: "cape" }]);
 });
 
@@ -90,6 +88,49 @@ test("P2 hole: a pending cleanup survives backup and restore, so deletion stays 
   expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
   expect(await store.delete({ entryId: entry.id, expectedRevision: 1 })).toBe(true);
 });
+
+test("P2 hole: an active grant survives backup and restore, so the synced copy stays tracked", async () => {
+  const source = await setup().open(), store = await setup().open();
+  const entry = await source.put(input);
+  const site = target("one");
+  await source.grant({ entryId: entry.id, consumerId: site.consumerId });
+  await source.syncTo({ target: site });
+  const envelope = await exportOwnerStore({ store: source, passphrase: "recovery" });
+  expect(await restoreOwnerStore({ store, envelope, passphrase: "recovery" })).toEqual({ restored: 1 });
+  expect(await store.grants({})).toEqual(await source.grants({}));
+  await expect(store.delete({ entryId: entry.id, expectedRevision: 1 })).rejects.toMatchObject({ code: "conflict" });
+  await store.revoke({ entryId: entry.id, target: site });
+  expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.delete({ entryId: entry.id, expectedRevision: 1 })).toBe(true);
+});
+
+/** A source store with one entry granted to two sites. */
+async function grantedSource() {
+  const source = await setup().open();
+  const entry = await source.put(input);
+  await source.grant({ entryId: entry.id, consumerId: "one" });
+  await source.grant({ entryId: entry.id, consumerId: "two" });
+  return source;
+}
+
+test.each([
+  ["missing list", (s: GrantSnapshot) => { s.grants = undefined as never; }],
+  ["unknown entry", (s: GrantSnapshot) => { s.grants[1].entryId = "absent"; }],
+  ["duplicate pair", (s: GrantSnapshot) => { s.grants.push({ ...s.grants[0] }); }],
+  ["missing time", (s: GrantSnapshot) => { delete s.grants[1].createdAt; }],
+  ["empty consumer", (s: GrantSnapshot) => { s.grants[1].consumerId = ""; }],
+  ["extra field", (s: GrantSnapshot) => { s.grants[1].sealed = {}; }],
+])("rejects a grant with a %s before restoring any rows", async (_name, patch) => {
+  const source = await grantedSource(), store = await setup().open();
+  const original = await exportOwnerStore({ store: source, passphrase: "recovery" });
+  const snapshot = JSON.parse(await openWithPassphrase({ envelope: original, passphrase: "recovery" }));
+  patch(snapshot);
+  const envelope = await sealWithPassphrase({ payload: JSON.stringify(snapshot), passphrase: "recovery" });
+  await expect(restoreOwnerStore({ store, envelope, passphrase: "recovery" })).rejects.toMatchObject({ code: "invalid-backup" });
+  expect(await store.list({})).toEqual([]);
+  expect(await store.grants({})).toEqual([]);
+});
+type GrantSnapshot = { grants: [Record<string, unknown>, Record<string, unknown>, ...Record<string, unknown>[]] };
 
 test("P2 hole: a version-1 snapshot, which carries no cleanup records, is refused before any write", async () => {
   const { source } = await pendingSource();
