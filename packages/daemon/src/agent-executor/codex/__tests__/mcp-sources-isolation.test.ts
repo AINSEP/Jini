@@ -128,12 +128,13 @@ describe('Codex with personal MCP OFF loads only the Tovu bridge', () => {
     // TOML spells one key many ways; each must be read as `enabled` (or refused), never skipped.
     ...[`"enabled" = true`, `'enabled' = true`, ` "enabled"=true # on`, `enabled = 1`].map(line =>
       [`a project table forcing on with ${line}`, { [join(cwd, '.codex', 'config.toml')]: `[mcp_servers.site_srv]\ncommand = "site-mcp"\n${line}` } as Record<string, string>, 'forces the MCP server "site_srv" on'] as [string, Record<string, string>, string]),
-    ['an escaped key', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.site_srv]\ncommand = "site-mcp"\n"enabl\\u0065d" = true' }, 'escaped TOML key'],
-    ['an escaped table header', { [join(cwd, '.codex', 'config.toml')]: '["mcp\\u005fservers".site_srv]\ncommand = "site-mcp"' }, 'escaped TOML key'],
-    ['a quoted inline project declaration', { [join(cwd, '.codex', 'config.toml')]: '"mcp_servers" . site_srv.command = "site-mcp"' }, 'declares MCP servers inline'],
-    ['a quoted dotted root declaration', { [join(cwd, '.codex', 'config.toml')]: `'mcp_servers'."site_srv".url = "https://x"` }, 'declares MCP servers inline'],
-    ['an inline project declaration', { [join(cwd, '.codex', 'config.toml')]: 'mcp_servers.site_srv.command = "site-mcp"' }, 'declares MCP servers inline'],
-    ['a bare [mcp_servers] project table', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers]\nsite_srv = { command = "site-mcp" }' }, 'declares MCP servers inline'],
+    ['an escaped key', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.site_srv]\ncommand = "site-mcp"\n"enabl\\u0065d" = true' }, 'forces the MCP server "site_srv" on'],
+    ['an inline server forcing enabled = true', { [join(cwd, '.codex', 'config.toml')]: 'mcp_servers.site_srv = { command = "site-mcp", enabled = true }' }, 'forces the MCP server "site_srv" on'],
+    ['a project layer that is not valid TOML', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.site_srv\ncommand = "site-mcp"' }, "isn't valid TOML"],
+    ['a server that is not a table', { [join(cwd, '.codex', 'config.toml')]: 'mcp_servers.site_srv = "site-mcp"' }, 'declares the MCP server "site_srv" in a shape'],
+    ['an mcp_servers array of tables', { [join(cwd, '.codex', 'config.toml')]: '[[mcp_servers]]\ncommand = "site-mcp"' }, 'declares MCP servers in a shape'],
+    ['a home server the rewrite cannot drop (escaped header)', { [join(home, 'config.toml')]: '["mcp\\u005fservers".home_evil]\ncommand = "evil"' }, "can't be removed safely"],
+    ['a home config a fake header leaves broken', { [join(home, 'config.toml')]: '[mcp_servers.home_chrome]\ncommand = """\n[ui]\n"""' }, "can't be removed safely"],
     ['a project redefining the bridge', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.jini]\ncommand = "evil"' }, `redefines Tovu's own "jini" MCP server`],
     ['an admin-managed server', { '/etc/codex/managed_config.toml': '[mcp_servers.admin_srv]\ncommand = "admin-mcp"' }, 'adds the MCP server "admin_srv"'],
   ])('refuses rather than leaks with %s', async (_name, overrides, reason) => {
@@ -142,6 +143,35 @@ describe('Codex with personal MCP OFF loads only the Tovu bridge', () => {
     expect(error?.message).toMatch(/^Codex can't run with 'Your MCP servers' off: /);
     expect(error?.message).toContain(reason);
     expect(error?.message).toMatch(/Turn it on in the assistant settings, or choose Claude\.$/);
+  });
+
+  // A line scanner reads a `[header]`-shaped line inside a multi-line string or array as a table,
+  // so the real root `mcp_servers.evil` after it was missed and leaked. A TOML parser is not fooled.
+  it.each([
+    ['a multi-line basic string', 'x = """\n[ui]\n"""\n'],
+    ['a multi-line literal string', "x = '''\n[ui]\n'''\n"],
+    ['a multi-line array', 'x = [\n[1]\n]\n'],
+  ])('turns off a root server declared after %s that fakes a table header', async (_name, prefix) => {
+    const files = fixtureFiles({ [join(cwd, '.codex', 'config.toml')]: `${prefix}mcp_servers.evil.url = "https://evil.example/mcp"` });
+    expect(serverTables(await stage(files, { userMcp: false })).get('evil')).toEqual(['enabled = false', 'url = "http://127.0.0.1:9/"']);
+  });
+
+  // Codex deep-merges layers, so the home placeholder turns a server off however the other layer spells it.
+  it.each([
+    ['an escaped table header', '["mcp\\u005fservers".site_srv]\ncommand = "site-mcp"'],
+    ['a quoted inline project declaration', '"mcp_servers" . site_srv.command = "site-mcp"'],
+    ['a quoted dotted root declaration', `'mcp_servers'."site_srv".command = "site-mcp"`],
+    ['an inline project declaration', 'mcp_servers.site_srv.command = "site-mcp"'],
+    ['a bare [mcp_servers] project table', '[mcp_servers]\nsite_srv = { command = "site-mcp" }'],
+    ['a root inline table', 'mcp_servers = { site_srv = { command = "site-mcp" } }'],
+  ])('turns off a server declared with %s', async (_name, raw) => {
+    const files = fixtureFiles({ [join(cwd, '.codex', 'config.toml')]: raw });
+    expect(serverTables(await stage(files, { userMcp: false })).get('site_srv')).toEqual(['enabled = false', 'command = "jini-disabled-mcp-server"']);
+  });
+
+  it('scans every ancestor when the user config sets project_root_markers with a quoted key', async () => {
+    const files = fixtureFiles({ [join(home, 'config.toml')]: '"project_root_markers" = [".hg"]' });
+    expect(serverTables(await stage(files, { userMcp: false })).get('outside_srv')).toEqual(['enabled = false', 'command = "jini-disabled-mcp-server"']);
   });
 
   it('ignores plugin-scoped server settings in a project layer (plugins are off on the CLI layer)', async () => {

@@ -3,8 +3,10 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { parse } from 'smol-toml';
 import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
-import { splitTomlDottedKey, TOML_TABLE_HEADER, tomlKey } from './home-config.js';
+import { isRecord } from '../values.js';
+import { tomlKey } from './home-config.js';
 
 /** Reads one config file; rejects when it is missing. */
 export type ReadConfigFile = ({ path }: { readonly path: string }) => Promise<string>;
@@ -12,65 +14,60 @@ export type ReadConfigFile = ({ path }: { readonly path: string }) => Promise<st
 /** A run with personal MCP off that Codex cannot keep to the bridge alone: refused, never run with a leak. */
 export class CodexMcpIsolationError extends Error {}
 
-/** One `[mcp_servers.<id>]` table another Codex config layer declares. */
+/** One MCP server another Codex config layer declares. */
 interface CodexLayerServer { url: boolean; forcedOn: boolean }
 
-/** {@link scanCodexLayerLine}'s state: the servers found so far and the table the scan is inside. */
-interface CodexLayerScan {
-  readonly servers: Map<string, CodexLayerServer>;
-  table: { kind: 'root' | 'other' | 'bare' } | { kind: 'server'; server: CodexLayerServer; own: boolean };
-}
-
-/** Enters a table header: the bare `[mcp_servers]` table, a server's own table or subtable, or anything else. */
-function enterCodexLayerTable(scan: CodexLayerScan, segments: readonly string[]): void {
-  if (segments[0] !== 'mcp_servers') scan.table = { kind: 'other' };
-  else if (segments.length === 1) scan.table = { kind: 'bare' };
-  else {
-    const id = segments[1]!;
-    const server = scan.servers.get(id) ?? { url: false, forcedOn: false };
-    scan.servers.set(id, server);
-    scan.table = { kind: 'server', server, own: segments.length === 2 };
+/**
+ * Parses one Codex config layer with a real TOML parser, so no spelling (quoted or escaped keys,
+ * dotted keys, inline tables, or a `[header]`-shaped line inside a multi-line string or array)
+ * hides a server from the check. A file that does not parse is refused: what it declares can't be
+ * known, and Codex could not load it either.
+ * @complexity O(n) in the file length.
+ */
+function parseCodexLayer(raw: string, path: string): Record<string, unknown> {
+  try {
+    return parse(raw);
+  } catch {
+    throw new CodexMcpIsolationError(`${path} isn't valid TOML, so its MCP servers can't be checked.`);
   }
-}
-
-/** Whether a non-header line declares servers inline: a root `mcp_servers` key, or any key in a bare `[mcp_servers]`. */
-function declaresInlineServers(scan: CodexLayerScan, key: readonly string[] | null, content: string): boolean {
-  if (scan.table.kind === 'root') return key?.[0] === 'mcp_servers';
-  return scan.table.kind === 'bare' && content !== '' && !content.startsWith('#');
 }
 
 /**
- * A `key = value` line's dotted key, dequoted (`"enabled"`, `'enabled'` and `enabled` are one key),
- * or null when the line holds no `=` outside quotes. An escape sequence in a key is refused: this
- * scan does not decode TOML escapes, and a key it cannot read might be `enabled` or `mcp_servers`.
- * @complexity O(n) in the line length.
+ * The servers one layer's root `mcp_servers` table declares, however spelled: Codex deep-merges
+ * layers into one value (codex-rs `config/src/merge.rs` `merge_toml_values`), so a header table, a
+ * dotted key and an inline table are the same server to it. A shape that is not a table of server
+ * tables is refused. O(s) for s servers.
  */
-function tomlLineKey(content: string, path: string): string[] | null {
-  let quote: string | null = null;
-  for (let index = 0; index < content.length; index += 1) {
-    const ch = content[index]!;
-    if (ch === '\\') throw new CodexMcpIsolationError(`${path} uses an escaped TOML key, which can't be checked safely.`);
-    if (quote !== null) { if (ch === quote) quote = null; } else if (ch === '"' || ch === "'") quote = ch;
-    else if (ch === '#') return null;
-    else if (ch === '=') return splitTomlDottedKey(content.slice(0, index));
+function codexLayerServers(config: Record<string, unknown>, path: string): Map<string, CodexLayerServer> {
+  const servers = new Map<string, CodexLayerServer>();
+  const declared = config.mcp_servers;
+  if (declared === undefined) return servers;
+  if (!isRecord(declared)) throw new CodexMcpIsolationError(`${path} declares MCP servers in a shape that can't be turned off.`);
+  for (const [id, server] of Object.entries(declared)) {
+    if (!isRecord(server)) throw new CodexMcpIsolationError(`${path} declares the MCP server "${id}" in a shape that can't be turned off.`);
+    // Fail closed: anything but a literal `false` (Codex refuses a non-boolean anyway) counts as forcing on.
+    servers.set(id, { url: 'url' in server, forcedOn: 'enabled' in server && server.enabled !== false });
   }
-  return null;
+  return servers;
 }
 
-/** One line of another layer's config.toml. Inline shapes cannot be disabled one id at a time, so they refuse. */
-function scanCodexLayerLine(scan: CodexLayerScan, line: string, path: string): void {
-  const header = TOML_TABLE_HEADER.exec(line);
-  if (header?.[1]!.includes('\\')) throw new CodexMcpIsolationError(`${path} uses an escaped TOML key, which can't be checked safely.`);
-  if (header) return enterCodexLayerTable(scan, splitTomlDottedKey(header[1]!));
-  const content = line.trim();
-  const key = tomlLineKey(content, path);
-  if (declaresInlineServers(scan, key, content)) {
-    throw new CodexMcpIsolationError(`${path} declares MCP servers inline, which can't be turned off one by one.`);
+/**
+ * The staged home config, parsed: it must declare no MCP server but the bridge. The home rewrite
+ * ({@link buildCodexHomeConfigToml}) is line-based so every other byte survives, so a server it
+ * cannot see (an escaped header) or a multi-line value a fake header split is refused here
+ * instead of staged. O(n) in the config length.
+ */
+function parseStagedHomeConfig(homeConfig: string, path: string): Record<string, unknown> {
+  const refusal = new CodexMcpIsolationError(`${path} declares MCP servers that can't be removed safely.`);
+  let config: Record<string, unknown>;
+  try {
+    config = parse(homeConfig);
+  } catch {
+    throw refusal;
   }
-  if (scan.table.kind !== 'server' || !scan.table.own || key?.length !== 1) return;
-  if (key[0] === 'url') scan.table.server.url = true;
-  // Fail closed: anything but a literal `false` (Codex refuses a non-boolean anyway) counts as forcing on.
-  if (key[0] === 'enabled' && !/^false\b/.test(content.slice(content.indexOf('=') + 1).trim())) scan.table.server.forcedOn = true;
+  const ids = isRecord(config.mcp_servers) ? Object.keys(config.mcp_servers) : [];
+  if (ids.some(id => id !== JINI_MCP_SERVER_KEY)) throw refusal;
+  return config;
 }
 
 /** cwd and its ancestors up to Codex's project root (see {@link codexOtherMcpLayerPaths}), cwd first. O(d) reads. */
@@ -129,19 +126,17 @@ function assertCodexLayerServerDisableable({ id, server, path, managed }: { id: 
  * turned off by the def's `-c features.plugins=false` / `features.apps=false` argv instead,
  * since only the CLI layer outranks a trusted project. Profile files load only with `--profile`,
  * which no run passes. Unreadable/missing files are skipped. O(total config size).
- * @param homeConfig - The staged home config.toml, whose `project_root_markers` decide the project range.
+ * @param homeConfig - The staged home config.toml: refused if it keeps any server but the bridge; its `project_root_markers` decide the project range.
  * @throws {@link CodexMcpIsolationError} when a source cannot be turned off.
  */
 export async function buildCodexOtherLayersOffToml({ cwd, sourceHome, readFile, homeConfig }: {
   readonly cwd: string; readonly sourceHome: string; readonly readFile: ReadConfigFile; readonly homeConfig: string;
 }, _optional: Record<string, never> = {}): Promise<string> {
   const offIsUrl = new Map<string, boolean>();
-  const customRootMarkers = /^\s*project_root_markers\s*=/m.test(homeConfig);
+  const customRootMarkers = 'project_root_markers' in parseStagedHomeConfig(homeConfig, join(sourceHome, 'config.toml'));
   for (const { path, managed } of await codexOtherMcpLayerPaths({ cwd, sourceHome, readFile, customRootMarkers })) {
     const raw = await readFile({ path }).catch(() => '');
-    const scan: CodexLayerScan = { servers: new Map(), table: { kind: 'root' } };
-    for (const line of raw.split('\n')) scanCodexLayerLine(scan, line, path);
-    for (const [id, server] of scan.servers) {
+    for (const [id, server] of codexLayerServers(parseCodexLayer(raw, path), path)) {
       assertCodexLayerServerDisableable({ id, server, path, managed });
       offIsUrl.set(id, server.url || offIsUrl.get(id) === true);
     }

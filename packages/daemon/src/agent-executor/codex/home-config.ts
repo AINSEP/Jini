@@ -8,11 +8,11 @@ import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
  * re-escaped by a later replacement), then the quote delimiter, then the three whitespace control
  * characters a real command/argv/env value could plausibly contain.
  *
- * A hand-rolled minimal escaper rather than a TOML dependency — this mechanism never needs to
- * *parse* TOML (the real install's existing `config.toml` is appended after, never rewritten — see
- * {@link buildCodexHomeConfigToml}), so pulling in a full TOML library for one serialization shape
- * would be substantially more surface than the problem needs. Checked against the repo's existing
- * dependency graph first — no package here already depends on a TOML library.
+ * A hand-rolled minimal escaper rather than a TOML serializer — this mechanism never needs to
+ * *re-serialize* TOML (the real install's existing `config.toml` is appended after, never
+ * rewritten — see {@link buildCodexHomeConfigToml}), so a full TOML writer for one serialization
+ * shape would be substantially more surface than the problem needs. The isolation check
+ * (`isolation.ts`) parses layers with smol-toml, but only reads them.
  * @param value - The raw string to embed inside TOML `"..."` delimiters.
  * @returns The escaped text, WITHOUT the surrounding quotes — {@link tomlString} adds those.
  * @complexity O(n) in the string's length.
@@ -85,7 +85,7 @@ export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServ
  * @returns The dotted key's segments, dequoted and trimmed.
  * @complexity O(n) in the length of `rawKey`.
  */
-export function splitTomlDottedKey(rawKey: string): string[] {
+function splitTomlDottedKey(rawKey: string): string[] {
   const scan: TomlKeyScan = { segments: [], current: '', quote: null };
   for (const ch of rawKey) {
     if (scan.quote === null) scanBareTomlKeyChar(scan, ch);
@@ -111,7 +111,7 @@ function scanBareTomlKeyChar(scan: TomlKeyScan, ch: string): void {
 // An inline or dotted root `mcp_servers` declaration, which the table scanner below cannot rewrite.
 const INLINE_MCP_SERVERS = /^\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*(?:\.|=)/;
 // `[<key>]` optionally followed only by a `# comment`; `[[...]]` never matches (see below).
-export const TOML_TABLE_HEADER = /^\s*\[([^[\]]+)\]\s*(#.*)?$/;
+const TOML_TABLE_HEADER = /^\s*\[([^[\]]+)\]\s*(#.*)?$/;
 
 /**
  * Whether {@link stripExistingJiniMcpServerTable} drops the table named `key`: always the jini
@@ -188,14 +188,15 @@ function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allSer
  *
  * **Append-only by design, not a parse-and-merge, for everything but the jini table itself.**
  * `mergeMcpJsonContent`/`mergeEnvContentMcpConfig` in `mcp-bridge.ts` can safely parse-merge-reserialize because
- * their formats have a JS-native parser (`JSON.parse`); this driver has no general TOML parser in
- * its dependency graph (see `buildCodexMcpServerToml`'s doc), and every other setting a real Codex
+ * their formats have a JS-native parser (`JSON.parse`); re-serializing parsed TOML would drop
+ * comments and layout (see `buildCodexMcpServerToml`'s doc), and every other setting a real Codex
  * install carries — model choice, sandbox policy, the trusted-project list, the operator's own
  * other MCP servers — must survive a spawn byte-for-byte. Only the one table this driver itself
  * owns (`jini` is this integration's own reserved server name — see {@link JINI_MCP_SERVER_KEY}) is
  * removed by default, via the narrow line-oriented scan above, never a full TOML parse. Explicit
  * per-run OFF choices additionally omit personal MCP tables or retain only those tables when
- * user settings are off. Inline root MCP declarations fail closed when isolation is requested.
+ * user settings are off. Inline root MCP declarations fail closed when isolation is requested,
+ * and `isolation.ts` parses the result to refuse any server this line scan could not see.
  * @param existingRaw - The real Codex home's `config.toml` content, or `undefined` when it does not
  * exist (a fresh Codex install — degrades to "start from just this run's block", matching
  * {@link mergeMcpJsonContent}'s own "missing file" handling).
