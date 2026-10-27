@@ -26,6 +26,8 @@ describe('cookie helpers', () => {
   test('a malformed cookie escape reads as no value', () => {
     expect(readCookie({ cookie: 'x=%E0%A4%A' } as Document, 'x')).toBeNull();
     expect(readCookie({ cookie: 'y=1' } as Document, 'x')).toBeNull();
+    expect(readCookie({ cookie: 'prefix_x=wrong; x_extra=wrong; x=a%3Db%20c; y=1' } as Document, 'x')).toBe('a=b c');
+    expect(readCookie({ cookie: 'x=' } as Document, 'x')).toBe('');
   });
 
   test('writeCookie adds Secure on https and the configured Domain', () => {

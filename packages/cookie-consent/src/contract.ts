@@ -2,7 +2,8 @@
  * Types and constants only. Every call that injects something takes (required, optional): the first
  * argument is an object of required fields/ports, the second an object of optional ones. */
 export const CONTRACT = 1 as const;
-export const CONSENT_COOKIE = 'jini_consent';
+/** Separate from the CMS engine's HttpOnly jini_consent: browsers cannot overwrite that cookie. */
+export const CONSENT_COOKIE = 'jini_choices';
 /** 'us' or absent. Absent (unknown region) = strict, with Reject on the first layer. */
 export const REGION_COOKIE = 'jini_region';
 /** Dispatched on `document` on every change; detail: ConsentState. */

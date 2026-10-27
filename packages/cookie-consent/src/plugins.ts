@@ -25,10 +25,10 @@ export function createPluginRegistry(_required: object = {}, { slots = [], onPro
   /** Duplicate ids are refused, never guessed (same rule as Tovu's contribution loaders). */
   function admit(raw: RawContribution, options: RegistrationOptions): () => void {
     const refuse = (reason: string) => { onProblem({ id: String(raw.id), kind: raw.kind, reason, ...(options.source ? { source: options.source } : {}) }); return () => undefined; };
-    if (!ID.test(String(raw.id))) return refuse('the id must be a short lowercase name');
+    if (!ID.test(String(raw.id))) return refuse('short lowercase id');
     const value = kinds.get(raw.kind)!.accept({ contribution: raw });
     if (typeof value === 'string') return refuse(value);
-    if (held.some(h => h.kind === raw.kind && h.id === raw.id)) return refuse('this id is already registered');
+    if (held.some(h => h.kind === raw.kind && h.id === raw.id)) return refuse('duplicate id');
     const entry: Held = { kind: raw.kind, id: raw.id, value, priority: options.priority ?? 0 };
     held.push(entry);
     emit(raw.kind);
@@ -68,6 +68,6 @@ export const ADAPTER_SLOT: SlotKind<AdapterContribution> = {
   accept({ contribution: c }) {
     if (!(OPTIONAL as readonly unknown[]).includes(c.category)) return 'category must be functional, analytics or marketing';
     if (typeof c.grant === 'function' || typeof c.src === 'string') return c as unknown as AdapterContribution;
-    return 'an adapter needs grant() or a module src';
+    return 'grant() or src needed';
   },
 };

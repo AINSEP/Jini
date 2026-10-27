@@ -123,12 +123,12 @@ test('browser US no-choice DNT blocks adapters and raw tags, and Accept cannot l
   expect(grant).not.toHaveBeenCalled();
   expect(document.querySelector('#raw')!.getAttribute('type')).toBe('text/plain');
   document.cookie = 'jini_region=; Path=/; Max-Age=0';
-  document.cookie = 'jini_consent=; Path=/; Max-Age=0';
+  document.cookie = 'jini_choices=; Path=/; Max-Age=0';
 });
 
 test('off ignores a previous durable grant or pending receipt without rewriting or retrying it', async () => {
   const stored = { v: 1, p: 'p1', c: { functional: true, analytics: true, marketing: true }, t: Date.now(), a: 'accept', q: 1 };
-  document.cookie = 'jini_consent=' + encodeURIComponent(JSON.stringify(stored)) + '; Path=/';
+  document.cookie = 'jini_choices=' + encodeURIComponent(JSON.stringify(stored)) + '; Path=/';
   const f = page();
   await new Promise(r => setTimeout(r, 0));
   expect(f.api).toBeDefined();
@@ -136,7 +136,7 @@ test('off ignores a previous durable grant or pending receipt without rewriting 
   expect(f.cookieWrite).not.toHaveBeenCalled();
   expect(f.network).not.toHaveBeenCalled();
   vi.restoreAllMocks();
-  document.cookie = 'jini_consent=; Path=/; Max-Age=0';
+  document.cookie = 'jini_choices=; Path=/; Max-Age=0';
 });
 
 for (const gpc of [false, true]) test(`off lazy adapters receive the current level for cleanup (privacy signal ${gpc})`, async () => {

@@ -52,7 +52,7 @@ describe('dist/client.min.js', () => {
     expect(win.jiniConsent?.get().allowed.analytics).toBe(true);
     expect(win.grants).toEqual(['grant']);
     expect(win.inertRan).toBe(1);
-    expect(win.document.cookie).toContain('jini_consent=');
+    expect(win.document.cookie).toContain('jini_choices=');
     expect((win.document.getElementById('jini-consent') as HTMLElement).hidden).toBe(true);
   });
 

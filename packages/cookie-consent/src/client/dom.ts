@@ -9,12 +9,8 @@ const OPENERS = ':not(html)[data-consent-open],a[href="#privacy-choices"]';
 
 /** @complexity O(cookie header). Malformed escapes read as "no value", never throw. */
 export function readCookie(doc: Document, name: string): string | null {
-  for (const part of doc.cookie.split(/;\s*/)) {
-    const at = part.indexOf('=');
-    if (part.slice(0, at) !== name) continue;
-    try { return decodeURIComponent(part.slice(at + 1)); } catch { return null; }
-  }
-  return null;
+  const part = doc.cookie.split(/;\s*/).find(p => p.startsWith(name + '='));
+  try { return part ? decodeURIComponent(part.slice(name.length + 1)) : null; } catch { return null; }
 }
 
 export function writeCookie(doc: Document, { name, value, maxAgeS }: { name: string; value: string; maxAgeS: number }, { domain }: { domain?: string | undefined } = {}): void {
@@ -32,7 +28,8 @@ function expireEverywhere(doc: Document, name: string): void {
 /** Expire prefixed cookies and local-storage keys; storage access can throw in sandboxes. @complexity O(cookies + keys). */
 export function purge(doc: Document, storage?: StoragePrefixes): void {
   if (!storage) return;
-  for (const name of doc.cookie.split(/;\s*/).map(p => p.split('=')[0]!)) {
+  for (const part of doc.cookie.split(/;\s*/)) {
+    const name = part.split('=')[0]!;
     if (storage.cookies?.some(p => name.startsWith(p))) expireEverywhere(doc, name);
   }
   try {
