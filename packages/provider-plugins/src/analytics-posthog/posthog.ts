@@ -15,8 +15,8 @@
  * Privacy defaults (measured against posthog-node 5.55.1's options): GeoIP enrichment off (the
  * server's IP would otherwise be geolocated as the user's), no exception autocapture (errors belong
  * to the observability port), no feature-flag polling (no personal API key), all server capture
- * events are profile-less. Browser autocapture/replay is the optional contribution in browser.ts;
- * the host connects it to its existing visitor/owner consent decisions.
+ * and identify events are profile-less. Browser autocapture/replay is the optional contribution
+ * in browser.ts; the host connects it to its existing visitor/owner consent decisions.
  */
 import { PostHog, type PostHogOptions } from "posthog-node";
 
@@ -98,11 +98,11 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
     },
     // Sent as the `$identify` event itself rather than `client.identify` (Codex fix-lane MED): the SDK's
     // identify puts traits under `$set` and nothing else on the event, so it could carry neither the
-    // site attribution nor `$groups`. Traits set person properties, minus the keys the host attributes.
+    // site attribution nor `$groups`. Keep identify profile-less even if host attributes request a profile.
     identify({ userId, traits }) {
       const set = Object.fromEntries(Object.entries(traits ?? {}).filter(([key]) => !attributes || !Object.hasOwn(attributes, key)));
-      const properties = { ...(Object.keys(set).length ? { $set: set } : {}), ...attributes };
-      client.capture({ distinctId: userId, event: "$identify", ...(Object.keys(properties).length ? { properties } : {}), ...(groups ? { groups } : {}) });
+      const properties = { ...(Object.keys(set).length ? { $set: set } : {}), ...attributes, $process_person_profile: false };
+      client.capture({ distinctId: userId, event: "$identify", properties, ...(groups ? { groups } : {}) });
     },
   };
   return { port, dispose: async () => { try { await client.shutdown(2_000); } catch { /* best-effort */ } } };
