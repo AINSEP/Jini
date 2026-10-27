@@ -289,6 +289,21 @@ describe('applyApprovalPolicy', () => {
     expect(seen).toContainEqual(['ask', 'describe risky']);
   });
 
+  it('C16: reuses a remembered grant when the host description supplies a remember key', async () => {
+    const s = store();
+    const askHuman = vi.fn(async (): Promise<ApprovalAnswer> => ({ confirmed: true }));
+    const applied = applyApprovalPolicy({
+      registration: registration(), classify: () => 'escalation', asks: () => true,
+      describe: async () => ({ description: 'Enable plugin', rememberKey: 'plugin@digest1' }),
+      askHuman, notConfirmed: ({ reason }) => ({ refused: reason }),
+    }, { remembered: s.port });
+
+    expect(await applied.handler(context())).toEqual({ handled: { id: 'a' } });
+    expect(await applied.handler(context())).toEqual({ handled: { id: 'a' } });
+    expect(askHuman).toHaveBeenCalledTimes(1);
+    expect(s.calls).toEqual(['has:plugin@digest1', 'grant:plugin@digest1:human:user', 'has:plugin@digest1']);
+  });
+
   // Policy plans never carry a rememberKey, so the remembered option cannot take effect here.
   it('never consults a supplied remembered store because policy plans carry no remember key', async () => {
     const s = store();

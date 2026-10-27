@@ -376,17 +376,16 @@ async function writeSentinel(basePath: string): Promise<void> {
   } satisfies StoreSentinel);
 }
 
-async function resetOwnedBase(basePath: string): Promise<void> {
+/** Clear only this target's data after rechecking store ownership; keep its lock held. */
+async function resetOwnedTarget({ target }: { target: NormalizedTarget }, _options = {}): Promise<void> {
+  const { basePath } = target;
   const sentinel = await readJson<unknown>(join(basePath, STORE_SENTINEL));
   if (!isStoreSentinel(sentinel)) {
     throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_NOT_OWNED, `download base is not owned: ${basePath}`);
   }
-  const entries = await readdir(basePath).catch(() => []);
-  for (const entry of entries) {
-    await rm(join(basePath, entry), { force: true, recursive: true }).catch(() => undefined);
+  for (const path of [target.finalPath, target.partialPath, target.manifestPath]) {
+    await rm(path, { force: true }).catch(() => undefined);
   }
-  await writeSentinel(basePath);
-  await ensureStoreDirs(basePath);
 }
 
 async function ensureStoreDirs(basePath: string): Promise<void> {
@@ -786,8 +785,8 @@ async function releaseLock(lock: AcquiredLock | null): Promise<void> {
   await rm(lock.path, { force: true }).catch(() => undefined);
 }
 
-async function suspiciousReset(target: NormalizedTarget): Promise<ReusableState> {
-  await resetOwnedBase(target.basePath);
+async function suspiciousReset({ target }: { target: NormalizedTarget }, _options = {}): Promise<ReusableState> {
+  await resetOwnedTarget({ target });
   return { manifest: null, reset: true };
 }
 
@@ -796,16 +795,16 @@ async function loadReusableState(target: NormalizedTarget): Promise<ReusableStat
   const finalExists = await pathExists(target.finalPath);
   const partialExists = await pathExists(target.partialPath);
   if (manifest === "invalid") {
-    return await suspiciousReset(target);
+    return await suspiciousReset({ target });
   }
   if (manifest == null) {
-    return finalExists || partialExists ? await suspiciousReset(target) : { manifest: null };
+    return finalExists || partialExists ? await suspiciousReset({ target }) : { manifest: null };
   }
   if (!manifestMatchesTarget(manifest, target)) {
-    return await suspiciousReset(target);
+    return await suspiciousReset({ target });
   }
   if (manifest.state === "complete") return await reusableCompleteState({ manifest, target });
-  if (!partialExists) return await suspiciousReset(target);
+  if (!partialExists) return await suspiciousReset({ target });
   return { manifest };
 }
 
@@ -815,9 +814,9 @@ async function reusableCompleteState(input: { manifest: DownloadManifest; target
   // A missing final file needs no separate check: hashing it rejects, which
   // maps to `null` and fails the checksum comparison into the same reset.
   const actual = await hashFile(target.finalPath, target.checksum.algorithm).catch(() => null);
-  if (actual !== target.checksum.value) return await suspiciousReset(target);
+  if (actual !== target.checksum.value) return await suspiciousReset({ target });
   const bytes = await statFileSize(target.finalPath);
-  if (bytes == null) return await suspiciousReset(target);
+  if (bytes == null) return await suspiciousReset({ target });
   return {
     manifest,
     result: {
@@ -844,12 +843,12 @@ async function runManagedDownload(
 ): Promise<ManagedDownloadResult> {
   await ensureManagedBase(target.basePath);
   await pruneManagedDownloads({ basePath: target.basePath }).catch(() => undefined);
-  const held: HeldLock = { lock: await acquireLock(target) };
+  const lock = await acquireLock(target);
   try {
-    const state = await loadStateAllowingOneReset({ held, target });
+    const state = await loadStateAllowingOneReset({ target });
     if (state.result != null) return state.result;
     const download = await downloadWithRetries(target, state.manifest, options);
-    const bytes = await promoteVerifiedPartial(target);
+    const bytes = await promoteVerifiedPartial({ target });
     await writeJson(target.manifestPath, createManifest(target, "complete", { totalBytes: download.totalBytes }));
     return {
       bucket: target.bucket,
@@ -862,40 +861,32 @@ async function runManagedDownload(
       urlDigest: target.urlDigest,
     };
   } finally {
-    await releaseLock(held.lock);
+    await releaseLock(lock);
   }
 }
 
-/** The lock a run currently holds; `null` while it is between releasing and re-acquiring. */
-type HeldLock = { lock: AcquiredLock | null };
-
-/** Load reusable state, re-locking and reloading once if the first load had to reset the managed base. */
-async function loadStateAllowingOneReset(input: { held: HeldLock; target: NormalizedTarget }): Promise<ReusableState> {
-  const { held, target } = input;
+/** Reload once after target cleanup, retaining the lock until the run finishes. */
+async function loadStateAllowingOneReset({ target }: { target: NormalizedTarget }, _options = {}): Promise<ReusableState> {
   const state = await loadReusableState(target);
   if (state.reset !== true) return state;
-  // A reset removes the lock as part of the managed base cleanup, so
-  // reacquire it before writing the fresh target state. `held.lock` is
-  // nulled first so a failed re-acquire never releases (deletes) a lock
-  // another process may have taken in the meantime.
-  await releaseLock(held.lock);
-  held.lock = null;
+  // Whole-base cleanup used to remove the lock and require re-acquisition.
+  // Keep it throughout target cleanup so another process cannot take it
+  // before we write fresh state, or have its own lock deleted by our finally.
   await ensureManagedBase(target.basePath);
-  held.lock = await acquireLock(target);
   const reloaded = await loadReusableState(target);
   if (reloaded.reset === true) {
-    throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "download state kept resetting after base cleanup");
+    throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "download state kept resetting after target cleanup");
   }
   return reloaded;
 }
 
 /** Verify the downloaded partial's checksum, promote it to the final path, and return the final size. */
-async function promoteVerifiedPartial(target: NormalizedTarget): Promise<number> {
+async function promoteVerifiedPartial({ target }: { target: NormalizedTarget }, _options = {}): Promise<number> {
   const actual = await hashFile(target.partialPath, target.checksum.algorithm).catch((error: unknown) => {
     throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, `downloaded partial could not be hashed: ${errorMessage(error)}`);
   });
   if (actual !== target.checksum.value) {
-    await resetOwnedBase(target.basePath).catch(() => undefined);
+    await resetOwnedTarget({ target }).catch(() => undefined);
     throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.CHECKSUM_MISMATCH, "downloaded file checksum did not match requested payload", {
       actual,
       expected: target.checksum.value,
@@ -906,7 +897,7 @@ async function promoteVerifiedPartial(target: NormalizedTarget): Promise<number>
   if (await pathExists(target.finalPath)) {
     const existing = await hashFile(target.finalPath, target.checksum.algorithm).catch(() => null);
     if (existing !== target.checksum.value) {
-      await resetOwnedBase(target.basePath).catch(() => undefined);
+      await resetOwnedTarget({ target }).catch(() => undefined);
       throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_CORRUPT, "existing complete file did not match requested payload");
     }
     await rm(target.partialPath, { force: true }).catch(() => undefined);

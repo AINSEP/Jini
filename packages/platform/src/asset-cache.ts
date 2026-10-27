@@ -34,7 +34,7 @@ import { isPrivateAddress } from './net/address.js';
  *  CSS, JS, fonts) is intentionally left alone so this surface never becomes a
  *  general-purpose open proxy. */
 export const CACHEABLE_MEDIA_EXT =
-  /\.(?:png|jpe?g|webp|gif|avif|svg|mp4|webm|mov|m4v|ogg|mp3|wav)(?:$|[?#])/i;
+  /\.(?:png|jpe?g|webp|gif|avif|mp4|webm|mov|m4v|ogg|mp3|wav)$/i;
 
 const EXT_TO_MIME: Record<string, string> = {
   '.png': 'image/png',
@@ -43,7 +43,6 @@ const EXT_TO_MIME: Record<string, string> = {
   '.webp': 'image/webp',
   '.gif': 'image/gif',
   '.avif': 'image/avif',
-  '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
@@ -53,6 +52,8 @@ const EXT_TO_MIME: Record<string, string> = {
   '.wav': 'audio/wav',
 };
 
+const CACHEABLE_MEDIA_MIME = new Set(Object.values(EXT_TO_MIME));
+
 /** True when `raw` is an absolute http(s) URL pointing at a media file we are
  *  willing to route through the cache. Pure + side-effect free so the URL
  *  rewriter and tests can share the exact predicate. */
@@ -60,11 +61,13 @@ export function isCacheableExternalUrl(raw: unknown): raw is string {
   if (typeof raw !== 'string') return false;
   const value = raw.trim();
   if (!/^https?:\/\//i.test(value)) return false;
-  // `String#split` always returns a non-empty array (even `''.split(x)` is
-  // `['']`), so index 0 is never `undefined` — the `!` narrows a
-  // `noUncheckedIndexedAccess` false positive, not a real fallback path.
-  const pathOnly = value.split(/[?#]/)[0]!;
-  return CACHEABLE_MEDIA_EXT.test(pathOnly) || CACHEABLE_MEDIA_EXT.test(value);
+  // Only the parsed pathname establishes eligibility; a query/fragment that
+  // happens to end in .png must not turn an arbitrary endpoint into media.
+  try {
+    return CACHEABLE_MEDIA_EXT.test(new URL(value).pathname);
+  } catch {
+    return false;
+  }
 }
 
 /** Map a cacheable external URL to its same-origin proxy URL. `routePath`
@@ -207,14 +210,15 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
   const dispatcher = suppliedDispatcher ?? createAssetCacheDispatcher({}, opts.lookupImpl ? { lookupImpl: opts.lookupImpl } : {});
   const inflight = new Map<string, Promise<AssetCacheResult>>();
 
-  async function readFromDisk(key: string): Promise<AssetCacheResult | null> {
+  async function readFromDisk({ key }: { key: string }, _options = {}): Promise<AssetCacheResult | null> {
     const blobPath = path.join(cacheDir, key);
     const metaPath = `${blobPath}.json`;
     try {
       const [buf, metaRaw] = await Promise.all([readFile(blobPath), readFile(metaPath, 'utf8')]);
       const meta = JSON.parse(metaRaw) as { contentType?: unknown };
-      const contentType =
-        typeof meta.contentType === 'string' && meta.contentType ? meta.contentType : 'application/octet-stream';
+      const contentType = meta.contentType;
+      // Old cache entries must satisfy the same passive-media policy as new fetches.
+      if (typeof contentType !== 'string' || !CACHEABLE_MEDIA_MIME.has(contentType)) return null;
       return { buf, contentType };
     } catch {
       return null;
@@ -230,14 +234,22 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
     await writeFile(`${blobPath}.json`, JSON.stringify({ contentType: result.contentType }));
   }
 
-  function resolveContentType(headerValue: string | null, url: URL): string {
+  function resolveContentType({ headerValue, url }: { headerValue: string | null; url: URL }, _options = {}): string {
+    // Moved from URL eligibility, which now uses URL.pathname instead of split:
+    // `String#split` always returns a non-empty array (even `''.split(x)` is
+    // `['']`), so index 0 is never `undefined` — the `!` narrows a
+    // `noUncheckedIndexedAccess` false positive, not a real fallback path.
     // `(headerValue ?? '')` is reachable (no content-type header at all). The
     // trailing `?? ''` after the optional-chained `.split(';')[0]?.trim()` is
     // not: `String#split` always returns a non-empty array, so `[0]` is never
     // `undefined` and `?.` never short-circuits — kept for
     // `noUncheckedIndexedAccess`, not a real fallback path.
     const header = (headerValue ?? '').split(';')[0]!.trim().toLowerCase();
-    if (/^(?:image|video|audio)\//.test(header)) return header;
+    if (CACHEABLE_MEDIA_MIME.has(header)) return header;
+    // An explicit active/unsupported type must never be relabelled by its URL.
+    if (header && header !== 'application/octet-stream') {
+      throw new AssetCacheError(415, `unsupported content-type: ${header}`);
+    }
     const ext = path.posix.extname(url.pathname).toLowerCase();
     const guessed = EXT_TO_MIME[ext];
     if (guessed) return guessed;
@@ -311,7 +323,7 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
       }
       const declaredLength = Number(response.headers.get('content-length') ?? '');
       if (Number.isFinite(declaredLength)) assertWithinLimit(declaredLength);
-      const contentType = resolveContentType(response.headers.get('content-type'), url);
+      const contentType = resolveContentType({ headerValue: response.headers.get('content-type'), url });
       const buf = await readBodyCapped(response, controller);
       const result: AssetCacheResult = { buf, contentType };
       try {
@@ -331,7 +343,7 @@ export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?
     }
     const url = rawUrl.trim();
     const key = assetCacheKey(url);
-    const cached = await readFromDisk(key);
+    const cached = await readFromDisk({ key });
     if (cached) return cached;
     const existing = inflight.get(key);
     if (existing) return existing;

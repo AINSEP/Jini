@@ -42,9 +42,11 @@ export type CommandInvocationRequest = {
 // into one literal arg with the `%` preserved. The two layers cancel, so the
 // child receives the original arg byte-for-byte while cmd never has a chance
 // to expand anything inside it.
-function quoteWindowsCommandArg(value: string): string {
-  if (!/[\s"&<>|^%]/.test(value)) return value;
-  const escaped = value.replace(/"/g, '""').replace(/%/g, '"^%"');
+function quoteWindowsCommandArg({ value }: { value: string }, _options = {}): string {
+  if (/[\r\n]/.test(value)) throw new Error("Windows command shim arguments cannot contain line breaks");
+  if (value !== "" && !/[\s"&<>|^%=,;()]/.test(value)) return value;
+  // Backslashes before the closing quote must survive the child's argv parser.
+  const escaped = value.replace(/"/g, '""').replace(/%/g, '"^%"').replace(/\\+$/, '$&$&');
   return `"${escaped}"`;
 }
 
@@ -62,8 +64,8 @@ function quoteWindowsCommandArg(value: string): string {
 // Without this, paths containing spaces (`C:\Users\First Last\...\foo.cmd`)
 // get split on the first space and cmd.exe reports "not recognized as an
 // internal or external command" — see issue #315.
-function buildCmdShimInvocation(command: string, args: string[], env: NodeJS.ProcessEnv): CommandInvocation {
-  const inner = [command, ...args].map(quoteWindowsCommandArg).join(" ");
+function buildCmdShimInvocation({ command, args, env }: { command: string; args: string[]; env: NodeJS.ProcessEnv }, _options = {}): CommandInvocation {
+  const inner = [command, ...args].map((value) => quoteWindowsCommandArg({ value })).join(" ");
   return {
     args: ["/d", "/s", "/c", `"${inner}"`],
     command: env.ComSpec ?? process.env.ComSpec ?? "cmd.exe",
@@ -82,9 +84,9 @@ const nodeLoadablePackageManagerExtensions = new Set([".js", ".cjs", ".mjs"]);
  * @param request - The command, optional args, and env to base the invocation on.
  * @returns The `{ command, args }` (plus `windowsVerbatimArguments` when a shim is used) to spawn.
  */
-export function createCommandInvocation({ args = [], command, env = process.env }: CommandInvocationRequest): CommandInvocation {
+export function createCommandInvocation({ args = [], command, env = process.env }: CommandInvocationRequest, _options = {}): CommandInvocation {
   if (process.platform === "win32" && /\.(bat|cmd)$/i.test(command)) {
-    return buildCmdShimInvocation(command, args, env);
+    return buildCmdShimInvocation({ command, args, env });
   }
   return { args, command };
 }
@@ -114,7 +116,7 @@ export function createPackageManagerInvocation(args: string[], env: NodeJS.Proce
   // package manager out of the box, while a bare `pnpm` only resolves when a
   // separate global install or a `corepack enable` shim is present. See #2438.
   if (process.platform === "win32") {
-    return buildCmdShimInvocation("corepack", ["pnpm", ...args], env);
+    return buildCmdShimInvocation({ command: "corepack", args: ["pnpm", ...args], env });
   }
   return { args: ["pnpm", ...args], command: "corepack" };
 }

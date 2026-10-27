@@ -1,6 +1,7 @@
 import { humanConfirmedHandler, requireInputRecord, type HumanConfirmationAnswer, type HumanConfirmer } from './registration-kit.js';
 import { ToolInputError } from './tool-registry.js';
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from './tool-registry.js';
+import { isNonArrayRecord } from './records.js';
 
 /** A host describes the action; core owns the decision lifecycle, never the card format. */
 export interface ApprovalPlan<TDescription> {
@@ -210,6 +211,7 @@ export function createApprovalProposalStore<TDescription>(
 }
 
 /** Apply a host classification through the same handler owner used by domain plans.
+ * A host description's string `rememberKey` opts into reusable grants; descriptions remain opaque.
  * @returns The registration with one approval handler; authorization policy is preserved.
  */
 export function applyApprovalPolicy<TDescription>(
@@ -225,7 +227,13 @@ export function applyApprovalPolicy<TDescription>(
 ): ToolRegistration {
   return { ...registration, handler: createApprovalHandler({
     prepare: async ({ ctx }) => classify({ input: ctx.input }),
-    describe: async ({ ctx, prepared }) => ({ ask: asks({ class: prepared }), description: await describe({ ctx, class: prepared }) }),
+    describe: async ({ ctx, prepared }) => {
+      const ask = asks({ class: prepared });
+      const description = await describe({ ctx, class: prepared });
+      const candidate = { value: description };
+      return { ask, description, ...(isNonArrayRecord(candidate) && typeof candidate.value.rememberKey === 'string'
+        ? { rememberKey: candidate.value.rememberKey } : {}) };
+    },
     askHuman, notConfirmed,
     run: ({ ctx }, options) => registration.handler(ctx, options),
   }, optional) };

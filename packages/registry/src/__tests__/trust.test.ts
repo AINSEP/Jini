@@ -1,6 +1,7 @@
 import { X509Certificate, sign } from 'node:crypto';
 import type { RegistryEntry, RegistrySignature } from '@jini-ai/protocol';
 import { describe, expect, it } from 'vitest';
+import { StaticRegistryBackend } from '../static-backend.js';
 import {
   GITHUB_ACTIONS_OIDC_ISSUER,
   canonicalRegistrySigningPayload,
@@ -158,13 +159,70 @@ function githubOidcSignature(overrides: Partial<RegistrySignature> = {}): Regist
 
 const trustedRoot: RegistryTrustRoot = { githubOidc: { caCertificates: [CA_CERT_PEM] } };
 
+describe('registry trust regressions', () => {
+  it('C2: binds verification to the resolved version and digest, and reports the certificate SAN', async () => {
+    const signedEntry: RegistryEntry = {
+      ...entry,
+      signatures: [githubOidcSignature({ subject: 'repo:acme/core:ref:refs/heads/main' })],
+      versions: [
+        { version: entry.version, source: entry.source, integrity: entry.integrity },
+        { version: '1.0.0', source: 'github:attacker/swapped@v1.0.0/entry', integrity: 'sha256:swapped' },
+      ],
+    };
+    const backend = new StaticRegistryBackend({
+      id: 'fixture',
+      trust: 'restricted',
+      manifest: { specVersion: '1.0.0', name: 'fixture', version: '1.0.0', entries: [signedEntry] },
+    }, { trustRoot: trustedRoot });
+
+    // The signature covers only 1.1.0. The older, swapped artifact must not
+    // inherit its verification status, even though resolution succeeds.
+    const older = await backend.resolve({ name: entry.name }, { range: '1.0.0' });
+    expect(older).toMatchObject({
+      version: { version: '1.0.0' },
+      source: 'github:attacker/swapped@v1.0.0/entry',
+      integrity: 'sha256:swapped',
+    });
+    expect.soft(older?.verified).toBe(false);
+
+    const current = await backend.resolve({ name: entry.name }, { range: '1.1.0' });
+    expect(current?.verified).toBe(true);
+    expect.soft(current?.verifiedSubject).toBe(WORKFLOW_IDENTITY);
+
+    // Sign the legacy empty-digest payload explicitly so this fixture can
+    // still be constructed once canonicalRegistrySigningPayload rejects it.
+    const digestless: RegistryEntry = {
+      name: entry.name,
+      version: entry.version,
+      source: 'github:attacker/swapped@v1.1.0/entry',
+      signatures: [githubOidcSignature({ signature: signBase64('vendor/example@1.1.0:', LEAF_KEY_PEM) })],
+    };
+    const digestlessBackend = new StaticRegistryBackend({
+      id: 'fixture',
+      trust: 'restricted',
+      manifest: { specVersion: '1.0.0', name: 'fixture', version: '1.0.0', entries: [digestless] },
+    }, { trustRoot: trustedRoot });
+    const swapped = await digestlessBackend.resolve({ name: entry.name });
+    expect(swapped?.source).toBe('github:attacker/swapped@v1.1.0/entry');
+    expect.soft(swapped?.verified).toBe(false);
+  });
+});
+
 describe('canonicalRegistrySigningPayload', () => {
-  it('prefers integrity, falling back through manifestDigest, dist.integrity, dist.manifestDigest, then empty', () => {
+  it('prefers integrity, falling back through manifestDigest, dist.integrity, dist.manifestDigest, and rejects a missing digest', () => {
     expect(canonicalRegistrySigningPayload({ entry: { name: 'v/n', version: '1.0.0', source: 's', integrity: 'sha256:a' } })).toBe('v/n@1.0.0:sha256:a');
     expect(canonicalRegistrySigningPayload({ entry: { name: 'v/n', version: '1.0.0', source: 's', manifestDigest: 'sha256:b' } })).toBe('v/n@1.0.0:sha256:b');
     expect(canonicalRegistrySigningPayload({ entry: { name: 'v/n', version: '1.0.0', source: 's', dist: { integrity: 'sha256:c' } } })).toBe('v/n@1.0.0:sha256:c');
     expect(canonicalRegistrySigningPayload({ entry: { name: 'v/n', version: '1.0.0', source: 's', dist: { manifestDigest: 'sha256:d' } } })).toBe('v/n@1.0.0:sha256:d');
-    expect(canonicalRegistrySigningPayload({ entry: { name: 'v/n', version: '1.0.0', source: 's' } })).toBe('v/n@1.0.0:');
+    expect(() => canonicalRegistrySigningPayload({ entry: { name: 'v/n', version: '1.0.0', source: 's' } })).toThrow('Registry signing payload requires a digest');
+  });
+
+  it.each(['', '   ', undefined])('rejects a missing or blank version (%s)', (version) => {
+    expect(() => canonicalRegistrySigningPayload({ entry: { ...entry, version } as RegistryEntry })).toThrow('Registry signing payload requires a version');
+  });
+
+  it.each(['', '   '])('rejects a blank digest (%s)', (integrity) => {
+    expect(() => canonicalRegistrySigningPayload({ entry: { ...entry, integrity } })).toThrow('Registry signing payload requires a digest');
   });
 });
 
@@ -175,11 +233,11 @@ describe('verifyRegistrySignature', () => {
       verified: true,
       kind: 'github-oidc',
       issuer: GITHUB_ACTIONS_OIDC_ISSUER,
-      subject: 'repo:acme/example:ref:refs/heads/main',
+      subject: WORKFLOW_IDENTITY,
     });
   });
 
-  it('falls back to the certificate’s own SAN identity for `subject` when the signature does not declare one', () => {
+  it('reports the certificate’s own SAN identity for `subject` when the signature does not declare one', () => {
     const result = verifyRegistrySignature({ entry, signature: githubOidcSignature({ subject: undefined }) }, { trustRoot: trustedRoot });
     expect(result).toEqual({ verified: true, kind: 'github-oidc', issuer: GITHUB_ACTIONS_OIDC_ISSUER, subject: WORKFLOW_IDENTITY });
   });
@@ -536,17 +594,17 @@ describe('verifyRegistrySignature characterization pins (precedence, boundaries,
     });
   });
 
-  it('keeps an empty-string self-reported subject rather than falling back to the SAN', () => {
+  it('reports the certificate SAN even when the self-reported subject is empty', () => {
     const result = verifyRegistrySignature({ entry, signature: githubOidcSignature({ subject: '' }) }, { trustRoot: trustedRoot });
-    expect(result).toEqual({ verified: true, kind: 'github-oidc', issuer: GITHUB_ACTIONS_OIDC_ISSUER, subject: '' });
+    expect(result).toEqual({ verified: true, kind: 'github-oidc', issuer: GITHUB_ACTIONS_OIDC_ISSUER, subject: WORKFLOW_IDENTITY });
   });
 
-  it('returns the self-reported subject as the verified subject even when it disagrees with the certificate SAN (reported, not fixed)', () => {
-    // `subject` is signer-chosen metadata, but backends surface it as
-    // `verifiedSubject`; only the SAN is cert-bound.
+  it('returns the certificate SAN as the verified subject even when the self-reported subject disagrees', () => {
+    // `subject` is signer-chosen metadata; only the SAN is cert-bound,
+    // so backends must surface the SAN as `verifiedSubject`.
     const root: RegistryTrustRoot = { githubOidc: { caCertificates: [CA_CERT_PEM], allowedIdentities: [WORKFLOW_IDENTITY] } };
     const result = verifyRegistrySignature({ entry, signature: githubOidcSignature({ subject: 'repo:someone-else/other' }) }, { trustRoot: root });
-    expect(result).toEqual({ verified: true, kind: 'github-oidc', issuer: GITHUB_ACTIONS_OIDC_ISSUER, subject: 'repo:someone-else/other' });
+    expect(result).toEqual({ verified: true, kind: 'github-oidc', issuer: GITHUB_ACTIONS_OIDC_ISSUER, subject: WORKFLOW_IDENTITY });
   });
 
   it('gives alternating results for a host-supplied global RegExp identity pattern (reported, not fixed)', () => {

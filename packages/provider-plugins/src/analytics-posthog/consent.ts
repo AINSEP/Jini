@@ -68,6 +68,7 @@ export function postHogConsentContribution(
     // Unversioned and tiny: revalidate so a plugin update reaches visitors on their next grant.
     if (method === 'GET' && path === `/${ADAPTER_FILE}`) return script(ADAPTER_FILE, 'no-cache');
     if (method !== 'POST') return { status: 404, body: '' };
+    if (analyticsLevel !== 'full' && analyticsLevel !== 'anonymous') return { status: 403, body: '' };
     // The host's decision wins over stale browser settings and forged payload fields. In anonymous
     // mode only aggregate pageviews leave; replay, batches and all supplied identities are refused.
     if (analyticsLevel === 'anonymous') {

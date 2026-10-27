@@ -69,12 +69,15 @@ describe('postHogConsentContribution (server)', () => {
     expect(asked).toEqual([SDK_FILE, ADAPTER_FILE]);
   });
 
-  it('forwards only fixed collector paths, with ip=0 and no visitor headers; upstream failure is a 502', async () => {
+  it('requires explicit consent to forward fixed collector paths, with ip=0 and no visitor headers; upstream failure is a 502', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     let ok = true;
     const request = (async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response(ok ? 'x' : '', { status: ok ? 200 : 500 }); }) as typeof fetch;
     const { http } = postHogConsentContribution({ ...base, host: 'https://collector.example/' }, { request });
-    const post = (path: string) => http.handle({ method: 'POST', path, body: new TextEncoder().encode('{}'), contentType: 'application/json' });
+    const post = (path: string) => http.handle({ method: 'POST', path, body: new TextEncoder().encode('{}'), contentType: 'application/json', analyticsLevel: 'full' });
+    expect(await http.handle({ method: 'POST', path: '/e/', body: new TextEncoder().encode('{}'), contentType: 'application/json' }))
+      .toEqual({ status: 403, body: '' });
+    expect(calls).toEqual([]);
     expect(await post('/decide/')).toEqual({ status: 404, body: '' });
     expect(calls).toEqual([]);
     expect(await post('/e/')).toEqual({ status: 200, body: '1' });
@@ -82,6 +85,22 @@ describe('postHogConsentContribution (server)', () => {
     expect(calls[0]!.init).toMatchObject({ method: 'POST', headers: { 'content-type': 'application/json' }, redirect: 'error' });
     ok = false;
     expect(await post('/batch')).toEqual({ status: 502, body: '' });
+  });
+
+  it('P5: refuses collector batches without an explicit full analytics grant', async () => {
+    const calls: unknown[] = [];
+    const request = (async (...args: Parameters<typeof fetch>) => {
+      calls.push(args);
+      return new Response('1');
+    }) as typeof fetch;
+    const { http } = postHogConsentContribution(base, { request });
+    const post = { method: 'POST', path: '/batch', contentType: 'application/json',
+      body: new TextEncoder().encode(JSON.stringify({ batch: [{ event: '$pageview', properties: { distinct_id: 'stale-visitor' } }] })) };
+
+    const denied = await http.handle({ ...post, analyticsLevel: 'none' });
+    const unspecified = await http.handle(post);
+    expect([denied, unspecified]).toEqual([{ status: 403, body: '' }, { status: 403, body: '' }]);
+    expect(calls).toEqual([]);
   });
 
   it('reads its assets from beside the bundled server module by default', async () => {

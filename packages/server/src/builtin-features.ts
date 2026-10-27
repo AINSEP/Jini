@@ -413,6 +413,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
                 principal: options.terminal?.principal ?? LOCAL_DAEMON_PRINCIPAL,
                 resolveRoot: options.terminal?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
               }, adapter: services.context.adapter }),
+          dispose: ({ services }, _optional = {}) => services.manager.shutdownActive(),
         }),
       };
     },

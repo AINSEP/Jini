@@ -79,15 +79,16 @@ describe('DatabaseRegistryBackend', () => {
   });
 
   it('accepts an optional trustRoot constructor option and wires it into resolve()’s signature verification', async () => {
+    const signingEntry = { ...entry, integrity: 'sha256:fixture' };
     const signedEntry = {
-      ...entry,
+      ...signingEntry,
       signatures: [
         {
           kind: 'github-oidc' as const,
           issuer: 'https://token.actions.githubusercontent.com',
           certificate: SELF_SIGNED_CA_CERT_PEM,
           signedAt: '2026-08-01T00:00:00Z',
-          signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload({ entry }), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
+          signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload({ entry: signingEntry }), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
         },
       ],
     };
@@ -123,6 +124,32 @@ describe('DatabaseRegistryBackend', () => {
     const list = await backend.list({});
     expect(list).toHaveLength(1);
     expect(list[0]?.version).toBe('1.2.0');
+  });
+
+  it('P12: publishing a new version without a versions ledger preserves earlier releases', async () => {
+    const backend = new DatabaseRegistryBackend({ id: 'fixture', db });
+    await backend.publish({ entry });
+    await expect(backend.resolve({ name: entry.name }, { range: '1.0.0' })).resolves.toMatchObject({
+      version: { version: '1.0.0' },
+      source: 'github:vendor/example@v1.0.0/entry',
+    });
+
+    await backend.publish({ entry: {
+      name: entry.name,
+      version: '2.0.0',
+      source: 'github:vendor/example@v2.0.0/entry',
+    } });
+
+    // A fresh backend reads the persisted entry, rather than a cached ledger.
+    const reopened = new DatabaseRegistryBackend({ id: 'fixture', db });
+    await expect(reopened.resolve({ name: entry.name })).resolves.toMatchObject({
+      version: { version: '2.0.0' },
+      source: 'github:vendor/example@v2.0.0/entry',
+    });
+    await expect(reopened.resolve({ name: entry.name }, { range: '1.0.0' })).resolves.toMatchObject({
+      version: { version: '1.0.0' },
+      source: 'github:vendor/example@v1.0.0/entry',
+    });
   });
 
   it('publish with dryRun: true does not write to the database and reports dryRun: true (CR-009)', async () => {

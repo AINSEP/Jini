@@ -186,6 +186,28 @@ describe('createAssetCache', () => {
     });
   }
 
+  it('C17: rejects SVG media and ignores media extensions in URL queries', async () => {
+    expect.soft(isCacheableExternalUrl('https://cdn.example.com/active.svg')).toBe(false);
+    expect.soft(isCacheableExternalUrl('https://cdn.example.com/render?x=.png')).toBe(false);
+
+    const url = 'https://cdn.example.com/disguised.png';
+    const cache = createAssetCache({
+      cacheDir: dir,
+      fetchImpl: async (input) => {
+        expect(String(input)).toBe(url);
+        return new Response('<svg xmlns="http://www.w3.org/2000/svg"><script>void 0</script></svg>', {
+          headers: { 'content-type': 'image/svg+xml' },
+        });
+      },
+    });
+    try {
+      // A raster-looking URL must not make active SVG safe to serve same-origin.
+      await expect(cache.get(url)).rejects.toMatchObject({ status: 415 });
+    } finally {
+      await cache.close?.();
+    }
+  });
+
   it('fetches once, stores on disk, and replays from cache', async () => {
     let calls = 0;
     const cache = createAssetCache({
@@ -388,33 +410,36 @@ describe('createAssetCache', () => {
     }
   });
 
-  it('rejects with 415 when neither the header nor the URL pathname extension is a recognized media type', async () => {
-    // isCacheableExternalUrl matches on the raw URL string (not just the
-    // pathname), so a URL whose *query string* ends in a recognized
-    // extension passes the up-front cacheability check even though its
-    // pathname extension (what resolveContentType actually inspects) is not
-    // itself recognized (and here, `?f=` keeps it off the exact `pathOnly`
-    // match too) — a real, reachable mismatch, not synthetic.
-    const cache = createAssetCache({
-      cacheDir: dir,
-      fetchImpl: (async () =>
-        new Response(Buffer.alloc(4), { status: 200, headers: { 'content-type': 'application/octet-stream' } })) as typeof fetch,
-    });
-    await expect(cache.get('https://cdn.example.com/render.php?f=photo.png')).rejects.toMatchObject({
-      status: 415,
-      message: expect.stringContaining('unsupported content-type'),
-    });
+  it('rejects a query-only media extension before fetching a generic response', async () => {
+    // The old 415 expectation depended on the query bypassing URL eligibility.
+    // Reject that URL before MIME resolution, even if upstream offers generic bytes.
+    const fetchImpl = vi.fn(async () =>
+      new Response(Buffer.alloc(4), { status: 200, headers: { 'content-type': 'application/octet-stream' } }));
+    const cache = createAssetCache({ cacheDir: dir, fetchImpl });
+    try {
+      await expect(cache.get('https://cdn.example.com/render.php?f=photo.png')).rejects.toMatchObject({
+        status: 400,
+        message: 'url is not a cacheable external media url',
+      });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    } finally {
+      await cache.close?.();
+    }
   });
 
-  it('rejects with 415 and an "unknown" placeholder when there is no content-type header at all either', async () => {
-    const cache = createAssetCache({
-      cacheDir: dir,
-      fetchImpl: (async () => new Response(Buffer.alloc(4), { status: 200 })) as typeof fetch,
-    });
-    await expect(cache.get('https://cdn.example.com/render.php?f=photo.png')).rejects.toMatchObject({
-      status: 415,
-      message: expect.stringContaining('unsupported content-type: unknown'),
-    });
+  it('rejects a query-only media extension before fetching a response without a content-type', async () => {
+    // Missing MIME metadata cannot grant eligibility to a non-media pathname.
+    const fetchImpl = vi.fn(async () => new Response(Buffer.alloc(4), { status: 200 }));
+    const cache = createAssetCache({ cacheDir: dir, fetchImpl });
+    try {
+      await expect(cache.get('https://cdn.example.com/render.php?f=photo.png')).rejects.toMatchObject({
+        status: 400,
+        message: 'url is not a cacheable external media url',
+      });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    } finally {
+      await cache.close?.();
+    }
   });
 
   it('derives content-type from the extension when there is no content-type header at all', async () => {
@@ -426,23 +451,29 @@ describe('createAssetCache', () => {
     expect(out.contentType).toBe('video/webm');
   });
 
-  it('falls back to application/octet-stream when a disk-cached sidecar has no usable contentType', async () => {
-    const url = 'https://res.cloudinary.com/x/corrupt-meta.png';
-    const key = assetCacheKey(url);
-    await writeFile(path.join(dir, key), Buffer.alloc(4, 5));
-    // A sidecar whose contentType is missing/non-string — readFromDisk must
-    // still succeed, replaying with the generic fallback content-type.
-    await writeFile(path.join(dir, `${key}.json`), JSON.stringify({ contentType: 42 }));
-    const cache = createAssetCache({
-      cacheDir: dir,
-      fetchImpl: (async () => {
-        throw new Error('must not fetch — should replay from disk');
-      }) as typeof fetch,
-    });
-    const out = await cache.get(url);
-    expect(out.contentType).toBe('application/octet-stream');
-    expect(out.buf.byteLength).toBe(4);
-  });
+  it.each([42, undefined, '', 'image/svg+xml', 'image/x-unknown', 'text/html'])(
+    'refetches instead of replaying a disk-cached sidecar with unsafe contentType %s', async (contentType) => {
+      const url = 'https://res.cloudinary.com/x/corrupt-meta.png';
+      const key = assetCacheKey(url);
+      await writeFile(path.join(dir, key), Buffer.alloc(4, 5));
+      // Missing/non-string metadata used to replay generic bytes. All cached
+      // entries, including legacy SVG, must satisfy the passive-media allowlist.
+      await writeFile(path.join(dir, `${key}.json`), JSON.stringify({ contentType }));
+      const fetchImpl = vi.fn(async () => pngResponse(7));
+      const cache = createAssetCache({ cacheDir: dir, fetchImpl });
+      try {
+        const out = await cache.get(url);
+        expect(out.contentType).toBe('image/png');
+        expect(out.buf).toEqual(Buffer.alloc(7, 1));
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        const replay = await cache.get(url);
+        expect(replay).toEqual(out);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      } finally {
+        await cache.close?.();
+      }
+    },
+  );
 
   it('skips a falsy (undefined) chunk from the reader without treating it as data', async () => {
     let reads = 0;

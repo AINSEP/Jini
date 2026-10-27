@@ -122,8 +122,11 @@ export function createMemoryUsersApi({ workspaceId }: { workspaceId: string }, o
     return user;
   }
   const password = (value: string) => { if (!value || [...value].length > 512) fail('VALIDATION_ERROR', 'Password must be present and no more than 512 characters.'); };
-  /** Disabling or deleting an owner must leave another active owner behind. */
-  function keepAnotherActiveOwner(u: AdminOperator) { if (owners.has(u.principalId) && [...users.values()].filter(v => v.status === 'active' && owners.has(v.principalId)).length <= 1) fail('OWNER_REQUIRED', 'The workspace must keep at least one active owner.'); }
+  /** Disabling or deleting an active owner must leave another active owner behind. */
+  function keepAnotherActiveOwner(u: AdminOperator, _optional = {}): void {
+    if (u.status === 'active' && owners.has(u.principalId) && [...users.values()].filter(v => v.status === 'active' && owners.has(v.principalId)).length <= 1)
+      fail('OWNER_REQUIRED', 'The workspace must keep at least one active owner.');
+  }
   function clamp(contents: readonly string[] | undefined) { if (grants.includes('*')) return; if (!contents || contents.some(p => !grants.includes(p))) fail('GRANT_EXCEEDS_ISSUER', 'Grant exceeds issuer.'); }
   return {
     async listUsers(_r, o = {}) { check(o); return { users: [...users.values()].filter(u => !trash.has(u.principalId)).map(clone) }; },
