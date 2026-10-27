@@ -291,7 +291,9 @@ export const antigravityAgentDef = {
   //     (protocolVersion `2025-11-25`, clientInfo `antigravity-client`).
   //   - That makes the registration itself a STATIC, one-time operation — the operator adds one
   //     bridge entry to their real `~/.gemini/config/mcp_config.json` (confirmed still the one real
-  //     mechanism; see the probes below) with a bare, env-free `command` pointing at this package's
+  //     mechanism; see the probes below; `@jini-ai/mcp`'s `mcp install antigravity` writes exactly
+  //     this path from its `ANTIGRAVITY_MCP_CONFIG_SEGMENTS`, so change the two together) with a
+  //     bare, env-free `command` pointing at this package's
   //     own `jini-mcp` bin, resolving its credential from the environment at spawn time instead of
   //     a baked-in value. No per-spawn config mutation, no lock, no restore discipline — the exact
   //     "safe, run-scoped delivery" gap the old verdict cited is closed by inheritance, not by

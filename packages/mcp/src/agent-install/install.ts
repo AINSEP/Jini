@@ -166,6 +166,18 @@ function jsonEntry(spec: McpLaunchSpec, extra: Record<string, unknown> = {}): Re
   return withEnv({ command: spec.command, args: spec.args, ...extra }, spec.env, 'env');
 }
 
+/**
+ * Home-relative path of the MCP registry the `agy` CLI actually reads:
+ * `~/.gemini/config/mcp_config.json` (verified live; see the
+ * `externalMcpInjection` comment in `@jini-ai/agent-runtime`'s
+ * `defs/antigravity.ts`). NOT `~/.gemini/antigravity/mcp_config.json`: that
+ * file only works on machines where the Antigravity IDE happened to symlink it
+ * to this one, and on a machine without that symlink the bridge entry would
+ * never reach `agy`. Planning only this path also means a regular-file
+ * `antigravity/mcp_config.json` (the IDE's own) is never touched.
+ */
+export const ANTIGRAVITY_MCP_CONFIG_SEGMENTS = ['.gemini', 'config', 'mcp_config.json'] as const;
+
 /** Inputs every per-agent planner receives; `appData` is the resolved `APPDATA` (win32 only). */
 interface PlannerArgs {
   spec: McpLaunchSpec;
@@ -229,7 +241,7 @@ const AGENT_PLANNERS: { readonly [K in AgentSlug]: (args: PlannerArgs) => Instal
   openclaw: ({ spec, ctx: { home, serverName } }) =>
     jsonPlan('openclaw', path.join(home, '.openclaw', 'openclaw.json'), ['mcp', 'servers'], serverName, jsonEntry(spec)),
   antigravity: ({ spec, ctx: { home, serverName } }) =>
-    jsonPlan('antigravity', path.join(home, '.gemini', 'antigravity', 'mcp_config.json'), ['mcpServers'], serverName, jsonEntry(spec)),
+    jsonPlan('antigravity', path.join(home, ...ANTIGRAVITY_MCP_CONFIG_SEGMENTS), ['mcpServers'], serverName, jsonEntry(spec)),
   trae: ({ spec, ctx: { home, platform, serverName }, appData }) =>
     jsonPlan('trae', traeConfigPath(home, platform, appData), ['mcpServers'], serverName, jsonEntry(spec)),
 
