@@ -29,6 +29,8 @@ type Harness = {
   assertConnectionUsable?: FederationDeps["assertConnectionUsable"];
   allow?: () => boolean;
   signal?: AbortSignal;
+  /** No host gate at all: the handler has only the grants the connection was admitted with. */
+  noGate?: boolean;
 };
 
 async function run(options: Harness) {
@@ -43,7 +45,9 @@ async function run(options: Harness) {
       events.push("permission");
       return allow() ? { allowed: true, reason: "matched" } : { allowed: false, reason: "not authorized" };
     } }),
-    assertConnectionUsable: async (input) => { events.push("liveness"); await options.assertConnectionUsable?.(input); },
+    ...(options.noGate ? {} : { assertConnectionUsable: async (input: Parameters<NonNullable<FederationDeps["assertConnectionUsable"]>>[0]) => {
+      events.push("liveness"); await options.assertConnectionUsable?.(input);
+    } }),
     confirmCall: async ({ request }) => {
       events.push("card"); cards.push(request);
       return options.confirm ? options.confirm(request) : { confirmed: true };
@@ -144,6 +148,19 @@ test("fed-security 1: through the revocation gate, the same write tool runs once
     writeAllowed: ["create_project"], assertConnectionUsable: revocationGate(() => roster(["create_project"])) });
   await h.result;
   assert.deepEqual(h.session.calls, [{ name: "create_project", arguments: { id: "one" } }]);
+});
+
+test("fed-security 1: a write grant added after boot takes effect on the next call, without a restart", async () => {
+  const h = await run({ tool: { name: "create_project", inputSchema: schema, annotations: { readOnlyHint: false } },
+    writeAllowed: [], assertConnectionUsable: revocationGate(() => roster(["create_project"])) });
+  await h.result;
+  assert.deepEqual(h.session.calls, [{ name: "create_project", arguments: { id: "one" } }]);
+});
+
+test("fed-security 1: with no host gate to read current grants, a roster write tool admitted without 'may write' is refused", async () => {
+  const h = await run({ tool: { name: "create_project", inputSchema: schema, annotations: { readOnlyHint: false } }, writeAllowed: [], noGate: true });
+  await assert.rejects(h.result, /EXTERNAL_MCP_WRITE_NOT_ALLOWED/);
+  assert.deepEqual(h.session.calls, []);
 });
 
 test("fed-security 1: through the revocation gate, a read tool runs with no write grant", async () => {

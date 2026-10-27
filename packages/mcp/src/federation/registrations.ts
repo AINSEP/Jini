@@ -293,10 +293,11 @@ async function assertCallAllowed({ ctx, deps, config, call }: {
   // precedes the permission check rather than following it.
   await deps.assertConnectionUsable?.({ connectionId: config.connectionId, call });
 
-  // "May write" against the grants this connection was admitted with — for EVERY connection, not
-  // only the ones a host gate can re-read: a preset has no roster row, so the revocation gate skips
-  // it, and a host may wire no gate at all. A roster gate above may narrow further, never widen.
-  assertAdmittedGrants({ deps, config, call });
+  // "May write" against the grants this connection was admitted with — for every connection whose
+  // CURRENT grants no host gate re-reads: a preset has no roster row, so the revocation gate skips
+  // it, and a host may wire no gate at all. A roster connection with a gate is checked against its
+  // current row above instead, so a write grant added after boot works on the next call.
+  if (!gateReadsCurrentGrants({ deps, config })) assertAdmittedGrants({ deps, config, call });
 
   // ONE evaluator, run before anything crosses the network — not after, so a denied principal's
   // arguments are never even sent to a third party. `entityId` is the connection, so a
@@ -307,6 +308,16 @@ async function assertCallAllowed({ ctx, deps, config, call }: {
     entityType: FEDERATED_ENTITY_TYPE,
     entityId: config.connectionId,
   }, deps.scope === undefined ? {} : { scope: deps.scope });
+}
+
+/**
+ * Whether the host gate owns this connection's grant check: `FederationDeps.assertConnectionUsable`
+ * must re-read a roster connection's current row (allowlist and write list) every call, so the
+ * admitted snapshot would only refuse a grant the operator has since added.
+ * @complexity O(1).
+ */
+function gateReadsCurrentGrants({ deps, config }: { deps: FederationDeps; config: FederatedMcpConnectionConfig }): boolean {
+  return deps.assertConnectionUsable !== undefined && config.origin?.kind === "roster";
 }
 
 /**

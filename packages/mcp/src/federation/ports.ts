@@ -98,9 +98,10 @@ export interface McpStdioChannel {
  * every later `tools/call`. `external-mcp-revocation.ts`'s per-call gate is the one consumer: a
  * preset gets only the legacy OAuth `needs_reauth` check (it has no roster row to compare against);
  * a roster connection is re-checked against its CURRENT row every call, keyed by
- * `admissionRevision` — see that file's `rosterRefusalFor`. Whatever the origin, the handler itself
- * also checks "may write" against the grants the connection was admitted with
- * (`registrations.ts` `assertAdmittedGrants`), so a preset is never exempt from it.
+ * `admissionRevision` — see that file's `rosterRefusalFor`. A connection whose current grants no gate
+ * re-reads (a preset, or any connection when the host wires no gate) is checked for "may write"
+ * against the grants it was admitted with (`registrations.ts` `assertAdmittedGrants`), so a preset is
+ * never exempt from it; a gated roster connection uses its current row, so a new grant needs no restart.
  */
 export type FederatedConnectionOrigin =
   | { readonly kind: "preset" }
