@@ -8,16 +8,22 @@ type BackupEntry = Required<Pick<OwnerPutInput, "id" | "kind" | "ownerKey" | "bi
   & BackupHint & { meta: VaultMeta; payload: VaultMeta | null };
 /** A pending target cleanup: the copy it tracks outlives any restore, so the record must too. */
 type BackupRevocation = { entryId: string; consumerId: string; workspaceId: string; attempts: number; updatedAt: string };
-/** An active grant: its entry was synced to a site, so the copy is tracked by this record until revoked. */
-type BackupGrant = { entryId: string; consumerId: string; createdAt: string };
-type BackupSnapshot = { entries: BackupEntry[]; grants: BackupGrant[]; revocations: BackupRevocation[] };
+/** An active grant: its entry was synced to a site, so the copy is tracked by this record until revoked.
+ * workspaceId is the one destination it is bound to (null before its first sync); losing it would let a
+ * revoke naming any empty workspace drop the record while the real copy remains.
+ */
+type BackupGrant = { entryId: string; consumerId: string; workspaceId: string | null; createdAt: string };
+/** unreconciled: entry IDs whose copies may sit at destinations no record names; deletion waits for reconciliation. */
+type BackupSnapshot = { entries: BackupEntry[]; grants: BackupGrant[]; revocations: BackupRevocation[]; unreconciled: string[] };
 const INVALID_BACKUP = "invalid-backup";
 /** Version 1 had no cleanup records, so it cannot show whether a revoked copy is still on a site. */
 const BACKUP_VERSION = 2;
+/** Written by published @jini-ai/db 0.6.12: entries only, with no grants, destinations or cleanup records. */
+const LEGACY_BACKUP_VERSION = 1;
 const ENTRY_FIELDS = ["id", "kind", "ownerKey", "binding", "provider", "label", "isDefault", "meta", "payload"];
 const HINT_FIELDS = ["last4", "tokenLength"];
 const REVOCATION_FIELDS = ["entryId", "consumerId", "workspaceId", "attempts", "updatedAt"];
-const GRANT_FIELDS = ["entryId", "consumerId", "createdAt"];
+const GRANT_FIELDS = ["entryId", "consumerId", "workspaceId", "createdAt"];
 
 /** Fixed errors keep recovery diagnostics free of parsed secret values. */
 export class OwnerStoreBackupError extends Error {
@@ -45,23 +51,31 @@ export async function exportOwnerStore({ store, passphrase }: { store: OwnerStor
         provider: summary.provider, label: summary.label, isDefault: summary.isDefault, meta: summary.meta, payload: entry.payload,
         last4: summary.last4, tokenLength: summary.tokenLength });
     }
-    const grants = (await store.grants({})).map(row => ({ entryId: row.entry_id, consumerId: row.consumer_id, createdAt: row.created_at }));
+    const grants = (await store.grants({})).map(row => ({ entryId: row.entry_id, consumerId: row.consumer_id,
+      workspaceId: row.workspace_id, createdAt: row.created_at }));
     const revocations = (await store.pendingRevocations({})).map(row => ({ entryId: row.entry_id, consumerId: row.consumer_id,
       workspaceId: row.workspace_id, attempts: row.attempts, updatedAt: row.updated_at }));
-    return { entries, grants, revocations };
+    const unreconciled = (await store.kernel.run(db => db.selectFrom("owner_unreconciled").select("entry_id")
+      .orderBy("entry_id").execute())).map(row => row.entry_id);
+    return { entries, grants, revocations, unreconciled };
   });
   return sealWithPassphrase({ payload: JSON.stringify({ format: "jini-owner-store", version: BACKUP_VERSION, ...snapshot }), passphrase });
 }
 
 /** Authenticate and structurally validate before writing, then reuse vault parsing/sealing in
- * one transaction. Any row failure rolls back all rows. Active grants and pending cleanups are
- * restored with their entries, so no synced copy loses the record that blocks its entry's deletion.
- * @throws OwnerStoreBackupError for malformed or version-1 snapshots or a nonempty destination; crypto/vault errors propagate.
+ * one transaction. Any row failure rolls back all rows. Active grants (with their bound destination),
+ * pending cleanups and unreconciled marks are restored with their entries, so no synced copy loses the
+ * record that blocks its entry's deletion. A version-1 snapshot recorded none of these, so every entry
+ * it restores is marked unreconciled: deletion waits until the owner reconciles each site that may hold a copy.
+ * Restored grants resume copying on the next sync. That re-copy reuses the same ID, so tracking holds, but
+ * it bumps the target revision and can overwrite a value the site changed after the snapshot with the
+ * snapshot's value.
+ * @throws OwnerStoreBackupError for malformed snapshots or a nonempty destination; crypto/vault errors propagate.
  * @complexity O(n + payload bytes) with bounded platform KDF work.
  * @example await restoreOwnerStore({ store, envelope, passphrase });
  */
 export async function restoreOwnerStore({ store, envelope, passphrase }: { store: OwnerStoreService; envelope: string; passphrase: string }, _options: VaultOptions = {}): Promise<{ restored: number }> {
-  const { entries, grants, revocations } = parseSnapshot({ payload: await openWithPassphrase({ envelope, passphrase }) });
+  const { entries, grants, revocations, unreconciled } = parseSnapshot({ payload: await openWithPassphrase({ envelope, passphrase }) });
   return store.kernel.transaction(async () => {
     const row = await store.kernel.run(db => db.selectFrom("secrets_vault").select("id").executeTakeFirst());
     const grant = await store.kernel.run(db => db.selectFrom("owner_grants").select("entry_id").executeTakeFirst());
@@ -74,34 +88,46 @@ export async function restoreOwnerStore({ store, envelope, passphrase }: { store
     }
     for (const row of grants) {
       await store.kernel.run(db => db.insertInto("owner_grants").values({ entry_id: row.entryId, consumer_id: row.consumerId,
-        created_at: row.createdAt }).execute());
+        workspace_id: row.workspaceId, created_at: row.createdAt }).execute());
     }
     for (const row of revocations) {
       await store.kernel.run(db => db.insertInto("owner_revocations").values({ entry_id: row.entryId, consumer_id: row.consumerId,
         workspace_id: row.workspaceId, attempts: row.attempts, updated_at: row.updatedAt }).execute());
+    }
+    for (const entryId of unreconciled) {
+      await store.kernel.run(db => db.insertInto("owner_unreconciled").values({ entry_id: entryId }).execute());
     }
     return { restored: entries.length };
   });
 }
 
 /** Reject unknown versions/duplicate IDs before any destination transaction is entered.
- * Version 1 is refused rather than restored: its missing cleanup records would make deleting an entry
- * look safe while a revoked copy may still sit on a site. No release ever wrote one.
+ * Version 1 (published @jini-ai/db 0.6.12 wrote it) is restored with every entry marked unreconciled:
+ * its missing grant and cleanup records would otherwise make deleting an entry look safe while a copy
+ * may still sit on a site.
  */
 function parseSnapshot({ payload }: { payload: string }): BackupSnapshot {
   let document: unknown;
   try { document = JSON.parse(payload); } catch { throw new OwnerStoreBackupError({ code: INVALID_BACKUP }); }
-  if (!isObject(document)) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
-  if (document.format !== "jini-owner-store" || document.version !== BACKUP_VERSION
-    || !Array.isArray(document.entries) || !Array.isArray(document.grants) || !Array.isArray(document.revocations)) {
-    throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
-  }
-  const entries = document.entries.map(parseEntry);
+  if (!isObject(document) || document.format !== "jini-owner-store") throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
+  const entries = arrayOf(document.entries).map(parseEntry);
   const ids = new Set(entries.map(entry => entry.id));
   if (ids.size !== entries.length) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
-  const grants = assertUniquePairs(document.grants.map(value => parseGrant({ value, ids })));
-  const revocations = assertUniquePairs(document.revocations.map(value => parseRevocation({ value, ids })));
-  return { entries, grants, revocations };
+  if (document.version === LEGACY_BACKUP_VERSION) return { entries, grants: [], revocations: [], unreconciled: [...ids] };
+  if (document.version !== BACKUP_VERSION) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
+  const grants = assertUniquePairs(arrayOf(document.grants).map(value => parseGrant({ value, ids })));
+  const revocations = assertUniquePairs(arrayOf(document.revocations).map(value => parseRevocation({ value, ids })));
+  const unreconciled = arrayOf(document.unreconciled);
+  if (unreconciled.some(id => !ids.has(id as string)) || new Set(unreconciled).size !== unreconciled.length) {
+    throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
+  }
+  return { entries, grants, revocations, unreconciled: unreconciled as string[] };
+}
+
+/** A portable list, or the fixed error. */
+function arrayOf(value: unknown): unknown[] {
+  if (!Array.isArray(value)) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
+  return value;
 }
 
 /** One row per (entry, consumer), matching each table's primary key; JSON pairs avoid separator collisions. */
@@ -112,12 +138,13 @@ function assertUniquePairs<Row extends { entryId: string; consumerId: string }>(
   return rows;
 }
 
-/** Exact fields, a restored entry and a named consumer. */
+/** Exact fields, a restored entry, a named consumer and a named (or not yet bound) destination. */
 function parseGrant({ value, ids }: { value: unknown; ids: Set<string> }): BackupGrant {
   if (!isObject(value) || Object.keys(value).length !== GRANT_FIELDS.length || GRANT_FIELDS.some(key => !Object.hasOwn(value, key))) {
     throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
   }
-  const named = [value.consumerId, value.createdAt].every(item => typeof item === "string" && item.length > 0);
+  const destination = value.workspaceId === null ? [] : [value.workspaceId];
+  const named = [value.consumerId, value.createdAt, ...destination].every(item => typeof item === "string" && item.length > 0);
   if (!named || !ids.has(value.entryId as string)) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
   return value as BackupGrant;
 }

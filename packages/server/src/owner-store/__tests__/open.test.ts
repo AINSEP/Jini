@@ -6,7 +6,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { sourceChecksum } from "@jini-ai/db/migrate";
 import { ownerRevocationsDdl, ownerRevocationsMigration, ownerStoreDdl, ownerStoreMigration } from "@jini-ai/db/owner-store";
 import { openOwnerStore, OwnerStoreRecoveryError } from "../open.js";
-import { fixture, input } from "./fixture.js";
+import { fixture, input, target } from "./fixture.js";
 
 const fixtures: ReturnType<typeof fixture>[] = [];
 afterEach(async () => { for (const item of fixtures.splice(0)) await item.cleanup(); });
@@ -64,7 +64,7 @@ test("real-file reopen keeps credentials, grants, independent ledger and WAL", a
   const reopened = await f.open();
   expect(await reopened.list({})).toEqual([entry]);
   expect((await reopened.vault.get(entry))?.payload).toEqual(input.payload);
-  expect(await reopened.grants({})).toEqual([{ entry_id: entry.id, consumer_id: "one", created_at: expect.any(String) }]);
+  expect(await reopened.grants({})).toEqual([{ entry_id: entry.id, consumer_id: "one", workspace_id: null, created_at: expect.any(String) }]);
   const db = new Database(f.required.filePath);
   try {
     expect(db.prepare("SELECT id, checksum FROM owner_migrations").all()).toEqual([
@@ -72,7 +72,7 @@ test("real-file reopen keeps credentials, grants, independent ledger and WAL", a
       { id: "0001_owner_revocations", checksum: ownerRevocationsMigration.checksum },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all()).toEqual([
-      { name: "owner_grants" }, { name: "owner_migrations" }, { name: "owner_revocations" }, { name: "secrets_vault" },
+      { name: "owner_grants" }, { name: "owner_migrations" }, { name: "owner_revocations" }, { name: "owner_unreconciled" }, { name: "secrets_vault" },
     ]);
   } finally { db.close(); }
 });
@@ -85,6 +85,25 @@ test("concurrent openers share one key and apply the migration exactly once", as
   expect(await a.kernel.query(sql`SELECT count(*) AS count FROM owner_migrations`)).toEqual([{ count: 2 }]);
   expect(readFileSync(f.required.keyFilePath, "utf8")).toMatch(/^[0-9a-f]{64}$/);
   if (process.platform !== "win32") expect(statSync(f.required.keyFilePath).mode & 0o777).toBe(0o600);
+});
+
+test("P2 legacy: upgrading a store whose grants predate destination binding marks those entries unreconciled", async () => {
+  const f = setup();
+  const store = await f.open();
+  const granted = await store.put(input);
+  const ungranted = await store.put({ ...input, label: "Never granted" });
+  await store.grant({ entryId: granted.id, consumerId: "one" });
+  await f.close();
+  // Roll the file back to the published 0000-only shape, then let open apply 0001 for real.
+  const db = new Database(f.required.filePath);
+  try {
+    db.exec("DROP TABLE owner_unreconciled; DROP TABLE owner_revocations; ALTER TABLE owner_grants DROP COLUMN workspace_id;"
+      + " DELETE FROM owner_migrations WHERE id = '0001_owner_revocations';");
+  } finally { db.close(); }
+  const upgraded = await f.open();
+  await upgraded.revoke({ entryId: granted.id, target: target("one") });
+  await expect(upgraded.delete({ entryId: granted.id, expectedRevision: granted.revision })).rejects.toMatchObject({ name: "OwnerUnreconciledError" });
+  expect(await upgraded.delete({ entryId: ungranted.id, expectedRevision: ungranted.revision })).toBe(true);
 });
 
 test("each migration checksum pins its exact DDL", () => {
