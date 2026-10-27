@@ -6,12 +6,13 @@ import type { FederatedCallTarget } from "../ports.js";
 
 // Generalized from the connection-revocation suite: DB projection and OAuth wiring stay in the host.
 const call: FederatedCallTarget = { remoteName: "write_thing", declaredAnnotations: { readOnlyHint: false }, origin: { kind: "roster", admissionRevision: "revision-1" } };
-const row: ConnectionRosterSnapshot = { label: "Service", enabled: true, admissionRevision: "revision-1", disconnected: false, grants: { allowedToolNames: ["read_thing", "write_thing"], writeAllowedToolNames: [] } };
+const row: ConnectionRosterSnapshot = { label: "Service", enabled: true, admissionRevision: "revision-1", disconnected: false, grants: { allowedToolNames: ["read_thing", "write_thing"], writeAllowedToolNames: ["write_thing"] } };
 for (const [record, target, expected] of [
   [row, call, null], [null, call, "removed"], [{ ...row, enabled: false }, call, "turned-off"],
   [{ ...row, admissionRevision: "revision-2", enabled: false }, call, "changed"],
   [{ ...row, disconnected: true }, call, "disconnected"],
   [{ ...row, grants: { allowedToolNames: [], writeAllowedToolNames: ["write_thing"] } }, call, "tool-not-allowed"],
+  [{ ...row, grants: { allowedToolNames: ["read_thing", "write_thing"], writeAllowedToolNames: [] } }, call, "write-not-allowed"],
   [row, { ...call, origin: undefined }, "unverifiable"], [row, { ...call, origin: { kind: "preset" } }, "unverifiable"],
 ] as const) test(`roster outcome ${expected} respects revision before current state`, () => {
   assert.equal(rosterRefusalFor({ record, call: target }), expected);

@@ -216,13 +216,14 @@ const CODEX_SANDBOX_ARGS: Readonly<Record<CodexSandboxTier, Readonly<Record<Code
   },
 };
 
-// Read-only prevents direct patches; disable every shell transport as well.
+// Read-only prevents direct patches; disable every shell transport as well, and the
+// plugin/app MCP sources a locked run's staged home cannot drop.
 // CLI config overrides apply on BOTH create and resume, regardless of the saved session.
 const CODEX_NATIVE_TOOLS_LOCKED_ARGS: readonly string[] = [
   '-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false',
   '-c', 'features.code_mode=false', '-c', 'features.apply_patch_freeform=false',
   '-c', 'features.multi_agent=false', '-c', 'features.collab=false', '-c', 'features.plugins=false',
-  '-c', 'approval_policy="never"',
+  '-c', 'features.apps=false', '-c', 'approval_policy="never"',
 ];
 
 // Per-turn overrides also apply to resumed sessions, ahead of persisted CLI defaults.
@@ -234,6 +235,9 @@ const CODEX_CAPABILITY_OVERRIDES: ReadonlyArray<readonly [keyof NativeCapabiliti
   ['web', ['web_search="disabled"']],
   ['workflows', ['features.worktrees=false', 'features.remote_control=false']],
   ['userSettings', ['features.skills=false', 'features.plugins=false']],
+  // The staged CODEX_HOME drops config-file MCP servers; plugin-bundled servers and ChatGPT apps
+  // (connectors) are other MCP sources, and only this CLI layer outranks a trusted project's config.
+  ['userMcp', ['features.plugins=false', 'features.apps=false']],
 ];
 
 // Capture-style resume: when the caller has a stored Codex thread id

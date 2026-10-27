@@ -8,7 +8,9 @@ import type { FederatedMcpConnectionConfig, RemoteToolDescriptor } from "../port
 
 const config: FederatedMcpConnectionConfig = {
   connectionId: "higgsfield", label: "Higgsfield", allowedToolNames: ["models_explore", "job_status", "generate"],
-  writeAllowedToolNames: [], readOnlyRemoteNames: new Set(["models_explore", "job_status"]),
+  // "May write" granted for models_explore: the cases where the remote contradicts the read list make
+  // it a write, which needs the grant to run. Read classification never consults this list.
+  writeAllowedToolNames: ["models_explore"], readOnlyRemoteNames: new Set(["models_explore", "job_status"]),
   connectTimeoutMs: 1000, callTimeoutMs: 1000, maxResultBytes: 4096, maxTools: 8,
 };
 const ctx: ToolExecutionContext = { executionId: "exec", principal: { id: "owner" }, run: { id: "run" }, input: {}, signal: new AbortController().signal };

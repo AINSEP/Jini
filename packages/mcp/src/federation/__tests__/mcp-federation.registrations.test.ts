@@ -261,7 +261,7 @@ test("the liveness gate receives the tool's remote name, declared annotations an
   await registrationFor(registrations, "mcp__supabase__list_tables").handler(toolContext({}));
 
   assert.deepEqual(seenCalls, [
-    { remoteName: "list_tables", declaredAnnotations: { readOnlyHint: true }, origin: configWithOrigin.origin },
+    { remoteName: "list_tables", declaredAnnotations: { readOnlyHint: true }, origin: configWithOrigin.origin, requiresWriteGrant: false },
   ]);
 });
 

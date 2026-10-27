@@ -9,7 +9,7 @@ import type { FederatedCallTarget } from "../ports.js";
 
 // Characterization pins for every branch of approvals/revocation.ts (SEC: the connection gate).
 const call: FederatedCallTarget = { remoteName: "write_thing", declaredAnnotations: { readOnlyHint: false }, origin: { kind: "roster", admissionRevision: "revision-1" } };
-const row: ConnectionRosterSnapshot = { label: "Service", enabled: true, admissionRevision: "revision-1", disconnected: false, grants: { allowedToolNames: ["write_thing"], writeAllowedToolNames: [] } };
+const row: ConnectionRosterSnapshot = { label: "Service", enabled: true, admissionRevision: "revision-1", disconnected: false, grants: { allowedToolNames: ["write_thing"], writeAllowedToolNames: ["write_thing"] } };
 
 class RefusalError extends Error {
   constructor(readonly refusal: FederatedConnectionRefusal) { super(`refused:${refusal.reason}`); }
@@ -27,8 +27,12 @@ function roster(result: ConnectionRosterSnapshot | null | Error, seen: { scope?:
 }
 
 describe("rosterRefusalFor", () => {
-  test("a write-declaring tool on the allowlist but absent from the write list is not refused (grants never refuse on hints)", () => {
+  test("a write-declaring tool on the allowlist and the write list is not refused", () => {
     expect(rosterRefusalFor({ record: row, call })).toBeNull();
+  });
+
+  test("a write-declaring tool on the allowlist but absent from the write list is refused as write-not-allowed", () => {
+    expect(rosterRefusalFor({ record: { ...row, grants: { allowedToolNames: ["write_thing"], writeAllowedToolNames: [] } }, call })).toBe("write-not-allowed");
   });
 
   test("an unknown origin is unverifiable even when no row exists", () => {

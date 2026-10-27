@@ -2297,7 +2297,7 @@
      "packages/daemon/src/agent-executor/launch.ts"
     ],
     "rebuild": "cd /root/Jini && pnpm --filter @jini-ai/daemon build",
-    "expect": "RED: 27 CLI rows BROKEN, 'refused with the old generic message: This CLI has no native-tool policy and audit adapter...'; claude + codex rows 'started'. Tovu reads @jini-ai/daemon from dist, so rebuild the daemon after apply AND after restore."
+    "expect": "RED: 27 CLI rows BROKEN, 'refused with the old generic message: This CLI has no native-tool policy and audit adapter...'; claude + codex rows 'started'. Tovu reads @jini-ai/daemon from dist, so rebuild the daemon after apply AND after restore. Reverting launch.ts also drops codex-isolation's cwd hunk (expected)."
    },
    "named_from_manifest": [],
    "guards_green_both_ways": [],
@@ -2319,6 +2319,437 @@
     }
    ],
    "expected_green": "After the setup's full Jini build (daemon dist has Interim B): every non-native row 'refused NATIVE_TOOL_POLICY_UNSUPPORTED' naming the CLI and each OFF switch (e.g. \"Antigravity can't run with 'Your MCP servers' off. ...\"); claude + codex 'started'. One node:test test; read its t.diagnostic table (one line per CLI, 29 today)."
+  },
+  {
+   "id": "codex-isolation",
+   "manifest": "ADS-memory/.local-artifacts/handoffs/2026-10-26-8b-lot-codex-isolation.md",
+   "repo": "jini",
+   "sources": [
+    "packages/daemon/src/agent-executor/mcp-bridge.ts",
+    "packages/agent-runtime/src/defs/codex.ts",
+    "packages/daemon/src/agent-executor/launch.ts"
+   ],
+   "docs": [],
+   "regression": [],
+   "mutation": {
+    "kind": "revert-exclusive",
+    "paths": [
+     "packages/daemon/src/agent-executor/mcp-bridge.ts",
+     "packages/agent-runtime/src/defs/codex.ts"
+    ],
+    "rebuild": "cd /root/Jini && pnpm --filter @jini-ai/agent-runtime build",
+    "expect": "codex-mcp-sources-isolation OFF/refusal cases RED; the two rewritten agent-runtime pins (features.apps=false) RED. The daemon tests import agent-runtime from dist: rebuild agent-runtime after apply AND after restore."
+   },
+   "named_from_manifest": [],
+   "guards_green_both_ways": [],
+   "notes": "launch.ts is shared with gemini-chat: this lot owns only the one-line `cwd: input.cwd` hunk at ~L1532. Rebuild agent-runtime before the daemon tests. Not live-probed against a real Codex.",
+   "source_status": {
+    "packages/daemon/src/agent-executor/mcp-bridge.ts": "M",
+    "packages/agent-runtime/src/defs/codex.ts": "M",
+    "packages/daemon/src/agent-executor/launch.ts": "M"
+   },
+   "exclusive_sources": [
+    "packages/daemon/src/agent-executor/mcp-bridge.ts",
+    "packages/agent-runtime/src/defs/codex.ts"
+   ],
+   "shared_sources": [
+    "packages/daemon/src/agent-executor/launch.ts"
+   ],
+   "shared_with": {
+    "packages/daemon/src/agent-executor/launch.ts": [
+     "gemini-chat"
+    ]
+   },
+   "test_files": [
+    {
+     "path": "packages/daemon/src/agent-executor/__tests__/codex-mcp-sources-isolation.test.ts",
+     "runner": "jini-vitest:packages/daemon",
+     "status": "??",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "Codex with personal MCP OFF loads only the Tovu bridge",
+      "turns off every config-file server and keeps the bridge as the only enabled one",
+      "keeps personal settings while personal MCP is off",
+      "turns off plugin-bundled servers and ChatGPT apps on the CLI layer, on create and resume",
+      "turns off plugins and apps when native tools are locked",
+      "scans only the project layers Codex loads: cwd up to the nearest .git/HEAD",
+      "scans every ancestor when the user config sets its own project_root_markers",
+      "ignores plugin-scoped server settings in a project layer (plugins are off on the CLI layer)",
+      "Codex with personal MCP ON keeps personal servers",
+      "keeps home servers and adds no disabled placeholders",
+      "leaves plugins and apps on",
+      "does not refuse a project forcing a server on"
+     ]
+    },
+    {
+     "path": "packages/agent-runtime/src/defs/__tests__/native-capability-isolation.test.ts",
+     "runner": "jini-vitest:packages/agent-runtime",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    },
+    {
+     "path": "packages/agent-runtime/src/defs/__tests__/codex.test.ts",
+     "runner": "jini-vitest:packages/agent-runtime",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    }
+   ]
+  },
+  {
+   "id": "fed-security.jini",
+   "manifest": "ADS-memory/.local-artifacts/handoffs/2026-10-26-8b-lot-fed-security.md (incl. Presets)",
+   "repo": "jini",
+   "sources": [
+    "packages/mcp/src/federation/trust.ts",
+    "packages/mcp/src/federation/registrations.ts",
+    "packages/mcp/src/federation/ports.ts",
+    "packages/mcp/src/federation/approvals/revocation-reason.ts"
+   ],
+   "docs": [],
+   "regression": [],
+   "mutation": {
+    "kind": "revert-exclusive",
+    "paths": [
+     "packages/mcp/src/federation/trust.ts",
+     "packages/mcp/src/federation/registrations.ts",
+     "packages/mcp/src/federation/ports.ts",
+     "packages/mcp/src/federation/approvals/revocation-reason.ts"
+    ],
+    "expect": "fed-security.unit 1.x/2.x/3.x cases and fed-presets 'a preset's write tool with no write grant is refused per call and never sent' RED; rewritten trust/revocation pins RED. Guards/happy paths may stay green: list them."
+   },
+   "named_from_manifest": [
+    "a preset's write tool with no write grant is refused per call and never sent",
+    "a preset's explicit default write grant lets the write run, and the admission report shows it",
+    "a preset's read tool needs no write grant"
+   ],
+   "guards_green_both_ways": [],
+   "notes": "ports.ts and approvals/revocation-reason.ts are doc/type-only hunks. Same package as agy-install-path (different files).",
+   "source_status": {
+    "packages/mcp/src/federation/trust.ts": "M",
+    "packages/mcp/src/federation/registrations.ts": "M",
+    "packages/mcp/src/federation/ports.ts": "M",
+    "packages/mcp/src/federation/approvals/revocation-reason.ts": "M"
+   },
+   "exclusive_sources": [
+    "packages/mcp/src/federation/trust.ts",
+    "packages/mcp/src/federation/registrations.ts",
+    "packages/mcp/src/federation/ports.ts",
+    "packages/mcp/src/federation/approvals/revocation-reason.ts"
+   ],
+   "shared_sources": [],
+   "shared_with": {},
+   "test_files": [
+    {
+     "path": "packages/mcp/src/federation/__tests__/fed-security.unit.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "??",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "fed-security 1: ${label} without a write grant is refused under current grants",
+      "fed-security 1: ${label} with a write grant is not refused",
+      "fed-security 1: ${label} is unaffected by an empty write list",
+      "fed-security 1: the write grant never admits a tool the allowlist dropped",
+      "fed-security 1: the registration-time classification (with the operator's read list) is honoured; absent, it is re-derived",
+      "fed-security 1: an operator read list cannot override a remote's own write or destructive declaration",
+      "fed-security 1: the handler hands the gate its write classification, made with the operator's read list",
+      "fed-security 1: through the revocation gate, a write tool without 'may write' is refused and never sent",
+      "fed-security 1: through the revocation gate, the same write tool runs once 'may write' is granted",
+      "fed-security 1: through the revocation gate, a read tool runs with no write grant",
+      "fed-security 2: Jini ${required} + host ${host} = ${expected}",
+      "fed-security 2: a Jini-required card still shows when the host policy says no confirmation",
+      "fed-security 2: host policy adds a card to a call Jini would run directly",
+      "fed-security 2: host policy receives the frozen call arguments and the admitted hints",
+      "fed-security 3: a connection revoked while the card is parked refuses the approved call and sends nothing",
+      "fed-security 3: a write grant withdrawn while the card is parked refuses the approved call",
+      "fed-security 3: a permission lost while the card is parked refuses the approved call",
+      "fed-security 3: a run cancelled while the card is parked is abandoned, not sent",
+      "fed-security 3: an approved call that still clears every check is sent once, after the re-check",
+      "fed-security 3: a call with no card is checked once — the re-check belongs to the approval wait"
+     ]
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/fed-presets.unit.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "??",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "fed-presets: a preset's write tool with no write grant is refused per call and never sent",
+      "fed-presets: a preset's explicit default write grant lets the write run, and the admission report shows it",
+      "fed-presets: a preset's read tool needs no write grant"
+     ]
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/mcp-federation.trust.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "refusalForAdmittedToolUnderCurrentGrants: a write tool off the write list is refused — 'may write' is a grant",
+      "refusalForAdmittedToolUnderCurrentGrants: a tool with no declared hints and an opaque name removed from the write list is refused — unclassifiable fails closed"
+     ]
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/trust.pins.unit.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "an allowlisted destructive tool without a write grant is refused",
+      "an allowlisted destructive tool with a write grant is not refused"
+     ]
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/revocation.pins.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "a write-declaring tool on the allowlist and the write list is not refused",
+      "a write-declaring tool on the allowlist but absent from the write list is refused as write-not-allowed"
+     ]
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/revocation.p5.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/mcp-federation.registrations.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    },
+    {
+     "path": "packages/mcp/src/__tests__/integration-contracts.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/confirmation-policy.unit.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    },
+    {
+     "path": "packages/mcp/src/federation/__tests__/registrations.read-only.test.ts",
+     "runner": "jini-vitest:packages/mcp",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    }
+   ]
+  },
+  {
+   "id": "fed-security.tovu",
+   "manifest": "ADS-memory/.local-artifacts/handoffs/2026-10-26-8b-lot-fed-security.md (incl. Presets)",
+   "repo": "tovu",
+   "sources": [
+    "apps/website/src/assistant/mcp-federation/registrations.ts",
+    "apps/website/src/assistant/external-mcp-revocation.ts"
+   ],
+   "docs": [],
+   "regression": [],
+   "mutation": {
+    "kind": "revert-exclusive",
+    "paths": [
+     "apps/website/src/assistant/mcp-federation/registrations.ts",
+     "apps/website/src/assistant/external-mcp-revocation.ts"
+    ],
+    "expect": "Tovu host-policy changes RED (registrations.host-policy 2 new tests, federated-approval-policy rewritten cases). Tests whose behaviour comes from Jini's write-grant check may stay green here: fed-security.cross covers them."
+   },
+   "named_from_manifest": [],
+   "guards_green_both_ways": [],
+   "notes": "Tovu reads @jini-ai/mcp/federation from dist: needs packages/mcp rebuilt (the setup's full Jini build covers it).",
+   "source_status": {
+    "apps/website/src/assistant/mcp-federation/registrations.ts": "M",
+    "apps/website/src/assistant/external-mcp-revocation.ts": "M"
+   },
+   "exclusive_sources": [
+    "apps/website/src/assistant/mcp-federation/registrations.ts",
+    "apps/website/src/assistant/external-mcp-revocation.ts"
+   ],
+   "shared_sources": [],
+   "shared_with": {},
+   "test_files": [
+    {
+     "path": "apps/website/src/assistant/mcp-federation/__tests__/registrations.host-policy.unit.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "a Jini-gated action Tovu classifies as a reversible Trash still asks the host — policy cannot remove Jini's card",
+      "a Jini-gated assistant-access change Tovu classifies as an ordinary restore still asks the host",
+      "a Jini-gated action Tovu classifies as a reversible Trash is refused, unsent, with no host confirmer"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/mcp-federation/__tests__/registrations.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/federated-approval-policy.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "trash and restore keep Jini\\'s card when a remote marks every write destructive; Jini-named trash runs directly",
+      "Jini-named reversible federation runs without a confirmation channel but still checks permissions and liveness"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/external-mcp-connection-revocation.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "T1-7: removing write_thing from the write list refuses it ('may write' is enforced); read_thing still completes"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/external-mcp-revocation.unit.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": [
+      "rosterRefusalFor passes an allowlisted read tool, refuses a write tool with no write grant, and refuses one no longer allowlisted"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/external-mcp-oauth.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [],
+     "names_added_or_changed": []
+    }
+   ]
+  },
+  {
+   "id": "fed-security.cross",
+   "manifest": "ADS-memory/.local-artifacts/handoffs/2026-10-26-8b-lot-fed-security.md (incl. Presets)",
+   "repo": "tovu",
+   "sources": [],
+   "docs": [],
+   "regression": [],
+   "mutation": {
+    "kind": "cross-repo",
+    "repo": "jini",
+    "paths": [
+     "packages/mcp/src/federation/trust.ts",
+     "packages/mcp/src/federation/registrations.ts"
+    ],
+    "rebuild": "cd /root/Jini && pnpm --filter @jini-ai/mcp build",
+    "expect": "Tovu write-grant cases RED (external-mcp-connection-revocation T1-7, external-mcp-revocation.unit query/no-grant, host-policy liveness requiresWriteGrant). Rebuild packages/mcp after apply AND after restore."
+   },
+   "named_from_manifest": [],
+   "guards_green_both_ways": [],
+   "notes": "Cross-repo mutation for the Tovu fed-security files: Jini trust.ts + registrations.ts back to BASE, mcp rebuilt. Same test files as fed-security.tovu (GREEN runs once).",
+   "source_status": {},
+   "exclusive_sources": [],
+   "shared_sources": [],
+   "shared_with": {},
+   "test_files": [
+    {
+     "path": "apps/website/src/assistant/mcp-federation/__tests__/registrations.host-policy.unit.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [
+      "fed-security.tovu"
+     ],
+     "names_added_or_changed": [
+      "a Jini-gated action Tovu classifies as a reversible Trash still asks the host — policy cannot remove Jini's card",
+      "a Jini-gated assistant-access change Tovu classifies as an ordinary restore still asks the host",
+      "a Jini-gated action Tovu classifies as a reversible Trash is refused, unsent, with no host confirmer"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/mcp-federation/__tests__/registrations.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [
+      "fed-security.tovu"
+     ],
+     "names_added_or_changed": []
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/federated-approval-policy.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [
+      "fed-security.tovu"
+     ],
+     "names_added_or_changed": [
+      "trash and restore keep Jini\\'s card when a remote marks every write destructive; Jini-named trash runs directly",
+      "Jini-named reversible federation runs without a confirmation channel but still checks permissions and liveness"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/external-mcp-connection-revocation.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [
+      "fed-security.tovu"
+     ],
+     "names_added_or_changed": [
+      "T1-7: removing write_thing from the write list refuses it ('may write' is enforced); read_thing still completes"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/external-mcp-revocation.unit.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [
+      "fed-security.tovu"
+     ],
+     "names_added_or_changed": [
+      "rosterRefusalFor passes an allowlisted read tool, refuses a write tool with no write grant, and refuses one no longer allowlisted"
+     ]
+    },
+    {
+     "path": "apps/website/src/assistant/__tests__/external-mcp-oauth.test.ts",
+     "runner": "website",
+     "status": "M",
+     "helper": false,
+     "shared_with": [
+      "fed-security.tovu"
+     ],
+     "names_added_or_changed": []
+    }
+   ]
   },
   {
    "id": "ui-two",
@@ -2395,11 +2826,11 @@
    "docs": [],
    "regression": [],
    "mutation": {
-    "kind": "revert-exclusive",
+    "kind": "shared",
     "paths": [
      "packages/daemon/src/agent-executor/launch.ts"
     ],
-    "expect": "every named test and every new test in this lot's files goes RED (guards stay green); restore → GREEN again"
+    "expect": "the 3 message tests RED. launch.ts also carries codex-isolation's one-line cwd hunk, so codex-mcp-sources-isolation may go RED too under this mutation (expected)."
    },
    "named_from_manifest": [],
    "guards_green_both_ways": [],
@@ -2407,11 +2838,15 @@
    "source_status": {
     "packages/daemon/src/agent-executor/launch.ts": "M"
    },
-   "exclusive_sources": [
+   "exclusive_sources": [],
+   "shared_sources": [
     "packages/daemon/src/agent-executor/launch.ts"
    ],
-   "shared_sources": [],
-   "shared_with": {},
+   "shared_with": {
+    "packages/daemon/src/agent-executor/launch.ts": [
+     "codex-isolation"
+    ]
+   },
    "test_files": [
     {
      "path": "packages/daemon/src/agent-executor/__tests__/runtime-policy.test.ts",
@@ -2616,7 +3051,9 @@
     "apps/website/src/server/runtime/composition",
     "apps/website/src/server/runtime/composition/__tests__",
     "apps/website/src/server/runtime/lifecycle",
-    "apps/website/src/server/runtime/lifecycle/__tests__"
+    "apps/website/src/server/runtime/lifecycle/__tests__",
+    "apps/website/src/assistant/__tests__",
+    "apps/website/src/assistant/mcp-federation/__tests__"
    ],
    "jini": [
     "packages/agent-runtime/src/defs",
@@ -4440,6 +4877,101 @@
      "packages/daemon/src/agent-executor/launch"
     ],
     "tier": 1
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-federation-runtime.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [
+     "(fed-security source)"
+    ],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.bootstrap.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.bundled-toolchain-spawn.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.call-confirmation.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [
+     "(fed-security source)"
+    ],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.extra-approval-checks.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [
+     "(fed-security source)"
+    ],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.remembered-approvals.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [
+     "(fed-security source)"
+    ],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/read-only-gateway.federated.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [
+     "(fed-security source)"
+    ],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/mcp-federation/__tests__/confirmation-policy.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [
+     "(fed-security source)"
+    ],
+    "label": "expected-by-fed-security"
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/mcp-federation/__tests__/registrations.read-only.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 1,
+    "imports_changed": [
+     "(fed-security source)"
+    ],
+    "label": "expected-by-fed-security"
    },
    {
     "repo": "tovu",
@@ -12264,8 +12796,1624 @@
     "lot_file": false,
     "imports_changed": [],
     "tier": 2
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/_tmp-full-sweep.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/a2ui-actions-route.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/admin-parity-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/admin-screen-link-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/agent-daemon-port.barrel.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/agent-plugin-executable-tools.characterization.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/agents-owned-runtime.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/agents.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/approval-single-path.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/ask-choice-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/ask-choice-typed-input.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/ask-choice-ui-resource.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/assistant-tool-executor-audit-sink.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/assistant-vault.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/automatic-agent-plugin-choice.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/automatic-agent-plugins.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/batch-tool-inputs.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/byok-credential.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/byok-google-catalog.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/byok-image-tool-results.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/byok-meta-tool-result.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/byok-provider-turn.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/byok-tool-surface.site-capabilities.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/byok-tool-surface.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/cli-permissions-settings.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/cli-probe-cache.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/component-catalog-query.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/component-catalog-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/confirmation-copy.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/content-read-get-by-id.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/content-read-post-filters.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/content-read-retired-id-rewrite.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/content-read-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/content-read-tool.tw3.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/content-target-inputs.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/credential-chat-intake.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/credential-guidance.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/credential-setup-search.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/credential-store.memory.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/cross-site-read-catalog.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/custom-credential-tools-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/custom-instructions.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/daemon-access.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/daemon-auth.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/daemon-respawn-policy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/declared-tool-keywords-lazy.contract.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/declared-tool-keywords.contract.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/delegated-tool-error-disclosure.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/demo-a2ui-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/demo-choices-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/demo-image-png.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/demo-image-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/domain-dns-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/domain-no-direct-tool-registration.boundary.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/execution-credential-store.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/execution-mode-settings.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/execution-permissions-defaults.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/extension-approval-classification.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-aad-writer-sync.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-aad.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-connection-source.operator-read-only.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-connection-source.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-dcr.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-payload-version.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-reauth-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-roster-change.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-setup-search.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-store.memory.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-store.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/external-mcp-vault.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/federated-refusal-diagnosis.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/frontend-control-capabilities.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/honesty-lines-search.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/installed-extension-tools.order.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/live-model-cache.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/lost-frontend-binding.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-bridge-launch.smoke.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.adapter-memory.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.http-adapter.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.refusal-notice.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.reload.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.stdio-adapter.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-federation.stdio-launch-resolver.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-injection.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-allowlist-completeness.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-sandbox-proxy-route.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-secret-form-cards.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.agent-plugins-uninstall.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.ask-choice-typed-answer.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.ask-choice.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.content-search.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.delete-confirmation-family.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.external-mcp-save.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.media-trash-asset.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.permanent-delete.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.secret-forms.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.static-publish.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls-route.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui-tool-calls.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/mcp-ui.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/media-generation-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/media-import-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/media-replace-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/media-view-image-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/merged-readers-batch.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/newsletter-delivery-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/owner-permanent-delete-policy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/page-fetch-search.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/pages-read-html-batch.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/parse-run-start-context-ref.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/permanent-delete-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/permanent-delete-tool-gate.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/public-assistant-settings.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/publish-pull-search.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/read-only-tool-constraint.composition.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/read-only-tool-constraint.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/render-ui-tool.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/rewrap-page-navigate-error.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/run-active-context.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/run-ownership.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/run-page-context.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/run-scoped-credential.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/run-start-cold-context.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/runtime-preferences.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/server-logs-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/settings-write-search.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/site-capabilities-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/site-credential-store.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/site-insights-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/sites-create-switch-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/subagent-settings.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/theme-duplicate-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/theme-list-files-malformed-input-status.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-approval-catalog.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-approval-policy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-approval-policy.tw3.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-catalog-audit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-catalog-live-query.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-catalog-query.entries.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-catalog-query.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-contribution-registry.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-executor-audit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-executor-stack.failure-redaction.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-failure-recovery.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-failure-redaction.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-gaps-tool.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-guidance.live.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-input-chat-regressions.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-metadata-projections.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.assembly-pins.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.authorization.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.comments.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.contracts.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.custom-credentials-egress-refusal.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.database-recovery.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.entries.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.external-mcp.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.forms.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.identity-authorization.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.identity-contracts.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.media-import-egress-refusal.integration.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.media.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.members.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.menus.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.newsletter.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.plugins-set-enabled-busy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.plugins-set-enabled-families.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.plugins-uninstall.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.plugins.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.post.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.redirects.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.seo.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.settings.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.taxonomy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.theme-duplicate.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.theme-import-file.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.theme-set-active.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.themes-edit-rename.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.themes-reset-copy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.themes-trash-restore.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.themes.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.trash-item.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.webhooks.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.widgets-authorization.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.widgets-contracts.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-registrations.workspace.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.backfill-ranking.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.content-post-copy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.fs-files-ranking.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.operator-requests.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.post-schedule-featured.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.publish-pending-ranking.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/tool-search-keywords.theme-copy.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/ui-locales-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/web-fetch-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/__tests__/web-screenshot-search-discoverability.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/mcp-federation/__tests__/approval-adapters.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
+   },
+   {
+    "repo": "tovu",
+    "path": "apps/website/src/assistant/mcp-federation/__tests__/presets.unit.test.ts",
+    "runner": "website",
+    "lot_file": false,
+    "tier": 2,
+    "imports_changed": []
    }
   ],
   "note": "Lot files are excluded here (they run in step b). tier 1 = imports a changed module directly (relative or #src/ specifier); tier 2 = everything else in the touched directories. apps/admin is excluded (only CSS changed there; ui-two is a Mac/Chrome check)."
+ },
+ "expected_by_fed_security": {
+  "files": [
+   "apps/website/src/assistant/__tests__/mcp-federation.remembered-approvals.test.ts",
+   "apps/website/src/assistant/__tests__/external-mcp-federation-runtime.test.ts",
+   "apps/website/src/assistant/__tests__/mcp-federation.call-confirmation.test.ts",
+   "apps/website/src/assistant/__tests__/read-only-gateway.federated.test.ts",
+   "apps/website/src/assistant/__tests__/external-mcp-connection-revocation.test.ts",
+   "apps/website/src/assistant/__tests__/mcp-federation.extra-approval-checks.test.ts",
+   "apps/website/src/assistant/__tests__/mcp-federation.bootstrap.test.ts",
+   "apps/website/src/assistant/__tests__/mcp-federation.bundled-toolchain-spawn.test.ts",
+   "apps/website/src/assistant/mcp-federation/__tests__/confirmation-policy.unit.test.ts",
+   "apps/website/src/assistant/mcp-federation/__tests__/registrations.test.ts",
+   "apps/website/src/assistant/mcp-federation/__tests__/registrations.read-only.test.ts"
+  ],
+  "why": "fed-security (Presets) now refuses write-classified tools whose config has an empty writeAllowedToolNames (throws *_WRITE_NOT_ALLOWED). These files were NOT checked one by one. A failure here is labelled expected-by-fed-security, not NEW: report the test name, the first error lines, and whether the error is *_WRITE_NOT_ALLOWED. registrations.test.ts and external-mcp-connection-revocation.test.ts are ALSO lot files that the lot rewrote, so in step b they are expected GREEN; a failure there is UNEXPECTED."
  }
 }

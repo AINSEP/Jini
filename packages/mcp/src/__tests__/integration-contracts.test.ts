@@ -80,7 +80,8 @@ test('federation preserves core optional surface ports and checks gates before t
   } });
   await registrations[0]!.handler({ executionId: 'execution', principal: { id: 'human' }, run: { id: 'run' },
     input: {}, signal: new AbortController().signal }, { emitSurface });
-  expect(order).toEqual(['live:example', 'permission', 'confirm:update', 'remote:update']);
+  // The approval can wait for minutes, so liveness and permission are re-checked after it (lot fed-security).
+  expect(order).toEqual(['live:example', 'permission', 'confirm:update', 'live:example', 'permission', 'remote:update']);
 });
 
 test('scripted channels use named listener arguments and do not send after close', async () => {
