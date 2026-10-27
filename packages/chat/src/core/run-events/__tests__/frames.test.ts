@@ -27,6 +27,12 @@ describe('translateRunAgentPayload — remaining payload types', () => {
     expect(translateRunAgentPayload({ payload: { type: 'tool_result', toolUseId: 't', content: 'ok' } }))
       .toEqual({ kind: 'tool_result', toolUseId: 't', content: 'ok', isError: false });
   });
+  it('keeps an unknown outcome on a tool_result and drops any other outcome value', () => {
+    expect(translateRunAgentPayload({ payload: { type: 'tool_result', toolUseId: 't', content: 'x', isError: true, outcome: 'unknown' } }))
+      .toEqual({ kind: 'tool_result', toolUseId: 't', content: 'x', isError: true, outcome: 'unknown' });
+    expect(translateRunAgentPayload({ payload: { type: 'tool_result', toolUseId: 't', content: 'x', outcome: 'done' } as never }))
+      .toEqual({ kind: 'tool_result', toolUseId: 't', content: 'x', isError: false });
+  });
   it('omits detail from a status with an empty detail', () => {
     expect(translateRunAgentPayload({ payload: { type: 'status', label: 'L', detail: '' } })).toEqual({ kind: 'status', label: 'L' });
   });
