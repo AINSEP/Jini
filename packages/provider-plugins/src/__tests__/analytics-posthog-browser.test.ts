@@ -129,13 +129,15 @@ it('anonymous first load clears both the configured and legacy persistence befor
 it('same-origin adapter serves the pinned SDK and relays only collector paths with no browser headers', async () => {
   const requests: { url: string; init?: RequestInit }[] = [];
   const contribution = postHogBrowserContribution({ apiKey: 'phc_fixture', host: 'https://collector.example', sessionReplay: false,
-    surface: 'site', attributes: { site_id: 'site-1', project_id: 'private-project', site_slug: 'private-slug', environment: 'private-env' } }, {
+    surface: 'site', attributes: { site_id: 'site-1', project_id: 'private-project', site_slug: 'private-slug', release: 'web@abc123', environment: 'staging' } }, {
     loadAsset: async () => 'export default fixture;', request: async (url, init) => {
       requests.push({ url: String(url), init }); return new Response('1');
     },
   });
   expect(contribution.origins).toEqual([]);
-  for (const privateValue of ['private-project', 'private-slug', 'private-env', 'cdn.jsdelivr.net', 'collector.example']) expect(contribution.source).not.toContain(privateValue);
+  for (const privateValue of ['private-project', 'private-slug', 'cdn.jsdelivr.net', 'collector.example']) expect(contribution.source).not.toContain(privateValue);
+  expect(contribution.source).toContain('web@abc123');
+  expect(contribution.source).toContain('staging');
   expect(await contribution.http!.handle({ method: 'GET', path: `/sdk-${POSTHOG_BROWSER_VERSION}.js`, body: new Uint8Array(), contentType: '' }))
     .toEqual({ status: 200, body: 'export default fixture;', contentType: 'text/javascript; charset=utf-8', cacheControl: 'public, max-age=31536000, immutable' });
   const body = new TextEncoder().encode('fixture-event');

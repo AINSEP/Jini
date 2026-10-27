@@ -2,6 +2,10 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { NodeClient, createTransport, getCurrentScope } from "@sentry/node";
+import { InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { combineObservabilityPorts } from '@jini-ai/diagnostics/observability';
+import { createTracker } from '@jini-ai/diagnostics/observability/node';
+import { createOtelObservabilityAdapter } from '../observability-opentelemetry/opentelemetry.js';
 
 import { createSentryObservabilityAdapter, type SentryConfigEnabled } from "../observability-sentry/sentry.js";
 
@@ -19,6 +23,46 @@ function recordingTransport() {
   return { items, transport };
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 50));
+
+test('a composed tracker correlates Sentry errors to the actual active OTel span only', async () => {
+  const { items, transport } = recordingTransport();
+  const sentry = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  const exporter = new InMemorySpanExporter();
+  const otel = createOtelObservabilityAdapter({ config: {
+    enabled: true, serviceName: 'fixture', tracerName: 'fixture', endpoint: 'https://collector.invalid/v1/traces',
+  } }, { spanProcessors: [new SimpleSpanProcessor(exporter)] });
+  try {
+    const tracker = createTracker({ observability: combineObservabilityPorts({ ports: [sentry.port, otel.port] }) });
+    await tracker.trace({ name: 'site.publish', run: async () => {
+      await Promise.resolve();
+      tracker.error({ error: new Error('inside') }, { context: { operation: 'site.publish' } });
+    } });
+    const span = exporter.getFinishedSpans().find(value => value.name === 'site.publish')!;
+    const ids = span.spanContext();
+    tracker.error({ error: new Error('outside') }, { context: { operation: 'site.publish' } });
+    await sentry.dispose();
+    const events = items.filter(item => item.type === 'event');
+    assert.equal(events.length, 2);
+    assert.deepEqual(events[0]!.payload.contexts.otel, { trace_id: ids.traceId, span_id: ids.spanId });
+    assert.equal(events[1]!.payload.contexts.otel, undefined);
+  } finally { await Promise.all([sentry.dispose(), otel.dispose()]); }
+});
+
+test('an OTel correlation context is explicit and independent of the Sentry trace', async () => {
+  const { items, transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  const operation = port.trackOperation({ name: 'site.publish' });
+  const ids = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) };
+  operation.run(() => port.reportError({ error: new Error('publish failed'), context: { operation: 'site.publish', trace: ids } }));
+  operation.end({ outcome: 'failed', failed: true });
+  port.reportError({ error: new Error('outside'), context: { operation: 'site.publish' } });
+  await dispose();
+  const events = items.filter(item => item.type === 'event');
+  assert.equal(events.length, 2);
+  assert.deepEqual(events[0]!.payload.contexts.otel, { trace_id: ids.traceId, span_id: ids.spanId });
+  assert.notEqual(events[0]!.payload.contexts.trace.trace_id, ids.traceId);
+  assert.equal(events[1]!.payload.contexts.otel, undefined);
+});
 
 test('memory diagnostic severity is a warning in the destination envelope', async () => {
   const { items, transport } = recordingTransport();
@@ -170,7 +214,7 @@ test("site attribution: every exception and transaction carries the host's attri
   const { createSentryProvider } = await import("../observability-sentry/index.js");
   const attribution = { attributes: { "tovu.site.id": "uuid-of-site-b", "tovu.site.slug": "site-b", "deployment.environment": "desktop", "tovu.project.id": "project-x" } };
   const { items, transport } = recordingTransport();
-  const resource = createSentryProvider({ dsn: CONFIG.dsn, environment: "", tracesSampleRate: 1, attribution }, { transport });
+  const resource = createSentryProvider({ dsn: CONFIG.dsn, release: 'tovu@1.2.3+abcdef0', environment: "", tracesSampleRate: 1, attribution }, { transport });
   const tracker = resource.port.trackOperation({ name: "site.publish" });
   tracker.run(() => resource.port.reportError({ error: new Error("inside"), context: { operation: "site.publish" } }));
   tracker.end({ outcome: "completed", failed: false });
@@ -181,6 +225,7 @@ test("site attribution: every exception and transaction carries the host's attri
   for (const item of sent) {
     assert.deepEqual({ ...item.payload.tags, operation: undefined }, { ...attribution.attributes, operation: undefined }, `${item.type} carries the site tags`);
     assert.equal(item.payload.environment, "desktop");
+    assert.equal(item.payload.release, 'tovu@1.2.3+abcdef0');
   }
   // An explicit card environment wins over the host's deployment environment.
   const second = recordingTransport();

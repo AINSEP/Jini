@@ -8,6 +8,7 @@ const NOOP_PORTS = new WeakSet<ObservabilityPort>();
 export function createNoopObservabilityPort(_required: Record<string, never>): ObservabilityPort {
  const port: ObservabilityPort = {
   supportsMetric: false,
+  activeTraceIds: () => undefined,
   trackRequest: () => NOOP_TRACKER,
   trackDbQuery: () => NOOP_SIGNAL_TRACKER,
   trackOutboundCall: () => NOOP_SIGNAL_TRACKER,

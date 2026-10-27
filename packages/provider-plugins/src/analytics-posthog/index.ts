@@ -4,6 +4,7 @@ import { createPostHogProductAnalyticsAdapter, type PostHogAdapterOptions } from
 import { attributionOf } from '../attribution.js';
 import { postHogBrowserContribution } from './browser.js';
 import { postHogConsentContribution, validatePostHogBrowserConfig } from './consent.js';
+import { postHogBrowserAttributes } from './consent-adapter.js';
 
 const nonEmpty = (value: unknown, name: string): string => {
   if (typeof value !== 'string' || !value.trim()) throw new TypeError(`${name} must be a non-empty string`);
@@ -19,12 +20,13 @@ export function createPostHogProvider(required: Readonly<Record<string, unknown>
   validatePostHogBrowserConfig(config);
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config }, optional as PostHogAdapterOptions);
   const sessionReplay = required.sessionReplay === 'true';
-  const siteId = config.attribution?.attributes.site_id;
+  const attributes = postHogBrowserAttributes({ attributes: config.attribution.attributes });
   return { port: { ...port, browserAnalytics: ({ surface }: { surface: 'site' | 'admin' }, _options = {}) => postHogBrowserContribution({
-    apiKey: config.apiKey, host: config.host, sessionReplay, surface, attributes: siteId ? { site_id: siteId } : {},
+    apiKey: config.apiKey, host: config.host, sessionReplay, surface, attributes,
   }),
   /** Cookie-consent adapter for public pages; the host picks the same-origin mount path. */
-  consentAdapter: ({ path }: { path: string }, _options = {}) => postHogConsentContribution({ apiKey: config.apiKey, host: config.host, sessionReplay, siteId, path }),
+  consentAdapter: ({ path }: { path: string }, _options = {}) => postHogConsentContribution({ apiKey: config.apiKey, host: config.host, sessionReplay,
+    siteId: attributes.site_id, release: attributes.release, environment: attributes.environment, path }),
   }, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
 

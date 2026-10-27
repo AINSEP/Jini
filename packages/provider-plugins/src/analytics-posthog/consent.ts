@@ -15,6 +15,18 @@ export const SDK_FILE = 'posthog-browser.js';
 export const ADAPTER_FILE = 'consent-adapter.mjs';
 type AssetHandler = NonNullable<BrowserAnalyticsContribution['http']>['handle'];
 type ConsentAssetHandler = (required: Parameters<AssetHandler>[0] & { analyticsLevel?: ConsentState['analyticsLevel'] }) => ReturnType<AssetHandler>;
+type ConsentContributionInput = {
+  apiKey: string; host: string; sessionReplay: boolean; path: string;
+  siteId?: string | undefined; release?: string | undefined; environment?: string | undefined;
+};
+
+/** Serializes public deployment labels and same-origin SDK settings, omitting absent labels.
+ * Pure projection; never copies arbitrary host fields. @complexity O(1) time and space. */
+function consentBrowserConfig(required: ConsentContributionInput, _optional = {}): PostHogConsentConfig {
+  return { apiKey: required.apiKey, host: required.path, sdk: `${required.path}/sdk-${POSTHOG_BROWSER_VERSION}.js`, integrity: POSTHOG_SDK_INTEGRITY,
+    sessionReplay: required.sessionReplay, ...(required.siteId ? { siteId: required.siteId } : {}),
+    ...(required.release ? { release: required.release } : {}), ...(required.environment ? { environment: required.environment } : {}) };
+}
 
 /** Reject private tokens and credential-bearing endpoints before any browser config exists.
  * Errors are fixed copy: submitted values must never enter diagnostics. O(input bytes).
@@ -43,14 +55,13 @@ export async function forwardCollectorEvent(required: { host: string; path: stri
  * @throws TypeError on a private key, a credential-bearing host or a path that isn't a plain absolute path.
  * @complexity O(1) per request plus one asset read or one forwarded POST. */
 export function postHogConsentContribution(
-  required: { apiKey: string; host: string; sessionReplay: boolean; siteId?: string | undefined; path: string },
+  required: ConsentContributionInput,
   { request = fetch, loadAsset = name => readFile(new URL(`./${name}`, import.meta.url), 'utf8') }: { request?: typeof fetch; loadAsset?: (name: string) => Promise<string> } = {},
 ): { adapter: LazyAdapter & { config: PostHogConsentConfig }; http: { path: string; handle: ConsentAssetHandler } } {
   validatePostHogBrowserConfig(required);
   if (!/^(?:\/[a-z0-9_-]+)+$/i.test(required.path)) throw new TypeError('Mount the consent assets at a plain absolute path such as /_consent/posthog.');
   const sdk = `/sdk-${POSTHOG_BROWSER_VERSION}.js`;
-  const config: PostHogConsentConfig = { apiKey: required.apiKey, host: required.path, sdk: required.path + sdk, integrity: POSTHOG_SDK_INTEGRITY,
-    sessionReplay: required.sessionReplay, ...(required.siteId ? { siteId: required.siteId } : {}) };
+  const config = consentBrowserConfig(required);
   const script = async (name: string, cacheControl: string) => ({ status: 200, body: await loadAsset(name), contentType: 'text/javascript; charset=utf-8', cacheControl });
   const handle: ConsentAssetHandler = async ({ method, path, body, contentType, analyticsLevel }) => {
     if (method === 'GET' && path === sdk) return script(SDK_FILE, 'public, max-age=31536000, immutable');

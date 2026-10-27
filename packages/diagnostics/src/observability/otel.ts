@@ -118,6 +118,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
 
  return {
   supportsMetric: false,
+  activeTraceIds: (_required = {}, _optional = {}) => scope?.active()?.ids?.(),
   // This structural tracing adapter has no metrics exporter; the provider plugin supplies it.
   metric() {},
   trackRequest(input, { requestId } = {}) {

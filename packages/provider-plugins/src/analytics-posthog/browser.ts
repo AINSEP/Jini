@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { BrowserAnalyticsContribution } from '@jini-ai/analytics/product';
 import { forwardCollectorEvent, POSTHOG_BROWSER_VERSION, SDK_FILE, validatePostHogBrowserConfig } from './consent.js';
+import { postHogBrowserAttributes } from './consent-adapter.js';
 
 // TODO(P4): this bridge retires with the old consent engine; consent.ts keeps the shared pieces.
 /** Pinned browser distribution; no SDK is fetched until the existing consent owner has a choice. */
@@ -17,7 +18,7 @@ export function postHogBrowserContribution(required: {
 }, { request = fetch, loadAsset = () => readFile(new URL(`./${SDK_FILE}`, import.meta.url), 'utf8') }: { request?: typeof fetch; loadAsset?: () => Promise<string> } = {}): BrowserAnalyticsContribution {
   // This is also a callable adapter boundary: never serialize unvalidated credentials.
   validatePostHogBrowserConfig(required);
-  const attributes = required.attributes.site_id ? { site_id: required.attributes.site_id } : {};
+  const attributes = postHogBrowserAttributes({ attributes: required.attributes });
   const base = `${BROWSER_PATH}/${required.surface}`;
   const sdk = `${base}/sdk-${POSTHOG_BROWSER_VERSION}.js`;
   const config = JSON.stringify({ ...required, host: base, attributes, sdk }).replace(/</g, '\\u003c');

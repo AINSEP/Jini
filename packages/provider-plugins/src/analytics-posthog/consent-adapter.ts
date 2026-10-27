@@ -5,9 +5,24 @@
 import { purgeStorage } from '@jini-ai/cookie-consent/client';
 import type { ConsentAdapter, ConsentState, Revoker, StoragePrefixes } from '@jini-ai/cookie-consent';
 
-/** Public browser config only: the project key is publishable, `host` is the same-origin collector path. */
+/** Public browser config only: the project key is publishable, `host` is the same-origin collector path.
+ * Release and environment are trusted deployment labels, never copied from visitor event properties. */
 export interface PostHogConsentConfig {
   apiKey: string; host: string; sdk: string; integrity: string; sessionReplay: boolean; siteId?: string;
+  release?: string; environment?: string;
+}
+type BrowserAttributes = Readonly<Record<string, string | undefined>>;
+
+/** Projects trusted host attribution to the three public browser fields; no arbitrary site metadata.
+ * Returns a fresh map without mutating the input or performing I/O. @complexity O(1) time and space.
+ * @example postHogBrowserAttributes({ attributes: { site_id: 'site-1', release: 'web@abc123' } }) */
+export function postHogBrowserAttributes({ attributes }: { attributes: BrowserAttributes }, _optional = {}): Record<string, string> {
+  const projected: Record<string, string> = {};
+  for (const key of ['site_id', 'release', 'environment']) {
+    const value = attributes[key];
+    if (value) projected[key] = value;
+  }
+  return projected;
 }
 type Properties = Record<string, unknown>;
 type CaptureEvent = { event?: string; properties?: Properties };
@@ -29,12 +44,12 @@ export interface PostHogConsentPorts {
   doc?: Document;
 }
 
-/** One aggregate pageview, shared by browser and collector. A constant subject never links visitors
+/** One aggregate pageview with public deployment labels, shared by browser and collector. A constant subject never links visitors
  * or pages. No SDK: 1.260.2 probes localStorage even with memory persistence. @complexity O(1). */
-export function anonymousPageview({ apiKey, siteId }: { apiKey: string; siteId?: string | undefined }, _optional = {}): string {
+export function anonymousPageview({ apiKey, siteId, release, environment }: { apiKey: string; siteId?: string | undefined; release?: string | undefined; environment?: string | undefined }, _optional = {}): string {
   return JSON.stringify({ api_key: apiKey, event: '$pageview', properties: {
     distinct_id: 'visitor:ephemeral', $process_person_profile: false, $geoip_disable: true,
-    surface: 'site', ...(siteId ? { site_id: siteId } : {}),
+    surface: 'site', ...postHogBrowserAttributes({ attributes: { site_id: siteId, release, environment } }),
   } });
 }
 
@@ -79,9 +94,9 @@ function maskedElements(elements: unknown[]): Properties[] {
     });
 }
 
-/** Rebuilds an event from an allow-list (moved from the retired browser bridge's full mode).
+/** Rebuilds an event from an allow-list with trusted host deployment labels (moved from the retired browser bridge's full mode).
  * @complexity O(properties + elements). Mutates and returns the SDK's event, as before_send expects. */
-export function sanitizeEvent({ event, location, siteId }: { event: CaptureEvent; location: PostHogConsentPorts['location']; siteId?: string | undefined }, _optional = {}): CaptureEvent {
+export function sanitizeEvent({ event, location, siteId, release, environment }: { event: CaptureEvent; location: PostHogConsentPorts['location']; siteId?: string | undefined; release?: string | undefined; environment?: string | undefined }, _optional = {}): CaptureEvent {
   const props = event.properties ?? {};
   const safe: Properties = {};
   for (const name of KEPT) if (props[name] !== undefined) safe[name] = props[name];
@@ -92,7 +107,7 @@ export function sanitizeEvent({ event, location, siteId }: { event: CaptureEvent
   if (typeof props.$elements_chain === 'string') safe.$elements_chain = maskedChain(props.$elements_chain);
   if (Array.isArray(props.$elements)) safe.$elements = maskedElements(props.$elements);
   if (event.event === '$identify') safe.$set = {};
-  Object.assign(safe, siteId ? { site_id: siteId } : {}, { surface: 'site' });
+  Object.assign(safe, postHogBrowserAttributes({ attributes: { site_id: siteId, release, environment } }), { surface: 'site' });
   event.properties = safe;
   return event;
 }
@@ -109,7 +124,7 @@ function settings(config: PostHogConsentConfig, ports: PostHogConsentPorts, sign
     capture_performance: false, capture_heatmaps: false, capture_dead_clicks: false, disable_external_dependency_loading: true,
     enable_recording_console_log: false, capture_exceptions: false, ip: false,
     // Events queued between a withdrawal and revoke() are dropped (the signal aborts first).
-    before_send: (event: CaptureEvent) => (signal.aborted ? null : sanitizeEvent({ event, location: ports.location, siteId: config.siteId })),
+    before_send: (event: CaptureEvent) => (signal.aborted ? null : sanitizeEvent({ event, location: ports.location, siteId: config.siteId, release: config.release, environment: config.environment })),
     loaded: (instance: PostHogClient) => {
       // identify(current anonymous ID) is a no-op in 1.260.2; a stable opaque prefix makes the first
       // identification and then reuses the persisted returning ID.

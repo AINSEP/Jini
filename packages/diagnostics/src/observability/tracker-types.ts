@@ -23,6 +23,8 @@ export interface AgentSpanOptions { agent: AgentRunTrackingInput & AgentRunTrack
 /** Provider failures never escape. Application callback errors retain their original identity.
  * Required fields precede optional settings; no provider-specific types cross this boundary. */
 export interface Tracker {
+  /** Current tracing IDs, absent without an active span; optional for older host facades. */
+  activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): import('./ports.js').TraceIds | undefined;
   /** Awaitable local admission; does not wait for remote delivery. */
   capture(input: Pick<ProductEvent, "name" | "userId">, options?: Pick<ProductEvent, "properties">): void | Promise<void>;
   error(input: { error: Error }, options?: { context?: TrackerErrorContext }): void;
