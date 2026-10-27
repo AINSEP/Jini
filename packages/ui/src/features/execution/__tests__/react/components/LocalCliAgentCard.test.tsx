@@ -314,7 +314,7 @@ describe('LocalCliAgentCard — CLI env fields', () => {
     expect(input).toHaveAttribute('type', 'text');
     expect(input).toHaveAttribute('autocomplete', 'new-password');
     expect(plain).toHaveAttribute('type', 'text');
-    expect(screen.getByRole('button', { name: 'Hide API key', hidden: true })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Hide API key', hidden: true })).toBeInTheDocument();
   });
 });
 

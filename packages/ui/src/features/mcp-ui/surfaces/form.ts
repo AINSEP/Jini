@@ -278,6 +278,7 @@ ${hasAlternatives ? `    if (hasAlternative(field)) return false;
     }
   }
   form.addEventListener("change", refreshRequirements);
+  form.addEventListener("input", refreshRequirements);
   refreshRequirements();
 
   // Collect field values and validation feedback before the submit path performs any effects.

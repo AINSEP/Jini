@@ -182,9 +182,9 @@ test('video posters are fetched from raw URLs and rewritten for the base path', 
   assert.equal(report.droppedReferences.some(ref => ref.url === '/assets/poster.bin'), false);
 });
 
-test('quoted URL attributes scan and rewrite without requiring a tag wrapper', () => {
-  const body = `href="/assets/link" src='/assets/source' srcset="/assets/one 1x, /assets/two 2x" poster="/assets/poster"`;
-  assert.equal(rewriteRouteBodyForBasePath({ path: '/', body, basePath: '/site' }), `href="/site/assets/link" src='/site/assets/source' srcset="/site/assets/one 1x, /site/assets/two 2x" poster="/site/assets/poster"`);
+test('quoted URL attributes scan and rewrite on a real tag', () => {
+  const body = `<a href="/assets/link" src='/assets/source' srcset="/assets/one 1x, /assets/two 2x" poster="/assets/poster"></a>`;
+  assert.equal(rewriteRouteBodyForBasePath({ path: '/', body, basePath: '/site' }), `<a href="/site/assets/link" src='/site/assets/source' srcset="/site/assets/one 1x, /site/assets/two 2x" poster="/site/assets/poster"></a>`);
   assert.deepEqual(extractAssetUrls({ html: body, prefixes: ['/assets/'] }), ['/assets/link', '/assets/source', '/assets/one', '/assets/two', '/assets/poster']);
 });
 
@@ -249,7 +249,7 @@ test('a .json content route is written as that file, and its link fields get the
   const body = JSON.stringify({ items: [{ title: '/not-a-link', href: '/posts/a', cover: { url: '/m/a.jpg' } }, { href: 'https://x.test/b' }], nextCursor: 24 });
   assert.deepEqual(JSON.parse(rewriteRouteBodyForBasePath({ path: '/blog/_more/1/12.json', body, basePath: '/repo' })), { items: [{ title: '/not-a-link', href: '/repo/posts/a', cover: { url: '/repo/m/a.jpg' } }, { href: 'https://x.test/b' }], nextCursor: 24 });
   assert.equal(rewriteRouteBodyForBasePath({ path: '/x.json', body: 'not json', basePath: '/repo' }), 'not json');
-  assert.deepEqual(extractAssetUrls({ html: body, prefixes: ['/m/'] }), ['/m/a.jpg'], 'a JSON batch\'s covers are crawled like <img src>');
+  assert.deepEqual(extractAssetUrls({ html: body, prefixes: ['/m/'] }, { format: 'json' }), ['/m/a.jpg'], 'a JSON batch\'s covers are crawled like <img src>');
 });
 
 test('crashed error pages and nonredirect responses fail without writing their artifacts', async () => {

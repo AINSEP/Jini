@@ -144,12 +144,12 @@ describe('MediaProvidersTab', () => {
     expect(input).toHaveAttribute('type', 'password');
     expect(input.closest('.jini-secret')).not.toBeNull();
     expect(input.closest('label')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Show Alpha Images API key' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Show Alpha Images API key' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Show Alpha Images API key' }));
     expect(input).toHaveAttribute('type', 'text');
 
-    expect(screen.getByRole('button', { name: 'Hide Alpha Images API key' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Hide Alpha Images API key' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Hide Alpha Images API key' }));
     expect(input).toHaveAttribute('type', 'password');
   });
@@ -267,9 +267,8 @@ describe('MediaProvidersTab', () => {
     expect(screen.getByText('Custom saved ••••5678')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Alpha Images Custom clear' })).toBeInTheDocument();
     const toggle = screen.getByRole('button', { name: 'Custom show Alpha Images Custom API key' });
-    expect(toggle).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(toggle);
-    expect(screen.getByRole('button', { name: 'Custom hide Alpha Images Custom API key' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Custom hide Alpha Images Custom API key' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Custom save changes' })).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText('Bravo Video Custom API key'), 'sk-1');

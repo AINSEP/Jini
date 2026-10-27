@@ -53,15 +53,22 @@ describe('renderFormDocument', () => {
       ] }));
       const token = surface.doc.querySelector<HTMLInputElement>('input[name="token"]')!;
       const headers = surface.doc.querySelector<HTMLInputElement>('input[name="headers"]')!;
+      const mark = token.labels![0]!.querySelector<HTMLElement>('.mcpui-required')!;
       expect(token.required).toBe(!saved);
+      expect(token.getAttribute('aria-required')).toBe(String(!saved));
+      expect(mark.hidden).toBe(saved);
       expect(headers.value).toBe('');
       if (!saved) {
         headers.value = 'Authorization=Custom fixture';
         headers.dispatchEvent(new Event('input', { bubbles: true }));
         expect(token.required).toBe(false);
+        expect(token.getAttribute('aria-required')).toBe('false');
+        expect(mark.hidden).toBe(true);
         headers.value = ' ';
         headers.dispatchEvent(new Event('input', { bubbles: true }));
         expect(token.required).toBe(true);
+        expect(token.getAttribute('aria-required')).toBe('true');
+        expect(mark.hidden).toBe(false);
         surface.submit();
         expect(surface.api.callTool).not.toHaveBeenCalled();
         headers.value = 'Authorization=Custom fixture';
@@ -659,30 +666,31 @@ it('an alternative submit action collects checked fields and carries its own act
 });
 
 // Exact hashes include the intended detail-layout fix (c4c19234) and shared requiredUnless script
-// (4b31ffd20), plus live requiredWhen marks and saved-value presence; all other emitted bytes stay pinned.
+// (4b31ffd20), plus live requiredWhen marks, saved-value presence and input-driven requirement refresh;
+// all other emitted bytes stay pinned.
 describe('renderFormDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, FormSurfaceSpec, string]> = [
-    ['shared spec with an untargeted cancel', SPEC, '03f4b34754188d67c07bc5822ca1bb2aafb3e7935f81b6ed2849441adf2204b7'],
-    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, 'a22fd51dd21ceda68668dabbde2f5dfe9f843d20a68d257873e19ff39da91bd6'],
+    ['shared spec with an untargeted cancel', SPEC, '5bc78af32fb2c56c9a329220fb597c684e2a48756bf9bd145d8360ffc245a701'],
+    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, '471aed655ff6352fa068e265342bd5565381764bc0ea82829ff390d91a3665a5'],
     ['every option, with a tool-routed cancel', {
       ...SPEC, warning: 'Careful <now>', danger: true,
       fields: [...SPEC.fields, { kind: 'string', name: 'key', label: 'Key', secret: true, multiline: true }],
       additionalSubmitActions: [{ id: 'later', label: 'Later', params: { when: 'later' } }],
       cancel: { label: 'Stop', toolName: 'cancel_tool', params: { reason: 'x' } },
       text: { working: 'W', showSecret: 'Reveal' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
-    }, '13f9dcf59c246cadae1fda8bdc3ebfcfa5312319fa6b2f2919c3bc6b72396f15'],
-    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '44327913223c03dc8a678b7eed0cb465f29fe16e9f57cade8c7177c5df11632f'],
+    }, '0513e25bd3ff5203a64a927b2cd624b27a8fd3347424e7054c7f72abd7054b27'],
+    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, 'aa581b262ebbf2ea6b6057ddcbeb3400d5641244506545bd44cfc9e371f708ea'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderFormDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('168ce1b1d295180bc4e3878221b0c86b8ede01d1fde37da42f737e3860d71789');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('98d145766692c00a15574ccb2f3e0c372824b793af4780111e4aff4f8eb14185');
   });
 
   it('pins the unframed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('a3aadf57552b2772f21557012c186681345f147400b6625f5a469fd10b59ec67');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('a57b2a03e9ac5098bf56df8da2c2442109e8b29b296967ae71ea7058e97d2271');
   });
 });

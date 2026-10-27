@@ -92,7 +92,7 @@ test("dispose never throws when the SDK shutdown fails", async () => {
   await expect(resource.dispose({})).resolves.toBeUndefined();
 });
 
-test("owner events without properties retain SDK profile behavior and identities without traits remain bare; dispose flushes the default batch", async () => {
+test("owner captures without properties are profile-less and identities without traits remain bare; dispose flushes the default batch", async () => {
   const { batches, fetch } = recordingFetch();
   const { port, dispose } = createPostHogProductAnalyticsAdapter({ config: { enabled: true, apiKey: "phc_test_dummy", host: "https://posthog.invalid" } }, { fetch: fetch as never });
   port.capture({ name: "theme_changed", userId: "u2" });
@@ -101,7 +101,7 @@ test("owner events without properties retain SDK profile behavior and identities
   await dispose();
   const events = batches.flatMap((b) => b.body.batch);
   expect(events.map((e) => [e.event, e.distinct_id])).toEqual([["theme_changed", "u2"], ["$identify", "u2"]]);
-  expect(events[0]?.properties).not.toHaveProperty('$process_person_profile');
+  expect(events[0]?.properties.$process_person_profile).toBe(false);
   expect(events[1]?.properties).not.toHaveProperty('$process_person_profile');
 });
 
@@ -203,21 +203,21 @@ test.each([200, 401, 429])('PostHog factory reports real HTTP %i with no private
 });
 
 
-test('server visitor counters cannot create person profiles, even through caller or attribution overrides', async () => {
+test.each(['visitor:ephemeral', 'fixture-install', 'system', 'owner:1'])('server counters for %s cannot create person profiles, even through caller or attribution overrides', async userId => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid',
     attribution: { attributes: { $process_person_profile: 'true' }, groups: {} } }, { fetch, flushAt: 1 });
-  resource.port.capture({ name: 'form_submitted', userId: 'visitor:ephemeral', properties: { eventId: 'committed-event', $process_person_profile: true } });
+  resource.port.capture({ name: 'form_submitted', userId, properties: { eventId: 'committed-event', $process_person_profile: true, $insert_id: 'spoofed' } });
   await resource.dispose({});
   const events = batches.flatMap(batch => batch.body.batch);
   expect(events).toHaveLength(1);
   const event = events[0]!;
   expect({ name: event.event, subject: event.distinct_id, profiles: event.properties.$process_person_profile,
     insertId: event.properties.$insert_id, geoipDisabled: event.properties.$geoip_disable })
-    .toEqual({ name: 'form_submitted', subject: 'visitor:ephemeral', profiles: false, insertId: 'committed-event', geoipDisabled: true });
+    .toEqual({ name: 'form_submitted', subject: userId, profiles: false, insertId: 'committed-event', geoipDisabled: true });
 });
 
-test('visitor suppression is authoritative, owner capture keeps its profile policy, and AI generations never create profiles', async () => {
+test('all server captures and AI generations suppress person profiles regardless of subject or caller overrides', async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: 'phc_fixture', host: 'https://posthog.invalid' }, { fetch, flushAt: 1 });
   resource.port.capture({ name: 'visitor_event', userId: 'visitor:ephemeral', properties: { $process_person_profile: true } });
@@ -227,7 +227,7 @@ test('visitor suppression is authoritative, owner capture keeps its profile poli
   resource.port.captureAiGeneration!({ userId: 'visitor:ephemeral', properties: {} });
   await resource.dispose({});
   const events = batches.flatMap(batch => batch.body.batch);
-  expect(events.map(event => event.properties.$process_person_profile)).toEqual([false, undefined, true, false, false]);
+  expect(events.map(event => event.properties.$process_person_profile)).toEqual([false, false, false, false, false]);
 });
 
 test("the port offers a cookie-consent adapter with only public config, mounted where the host says", async () => {

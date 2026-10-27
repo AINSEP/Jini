@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { withProductAnalyticsGuards, type ProductEvent } from "@jini-ai/analytics/product";
 import { combineObservabilityPorts } from "../fanout.js";
 import { createNoopTracker } from "../tracker-noop.js";
 import { createTracker } from "../tracker.js";
 import { createNoopObservabilityPort } from "../noop.js";
 import { runWithErrorReportScope } from "../report-error.js";
+import * as errorReporting from "../report-error.js";
 import type { ErrorReport, ObservabilityPort } from "../ports.js";
 
 const WARNING = "[tracker] a telemetry provider failed; application work continues";
@@ -12,6 +13,16 @@ const event: ProductEvent = { name: "post_created", userId: "principal-1" };
 
 /** DI fakes only: exercise facade behavior through the existing provider contracts. */
 describe("one tracker facade", () => {
+  it("omits unset reporting options and forwards explicitly configured secrets and severity", () => {
+    const report = vi.spyOn(errorReporting, "reportErrorOnce");
+    try {
+      const tracker = createTracker({ observability: { ...createNoopObservabilityPort({}), reportError() {} } });
+      tracker.error({ error: new Error("default context") });
+      tracker.error({ error: new Error("configured context") }, { context: { exactSecrets: [], level: "warning" } });
+      expect(report.mock.calls.map(([, options]) => options)).toStrictEqual([{}, { exactSecrets: [], level: "warning" }]);
+    } finally { report.mockRestore(); }
+  });
+
   it("without providers, all methods are safe and trace returns the callback result exactly once", async () => {
     const tracker = createTracker({});
     let calls = 0;
