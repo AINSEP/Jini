@@ -472,7 +472,7 @@ describe('codexAgentDef.buildArgs — permission and sandbox matrix', () => {
     '-c', 'features.shell_tool=false', '-c', 'features.unified_exec=false',
     '-c', 'features.code_mode=false', '-c', 'features.apply_patch_freeform=false',
     '-c', 'features.multi_agent=false', '-c', 'features.collab=false', '-c', 'features.plugins=false',
-    '-c', 'approval_policy="never"',
+    '-c', 'features.apps=false', '-c', 'approval_policy="never"',
   ];
 
   beforeEach(() => {

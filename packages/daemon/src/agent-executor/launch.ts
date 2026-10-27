@@ -888,6 +888,24 @@ function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _opt
   return { ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}) };
 }
 
+/** Switch names a person sees for each native capability (Tovu's settings use the same words). */
+const NATIVE_CAPABILITY_LABELS: Readonly<Record<string, string>> = {
+  shell: 'Bash/shell', fileWrite: 'File edit/write', userMcp: 'Your MCP servers', subagents: 'Subagents/Task',
+  userSettings: 'Your skills and settings', web: 'Web fetch/search', workflows: 'Workflows', loginEnvironment: 'Your shell environment',
+};
+
+/** The refusal a person reads when a CLI without a native-tool policy cannot honor this run's switches:
+ * it names the CLI and the switch to turn on. Owner 2026-10-27: the old "no native-tool policy and
+ * audit adapter" told a Gemini user nothing. Pure, O(c) for c OFF switches.
+ * @example nativeToolPolicyRefusal({ cliName: 'Antigravity', offSwitches: ['userMcp'] }, {});
+ */
+function nativeToolPolicyRefusal({ cliName, offSwitches }: { cliName: string; offSwitches: readonly string[] }, _options = {}): string {
+  const switches = offSwitches.map(key => `'${NATIVE_CAPABILITY_LABELS[key] ?? key}'`);
+  const blocked = switches.length > 0 ? `with ${new Intl.ListFormat('en', { type: 'conjunction' }).format(switches)} off` : `with this chat's CLI tool limits`;
+  const action = switches.length === 0 ? `Turn on 'Full CLI access'` : `Turn ${switches.length === 1 ? 'it' : 'them'} on`;
+  return `${cliName} can't run ${blocked}. ${action} in the assistant settings, or choose Claude or Codex.`;
+}
+
 /** Correlation projects retained stdout, so exact-byte journals need a separate blob writer. */
 function validateStdoutJournalOptions(options: Pick<CreateAgentExecutorOptions, 'delegatedResultCorrelation' | 'journal' | 'stdoutJournalBlobs'>, _options = {}): void {
   if (options.delegatedResultCorrelation && options.journal && !options.stdoutJournalBlobs) {
@@ -1048,8 +1066,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Never silently ignore a host's locked native-tool policy on another CLI.
     // Parity cannot override an explicit lock or a restricted run.
     input.cliParity = input.cliParity === true && input.permissionMode === 'bypass' && input.nativeToolAccess !== false;
-    if ((input.nativeToolAccess !== undefined && !input.cliParity || Object.values(input.nativeCapabilities ?? {}).some(value => value === false)) && def.supportsNativeToolAccess !== true) {
-      return failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'This CLI has no native-tool policy and audit adapter. Choose a CLI with native-tool policy support.' });
+    if (def.supportsNativeToolAccess === true) return;
+    const offSwitches = Object.entries(input.nativeCapabilities ?? {}).filter(([, value]) => value === false).map(([key]) => key);
+    if (input.nativeToolAccess !== undefined && !input.cliParity || offSwitches.length > 0) {
+      return failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: nativeToolPolicyRefusal({ cliName: def.name, offSwitches }, {}) });
     }
   }
 
@@ -1509,7 +1529,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, cwd: input.cwd, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
