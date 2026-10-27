@@ -217,6 +217,28 @@ test("P2 binding: rebinding waits for the old destination's cleanup, then binds 
   expect(await store.grants({})).toMatchObject([{ workspace_id: "site-b" }]);
 });
 
+test("P2 transaction: a sync inside an outer transaction is refused, so that transaction's rollback cannot orphan a copy", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const a = target("one");
+  const b = { ...target("one"), workspaceId: "site-b" };
+  await store.grant({ entryId: entry.id, consumerId: a.consumerId });
+  // Joined to the outer transaction, A's binding would roll back while A's copy stayed; B could then
+  // bind, be revoked, and the entry be deleted with A still holding the secret and no record of it.
+  await expect(store.kernel.transaction(async () => {
+    await store.syncTo({ target: a });
+    throw new Error("outer rollback");
+  })).rejects.toMatchObject({ code: "context" });
+  expect(await store.grants({})).toMatchObject([{ workspace_id: null }]);
+  expect(await a.repo.find({ workspaceId: a.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.syncTo({ target: b })).toEqual([{ kind: "vendor", id: entry.id, status: "copied" }]);
+  await store.revoke({ entryId: entry.id, target: b });
+  expect(await store.grants({})).toEqual([]);
+  expect(await store.pendingRevocations({})).toEqual([]);
+  expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
+  expect(await a.repo.find({ workspaceId: a.workspaceId, id: entry.id })).toBeNull();
+});
+
 test("P2 legacy: an unreconciled entry stays undeletable until every named site is cleaned, and reconcile waits for revocation", async () => {
   const store = await setup().open();
   const entry = await store.put(input);
