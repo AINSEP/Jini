@@ -385,9 +385,9 @@ function nonEmptyField({ key, value }: { key: string; value: object | undefined 
   return value && Object.keys(value).length > 0 ? { [key]: value } : {};
 }
 
-/** `{ headers }` for a remote server (user headers + daemon OAuth bearer when in oauth mode), or `{}` when empty. */
-function remoteHeadersField({ server, tokens }: { server: McpServerConfig; tokens: Record<string, string> }): Record<string, unknown> {
-  const bearer = effectiveMcpAuthMode(server) === 'oauth' ? tokens[server.id] : undefined;
+/** `{ headers }` for a remote server (user headers + its own stored OAuth bearer), or `{}` when empty. */
+function remoteHeadersField({ server, tokens }: { server: McpServerConfig; tokens: Record<string, string> }, _options = {}): Record<string, unknown> {
+  const bearer = effectiveMcpAuthMode(server) === 'oauth' && Object.hasOwn(tokens, server.id) ? tokens[server.id] : undefined;
   return nonEmptyField({ key: 'headers', value: mergeAuthHeader(server.headers, bearer) });
 }
 

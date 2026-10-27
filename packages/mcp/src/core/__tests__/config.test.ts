@@ -257,6 +257,17 @@ describe('isManagedProjectCwd', () => {
 });
 
 describe('buildClaudeMcpJson', () => {
+  it('C52: does not use an inherited constructor property as an OAuth bearer token', () => {
+    const { servers } = sanitizeMcpConfig({ raw: { servers: [
+      { id: 'constructor', transport: 'http', enabled: true, url: 'https://mcp.example.com/mcp', authMode: 'oauth' },
+    ] } });
+    expect(servers).toHaveLength(1);
+
+    expect(buildClaudeMcpJson({ servers }, { tokens: {} })).toEqual({
+      mcpServers: { constructor: { type: 'http', url: 'https://mcp.example.com/mcp' } },
+    });
+  });
+
   it('returns null when no servers are enabled', () => {
     expect(buildClaudeMcpJson({ servers: [{ id: 'a', transport: 'stdio', enabled: false, command: 'node' }] })).toBeNull();
   });

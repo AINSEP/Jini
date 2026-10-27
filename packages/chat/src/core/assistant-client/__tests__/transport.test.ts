@@ -428,6 +428,29 @@ describe('startRun AG-UI path', () => {
 });
 
 describe('startRun BYOK path', () => {
+  it('C23: honors subscription teardown while conversation adoption is pending', async () => {
+    let adopt!: (id: string) => void;
+    const conversation = new Promise<string>(resolve => { adopt = resolve; });
+    const turnSignal = new AbortController();
+    const h = harness({ fetch: async (_url, init) => {
+      if (init?.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      return new Response('event: end\ndata: {}\n\n');
+    } });
+    const r = recorder();
+    const transport = h.transport({ ensureConversationId: () => conversation,
+      getExecutionConfig: () => byokConfig({ apiKey: '' }) });
+    const started = transport.startRun(input([user('q')], { signal: turnSignal.signal }), r.handlers);
+    // startRun is now suspended in adoption, before startByokRun installs its listener.
+    turnSignal.abort();
+    adopt('adopted');
+    try {
+      await expect(started).rejects.toMatchObject({ name: 'AbortError' });
+    } finally {
+      // The current bug starts a finite fake stream; drain it even when the assertion fails.
+      await started.then(() => r.settled, () => undefined);
+    }
+  });
+
   it('posts the non-empty answered history with credentials and every present field', async () => {
     const h = harness();
     const history = [user('q', { secretRedaction: { secretRedacted: true, count: 1 } }), assistant('  '), assistant('dead', { runStatus: 'failed' }), assistant('ok'), user('next')];

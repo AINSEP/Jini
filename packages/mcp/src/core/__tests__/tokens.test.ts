@@ -186,6 +186,23 @@ describe('readTokensFile', () => {
 describe('token store mutations', () => {
   const tok: StoredMcpToken = { accessToken: 'AT', tokenType: 'Bearer', savedAt: 1 };
 
+  it('C31: returns null for inherited entries and preserves corrupt contents before replacing the store', async () => {
+    const dir = tmp();
+    writeRaw(dir, '{"servers":{}}');
+    expect.soft(await getToken({ dataDir: dir, serverId: 'toString' })).toBeNull();
+
+    const corrupt = '{"servers":{"old":{"accessToken":"recover-me"}';
+    writeRaw(dir, corrupt);
+    await setToken({ dataDir: dir, serverId: 'new', token: tok });
+
+    // Recovery must retain the original bytes; no particular backup name is required.
+    const backups = fs.readdirSync(dir)
+      .filter((name) => name !== 'mcp-tokens.json')
+      .map((name) => fs.readFileSync(path.join(dir, name), 'utf8'));
+    expect.soft(backups).toContain(corrupt);
+    expect(await getToken({ dataDir: dir, serverId: 'new' })).toEqual(tok);
+  });
+
   it('sets, gets, bulk-reads, and clears a token', async () => {
     const dir = tmp();
     expect(await getToken({ dataDir: dir, serverId: 's1' })).toBeNull();

@@ -124,7 +124,7 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
     };
     const state = createAgUiToAgentTranslationState({ customEventNames: ports.customEventNames }, {});
 
-    // Deliberately racing the Observable's first `next`/`error` against this Promise rather than
+    // Deliberately racing the Observable's first `next`/`error`/`complete` against this Promise rather than
     // awaiting it directly — `HttpAgent.run()` returns a cold Observable, never a Promise (module
     // doc). The subscription itself keeps running after this Promise settles, driving `handlers`
     // through to `finish()` in the background — matching `startByokRun`'s "resolves once STARTED, not
@@ -160,6 +160,11 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
           finish();
         },
         complete: () => {
+          // An empty stream has no first notification to settle the start promise.
+          if (!startSettled) {
+            startSettled = true;
+            resolve({ runId });
+          }
           finish();
         },
       });

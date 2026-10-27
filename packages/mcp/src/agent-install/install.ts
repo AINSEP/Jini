@@ -239,7 +239,7 @@ const AGENT_PLANNERS: { readonly [K in AgentSlug]: (args: PlannerArgs) => Instal
     slug: 'vibe',
     format: 'toml',
     configPath: path.join(home, '.vibe', 'config.toml'),
-    snippet: vibeTomlSnippet(spec, serverName),
+    snippet: vibeTomlSnippet({ spec, name: serverName }),
     reason:
       'Vibe uses a TOML array-of-tables ([[mcp_servers]]); ' +
       'its exact schema is unverified, so append this block by hand ' +
@@ -415,7 +415,10 @@ function hermesYamlSnippet(spec: McpLaunchSpec, name: string): string {
   return lines.join('\n');
 }
 
-function vibeTomlSnippet(spec: McpLaunchSpec, name: string): string {
+/** Render the launch command and environment as a Vibe TOML snippet without I/O.
+ * @complexity O(n) time and space in the serialized launch spec length.
+ */
+function vibeTomlSnippet({ spec, name }: { spec: McpLaunchSpec; name: string }, _options = {}): string {
   const argsToml = `[${spec.args.map((a) => JSON.stringify(a)).join(', ')}]`;
   const lines = [
     '[[mcp_servers]]',
@@ -424,5 +427,9 @@ function vibeTomlSnippet(spec: McpLaunchSpec, name: string): string {
     `command = ${JSON.stringify(spec.command)}`,
     `args = ${argsToml}`,
   ];
+  if (Object.keys(spec.env).length > 0) {
+    const envToml = Object.entries(spec.env).map(([key, value]) => `${JSON.stringify(key)} = ${JSON.stringify(value)}`).join(', ');
+    lines.push(`env = { ${envToml} }`);
+  }
   return lines.join('\n');
 }

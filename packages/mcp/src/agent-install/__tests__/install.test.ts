@@ -154,6 +154,18 @@ describe('planAgentInstall — JSON agents', () => {
 });
 
 describe('planAgentInstall — manual (print-only) agents', () => {
+  it('C51: Vibe TOML retains the Electron launch environment and data directory', () => {
+    const plan = planAgentInstall({
+      slug: 'vibe',
+      spec: spec({ ELECTRON_RUN_AS_NODE: '1', JINI_DATA_DIR: '/home/u/data' }),
+      ctx: ctx(),
+    });
+    if (plan.kind !== 'manual') throw new Error('expected manual');
+
+    expect(plan.snippet).toMatch(/^\s*env\s*=\s*\{[^}\n]*"?ELECTRON_RUN_AS_NODE"?\s*=\s*"1"[^}\n]*\}\s*$/m);
+    expect(plan.snippet).toMatch(/^\s*env\s*=\s*\{[^}\n]*"?JINI_DATA_DIR"?\s*=\s*"\/home\/u\/data"[^}\n]*\}\s*$/m);
+  });
+
   it('vibe emits a TOML snippet', () => {
     const plan = planAgentInstall({ slug: 'vibe', spec: spec({ X: 'y' }), ctx: ctx() });
     if (plan.kind !== 'manual') throw new Error('expected manual');

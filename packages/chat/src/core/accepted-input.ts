@@ -125,15 +125,19 @@ function matchOptimisticInput(
   return input.data.toolUseId ? optimistic.byQuestion.get(input.data.toolUseId) : follows ? next : undefined;
 }
 
+/** Apply authoritative receipt data while retaining local identity and queued constituents. */
 function mergeAcceptedReceipt(
   { input, pending }: { input: UserMessageEvent; pending: UserMessageEvent }, _options = {},
 ): UserMessageEvent {
-  const deliveryState = input.data.deliveryState ?? pending.data.deliveryState;
-  return { ...input, data: { ...input.data, id: pending.data.id,
+  // Replayed queue acceptance cannot undo confirmed consumption.
+  const deliveryState = pending.data.deliveryState === 'consumed' ? 'consumed' : input.data.deliveryState ?? pending.data.deliveryState;
+  const { optimistic: _optimistic, afterInputId: _afterInputId, ...pendingData } = pending.data;
+  const aliases = [...new Set([...(input.data.aliases ?? []), input.data.id, ...(pending.data.aliases ?? [])])].filter(id => id !== pending.data.id);
+  return { ...input, data: { ...pendingData, ...input.data, id: pending.data.id,
     // Legacy acceptance receipts omit state; HTTP acceptance still means queued until consumption.
     ...(deliveryState === undefined ? {} : { deliveryState }),
-    ...(pending.data.inputs ? { inputs: pending.data.inputs.map(item => ({ ...item, ...(input.data.deliveryState ? { deliveryState: input.data.deliveryState } : {}) })) } : {}),
-    aliases: [...new Set([...(input.data.aliases ?? []), input.data.id, ...(pending.data.aliases ?? [])])] } };
+    ...(pending.data.inputs ? { inputs: pending.data.inputs.map(item => ({ ...item, ...(deliveryState ? { deliveryState } : {}) })) } : {}),
+    ...(aliases.length > 0 ? { aliases } : {}) } };
 }
 
 function acceptedInputIds({ input }: { input: UserMessageEvent }, _options = {}): string[] {
@@ -174,12 +178,9 @@ function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] },
   for (const event of events) {
     const input = acceptedInputEvent({ event });
     const position = input ? positions.get(input.data.id) : undefined;
-    if (input && position !== undefined && input.data.deliveryState) {
+    if (input && position !== undefined && !input.data.optimistic) {
       const original = acceptedInputEvent({ event: result[position]! })!;
-      // Replayed queue acceptance cannot undo confirmed consumption.
-      const deliveryState = original.data.deliveryState === 'consumed' ? 'consumed' : input.data.deliveryState;
-      result[position] = { ...original, data: { ...original.data, deliveryState,
-        ...(original.data.inputs ? { inputs: original.data.inputs.map(input => ({ ...input, deliveryState })) } : {}) } };
+      result[position] = mergeAcceptedReceipt({ input, pending: original });
       continue;
     }
     if (input) for (const id of acceptedInputIds({ input })) positions.set(id, result.length);

@@ -1,4 +1,5 @@
 import type { FederationMessages } from "./messages.js";
+import { parseSseRecord } from "@jini-ai/core/primitives";
 import type { TextReadOptions } from "@jini-ai/platform/fetch-with-timeout";
 import type { McpToolCallRequiredArgs, McpToolCallOptions } from "./ports.js";
 import {
@@ -329,7 +330,7 @@ class McpHttpSession implements McpSessionPort {
     const response = await this.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }), signal);
     assertOkStatus(method, response, this.messages);
 
-    const frame = extractJsonRpcFrame(method, response);
+    const frame = extractJsonRpcFrame({ method, response, id });
     if (frame.error) {
       throw new McpProtocolError(
         { message: `mcp-federation: remote returned JSON-RPC error ${frame.error.code ?? "?"}: ${frame.error.message ?? "(no message)"}` },
@@ -367,52 +368,52 @@ function assertOkStatus(method: string, response: McpHttpResponse, messages: Fed
 }
 
 /**
- * Pulls the JSON-RPC frame out of whichever response mode the server chose.
+ * Pulls the request's JSON-RPC response out of whichever mode the server chose.
  *
  * @throws {McpProtocolError} On an oversized body, a body carrying no frame, or one that does not
  * parse.
  * @complexity O(n) in the body length.
  */
-function extractJsonRpcFrame(method: string, response: McpHttpResponse): JsonRpcResponse {
+function extractJsonRpcFrame({ method, response, id }: { method: string; response: McpHttpResponse; id: number }, _options = {}): JsonRpcResponse {
   if (Buffer.byteLength(response.text, "utf8") > MAX_RESPONSE_BYTES) {
     throw new McpProtocolError({ message: `mcp-federation: the server's response to '${method}' exceeded ${MAX_RESPONSE_BYTES} bytes` });
   }
 
-  const payload = response.contentType.startsWith("text/event-stream") ? firstSseData(response.text) : response.text.trim();
-  if (payload === null || payload === "") {
-    throw new McpProtocolError({ message: `mcp-federation: the server's response to '${method}' carried no JSON-RPC message` });
-  }
-
+  let frame: JsonRpcResponse | null;
   try {
-    return JSON.parse(payload) as JsonRpcResponse;
+    frame = response.contentType.startsWith("text/event-stream")
+      ? matchingSseResponse({ body: response.text, id })
+      : response.text.trim() === "" ? null : JSON.parse(response.text) as JsonRpcResponse;
   } catch {
     throw new McpProtocolError({ message: `mcp-federation: the server's response to '${method}' was not valid JSON` });
   }
+  if (frame === null) {
+    throw new McpProtocolError({ message: `mcp-federation: the server's response to '${method}' carried no JSON-RPC message` });
+  }
+  return frame;
 }
 
 /**
- * The first SSE `data:` payload in a stream, or `null`.
+ * The SSE response matching the request id, or `null` when none is present.
  *
- * Only the first is taken, and deliberately: a server may interleave progress notifications before
- * the response, but this client issues one request at a time and wants the frame answering it.
+ * A server may interleave progress notifications before the response, but this client issues one
+ * request at a time and wants the frame answering it.
  * Multi-line `data:` fields are joined with newlines per the SSE spec, since a server is entitled
- * to split a long JSON body across them.
+ * to split a long JSON body across them; the shared record parser owns that framing.
  *
- * @complexity O(n) in the body length.
+ * @throws {SyntaxError} On malformed JSON in a data event; the caller maps it to McpProtocolError.
+ * @complexity O(n) time and space in the bounded body length.
  */
-function firstSseData(body: string): string | null {
-  const collected: string[] = [];
-
-  for (const rawLine of body.split(/\r\n|\r|\n/)) {
-    if (rawLine.startsWith("data:")) {
-      collected.push(rawLine.slice("data:".length).replace(/^ /, ""));
-      continue;
+function matchingSseResponse({ body, id }: { body: string; id: number }, _options = {}): JsonRpcResponse | null {
+  for (const rawFrame of body.replace(/\r\n|\r/g, "\n").split("\n\n")) {
+    const { data } = parseSseRecord({ rawFrame });
+    if (data === "") continue;
+    const frame = JSON.parse(data) as JsonRpcResponse | null;
+    if (frame?.id === id && (Object.hasOwn(frame, "result") || Object.hasOwn(frame, "error"))) {
+      return frame;
     }
-    // A blank line ends an event. Anything collected so far is that event's complete payload.
-    if (rawLine.trim() === "" && collected.length > 0) return collected.join("\n");
   }
-
-  return collected.length > 0 ? collected.join("\n") : null;
+  return null;
 }
 
 /**

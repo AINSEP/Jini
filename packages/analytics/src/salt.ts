@@ -21,11 +21,12 @@ export interface AnalyticsHashPort {
  * The fixed non-secret extraction salt pins reproducible bytes; the root secret and workspace/date
  * info provide scope uniqueness. Hosts supply both salt and info prefix to preserve existing bytes.
  * @returns A 32-byte buffer, deterministic for the same root key, scope/date and contexts.
- * @throws RangeError for empty workspace, date or context, avoiding collapsed scope separation.
+ * @throws RangeError for empty root key, workspace, date or context, avoiding predictable salts or collapsed scope separation.
  * @complexity O(1) HKDF-SHA256 extract/expand over bounded inputs.
  */
-export function deriveDailySalt(required: DailySaltRequired): Buffer {
+export function deriveDailySalt(required: DailySaltRequired, _optional: Record<string, never> = {}): Buffer {
   const { rootKeySeed, workspaceId, utcDate, saltContext } = required;
+  if (!rootKeySeed) throw new RangeError("deriveDailySalt: rootKeySeed must not be empty");
   if (!workspaceId) throw new RangeError("deriveDailySalt: workspaceId must not be empty");
   if (!utcDate) throw new RangeError("deriveDailySalt: utcDate must not be empty");
   if (!saltContext.infoPrefix || !saltContext.extractionSalt.length) throw new RangeError("deriveDailySalt: salt context must not be empty");

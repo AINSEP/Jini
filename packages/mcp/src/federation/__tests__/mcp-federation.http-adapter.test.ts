@@ -181,6 +181,23 @@ test("an SSE-framed response carries the same frame and is read identically", as
   );
 });
 
+test("C30: an SSE notification before the matching response does not hide the tools result", async () => {
+  const exchange = new ScriptedMcpHttpExchange({
+    respond: ({ request }) => {
+      if (request.message?.method !== "tools/list") return politeServer()(request);
+      const notification = JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
+      const response = JSON.stringify({ jsonrpc: "2.0", id: request.message.id, result: { tools: ONE_TOOL } });
+      return { contentType: "text/event-stream", body: `data: ${notification}\n\ndata: ${response}\n\n` };
+    },
+  });
+  const session = await connect(exchange);
+  onTestFinished(() => session.close({}));
+
+  await assert.doesNotReject(async () => {
+    assert.deepEqual((await session.listTools()).map((tool) => tool.name), ["generate_image"]);
+  });
+});
+
 test("an SSE payload split across several data: lines is rejoined before parsing", async () => {
   const exchange = new ScriptedMcpHttpExchange({
     respond: ({ request }) => {
