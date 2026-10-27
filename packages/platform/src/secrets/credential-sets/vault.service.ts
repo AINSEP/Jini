@@ -119,7 +119,7 @@ export class SecretsVaultService {
       ...("id" in context ? { id: context.id } : {}),
       ...("provider" in context && context.provider !== undefined ? { provider: context.provider } : {}) } });
   }
-  private parse(record: VaultRecord): VaultRecord {
+  private parse<T extends VaultPutRecord>(record: T): T {
     assertContext(record);
     return { ...record, meta: this.deps.metaParsers[record.kind]({ meta: record.meta, provider: record.provider }) };
   }
@@ -291,14 +291,15 @@ export class SecretsVaultService {
     const last4 = summary(await this.writeCopy({ source, record, targetIdentity, existing })).last4;
     return { status: "copied", ...(last4 ? { last4 } : {}) };
   }
-  /** Overwrite keeps the target's default, revision chain and creation time. */
+  /** Overwrite keeps the target's default, revision chain and creation time. A new copy leaves
+   * placement unspecified, so the repo's first-row rule applies (never the source's default flag). */
   private async writeCopy({ source, record, targetIdentity, existing }:
     { source: SecretsVaultService; record: VaultRecord; targetIdentity: VaultIdentity; existing: VaultRecord | null }): Promise<VaultRecord> {
     if (existing && !isCompatibleOverwrite({ existing, record })) throw new VaultError({ code: "context" });
     const now = this.deps.now({});
     const placement = existing
       ? { isDefault: existing.isDefault, revision: existing.revision + 1, createdAt: existing.createdAt }
-      : { isDefault: false, revision: 1, createdAt: now };
+      : { isDefault: undefined, revision: 1, createdAt: now };
     const candidate = this.parse({ ...record, ...targetIdentity, ...placement, updatedAt: now });
     candidate.sealed = await this.seal({ context: targetIdentity, payload: await source.open(record) });
     // Reuse the source's hint policy without guessing a token field from a structured payload.
