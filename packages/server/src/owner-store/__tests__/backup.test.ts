@@ -120,6 +120,8 @@ test.each([
   ["missing time", (s: GrantSnapshot) => { delete s.grants[1].createdAt; }],
   ["empty consumer", (s: GrantSnapshot) => { s.grants[1].consumerId = ""; }],
   ["extra field", (s: GrantSnapshot) => { s.grants[1].sealed = {}; }],
+  ["missing destination", (s: GrantSnapshot) => { delete s.grants[1].workspaceId; }],
+  ["empty destination", (s: GrantSnapshot) => { s.grants[1].workspaceId = ""; }],
 ])("rejects a grant with a %s before restoring any rows", async (_name, patch) => {
   const source = await grantedSource(), store = await setup().open();
   const original = await exportOwnerStore({ store: source, passphrase: "recovery" });
@@ -132,17 +134,61 @@ test.each([
 });
 type GrantSnapshot = { grants: [Record<string, unknown>, Record<string, unknown>, ...Record<string, unknown>[]] };
 
-test("P2 hole: a version-1 snapshot, which carries no cleanup records, is refused before any write", async () => {
-  const { source } = await pendingSource();
-  const store = await setup().open();
+/** The document @jini-ai/db 0.6.12 actually exported: entries only, no hints, grants or cleanup records. */
+async function publishedV1Envelope({ source }: { source: Awaited<ReturnType<ReturnType<typeof setup>["open"]>> }) {
   const original = await exportOwnerStore({ store: source, passphrase: "recovery" });
-  const snapshot = JSON.parse(await openWithPassphrase({ envelope: original, passphrase: "recovery" }));
-  snapshot.version = 1;
-  delete snapshot.revocations;
+  const { entries } = JSON.parse(await openWithPassphrase({ envelope: original, passphrase: "recovery" }));
+  const legacy = entries.map(({ last4: _last4, tokenLength: _length, ...entry }: Record<string, unknown>) => entry);
+  return sealWithPassphrase({ payload: JSON.stringify({ format: "jini-owner-store", version: 1, entries: legacy }), passphrase: "recovery" });
+}
+
+test("P2 legacy: a published version-1 backup restores, but deletion waits until each site is reconciled", async () => {
+  const source = await setup().open();
+  const entry = await source.put(input);
+  const site = target("one");
+  await source.grant({ entryId: entry.id, consumerId: site.consumerId });
+  await source.syncTo({ target: site });
+  const store = await setup().open();
+  expect(await restoreOwnerStore({ store, envelope: await publishedV1Envelope({ source }), passphrase: "recovery" })).toEqual({ restored: 1 });
+  expect((await store.vault.get({ ...ownerContext(entry), id: entry.id }))?.payload).toEqual(input.payload);
+  expect(await store.grants({})).toEqual([]);
+  // The snapshot never said where the entry was copied, so an empty ledger proves nothing.
+  await expect(store.delete({ entryId: entry.id, expectedRevision: 1 })).rejects.toMatchObject({ name: "OwnerUnreconciledError" });
+  // The mark survives a further backup cycle.
+  const again = await setup().open();
+  await restoreOwnerStore({ store: again, envelope: await exportOwnerStore({ store, passphrase: "recovery" }), passphrase: "recovery" });
+  await expect(again.delete({ entryId: entry.id, expectedRevision: 1 })).rejects.toMatchObject({ name: "OwnerUnreconciledError" });
+  await again.reconcile({ entryId: entry.id, targets: [site] });
+  expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
+  expect(await again.delete({ entryId: entry.id, expectedRevision: 1 })).toBe(true);
+});
+
+test("P2 binding: a restored grant keeps its destination, so a revoke naming another workspace is still refused", async () => {
+  const source = await setup().open(), store = await setup().open();
+  const entry = await source.put(input);
+  const site = target("one");
+  await source.grant({ entryId: entry.id, consumerId: site.consumerId });
+  await source.syncTo({ target: site });
+  await restoreOwnerStore({ store, envelope: await exportOwnerStore({ store: source, passphrase: "recovery" }), passphrase: "recovery" });
+  expect(await store.grants({})).toEqual([{ entry_id: entry.id, consumer_id: "one", workspace_id: "site-one", created_at: expect.any(String) }]);
+  await expect(store.revoke({ entryId: entry.id, target: { ...target("one"), workspaceId: "site-b" } })).rejects.toMatchObject({ code: "context" });
+  await expect(store.delete({ entryId: entry.id, expectedRevision: 1 })).rejects.toMatchObject({ code: "conflict" });
+});
+
+test.each([
+  ["missing list", (s: { unreconciled?: unknown[] }) => { delete s.unreconciled; }],
+  ["unknown entry", (s: { unreconciled?: unknown[] }) => { s.unreconciled = ["absent"]; }],
+  ["duplicate entry", (s: { unreconciled?: unknown[] }) => { s.unreconciled!.push(s.unreconciled![0]); }],
+])("rejects an unreconciled list with a %s before restoring any rows", async (_name, patch) => {
+  const source = await setup().open(), store = await setup().open();
+  await source.put(input);
+  const restored = await setup().open();
+  await restoreOwnerStore({ store: restored, envelope: await publishedV1Envelope({ source }), passphrase: "recovery" });
+  const snapshot = JSON.parse(await openWithPassphrase({ envelope: await exportOwnerStore({ store: restored, passphrase: "recovery" }), passphrase: "recovery" }));
+  patch(snapshot);
   const envelope = await sealWithPassphrase({ payload: JSON.stringify(snapshot), passphrase: "recovery" });
   await expect(restoreOwnerStore({ store, envelope, passphrase: "recovery" })).rejects.toMatchObject({ code: "invalid-backup" });
   expect(await store.list({})).toEqual([]);
-  expect(await store.pendingRevocations({})).toEqual([]);
 });
 
 test.each([

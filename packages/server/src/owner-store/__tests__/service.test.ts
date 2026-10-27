@@ -168,6 +168,84 @@ test("P2 hole: a different workspace with the same consumer id cannot settle a p
   expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
 });
 
+test("P2 binding: a revoke naming another workspace is refused, so the synced copy stays tracked", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const a = target("one");
+  const b = { ...target("one"), workspaceId: "site-b" };
+  await store.grant({ entryId: entry.id, consumerId: a.consumerId });
+  await store.syncTo({ target: a });
+  // B never held the copy: its empty lookup must not stand in for cleaning A.
+  await expect(store.revoke({ entryId: entry.id, target: b })).rejects.toMatchObject({ code: "context" });
+  expect(await store.grants({})).toEqual([{ entry_id: entry.id, consumer_id: "one", workspace_id: "site-one", created_at: expect.any(String) }]);
+  await expect(store.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({ code: "conflict" });
+  expect((await a.vault.get({ ...ownerContext(entry), workspaceId: a.workspaceId, id: entry.id }))?.payload).toEqual(input.payload);
+  await store.revoke({ entryId: entry.id, target: a });
+  expect(await a.repo.find({ workspaceId: a.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
+});
+
+test("P2 binding: a grant copies to one workspace only, so revoking it leaves no untracked copy", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const a = target("one");
+  const b = { ...target("one"), workspaceId: "site-b" };
+  await store.grant({ entryId: entry.id, consumerId: a.consumerId });
+  expect(await store.syncTo({ target: a })).toEqual([{ kind: "vendor", id: entry.id, status: "copied" }]);
+  expect(await store.syncTo({ target: b })).toEqual([{ kind: "vendor", id: entry.id, status: "failed", reasonCode: "context" }]);
+  expect(await b.repo.find({ workspaceId: b.workspaceId, id: entry.id })).toBeNull();
+  await store.revoke({ entryId: entry.id, target: a });
+  expect(await a.repo.find({ workspaceId: a.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
+});
+
+test("P2 binding: rebinding waits for the old destination's cleanup, then binds afresh", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const a = target("one");
+  const b = { ...target("one"), workspaceId: "site-b" };
+  await store.grant({ entryId: entry.id, consumerId: a.consumerId });
+  await store.syncTo({ target: a });
+  vi.spyOn(a.vault, "delete").mockRejectedValueOnce(new Error("site unavailable"));
+  await expect(store.revoke({ entryId: entry.id, target: a })).rejects.toThrow("site unavailable");
+  // A fresh grant could bind B while the pending record still names A, and B's copy would then be untracked.
+  await expect(store.grant({ entryId: entry.id, consumerId: a.consumerId })).rejects.toMatchObject({ name: "OwnerRevocationPendingError" });
+  expect(await store.grants({})).toEqual([]);
+  await store.revoke({ entryId: entry.id, target: a });
+  await store.grant({ entryId: entry.id, consumerId: a.consumerId });
+  expect(await store.syncTo({ target: b })).toEqual([{ kind: "vendor", id: entry.id, status: "copied" }]);
+  expect(await store.grants({})).toMatchObject([{ workspace_id: "site-b" }]);
+});
+
+test("P2 legacy: an unreconciled entry stays undeletable until every named site is cleaned, and reconcile waits for revocation", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const one = target("one"), two = target("two");
+  const sites = [one, two];
+  for (const site of sites) {
+    await store.grant({ entryId: entry.id, consumerId: site.consumerId });
+    await store.syncTo({ target: site });
+  }
+  // What a store restored from a destination-less snapshot (or upgraded with unbound grants) holds.
+  await store.kernel.run(db => db.insertInto("owner_unreconciled").values({ entry_id: entry.id }).execute());
+  await expect(store.reconcile({ entryId: entry.id, targets: sites })).rejects.toMatchObject({ code: "conflict" });
+  // A snapshot without destination records restores no grants, yet the copies remain on the sites.
+  await store.kernel.run(db => db.deleteFrom("owner_grants").execute());
+  await expect(store.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({
+    code: "conflict", name: "OwnerUnreconciledError" });
+  const outage = vi.spyOn(two.vault, "list").mockRejectedValueOnce(new Error("site unavailable"));
+  await expect(store.reconcile({ entryId: entry.id, targets: sites })).rejects.toThrow("site unavailable");
+  outage.mockRestore();
+  expect(await one.repo.find({ workspaceId: one.workspaceId, id: entry.id })).toBeNull();
+  await expect(store.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({ name: "OwnerRevocationPendingError" });
+  // Settling that one site is not a full pass over the named sites, so the mark stays.
+  await store.revoke({ entryId: entry.id, target: two });
+  await expect(store.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({ name: "OwnerUnreconciledError" });
+  await store.reconcile({ entryId: entry.id, targets: sites });
+  for (const site of sites) expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
+});
+
 test("revoke deletes a copy the target can no longer decrypt", async () => {
   const store = await setup().open();
   const entry = await store.put(input);

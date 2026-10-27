@@ -4,12 +4,15 @@ import type { StorageKernel } from "@jini-ai/db/kernel";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "@jini-ai/db/secrets-vault";
 
 export const OWNER_WORKSPACE_ID = "owner";
-export interface OwnerGrant { entry_id: string; consumer_id: string; created_at: string }
+/** `workspace_id` is the one site workspace this grant copies to, bound by its first sync; null until then. */
+export interface OwnerGrant { entry_id: string; consumer_id: string; workspace_id: string | null; created_at: string }
 /** A revoked copy whose target cleanup has not yet succeeded; `attempts` counts failed cleanups.
  * `workspace_id` is the site workspace that holds the copy; only that workspace can settle it.
  */
 export interface OwnerRevocation { entry_id: string; consumer_id: string; workspace_id: string; attempts: number; updated_at: string }
-export interface OwnerStoreDatabase extends SecretsVaultDatabase { owner_grants: OwnerGrant; owner_revocations: OwnerRevocation }
+/** An entry whose copies may sit at destinations no record names (pre-binding grants, version-1 restores). */
+export interface OwnerUnreconciled { entry_id: string }
+export interface OwnerStoreDatabase extends SecretsVaultDatabase { owner_grants: OwnerGrant; owner_revocations: OwnerRevocation; owner_unreconciled: OwnerUnreconciled }
 export interface OwnerSyncTarget {
   consumerId: string;
   workspaceId: string;
@@ -28,6 +31,15 @@ export class OwnerRevocationPendingError extends VaultError {
     super({ code: "conflict" });
     this.name = "OwnerRevocationPendingError";
     this.message = `Owner store: entry ${entryId} may still be copied on consumer "${consumerId}"; revoke it for that consumer again before deleting`;
+  }
+}
+
+/** Deletion is refused until the owner names every site that may hold an untracked copy; code stays "conflict". */
+export class OwnerUnreconciledError extends VaultError {
+  constructor({ entryId }: { entryId: string }, _options: VaultOptions = {}) {
+    super({ code: "conflict" });
+    this.name = "OwnerUnreconciledError";
+    this.message = `Owner store: entry ${entryId} may still be copied on sites no record names; reconcile it with each of them before deleting`;
   }
 }
 
@@ -77,13 +89,19 @@ export class OwnerStoreService {
     return entries;
   }
 
-  /** Validate existence before granting. Idempotent under the same database writer lock. */
+  /** Validate existence before granting. Idempotent under the same database writer lock.
+   * @throws OwnerRevocationPendingError while this consumer's earlier copy awaits cleanup: the pending
+   * record names the old destination, so a fresh grant bound elsewhere would leave that copy untracked.
+   */
   async grant(input: { entryId: string; consumerId: string }, _options: VaultOptions = {}): Promise<void> {
     if (!input.consumerId) throw new VaultError({ code: "context" });
     await this.kernel.transaction(async () => {
       await this.requireEntry(input);
+      const pending = await this.kernel.run(db => db.selectFrom("owner_revocations").select("entry_id")
+        .where("entry_id", "=", input.entryId).where("consumer_id", "=", input.consumerId).executeTakeFirst());
+      if (pending) throw new OwnerRevocationPendingError(input);
       await this.kernel.run(db => db.insertInto("owner_grants").values({ entry_id: input.entryId,
-        consumer_id: input.consumerId, created_at: this.now({}) })
+        consumer_id: input.consumerId, workspace_id: null, created_at: this.now({}) })
         .onConflict(conflict => conflict.columns(["entry_id", "consumer_id"]).doNothing()).execute());
     });
   }
@@ -102,9 +120,13 @@ export class OwnerStoreService {
    * Outstanding cleanups for this consumer are retried first (until the automatic cap); their failures
    * stay recorded, not thrown, and every cleanup still outstanding is reported as a "failed" row with
    * reasonCode "conflict" (the code delete refuses with), so a stalled or exhausted cleanup is never silent.
+   * Each grant copies to one workspace only: a grant bound elsewhere is reported "failed"/"context", uncopied.
    * @complexity O(r + n + payload bytes) for this consumer's r pending revocations and n granted entries.
    */
   async syncTo({ target }: { target: OwnerSyncTarget }, _options: VaultOptions = {}): Promise<VaultCopyResult[]> {
+    // Bound and committed before any copy, so no copy can exist without the workspace that tracks it.
+    await this.kernel.run(db => db.updateTable("owner_grants").set({ workspace_id: target.workspaceId })
+      .where("consumer_id", "=", target.consumerId).where("workspace_id", "is", null).execute());
     return this.kernel.transaction(async () => {
       const pending = await this.kernel.run(db => db.selectFrom("owner_revocations").select(["entry_id", "attempts"])
         .where("consumer_id", "=", target.consumerId).orderBy("entry_id").execute());
@@ -114,10 +136,14 @@ export class OwnerStoreService {
         const settled = row.attempts < OWNER_REVOCATION_AUTO_ATTEMPTS && (await this.cleanTarget({ entry, target })).ok;
         if (!settled) results.push({ kind: entry.kind, id: entry.id, status: "failed", reasonCode: "conflict" });
       }
-      const grants = await this.kernel.run(db => db.selectFrom("owner_grants").select("entry_id")
+      const grants = await this.kernel.run(db => db.selectFrom("owner_grants").select(["entry_id", "workspace_id"])
         .where("consumer_id", "=", target.consumerId).orderBy("entry_id").execute());
       for (const grant of grants) {
         const entry = await this.requireEntry({ entryId: grant.entry_id });
+        if (grant.workspace_id !== target.workspaceId) {
+          results.push({ kind: entry.kind, id: entry.id, status: "failed", reasonCode: "context" });
+          continue;
+        }
         results.push(...await target.vault.copyToSite({ source: this.vault, sourceContext: ownerContext(entry),
           targetContext: { ...ownerContext(entry), workspaceId: target.workspaceId }, ids: [entry.id], overwrite: true }));
       }
@@ -128,11 +154,16 @@ export class OwnerStoreService {
   /** Revoke centrally even if target cleanup fails. A failed cleanup is recorded as pending, so
    * delete stays refused and later syncs to that consumer retry; retrying removes the same copied ID.
    * The source lock prevents an in-flight sync from republishing after cleanup.
-   * @throws Target vault failures after the central revocation and pending record have committed.
+   * @throws VaultError "context", with nothing changed, when the grant is bound to another workspace:
+   * that target's empty lookup would prove nothing about the copy, yet would drop the grant tracking it.
+   * Target vault failures after the central revocation and pending record have committed.
    */
   async revoke({ entryId, target }: { entryId: string; target: OwnerSyncTarget }, _options: VaultOptions = {}): Promise<void> {
     const outcome = await this.kernel.transaction(async () => {
       const entry = await this.requireEntry({ entryId });
+      const grant = await this.kernel.run(db => db.selectFrom("owner_grants").select("workspace_id")
+        .where("entry_id", "=", entryId).where("consumer_id", "=", target.consumerId).executeTakeFirst());
+      if (grant && grant.workspace_id !== null && grant.workspace_id !== target.workspaceId) throw new VaultError({ code: "context" });
       await this.kernel.run(db => db.deleteFrom("owner_grants").where("entry_id", "=", entryId)
         .where("consumer_id", "=", target.consumerId).execute());
       return this.cleanTarget({ entry, target });
@@ -141,7 +172,8 @@ export class OwnerStoreService {
   }
 
   /** Require explicit revocation, and confirmed target cleanup, before deletion so copied values cannot become untracked.
-   * @throws OwnerRevocationPendingError while a revoked copy's cleanup is outstanding; VaultError "conflict" while granted.
+   * @throws OwnerRevocationPendingError while a revoked copy's cleanup is outstanding; OwnerUnreconciledError
+   * until a mark from an unbound grant or a version-1 restore is reconciled; VaultError "conflict" while granted.
    */
   async delete(input: { entryId: string; expectedRevision: number }, _options: VaultOptions = {}): Promise<boolean> {
     return this.kernel.transaction(async () => {
@@ -151,10 +183,36 @@ export class OwnerStoreService {
       const pending = await this.kernel.run(db => db.selectFrom("owner_revocations").select("consumer_id")
         .where("entry_id", "=", input.entryId).orderBy("consumer_id").executeTakeFirst());
       if (pending) throw new OwnerRevocationPendingError({ entryId: input.entryId, consumerId: pending.consumer_id });
+      const unreconciled = await this.kernel.run(db => db.selectFrom("owner_unreconciled").select("entry_id")
+        .where("entry_id", "=", input.entryId).executeTakeFirst());
+      if (unreconciled) throw new OwnerUnreconciledError(input);
       const entry = await this.repo.find({ workspaceId: OWNER_WORKSPACE_ID, id: input.entryId });
       if (!entry) return false;
       return this.vault.delete({ ...ownerContext(entry), id: entry.id, expectedRevision: input.expectedRevision });
     });
+  }
+
+  /** Clear an unreconciled mark once the copy is gone from every site the owner names; no record lists
+   * them, so the owner must. Revoke grants first, because a granted copy is already tracked by its binding.
+   * A failed cleanup is recorded as pending (which also blocks deletion) and the mark stays until a pass succeeds.
+   * @throws VaultError "conflict" while the entry is still granted; the first target failure otherwise.
+   * @complexity O(t) target lookups and deletes for t named sites.
+   */
+  async reconcile({ entryId, targets }: { entryId: string; targets: OwnerSyncTarget[] }, _options: VaultOptions = {}): Promise<void> {
+    const failure = await this.kernel.transaction(async () => {
+      const entry = await this.requireEntry({ entryId });
+      const grant = await this.kernel.run(db => db.selectFrom("owner_grants").select("entry_id")
+        .where("entry_id", "=", entryId).executeTakeFirst());
+      if (grant) throw new VaultError({ code: "conflict" });
+      let first: Extract<CleanupOutcome, { ok: false }> | undefined;
+      for (const target of targets) {
+        const outcome = await this.cleanTarget({ entry, target });
+        if (!outcome.ok) first ??= outcome;
+      }
+      if (!first) await this.kernel.run(db => db.deleteFrom("owner_unreconciled").where("entry_id", "=", entryId).execute());
+      return first;
+    });
+    if (failure) throw failure.error;
   }
 
   /** Delete this entry's copy from one consumer and settle its pending record either way.
