@@ -39,7 +39,7 @@ for (const id of ['third-party', 'claude']) for (const basis of ['session', 'run
       if (event.kind === 'agent' && event.payload.type === 'usage') usage.push(event.payload);
     } });
     expect(usage).toEqual([basis === 'session'
-      ? { type: 'usage', cumulativeCostUsd: 2.5, costSessionId: 'fixture-session', durationMs: 100 }
-      : { type: 'usage', costUsd: 2.5, durationMs: 100 }]);
+      ? { type: 'usage', cumulativeCostUsd: 2.5, costSessionId: 'fixture-session', durationMs: 100, stopReason: 'end_turn' }
+      : { type: 'usage', costUsd: 2.5, durationMs: 100, stopReason: 'end_turn' }]);
   });
 }
