@@ -8,13 +8,16 @@ type BackupEntry = Required<Pick<OwnerPutInput, "id" | "kind" | "ownerKey" | "bi
   & BackupHint & { meta: VaultMeta; payload: VaultMeta | null };
 /** A pending target cleanup: the copy it tracks outlives any restore, so the record must too. */
 type BackupRevocation = { entryId: string; consumerId: string; workspaceId: string; attempts: number; updatedAt: string };
-type BackupSnapshot = { entries: BackupEntry[]; revocations: BackupRevocation[] };
+/** An active grant: its entry was synced to a site, so the copy is tracked by this record until revoked. */
+type BackupGrant = { entryId: string; consumerId: string; createdAt: string };
+type BackupSnapshot = { entries: BackupEntry[]; grants: BackupGrant[]; revocations: BackupRevocation[] };
 const INVALID_BACKUP = "invalid-backup";
 /** Version 1 had no cleanup records, so it cannot show whether a revoked copy is still on a site. */
 const BACKUP_VERSION = 2;
 const ENTRY_FIELDS = ["id", "kind", "ownerKey", "binding", "provider", "label", "isDefault", "meta", "payload"];
 const HINT_FIELDS = ["last4", "tokenLength"];
 const REVOCATION_FIELDS = ["entryId", "consumerId", "workspaceId", "attempts", "updatedAt"];
+const GRANT_FIELDS = ["entryId", "consumerId", "createdAt"];
 
 /** Fixed errors keep recovery diagnostics free of parsed secret values. */
 export class OwnerStoreBackupError extends Error {
@@ -27,7 +30,7 @@ export class OwnerStoreBackupError extends Error {
 }
 
 /** Take one consistent logical snapshot and encrypt it with the platform passphrase envelope.
- * No owner key, sealed source envelope, or consumer grants enter the portable document; pending
+ * No owner key or sealed source envelope enters the portable document; active grants and pending
  * target cleanups do, so a restored store still refuses to delete an entry whose copy may remain.
  * @complexity O(n + payload bytes) reads and bounded platform KDF work; snapshot lives in memory.
  * @example const envelope = await exportOwnerStore({ store, passphrase });
@@ -42,22 +45,23 @@ export async function exportOwnerStore({ store, passphrase }: { store: OwnerStor
         provider: summary.provider, label: summary.label, isDefault: summary.isDefault, meta: summary.meta, payload: entry.payload,
         last4: summary.last4, tokenLength: summary.tokenLength });
     }
+    const grants = (await store.grants({})).map(row => ({ entryId: row.entry_id, consumerId: row.consumer_id, createdAt: row.created_at }));
     const revocations = (await store.pendingRevocations({})).map(row => ({ entryId: row.entry_id, consumerId: row.consumer_id,
       workspaceId: row.workspace_id, attempts: row.attempts, updatedAt: row.updated_at }));
-    return { entries, revocations };
+    return { entries, grants, revocations };
   });
   return sealWithPassphrase({ payload: JSON.stringify({ format: "jini-owner-store", version: BACKUP_VERSION, ...snapshot }), passphrase });
 }
 
 /** Authenticate and structurally validate before writing, then reuse vault parsing/sealing in
- * one transaction. Any row failure rolls back all rows. Grants remain inactive after restore;
- * pending cleanups are restored with their entries.
+ * one transaction. Any row failure rolls back all rows. Active grants and pending cleanups are
+ * restored with their entries, so no synced copy loses the record that blocks its entry's deletion.
  * @throws OwnerStoreBackupError for malformed or version-1 snapshots or a nonempty destination; crypto/vault errors propagate.
  * @complexity O(n + payload bytes) with bounded platform KDF work.
  * @example await restoreOwnerStore({ store, envelope, passphrase });
  */
 export async function restoreOwnerStore({ store, envelope, passphrase }: { store: OwnerStoreService; envelope: string; passphrase: string }, _options: VaultOptions = {}): Promise<{ restored: number }> {
-  const { entries, revocations } = parseSnapshot({ payload: await openWithPassphrase({ envelope, passphrase }) });
+  const { entries, grants, revocations } = parseSnapshot({ payload: await openWithPassphrase({ envelope, passphrase }) });
   return store.kernel.transaction(async () => {
     const row = await store.kernel.run(db => db.selectFrom("secrets_vault").select("id").executeTakeFirst());
     const grant = await store.kernel.run(db => db.selectFrom("owner_grants").select("entry_id").executeTakeFirst());
@@ -67,6 +71,10 @@ export async function restoreOwnerStore({ store, envelope, passphrase }: { store
       const record = await store.vault.prepare({ ...entry, ...ownerContext(entry), expectedRevision: null });
       // Preserve the host-selected hint without guessing a token field in a structured payload.
       await store.repo.put({ record: { ...record, last4: entry.last4, tokenLength: entry.tokenLength }, expectedRevision: null });
+    }
+    for (const row of grants) {
+      await store.kernel.run(db => db.insertInto("owner_grants").values({ entry_id: row.entryId, consumer_id: row.consumerId,
+        created_at: row.createdAt }).execute());
     }
     for (const row of revocations) {
       await store.kernel.run(db => db.insertInto("owner_revocations").values({ entry_id: row.entryId, consumer_id: row.consumerId,
@@ -85,17 +93,33 @@ function parseSnapshot({ payload }: { payload: string }): BackupSnapshot {
   try { document = JSON.parse(payload); } catch { throw new OwnerStoreBackupError({ code: INVALID_BACKUP }); }
   if (!isObject(document)) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
   if (document.format !== "jini-owner-store" || document.version !== BACKUP_VERSION
-    || !Array.isArray(document.entries) || !Array.isArray(document.revocations)) {
+    || !Array.isArray(document.entries) || !Array.isArray(document.grants) || !Array.isArray(document.revocations)) {
     throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
   }
   const entries = document.entries.map(parseEntry);
   const ids = new Set(entries.map(entry => entry.id));
   if (ids.size !== entries.length) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
-  const revocations = document.revocations.map(value => parseRevocation({ value, ids }));
-  if (new Set(revocations.map(row => JSON.stringify([row.entryId, row.consumerId]))).size !== revocations.length) {
+  const grants = assertUniquePairs(document.grants.map(value => parseGrant({ value, ids })));
+  const revocations = assertUniquePairs(document.revocations.map(value => parseRevocation({ value, ids })));
+  return { entries, grants, revocations };
+}
+
+/** One row per (entry, consumer), matching each table's primary key; JSON pairs avoid separator collisions. */
+function assertUniquePairs<Row extends { entryId: string; consumerId: string }>(rows: Row[]): Row[] {
+  if (new Set(rows.map(row => JSON.stringify([row.entryId, row.consumerId]))).size !== rows.length) {
     throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
   }
-  return { entries, revocations };
+  return rows;
+}
+
+/** Exact fields, a restored entry and a named consumer. */
+function parseGrant({ value, ids }: { value: unknown; ids: Set<string> }): BackupGrant {
+  if (!isObject(value) || Object.keys(value).length !== GRANT_FIELDS.length || GRANT_FIELDS.some(key => !Object.hasOwn(value, key))) {
+    throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
+  }
+  const named = [value.consumerId, value.createdAt].every(item => typeof item === "string" && item.length > 0);
+  if (!named || !ids.has(value.entryId as string)) throw new OwnerStoreBackupError({ code: INVALID_BACKUP });
+  return value as BackupGrant;
 }
 
 /** Exact fields, a restored entry, a named site workspace and at least the one failure that created it. */
