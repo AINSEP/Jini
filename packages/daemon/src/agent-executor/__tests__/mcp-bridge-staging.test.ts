@@ -11,10 +11,10 @@ import { runAcpDispatch } from '../events.js';
 import {
   defaultRemoveMcpJsonFile,
   prepareClaudeConfigDirIfNeeded,
-  prepareCodexHomeIfNeeded,
   unavailableJiniBridgeStatus,
   writeMcpJsonIfNeeded,
 } from '../mcp-bridge.js';
+import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
 
 /**
  * @file Staging the per-run MCP/config files on the real filesystem defaults (no seams injected),

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getAgentDef } from '@jini-ai/agent-runtime';
-import { prepareCodexHomeIfNeeded, type McpJsonInjectionOptions } from '../index.js';
+import { prepareCodexHomeIfNeeded, type McpJsonInjectionOptions } from '../../index.js';
 import { mkdtemp, readFile, writeFile, mkdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

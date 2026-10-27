@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCodexHomeConfigToml, buildCodexMcpServerToml } from '../index.js';
+import { buildCodexHomeConfigToml, buildCodexMcpServerToml } from '../../index.js';
 
 const entry: Parameters<typeof buildCodexMcpServerToml>[0]['entry'] = {
   command: '/usr/bin/node',

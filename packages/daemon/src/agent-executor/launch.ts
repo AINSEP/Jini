@@ -98,9 +98,9 @@ import {
   defaultRemoveMcpJsonFile,
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,
-  prepareCodexHomeIfNeeded,
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
+import { prepareCodexHomeIfNeeded } from './codex/home-staging.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,

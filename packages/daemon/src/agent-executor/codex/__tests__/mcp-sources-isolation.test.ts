@@ -8,7 +8,8 @@
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { getAgentDef, type NativeCapabilities } from '@jini-ai/agent-runtime';
-import { codexOtherMcpLayerPaths, prepareCodexHomeIfNeeded } from '../mcp-bridge.js';
+import { codexOtherMcpLayerPaths } from '../isolation.js';
+import { prepareCodexHomeIfNeeded } from '../home-staging.js';
 
 const root = resolve('/fx');
 const home = join(root, 'home', '.codex');
