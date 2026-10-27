@@ -96,7 +96,8 @@ test("P2: refuses owner deletion while revoked target cleanup remains incomplete
   const reopened = await f.open();
   await expect(reopened.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({
     code: "conflict", name: "OwnerRevocationPendingError", message: expect.stringContaining('consumer "one"') });
-  expect(await reopened.pendingRevocations({})).toEqual([{ entry_id: entry.id, consumer_id: "one", attempts: 1, updated_at: expect.any(String) }]);
+  expect(await reopened.pendingRevocations({})).toEqual([{ entry_id: entry.id, consumer_id: "one", workspace_id: "site-one",
+    attempts: 1, updated_at: expect.any(String) }]);
   expect(await reopened.repo.find(entry)).not.toBeNull();
   await reopened.revoke({ entryId: entry.id, target: site });
   expect(await site.repo.find(identity)).toBeNull();
@@ -112,14 +113,18 @@ test("P2: the next sync to a revoked site retries cleanup, a bounded number of t
   await store.syncTo({ target: site });
   const outage = vi.spyOn(site.vault, "list").mockRejectedValue(new Error("site unavailable"));
   await expect(store.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
-  // Sync keeps working for granted entries while the outage persists; retries stop at the cap.
-  for (let sync = 0; sync < OWNER_REVOCATION_AUTO_ATTEMPTS + 2; sync++) expect(await store.syncTo({ target: site })).toEqual([]);
-  expect(outage).toHaveBeenCalledTimes(OWNER_REVOCATION_AUTO_ATTEMPTS);
-  expect(await store.pendingRevocations({})).toMatchObject([{ attempts: OWNER_REVOCATION_AUTO_ATTEMPTS }]);
+  // The contract is literally five failures (the revoke plus four sync retries), not whatever the constant says.
+  expect(OWNER_REVOCATION_AUTO_ATTEMPTS).toBe(5);
+  // Sync keeps working while the outage persists and reports the outstanding cleanup every time,
+  // including after retries stop at the cap, so exhaustion is never silent.
+  const outstanding = { kind: "vendor", id: entry.id, status: "failed", reasonCode: "conflict" };
+  for (let sync = 0; sync < 7; sync++) expect(await store.syncTo({ target: site })).toEqual([outstanding]);
+  expect(outage).toHaveBeenCalledTimes(5);
+  expect(await store.pendingRevocations({})).toMatchObject([{ attempts: 5 }]);
   await expect(store.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({ code: "conflict" });
   // Past the cap only an explicit revoke retries; once the site recovers, so does a later sync.
   await expect(store.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
-  expect(outage).toHaveBeenCalledTimes(OWNER_REVOCATION_AUTO_ATTEMPTS + 1);
+  expect(outage).toHaveBeenCalledTimes(6);
   outage.mockRestore();
   await store.revoke({ entryId: entry.id, target: site });
   expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
@@ -137,6 +142,29 @@ test("P2: a sync after a transient outage removes the leftover copy without an e
   expect(await store.syncTo({ target: site })).toEqual([]);
   expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
   expect(await store.pendingRevocations({})).toEqual([]);
+  expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
+});
+
+test("P2 hole: a different workspace with the same consumer id cannot settle a pending cleanup", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const site = target("one");
+  const identity = { ...ownerContext(entry), workspaceId: site.workspaceId, id: entry.id };
+  await store.grant({ entryId: entry.id, consumerId: site.consumerId });
+  await store.syncTo({ target: site });
+  vi.spyOn(site.vault, "delete").mockRejectedValueOnce(new Error("site unavailable"));
+  await expect(store.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
+  // Same consumer id, but another workspace that never held the copy: its empty lookup proves nothing.
+  const elsewhere = { ...target("one"), workspaceId: "another-workspace" };
+  await expect(store.revoke({ entryId: entry.id, target: elsewhere })).rejects.toMatchObject({ code: "context" });
+  expect(await store.syncTo({ target: elsewhere })).toEqual([{ kind: "vendor", id: entry.id, status: "failed", reasonCode: "conflict" }]);
+  expect(await store.pendingRevocations({})).toEqual([{ entry_id: entry.id, consumer_id: "one", workspace_id: "site-one",
+    attempts: 1, updated_at: expect.any(String) }]);
+  await expect(store.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({ name: "OwnerRevocationPendingError" });
+  expect((await site.vault.get(identity))?.payload).toEqual(input.payload);
+  // The recorded destination still settles it.
+  await store.revoke({ entryId: entry.id, target: site });
+  expect(await site.repo.find(identity)).toBeNull();
   expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
 });
 
