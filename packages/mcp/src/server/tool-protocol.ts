@@ -51,6 +51,7 @@ import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { argumentShapeMessage, isRecord, normalizeToolArguments, type McpToolArgumentContract } from './tool-arguments.js';
 import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
+import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
@@ -188,12 +189,24 @@ export function requireString({ value, name }: { value: unknown; name: string })
   return value;
 }
 
+/** Each tool's input schema as published and validated: embedded `$defs` refs scoped (see schema-ref-scope.ts). */
+const wireSchemas = new WeakMap<McpToolDef, McpToolDef['inputSchema']>();
+
+function wireInputSchema(tool: McpToolDef): McpToolDef['inputSchema'] {
+  let schema = wireSchemas.get(tool);
+  if (schema === undefined) {
+    schema = scopeNestedSchemaRefs({ schema: tool.inputSchema });
+    wireSchemas.set(tool, schema);
+  }
+  return schema;
+}
+
 /** Projects a tool list into the `Tool[]` shape `tools/list` returns. */
 export function toolsToList({ tools }: { tools: readonly McpToolDef[] }): Tool[] {
   return tools.map((tool) => ({
     name: tool.name,
     description: tool.description,
-    inputSchema: tool.inputSchema,
+    inputSchema: wireInputSchema(tool),
     ...(tool.annotations !== undefined ? { annotations: tool.annotations } : {}),
   }));
 }
@@ -219,7 +232,7 @@ function validatorForTool(tool: McpToolDef): Validator {
   if (cached) return cached;
   // The validator adds internal URI fields while compiling. F0's published schemas are frozen;
   // compile a detached copy so validation cannot mutate the immutable wire contract.
-  const validator = new Validator(structuredClone(tool.inputSchema) as Schema, '2020-12', true);
+  const validator = new Validator(structuredClone(wireInputSchema(tool)) as Schema, '2020-12', true);
   compiledValidators.set(tool, validator);
   return validator;
 }

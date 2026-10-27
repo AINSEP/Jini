@@ -203,6 +203,41 @@ describe('toolsToList', () => {
       annotations: { readOnlyHint: true },
     });
   });
+
+  // An embedded schema (a TipTap body under one property) keeps its own $defs; `#` is the tool root.
+  const embedded = {
+    type: 'object',
+    $defs: { rootOnly: { type: 'string' }, node: { type: 'number' } },
+    properties: {
+      tag: { $ref: '#/$defs/rootOnly' },
+      'body/doc': {
+        $defs: { node: { type: 'object', properties: { kids: { type: 'array', items: { $ref: '#/$defs/node' } } } } },
+        type: 'object',
+        properties: { root: { $ref: '#/$defs/node' }, label: { $ref: '#/$defs/rootOnly' } },
+      },
+    },
+  };
+
+  it('publishes embedded $defs refs scoped to their own $defs, leaving root-scoped refs and the source schema as they were', () => {
+    const tool = makeTool({ inputSchema: embedded as McpToolDef['inputSchema'] });
+    const before = structuredClone(embedded);
+    const listed = toolsToList({ tools: [tool] })[0]!.inputSchema as typeof embedded;
+    const body = listed.properties['body/doc'];
+    expect(body.properties.root.$ref).toBe('#/properties/body~1doc/$defs/node');
+    expect(body.$defs.node.properties.kids.items.$ref).toBe('#/properties/body~1doc/$defs/node');
+    expect(body.properties.label.$ref).toBe('#/$defs/rootOnly');
+    expect(listed.properties.tag.$ref).toBe('#/$defs/rootOnly');
+    expect(embedded).toEqual(before);
+  });
+
+  it('validates a call against the embedded $defs instead of refusing an unresolved ref', async () => {
+    const tool = makeTool({ inputSchema: embedded as McpToolDef['inputSchema'], handler: async () => 'ok' });
+    const call = (args: Record<string, unknown>) => handleToolCall({ name: 'noop', tools: buildToolIndex({ tools: [tool] }), ctx }, { rawArgs: args });
+    expect((await call({ 'body/doc': { root: { kids: [{ kids: [] }] }, label: 'x' } })).isError).toBeUndefined();
+    const bad = await call({ 'body/doc': { root: { kids: [7] } } });
+    expect(bad.isError).toBe(true);
+    expect(JSON.stringify(bad.content)).not.toContain('Unresolved');
+  });
 });
 
 describe('buildToolIndex', () => {
