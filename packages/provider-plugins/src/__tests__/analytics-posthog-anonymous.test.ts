@@ -129,3 +129,12 @@ test('full level preserves returning identity while none never grants an SDK or 
   expect(document.cookie).toBe('');
   expect(localStorage.getItem('ph_jini_site_site-1')).toBeNull();
 });
+
+test('a document that refuses cookie access (sandboxed frame) still gets the anonymous pageview', async () => {
+  vi.spyOn(browser.Document.prototype, 'cookie', 'get').mockImplementation(() => { throw new DOMException('sandboxed', 'SecurityError'); });
+  const request = vi.fn(async () => new Response('1'));
+  const adapter = createPostHogConsentAdapter({ ports: { doc: document, loadSdk: vi.fn(), request, location } });
+  const revoker = await adapter.grant({ config: postHogConsentContribution(input).adapter.config, state: anonymous, signal: new AbortController().signal });
+  expect(revoker).not.toBeNull();
+  expect(request).toHaveBeenCalledOnce();
+});
