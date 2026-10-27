@@ -100,7 +100,15 @@ export class StaticRegistryBackend implements RegistryBackend {
     // as before. A backend with no `trustRoot` configured (the unchanged
     // default) always resolves `verified: false` here without attempting
     // any cryptographic work — see `trust.ts`'s `verifyRegistryEntrySignatures`.
-    const verification = verifyRegistryEntrySignatures({ entry }, { trustRoot: this.trustRoot });
+    // Verification must cover the version and digest returned to the caller,
+    // rather than letting an older version inherit the top-level signature.
+    const verification = verifyRegistryEntrySignatures({ entry: {
+      ...entry,
+      version: resolvedVersion.version,
+      integrity: resolvedVersion.archiveIntegrity,
+      manifestDigest: resolvedVersion.manifestDigest,
+      dist: undefined,
+    } }, { trustRoot: this.trustRoot });
     return {
       backendId: this.id,
       backendKind: this.kind,

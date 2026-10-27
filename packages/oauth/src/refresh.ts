@@ -95,7 +95,8 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
         });
         return rotated.accessToken;
     };
-    const awaitLeaseHolder = async (key: string, current: OAuthTokenSet): Promise<string> => {
+    /** Poll durable storage without redeeming another holder's token; deletion requires reauthorization. */
+    const awaitLeaseHolder = async ({ key }: { readonly key: string }, _optionalArgs = {}): Promise<string> => {
         const deadline = Date.parse(readNowIso({ clock: deps.clock })) + leaseWaitMs;
         for (;;) {
             await sleep({
@@ -104,17 +105,18 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
             const reloaded = await deps.port.load({
                 key: key
             });
+            if (reloaded === null)
+                throw needsReauthError("this connection holds no token");
             const nowIso = readNowIso({ clock: deps.clock });
-            if (reloaded && !isTokenDueForRefresh({
+            if (!isTokenDueForRefresh({
                 tokens: reloaded,
                 nowIso: nowIso,
                 skewMs: skewMs
             }))
                 return reloaded.accessToken;
             if (Date.parse(nowIso) >= deadline) {
-                const fallback = reloaded ?? current;
-                if (!isHardExpired(fallback, nowIso))
-                    return fallback.accessToken;
+                if (!isHardExpired(reloaded, nowIso))
+                    return reloaded.accessToken;
                 throw new OAuthError({
                     code: "OAUTH_PROVIDER_UNREACHABLE", message: "another process is refreshing this connection's token and did not finish in time",
                     operatorAction: "Try again in a moment. If it keeps happening, reconnect this server in the connection settings."
@@ -129,7 +131,7 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
             key: key
         });
         if (!acquired)
-            return awaitLeaseHolder(key, current);
+            return awaitLeaseHolder({ key });
         try {
             return await performRefresh(key, current);
         }

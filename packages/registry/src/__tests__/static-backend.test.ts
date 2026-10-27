@@ -157,9 +157,10 @@ describe('StaticRegistryBackend', () => {
       await expect(backend.resolve({ name: 'vendor/example' })).resolves.toMatchObject({ verified: false });
     });
 
-    it('reports verified: true with verifiedIssuer/verifiedSubject, while `trust` stays exactly what the backend was configured with', async () => {
+    it('reports verified: true with verifiedIssuer and no subject for a certificate without a SAN, while preserving `trust`', async () => {
+      const signingEntry = { ...exampleEntry, integrity: 'sha256:new' };
       const signedEntry = {
-        ...exampleEntry,
+        ...signingEntry,
         signatures: [
           {
             kind: 'github-oidc' as const,
@@ -167,7 +168,7 @@ describe('StaticRegistryBackend', () => {
             subject: 'repo:vendor/example:ref:refs/heads/main',
             certificate: SELF_SIGNED_CA_CERT_PEM,
             signedAt: '2026-08-01T00:00:00Z',
-            signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload({ entry: exampleEntry }), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
+            signature: sign('sha256', Buffer.from(canonicalRegistrySigningPayload({ entry: signingEntry }), 'utf8'), SELF_SIGNED_CA_KEY_PEM).toString('base64'),
           },
         ],
       };
@@ -178,8 +179,9 @@ describe('StaticRegistryBackend', () => {
         trust: 'restricted',
         verified: true,
         verifiedIssuer: 'https://token.actions.githubusercontent.com',
-        verifiedSubject: 'repo:vendor/example:ref:refs/heads/main',
       });
+      // The signer claim cannot supply an identity the certificate lacks.
+      expect(resolved).not.toHaveProperty('verifiedSubject');
     });
   });
 

@@ -233,6 +233,15 @@ describe('createMemoryUsersApi (pin)', () => {
     expect((await deletable.listUsers({})).users.map(u => u.principalId)).toEqual(['owner']);
   });
 
+  it('C19: deletes a disabled owner while preserving the remaining active owner', async () => {
+    const disabledOwner: AdminOperator = { ...alice, status: 'disabled' };
+    const api = full({ users: [owner, disabledOwner], ownerPrincipalIds: ['owner', 'alice'] });
+
+    expect((await api.listUsers({})).users).toEqual([owner, disabledOwner]);
+    await expect(api.deleteUser({ principalId: 'alice' })).resolves.toBeUndefined();
+    expect((await api.listUsers({})).users).toEqual([owner]);
+  });
+
   it('refuses deleting yourself before consulting the rules', async () => {
     const api = full({ caller: { user: { id: 'alice', username: 'alice' } }, permissions: [] });
     await expect(api.deleteUser({ principalId: 'alice' })).rejects.toMatchObject(peopleErr('SELF_DELETE', 'You cannot delete your own account.'));

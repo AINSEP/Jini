@@ -134,7 +134,7 @@ export interface SignatureVerificationResult {
   reason?: string;
   /** Present when `verified` is `true` — the signature's self-reported `issuer` field. */
   issuer?: string;
-  /** Present when `verified` is `true` — the signature's self-reported `subject` field, falling back to the certificate's own first SAN identity when the signature didn't declare one. */
+  /** Present when `verified` is `true` and the certificate has a SAN URI — the certificate's own first SAN identity. */
   subject?: string;
 }
 
@@ -149,9 +149,13 @@ export interface SignatureVerificationResult {
  *
  * @param entry - The registry entry the signature is claimed to cover.
  * @returns The canonical UTF-8 string the signature must be a valid signature over.
+ * @throws When the version or digest is missing or blank; a signature must bind to artifact bytes.
  */
-export function canonicalRegistrySigningPayload({ entry }: { entry: RegistryEntry }): string {
-  const digest = entry.integrity ?? entry.manifestDigest ?? entry.dist?.integrity ?? entry.dist?.manifestDigest ?? '';
+export function canonicalRegistrySigningPayload({ entry }: { entry: RegistryEntry }, _options: Record<string, never> = {}): string {
+  if (!entry.version?.trim()) throw new Error('Registry signing payload requires a version');
+  const dist = entry.dist ?? {};
+  const digest = entry.integrity ?? entry.manifestDigest ?? dist.integrity ?? dist.manifestDigest;
+  if (!digest?.trim()) throw new Error('Registry signing payload requires a digest');
   return `${entry.name}@${entry.version}:${digest}`;
 }
 
@@ -177,7 +181,7 @@ export function verifyRegistrySignature(
     // report "unsupported", never silently pass and never throw.
     return { verified: false, kind: signature.kind, reason: `unsupported signature kind: ${signature.kind}` };
   }
-  const outcome = verifyGithubOidcSignature(entry, signature, trustRoot?.githubOidc);
+  const outcome = verifyGithubOidcSignature({ entry, signature }, { root: trustRoot?.githubOidc });
   if ('reason' in outcome) return { verified: false, kind: signature.kind, reason: outcome.reason };
   return { verified: true, kind: signature.kind, issuer: outcome.issuer, ...(outcome.subject !== undefined ? { subject: outcome.subject } : {}) };
 }
@@ -195,9 +199,8 @@ const fail = (reason: string): VerificationFailure => ({ reason });
  * chain + validity window, identity allowlist, signature bytes.
  */
 function verifyGithubOidcSignature(
-  entry: RegistryEntry,
-  signature: RegistrySignature,
-  root: GithubOidcTrustRoot | undefined,
+  { entry, signature }: { entry: RegistryEntry; signature: RegistrySignature },
+  { root }: { root?: GithubOidcTrustRoot | undefined } = {},
 ): VerificationFailure | { issuer: string; subject: string | undefined } {
   if (!root || root.caCertificates.length === 0) {
     // Decision 4: a backend with no configured trust root gets no
@@ -212,9 +215,9 @@ function verifyGithubOidcSignature(
   if (!identityAllowed(identities, root.allowedIdentities)) {
     return fail('signer identity is not in the configured allowlist');
   }
-  const signatureFailure = checkSignatureBytes(entry, signature.signature, leaf);
+  const signatureFailure = checkSignatureBytes({ entry, signature: signature.signature, leaf });
   if (signatureFailure) return signatureFailure;
-  return { issuer: fields.issuer, subject: signature.subject ?? identities[0] };
+  return { issuer: fields.issuer, subject: identities[0] };
 }
 
 /** Presence of certificate/issuer/signedAt, the issuer allowlist, and a parseable `signedAt`. */
@@ -267,17 +270,20 @@ function identityAllowed(identities: string[], allowedIdentities: GithubOidcTrus
   );
 }
 
-/** Verify `signature` (base64) over {@link canonicalRegistrySigningPayload} with the leaf's public key; `undefined` when it verifies. */
-function checkSignatureBytes(entry: RegistryEntry, signature: string, leaf: X509Certificate): VerificationFailure | undefined {
+/** Verify `signature` (base64) over {@link canonicalRegistrySigningPayload} with the leaf's public key; `undefined` on success, a failure for invalid payloads or signatures. Never throws. */
+function checkSignatureBytes(
+  { entry, signature, leaf }: { entry: RegistryEntry; signature: string; leaf: X509Certificate },
+  _options: Record<string, never> = {},
+): VerificationFailure | undefined {
   // `Buffer.from(str, 'base64')` never throws (Node's base64 decoder is
   // lenient about invalid input, silently dropping bad characters) — a
   // malformed encoding surfaces as an empty/garbage buffer that then fails
   // the signature check below, not as an exception here.
   const signatureBytes = Buffer.from(signature, 'base64');
   if (signatureBytes.length === 0) return fail('signature is empty after base64 decoding');
-  const payload = Buffer.from(canonicalRegistrySigningPayload({ entry }), 'utf8');
   let signatureValid: boolean;
   try {
+    const payload = Buffer.from(canonicalRegistrySigningPayload({ entry }), 'utf8');
     // `crypto.verify()` CAN throw (not just return false) for a
     // structurally-incompatible key/algorithm pairing — e.g. an Ed25519
     // certificate's key does not accept an explicit 'sha256' digest

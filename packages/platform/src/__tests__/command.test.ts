@@ -95,6 +95,30 @@ describe('@jini-ai/platform — command — createCommandInvocation', () => {
     });
   });
 
+  it('C14: preserves empty and trailing-backslash Windows shim arguments and rejects line breaks', () => {
+    withPlatform('win32', () => {
+      for (const command of ['tool.cmd', 'tool.bat']) {
+        const invocation = createCommandInvocation({
+          args: ['', 'C:\\dir with space\\', 'a=b', 'a,b', 'a;b', 'a(b)'],
+          command,
+          env: { ComSpec: 'cmd.exe' },
+        });
+        // cmd.exe strips the outer quotes; the child must still receive the
+        // empty argument and a quoted path whose closing quote is unescaped.
+        expect.soft(invocation).toEqual({
+          command: 'cmd.exe',
+          args: ['/d', '/s', '/c', `"${command} ${String.raw`"" "C:\dir with space\\" "a=b" "a,b" "a;b" "a(b)"`}"`],
+          windowsVerbatimArguments: true,
+        });
+        for (const arg of ['first\nsecond', 'first\rsecond']) {
+          expect.soft(() => createCommandInvocation({
+            args: [arg], command, env: { ComSpec: 'cmd.exe' },
+          })).toThrow();
+        }
+      }
+    });
+  });
+
   it('leaves an argument with no special characters unquoted', () => {
     withPlatform('win32', () => {
       const invocation = createCommandInvocation({ args: ['plainvalue'], command: 'x.bat', env: { ComSpec: 'cmd.exe' } });

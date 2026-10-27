@@ -83,6 +83,33 @@ test("an unreachable registration is attempted exactly once", async () => {
     assert.equal(attempts, 1);
 });
 
+test("P10: registration uses public auth without a secret and accepts a secret with omitted expiry", async () => {
+    const http = createFetchDouble([
+        { status: 201, json: { client_id: "public-client", token_endpoint_auth_method: "client_secret_basic" } },
+        { status: 201, json: {
+            client_id: "secret-client", client_secret: "fixture-secret",
+            token_endpoint_auth_method: "client_secret_basic",
+        } },
+    ]);
+    const input = {
+        ...fixturePorts, fetchFn: http.fetchFn,
+        registrationEndpoint: "https://auth.example.com/register", scopes: [],
+    };
+
+    const publicClient = await registerOAuthClientDynamically(input);
+    assert.equal(publicClient.clientSecret, null);
+    assert.equal(publicClient.tokenEndpointAuthMethod, "none", "secret-based auth cannot be used without a client secret");
+
+    let secretClient: RegisteredOAuthClient | undefined;
+    await assert.doesNotReject(async () => {
+        secretClient = await registerOAuthClientDynamically(input);
+    }, "an omitted client_secret_expires_at must default to zero");
+    assert.equal(secretClient?.clientSecret, "fixture-secret");
+    assert.equal(secretClient?.tokenEndpointAuthMethod, "client_secret_basic");
+    assert.equal(secretClient?.clientSecretExpiresAt, 0);
+    assert.equal(http.callCount(), 2, "each registration makes exactly one request");
+});
+
 for (const status of [200, 201, 202]) {
     test(`registration accepts HTTP ${status} and retains facade normalization without extra discovery`, async () => {
         const clientSecret = randomBytes(24).toString('base64url');

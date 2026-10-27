@@ -445,16 +445,39 @@ test("a lease holder that never publishes leaves the loser on its still-valid to
     }), "at-current");
     assert.equal(double.refreshCalls, 0);
 });
-test("a stored token that disappears while waiting on another lease holder falls back to the token read before the wait", async () => {
+test("a stored token that disappears while waiting on another lease holder immediately requires reauthorization", async () => {
     const clock = createTestClock("2026-08-25T12:04:00.000Z");
     const double = makePort({ leaseGranted: false });
     let loads = 0;
     // The first load is getAccessToken's own read; every re-read during the wait finds nothing.
     const port: TokenRefreshPort = { ...double.port, load: async () => (loads++ === 0 ? double.stored : null) };
     const refresher = createTokenRefresher({ clock, port, sleep: async () => clock.advance(5) }, { leasePollMs: 1, leaseWaitMs: 10 });
-    assert.equal(await refresher.getAccessToken({ key: KEY }), "at-current");
-    assert.ok(loads > 2, "the loser must keep re-reading until its wait deadline");
+    const error = await assertOAuthRejects(() => refresher.getAccessToken({ key: KEY }), "OAUTH_INVALID_GRANT");
+    assert.equal(error.message, "this connection needs to be re-authorized (this connection holds no token)");
+    assert.equal(loads, 2, "the loser must stop on the first re-read that finds no token");
     assert.equal(double.refreshCalls, 0);
+});
+test("C13: a lease waiter immediately requires reauthorization when the holder clears the token", async () => {
+    const clock = createTestClock("2026-08-25T12:04:00.000Z");
+    const double = makePort({ leaseGranted: false });
+    let polls = 0;
+    const refresher = createTokenRefresher({
+        clock,
+        port: double.port,
+        sleep: async ({ ms }) => {
+            polls += 1;
+            // The other process received invalid_grant and markNeedsReauth cleared storage.
+            double.stored = null;
+            clock.advance(ms);
+        }
+    }, { leasePollMs: 1, leaseWaitMs: 10 });
+
+    const error = await assertOAuthRejects(() => refresher.getAccessToken({ key: KEY }), "OAUTH_INVALID_GRANT");
+    assert.equal(error.retryable, false);
+    assert.equal(polls, 1, "a missing token is terminal on the first re-read, before the lease deadline");
+    assert.equal(double.refreshCalls, 0);
+    assert.deepEqual(double.persisted, []);
+    assert.deepEqual(double.leaseReleases, []);
 });
 test("a lease holder that never publishes, on an already-expired token, fails loudly", async () => {
     const clock = createTestClock("2026-08-25T12:10:00.000Z");

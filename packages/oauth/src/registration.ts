@@ -33,10 +33,12 @@ function readOptionalNumber(value: unknown): number | null {
 }
 function resolveAuthMethod({ document }: { document: Record<string, unknown> },
     input: Pick<DynamicClientRegistrationInput, "tokenEndpointAuthMethod" | "authMethodsSupported"> = {}): OAuthClientAuthMethod {
+    // An echoed or requested secret-based method is unusable without a secret.
+    if (readOptionalString(document.client_secret) === null) return 'none';
     const requested = input.tokenEndpointAuthMethod ?? 'none';
     const echoed = SUPPORTED_AUTH_METHODS.find(method => method === readOptionalString(document.token_endpoint_auth_method));
     if (echoed) return echoed;
-    if (requested !== 'none' || readOptionalString(document.client_secret) === null) return requested;
+    if (requested !== 'none') return requested;
     const supported = input.authMethodsSupported ?? [];
     if (supported.length === 0 || supported.includes('client_secret_basic')) return 'client_secret_basic';
     return supported.includes('client_secret_post') ? 'client_secret_post' : requested;
@@ -63,7 +65,14 @@ export async function registerOAuthClientDynamically(requiredArgs: OAuthRequired
             issuer: 'urn:jini:oauth:transport-only', registration_endpoint: endpoint.href,
         }, registrationMetadata({ input }), {
             ...(input.initialAccessToken === undefined ? {} : { initialAccessToken: input.initialAccessToken }),
-            [allowInsecureRequests]: endpoint.protocol === 'http:', [customFetch]: async (url, options) => adaptOAuthResponse({ response: await guardedFetch(url, options) }, { successStatus: 201 }),
+            [allowInsecureRequests]: endpoint.protocol === 'http:', [customFetch]: async (url, options) => adaptOAuthResponse({ response: await guardedFetch(url, options) }, {
+                successStatus: 201,
+                project(body) {
+                    // Some providers omit secret expiry; preserve facade compatibility before upstream validation.
+                    if (typeof body.client_secret === 'string' && body.client_secret_expires_at === undefined)
+                        body.client_secret_expires_at = 0;
+                },
+            }),
         });
         const client = await processDynamicClientRegistrationResponse(response);
         return projectRegisteredClient({ client, input });

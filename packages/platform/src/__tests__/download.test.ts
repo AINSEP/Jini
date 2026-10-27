@@ -394,6 +394,46 @@ describe("managed download engine", () => {
     expect(requests.some((request) => request.range?.startsWith("bytes="))).toBe(true);
   });
 
+  it("C4: preserves completed downloads in other buckets when a target fails checksum verification", async () => {
+    const basePath = join(tmpRoot("c4-checksum-isolation"), "downloads");
+    const retainedBody = "completed artifact to retain";
+    const fetchImpl: typeof fetch = async (input) => {
+      switch (String(input)) {
+        case "https://download-test.invalid/retained.bin":
+          return new Response(retainedBody);
+        case "https://download-test.invalid/broken.bin":
+          return new Response("wrong bytes");
+        default:
+          throw new Error(`unexpected download: ${String(input)}`);
+      }
+    };
+    const retainedTarget = { basePath, bucket: "retained", fileName: "artifact.bin" };
+    const retained = await managedDownload({
+      ...retainedTarget,
+      fetch: fetchImpl,
+      payload: {
+        checksum: { algorithm: "sha256", value: sha256(retainedBody) },
+        url: "https://download-test.invalid/retained.bin",
+      },
+    });
+    expect(readFileSync(retained.path, "utf8")).toBe(retainedBody);
+
+    await expect(managedDownload({
+      basePath,
+      bucket: "broken",
+      fileName: "artifact.bin",
+      fetch: fetchImpl,
+      maxAttempts: 1,
+      payload: {
+        checksum: { algorithm: "sha256", value: sha256("expected bytes") },
+        url: "https://download-test.invalid/broken.bin",
+      },
+    })).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.CHECKSUM_MISMATCH });
+
+    expect(await inspectManagedDownload(retainedTarget)).toMatchObject({ complete: true, manifest: "complete" });
+    expect(readFileSync(retained.path, "utf8")).toBe(retainedBody);
+  });
+
   it("quick-fails a checksum mismatch after resetting owned state", async () => {
     const fixture = await startFixture("wrong bytes");
     const root = tmpRoot("checksum-mismatch");
@@ -2302,7 +2342,7 @@ describe("managed download engine", () => {
     // reached without relying on OS permission enforcement: readFile is
     // mocked to always return corrupt JSON for this exact manifest path, so
     // *every* read looks "invalid" — including the one right after
-    // resetOwnedBase has genuinely wiped and recreated the base — forcing
+    // resetOwnedTarget has genuinely cleared the target — forcing
     // the outer "kept resetting" guard to fire for real.
     const root = tmpRoot("perma-reset-mocked");
     const basePath = join(root, "downloads");
@@ -2334,12 +2374,12 @@ describe("managed download engine", () => {
     }
   });
 
-  it("refuses to reset a base whose ownership sentinel goes invalid between validation and the reset itself (resetOwnedBase's own re-check, mocked readFile)", async () => {
+  it("refuses to reset a base whose ownership sentinel goes invalid between validation and the reset itself (resetOwnedTarget's own re-check, mocked readFile)", async () => {
     // A real (if narrow) TOCTOU: `ensureManagedBase` already validated the
-    // sentinel earlier in this same call, but `resetOwnedBase` re-checks it
-    // independently right before wiping the base — defense against a
+    // sentinel earlier in this same call, but `resetOwnedTarget` re-checks it
+    // independently right before clearing the target — defense against a
     // concurrent writer corrupting the sentinel in between. Reached by
-    // making only the *third* read of the sentinel file (resetOwnedBase's
+    // making only the *third* read of the sentinel file (resetOwnedTarget's
     // own, after ensureManagedBase's own two prior reads — one direct, one
     // via its internal `pruneManagedDownloads` call) return a non-sentinel
     // shape, while every earlier read sees the real, valid file.
@@ -2377,16 +2417,11 @@ describe("managed download engine", () => {
     }
   });
 
-  it("reuses a result found immediately on the post-reset reload (runManagedDownload's second state.result!=null branch, mocked mkdir)", async () => {
-    // A genuine (if narrow) race: after `resetOwnedBase` wipes the base, a
-    // *different* process finishes writing a valid, matching complete
-    // download into that exact window before this process's own reload
-    // runs. `mkdir(basePath)` is the first call `ensureManagedBase` makes on
-    // that post-reset reload (see download.ts's `runManagedDownload`), so
-    // planting the other process's finished artifact as a side effect of
-    // that specific call reproduces the race deterministically instead of
-    // depending on real inter-process timing.
-    const body = "concurrent-writer-wins-the-reset-race payload";
+  it("keeps a competing writer out during the post-reset reload", async () => {
+    // The old test planted another process's completed result in the reset
+    // window. That required losing the lock while wiping/recreating the base.
+    // Reproduce the same timing, but require a real exclusive create to fail.
+    const body = "concurrent-writer-cannot-win-the-reset-race payload";
     const root = tmpRoot("post-reset-immediate-result");
     const basePath = join(root, "downloads");
     const bucket = "updates";
@@ -2399,38 +2434,30 @@ describe("managed download engine", () => {
     const fsPromises = await import("node:fs/promises");
     const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
     let mkdirBasePathCalls = 0;
+    let competingWrites = 0;
     vi.mocked(fsPromises.mkdir).mockImplementation(async (p, opts) => {
       if (p === basePath) {
         mkdirBasePathCalls += 1;
-        // Call 1: the initial `ensureManagedBase`. Call 2: its own internal
-        // `pruneManagedDownloads` call. Call 3: the post-reset reload this
-        // test targets.
+        // Calls 1-2: initial ensureManagedBase + prune's. Call 3: the
+        // post-reset reload, where the old test overwrote the target.
         if (mkdirBasePathCalls === 3) {
-          await actual.mkdir(p as string, opts as never);
-          mkdirSync(join(basePath, bucket), { recursive: true });
-          mkdirSync(join(basePath, ".state"), { recursive: true });
-          writeFileSync(join(basePath, bucket, fileName), body);
-          writeManifestFile(basePath, bucket, fileName, {
-            checksum,
-            state: "complete",
-            url: "https://example.invalid/artifact.bin",
-          });
-          return;
+          competingWrites += 1;
+          await expect(actual.writeFile(lockPath(basePath, bucket, fileName), "competing writer", { flag: "wx" }))
+            .rejects.toMatchObject({ code: "EEXIST" });
         }
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (actual.mkdir as any)(p, opts);
+      return actual.mkdir(p as string, opts as never);
     });
-
+    const fetchImpl = vi.fn(async () => new Response(body));
     try {
       const result = await managedDownload({
-        basePath,
-        bucket,
-        fileName,
+        basePath, bucket, fileName, fetch: fetchImpl,
         payload: { checksum, url: "https://example.invalid/artifact.bin" },
       });
-      expect(result.reusedComplete).toBe(true);
+      expect(competingWrites).toBe(1);
+      expect(result.reusedComplete).toBe(false);
       expect(readFileSync(result.path, "utf8")).toBe(body);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
     } finally {
       vi.mocked(fsPromises.mkdir).mockImplementation(actual.mkdir);
     }
@@ -2664,7 +2691,7 @@ describe("managed download engine — refactor pins", () => {
     vi.mocked(fsPromises.readFile).mockImplementation(async (p, options) => {
       if (p === sentinelPath) {
         sentinelReads += 1;
-        // Reads 1-2: ensureManagedBase + prune's; read 3: resetOwnedBase's re-check.
+        // Reads 1-2: ensureManagedBase + prune's; read 3: resetOwnedTarget's re-check.
         if (sentinelReads === 3) return "null";
       }
       return actual.readFile(p as string, options as never);
@@ -2816,31 +2843,47 @@ describe("managed download engine — refactor pins", () => {
     expect(calls).toBe(0);
   });
 
-  it("does not delete another live process's lock when re-acquiring after a reset fails", async () => {
+  it("preserves its own lock and another live target's lock throughout reset", async () => {
     const { basePath, bucket, fileName } = await seededBase("pin-reset-relock");
-    writeFileSync(manifestPathFor(basePath, bucket, fileName), "{not valid json");
+    const manifestPath = manifestPathFor(basePath, bucket, fileName);
+    writeFileSync(manifestPath, "{not valid json");
+    const otherPath = lockPath(basePath, "other", fileName);
     const otherLock = JSON.stringify({ createdAt: new Date().toISOString(), pid: process.ppid });
+    writeFileSync(otherPath, otherLock);
     const fsPromises = await import("node:fs/promises");
     const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
-    let mkdirBasePathCalls = 0;
-    vi.mocked(fsPromises.mkdir).mockImplementation(async (p, opts) => {
-      const made = await actual.mkdir(p as string, opts as never);
-      if (p === basePath) {
-        mkdirBasePathCalls += 1;
-        // Calls 1-2: initial ensureManagedBase + prune's; call 3: the reset's
-        // sentinel write; call 4: the post-reset `ensureManagedBase`, after the
-        // old lock is released — another process grabs the lock right there.
-        if (mkdirBasePathCalls === 4) writeFileSync(lockPath(basePath, bucket, fileName), otherLock);
+    let resets = 0;
+    let competingLockError: unknown;
+    vi.mocked(fsPromises.rm).mockImplementation(async (p, opts) => {
+      const removed = await actual.rm(p as string, opts);
+      if (p === manifestPath) {
+        resets += 1;
+        // The old reset released its lock before re-acquiring, allowing
+        // another process to take it. Target cleanup must keep both locks.
+        expect(readFileSync(otherPath, "utf8")).toBe(otherLock);
+        try {
+          await actual.writeFile(lockPath(basePath, bucket, fileName), otherLock, { flag: "wx" });
+        } catch (error) {
+          competingLockError = error;
+        }
       }
-      return made;
+      return removed;
     });
+    const fetchImpl = vi.fn(async () => new Response("x"));
     try {
-      await expect(
-        managedDownload({ basePath, bucket, fileName, payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url } }),
-      ).rejects.toMatchObject({ code: MANAGED_DOWNLOAD_ERROR_CODES.TARGET_LOCKED, message: `download target is locked: ${bucket}/${fileName}` });
-      expect(readFileSync(lockPath(basePath, bucket, fileName), "utf8")).toBe(otherLock);
+      const result = await managedDownload({
+        basePath, bucket, fileName, fetch: fetchImpl,
+        payload: { checksum: { algorithm: "sha256", value: sha256("x") }, url },
+      });
+      expect(resets).toBe(1);
+      expect(competingLockError).toMatchObject({ code: "EEXIST" });
+      expect(result.reusedComplete).toBe(false);
+      expect(readFileSync(result.path, "utf8")).toBe("x");
+      expect(readFileSync(otherPath, "utf8")).toBe(otherLock);
+      expect(existsSync(lockPath(basePath, bucket, fileName))).toBe(false);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
     } finally {
-      vi.mocked(fsPromises.mkdir).mockImplementation(actual.mkdir);
+      vi.mocked(fsPromises.rm).mockImplementation(actual.rm);
     }
   });
 

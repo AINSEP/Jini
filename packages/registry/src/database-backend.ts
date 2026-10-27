@@ -17,6 +17,7 @@ import {
   type RegistryPublishOutcome,
   type RegistryPublishRequest,
   type RegistryTrust,
+  type RegistryVersion,
   type RegistryYankOutcome,
 } from '@jini-ai/protocol';
 import { assertValidPublishRequest, StaticRegistryBackend } from './static-backend.js';
@@ -62,7 +63,18 @@ export class DatabaseRegistryBackend extends StaticRegistryBackend {
     if (parsed.dryRun) {
       return { ok: true, dryRun: true, changedFiles, warnings: [] };
     }
-    upsertRegistryEntry({ db: this.db, backendId: this.id, entry: parsed.entry }, { now: this.clock.nowMs() });
+    // Like yank, publishing now reads before writing. Lock before reading so
+    // concurrent publishers cannot overwrite each other's version history.
+    const runPublish = this.db.transaction(() => {
+      const row = this.db
+        .prepare(`SELECT entry_json FROM registry_entries WHERE backend_id = ? AND name = ?`)
+        .get(this.id, parsed.entry.name) as { entry_json: string } | undefined;
+      const entry = row
+        ? mergePublishedVersions({ previous: parseStoredEntry(row.entry_json, `${this.id}/${parsed.entry.name}`), entry: parsed.entry })
+        : parsed.entry;
+      upsertRegistryEntry({ db: this.db, backendId: this.id, entry }, { now: this.clock.nowMs() });
+    });
+    runPublish.immediate();
     return { ok: true, dryRun: false, changedFiles, warnings: [] };
   }
 
@@ -109,6 +121,31 @@ export class DatabaseRegistryBackend extends StaticRegistryBackend {
   protected override getManifest(): RegistryManifest {
     return manifestFromDb(this.db, this.id);
   }
+}
+
+/**
+ * Preserve stored releases while accepting incoming version records by version.
+ * Pure; neither input is mutated. Map replacement keeps the merge linear in
+ * the combined ledger size instead of searching the old ledger per release.
+ */
+function mergePublishedVersions(
+  { previous, entry }: { previous: RegistryEntry; entry: RegistryEntry },
+  _options: Record<string, never> = {},
+): RegistryEntry {
+  const versions = new Map(
+    [...publishedVersionRecords({ entry: previous }), ...publishedVersionRecords({ entry })]
+      .map((record) => [record.version, record] as const),
+  );
+  return { ...entry, versions: [...versions.values()] };
+}
+
+/** Include a single-version entry's artifact metadata without copying its ledger into itself. Explicit records take precedence. */
+function publishedVersionRecords({ entry }: { entry: RegistryEntry }, _options: Record<string, never> = {}): RegistryVersion[] {
+  const { version, source, ref, dist, integrity, manifestDigest, deprecated, yanked, yankedAt, yankReason } = entry;
+  return [
+    { version, source, ref, dist, integrity, manifestDigest, deprecated, yanked, yankedAt, yankReason },
+    ...(entry.versions ?? []),
+  ];
 }
 
 /**
