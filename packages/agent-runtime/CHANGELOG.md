@@ -1,3 +1,36 @@
+## 0.6.13
+
+### Patch Changes
+
+- aef0152: Folder-limited Claude runs get a private per-run CLAUDE_CODE_TMPDIR (a 0700 /tmp/jini-\* directory, removed on exit, crash, cancellation or startup failure). The sandbox grants only that run's scratch subtree; the shared per-user /tmp/claude-<uid> grant is gone, and overlong bases are refused instead of falling back to shared scratch.
+- 0728914: Engine guard clean-up (`pnpm guard` 106 -> 0): layer, subpath-isolation and module-state findings fixed by moving
+  shared contracts to their owners instead of reaching across domains. Additive public API: `@jini-ai/core/filesystem`
+  (guarded-reader contracts), `useFetchQueryScope` from `@jini-ai/ui` fetch-query (per-provider query scope),
+  `@jini-ai/chat/react` re-exports of the accepted-input, run-state and agent-plugin chat-state helpers. The Claude
+  filesystem probe cache in `@jini-ai/agent-runtime` is instance-owned. No behaviour change intended; host-facing
+  breaks are listed in `owner-store-to-server` and `guard-host-ports`.
+- cbce255: Apply AI-trace capture policy to errors, contain tracing and sink failures, preserve canonical
+  usage and stop reasons, accumulate request usage snapshots, scope tool identities per request,
+  and finalize traces from committed terminal events including inactivity watchdog completion.
+  Provider/session trace mappers now receive object arguments.
+  A trace whose stream subscription is refused or rejects after `run_started` is now finished from
+  the run's real terminal state (`waitForTerminal`, in the background) instead of being dropped.
+  `RunLifecycle.waitForTerminal` takes an optional `{ signal }`: aborting it rejects with the reason and
+  unregisters the waiter. The traced lifecycle gains `dispose()`, which releases open traces without
+  finishing them and cancels those background waits; the server kernel's `close()` calls it after the
+  agent runtime stops, so a retained kernel keeps no recorder or waiter.
+- e46b6ec: The Langfuse AI-trace sink moved out of `@jini-ai/agent-runtime` into the `ai-trace-langfuse` provider plugin (contract `ai_trace`), which bundles the `langfuse` SDK. Removed: the `@jini-ai/agent-runtime/ai-trace/langfuse` subpath (`createLangfuseAiTraceSink`, `loadLangfuseAiTraceSink`, `toLangfuseCall`). The runtime core has no Langfuse reference; a core-wide boundary test refuses vendor SDK imports or dependencies in any other package.
+- 63bacc5: OpenTelemetry and Sentry observability adapters moved out of `@jini-ai/diagnostics` into the `observability-opentelemetry` and `observability-sentry` provider plugins of `@jini-ai/provider-plugins`. Removed: the `@jini-ai/diagnostics/observability/opentelemetry` and `/observability/sentry` subpaths and every `@opentelemetry/*` / `@sentry/node` dev and optional peer dependency. The OTel plugin accepts any OTLP/HTTP endpoint plus generic request headers. Packages bundled into plugin artifacts now ship their LICENSE file.
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [cbce255]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+  - @jini-ai/protocol@0.6.13
+  - @jini-ai/oauth@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

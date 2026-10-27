@@ -1,5 +1,38 @@
 # @jini-ai/platform
 
+## 0.6.13
+
+### Patch Changes
+
+- 5634614: Add vendor-neutral email sender contracts, source discovery and template preparation to the mail
+  surface, with a universal `@jini-ai/platform/mail/senders` entry. Add the Forms sender to
+  `@jini-ai/cms/forms/email-sender`, deriving tokens from stable field IDs, resolving authorized submissions and
+  permitted recipients, and configuring sender-owned email actions through an injected guarded writer.
+  Delivery planning and production readiness remain host responsibilities.
+  The dedicated sender entry requires the optional platform peer at ^0.6.15; the existing Forms
+  entry continues to load without platform installed.
+- 0728914: Engine guard clean-up (`pnpm guard` 106 -> 0): layer, subpath-isolation and module-state findings fixed by moving
+  shared contracts to their owners instead of reaching across domains. Additive public API: `@jini-ai/core/filesystem`
+  (guarded-reader contracts), `useFetchQueryScope` from `@jini-ai/ui` fetch-query (per-provider query scope),
+  `@jini-ai/chat/react` re-exports of the accepted-input, run-state and agent-plugin chat-state helpers. The Claude
+  filesystem probe cache in `@jini-ai/agent-runtime` is instance-owned. No behaviour change intended; host-facing
+  breaks are listed in `owner-store-to-server` and `guard-host-ports`.
+- 26bd2d2: Expose the mail engine through `@jini-ai/platform/mail`: host contracts, redacted
+  provider diagnostics, permission-aware domain reads, sender verification, delivery
+  policy wrapping, the purpose-gate predicate, provider resolution and status caching.
+  Retain existing exports and keep credential binding, persistence and product policy
+  in host-supplied ports.
+- c14aeb4: Add optional fetch injection, bounded/strict UTF-8 response text reading, text consumption within the fetch timeout scope, and descriptor-based guarded file reads. Existing defaults and positional fetch signatures remain unchanged.
+
+  Add an opt-in details overload to readFetchResponseText with retained-byte metadata, bounded-prefix truncation, and abortable reads with prompt cleanup. fetchTextWithTimeout now races every body read against its timeout, so an injected transport whose body ignores the abort signal still times out.
+
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

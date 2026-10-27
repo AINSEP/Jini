@@ -1,3 +1,19 @@
+## 0.6.13
+
+### Patch Changes
+
+- cbce255: Apply AI-trace capture policy to errors, contain tracing and sink failures, preserve canonical
+  usage and stop reasons, accumulate request usage snapshots, scope tool identities per request,
+  and finalize traces from committed terminal events including inactivity watchdog completion.
+  Provider/session trace mappers now receive object arguments.
+  A trace whose stream subscription is refused or rejects after `run_started` is now finished from
+  the run's real terminal state (`waitForTerminal`, in the background) instead of being dropped.
+  `RunLifecycle.waitForTerminal` takes an optional `{ signal }`: aborting it rejects with the reason and
+  unregisters the waiter. The traced lifecycle gains `dispose()`, which releases open traces without
+  finishing them and cancels those background waits; the server kernel's `close()` calls it after the
+  agent runtime stops, so a retained kernel keeps no recorder or waiter.
+- 63bacc5: OpenTelemetry and Sentry observability adapters moved out of `@jini-ai/diagnostics` into the `observability-opentelemetry` and `observability-sentry` provider plugins of `@jini-ai/provider-plugins`. Removed: the `@jini-ai/diagnostics/observability/opentelemetry` and `/observability/sentry` subpaths and every `@opentelemetry/*` / `@sentry/node` dev and optional peer dependency. The OTel plugin accepts any OTLP/HTTP endpoint plus generic request headers. Packages bundled into plugin artifacts now ship their LICENSE file.
+
 ## 0.6.12
 
 ## 0.6.11

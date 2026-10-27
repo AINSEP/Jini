@@ -1,3 +1,33 @@
+## 0.6.13
+
+### Patch Changes
+
+- 3feabff: Keep standalone MCP-UI questions answered across history replay through resource-bound accepted-input receipts. Preserve readable question and option labels, accessible frame titles, and waiting activity until an answer is recorded.
+- e5f4969: Chat transcript fixes: answered approval/option cards show "<title>: <option label>" instead of raw values; mid-run follow-ups read "Queued — read after the current step" until consumed, render as ordinary transcript rows at the point they were sent; standalone approval forms show "Waiting for your answer above"; text from separate assistant steps is joined with a paragraph break.
+- f1b2266: Keep collapsed tool details compact, bound and redact error previews and tooltips, and show complete stored tool text on expansion. Add long-chat DOM and page-reader regression coverage.
+- 0728914: Engine guard clean-up (`pnpm guard` 106 -> 0): layer, subpath-isolation and module-state findings fixed by moving
+  shared contracts to their owners instead of reaching across domains. Additive public API: `@jini-ai/core/filesystem`
+  (guarded-reader contracts), `useFetchQueryScope` from `@jini-ai/ui` fetch-query (per-provider query scope),
+  `@jini-ai/chat/react` re-exports of the accepted-input, run-state and agent-plugin chat-state helpers. The Claude
+  filesystem probe cache in `@jini-ai/agent-runtime` is instance-owned. No behaviour change intended; host-facing
+  breaks are listed in `owner-store-to-server` and `guard-host-ports`.
+- 0a2b903: Share accessible eye toggles across React credential fields, including multiline question answers,
+  CLI overrides, provider keys, login, new users, password resets, and source configuration. Preserve
+  autofill protection, translated toggle names, agent handles, and secret-answer redaction. Hidden
+  source environment blocks keep names visible and stored values masked until explicitly revealed.
+
+  Chat and user-management require `@jini-ai/ui ^0.5.7` for the new `SecretInput` and `SecretTextarea`
+  exports. Release UI 0.5.7 (or adjust those peer floors to the actual release containing these exports)
+  with these consumers; older UI versions cannot satisfy their imports. Hosts supply `.jini-secret`,
+  `.jini-secret-toggle`, and `.jini-secret--multiline` visual rules.
+
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

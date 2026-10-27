@@ -1,5 +1,18 @@
 # @jini-ai/devops
 
+## 0.6.13
+
+### Patch Changes
+
+- c31264d: Move `canonicalJson` to `@jini-ai/core/records` so packages below devops can reuse it (the infra outbox request digest). `@jini-ai/devops/dns` re-exports it unchanged.
+- 31819c8: The Stripe `PaymentsProvider` adapter moved unchanged out of `@jini-ai/capability-providers` into the `payments-stripe` provider plugin (move only: commerce's payment contract is canonical, conversion is deferred, and no host selects or activates it). Removed: the `@jini-ai/capability-providers/adapters/stripe` subpath. The hardwiring check treats `provider-plugins/` sources as provider adapters.
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

@@ -1,5 +1,29 @@
 # @jini-ai/mcp
 
+## 0.6.13
+
+### Patch Changes
+
+- 7479159: Tighten diagnostic identifier exemptions and ignore ordinary header values shorter than eight characters during exact-secret masking (credential headers are masked at any length; exact secrets still match inside other text but never inside a credential label, URL scheme, secret-named query parameter or existing redaction marker, so they cannot split another credential's label). Keep null tool schemas informational. Preserve safe reader refusals for explicit plugin skill/file requests and use host-formatted plugin tool pointers for relevance, deferred instructions, and supporting files (optional for automatic use; omitted when the host supplies none).
+- 0728914: Engine guard clean-up (`pnpm guard` 106 -> 0): layer, subpath-isolation and module-state findings fixed by moving
+  shared contracts to their owners instead of reaching across domains. Additive public API: `@jini-ai/core/filesystem`
+  (guarded-reader contracts), `useFetchQueryScope` from `@jini-ai/ui` fetch-query (per-provider query scope),
+  `@jini-ai/chat/react` re-exports of the accepted-input, run-state and agent-plugin chat-state helpers. The Claude
+  filesystem probe cache in `@jini-ai/agent-runtime` is instance-owned. No behaviour change intended; host-facing
+  breaks are listed in `owner-store-to-server` and `guard-host-ports`.
+- c14aeb4: Add opt-in byte caps and strict UTF-8 decoding to fetch-backed MCP HTTP exchanges. Guarded exchanges lazily use the optional platform peer (0.6.15 or later); default exchanges still work without platform installed.
+
+  Add opt-in per-frame stdio byte limits, FIFO handler/write scheduling, and EOF draining to the existing MCP tool host, preserving current defaults and factory signatures.
+
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [cbce255]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+  - @jini-ai/protocol@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

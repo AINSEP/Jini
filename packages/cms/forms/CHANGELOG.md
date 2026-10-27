@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.13
+
+### Patch Changes
+
+- Updated dependencies [7479159]
+- Updated dependencies [3feabff]
+- Updated dependencies [fddd084]
+- Updated dependencies [c31264d]
+- Updated dependencies [5634614]
+- Updated dependencies [0728914]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+  - @jini-ai/cms@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

@@ -1,3 +1,43 @@
+## 0.6.13
+
+### Patch Changes
+
+- cbce255: Apply AI-trace capture policy to errors, contain tracing and sink failures, preserve canonical
+  usage and stop reasons, accumulate request usage snapshots, scope tool identities per request,
+  and finalize traces from committed terminal events including inactivity watchdog completion.
+  Provider/session trace mappers now receive object arguments.
+  A trace whose stream subscription is refused or rejects after `run_started` is now finished from
+  the run's real terminal state (`waitForTerminal`, in the background) instead of being dropped.
+  `RunLifecycle.waitForTerminal` takes an optional `{ signal }`: aborting it rejects with the reason and
+  unregisters the waiter. The traced lifecycle gains `dispose()`, which releases open traces without
+  finishing them and cancels those background waits; the server kernel's `close()` calls it after the
+  agent runtime stops, so a retained kernel keeps no recorder or waiter.
+- 506196f: BREAKING (host import path): the owner-store composition moved from `@jini-ai/db/owner-store` to the new
+  `@jini-ai/server/owner-store` entry, so `@jini-ai/db` no longer reaches `@jini-ai/platform` or its own
+  sibling domains (guard L1 / SI-domain). Moved: `openOwnerStore`, `OwnerStoreRecoveryError`, `OwnerStoreService`,
+  `OWNER_WORKSPACE_ID`, `ownerContext`, `exportOwnerStore`, `restoreOwnerStore`, `OwnerStoreBackupError` and the
+  `OpenOwnerStore*` / `OwnerStoreDatabase` / `OwnerGrant` / `OwnerPutInput` / `OwnerSyncTarget` types. Behaviour is
+  unchanged. `@jini-ai/db/owner-store` keeps `OWNER_STORE_LEDGER`, `ownerStoreMigrations`, `ownerStoreDdl` and
+  `ownerStoreMigration`.
+
+  Migration: import those names from `@jini-ai/server/owner-store` and add `@jini-ai/server` (same version as
+  `@jini-ai/db`) to the host's dependencies; that entry uses the optional `@jini-ai/db`, `@jini-ai/platform`
+  and `kysely` peers. `OwnerStoreService` additionally accepts an optional `repo`; existing kernel-only
+  constructions still work.
+
+- 2e4591b: Require the optional @jini-ai/db peer at ^0.6.15 so accepted releases contain the owner-store exports.
+- Updated dependencies [7479159]
+- Updated dependencies [9138c3b]
+- Updated dependencies [aa8de3d]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [03dec0a]
+- Updated dependencies [506196f]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+  - @jini-ai/db@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

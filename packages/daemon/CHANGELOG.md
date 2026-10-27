@@ -1,3 +1,37 @@
+## 0.6.13
+
+### Patch Changes
+
+- aef0152: Folder-limited Claude runs get a private per-run CLAUDE_CODE_TMPDIR (a 0700 /tmp/jini-\* directory, removed on exit, crash, cancellation or startup failure). The sandbox grants only that run's scratch subtree; the shared per-user /tmp/claude-<uid> grant is gone, and overlong bases are refused instead of falling back to shared scratch.
+- e9f64d4: PROTOTYPE (cloud/observability-1025, not for release): `withToolCallObservability` (`@jini-ai/daemon/tool-recovery`) makes each tool call one `tool.call` operation on a structural observability slice; execution errors are reported, validation errors are counted only.
+- a0ce70f: Add opt-in host-managed SQLite event-log schema setup, a borrowed-kernel factory that joins host transactions (its replay reads one statement snapshot, so it also works on read-only kernels and inside a host run()), and append receipts for conflicting retries or retention-cap refusals. Existing append defaults and FIFO retention remain unchanged.
+- 0728914: Engine guard clean-up (`pnpm guard` 106 -> 0): layer, subpath-isolation and module-state findings fixed by moving
+  shared contracts to their owners instead of reaching across domains. Additive public API: `@jini-ai/core/filesystem`
+  (guarded-reader contracts), `useFetchQueryScope` from `@jini-ai/ui` fetch-query (per-provider query scope),
+  `@jini-ai/chat/react` re-exports of the accepted-input, run-state and agent-plugin chat-state helpers. The Claude
+  filesystem probe cache in `@jini-ai/agent-runtime` is instance-owned. No behaviour change intended; host-facing
+  breaks are listed in `owner-store-to-server` and `guard-host-ports`.
+- cbce255: Apply AI-trace capture policy to errors, contain tracing and sink failures, preserve canonical
+  usage and stop reasons, accumulate request usage snapshots, scope tool identities per request,
+  and finalize traces from committed terminal events including inactivity watchdog completion.
+  Provider/session trace mappers now receive object arguments.
+  A trace whose stream subscription is refused or rejects after `run_started` is now finished from
+  the run's real terminal state (`waitForTerminal`, in the background) instead of being dropped.
+  `RunLifecycle.waitForTerminal` takes an optional `{ signal }`: aborting it rejects with the reason and
+  unregisters the waiter. The traced lifecycle gains `dispose()`, which releases open traces without
+  finishing them and cancels those background waits; the server kernel's `close()` calls it after the
+  agent runtime stops, so a retained kernel keeps no recorder or waiter.
+- 803a949: Observability vendor adapters as provider subpaths: `@jini-ai/diagnostics/observability/opentelemetry` (moved from Tovu core) and `@jini-ai/diagnostics/observability/sentry`, each returning `{ port, dispose }` with optional peer SDKs. Review fixes: attribute strings and `Error.name` redacted and capped; fan-out isolates each adapter's tracker creation and end; Sentry root operations start fresh traces and never call `NodeClient#init()` or channel injection. `withToolCallObservability` exports a fixed label for unregistered tool ids and adds `user.id` (pseudonymous principal).
+- b1fcb8f: AI tracing no longer reopens a trace when `dispose()` runs while the underlying start is pending; `waitForTerminal()` observes its abort signal while a durable start append is still pending; the fenced-outbox conformance overlap case reports a synchronously throwing `awaitOverlap` hook as a barrier failure (contender settled, nothing unhandled) and `awaitOverlap` is documented.
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [cbce255]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+  - @jini-ai/protocol@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

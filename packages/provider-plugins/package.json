@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/provider-plugins",
-  "version": "0.6.12",
+  "version": "0.6.13",
   "description": "Self-contained server provider plugin artifacts for the existing Jini plugin host.",
   "type": "module",
   "license": "Apache-2.0",

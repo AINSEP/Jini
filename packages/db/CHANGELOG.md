@@ -1,3 +1,32 @@
+## 0.6.13
+
+### Patch Changes
+
+- 9138c3b: Leased SQLite transactions release their lease before the next queued kernel transaction takes its turn, so it no longer fails with `transaction_busy`. Checked clients quarantine only uncertain outcomes: a failed COMMIT followed by a successful ROLLBACK, or a stray ROLLBACK with nothing open, leaves the handle usable.
+- aa8de3d: Add opt-in checked SQLite clients and leased transaction sessions, plus batch migration atomicity,
+  ordered-prefix history checks, injected clocks and explicit legacy ledger mappings. Existing raw
+  clients, transaction signatures and default per-step migration behavior are unchanged.
+- 03dec0a: Preserve credential hint metadata across owner-store backup restores and reject database/key path aliases on Windows and macOS.
+- 506196f: BREAKING (host import path): the owner-store composition moved from `@jini-ai/db/owner-store` to the new
+  `@jini-ai/server/owner-store` entry, so `@jini-ai/db` no longer reaches `@jini-ai/platform` or its own
+  sibling domains (guard L1 / SI-domain). Moved: `openOwnerStore`, `OwnerStoreRecoveryError`, `OwnerStoreService`,
+  `OWNER_WORKSPACE_ID`, `ownerContext`, `exportOwnerStore`, `restoreOwnerStore`, `OwnerStoreBackupError` and the
+  `OpenOwnerStore*` / `OwnerStoreDatabase` / `OwnerGrant` / `OwnerPutInput` / `OwnerSyncTarget` types. Behaviour is
+  unchanged. `@jini-ai/db/owner-store` keeps `OWNER_STORE_LEDGER`, `ownerStoreMigrations`, `ownerStoreDdl` and
+  `ownerStoreMigration`.
+
+  Migration: import those names from `@jini-ai/server/owner-store` and add `@jini-ai/server` (same version as
+  `@jini-ai/db`) to the host's dependencies; that entry uses the optional `@jini-ai/db`, `@jini-ai/platform`
+  and `kysely` peers. `OwnerStoreService` additionally accepts an optional `repo`; existing kernel-only
+  constructions still work.
+
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes
