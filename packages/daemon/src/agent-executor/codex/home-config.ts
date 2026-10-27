@@ -115,13 +115,15 @@ const TOML_TABLE_HEADER = /^\s*\[([^[\]]+)\]\s*(#.*)?$/;
 
 /**
  * Whether {@link stripExistingJiniMcpServerTable} drops the table named `key`: always the jini
- * table and its subtables; with `allServers` every MCP table; with `mcpOnly` every non-MCP table.
+ * table and its subtables; with `allServers` every MCP table and every `projects` (trust) table,
+ * so Codex loads no project layer that could add a server; with `mcpOnly` every non-MCP table.
  */
 function dropsTomlTable(key: string, optional: { allServers?: boolean; mcpOnly?: boolean }): boolean {
   const jiniTableKey = `mcp_servers.${JINI_MCP_SERVER_KEY}`;
   if (key === jiniTableKey || key.startsWith(`${jiniTableKey}.`)) return true;
   const isMcp = key === 'mcp_servers' || key.startsWith('mcp_servers.');
-  return (optional.allServers === true && isMcp) || (optional.mcpOnly === true && !isMcp);
+  if (optional.allServers === true && (isMcp || key === 'projects' || key.startsWith('projects.'))) return true;
+  return optional.mcpOnly === true && !isMcp;
 }
 
 /**
@@ -196,7 +198,7 @@ function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allSer
  * removed by default, via the narrow line-oriented scan above, never a full TOML parse. Explicit
  * per-run OFF choices additionally omit personal MCP tables or retain only those tables when
  * user settings are off. Inline root MCP declarations fail closed when isolation is requested,
- * and `isolation.ts` parses the result to refuse any server this line scan could not see.
+ * and `isolation.ts` parses the result to refuse any server or trust entry this line scan could not see.
  * @param existingRaw - The real Codex home's `config.toml` content, or `undefined` when it does not
  * exist (a fresh Codex install — degrades to "start from just this run's block", matching
  * {@link mergeMcpJsonContent}'s own "missing file" handling).

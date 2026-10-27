@@ -2,6 +2,7 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
 import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import type { MessageAttachmentImage } from '../attachment-content.js';
 import type { probeMcpBridge } from './mcp-bridge-probe.js';
+import type { CodexAdminLayerPorts } from './codex/admin-layers.js';
 import type {
    spawn as nodeSpawn,
    ChildProcess,
@@ -476,6 +477,9 @@ export interface McpJsonInjectionOptions {
    * persistent rollout store and authentication. Parity also links user home entries; config alone stays isolated.
    * @default Native mkdir (0700) and directory symlinks; errors fail staging before spawn. */
   readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: { inheritUserConfig?: boolean }) => Promise<void>;
+  /** `'codex-toml'` only, personal MCP off. What the admin-layer probe reads (platform, env, system files, macOS
+   * managed preferences, the sign-in plan) — see `codex/admin-layers.ts`. @default the real host. */
+  readonly codexAdminLayers?: CodexAdminLayerPorts;
 }
 
 /** One `.mcp.json` `mcpServers` entry — the shape Claude Code's own config schema expects. */
