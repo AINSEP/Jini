@@ -64,11 +64,11 @@ export class InMemoryVaultRepo implements VaultRepoPort {
       // Rows are keyed by (workspaceId, id), so one workspace never lists two equal IDs.
       .sort((a, b) => a.id < b.id ? -1 : 1));
   }
-  async put(input: { record: VaultRecord; expectedRevision: number | null }, _options: VaultOptions = {}): Promise<VaultRecord> {
+  async put(input: Parameters<VaultRepoPort["put"]>[0], _options: VaultOptions = {}): Promise<VaultRecord> {
     return this.putRecord(input);
   }
   /** Synchronous mutation owner shared with batch staging; default moves never re-seal. */
-  private putRecord(input: { record: VaultRecord; expectedRevision: number | null }): VaultRecord {
+  private putRecord(input: Parameters<VaultRepoPort["put"]>[0]): VaultRecord {
     const { record } = input;
     const key = this.key(record);
     const existing = this.rows.get(key) ?? null;
@@ -76,7 +76,9 @@ export class InMemoryVaultRepo implements VaultRepoPort {
     const groupKey = vaultGroupKey({ record });
     const group = this.groupRows({ groupKey });
     if (group.some(row => row.id !== record.id && row.label === record.label)) throw new VaultError({ code: "conflict" });
-    const saved = structuredClone({ ...record, isDefault: record.isDefault || group.length === 0 });
+    // Auto-select the first row so an ordinary save is usable without a separate default action.
+    // Explicit false opts out, keeping unattached project keys from becoming vendor defaults.
+    const saved = structuredClone({ ...record, isDefault: record.isDefault ?? (group.length === 0) });
     // Clear first, matching a SQL partial UNIQUE index; no transient duplicate default is required.
     if (saved.isDefault) this.clearDefaults({ group });
     this.rows.set(key, saved);

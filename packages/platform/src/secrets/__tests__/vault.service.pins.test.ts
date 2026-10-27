@@ -228,7 +228,7 @@ describe("prepare", () => {
   test("creation sets revision 1 and both timestamps to now", async () => {
     const { service, input } = fixture();
     const prepared = await service.prepare(input);
-    assert.deepEqual([prepared.revision, prepared.createdAt, prepared.updatedAt, prepared.isDefault], [1, NOW, NOW, false]);
+    assert.deepEqual([prepared.revision, prepared.createdAt, prepared.updatedAt, prepared.isDefault], [1, NOW, NOW, undefined]);
   });
 
   test("replacement keeps createdAt and the same-group default", async () => {
@@ -239,10 +239,10 @@ describe("prepare", () => {
     assert.deepEqual([prepared.revision, prepared.createdAt, prepared.updatedAt, prepared.isDefault], [2, "earlier", NOW, true]);
   });
 
-  test("a provider move starts as non-default", async () => {
+  test("a provider move leaves default placement unspecified", async () => {
     const { service, input } = fixture();
     await service.put(input);
-    assert.equal((await service.prepare({ ...input, expectedRevision: 1, provider: "other" })).isDefault, false);
+    assert.equal((await service.prepare({ ...input, expectedRevision: 1, provider: "other" })).isDefault, undefined);
   });
 
   test("a non-default replacement stays non-default", async () => {
@@ -416,6 +416,12 @@ describe("copyToSite", () => {
     const { target, transfer } = await pair();
     await target.service.put({ ...target.input, id: "other", label: "Other" });
     await target.service.copyToSite(transfer());
+    assert.equal((await target.repo.find(target.context))?.isDefault, false);
+  });
+
+  test("a new copy remains non-default even in an empty group", async () => {
+    const { target, transfer } = await pair();
+    assert.equal((await target.service.copyToSite(transfer()))[0]?.status, "copied");
     assert.equal((await target.repo.find(target.context))?.isDefault, false);
   });
 

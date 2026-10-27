@@ -3,7 +3,7 @@ import { credentialTokenHint } from "../credential-token.js";
 import { buildVaultAad } from "./vault.aad.js";
 import { isCopyableKind } from "./vault.meta.js";
 import { VAULT_KINDS, VaultError, type VaultContext, type VaultIdentity, type VaultKind, type VaultMeta, type VaultMetaParsers,
-  type VaultCopyResult, type VaultDefaultQuery, type VaultOptions, type VaultQuery, type VaultRecord, type VaultRepoPort, type VaultSummary } from "./vault.types.js";
+  type VaultCopyResult, type VaultDefaultQuery, type VaultOptions, type VaultQuery, type VaultRecord, type VaultPutRecord, type VaultRepoPort, type VaultSummary } from "./vault.types.js";
 
 export interface VaultServiceDeps {
   repo: VaultRepoPort;
@@ -26,10 +26,10 @@ export interface VaultPutInput extends VaultContext {
    * Creation requires a payload (which may be null). Payloads are always sealed JSON.
    */
   payload?: VaultMeta | null | undefined;
-  /** Omitted preserves same-group default status; a provider move starts with false and the
-   * repository applies its first-row rule. Explicit true selects the destination default.
+  /** Omitted preserves same-group default status; creation/provider moves let the repository
+   * apply its first-row rule. Explicit false opts out; true selects the destination default.
    */
-  isDefault?: boolean;
+  isDefault?: boolean | undefined;
   /** A host-selected token, never a URI or serialized connection object. */
   hintToken?: string;
 }
@@ -158,7 +158,7 @@ export class SecretsVaultService {
    * Prepared records contain envelopes and stay private to the host, never a public read model.
    * @example const record = await vault.prepare(input); await repo.put({ record, expectedRevision: input.expectedRevision }); // inside the host transaction
    */
-  async prepare(input: VaultPutInput, _options: VaultOptions = {}): Promise<VaultRecord> {
+  async prepare(input: VaultPutInput, _options: VaultOptions = {}): Promise<VaultPutRecord> {
     assertContext(input);
     // Existing custom-kind identities keep their authenticated kind until a migration marks
     // them for boot resealing. New credentials always use the unified vendor kind.
@@ -169,7 +169,7 @@ export class SecretsVaultService {
     const { sealed, last4, tokenLength } = await this.putEnvelope({ input, identity, existing });
     const now = this.deps.now({});
     return { ...identity, provider: input.provider, label: input.label, meta, sealed,
-      isDefault: input.isDefault ?? (existing !== null && existing.provider === input.provider && existing.isDefault),
+      isDefault: input.isDefault ?? (existing !== null && existing.provider === input.provider ? existing.isDefault : undefined),
       revision: (input.expectedRevision ?? 0) + 1, last4, tokenLength,
       createdAt: existing === null ? now : existing.createdAt, updatedAt: now };
   }

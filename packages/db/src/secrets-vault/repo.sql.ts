@@ -59,7 +59,7 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
       return body();
     });
   }
-  private group(record: VaultRecord) {
+  private group(record: VaultDefaultQuery) {
     return { workspaceId: record.workspaceId, kind: record.kind, ownerKey: record.ownerKey,
       principalId: record.principalId, provider: record.provider };
   }
@@ -117,7 +117,7 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
     return rows.map(fromRow).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   }
   private async assertLabelAvailable(
-    { record, existing, moved, scope }: { record: VaultRecord; existing: VaultRecord | null; moved: boolean; scope: VaultQuery },
+    { record, existing, moved, scope }: { record: Parameters<VaultRepoPort["put"]>[0]["record"]; existing: VaultRecord | null; moved: boolean; scope: VaultQuery },
     _options: VaultOptions = {}
   ): Promise<void> {
     // Unchanged-label rotations need no uniqueness read; DB constraints still guard writes.
@@ -127,16 +127,25 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
       if (duplicate) throw new VaultError({ code: "conflict" });
     }
   }
-  async put(input: { record: VaultRecord; expectedRevision: number | null }, _options: VaultOptions = {}): Promise<VaultRecord> {
+  /** One bounded existence query only when the caller leaves default placement unspecified. */
+  private async defaultForPut({ record, existing, moved }: {
+    record: Parameters<VaultRepoPort["put"]>[0]["record"]; existing: VaultRecord | null; moved: boolean;
+  }, _options: VaultOptions = {}): Promise<boolean> {
+    if (record.isDefault !== undefined) return record.isDefault;
+    if (existing !== null && !moved) return false;
+    return !await this.kernel.run(db => this.scoped({ db, input: this.group(record) })
+      .select("id").limit(1).executeTakeFirst());
+  }
+  async put(input: Parameters<VaultRepoPort["put"]>[0], _options: VaultOptions = {}): Promise<VaultRecord> {
     return this.write(input.record.workspaceId, async () => {
       const existing = await this.find(input.record);
       assertVaultReplacement({ ...input, existing });
       const scope = this.group(input.record);
       const moved = existing !== null && existing.provider !== input.record.provider;
       await this.assertLabelAvailable({ record: input.record, existing, moved, scope });
-      const hasGroup = (existing !== null && !moved) || input.record.isDefault || Boolean(await this.kernel.run(db =>
-        this.scoped({ db, input: scope }).select("id").limit(1).executeTakeFirst()));
-      const saved = { ...input.record, isDefault: input.record.isDefault || !hasGroup };
+      // Auto-select the first row so an ordinary save is usable without a separate default action.
+      // Explicit false opts out, keeping unattached project keys from becoming vendor defaults.
+      const saved = { ...input.record, isDefault: await this.defaultForPut({ record: input.record, existing, moved }) };
       // Clear before insert/update so a partial UNIQUE default index never sees two defaults.
       if (saved.isDefault) await this.kernel.run(db => db.updateTable("secrets_vault")
         .set(eb => ({ is_default: false, revision: eb("revision", "+", 1) }))
