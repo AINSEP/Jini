@@ -83,7 +83,7 @@ describe('admin action tools', () => {
     expect(projection.sync({ loaded: [], refusals: [], additionalTools: f.tools }).refusals).toEqual([]);
     const snapshot = registry.list({})[0]!;
     const held = snapshot.tools[0]!;
-    expect(await projection.describeAffectedResources({ toolId: 'p_acme__account_save', input: { payload: { value: 'x' } } })).toEqual({ effect: 'write', resources: ['Account: save'] });
+    expect(await projection.describeAffectedResources({ toolId: 'p_acme__account_save', input: { payload: { value: 'x' } } })).toEqual({ effect: 'write', resources: ['Account: save'], connections: [] });
     projection.sync({ loaded: [], refusals: [] });
     expect(registry.list({})).toEqual([]);
     expect(await projection.describeAffectedResources({ toolId: 'p_acme__account_save', input: {} })).toBeNull();
@@ -137,7 +137,7 @@ describe('admin action tools', () => {
     const live = snapshot.tools.find(tool => tool.name === 'account_save')!;
     expect(await live.handler({ pluginId: 'acme', sdk: snapshot.sdk, auth: { ...context, access: 'admin' }, input: { payload: { value: 'live' } } })).toEqual(await f.call({ payload: { value: 'live' } }));
     expect(f.calls).toHaveLength(2);
-    expect(await projection.describeAffectedResources({ toolId: 'p_acme__account_plain', input: {} })).toEqual({ effect: 'write', resources: ['Account: plain'] });
+    expect(await projection.describeAffectedResources({ toolId: 'p_acme__account_plain', input: {} })).toEqual({ effect: 'write', resources: ['Account: plain'], connections: [] });
     await expect(projection.describeAffectedResources({ toolId: 'p_acme__account_probe', input: {} })).rejects.toThrow('resource lookup failed');
   });
 });

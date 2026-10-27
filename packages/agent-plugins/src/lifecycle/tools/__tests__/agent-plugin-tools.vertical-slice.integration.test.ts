@@ -30,7 +30,7 @@ test('load a fake plugin .mjs tool, project it, invoke it with injected capabili
     expect(await harness.refresh()).toEqual([]);
     expect(harness.tools.has({ toolId: 'p_acme_office__append_rows' })).toBe(true);
     const input = { connectionRef: 'conn-1', table: 'leads', values: ['a', 'b'] };
-    expect(await harness.projection.describeAffectedResources({ toolId: 'p_acme_office__append_rows', input })).toEqual({ effect: 'write', resources: ['table leads'] });
+    expect(await harness.projection.describeAffectedResources({ toolId: 'p_acme_office__append_rows', input })).toEqual({ effect: 'write', resources: ['table leads'], connections: ['conn-1'] });
 
     expect(await harness.invoke('p_acme_office__append_rows', input)).toEqual({ status: 200, appended: 2 });
     expect(harness.log.tokenRequests).toEqual(['conn-1']);

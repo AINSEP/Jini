@@ -42,7 +42,7 @@ function compose(required: { readonly tool: LoadedAgentPluginTool['module']; rea
   surfaces.sync({ loaded: [{ pluginId: PLUGIN, descriptor: surfaceDescriptor(), module: required.surface }], refusals: [] });
   return {
     fake,
-    callTool: () => { const snapshot = registry.list({})[0]!; return snapshot.tools[0]!.handler({ pluginId: PLUGIN, sdk: snapshot.sdk, auth: { access: 'admin', workspaceId: WORKSPACE_ID }, input: {} }); },
+    callTool: () => { const snapshot = registry.list({})[0]!; return snapshot.tools[0]!.handler({ pluginId: PLUGIN, sdk: snapshot.sdk, auth: { access: 'admin', workspaceId: WORKSPACE_ID }, input: { connectionRef: 'c1' } }); },
     callSurface: () => surfaces.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }).save!({ payload: {}, context: { workspaceId: WORKSPACE_ID, principalId: 'admin-1', pluginId: PLUGIN, surfaceId: 'settings' } }),
     resyncTool: (module: LoadedAgentPluginTool['module']) => projection.sync({ loaded: [loadedTool(module)], refusals: [] }),
   };

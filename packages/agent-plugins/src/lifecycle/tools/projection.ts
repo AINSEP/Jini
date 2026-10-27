@@ -7,7 +7,9 @@
  * Added at this seam, because only it knows a tool came from an Agent Plugin module:
  * - schema validation of the input before the module runs (the registry passes schemas through);
  * - per-call host capabilities, revoked when the plugin's tools are withdrawn;
- * - the affected-resources disclosure the host shows before confirming a write/destructive call;
+ * - the affected-resources disclosure the host shows before confirming a write/destructive call,
+ *   including the one connection the call may use (its top-level `connectionRef`), which the
+ *   capability session then enforces;
  * - refusal of ambiguous ids (two plugins whose namespaced ids collide) and of write/destructive
  *   tools that cannot disclose what they change.
  */
@@ -64,8 +66,9 @@ export interface AgentPluginToolProjectionPorts {
 interface AdmittedTool { readonly toolId: string; readonly loaded: LoadedAgentPluginTool; readonly validator: Validator }
 interface ProjectedPlugin { readonly snapshot: AgentPluginToolSnapshot; readonly tools: readonly AdmittedTool[]; readonly additional: readonly AgentPluginAdditionalTool[] }
 
-/** What the host shows before confirming a call. */
-export interface AgentPluginToolDisclosure { readonly effect: AgentPluginToolEffect; readonly resources: readonly string[] }
+/** What the host shows before confirming a call. `connections` is every connection the call may use
+ *  (see {@link callConnections}); the capability session refuses any other, so the card cannot under-show. */
+export interface AgentPluginToolDisclosure { readonly effect: AgentPluginToolEffect; readonly resources: readonly string[]; readonly connections: readonly string[] }
 
 const MAX_RESOURCES = 50;
 const MAX_RESOURCE_LENGTH = 300;
@@ -129,6 +132,16 @@ function validatedInput(tool: AdmittedTool, input: unknown): Readonly<Record<str
   // is never empty; pinned by "input failing at the schema root is located at #" in projection.unit.test.ts.
   const where = [...new Set(result.errors.map(unit => `${unit.instanceLocation} (${unit.keyword})`))].slice(0, 3).join(', ');
   throw new ToolInputError({ message: `Input for '${tool.toolId}' does not match its schema at ${where}. Fix the input and retry.` });
+}
+
+/**
+ * The connections one call may use: the validated input's top-level string `connectionRef`, else none.
+ * A `connectionRef` nested in payload data is data, never a connection. One rule feeds both the
+ * disclosure and the capability session, so what the card shows is exactly what the call can reach.
+ * @complexity O(1).
+ */
+function callConnections(checked: Readonly<Record<string, unknown>>): readonly string[] {
+  return typeof checked.connectionRef === 'string' ? Object.freeze([checked.connectionRef]) : Object.freeze([]);
 }
 
 /** True when both generations hold the same modules and declarations: no revocation needed. @complexity O(t). */
@@ -225,7 +238,7 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
         const checked = validatedInput(tool, input);
         const host = required.capabilities({ pluginId, workspaceId: auth.workspaceId,
           ...(auth.principalId === undefined ? {} : { principalId: auth.principalId }), ...(signal === undefined ? {} : { signal }) });
-        const session = openCapabilitySession({ capabilities: host, isLive, issued });
+        const session = openCapabilitySession({ capabilities: host, isLive, issued, connections: callConnections(checked) });
         try {
           const value = await module.invoke({ input: checked, capabilities: session.capabilities, ...(signal === undefined ? {} : { signal }) });
           return session.release({ value });
@@ -293,20 +306,22 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
         const scan = openCredentialScan({ issued: required.issuedTokens.forPlugin({ pluginId: extra.entry.pluginId }) });
         try {
           const resources = await extra.entry.describeAffectedResources({ input: input.input });
-          return { effect: extra.entry.tool.effect ?? 'write', resources: checkedResources(input.toolId, resources, scan) };
+          // Host-contributed tools run on their own execution owner, never this session's tokens.
+          return { effect: extra.entry.tool.effect ?? 'write', resources: checkedResources(input.toolId, resources, scan), connections: Object.freeze([]) };
         } catch (error) { throw scan.sanitize({ error }); }
       }
       const entry = byToolId.get(input.toolId);
       if (!entry || !registry.list({}).includes(entry.snapshot)) return null;
       const { tool } = entry;
       const checked = validatedInput(tool, input.input);
+      const connections = callConnections(checked);
       const describe = tool.loaded.module.describeAffectedResources;
-      if (!describe) return { effect: tool.loaded.descriptor.effect, resources: [] };
+      if (!describe) return { effect: tool.loaded.descriptor.effect, resources: [], connections };
       // The same per-plugin token memory the plugin's calls feed: its answers and errors are scanned alike.
       const scan = openCredentialScan({ issued: required.issuedTokens.forPlugin({ pluginId: tool.loaded.pluginId }) });
       let answer: unknown;
       try { answer = await describe({ input: checked }); } catch (error) { throw scan.sanitize({ error }); }
-      return { effect: tool.loaded.descriptor.effect, resources: checkedResources(tool.toolId, answer, scan) };
+      return { effect: tool.loaded.descriptor.effect, resources: checkedResources(tool.toolId, answer, scan), connections };
     },
   };
 }

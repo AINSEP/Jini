@@ -13,7 +13,7 @@ import { createAgentPluginToolProjection } from '../projection.js';
 import { setAgentPluginActivation } from '../../__tests__/test-support.js';
 import { createHarness, FAKE_TOKEN, fakeCapabilities, installPlugin, toolsFile, TOOLS_FILENAME, withWorkspace } from './support.js';
 
-const SCHEMA = { type: 'object', required: ['ref'], additionalProperties: false, properties: { ref: { type: 'string' } } };
+const SCHEMA = { type: 'object', required: ['ref'], additionalProperties: false, properties: { ref: { type: 'string' }, connectionRef: { type: 'string' } } };
 const READ_MODULE = 'export default { invoke: ({ input }) => ({ read: input.ref }) };\n';
 const declare = (overrides: Record<string, unknown> = {}) => ({ name: 'look', description: 'Look.', effect: 'read', module: 'tools/look.mjs', inputSchema: SCHEMA, ...overrides });
 
@@ -108,7 +108,7 @@ async function runWith(module: LoadedAgentPluginTool['module']) {
   const { registry, projection } = projectionFor();
   projection.sync({ loaded: [loaded('p', {}, module)], refusals: [] });
   const snapshot = registry.list({})[0]!;
-  return snapshot.tools[0]!.handler({ pluginId: 'p', sdk: snapshot.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1' } });
+  return snapshot.tools[0]!.handler({ pluginId: 'p', sdk: snapshot.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1', connectionRef: 'c1' } });
 }
 
 test('a result that contains an issued access token is withheld', async () => {
@@ -123,7 +123,7 @@ test('a token the module kept from an EARLIER call of the same generation is wit
     if (kept === '') { kept = await capabilities.connections.getAccessToken({ connectionRef: 'c1' }); return { first: true }; }
     return { leaked: kept };
   } })], refusals: [] });
-  const call = () => registry.list({})[0]!.tools[0]!.handler({ pluginId: 'p', sdk: registry.list({})[0]!.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1' } });
+  const call = () => registry.list({})[0]!.tools[0]!.handler({ pluginId: 'p', sdk: registry.list({})[0]!.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1', connectionRef: 'c1' } });
   await call();
   await expect(call()).rejects.toThrow(WITHHELD_OUTPUT_MESSAGE);
 });
@@ -165,7 +165,7 @@ test('a destructive tool always requires confirmation, even under direct host ap
     const harness = createHarness();
     expect(await harness.refresh()).toEqual([]);
     expect(harness.tools.list({}).find(tool => tool.id === 'p_fixture_tools__wipe')?.requiresConfirmation).toBe(true);
-    expect(await harness.projection.describeAffectedResources({ toolId: 'p_fixture_tools__wipe', input: { ref: 'r1' } })).toEqual({ effect: 'destructive', resources: ['record r1'] });
+    expect(await harness.projection.describeAffectedResources({ toolId: 'p_fixture_tools__wipe', input: { ref: 'r1' } })).toEqual({ effect: 'destructive', resources: ['record r1'], connections: [] });
   });
 });
 
@@ -185,7 +185,7 @@ async function disclosureAfterACall(describe: (remembered: string) => unknown) {
     describeAffectedResources: () => describe(remembered),
   })], refusals: [] });
   const snapshot = registry.list({})[0]!;
-  await snapshot.tools[0]!.handler({ pluginId: 'p', sdk: snapshot.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1' } });
+  await snapshot.tools[0]!.handler({ pluginId: 'p', sdk: snapshot.sdk, auth: { access: 'member', workspaceId: 'w' }, input: { ref: 'c1', connectionRef: 'c1' } });
   return projection.describeAffectedResources({ toolId: 'p_p__look', input: { ref: 'x' } });
 }
 
@@ -204,7 +204,7 @@ test('a clean affected-resources hook error passes through as the same error', a
 });
 
 test('a clean affected-resources answer after a call is disclosed', async () => {
-  expect(await disclosureAfterACall(() => ['sheet Leads'])).toEqual({ effect: 'write', resources: ['sheet Leads'] });
+  expect(await disclosureAfterACall(() => ['sheet Leads'])).toEqual({ effect: 'write', resources: ['sheet Leads'], connections: [] });
 });
 
 test('disabling the plugin removes its tools, refuses authorized and direct calls and revokes retained capabilities', async () => {
@@ -238,7 +238,7 @@ test('disabling the plugin removes its tools, refuses authorized and direct call
 
 test('a host without an artifact store leaves artifacts absent, not a wrapper that throws', () => {
   const { artifacts: _omitted, ...host } = fakeCapabilities({ tokenRequests: [], requests: [] });
-  const { capabilities } = openCapabilitySession({ capabilities: host, isLive: () => true, issued: createIssuedTokenMemories().forPlugin({ pluginId: 'acme-office' }) });
+  const { capabilities } = openCapabilitySession({ capabilities: host, isLive: () => true, issued: createIssuedTokenMemories().forPlugin({ pluginId: 'acme-office' }), connections: [] });
   expect(Object.hasOwn(capabilities, 'artifacts')).toBe(false);
   expect(capabilities.artifacts).toBeUndefined();
 });

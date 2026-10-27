@@ -193,7 +193,7 @@ describe('describeAffectedResources', () => {
     const { registry } = fakeRegistry();
     const projection = projectionWith(registry);
     projection.sync({ loaded: [loaded()], refusals: [] });
-    await expect(projection.describeAffectedResources({ toolId: 'p_acme-office__list_rows', input: { n: 1 } })).resolves.toEqual({ effect: 'read', resources: [] });
+    await expect(projection.describeAffectedResources({ toolId: 'p_acme-office__list_rows', input: { n: 1 } })).resolves.toEqual({ effect: 'read', resources: [], connections: [] });
   });
 
   test('a write tool discloses a frozen copy of what its hook returns', async () => {
@@ -202,7 +202,7 @@ describe('describeAffectedResources', () => {
     const answer = ['Row 1 of Sheet A'];
     projection.sync({ loaded: [loaded({ descriptor: { effect: 'write' }, module: { invoke: () => 'ok', describeAffectedResources: () => answer } })], refusals: [] });
     const disclosure = await projection.describeAffectedResources({ toolId: 'p_acme-office__list_rows', input: { n: 1 } });
-    expect(disclosure).toEqual({ effect: 'write', resources: ['Row 1 of Sheet A'] });
+    expect(disclosure).toEqual({ effect: 'write', resources: ['Row 1 of Sheet A'], connections: [] });
     expect(disclosure?.resources).not.toBe(answer);
     expect(Object.isFrozen(disclosure?.resources)).toBe(true);
   });

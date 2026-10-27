@@ -66,6 +66,7 @@ const STATE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const REVOKED_MESSAGE = 'This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.';
 export const WITHHELD_OUTPUT_MESSAGE = 'The plugin tool result was withheld because it contained a connection credential.';
 export const WITHHELD_ERROR_MESSAGE = 'The plugin tool failed and its error was withheld because it contained a connection credential.';
+export const UNDECLARED_CONNECTION_MESSAGE = 'This plugin tool call may only use the connection its connectionRef input names. Nothing was sent. Report this to the plugin author.';
 
 /**
  * Access tokens one plugin obtained, across all of its calls: plugin code that keeps a token in module
@@ -260,18 +261,23 @@ export function guardStateReader(required: { readonly gate: AgentPluginCapabilit
  * @param required.capabilities - The host's capabilities for this call.
  * @param required.isLive - False once the contributing plugin's tools are revoked.
  * @param required.issued - The plugin's token memory, shared by all its calls and its surface handlers.
+ * @param required.connections - The call's declared connections (`callConnections`); a token for any
+ *   other ref is refused before the host is asked, so plugin code cannot reach a connection the call
+ *   (and its confirmation card) did not name. Empty means the call gets no token at all.
  * @returns Wrapped capabilities plus `release` (result gate) and `sanitize` (error gate).
- * @complexity O(1) to open; gates are O(serialized size).
+ * @complexity O(1) to open; gates are O(serialized size); a token request is O(c) declared connections.
  */
 export function openCapabilitySession(
-  required: { readonly capabilities: AgentPluginToolCapabilities; readonly isLive: () => boolean; readonly issued: IssuedTokenMemory },
+  required: { readonly capabilities: AgentPluginToolCapabilities; readonly isLive: () => boolean; readonly issued: IssuedTokenMemory; readonly connections: readonly string[] },
   _optional: Record<string, never> = {},
 ) {
-  const { capabilities: host, isLive, issued } = required;
+  const { capabilities: host, isLive, issued, connections } = required;
   const gate = openCapabilityGate({ isLive, issued });
   const capabilities: AgentPluginToolCapabilities = Object.freeze({
-    connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) =>
-      gate.noteToken({ token: await host.connections.getAccessToken({ connectionRef: input.connectionRef }) })) }),
+    connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) => {
+      if (!connections.includes(input.connectionRef)) throw new Error(UNDECLARED_CONNECTION_MESSAGE);
+      return gate.noteToken({ token: await host.connections.getAccessToken({ connectionRef: input.connectionRef }) });
+    }) }),
     ...guardSharedCapabilities({ gate, host }),
     state: guardStateReader({ gate, state: host.state }),
   });
