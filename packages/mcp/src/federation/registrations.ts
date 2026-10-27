@@ -19,9 +19,15 @@ import {
   wrapUntrustedResult,
   writeShapedInputNames,
   federatedCallConfirmationForAction,
+  federatedToolId,
+  federatedToolRequiresWriteGrant,
+  refusalForAdmittedToolUnderCurrentGrants,
+  strongestFederatedConfirmation,
   type AdmittedFederatedTool,
+  type FederatedCallConfirmation,
   type FederatedAdmissionReport,
 } from "./trust.js";
+import { revocationReasonForToolRefusal } from "./approvals/revocation-reason.js";
 
 /**
  * @file Turns one connected external MCP server into `ToolRegistration`s — the federated
@@ -73,7 +79,8 @@ export interface FederationDeps {
   readonly errorCode: string;
   readonly scope?: string;
   /**
-   * A LIVENESS gate, checked before every federated call. Optional; when absent, behaviour is
+   * A LIVENESS gate, checked before every federated call — and again after a card is approved, since
+   * the card can wait long enough for a revocation to land. Optional; when absent, behaviour is
    * exactly what it was before this existed.
    *
    * ## Why a gate rather than unregistering the tools
@@ -138,6 +145,14 @@ export interface FederationDeps {
    * never "run it anyway".
    */
   readonly confirmCall?: ((required: { context: ToolExecutionContext & ToolExecutionOptions; request: FederatedCallConfirmationRequest }) => Promise<FederatedCallConfirmationOutcome>) | undefined;
+  /**
+   * The host's own approval policy (e.g. publication or trash rules), asked per call. It may ADD a
+   * card to a call Jini would run directly, or make a card danger-styled; it can never remove one Jini
+   * requires — {@link strongestFederatedConfirmation} keeps the stronger answer. `confirmCall` is the
+   * human channel and must not decide policy: a host that answers `{ confirmed: true }` without a
+   * person has bypassed this rule, which is why the policy has its own port.
+   */
+  readonly hostConfirmation?: ((required: { remoteName: string; arguments: Readonly<Record<string, unknown>>; declaredAnnotations: AdmittedFederatedTool["declaredAnnotations"] }) => FederatedCallConfirmation) | undefined;
 }
 
 export interface FederatedRegistrationResult {
@@ -172,29 +187,19 @@ export function buildFederatedMcpRegistrations(params: {
   assertNoNativeCollision({ federatedToolIds: report.admitted.map((tool) => tool.toolId), nativeToolIds: params.nativeToolIds, messages: deps.messages });
 
   const registrations = report.admitted.map((tool): ToolRegistration => {
+    const call: FederatedCallTarget = {
+      remoteName: tool.remoteName,
+      declaredAnnotations: tool.declaredAnnotations,
+      origin: config.origin,
+      requiresWriteGrant: federatedToolRequiresWriteGrant({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations }, { readList: config.readOnlyRemoteNames }),
+    };
     const handler: ToolHandler = async (ctx, options = {}) => {
-      // Liveness AND revocation first — see `FederationDeps.assertConnectionUsable` for why this
-      // precedes the permission check rather than following it.
-      await deps.assertConnectionUsable?.({ connectionId: config.connectionId, call: {
-        remoteName: tool.remoteName,
-        declaredAnnotations: tool.declaredAnnotations,
-        origin: config.origin,
-      } });
-
-      // ONE evaluator, run before anything crosses the network — not after, so a denied principal's
-      // arguments are never even sent to a third party. `entityId` is the connection, so a
-      // deployment can grant per-connection rather than all-or-nothing.
-      await deps.permissionGate({
-        context: ctx,
-        permission: FEDERATED_TOOL_PERMISSION,
-        entityType: FEDERATED_ENTITY_TYPE,
-        entityId: config.connectionId,
-      }, deps.scope === undefined ? {} : { scope: deps.scope });
+      await assertCallAllowed({ ctx, deps, config, call });
 
       // Fixed ONCE, before any card is drawn: the frozen copy the human sees is the same object that
       // is sent, so nothing that happens to `ctx.input` while the card waits can change what runs.
       const args = frozenArguments(ctx.input);
-      const declined = await askBeforeCall({ ...ctx, ...options }, deps, config, tool, args);
+      const declined = await askBeforeCall({ ctx: { ...ctx, ...options }, deps, config, tool, args, call });
       if (declined) return declined;
 
       let result: RemoteToolResult;
@@ -276,8 +281,70 @@ export async function federateSession(params: {
 }
 
 /**
+ * Liveness, revocation and authorization for one call — run before anything is sent, and again
+ * after a card is approved, so an approval never substitutes for them.
+ * @throws Whatever `assertConnectionUsable`, {@link assertAdmittedGrants} or `permissionGate` throws to refuse.
+ * @complexity O(a + w) in the admitted grant lists, plus the injected gates' own I/O.
+ */
+async function assertCallAllowed({ ctx, deps, config, call }: {
+  ctx: ToolExecutionContext; deps: FederationDeps; config: FederatedMcpConnectionConfig; call: FederatedCallTarget;
+}): Promise<void> {
+  // Liveness AND revocation first — see `FederationDeps.assertConnectionUsable` for why this
+  // precedes the permission check rather than following it.
+  await deps.assertConnectionUsable?.({ connectionId: config.connectionId, call });
+
+  // "May write" against the grants this connection was admitted with — for EVERY connection, not
+  // only the ones a host gate can re-read: a preset has no roster row, so the revocation gate skips
+  // it, and a host may wire no gate at all. A roster gate above may narrow further, never widen.
+  assertAdmittedGrants({ deps, config, call });
+
+  // ONE evaluator, run before anything crosses the network — not after, so a denied principal's
+  // arguments are never even sent to a third party. `entityId` is the connection, so a
+  // deployment can grant per-connection rather than all-or-nothing.
+  await deps.permissionGate({
+    context: ctx,
+    permission: FEDERATED_TOOL_PERMISSION,
+    entityType: FEDERATED_ENTITY_TYPE,
+    entityId: config.connectionId,
+  }, deps.scope === undefined ? {} : { scope: deps.scope });
+}
+
+/**
+ * The per-call grant check ({@link refusalForAdmittedToolUnderCurrentGrants}) applied to the
+ * connection's own admitted grants. A preset's default write grant is the `writeAllowedToolNames` it
+ * authors, shown per tool as `writeAuthorized` in the admission report — never an implicit bypass.
+ * @throws {ToolInputError} `${errorCode}_WRITE_NOT_ALLOWED` (or `_TOOL_NOT_ALLOWED`); nothing is sent.
+ * @complexity O(a + w) in the two list lengths.
+ */
+function assertAdmittedGrants({ deps, config, call }: { deps: FederationDeps; config: FederatedMcpConnectionConfig; call: FederatedCallTarget }): void {
+  const refusal = refusalForAdmittedToolUnderCurrentGrants({ tool: call, grants: config });
+  const reason = revocationReasonForToolRefusal(refusal);
+  if (refusal === null || reason === null) return;
+  throw new ToolInputError({ message: `${deps.errorCode}_${reason.toUpperCase().replace(/-/g, "_")}: ` +
+    `${federatedToolId({ connectionId: config.connectionId, remoteName: call.remoteName })}: ` +
+    `${deps.messages.refusalExplanations[refusal]} Nothing was sent.` });
+}
+
+/**
+ * Runs after a card is approved. The card can wait for minutes, and in that window the server can be
+ * removed or disconnected, the tool's grant narrowed, the principal's permission revoked, or the run
+ * cancelled — the checks made before the card are stale, so they are made again before sending.
+ * @returns The model-facing result when the run ended while the card waited, else `null` to send.
+ * @throws Whatever {@link assertCallAllowed} throws to refuse.
+ * @complexity O(1) plus the injected gates' own I/O.
+ */
+async function recheckAfterApproval(
+  required: { ctx: ToolExecutionContext; deps: FederationDeps; config: FederatedMcpConnectionConfig; call: FederatedCallTarget },
+): Promise<Record<string, unknown> | null> {
+  await assertCallAllowed(required);
+  if (!required.ctx.signal.aborted) return null;
+  return { federated: { connectionId: required.config.connectionId, tool: required.call.remoteName }, ran: false, cancelled: false, reason: "abandoned" };
+}
+
+/**
  * G3: the per-call human gate for protected actions (`trust.ts` R3): permanent deletion, delivery
- * to people, and changes to assistant privacy/instructions/access. Write-shaped input names
+ * to people, and changes to assistant privacy/instructions/access — plus whatever the host's
+ * `hostConfirmation` policy adds (it can add, never remove). Write-shaped input names
  * (`WRITE_SHAPED_INPUT_WORDS`) describe required cards without independently requiring one. Returns
  * `null` when the call may proceed — an ordinary action, or an explicit Confirm — and otherwise the
  * model-facing result that replaces the call. One card per call: the card is opened here, inside the
@@ -287,14 +354,18 @@ export async function federateSession(params: {
  *   nothing is sent.
  * @complexity O(1) plus the wait for the human.
  */
-async function askBeforeCall(
-  ctx: ToolExecutionContext & ToolExecutionOptions,
-  deps: FederationDeps,
-  config: FederatedMcpConnectionConfig,
-  tool: AdmittedFederatedTool,
-  args: Readonly<Record<string, unknown>>,
-): Promise<Record<string, unknown> | null> {
-  const confirmation = federatedCallConfirmationForAction({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations, args: args });
+async function askBeforeCall({ ctx, deps, config, tool, args, call }: {
+  ctx: ToolExecutionContext & ToolExecutionOptions;
+  deps: FederationDeps;
+  config: FederatedMcpConnectionConfig;
+  tool: AdmittedFederatedTool;
+  args: Readonly<Record<string, unknown>>;
+  call: FederatedCallTarget;
+}): Promise<Record<string, unknown> | null> {
+  const confirmation = strongestFederatedConfirmation({
+    required: federatedCallConfirmationForAction({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations, args: args }),
+    host: deps.hostConfirmation?.({ remoteName: tool.remoteName, arguments: args, declaredAnnotations: tool.declaredAnnotations }) ?? "none",
+  });
   if (confirmation === "none") return null;
   const writeShapedInputs = [...new Set([...tool.writeShapedInputs, ...writeShapedInputNames({ args: args })])].sort();
   if (!deps.confirmCall) {
@@ -316,7 +387,7 @@ async function askBeforeCall(
     inputSchema: tool.inputSchema,
     writeShapedInputs,
   } });
-  if (outcome.confirmed) return null;
+  if (outcome.confirmed) return recheckAfterApproval({ ctx, deps, config, call });
   return { federated: { connectionId: config.connectionId, tool: tool.remoteName }, ran: false, ...outcome.result };
 }
 

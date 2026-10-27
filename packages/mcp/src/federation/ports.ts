@@ -98,7 +98,9 @@ export interface McpStdioChannel {
  * every later `tools/call`. `external-mcp-revocation.ts`'s per-call gate is the one consumer: a
  * preset gets only the legacy OAuth `needs_reauth` check (it has no roster row to compare against);
  * a roster connection is re-checked against its CURRENT row every call, keyed by
- * `admissionRevision` — see that file's `rosterRefusalFor`.
+ * `admissionRevision` — see that file's `rosterRefusalFor`. Whatever the origin, the handler itself
+ * also checks "may write" against the grants the connection was admitted with
+ * (`registrations.ts` `assertAdmittedGrants`), so a preset is never exempt from it.
  */
 export type FederatedConnectionOrigin =
   | { readonly kind: "preset" }
@@ -116,10 +118,11 @@ export interface FederatedMcpConnectionConfig {
    * Remote readOnlyHint:false or destructiveHint:true vetoes each declaration. */
   readonly readOnlyRemoteNames?: ReadonlySet<string> | undefined;
   /**
-   * SECOND list of REMOTE tool names (pre-namespacing) the operator has separately declared as
-   * writes. Kept for configuration compatibility and admission reports, independently of
-   * {@link allowedToolNames}. The allowlist alone gates admission; this list does not grant or
-   * refuse calls. Descriptor read-only classification and host permissions remain separate gates.
+   * SECOND list of REMOTE tool names (pre-namespacing) the operator has separately allowed to WRITE
+   * ("may write"). The allowlist alone gates admission; this list gates CALLS: a tool `trust.ts`
+   * `federatedToolRequiresWriteGrant` classifies as a write is refused per call unless named here
+   * (`refusalForAdmittedToolUnderCurrentGrants`). Descriptor read-only classification and host
+   * permissions remain separate gates.
    *
    * Same "no safe default at this layer" rule as {@link allowedToolNames}: every connection that has
    * never been told to allow a write must resolve to an empty list here, and a vendor preset that
@@ -160,6 +163,9 @@ export interface FederatedCallTarget {
    *  re-read from the remote on this path. */
   readonly declaredAnnotations: RemoteToolDescriptor["annotations"] | undefined;
   readonly origin: FederatedConnectionOrigin | undefined;
+  /** `trust.ts` `federatedToolRequiresWriteGrant`, decided at registration where the operator's read
+   *  list is known — the per-call write-grant check reads it. Absent means "re-derive", never "read". */
+  readonly requiresWriteGrant?: boolean | undefined;
 }
 
 /** How a locally-launched federated connection is started.

@@ -527,14 +527,14 @@ test("refusalForAdmittedToolUnderCurrentGrants: a write tool named in both lists
   assert.equal(refusal, null);
 });
 
-test("refusalForAdmittedToolUnderCurrentGrants (G3): a write tool off the write list is NOT refused — the per-call card gates it instead", () => {
+test("refusalForAdmittedToolUnderCurrentGrants: a write tool off the write list is refused — 'may write' is a grant", () => {
   const refusal = refusalForAdmittedToolUnderCurrentGrants({ tool: { remoteName: "write_thing", declaredAnnotations: { readOnlyHint: false } }, grants: { allowedToolNames: ["write_thing"], writeAllowedToolNames: [] } });
-  assert.equal(refusal, null);
+  assert.equal(refusal, "remote-declares-not-read-only");
 });
 
-test("refusalForAdmittedToolUnderCurrentGrants: a tool with no declared hints removed from the write list is NOT refused — matches admission (R3 only catches an honest readOnlyHint:false)", () => {
+test("refusalForAdmittedToolUnderCurrentGrants: a tool with no declared hints and an opaque name removed from the write list is refused — unclassifiable fails closed", () => {
   const refusal = refusalForAdmittedToolUnderCurrentGrants({ tool: { remoteName: "silent_thing", declaredAnnotations: undefined }, grants: { allowedToolNames: ["silent_thing"], writeAllowedToolNames: [] } });
-  assert.equal(refusal, null);
+  assert.equal(refusal, "remote-declares-not-read-only");
 });
 
 test("refusalForAdmittedToolUnderCurrentGrants: a tool present only on the write list (never allowlisted) is refused for the allowlist, not the write list — INV-002", () => {

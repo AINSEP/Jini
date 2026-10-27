@@ -287,8 +287,11 @@ describe("current-grant re-check", () => {
   test("a tool removed from the allowlist is refused", () => {
     expect(refusalForAdmittedToolUnderCurrentGrants({ tool, grants: { allowedToolNames: [], writeAllowedToolNames: ["a"] } })).toBe("not-in-operator-allowlist");
   });
-  test("an allowlisted tool is not refused regardless of hints", () => {
-    expect(refusalForAdmittedToolUnderCurrentGrants({ tool, grants: { allowedToolNames: ["a"], writeAllowedToolNames: [] } })).toBeNull();
+  test("an allowlisted destructive tool without a write grant is refused", () => {
+    expect(refusalForAdmittedToolUnderCurrentGrants({ tool, grants: { allowedToolNames: ["a"], writeAllowedToolNames: [] } })).toBe("remote-declares-not-read-only");
+  });
+  test("an allowlisted destructive tool with a write grant is not refused", () => {
+    expect(refusalForAdmittedToolUnderCurrentGrants({ tool, grants: { allowedToolNames: ["a"], writeAllowedToolNames: ["a"] } })).toBeNull();
   });
 });
 

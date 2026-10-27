@@ -160,11 +160,12 @@ const REMOTE_TOOL_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/;
 export type ToolRefusalReason =
   | "not-in-operator-allowlist"
   /** No longer produced since G3 (R3: hints only add a per-call card, they never refuse). Kept in the
-   * union, with the next one, so an admission report persisted or logged before G3 — and the admin
-   * UI's copy table, which mirrors this union — still type-check. Removing both, and their dead copy
-   * in `refusal-notice.ts` / `external-mcp-revocation.ts` / the admin Settings, is a separate
-   * clean-up. */
+   * union so an admission report persisted or logged before G3 — and the admin UI's copy table,
+   * which mirrors this union — still type-check. Removing it, and its dead copy in
+   * `refusal-notice.ts` / the admin Settings, is a separate clean-up. */
   | "remote-declares-destructive"
+  /** A write tool ({@link federatedToolRequiresWriteGrant}) with no write grant — produced per call by
+   * {@link refusalForAdmittedToolUnderCurrentGrants}, never at admission. */
   | "remote-declares-not-read-only"
   | "missing-or-invalid-input-schema"
   | "invalid-remote-tool-name"
@@ -450,14 +451,48 @@ const PERMANENT_REMOVAL_ACTION = /(?:^|_)(?:delete|purge|drop|destroy|truncate|r
  */
 export function federatedCallConfirmationForAction({ remoteName, annotations, args }: { remoteName: string; annotations: RemoteToolDescriptorAnnotations; args: Readonly<Record<string, unknown>> }
 ): FederatedCallConfirmation {
-  // `-` separates words like `_` does (`remove-domain`, `send-broadcast`): MCP servers use both.
-  const name = remoteName.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/-/g, "_");
+  const name = actionName(remoteName);
   const declaredDestructive = annotations?.destructiveHint === true;
   if (DELIVERY_ACTION.test(name) || SYSTEM_PROMPT_ACTION.test(name)) return "confirm";
   if (READ_ACTION.test(name.replace(ASSISTANT_PREFIX, "")) && !declaredDestructive) return "none";
   if (ASSISTANT_ACCESS_ACTION.test(name)) return "confirm";
   if (SQL_ACTION.test(name)) return sqlCallDeletesData(args, declaredDestructive) ? "confirm-destructive" : "none";
   return removalConfirmation(name, declaredDestructive);
+}
+
+/** The snake_cased remote name the R3 action rules match against. @complexity O(n) in the name length. */
+function actionName(remoteName: string): string {
+  // `-` separates words like `_` does (`remove-domain`, `send-broadcast`): MCP servers use both.
+  return remoteName.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/-/g, "_");
+}
+
+const CONFIRMATION_STRENGTH: Readonly<Record<FederatedCallConfirmation, number>> = { none: 0, confirm: 1, "confirm-destructive": 2 };
+
+/**
+ * Combines Jini's own per-call confirmation with a host policy's answer. The stronger one wins, so a
+ * host policy can ADD a card (or make one danger-styled) but can never remove a card Jini requires.
+ * @complexity O(1).
+ */
+export function strongestFederatedConfirmation({ required, host }: { required: FederatedCallConfirmation; host: FederatedCallConfirmation }): FederatedCallConfirmation {
+  return CONFIRMATION_STRENGTH[host] > CONFIRMATION_STRENGTH[required] ? host : required;
+}
+
+/**
+ * "May write", enforced per call: whether an admitted tool needs the operator's separate write grant
+ * (`writeAllowedToolNames`). A tool counts as a read only when the remote declares `readOnlyHint: true`,
+ * the operator's reviewed read list names it, or its name starts with a read verb (after an
+ * assistant/agent prefix) — and the remote does not contradict that with `readOnlyHint: false` or
+ * `destructiveHint: true`. Every other tool, including an unannotated one with an opaque name, is a
+ * write: an unclassifiable tool fails closed to needing the grant.
+ * @complexity O(n) in the name length.
+ */
+export function federatedToolRequiresWriteGrant(
+  { remoteName, annotations }: { remoteName: string; annotations: RemoteToolDescriptorAnnotations },
+  { readList }: { readList?: ReadonlySet<string> | undefined } = {},
+): boolean {
+  if (annotations?.readOnlyHint === false || annotations?.destructiveHint === true) return true;
+  if (annotations?.readOnlyHint === true || readList?.has(remoteName) === true) return false;
+  return !READ_ACTION.test(actionName(remoteName).replace(ASSISTANT_PREFIX, ""));
 }
 
 /** The tail of {@link federatedCallConfirmationForAction}: reversible removals (trash, archive…)
@@ -489,21 +524,24 @@ function sqlCallDeletesData(args: Readonly<Record<string, unknown>>, declaredDes
 }
 
 /**
- * R2, reapplied to an ALREADY-ADMITTED tool against the operator's CURRENT allowlist — the
- * narrowing-only, per-call counterpart of {@link classifyRemoteTool} that `external-mcp-revocation.ts`
- * `rosterRefusalFor` uses to catch a tool an operator removed from the allowlist after admission.
- * Since G3 the hints never refuse (R3 gates protected actions per call), so the write list is
- * accepted but no longer consulted; the signature stays so that caller need not change.
+ * R2, reapplied to an ALREADY-ADMITTED tool against the operator's CURRENT allowlist and write list —
+ * the narrowing-only, per-call counterpart of {@link classifyRemoteTool} that `external-mcp-revocation.ts`
+ * `rosterRefusalFor` uses to catch a tool an operator removed from either list after admission.
+ * A tool that {@link federatedToolRequiresWriteGrant} classifies as a write is refused unless the
+ * write list names it ("may write" is a grant, not a label); a read tool needs only the allowlist.
  *
  * Only ever narrows: a tool admission already approved can, per call, lose access; it can never gain
  * any it did not already have.
  *
- * @complexity O(1).
+ * @param tool.requiresWriteGrant - The classification made at registration, where the operator's read
+ *   list is known. When absent it is re-derived without that list, which can only be stricter.
+ * @complexity O(a + w) in the two list lengths.
  */
-export function refusalForAdmittedToolUnderCurrentGrants({ tool, grants }: { tool: { readonly remoteName: string; readonly declaredAnnotations: RemoteToolDescriptorAnnotations }; grants: { readonly allowedToolNames: readonly string[]; readonly writeAllowedToolNames: readonly string[] } }
+export function refusalForAdmittedToolUnderCurrentGrants({ tool, grants }: { tool: { readonly remoteName: string; readonly declaredAnnotations: RemoteToolDescriptorAnnotations; readonly requiresWriteGrant?: boolean | undefined }; grants: { readonly allowedToolNames: readonly string[]; readonly writeAllowedToolNames: readonly string[] } }
 ): ToolRefusalReason | null {
   if (!grants.allowedToolNames.includes(tool.remoteName)) return "not-in-operator-allowlist";
-  // R3 (G3): hints never refuse — they only decide the per-call card, which the handler applies.
+  const requiresWriteGrant = tool.requiresWriteGrant ?? federatedToolRequiresWriteGrant({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations });
+  if (requiresWriteGrant && !grants.writeAllowedToolNames.includes(tool.remoteName)) return "remote-declares-not-read-only";
   return null;
 }
 

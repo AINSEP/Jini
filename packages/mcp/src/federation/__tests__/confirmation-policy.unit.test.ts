@@ -9,7 +9,7 @@ async function run(name: string, input: Record<string, unknown>, annotations?: R
   const cards: string[] = [];
   const destructive: boolean[] = [];
   const {registrations} = await federateSession({session, nativeToolIds: new Set(), config: {
-    connectionId: "service", label: "Service", allowedToolNames: [name], writeAllowedToolNames: [],
+    connectionId: "service", label: "Service", allowedToolNames: [name], writeAllowedToolNames: [name],
     maxTools: 5, maxResultBytes: 4096, connectTimeoutMs: 100, callTimeoutMs: 100,
   }, deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: testPermissionGate({ authorize: async () => ({allowed: allow, reason: allow ? "matched" : "not authorized"}), scope: "workspace" }), scope: "workspace", confirmCall: async ({ context: _ctx, request }) => {cards.push(request.remoteName); destructive.push(request.destructive); return {confirmed: false, result: {cancelled: true}};} }});
   const result = await registrations[0]!.handler({executionId: "execution", run: {id: "run"}, principal: {id: "owner"}, input, signal: new AbortController().signal});
@@ -89,7 +89,7 @@ for (const [name, args, expected] of [
 test("missing human channel derives its error namespace from the host", async () => {
   const session = new InMemoryMcpSession({ tools: [{ name: "delete_project", inputSchema: { type: "object" } }] });
   const { registrations } = await federateSession({ session, nativeToolIds: new Set(), config: {
-    connectionId: "service", label: "Service", allowedToolNames: ["delete_project"], writeAllowedToolNames: [],
+    connectionId: "service", label: "Service", allowedToolNames: ["delete_project"], writeAllowedToolNames: ["delete_project"],
     maxTools: 5, maxResultBytes: 4096, connectTimeoutMs: 100, callTimeoutMs: 100,
   }, deps: { messages: federationMessages, errorCode: "HOST_APPROVAL", permissionGate: () => undefined } });
   await assert.rejects(() => registrations[0]!.handler({ executionId: "execution", run: { id: "run" },
