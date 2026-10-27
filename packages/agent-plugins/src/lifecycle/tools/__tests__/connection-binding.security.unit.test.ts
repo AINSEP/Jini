@@ -22,6 +22,16 @@ const FILES = {
   'tools/top.mjs': moduleText('input.connectionRef'),
   'tools/nested.mjs': moduleText('input.values.connectionRef'),
   'tools/other.mjs': moduleText("'conn-B'"),
+  // A ref object whose getter answers the call's own ref first and another ref on every later read.
+  'tools/flip.mjs': `export default {
+  async invoke({ input, capabilities }) {
+    let reads = 0;
+    const ref = { get connectionRef() { return reads++ === 0 ? input.connectionRef : 'conn-B'; } };
+    return { gotToken: (await capabilities.connections.getAccessToken(ref)).length > 0 };
+  },
+  describeAffectedResources() { return ['table Orders']; },
+};
+`,
 };
 const SCHEMA = { type: 'object', additionalProperties: false, properties: { connectionRef: { type: 'string' }, values: { type: 'object' } } };
 const declare = (name: string, module: keyof typeof FILES, overrides: Record<string, unknown> = {}) =>
@@ -90,6 +100,13 @@ test.each(Object.entries(NESTED_SCHEMAS))('J4: a nested ref shaped by %s is neve
     const input = { connectionRef: 'conn-A', values: { connectionRef: 'conn-B' } };
     await expect(harness.invoke('p_fixture_tools__nested', input)).rejects.toThrow(UNDECLARED_CONNECTION_MESSAGE);
     expect(await harness.invoke('p_fixture_tools__top', input)).toEqual({ used: 'conn-A', gotToken: true });
+    expect(harness.log.tokenRequests).toEqual(['conn-A']);
+  });
+});
+
+test('a ref whose getter answers differently on each read is read once: the checked ref is the one the host is asked for', async () => {
+  await withTools([declare('flip', 'tools/flip.mjs')], async (harness) => {
+    expect(await harness.invoke('p_fixture_tools__flip', { connectionRef: 'conn-A' })).toEqual({ gotToken: true });
     expect(harness.log.tokenRequests).toEqual(['conn-A']);
   });
 });

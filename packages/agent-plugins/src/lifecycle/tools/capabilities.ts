@@ -275,8 +275,10 @@ export function openCapabilitySession(
   const gate = openCapabilityGate({ isLive, issued });
   const capabilities: AgentPluginToolCapabilities = Object.freeze({
     connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) => {
-      if (!connections.includes(input.connectionRef)) throw new Error(UNDECLARED_CONNECTION_MESSAGE);
-      return gate.noteToken({ token: await host.connections.getAccessToken({ connectionRef: input.connectionRef }) });
+      // Read once: plugin code may pass a getter, so the ref checked must be the very value forwarded.
+      const { connectionRef } = input;
+      if (!connections.includes(connectionRef)) throw new Error(UNDECLARED_CONNECTION_MESSAGE);
+      return gate.noteToken({ token: await host.connections.getAccessToken({ connectionRef }) });
     }) }),
     ...guardSharedCapabilities({ gate, host }),
     state: guardStateReader({ gate, state: host.state }),
