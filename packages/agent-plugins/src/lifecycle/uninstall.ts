@@ -480,6 +480,9 @@ interface UninstallTargets {
 
     await chmod(dir, 0o700).catch(() => undefined);
     for (const entry of entries) {
+      // Dirents are lstat-typed: a link is removed by `rm`, never followed, since chmod through it
+      // would change the mode of whatever it points at, even outside the package.
+      if (entry.isSymbolicLink()) continue;
       const absolute = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await makeTreeWritable(absolute);

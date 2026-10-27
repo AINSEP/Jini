@@ -2,7 +2,7 @@ import { installLegacyRevision } from '../fixtures/install-legacy-revision.js';
 import assert from "node:assert/strict";
 import { readAgentPluginActivations, recordBundledAgentPluginIfAbsent, setAgentPluginActivation } from "../test-support.js";
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, readdir, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "../legacy-test.js";
@@ -217,6 +217,27 @@ test("removing a frozen (read-only, 0o555) published package root does not throw
 
     await uninstallAgentPlugin({ layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "frozen-check" });
     await assert.rejects(() => stat(installed.packageRoot));
+  } finally {
+    await forceRemove(cwd);
+  }
+});
+
+// RED (Codex batch6): unfreezing the tree for removal chmod-ed through symlinks, so a link inside a
+// package changed the mode of whatever file it pointed at, even outside the package.
+test("removing a package tree never chmods through a symlink to a file outside it", async () => {
+  const { cwd, instanceLayout } = await freshLayout();
+  try {
+    const installed = await installTestPackage(instanceLayout, "symlink-check", "archive-symlink-check");
+    const outside = path.join(cwd, "outside.txt");
+    await writeFile(outside, "not the package's");
+    await chmod(outside, 0o444);
+    await chmod(installed.packageRoot, 0o755);
+    await symlink(outside, path.join(installed.packageRoot, "link-out"));
+    await chmod(installed.packageRoot, 0o555);
+
+    await uninstallAgentPlugin({ layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "symlink-check" });
+    await assert.rejects(() => stat(installed.packageRoot));
+    assert.equal((await stat(outside)).mode & 0o777, 0o444, "the link's target keeps its own mode");
   } finally {
     await forceRemove(cwd);
   }
