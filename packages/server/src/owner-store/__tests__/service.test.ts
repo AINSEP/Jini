@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vitest";
-import { ownerContext } from "../service.js";
+import { OWNER_REVOCATION_AUTO_ATTEMPTS, ownerContext } from "../service.js";
 import { fixture, input, target } from "./fixture.js";
 
 const fixtures: ReturnType<typeof fixture>[] = [];
@@ -74,6 +74,70 @@ test("target cleanup failure still commits central revocation and can be retried
   failure.mockRestore();
   await store.revoke({ entryId: entry.id, target: site });
   expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
+});
+
+test("P2: refuses owner deletion while revoked target cleanup remains incomplete", async () => {
+  const f = setup();
+  const store = await f.open();
+  const entry = await store.put(input);
+  const site = target("one");
+  const identity = { ...ownerContext(entry), workspaceId: site.workspaceId, id: entry.id };
+  await store.grant({ entryId: entry.id, consumerId: site.consumerId });
+  expect(await store.syncTo({ target: site })).toEqual([{ kind: "vendor", id: entry.id, status: "copied" }]);
+  const failure = vi.spyOn(site.repo, "delete").mockRejectedValueOnce(new Error("site unavailable"));
+  try {
+    await expect(store.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
+  } finally { failure.mockRestore(); }
+  // Central access is revoked, but the target still holds the copied secret.
+  expect(await store.grants({})).toEqual([]);
+  expect((await site.vault.get(identity))?.payload).toEqual(input.payload);
+  // The pending cleanup is durable: a restart must not forget the untracked copy.
+  await f.close();
+  const reopened = await f.open();
+  await expect(reopened.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({
+    code: "conflict", name: "OwnerRevocationPendingError", message: expect.stringContaining('consumer "one"') });
+  expect(await reopened.pendingRevocations({})).toEqual([{ entry_id: entry.id, consumer_id: "one", attempts: 1, updated_at: expect.any(String) }]);
+  expect(await reopened.repo.find(entry)).not.toBeNull();
+  await reopened.revoke({ entryId: entry.id, target: site });
+  expect(await site.repo.find(identity)).toBeNull();
+  expect(await reopened.pendingRevocations({})).toEqual([]);
+  expect(await reopened.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
+});
+
+test("P2: the next sync to a revoked site retries cleanup, a bounded number of times", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const site = target("one");
+  await store.grant({ entryId: entry.id, consumerId: site.consumerId });
+  await store.syncTo({ target: site });
+  const outage = vi.spyOn(site.vault, "list").mockRejectedValue(new Error("site unavailable"));
+  await expect(store.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
+  // Sync keeps working for granted entries while the outage persists; retries stop at the cap.
+  for (let sync = 0; sync < OWNER_REVOCATION_AUTO_ATTEMPTS + 2; sync++) expect(await store.syncTo({ target: site })).toEqual([]);
+  expect(outage).toHaveBeenCalledTimes(OWNER_REVOCATION_AUTO_ATTEMPTS);
+  expect(await store.pendingRevocations({})).toMatchObject([{ attempts: OWNER_REVOCATION_AUTO_ATTEMPTS }]);
+  await expect(store.delete({ entryId: entry.id, expectedRevision: entry.revision })).rejects.toMatchObject({ code: "conflict" });
+  // Past the cap only an explicit revoke retries; once the site recovers, so does a later sync.
+  await expect(store.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
+  expect(outage).toHaveBeenCalledTimes(OWNER_REVOCATION_AUTO_ATTEMPTS + 1);
+  outage.mockRestore();
+  await store.revoke({ entryId: entry.id, target: site });
+  expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
+});
+
+test("P2: a sync after a transient outage removes the leftover copy without an explicit revoke", async () => {
+  const store = await setup().open();
+  const entry = await store.put(input);
+  const site = target("one");
+  await store.grant({ entryId: entry.id, consumerId: site.consumerId });
+  await store.syncTo({ target: site });
+  vi.spyOn(site.vault, "delete").mockRejectedValueOnce(new Error("site unavailable"));
+  await expect(store.revoke({ entryId: entry.id, target: site })).rejects.toThrow("site unavailable");
+  expect(await store.syncTo({ target: site })).toEqual([]);
+  expect(await site.repo.find({ workspaceId: site.workspaceId, id: entry.id })).toBeNull();
+  expect(await store.pendingRevocations({})).toEqual([]);
+  expect(await store.delete({ entryId: entry.id, expectedRevision: entry.revision })).toBe(true);
 });
 
 test("revoke deletes a copy the target can no longer decrypt", async () => {

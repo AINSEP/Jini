@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { sql } from "kysely";
 import { afterEach, expect, test, vi } from "vitest";
 import { sourceChecksum } from "@jini-ai/db/migrate";
-import { ownerStoreDdl, ownerStoreMigration } from "@jini-ai/db/owner-store";
+import { ownerRevocationsDdl, ownerRevocationsMigration, ownerStoreDdl, ownerStoreMigration } from "@jini-ai/db/owner-store";
 import { openOwnerStore, OwnerStoreRecoveryError } from "../open.js";
 import { fixture, input } from "./fixture.js";
 
@@ -69,9 +69,10 @@ test("real-file reopen keeps credentials, grants, independent ledger and WAL", a
   try {
     expect(db.prepare("SELECT id, checksum FROM owner_migrations").all()).toEqual([
       { id: "0000_owner_store", checksum: ownerStoreMigration.checksum },
+      { id: "0001_owner_revocations", checksum: ownerRevocationsMigration.checksum },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all()).toEqual([
-      { name: "owner_grants" }, { name: "owner_migrations" }, { name: "secrets_vault" },
+      { name: "owner_grants" }, { name: "owner_migrations" }, { name: "owner_revocations" }, { name: "secrets_vault" },
     ]);
   } finally { db.close(); }
 });
@@ -81,13 +82,14 @@ test("concurrent openers share one key and apply the migration exactly once", as
   const [a, b] = await Promise.all([f.open(), f.open()]);
   const entry = await a.put(input);
   expect((await b.vault.get(entry))?.payload).toEqual(input.payload);
-  expect(await a.kernel.query(sql`SELECT count(*) AS count FROM owner_migrations`)).toEqual([{ count: 1 }]);
+  expect(await a.kernel.query(sql`SELECT count(*) AS count FROM owner_migrations`)).toEqual([{ count: 2 }]);
   expect(readFileSync(f.required.keyFilePath, "utf8")).toMatch(/^[0-9a-f]{64}$/);
   if (process.platform !== "win32") expect(statSync(f.required.keyFilePath).mode & 0o777).toBe(0o600);
 });
 
-test("the initial migration checksum pins the exact DDL", () => {
+test("each migration checksum pins its exact DDL", () => {
   expect(sourceChecksum(ownerStoreDdl)).toBe(ownerStoreMigration.checksum);
+  expect(sourceChecksum(ownerRevocationsDdl)).toBe(ownerRevocationsMigration.checksum);
 });
 
 test.each(["checksum", "newer"])("refuses %s migration history without changing data", async mode => {

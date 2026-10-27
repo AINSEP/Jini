@@ -5,13 +5,29 @@ import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "@jini-ai/db/secr
 
 export const OWNER_WORKSPACE_ID = "owner";
 export interface OwnerGrant { entry_id: string; consumer_id: string; created_at: string }
-export interface OwnerStoreDatabase extends SecretsVaultDatabase { owner_grants: OwnerGrant }
+/** A revoked copy whose target cleanup has not yet succeeded; `attempts` counts failed cleanups. */
+export interface OwnerRevocation { entry_id: string; consumer_id: string; attempts: number; updated_at: string }
+export interface OwnerStoreDatabase extends SecretsVaultDatabase { owner_grants: OwnerGrant; owner_revocations: OwnerRevocation }
 export interface OwnerSyncTarget {
   consumerId: string;
   workspaceId: string;
   vault: SecretsVaultService;
 }
 export type OwnerPutInput = Omit<VaultPutInput, "workspaceId" | "principalId">;
+type OwnerEntry = Pick<VaultContext, "kind" | "ownerKey" | "binding"> & { id: string };
+type CleanupOutcome = { ok: true } | { ok: false; error: unknown };
+
+/** Syncs stop retrying a site's cleanup after this many failures; an explicit revoke always retries. */
+export const OWNER_REVOCATION_AUTO_ATTEMPTS = 5;
+
+/** Deletion is refused while a revoked copy may remain; code stays "conflict" for existing callers. */
+export class OwnerRevocationPendingError extends VaultError {
+  constructor({ entryId, consumerId }: { entryId: string; consumerId: string }, _options: VaultOptions = {}) {
+    super({ code: "conflict" });
+    this.name = "OwnerRevocationPendingError";
+    this.message = `Owner store: entry ${entryId} may still be copied on consumer "${consumerId}"; revoke it for that consumer again before deleting`;
+  }
+}
 
 /** Fixed owner scope still preserves feature ownership, which the copy contract authenticates. */
 export function ownerContext(input: Pick<VaultContext, "kind" | "ownerKey" | "binding">, _options: VaultOptions = {}): VaultContext {
@@ -21,6 +37,7 @@ export function ownerContext(input: Pick<VaultContext, "kind" | "ownerKey" | "bi
 
 /** Composes the existing vault lifecycle and a consumer grant ledger, never another sealer.
  * Cross-database copies are individually reported by the vault; callers retry failed rows.
+ * Failed revocation cleanups are recorded durably and retried by later syncs to that consumer.
  * @example await store.grant({ entryId, consumerId }); await store.syncTo({ target });
  */
 export class OwnerStoreService {
@@ -74,11 +91,20 @@ export class OwnerStoreService {
     return this.kernel.run(db => db.selectFrom("owner_grants").selectAll().orderBy("consumer_id").orderBy("entry_id").execute());
   }
 
+  /** Revoked copies whose target cleanup is still outstanding, ordered for stable command output. */
+  pendingRevocations(_input: VaultOptions, _options: VaultOptions = {}): Promise<OwnerRevocation[]> {
+    return this.kernel.run(db => db.selectFrom("owner_revocations").selectAll().orderBy("consumer_id").orderBy("entry_id").execute());
+  }
+
   /** Source lock orders sync against replacement/revoke; copies keep their immutable entry IDs.
-   * @complexity O(n + payload bytes) for this consumer's n granted entries.
+   * Outstanding cleanups for this consumer are retried first; their failures stay recorded, not thrown.
+   * @complexity O(r + n + payload bytes) for this consumer's r pending revocations and n granted entries.
    */
   async syncTo({ target }: { target: OwnerSyncTarget }, _options: VaultOptions = {}): Promise<VaultCopyResult[]> {
     return this.kernel.transaction(async () => {
+      const pending = await this.kernel.run(db => db.selectFrom("owner_revocations").select("entry_id")
+        .where("consumer_id", "=", target.consumerId).where("attempts", "<", OWNER_REVOCATION_AUTO_ATTEMPTS).orderBy("entry_id").execute());
+      for (const row of pending) await this.cleanTarget({ entry: await this.requireEntry({ entryId: row.entry_id }), target });
       const grants = await this.kernel.run(db => db.selectFrom("owner_grants").select("entry_id")
         .where("consumer_id", "=", target.consumerId).orderBy("entry_id").execute());
       const results: VaultCopyResult[] = [];
@@ -91,39 +117,58 @@ export class OwnerStoreService {
     });
   }
 
-  /** Revoke centrally even if target cleanup fails. Retrying removes the same copied ID.
+  /** Revoke centrally even if target cleanup fails. A failed cleanup is recorded as pending, so
+   * delete stays refused and later syncs to that consumer retry; retrying removes the same copied ID.
    * The source lock prevents an in-flight sync from republishing after cleanup.
-   * @throws Target vault failures after the central revocation has committed.
+   * @throws Target vault failures after the central revocation and pending record have committed.
    */
   async revoke({ entryId, target }: { entryId: string; target: OwnerSyncTarget }, _options: VaultOptions = {}): Promise<void> {
     const outcome = await this.kernel.transaction(async () => {
       const entry = await this.requireEntry({ entryId });
       await this.kernel.run(db => db.deleteFrom("owner_grants").where("entry_id", "=", entryId)
         .where("consumer_id", "=", target.consumerId).execute());
-      try {
-        const scope = { ...ownerContext(entry), workspaceId: target.workspaceId };
-        // Metadata-only lookup: a copy the target can no longer decrypt must still be deleted.
-        const copied = (await target.vault.list(scope)).find(summary => summary.id === entryId);
-        if (copied) await target.vault.delete({ ...scope, id: entryId, expectedRevision: copied.revision });
-        return { ok: true as const };
-      } catch (error) {
-        // Committing revocation must not depend on another database's availability.
-        return { ok: false as const, error };
-      }
+      return this.cleanTarget({ entry, target });
     });
     if (!outcome.ok) throw outcome.error;
   }
 
-  /** Require explicit revocation before deletion so copied values cannot become untracked. */
+  /** Require explicit revocation, and confirmed target cleanup, before deletion so copied values cannot become untracked.
+   * @throws OwnerRevocationPendingError while a revoked copy's cleanup is outstanding; VaultError "conflict" while granted.
+   */
   async delete(input: { entryId: string; expectedRevision: number }, _options: VaultOptions = {}): Promise<boolean> {
     return this.kernel.transaction(async () => {
       const grant = await this.kernel.run(db => db.selectFrom("owner_grants").select("entry_id")
         .where("entry_id", "=", input.entryId).executeTakeFirst());
       if (grant) throw new VaultError({ code: "conflict" });
+      const pending = await this.kernel.run(db => db.selectFrom("owner_revocations").select("consumer_id")
+        .where("entry_id", "=", input.entryId).orderBy("consumer_id").executeTakeFirst());
+      if (pending) throw new OwnerRevocationPendingError({ entryId: input.entryId, consumerId: pending.consumer_id });
       const entry = await this.repo.find({ workspaceId: OWNER_WORKSPACE_ID, id: input.entryId });
       if (!entry) return false;
       return this.vault.delete({ ...ownerContext(entry), id: entry.id, expectedRevision: input.expectedRevision });
     });
+  }
+
+  /** Delete this entry's copy from one consumer and settle its pending record either way. */
+  private async cleanTarget({ entry, target }: { entry: OwnerEntry; target: OwnerSyncTarget }): Promise<CleanupOutcome> {
+    const key = { entry_id: entry.id, consumer_id: target.consumerId };
+    try {
+      const scope = { ...ownerContext(entry), workspaceId: target.workspaceId };
+      // Metadata-only lookup: a copy the target can no longer decrypt must still be deleted.
+      const copied = (await target.vault.list(scope)).find(summary => summary.id === entry.id);
+      if (copied) await target.vault.delete({ ...scope, id: entry.id, expectedRevision: copied.revision });
+    } catch (error) {
+      // Committing revocation must not depend on another database's availability; the durable
+      // pending row keeps the leftover copy tracked until a retry confirms it is gone.
+      const updated_at = this.now({});
+      await this.kernel.run(db => db.insertInto("owner_revocations").values({ ...key, attempts: 1, updated_at })
+        .onConflict(conflict => conflict.columns(["entry_id", "consumer_id"])
+          .doUpdateSet(eb => ({ attempts: eb("owner_revocations.attempts", "+", 1), updated_at }))).execute());
+      return { ok: false, error };
+    }
+    await this.kernel.run(db => db.deleteFrom("owner_revocations").where("entry_id", "=", key.entry_id)
+      .where("consumer_id", "=", key.consumer_id).execute());
+    return { ok: true };
   }
 
   /** Resolve the fixed owner row; grants never infer ownership from caller-supplied context. */
