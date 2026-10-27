@@ -24,8 +24,10 @@ import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
  * version per id, records candidate-local errors without aborting discovery, marks duplicate ids,
  * and returns deterministic TB-01 ordering.
  */
-import { readdir, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open, readdir, type FileHandle } from "node:fs/promises";
 import path from "node:path";
+import { readAtMost, readNoFollowFlags } from "./open-flags.js";
 import { PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES } from "../plugin-format.js";
 
 import * as semver from "semver";
@@ -126,7 +128,16 @@ export function siteEntryPath(
   { installDir, id, version }: { installDir: string; id: string; version: string },
   _optional: Record<string, never> = {},
 ): string {
-  return path.join(installDir, id, version, "server", "index.mjs");
+  return path.join(sitePluginRoot({ installDir, id, version }), "server", "index.mjs");
+}
+
+/** A site plugin version's own folder, `<installDir>/<id>/<version>/` (REQ-02) — the one join
+ * discovery, the entry path and the package listing share. @complexity O(1). */
+export function sitePluginRoot(
+  { installDir, id, version }: { installDir: string; id: string; version: string },
+  _optional: Record<string, never> = {},
+): string {
+  return path.join(installDir, id, version);
 }
 
 /** One directory entry directly under `installDir` — a candidate plugin "id slot" that may contain
@@ -169,16 +180,61 @@ function assertSafeRequestedVersion(requestedVersion: string | undefined): void 
   }
 }
 
-/** The first manifest present (current name, then the legacy alias); `missing` when neither exists. */
-async function readSiteManifest(versionDir: string): Promise<{ missing: boolean; manifestValue: unknown }> {
+/** A manifest is a small JSON document; a larger file is refused before any of it is read. */
+export const MAX_SITE_MANIFEST_BYTES = 256 * 1024;
+/** Read-only and never through a final-component symlink. Non-blocking, so a FIFO planted where a
+ * manifest goes opens at once (and is then refused) instead of waiting forever for a writer. */
+const MANIFEST_OPEN_FLAGS = readNoFollowFlags({ constants }) | (constants.O_NONBLOCK ?? 0);
+
+type SiteManifestRead = { missing: boolean; manifestValue: unknown; unreadable?: string };
+
+/** `null` when absent; a reason string when the path exists but is not a regular file. */
+async function openManifest(file: string): Promise<FileHandle | string | null> {
+  try {
+    return await open(file, MANIFEST_OPEN_FLAGS);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT") return null;
+    if (code === "ELOOP" || code === "EMLINK") return "is a symbolic link";
+    throw error;
+  }
+}
+
+/** Reads an open manifest only when it is a regular file within {@link MAX_SITE_MANIFEST_BYTES}. */
+async function readOpenManifest(handle: FileHandle): Promise<SiteManifestRead> {
+  const refused = (unreadable: string): SiteManifestRead => ({ missing: false, manifestValue: null, unreadable });
+  if (!(await handle.stat()).isFile()) return refused("is not a regular file");
+  // `+ 1` catches a file that grew past the cap after `stat`.
+  const bytes = await readAtMost(handle, MAX_SITE_MANIFEST_BYTES + 1);
+  if (bytes.length > MAX_SITE_MANIFEST_BYTES) return refused(`is larger than ${MAX_SITE_MANIFEST_BYTES} bytes`);
+  return { missing: false, manifestValue: parseManifestJson(bytes.toString("utf8")) };
+}
+
+/** The first manifest present (current name, then the legacy alias); `missing` when neither exists.
+ * A present manifest that is not a small regular file is `unreadable`: that plugin is invalid, and
+ * discovery (which boot runs) never hangs on a FIFO, follows a link or buffers a huge file. */
+async function readSiteManifest(versionDir: string): Promise<SiteManifestRead> {
   for (const filename of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+    const handle = await openManifest(path.join(versionDir, filename));
+    if (handle === null) continue;
+    if (typeof handle === "string") return { missing: false, manifestValue: null, unreadable: handle };
     try {
-      return { missing: false, manifestValue: parseManifestJson(await readFile(path.join(versionDir, filename), "utf8")) };
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") throw error;
+      return await readOpenManifest(handle);
+    } finally {
+      await handle.close();
     }
   }
   return { missing: true, manifestValue: null };
+}
+
+function manifestReadErrors(
+  { read, idFolderName, builtInIds, host }: { read: SiteManifestRead; idFolderName: string; builtInIds: readonly string[]; host: DiscoverPluginsRequired },
+  _optional: Record<string, never> = {},
+): PluginValidationError[] {
+  if (read.missing) return [{ code: "MANIFEST_MISSING", file: PLUGIN_MANIFEST_FILENAME, message: `${PLUGIN_MANIFEST_FILENAME} was not found` }];
+  if (read.unreadable !== undefined) return [{ code: "MANIFEST_UNREADABLE", file: PLUGIN_MANIFEST_FILENAME, message: `${PLUGIN_MANIFEST_FILENAME} ${read.unreadable}` }];
+  const { manifestValue } = read;
+  return [...validateManifest({ ...host, manifest: manifestValue, folderName: idFolderName, builtInIds }).errors, ...host.tierPolicy.siteErrors({ manifestValue })];
 }
 
 /**
@@ -202,11 +258,9 @@ async function discoverOneSiteCandidate(
   const versionFolderName = requestedVersion ?? await pickLatestVersionFolder(idFolderPath);
   if (versionFolderName === null) return null;
 
-  const { missing, manifestValue } = await readSiteManifest(path.join(idFolderPath, versionFolderName));
-
-  const errors: PluginValidationError[] = missing
-    ? [{ code: "MANIFEST_MISSING", file: PLUGIN_MANIFEST_FILENAME, message: `${PLUGIN_MANIFEST_FILENAME} was not found` }]
-    : [...validateManifest({ ...host, manifest: manifestValue, folderName: idFolderName, builtInIds }).errors, ...host.tierPolicy.siteErrors({ manifestValue })];
+  const read = await readSiteManifest(path.join(idFolderPath, versionFolderName));
+  const { manifestValue } = read;
+  const errors = manifestReadErrors({ read, idFolderName, builtInIds, host });
 
   const manifestVersion = readStringField(manifestValue, "version");
   if (manifestVersion !== undefined && manifestVersion !== versionFolderName) {

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { discoverPlugins, PluginDiscoveryVersionError } from '../../node/discovery.js';
+import { discoverPlugins, MAX_SITE_MANIFEST_BYTES, PluginDiscoveryVersionError } from '../../node/discovery.js';
 import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import { manifestHost, tierPolicy } from '../support/fixture-bindings.js';
 
@@ -79,7 +80,45 @@ describe('site discovery edges', () => {
     await put(dir, 'typed', '1.0.0', JSON.stringify({ id: 5, name: 6 }));
     await put(dir, 'broken', '1.0.0', '{');
     expect((await discover(dir)).map(({ id, name, status, tier }) => ({ id, name, status, tier }))).toEqual(['broken', 'scalar', 'typed'].map(id => ({ id, name: id, status: 'invalid', tier: 'tier-3' })));
+    await put(dir, 'locked', '1.0.0');
+    await chmod(path.join(dir, 'locked', '1.0.0', PLUGIN_MANIFEST_FILENAME), 0o000);
+    await expect(discover(dir)).rejects.toMatchObject({ code: 'EACCES' });
+  });
+
+  // A manifest is a small regular file. One plugin's odd manifest makes that plugin invalid; it never
+  // hangs, bloats or aborts discovery for every other plugin (boot runs this too).
+  it('a manifest that is a folder or a symlink makes only that plugin invalid', async () => {
+    const dir = await installDir();
+    await put(dir, 'fine', '1.0.0');
     await mkdir(path.join(dir, 'folder-manifest', '1.0.0', PLUGIN_MANIFEST_FILENAME), { recursive: true });
-    await expect(discover(dir)).rejects.toMatchObject({ code: 'EISDIR' });
+    await put(dir, 'target', '1.0.0');
+    await mkdir(path.join(dir, 'linked', '1.0.0'), { recursive: true });
+    await symlink(path.join(dir, 'target', '1.0.0', PLUGIN_MANIFEST_FILENAME), path.join(dir, 'linked', '1.0.0', PLUGIN_MANIFEST_FILENAME));
+    const records = await discover(dir);
+    expect(records.map(({ id, status, errors }) => [id, status, errors.map(error => error.code)])).toEqual([
+      ['fine', 'valid', []], ['folder-manifest', 'invalid', ['MANIFEST_UNREADABLE']], ['linked', 'invalid', ['MANIFEST_UNREADABLE']], ['target', 'valid', []],
+    ]);
+  });
+
+  it.skipIf(process.platform === 'win32')('j1: a FIFO manifest makes the plugin invalid instead of hanging discovery', async () => {
+    const dir = await installDir();
+    const fifo = path.join(dir, 'fifo', '1.0.0', PLUGIN_MANIFEST_FILENAME);
+    await mkdir(path.dirname(fifo), { recursive: true });
+    execFileSync('mkfifo', [fifo]);
+    const outcome = await Promise.race([discover(dir), new Promise<'hung'>(resolve => setTimeout(() => resolve('hung'), 2000))]);
+    // A blocked reader holds a libuv thread; one writer releases it so the test worker can exit.
+    if (outcome === 'hung') await writeFile(fifo, '{}');
+    expect(outcome).not.toBe('hung');
+    expect((outcome as Awaited<ReturnType<typeof discover>>).map(({ status, errors }) => [status, errors.map(error => error.code)])).toEqual([['invalid', ['MANIFEST_UNREADABLE']]]);
+  });
+
+  it('j2: a manifest over the size cap is refused before it is read', async () => {
+    const dir = await installDir();
+    await put(dir, 'huge', '1.0.0', JSON.stringify({ ...manifest('huge', '1.0.0'), padding: 'x'.repeat(2 * 1024 * 1024) }));
+    await put(dir, 'edge', '1.0.0', JSON.stringify(manifest('edge', '1.0.0')).padEnd(MAX_SITE_MANIFEST_BYTES, ' '));
+    const records = await discover(dir);
+    expect(records.map(({ id, status, errors }) => [id, status, errors.map(error => error.code)])).toEqual([
+      ['edge', 'valid', []], ['huge', 'invalid', ['MANIFEST_UNREADABLE']],
+    ]);
   });
 });

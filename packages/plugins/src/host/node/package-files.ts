@@ -27,7 +27,11 @@
 import { constants, type Dirent } from "node:fs";
 import { lstat, open, readdir, realpath, type FileHandle } from "node:fs/promises";
 import path from "node:path";
-import { readNoFollowFlags } from "./open-flags.js";
+import { readAtMost, readNoFollowFlags } from "./open-flags.js";
+import { isPluginRelativePath } from "../browser-providers.js";
+import type { PluginDiscoveryRecord } from "../discovery-types.js";
+import { PLUGIN_MANIFEST_FILENAMES } from "../plugin-format.js";
+import { sitePluginRoot } from "./discovery.js";
 
 /** Every packaged file is opened read-only and without following a final-component symlink. */
 const READ_NO_FOLLOW = readNoFollowFlags({ constants });
@@ -156,18 +160,6 @@ async function openNoFollow(absolutePath: string): Promise<FileHandle | PluginPa
   }
 }
 
-/** Reads up to `maxBytes` from the start of the file. */
-async function readAtMost(handle: FileHandle, maxBytes: number): Promise<Buffer> {
-  const buffer = Buffer.alloc(maxBytes);
-  let offset = 0;
-  while (offset < maxBytes) {
-    const { bytesRead } = await handle.read(buffer, offset, maxBytes - offset, offset);
-    if (bytesRead === 0) break;
-    offset += bytesRead;
-  }
-  return buffer.subarray(0, offset);
-}
-
 function toTextOrBinary(relativePath: string, bytes: Buffer): PluginPackageFile {
   if (bytes.includes(0)) return omittedFile(relativePath, bytes.length, "binary");
   try {
@@ -275,4 +267,57 @@ export async function readPluginPackageFiles(
     pending.push(...(await readDirectoryLevel(rootReal, pending.shift()!, state)));
   }
   return { files: state.files, truncated: state.truncated };
+}
+
+/** One file of a site plugin package: `/`-separated and package-relative, with the sha256 hex its
+ *  manifest's `integrity` declares (`null` for the manifest itself, which integrity never lists). */
+export interface SitePluginPackageFile {
+  readonly relativePath: string;
+  readonly sha256: string | null;
+}
+
+export interface SitePluginPackage {
+  /** The version folder's realpath, inside `installDir`. */
+  readonly rootDir: string;
+  readonly files: readonly SitePluginPackageFile[];
+}
+
+/** The manifest discovery reads (current name first, then the legacy alias), or `undefined`. */
+async function presentManifestName(rootReal: string): Promise<string | undefined> {
+  for (const name of PLUGIN_MANIFEST_FILENAMES) { // legacy alias
+    if (await lstat(path.join(rootReal, name)).then(() => true, (error: unknown) => errnoCode(error) === "ENOENT" ? false : Promise.reject(error))) return name;
+  }
+  return undefined;
+}
+
+/**
+ * Exactly the files that make up one installed site plugin, by Jini's own contract: the manifest
+ * discovery read plus every key of its `integrity` (the installer writes exactly those, and the
+ * loader verifies their hashes). Anything else in the version folder — `data/`, `memory/private/`, a
+ * stray file — is not package. Lists paths only; the caller reads and checks each hash. A host
+ * copying a plugin (a backup) asks here instead of guessing the layout from folder names.
+ *
+ * @throws {PluginPackagePathError} the record is not a valid site plugin with a validated manifest,
+ *   an integrity key leaves the package, or the version folder is missing, linked, outside
+ *   `installDir`, or has no manifest.
+ * @complexity O(integrity entries) plus two `realpath`s and up to two `lstat`s.
+ */
+export async function listSitePluginPackage(
+  required: { installDir: string; record: PluginDiscoveryRecord },
+  _optional: Record<string, never> = {},
+): Promise<SitePluginPackage> {
+  const { installDir, record } = required;
+  const { manifest } = record;
+  if (record.source !== "site" || record.status !== "valid" || manifest === undefined) {
+    throw new PluginPackagePathError(`'${record.id}' is not a valid installed site plugin`);
+  }
+  const integrity = Object.entries(manifest.integrity).filter(([key]) => !PLUGIN_MANIFEST_FILENAMES.includes(key));
+  if (integrity.some(([key]) => !isPluginRelativePath({ path: key }))) throw new PluginPackagePathError(`'${record.id}' lists a file outside its package`);
+  const rootDir = await resolvePackageRoot(sitePluginRoot({ installDir, id: record.id, version: record.version }), installDir);
+  const manifestName = rootDir === null ? undefined : await presentManifestName(rootDir);
+  if (rootDir === null || manifestName === undefined) throw new PluginPackagePathError(`'${record.id}' ${record.version} is not installed`);
+  return {
+    rootDir,
+    files: [{ relativePath: manifestName, sha256: null }, ...integrity.map(([relativePath, hash]) => ({ relativePath, sha256: hash.slice("sha256-".length) }))],
+  };
 }

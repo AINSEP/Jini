@@ -8,11 +8,13 @@ import path from "node:path";
 import { test, type TestContext } from "../support/fixture-runner.js";
 
 import {
+  listSitePluginPackage,
   PLUGIN_PACKAGE_FILE_LIMITS,
   PluginPackagePathError,
   readPluginPackageFiles,
   type PluginPackageFileLimits,
 } from "../../node/package-files.js";
+import type { PluginDiscoveryRecord } from "../../discovery-types.js";
 
 /**
  * @file `readPluginPackageFiles()` against a real temp directory — ordering, text/binary handling,
@@ -308,4 +310,39 @@ test("listing order is code-unit order whatever order readdir returns", async (t
     const result = await readPluginPackageFiles({ input: { rootDir: path.join(root, "pkg"), containerDir: root } });
     assert.deepEqual(result.files.map((file) => file.relativePath), ["B.txt", "a.txt", "c.txt"]);
   });
+});
+
+// j3 (design 2026-10-27, backup ownership): a site plugin's package is its manifest plus exactly the files its
+// integrity lists. Runtime folders (data/, memory/private/) and stray files in the version folder are not.
+const HASH = `sha256-${"a".repeat(64)}`;
+function siteRecord(overrides: Partial<PluginDiscoveryRecord> = {}, integrity: Record<string, string> = { "server/index.mjs": HASH }): PluginDiscoveryRecord {
+  return { id: "demo", name: "demo", version: "1.0.0", source: "site", status: "valid", errors: [], manifest: {
+    id: "demo", name: "demo", version: "1.0.0", sdkRange: "^0.1.0", engine: 1, tier: "tier-3", capabilities: [], hooks: [], fields: [], integrity,
+  }, ...overrides };
+}
+
+test("j3: a valid site plugin's package is its manifest plus its integrity files, never data/ or private memory", async (t) => {
+  const root = await tempRoot(t);
+  await writeTree(path.join(root, "demo", "1.0.0"), {
+    [PLUGIN_MANIFEST_FILENAME]: "{}", "server/index.mjs": "export {}", "data/x.json": "token", "memory/private/y.md": "private", "stray.txt": "stray",
+  });
+  const listed = await listSitePluginPackage({ installDir: root, record: siteRecord() });
+  assert.equal(listed.rootDir, path.join(await fsPromises.realpath(root), "demo", "1.0.0"));
+  assert.deepEqual(listed.files, [{ relativePath: PLUGIN_MANIFEST_FILENAME, sha256: null }, { relativePath: "server/index.mjs", sha256: "a".repeat(64) }]);
+});
+
+test("j3: an invalid, built-in, missing, linked or escaping site plugin has no package to list", async (t) => {
+  const root = await tempRoot(t);
+  await writeTree(path.join(root, "demo", "1.0.0"), { [PLUGIN_MANIFEST_FILENAME]: "{}", "server/index.mjs": "export {}" });
+  const refused = [
+    siteRecord({ status: "invalid" }), siteRecord({ manifest: undefined }), siteRecord({ source: "built-in" }), siteRecord({ version: "2.0.0" }),
+    siteRecord({}, { "../escape.js": HASH }), siteRecord({}, { "/abs.js": HASH }),
+  ];
+  for (const record of refused) await assert.rejects(listSitePluginPackage({ installDir: root, record }), PluginPackagePathError);
+  await writeTree(path.join(root, "outside", "1.0.0"), { [PLUGIN_MANIFEST_FILENAME]: "{}" });
+  await mkdir(path.join(root, "linked"));
+  await symlink(path.join(root, "outside", "1.0.0"), path.join(root, "linked", "1.0.0"));
+  await assert.rejects(listSitePluginPackage({ installDir: root, record: siteRecord({ id: "linked" }) }), PluginPackagePathError);
+  await writeTree(path.join(root, "bare", "1.0.0"), { "server/index.mjs": "export {}" });
+  await assert.rejects(listSitePluginPackage({ installDir: root, record: siteRecord({ id: "bare" }) }), PluginPackagePathError);
 });
