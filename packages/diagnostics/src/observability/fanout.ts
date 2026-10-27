@@ -96,7 +96,14 @@ export function combineObservabilityPorts({ ports }: { ports: readonly Observabi
  const failed = () => { try { onFailure?.(); } catch { /* Diagnostics never fail the caller. */ } };
  const live = ports.filter((port) => !isNoopObservabilityPort(port));
  if (live.length === 0) return createNoopObservabilityPort({});
+ const activeTraceIds: NonNullable<ObservabilityPort['activeTraceIds']> = (_required = {}, _optional = {}) => {
+  for (const port of live) {
+   try { const ids = port.activeTraceIds?.(); if (ids) return ids; } catch { failed(); }
+  }
+  return undefined;
+ };
  return {
+  activeTraceIds,
   get supportsMetric() { return live.some(port => port.supportsMetric === true); },
   trackRequest: (...args) => fanOut(live, 'trackRequest', args, failed),
   trackDbQuery: (...args) => fanOut(live, 'trackDbQuery', args, failed),
@@ -107,8 +114,12 @@ export function combineObservabilityPorts({ ports }: { ports: readonly Observabi
    for (const port of live) { try { void Promise.resolve(port.metric(input, options)).catch(failed); } catch { failed(); /* keep reaching the rest */ } }
   },
   reportError: (report) => {
+   // Providers own independent traces. Carry the selected structural trace explicitly so error
+   // destinations can correlate with local logs without pretending their own trace IDs match.
+   const trace = report.context.trace ?? activeTraceIds();
+   const correlated = trace ? { ...report, context: { ...report.context, trace } } : report;
    // reportError never throws; keep reaching the rest even when one provider refuses admission.
-   const results = live.map(port => handOffError({ port, report, failed }));
+   const results = live.map(port => handOffError({ port, report: correlated, failed }));
    if (results.includes(true)) return true;
    // One fulfilled admission is enough; a stalled destination must not delay another's receipt.
    const admissions = results.map(async result => { if (!await result) throw new Error('Report refused'); return true; });

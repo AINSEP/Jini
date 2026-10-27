@@ -93,6 +93,7 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
     } }, { reuseCurrent: true });
   }
   return {
+    activeTraceIds: (_required = {}, _optional = {}) => observability.activeTraceIds?.(),
     capture(input, options = {}) { try { return Promise.resolve(required.productAnalytics?.capture({ ...input, ...options })).catch(failed); } catch { failed(); } },
     metric(input, options = {}) { observability.metric(input, options); },
     error,

@@ -123,12 +123,18 @@ const sdkSpans = new WeakMap<TraceSpanPort, Span>();
 
 /** Translates object-shaped diagnostics span methods to SDK calls; no lifecycle policy here. */
 function adaptSpan({ span }: { span: Span }): TraceSpanPort {
+  let ended = false;
   const port: TraceSpanPort = {
+    ids: (_required = {}, _optional = {}) => {
+      if (ended) return undefined;
+      const { traceId, spanId } = span.spanContext();
+      return { traceId, spanId };
+    },
     updateName: ({ name }) => { span.updateName(name); },
     setAttribute: ({ name, value }) => { span.setAttribute(name, value); },
     setStatus: ({ description }) => { span.setStatus({ code: SpanStatusCode.ERROR, ...(description ? { message: description } : {}) }); },
     addEvent: ({ name, attributes }) => { span.addEvent(name, attributes); },
-    end: () => { span.end(); },
+    end: () => { ended = true; span.end(); },
   };
   sdkSpans.set(port, span);
   return port;

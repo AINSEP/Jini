@@ -50,12 +50,14 @@ export interface OperationTrackingInput { name: string; attributes?: OperationAt
  * whether that outcome is a failure, which only the feature can judge (a denial is not one). */
 export interface OperationTrackingOutcome { outcome: string; failed: boolean; attributes?: OperationAttributes; }
 export interface OperationTracker extends TrackerScope { end(outcome: OperationTrackingOutcome): void; }
+/** Correlation assigned by an active tracing implementation; readers never generate IDs. */
+export interface TraceIds { readonly traceId: string; readonly spanId: string; }
 /**
  * An error worth an incident report (an error tracker's issue; a trace's exception event), as
  * opposed to an expected failure a tracker's outcome already records. `error` is handed over raw:
  * adapters own redaction (see `describeReportedError`), exactly as they do for request targets.
  */
-export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error' }; }
+export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error'; trace?: TraceIds }; }
 /** Native crash upload configuration. Provider-specific field names stay opaque to hosts. */
 export interface CrashUpload { submitURL: string; globalExtra: Readonly<Record<string, string>>; }
 /** Vendor-neutral numeric measurement; names and units are fixed labels, never user text. */
@@ -66,6 +68,8 @@ export interface MetricOptions {
  attributes?: OperationAttributes;
 }
 export interface ObservabilityPort {
+ /** Current structural tracing scope, absent outside a trace. Never generates an ID. */
+ activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): TraceIds | undefined;
  /** Explicit capability: a callable noop metric does not imply local metric admission. */
  readonly supportsMetric?: boolean;
  /** Records one measurement; adapters without a metrics backend use a no-op. */
@@ -89,6 +93,8 @@ export interface RequestIdGenerator { generate(required: Record<string, never>):
 
 /** Structural SDK adapters are host-owned; no provider registration or ambient config is used. */
 export interface TraceSpanPort {
+ /** IDs assigned by the tracing implementation, absent on legacy adapters. */
+ ids?(required?: Record<string, never>, optional?: Record<string, never>): TraceIds | undefined;
  updateName(required: { name: string }): void;
  setAttribute(required: { name: string; value: string | number }): void;
  setStatus(required: { code: 'error'; description?: string }): void;

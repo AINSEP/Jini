@@ -14,7 +14,7 @@ test("the SDK aggregates counter increments, defaults to last-value gauge, and e
   const exporter = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
   const reader = new PeriodicExportingMetricReader({ exporter, exportIntervalMillis: 60_000, exportTimeoutMillis: 5000 });
   const before = metrics.getMeterProvider();
-  const { port, dispose } = createOpenTelemetryProvider({ ...CONFIG, attribution: { attributes: { site_id: "site-1" }, groups: {} } }, { spanProcessors: [], metricReaders: [reader] });
+  const { port, dispose } = createOpenTelemetryProvider({ ...CONFIG, attribution: { attributes: { site_id: "site-1", 'service.version': 'tovu@1.2.3+abcdef0', 'deployment.environment': 'desktop' }, groups: {} } }, { spanProcessors: [], metricReaders: [reader] });
   assert.equal(port.supportsMetric, true);
   const tracker = createTracker({ observability: port });
   try {
@@ -28,6 +28,8 @@ test("the SDK aggregates counter increments, defaults to last-value gauge, and e
     const [batch] = exporter.getMetrics();
     assert.ok(batch);
     assert.equal(batch.resource.attributes["service.name"], "metric-test");
+    assert.equal(batch.resource.attributes['service.version'], 'tovu@1.2.3+abcdef0');
+    assert.equal(batch.resource.attributes['deployment.environment'], 'desktop');
     assert.equal(batch.resource.attributes.site_id, "site-1");
     const [scope] = batch.scopeMetrics;
     assert.equal(scope!.scope.name, "metric-scope");

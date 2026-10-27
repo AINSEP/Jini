@@ -146,7 +146,10 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
     reportError({ error, context }) {
       try {
         const span = active.getStore();
-        const capture = () => captureException(sanitizedError(error), { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: { operation: redactOperationAttributes({ attributes: context.attributes ?? {} }) } });
+        const capture = () => captureException(sanitizedError(error), { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: {
+          operation: redactOperationAttributes({ attributes: context.attributes ?? {} }),
+          ...(context.trace ? { otel: { trace_id: context.trace.traceId, span_id: context.trace.spanId } } : {}),
+        } });
         inClient(() => (span ? withActiveSpan(span, capture) : capture()));
       } catch {
         // Best-effort, as in every adapter: a broken SDK must not turn a handled failure into a crash.

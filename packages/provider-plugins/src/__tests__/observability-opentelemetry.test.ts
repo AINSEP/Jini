@@ -38,6 +38,39 @@ function createPortUnderTest() {
   return { port, exporter };
 }
 const setup = createPortUnderTest;
+
+test('active IDs follow nested async spans, concurrent work and scope exit', async () => {
+  const { port, exporter } = createPortUnderTest();
+  assert.equal(port.activeTraceIds?.(), undefined);
+  const settled = port.trackOperation({ name: 'settled.work' });
+  settled.run(() => {
+    settled.end({ outcome: 'completed', failed: false });
+    assert.equal(port.activeTraceIds?.(), undefined, 'a late continuation must not report an ended span');
+  });
+  const first = port.trackOperation({ name: 'site.publish' });
+  const second = port.trackOperation({ name: 'outbox.deliver' });
+  const [a, b] = await Promise.all([first, second].map(operation => operation.run(async () => {
+    const parent = port.activeTraceIds?.();
+    await Promise.resolve();
+    assert.deepEqual(port.activeTraceIds?.(), parent);
+    const child = port.trackOperation({ name: 'tool.call' });
+    child.run(() => {
+      const nested = port.activeTraceIds?.();
+      assert.equal(nested?.traceId, parent?.traceId);
+      assert.notEqual(nested?.spanId, parent?.spanId);
+    });
+    child.end({ outcome: 'completed', failed: false });
+    assert.deepEqual(port.activeTraceIds?.(), parent);
+    return parent;
+  })));
+  first.end({ outcome: 'completed', failed: false });
+  second.end({ outcome: 'completed', failed: false });
+  assert.match(a!.traceId, /^[a-f0-9]{32}$/);
+  assert.match(a!.spanId, /^[a-f0-9]{16}$/);
+  assert.notEqual(a!.traceId, b!.traceId);
+  assert.equal(exporter.getFinishedSpans().find(span => span.name === 'site.publish')!.spanContext().traceId, a!.traceId);
+  assert.equal(port.activeTraceIds?.(), undefined);
+});
 /** Finished spans as a fixed tuple: each case asserts the count it destructures. */
 const finished = (exporter: InMemorySpanExporter) => exporter.getFinishedSpans() as unknown as [ReadableSpan, ReadableSpan, ReadableSpan, ReadableSpan];
 
@@ -451,14 +484,14 @@ test("a settings card supplies no tracer name: the service name is the tracer na
 test("site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service", async () => {
   const exporter = new InMemorySpanExporter();
   const resource = createOpenTelemetryProvider({ serviceName: "tovu", endpoint: "http://127.0.0.1:9",
-    attribution: { attributes: { "tovu.site.id": "site-123", "tovu.site.slug": "blog", "deployment.environment": "local", "tovu.project.id": "proj-9", "service.name": "spoofed" } } },
+    attribution: { attributes: { "tovu.site.id": "site-123", "tovu.site.slug": "blog", "deployment.environment": "local", "tovu.project.id": "proj-9", "service.name": "spoofed", "service.version": "tovu@1.2.3+abcdef0" } } },
   { spanProcessors: [new SimpleSpanProcessor(exporter)] });
   resource.port.trackRequest({ method: "GET", path: "/" }).end({ statusCode: 200, routePattern: "/" });
   resource.port.trackOperation({ name: "site.publish" }).end({ outcome: "published", failed: false });
   const spans = exporter.getFinishedSpans();
   assert.equal(spans.length, 2);
   for (const span of spans) {
-    assert.deepEqual({ ...span.resource.attributes }, { "service.name": "tovu", "tovu.site.id": "site-123", "tovu.site.slug": "blog", "deployment.environment": "local", "tovu.project.id": "proj-9" });
+    assert.deepEqual({ ...span.resource.attributes }, { "service.name": "tovu", "tovu.site.id": "site-123", "tovu.site.slug": "blog", "deployment.environment": "local", "tovu.project.id": "proj-9", "service.version": "tovu@1.2.3+abcdef0" });
   }
   await resource.dispose({});
 });
