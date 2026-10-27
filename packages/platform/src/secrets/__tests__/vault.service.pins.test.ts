@@ -419,10 +419,10 @@ describe("copyToSite", () => {
     assert.equal((await target.repo.find(target.context))?.isDefault, false);
   });
 
-  test("a new copy remains non-default even in an empty group", async () => {
+  test("a new copy into an empty group becomes its default", async () => {
     const { target, transfer } = await pair();
     assert.equal((await target.service.copyToSite(transfer()))[0]?.status, "copied");
-    assert.equal((await target.repo.find(target.context))?.isDefault, false);
+    assert.equal((await target.repo.find(target.context))?.isDefault, true);
   });
 
   test("a matching selected source revision copies", async () => {
