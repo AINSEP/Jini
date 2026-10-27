@@ -86,17 +86,6 @@ function once<O>(handler: (outcome: O) => void): (outcome: O) => void {
  return (outcome) => { if (ended) return; ended = true; handler(outcome); };
 }
 
-/** Sets attributes, then the error label, status and exception event (type only), then ends. */
-function finish({ span, attributes }: { span: TraceSpanPort; attributes: Attributes }, { failure, error }: { failure?: string; error?: unknown } = {}): void {
- for (const [name, value] of Object.entries(attributes)) span.setAttribute({ name, value });
- if (failure !== undefined) {
-  span.setAttribute({ name: 'error.type', value: failure });
-  span.setStatus({ code: 'error', description: failure });
-  if (error !== undefined) span.addEvent({ name: 'exception', attributes: { 'exception.type': failure } });
- }
- span.end({});
-}
-
 /** Builds request, DB, outbound, agent-run and operation spans, and exception events for reported errors, through injected provider/exporter factories.
  * @param required Explicit config and structural factories. Hosts wrap their SDK here.
  * @param options Optional host scope storage; with it, spans started inside a tracker's run() are its children.
@@ -107,6 +96,19 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
  const exporter = exporterFactory.create({ endpoint: config.endpoint });
  const provider = tracerProviderFactory.create({ serviceName: config.serviceName, exporter });
  const tracer: TracerPort = provider.getTracer({ name: config.tracerName });
+ const reportedSpans = new WeakSet<TraceSpanPort>();
+
+ /** Sets final attributes and ends, preserving an exception already recorded by reportError.
+  * Sink errors propagate to the caller. @complexity O(a) time/space for a attributes. */
+ function finish({ span, attributes }: { span: TraceSpanPort; attributes: Attributes }, { failure, error }: { failure?: string; error?: unknown } = {}): void {
+  for (const [name, value] of Object.entries(attributes)) span.setAttribute({ name, value });
+  if (failure !== undefined && !reportedSpans.has(span)) {
+   span.setAttribute({ name: 'error.type', value: failure });
+   span.setStatus({ code: 'error', description: failure });
+   if (error !== undefined) span.addEvent({ name: 'exception', attributes: { 'exception.type': failure } });
+  }
+  span.end({});
+ }
 
  function start({ name, kind, attributes }: { name: string; kind: TraceSpanKind; attributes: Attributes }, { root = false }: { root?: boolean } = {}): TraceSpanPort {
   const parent = root ? undefined : scope?.active();
@@ -133,7 +135,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     span.setAttribute({ name: 'http.route', value: outcome.routePattern });
     span.setAttribute({ name: 'http.target', value: redactRequestTarget({ path: input.path }, { routePattern: outcome.routePattern }) });
     span.setAttribute({ name: 'http.status_code', value: outcome.statusCode });
-    if (outcome.statusCode >= 500) span.setStatus({ code: 'error' });
+    if (outcome.statusCode >= 500 && !reportedSpans.has(span)) span.setStatus({ code: 'error' });
     span.end({});
    }) };
   },
@@ -172,7 +174,9 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     const span = active ?? start({ name: `error ${context.operation}`, kind: 'internal', attributes: redactOperationAttributes({ attributes: context.attributes ?? {} }) }, { root: true });
     const type = errorType(error);
     span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation } });
+    span.setAttribute({ name: 'error.type', value: type });
     span.setStatus({ code: 'error', description: type });
+    reportedSpans.add(span);
     if (!active) span.end({});
    } catch {
     // Reporting is best-effort: a broken exporter must not turn an already-handled failure into a crash.

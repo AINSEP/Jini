@@ -501,6 +501,38 @@ describe('detectAcpModels abort and limits', () => {
     vi.clearAllMocks();
   });
 
+  it('C34: handles a missing binary safely when the signal was already aborted', async () => {
+    const child = new FakeChild();
+    const controller = new AbortController();
+    controller.abort();
+    const uncaughtErrors: unknown[] = [];
+    const spawnProcess = vi.fn(() => {
+      // Node reports ENOENT asynchronously after spawn returns. Observe an
+      // unhandled EventEmitter error without crashing the test worker itself.
+      void Promise.resolve().then(() => {
+        try {
+          child.emit('error', Object.assign(new Error('spawn /missing-acp ENOENT'), { code: 'ENOENT' }));
+        } catch (error) {
+          uncaughtErrors.push(error);
+        }
+      });
+      return child;
+    });
+    const pending = detectAcpModels({ bin: '/missing-acp', args: [] }, {
+      signal: controller.signal,
+      env: {},
+      spawnProcess: spawnProcess as unknown as typeof spawn,
+    });
+    try {
+      await expect(pending).rejects.toThrow('ACP model detection aborted');
+      expect(uncaughtErrors).toEqual([]);
+      expect(child.stdin.writes).toEqual([]);
+    } finally {
+      // Also accommodates a fix that refuses to spawn an already-aborted probe.
+      child.emit('close', -2, null);
+    }
+  });
+
   it('rejects without writing initialize when the signal is already aborted', async () => {
     const child = new FakeChild();
     spawnReturns(child);

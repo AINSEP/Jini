@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -344,6 +344,20 @@ describe('module top-level entrypoint guard', () => {
   afterEach(() => {
     process.argv = originalArgv;
     vi.restoreAllMocks();
+  });
+
+  it('C20: prints root help when argv[1] is an npm-style jini bin symlink', async () => {
+    const modulePath = fileURLToPath(new URL('../main.ts', import.meta.url));
+    const binPath = join(await makeTempDataDir(), 'jini');
+    await symlink(modulePath, binPath);
+    process.argv = ['node', binPath, '--help'];
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    vi.resetModules();
+
+    // Node resolves import.meta.url to the target but leaves argv[1] as the bin link.
+    await import('../main.js');
+
+    expect(stdoutSpy).toHaveBeenCalledWith(expect.stringContaining('jini <command>'));
   });
 
   it('runs main() for real when process.argv[1] matches this module\'s own resolved path', async () => {

@@ -7,6 +7,7 @@ import { createNoopObservabilityPort } from "../noop.js";
 import { runWithErrorReportScope } from "../report-error.js";
 import * as errorReporting from "../report-error.js";
 import type { ErrorReport, ObservabilityPort } from "../ports.js";
+import { InMemorySpanExporter, createAsyncScope, createPort } from "../../__tests__/observability-fakes.js";
 
 const WARNING = "[tracker] a telemetry provider failed; application work continues";
 const event: ProductEvent = { name: "post_created", userId: "principal-1" };
@@ -149,6 +150,37 @@ describe("one tracker facade", () => {
     expect(reports[0]!.context.operation).toBe("site.publish");
     expect(outcomes).toEqual([{ outcome: "error", failed: true }]);
     expect(warnings).toEqual([]);
+  });
+
+  it("P29: preserves the reported exception type and emits one exception per failed trace", async () => {
+    const exporter = new InMemorySpanExporter();
+    const observability = createPort({
+      enabled: true, serviceName: "svc", tracerName: "svc.tracer", endpoint: "http://collector/v1/traces",
+    }, exporter, { scope: createAsyncScope() });
+    const tracker = createTracker({ observability });
+    const failure = new TypeError("publish failed");
+
+    await expect(tracker.trace({ name: "site.publish", run: () => { throw failure; } })).rejects.toBe(failure);
+    await expect(tracker.trace({ name: "assistant.run", run: () => { throw failure; } }, {
+      agent: { runId: "run-1" },
+    })).rejects.toBe(failure);
+
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(2);
+    expect(Object.fromEntries(spans.map(span => [span.name, {
+      errorType: span.attributes["error.type"], status: span.status, events: span.events,
+    }]))).toEqual({
+      "site.publish": {
+        errorType: "TypeError",
+        status: { code: "error", description: "TypeError" },
+        events: [{ name: "exception", attributes: { "exception.type": "TypeError", "operation.name": "site.publish" } }],
+      },
+      invoke_agent: {
+        errorType: "TypeError",
+        status: { code: "error", description: "TypeError" },
+        events: [{ name: "exception", attributes: { "exception.type": "TypeError", "operation.name": "assistant.run" } }],
+      },
+    });
   });
 
   it("keeps request correlation and the response's mount-aware outcome on the existing request port", async () => {

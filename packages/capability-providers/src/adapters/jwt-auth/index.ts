@@ -200,7 +200,8 @@ export class JwtAuthProvider implements AuthProvider {
         sub: user.id,
         jti: randomBytes(16).toString('hex'),
         iat: Math.floor(nowMs / 1000),
-        exp: Math.floor(expiresAt / 1000),
+        // JWT seconds must cover the full millisecond lifetime advertised by expiresAt.
+        exp: Math.ceil(expiresAt / 1000),
       },
       this.secret,
     );

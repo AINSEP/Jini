@@ -276,7 +276,7 @@ test('late prompt resolution after quit cannot restart the application', async (
   assert.equal(t.controller.beforeFinalQuit(), false);
 });
 
-test('synchronous updater failures are logged and still complete a held quit', () => {
+test('synchronous updater failures are logged and let the current quit proceed', () => {
   const logs: string[] = [];
   const t = setup({ log: ({ message }) => logs.push(message) });
   t.updater.checkForUpdates = () => { throw new Error('sync check'); };
@@ -284,8 +284,8 @@ test('synchronous updater failures are logged and still complete a held quit', (
   assert.deepEqual(logs, ['auto-update: check failed: sync check']);
   t.updater.quitAndInstall = () => { throw new Error('sync install'); };
   t.updater.emit('update-downloaded', { version: '4' });
-  assert.equal(t.controller.beforeFinalQuit(), true);
-  assert.deepEqual(t.events, ['quit']);
+  assert.equal(t.controller.beforeFinalQuit(), false);
+  assert.deepEqual(t.events, []);
   assert.equal(logs.at(-1), 'auto-update: sync install');
 });
 

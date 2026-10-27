@@ -353,6 +353,26 @@ test("auto-quarantine: a successful invocation resets the consecutive-failure co
   assert.equal(quarantines.length, 1);
 });
 
+test("P19: quarantining a plugin in one workspace preserves its filter in another", async () => {
+  const quarantines: Array<{ workspaceId: string; pluginId: string }> = [];
+  const registry = createHookRegistry({
+    failureThreshold: 1,
+    onQuarantine: async (event) => { quarantines.push(event); },
+  });
+  registry.attach("shared", "glue", async (_entry, ctx) => {
+    if (ctx.workspaceId === "ws-a") throw new Error("workspace A failure");
+    return { count: 7 };
+  }, [{ path: "ext.shared.count", type: "integer" }]);
+
+  assert.deepEqual(await registry.runBeforeSave(draft({ workspaceId: "ws-b" })), { shared: { count: 7 } });
+  await assert.rejects(() => registry.runBeforeSave(draft({ workspaceId: "ws-a" })), PluginHookFailedError);
+  assert.deepEqual(quarantines.map(({ workspaceId, pluginId }) => ({ workspaceId, pluginId })), [
+    { workspaceId: "ws-a", pluginId: "shared" },
+  ]);
+  assert.deepEqual(await registry.runBeforeSave(draft({ workspaceId: "ws-a" })), {});
+  assert.deepEqual(await registry.runBeforeSave(draft({ workspaceId: "ws-b" })), { shared: { count: 7 } });
+});
+
 test("auto-quarantine: counters are scoped by workspace as well as plugin", async () => {
   const quarantines: Array<{ workspaceId: string }> = [];
   const registry = createHookRegistry({

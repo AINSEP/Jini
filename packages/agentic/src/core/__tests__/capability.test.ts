@@ -134,6 +134,36 @@ describe('findCapabilityInputError', () => {
     expect(findCapabilityInputError({ capability, input: { element: 'a', count: 1, confirm: true } })).toBeNull();
   });
 
+  it('C46: rejects null objects and non-finite numbers while accepting integers', () => {
+    const typed: CapabilityDef = {
+      ...capability,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          payload: { type: 'object' },
+          count: { type: 'integer' },
+          amount: { type: 'number' },
+        },
+        additionalProperties: false,
+      },
+    };
+
+    // Separate calls ensure an earlier property's error cannot mask another type check.
+    expect({
+      nullObjectAccepted: findCapabilityInputError({ capability: typed, input: { payload: null } }) === null,
+      integerAccepted: findCapabilityInputError({ capability: typed, input: { count: 2 } }) === null,
+      fractionAccepted: findCapabilityInputError({ capability: typed, input: { count: 2.5 } }) === null,
+      nanAccepted: findCapabilityInputError({ capability: typed, input: { amount: NaN } }) === null,
+      infinityAccepted: findCapabilityInputError({ capability: typed, input: { amount: Infinity } }) === null,
+    }).toEqual({
+      nullObjectAccepted: false,
+      integerAccepted: true,
+      fractionAccepted: false,
+      nanAccepted: false,
+      infinityAccepted: false,
+    });
+  });
+
   it('reports a missing required field', () => {
     expect(findCapabilityInputError({ capability, input: {} })).toBe('"element" is required');
     // Explicitly-undefined is the same as absent, not a supplied value.

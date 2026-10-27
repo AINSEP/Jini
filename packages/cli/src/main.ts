@@ -74,6 +74,7 @@
  * (like every other test in this package) inject a throwing `exit` double to make
  * `process.exit`'s real "never returns" behavior observable without ending the test process.
  */
+import { existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CommandRegistry, type CommandDispatchResult } from './command-registry.js';
 import { registerDaemonCommands } from './daemon-command.js';
@@ -282,7 +283,9 @@ export async function main({ argv }: { argv: readonly string[] }, deps: MainDeps
 // ...`, or the `jini` bin shim pnpm/npm links to it) — not merely imported, e.g. by this
 // file's own tests importing the named `main` export above. Mirrors Node's CommonJS
 // `require.main === module` idiom for ESM; see this file's own module doc.
-const isMainModule = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
+// Canonical paths recognize npm bin symlinks; a missing argv path is an unrelated import.
+const isMainModule = process.argv[1] !== undefined && existsSync(process.argv[1])
+  && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
 if (isMainModule) {
   await main({ argv: process.argv.slice(2) });
 }

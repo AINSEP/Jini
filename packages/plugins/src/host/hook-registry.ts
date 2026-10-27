@@ -90,7 +90,7 @@ export interface HookRegistry {
    * declared-field validation as a save, but merges, saves and counts nothing — a preview failure
    * throws `PluginHookFailedError` without touching the quarantine counter or the attachment, so
    * an editor trying drafts can never quarantine a plugin. Resolves `null` when `pluginId` is not
-   * attached (disabled, quarantined, or never loaded). */
+   * attached (disabled or never loaded), or is quarantined in the draft's workspace. */
   previewBeforeSave(required: { pluginId: string; entry: Readonly<ContentEntryDraft> }, optional?: Record<string, never>): Promise<JsonObject | null>;
 }
 
@@ -242,6 +242,16 @@ export function createHookRegistry<H extends HookPoints>(
   const attachments = new Map<string, Attachment>();
   const consecutiveFailures = new Map<string, Map<string, number>>();
 
+  /** A threshold count retains quarantine for this workspace until attach/detach resets it.
+   * @complexity O(1) lookup; no persistence or filter execution.
+   */
+  function isQuarantined(
+    { pluginId, workspaceId }: { pluginId: string; workspaceId: string },
+    _optional: Record<string, never> = {},
+  ): boolean {
+    return (consecutiveFailures.get(workspaceId)?.get(pluginId) ?? 0) >= failureThreshold;
+  }
+
   function clearFailures(pluginId: string, workspaceId?: string): void {
     if (workspaceId !== undefined) {
       const workspaceFailures = consecutiveFailures.get(workspaceId);
@@ -255,10 +265,13 @@ export function createHookRegistry<H extends HookPoints>(
     }
   }
 
+  /** Counts failures for one workspace and quarantines it before awaiting persistence.
+   * Persistence failure throws a hook error; the workspace remains quarantined.
+   * @complexity O(1) bookkeeping plus one host persistence callback at the threshold.
+   */
   async function recordFailure(
-    pluginId: string,
-    workspaceId: string,
-    failure: PluginHookFailedError
+    { pluginId, workspaceId, failure }: { pluginId: string; workspaceId: string; failure: PluginHookFailedError },
+    _optional: Record<string, never> = {},
   ): Promise<void> {
     if (!options.onQuarantine) return;
 
@@ -268,9 +281,9 @@ export function createHookRegistry<H extends HookPoints>(
     consecutiveFailures.set(workspaceId, workspaceFailures);
     if (next < failureThreshold) return;
 
-    // Recover the process first: the triggering save remains fail-closed, but all later saves see
-    // the attachment gone even while durable activation state is being recorded.
-    detach({ pluginId });
+    // Recover the affected workspace first: the triggering save remains fail-closed, but the
+    // threshold count skips later saves/previews while durable activation state is recorded.
+    // Other workspaces retain the attachment and their own failure counts.
     try {
       await options.onQuarantine({
         pluginId,
@@ -307,6 +320,7 @@ export function createHookRegistry<H extends HookPoints>(
     const merged: Record<string, JsonObject> = {};
 
     for (const [pluginId, attachment] of ordered) {
+      if (isQuarantined({ pluginId, workspaceId: entry.workspaceId })) continue;
       try {
         merged[pluginId] = await applyPluginFilter(pluginId, attachment, entry, merged, beforeSaveHook);
         clearFailures(pluginId, entry.workspaceId);
@@ -315,7 +329,7 @@ export function createHookRegistry<H extends HookPoints>(
           error instanceof PluginHookFailedError
             ? error
             : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
-        await recordFailure(pluginId, entry.workspaceId, failure);
+        await recordFailure({ pluginId, workspaceId: entry.workspaceId, failure });
         throw failure;
       }
     }
@@ -325,7 +339,7 @@ export function createHookRegistry<H extends HookPoints>(
 
   async function previewBeforeSave({ pluginId, entry }: { pluginId: string; entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject | null> {
     const attachment = attachments.get(pluginId);
-    if (!attachment) return null;
+    if (!attachment || isQuarantined({ pluginId, workspaceId: entry.workspaceId })) return null;
     try {
       return await applyPluginFilter(pluginId, attachment, entry, {}, beforeSaveHook);
     } catch (error) {

@@ -391,7 +391,8 @@ export async function createJsonIpcServer({
 
 /**
  * Send one newline-delimited JSON request over a unix socket / named pipe and
- * resolve with the server's `result`, rejecting on error response or timeout.
+ * resolve with the server's `result`, rejecting on error response, malformed JSON,
+ * connection error, close before a complete reply, or timeout.
  * @returns The server's `result` payload.
  */
 export async function requestJsonIpc<T = any>(
@@ -474,11 +475,18 @@ export async function requestJsonIpc<T = any>(
       if (newlineIndex < 0) return;
       socket.end();
       settle(() => {
-        const response = JSON.parse(buffer.slice(0, newlineIndex)) as {
+        let response: {
           error?: { code?: string; message?: string; requestId?: string };
           ok: boolean;
           result?: T;
         };
+        try {
+          response = JSON.parse(buffer.slice(0, newlineIndex));
+        } catch (error) {
+          // Event-handler throws cannot reject the request promise.
+          rejectRequest(error);
+          return;
+        }
         if (!response.ok) {
           traceJsonIpc("client.response_error", {
             durationMs: jsonIpcTraceDurationMs(startedAt),
@@ -525,6 +533,7 @@ export async function requestJsonIpc<T = any>(
         socketPath,
         traceId,
       });
+      settle(() => rejectRequest(new Error(`IPC connection closed before a complete response: ${socketPath}`)));
     });
   });
 }

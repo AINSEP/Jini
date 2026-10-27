@@ -178,10 +178,13 @@ function toTextOrBinary(relativePath: string, bytes: Buffer): PluginPackageFile 
 }
 
 /**
- * Records one regular file. Reads at most `min(size, maxFileBytes) + 1` bytes, so a file that grew
+ * Records one regular file. Reads at most `maxFileBytes + 1` bytes, so a file that grew
  * past the cap after `stat` is still caught as too large rather than read whole.
  */
-async function readFileEntry(absolutePath: string, relativePath: string, state: WalkState): Promise<void> {
+async function readFileEntry(
+  { absolutePath, relativePath, state }: { absolutePath: string; relativePath: string; state: WalkState },
+  _optional: Record<string, never> = {},
+): Promise<void> {
   const opened = await openNoFollow(absolutePath);
   if (typeof opened === "string") {
     state.files.push(omittedFile(relativePath, 0, opened));
@@ -199,9 +202,13 @@ async function readFileEntry(absolutePath: string, relativePath: string, state: 
       state.truncated = true;
       return;
     }
-    const bytes = await readAtMost(opened, Math.min(stats.size, maxFileBytes) + 1);
+    const bytes = await readAtMost(opened, maxFileBytes + 1);
     if (bytes.length > maxFileBytes) {
       state.files.push(omittedFile(relativePath, bytes.length, "too-large"));
+      return;
+    }
+    if (state.totalBytes + bytes.length > maxTotalBytes) {
+      state.truncated = true;
       return;
     }
     state.totalBytes += bytes.length;
@@ -235,7 +242,7 @@ async function readDirectoryLevel(rootReal: string, relativeDir: string, state: 
 async function visitEntry(rootReal: string, relativePath: string, entry: Dirent, state: WalkState): Promise<boolean> {
   if (entry.isDirectory()) return true;
   if (entry.isSymbolicLink()) state.files.push(omittedFile(relativePath, 0, "symlink"));
-  else if (entry.isFile()) await readFileEntry(path.join(rootReal, relativePath), relativePath, state);
+  else if (entry.isFile()) await readFileEntry({ absolutePath: path.join(rootReal, relativePath), relativePath, state });
   return false;
 }
 

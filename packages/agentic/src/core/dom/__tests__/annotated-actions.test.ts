@@ -58,6 +58,27 @@ describe('annotated browser actions', () => {
     await expect(s.tools.get('toggle')!.execute({})).rejects.toThrow('unavailable'); s.cleanup();
   });
 
+  it('C45: strips native tool attributes from forms mounted after initial opt-out', async () => {
+    const s = await setup('', false);
+    try {
+      const form = document.createElement('form');
+      form.setAttribute('toolname', 'contact');
+      form.setAttribute('tooldescription', 'Contact');
+      form.setAttribute('toolautosubmit', '');
+      document.body.append(form);
+      // Let the real MutationObserver deliver the insertion before checking the form.
+      await Promise.resolve();
+      expect({
+        name: form.getAttribute('toolname'),
+        description: form.getAttribute('tooldescription'),
+        autosubmit: form.getAttribute('toolautosubmit'),
+      }).toEqual({ name: null, description: null, autosubmit: null });
+      expect(s.registerTool).not.toHaveBeenCalled();
+    } finally {
+      s.cleanup();
+    }
+  });
+
   it('refuses duplicate names including native form names, and isolates registration rejections', async () => {
     const s = await setup('<form toolname="shared" tooldescription="Native"></form><button type="button" data-toolname="shared" data-tooldescription="Duplicate">Shared</button><button type="button" data-toolname="twice" data-tooldescription="One">One</button><button type="button" data-toolname="twice" data-tooldescription="Two">Two</button>');
     expect(s.registerTool).not.toHaveBeenCalled(); s.cleanup();

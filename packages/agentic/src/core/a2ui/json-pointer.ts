@@ -131,10 +131,10 @@ function copyRecord(current: unknown): Record<string, unknown> {
   return isObjectLike(current) ? { ...current } : {};
 }
 
-/** The final write/delete into an array parent. A non-index token leaves the array untouched (same instance). */
+/** The final write/delete into an array parent. Invalid or sparse writes leave it untouched; index === length appends. */
 function writeArrayLeaf(array: unknown[], token: string, value: unknown): unknown[] {
   const index = arrayIndexOf(token);
-  if (index === undefined) return array;
+  if (index === undefined || (value !== null && index > array.length)) return array;
   const next = array.slice();
   // `splice` past the end removes nothing, so an out-of-range delete needs no guard of its own.
   if (value === null) {
@@ -162,20 +162,22 @@ interface LeafWrite {
   readonly value: unknown;
 }
 
-/** Returns a copy of `current` with `leaf` applied at `remaining` (the parent tokens still to walk). */
+/** Returns a copy of `current` with `leaf` applied at `remaining`; missing-path deletes preserve existing parents. */
 function writePath(current: unknown, remaining: readonly string[], leaf: LeafWrite): unknown {
+  if (leaf.value === null && !isObjectLike(current)) return current;
   if (remaining.length === 0) {
     // `current` here is the parent container; apply the final write/delete.
     return Array.isArray(current) ? writeArrayLeaf(current, leaf.token, leaf.value) : writeRecordLeaf(current, leaf.token, leaf.value);
   }
   const [head, ...rest] = remaining as [string, ...string[]];
+  if (leaf.value === null && !readMember(current, head).found) return current;
   return Array.isArray(current) ? writeArrayBranch(current, head, rest, leaf) : writeRecordBranch(current, head, rest, leaf);
 }
 
-/** An intermediate array segment. A non-index token (the empty token included) leaves the array untouched. */
+/** An intermediate array segment. Invalid or sparse indices leave it untouched; index === length appends. */
 function writeArrayBranch(array: unknown[], head: string, rest: readonly string[], leaf: LeafWrite): unknown[] {
   const index = arrayIndexOf(head);
-  if (index === undefined) return array;
+  if (index === undefined || index > array.length) return array;
   const next = array.slice();
   next[index] = writePath(index < next.length ? next[index] : {}, rest, leaf);
   return next;
@@ -192,11 +194,15 @@ function writeRecordBranch(current: unknown, head: string, rest: readonly string
 /**
  * Writes `value` at `pointer` in `doc`, returning a **new** document (the original is never
  * mutated — every intermediate object on the path is shallow-copied). Missing intermediate
- * segments are created as plain objects (this port does not attempt array-vs-object inference for
- * not-yet-existing intermediate segments — a documented simplification, not a spec requirement).
+ * segments for non-null writes are created as plain objects (this port does not attempt
+ * array-vs-object inference for not-yet-existing intermediate segments — a documented
+ * simplification, not a spec requirement).
  * `value === null` at a non-root pointer deletes the key/value at that location, per
  * `updateDataModel`'s own spec text ("To delete the key/value at path, set value explicitly to
- * null."). At the root pointer, `value === null` replaces the entire data model with `null` (there
+ * null."). Deleting an absent path preserves its missing or primitive parents. Array writes may
+ * replace an existing index or append at the current length, but never create sparse gaps: an
+ * agent-chosen index must not inflate the data model and freeze subsequent copies or renders.
+ * At the root pointer, `value === null` replaces the entire data model with `null` (there
  * is no "key" to delete at the root; documented as this port's own consistent interpretation).
  *
  * Never throws on a malformed pointer (e.g. missing leading `/`) — degrades to a no-op (`doc`

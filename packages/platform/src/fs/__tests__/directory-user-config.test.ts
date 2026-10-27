@@ -48,6 +48,14 @@ describe("stored settings", () => {
 });
 
 describe("updates", () => {
+  it("C59: adding an extra root preserves policy source roots in the effective config", () => {
+    const source = P("/repo/sites"), extra = P("/extra"), w = world({ policy: { sourceRoots: [source] } });
+    expect(w.config.read({}).siteRoots).toEqual([source]);
+    w.config.updateRoots({ add: [extra] });
+    expect(w.files.get(CONFIG)).toEqual({ state: "ok", value: { siteRoots: [extra] } });
+    expect(w.config.read({}).siteRoots).toEqual([source, extra]);
+  });
+
   it("refuses regular files as folders and settings overridden by the environment", () => {
     const w = world(); w.present.add(P("/file"));
     expect(() => w.config.update({ patch: { sitesHome: "/file" } })).toThrow("Sites folder is not a directory: /file");

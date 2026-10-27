@@ -26,7 +26,7 @@ describe('verify L088 characterization', () => {
     [' ALPHA ', { name: 'alpha' }, true], ['alpha with suffix', { name: 'alpha' }, true],
     ['rubric text', { name: 'x', check: 'rubric text here' }, true],
     ['rubric text here plus', { name: 'x', check: 'rubric text here' }, true],
-    ['abcd', { name: 'abcd' }, false], ['1234567', { name: 'x', check: '1234567' }, false],
+    ['abcd', { name: 'abcd' }, true], ['1234567', { name: 'x', check: '1234567' }, false],
     ['density palette different', { name: 'layout density palette' }, true],
     ['density unrelated', { name: 'layout density palette' }, false],
     ['the rule must ensure', { name: 'the rule must ensure' }, true],

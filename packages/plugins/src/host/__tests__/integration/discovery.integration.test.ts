@@ -115,11 +115,12 @@ test("AC-09/EC-08: when two installed versions of one site plugin id exist, only
   }
 });
 
-test("DUP-01: two site plugins with case-insensitively matching ids are BOTH marked ID_DUPLICATE", async () => {
+test("DUP-01/EC-01: a wrong-folder manifest cannot claim another site plugin's id", async () => {
   const { installDir, builtIns } = await buildAc11FixtureInstallDir();
   try {
     // Distinct physical folder names work on both case-sensitive and case-insensitive disks.
-    // The duplicate also violates EC-01; DUP-01 must still annotate both colliding records.
+    // The duplicate violates EC-01, so its physical slot owns the invalid record's identity;
+    // its claimed id must not poison the legitimate plugin during DUP-01 detection.
     const duplicateId = "Valid-Site-Plugin";
     const duplicateFolder = "duplicate-site-plugin";
     const versionDir = path.join(installDir, duplicateFolder, "1.0.0");
@@ -132,28 +133,34 @@ test("DUP-01: two site plugins with case-insensitively matching ids are BOTH mar
 
     const records = await discoverPlugins({ installDir, builtIns });
     const collisions = records.filter((r) => r.id.toLowerCase() === "valid-site-plugin");
+    const duplicate = records.find((record) => record.id === duplicateFolder);
+    assert.ok(duplicate);
 
     assert.deepEqual(
-      collisions.map(({ id, version, source }) => ({ id, version, source })).sort((a, b) => a.id.localeCompare(b.id)),
+      [...collisions, duplicate].map(({ id, version, source }) => ({ id, version, source })).sort((a, b) => a.id.localeCompare(b.id)),
       [
         { id: "valid-site-plugin", version: "1.0.0", source: "site" },
-        { id: "Valid-Site-Plugin", version: "1.0.0", source: "site" },
+        { id: duplicateFolder, version: "1.0.0", source: "site" },
       ].sort((a, b) => a.id.localeCompare(b.id))
     );
     assert.deepEqual(
       records.filter((record) => record.errors.some((error) => error.code === "ID_DUPLICATE")).map((record) => record.id).sort(),
-      ["valid-site-plugin", "Valid-Site-Plugin"].sort()
+      []
     );
-    const duplicate = collisions.find((record) => record.id === duplicateId)!;
     assert.equal(duplicate.name, "Duplicate");
+    assert.equal(duplicate.status, "invalid");
+    assert.equal(duplicate.manifest, undefined);
     assert.ok(duplicate.errors.some((error) => error.code === "ID_FOLDER_MISMATCH" && error.message.includes(duplicateFolder)));
     assert.equal(records.find((record) => record.id === "word-count")?.status, "valid");
     assert.deepEqual(records.find((record) => record.id === "invalid-site-plugin")?.errors.map((error) => error.code), ["HOOK_UNKNOWN"]);
     for (const record of collisions) {
       assert.ok(
-        record.errors.some((e) => e.code === "ID_DUPLICATE"),
-        `record ${record.id} must carry ID_DUPLICATE — site-vs-site collisions mark BOTH (DUP-01)`
+        !record.errors.some((e) => e.code === "ID_DUPLICATE"),
+        `record ${record.id} must not carry ID_DUPLICATE for a claim from an invalid folder (DUP-01/EC-01)`
       );
+      assert.equal(record.status, "valid");
+      assert.ok(record.manifest);
+      assert.deepEqual(record.errors, []);
     }
   } finally {
     await rm(installDir, { recursive: true, force: true });

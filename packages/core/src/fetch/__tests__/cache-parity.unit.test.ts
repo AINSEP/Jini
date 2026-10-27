@@ -34,6 +34,33 @@ function fixture({ online = true }: { online?: boolean } = {}) {
 // Deferred requests exercise response ordering through public state and promises, not
 // private request counters: superseded reads must never replace a newer refresh or write.
 describe('fetch-query cache parity', () => {
+  it('C62: rejects the old cold-load caller when its replacement has already failed', async () => {
+    const { cache } = fixture();
+    const entry = cache.entry({ key: ['rows'] });
+    const old = deferred<string>();
+    const next = deferred<string>();
+    const fetch = vi.fn().mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise);
+    const first = cache.load({ entry, fetch, staleTime: 0 });
+
+    try {
+      await Promise.resolve();
+      cache.invalidate({ prefix: ['rows'] });
+      const replacement = entry.pending;
+      const error = new Error('replacement failed');
+      next.reject(error);
+      await expect(replacement).rejects.toBe(error);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(entry.pending).toBeUndefined();
+      expect(entry.state.data).toBeUndefined();
+
+      // The old transport finishes only after the replacement cleared its pending promise.
+      old.resolve('obsolete');
+      await expect(first).rejects.toBe(error);
+    } finally {
+      cache.dispose();
+    }
+  });
+
   it.each(['resolve', 'reject'] as const)('invalidation restarts a loader-only read and supersedes its old %s', async outcome => {
     const { cache } = fixture();
     const entry = cache.entry({ key: ['rows', 'detail'] });

@@ -109,6 +109,16 @@ function findUnknownArgumentError(
   return null;
 }
 
+/** Checks one shallow schema type without coercion; JSON objects exclude null and JSON numbers must be finite. */
+function matchesPropertyType(
+  { value, actual, expected }: { value: unknown; actual: string; expected: string },
+  _optional: Record<string, never> = {},
+): boolean {
+  if (expected === 'integer') return Number.isInteger(value);
+  if (expected === 'number') return Number.isFinite(value);
+  return actual === expected;
+}
+
 function findPropertyInputError(
   { properties, input }: { properties: CapabilityInputSchema['properties']; input: Record<string, unknown> },
   _optional: Record<string, never> = {},
@@ -116,8 +126,8 @@ function findPropertyInputError(
   for (const [name, schema] of Object.entries(properties)) {
     const value = input[name];
     if (value === undefined) continue;
-    const actual = Array.isArray(value) ? 'array' : typeof value;
-    if (actual !== schema.type) return `"${name}" must be a ${schema.type}, received ${actual}`;
+    const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+    if (!matchesPropertyType({ value, actual, expected: schema.type })) return `"${name}" must be a ${schema.type}, received ${actual}`;
     if (schema.enum !== undefined && !schema.enum.includes(value as string)) {
       return `"${name}" must be one of: ${schema.enum.join(', ')}`;
     }

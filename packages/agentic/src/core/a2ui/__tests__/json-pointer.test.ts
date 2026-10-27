@@ -62,6 +62,23 @@ describe('getAtPointer', () => {
 });
 
 describe('setAtPointer', () => {
+  it('C42: refuses sparse array writes at both leaf and intermediate segments', () => {
+    const doc = { items: [{ name: 'kept' }] };
+    // A small gap exercises the same unchecked index assignment as /items/100000000.
+    expect({
+      leaf: setAtPointer({ doc, pointer: '/items/3', value: 'new' }),
+      branch: setAtPointer({ doc, pointer: '/items/3/name', value: 'new' }),
+    }).toEqual({ leaf: doc, branch: doc });
+  });
+
+  it('C43: deleting absent nested paths preserves missing and primitive parents', () => {
+    const doc = { count: 3 };
+    expect({
+      missing: setAtPointer({ doc, pointer: '/missing/key', value: null }),
+      primitive: setAtPointer({ doc, pointer: '/count/key', value: null }),
+    }).toEqual({ missing: doc, primitive: doc });
+  });
+
   it('replaces the whole document at root ("/" or "")', () => {
     expect(setAtPointer({ doc: { a: 1 }, pointer: '/', value: { b: 2 } })).toEqual({ b: 2 });
     expect(setAtPointer({ doc: { a: 1 }, pointer: '', value: { b: 2 } })).toEqual({ b: 2 });
@@ -261,16 +278,16 @@ describe('setAtPointer — escapes, array-index edge cases and malformed pointer
     expect(result.list).toEqual([1, 2]);
     expect(result.list).not.toBe(list);
   });
-  it('writing past the end of an array leaves holes', () => {
+  it('writing past the end of an array refuses to create holes', () => {
     const result = setAtPointer({ doc: { list: [1] }, pointer: '/list/3', value: 'x' }) as { list: unknown[] };
-    expect(result.list.length).toBe(4);
+    expect(result.list.length).toBe(1);
     expect(1 in result.list).toBe(false);
-    expect(result.list[3]).toBe('x');
+    expect(result.list[3]).toBeUndefined();
   });
-  it('an agent-chosen index sets the array length arbitrarily (reported, not fixed)', () => {
-    // No upper bound on the index: one small message can make the stored array's length huge.
+  it('refuses an agent-chosen index that would inflate the array length', () => {
+    // Without an upper bound on the index, one small message could make the stored array's length huge.
     const result = setAtPointer({ doc: { list: [] }, pointer: '/list/1000000', value: 1 }) as { list: unknown[] };
-    expect(result.list.length).toBe(1_000_001);
+    expect(result.list.length).toBe(0);
   });
   it('writes through an existing array element, keeping its other keys', () => {
     expect(setAtPointer({ doc: { list: [{ name: 'b', keep: 1 }] }, pointer: '/list/0/name', value: 'c' })).toEqual({ list: [{ name: 'c', keep: 1 }] });
@@ -285,8 +302,8 @@ describe('setAtPointer — escapes, array-index edge cases and malformed pointer
   it('creates an object when the document is null', () => {
     expect(setAtPointer({ doc: null, pointer: '/a', value: 1 })).toEqual({ a: 1 });
   });
-  it('deleting under a primitive intermediate replaces it with an empty object', () => {
-    expect(setAtPointer({ doc: { a: 5 }, pointer: '/a/b', value: null })).toEqual({ a: {} });
+  it('deleting under a primitive intermediate preserves it', () => {
+    expect(setAtPointer({ doc: { a: 5 }, pointer: '/a/b', value: null })).toEqual({ a: 5 });
   });
   it('deleting a key that is absent returns an equal copy, not the same object', () => {
     const doc = { a: 1 };

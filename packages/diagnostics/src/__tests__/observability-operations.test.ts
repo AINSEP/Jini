@@ -90,6 +90,25 @@ test("describeReportedError redacts secret shapes from message and stack, and ca
   assert.deepEqual(describeReportedError({ error: "plain" }), { type: "string", message: "plain" });
 });
 
+test("C61: redact multiline secrets before applying the stack line limit", () => {
+  const error = new Error("request failed");
+  const secretPrefix = "fixture-private-prefix";
+  error.stack = [
+    "Error: request failed",
+    ...Array.from({ length: 28 }, () => "    at handler (fixture.ts:1:1)"),
+    // The closing quote is on line 31: cutting at 30 leaves an unmatched secret value.
+    `"password":"${secretPrefix}`,
+    'fixture-private-suffix"',
+  ].join("\n");
+
+  const described = describeReportedError({ error });
+  assert.equal(described.message, "request failed");
+  assert.equal(typeof described.stack, "string");
+  assert.equal(described.stack!.includes(secretPrefix), false);
+  assert.match(described.stack!, /\[REDACTED:labeled_secret\]/);
+  assert.ok(described.stack!.split("\n").length <= 30);
+});
+
 test("combineObservabilityPorts: noop-only is the noop; one live port still delivers its signals", async () => {
   const { combineObservabilityPorts } = await import("../observability/fanout.js");
   const { isNoopObservabilityPort } = await import("../observability/noop.js");

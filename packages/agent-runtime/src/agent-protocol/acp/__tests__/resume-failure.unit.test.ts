@@ -46,15 +46,23 @@ describe('ACP resume failure discriminator', () => {
   });
 
   it.each([
-    'initialize error', 'load error', 'invalid load result', 'initialize timeout', 'load timeout',
+    'initialize error', 'load error', 'empty load result', 'initialize timeout', 'load timeout',
     'malformed load result', 'child exit', 'child error', 'stdin error', 'stdin write error',
-  ])('marks %s before resume acknowledgement', (failure) => {
+  ])('classifies %s at resume acknowledgement', (failure) => {
     const f = createFixture();
     if (failure !== 'initialize error' && failure !== 'initialize timeout') f.initialize();
     switch (failure) {
       case 'initialize error': f.frame({ id: 1, error: { code: -32000, message: 'initialize failed' } }); break;
       case 'load error': f.frame({ id: 2, error: { code: -32000, message: 'session missing' } }); break;
-      case 'invalid load result': f.frame({ id: 2, result: {} }); break;
+      case 'empty load result': {
+        f.frame({ id: 2, result: {} });
+        // An empty LoadSessionResponse acknowledges the requested session id.
+        expect(f.errorPayloads()).toEqual([]);
+        expect(f.controller.hasFatalError()).toBe(false);
+        expect(f.controller.getDurableSessionId()).toBe('prior-session');
+        f.controller.abort();
+        return;
+      }
       case 'initialize timeout':
       case 'load timeout': vi.advanceTimersByTime(100); break;
       case 'malformed load result': f.frame({ id: 2, result: null }); vi.advanceTimersByTime(100); break;

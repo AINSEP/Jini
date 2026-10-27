@@ -36,12 +36,29 @@ export class SqliteBackendConfigError extends Error {
   }
 }
 
+/** Normalizes an explicit SSL mode; unknown values fail rather than weakening verification. */
 function resolvePostgresSslMode(
   required: { env: Record<string, string | undefined> },
   _optional: Record<string, never> = {},
 ): 'disable' | 'require' | 'verify-full' {
-  const e = required.env;
-  return e.JINI_PG_SSL_MODE === 'disable' || e.JINI_PG_SSL_MODE === 'verify-full' ? e.JINI_PG_SSL_MODE : 'require';
+  const mode = (required.env.JINI_PG_SSL_MODE ?? 'require').trim().toLowerCase();
+  if (mode === 'disable' || mode === 'require' || mode === 'verify-full') return mode;
+  throw new SqliteBackendConfigError({ message:
+    'JINI_PG_SSL_MODE must be "disable", "require", or "verify-full".',
+  });
+}
+
+/** Defaults only an omitted port; explicit values must be decimal integers in 1..65535. */
+function resolvePostgresPort(
+  required: { env: Record<string, string | undefined> },
+  _optional: Record<string, never> = {},
+): number {
+  const value = (required.env.JINI_PG_PORT ?? '5432').trim();
+  const port = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new SqliteBackendConfigError({ message: 'JINI_PG_PORT must be an integer between 1 and 65535.' });
+  }
+  return port;
 }
 
 function resolvePostgresConfig(
@@ -50,7 +67,7 @@ function resolvePostgresConfig(
 ): SqliteBackendConfig {
   const e = required.env;
   const host = e.JINI_PG_HOST ?? '';
-  const portStr = e.JINI_PG_PORT ?? '5432';
+  const port = resolvePostgresPort({ env: e });
   const database = e.JINI_PG_DATABASE ?? '';
   const user = e.JINI_PG_USER ?? '';
   const sslMode = resolvePostgresSslMode({ env: e });
@@ -62,7 +79,7 @@ function resolvePostgresConfig(
   }
   return {
     kind: 'postgres',
-    postgres: { host, port: Number.parseInt(portStr, 10) || 5432, database, user, sslMode },
+    postgres: { host, port, database, user, sslMode },
   };
 }
 
@@ -75,7 +92,9 @@ function resolvePostgresConfig(
  * @param optional.env - Environment map to read from. Defaults to `process.env`.
  * @returns The resolved backend config.
  * @throws {SqliteBackendConfigError} When `kind` is unrecognized, or `postgres`
- *   is selected without the required host/database/user.
+ *   is selected without the required host/database/user, with an unknown SSL mode,
+ *   or with an invalid port. Omitted port/SSL mode default to 5432/"require";
+ *   explicit SSL modes are trimmed and lowercased before validation.
  */
 export function resolveSqliteBackendConfig(
   required: Record<string, never>,

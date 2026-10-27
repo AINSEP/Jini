@@ -349,7 +349,8 @@ export async function wrapE2bSandbox(
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), previewCheckTimeoutMs);
       try {
-        await fetchImpl(url, { method: 'HEAD', signal: controller.signal });
+        const response = await fetchImpl(url, { method: 'HEAD', signal: controller.signal });
+        if (!response.ok) throw new Error(`Preview responded with HTTP ${response.status}`);
       } catch (error) {
         throw previewNotReadyError(url, error);
       } finally {

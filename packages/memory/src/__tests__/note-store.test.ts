@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createNoteStore, NoteStoreConfigError, type NoteChangeEvent, type NoteStore } from '../note-store.js';
+import { createNoteStore, NoteStoreConfigError, type NoteChangeEvent, type NoteStore, type NoteStoreFilesystemPort } from '../note-store.js';
 
 const config = { validTypes: ['user', 'feedback', 'project'], defaultType: 'user' };
 
@@ -111,6 +111,45 @@ describe('createNoteStore', () => {
   });
 
   describe('entries', () => {
+    it('C21: keeps both concurrent upserts active in the index', async () => {
+      const fs = await import('node:fs');
+      // Complete disk effects in microtasks, but deliver each index snapshot
+      // on the next event-loop turn. Unserialized writers then read the same
+      // snapshot before either writes; serialized writers need no second reader
+      // to release the first, so the same fixture works after the fix.
+      const filesystem = {
+        ...fs.promises,
+        mkdir: async (target: string) => fs.mkdirSync(target, { recursive: true }),
+        realpath: async (target: string) => fs.realpathSync(target),
+        lstat: async (target: string) => fs.lstatSync(target),
+        readFile: async (target: string) => {
+          const snapshot = fs.readFileSync(target, 'utf8');
+          if (target.endsWith('INDEX.md')) await new Promise<void>((resolve) => setImmediate(resolve));
+          return snapshot;
+        },
+        open: async (target: string, flags: string) => {
+          const fd = fs.openSync(target, flags);
+          return {
+            writeFile: async (body: string) => { fs.writeFileSync(fd, body); },
+            sync: async () => { fs.fsyncSync(fd); },
+            close: async () => { fs.closeSync(fd); },
+          };
+        },
+        rename: async (source: string, target: string) => { fs.renameSync(source, target); },
+      } as NoteStoreFilesystemPort;
+      let sequence = 0;
+      const concurrentStore = createNoteStore(config, { filesystem, now: () => 123, ids: () => `write-${++sequence}` });
+      await concurrentStore.writeIndex({ dataDir, body: '# Notes\n\n' });
+
+      await Promise.all([
+        concurrentStore.upsertEntry({ dataDir, input: { name: 'Alpha', type: 'user', body: 'A' } }),
+        concurrentStore.upsertEntry({ dataDir, input: { name: 'Beta', type: 'user', body: 'B' } }),
+      ]);
+
+      expect((await concurrentStore.listEntries({ dataDir })).map((entry) => entry.id).sort()).toEqual(['user_alpha', 'user_beta']);
+      expect((await concurrentStore.listActiveEntries({ dataDir })).map((entry) => entry.id).sort()).toEqual(['user_alpha', 'user_beta']);
+    });
+
     it('upserts a new entry, deriving an id, and lists it', async () => {
       const entry = await store.upsertEntry({ dataDir: dataDir, input: { name: 'Role', description: 'desc', type: 'user', body: '- Role: engineer' } });
       expect(entry.id).toBe('user_role');
@@ -291,6 +330,15 @@ describe('createNoteStore', () => {
   });
 
   describe('updateTreeNode', () => {
+    it('C22: preserves the body exactly across metadata-only edits', async () => {
+      await store.upsertEntry({ dataDir, input: { name: 'A', type: 'user', body: 'body' } });
+
+      await store.updateTreeNode({ dataDir, id: 'user_a', patch: { description: 'First edit' } });
+      await store.updateTreeNode({ dataDir, id: 'user_a', patch: { description: 'Second edit' } });
+
+      expect((await store.readEntry({ dataDir, id: 'user_a' }))?.body).toBe('body\n');
+    });
+
     it('refuses to edit a folder node', async () => {
       await expect(store.updateTreeNode({ dataDir: dataDir, id: 'folder:user', patch: {} })).rejects.toThrow(/derived and cannot be edited/);
     });

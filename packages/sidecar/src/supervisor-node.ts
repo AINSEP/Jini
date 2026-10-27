@@ -51,7 +51,8 @@ function relayProcessOutput(
   { stream, sink }: { stream: Readable | null; sink: Writable | undefined },
   _options: Record<string, never> = {},
 ): void {
-  if (sink !== undefined) stream?.pipe(sink);
+  // Sinks belong to the host and must survive EOF from a child that may respawn.
+  if (sink !== undefined) stream?.pipe(sink, { end: false });
   else stream?.resume();
 }
 

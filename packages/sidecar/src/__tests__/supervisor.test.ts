@@ -177,6 +177,27 @@ test("a stop that throws or rejects is reported and leaves the old child in plac
   assert.equal(async.failure(), "failed to stop daemon: tree still running");
 });
 
+test("P28: a later crash still respawns after a restart fails to terminate the child", async () => {
+  const h = harness({ terminate: async () => { throw new Error("EPERM"); } });
+  try {
+    h.supervisor.start();
+    assert.deepEqual(h.supervisor.restart(), { ok: true });
+    await Promise.resolve();
+    assert.equal(h.failure(), "failed to stop daemon: Error: EPERM");
+    assert.equal(h.children.length, 1);
+    assert.equal(h.tasks.size, 0);
+
+    h.children[0]!.emitter.emit("exit", 1, null);
+    assert.equal(h.tasks.size, 1, "a crash after failed termination must schedule automatic recovery");
+    h.retry();
+    assert.equal(h.children.length, 2);
+    assert.equal(h.failure(), undefined);
+  } finally {
+    h.supervisor.shutdown();
+    await Promise.resolve();
+  }
+});
+
 test("shutdown before start and a repeated shutdown are both no-ops beyond the latch", () => {
   const h = harness();
   h.supervisor.shutdown();
