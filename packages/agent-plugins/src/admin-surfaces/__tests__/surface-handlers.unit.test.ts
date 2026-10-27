@@ -68,3 +68,16 @@ test('a changed declaration with the same module object starts a new generation 
   await expect(old({ payload: {}, context: CONTEXT })).rejects.toMatchObject({ code: 'plugin-disabled', message: ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE });
   await expect(host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }).save!({ payload: {}, context: CONTEXT })).resolves.toBe(true);
 });
+
+test("an assistant call's signal reaches the host capabilities port, so the host can pin the accounts its card froze", async () => {
+  const { port } = createFakeSurfaceHost();
+  const scopes: unknown[] = [];
+  const host = createAdminSurfaceHandlerHost({ hostKind: 'hosted', issuedTokens: createIssuedTokenMemories(), capabilities: (scope) => { scopes.push(scope); return port(scope); } });
+  host.sync({ loaded: [{ descriptor: descriptorOf(), pluginId: PLUGIN, module: { actions: { save: () => true } } }], refusals: [] });
+  const save = host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }).save!;
+  const { signal } = new AbortController();
+  await save({ payload: {}, context: { ...CONTEXT, signal } });
+  await save({ payload: {}, context: CONTEXT });
+  expect(scopes).toEqual([{ pluginId: PLUGIN, workspaceId: WORKSPACE_ID, principalId: 'admin-1', signal }, { pluginId: PLUGIN, workspaceId: WORKSPACE_ID, principalId: 'admin-1' }]);
+  expect((scopes[0] as { signal?: AbortSignal }).signal).toBe(signal);
+});
