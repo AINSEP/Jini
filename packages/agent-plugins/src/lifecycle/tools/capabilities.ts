@@ -3,8 +3,12 @@
  * every implementation (token store, guarded HTTP, limiter, artifact store) and Jini never names a
  * provider. A per-call session wraps them so that (1) every capability stops working the moment the
  * plugin's tools are revoked, even for a module that kept a reference, and (2) an access token the
- * call obtained can never leave through the tool's result or error text. Those two gates are
- * `openCapabilityGate`, shared with the admin-surface session so both enforce them identically.
+ * call obtained can never leave through the tool's result or error text, and (3) capabilities stop
+ * working when the call that received them finishes, so plugin code that kept them in module scope
+ * cannot use them (and that call's connections and confirmed account) from a later call. Those gates
+ * are `openCapabilityGate`, the ONE gate every session opens (tool calls here; admin-surface actions
+ * and bootstrap in `../../admin-surfaces/surface-capabilities.ts`), and `runInCapabilitySession` is
+ * the one way a caller runs plugin code inside a session, so each path retires it identically.
  *
  * Plugin state reaches a tool read-only: the plugin's admin surface writes its settings (for example
  * which of its products are on), and its tools must honor them, but an agent tool never changes them.
@@ -66,7 +70,7 @@ const STATE_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export const REVOKED_MESSAGE = 'This plugin tool was disabled; its capabilities are revoked. Re-enable the plugin and retry.';
 export const WITHHELD_OUTPUT_MESSAGE = 'The plugin tool result was withheld because it contained a connection credential.';
 export const WITHHELD_ERROR_MESSAGE = 'The plugin tool failed and its error was withheld because it contained a connection credential.';
-export const CALL_ENDED_MESSAGE = 'This plugin tool call already finished; capabilities kept from it no longer work. Use the capabilities of the current call.';
+export const CALL_ENDED_MESSAGE = 'This plugin call already finished; capabilities kept from it no longer work. Use the capabilities of the current call.';
 export const UNDECLARED_CONNECTION_MESSAGE = 'This plugin tool call may only use the connection its connectionRef input names. Nothing was sent. Report this to the plugin author.';
 
 /**
@@ -193,22 +197,26 @@ export function openCredentialScan(required: { readonly issued: IssuedTokenMemor
 export type AgentPluginCredentialScan = ReturnType<typeof openCredentialScan>;
 
 /**
- * The revocation and credential gates every capability session shares: this file's tool session and
- * the admin-surface session (`../../admin-surfaces/surface-capabilities.ts`), so both revoke and scan
- * the same way.
+ * The revocation, lifetime and credential gates every capability session shares: this file's tool
+ * session and the admin-surface session (`../../admin-surfaces/surface-capabilities.ts`), so both
+ * revoke, retire and scan the same way. One gate per invocation.
  * @param required.isLive - False once the contributing plugin's contributions are revoked.
  * @param required.issued - The plugin's token memory (see `createIssuedTokenMemories`).
- * @returns `guard` (wraps a capability so it refuses once revoked), `noteToken` (records a token the
- * call obtained), `mentionsToken`, and the `release` (result) and `sanitize` (error) gates.
+ * @returns `guard` (wraps a capability so it refuses once revoked or once the call ended), `end`
+ * (retires every guarded capability), `noteToken` (records a token the call obtained),
+ * `mentionsToken`, and the `release` (result) and `sanitize` (error) gates.
  * @complexity O(1) to open; the scans are O(serialized size * remembered tokens).
  */
 export function openCapabilityGate(required: { readonly isLive: () => boolean; readonly issued: IssuedTokenMemory }, _optional: Record<string, never> = {}) {
   const { isLive, issued } = required;
+  let ended = false;
   return {
     guard: <A extends unknown[], R>(call: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
       if (!isLive()) throw new Error(REVOKED_MESSAGE);
+      if (ended) throw new Error(CALL_ENDED_MESSAGE);
       return call(...args);
     },
+    end: (): void => { ended = true; },
     noteToken({ token }: { readonly token: string }): string {
       if (token) remember(issued, token);
       return token;
@@ -223,6 +231,22 @@ export function openCapabilityGate(required: { readonly isLive: () => boolean; r
 }
 
 export type AgentPluginCapabilityGate = ReturnType<typeof openCapabilityGate>;
+
+/**
+ * Runs one invocation's plugin code inside its session: an error is sanitized, and the session is
+ * retired in `finally`, whether the code returned, threw or its result was withheld. Every path that
+ * hands plugin code capabilities (tool calls, admin-surface actions, bootstrap) runs through here.
+ * @param required.session - The invocation's session (`sanitize` and `end` from its gate).
+ * @param required.run - The plugin call; apply `release` inside it when the result must be scanned.
+ * @complexity O(1) plus `run` and the error scan.
+ */
+export async function runInCapabilitySession<T>(
+  required: { readonly session: Pick<AgentPluginCapabilityGate, 'sanitize' | 'end'>; readonly run: () => Promise<T> },
+  _optional: Record<string, never> = {},
+): Promise<T> {
+  const { session, run } = required;
+  try { return await run(); } catch (error) { throw session.sanitize({ error }); } finally { session.end(); }
+}
 type ArtifactWriteInput = Parameters<NonNullable<AgentPluginToolCapabilities['artifacts']>['write']>[0];
 
 /** The host capabilities every session wraps the same way: guarded HTTP, limiter and artifacts
@@ -265,9 +289,8 @@ export function guardStateReader(required: { readonly gate: AgentPluginCapabilit
  * @param required.connections - The call's declared connections (`callConnections`); a token for any
  *   other ref is refused before the host is asked, so plugin code cannot reach a connection the call
  *   (and its confirmation card) did not name. Empty means the call gets no token at all.
- * @returns Wrapped capabilities plus `release` (result gate), `sanitize` (error gate) and `end`, which
- *   the caller runs when the call finishes: plugin code that kept these capabilities in module scope
- *   must not use them (and this call's connections) from a later call.
+ * @returns Wrapped capabilities plus `release` (result gate), `sanitize` (error gate) and `end`; run the
+ *   call with `runInCapabilitySession` so `end` always runs when it finishes.
  * @complexity O(1) to open; gates are O(serialized size); a token request is O(c) declared connections.
  */
 export function openCapabilitySession(
@@ -275,12 +298,7 @@ export function openCapabilitySession(
   _optional: Record<string, never> = {},
 ) {
   const { capabilities: host, isLive, issued, connections } = required;
-  let ended = false;
-  const live = openCapabilityGate({ isLive, issued });
-  const gate = { ...live, guard: <A extends unknown[], R>(call: (...args: A) => Promise<R>) => live.guard(async (...args: A): Promise<R> => {
-    if (ended) throw new Error(CALL_ENDED_MESSAGE);
-    return call(...args);
-  }) };
+  const gate = openCapabilityGate({ isLive, issued });
   const capabilities: AgentPluginToolCapabilities = Object.freeze({
     connections: Object.freeze({ getAccessToken: gate.guard(async (input: { readonly connectionRef: string }) => {
       // Read once: plugin code may pass a getter, so the ref checked must be the very value forwarded.
@@ -291,5 +309,5 @@ export function openCapabilitySession(
     ...guardSharedCapabilities({ gate, host }),
     state: guardStateReader({ gate, state: host.state }),
   });
-  return { capabilities, release: gate.release, sanitize: gate.sanitize, end: () => { ended = true; } };
+  return { capabilities, release: gate.release, sanitize: gate.sanitize, end: gate.end };
 }

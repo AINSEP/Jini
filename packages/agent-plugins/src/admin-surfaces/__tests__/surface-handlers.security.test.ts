@@ -8,7 +8,7 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
+import { CALL_ENDED_MESSAGE, createIssuedTokenMemories } from '../../lifecycle/tools/capabilities.js';
 import { createPluginContributionLoader } from '../../lifecycle/contribution-loader.js';
 import { findTrustedPluginPackages, importContainedModule, readTrustedPluginFile, setAgentPluginActivation } from '../../lifecycle/__tests__/test-support.js';
 import type { AdminSurfaceCapabilities } from '../surface-capabilities.js';
@@ -251,6 +251,47 @@ describe('bootstrap data', () => {
   });
   test('a surface without a bootstrap provider starts with null', async () => {
     expect(await withBootstrap(undefined).bootstrapData({ context: CONTEXT })).toBeNull();
+  });
+});
+
+describe('a call\'s capabilities end with the call (one capability gate for tools, actions and bootstrap)', () => {
+  const overrides = { bootstrap, actions: [{ name: 'save', input, result }, { name: 'peek', input, result }] };
+  /** `save` and `bootstrap` keep their capabilities; `peek` uses whatever was kept, from a later call. */
+  function retaining() {
+    let kept: AdminSurfaceCapabilities | undefined;
+    const module: AdminSurfaceHandlerModule = {
+      actions: {
+        save: async ({ capabilities }) => { kept = capabilities; return { saved: true }; },
+        peek: async () => { await kept!.connections.getAccessToken({ connectionId: 'c1' }); return { saved: true }; },
+      },
+      bootstrap: async ({ capabilities }) => { kept = capabilities; return { accessToken: 'unrelated' }; },
+    };
+    const { host, log } = hostFor([loaded(module, overrides)]);
+    const errors: unknown[] = [];
+    const dispatcher = createAdminSurfaceActionDispatcher({ descriptor: descriptorOf(overrides), handlers: host.handlersFor({ pluginId: PLUGIN, surfaceId: 'settings' }) }, { onHandlerError: ({ error }) => errors.push(error) });
+    const run = (action: string) => dispatcher.dispatch({ action, payload: { name: 'x' }, context: CONTEXT });
+    return { host, log, errors, run, kept: () => kept! };
+  }
+  test('capabilities an action kept are refused in a later action, and the host is never asked for a token', async () => {
+    const { log, errors, run } = retaining();
+    expect(await run('save')).toEqual({ ok: true, result: { saved: true } });
+    expect(await run('peek')).toMatchObject({ ok: false, error: { code: 'action-failed' } });
+    expect((errors[0] as Error).message).toBe(CALL_ENDED_MESSAGE);
+    expect(log.tokenRequests).toEqual([]);
+  });
+  test('capabilities bootstrap kept are refused once bootstrap ends', async () => {
+    const { host, log, errors, run, kept } = retaining();
+    expect(await host.bootstrapData({ context: CONTEXT })).toEqual({ accessToken: 'unrelated' });
+    await expect(kept().connections.getAccessToken({ connectionId: 'c1' })).rejects.toThrow(CALL_ENDED_MESSAGE);
+    expect(await run('peek')).toMatchObject({ ok: false, error: { code: 'action-failed' } });
+    expect((errors[0] as Error).message).toBe(CALL_ENDED_MESSAGE);
+    expect(log.tokenRequests).toEqual([]);
+  });
+  test('a failed action ends its capabilities too', async () => {
+    let kept: AdminSurfaceCapabilities | undefined;
+    const { host } = hostFor([loaded(saveModule(async ({ capabilities }) => { kept = capabilities; throw new Error('boom'); }))]);
+    expect(await dispatcherFor(host).dispatch({ action: 'save', payload: { name: 'x' }, context: CONTEXT })).toMatchObject({ ok: false });
+    await expect(kept!.state.get({ key: 'k' })).rejects.toThrow(CALL_ENDED_MESSAGE);
   });
 });
 

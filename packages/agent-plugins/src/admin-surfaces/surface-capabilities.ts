@@ -11,9 +11,9 @@
  * surface did not declare (a connection, a start parameter, a callback field, a config name) before
  * the host sees it, and a host that answers with more than the port promises (a connection ref, raw
  * scopes, undeclared callback fields) is cut back to the declared shape. Like the tool session it
- * revokes everything once the plugin is disabled and withholds results and errors that mention a
- * token the plugin obtained (in this call, an earlier one, or one of its tools); it also refuses to persist
- * such a token in plugin state.
+ * revokes everything once the plugin is disabled, retires everything once the call ends (the shared
+ * gate), and withholds results and errors that mention a token the plugin obtained (in this call, an
+ * earlier one, or one of its tools); it also refuses to persist such a token in plugin state.
  */
 import {
   checkedStateKey, guardSharedCapabilities, guardStateReader, openCapabilityGate,
@@ -299,7 +299,8 @@ function guardForms(required: { readonly gate: AgentPluginCapabilityGate; readon
  * @param required.declared - The surface's own capability declarations (the allowlists).
  * @param required.issued - The plugin's token memory, shared by all its calls (tools included).
  * @param optional.actorId - The signed-in admin; account actions are refused without one.
- * @returns Wrapped capabilities plus the shared `release` (result) and `sanitize` (error) gates.
+ * @returns Wrapped capabilities plus the shared `release` (result) and `sanitize` (error) gates and
+ *   `end`; run the call with `runInCapabilitySession` so `end` always runs when it finishes.
  * @complexity O(1) to open; each check is bounded by the declared lists and the value caps.
  */
 export function openAdminSurfaceCapabilitySession(
@@ -323,5 +324,5 @@ export function openAdminSurfaceCapabilitySession(
     ...(deliveryBindings && { deliveryBindings }),
     ...(declared.forms?.includes('list') && host.forms !== undefined && { forms: guardForms({ gate, host: host.forms }, optional) }),
   });
-  return { capabilities, release: gate.release, sanitize: gate.sanitize };
+  return { capabilities, release: gate.release, sanitize: gate.sanitize, end: gate.end };
 }

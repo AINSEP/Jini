@@ -15,7 +15,7 @@
  */
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { requireInputRecord, ToolInputError } from '@jini-ai/core';
-import { openCapabilitySession, openCredentialScan, REVOKED_MESSAGE, type AgentPluginCredentialScan, type AgentPluginToolCapabilitiesPort,
+import { openCapabilitySession, openCredentialScan, REVOKED_MESSAGE, runInCapabilitySession, type AgentPluginCredentialScan, type AgentPluginToolCapabilitiesPort,
   type IssuedTokenMemories, type IssuedTokenMemory } from './capabilities.js';
 import type { LoadedAgentPluginTool } from './definition.js';
 import type { AgentPluginToolEffect } from './manifest.js';
@@ -241,10 +241,9 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
         const host = required.capabilities({ pluginId, workspaceId: auth.workspaceId,
           ...(auth.principalId === undefined ? {} : { principalId: auth.principalId }), ...(signal === undefined ? {} : { signal }) });
         const session = openCapabilitySession({ capabilities: host, isLive, issued, connections: callConnections(checked) });
-        try {
-          const value = await module.invoke({ input: checked, capabilities: session.capabilities, ...(signal === undefined ? {} : { signal }) });
-          return session.release({ value });
-        } catch (error) { throw session.sanitize({ error }); } finally { session.end(); }
+        return runInCapabilitySession({ session, run: async () => session.release({
+          value: await module.invoke({ input: checked, capabilities: session.capabilities, ...(signal === undefined ? {} : { signal }) }),
+        }) });
       },
     };
     return Object.freeze(contribution);

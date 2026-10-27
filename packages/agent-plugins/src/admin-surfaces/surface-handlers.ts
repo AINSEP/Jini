@@ -8,13 +8,14 @@
  * (`defineExecutablePluginContribution`: active plugin, shipped digest, on-disk containment), it
  * receives host capability ports (never a raw secret) through the admin-surface capability session
  * (`./surface-capabilities.ts`: only the surface's declared connections and config, revoked on disable,
- * results and errors scanned for tokens the call obtained, the same gate as executable tools), and the
+ * retired when the action or bootstrap call ends, results and errors scanned for tokens the call
+ * obtained, the same gate as executable tools), and the
  * dispatcher still checks the declared input and result schemas around it.
  * Bootstrap data is the one answer allowed to carry an access token (a surface may need a short-lived
  * one); it must match the surface's declared `bootstrap` schema and is never cached by the host.
  */
 import { defineExecutablePluginContribution, type LoadedPluginContribution, type PluginContributionDefinition } from '../lifecycle/contribution-loader.js';
-import type { IssuedTokenMemories, IssuedTokenMemory } from '../lifecycle/tools/capabilities.js';
+import { runInCapabilitySession, type IssuedTokenMemories, type IssuedTokenMemory } from '../lifecycle/tools/capabilities.js';
 import { openAdminSurfaceCapabilitySession, type AdminSurfaceCapabilities, type AdminSurfaceCapabilitiesPort } from './surface-capabilities.js';
 import { AdminSurfaceActionError, type AdminSurfaceActionHandler } from './action-dispatcher.js';
 import { validateAdminSurfaceActionValue, type AdminSurfaceActionSchema } from './action-schema.js';
@@ -162,8 +163,7 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
     return async ({ payload, context: caller }) => {
       if (!self.isLive()) throw new AdminSurfaceActionError({ code: 'plugin-disabled', message: ADMIN_SURFACE_PLUGIN_DISABLED_MESSAGE });
       const { session, context } = sessionFor(self, caller);
-      try { return session.release({ value: await run({ input: payload, capabilities: session.capabilities, context, fail }) }); }
-      catch (error) { throw session.sanitize({ error }); }
+      return runInCapabilitySession({ session, run: async () => session.release({ value: await run({ input: payload, capabilities: session.capabilities, context, fail }) }) });
     };
   }
 
@@ -210,8 +210,8 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
       const provide = self?.loaded.module.bootstrap;
       if (self === undefined || provide === undefined) return null;
       const { session, context } = sessionFor(self, input.context);
-      let data: unknown;
-      try { data = await provide({ capabilities: session.capabilities, context }); } catch (error) { throw session.sanitize({ error }); }
+      // Not released: bootstrap data may carry a short-lived token by design (its schema bounds it).
+      const data = await runInCapabilitySession({ session, run: async () => provide({ capabilities: session.capabilities, context }) });
       // Admission guarantees a schema whenever the module provides bootstrap data.
       const violation = validateAdminSurfaceActionValue({ schema: self.loaded.descriptor.bootstrap as AdminSurfaceActionSchema, value: data });
       if (violation !== null) throw new Error(`Admin surface '${context.surfaceId}' from '${context.pluginId}' returned bootstrap data outside its declared schema (${violation}); report it to the plugin author.`);
