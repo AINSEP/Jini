@@ -1,5 +1,35 @@
 # @jini-ai/diagnostics
 
+## 0.6.13
+
+### Patch Changes
+
+- 8395a5f: `combineObservabilityPorts`: a tracker whose `run()` throws (before or after its callback) or never calls it no longer blocks the application work or later scopes; the callback runs exactly once and its own result or error reaches the caller.
+- 0728914: Engine guard clean-up (`pnpm guard` 106 -> 0): layer, subpath-isolation and module-state findings fixed by moving
+  shared contracts to their owners instead of reaching across domains. Additive public API: `@jini-ai/core/filesystem`
+  (guarded-reader contracts), `useFetchQueryScope` from `@jini-ai/ui` fetch-query (per-provider query scope),
+  `@jini-ai/chat/react` re-exports of the accepted-input, run-state and agent-plugin chat-state helpers. The Claude
+  filesystem probe cache in `@jini-ai/agent-runtime` is instance-owned. No behaviour change intended; host-facing
+  breaks are listed in `owner-store-to-server` and `guard-host-ports`.
+- 4c95673: Redact selected error codes before export, invalidate stale product-analytics consent approvals,
+  and share platform-neutral privacy validation between product analytics and visitor ingestion. Async product-analytics consent now
+  requires `consentRevision`: without it a promised approval is dropped (fail closed); synchronous
+  consent is unchanged. `combineObservabilityPorts` now wraps a
+  single enabled adapter too, so its throws never reach the caller.
+- 0b413ae: PROTOTYPE (cloud/observability-1025, not for release): `ObservabilityPort` gains `trackOperation` (feature-level unit of work) and `reportError` (incident report, adapter-redacted). Breaking for hand-written port implementations: both methods are required. Noop stays zero-allocation; `combineObservabilityPorts` fans out to several enabled adapters (none → noop; one or more → each adapter isolated); `describeReportedError` gives error-tracker adapters a redacted, capped type/message/stack.
+- 803a949: Observability vendor adapters as provider subpaths: `@jini-ai/diagnostics/observability/opentelemetry` (moved from Tovu core) and `@jini-ai/diagnostics/observability/sentry`, each returning `{ port, dispose }` with optional peer SDKs. Review fixes: attribute strings and `Error.name` redacted and capped; fan-out isolates each adapter's tracker creation and end; Sentry root operations start fresh traces and never call `NodeClient#init()` or channel injection. `withToolCallObservability` exports a fixed label for unregistered tool ids and adds `user.id` (pseudonymous principal).
+- 63bacc5: OpenTelemetry and Sentry observability adapters moved out of `@jini-ai/diagnostics` into the `observability-opentelemetry` and `observability-sentry` provider plugins of `@jini-ai/provider-plugins`. Removed: the `@jini-ai/diagnostics/observability/opentelemetry` and `/observability/sentry` subpaths and every `@opentelemetry/*` / `@sentry/node` dev and optional peer dependency. The OTel plugin accepts any OTLP/HTTP endpoint plus generic request headers. Packages bundled into plugin artifacts now ship their LICENSE file.
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [4c95673]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [af776cd]
+- Updated dependencies [63bacc5]
+- Updated dependencies [212cf50]
+  - @jini-ai/core@0.6.13
+  - @jini-ai/analytics@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes

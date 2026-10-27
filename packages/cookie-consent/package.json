@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cookie-consent",
-  "version": "0.6.12",
+  "version": "0.6.13",
   "description": "Standalone, vendor-free cookie consent: a consent-state contract any banner can drive, a ~3 KB browser client, a pure-string banner renderer with owner CSS, web-standard receipts and open plugin slots.",
   "license": "Apache-2.0",
   "repository": {
@@ -23,19 +23,49 @@
     }
   },
   "type": "module",
-  "sideEffects": ["./dist/client.min.js"],
+  "sideEffects": [
+    "./dist/client.min.js"
+  ],
   "main": "./dist/contract.js",
   "types": "./dist/contract.d.ts",
   "exports": {
-    ".": { "types": "./dist/contract.d.ts", "import": "./dist/contract.js", "default": "./dist/contract.js" },
-    "./policy": { "types": "./dist/policy.d.ts", "import": "./dist/policy.js", "default": "./dist/policy.js" },
-    "./plugins": { "types": "./dist/plugins.d.ts", "import": "./dist/plugins.js", "default": "./dist/plugins.js" },
-    "./render": { "types": "./dist/render/index.d.ts", "import": "./dist/render/index.js", "default": "./dist/render/index.js" },
-    "./client": { "types": "./dist/client/index.d.ts", "import": "./dist/client/index.js", "default": "./dist/client/index.js" },
+    ".": {
+      "types": "./dist/contract.d.ts",
+      "import": "./dist/contract.js",
+      "default": "./dist/contract.js"
+    },
+    "./policy": {
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.js",
+      "default": "./dist/policy.js"
+    },
+    "./plugins": {
+      "types": "./dist/plugins.d.ts",
+      "import": "./dist/plugins.js",
+      "default": "./dist/plugins.js"
+    },
+    "./render": {
+      "types": "./dist/render/index.d.ts",
+      "import": "./dist/render/index.js",
+      "default": "./dist/render/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js",
+      "default": "./dist/client/index.js"
+    },
     "./client.min.js": "./dist/client.min.js",
     "./banner.css": "./dist/banner.css",
-    "./server": { "types": "./dist/server/index.d.ts", "import": "./dist/server/index.js", "default": "./dist/server/index.js" },
-    "./node": { "types": "./dist/node/index.d.ts", "import": "./dist/node/index.js", "default": "./dist/node/index.js" }
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.js",
+      "default": "./dist/node/index.js"
+    }
   },
   "files": [
     "dist",

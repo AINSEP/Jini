@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/commerce",
-  "version": "0.6.12",
+  "version": "0.6.13",
   "description": "Opt-in catalog, checkout, payment state machines, provider services and read-only React overview.",
   "license": "Apache-2.0",
   "repository": {

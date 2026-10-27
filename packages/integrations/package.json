@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/integrations",
-  "version": "0.6.12",
+  "version": "0.6.13",
   "description": "Third-party vendor integrations and outbound services, each independently importable: media generation, credentialed HTTP and webhooks.",
   "license": "Apache-2.0",
   "repository": {

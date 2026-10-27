@@ -1,5 +1,23 @@
 # @jini-ai/plugins
 
+## 0.6.13
+
+### Patch Changes
+
+- 1f2464f: Add admitted server-provider factory contributions and generation-scoped resource disposal to the
+  existing plugin host. Introduce one self-contained provider artifact distribution with a tiny
+  fixture, integrity maps, bundled license texts, and build-on-pack support.
+  Pending initialization settles on retirement or a configurable `initializeTimeoutMs`, so a
+  hung factory cannot block boot or shutdown; shutdown also awaits in-flight direct lease disposal.
+- 223fc22: Provider declarations may declare `settings` (public and secret fields, `name` = factory input key) so a host can render its secure settings card and decide "configured?" without executing plugin code. The OTel, Sentry, PostHog and Langfuse provider plugins declare theirs; the OTel factory also accepts the OTLP `Name=Value,…` header text and defaults `tracerName` to `serviceName`.
+- 106d9dd: Provider settings fields can declare a `default`, `options` (a select of `{ value, label }`) and `allowCustom` (free text beside the options); public fields only. PostHog and Langfuse declare their cloud regions (PostHog US by default, Langfuse EU); OpenTelemetry takes a username/instance ID + token and builds `Authorization: Basic` (or `Bearer` with no username) itself, keeping raw extra headers as an advanced field (a card saved with raw headers still applies).
+- Updated dependencies [7479159]
+- Updated dependencies [c31264d]
+- Updated dependencies [0728914]
+- Updated dependencies [6ecbdb2]
+- Updated dependencies [63bacc5]
+  - @jini-ai/core@0.6.13
+
 ## 0.6.12
 
 ### Patch Changes
