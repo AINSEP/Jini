@@ -507,22 +507,43 @@ function enterCodexLayerTable(scan: CodexLayerScan, segments: readonly string[])
 }
 
 /** Whether a non-header line declares servers inline: a root `mcp_servers` key, or any key in a bare `[mcp_servers]`. */
-function declaresInlineServers(scan: CodexLayerScan, line: string, content: string): boolean {
-  if (scan.table.kind === 'root') return INLINE_MCP_SERVERS.test(line);
+function declaresInlineServers(scan: CodexLayerScan, key: readonly string[] | null, content: string): boolean {
+  if (scan.table.kind === 'root') return key?.[0] === 'mcp_servers';
   return scan.table.kind === 'bare' && content !== '' && !content.startsWith('#');
+}
+
+/**
+ * A `key = value` line's dotted key, dequoted (`"enabled"`, `'enabled'` and `enabled` are one key),
+ * or null when the line holds no `=` outside quotes. An escape sequence in a key is refused: this
+ * scan does not decode TOML escapes, and a key it cannot read might be `enabled` or `mcp_servers`.
+ * @complexity O(n) in the line length.
+ */
+function tomlLineKey(content: string, path: string): string[] | null {
+  let quote: string | null = null;
+  for (let index = 0; index < content.length; index += 1) {
+    const ch = content[index]!;
+    if (ch === '\\') throw new CodexMcpIsolationError(`${path} uses an escaped TOML key, which can't be checked safely.`);
+    if (quote !== null) { if (ch === quote) quote = null; } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '#') return null;
+    else if (ch === '=') return splitTomlDottedKey(content.slice(0, index));
+  }
+  return null;
 }
 
 /** One line of another layer's config.toml. Inline shapes cannot be disabled one id at a time, so they refuse. */
 function scanCodexLayerLine(scan: CodexLayerScan, line: string, path: string): void {
   const header = TOML_TABLE_HEADER.exec(line);
+  if (header?.[1]!.includes('\\')) throw new CodexMcpIsolationError(`${path} uses an escaped TOML key, which can't be checked safely.`);
   if (header) return enterCodexLayerTable(scan, splitTomlDottedKey(header[1]!));
   const content = line.trim();
-  if (declaresInlineServers(scan, line, content)) {
+  const key = tomlLineKey(content, path);
+  if (declaresInlineServers(scan, key, content)) {
     throw new CodexMcpIsolationError(`${path} declares MCP servers inline, which can't be turned off one by one.`);
   }
-  if (scan.table.kind !== 'server' || !scan.table.own) return;
-  if (/^url\s*=/.test(content)) scan.table.server.url = true;
-  if (/^enabled\s*=\s*true\b/.test(content)) scan.table.server.forcedOn = true;
+  if (scan.table.kind !== 'server' || !scan.table.own || key?.length !== 1) return;
+  if (key[0] === 'url') scan.table.server.url = true;
+  // Fail closed: anything but a literal `false` (Codex refuses a non-boolean anyway) counts as forcing on.
+  if (key[0] === 'enabled' && !/^false\b/.test(content.slice(content.indexOf('=') + 1).trim())) scan.table.server.forcedOn = true;
 }
 
 /** cwd and its ancestors up to Codex's project root (see {@link codexOtherMcpLayerPaths}), cwd first. O(d) reads. */

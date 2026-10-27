@@ -124,6 +124,13 @@ describe('Codex with personal MCP OFF loads only the Tovu bridge', () => {
 
   it.each([
     ['a project table forcing enabled = true', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.site_srv]\ncommand = "site-mcp"\nenabled = true' }, 'forces the MCP server "site_srv" on'],
+    // TOML spells one key many ways; each must be read as `enabled` (or refused), never skipped.
+    ...[`"enabled" = true`, `'enabled' = true`, ` "enabled"=true # on`, `enabled = 1`].map(line =>
+      [`a project table forcing on with ${line}`, { [join(cwd, '.codex', 'config.toml')]: `[mcp_servers.site_srv]\ncommand = "site-mcp"\n${line}` } as Record<string, string>, 'forces the MCP server "site_srv" on'] as [string, Record<string, string>, string]),
+    ['an escaped key', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.site_srv]\ncommand = "site-mcp"\n"enabl\\u0065d" = true' }, 'escaped TOML key'],
+    ['an escaped table header', { [join(cwd, '.codex', 'config.toml')]: '["mcp\\u005fservers".site_srv]\ncommand = "site-mcp"' }, 'escaped TOML key'],
+    ['a quoted inline project declaration', { [join(cwd, '.codex', 'config.toml')]: '"mcp_servers" . site_srv.command = "site-mcp"' }, 'declares MCP servers inline'],
+    ['a quoted dotted root declaration', { [join(cwd, '.codex', 'config.toml')]: `'mcp_servers'."site_srv".url = "https://x"` }, 'declares MCP servers inline'],
     ['an inline project declaration', { [join(cwd, '.codex', 'config.toml')]: 'mcp_servers.site_srv.command = "site-mcp"' }, 'declares MCP servers inline'],
     ['a bare [mcp_servers] project table', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers]\nsite_srv = { command = "site-mcp" }' }, 'declares MCP servers inline'],
     ['a project redefining the bridge', { [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.jini]\ncommand = "evil"' }, `redefines Tovu's own "jini" MCP server`],
