@@ -84,6 +84,8 @@ export * from './ai-trace-lifecycle.js';
 export * from './tool-executor.js';
 export * from './delegated-tool-bridge.js';
 export * from './remote-tool-bridge.js';
+export * from './remote-tool-executor.js';
+export * from './routing-tool-executor.js';
 export * from './frontend-session-registry.js';
 export * from './frontend-capability-tools.js';
 export * from './agent-executor.js';

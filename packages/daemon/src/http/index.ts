@@ -366,5 +366,23 @@ export {
   xaiSearchRoute,
 } from './xai.js';
 export * from './run-credentials.js';
+export type {
+  RunWithToolContext,
+  ToolExecutionRouteTarget,
+  ToolExecutionRoutesOptional,
+  ToolExecutionRoutesRequired,
+} from './tool-execution-routes.js';
+export {
+  DEFAULT_TOOL_EXEC_MAX_BODY_BYTES,
+  DEFAULT_TOOL_EXEC_TOKEN_ENV_VAR,
+  registerToolExecutionRoutes,
+  requireToolExecutionCaller,
+  TOOL_CATALOG_ROUTE_PATH,
+  TOOL_EXECUTIONS_ROUTE_PATH,
+} from './tool-execution-routes.js';
+export type { AttachmentLookup, AttachmentLookupRequest, AttachmentLookupRoutesRequired } from './attachment-lookup-routes.js';
+export { ATTACHMENT_LOOKUP_ROUTE_PATH, registerAttachmentLookupRoutes } from './attachment-lookup-routes.js';
+export type { RemoteAttachmentLookupOptional, RemoteAttachmentLookupRequired } from '../remote-attachment-lookup.js';
+export { createRemoteAttachmentLookup } from '../remote-attachment-lookup.js';
 
 export { createTavilyResearchProvider } from './research-tavily.adapter.js';
