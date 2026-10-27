@@ -20,18 +20,23 @@
  * - `TOOL_NOT_DISPATCHED`: the socket never connected, or the far side answered with a non-200
  *   status. Nothing ran, so the caller may retry.
  * - `TOOL_OUTCOME_UNKNOWN`: anything else after the request was written — a reset, a hang-up, an end
- *   with no terminal line, a malformed line. "No headers seen yet" is NOT proof that nothing ran: a
- *   TCP reset can discard bytes the far side already sent, so the call may have committed.
+ *   with no terminal line, a malformed line (including a terminal line missing a field a settled call
+ *   must carry). "No headers seen yet" is NOT proof that nothing ran: a TCP reset can discard bytes
+ *   the far side already sent, so the call may have committed.
  *
- * Transport is `node:http.request` with a fresh connection per call (`agent: false`), never `fetch`
- * and never a pooled keep-alive socket: a reused socket the far side already closed fails with a
- * reset after the write, which would turn a call that never ran into an "outcome unknown" one. There
- * is no idle timeout because a tool may legitimately park on a human for a long time.
+ * Transport is `node:http.request` (`node:https.request` for an `https:` base URL, which honours the
+ * process trust store including `NODE_EXTRA_CA_CERTS`) with a fresh connection per call
+ * (`agent: false`), never `fetch` and never a pooled keep-alive socket: a reused socket the far side
+ * already closed fails with a reset after the write, which would turn a call that never ran into an
+ * "outcome unknown" one. There is no idle timeout because a tool may legitimately park on a human for
+ * a long time.
  */
 import { randomUUID } from 'node:crypto';
 import * as http from 'node:http';
+import * as https from 'node:https';
+import { TLSSocket } from 'node:tls';
 import { ToolInputError, type Principal, type RunRef, type SurfaceEmission, type SurfaceEmitter } from '@jini-ai/core';
-import type { ToolExecutionResult, ToolExecutor } from './tool-executor.js';
+import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from './tool-executor.js';
 
 export type ToolRpcErrorCode = 'TOOL_NOT_DISPATCHED' | 'TOOL_OUTCOME_UNKNOWN';
 
@@ -82,7 +87,11 @@ export interface RemoteToolExecutorRequired {
 }
 
 export interface RemoteToolExecutorOptional {
-  /** Injectable `node:http.request`; tests use it to observe or fail the transport. */
+  /**
+   * Injectable request function for the base URL's scheme. Omitted → `node:https.request` for
+   * `https:`, else `node:http.request`. A host whose local CA is not in the process trust store wraps
+   * `https.request` with its `ca`; tests use it to observe or fail the transport.
+   */
   readonly request?: typeof http.request;
   /** Builds the opaque per-call `context` the far side receives. Omitted → no `context` field. */
   readonly contextFor?: (required: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string }, optional?: Record<string, never>) => unknown;
@@ -97,8 +106,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** The object field each line type must carry. */
-const LINE_FIELDS: ReadonlyMap<unknown, string> = new Map([['surface', 'emission'], ['result', 'result'], ['throw', 'error']]);
+const TOOL_EXECUTION_STATUSES: ReadonlySet<unknown> = new Set<ToolExecutionStatus>(['completed', 'denied', 'confirmation-denied', 'timed-out', 'cancelled', 'failed']);
+
+/**
+ * The shape each line type must carry. A terminal line settles the call, so it must hold every field
+ * a settled call needs: `{"type":"result","result":{}}` accepted as-is would record an ordinary
+ * result and let a continuation repeat a call that may have committed.
+ */
+const LINE_SHAPES: ReadonlyMap<unknown, (line: Record<string, unknown>) => boolean> = new Map([
+  ['surface', (line) => isRecord(line.emission)],
+  ['result', ({ result }) => isRecord(result) && typeof result.executionId === 'string' && TOOL_EXECUTION_STATUSES.has(result.status)],
+  ['throw', ({ error }) => isRecord(error) && typeof error.message === 'string'],
+]);
 
 /** Parses one NDJSON line; `null` means malformed, which the caller treats as outcome unknown. */
 export function parseToolExecutionLine({ text }: { readonly text: string }, _optional: Record<string, never> = {}): ToolExecutionWireLine | null {
@@ -108,11 +127,8 @@ export function parseToolExecutionLine({ text }: { readonly text: string }, _opt
   } catch {
     return null;
   }
-  const field = isRecord(value) ? LINE_FIELDS.get(value.type) : undefined;
-  if (field === undefined || !isRecord((value as Record<string, unknown>)[field])) return null;
-  const line = value as unknown as ToolExecutionWireLine;
-  if (line.type === 'throw' && typeof line.error.message !== 'string') return null;
-  return line;
+  const valid = isRecord(value) && LINE_SHAPES.get(value.type)?.(value) === true;
+  return valid ? value as unknown as ToolExecutionWireLine : null;
 }
 
 /**
@@ -133,12 +149,32 @@ function rpcError(code: ToolRpcErrorCode, detail: string, cause?: unknown): Tool
   return new ToolRpcError({ code, message: `${prefix}: ${detail}` }, cause === undefined ? {} : { cause });
 }
 
-/** Marks `connected` once the request's socket finishes connecting (or immediately for an open one). */
+/**
+ * Marks `connected` once the request's socket can carry the request (or immediately for an open one).
+ * For TLS that is the finished handshake, not the TCP connect: a refused certificate fails before a
+ * byte of the request is written, so nothing ran.
+ */
 function trackConnect(req: http.ClientRequest, onConnect: () => void): void {
   req.once('socket', (socket) => {
-    if (socket.connecting) socket.once('connect', onConnect);
+    if (socket.connecting) socket.once(socket instanceof TLSSocket ? 'secureConnect' : 'connect', onConnect);
     else onConnect();
   });
+}
+
+/** Opens the POST, or returns `TOOL_NOT_DISPATCHED` when the adapter refuses synchronously (e.g. `ERR_INVALID_PROTOCOL`): nothing was written. */
+function openRequest(
+  { url, token, body, request }: { readonly url: URL; readonly token: string; readonly body: string; readonly request: typeof http.request },
+  _optional: Record<string, never> = {},
+): http.ClientRequest | ToolRpcError {
+  try {
+    return request(url, {
+      method: 'POST',
+      agent: false,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+    });
+  } catch (error) {
+    return rpcError('TOOL_NOT_DISPATCHED', error instanceof Error ? error.message : String(error), error);
+  }
 }
 
 /**
@@ -189,6 +225,11 @@ function startCall(
   { url, token, body, executionId, settlers }: { readonly url: URL; readonly token: string; readonly body: string; readonly executionId: string; readonly settlers: CallSettlers },
   { request, emitSurface }: { readonly request: typeof http.request; readonly emitSurface?: SurfaceEmitter | undefined },
 ): () => void {
+  const req = openRequest({ url, token, body, request });
+  if (req instanceof ToolRpcError) {
+    settlers.reject(req);
+    return () => undefined;
+  }
   let settled = false;
   let connected = false;
   const finish = (outcome: () => void, destroy: boolean): void => {
@@ -198,11 +239,6 @@ function startCall(
     outcome();
   };
   const unknown = (detail: string, cause?: unknown): void => finish(() => settlers.reject(rpcError('TOOL_OUTCOME_UNKNOWN', detail, cause)), true);
-  const req = request(url, {
-    method: 'POST',
-    agent: false,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
-  });
   trackConnect(req, () => { connected = true; });
   req.on('error', (error) => {
     if (!connected) finish(() => settlers.reject(rpcError('TOOL_NOT_DISPATCHED', error.message, error)), true);
@@ -241,9 +277,10 @@ function wireBody({ executionId, principal, run, toolId, input, context }: ToolE
  */
 export function createRemoteToolExecutor(
   { baseUrl, token }: RemoteToolExecutorRequired,
-  { request = http.request, contextFor }: RemoteToolExecutorOptional = {},
+  { request: injectedRequest, contextFor }: RemoteToolExecutorOptional = {},
 ): ToolExecutor {
   const url = new URL(TOOL_EXECUTIONS_ROUTE_PATH, baseUrl);
+  const request = injectedRequest ?? (url.protocol === 'https:' ? https.request : http.request);
   const inFlight = new Map<string, () => void>();
 
   async function execute(
