@@ -1,7 +1,7 @@
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import { createPersistentStateModule } from './persistent-state.js';
 import { AgentPluginHostIncompatibleError, describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
-import { createActivationModule } from "./activation.js";
+import { createActivationModule, type AgentPluginActivationVerdict } from "./activation.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
@@ -37,7 +37,7 @@ export interface SetAgentPluginEnabledResult {
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
-  const { setAgentPluginActivation, readAgentPluginActivations, resolveAgentPluginActivation, enableBundledAgentPluginUnlessOperatorDisabled } = createActivationModule(ports);
+  const { setAgentPluginActivation, readAgentPluginActivations, resolveAgentPluginActivation, enableBundledAgentPluginUnlessOperatorDisabled, isAgentPluginDisabledByOperator } = createActivationModule(ports);
   const { listInstalledPlugins } = createResolveAgentPluginRefsModule(ports);
   const persistentState = createPersistentStateModule(ports);
 
@@ -68,11 +68,19 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   }
 
   /** The activation write: unconditional, or (`unlessOperatorDisabled`) the locked conditional enable that
-   *  leaves an operator's own "off" as it is. @returns The activations as written. */
-  async function writeDecision({ input, workspaceRoot, unlessOperatorDisabled }: { readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string; readonly unlessOperatorDisabled: boolean }) {
-    if (!unlessOperatorDisabled || !input.enabled) return setAgentPluginActivation({ workspaceRoot, pluginId: input.pluginId, enabled: input.enabled, actor: input.actor });
-    await enableBundledAgentPluginUnlessOperatorDisabled({ workspaceRoot, pluginId: input.pluginId, actor: input.actor });
-    return readAgentPluginActivations(workspaceRoot);
+   *  leaves an operator's own "off" as it is. A plugin already active (no record reads as on) needs no
+   *  write there: the conditional enable would record it as bundled, and uninstall refuses bundled
+   *  plugins. Nor does an operator's "off": it stays without the activations write lock (a read-only
+   *  activations file still answers). Runs under the plugin lock every switch takes, so no operator
+   *  toggle lands in between.
+   *  @returns Whether the plugin is enabled as written. */
+  async function writeDecision({ input, workspaceRoot, unlessOperatorDisabled, previous }: {
+    readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string; readonly unlessOperatorDisabled: boolean; readonly previous: AgentPluginActivationVerdict;
+  }): Promise<boolean> {
+    if (!unlessOperatorDisabled || !input.enabled) return (await setAgentPluginActivation({ workspaceRoot, pluginId: input.pluginId, enabled: input.enabled, actor: input.actor })).plugins[input.pluginId]!.enabled;
+    if (previous.verdict === "active") return true;
+    if (await isAgentPluginDisabledByOperator(workspaceRoot, input.pluginId)) return false;
+    return await enableBundledAgentPluginUnlessOperatorDisabled({ workspaceRoot, pluginId: input.pluginId, actor: input.actor }) !== "left-disabled-by-operator";
   }
 
   async function setEnabledLocked({ input, workspaceRoot, unlessOperatorDisabled }: { readonly input: SetAgentPluginEnabledInput; readonly workspaceRoot: string; readonly unlessOperatorDisabled: boolean }): Promise<SetAgentPluginEnabledResult> {
@@ -83,17 +91,17 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports, workspaceId: input.workspaceId, pluginId: input.pluginId }) });
     const warnings = await enablementWarnings({ input, workspaceRoot, installed, plugin });
     const previous = await resolveAgentPluginActivation(workspaceRoot, input.pluginId);
-    const written = await writeDecision({ input, workspaceRoot, unlessOperatorDisabled });
+    // Always a boolean: setAgentPluginActivation asserts the same id grammar its normalizer keeps and
+    // writes a boolean `enabled`, so the record it returns holds this entry (the former
+    // `?? input.enabled` fallback was unreachable).
+    const enabled = await writeDecision({ input, workspaceRoot, unlessOperatorDisabled, previous });
 
-    if ((previous.verdict === "active") !== written.plugins[input.pluginId]!.enabled) {
-      try { ports.onActivationChanged?.({ pluginId: input.pluginId, workspaceId: input.workspaceId, enabled: written.plugins[input.pluginId]!.enabled, actor: input.actor }, {}); }
+    if ((previous.verdict === "active") !== enabled) {
+      try { ports.onActivationChanged?.({ pluginId: input.pluginId, workspaceId: input.workspaceId, enabled, actor: input.actor }, {}); }
       catch { /* An optional observer cannot undo the committed activation. */ }
     }
 
-    // Always present: setAgentPluginActivation asserts the same id grammar its normalizer keeps and
-    // writes a boolean `enabled`, so the record it returns holds this entry (the former
-    // `?? input.enabled` fallback was unreachable).
-    return { pluginId: input.pluginId, enabled: written.plugins[input.pluginId]!.enabled, ...(warnings.length ? { warnings } : {}) };
+    return { pluginId: input.pluginId, enabled, ...(warnings.length ? { warnings } : {}) };
   }
 
   /**

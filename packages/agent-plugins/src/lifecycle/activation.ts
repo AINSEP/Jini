@@ -668,6 +668,16 @@ function buildModule(ports: ActivationPorts) {
   }
 
   /**
+   * Whether `pluginId`'s record is an operator's own "off" (any disabled record but the seeder's), the
+   *  one a conditional enable leaves as it is. A read, no lock: callers that must not race a toggle
+   *  hold the plugin lock every switch takes. @complexity Same as {@link readPluginsBagStrict}.
+   */
+  async function isAgentPluginDisabledByOperator(workspaceRoot: string, pluginId: string): Promise<boolean> {
+    const bag = await readPluginsBagStrict(workspaceRoot);
+    return Object.hasOwn(bag, pluginId) && normalizeActivationEntry(pluginId, bag[pluginId])?.enabled === false && !isUntouchedDisabledSeed(bag[pluginId]);
+  }
+
+  /**
    * Switches a bundled plugin ON unless an operator has explicitly turned it off — for
    * `retire-bundled.ts`, which moves a retired plugin's users onto its successor.
    *
@@ -882,7 +892,7 @@ function buildModule(ports: ActivationPorts) {
     }
   }
 
-  return { reconcileAgentPluginActivation, isAgentPluginActive, filterActiveAgentPlugins, readAgentPluginActivations, assertAgentPluginActivationsWritable, isAgentPluginRecordedAsBundled, resolveAgentPluginActivation, normalizeActivations, setAgentPluginActivation, recordBundledAgentPluginIfAbsent, enableBundledAgentPluginUnlessOperatorDisabled, deleteAgentPluginActivation };
+  return { reconcileAgentPluginActivation, isAgentPluginActive, filterActiveAgentPlugins, readAgentPluginActivations, assertAgentPluginActivationsWritable, isAgentPluginRecordedAsBundled, isAgentPluginDisabledByOperator, resolveAgentPluginActivation, normalizeActivations, setAgentPluginActivation, recordBundledAgentPluginIfAbsent, enableBundledAgentPluginUnlessOperatorDisabled, deleteAgentPluginActivation };
 }
 
 const instances = new WeakMap<ActivationPorts, ReturnType<typeof buildModule>>();
