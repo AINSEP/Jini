@@ -2285,7 +2285,7 @@
   },
   {
    "id": "all-clis-test",
-   "manifest": "(no manifest file; agent test-all-clis-default, task-list 2026-10-27 9:56 AM; test file mtime 10:02 PT)",
+   "manifest": "ADS-memory/.local-artifacts/handoffs/2026-10-27-8b-lot-all-clis-test.md",
    "repo": "tovu",
    "sources": [],
    "docs": [],
@@ -2297,11 +2297,11 @@
      "packages/daemon/src/agent-executor/launch.ts"
     ],
     "rebuild": "cd /root/Jini && pnpm --filter @jini-ai/daemon build",
-    "expect": "RED: at least one CLI refused with the old generic 'no native-tool policy and audit adapter' text (Tovu reads @jini-ai/daemon from dist, so rebuild the daemon after apply AND after restore)"
+    "expect": "RED: 27 CLI rows BROKEN, 'refused with the old generic message: This CLI has no native-tool policy and audit adapter...'; claude + codex rows 'started'. Tovu reads @jini-ai/daemon from dist, so rebuild the daemon after apply AND after restore."
    },
    "named_from_manifest": [],
    "guards_green_both_ways": [],
-   "notes": "Regression contract for the gemini-chat failure class: every CLI in Jini AGENT_DEFS x Tovu default settings starts or is refused naming the CLI + OFF switches. No manifest; the file may still have been under edit when snapshotted.",
+   "notes": "Class regression test for the gemini-chat failure. Likely error points if it errors rather than asserts: captureDaemonRun 1 s timer per CLI (29 sequential), claude folder-limited path writes <site>/.agent-runtime and /tmp/jini-*.",
    "source_status": {},
    "exclusive_sources": [],
    "shared_sources": [],
@@ -2317,7 +2317,8 @@
       "every registered CLI starts, or is refused naming the CLI and each OFF switch, under Tovu's default chat settings"
      ]
     }
-   ]
+   ],
+   "expected_green": "After the setup's full Jini build (daemon dist has Interim B): every non-native row 'refused NATIVE_TOOL_POLICY_UNSUPPORTED' naming the CLI and each OFF switch (e.g. \"Antigravity can't run with 'Your MCP servers' off. ...\"); claude + codex 'started'. One node:test test; read its t.diagnostic table (one line per CLI, 29 today)."
   },
   {
    "id": "ui-two",
