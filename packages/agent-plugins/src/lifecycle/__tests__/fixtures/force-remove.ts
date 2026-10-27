@@ -21,6 +21,9 @@ export async function forceRemove(root: string): Promise<void> {
     await chmod(dir, 0o700).catch(() => undefined);
     for (const entry of entries) {
       const absolute = path.join(dir, entry.name);
+      // chmod follows symlinks: a link to a directory would lose that directory's search bit (0o600),
+      // and `rm` then fails EACCES inside it. The link itself is removed without any permission change.
+      if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) await makeWritable(absolute);
       else await chmod(absolute, 0o600).catch(() => undefined);
     }

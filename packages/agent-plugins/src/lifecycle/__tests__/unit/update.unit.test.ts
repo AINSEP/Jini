@@ -243,7 +243,10 @@ test('failure moving the old revision aside keeps it live and enabled', async ()
 test('failure publishing the candidate restores the old revision with its disabled decision', async () => {
   await fixture(async h => {
     await h.api.setAgentPluginEnabled({ workspaceId, pluginId, enabled: false, actor: 'owner' });
-    const api = faulty(h, { rename: to => to === path.join(h.workspace.pluginPackagesDir({ pluginId }), h.input.expectedSha256) });
+    // Publishing renames into the packages dir's REAL path (containment resolves it), so the fault
+    // matches that: on macOS the temp dir itself is reached through a symlink (/var -> /private/var).
+    const liveRoot = path.join(await fs.realpath(h.workspace.pluginPackagesDir({ pluginId })), h.input.expectedSha256);
+    const api = faulty(h, { rename: to => to === liveRoot });
     const failure = await api.updateAgentPlugin(h.input).catch((error: unknown) => error);
     expect(failure).toMatchObject({ message: expect.stringContaining('failed to publish') });
     await expectRestored(h, 'inactive');
