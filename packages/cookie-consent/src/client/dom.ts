@@ -4,7 +4,8 @@ import { OPEN_EVENT, OPTIONAL, type Choices, type ConsentAction, type ConsentSta
 
 const INERT = 'script[type="text/plain"][data-consent-category],iframe[data-consent-category][data-src]';
 const SKIP = new Set(['type', 'data-src', 'data-type', 'data-consent-category']);
-const OPENERS = '[data-consent-open],a[href="#privacy-choices"]';
+// Not <html>: the client sets html[data-consent-open] while the banner shows, and every click's closest() would hit it.
+const OPENERS = ':not(html)[data-consent-open],a[href="#privacy-choices"]';
 
 /** @complexity O(cookie header). Malformed escapes read as "no value", never throw. */
 export function readCookie(doc: Document, name: string): string | null {
