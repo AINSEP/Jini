@@ -2,9 +2,9 @@
  * "Your MCP servers" OFF on Codex must leave Tovu's bridge as the ONLY MCP server, across every
  * source Codex loads (codex-rs config/src/loader/mod.rs; learn.chatgpt.com/docs/extend/mcp).
  * Project `.codex/config.toml` layers load only for a project the merged config trusts, so the
- * staged home drops the `projects` (trust) table and no project layer loads at all; the system
- * `config.toml` is turned off server by server; admin layers Jini can't out-rank refuse the run
- * (see `admin-layers.test.ts` for the probe itself).
+ * staged home drops the `projects` (trust) table. Layers outside the home (system, MDM, cloud
+ * bundle, a project trusted elsewhere, plugins) are checked by asking the Codex binary before spawn
+ * (see `mcp-preflight.test.ts`).
  * Fixture: a fake filesystem holding a personal entry in each source type.
  */
 import { join, resolve } from 'node:path';
@@ -17,7 +17,6 @@ const root = resolve('/fx');
 const home = join(root, 'home', '.codex');
 const project = join(root, 'proj');
 const cwd = join(project, 'site');
-const systemConfig = '/etc/codex/config.toml';
 const codexAgentDef = getAgentDef({ id: 'codex' })!;
 const bridgeEntry = { command: 'host-bridge', args: ['serve'], env: { JINI_RUN_ID: 'run', JINI_DAEMON_URL: 'http://site' } };
 
@@ -31,7 +30,6 @@ function fixtureFiles(overrides: Record<string, string> = {}): Map<string, strin
       '[plugins."gmail@openai-curated"]', 'enabled = true',
     ].join('\n'),
     [join(home, 'work.config.toml')]: '[mcp_servers.profile_only]\ncommand = "profile-mcp"',
-    [systemConfig]: '[mcp_servers.system_srv]\ncommand = "system-mcp"',
     [join(project, '.git', 'HEAD')]: 'ref: refs/heads/main',
     [join(project, '.codex', 'config.toml')]: '[mcp_servers.root_http]\nurl = "https://personal.example/mcp"\nenabled = true',
     [join(cwd, '.codex', 'config.toml')]: '[mcp_servers.site_srv]\ncommand = "site-mcp"\nargs = ["--x"]',
@@ -41,7 +39,7 @@ function fixtureFiles(overrides: Record<string, string> = {}): Map<string, strin
 
 const refuse = async (error: { readonly code: string; readonly message: string }): Promise<never> => { throw error; };
 
-/** Stages a run against the fixture on a Linux host with no admin-managed layers; returns the staged config.toml text. */
+/** Stages a run against the fixture; returns the staged config.toml text. */
 async function stage(files: Map<string, string>, nativeCapabilities: Partial<NativeCapabilities>): Promise<string> {
   let written = '';
   await prepareCodexHomeIfNeeded({ input: { runId: 'run', def: codexAgentDef, mcpBridge: { kind: 'codex-toml', serverEntry: bridgeEntry }, nativeToolAccess: true, nativeCapabilities },
@@ -50,7 +48,6 @@ async function stage(files: Map<string, string>, nativeCapabilities: Partial<Nat
       mkdtemp: async ({ prefix }) => join(root, 'tmp', `${prefix}x`),
       readFile: async ({ path }) => { const raw = files.get(path); if (raw === undefined) throw new Error(`ENOENT ${path}`); return raw; },
       writeFile: async ({ path, content }) => { if (path.endsWith('config.toml')) written = content; },
-      codexAdminLayers: { platform: 'linux', env: {}, readFile: async ({ path }) => files.get(path) ?? null, macManagedPrefsPresent: async () => false },
     } } });
   return written;
 }
@@ -62,20 +59,16 @@ function stagedServers(toml: string): Record<string, Record<string, unknown>> {
   return (parse(toml).mcp_servers ?? {}) as Record<string, Record<string, unknown>>;
 }
 
-const disabledCommand = { enabled: false, command: 'jini-disabled-mcp-server' };
-const disabledUrl = { enabled: false, url: 'http://127.0.0.1:9/' };
-
 function codexArgs(nativeCapabilities: Partial<NativeCapabilities>): string[] {
   return codexAgentDef.buildArgs({ prompt: '', imagePaths: [] }, { options: { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass', nativeCapabilities } });
 }
 
 describe('Codex with personal MCP OFF loads only the Tovu bridge', () => {
-  it('drops the home servers and trust table, and turns the system servers off', async () => {
+  it('drops the home servers and trust table', async () => {
     const staged = await stage(fixtureFiles(), { userMcp: false });
     const servers = stagedServers(staged);
-    expect(Object.keys(servers).sort()).toEqual(['jini', 'system_srv']);
+    expect(Object.keys(servers)).toEqual(['jini']);
     expect(servers.jini).toMatchObject({ command: 'host-bridge' });
-    expect(servers.system_srv).toEqual(disabledCommand);
     // No trust entry → Codex loads no project .codex/config.toml, so project servers need no placeholder.
     expect(parse(staged)).not.toHaveProperty('projects');
   });
@@ -95,15 +88,7 @@ describe('Codex with personal MCP OFF loads only the Tovu bridge', () => {
     });
     const staged = await stage(files, { userMcp: false });
     expect(parse(staged)).not.toHaveProperty('projects');
-    expect(Object.keys(stagedServers(staged)).sort()).toEqual(['jini', 'system_srv']);
-  });
-
-  it('ignores a system project_root_markers that widens the project range', async () => {
-    const files = fixtureFiles({ [systemConfig]: 'project_root_markers = [".hg"]\n[mcp_servers.system_srv]\ncommand = "system-mcp"',
-      [join(root, '.codex', 'config.toml')]: '[mcp_servers.outside_srv]\ncommand = "outside-mcp"\nenabled = true' });
-    const staged = await stage(files, { userMcp: false });
-    expect(parse(staged)).not.toHaveProperty('projects');
-    expect(Object.keys(stagedServers(staged)).sort()).toEqual(['jini', 'system_srv']);
+    expect(Object.keys(stagedServers(staged))).toEqual(['jini']);
   });
 
   it.each([
@@ -154,55 +139,14 @@ describe('Codex with personal MCP OFF loads only the Tovu bridge', () => {
   });
 
   it.each([
-    ['a system table forcing enabled = true', { [systemConfig]: '[mcp_servers.system_srv]\ncommand = "system-mcp"\nenabled = true' }, 'forces the MCP server "system_srv" on'],
-    // TOML spells one key many ways; each must be read as `enabled` (or refused), never skipped.
-    ...[`"enabled" = true`, `'enabled' = true`, ` "enabled"=true # on`, `enabled = 1`].map(line =>
-      [`a system table forcing on with ${line}`, { [systemConfig]: `[mcp_servers.system_srv]\ncommand = "system-mcp"\n${line}` } as Record<string, string>, 'forces the MCP server "system_srv" on'] as [string, Record<string, string>, string]),
-    ['an escaped key', { [systemConfig]: '[mcp_servers.system_srv]\ncommand = "system-mcp"\n"enabl\\u0065d" = true' }, 'forces the MCP server "system_srv" on'],
-    ['an inline server forcing enabled = true', { [systemConfig]: 'mcp_servers.system_srv = { command = "system-mcp", enabled = true }' }, 'forces the MCP server "system_srv" on'],
-    ['a system layer that is not valid TOML', { [systemConfig]: '[mcp_servers.system_srv\ncommand = "system-mcp"' }, "isn't valid TOML"],
-    ['a server that is not a table', { [systemConfig]: 'mcp_servers.system_srv = "system-mcp"' }, 'declares the MCP server "system_srv" in a shape'],
-    ['an mcp_servers array of tables', { [systemConfig]: '[[mcp_servers]]\ncommand = "system-mcp"' }, 'declares MCP servers in a shape'],
-    ['a system config trusting a project', { [systemConfig]: `[projects."${project}"]\ntrust_level = "trusted"` }, 'trusts projects'],
     ['a home server the rewrite cannot drop (escaped header)', { [join(home, 'config.toml')]: '["mcp\\u005fservers".home_evil]\ncommand = "evil"' }, "can't be removed safely"],
     ['a home config a fake header leaves broken', { [join(home, 'config.toml')]: '[mcp_servers.home_chrome]\ncommand = """\n[ui]\n"""' }, "can't be removed safely"],
-    ['a system config redefining the bridge', { [systemConfig]: '[mcp_servers.jini]\ncommand = "evil"' }, `redefines the bridge's own "jini" MCP server`],
-    ['an admin requirements file', { '/etc/codex/requirements.toml': 'allowed_sandbox_modes = ["read-only"]' }, 'admin-managed /etc/codex/requirements.toml'],
-    ['a legacy admin-managed config', { '/etc/codex/managed_config.toml': '[mcp_servers.admin_srv]\ncommand = "admin-mcp"' }, 'admin-managed /etc/codex/managed_config.toml'],
   ])('refuses rather than leaks with %s', async (_name, overrides, reason) => {
     const error = await refusal(fixtureFiles(overrides));
     expect(error?.code).toBe('NATIVE_TOOL_POLICY_UNSUPPORTED');
     expect(error?.message).toMatch(/^Codex can't run with 'Your MCP servers' off: /);
     expect(error?.message).toContain(reason);
     expect(error?.message).toMatch(/Turn it on in the assistant settings, or choose Claude\.$/);
-  });
-
-  // A line scanner reads a `[header]`-shaped line inside a multi-line string or array as a table,
-  // so the real root `mcp_servers.evil` after it was missed and leaked. A TOML parser is not fooled.
-  it.each([
-    ['a multi-line basic string', 'x = """\n[ui]\n"""\n'],
-    ['a multi-line literal string', "x = '''\n[ui]\n'''\n"],
-    ['a multi-line array', 'x = [\n[1]\n]\n'],
-  ])('turns off a system root server declared after %s that fakes a table header', async (_name, prefix) => {
-    const files = fixtureFiles({ [systemConfig]: `${prefix}mcp_servers.evil.url = "https://evil.example/mcp"` });
-    expect(stagedServers(await stage(files, { userMcp: false })).evil).toEqual(disabledUrl);
-  });
-
-  // Codex deep-merges layers, so the home placeholder turns a server off however the system layer spells it.
-  it.each([
-    ['an escaped table header', '["mcp\\u005fservers".system_srv]\ncommand = "system-mcp"'],
-    ['a quoted inline declaration', '"mcp_servers" . system_srv.command = "system-mcp"'],
-    ['a quoted dotted root declaration', `'mcp_servers'."system_srv".command = "system-mcp"`],
-    ['an inline declaration', 'mcp_servers.system_srv.command = "system-mcp"'],
-    ['a bare [mcp_servers] table', '[mcp_servers]\nsystem_srv = { command = "system-mcp" }'],
-    ['a root inline table', 'mcp_servers = { system_srv = { command = "system-mcp" } }'],
-  ])('turns off a system server declared with %s', async (_name, raw) => {
-    expect(stagedServers(await stage(fixtureFiles({ [systemConfig]: raw }), { userMcp: false })).system_srv).toEqual(disabledCommand);
-  });
-
-  it('ignores plugin-scoped server settings in the system layer (plugins are off on the CLI layer)', async () => {
-    const files = fixtureFiles({ [systemConfig]: '[plugins."x@y"]\nmcp_servers.z.enabled = true' });
-    expect(stagedServers(await stage(files, { userMcp: false }))).not.toHaveProperty('z');
   });
 });
 
@@ -211,7 +155,7 @@ describe('Codex with personal MCP ON keeps personal servers', () => {
     const staged = await stage(fixtureFiles(), { userMcp: true });
     const servers = stagedServers(staged);
     expect(servers.home_chrome).toEqual({ command: 'chrome-mcp' });
-    for (const id of ['site_srv', 'root_http', 'system_srv']) expect(servers).not.toHaveProperty(id);
+    for (const id of ['site_srv', 'root_http']) expect(servers).not.toHaveProperty(id);
     expect(parse(staged)).toHaveProperty('projects');
   });
 
@@ -219,10 +163,5 @@ describe('Codex with personal MCP ON keeps personal servers', () => {
     const args = codexArgs({ userMcp: true });
     expect(args).not.toContain('features.plugins=false');
     expect(args).not.toContain('features.apps=false');
-  });
-
-  it('does not refuse an admin-managed layer or a system server forcing itself on', async () => {
-    const files = fixtureFiles({ [systemConfig]: '[mcp_servers.system_srv]\ncommand = "system-mcp"\nenabled = true', '/etc/codex/requirements.toml': 'x = 1' });
-    await expect(stage(files, { userMcp: true })).resolves.toContain('[mcp_servers.jini]');
   });
 });

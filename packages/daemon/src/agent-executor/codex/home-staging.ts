@@ -18,8 +18,7 @@ import type {
 } from '../contracts.js';
 import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-bridge.js';
 import { buildCodexHomeConfigToml } from './home-config.js';
-import { defaultCodexAdminLayerPorts, probeCodexAdminLayers, type CodexAdminLayerPorts } from './admin-layers.js';
-import { assertCodexHomeConfigParses, assertStagedHomeIsolated, CodexMcpIsolationError } from './isolation.js';
+import { assertCodexHomeConfigParses, assertStagedHomeIsolated, CodexMcpIsolationError, codexIsolationRefusalMessage } from './isolation.js';
 
 /**
  * Where `'codex-toml'` reads the operator's REAL Codex config from, to seed a run's scratch copy —
@@ -53,7 +52,6 @@ interface CodexHomeSeams {
   readonly writeFile: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
   readonly removeDir: ({ path }: { readonly path: string }) => Promise<void>;
   readonly linkSessionStore: NonNullable<McpJsonInjectionOptions['linkSessionStore']>;
-  readonly adminLayers: CodexAdminLayerPorts;
 }
 
 /** Config credentials stay run-scoped, but rollouts must survive both completion and cancellation.
@@ -76,38 +74,35 @@ async function defaultLinkCodexSessionStore({ runHome, sourceHome }: { runHome: 
   }
 }
 
-function resolveCodexHomeSeams(options: McpJsonInjectionOptions, hostEnv: NodeJS.ProcessEnv): CodexHomeSeams {
+function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams {
   return {
     mkdtemp: options.mkdtemp ?? defaultMkdtempCodexHome,
     readFile: options.readFile ?? defaultReadMcpJsonFile,
     writeFile: options.writeFile ?? defaultWriteMcpJsonFile,
     removeDir: options.removeDir ?? defaultRemoveCodexHomeDir,
     linkSessionStore: options.linkSessionStore ?? defaultLinkCodexSessionStore,
-    adminLayers: options.codexAdminLayers ?? defaultCodexAdminLayerPorts({ env: hostEnv }),
   };
 }
 
 /**
- * The staged `config.toml`. With personal MCP off it must also keep out servers every other Codex
- * layer adds: the real home config must parse before its line rewrite is trusted, the staged home
- * must declare only the bridge and trust no project (so Codex's trust gate keeps every project
- * `.codex/config.toml` out, worktrees and root markers included), and no admin layer may add what
- * the home can't out-rank. The spawn-time refusal in {@link prepareCodexHomeIfNeeded} stays the
- * backstop for every blocked case.
+ * The staged `config.toml`. With personal MCP off the real home config must parse before its line
+ * rewrite is trusted, and the staged home must declare only the bridge and trust no project (so
+ * Codex's trust gate keeps project `.codex/config.toml` layers out unless another layer trusts
+ * them). Every layer outside the home (system, MDM, cloud bundle, a project trusted elsewhere,
+ * plugins) is checked by asking the Codex binary itself before spawn: `mcp-preflight.ts`. The
+ * spawn-time refusal in {@link prepareCodexHomeIfNeeded} stays the backstop for every blocked case.
  * @throws {@link CodexMcpIsolationError} when the run can't be isolated.
  */
-async function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome, ports }: {
-  existingRaw: string | undefined; entry: McpJsonServerEntry; inheritUserConfig: boolean; inheritUserMcp: boolean; sourceHome: string; ports: CodexAdminLayerPorts;
-}): Promise<string> {
+function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome }: {
+  existingRaw: string | undefined; entry: McpJsonServerEntry; inheritUserConfig: boolean; inheritUserMcp: boolean; sourceHome: string;
+}): string {
   const build = () => buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp, inheritUserSettings: inheritUserConfig });
   if (inheritUserMcp) return build();
   const path = join(sourceHome, 'config.toml');
   assertCodexHomeConfigParses({ raw: existingRaw, path });
   const homeConfig = build();
   assertStagedHomeIsolated({ homeConfig, path });
-  const admin = await probeCodexAdminLayers({ sourceHome, ports });
-  if (admin.status === 'blocked') throw new CodexMcpIsolationError(admin.reason);
-  return admin.systemServersOffToml === '' ? homeConfig : `${homeConfig}\n${admin.systemServersOffToml}`;
+  return homeConfig;
 }
 
 /**
@@ -164,7 +159,7 @@ async function prepareCodexHomeForRun(
       // matching writeMcpJsonForRun's identical "missing file" handling.
       existingConfigRaw = undefined;
     }
-    const content = await buildStagedCodexConfig({ existingRaw: existingConfigRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome: sourceCodexHomeDir, ports: seams.adminLayers });
+    const content = buildStagedCodexConfig({ existingRaw: existingConfigRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome: sourceCodexHomeDir });
     await seams.writeFile({ path: join(dir, 'config.toml'), content });
     await seams.linkSessionStore({ runHome: dir, sourceHome: sourceCodexHomeDir }, { inheritUserConfig });
   } catch (err) {
@@ -188,7 +183,7 @@ function codexTurnsOffPersonalConfig(input: { readonly def: RuntimeAgentDef; rea
 }
 
 /** Which personal Codex config a staged home keeps: none when native tools are locked, else what the run's capabilities allow. */
-function codexInheritance(input: { readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }): { settings: boolean; mcp: boolean } {
+export function codexInheritance(input: { readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }): { settings: boolean; mcp: boolean } {
   const nativeAllowed = input.nativeToolAccess !== false;
   return { settings: nativeAllowed && input.nativeCapabilities?.userSettings !== false, mcp: nativeAllowed && input.nativeCapabilities?.userMcp !== false };
 }
@@ -224,7 +219,7 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
       input.runId,
       input.mcpBridge.serverEntry,
       resolveSourceCodexHomeDir({ hostEnv: deps.hostEnv }),
-      resolveCodexHomeSeams(deps.mcpJsonInjection, deps.hostEnv),
+      resolveCodexHomeSeams(deps.mcpJsonInjection),
       inherit.settings,
       inherit.mcp,
     );
@@ -232,7 +227,7 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
     await deps.releaseStagedResources();
     if (err instanceof CodexMcpIsolationError) {
       return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-        message: `Codex can't run with 'Your MCP servers' off: ${err.message} Turn it on in the assistant settings, or choose Claude.` });
+        message: codexIsolationRefusalMessage(err.message) });
     }
     return deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage(err)}` },

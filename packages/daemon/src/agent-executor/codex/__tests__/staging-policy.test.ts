@@ -87,8 +87,6 @@ async function stagedConfig(input: { readonly nativeToolAccess?: boolean; readon
       mkdtemp: async ({ prefix }) => `/tmp/${prefix}x`,
       readFile: async ({ path }) => { if (path === '/home/codex/config.toml') return 'model = "personal"\n[mcp_servers.chrome]\ncommand = "chrome"\n'; throw new Error(`ENOENT ${path}`); },
       writeFile: async ({ path, content }) => { written.set(path, content); },
-      // No admin-managed Codex layers on this fake host; the real probe would read /etc/codex and macOS preferences.
-      codexAdminLayers: { platform: 'linux', env: {}, readFile: async () => null, macManagedPrefsPresent: async () => false },
     } } });
   return [...written.entries()].find(([path]) => path.endsWith('config.toml'))?.[1] ?? '';
 }

@@ -123,9 +123,7 @@ it('parity links user skills/instructions and rotating auth; locked homes expose
     await writeFile(join(sourceHome, 'auth.json'), '{"refresh":"old"}');
     const stage = (nativeToolAccess: boolean) => prepareCodexHomeIfNeeded({ input: {
       runId: String(nativeToolAccess), def, nativeToolAccess, mcpBridge: { kind: 'codex-toml', serverEntry: entry },
-    }, deps: { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site', mkdtemp: ({ prefix }) => mkdtemp(join(root, prefix)),
-      // A fake host with no admin-managed Codex layers; the real probe would read /etc/codex and macOS preferences.
-      codexAdminLayers: { platform: 'linux', env: {}, readFile: async () => null, macManagedPrefsPresent: async () => false } },
+    }, deps: { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://site', mkdtemp: ({ prefix }) => mkdtemp(join(root, prefix)) },
       hostEnv: { CODEX_HOME: sourceHome }, releaseStagedResources: async () => {}, failBeforeSpawn: async () => { throw new Error('staging failed'); } } });
     const granted = (await stage(true))!;
     const locked = (await stage(false))!;

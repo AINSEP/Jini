@@ -101,6 +101,7 @@ import {
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
 import { prepareCodexHomeIfNeeded } from './codex/home-staging.js';
+import { preflightCodexMcpIsolationIfNeeded } from './codex/mcp-preflight.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,
@@ -1568,6 +1569,12 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
     await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { releaseStagedResources, failBeforeSpawn } }
     );
+
+    // Codex with personal MCP off: ask the binary, with this run's exact env, cwd and loader flags,
+    // which MCP servers it would load; anything but the bridge refuses the run before it starts.
+    await preflightCodexMcpIsolationIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge,
+      stagedHome: preparedCodexHome, launchPath: launch.launchPath, args, env: childEnv, cwd: input.cwd },
+      deps: { createCommandInvocation: createCommandInvocationFn, spawn: spawnFn, releaseStagedResources, failBeforeSpawn } });
 
     const invocation = createCommandInvocationFn({ command: launch.launchPath, args, env: childEnv });
 
