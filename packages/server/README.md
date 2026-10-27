@@ -56,17 +56,17 @@ The package TypeScript configuration includes source tests and fixtures. Publish
 to exclude test output. The packed memory-boot fixture is local to this package so compiling server
 does not pull another package's test sources outside server's source root.
 
-## Owner-only credential store
+## Legacy owner store (read-only)
 
-`@jini-ai/server/owner-store` assembles the database and platform vault implementations.
-Import `openOwnerStore`, `OwnerStoreService`, `exportOwnerStore` and `restoreOwnerStore`
-from this entry. `@jini-ai/db/owner-store` now owns only the pinned schema/migrations;
-it no longer loads a driver, migration runner or vault service from a sibling domain.
-The database path, key path and SQLite opener remain host supplied. This entry requires
-the optional `@jini-ai/db`, `@jini-ai/platform` and `kysely` peers.
+`@jini-ai/server/owner-store` reads an old owner store so a host can import its entries. Nothing writes,
+migrates or syncs an owner store any more. `countLegacyOwnerStore` counts entries and grants without the
+key; `readLegacyOwnerStore` decrypts entries and lists recorded destinations, opening the file with SQLite's
+read-only mode; `readLegacyOwnerBackup` authenticates and validates a v1 or v2 passphrase backup.
+`@jini-ai/db/owner-store` owns only the pinned schema. The database path, key path and SQLite opener remain
+host supplied. This entry requires the optional `@jini-ai/db`, `@jini-ai/platform` and `kysely` peers.
 
 ```ts
-import { openOwnerStore } from '@jini-ai/server/owner-store';
-const owner = await openOwnerStore({ filePath, keyFilePath, open });
-try { await owner.service.list({}); } finally { await owner.close(); }
+import { countLegacyOwnerStore, readLegacyOwnerStore } from '@jini-ai/server/owner-store';
+const { entries } = await countLegacyOwnerStore({ filePath, open });
+if (entries > 0) await readLegacyOwnerStore({ filePath, keyFilePath, open });
 ```
