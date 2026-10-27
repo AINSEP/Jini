@@ -91,6 +91,7 @@ async function readJson({ request, maxBytes }: { request: Request; maxBytes: num
 function cookie(header: string | null | undefined, name: string): string | null {
   for (const part of (header ?? '').split(/;\s*/)) {
     const at = part.indexOf('=');
+    if (at < 1) continue;
     if (part.slice(0, at) !== name) continue;
     try { return decodeURIComponent(part.slice(at + 1)); } catch { return null; }
   }

@@ -149,9 +149,12 @@ function isNecessaryScript({ attrs, text }: { attrs: Attrs; text: string }, { ne
 }
 
 /** Inline speculation rules stay gated: like the removed resource hints, they prefetch/prerender
- * other origins outside the resource CSP. @complexity O(URL length). */
-function scriptFetches({ attrs, type }: { attrs: Attrs; type: string }): boolean {
-  return type === 'speculationrules' || (attrs.has('src') && external({ url: attrs.get('src')! }));
+ * other origins outside the resource CSP. Foreign scripts also fetch href/xlink:href.
+ * @complexity O(attributes + URL bytes). */
+function scriptFetches({ element, attrs, type }: { element: Element; attrs: Attrs; type: string }, _options = {}): boolean {
+  // parse5 stores both href and xlink:href with the local name href in foreign content.
+  const foreignUrl = element.namespaceURI !== HTML_NAMESPACE && element.attrs.some(attr => attr.name === 'href' && external({ url: attr.value }));
+  return foreignUrl || type === 'speculationrules' || (attrs.has('src') && external({ url: attrs.get('src')! }));
 }
 
 /** Unlabelled inline/local code runs by default; explicit optional labels always win over host
@@ -162,16 +165,35 @@ function isOptionalScript({ element, attrs, text, runtime }: { element: Element;
   if (declared !== undefined && declared !== 'necessary') return true;
   const type = (attrs.get('type') ?? '').trim().toLowerCase();
   if (DATA_SCRIPT_TYPES.includes(type)) return false;
-  return scriptFetches({ attrs, type }) && !isNecessaryScript({ attrs, text }, options);
+  return scriptFetches({ element, attrs, type }) && !isNecessaryScript({ attrs, text }, options);
 }
 
-/** @complexity O(subtree size). */
-function wrapEdit({ element, location, category }: { element: Element; location: ElementLocation; category: string }): Edit {
+/** A wrapper consumes its subtree, so retain its strictest optional label; unknown labels block.
+ * Authored HTML templates stay inert and do not impose requirements on their surroundings.
+ * @complexity O(subtree nodes + attributes) time/O(subtree nodes) space. */
+function wrappedCategory({ element, category }: { element: Element; category: string }, _options = {}): string {
+  const ordered = [...OPTIONAL_CATEGORIES, 'blocked'];
+  let rank = ordered.indexOf(category);
+  const stack: Node[] = [...element.childNodes];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (!('tagName' in node)) continue;
+    if (node.tagName === 'template' && node.namespaceURI === HTML_NAMESPACE) continue;
+    const declared = node.attrs.find(attr => attr.name === 'data-consent-category')?.value;
+    rank = Math.max(rank, ordered.indexOf(categoryFor({ declared, fetches: false })));
+    stack.push(...node.childNodes);
+  }
+  return ordered[rank]!;
+}
+
+/** Defer an HTML subtree under its strictest label, or remove a live foreign resource.
+ * @complexity O(subtree size) time and space. */
+function wrapEdit({ element, location, category }: { element: Element; location: ElementLocation; category: string }, _options = {}): Edit {
   // Normalize ignored/misnested end tags so they cannot escape the new template boundary.
   const source = serializeOuter(element, { scriptingEnabled: false });
   // A template in SVG/MathML is not an inert HTML template. Remove foreign scripts/resources.
   const marker = element.tagName === 'script' ? 'data-jini-consent-script' : 'data-jini-consent-resource';
-  return { start: location.startOffset, end: location.endOffset, text: element.namespaceURI === HTML_NAMESPACE ? `<template ${marker} data-category="${category}">${source}</template>` : '' };
+  return { start: location.startOffset, end: location.endOffset, text: element.namespaceURI === HTML_NAMESPACE ? `<template ${marker} data-category="${wrappedCategory({ element, category })}">${source}</template>` : '' };
 }
 
 /** Use the browser URL parser: HTML entities are already decoded by parse5, and URL parsing
@@ -256,8 +278,8 @@ function gateElement({ element, inheritedCategory }: { element: Element; inherit
   const resource = isResource({ tagName: element.tagName, attrs, text, remote });
   const category = categoryFor({ declared: attrs.get('data-consent-category'), fetches: remote || resource });
   if (location && (resource || isOptionalScript({ element, attrs, text, runtime }, options))) return { edits: [wrapEdit({ element, location, category })], descend: false };
-  // Authored template contents are already inert; traversing them would release never-mounted code.
-  return { edits: attributeEdits({ element, location, reserved, category, declared: attrs.get('data-consent-category') }), descend: element.tagName !== 'template' };
+  // Authored HTML template contents are already inert; traversing them would release never-mounted code.
+  return { edits: attributeEdits({ element, location, reserved, category, declared: attrs.get('data-consent-category') }), descend: element.tagName !== 'template' || element.namespaceURI !== HTML_NAMESPACE };
 }
 
 /** Noscript passes its label to descendants. Document-root labels defer only their own handlers:

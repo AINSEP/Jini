@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterAll as after, beforeEach, describe, test } from "vitest";
+import { afterAll as after, beforeEach, describe, test, vi } from "vitest";
 
 import Database from "better-sqlite3";
 import { Kysely, type RawBuilder, sql, SqliteDialect } from "kysely";
@@ -229,6 +229,57 @@ test("sqlite: one kernel per connection, and a legacy BEGIN IMMEDIATE is joined,
   });
   db.$client.exec("ROLLBACK");
   assert.deepEqual(await kernel.query(sql`SELECT id FROM t`), []);
+});
+
+test("P7: foreign transactions retain their scope and backups wait for an unrelated transaction to settle", async () => {
+  const client = new Database(":memory:");
+  const kernel = sqliteKernel<unknown>(client);
+  const scopes: boolean[] = [];
+  const snapshots: unknown[][] = [];
+  // Only the driver copy is faked: capture exactly what it could read when the kernel calls it.
+  const backup = vi.spyOn(client, "backup").mockImplementation(async () => {
+    snapshots.push(client.prepare("SELECT id FROM t ORDER BY id").all());
+    return { totalPages: 0, remainingPages: 0 };
+  });
+  const inside = gate();
+  const release = gate();
+  let transaction: Promise<void> | undefined;
+  let copy: Promise<void> | undefined;
+  try {
+    await kernel.execute(sql`CREATE TABLE t (id text)`);
+    client.exec("BEGIN IMMEDIATE");
+    await kernel.transaction(async () => {
+      scopes.push(kernel.inTransaction());
+      await kernel.run(async () => {
+        scopes.push(kernel.inTransaction());
+        await kernel.lockKey("joined");
+      });
+    });
+    client.exec("ROLLBACK");
+
+    const rollback = new Error("roll back the pending write");
+    transaction = assert.rejects(kernel.transaction(async () => {
+      await kernel.execute(sql`INSERT INTO t VALUES ('uncommitted')`);
+      inside.open();
+      await release.opened;
+      throw rollback;
+    }), (error: unknown) => error === rollback);
+    await inside.opened;
+    // Queue the copy before releasing the transaction, from outside its async scope.
+    copy = kernel.backupTo("unused.db");
+    release.open();
+    await Promise.all([transaction, copy]);
+
+    assert.deepEqual({ scopes, snapshots }, { scopes: [true, true], snapshots: [[]] });
+    assert.equal(kernel.inTransaction(), false);
+    assert.deepEqual(await kernel.query(sql`SELECT id FROM t`), []);
+  } finally {
+    release.open();
+    await Promise.allSettled([transaction, copy]);
+    backup.mockRestore();
+    if (client.inTransaction) client.exec("ROLLBACK");
+    client.close();
+  }
 });
 
 test("a missing capability is an explicit error, never a silent downgrade", async () => {

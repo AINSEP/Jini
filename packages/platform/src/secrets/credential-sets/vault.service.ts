@@ -123,11 +123,13 @@ export class SecretsVaultService {
     assertContext(record);
     return { ...record, meta: this.deps.metaParsers[record.kind]({ meta: record.meta, provider: record.provider }) };
   }
-  private async find(input: VaultIdentity): Promise<VaultRecord | null> {
+  /** Resolve a matching identity; deletion can retain legacy metadata without interpreting it. */
+  private async find(input: VaultIdentity, { parseMeta = true }: { parseMeta?: boolean } = {}): Promise<VaultRecord | null> {
     const record = await this.deps.repo.find({ workspaceId: input.workspaceId, id: input.id });
     if (!record) return null;
     if (buildVaultAad(input) !== buildVaultAad(record)) throw new VaultError({ code: "context" });
-    return this.parse(record);
+    assertContext(record);
+    return parseMeta ? this.parse(record) : record;
   }
   private async seal(input: { context: VaultIdentity; payload: VaultMeta | null }): Promise<VaultRecord["sealed"]> {
     if (input.payload === null) return null;
@@ -346,11 +348,13 @@ export class SecretsVaultService {
       record: { ...existing, sealed, revision: existing.revision + 1, updatedAt: this.deps.now({}) } })));
   }
 
-  /** Idempotent for missing rows; existing rows require matching context and revision. */
+  /** Idempotent for missing rows; existing rows require matching context and revision.
+   * Deletion needs no metadata interpretation, so unupgraded legacy rows remain removable.
+   */
   async delete(input: VaultIdentity & { expectedRevision: number }, _options: VaultOptions = {}): Promise<boolean> {
     assertContext(input);
     await this.authorize({ action: "delete", context: input });
-    const existing = await this.find(input);
+    const existing = await this.find(input, { parseMeta: false });
     if (!existing) return false;
     if (existing.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
     return this.deps.repo.delete({ workspaceId: input.workspaceId, id: input.id, expectedRevision: input.expectedRevision });

@@ -12,6 +12,10 @@ const CSS_FETCH = /url\(|src\(|image-set\(|@import\b/gi;
 const CSS_STRING = /"([^"]*)"|'([^']*)'/g;
 const PAREN_DEPTH: Readonly<Record<string, number>> = { '(': 1, ')': -1 };
 
+// Token boundaries keep semicolons inside comments, strings and url() out of @import termination.
+// Function arguments share these boundaries so commented parentheses cannot terminate a fetch.
+const IMPORT_TOKEN = /\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|[^"'\/;()]+|\/(?!\*)|[();]/y;
+
 /** CSS escapes can spell url( or a scheme (\75 rl, htt\70s), so decode them before looking.
  * @complexity O(text length). */
 function decodeCssEscapes({ css }: { css: string }): string {
@@ -22,15 +26,21 @@ function decodeCssEscapes({ css }: { css: string }): string {
   });
 }
 
-/** Text up to the matching close paren, honoring quotes; null when unbalanced. @complexity O(text length). */
-function functionArgument({ css, start }: { css: string; start: number }): string | null {
-  let depth = 1, quote = '';
-  for (let index = start; index < css.length; index++) {
-    const char = css[index]!;
-    if (quote) { quote = char === quote ? '' : quote; continue; }
-    if (char === '"' || char === "'") { quote = char; continue; }
-    depth += PAREN_DEPTH[char] ?? 0;
-    if (depth === 0) return css.slice(start, index);
+/** Text up to the matching close paren, honoring strings/comments; null when unreadable.
+ * @complexity O(argument length) time and space. */
+function functionArgument({ css, start }: { css: string; start: number }, _options = {}): string | null {
+  const tokens = new RegExp(IMPORT_TOKEN);
+  const parts: string[] = [];
+  let index = start, depth = 1;
+  while (index < css.length) {
+    tokens.lastIndex = index;
+    const match = tokens.exec(css);
+    if (!match) return null;
+    const token = match[0];
+    depth += PAREN_DEPTH[token] ?? 0;
+    if (depth === 0) return importText({ parts });
+    parts.push(token);
+    index = tokens.lastIndex;
   }
   return null;
 }
@@ -41,9 +51,6 @@ function argumentReferences({ syntax, argument }: { syntax: string; argument: st
   if (syntax.toLowerCase() === 'url(') return [argument.trim().replace(/^(["'])([\s\S]*)\1$/, '$2')];
   return Array.from(argument.matchAll(CSS_STRING), string => string[1] ?? string[2]!);
 }
-
-// Token boundaries keep semicolons inside comments, strings and url() out of @import termination.
-const IMPORT_TOKEN = /\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|[^"'\/;()]+|\/(?!\*)|[();]/y;
 
 /** Read an import prelude through its top-level semicolon or EOF. Unterminated comments,
  * strings or parentheses are unreadable, so the caller denies them. @complexity O(prelude length). */

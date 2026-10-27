@@ -7,6 +7,34 @@ import { CONSENT_MAX_AGE_MS } from '../types.js';
 import { accepted } from './fixtures.js';
 
 describe('consent proof storage', () => {
+  it('C10: retiring a receipt keeps the active inventory cached for the next save', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-retire-inventory-'));
+    let activeScans = 0;
+    const files = createNodeConsentFiles({ atomicWrite: async ({ filePath, data }, options) => {
+      if (options.createParent) await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, JSON.stringify(data), { mode: options.mode });
+    } }, {
+      filesystem: { ...fs, readdir: (async (directory: string) => {
+        if (directory === root) activeScans++;
+        return fs.readdir(directory);
+      }) as typeof fs.readdir },
+    });
+    const records = createConsentFileRecords({ directory: root, files });
+    const replacement = { ...accepted, id: 'replacement_receipt_0123456789' };
+    try {
+      await records.save({ record: accepted });
+      expect(activeScans).toBe(1);
+      await records.retire!({ id: accepted.id });
+      await records.save({ record: replacement });
+      expect(await records.read({ id: accepted.id })).toBeNull();
+      expect(await records.read({ id: replacement.id })).toEqual(replacement);
+      expect(JSON.parse(await fs.readFile(path.join(root, 'retired', `${accepted.id}.json`), 'utf8'))).toEqual(accepted);
+      // Re-scanning after retirement both violates the bounded-write contract and reopens
+      // the readdir/stat window in which another retirement can make a save fail with ENOENT.
+      expect(activeScans).toBe(1);
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  });
+
   it('retires active proof while preserving immutable evidence through the bounded file writer', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-retire-'));
     const files = createNodeConsentFiles({ atomicWrite: async ({ filePath, data }, options) => {

@@ -159,6 +159,20 @@ test("rotation uses the active generation, fresh nonce and CAS while retaining p
   assert.equal(await service.delete({ ...context, expectedRevision: 2 }), false);
 });
 
+test("P1: deletes a legacy-AAD row without parsing metadata or opening its envelope", async () => {
+  const { service, repo, keyring, sealer } = fixture();
+  const sealed = await sealer.seal({ key: await keyring.activeKey({}),
+    plaintext: JSON.stringify({ token: secret }), aad: "legacy-vault:v0" });
+  // Historical rows enter through persistence, before the active metadata parser is applied.
+  await repo.put({ expectedRevision: null, record: { ...context, provider: "example", label: "Legacy",
+    isDefault: false, revision: 1, sealed, last4: null, tokenLength: null,
+    meta: { legacyAad: { aadVersion: 0 } }, createdAt: "old", updatedAt: "old" } });
+  const open = vi.spyOn(sealer, "open");
+  assert.equal(await service.delete({ ...context, expectedRevision: 1 }), true);
+  assert.equal(await repo.find(context), null);
+  assert.equal(open.mock.calls.length, 0);
+});
+
 test("rotation cannot overwrite a replacement committed while sealing was pending", async () => {
   const { service, input, sealer } = fixture();
   await service.put(input);

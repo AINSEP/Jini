@@ -17,37 +17,42 @@ const DEFAULT_READY_TIMEOUT_MS = 35_000;
 const DEFAULT_POLL_INTERVAL_MS = 150;
 const DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS = 5_000;
 
-async function waitForProcessExit(child: TauriChildProcessLike, timeoutMs: number): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
-    let exited = false;
-    child.onExit({ listener: () => {
-      exited = true;
-      resolve(true);
-    } });
-    setTimeout(() => {
-      if (!exited) resolve(false);
-    }, timeoutMs);
-  });
+interface TauriExitState {
+  info: { code: number | null; signal: NodeJS.Signals | null } | null;
+  exited: Promise<void>;
 }
 
-async function waitUntilReady<T>(child: TauriChildProcessLike, options: SidecarReadyOptions<T>): Promise<T> {
+/** Observe the launch-time exit record; clear the deadline when the process exits first. */
+async function waitForProcessExit({ exit }: { exit: TauriExitState }, { timeoutMs = DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS }: { timeoutMs?: number } = {}): Promise<boolean> {
+  if (exit.info !== null) return true;
+  let timer!: ReturnType<typeof setTimeout>;
+  try {
+    return await Promise.race([
+      exit.exited.then(() => true),
+      new Promise<boolean>((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Poll readiness while retaining crashes delivered before this call. */
+async function waitUntilReady<T>(
+  { exit, probe, isReady }: { exit: TauriExitState } & Pick<SidecarReadyOptions<T>, 'probe' | 'isReady'>,
+  options: Omit<SidecarReadyOptions<T>, 'probe' | 'isReady'> = {},
+): Promise<T> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const startedAt = Date.now();
   let lastError: unknown;
-  let exited: { code: number | null; signal: NodeJS.Signals | null } | null = null;
-  child.onExit({ listener: ({ code, signal }) => {
-    exited = { code, signal };
-  } });
-
   while (Date.now() - startedAt < timeoutMs) {
-    if (exited !== null) {
-      const info: { code: number | null; signal: NodeJS.Signals | null } = exited;
+    if (exit.info !== null) {
+      const info = exit.info;
       throw new Error(`sidecar exited before reporting ready (code=${info.code}, signal=${info.signal ?? 'none'})`);
     }
     try {
-      const status = await options.probe();
-      if (options.isReady({ status })) return status;
+      const status = await probe();
+      if (isReady({ status })) return status;
     } catch (error) {
       lastError = error;
     }
@@ -56,25 +61,37 @@ async function waitUntilReady<T>(child: TauriChildProcessLike, options: SidecarR
   throw new Error(`timed out waiting for sidecar to become ready${lastError instanceof Error ? ` (${lastError.message})` : ''}`);
 }
 
-async function shutdownChild(child: TauriChildProcessLike, options: SidecarShutdownOptions = {}): Promise<void> {
+/** Use the host's shutdown request or SIGTERM, then bound the wait before SIGKILL. */
+async function shutdownChild({ child, exit }: { child: TauriChildProcessLike; exit: TauriExitState }, options: SidecarShutdownOptions = {}): Promise<void> {
+  if (exit.info !== null) return;
   if (options.requestShutdown != null) {
     try {
       await options.requestShutdown();
     } catch {
       // Fall through to process-level termination below.
     }
+  } else {
+    child.kill({}, { signal: 'SIGTERM' });
   }
   const gracefulTimeoutMs = options.gracefulTimeoutMs ?? DEFAULT_GRACEFUL_SHUTDOWN_TIMEOUT_MS;
-  if (await waitForProcessExit(child, gracefulTimeoutMs)) return;
+  if (await waitForProcessExit({ exit }, { timeoutMs: gracefulTimeoutMs })) return;
   child.kill({}, { signal: 'SIGKILL' });
-  await waitForProcessExit(child, gracefulTimeoutMs);
+  await waitForProcessExit({ exit }, { timeoutMs: gracefulTimeoutMs });
 }
 
-export function createTauriSidecarLauncher({ api }: { api: TauriSidecarCommandApi }): SidecarLauncherPort {
+/** Launch through the injected Tauri API and retain exit status for readiness and teardown. */
+export function createTauriSidecarLauncher({ api }: { api: TauriSidecarCommandApi }, _optionalArgs: Record<string, never> = {}): SidecarLauncherPort {
   return {
     async launch(requiredArgs: Pick<SidecarLaunchOptions, 'command'>, optionalArgs: Omit<SidecarLaunchOptions, 'command'> = {}): Promise<SidecarHandle> {
       const options = { ...optionalArgs, ...requiredArgs };
       const child = await api.spawnSidecar({ binaryName: options.command, args: options.args ?? [] }, { env: options.env as Record<string, string> | undefined });
+      let resolveExit!: () => void;
+      const exit: TauriExitState = { info: null, exited: new Promise<void>((resolve) => { resolveExit = resolve; }) };
+      // Tauri does not expose exitCode/signalCode: subscribe before handing the child to callers.
+      child.onExit({ listener: (info) => {
+        exit.info = info;
+        resolveExit();
+      } });
       const processHandle: SidecarProcessHandle = {
         pid: child.pid,
         onExit: ({ listener }) => child.onExit({ listener: ({ code, signal }) => listener({ code, signal }) }),
@@ -83,8 +100,8 @@ export function createTauriSidecarLauncher({ api }: { api: TauriSidecarCommandAp
       return {
         process: processHandle,
         logPath: null,
-        waitUntilReady: (requiredArgs, optionalArgs = {}) => waitUntilReady(child, { ...optionalArgs, ...requiredArgs }),
-        shutdown: (_requiredArgs, shutdownOptions) => shutdownChild(child, shutdownOptions),
+        waitUntilReady: (requiredArgs, optionalArgs = {}) => waitUntilReady({ exit, ...requiredArgs }, optionalArgs),
+        shutdown: (_requiredArgs, shutdownOptions) => shutdownChild({ child, exit }, shutdownOptions),
       };
     },
   };

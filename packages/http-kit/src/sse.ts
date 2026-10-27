@@ -58,7 +58,7 @@ export interface CreateSseChannelOptions<E extends SseEvent> {
 
 export interface SseChannel<E extends SseEvent> {
   /**
-   * Queues `event` for delivery. A no-op once the channel is closed. Before
+   * Queues `event` for delivery. A no-op once ending is requested or the channel is closed. Before
    * {@link SseChannel.open} is called, events accumulate in the same bounded
    * queue used for later backpressure, so a caller may safely `enqueue`
    * replay history before opening the stream — the client's very first
@@ -74,7 +74,8 @@ export interface SseChannel<E extends SseEvent> {
   /** True once the channel has closed for any reason (explicit `end()`, client disconnect, queue overflow, or a fatal write). */
   readonly isClosed: () => boolean;
   /**
-   * Idempotent: marks the channel closed, unsubscribes nothing itself (a
+   * Idempotent: stops accepting events and drains an open channel's queued events before
+   * marking the channel closed. Before open(), it closes immediately. It unsubscribes nothing itself (a
    * caller's {@link SseChannel.onClose} callback does that), and ends the
    * underlying HTTP response if it has not already ended. Calling `res.end()`
    * a second time (e.g. after the client already disconnected) is safe and
@@ -141,6 +142,7 @@ export function createSseChannel<E extends SseEvent>({ res }: { readonly res: Se
   let flowing = false;
   let writable = true;
   let closed = false;
+  let ending = false;
   const closeCallbacks: Array<() => void> = [];
 
   const markClosed = (): void => {
@@ -152,9 +154,18 @@ export function createSseChannel<E extends SseEvent>({ res }: { readonly res: Se
     for (const callback of callbacks) callback();
   };
 
-  const end = (): void => {
+  /** Close immediately for terminal events, overflow or a broken transport. */
+  const finish = (): void => {
     markClosed();
     if (!res.writableEnded) res.end();
+  };
+
+  /** Stop production now; an open backlog finishes on drain. O(1) excluding close callbacks. */
+  const end = (): void => {
+    if (closed) return;
+    ending = true;
+    if (flowing && queue.length > 0) return;
+    finish();
   };
 
   const pump = (): void => {
@@ -168,22 +179,23 @@ export function createSseChannel<E extends SseEvent>({ res }: { readonly res: Se
         // A dead/broken transport must never throw back through whatever is producing events —
         // stop this channel only.
         options.onWriteError?.({ error });
-        end();
+        finish();
         return;
       }
       if (wroteOk === false) writable = false;
       if (options.isEndEvent?.({ event })) {
-        end();
+        finish();
         return;
       }
     }
+    if (ending) end();
   };
 
   const enqueue = ({ event }: { readonly event: E }): void => {
-    if (closed) return;
+    if (closed || ending) return;
     if (queue.length >= maxQueuedEvents) {
       // Slow/stalled consumer — disconnect rather than grow memory without bound.
-      end();
+      finish();
       return;
     }
     queue.push(event);

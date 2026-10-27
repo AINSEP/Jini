@@ -135,6 +135,14 @@ test("checkSiteRelativeTarget still applies the reserved-surface rule after pars
   assert.deepEqual(checkSiteRelativeTarget({ raw: "/%61dmin/settings?x=1", reservedSegments: new Set(["admin", "api"]) }, {}), { kind: "reserved", surface: "admin" });
 });
 
+test("C15: checkSiteRelativeTarget refuses a raw admin mount even when decoding resolves outside it", () => {
+  // Express matches the raw /admin mount; decoding the encoded slash first erases that segment.
+  assert.deepEqual(
+    checkSiteRelativeTarget({ raw: "/admin/..%2fpublic", reservedSegments: new Set(["admin", "api"]) }, {}),
+    { kind: "reserved", surface: "admin" },
+  );
+});
+
 test("checkSiteRelativeTarget reports an unparseable reference", () => {
   assert.deepEqual(checkSiteRelativeTarget({ raw: "http://[", reservedSegments: new Set(["admin", "api"]) }, {}), { kind: "unparseable" });
 });

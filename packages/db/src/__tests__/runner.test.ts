@@ -183,6 +183,31 @@ for (const { name, open } of dialects) {
   });
 }
 
+test("P8: step mode rejects a newer ledger committed after the older runner's initial check", async () => {
+  const kernel = openMemorySqliteKernel<unknown>({ open: openSqlite });
+  kernels.push(kernel);
+  const first = tableStep("0001_first", "first_t");
+  const second = tableStep("0002_second", "second_t", sum("b"));
+  const newer = tableStep("0003_newer", "newer_t", sum("c"));
+  await runMigrations(kernel, [first], { ledgerTable: LEDGER });
+
+  const olderSecond: MigrationStep = {
+    ...second,
+    prepare: async () => {
+      // The older invocation has read the ledger but has not acquired its migration lock.
+      // Let the newer runtime commit both pending steps before the older one resumes.
+      await runMigrations(kernel, [first, second, newer], { ledgerTable: LEDGER });
+    },
+  };
+  await assert.rejects(
+    runMigrations(kernel, [first, olderSecond], { ledgerTable: LEDGER, atomicity: "step" }),
+    (error: unknown) => error instanceof UnknownAppliedMigrationError && error.ids.join() === "0003_newer"
+  );
+  assert.deepEqual(await kernel.query(sql`SELECT id FROM app_migrations ORDER BY id`), [
+    { id: "0001_first" }, { id: "0002_second" }, { id: "0003_newer" },
+  ]);
+});
+
 describe("assertValidSteps", () => {
   test("rejects malformed, unordered or duplicate ids and missing checksums", () => {
     assert.throws(() => assertValidSteps([tableStep("1_bad", "t")]), /NNNN_snake_name/);

@@ -73,6 +73,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
     var limit = {};
     try {
       var params = new URLSearchParams(decodeURIComponent(match.slice(match.indexOf('=') + 1)));
+      if (!legacy && params.get('cleared') === '1') return null;
       categories.forEach(function (category) { limit[category] = params.get(category) === '1'; });
       // Preserve old unsaved withdrawals, but migrate a parent-domain marker only as a denial limit.
       return { choices: limit, retry: !legacy && params.get('retry') === '1', notice: params.get('notice') === '1' };
@@ -81,18 +82,19 @@ export const CONSENT_CLIENT = String.raw`(function () {
       return { choices: limit, retry: false, notice: false };
     }
   }
-  function writeWithdrawal(limit, retry, notice) {
+  function writeWithdrawal({ limit, retry, notice, cleared = false }, _options = {}) {
     var params = new URLSearchParams();
     categories.forEach(function (category) { params.set(category, limit[category] ? '1' : '0'); });
+    if (cleared) params.set('cleared', '1');
     if (retry) params.set('retry', '1');
     if (notice) params.set('notice', '1');
     document.cookie = withdrawalCookie + '=' + encodeURIComponent(params.toString()) + '; Max-Age=${CONSENT_MAX_AGE_MS / 1000}; Path=/; SameSite=Lax' + (secure ? '; Secure' : '');
   }
   function clearWithdrawal() {
     if (secure && withdrawalValue('${WITHDRAWAL_COOKIE}')) {
-      // A host cannot delete a planted parent-domain cookie. An unrestricted host marker shadows
-      // it after a durable choice; intersecting this marker still cannot grant beyond the receipt.
-      writeWithdrawal({ functional: true, analytics: true, marketing: true }, false, false);
+      // A host cannot delete a planted parent-domain cookie. A distinct cleared host marker shadows
+      // it after a durable choice without becoming a choice itself when the receipt expires.
+      writeWithdrawal({ limit: { functional: true, analytics: true, marketing: true }, retry: false, notice: false, cleared: true });
       return;
     }
     document.cookie = withdrawalCookie + '=; Max-Age=0; Path=/; SameSite=Lax' + (secure ? '; Secure' : '');
@@ -242,11 +244,11 @@ export const CONSENT_CLIENT = String.raw`(function () {
         // Never reload or release grants from an automatic retry. If the receipt disagrees, keep
         // a non-retrying denial marker so a persistent cookie cannot create a save/reload loop.
         if (categories.every(function (category) { return result.record.choices[category] === choices[category]; })) clearWithdrawal();
-        else writeWithdrawal(choices, false, false);
+        else writeWithdrawal({ limit: choices, retry: false, notice: false });
         return;
       } catch (failure) { retry = failure.retry !== false; }
     }
-    writeWithdrawal(choices, retry, false);
+    writeWithdrawal({ limit: choices, retry, notice: false });
     if (withdrawal.notice || retry) showError(banner, withdrawalMessage(retry), withdrawal.notice);
   }
   function openPreferences(banner) {
@@ -323,7 +325,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
             choices = next;
             hasChoice = true;
             syncForm(banner);
-            writeWithdrawal(next, retry, true);
+            writeWithdrawal({ limit: next, retry, notice: true });
             signal('update', signalsFor(next));
             showError(banner, withdrawalMessage(retry), false);
             window.location.reload();

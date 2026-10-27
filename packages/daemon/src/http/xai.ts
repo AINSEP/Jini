@@ -249,8 +249,17 @@ function xaiRedirectUri(resolved: ResolvedXaiHttpDeps): string {
   return `http://${resolved.callbackHost}:${resolved.callbackPort}${resolved.callbackPath}`;
 }
 
-/** Stops (best-effort) and clears the in-flight loopback listener, if any. Never throws — the listener self-closes on completion/timeout anyway, matching OD's origin `stopActiveListener`. */
-async function stopListener(listenerRef: { current: OAuthCallbackListener | null }): Promise<void> {
+/** Tracks only the state's lookup key; `PendingAuthCache` remains the single-use authorization owner.
+ * Keying by the shared listener slot keeps cancellation scoped to one mounted route pack. */
+const pendingOAuthStates = new WeakMap<object, string>();
+
+/** Revokes the pending state before stopping and clearing its listener. Listener shutdown is
+ * best-effort — the listener self-closes on completion/timeout anyway, matching OD's origin
+ * `stopActiveListener`. Revocation must precede the await so a late paste-back cannot reconnect. */
+async function stopListener({ listenerRef, pending }: Pick<ResolvedXaiHttpDeps, 'listenerRef' | 'pending'>, _optional: Record<string, never> = {}): Promise<void> {
+  const state = pendingOAuthStates.get(listenerRef);
+  pendingOAuthStates.delete(listenerRef);
+  if (state !== undefined) pending.consume({ state });
   const current = listenerRef.current;
   listenerRef.current = null;
   if (!current) return;
@@ -424,6 +433,7 @@ export const xaiOauthStartRoute = defineJsonRoute<void, XaiOauthStartResponse, X
           pending: resolved.pending,
           redirectUri: xaiRedirectUri(resolved),
         });
+        pendingOAuthStates.set(resolved.listenerRef, state);
         const listener = await resolved.startCallbackListener({
           host: resolved.callbackHost,
           port: resolved.callbackPort,
@@ -440,7 +450,7 @@ export const xaiOauthStartRoute = defineJsonRoute<void, XaiOauthStartResponse, X
           }
         });
       } catch (error) {
-        await stopListener(resolved.listenerRef);
+        await stopListener(resolved);
         const correlationId = randomUUID();
         resolved.onInternalError({ source: 'oauth-start', correlationId, error });
         return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
@@ -487,7 +497,7 @@ fetchImpl: resolved.fetchImpl
       // We won the race against the loopback listener (or it was never going to resolve in the
       // first place); shut it down so the next `oauth/start` has a clean slate — matching OD's
       // origin behavior on a successful manual paste-back.
-      await stopListener(resolved.listenerRef);
+      await stopListener(resolved);
       return ok({ value: { ok: true } });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -515,10 +525,10 @@ fetchImpl: resolved.fetchImpl
 export const xaiOauthCancelRoute = defineJsonRoute<void, XaiOkResponse, XaiHttpDeps>({
   method: 'post', path: '/api/xai/oauth/cancel', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps }) => {
     const resolved = resolveXaiHttpDeps(deps);
-    // Cancel only stops the in-flight loopback listener; it must never wipe a stored token — a
-    // user clicking Cancel mid-reconnect would otherwise lose their existing grant. Disconnect
-    // (below) is the destructive path. Matches OD's origin `oauth/cancel` handler exactly.
-    await stopListener(resolved.listenerRef);
+    // Cancel revokes the pending state and stops the listener; it must never wipe a stored
+    // token — a user clicking Cancel mid-reconnect would otherwise lose their existing grant. Disconnect
+    // (below) is the destructive path. Preserves OD's origin `oauth/cancel` token-retention behavior.
+    await stopListener(resolved);
     return ok({ value: { ok: true } });
   }
 }, { requireSameOrigin: true });
@@ -567,7 +577,7 @@ export const xaiOauthDisconnectRoute = defineJsonRoute<void, XaiOkResponse, XaiH
   method: 'post', path: '/api/xai/oauth/disconnect', parse: () => ok({ value: undefined }), handle: async ({ input: _input, deps }) => {
     const resolved = resolveXaiHttpDeps(deps);
     try {
-      await stopListener(resolved.listenerRef);
+      await stopListener(resolved);
       await clearStoredOAuthToken({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName });
       return ok({ value: { ok: true } });
     } catch (error) {

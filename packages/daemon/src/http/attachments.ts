@@ -99,7 +99,7 @@
  * correlation-id-bearing generic `INTERNAL_ERROR`, with the real error reaching a host-owned sink —
  * the same `reportInternalError` shape `media.ts`/`delegated-tools.ts` use.
  */
-import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rmdir } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rmdir, type FileHandle } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, resolve } from 'node:path';
 import type { Express, Request, Response } from 'express';
@@ -144,9 +144,14 @@ export interface AttachmentClaim {
   batchDirectory?: string;
 }
 
+// Only objects returned by this store's claim() carry aliases. Weak keys keep this staging bridge
+// private without extending the wire/persisted formats or retaining completed claims indefinitely.
+const stagedPathsByAttachment = new WeakMap<StoredAttachment, Set<string>>();
+
 /** Copy an already authenticated claim into the host's filesystem boundary. Keep the original
  * store records intact for promotion/read-back; the caller owns cleanup after the run ends.
  * Only claimed files are copied, never batch sidecars or another upload's capability ids.
+ * Exact staged paths alias the original store record until cleanup revokes them.
  * O(b) I/O for b claimed bytes, bounded by the attachment store's batch limits. Partial copies
  * are removed before rejection. The temporary directory is private and directly under real root.
  */
@@ -155,7 +160,11 @@ export async function stageAttachmentClaim(required: { claim: AttachmentClaim; f
 }> {
   const root = await realpath(required.filesystemRoot);
   const directory = await mkdtemp(resolve(root, '.agent-attachments-'));
-  const cleanup = () => rm(directory, { recursive: true, force: true });
+  const stagedAliases = new Map<string, Set<string>>();
+  const cleanup = async () => {
+    for (const [path, aliases] of stagedAliases) aliases.delete(path);
+    await rm(directory, { recursive: true, force: true });
+  };
   try {
     await chmod(directory, 0o700);
     const attachments: StoredAttachment[] = [];
@@ -164,6 +173,11 @@ export async function stageAttachmentClaim(required: { claim: AttachmentClaim; f
       await copyFile(attachment.path, target);
       await chmod(target, 0o600);
       attachments.push({ ...attachment, path: target });
+      const aliases = stagedPathsByAttachment.get(attachment);
+      if (aliases) {
+        aliases.add(target);
+        stagedAliases.set(target, aliases);
+      }
     }
     return { claim: { attachments, batchDirectory: directory }, cleanup };
   } catch (error) {
@@ -293,6 +307,9 @@ export interface AttachmentStore {
    * `image-prompt-delivery.ts` narrates the resolved PATH into the run's prompt text for an
    * already-claimed attachment — never the id — so a caller built from that prompt has the path, not
    * the id; a caller with the id (from the original upload response) can still use it directly.
+   * Exact paths issued by `stageAttachmentClaim()` for this store's claim also resolve to the
+   * original record, with the same run-ownership and integrity checks. Staging cleanup revokes
+   * those aliases. No basename inference or caller-supplied filesystem path is read.
    *
    * Ownership is enforced here, which is new: an attachment nobody has claimed yet is claimed for
    * `runId` on this call (identical effect to `claim()`, same integrity re-check); an attachment
@@ -725,15 +742,17 @@ export function detectAttachmentKind({ body }: { readonly body: Uint8Array }, _o
  * Opened `wx`, so this can never overwrite an existing file. A partial write is removed before the
  * rejection propagates: the cap is enforced *during* the stream, which necessarily means some bytes
  * already reached disk by the time it trips.
+ * An optional already-open `handle` transfers ownership here: it is closed on success or failure.
+ * This lets the upload route recover a directory/open race before consuming any request bytes.
  */
-export async function writeBoundedAttachmentBody(requiredArgs: Omit<{ request: AsyncIterable<unknown>; filePath: string; maxBytes: number; mode?: number }, 'mode'>, optionalArgs: Pick<{ request: AsyncIterable<unknown>; filePath: string; maxBytes: number; mode?: number }, 'mode'> = {}): Promise<{ size: number; signature: Uint8Array }> {
+export async function writeBoundedAttachmentBody(requiredArgs: { request: AsyncIterable<unknown>; filePath: string; maxBytes: number }, optionalArgs: { mode?: number; handle?: FileHandle } = {}): Promise<{ size: number; signature: Uint8Array }> {
   const {
     request,
     filePath,
     maxBytes,
     mode = 0o600,
   }: { request: AsyncIterable<unknown>; filePath: string; maxBytes: number; mode?: number } = { ...requiredArgs, ...optionalArgs };
-  const handle = await open(filePath, 'wx', mode);
+  const handle = optionalArgs.handle ?? await open(filePath, 'wx', mode);
   let total = 0;
   let signature = Buffer.alloc(0);
   try {
@@ -1088,6 +1107,12 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
   // no record to authenticate it against) or adopts the previous process's authenticated survivors.
   // See `prepareAttachmentStorage`.
   const records = await prepareAttachmentStorage({ canonicalUploadDirectory, retainAcrossRestarts, retentionMs });
+  const stagedPathsByRecord = new WeakMap<AttachmentRecord, Set<string>>();
+  /** Only issued refs match; no caller-supplied path is opened. O(n) time for n stored records,
+   * bounded by maxStoredAttachments, with no filesystem I/O. */
+  const findRecord = ({ ref }: { readonly ref: string }, _optional: Record<string, never> = {}): AttachmentRecord | undefined =>
+    records.get(ref) ?? [...records.values()].find((candidate) =>
+      candidate.filePath === ref || stagedPathsByRecord.get(candidate)?.has(ref));
   const sidecarDirectory = resolve(canonicalUploadDirectory, SIDECAR_DIRECTORY_NAME);
   const sidecarPathFor = (record: AttachmentRecord): string =>
     resolve(sidecarDirectory, attachmentSidecarFileName({ id: record.id }));
@@ -1255,12 +1280,13 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
       try {
         const batchDirectory = await verifyClaimedAttachments({ claimed });
         return {
-          attachments: claimed.map((record) => ({
-            path: record.filePath,
-            name: record.name,
-            kind: record.kind,
-            size: record.size,
-          })),
+          attachments: claimed.map((record) => {
+            const attachment = { path: record.filePath, name: record.name, kind: record.kind, size: record.size };
+            const aliases = new Set<string>();
+            stagedPathsByAttachment.set(attachment, aliases);
+            stagedPathsByRecord.set(record, aliases);
+            return attachment;
+          }),
           batchDirectory,
         };
       } catch (error) {
@@ -1273,7 +1299,7 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
       // Synchronous check-then-reserve, same reasoning as `reserveAttachmentRecords`: nothing may
       // `await` between reading `claimedRunId` and writing it, or a concurrent call could observe
       // the same unclaimed record and both believe they reserved it.
-      const record = records.get(ref) ?? [...records.values()].find((candidate) => candidate.filePath === ref);
+      const record = findRecord({ ref });
       if (!record) return undefined;
       if (record.claimedRunId !== undefined && record.claimedRunId !== runId) {
         throw new AttachmentRejectedError({ reason: 'attachment-unknown-or-claimed', message: 'Attachment is unknown or already claimed' });
@@ -1458,19 +1484,42 @@ function refusalBeforeUpload(
 }
 
 /**
+ * Creates and exclusively opens one upload before its stream is consumed. Batch cleanup may
+ * remove an empty directory between mkdir/chmod/open, so retry that preparation once on ENOENT.
+ * Other failures propagate unchanged; the body writer owns the returned handle and partial file.
+ * @complexity O(1) filesystem operations and memory; at most two preparation attempts.
+ */
+async function openAttachmentUpload(
+  { store, batchId, name }: { readonly store: AttachmentStore; readonly batchId: string; readonly name: string },
+  _optional: Record<string, never> = {},
+): Promise<{ path: string; handle: FileHandle }> {
+  // A fresh UUID, never the client's filename. The extension is carried over (bounded) only
+  // because some agent runtimes decide how to read a file from its suffix.
+  const fileName = `${randomUUID()}${extname(name).slice(0, 12)}`;
+  const prepare = async (_required: Record<string, never>, _optional: Record<string, never> = {}) => {
+    const batchDirectory = await store.createBatchDirectory({ batchId });
+    const path = resolve(batchDirectory, fileName);
+    return { path, handle: await open(path, 'wx', 0o600) };
+  };
+  try {
+    return await prepare({});
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return prepare({});
+  }
+}
+
+/**
  * The body of one admitted upload: prune, batch directory, bounded stream to disk, signature sniff,
  * register, answer. Throws for the caller to map; the caller owns the slot and the `finally` tidy.
  */
 async function storeAttachmentUpload(
   { req, res, deps, batchId, name, maxAttachmentBytes }: { readonly req: Request; readonly res: Response; readonly deps: AttachmentsHttpDeps; readonly batchId: string; readonly name: string; readonly maxAttachmentBytes: number },
+  _optional: Record<string, never> = {},
 ): Promise<void> {
   await deps.store.pruneExpired({});
-  const batchDirectory = await deps.store.createBatchDirectory({ batchId });
-  // A fresh UUID, never the client's filename. The extension is carried over (bounded) only
-  // because some agent runtimes decide how to read a file from its suffix.
-  const suffix = extname(name).slice(0, 12);
-  const path = resolve(batchDirectory, `${randomUUID()}${suffix}`);
-  const upload = await writeBoundedAttachmentBody({ request: req, filePath: path, maxBytes: maxAttachmentBytes });
+  const { path, handle } = await openAttachmentUpload({ store: deps.store, batchId, name });
+  const upload = await writeBoundedAttachmentBody({ request: req, filePath: path, maxBytes: maxAttachmentBytes }, { handle });
   if (upload.size === 0) {
     await rm(path, { force: true });
     sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'Attachment is empty' }) });

@@ -108,6 +108,36 @@ describe('consent proof storage', () => {
 
 
 describe('receipt resource bounds', () => {
+  it('C10: retiring a receipt preserves the active inventory for the next save', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-retire-inventory-'));
+    let scans = 0;
+    const files = createNodeConsentFiles({ atomicWrite: async ({ filePath, data }, options) => {
+      if (options.createParent) await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, JSON.stringify(data), { mode: options.mode });
+    } }, {
+      nowMs: () => Date.parse(accepted.timestamp),
+      filesystem: { ...fs, readdir: (async (directoryPath: string) => {
+        if (directoryPath === directory) scans++;
+        return fs.readdir(directoryPath);
+      }) as typeof fs.readdir },
+    });
+    const records = createConsentFileRecords({ directory, files });
+    const remaining = { ...accepted, id: 'remaining_receipt_0123456789' };
+    const next = { ...accepted, id: 'next_receipt_01234567890123' };
+    try {
+      await records.save({ record: accepted });
+      await records.save({ record: remaining });
+      expect(scans).toBe(1);
+      await records.retire!({ id: accepted.id });
+      await records.save({ record: next });
+      expect(await records.read!({ id: next.id })).toEqual(next);
+      expect(await records.read!({ id: remaining.id })).toEqual(remaining);
+      expect(await records.read!({ id: accepted.id })).toBeNull();
+      expect(JSON.parse(await fs.readFile(path.join(directory, 'retired', `${accepted.id}.json`), 'utf8'))).toEqual(accepted);
+      expect(scans).toBe(1);
+    } finally { await fs.rm(directory, { recursive: true, force: true }); }
+  });
+
   it('serializes concurrent capacity checks and evicts oldest receipts without partial proof', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-consent-cap-'));
     const files = createNodeConsentFiles({ atomicWrite: async input => { await fs.writeFile(input.filePath, JSON.stringify(input.data)); } }, { maximumRecords: 1 });

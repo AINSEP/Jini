@@ -115,7 +115,7 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
         "transaction() was called inside a run() body; start the transaction first and call run() inside it"
       );
     }
-    if (joinsForeign()) return fn();
+    if (joinsForeign()) return scope.run({ kind: "transaction", db: driver.base }, fn);
     return takingTurn(lock, "exclusive", async () => {
       if (owned !== undefined) assertOwnedAvailable();
       ownTransactions += 1;
@@ -157,7 +157,8 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
       if (driver.backup === undefined) throw new UnsupportedCapabilityError("backup", driver.transport);
       if (scope.getStore()?.kind === "transaction") throw new Error("backupTo() must be called outside a transaction");
       await driver.ready;
-      await driver.backup(destPath);
+      // A copy must wait for unrelated work to commit or roll back on the shared connection.
+      await takingTurn(lock, "exclusive", () => driver.backup!(destPath));
     },
     close: () => driver.close(),
   };

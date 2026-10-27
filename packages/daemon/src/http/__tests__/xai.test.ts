@@ -473,6 +473,30 @@ describe('xaiOauthCancelRoute', () => {
     expect(xaiOauthCancelRoute.parse({ body: undefined, query: {}, params: {} })).toEqual({ ok: true, value: undefined });
   });
 
+  it('P4: cancelling an OAuth flow prevents its pending code from connecting the account', async () => {
+    const fetchImpl = vi.fn(async () => okTokenResponse());
+    const listener = makeListener();
+    const deps = makeDeps({ startCallbackListener: vi.fn(async () => listener), fetchImpl });
+    try {
+      const started = await xaiOauthStartRoute.handle({ input: undefined, deps });
+      if (!started.ok) throw new Error('expected OAuth start to succeed');
+
+      expect(await xaiOauthCancelRoute.handle({ input: undefined, deps })).toEqual({ ok: true, value: { ok: true } });
+      expect(listener.stop).toHaveBeenCalledTimes(1);
+
+      // A paste-back completion can arrive after the owner cancels. Closing the callback
+      // listener alone must not leave that previously valid state authorized to save a token.
+      const completed = await xaiOauthCompleteRoute.handle({ input: { state: started.value.state, code: 'late-code' }, deps });
+      const status = await xaiAuthStatusRoute.handle({ input: undefined, deps });
+
+      expect(completed).toMatchObject({ ok: false, error: { code: 'BAD_REQUEST' } });
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(status).toMatchObject({ ok: true, value: { connected: false, listening: false } });
+    } finally {
+      deps.pending.stop();
+    }
+  });
+
   it('stops the in-flight listener without touching a stored token', async () => {
     const pending = new PendingAuthCache({}, { ttlMs: 30 * 60 * 1000 });
     const state = seedPendingState(pending);

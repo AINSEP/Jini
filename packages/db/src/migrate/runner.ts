@@ -28,7 +28,8 @@ import {
  *   ({@link MigrationChecksumError}). Nothing is applied on a mismatch.
  * - Serialized: by default each pending step runs in ONE kernel transaction that first takes
  *   `lockKey(<ledgerTable>)` (Postgres advisory lock; SQLite's `BEGIN IMMEDIATE` write lock) and
- *   re-reads its ledger row, so two processes starting at once apply a step exactly once.
+ *   re-reads and verifies the full ledger, so two processes starting at once apply a step exactly once
+ *   and an older runtime refuses history committed by a newer one while it was waiting.
  * - A kernel without interactive transactions is refused (`require`), never downgraded.
  * - Given {@link MigrationOptions.backupPath}, a database that already holds tables is copied there
  *   once, outside any transaction, before the first pending step (ledger absent or behind). Nothing
@@ -154,15 +155,9 @@ async function insertRow({ ledger, step, options }: { ledger: Ledger; step: Migr
 }
 
 async function recordedStep({ ledger, step, steps, options }: { ledger: Ledger; step: MigrationStep; steps: readonly MigrationStep[]; options: MigrationOptions }, _optional: {} = {}): Promise<boolean> {
-  if (ledger.mapping !== undefined || options.historyCheck === "ordered-prefix") {
-    const rows = await readLedger(ledger);
-    verifyRecorded(rows, steps, options);
-    return rows.some((row) => row.id === step.id);
-  }
-  const row = await ledger.run((db) => db.selectFrom(ledger.table).selectAll().where("id", "=", step.id).executeTakeFirst());
-  if (row === undefined) return false;
-  verifyRecorded([row], steps, options);
-  return true;
+  const rows = await readLedger(ledger);
+  verifyRecorded(rows, steps, options);
+  return rows.some((row) => row.id === step.id);
 }
 
 function validateExtensions({ options, steps }: { options: MigrationOptions; steps: readonly MigrationStep[] }, _optional: {} = {}): void {
