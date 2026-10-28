@@ -99,6 +99,37 @@ export interface FetchWithTimeoutOptions {
   fetch?: typeof fetch;
 }
 
+/** Optional caller cancellation and elapsed-time accounting for a wait budget. */
+export interface DeadlineSignalOptions {
+  signal?: AbortSignal;
+  /** Start time in milliseconds, on the same clock as `now`. */
+  startedAt?: number;
+  /** Clock port in milliseconds; defaults to Date.now and is read only with startedAt. */
+  now?: () => number;
+}
+
+/**
+ * Creates one signal that aborts when the remaining wait budget expires or the caller cancels.
+ * Spent time is subtracted once; future start times cannot increase the original budget.
+ * @param input - Wait budget in milliseconds. Negative remaining budgets become zero.
+ * @param options - Optional caller signal, start time and clock port.
+ * @returns A native deadline signal preserving the first abort reason. Zero expires asynchronously,
+ * following AbortSignal.timeout(0); an already-aborted caller is reflected immediately.
+ * Creates a native timeout without mutating inputs or the caller's signal.
+ * @throws {RangeError} If the remaining delay is invalid for AbortSignal.timeout.
+ * @complexity O(1) time and space.
+ * @example createDeadlineSignal({ waitMs: 5_000 }, { signal, startedAt, now: Date.now })
+ */
+export function createDeadlineSignal(
+  { waitMs }: { waitMs: number },
+  { signal, startedAt, now = Date.now }: DeadlineSignalOptions = {},
+): AbortSignal {
+  const elapsedMs = startedAt === undefined ? 0 : Math.max(0, now() - startedAt);
+  const deadline = AbortSignal.timeout(Math.max(0, waitMs - elapsedMs));
+  if (signal === undefined) return deadline;
+  return AbortSignal.any([deadline, signal]);
+}
+
 /** Opt-in byte and decoding guards; defaults remain unlimited and replacement-decoded. */
 export type TextReadOptions = {
   /** Nonnegative safe integer. Actual streamed bytes, independent of Content-Length. */

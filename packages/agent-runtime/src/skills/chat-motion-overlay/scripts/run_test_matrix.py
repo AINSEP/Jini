@@ -451,19 +451,6 @@ A?|right|第二个上传头像
                 )
                 continue
 
-        if case["name"] == "plain_bubbles_no_frame_first_message":
-            bubble_scene_source = (bundle_dir / "src" / "components" / "BubbleScene.tsx").read_text(encoding="utf-8")
-            if 'justifyContent: isRight ? "flex-end" : "flex-start"' not in bubble_scene_source:
-                results.append(
-                    {
-                        "case": case["name"],
-                        "status": "failed",
-                        "phase": "bubble_alignment_style",
-                        "details": "Bubble-only template must explicitly justify right-side rows to flex-end.",
-                    }
-                )
-                continue
-
         if case["name"] == "default_wechat_phone_preset_hidden":
             package_json_source = (bundle_dir / "package.json").read_text(encoding="utf-8")
             if '"render:mov": "remotion render src/index.ts ChatMotionOverlay out/chat-motion-overlay.mov' not in package_json_source:

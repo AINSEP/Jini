@@ -39,7 +39,7 @@ function consentManage({ config, record, reopen }: { config: ConsentConfig; reco
 export function renderConsentUi({ config, record, regionMode, gpc, endpoint }: { config: ConsentConfig; record: ConsentRecord | null; regionMode: ConsentRegionMode; gpc: boolean; endpoint: string }, _options = {}): string {
   const e = (text: string) => escapeHtml({ text });
   const choices = resolveConsentChoices({ choices: record?.choices, gpc, regionMode });
-  const placement = CONSENT_PLACEMENTS.includes(config.placement!) ? config.placement! : 'bottom-bar';
+  const placement = consentPlacement({ config });
   const categories = (['necessary', 'functional', 'analytics', 'marketing'] as const).map(category => {
     const locked = category === 'necessary' || (gpc && (category === 'analytics' || category === 'marketing'));
     return `<label class="jini-consent-category"><input type="checkbox" name="${category}"${choices[category] ? ' checked' : ''}${locked ? ' disabled' : ''}>${category[0]!.toUpperCase() + category.slice(1)}${category === 'necessary' ? ' (always on)' : ''}</label>`;
@@ -59,6 +59,10 @@ ${policyLinks({ config })}
 <button id="jini-consent-do-not-sell" name="action" value="do-not-sell" data-jini-do-not-sell-button>${regionMode === 'opt-out' ? 'Do not sell or share my info' : 'Do Not Sell or Share'}</button>
 <details id="jini-consent-preferences"${record === null ? '' : ' open'}><summary>${e(config.preferencesLabel)}</summary><fieldset><legend>Cookie categories</legend>${categories}</fieldset>
 <div class="jini-consent-actions"><button name="action" value="save">Save preferences</button><button name="action" value="reject">${e(config.rejectLabel)}</button></div></details></form>${manage[1]}</section>`;
+}
+
+function consentPlacement({ config }: { config: ConsentConfig }): string {
+  return CONSENT_PLACEMENTS.includes(config.placement!) ? config.placement! : 'bottom-bar';
 }
 
 /** Host-reviewed origins of resources a granted category may reach (an analytics collector,

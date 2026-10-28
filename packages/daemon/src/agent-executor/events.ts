@@ -888,12 +888,16 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    * text without base64. HTTP acceptance only
    * confirms the write; UUID-attributed CLI receipts separately confirm consumption. */
   async function sendUserMessage({ text, id = randomUUID(), attachmentIds }: { text: string; id?: string; attachmentIds?: readonly string[] }, { imageContents: images = [] }: { imageContents?: readonly MessageAttachmentImage[] } = {}): Promise<UserMessageDelivery> {
-    if (!acceptsMidRunUserMessages({ def })) return relay?.enqueue({ id, text, hasAttachments: images.length > 0 || (attachmentIds?.length ?? 0) > 0 }) ?? 'unsupported';
+    if (!acceptsMidRunUserMessages({ def })) return relayUserMessage({ id, text, images, attachmentIds });
     const stdin = child.stdin;
     if (stdinClosed || !stdin) return 'not-running';
     heldForBackgroundTasks = false;
     writeUserMessage(stdin, text, images, id);
     return 'delivered';
+  }
+
+  function relayUserMessage({ id, text, images, attachmentIds }: { id: string; text: string; images: readonly MessageAttachmentImage[]; attachmentIds: readonly string[] | undefined }): UserMessageDelivery {
+    return relay?.enqueue({ id, text, hasAttachments: images.length > 0 || (attachmentIds?.length ?? 0) > 0 }) ?? 'unsupported';
   }
 
   /** Writes a complete mid-run turn using the idle image encoder; journals text without base64.

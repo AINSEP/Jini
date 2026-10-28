@@ -1,11 +1,11 @@
 /**
- * Ported verbatim from shadcn's `new-york` style registry (`ui.shadcn.com/r/styles/new-york/button.json`
+ * Ported from shadcn's `new-york` style registry (`ui.shadcn.com/r/styles/new-york/button.json`
  * — the same JSON the CLI's `npx shadcn@latest add button` fetches, 2026-08-18). Only the `cn`
  * import path changed (`@/lib/utils` -> `./lib/utils.js`), same as `table.tsx`; every class name,
- * variant, and prop shape below is unmodified CLI output.
+ * variant, and size below is unmodified CLI output.
+ * The unused private `asChild` option is omitted: `ActionButton` always renders a button.
  */
 import * as React from 'react';
-import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from './lib/utils.js';
@@ -36,13 +36,10 @@ const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ className, variant, size, asChild = false, ...props }, ref) => {
-  const Comp = asChild ? Slot : 'button';
-  return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ className, variant, size, ...props }, ref) => {
+  return <button className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
 });
 Button.displayName = 'Button';
 

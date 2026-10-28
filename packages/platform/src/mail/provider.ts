@@ -76,9 +76,13 @@ export function validateMailProvider({ provider }: { provider: MailProviderModul
   if (typeof caps !== "object" || caps === null) return "capabilities are missing";
   // A capability claim without the code behind it is how Resend once advertised feedback with no route.
   if (caps.feedback !== (provider.feedback !== undefined)) return "capabilities.feedback must match the presence of a feedback parser";
-  const hasDomain = typeof provider.domainRequirements === "function" && typeof provider.domainStatus === "function";
+  const hasDomain = hasDomainVerification(provider);
   if (caps.domainVerification !== hasDomain) return "capabilities.domainVerification must match domainRequirements + domainStatus";
   return undefined;
+}
+
+function hasDomainVerification(provider: MailProviderModule): boolean {
+  return typeof provider.domainRequirements === "function" && typeof provider.domainStatus === "function";
 }
 
 export type MailProviderRegistry = ProviderRegistry<MailProviderModule>;

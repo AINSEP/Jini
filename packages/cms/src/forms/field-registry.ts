@@ -2,6 +2,16 @@
 import type { FieldDescriptor, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
 import { isValidFormEmail } from "./email-format.js";
 
+/**
+ * Escaping makes an attribute value inert, but cannot make a name such as onclick safe. Names
+ * are deny-by-default: only aria-* and data-* namespaces and a fixed closed list are accepted.
+ * Event handlers, style/formaction/href/src/srcdoc can inject behavior; id/name/type overrides
+ * can break label association, submission keys or the renderer's declared field vocabulary.
+ * Shared here so rendering can use the vocabulary without loading submission/descriptor validation.
+ */
+export const ATTRIBUTE_NAME_PATTERN =
+  /^(aria-[a-z0-9-]+|data-[a-z0-9-]+|placeholder|autocomplete|inputmode|pattern|title|min|max|step|minlength|spellcheck|readonly)$/;
+
 export type FieldResolution =
   | { kind: "absent" }
   | { kind: "rejected"; reason: string }

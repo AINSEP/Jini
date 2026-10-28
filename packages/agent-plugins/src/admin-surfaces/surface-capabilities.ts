@@ -323,7 +323,12 @@ export function openAdminSurfaceCapabilitySession(
     state: guardState(gate, host.state),
     publicConfig: guardPublicConfig(gate, host.publicConfig, declared.publicConfig ?? []),
     ...(deliveryBindings && { deliveryBindings }),
-    ...(declared.forms?.includes('list') && host.forms !== undefined && { forms: guardForms({ gate, host: host.forms }, optional) }),
+    ...declaredForms({ declared, host, gate }, optional),
   });
   return { capabilities, release: gate.release, sanitize: gate.sanitize, end: gate.end };
+}
+
+function declaredForms({ declared, host, gate }: { declared: AdminSurfaceCapabilityDeclarations; host: AdminSurfaceCapabilities; gate: AgentPluginCapabilityGate }, optional: { actorId?: string; signal?: AbortSignal } = {}): { forms?: AdminSurfaceForms } {
+  if (!declared.forms?.includes('list') || host.forms === undefined) return {};
+  return { forms: guardForms({ gate, host: host.forms }, optional) };
 }

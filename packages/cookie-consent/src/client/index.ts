@@ -147,7 +147,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const latest = fromCookie();
     // A refused cookie write leaves only this tab's choice; absence cannot supersede it.
     if (!latest && !cookiePersisted) return false;
-    if (latest?.t === stored?.t && latest?.a === stored?.a && latest?.r === stored?.r) return false;
+    if (sameStoredChoice({ latest, stored })) return false;
     stored = latest;
     apply();
     return true;
@@ -168,6 +168,10 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   doc.defaultView?.addEventListener('pageshow', () => adopt());
   if (stored?.q && stored.p === config.policy) void confirm(stored);   // durable retry of an earlier failed receipt
   return api;
+}
+
+function sameStoredChoice({ latest, stored }: { latest: StoredChoice | null; stored: StoredChoice | null }): boolean {
+  return latest?.t === stored?.t && latest?.a === stored?.a && latest?.r === stored?.r;
 }
 
 function durableEvidence({ evidence }: ClientOptions, _optional = {}): Extract<Evidence, { mode: 'durable' }> | null {

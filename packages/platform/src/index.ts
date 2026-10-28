@@ -85,8 +85,8 @@ export { atomicCopyFile, pathContains, readLogTail, removePathBestEffort } from 
 export type { HttpWaitOptions } from "./http.js";
 export { waitForHttpOk } from "./http.js";
 
-export type { FetchWithTimeoutOptions } from "./fetch-with-timeout.js";
-export { FETCH_TIMEOUT_MS, FetchTimeoutError, fetchWithTimeout } from "./fetch-with-timeout.js";
+export type { DeadlineSignalOptions, FetchWithTimeoutOptions } from "./fetch-with-timeout.js";
+export { FETCH_TIMEOUT_MS, FetchTimeoutError, createDeadlineSignal, fetchWithTimeout } from "./fetch-with-timeout.js";
 
 export type { WellKnownUserToolchainOptions } from "./toolchain.js";
 export { wellKnownUserToolchainBins } from "./toolchain.js";

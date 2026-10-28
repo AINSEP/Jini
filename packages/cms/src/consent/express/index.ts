@@ -118,12 +118,16 @@ async function saveChoice({ request, response, ports }: { request: Request; resp
   const { record } = created;
   const previous = receiptProof({ cookieHeader: request.get('cookie') ?? '', cookieName, ports }).id;
   await ports.records.save({ record });
-  // A replaced receipt must not authorize detached work. Retire before the new receipt is
-  // acknowledged; adapters retain the immutable original outside active lookup.
-  if (previous && /^[a-zA-Z0-9_-]{16,128}$/.test(previous)) await ports.records.retire?.({ id: previous });
+  await retirePreviousReceipt({ previous, ports });
   response.cookie(cookieName, record.id, { httpOnly: true, sameSite: 'lax', secure: new URL(origin).protocol === 'https:', path: '/', maxAge: CONSENT_MAX_AGE_MS });
   if (request.get('accept')?.includes('application/json')) { response.json({ record, signals: googleConsentSignals({ choices: record.choices }) }); return; }
   response.redirect(303, redirectDestination({ request, origin }));
+}
+
+async function retirePreviousReceipt({ previous, ports }: { previous: string | null; ports: ConsentHttpPorts }): Promise<void> {
+  // A replaced receipt must not authorize detached work. Retire before the new receipt is
+  // acknowledged; adapters retain the immutable original outside active lookup.
+  if (previous && /^[a-zA-Z0-9_-]{16,128}$/.test(previous)) await ports.records.retire?.({ id: previous });
 }
 
 /** On a read failure retain only an enabled last good policy; otherwise deny optional content.

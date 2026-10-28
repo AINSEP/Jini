@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   derivePaymentStatus, disputedMinor, mergeDisputeStatus, mergeIntentStatus, mergeRefundStatus, refundTotals, refundableMinor,
-  type IntentStatus, type RefundStatus,
+  type DisputeStatus, type IntentStatus, type RefundStatus,
 } from "../status.js";
 
 describe("intent status merge", () => {
@@ -31,6 +31,110 @@ describe("intent status merge", () => {
     for (const order of permutations) {
       const end = order.reduce<IntentStatus>((current, i) => mergeIntentStatus({ current, incoming: sequence[i]! }), "unknown");
       expect(end).toBe("succeeded");
+    }
+  });
+});
+
+describe("every evidence transition", () => {
+  const intents: IntentStatus[] = ["unknown", "requires_action", "pending", "authorized", "succeeded", "failed", "canceled"];
+  // Rows are the expected outcomes for each incoming status in `intents` order.
+  const intentOutcomes: Record<IntentStatus, IntentStatus[]> = {
+    unknown: ["unknown", "requires_action", "pending", "authorized", "succeeded", "failed", "canceled"],
+    requires_action: ["requires_action", "requires_action", "pending", "authorized", "succeeded", "failed", "canceled"],
+    pending: ["pending", "requires_action", "pending", "authorized", "succeeded", "failed", "canceled"],
+    authorized: ["authorized", "authorized", "authorized", "authorized", "succeeded", "authorized", "canceled"],
+    succeeded: ["succeeded", "succeeded", "succeeded", "succeeded", "succeeded", "succeeded", "succeeded"],
+    failed: ["failed", "failed", "failed", "authorized", "succeeded", "failed", "failed"],
+    canceled: ["canceled", "canceled", "canceled", "canceled", "canceled", "canceled", "canceled"],
+  };
+  for (const current of intents) {
+    test.each(intents.map((incoming, index) => ({ incoming, expected: intentOutcomes[current][index] })))
+      (`intent ${current} followed by $incoming keeps $expected`, ({ incoming, expected }) => {
+        expect(mergeIntentStatus({ current, incoming }, {})).toBe(expected);
+      });
+  }
+
+  const refunds: RefundStatus[] = ["reserved", "unknown", "pending", "succeeded", "failed"];
+  const refundOutcomes: Record<RefundStatus, RefundStatus[]> = {
+    reserved: ["reserved", "unknown", "pending", "succeeded", "failed"],
+    unknown: ["unknown", "unknown", "pending", "succeeded", "failed"],
+    pending: ["pending", "pending", "pending", "succeeded", "failed"],
+    succeeded: ["succeeded", "succeeded", "succeeded", "succeeded", "failed"],
+    failed: ["failed", "failed", "failed", "failed", "failed"],
+  };
+  for (const current of refunds) {
+    test.each(refunds.map((incoming, index) => ({ incoming, expected: refundOutcomes[current][index] })))
+      (`refund ${current} followed by $incoming keeps $expected`, ({ incoming, expected }) => {
+        expect(mergeRefundStatus({ current, incoming }, {})).toBe(expected);
+      });
+  }
+
+  const disputes: DisputeStatus[] = ["open", "won", "lost"];
+  const disputeOutcomes: Record<DisputeStatus, DisputeStatus[]> = {
+    open: ["open", "won", "lost"], won: ["won", "won", "won"], lost: ["lost", "lost", "lost"],
+  };
+  for (const current of disputes) {
+    test.each(disputes.map((incoming, index) => ({ incoming, expected: disputeOutcomes[current][index] })))
+      (`dispute ${current} followed by $incoming keeps $expected`, ({ incoming, expected }) => {
+        expect(mergeDisputeStatus({ current, incoming }, {})).toBe(expected);
+      });
+  }
+});
+
+describe("money boundaries and reversals", () => {
+  test.each(["unknown", "requires_action", "pending", "authorized", "failed", "canceled"] as IntentStatus[])
+    ("refund totals never replace an intent in %s", (intent) => {
+      expect(derivePaymentStatus({ intent, capturedMinor: 501, refundedMinor: 502 }, {})).toBe(intent);
+    });
+
+  test.each([
+    { refundedMinor: -1, expected: "succeeded" },
+    { refundedMinor: 0, expected: "succeeded" },
+    { refundedMinor: 1, expected: "partially_refunded" },
+    { refundedMinor: 500, expected: "partially_refunded" },
+    { refundedMinor: 501, expected: "refunded" },
+    { refundedMinor: 502, expected: "refunded" },
+  ])("501 captured minor units with $refundedMinor refunded derives $expected", ({ refundedMinor, expected }) => {
+    expect(derivePaymentStatus({ intent: "succeeded", capturedMinor: 501, refundedMinor })).toBe(expected);
+  });
+
+  test("a failed refund releases its exact hold without modifying the source rows", () => {
+    const refunds = Object.freeze([
+      Object.freeze({ status: "reserved" as const, amountMinor: 101 }),
+      Object.freeze({ status: "unknown" as const, amountMinor: 203 }),
+      Object.freeze({ status: "pending" as const, amountMinor: 307 }),
+      Object.freeze({ status: "succeeded" as const, amountMinor: 409 }),
+      Object.freeze({ status: "failed" as const, amountMinor: 997 }),
+    ]);
+    expect(refundTotals({ refunds }, {})).toEqual({ succeeded: 409, held: 611 });
+    expect(refundableMinor({ capturedMinor: 1_021, totals: refundTotals({ refunds }) }, {})).toBe(1);
+    const settled = refunds.map((row) => row.status === "pending" ? { ...row, status: "failed" as const } : row);
+    expect(refundTotals({ refunds: settled })).toEqual({ succeeded: 409, held: 304 });
+    expect(refundableMinor({ capturedMinor: 1_021, totals: refundTotals({ refunds: settled }) })).toBe(308);
+    expect(refunds[2]).toEqual({ status: "pending", amountMinor: 307 });
+  });
+
+  test("a won dispute restores only its withdrawn amount and empty disputes withdraw zero", () => {
+    const disputes = [{ status: "open" as const, amountMinor: 101 }, { status: "lost" as const, amountMinor: 203 }, { status: "won" as const, amountMinor: 307 }];
+    expect(disputedMinor({ disputes }, {})).toBe(304);
+    expect(disputedMinor({ disputes: [{ ...disputes[0]!, status: "won" }, disputes[1]!, disputes[2]!] })).toBe(203);
+    expect(disputedMinor({ disputes: [] })).toBe(0);
+  });
+
+  test.each([
+    { capturedMinor: 600, expected: 0 }, { capturedMinor: 601, expected: 0 }, { capturedMinor: 602, expected: 1 },
+  ])("301 succeeded plus 300 held leaves $expected when capture is $capturedMinor", ({ capturedMinor, expected }) => {
+    expect(refundableMinor({ capturedMinor, totals: { succeeded: 301, held: 300 } })).toBe(expected);
+  });
+
+  test("refund availability conserves exact minor units across combinations of held and settled rows", () => {
+    for (const succeeded of [0, 1, 101, 999]) {
+      for (const held of [0, 1, 203, 1_001]) {
+        const totals = refundTotals({ refunds: [{ status: "succeeded", amountMinor: succeeded }, { status: "reserved", amountMinor: held }] });
+        expect(totals).toEqual({ succeeded, held });
+        const available = refundableMinor({ capturedMinor: 1_000, totals });
+        expect(available).toBe(succeeded + held > 1_000 ? 0 : 1_000 - succeeded - held);
+      }
     }
   });
 });

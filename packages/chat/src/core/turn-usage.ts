@@ -87,9 +87,13 @@ export function turnUsage({ events }: { events: readonly AgentEvent[] | undefine
     addReportedCounts({ total, event });
     if (event.stopReason !== undefined) total.stopReason = event.stopReason;
     const cost = usageCost({ event, agentId, sessions });
-    if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
+    addReportedCost({ total, cost });
   }
   return total;
+}
+
+function addReportedCost({ total, cost }: { total: UsageEvent; cost: number | undefined }, _options = {}): void {
+  if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
 }
 
 /** Add an event's well-formed token and duration counts into `total`, in place. */

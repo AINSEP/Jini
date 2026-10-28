@@ -138,6 +138,28 @@ describe("parsePaymentProviderManifest", () => {
   ])("refuses %s", (_label, raw, reason) => {
     expect(parsePaymentProviderManifest({ raw })).toEqual(fail(reason));
   });
+
+  it.each([
+    ["null extensions", { extensions: null }, "extensions must be an object"],
+    ["a null namespace", { extensions: { [PAYMENT_PROVIDER_EXTENSION_NAMESPACE]: null } }, "extensions.ai.jini.commerce must be an object"],
+    ["an array namespace", { extensions: { [PAYMENT_PROVIDER_EXTENSION_NAMESPACE]: [] } }, "extensions.ai.jini.commerce must be an object"],
+    ["null providers despite a valid shorthand", { extensions: { [PAYMENT_PROVIDER_EXTENSION_NAMESPACE]: { providers: null, provider: "./fallback.js" } } }, "ai.jini.commerce.providers must be an array"],
+    ["a null entry", { extensions: { [PAYMENT_PROVIDER_EXTENSION_NAMESPACE]: { providers: [null] } } }, "ai.jini.commerce.providers[0].module must be a non-empty string"],
+    ["an array entry", { extensions: { [PAYMENT_PROVIDER_EXTENSION_NAMESPACE]: { providers: [[]] } } }, "ai.jini.commerce.providers[0].module must be a non-empty string"],
+    ["a numeric module", { extensions: { [PAYMENT_PROVIDER_EXTENSION_NAMESPACE]: { providers: [{ module: 1 }] } } }, "ai.jini.commerce.providers[0].module must be a non-empty string"],
+    ["a blank shorthand", { extensions: { [PAYMENT_PROVIDER_EXTENSION_NAMESPACE]: { provider: " \t " } } }, "extensions.ai.jini.commerce needs a providers array or a provider module string"],
+  ])("refuses %s without silently falling back", (_name, value, reason) => {
+    expect(parsePaymentProviderManifest({ raw: JSON.stringify(value) })).toEqual({ ok: false, reason });
+  });
+
+  it("one malformed provider declaration refuses the entire list before any module is imported", async () => {
+    const h = harness({ verdicts: [{ trusted: plugin }], raw: manifest({ providers: [{ module: "./valid.js" }, { module: "" }] }), exported: fakeProvider() });
+    expect(await h.load()).toEqual({
+      items: [],
+      refusals: ["payment providers from 'acme-pay' were not loaded: plugin.json is invalid: ai.jini.commerce.providers[1].module must be a non-empty string"],
+    });
+    expect(h.imports).toEqual([]);
+  });
 });
 
 describe("isPaymentProviderModule / paymentProviderModuleProblem", () => {

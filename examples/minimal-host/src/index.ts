@@ -102,140 +102,159 @@ async function main(): Promise<void> {
   try {
     // A genuine exercise of packed dependencies, not a no-op: this begins with a daemon-status
     // request and then uses the real HTTP run endpoints that are also exposed to consumers.
-    const response = await assertOk(
-      await fetchWithTimeout(`${daemon.url}/api/daemon/status`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
-      'GET /api/daemon/status',
-    );
-    const body = (await response.json()) as DaemonStatusBody;
-    if (body.ok !== true) {
-      throw new Error(`minimal-host: unexpected /api/daemon/status body: ${JSON.stringify(body)}`);
-    }
-
-    const create = await assertOk(
-      await fetchWithTimeout(
-        `${daemon.url}/api/runs`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contextRef: 'minimal-host-complete', idempotencyKey: 'complete-once' }),
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-      ),
-      'POST /api/runs',
-    );
-    const created = (await create.json()) as RunResponse;
-    const completedRunId = created.run?.id;
-    if (created.run?.state !== 'succeeded' || typeof completedRunId !== 'string') {
-      throw new Error(`minimal-host: completed run did not reach succeeded: ${JSON.stringify(created)}`);
-    }
-
-    const firstStream = await assertOk(
-      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
-      'GET /api/runs/:id/events',
-    );
-    const firstStreamBody = await firstStream.text();
-    const firstCursors = sseEventIds(firstStreamBody);
-    if (firstCursors.length < 3) {
-      throw new Error(`minimal-host: initial stream missed durable events: ${firstStreamBody}`);
-    }
-
-    const reconnected = await assertOk(
-      await fetchWithTimeout(
-        `${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`,
-        { headers: { 'last-event-id': firstCursors[0] ?? '' } },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-      ),
-      'GET /api/runs/:id/events reconnect',
-    );
-    const reconnectedBody = await reconnected.text();
-    if (!reconnectedBody.includes('event: stdout') || !reconnectedBody.includes('event: end')) {
-      throw new Error(`minimal-host: reconnect did not replay remaining events: ${reconnectedBody}`);
-    }
-
-    const acp = await assertOk(
-      await fetchWithTimeout(
-        `${daemon.url}/api/runs`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contextRef: 'minimal-host-acp', agentId: 'acp-fixture' }),
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-      ),
-      'POST /api/runs ACP fixture',
-    );
-    const acpBody = (await acp.json()) as RunResponse;
-    const acpRunId = acpBody.run?.id;
-    if (typeof acpRunId !== 'string') {
-      throw new Error(`minimal-host: ACP fixture did not create a run: ${JSON.stringify(acpBody)}`);
-    }
-    const acpStream = await assertOk(
-      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(acpRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
-      'GET /api/runs/:id/events ACP fixture',
-    );
-    const acpStreamBody = await acpStream.text();
-    if (!acpStreamBody.includes('minimal-host ACP completed run') || !acpStreamBody.includes('event: end')) {
-      throw new Error(`minimal-host: ACP fixture did not stream to completion: ${acpStreamBody}`);
-    }
-
-    const waiting = await assertOk(
-      await fetchWithTimeout(
-        `${daemon.url}/api/runs`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contextRef: 'minimal-host-cancel', agentId: 'wait-for-cancel' }),
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-      ),
-      'POST /api/runs waiting',
-    );
-    const waitingBody = (await waiting.json()) as RunResponse;
-    const waitingRunId = waitingBody.run?.id;
-    if (waitingBody.run?.state !== 'running' || typeof waitingRunId !== 'string') {
-      throw new Error(`minimal-host: waiting run did not start: ${JSON.stringify(waitingBody)}`);
-    }
-    await assertOk(
-      await fetchWithTimeout(
-        `${daemon.url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ reason: 'minimal-host cancellation check' }),
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
-      ),
-      'POST /api/runs/:id/cancel',
-    );
-    const cancellation = cancellationCompletions.get(waitingRunId);
-    if (cancellation === undefined) throw new Error('minimal-host: cancellation driver was not invoked');
-    await cancellation;
+    await verifyDaemonStatus({ url: daemon.url });
+    const completedRunId = await verifyCompletedRun({ url: daemon.url });
+    await verifyAcpRun({ url: daemon.url });
+    await verifyCancelledRun({ url: daemon.url, cancellationCompletions });
 
     // New process, same SQLite database: the lifecycle must rebuild its status index and stream
     // the old events. This is the restart/replay proof, not merely a second in-process lookup.
     await daemon.stop();
     daemon = await startDaemon();
-    const restored = await assertOk(
-      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
-      'GET /api/runs/:id after restart',
-    );
-    const restoredBody = (await restored.json()) as RunResponse;
-    if (restoredBody.run?.state !== 'succeeded') {
-      throw new Error(`minimal-host: durable state was not restored: ${JSON.stringify(restoredBody)}`);
-    }
-    const replayed = await assertOk(
-      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
-      'GET /api/runs/:id/events after restart',
-    );
-    if (!(await replayed.text()).includes('event: end')) {
-      throw new Error('minimal-host: durable event replay missed terminal event after restart');
-    }
+    await verifyRestoredRun({ url: daemon.url, completedRunId });
   } finally {
     await daemon.stop();
     rmSync(dataDir, { recursive: true, force: true });
   }
   // eslint-disable-next-line no-console
   console.log('MINIMAL_HOST_BOOT_OK');
+}
+
+async function verifyDaemonStatus({ url }: { url: string }): Promise<void> {
+  const response = await assertOk(
+    await fetchWithTimeout(`${url}/api/daemon/status`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    'GET /api/daemon/status',
+  );
+  const body = (await response.json()) as DaemonStatusBody;
+  if (body.ok !== true) {
+    throw new Error(`minimal-host: unexpected /api/daemon/status body: ${JSON.stringify(body)}`);
+  }
+}
+
+async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
+  const create = await assertOk(
+    await fetchWithTimeout(
+      `${url}/api/runs`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contextRef: 'minimal-host-complete', idempotencyKey: 'complete-once' }),
+      },
+      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+    ),
+    'POST /api/runs',
+  );
+  const created = (await create.json()) as RunResponse;
+  const completedRunId = created.run?.id;
+  if (created.run?.state !== 'succeeded' || typeof completedRunId !== 'string') {
+    throw new Error(`minimal-host: completed run did not reach succeeded: ${JSON.stringify(created)}`);
+  }
+
+  const firstStream = await assertOk(
+    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    'GET /api/runs/:id/events',
+  );
+  const firstStreamBody = await firstStream.text();
+  const firstCursors = sseEventIds(firstStreamBody);
+  if (firstCursors.length < 3) {
+    throw new Error(`minimal-host: initial stream missed durable events: ${firstStreamBody}`);
+  }
+
+  const reconnected = await assertOk(
+    await fetchWithTimeout(
+      `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`,
+      { headers: { 'last-event-id': firstCursors[0] ?? '' } },
+      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+    ),
+    'GET /api/runs/:id/events reconnect',
+  );
+  const reconnectedBody = await reconnected.text();
+  if (!reconnectedBody.includes('event: stdout') || !reconnectedBody.includes('event: end')) {
+    throw new Error(`minimal-host: reconnect did not replay remaining events: ${reconnectedBody}`);
+  }
+
+  return completedRunId;
+}
+
+async function verifyAcpRun({ url }: { url: string }): Promise<void> {
+  const acp = await assertOk(
+    await fetchWithTimeout(
+      `${url}/api/runs`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contextRef: 'minimal-host-acp', agentId: 'acp-fixture' }),
+      },
+      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+    ),
+    'POST /api/runs ACP fixture',
+  );
+  const acpBody = (await acp.json()) as RunResponse;
+  const acpRunId = acpBody.run?.id;
+  if (typeof acpRunId !== 'string') {
+    throw new Error(`minimal-host: ACP fixture did not create a run: ${JSON.stringify(acpBody)}`);
+  }
+  const acpStream = await assertOk(
+    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(acpRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    'GET /api/runs/:id/events ACP fixture',
+  );
+  const acpStreamBody = await acpStream.text();
+  if (!acpStreamBody.includes('minimal-host ACP completed run') || !acpStreamBody.includes('event: end')) {
+    throw new Error(`minimal-host: ACP fixture did not stream to completion: ${acpStreamBody}`);
+  }
+}
+
+async function verifyCancelledRun({ url, cancellationCompletions }: { url: string; cancellationCompletions: Map<string, Promise<unknown>> }): Promise<void> {
+  const waiting = await assertOk(
+    await fetchWithTimeout(
+      `${url}/api/runs`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contextRef: 'minimal-host-cancel', agentId: 'wait-for-cancel' }),
+      },
+      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+    ),
+    'POST /api/runs waiting',
+  );
+  const waitingBody = (await waiting.json()) as RunResponse;
+  const waitingRunId = waitingBody.run?.id;
+  if (waitingBody.run?.state !== 'running' || typeof waitingRunId !== 'string') {
+    throw new Error(`minimal-host: waiting run did not start: ${JSON.stringify(waitingBody)}`);
+  }
+  await assertOk(
+    await fetchWithTimeout(
+      `${url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reason: 'minimal-host cancellation check' }),
+      },
+      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+    ),
+    'POST /api/runs/:id/cancel',
+  );
+  const cancellation = cancellationCompletions.get(waitingRunId);
+  if (cancellation === undefined) throw new Error('minimal-host: cancellation driver was not invoked');
+  await cancellation;
+}
+
+async function verifyRestoredRun({ url, completedRunId }: { url: string; completedRunId: string }): Promise<void> {
+  const restored = await assertOk(
+    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    'GET /api/runs/:id after restart',
+  );
+  const restoredBody = (await restored.json()) as RunResponse;
+  if (restoredBody.run?.state !== 'succeeded') {
+    throw new Error(`minimal-host: durable state was not restored: ${JSON.stringify(restoredBody)}`);
+  }
+  const replayed = await assertOk(
+    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    'GET /api/runs/:id/events after restart',
+  );
+  if (!(await replayed.text()).includes('event: end')) {
+    throw new Error('minimal-host: durable event replay missed terminal event after restart');
+  }
 }
 
 main().catch((error: unknown) => {

@@ -1229,8 +1229,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
           ...(canRegisterRunMessageRelay({ def, mcpBridge }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
-          ...(input.model ? { startingModel: input.model } : {}),
-          ...(modelCatalog ? { modelCatalog } : {}),
+          ...childLifecycleOptions({ input, modelCatalog }),
           runId: input.runId,
           def,
           streamFormat: formatForStdin.streamFormat,
@@ -1242,8 +1241,6 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           onCleanupFailure: onCleanupFailureFn,
           cleanupStagedFiles,
           journal,
-          ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}),
-          ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}),
           continuation,
           classifyFailure,
           bufferedStdoutMaxBytes,
@@ -1261,6 +1258,15 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     });
     child.once('close', () => { liveRunInputs.delete(runId); liveRunRelays.delete(runId); });
     return stdinHandle;
+  }
+
+  function childLifecycleOptions({ input, modelCatalog }: { input: AgentExecutorRunInput; modelCatalog: ModelCatalogSnapshot | undefined }) {
+    return {
+      ...(input.model ? { startingModel: input.model } : {}),
+      ...(modelCatalog ? { modelCatalog } : {}),
+      ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}),
+      ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}),
+    };
   }
 
   async function dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }: {

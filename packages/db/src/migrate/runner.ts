@@ -241,9 +241,8 @@ export async function runMigrations(
   let backedUp = false;
   for (const step of steps) {
     if (done.has(step.id)) continue;
-    if (!backedUp) await backUpBeforeChange(kernel, context);
+    await preparePendingStep({ kernel, context, step, backedUp });
     backedUp = true;
-    await step.prepare?.(kernel, context);
     const applied = await kernel.transaction(async () => {
       await kernel.lockKey(ledger.lockKey);
       await ensureLedger(kernel, ledger);
@@ -255,6 +254,11 @@ export async function runMigrations(
     (applied ? report.applied : report.alreadyApplied).push(step.id);
   }
   return report;
+}
+
+async function preparePendingStep({ kernel, context, step, backedUp }: { kernel: StorageKernel<unknown>; context: MigrationContext; step: MigrationStep; backedUp: boolean }): Promise<void> {
+  if (!backedUp) await backUpBeforeChange(kernel, context);
+  await step.prepare?.(kernel, context);
 }
 
 /** The pre-change copy (see the file header). Outside any transaction: a backup cannot run inside one. */

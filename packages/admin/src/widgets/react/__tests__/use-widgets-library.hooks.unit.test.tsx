@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import { act, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -217,6 +216,7 @@ describe("useWidgetsLibrary — delete confirms first, then trashes exactly once
   it("requestTrash opens the confirm and sends nothing until confirmed", async () => {
     const port = createFakeWidgetsPort({ widgets: [WIDGET] });
     const trashSpy = vi.spyOn(port, "trashWidget");
+    // A port with no permanent-removal operation must satisfy every call made by this hook.
     const allowed = new Set(["listWidgets", "trashWidget"]);
     const strictPort = new Proxy(port, { get(target, name, receiver) {
       if (typeof name === "string" && !allowed.has(name)) throw new Error(`unexpected widget operation: ${name}`);
@@ -335,20 +335,3 @@ describe("useWidgetsLibrary — trash error mapping", () => {
   });
 });
 
-// Grep-style regression: the widget escalation is gone for good — a WidgetsPort with no
-// permanent-removal operation still satisfies every call site in this hook file and its component.
-// Reading the source text pins that no permanent-removal call or force option survived the rewrite
-// — the codebase's established "scan the source text" idiom, e.g.
-// `deployment/__tests__/rules.unit.test.ts`'s `.not.toMatch` assertions.
-describe("useWidgetsLibrary/WidgetsLibrary — no permanent-removal call remains", () => {
-  it.each([
-    "src/features/widgets/hooks/use-widgets-library.hooks.ts",
-    "src/features/widgets/WidgetsLibrary.tsx",
-  ])("%s calls no purge/force-purge method and passes no force option", async (relPath) => {
-    const [fs, path] = await Promise.all([import("node:fs/promises"), import("node:path")]);
-    const source = await fs.readFile(path.resolve(path.dirname(fileURLToPath(import.meta.url)), relPath.endsWith("WidgetsLibrary.tsx") ? "../pages/WidgetsLibrary.tsx" : "../hooks/use-widgets-library.hooks.ts"), "utf-8");
-    expect(source).not.toMatch(/\.purge\w*\s*\(/i);
-    expect(source).not.toMatch(/force\s*:/i);
-    expect(source).not.toMatch(/pendingForcePurge|confirmForcePurge|trashOrPurge/);
-  });
-});

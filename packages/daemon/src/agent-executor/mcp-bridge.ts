@@ -294,12 +294,9 @@ export function buildMcpBridgeDelivery(input: {
   readonly credential: string | undefined;
   readonly messageRelayNonce?: string;
 }): McpBridgeDelivery | null {
-  const { cwd, runId, strategy, options, credential } = input;
+  const { cwd, runId, strategy, options } = input;
   if (options === undefined || strategy === undefined) return null;
-  const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, {
-    ...(credential === undefined ? {} : { credential }),
-    ...(input.messageRelayNonce ? { messageRelayNonce: input.messageRelayNonce } : {}),
-  });
+  const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, bridgeCredentialOptions(input));
   switch (strategy) {
     case 'claude-mcp-json':
       return { kind: 'claude-mcp-json', mcpJsonPath: mcpJsonPathForRun(cwd, runId), serverEntry };
@@ -313,6 +310,13 @@ export function buildMcpBridgeDelivery(input: {
     case 'env-passthrough':
       return { kind: 'env-passthrough', serverEntry };
   }
+}
+
+function bridgeCredentialOptions(input: { credential: string | undefined; messageRelayNonce?: string }) {
+  return {
+    ...(input.credential === undefined ? {} : { credential: input.credential }),
+    ...(input.messageRelayNonce ? { messageRelayNonce: input.messageRelayNonce } : {}),
+  };
 }
 
 export function defaultReadMcpJsonFile({ path }: { readonly path: string }): Promise<string> {

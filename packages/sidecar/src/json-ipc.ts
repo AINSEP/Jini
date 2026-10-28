@@ -495,13 +495,7 @@ export async function requestJsonIpc<T = any>(
             socketPath,
             traceId,
           });
-          const rejection = new Error(response.error?.message ?? "IPC request failed") as Error & {
-            code?: string;
-            requestId?: string;
-          };
-          if (response.error?.code !== undefined) rejection.code = response.error.code;
-          if (response.error?.requestId !== undefined) rejection.requestId = response.error.requestId;
-          rejectRequest(rejection);
+          rejectRequest(ipcResponseError(response.error));
           return;
         }
         traceJsonIpc("client.response_success", {
@@ -536,4 +530,11 @@ export async function requestJsonIpc<T = any>(
       settle(() => rejectRequest(new Error(`IPC connection closed before a complete response: ${socketPath}`)));
     });
   });
+}
+
+function ipcResponseError(error: { code?: string; message?: string; requestId?: string } | undefined): Error & { code?: string; requestId?: string } {
+  const rejection = new Error(error?.message ?? "IPC request failed") as Error & { code?: string; requestId?: string };
+  if (error?.code !== undefined) rejection.code = error.code;
+  if (error?.requestId !== undefined) rejection.requestId = error.requestId;
+  return rejection;
 }

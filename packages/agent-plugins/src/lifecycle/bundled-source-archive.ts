@@ -121,11 +121,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     assertPackingLimit({ state, name: 'maxArchiveBytes', value: state.archiveBytes });
     await refuseRoot({ sourceDir, state });
     const relativePaths = (await listRegularFiles({ dir: sourceDir, prefix: '', depth: 0, state })).sort();
-    if (relativePaths.length > MAX_SOURCE_FILES) {
-      throw new Error(
-        `bundled agent plugin at '${sourceDir}' has ${relativePaths.length} files, over the ${MAX_SOURCE_FILES}-file cap — is this the right directory?`,
-      );
-    }
+    assertSourceFileCount({ relativePaths, sourceDir });
 
     const chunks: Buffer[] = [Buffer.from(MAGIC, "utf8")];
     const snapshot: { entryPath: string; content: Buffer }[] = [];
@@ -153,6 +149,14 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       files: relativePaths,
       ...(canonical ? { archiveReader: createSnapshotReader({ token: bytes, snapshot }) } : {}),
     };
+  }
+
+  function assertSourceFileCount({ relativePaths, sourceDir }: { relativePaths: readonly string[]; sourceDir: string }): void {
+    if (relativePaths.length > MAX_SOURCE_FILES) {
+      throw new Error(
+        `bundled agent plugin at '${sourceDir}' has ${relativePaths.length} files, over the ${MAX_SOURCE_FILES}-file cap — is this the right directory?`,
+      );
+    }
   }
 
   /** Validate caller bounds before I/O and normalize selection through the package path owner. */
@@ -341,18 +345,28 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       if (state.excluded.has(entry.name)) continue;
       if (!selectPath({ relative, directory: entry.isDirectory(), state })) continue;
       if (entry.isDirectory()) {
-        if (entry.name === '__tests__') continue;
-        assertPackingLimit({ state, name: 'maxDepth', value: depth + 1 });
-        files.push(...(await listRegularFiles({ dir: path.join(dir, entry.name), prefix: relative, depth: depth + 1, state })));
-      } else if (entry.isFile() && !/\.(test|spec)\./.test(entry.name)) {
-        recordFile({ relative, state });
-        files.push(relative);
-      } else if (!entry.isFile()) {
-        refuseEntry({ state, entryPath: relative, symlink: entry.isSymbolicLink() });
+        files.push(...await directoryEntryFiles({ name: entry.name, dir, relative, depth, state }));
+      } else {
+        files.push(...regularEntryFiles({ entry, relative, state }));
       }
       // Symlinks and everything else: skipped by default. See this function's own doc.
     }
     return files;
+  }
+
+  async function directoryEntryFiles({ name, dir, relative, depth, state }: { name: string; dir: string; relative: string; depth: number; state: PackingState }): Promise<string[]> {
+    if (name === '__tests__') return [];
+    assertPackingLimit({ state, name: 'maxDepth', value: depth + 1 });
+    return listRegularFiles({ dir: path.join(dir, name), prefix: relative, depth: depth + 1, state });
+  }
+
+  function regularEntryFiles({ entry, relative, state }: { entry: { name: string; isFile(): boolean; isSymbolicLink(): boolean }; relative: string; state: PackingState }): string[] {
+    if (entry.isFile() && !/\.(test|spec)\./.test(entry.name)) {
+      recordFile({ relative, state });
+      return [relative];
+    }
+    if (!entry.isFile()) refuseEntry({ state, entryPath: relative, symlink: entry.isSymbolicLink() });
+    return [];
   }
 
   function recordFile({ relative, state }: { relative: string; state: PackingState }): void {

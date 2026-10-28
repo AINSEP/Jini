@@ -37,6 +37,7 @@ need a `PtySpawn` implementation supplied by the caller — this package defines
   so profile-only `PATH` entries are visible).
 - **Filesystem** — `pathContains`, `atomicCopyFile`, `removePathBestEffort`, `readLogTail`.
 - **HTTP readiness** — `waitForHttpOk`.
+- **Deadline signals** — `createDeadlineSignal({ waitMs }, { signal, startedAt, now })` from `@jini-ai/platform/fetch-with-timeout`; subtracts elapsed milliseconds using the optional `now: () => number` clock (default `Date.now`) and combines the remaining budget with caller cancellation.
 - **Toolchain discovery** — `wellKnownUserToolchainBins` (npm/pnpm/bun/cargo/deno/go/pyenv,
   asdf/volta/mise/nvm/fnm shims).
 - **Proxy-aware env** — `resolveSystemProxyEnv`, `mergeProxyAwareEnv` (macOS `scutil` / Windows
@@ -221,6 +222,7 @@ vendor-shaped `NativeSmtpTransport` so the factory adapts the payload once. Poli
 
 | Subpath | API and required host ports/policy |
 | --- | --- |
+| `./mail` | `createMailAdapterContext({ credential, kit }, { now, settings })` supplies a live clock and fresh empty settings by default; modules validate opaque per-install settings. |
 | `@jini-ai/analytics` (separate package) | `ingestHit({ input, deps }, { hooks, hash })`, `normalizeIngestContext({ input, dailySalt }, { hash })`, `deriveDailySalt({ rootKeySeed, workspaceId, utcDate, saltContext })`. The host supplies sink/config, host resolution, HKDF context, and privacy bounds. `LocalBufferSink({}, { initialHits })` is process-local. |
 | `@jini-ai/cms/trash` (separate package) | `createTrashService({ repo, adapters, transaction, idGen, entityPolicy }, { retentionDays, ...optional })`, `createTrashSweep({ repo, adapters, transaction, entityPolicy })`, and `startTrashSweeper({ sweep, clock, scheduler, leaseOwner }, optional)`. The host owns authorization, transactions, retention, scheduling, and adapters; follow-up hooks are in argument two. |
 | `./fs` | `writeFileAtomic({ filePath, content, fs, tempName })`, `writeJsonFileAtomic({ filePath, data, fs, tempName })`, `upsertEnvLine({ source, key, value })`, `readEnvLine({ source, key })`, `resolvePathWithin({ root, segment })`. Atomic writes preserve existing modes and require filesystem/temp-name ports. |

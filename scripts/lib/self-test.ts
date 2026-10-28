@@ -168,44 +168,47 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // Db has no root export: only these explicit public entries may cross package boundaries.
     const dbPublicEntries = ['core', 'sqlite', 'pglite', 'postgres', 'kernel', 'kernel/sqlite',
       'kernel/pglite', 'kernel/postgres', 'migrate', 'package.json'];
-    for (const [index, subpath] of dbPublicEntries.entries()) {
-      write(root, `packages/http-kit/src/ok-r2-db-${index}.ts`, `export * from '@jini-ai/db/${subpath}';\n`);
-    }
-    write(root, 'packages/http-kit/src/bad-r2-db-private.ts', `export * from '@jini-ai/db/kernel/private';\n`);
-    write(root, 'packages/http-kit/src/bad-r2-db-source.ts', `export * from '@jini-ai/db/src/core/index.js';\n`);
-    // REGRESSION: fails if the exact public CMS trash R2 exemption is removed.
-    write(root, 'packages/server/src/ok-r2-cms-trash.ts', `export * from '@jini-ai/cms/trash';\n`);
-    // PARITY: the trash entry never authorizes private nested implementation paths.
-    write(root, 'packages/server/src/bad-r2-cms-trash-private.ts', `export * from '@jini-ai/cms/trash/private';\n`);
-    // REGRESSION: fails if the exact public core/primitives or core/text R2 exemption is removed.
-    for (const subpath of ['primitives', 'text']) {
-      write(root, `packages/http-kit/src/ok-r2-core-${subpath}.ts`, `export * from '@jini-ai/core/${subpath}';\n`);
-    }
-    // REGRESSION: fails if either exact optional Node adapter exemption is removed.
-    for (const [index, spec] of ['@jini-ai/devops/deploy/node', '@jini-ai/sidecar/supervisor/node'].entries()) {
-      write(root, `packages/server/src/ok-r2-node-adapter-${index}.ts`, `export * from '${spec}';\n`);
-      // PARITY: an adapter entry does not authorize its private implementation paths.
-      write(root, `packages/server/src/bad-r2-node-adapter-${index}.ts`, `export * from '${spec}/private';\n`);
-    }
-    // REGRESSION: fails if any exact public platform/net, platform/fs or platform/fs/file-lock exemption is removed.
-    for (const [index, subpath] of ['net', 'fs', 'fs/file-lock'].entries()) {
-      write(root, `packages/http-kit/src/ok-r2-platform-${index}.ts`, `export * from '@jini-ai/platform/${subpath}';\n`);
-    }
-    // PARITY: the public entries do not authorize nested private source paths.
-    for (const [index, subpath] of ['net/private', 'fs/private', 'fs/file-lock/private'].entries()) {
-      write(root, `packages/http-kit/src/bad-r2-platform-${index}.ts`, `export * from '@jini-ai/platform/${subpath}';\n`);
-    }
-    // PARITY: approved entries do not permit private nested paths or arbitrary core subpaths.
-    for (const [index, subpath] of ['primitives/private', 'text/private', 'composition/private', 'other'].entries()) {
-      write(root, `packages/http-kit/src/bad-r2-core-${index}.ts`, `export * from '@jini-ai/core/${subpath}';\n`);
-    }
-    // REGRESSION: fails if the exact daemon public entry exemptions are removed.
     const daemonPublicEntries = ['http', 'read-only-tools', 'scheduler', 'tool-audit', 'surface-exchanges', 'session-coordination', 'run-credentials'];
-    for (const [index, subpath] of daemonPublicEntries.entries()) {
-      write(root, `packages/server/src/ok-r2-daemon-${index}.ts`, `export * from '@jini-ai/daemon/${subpath}';\n`);
-      // PARITY: a public entry never authorizes its private implementation paths.
-      write(root, `packages/server/src/bad-r2-daemon-${index}.ts`, `export * from '@jini-ai/daemon/${subpath}/private';\n`);
+    function writePublicEntryFixtures(): void {
+      for (const [index, subpath] of dbPublicEntries.entries()) {
+        write(root, `packages/http-kit/src/ok-r2-db-${index}.ts`, `export * from '@jini-ai/db/${subpath}';\n`);
+      }
+      write(root, 'packages/http-kit/src/bad-r2-db-private.ts', `export * from '@jini-ai/db/kernel/private';\n`);
+      write(root, 'packages/http-kit/src/bad-r2-db-source.ts', `export * from '@jini-ai/db/src/core/index.js';\n`);
+      // REGRESSION: fails if the exact public CMS trash R2 exemption is removed.
+      write(root, 'packages/server/src/ok-r2-cms-trash.ts', `export * from '@jini-ai/cms/trash';\n`);
+      // PARITY: the trash entry never authorizes private nested implementation paths.
+      write(root, 'packages/server/src/bad-r2-cms-trash-private.ts', `export * from '@jini-ai/cms/trash/private';\n`);
+      // REGRESSION: fails if the exact public core/primitives or core/text R2 exemption is removed.
+      for (const subpath of ['primitives', 'text']) {
+        write(root, `packages/http-kit/src/ok-r2-core-${subpath}.ts`, `export * from '@jini-ai/core/${subpath}';\n`);
+      }
+      // REGRESSION: fails if either exact optional Node adapter exemption is removed.
+      for (const [index, spec] of ['@jini-ai/devops/deploy/node', '@jini-ai/sidecar/supervisor/node'].entries()) {
+        write(root, `packages/server/src/ok-r2-node-adapter-${index}.ts`, `export * from '${spec}';\n`);
+        // PARITY: an adapter entry does not authorize its private implementation paths.
+        write(root, `packages/server/src/bad-r2-node-adapter-${index}.ts`, `export * from '${spec}/private';\n`);
+      }
+      // REGRESSION: fails if any exact public platform/net, platform/fs or platform/fs/file-lock exemption is removed.
+      for (const [index, subpath] of ['net', 'fs', 'fs/file-lock'].entries()) {
+        write(root, `packages/http-kit/src/ok-r2-platform-${index}.ts`, `export * from '@jini-ai/platform/${subpath}';\n`);
+      }
+      // PARITY: the public entries do not authorize nested private source paths.
+      for (const [index, subpath] of ['net/private', 'fs/private', 'fs/file-lock/private'].entries()) {
+        write(root, `packages/http-kit/src/bad-r2-platform-${index}.ts`, `export * from '@jini-ai/platform/${subpath}';\n`);
+      }
+      // PARITY: approved entries do not permit private nested paths or arbitrary core subpaths.
+      for (const [index, subpath] of ['primitives/private', 'text/private', 'composition/private', 'other'].entries()) {
+        write(root, `packages/http-kit/src/bad-r2-core-${index}.ts`, `export * from '@jini-ai/core/${subpath}';\n`);
+      }
+      // REGRESSION: fails if the exact daemon public entry exemptions are removed.
+      for (const [index, subpath] of daemonPublicEntries.entries()) {
+        write(root, `packages/server/src/ok-r2-daemon-${index}.ts`, `export * from '@jini-ai/daemon/${subpath}';\n`);
+        // PARITY: a public entry never authorizes its private implementation paths.
+        write(root, `packages/server/src/bad-r2-daemon-${index}.ts`, `export * from '@jini-ai/daemon/${subpath}/private';\n`);
+      }
     }
+    writePublicEntryFixtures();
     // REGRESSION: fails if the exact cms/settings/express R2 exemption is removed.
     write(root, 'packages/http-kit/src/ok-r2-cms-settings.ts', `export * from '@jini-ai/cms/settings/express';\n`);
     // PARITY: the public entry never permits private implementation paths or adjacent entries.
@@ -638,7 +641,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       ],
       now: r13Now,
       probeLive: r13Probe,
-      report: () => {},
+      report: () => { },
     });
 
     const has = (violations: { rule: string; file: string }[], rule: string, fileSuffix: string) =>
@@ -787,7 +790,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       ],
       [
         has(chatPaneViolations, 'R10-chatpane-public-surface', 'ChatPane.tsx') &&
-          chatPaneViolations.filter((v) => v.file.endsWith('ChatPane.tsx') && v.reason.includes('"PrivateThing"')).length === 1,
+        chatPaneViolations.filter((v) => v.file.endsWith('ChatPane.tsx') && v.reason.includes('"PrivateThing"')).length === 1,
         'R10 should catch a non-public name reached from an escaping import, alongside a public name in the same clause',
       ],
       [
@@ -820,12 +823,12 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       ],
       [
         has(extensionlessViolations, 'R11-extensionless-import', 'bad-no-ext-file.ts') &&
-          extensionlessViolations.some((v) => v.file.endsWith('bad-no-ext-file.ts') && v.reason.includes('"./sibling.js"') && !v.reason.includes('/index.js')),
+        extensionlessViolations.some((v) => v.file.endsWith('bad-no-ext-file.ts') && v.reason.includes('"./sibling.js"') && !v.reason.includes('/index.js')),
         'R11 should catch an extensionless import of a real sibling file, hinting ".js" not "/index.js"',
       ],
       [
         has(extensionlessViolations, 'R11-extensionless-import', 'bad-no-ext-dir.ts') &&
-          extensionlessViolations.some((v) => v.file.endsWith('bad-no-ext-dir.ts') && v.reason.includes('"./subdir/index.js"')),
+        extensionlessViolations.some((v) => v.file.endsWith('bad-no-ext-dir.ts') && v.reason.includes('"./subdir/index.js"')),
         'R11 should catch an extensionless import that actually names a directory, hinting "/index.js"',
       ],
       [!extensionlessViolations.some((v) => v.file.endsWith('ok-with-ext.ts')), 'R11 must NOT flag a relative import that already has ".js"'],
