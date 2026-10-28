@@ -5,6 +5,9 @@ import type { FieldDescriptor } from "./types.js";
 import { FIELD_TYPE_REGISTRY, isSafeFieldPattern } from "./field-registry.js";
 import { ATTRIBUTE_NAME_PATTERN } from "./forms.js";
 
+// Renderers need the shared retry copy without importing the forms service/repository barrel.
+export { FORM_SUBMISSION_TOO_FAST_MESSAGE } from "./errors.js";
+
 /** Attribute names are trusted host constants, not visitor input. Values are always escaped. */
 export interface FormHtmlHooks { field: string; form: string; success: string; error: string; }
 
