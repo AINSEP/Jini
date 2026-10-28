@@ -1,5 +1,5 @@
 import { createRef } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -1228,6 +1228,37 @@ describe('ChatPane accepted input recording', () => {
     expect(screen.getByRole('textbox')).toHaveValue('keep this draft');
     expect(saved).toEqual([]);
     expect(document.querySelectorAll('.jini-message-user')).toHaveLength(0);
+  });
+
+  // Owner regression, 2026-10-27: a send made while the API restarted vanished with no word of why.
+  it('says a send the server never accepted was not sent, and Retry sends the kept draft', async () => {
+    const transport = createFakeChatTransport();
+    const accept = transport.startRun.bind(transport);
+    transport.startRun = vi.fn()
+      .mockRejectedValueOnce(new Error('agent run failed to start (503): The Tovu server is restarting.'))
+      .mockImplementation(accept);
+    render(<ChatPane transport={transport} agents={agents} initialDraft="can you read the folder" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Not sent: agent run failed to start (503): The Tovu server is restarting.');
+    expect(screen.queryByText(/Thinking/)).toBeNull();
+    expect(screen.getByRole('textbox')).toHaveValue('can you read the folder');
+    await act(async () => { fireEvent.click(within(alert).getByRole('button', { name: 'Retry' })); });
+    expect(transport.startRun).toHaveBeenCalledTimes(2);
+    expect(transport.calls.at(-1)?.input.history.at(-1)).toMatchObject({ role: 'user', content: 'can you read the folder' });
+    expect(screen.queryByText(/Not sent/)).toBeNull();
+    // The retried run was accepted: its own later failure belongs on its message, not here.
+    act(() => transport.fail(new Error('runtime failed')));
+    expect(screen.queryByText(/Not sent/)).toBeNull();
+  });
+
+  it('keeps an accepted run that later fails on its own message, not as "Not sent"', async () => {
+    const transport = createFakeChatTransport();
+    render(<ChatPane transport={transport} agents={agents} initialDraft="hello" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    act(() => transport.fail(new Error('runtime failed')));
+    expect(document.querySelectorAll('.jini-message-user')).toHaveLength(1);
+    expect(screen.queryByText(/Not sent/)).toBeNull();
   });
 });
 
