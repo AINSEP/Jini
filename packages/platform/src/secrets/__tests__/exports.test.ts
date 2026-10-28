@@ -14,7 +14,7 @@ test("retains published subpaths and declares adapter dependencies as optional p
         expect(existsSync(fileURLToPath(new URL(`src/${source}.ts`, root)))).toBe(true);
         expect(manifest.jini.entries[subpath!]).toBe(subpath === "./net/endpoint-policy" || subpath === "./secrets/credential-token" ? "universal" : "node");
     }
-    expect(manifest.dependencies).toEqual({ "@jini-ai/core": "^0.6.12" });
+    expect(manifest.dependencies).toEqual({ "@jini-ai/core": "^0.6.13" });
     const adapterPeers = { undici: "^7.25.0", parse5: "7.3.0", "hast-util-from-parse5": "8.0.3", "hast-util-to-mdast": "10.1.2", "mdast-util-to-markdown": "2.1.2", "mdast-util-gfm-table": "2.0.0" };
     expect(manifest.peerDependencies).toEqual(adapterPeers);
     expect(manifest.peerDependenciesMeta).toEqual(Object.fromEntries(Object.keys(adapterPeers).map(name => [name, { optional: true }])));

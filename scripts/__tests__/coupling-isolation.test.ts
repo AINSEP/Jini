@@ -13,7 +13,7 @@ describe('platform OS helper import isolation', () => {
     const entry = audit.closures.find(closure => closure.package === '@jini-ai/platform' && closure.subpath === `./${name}`);
     // Exact closure checks catch indirect barrel loads, including services without external deps.
     const files = [`packages/platform/src/${name}.ts`];
-    if (name === 'process') files.push('packages/platform/src/command.ts');
+    if (name === 'process') files.push('packages/platform/src/command.ts', 'packages/platform/src/shell.ts');
     expect(entry?.files).toEqual(files.sort());
     expect(entry?.dependencies).toEqual([]); // In particular, no Undici, drivers or renderer SDKs.
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/platform'
@@ -25,8 +25,8 @@ describe('model-discovery policy import isolation', () => {
   it('cannot reach native process/filesystem modules or its adapter implementations', () => {
     const entry = audit.closures.find(closure => closure.package === '@jini-ai/agent-runtime' && closure.subpath === './model-discovery');
     expect(entry?.files).toEqual([
+      'packages/agent-runtime/src/core/model-discovery-shared.ts',
       'packages/agent-runtime/src/model-discovery-config.ts',
-      'packages/agent-runtime/src/model-discovery-shared.ts',
       'packages/agent-runtime/src/model-discovery.ts',
     ]);
     expect(entry?.dependencies).toEqual([]);

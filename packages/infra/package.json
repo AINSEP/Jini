@@ -82,7 +82,7 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/db": "^0.3.4"
+    "@jini-ai/db": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "@jini-ai/db": { "optional": true }
