@@ -132,6 +132,25 @@ it('refuses a permission mode other than restricted or bypass before anything is
   expect(calls).toEqual([]);
 });
 
+it('streams the typed native-policy failure once without spawning any CLI', async () => {
+  const eventLog = createInMemoryEventLog({});
+  const lifecycle = createRunLifecycle({ eventLog });
+  const calls: SpawnRecord[] = [];
+  const def = createDef({ supportsNativeToolAccess: false });
+  const executor = createAgentExecutor({ lifecycle }, { hostEnv: {}, getAgentDef: () => def, spawn: recordingSpawn(createFakeChild(4303), calls) });
+  const { run } = await lifecycle.start({ contextRef: 'native-policy' });
+  await expect(executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch }, { nativeToolAccess: false }))
+    .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
+  expect(calls).toEqual([]);
+  const replay = await eventLog.replay({ runId: run.id, afterCursor: null });
+  expect(replay.kind).toBe('ok');
+  if (replay.kind !== 'ok') throw new Error('missing launch events');
+  const failures = replay.entries.filter(entry => entry.event === 'error');
+  expect(failures).toHaveLength(1);
+  expect(failures[0]!.data).toMatchObject({ error: { code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' }, message: expect.stringContaining('Choose a CLI') });
+  expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('failed');
+});
+
 it('removes the staged system-prompt overlay file when the spawn itself throws', async () => {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const calls: SpawnRecord[] = [];

@@ -6,8 +6,8 @@ import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, Recove
 
 import { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
 export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
-// translateRunFrame saves a run error frame as a status label holding only its message: the
-// daemon's MCP_BRIDGE_UNAVAILABLE code is dropped, so the bridge failure is matched by its text.
+// Older saved run error frames hold only their message: the daemon's MCP_BRIDGE_UNAVAILABLE
+// code was dropped, so the bridge failure is still matched by its text.
 const MCP_BRIDGE_FAILURE = /The assistant's tools did not load \(MCP bridge "jini" status: [^\r\n]*/;
 const STOPPED_NOTICE = "Stopped. Saved work is above.";
 type FailureClass = "retryable" | "permanent" | "auth-failure" | "inactivity-watchdog";
@@ -34,9 +34,10 @@ function diagnosticLine({ line }: { line: string }, _optional = {}): string[] {
   return [line];
 }
 
-/** A saved raw event may hold several JSONL lines; filter each before failure classification. */
+/** A saved raw event may hold several JSONL lines; filter each before failure classification.
+ * A status's typed code counts too: a launch `*_UNSUPPORTED` code (any CLI) cannot heal on retry. */
 function diagnosticLines({ event }: { event: AgentEvent }, _optional = {}): string[] {
-  if (event.kind === "status") return [event.label, event.detail ?? ""];
+  if (event.kind === "status") return [event.code ?? "", event.label, event.detail ?? ""];
   if (event.kind !== "raw") return [];
   return event.line.split(/\r?\n/).flatMap(line => diagnosticLine({ line }));
 }

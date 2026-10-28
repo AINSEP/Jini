@@ -739,6 +739,7 @@ describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
     expect(kinds.slice(-2)).toEqual(['error', 'end']);
     expect(events.find((event) => event.kind === 'error')?.payload).toEqual({
       message: 'The assistant could not start: unknown agentId "nope"',
+      error: { code: 'AGENT_NOT_FOUND', message: 'AgentExecutor: unknown agentId "nope"' },
     });
   });
 

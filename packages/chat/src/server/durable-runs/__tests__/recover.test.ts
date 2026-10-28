@@ -46,6 +46,23 @@ function harness({ events, probe, content = "", run = {} }: { events: AgentEvent
   return { recovery: createDurableRecovery(ports, { logger }), settlements, attached, canceled, launches, info };
 }
 
+it.each(['claude', 'codex', 'antigravity', 'aider', 'opencode', 'future-cli'])('never relaunches a typed native-policy failure for %s', async agentId => {
+  // Neutral prose ensures the typed failure, rather than a keyword heuristic, decides recovery.
+  const label = 'The assistant could not start: choose a CLI with a native-tool policy adapter.';
+  const failure = translateRunFrame({ kind: 'error', notices, raw: JSON.stringify({ payload: {
+    message: label, error: { code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: label },
+  } }) });
+  expect(failure.events).toEqual([{ kind: 'status', code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', label }]);
+  const h = harness({ probe: 'dead', events: failure.events, run: { request: { agentId, contextRef: '{}' } } });
+  expect(await h.recovery.recover({ messageId: 'answer', trigger: 'attempt-failed' }, {})).toBe('finalized');
+  expect(h.launches).toEqual([]);
+  expect(h.settlements).toHaveLength(1);
+  expect(h.settlements[0]!.status).toBe('failed');
+  expect(h.settlements[0]!.events).toContainEqual({ kind: 'status', code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', label });
+  expect(await h.recovery.recover({ messageId: 'answer', trigger: 'browser' }, {})).toBe('terminal');
+  expect(h.settlements).toHaveLength(1);
+});
+
 describe("durable recovery: plugin Ask state belongs to the logical turn", () => {
   it.each(['boot', 'attempt-failed'] as const)('ends a dead preflight with its pending card on %s instead of asking again', async trigger => {
     const card: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: { uri: 'ui://pending' } } };
