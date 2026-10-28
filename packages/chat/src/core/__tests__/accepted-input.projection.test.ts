@@ -35,4 +35,11 @@ describe('accepted input projections', () => {
     const turn: ChatMessage = { id: 'u', role: 'user', content: 'plain', events: [unrelated] };
     expect(acceptedInputsFromMessages({ messages: [turn] })).toEqual([{ id: 'u', text: 'plain' }]);
   });
+
+  it('projects an unchanged events array once, so per-update transcript passes reuse the result', () => {
+    const events = [unrelated, accepted('in-1', 'a')];
+    const first = projectAcceptedInputEvents({ events });
+    expect(projectAcceptedInputEvents({ events })).toBe(first);
+    expect(projectAcceptedInputEvents({ events: [...events] })).not.toBe(first);
+  });
 });

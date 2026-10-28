@@ -195,7 +195,19 @@ function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] },
  * @complexity O(e + u + a) time, O(e + u) space for e events, u user inputs and total answer-label lookup cost a.
  */
 export function projectAcceptedInputEvents(
-  { events }: { events: readonly AgentEvent[] }, options: AcceptedInputProjectionOptions = {},
+  { events }: { events: readonly AgentEvent[] }, options?: AcceptedInputProjectionOptions,
+): AgentEvent[] {
+  if (options !== undefined) return projectEvents({ events }, options);
+  // Event arrays are replaced, never mutated, so a transcript update re-projects only changed messages.
+  let projected = defaultProjections.get(events);
+  if (!projected) defaultProjections.set(events, projected = projectEvents({ events }, {}));
+  return projected;
+}
+
+const defaultProjections = new WeakMap<readonly AgentEvent[], AgentEvent[]>();
+
+function projectEvents(
+  { events }: { events: readonly AgentEvent[] }, options: AcceptedInputProjectionOptions,
 ): AgentEvent[] {
   const expanded = expandQuestionAnswers({ events: collapseDeliveryReceipts({ events }) }, options);
   const optimistic = collectOptimisticInputs({ events: expanded });
