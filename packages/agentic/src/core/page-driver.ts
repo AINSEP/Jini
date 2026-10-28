@@ -72,7 +72,7 @@ export interface PageDriver {
    */
   describeField(required: { handle: string }, _optional?: Record<string, never>): Promise<FieldDescriptor | null>;
 
-  /** Draws a transient marker. The executor has already clamped `durationMs`. */
+  /** Draws a transient marker. The executor rejects non-finite durations, then defaults or caps `durationMs`. */
   highlight(required: { handle: string; durationMs: number }, _optional?: Record<string, never>): Promise<void>;
 
   scrollTo(required: { handle: string }, _optional?: Record<string, never>): Promise<void>;

@@ -152,12 +152,20 @@ describe('L077 fill and navigation safety', () => {
 
 describe('L077 remaining page verbs', () => {
   it.each([
-    [undefined, 3_000], [0, 3_000], [-1, 3_000], [NaN, 3_000],
-    [Infinity, 3_000], [100, 100], [20_000, 15_000],
+    [undefined, 3_000], [0, 3_000], [-1, 3_000], [100, 100], [20_000, 15_000],
   ] satisfies [number | undefined, number][])('clamps highlight duration %s to %s', async (durationMs, duration) => {
     const driver = fakeDriver({});
     await expect(executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'button-one', durationMs } })).resolves.toEqual({ highlighted: 'button-one', durationMs: duration });
     expect(driver.highlight).toHaveBeenCalledWith({ handle: 'button-one', durationMs: duration });
+  });
+
+  it.each([NaN, Infinity, -Infinity])('rejects non-finite highlight duration %s before calling the driver', async (durationMs) => {
+    const driver = fakeDriver({});
+    const capability = PAGE_CAPABILITIES.find((entry) => entry.id === 'page.highlight')!;
+    await expect(executePageCapability({ driver, capabilityId: capability.id, input: { handle: 'button-one', durationMs } })).rejects.toThrow(
+      `page.highlight: "durationMs" must be a number, received ${String(durationMs)}. Expected input: ${JSON.stringify(capability.inputSchema)}`,
+    );
+    expect(driver.highlight).not.toHaveBeenCalled();
   });
 
   it.each(['page.highlight', 'page.scroll_to', 'page.click', 'page.fill', 'page.select_option'])('rejects CSS selectors for %s', async (capabilityId) => {

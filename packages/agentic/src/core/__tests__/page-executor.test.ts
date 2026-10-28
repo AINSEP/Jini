@@ -220,15 +220,22 @@ describe('page.highlight', () => {
     expect(result).toEqual({ highlighted: 'add-task-button', durationMs: MAX_HIGHLIGHT_MS });
   });
 
-  it('falls back to the default for a nonsensical duration', async () => {
-    // Infinity and NaN are treated as nonsense rather than as "as long as possible" — a
-    // non-finite request is a caller bug, and defaulting is the conservative reading.
-    for (const durationMs of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+  it('falls back to the default for a nonpositive finite duration', async () => {
+    // A nonpositive request cannot leave a permanent mark; defaulting keeps the marker transient.
+    for (const durationMs of [0, -5]) {
       vi.mocked(driver.highlight).mockClear();
       await executePageCapability({ driver, capabilityId: 'page.highlight', input: { handle: 'add-task-button', durationMs } });
       const [{ durationMs: applied }] = vi.mocked(driver.highlight).mock.calls[0]!;
       expect(applied).toBe(DEFAULT_HIGHLIGHT_MS);
     }
+  });
+
+  it.each([NaN, Infinity, -Infinity])('rejects non-finite duration %s without leaving a permanent mark', async (durationMs) => {
+    // A non-finite request is a caller bug, never "as long as possible"; schema validation refuses it.
+    const capability = PAGE_CAPABILITIES.find((entry) => entry.id === 'page.highlight')!;
+    await expect(executePageCapability({ driver, capabilityId: capability.id, input: { handle: 'add-task-button', durationMs } }))
+      .rejects.toThrow(`page.highlight: "durationMs" must be a number, received ${String(durationMs)}. Expected input: ${JSON.stringify(capability.inputSchema)}`);
+    expect(driver.highlight).not.toHaveBeenCalled();
   });
 });
 

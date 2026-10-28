@@ -164,6 +164,11 @@ describe('findCapabilityInputError', () => {
     });
   });
 
+  it.each([NaN, Infinity, -Infinity])('names the rejected non-finite number %s', (count) => {
+    expect(findCapabilityInputError({ capability, input: { element: 'a', count } }))
+      .toBe(`"count" must be a number, received ${String(count)}`);
+  });
+
   it('reports a missing required field', () => {
     expect(findCapabilityInputError({ capability, input: {} })).toBe('"element" is required');
     // Explicitly-undefined is the same as absent, not a supplied value.

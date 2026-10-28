@@ -17,7 +17,7 @@ describe('L077 input validation order and shallow semantics', () => {
     [{ name: 1, extra: 0 }, 'unknown argument: extra'],
     [{ name: 1 }, '"name" must be a string, received number'],
     [{ name: [] }, '"name" must be a string, received array'],
-    [{ name: null }, '"name" must be a string, received object'],
+    [{ name: null }, '"name" must be a string, received null'],
     [{ name: 'Other' }, '"name" must be one of: Ada, Grace'],
     [{ name: 'Ada', count: '1' }, '"count" must be a number, received string'],
     [{ name: 'Grace', count: 2, tags: [] }, null],
@@ -36,8 +36,9 @@ describe('L077 input validation order and shallow semantics', () => {
     expect(findCapabilityInputError({ capability: open, input: { arbitrary: 1 } })).toBeNull();
   });
 
-  it('accepts null for an object schema because validation is shallow (reported, not fixed)', () => {
+  it('rejects null for an object schema while accepting an object', () => {
     const object: CapabilityDef = { ...capability, inputSchema: { type: 'object', properties: { data: { type: 'object' } } } };
-    expect(findCapabilityInputError({ capability: object, input: { data: null } })).toBeNull();
+    expect(findCapabilityInputError({ capability: object, input: { data: null } })).toBe('"data" must be a object, received null');
+    expect(findCapabilityInputError({ capability: object, input: { data: {} } })).toBeNull();
   });
 });

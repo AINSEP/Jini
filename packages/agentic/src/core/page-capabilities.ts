@@ -59,7 +59,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
         ...HANDLE_PROPERTY,
         durationMs: {
           type: 'number',
-          description: 'How long the marker stays, in milliseconds. Defaults to a few seconds; capped by the host.',
+          description: 'Finite marker lifetime in milliseconds. Defaults to a few seconds when omitted or nonpositive; capped by the host.',
         },
       },
       required: ['handle'],
