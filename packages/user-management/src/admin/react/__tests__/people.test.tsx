@@ -85,7 +85,11 @@ describe('composable users screen', () => {
     const ports = fixtures(), reset = vi.spyOn(ports.api, 'resetUserPassword').mockRejectedValueOnce(new Error('try again'));
     await mountUsers({ api: ports.api }); await action('Reset password'); const first = screen.getByLabelText('New password', { exact: true }), second = screen.getByLabelText('Confirm new password');
     await userEvent.type(first, 'replacement'); await userEvent.type(second, 'wrong'); await confirm(); expect(reset).not.toHaveBeenCalled(); expect(screen.getByText('Passwords do not match.')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Show new password' })); expect(first).toHaveAttribute('type', 'text'); expect(first).toHaveAttribute('autocomplete', 'new-password'); expect(second).toHaveAttribute('type', 'password');
+    await userEvent.click(screen.getByRole('button', { name: 'Show New password' })); expect(first).toHaveAttribute('type', 'text'); expect(first).toHaveAttribute('autocomplete', 'new-password'); expect(second).toHaveAttribute('type', 'password');
+    expect(screen.getByRole('button', { name: 'Hide New password' })).not.toHaveAttribute('aria-pressed');
+    await userEvent.click(screen.getByRole('button', { name: 'Show Confirm new password' })); expect(second).toHaveAttribute('type', 'text'); expect(second).toHaveAttribute('autocomplete', 'new-password');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide New password' })); expect(first).toHaveAttribute('type', 'password'); expect(second).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Hide Confirm new password' })).not.toHaveAttribute('aria-pressed');
     await userEvent.clear(second); await userEvent.type(second, 'replacement'); await confirm(); expect(screen.getByText('try again')).toBeInTheDocument(); expect(first).toHaveValue('replacement');
     await confirm(); await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull()); expect(reset).toHaveBeenLastCalledWith({ principalId: 'alice', password: 'replacement' }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
     await action('Reset password'); expect(screen.getByLabelText('New password', { exact: true })).toHaveValue(''); expect(screen.getByLabelText('New password', { exact: true })).toHaveAttribute('type', 'password');

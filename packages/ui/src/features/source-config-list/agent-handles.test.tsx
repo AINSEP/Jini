@@ -194,14 +194,20 @@ describe('SourceConfigField markup', () => {
     expect(screen.getByRole('button')).toHaveAttribute('data-agent-role', 'button');
   });
 
-  it('labels the toggle by the field it reveals, so the label does not flip when it is clicked', async () => {
+  it('keeps the agent label stable while the accessible name identifies the reveal action and field', async () => {
     render(<SourceConfigField spec={SECRET_FIELD} value="" agentHandle="mcp-add-field-secret" onChange={vi.fn()} />);
-    const toggle = screen.getByRole('button');
+    const toggle = screen.getByRole('button', { name: 'Show Client secret' });
     const before = toggle.getAttribute('data-agent-label');
     expect(before).toBe('Show or hide Client secret');
+    expect(toggle).toHaveAttribute('title', 'Show Client secret');
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('data-agent-label', before ?? '');
-    expect(toggle).toHaveAttribute('title', 'Hide');
+    expect(toggle).toHaveAccessibleName('Hide Client secret');
+    expect(toggle).toHaveAttribute('title', 'Hide Client secret');
+    expect(toggle).not.toHaveAttribute('aria-pressed');
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAccessibleName('Show Client secret');
+    expect(toggle).toHaveAttribute('data-agent-label', before ?? '');
   });
 
   it.each<SourceFieldSpec['kind']>(['text', 'url', 'password', 'select', 'textarea', 'secret-textarea'])(
