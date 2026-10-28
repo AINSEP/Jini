@@ -47,9 +47,10 @@ export interface MessageListProps extends Pick<MessageRowProps, 'projectFileName
 }
 
 function renderMessageRow(
-  { message, isLast, isStreaming, usageSummary }: {
+  { message, isLast, isStreaming, usageSummary, sending }: {
     message: ChatMessage;
     isLast: boolean;
+    sending: boolean;
     isStreaming: boolean;
     usageSummary: ChatUsageSummary | undefined;
   },
@@ -64,6 +65,7 @@ function renderMessageRow(
       {...rowProps}
       {...(usageSummary === undefined ? {} : { usageSummary })}
       runStreaming={runStreaming}
+      runSending={sending}
       runSucceeded={message.runStatus === 'succeeded'}
       questionFormInteractive={message.id === activeQuestionFormMessageId}
       {...(questionFormSubmittedAnswersByMessageId?.[message.id] !== undefined ? { questionFormSubmittedAnswers: questionFormSubmittedAnswersByMessageId[message.id] } : {})}
@@ -100,9 +102,11 @@ export const MessageList = memo(function MessageList({
       data-agent-role="list"
       data-agent-label="The conversation transcript, oldest message first"
     >
-      {messages.map((message) => renderMessageRow({
+      {messages.map((message, index) => renderMessageRow({
         message,
         isLast: message.id === messages[messages.length - 1]?.id,
+        // A reply's start is accepted together with its user turn (`inputPending` clears then).
+        sending: messages[index - 1]?.inputPending === true,
         isStreaming,
         usageSummary: usageByMessage.get(message.id),
       }, rowProps))}

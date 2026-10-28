@@ -283,7 +283,21 @@ function ChatPaneTypedAnswerNotice({
   );
 }
 
+/** A send the server never accepted. Its text went back into the composer if that was still empty;
+ * Retry sends it again either way (see `useChatPane`'s `retrySend`). */
+function ChatPaneSendError({ sendError, onRetry, t }: { sendError: Error | null; onRetry: () => void; t: (key: string) => string }): ReactNode {
+  if (!sendError) return null;
+  return (
+    <div className="jini-chat-pane__error" role="alert">
+      {t('Not sent:')} {sendError.message}{' '}
+      <button type="button" className="jini-chat-pane__error-action" onClick={onRetry}>{t('Retry')}</button>
+    </div>
+  );
+}
+
 interface ChatPaneStatusMessagesProps extends ChatPaneAvailabilityStatusProps {
+  sendError: Error | null;
+  onRetrySend: () => void;
   attachmentError: Error | null;
   dropReadError: string | null;
   workingDirectoryError: Error | null;
@@ -296,6 +310,8 @@ interface ChatPaneStatusMessagesProps extends ChatPaneAvailabilityStatusProps {
 /** The pane's stack of mutually-independent error/status banners — each condition is its own
  * source of truth, so they are rendered as siblings rather than folded into one derived state. */
 function ChatPaneStatusMessages({
+  sendError,
+  onRetrySend,
   attachmentError,
   dropReadError,
   workingDirectoryError,
@@ -309,6 +325,7 @@ function ChatPaneStatusMessages({
   return (
     <>
       <ChatPaneAvailabilityStatus {...availability} />
+      <ChatPaneSendError sendError={sendError} onRetry={onRetrySend} t={t} />
       {/* Run failures render once on their assistant message; pane banners remain for
           attachment, working-directory and other errors that have no message binding. */}
       {attachmentError ? (
@@ -856,6 +873,8 @@ export function ChatPane(props: ChatPaneProps) {
             executionMode={p.executionMode}
             apiModeAvailable={p.apiModeAvailable}
             onExecutionModeChange={p.onExecutionModeChange}
+            sendError={pane.conversation.sendError}
+            onRetrySend={() => void pane.retrySend()}
             attachmentError={pane.attachmentError}
             dropReadError={fileDrop.dropReadError}
             workingDirectoryError={pane.workingDirectoryError}

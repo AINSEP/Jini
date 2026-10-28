@@ -1,5 +1,5 @@
 import { createRef } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -1228,6 +1228,141 @@ describe('ChatPane accepted input recording', () => {
     expect(screen.getByRole('textbox')).toHaveValue('keep this draft');
     expect(saved).toEqual([]);
     expect(document.querySelectorAll('.jini-message-user')).toHaveLength(0);
+  });
+
+  // Owner regression, 2026-10-27: a send made while the API restarted vanished with no word of why.
+  it('says a send the server never accepted was not sent, and Retry sends the kept draft', async () => {
+    const transport = createFakeChatTransport();
+    const accept = transport.startRun.bind(transport);
+    transport.startRun = vi.fn()
+      .mockRejectedValueOnce(new Error('agent run failed to start (503): The Tovu server is restarting.'))
+      .mockImplementation(accept);
+    render(<ChatPane transport={transport} agents={agents} initialDraft="can you read the folder" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Not sent: agent run failed to start (503): The Tovu server is restarting.');
+    expect(screen.queryByText(/Thinking/)).toBeNull();
+    expect(screen.getByRole('textbox')).toHaveValue('can you read the folder');
+    await act(async () => { fireEvent.click(within(alert).getByRole('button', { name: 'Retry' })); });
+    expect(transport.startRun).toHaveBeenCalledTimes(2);
+    expect(transport.calls.at(-1)?.input.history.at(-1)).toMatchObject({ role: 'user', content: 'can you read the folder' });
+    expect(screen.queryByText(/Not sent/)).toBeNull();
+    // The retried run was accepted: its own later failure belongs on its message, not here.
+    act(() => transport.fail(new Error('runtime failed')));
+    expect(screen.queryByText(/Not sent/)).toBeNull();
+  });
+
+  // Owner regression, 2026-10-27: the sent text sat in the composer for seconds under "Thinking…"
+  // until the server accepted the run.
+  function deferStart(transport: ReturnType<typeof createFakeChatTransport>) {
+    const original = transport.startRun.bind(transport);
+    let settle!: (failure: Error | null) => void;
+    const gate = new Promise<Error | null>(resolve => { settle = resolve; });
+    transport.startRun = vi.fn(async (input, handlers) => {
+      const failure = await gate;
+      if (failure) throw failure;
+      return original(input, handlers);
+    });
+    return {
+      original,
+      accept: () => act(async () => { settle(null); }),
+      refuse: (error: Error) => act(async () => { settle(error); }),
+    };
+  }
+
+  it('empties the composer on send and says "Sending…" until the run is accepted, then "Thinking…"', async () => {
+    const transport = createFakeChatTransport();
+    const start = deferStart(transport);
+    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    expect(screen.getByText('Sending…')).toBeInTheDocument();
+    expect(screen.queryByText(/Thinking/)).toBeNull();
+    await start.accept();
+    expect(screen.queryByText('Sending…')).toBeNull();
+    expect(screen.getByText('Thinking… 0 s')).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toHaveValue('');
+  });
+
+  it('puts a refused send back into the empty composer', async () => {
+    const transport = createFakeChatTransport();
+    const start = deferStart(transport);
+    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    await start.refuse(new Error('The Tovu server is restarting.'));
+    expect(screen.getByRole('alert')).toHaveTextContent('Not sent: The Tovu server is restarting.');
+    expect(screen.getByRole('textbox')).toHaveValue('hello there');
+  });
+
+  it('puts back a send refused before the composer even re-rendered', async () => {
+    const transport = createFakeChatTransport();
+    transport.startRun = vi.fn(async () => { throw new Error('connect ECONNREFUSED'); });
+    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    expect(screen.getByRole('alert')).toHaveTextContent('Not sent: connect ECONNREFUSED');
+    expect(screen.getByRole('textbox')).toHaveValue('hello there');
+  });
+
+  it('hands the text back when a host run-context hook throws during the send', async () => {
+    const transport = createFakeChatTransport();
+    const failure = new Error('context unavailable');
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => { rejections.push(reason); };
+    process.on('unhandledRejection', onRejection);
+    try {
+      render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" runContext={() => { throw failure; }} />);
+      await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+      expect(screen.getByRole('textbox')).toHaveValue('hello there');
+      expect(transport.calls).toHaveLength(0);
+      expect(rejections).toEqual([failure]);
+    } finally { process.off('unhandledRejection', onRejection); }
+  });
+
+  it('never writes a refused send over new typing, and Retry still resends the refused text', async () => {
+    const transport = createFakeChatTransport();
+    const start = deferStart(transport);
+    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'next thought' } });
+    await start.refuse(new Error('The Tovu server is restarting.'));
+    expect(screen.getByRole('textbox')).toHaveValue('next thought');
+    transport.startRun = vi.fn(start.original);
+    await act(async () => { fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Retry' })); });
+    expect(transport.calls.at(-1)?.input.history.at(-1)).toMatchObject({ role: 'user', content: 'hello there' });
+    expect(screen.getByRole('textbox')).toHaveValue('next thought');
+  });
+
+  it('takes staged files out of the composer on send, hands them back on refusal, and Retry sends them', async () => {
+    const transport = createFakeChatTransport();
+    const start = deferStart(transport);
+    const uploaded = { path: '/tmp/reference.png', name: 'reference.png', kind: 'image' as const };
+    render(<ChatPane transport={transport} agents={agents} uploadAttachments={vi.fn(async () => [uploaded])} attachmentAccept="image/*" />);
+    await userEvent.upload(screen.getByLabelText('Attach files', { selector: 'input' }), new File(['image bytes'], 'reference.png', { type: 'image/png' }));
+    const staged = () => screen.queryByRole('button', { name: 'Remove reference.png' });
+    await waitFor(() => expect(staged()).not.toBeNull());
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Use this reference' } });
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    expect(staged()).toBeNull();
+    await start.refuse(new Error('The Tovu server is restarting.'));
+    expect(screen.getByRole('textbox')).toHaveValue('Use this reference');
+    expect(staged()).not.toBeNull();
+    transport.startRun = vi.fn(start.original);
+    await act(async () => { fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Retry' })); });
+    expect(transport.calls.at(-1)?.input.attachments).toEqual([uploaded]);
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    expect(staged()).toBeNull();
+  });
+
+  it('keeps an accepted run that later fails on its own message, not as "Not sent"', async () => {
+    const transport = createFakeChatTransport();
+    render(<ChatPane transport={transport} agents={agents} initialDraft="hello" />);
+    await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
+    act(() => transport.fail(new Error('runtime failed')));
+    expect(document.querySelectorAll('.jini-message-user')).toHaveLength(1);
+    expect(screen.queryByText(/Not sent/)).toBeNull();
   });
 });
 

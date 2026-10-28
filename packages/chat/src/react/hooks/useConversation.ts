@@ -47,6 +47,12 @@ export interface UseConversationResult {
   conversationId: string | null;
   isStreaming: boolean;
   error: Error | null;
+  /**
+   * Why the newest send never became a run (refused, unreachable, or the connection dropped before
+   * acceptance), or `null`. Its optimistic bubbles are already gone, so a host shows this beside the
+   * composer and offers to send the refused text again. Cleared by the next send.
+   */
+  sendError: Error | null;
   /** `true` when new content just arrived and nothing has told the hook the user already scrolled away — a `<MessageList>` reads this to decide whether to auto-scroll. */
   scrollIntent: boolean;
   sendMessage: (content: string, options?: SendMessageOptions) => Promise<void>;
@@ -90,6 +96,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) },
   ));
   const [scrollIntent, setScrollIntent] = useState(false);
+  const [sendRefused, setSendRefused] = useState(false);
   const run = useRunStream({ transport });
   // The assistant message id the currently-active run is writing into.
   const activeAssistantIdRef = useRef<string | null>(null);
@@ -235,6 +242,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         startedAt: Date.now(),
       };
       activeAssistantIdRef.current = assistantMessage.id;
+      setSendRefused(false);
       const history = redactUserHistory({ history: [...messagesRef.current, userMessage] }, options);
       // Functional, never `[...history, assistantMessage]`: `messagesRef` is the last RENDER's
       // snapshot, and a host that sends from an effect (`useChatPane`'s queued-prompt flush) runs in
@@ -253,7 +261,9 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         ...(sendOptions.context !== undefined ? { context: sendOptions.context } : {}),
       });
       if (!accepted) {
+        // The bubbles go, but the reason must not: it was rendered only on the assistant bubble.
         setMessagesState(prev => prev.filter(message => message.id !== userMessage.id && message.id !== assistantMessage.id));
+        setSendRefused(true);
         return;
       }
       const inputs = sendOptions.acceptedInputs ?? [{ id: userMessage.id, text: userMessage.content }];
@@ -306,6 +316,8 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       conversationId,
       isStreaming: run.isStreaming,
       error: run.error,
+      // A Stop before acceptance also returns no run, but leaves no error: nothing to report.
+      sendError: sendRefused ? run.error : null,
       scrollIntent,
       sendMessage,
       cancel,
@@ -314,6 +326,6 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       acknowledgeScroll,
       suppressScroll,
     }),
-    [messages, conversationId, run.isStreaming, run.error, scrollIntent, sendMessage, cancel, retry, setMessages, acknowledgeScroll, suppressScroll],
+    [messages, conversationId, run.isStreaming, run.error, sendRefused, scrollIntent, sendMessage, cancel, retry, setMessages, acknowledgeScroll, suppressScroll],
   );
 }

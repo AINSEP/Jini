@@ -126,6 +126,12 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
    */
   sendPrompt: (prompt: string) => Promise<void>;
   /**
+   * Sends the newest refused composer send again (see `conversation.sendError`). When that text is
+   * back in the composer it goes out from there like {@link send}; when something new was typed
+   * since, the refused text goes out on its own and the composer keeps the new typing.
+   */
+  retrySend: () => Promise<void>;
+  /**
    * The prompt waiting for the in-flight run to finish, or `null` when nothing is queued. Exposed
    * so the pane can SHOW it — a queued turn that is invisible is indistinguishable from one that
    * was silently swallowed.
@@ -397,6 +403,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const queuedForLiveDeliveryRef = useRef(false);
   const submittedComposerRef = useRef<UseComposerResult | null>(null);
   const startingPromptRef = useRef(false);
+  const refusedSendRef = useRef<{ redaction: UserTextRedaction; draft: string; attachments: ChatAttachment[] } | null>(null);
   const [typedAnswerNotice, setTypedAnswerNotice] = useState<TypedAnswerNotice | null>(null);
   // Shared delivery lock: a second Enter cannot submit the same answer or screenshot twice.
   const deliveringTypedAnswerRef = useRef(false);
@@ -659,25 +666,43 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     }
   }, []);
 
+  /** A refused composer send is kept for Retry and goes back only into a composer that is still
+   * empty: text typed (or files staged) while it was sending are never overwritten. */
+  const restoreRefusedDraft = useCallback((
+    { redaction, draft, attachments }: { redaction: UserTextRedaction; draft: string; attachments: ChatAttachment[] }, _options = {},
+  ) => {
+    refusedSendRef.current = { redaction, draft, attachments };
+    if (latestDraftRef.current.trim() !== '' || latestAttachmentsRef.current.length > 0) return;
+    latestComposerRef.current.setDraft(draft);
+    for (const attachment of attachments) latestComposerRef.current.addAttachment(attachment);
+  }, []);
+
   const finishPromptSend = useCallback((
-    { accepted, inputs, redaction, submittedDraft, attachments }: {
+    { accepted, inputs, redaction, submittedDraft, attachments, composerDraft }: {
       accepted: boolean; inputs: AcceptedChatInput[] | undefined; redaction: UserTextRedaction;
-      submittedDraft: string; attachments: ChatAttachment[];
+      submittedDraft: string; attachments: ChatAttachment[]; composerDraft: string | undefined;
     }, _options = {},
   ) => {
     if (!accepted) {
-      restoreQueuedDraft({ inputs, text: redaction.text, attachments });
+      if (composerDraft === undefined) restoreQueuedDraft({ inputs, text: redaction.text, attachments });
+      else restoreRefusedDraft({ redaction, draft: composerDraft, attachments });
       return;
     }
-    if (inputs === undefined && latestDraftRef.current === submittedDraft) {
+    refusedSendRef.current = null;
+    // A composer send emptied the composer when it started; what is there now was typed since.
+    if (composerDraft === undefined && inputs === undefined && latestDraftRef.current === submittedDraft) {
       latestComposerRef.current.setDraft('');
       latestComposerRef.current.closeMention();
     }
     consumeDeliveredAttachments({ attachments });
-  }, [consumeDeliveredAttachments, restoreQueuedDraft]);
+  }, [consumeDeliveredAttachments, restoreQueuedDraft, restoreRefusedDraft]);
 
+  /** `composerDraft`: the composer text this send already took out of the composer, so the
+   * composer is never cleared again on acceptance and a refusal hands the text back. */
   const sendGuardedPrompt = useCallback(async (
-    { redaction, inputs, attachments = composer.attachments }: { redaction: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[] }, _options = {},
+    { redaction, inputs, attachments = composer.attachments, composerDraft }: {
+      redaction: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[]; composerDraft?: string;
+    }, _options = {},
   ) => {
     const trimmed = redaction.text.trim();
     assertPromptSendable({ trimmed, sendBlocker });
@@ -703,7 +728,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         },
       } }));
       if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
-      finishPromptSend({ accepted, inputs, redaction, submittedDraft, attachments });
+      finishPromptSend({ accepted, inputs, redaction, submittedDraft, attachments, composerDraft });
     } finally { startingPromptRef.current = false; }
   }, [composer, conversation, options.onActivityChange, options.runContext, recordAcceptedInput, finishPromptSend,
     selection, sendBlocker, workingDirectoryState.workingDirectory]);
@@ -711,6 +736,25 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const sendPrompt = useCallback(async (prompt: string) => {
     await sendGuardedPrompt({ redaction: guard.redact({ text: prompt.trim() }, {}) });
   }, [guard.redact, sendGuardedPrompt]);
+
+  // Owner, 2026-10-27: the sent text sat in the composer for seconds until the server accepted the
+  // run. The composer empties on send; the text waits here until the start is accepted or refused.
+  const sendComposerPrompt = useCallback(async (prompt: string) => {
+    if (sendBlocker !== null || startingPromptRef.current) return;
+    const draft = latestDraftRef.current;
+    const attachments = latestAttachmentsRef.current;
+    latestComposerRef.current.setDraft('');
+    latestComposerRef.current.closeMention();
+    for (const attachment of attachments) latestComposerRef.current.removeAttachment(attachment.path);
+    const redaction = guard.redact({ text: prompt.trim() }, {});
+    try {
+      await sendGuardedPrompt({ redaction, attachments, composerDraft: draft });
+    } catch (error) {
+      // A host hook that throws (run context, activity) must not cost the typed text either.
+      restoreRefusedDraft({ redaction, draft, attachments });
+      throw error;
+    }
+  }, [guard.redact, restoreRefusedDraft, sendBlocker, sendGuardedPrompt]);
 
   // MOVE: Every queue path retains per-message receipts; appendQueuedTurn owns their one-turn delivery.
   // A turn queued against another conversation is not joined — it would never be flushed there anyway.
@@ -838,7 +882,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   // The ordinary next-turn path: into the running run, else queue behind it, else send now.
   const sendOrdinaryTurn = useCallback(async (prompt: string) => {
     if (!isChatPaneQueueableBlocker({ blocker: sendBlocker })) {
-      if (canSend) await sendPrompt(prompt);
+      if (canSend) await sendComposerPrompt(prompt);
       return;
     }
     const turn = guard.redact({ text: prompt }, {});
@@ -872,7 +916,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     queuedInputs,
     sendBlocker,
     sendIntoRunningTurn,
-    sendPrompt,
+    sendComposerPrompt,
     guard.redact,
   ]);
 
@@ -906,6 +950,16 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     sendBlocker,
     sendOrdinaryTurn,
   ]);
+
+  const retrySend = useCallback(async () => {
+    const refused = refusedSendRef.current;
+    if (refused === null || latestDraftRef.current === refused.draft) {
+      await send();
+      return;
+    }
+    if (sendBlocker !== null || startingPromptRef.current) return;
+    await sendGuardedPrompt({ redaction: refused.redaction, attachments: refused.attachments, composerDraft: refused.draft });
+  }, [send, sendBlocker, sendGuardedPrompt]);
 
   const sendAsNewMessage = useCallback(async () => {
     const prompt = composerPrompt(composer);
@@ -999,6 +1053,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     queuedForLiveDeliveryRef.current = false;
     queuedUploadOwnersRef.current.clear();
     setQueuedInputs([]);
+    refusedSendRef.current = null;
   }, [composer, conversation, options.initialMessages]);
 
   return {
@@ -1018,6 +1073,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     addAttachments,
     send,
     sendPrompt,
+    retrySend,
     queuedPrompt: queuedTurn?.text ?? null,
     // Accepted live messages already have queued bubbles in the transcript. Their private fallback
     // copy must not create a second composer row whose Cancel button cannot revoke daemon input.
