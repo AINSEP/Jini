@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import type { Stats } from 'node:fs';
 import type * as FsPromises from 'node:fs/promises';
 import type * as Http from 'node:http';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, test, vi } from 'vitest';
@@ -102,6 +102,8 @@ test('on darwin, other symlinked ancestors are refused without resolving them', 
 test('on darwin, a real /tmp directory is accepted without resolving it', async () => {
   setPlatform('darwin');
   let resolved = 0;
+  // Model a regular directory even when the host's /tmp is a symlink.
+  hooks.lstat = (target) => (target === '/tmp' ? stat(target) : undefined);
   hooks.realpath = () => { resolved++; return undefined; };
   await createNodeArtifactWriter({}).prepare({ outputDir: '/tmp' });
   assert.equal(resolved, 0);
