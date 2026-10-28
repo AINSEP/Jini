@@ -9,6 +9,8 @@ const WITHDRAWAL_COOKIE = 'jini_consent_withdrawal';
  * Analytics-only changes may stay live when the host contribution can retire its own SDK and no
  * other analytics resources have run. A withdrawal never waits for evidence: when its save fails it applies at once, a client marker
  * keeps it on later pages (until the receipt lifetime) and the save is retried there.
+ * While the first-visit banner is a small-screen bottom sheet, its height is added to body padding so
+ * the end of the page stays reachable; host padding is restored when that reserve is cleared.
  * Script release is ordered and each template is consumed once. O(s + l) for s deferred elements and l late listeners. */
 export const CONSENT_CLIENT = String.raw`(function () {
   'use strict';
@@ -248,6 +250,29 @@ export const CONSENT_CLIENT = String.raw`(function () {
     if (banner.dataset.reopen === 'link') location.hash = 'jini-consent';
     banner.querySelectorAll('details').forEach(function (details) { details.open = true; });
   }
+  function reserveSpace(banner) {
+    // The phone sheet would hide the page end: pad by its height while open (corner card: none).
+    // Crossing 640px resizes the banner, so the observer alone re-checks the query.
+    if (!window.ResizeObserver || banner.dataset.hasRecord !== 'false') return;
+    var small = matchMedia('(max-width:640px)');
+    var body = document.body;
+    var padding, priority, base;
+    function update() {
+      var height = small.matches ? banner.offsetHeight : 0;
+      if (height) {
+        if (padding === undefined) {
+          padding = body.style.paddingBottom;
+          priority = body.style.getPropertyPriority('padding-bottom');
+          base = parseFloat(getComputedStyle(body).paddingBottom) || 0;
+        }
+        body.style.setProperty('padding-bottom', base + height + 'px', priority);
+      } else if (padding !== undefined) {
+        body.style.setProperty('padding-bottom', padding, priority);
+        padding = undefined;
+      }
+    }
+    new ResizeObserver(update).observe(banner);
+  }
   function reloadAfterChoice() {
     // A saved choice must close a fragment-opened panel when the new page loads.
     if (location.hash === '#jini-consent') history.replaceState(null, '', location.pathname + location.search);
@@ -283,6 +308,7 @@ export const CONSENT_CLIENT = String.raw`(function () {
       });
     }
     syncForm(banner);
+    reserveSpace(banner);
     banner.querySelector('form').addEventListener('submit', async function (event) {
       if (!event.submitter) return;
       event.preventDefault();
