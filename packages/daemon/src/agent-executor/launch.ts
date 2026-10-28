@@ -1025,7 +1025,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // the user got a bare "Run failed". Best-effort: a stream that will not take the event must not
     // stop the run from finishing.
     await lifecycle
-      .emit({ runId: runId, input: { event: 'error', data: { message: `The assistant could not start: ${message.replace(/^AgentExecutor:\s*/, '')}` } } })
+      .emit({ runId: runId, input: { event: 'error', data: { error: { code, message }, message: `The assistant could not start: ${message.replace(/^AgentExecutor:\s*/, '')}` } } })
       .catch(() => undefined);
     await cleanupFilesystemTemp({ runId }, {});
     await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });

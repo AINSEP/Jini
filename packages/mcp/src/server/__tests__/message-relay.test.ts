@@ -8,6 +8,12 @@ import type { McpToolContext, McpToolDef } from '../tool-protocol.js';
 
 const scope = { runId: 'run-a', nonce: 'a'.repeat(48) };
 
+it('guides every CLI to call the MCP-local check_messages directly', () => {
+  const guidance = messageRelayInstructions(scope);
+  expect(guidance).toContain('call the MCP-local check_messages tool directly');
+  expect(guidance).toContain('never pass check_messages as toolId to either delegated gateway');
+});
+
 /** Stand-in for the daemon's synchronous FIFO claim (tested in the daemon package); importing daemon
  * src here would cross this package's rootDir. One message per claim, as a size limit would split them. */
 function fakeInbox() {

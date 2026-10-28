@@ -672,8 +672,9 @@ function agentFrameEvents(raw: string | undefined): AgentEvent[] {
 // host's start refusals reach the user.
 function errorFrameOutcome(raw: string | undefined): RunFrameOutcome {
   const frame = parseWire(raw);
-  const message = wireString((frame?.payload as { message?: unknown } | null)?.message) || "agent run failed";
-  return { events: [{ kind: "status", label: message }], error: new Error(message) };
+  const payload = frame?.payload as { message?: unknown; error?: { code?: unknown } } | null;
+  const message = wireString(payload?.message) || "agent run failed";
+  return { events: [{ kind: "status", label: message, ...(typeof payload?.error?.code === "string" ? { code: payload.error.code } : {}) }], error: new Error(message) };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

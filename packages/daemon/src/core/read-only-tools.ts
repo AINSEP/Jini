@@ -39,7 +39,9 @@ export const defaultDaemonMessages = {
     toolRefusalMessage: ({ toolId }: { toolId: string }) =>
       `tool "${toolId}" is not registered as read-only — this gateway executes only tools whose registration declares readOnly; call it through execute_delegated_tool instead`,
     unknownToolMessage: ({ toolId, candidates }: { toolId: string; candidates: readonly string[] }) =>
-      `no tool "${toolId}" is registered; use search_tools${candidates.length > 0 ? ` — did you mean ${candidates.join(', ')}?` : ''}`,
+      toolId === 'check_messages'
+        ? 'check_messages is an MCP-local tool; call check_messages directly, never as toolId in a delegated gateway'
+        : `no tool "${toolId}" is registered; use search_tools${candidates.length > 0 ? ` — did you mean ${candidates.join(', ')}?` : ''}`,
   },
 };
 

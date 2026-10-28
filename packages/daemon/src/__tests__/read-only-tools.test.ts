@@ -210,6 +210,15 @@ test('read-only constraint uses the resource hint for diagnostics without execut
   assert.deepEqual(calls, []);
 });
 
+test('a delegated check_messages refusal routes the caller to the MCP-local tool', () => {
+  const { registry, calls } = harness();
+  assert.equal(checkReadOnlyTool({ toolId: 'check_messages', registry, messages: defaultDaemonMessages.readOnly }),
+    'check_messages is an MCP-local tool; call check_messages directly, never as toolId in a delegated gateway');
+  assert.deepEqual(calls, []);
+  assert.equal(checkReadOnlyTool({ toolId: 'check_messages', registry: undefined, messages: defaultDaemonMessages.readOnly }),
+    defaultDaemonMessages.readOnly.unverifiableMessage);
+});
+
 test('unknown read-only tool ids without candidates still direct discovery; registered writes keep their refusal', () => {
   const { registry } = harness();
   assert.equal(checkReadOnlyTool({ toolId: 'missing', registry, messages: defaultDaemonMessages.readOnly }), 'no tool "missing" is registered; use search_tools');
