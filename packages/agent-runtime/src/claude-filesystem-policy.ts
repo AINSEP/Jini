@@ -1,6 +1,6 @@
-import { realpathSync, statSync } from 'node:fs';
+import { lstatSync, realpathSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { createGuardedFileReader, createNodeGuardedReaderFilesystem } from '@jini-ai/platform/fs/guarded-reader';
 import { execAgentFile } from './invocation.js';
 import type { RuntimeBuildOptions } from './types.js';
@@ -26,6 +26,33 @@ export function validateFilesystemLaunch(required: {
     reader.resolve({ relativePath: relative(root, realpathSync(resolve(required.cwd, path))) || '.' });
   }
   return root;
+}
+
+/** Owner-picked folders granted read-only beside the site (owner 2026-10-27). Unlike
+ * extraAllowedDirs these lie OUTSIDE the site, so containment is replaced by refusals: a symlinked
+ * folder, `/`, home or any ancestor of home, the site, anything inside it or any ancestor of it.
+ * @returns Canonical directories. @throws Before spawn on the first refused path. O(n) stat/realpath.
+ */
+export function validateReadOnlyExtraDirs(required: { filesystemRoot: string; dirs: readonly string[] }, {
+  homeDir = homedir(),
+}: { homeDir?: string } = {}): string[] {
+  const site = realpathSync(required.filesystemRoot);
+  const home = realpathSync(homeDir);
+  return required.dirs.map((dir) => {
+    if (!isAbsolute(dir)) throw new Error('Read-only directory must be absolute');
+    if (lstatSync(dir).isSymbolicLink()) throw new Error('Read-only directory must not be a symlink');
+    const real = realpathSync(dir);
+    if (!statSync(real).isDirectory()) throw new Error('Read-only directory must be a directory');
+    if ([home, site].some(path => isSameOrInside({ path, dir: real })) || isSameOrInside({ path: real, dir: site })) {
+      throw new Error('Read-only directory must not contain home or the site, nor lie inside the site');
+    }
+    return real;
+  });
+}
+
+/** Whether `path` equals `dir` or lies beneath it. `/` contains everything. Pure, O(p). */
+function isSameOrInside({ path, dir }: { path: string; dir: string }, _optional = {}): boolean {
+  return path === dir || path.startsWith(dir.endsWith(sep) ? dir : dir + sep);
 }
 
 /** Create one executor's probe cache; no filesystem access until the returned probe is called.
@@ -114,13 +141,35 @@ export function claudeFilesystemSettings(required: { options: RuntimeBuildOption
   const settings = options.settings ? JSON.parse(options.settings) as Record<string, unknown> : {};
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Host settings must be a JSON object');
   const permissions = settings.permissions as Record<string, unknown> | undefined;
+  const readOnlyDirs = expressibleReadOnlyDirs({ options }, {});
   return JSON.stringify({ ...settings, autoMemoryEnabled: false,
-    permissions: { ...permissions, blockReadsOutsideWorkingDirectories: true, additionalDirectories: [] },
+    permissions: { ...permissions, blockReadsOutsideWorkingDirectories: true, additionalDirectories: readOnlyDirs,
+      ...readOnlyEditDenies({ permissions, readOnlyDirs }, {}) },
     sandbox: { enabled: platform !== 'win32', failIfUnavailable: platform !== 'win32',
       allowUnsandboxedCommands: platform === 'win32', excludedCommands: [],
-      filesystem: filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths }, {}),
+      filesystem: filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths, readOnlyDirs }, {}),
     },
   });
+}
+
+/** Picked folders a permission rule can name literally. A gitignore-pattern or rule-syntax
+ * character (`* ? [ ] \ ( )`) would turn the Edit deny into a different pattern, so such a folder
+ * gets no native grant at all; the host's own file tools still reach it. Pure, O(n).
+ */
+function expressibleReadOnlyDirs({ options }: { options: RuntimeBuildOptions }, _optional = {}): string[] {
+  return (options.filesystemReadOnlyDirs ?? []).filter(dir => !/[*?[\]\\()]/.test(dir));
+}
+
+/** A working directory is editable in every permission mode unless denied; deny rules hold even
+ * in bypassPermissions and cover Edit, Write and NotebookEdit. Merged without duplicates so a
+ * rebuild from this function's own output is identical. Pure, O(d + n).
+ */
+function readOnlyEditDenies({ permissions, readOnlyDirs }: {
+  permissions: Record<string, unknown> | undefined; readOnlyDirs: readonly string[];
+}, _optional = {}): { deny?: string[] } {
+  if (readOnlyDirs.length === 0) return {};
+  const hostDenies = Array.isArray(permissions?.deny) ? permissions.deny as string[] : [];
+  return { deny: [...new Set([...hostDenies, ...readOnlyDirs.map(dir => `Edit(/${dir}/**)`)])] };
 }
 
 /** Exact scratch subtree inside the executor's private per-run CLAUDE_CODE_TMPDIR.
@@ -157,14 +206,16 @@ function claudeTempAliases({ path, platform }: { path: string; platform: NodeJS.
  * infrastructure exception so Bash can track cwd. Shared and other runs' scratch stay denied.
  * Pure, O(r + t) for r runtime paths and t shared temp roots; no filesystem access.
  */
-function filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths }: {
-  options: RuntimeBuildOptions; homeDir: string; tempDir: string; runtimeTempPaths: readonly string[];
+function filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths, readOnlyDirs }: {
+  options: RuntimeBuildOptions; homeDir: string; tempDir: string; runtimeTempPaths: readonly string[]; readOnlyDirs: readonly string[];
 }, _optional = {}) {
   const privateTemp = options.filesystemTempDir ?? resolve(options.filesystemRoot!, '.agent-runtime', 'tmp');
   const sharedTempRoots = [...new Set(['/tmp', '/private/tmp', tempDir, ...(options.filesystemSharedTempRoots ?? [])])];
   return { denyRead: [homeDir, ...sharedTempRoots],
     // Owner 2026-10-23: git config is a read-only infrastructure exception, never all of home.
     allowRead: [options.filesystemRoot!, privateTemp, resolve(homeDir, '.gitconfig'),
-      resolve(homeDir, '.config/git/config'), ...(options.filesystemRuntimeReadPaths ?? []), ...runtimeTempPaths],
-    allowWrite: [options.filesystemRoot!, privateTemp, ...runtimeTempPaths] };
+      resolve(homeDir, '.config/git/config'), ...(options.filesystemRuntimeReadPaths ?? []), ...runtimeTempPaths, ...readOnlyDirs],
+    allowWrite: [options.filesystemRoot!, privateTemp, ...runtimeTempPaths],
+    // Additional working directories are sandbox-writable by default; the picked folder never is.
+    ...(readOnlyDirs.length > 0 ? { denyWrite: [...readOnlyDirs] } : {}) };
 }

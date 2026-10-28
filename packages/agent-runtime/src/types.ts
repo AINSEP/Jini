@@ -91,6 +91,8 @@ export type RuntimeBuildOptions = {
   filesystemRuntimeTempBase?: string;
   /** Executor-resolved CLI/runtime files; read-only exceptions for sandboxed commands. */
   filesystemRuntimeReadPaths?: readonly string[];
+  /** Host-validated owner-picked folders outside filesystemRoot: natively readable, never writable. */
+  filesystemReadOnlyDirs?: readonly string[];
   /** Host-verified per-run overrides; false dimensions must be enforced or launch refused. */
   nativeCapabilities?: Partial<import('./native-tool-policy.js').NativeCapabilities>;
   /** Explicit host grant for shell/direct edits. false must be enforced or launch refused.
