@@ -129,15 +129,15 @@ export function claudeFilesystemRuntimePaths(required: { launchPath: string }, _
  * Personal/project layers are excluded separately. Preserve host hooks and secret denies.
  * Phase 1 leaves network policy unconfigured; the CLI's sandbox network defaults still apply.
  * https://code.claude.com/docs/en/permissions#working-directories
- * O(s + r) serialization for s host settings bytes and r runtime exception paths. Pure with
- * injectable host facts; errors reject malformed/file-based settings rather than dropping policy.
+ * O(s + r * t) for s host settings bytes, r scratch aliases and t deny roots, with injectable
+ * realpath lookups; errors reject malformed settings, inaccessible or read-denied scratch.
  * @example claudeFilesystemSettings({ options: { filesystemRoot: '/site' } }, { platform: 'darwin', uid: 501 })
  */
 export function claudeFilesystemSettings(required: { options: RuntimeBuildOptions }, {
-  platform = process.platform, homeDir = homedir(), tempDir = tmpdir(), uid,
-}: { platform?: NodeJS.Platform; homeDir?: string; tempDir?: string; uid?: number | null | undefined } = {}): string {
+  platform = process.platform, homeDir = homedir(), tempDir = tmpdir(), uid, realpath = realpathSync,
+}: { platform?: NodeJS.Platform; homeDir?: string; tempDir?: string; uid?: number | null | undefined; realpath?: (path: string) => string } = {}): string {
   const { options } = required;
-  const runtimeTempPaths = claudeRuntimeTempPaths({ options, platform }, { uid });
+  const runtimeTempPaths = claudeRuntimeTempPaths({ options, platform }, { uid, realpath });
   const settings = options.settings ? JSON.parse(options.settings) as Record<string, unknown> : {};
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('Host settings must be a JSON object');
   const permissions = settings.permissions as Record<string, unknown> | undefined;
@@ -147,7 +147,7 @@ export function claudeFilesystemSettings(required: { options: RuntimeBuildOption
       ...readOnlyEditDenies({ permissions, readOnlyDirs }, {}) },
     sandbox: { enabled: platform !== 'win32', failIfUnavailable: platform !== 'win32',
       allowUnsandboxedCommands: platform === 'win32', excludedCommands: [],
-      filesystem: filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths, readOnlyDirs }, {}),
+      filesystem: filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths, readOnlyDirs }, { realpath }),
     },
   });
 }
@@ -174,18 +174,26 @@ function readOnlyEditDenies({ permissions, readOnlyDirs }: {
 
 /** Exact scratch subtree inside the executor's private per-run CLAUDE_CODE_TMPDIR.
  * Missing bases grant nothing; long bases are refused so Bash cannot fall back to shared scratch.
- * Pure, O(p) time/space for p path bytes; invalid Unix host facts throw before policy generation.
+ * Resolve the existing base, since Claude creates its UID child only after settings are built.
+ * O(p) time/space for p path bytes plus one injected lookup; inaccessible bases and invalid
+ * Unix host facts throw before policy generation. A not-yet-created base keeps its literal grant.
  */
 function claudeRuntimeTempPaths({ options, platform }: {
   options: RuntimeBuildOptions; platform: NodeJS.Platform;
-}, { uid }: { uid?: number | null | undefined } = {}): string[] {
+}, { uid, realpath = realpathSync }: { uid?: number | null | undefined; realpath?: (path: string) => string } = {}): string[] {
   if (platform === 'win32') return [];
   const base = options.filesystemRuntimeTempBase;
   if (!base) return [];
   if (!isAbsolute(base)) throw new Error('Runtime temp base must be absolute');
   const runtimeTemp = resolve(base, `claude-${requireUnixUid({}, { uid })}`);
-  if (Buffer.byteLength(runtimeTemp) > 44) throw new Error('Runtime temp path must not exceed 44 bytes');
-  return claudeTempAliases({ path: runtimeTemp, platform }, {});
+  const paths = claudeTempAliases({ path: runtimeTemp, platform }, {});
+  try {
+    paths.push(resolve(realpath(base), basename(runtimeTemp)));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  if (paths.some(path => Buffer.byteLength(path) > 44)) throw new Error('Runtime temp path must not exceed 44 bytes');
+  return [...new Set(paths)];
 }
 
 /** The host UID that names Claude's scratch subtree; fails closed rather than granting a guessed path. O(1). */
@@ -204,14 +212,28 @@ function claudeTempAliases({ path, platform }: { path: string; platform: NodeJS.
 /** Build explicit filesystem exceptions; shared temp and the rest of home remain denied.
  * Claude's exact scratch subtree in the executor-created per-run directory is a read/write
  * infrastructure exception so Bash can track cwd. Shared and other runs' scratch stay denied.
- * Pure, O(r + t) for r runtime paths and t shared temp roots; no filesystem access.
+ * Read denies also restrict create/unlink; reject overlapping scratch rather than widen reads.
+ * O(r * t) containment checks for r scratch aliases and t deny roots, plus t realpath lookups.
  */
 function filesystemSandboxPaths({ options, homeDir, tempDir, runtimeTempPaths, readOnlyDirs }: {
   options: RuntimeBuildOptions; homeDir: string; tempDir: string; runtimeTempPaths: readonly string[]; readOnlyDirs: readonly string[];
-}, _optional = {}) {
+}, { realpath = realpathSync }: { realpath?: (path: string) => string } = {}) {
   const privateTemp = options.filesystemTempDir ?? resolve(options.filesystemRoot!, '.agent-runtime', 'tmp');
   const sharedTempRoots = [...new Set(['/tmp', '/private/tmp', tempDir, ...(options.filesystemSharedTempRoots ?? [])])];
-  return { denyRead: [homeDir, ...sharedTempRoots],
+  const denyRead = [homeDir, ...sharedTempRoots];
+  if (runtimeTempPaths.length > 0) {
+    const deniedPaths = denyRead.flatMap(dir => {
+      try { return [dir, realpath(dir)]; }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        return [dir];
+      }
+    });
+    if (runtimeTempPaths.some(path => deniedPaths.some(dir => isSameOrInside({ path, dir }, {})))) {
+      throw new Error('Runtime temp path must not be inside a read-denied directory');
+    }
+  }
+  return { denyRead,
     // Owner 2026-10-23: git config is a read-only infrastructure exception, never all of home.
     allowRead: [options.filesystemRoot!, privateTemp, resolve(homeDir, '.gitconfig'),
       resolve(homeDir, '.config/git/config'), ...(options.filesystemRuntimeReadPaths ?? []), ...runtimeTempPaths, ...readOnlyDirs],

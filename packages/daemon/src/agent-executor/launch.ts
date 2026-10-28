@@ -1116,12 +1116,14 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       spawnEnv.TMP = input.filesystemTempDir;
       spawnEnv.TEMP = input.filesystemTempDir;
       if (def.id === 'claude' && process.platform !== 'win32') {
-        // Claude shortens long Bash socket paths to shared scratch. Keep even the /private alias
-        // plus /claude-<uid> below 44 bytes, and isolate it with mkdtemp's private 0700 directory.
-        const runtimeTemp = await fsPromises.mkdtemp('/tmp/jini-');
+        // Read denies also block create/unlink, so Claude's cwd files cannot live under /tmp.
+        // /var/tmp exists on macOS/Linux; its realpath plus /claude-<uid> must fit 44 bytes
+        // or the policy refuses launch instead of letting Bash fall back to shared scratch.
+        // mkdtemp creates a private 0700 directory; register cleanup before resolving aliases.
+        const runtimeTemp = await fsPromises.mkdtemp('/var/tmp/jini-');
         filesystemTemps.get(input.runId)!.push(runtimeTemp);
-        input.filesystemRuntimeTempBase = runtimeTemp;
-        spawnEnv.CLAUDE_CODE_TMPDIR = runtimeTemp;
+        input.filesystemRuntimeTempBase = await fsPromises.realpath(runtimeTemp);
+        spawnEnv.CLAUDE_CODE_TMPDIR = input.filesystemRuntimeTempBase;
       }
       if (supported === false) {
         input.filesystemNotice = 'files and shell are not folder-limited for this agent';
@@ -1229,8 +1231,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
           ...(canRegisterRunMessageRelay({ def, mcpBridge }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
-          ...(input.model ? { startingModel: input.model } : {}),
-          ...(modelCatalog ? { modelCatalog } : {}),
+          ...childLifecycleOptions({ input, modelCatalog }),
           runId: input.runId,
           def,
           streamFormat: formatForStdin.streamFormat,
@@ -1242,8 +1243,6 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           onCleanupFailure: onCleanupFailureFn,
           cleanupStagedFiles,
           journal,
-          ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}),
-          ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}),
           continuation,
           classifyFailure,
           bufferedStdoutMaxBytes,
@@ -1261,6 +1260,15 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     });
     child.once('close', () => { liveRunInputs.delete(runId); liveRunRelays.delete(runId); });
     return stdinHandle;
+  }
+
+  function childLifecycleOptions({ input, modelCatalog }: { input: AgentExecutorRunInput; modelCatalog: ModelCatalogSnapshot | undefined }) {
+    return {
+      ...(input.model ? { startingModel: input.model } : {}),
+      ...(modelCatalog ? { modelCatalog } : {}),
+      ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}),
+      ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}),
+    };
   }
 
   async function dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }: {

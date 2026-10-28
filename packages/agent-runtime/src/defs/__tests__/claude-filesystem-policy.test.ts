@@ -1,6 +1,6 @@
-import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync, symlinkSync, unlinkSync, utimesSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync, symlinkSync, unlinkSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assertClaudeFilesystemSupport, createClaudeFilesystemSupportProbe, claudeFilesystemSettings, validateFilesystemLaunch } from '../../claude-filesystem-policy.js';
 import { claudeAgentDef } from '../claude.js';
@@ -162,13 +162,13 @@ describe('explicit infrastructure exceptions', () => {
     expect(JSON.stringify(settings)).not.toContain('/home/owner/OUTSIDE_CANARY');
   });
   it('denies shared and other runs\' scratch while granting only this run\'s exact subtree', () => {
-    const options = { filesystemRoot: '/site', filesystemTempDir: '/site/.agent-runtime/tmp-run', filesystemSharedTempRoots: ['/shared/login-temp'], filesystemRuntimeTempBase: '/tmp/jini-ABC123' };
+    const options = { filesystemRoot: '/site', filesystemTempDir: '/site/.agent-runtime/tmp-run', filesystemSharedTempRoots: ['/shared/login-temp'], filesystemRuntimeTempBase: '/var/tmp/jini-ABC123' };
     const settings = JSON.parse(claudeFilesystemSettings({ options }, { platform: 'darwin', uid: 501, tempDir: '/shared/host-temp' }));
     const { allowRead, allowWrite, denyRead } = settings.sandbox.filesystem;
     expect(denyRead).toEqual(expect.arrayContaining(['/tmp', '/private/tmp', '/shared/host-temp', '/shared/login-temp']));
-    expect(allowWrite).toEqual(['/site', options.filesystemTempDir, '/tmp/jini-ABC123/claude-501', '/private/tmp/jini-ABC123/claude-501']);
-    expect(allowRead).toEqual(expect.arrayContaining(['/tmp/jini-ABC123/claude-501', '/private/tmp/jini-ABC123/claude-501']));
-    for (const path of ['/tmp', '/private/tmp', '/tmp/claude-501', '/private/tmp/claude-501', '/tmp/jini-DEF456/claude-501', '/private/tmp/jini-DEF456/claude-501', '/shared/host-temp', '/shared/login-temp']) {
+    expect(allowWrite).toEqual(['/site', options.filesystemTempDir, '/var/tmp/jini-ABC123/claude-501', '/private/var/tmp/jini-ABC123/claude-501']);
+    expect(allowRead).toEqual(expect.arrayContaining(['/var/tmp/jini-ABC123/claude-501', '/private/var/tmp/jini-ABC123/claude-501']));
+    for (const path of ['/tmp', '/private/tmp', '/var/tmp', '/private/var/tmp', '/tmp/claude-501', '/private/tmp/claude-501', '/tmp/jini-DEF456/claude-501', '/private/tmp/jini-DEF456/claude-501', '/var/tmp/jini-DEF456/claude-501', '/private/var/tmp/jini-DEF456/claude-501', '/shared/host-temp', '/shared/login-temp']) {
       expect(allowRead).not.toContain(path); expect(allowWrite).not.toContain(path);
     }
     expect(JSON.stringify(settings)).not.toContain('OUTSIDE_CANARY');
@@ -176,12 +176,27 @@ describe('explicit infrastructure exceptions', () => {
 });
 
 describe('claude runtime temp exceptions stay narrow', () => {
-  const atLimit = `/tmp/${'a'.repeat(28)}`; // 44 bytes including /claude-501.
+  it.skipIf(process.platform === 'win32')('keeps the canonical var/tmp scratch outside every read deny and within 44 bytes for the real UID', () => {
+    const base = join(realpathSync('/var/tmp'), 'jini-ABC123'); // Same six-byte suffix as mkdtemp.
+    const scratch = join(base, `claude-${process.getuid!()}`);
+    const settings = JSON.parse(claudeFilesystemSettings({ options: {
+      filesystemRoot: '/site', filesystemRuntimeTempBase: base,
+    } }));
+    expect(settings.sandbox.filesystem.allowRead).toContain(scratch);
+    expect(settings.sandbox.filesystem.allowWrite).toContain(scratch);
+    expect(Buffer.byteLength(scratch)).toBeLessThanOrEqual(44);
+    for (const denied of settings.sandbox.filesystem.denyRead as string[]) {
+      const canonicalDeny = existsSync(denied) ? realpathSync(denied) : resolve(denied);
+      expect(scratch).not.toBe(canonicalDeny);
+      expect(scratch.startsWith(canonicalDeny.replace(/\/$/, '') + '/')).toBe(false);
+    }
+  });
+  const atLimit = `/var/tmp/${'a'.repeat(24)}`; // 44 bytes including /claude-501.
   const cases = [
     { name: 'macOS missing run directory', platform: 'darwin', tempDir: '/var/folders/host', claudeTempDir: '', expected: [] },
     { name: 'Linux and WSL missing run directory', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: '', expected: [] },
-    { name: 'macOS short override', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/tmp/custom', expected: ['/tmp/custom/claude-501', '/private/tmp/custom/claude-501'] },
-    { name: 'canonical macOS override', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/private/tmp/custom', expected: ['/tmp/custom/claude-501', '/private/tmp/custom/claude-501'] },
+    { name: 'macOS short override', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/var/tmp/custom', expected: ['/var/tmp/custom/claude-501', '/private/var/tmp/custom/claude-501'] },
+    { name: 'canonical macOS override', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/private/var/tmp/custom', expected: ['/var/tmp/custom/claude-501', '/private/var/tmp/custom/claude-501'] },
     { name: 'macOS var alias', platform: 'darwin', tempDir: '/host/temp', claudeTempDir: '/private/var/custom', expected: ['/var/custom/claude-501', '/private/var/custom/claude-501'] },
     { name: 'Linux short override', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: '/scratch', expected: ['/scratch/claude-501'] },
     { name: '44 byte override', platform: 'linux', tempDir: '/run/user/501', claudeTempDir: atLimit, expected: [`${atLimit}/claude-501`] },
@@ -208,11 +223,23 @@ describe('claude runtime temp exceptions stay narrow', () => {
     })).toThrow('44 bytes');
   });
   it('keeps UID zero exact and fails closed without valid Unix host facts', () => {
-    const required = { options: { filesystemRoot: '/site', filesystemRuntimeTempBase: '/tmp/jini-ABC123' } };
+    const required = { options: { filesystemRoot: '/site', filesystemRuntimeTempBase: '/var/tmp/jini-ABC123' } };
     const facts = { platform: 'linux' as const, homeDir: '/home/owner', tempDir: '/tmp' };
-    expect(JSON.parse(claudeFilesystemSettings(required, { ...facts, uid: 0 })).sandbox.filesystem.allowWrite).toEqual(['/site', '/site/.agent-runtime/tmp', '/tmp/jini-ABC123/claude-0']);
+    expect(JSON.parse(claudeFilesystemSettings(required, { ...facts, uid: 0 })).sandbox.filesystem.allowWrite).toEqual(['/site', '/site/.agent-runtime/tmp', '/var/tmp/jini-ABC123/claude-0']);
     for (const uid of [null, -1, 0.5, NaN]) expect(() => claudeFilesystemSettings(required, { ...facts, uid })).toThrow('Unix UID');
     expect(() => claudeFilesystemSettings({ options: { filesystemRoot: '/site', filesystemRuntimeTempBase: '../outside' } }, { ...facts, uid: 501 })).toThrow('absolute');
+  });
+  it.each(['/tmp/run', '/private/tmp/run', '/home/owner/run', '/host/temp/run', '/login/temp/run'])(
+    'refuses scratch beneath read-denied %s instead of relying on a write grant', base => {
+      expect(() => claudeFilesystemSettings({ options: {
+        filesystemRoot: '/site', filesystemRuntimeTempBase: base, filesystemSharedTempRoots: ['/login/temp'],
+      } }, { platform: 'linux', uid: 501, homeDir: '/home/owner', tempDir: '/host/temp' })).toThrow('read-denied');
+    });
+  it('refuses scratch beneath a realpath alias of a read-denied root', () => {
+    const realpath = (path: string) => path === '/login-temp' ? '/var/tmp' : path;
+    expect(() => claudeFilesystemSettings({ options: {
+      filesystemRoot: '/site', filesystemRuntimeTempBase: '/var/tmp/jini-ABC123', filesystemSharedTempRoots: ['/login-temp'],
+    } }, { platform: 'linux', uid: 501, homeDir: '/home/owner', tempDir: '/host/temp', realpath })).toThrow('read-denied');
   });
   it.each(['', '/runtime'])('preserves the effective child override %j through repeated policy builds', base => {
     const options = { filesystemRoot: '/site', filesystemTempDir: '/site/private-temp', filesystemRuntimeTempBase: base };

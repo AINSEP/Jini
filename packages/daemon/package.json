@@ -132,6 +132,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:live:claude-bash": "vitest run --config vitest.claude-bash.live.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/agent-sessions/__tests__/postgres.postgres.test.ts"
   },

@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, realpathSync, existsSync, statSync, writeFileSync, rmSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { ChildProcess, spawn } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,6 +29,7 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
       let tempDir: string | undefined;
       let tempExistedAtSpawn = false;
       let runtimeTempMode: number | undefined;
+      let runtimeTempRealpath: string | undefined;
       let capturedEnv: NodeJS.ProcessEnv | undefined;
       const def: RuntimeAgentDef = { ...actualDef, buildArgs: (required, optional) => {
         buildOptions = optional?.options;
@@ -40,7 +41,10 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
         capturedEnv = options.env;
         tempDir = options.env?.TMPDIR;
         tempExistedAtSpawn = Boolean(tempDir && existsSync(tempDir));
-        if (def.id === 'claude' && process.platform !== 'win32') runtimeTempMode = statSync(options.env!.CLAUDE_CODE_TMPDIR!).mode & 0o777;
+        if (def.id === 'claude' && process.platform !== 'win32') {
+          runtimeTempMode = statSync(options.env!.CLAUDE_CODE_TMPDIR!).mode & 0o777;
+          runtimeTempRealpath = realpathSync(options.env!.CLAUDE_CODE_TMPDIR!);
+        }
         throw new Error('stop after policy capture');
       });
       const executor = createAgentExecutor({ lifecycle }, {
@@ -68,9 +72,10 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
         expect(capturedEnv?.TMP).toBe(tempDir); expect(capturedEnv?.TEMP).toBe(tempDir);
         const runTempBase = capturedEnv?.CLAUDE_CODE_TMPDIR;
         if (def.id === 'claude' && process.platform !== 'win32') {
-          expect(runTempBase).toMatch(/^\/tmp\/jini-[A-Za-z0-9]{6}$/);
+          expect(runTempBase).toMatch(/^\/(?:private\/)?var\/tmp\/jini-[A-Za-z0-9]{6}$/);
+          expect(runTempBase).toBe(runtimeTempRealpath);
           expect(runtimeTempMode).toBe(0o700);
-          expect(Buffer.byteLength(join(runTempBase!, `claude-${process.getuid?.()}`))).toBeLessThanOrEqual(44);
+          expect(Buffer.byteLength(join(runtimeTempRealpath!, `claude-${process.getuid?.()}`))).toBeLessThanOrEqual(44);
           expect(existsSync(runTempBase!)).toBe(false);
         }
         expect(existsSync(tempDir!)).toBe(false); // Startup failure cleans only this run's temp.
@@ -91,7 +96,12 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
           // Assert the final --settings after both merges, not just the options handed to buildArgs.
           const suffix = `claude-${process.getuid?.()}`;
           const runtimeTemp = join(runTempBase ?? '', suffix);
-          const runtimePaths = process.platform === 'win32' ? [] : process.platform === 'darwin' ? [runtimeTemp, `/private${runtimeTemp}`] : [runtimeTemp];
+          const lexicalTemp = runtimeTemp.replace(/^\/private(?=\/var\/)/, '');
+          const runtimePaths = process.platform === 'win32' ? [] : process.platform === 'darwin' ? [lexicalTemp, `/private${lexicalTemp}`] : [runtimeTemp];
+          for (const denied of (runtimeTempRealpath ? settings.sandbox.filesystem.denyRead : []) as string[]) {
+            const canonicalDeny = existsSync(denied) ? realpathSync(denied) : resolve(denied);
+            expect(runtimeTempRealpath === canonicalDeny || runtimeTempRealpath?.startsWith(canonicalDeny + sep)).toBe(false);
+          }
           expect(settings.sandbox.filesystem.allowWrite).toEqual([realpathSync(site), tempDir, ...runtimePaths]);
           expect(settings.sandbox.filesystem.allowRead).toEqual(expect.arrayContaining(runtimePaths));
           expect(settings.sandbox.filesystem.denyRead).toEqual(expect.arrayContaining(['/tmp', '/private/tmp', '/shared/login-temp', '/shared/tmp', '/shared/temp']));
@@ -129,8 +139,8 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
       const first = await h.start({});
       const second = await h.start({});
       const [firstBase, secondBase] = h.environments.map(env => env.CLAUDE_CODE_TMPDIR!);
-      expect(firstBase).toMatch(/^\/tmp\/jini-[A-Za-z0-9]{6}$/);
-      expect(secondBase).toMatch(/^\/tmp\/jini-[A-Za-z0-9]{6}$/);
+      expect(firstBase).toMatch(/^\/(?:private\/)?var\/tmp\/jini-[A-Za-z0-9]{6}$/);
+      expect(secondBase).toMatch(/^\/(?:private\/)?var\/tmp\/jini-[A-Za-z0-9]{6}$/);
       expect(firstBase).not.toBe(secondBase);
       expect(statSync(firstBase!).mode & 0o777).toBe(0o700);
       expect(statSync(secondBase!).mode & 0o777).toBe(0o700);
@@ -224,7 +234,7 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
       return run;
     },
     cleanup: (_input = {}, _options = {}) => {
-      for (const env of environments) if (env.CLAUDE_CODE_TMPDIR?.startsWith('/tmp/jini-')) rmSync(env.CLAUDE_CODE_TMPDIR, { recursive: true, force: true });
+      for (const env of environments) if (env.CLAUDE_CODE_TMPDIR?.match(/^\/(?:private\/)?var\/tmp\/jini-/)) rmSync(env.CLAUDE_CODE_TMPDIR, { recursive: true, force: true });
       rmSync(base, { recursive: true, force: true });
     },
   };
