@@ -5,7 +5,7 @@
  * "transport-agnostic hooks never touch DOM" contract.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type UIEvent } from 'react';
-import { conversationUsage } from '../../core/turn-usage.js';
+import { conversationUsage, type ChatUsageSummary } from '../../core/turn-usage.js';
 import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
 import type { ChatMessage } from '../../core/index.js';
 import { nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
@@ -24,10 +24,19 @@ const prefersReducedMotion = () =>
 
 /** Recompute costs once per immutable transcript snapshot, including saved history on reload. */
 export function useConversationUsage({ messages }: { messages: readonly ChatMessage[] }, _optional = {}) {
-  // Usage and rendering must see the same answer boundaries, including receipts rebuilt on reload.
-  return useMemo(() => conversationUsage({ messages: messages.map(message => message.events === undefined ? message : {
-    ...message, events: projectAcceptedInputEvents({ events: message.events }),
-  }) }), [messages]);
+  const previous = useRef(new Map<string, ChatUsageSummary>());
+  return useMemo(() => {
+    // Usage and rendering must see the same answer boundaries, including receipts rebuilt on reload.
+    const next = conversationUsage({ messages: messages.map(message => message.events === undefined ? message : {
+      ...message, events: projectAcceptedInputEvents({ events: message.events }),
+    }) });
+    // Keep an unchanged summary's identity so memoized rows skip re-rendering while a run streams.
+    for (const [id, summary] of next) {
+      const old = previous.current.get(id);
+      if (old && JSON.stringify(old) === JSON.stringify(summary)) next.set(id, old);
+    }
+    return previous.current = next;
+  }, [messages]);
 }
 
 export function useMessageListAutoScroll(
