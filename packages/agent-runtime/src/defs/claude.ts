@@ -1,5 +1,5 @@
 import { resolveNativeCapabilityDenies, resolveNativeToolDenies } from '../native-tool-policy.js';
-import { claudeFilesystemSettings, validateFilesystemLaunch } from '../claude-filesystem-policy.js';
+import { claudeFilesystemSettings, validateFilesystemLaunch, validateReadOnlyExtraDirs } from '../claude-filesystem-policy.js';
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /**
  * Claude Code has no dedicated image-attachment flag. imageDelivery: 'prompt-path' makes the
@@ -138,6 +138,7 @@ function claudeLaunchPolicy({ options, caps, extraAllowedDirs, imagePaths, runti
   if (options.filesystemRoot !== undefined) {
     validateFilesystemLaunch({ filesystemRoot: options.filesystemRoot, cwd: runtimeContext.cwd ?? options.filesystemRoot,
       extraAllowedDirs, imagePaths }, {});
+    validateReadOnlyExtraDirs({ filesystemRoot: options.filesystemRoot, dirs: options.filesystemReadOnlyDirs ?? [] }, {});
     return { directoryArgs: [], settingsArgs: ['--settings', claudeFilesystemSettings({ options }, {})] };
   }
   return { directoryArgs: addDirArgs({ extraAllowedDirs, caps }),

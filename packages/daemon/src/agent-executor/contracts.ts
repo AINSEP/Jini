@@ -196,6 +196,9 @@ export interface AgentExecutorRunInput {
   readonly imageContents?: readonly MessageAttachmentImage[];
   /** Additional host-validated directories the runtime may read. */
   readonly extraAllowedDirs?: readonly string[];
+  /** Owner-picked folders outside filesystemRoot: readable where the CLI can enforce read-only, never
+   * a writable grant. Refused before spawn when unsafe (see `validateReadOnlyExtraDirs`). */
+  readonly readOnlyExtraDirs?: readonly string[];
   /** Trusted root that must contain pi-rpc image paths after realpath resolution. */
   readonly uploadRoot?: string;
   /**
@@ -260,7 +263,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
   /**
    * Delivers a message the human sent while `runId` is going straight into its live agent process
    * (see {@link UserMessageDelivery} for each outcome). A stream-json agent queues the message

@@ -22,6 +22,7 @@ import {
   claudeFilesystemRuntimePaths,
   claudeFilesystemSettings,
   validateFilesystemLaunch,
+  validateReadOnlyExtraDirs,
   bindRuntimeAgentDef,
   defaultRuntimeState,
   getRuntimeModelDiscoveryDeps,
@@ -537,6 +538,8 @@ function filesystemBuildOptions({ input }: { input: AgentBuildInput }, _options 
     ...(input.filesystemTempDir ? { filesystemTempDir: input.filesystemTempDir } : {}),
     ...(input.filesystemRuntimeReadPaths ? { filesystemRuntimeReadPaths: input.filesystemRuntimeReadPaths } : {}),
     ...(input.filesystemRuntimeTempBase !== undefined ? { filesystemRuntimeTempBase: input.filesystemRuntimeTempBase } : {}),
+    // Only while a folder limit applies: an unconfined CLI gets no extra grant, read-only or otherwise.
+    ...(input.filesystemRoot !== undefined && input.readOnlyExtraDirs?.length ? { filesystemReadOnlyDirs: input.readOnlyExtraDirs } : {}),
   };
 }
 
@@ -561,7 +564,7 @@ function canRegisterRunMessageRelay({ def, mcpBridge }: {
 
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
  * that let defs silently enable auto-approval. Always supply the validated restricted default now. Pure. */
-export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'filesystemRoot' | 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings' | 'chromeIntegration'> & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemRuntimeTempBase?: string; filesystemNotice?: string }; readonly systemPromptOverlay: string | null | undefined }, _options = {}
+export function buildAgentBuildArgsOptions({ input, systemPromptOverlay }: { readonly input: Pick<AgentExecutorRunInput, 'filesystemRoot' | 'readOnlyExtraDirs' | 'model' | 'reasoning' | 'permissionMode' | 'nativeToolAccess' | 'nativeCapabilities' | 'cliParity' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings' | 'chromeIntegration'> & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemRuntimeTempBase?: string; filesystemNotice?: string }; readonly systemPromptOverlay: string | null | undefined }, _options = {}
 ): RuntimeBuildOptions {
   const permissionMode = input.permissionMode ?? 'restricted';
   if (permissionMode !== 'restricted' && permissionMode !== 'bypass') {
@@ -1083,6 +1086,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         ...(imageDelivery.extraAllowedDirs ? { extraAllowedDirs: imageDelivery.extraAllowedDirs } : {}),
         ...(input.imagePaths ? { imagePaths: input.imagePaths } : {}),
       }, {});
+      if (input.readOnlyExtraDirs) input.readOnlyExtraDirs = validateReadOnlyExtraDirs({ filesystemRoot: input.filesystemRoot, dirs: input.readOnlyExtraDirs }, {});
       input.cwd = input.filesystemRoot;
     } catch {
       return failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_INVALID', message: 'Folder-limited launch refused: invalid filesystem root, working directory or attachment path.' });
@@ -1365,7 +1369,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
     const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
