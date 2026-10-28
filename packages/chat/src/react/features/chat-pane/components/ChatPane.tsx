@@ -283,7 +283,8 @@ function ChatPaneTypedAnswerNotice({
   );
 }
 
-/** A send the server never accepted. Its draft is still in the composer, so Retry is a plain send. */
+/** A send the server never accepted. Its text went back into the composer if that was still empty;
+ * Retry sends it again either way (see `useChatPane`'s `retrySend`). */
 function ChatPaneSendError({ sendError, onRetry, t }: { sendError: Error | null; onRetry: () => void; t: (key: string) => string }): ReactNode {
   if (!sendError) return null;
   return (
@@ -873,7 +874,7 @@ export function ChatPane(props: ChatPaneProps) {
             apiModeAvailable={p.apiModeAvailable}
             onExecutionModeChange={p.onExecutionModeChange}
             sendError={pane.conversation.sendError}
-            onRetrySend={() => void pane.send()}
+            onRetrySend={() => void pane.retrySend()}
             attachmentError={pane.attachmentError}
             dropReadError={fileDrop.dropReadError}
             workingDirectoryError={pane.workingDirectoryError}

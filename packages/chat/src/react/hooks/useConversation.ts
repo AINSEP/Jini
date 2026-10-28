@@ -49,8 +49,8 @@ export interface UseConversationResult {
   error: Error | null;
   /**
    * Why the newest send never became a run (refused, unreachable, or the connection dropped before
-   * acceptance), or `null`. Its optimistic bubbles are already gone and the draft was never consumed,
-   * so a host shows this beside the composer, where sending again retries. Cleared by the next send.
+   * acceptance), or `null`. Its optimistic bubbles are already gone, so a host shows this beside the
+   * composer and offers to send the refused text again. Cleared by the next send.
    */
   sendError: Error | null;
   /** `true` when new content just arrived and nothing has told the hook the user already scrolled away — a `<MessageList>` reads this to decide whether to auto-scroll. */

@@ -94,6 +94,8 @@ export interface MessageRowProps {
   showThinking?: boolean;
   /** Whether this message's own run is still streaming. */
   runStreaming?: boolean;
+  /** Whether the server has yet to accept this reply's run (its user turn is still pending). */
+  runSending?: boolean;
   runSucceeded?: boolean;
   /** Whether this message's question-form (if any) is still the active/answerable one. */
   questionFormInteractive?: boolean;
@@ -209,9 +211,9 @@ function messageAwaitingAnswer(
 }
 
 function AssistantMessageFooter(
-  { message, usageEvent, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, visibleContent, isAnsweredCard }: {
+  { message, usageEvent, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, visibleContent, isAnsweredCard }: {
     message: ChatMessage; usageEvent: ChatUsageSummary | undefined; showUsageTotal: boolean; terminalNotice: string | null;
-    pending: boolean; runInProgress: boolean; runStreaming?: boolean; visibleContent: string; isAnsweredCard: IsAnsweredCard;
+    pending: boolean; runInProgress: boolean; runStreaming?: boolean; runSending: boolean; visibleContent: string; isAnsweredCard: IsAnsweredCard;
   }, _optional = {},
 ) {
   const t = useT();
@@ -228,7 +230,8 @@ function AssistantMessageFooter(
               above until their backends (conversation branching, feedback storage) exist. */}
         </div>
       ) : null}
-      {runInProgress ? <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} isAnsweredCard={isAnsweredCard} /> : null}
+      {runInProgress ? <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} isAnsweredCard={isAnsweredCard}
+        sending={runSending} /> : null}
   </>;
 }
 
@@ -237,7 +240,7 @@ const NO_ATTACHMENTS: readonly ChatAttachment[] = [];
 
 /** The display props `MessageRow` defaults, resolved — what `AssistantMessageRow` renders from. */
 type ResolvedMessageRowProps = MessageRowProps
-  & Required<Pick<MessageRowProps, 'showUsageTotal' | 'showUsageLine' | 'toolCallDisplay' | 'showThinking' | 'runStreaming' | 'runSucceeded' | 'questionFormInteractive'>>;
+  & Required<Pick<MessageRowProps, 'showUsageTotal' | 'showUsageLine' | 'toolCallDisplay' | 'showThinking' | 'runStreaming' | 'runSending' | 'runSucceeded' | 'questionFormInteractive'>>;
 
 type AssistantBlock = MessageBlock<ToolTimelineRow>;
 
@@ -252,6 +255,7 @@ export const MessageRow = memo(function MessageRow({
   toolCallDisplay = 'show',
   showThinking = false,
   runStreaming = false,
+  runSending = false,
   runSucceeded = false,
   questionFormInteractive = false,
   ...props
@@ -261,7 +265,7 @@ export const MessageRow = memo(function MessageRow({
     ...props.message, events: projectAcceptedInputEvents({ events: props.message.events }, answerContexts),
   }, [props.message, answerContexts]);
   if (message.role === 'user') return <UserMessageRow {...props} message={message} />;
-  return <AssistantMessageRow {...props} message={message} {...{ showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSucceeded, questionFormInteractive }} />;
+  return <AssistantMessageRow {...props} message={message} {...{ showUsageTotal, showUsageLine, toolCallDisplay, showThinking, runStreaming, runSending, runSucceeded, questionFormInteractive }} />;
 });
 
 function UserMessageRow({ message, renderAttachment }: Pick<MessageRowProps, 'message' | 'renderAttachment'>) {
@@ -306,6 +310,7 @@ function AssistantMessageRow({
   toolCallDisplay,
   showThinking,
   runStreaming,
+  runSending,
   runSucceeded,
   questionFormInteractive,
   questionFormSubmittedAnswers,
@@ -455,7 +460,7 @@ function AssistantMessageRow({
             {flatExtGroups.length > 0 ? <div className="jini-message-ext-events">{flatExtGroups.map(renderExtGroup)}</div> : null}
           </>
         )}
-      {footer && <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />}
+      {footer && <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />}
     </div>
   );
   // The lossless fallback keeps the host's text intact; user receipts still own separate rows,
@@ -504,9 +509,12 @@ function isUserSection({ section }: { section: readonly AssistantBlock[] | undef
  * old "Thinking…" placeholder, which vanished for good as soon as the first tool row appeared.
  * Kept a separate component so its one-second tick re-renders only this line, not the whole row.
  */
-function RunActivityLine({ events, active, isAnsweredCard }: { events: AgentEvent[] | undefined; active: boolean; isAnsweredCard: IsAnsweredCard }) {
+function RunActivityLine({ events, active, isAnsweredCard, sending }: { events: AgentEvent[] | undefined; active: boolean; isAnsweredCard: IsAnsweredCard; sending: boolean }) {
+  const t = useT();
   const activityLabel = useRunActivity({ events: events, active: active }, { isAnsweredCard });
-  const label = continuingRunNotice({ events, active }, {}) ?? activityLabel;
+  // Until the server accepts the start the turn is still on its way: "Thinking…" there read as the
+  // model working while the text had not even arrived (owner, 2026-10-27). No timeout.
+  const label = active && sending ? t('Sending…') : continuingRunNotice({ events, active }, {}) ?? activityLabel;
   if (label === null) return null;
   return (
     <div className="jini-message-pending jini-run-activity" aria-live="off">

@@ -1173,7 +1173,8 @@ describe('useChatPane', () => {
 });
 
 
-it('clears the adopted conversation draft only after its first run is accepted', async () => {
+// Owner, 2026-10-27: the composer empties at send, not at acceptance; adoption must not refill it.
+it('empties the draft at send and keeps it empty while the new conversation is adopted', async () => {
   const transport = createFakeChatTransport();
   const start = transport.startRun;
   let accept!: () => void;
@@ -1187,7 +1188,7 @@ it('clears the adopted conversation draft only after its first run is accepted',
   let sending!: Promise<void>;
   act(() => { sending = hook.result.current.send(); });
   hook.rerender({ conversationId: 'adopted-during-acceptance' });
-  expect(hook.result.current.composer.draft).toBe('first accepted prompt');
+  expect(hook.result.current.composer.draft).toBe('');
   expect(saved).toEqual([]);
   await act(async () => { accept(); await sending; });
   expect(hook.result.current.composer.draft).toBe('');
