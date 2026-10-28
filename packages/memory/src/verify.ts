@@ -134,6 +134,10 @@ function rowCoversRule({ rowText, rule }: {
   if (row === name) return true;
   if (hasRuleSubstring({ row, text: name, minimumLength: 5 })) return true;
   if (hasRuleSubstring({ row, text: check, minimumLength: 8 })) return true;
+  return sharesRuleWords({ rowText, rule });
+}
+
+function sharesRuleWords({ rowText, rule }: { rowText: string; rule: ActiveRuleForVerify }, _optional = {}): boolean {
   const rowWords = significantWords(rowText);
   const ruleWords = significantWords(`${rule.name} ${rule.check ?? ''}`);
   let shared = 0;

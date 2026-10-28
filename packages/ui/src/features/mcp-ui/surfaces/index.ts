@@ -10,3 +10,4 @@ export * from './outcome.js';
 export * from './select.js';
 export * from './text-input.js';
 export * from './tokens.js';
+export * from './tool-approval.js';

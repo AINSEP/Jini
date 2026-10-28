@@ -20,6 +20,29 @@ export function resolveSpeechFormat(requested: MediaSpeechFormat | undefined): M
   return requested && VALID_SPEECH_FORMATS.has(requested) ? requested : 'mp3';
 }
 
+/**
+ * OpenRouter normalizes aspect ratios across the providers it fronts;
+ * `providers.ts`'s `MEDIA_ASPECTS` are all natively supported. xAI's Imagine
+ * API accepts a wider list (1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 2:1, 1:2,
+ * 19.5:9, 9:19.5, 20:9, 9:20, auto), of which `MEDIA_ASPECTS` is a strict
+ * subset. Both mappings pass through the same five values and default to 16:9.
+ * Written as independent `if` returns (rather than the origin's one
+ * `||`-chained condition) to match the established aspect-mapping style
+ * (see `providers/imagerouter.ts`'s `imageRouterSizeFor`) — same input ->
+ * output mapping for every case, not a behavior change.
+ */
+export function standardImageAspectFor(
+  { aspect }: { aspect: string | undefined },
+  _options: Record<string, never> = {},
+): string {
+  if (aspect === '1:1') return '1:1';
+  if (aspect === '16:9') return '16:9';
+  if (aspect === '9:16') return '9:16';
+  if (aspect === '4:3') return '4:3';
+  if (aspect === '3:4') return '3:4';
+  return '16:9';
+}
+
 /** Truncates a string for inclusion in an error message, appending an ellipsis when truncated. */
 export function truncate(s: unknown, n: number): string {
   const v = String(s || '');

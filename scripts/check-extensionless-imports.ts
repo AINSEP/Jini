@@ -134,6 +134,31 @@ export interface CheckExtensionlessImportsOptions {
   readonly packagesDir?: string;
 }
 
+function checkFileExtensions({ root, absFile, file, content, violations }: { root: string; absFile: string; file: string; content: string; violations: Violation[] }): void {
+  for (const m of content.matchAll(ANCHORED_FROM_IMPORT_RE)) {
+    const specifier = m[1]!;
+    // Only relative specifiers are in scope — bare package specifiers (`@jini-ai/x`, `react`)
+    // resolve through `node_modules`/`exports` and don't take this extension rule at all.
+    if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
+    if (hasExtension(specifier)) continue;
+
+    // Best-effort hint for the fix: does the specifier name an existing `.ts`/`.tsx` sibling
+    // file (meaning `.js` is the right append), or a directory with its own `index` (meaning
+    // `/index.js` is needed instead)? Advisory only — the violation fires either way.
+    const resolvedBase = resolve(dirname(absFile), specifier);
+    const looksLikeDirectory =
+      !isRealFile(`${resolvedBase}.ts`) &&
+      !isRealFile(`${resolvedBase}.tsx`) &&
+      (isRealFile(join(resolvedBase, 'index.ts')) || isRealFile(join(resolvedBase, 'index.tsx')));
+
+    violations.push({
+      rule: 'R11-extensionless-import',
+      file,
+      reason: `relative import "${specifier}" has no file extension — plain Node ESM requires one (this codebase's convention is "${specifier}.js" even for a .ts/.tsx source file${looksLikeDirectory ? `; this one looks like a directory, so "${specifier}/index.js" instead` : ''})`,
+    });
+  }
+}
+
 export async function checkExtensionlessImports(
   options: CheckExtensionlessImportsOptions = {},
 ): Promise<Violation[]> {
@@ -161,28 +186,7 @@ export async function checkExtensionlessImports(
       const file = relative(root, absFile).split('\\').join('/');
       const content = readFileSync(absFile, 'utf8');
 
-      for (const m of content.matchAll(ANCHORED_FROM_IMPORT_RE)) {
-        const specifier = m[1]!;
-        // Only relative specifiers are in scope — bare package specifiers (`@jini-ai/x`, `react`)
-        // resolve through `node_modules`/`exports` and don't take this extension rule at all.
-        if (!specifier.startsWith('./') && !specifier.startsWith('../')) continue;
-        if (hasExtension(specifier)) continue;
-
-        // Best-effort hint for the fix: does the specifier name an existing `.ts`/`.tsx` sibling
-        // file (meaning `.js` is the right append), or a directory with its own `index` (meaning
-        // `/index.js` is needed instead)? Advisory only — the violation fires either way.
-        const resolvedBase = resolve(dirname(absFile), specifier);
-        const looksLikeDirectory =
-          !isRealFile(`${resolvedBase}.ts`) &&
-          !isRealFile(`${resolvedBase}.tsx`) &&
-          (isRealFile(join(resolvedBase, 'index.ts')) || isRealFile(join(resolvedBase, 'index.tsx')));
-
-        violations.push({
-          rule: 'R11-extensionless-import',
-          file,
-          reason: `relative import "${specifier}" has no file extension — plain Node ESM requires one (this codebase's convention is "${specifier}.js" even for a .ts/.tsx source file${looksLikeDirectory ? `; this one looks like a directory, so "${specifier}/index.js" instead` : ''})`,
-        });
-      }
+      checkFileExtensions({ root, absFile, file, content, violations });
     }
   }
 

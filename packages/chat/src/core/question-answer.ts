@@ -33,12 +33,18 @@ function selectedAnswerText(
   const labels: string[] = [];
   if (typeof result.choice === 'string') labels.push(optionLabel({ group: question.singleSelect ?? question, value: result.choice }));
   if (Array.isArray(result.selections)) {
-    for (const selection of result.selections) {
-      if (typeof selection === 'string') labels.push(optionLabel({ group: question.multiSelect ?? question, value: selection }));
-    }
+    labels.push(...selectionLabels({ selections: result.selections, question }));
   }
   if (labels.length > 0) return labels.join(', ');
   return Array.isArray(result.selections) && result.selections.length === 0 ? 'None selected' : undefined;
+}
+
+function selectionLabels({ selections, question }: { selections: unknown[]; question: Record<string, unknown> }, _options = {}): string[] {
+  const labels: string[] = [];
+  for (const selection of selections) {
+    if (typeof selection === 'string') labels.push(optionLabel({ group: question.multiSelect ?? question, value: selection }));
+  }
+  return labels;
 }
 
 /** Read a classified result or delivered callback as plain user text. Decline wins over other fields;

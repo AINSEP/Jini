@@ -1,8 +1,6 @@
 import type { VerifiedOriginRequestContext, OriginRegistryPort, OriginSettingRepoPort, RedirectTargetContext, EgressTargetContext } from "./ports.js";
 import { OriginNotVerifiedError, createVerifiedOrigin, type VerifiedOrigin } from "./types.js";
 
-export { OriginNotVerifiedError };
-
 export interface NormalizedTarget {
   scheme: "https" | "http";
   host: string;

@@ -57,17 +57,6 @@ function defaultHeader(
   );
 }
 
-/** Collapses `header ?? defaultHeader(...)` out of `ChatPane` itself — nesting is what taxes the
- * `??` in the caller's score, not the branch itself. */
-function resolveChatPaneHeader(
-  header: ReactNode | undefined,
-  title: string | undefined,
-  onReset: () => void,
-  t: (key: string) => string,
-): ReactNode {
-  return header ?? defaultHeader(title, onReset, t);
-}
-
 function chatPaneClassName(variant: ChatPaneVariant, className: string | undefined): string {
   return `jini-chat-pane jini-chat-pane--${variant}${className ? ` ${className}` : ''}`;
 }
@@ -845,7 +834,8 @@ export function ChatPane(props: ChatPaneProps) {
       onClickCapture={openLinkInNewTab}
     >
       <style data-jini-chat-pane-styles="true">{CHAT_PANE_STYLES}</style>
-      {resolveChatPaneHeader(p.header, p.title, pane.reset, t)}
+      {/* The former forwarding helper only moved this nested `??` out of ChatPane's score. */}
+      {p.header ?? defaultHeader(p.title, pane.reset, t)}
       {p.agentPluginsMode !== 'off' && <AgentPluginUsage conversationId={pane.conversation.conversationId} messages={pane.conversation.messages} />}
       <div className="jini-chat-pane__body">
         <ChatPaneTranscript

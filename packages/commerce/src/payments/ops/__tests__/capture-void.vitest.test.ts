@@ -145,6 +145,15 @@ describe("capture/void: refusals", () => {
     w.failContextFor("scripted");
     expect(await w.service.void({ scope: SCRIPTED, paymentId: held.id, idempotencyKey: "vk", grant: "g" })).toMatchObject({ ok: false, error: { code: "NO_CREDENTIALS_CONFIGURED" } });
   });
+
+  test("an invalid void scope fails before any authorization is released", async () => {
+    const w = await world();
+    const held = await authorizedScripted(w);
+    expect(await w.service.void({ scope: { ...SCRIPTED, siteId: " " }, paymentId: held.id, idempotencyKey: "vk", grant: "g" }))
+      .toEqual({ ok: false, error: { code: "INVALID_REQUEST", message: "scope.siteId must be a non-empty string", retryable: false } });
+    expect(w.scripted.calls.map((c) => c.op)).toEqual(["createIntent"]);
+    expect((await w.read(held.id)).payment).toMatchObject({ intentStatus: "authorized", capturedMinor: 0 });
+  });
 });
 
 describe("capture/void: provider answers", () => {

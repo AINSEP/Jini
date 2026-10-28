@@ -7,7 +7,7 @@ import { afterEach, describe, expect, test } from "vitest";
 
 import type { ResolvedEndpoint, WebhookReceiver, WebhookResponse } from "../../payments/ingest/receive.js";
 import { ingestWorld } from "../../payments/ingest/__tests__/harness.js";
-import { registerPaymentsWebhookRoute, type PaymentsWebhookDeps } from "../payments-webhook.js";
+import { registerPaymentsWebhookRoute, type PaymentsWebhookDeps } from "../index.js";
 
 /**
  * @file Route tests for `POST <prefix>/payments/webhooks/:siteId/:providerId/:endpointId` on a REAL
@@ -77,6 +77,72 @@ function recordingReceiver(optional: { receive?: WebhookReceiver["receive"]; res
 }
 
 describe("payments webhook route", () => {
+  test("receiver activation and removal take effect on the next request without registering the route again", async () => {
+    const { receiver, calls } = recordingReceiver();
+    let active: WebhookReceiver | null = null;
+    const app = express();
+    registerPaymentsWebhookRoute({ app, deps: { resolveReceiver: () => active } });
+    app.use(express.json());
+    const base = await listen(app);
+    expect(await post(base + URL_PATH)).toEqual({ status: 503, body: { code: "PAYMENTS_UNAVAILABLE", message: "payments are not configured on this install" } });
+    active = receiver;
+    expect(await post(base + URL_PATH, { body: "exact bytes" })).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect(calls.map(call => Buffer.from(call.rawBody).toString("utf8"))).toEqual(["exact bytes"]);
+    active = null;
+    expect(await post(base + URL_PATH)).toEqual({ status: 503, body: { code: "PAYMENTS_UNAVAILABLE", message: "payments are not configured on this install" } });
+    expect(calls).toHaveLength(1);
+  });
+
+  test("endpoint resolution receives decoded URL identity and its refusal bypasses receive even for an oversized body", async () => {
+    const paths: unknown[] = [];
+    let received = false;
+    const receiver: WebhookReceiver = {
+      resolveEndpoint: async input => {
+        paths.push(input);
+        return { ok: false, response: { status: 404, body: { code: "ENDPOINT_NOT_FOUND", message: "no such webhook endpoint" } } };
+      },
+      receive: async () => { received = true; return { status: 200, body: { received: 1, duplicates: 0 } }; },
+    };
+    const base = await listen(appWith({ resolveReceiver: () => receiver }, { prefix: "/api", limit: "1b" }));
+    expect(await post(`${base}/api/payments/webhooks/site%20one/provider-two/endpoint-three`, { body: "oversized" })).toEqual({
+      status: 404, body: { code: "ENDPOINT_NOT_FOUND", message: "no such webhook endpoint" },
+    });
+    expect(paths).toEqual([{ path: { siteId: "site one", providerId: "provider-two", endpointId: "endpoint-three" } }]);
+    expect(received).toBe(false);
+  });
+
+  test.each([400, 500, 503] as const)("the receiver's %s response is forwarded without changing its retry semantics", async status => {
+    const response: WebhookResponse = { status, body: { code: "RECEIVER_RESULT", message: "public error" } };
+    const { receiver } = recordingReceiver({ receive: async () => response });
+    const base = await listen(appWith({ resolveReceiver: () => receiver }));
+    expect(await post(base + URL_PATH, { body: "{}" })).toEqual(response);
+  });
+
+  test("a binary body is delivered without decoding, normalization or JSON serialization", async () => {
+    const { receiver, calls } = recordingReceiver();
+    const base = await listen(appWith({ resolveReceiver: () => receiver }));
+    const bytes = Buffer.from([0, 255, 128, 13, 10, 32, 123, 125]);
+    expect(await post(base + URL_PATH, { body: bytes, headers: { "content-type": "application/octet-stream" } }))
+      .toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect(calls).toHaveLength(1);
+    expect(Buffer.from(calls[0]!.rawBody)).toEqual(bytes);
+    expect(calls[0]!.headers["content-type"]).toBe("application/octet-stream");
+  });
+
+  test("the body limit accepts the exact bound and refuses one additional byte before receive", async () => {
+    const { receiver, calls } = recordingReceiver();
+    const base = await listen(appWith({ resolveReceiver: () => receiver }, { limit: "3b" }));
+    expect(await post(base + URL_PATH, { body: "123" })).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect((await post(base + URL_PATH, { body: "1234" })).status).toBe(413);
+    expect(calls.map(call => Buffer.from(call.rawBody).toString("utf8"))).toEqual(["123"]);
+  });
+
+  test("a non-Error rejection produces the same fixed 500 without leaking provider text", async () => {
+    const { receiver } = recordingReceiver({ receive: async () => { throw "secret webhook credential"; } });
+    const base = await listen(appWith({ resolveReceiver: () => receiver }));
+    expect(await post(base + URL_PATH, { body: "{}" })).toEqual({ status: 500, body: { code: "INTERNAL_ERROR", message: "internal error" } });
+  });
+
   test("a real signed delivery verifies through an app that mounts express.json, and is recorded (not applied)", async () => {
     const { w, base } = await signedWorld();
     const { rawBody, headers } = w.fake.server.webhook({ type: "charge.succeeded", id: "ch_1", eventId: "evt_1" });

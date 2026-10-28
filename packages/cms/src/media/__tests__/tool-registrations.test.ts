@@ -338,8 +338,8 @@ test("library_list lists only active documents, with display filename, content t
   const result = await tool(deps, "library_list").handler(executionContext({}));
   assert.deepEqual(result, { documents: [{
     id: guide.id, title: "guide", filename: "guide.md", originalFilename: "guide.md", contentType: "text/markdown",
-    byteSize: 8, createdAt: NOW, createdBy: "uploader", publicUrl: null,
-  }] });
+    byteSize: 8, createdAt: NOW, createdBy: "uploader", publicUrl: null, source: { kind: 'upload' },
+  }], nextCursor: null });
 });
 
 test("library_list reports an unknown byte size when the blob row is gone or the store cannot size blobs", async () => {

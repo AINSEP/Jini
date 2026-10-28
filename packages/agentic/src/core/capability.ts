@@ -126,16 +126,22 @@ function findPropertyInputError(
   for (const [name, schema] of Object.entries(properties)) {
     const value = input[name];
     if (value === undefined) continue;
-    const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
-    if (!matchesPropertyType({ value, actual, expected: schema.type })) {
-      const received = typeof value === 'number' && !Number.isFinite(value) ? String(value) : actual;
-      return `"${name}" must be a ${schema.type}, received ${received}`;
-    }
-    if (schema.enum !== undefined && !schema.enum.includes(value as string)) {
-      return `"${name}" must be one of: ${schema.enum.join(', ')}`;
-    }
+    const error = propertyInputError({ name, schema, value });
+    if (error !== null) return error;
   }
 
+  return null;
+}
+
+function propertyInputError({ name, schema, value }: { name: string; schema: CapabilityInputSchema['properties'][string]; value: unknown }): string | null {
+  const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+  if (!matchesPropertyType({ value, actual, expected: schema.type })) {
+    const received = typeof value === 'number' && !Number.isFinite(value) ? String(value) : actual;
+    return `"${name}" must be a ${schema.type}, received ${received}`;
+  }
+  if (schema.enum !== undefined && !schema.enum.includes(value as string)) {
+    return `"${name}" must be one of: ${schema.enum.join(', ')}`;
+  }
   return null;
 }
 

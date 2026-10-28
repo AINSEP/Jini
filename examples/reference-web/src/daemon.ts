@@ -1,3 +1,4 @@
+import { driveA2uiDemoRun } from './a2ui-demo-run.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
@@ -5,10 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
 import {
-  createLabCatalog,
-  parseAgentToRendererMessage,
   parseRendererToAgentMessage,
-  type AgentToRendererMessage,
   type RendererToAgentMessage,
 } from '@jini-ai/agentic/a2ui';
 import Database from 'better-sqlite3';
@@ -29,6 +27,7 @@ import {
   decodePlaygroundRunRequest,
   failPlaygroundRunBeforeExecutor,
   promptWithPlaygroundAttachments,
+  playgroundAttachmentLaunchOptions,
 } from './playground-request.js';
 import {
   createPlaygroundWorkingDirectoryAuthority,
@@ -280,95 +279,7 @@ async function runA2uiDemo(
   runId: string,
   lifecycle: Parameters<NonNullable<Parameters<typeof createLocalNodeDaemon>[0]['onRunStarted']>>[0]['lifecycle'],
 ): Promise<void> {
-  let canceled = false;
-  lifecycle.onCancelRequested({ runId, listener: () => {
-    canceled = true;
-  } });
-  const emitAgent = (data: RunAgentPayload) => lifecycle.emit({ runId, input: { event: 'agent', data } });
-  /**
-   * Validates every outgoing message against `@jini-ai/agentic/a2ui`'s own `parseAgentToRendererMessage`
-   * before it goes out over the wire — this demo dogfoods the same schema the browser-side
-   * interpreter enforces, so a typo in one of the literal messages below fails loudly here
-   * instead of silently reaching the renderer as a message it then has to reject.
-   */
-  const emitA2ui = (message: AgentToRendererMessage) => {
-    const validated = parseAgentToRendererMessage({ raw: message });
-    if (!validated.ok) {
-      throw new Error(`[A2UI Lab] refusing to emit a message that fails its own schema: ${validated.message}`);
-    }
-    emitAgent({ type: 'a2ui', message: validated.message });
-  };
-
-  const catalog = createLabCatalog({});
-  const surfaceId = `${runId}-surface`;
-
-  await emitAgent({ type: 'status', label: 'Building an A2UI surface', detail: catalog.catalogId });
-  await delay(200);
-  if (canceled) {
-    await lifecycle.finish({ runId, status: 'cancelled', code: null, signal: null, resumable: false });
-    return;
-  }
-
-  emitA2ui({
-    version: 'v1.0',
-    createSurface: {
-      surfaceId,
-      catalogId: catalog.catalogId,
-      dataModel: { message: 'Click the button below — the click really round-trips through the daemon.', clicks: 0 },
-    },
-  });
-  await delay(150);
-
-  emitA2ui({
-    version: 'v1.0',
-    updateComponents: {
-      surfaceId,
-      components: [
-        { id: 'root', component: 'Column', children: ['title', 'status', 'greetButton'] },
-        { id: 'title', component: 'Text', text: 'A2UI Lab', variant: 'body' },
-        { id: 'status', component: 'Text', text: { path: '/message' } },
-        {
-          id: 'greetButton',
-          component: 'Button',
-          child: 'greetLabel',
-          variant: 'primary',
-          action: { event: { name: 'sayHello', context: { source: 'a2ui-lab-button' } } },
-        },
-        { id: 'greetLabel', component: 'Text', text: 'Say hello' },
-      ],
-    },
-  });
-
-  const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-  let clicks = 0;
-  const startedAt = Date.now();
-  for (;;) {
-    if (canceled || Date.now() - startedAt > IDLE_TIMEOUT_MS) break;
-    const received = await waitForA2uiAction(runId, () => canceled);
-    if (!received || canceled) break;
-    if (!('action' in received) || received.action.name !== 'sayHello') continue;
-
-    clicks += 1;
-    emitA2ui({
-      version: 'v1.0',
-      updateDataModel: {
-        surfaceId,
-        path: '/message',
-        value: `Hello! This is click #${clicks}, acknowledged by the real daemon at ${received.action.timestamp}.`,
-      },
-    });
-    await delay(60);
-    emitA2ui({ version: 'v1.0', updateDataModel: { surfaceId, path: '/clicks', value: clicks } });
-  }
-
-  clearA2uiActionWaiters(runId);
-  await lifecycle.finish({
-    runId,
-    status: canceled ? 'cancelled' : 'succeeded',
-    code: canceled ? null : 0,
-    signal: null,
-    resumable: false,
-  });
+  await driveA2uiDemoRun({ runId, lifecycle, ports: { delay, now: Date.now, waitForAction: waitForA2uiAction, clearActionWaiters: clearA2uiActionWaiters } });
 }
 
 /**
@@ -636,15 +547,7 @@ async function main(): Promise<void> {
               env: createPlaygroundRuntimeEnvironment(process.env),
               ...(decoded.model !== undefined ? { model: decoded.model } : {}),
               ...(decoded.reasoning !== undefined ? { reasoning: decoded.reasoning } : {}),
-              ...(claimed.attachments.length > 0 && claimed.batchDirectory
-                ? {
-                    imagePaths: claimed.attachments
-                      .filter((attachment) => attachment.kind === 'image')
-                      .map((attachment) => attachment.path),
-                    extraAllowedDirs: [claimed.batchDirectory],
-                    uploadRoot: claimed.batchDirectory,
-                  }
-                : {}),
+              ...playgroundAttachmentLaunchOptions({ attachments: claimed.attachments, batchDirectory: claimed.batchDirectory }),
             });
             await lifecycle.waitForTerminal({ runId: run.id });
           } catch (error: unknown) {

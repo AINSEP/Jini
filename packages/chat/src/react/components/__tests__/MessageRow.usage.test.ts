@@ -1,11 +1,21 @@
 import { cleanup, renderHook } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import type { ChatUsageSummary } from '../../../core/turn-usage.js';
-import { usageLayout, usageLineMeetsActions, useUsageSummary } from '../MessageRow.usage.js';
+import { usageEndLabel, usageLayout, usageLineMeetsActions, useUsageSummary } from '../MessageRow.usage.js';
 import { I18nContext } from '../../hooks/context.js';
 import { createElement, type ReactNode } from 'react';
 
 afterEach(cleanup);
+
+it('lets terminal failure and pending answers take precedence over model stop reasons', () => {
+  const usage: ChatUsageSummary = { kind: 'usage', stopReason: 'end_turn' };
+  expect(usageEndLabel({ usage })).toBe('Done');
+  expect(usageEndLabel({ usage: { ...usage, stopReason: 'max_tokens' } })).toBe('Interrupted');
+  expect(usageEndLabel({ usage: { ...usage, stopReason: 'error' } })).toBe('Failed');
+  expect(usageEndLabel({ usage: { ...usage, stopReason: 'error' }, awaitingAnswer: true })).toBe('Waiting for your answer');
+  expect(usageEndLabel({ usage, awaitingAnswer: true, message: { id: 'm', role: 'assistant', content: '', runStatus: 'failed' } })).toBe('Failed');
+  expect(usageEndLabel({ usage, message: { id: 'm', role: 'assistant', content: '', runStatus: 'canceled' } })).toBe('Stopped');
+});
 
 it.each([['en-US', '1,040'], ['de-DE', '1.040']])('uses readable output-token units and the %s locale', (locale, count) => {
   const wrapper = ({ children }: { children: ReactNode }) => createElement(I18nContext.Provider, {

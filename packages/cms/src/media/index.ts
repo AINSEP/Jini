@@ -15,6 +15,7 @@ export type {
   MediaStatus,
   MediaKind,
   MediaSource,
+  MediaProvenance,
   MediaRecord,
   AssetBlobStatus,
   AssetBlobRecord,
@@ -182,3 +183,9 @@ export { replaceMediaFile, type ReplaceMediaFileDeps, type MediaFileReplacementR
 
 export { MAX_DOCUMENT_BYTES, DOCUMENT_CONTENT_TYPES, documentContentType, validateDocumentIngress, decodeDocumentUtf8, documentDisplayFilename, type DocumentArchiveReaderPort } from "./document-ingress.js";
 export { DOCUMENT_TEXT_PAGE_BYTES, readDocumentText, isDocumentOnlyBlob } from "./document-read.js";
+
+export type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput, ImageGeometry, EncodedImage, ImageTileInput } from "./image-codec.js";
+
+// Document extraction policy/port only; optional SDK adapters have isolated plugin subpaths.
+export { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort, type DocumentTextExtraction } from './document-text.js';
+export type { DocumentTextPage } from './document-read.js';

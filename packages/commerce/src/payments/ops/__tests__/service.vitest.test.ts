@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { noopAlertPort } from "../../contract/alerts.js";
 import { resolveOpsDeps } from "../deps.js";
-import { LIPAY, SCRIPTED, paidLipay, world } from "./harness.js";
+import { LIPAY, SCRIPTED, USD, paidLipay, world } from "./harness.js";
 
 /** @file The service's read paths and wiring: getPayment (scope-fenced), listProviders, dependency defaults. */
 
@@ -24,6 +24,28 @@ describe("createPaymentsService reads", () => {
       { id: "scripted", displayName: "Scripted", refunds: "full", capture: "manual" },
     ]);
     expect(SCRIPTED.providerId).toBe("scripted");
+  });
+
+  test("the consumer view projects exact captured, refunded, held and disputed cents without provider credentials", async () => {
+    const w = await world();
+    w.scripted.queue("createIntent", { kind: "ok", value: {
+      evidence: {
+        providerRef: "private-provider-ref", status: "succeeded", captured: USD(899),
+        refunds: [
+          { providerRefundRef: "provider-refund-done", amount: USD(123), status: "succeeded" },
+          { providerRefundRef: "provider-refund-pending", amount: USD(234), status: "pending" },
+        ],
+        disputes: [{ providerDisputeRef: "private-dispute-ref", amount: USD(345), status: "open" }],
+      },
+      next: { kind: "none" },
+    } });
+    const created = await w.service.createIntent({ scope: SCRIPTED, amount: USD(1_001), idempotencyKey: "view", reference: "order-view" });
+    expect(created.ok).toBe(true);
+    if (!created.ok) throw new Error("fixture payment failed");
+    expect(await w.service.getPayment({ scope: SCRIPTED, paymentId: created.payment.id })).toEqual({
+      id: created.payment.id, scope: SCRIPTED, status: "partially_refunded", amount: USD(1_001), captured: USD(899),
+      refunded: USD(123), refundHeld: USD(234), disputed: USD(345), reference: "order-view", next: { kind: "none" },
+    });
   });
 });
 

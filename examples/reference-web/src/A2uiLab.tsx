@@ -1,3 +1,4 @@
+import { streamA2uiRun } from './a2ui-run-stream.js';
 import { createSystemClock } from "@jini-ai/core/primitives";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
@@ -38,10 +39,6 @@ interface RunStatusWire {
 interface RunResponseWire {
   run: RunStatusWire;
 }
-interface SseEnvelope {
-  kind: string;
-  payload: unknown;
-}
 
 function encodeA2uiRunContext(): string {
   // The A2UI Lab's contextRef carries no real payload — daemon.ts's onRunStarted dispatches on
@@ -51,72 +48,6 @@ function encodeA2uiRunContext(): string {
   return 'a2ui:lab';
 }
 
-function parseSseFrame(frame: string): SseEnvelope | null {
-  const data = frame
-    .split('\n')
-    .filter((line) => line.startsWith('data:'))
-    .map((line) => line.slice(5).trimStart())
-    .join('\n');
-  if (data.length === 0) return null;
-  return JSON.parse(data) as SseEnvelope;
-}
-
-interface StreamCallbacks {
-  onA2uiMessage: (message: unknown) => void;
-  onStatus: (label: string) => void;
-  onDone: (status: 'succeeded' | 'failed' | 'cancelled') => void;
-  onError: (error: Error) => void;
-}
-
-async function streamA2uiRun(runId: string, callbacks: StreamCallbacks, signal: AbortSignal): Promise<void> {
-  // Deliberately plain `fetch`, not `fetchWithTimeout` — same reasoning as `daemon-transport.ts`'s
-  // `streamRun`: this reads an SSE-over-fetch stream that can legitimately stay open for a whole
-  // long-running agent turn, and the caller's own `signal` is the correct cancellation mechanism.
-  const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/events`, { signal });
-  if (!response.ok) throw new Error(`daemon returned ${response.status} for the A2UI Lab run's event stream`);
-  if (!response.body) throw new Error('the daemon returned an empty event stream');
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffered = '';
-  let reachedEnd = false;
-
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      buffered += decoder.decode(value, { stream: !done }).replaceAll('\r\n', '\n');
-      let boundary = buffered.indexOf('\n\n');
-      while (boundary >= 0) {
-        const frame = buffered.slice(0, boundary);
-        buffered = buffered.slice(boundary + 2);
-        boundary = buffered.indexOf('\n\n');
-        const event = parseSseFrame(frame);
-        if (!event) continue;
-
-        if (event.kind === 'agent') {
-          const payload = event.payload as { type?: string; label?: string; detail?: string; message?: unknown };
-          if (payload.type === 'a2ui') callbacks.onA2uiMessage(payload.message);
-          else if (payload.type === 'status') callbacks.onStatus(payload.detail ? `${payload.label ?? ''} — ${payload.detail}` : (payload.label ?? ''));
-          continue;
-        }
-        if (event.kind === 'error') {
-          const payload = event.payload as { message?: unknown };
-          callbacks.onError(new Error(typeof payload.message === 'string' ? payload.message : 'the A2UI Lab run failed'));
-          continue;
-        }
-        if (event.kind === 'end') {
-          const payload = event.payload as { status?: unknown };
-          reachedEnd = true;
-          callbacks.onDone(payload.status === 'failed' ? 'failed' : payload.status === 'cancelled' ? 'cancelled' : 'succeeded');
-        }
-      }
-      if (done) break;
-    }
-    if (!reachedEnd && !signal.aborted) throw new Error('the A2UI Lab event stream closed before the run ended');
-  } finally {
-    reader.releaseLock();
-  }
-}
 
 async function readApiError(response: Response): Promise<Error> {
   const fallback = `${response.status} ${response.statusText}`.trim();
@@ -267,9 +198,10 @@ export function A2uiLab() {
         setRunId(body.run.id);
         setRunState('streaming');
 
-        await streamA2uiRun(
-          body.run.id,
-          {
+        await streamA2uiRun({
+          runId: body.run.id,
+          fetch,
+          callbacks: {
             onA2uiMessage: (message) => {
               const result = interpreter.applyAgentMessage({ raw: message });
               if (result.unattributedViolation) {
@@ -292,8 +224,8 @@ export function A2uiLab() {
               }
             },
           },
-          controller.signal,
-        );
+          signal: controller.signal,
+        });
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         setRunState('failed');

@@ -77,9 +77,13 @@ export function recordedSurfaceAnswers({ events }: { events: readonly AgentEvent
     if (typeof receipt?.surfaceUri !== 'string' || seen.has(receipt.id)) continue;
     seen.add(receipt.id);
     const document = latest.get(receipt.surfaceUri);
-    if (document !== undefined) answers.set(document, typeof receipt.answerText === 'string' ? receipt.answerText : receipt.text);
+    if (document !== undefined) answers.set(document, surfaceAnswerText({ receipt }));
   }
   return answers;
+}
+
+function surfaceAnswerText({ receipt }: { receipt: AcceptedChatInput }, _options = {}): string {
+  return typeof receipt.answerText === 'string' ? receipt.answerText : receipt.text;
 }
 
 /** Project a persisted answer through the same receipt owner as composer input. */
@@ -211,10 +215,14 @@ function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] },
       result[position] = mergeAcceptedReceipt({ input, pending: original });
       continue;
     }
-    if (input) for (const id of acceptedInputIds({ input })) positions.set(id, result.length);
+    if (input) recordInputPosition({ input, positions, position: result.length });
     result.push(event);
   }
   return result;
+}
+
+function recordInputPosition({ input, positions, position }: { input: UserMessageEvent; positions: Map<string, number>; position: number }, _options = {}): void {
+  for (const id of acceptedInputIds({ input })) positions.set(id, position);
 }
 
 /** Projects saved answers and reconciles optimistic bubbles with wire events, occurrence for

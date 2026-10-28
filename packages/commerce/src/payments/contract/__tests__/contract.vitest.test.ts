@@ -18,6 +18,16 @@ describe("PaymentScope", () => {
     expect(sameScope({ a: scope, b: { ...scope, mode: "test" } })).toBe(false);
     expect(sameScope({ a: scope, b: { ...scope, siteId: "other" } })).toBe(false);
   });
+  test.each(["workspaceId", "siteId", "providerId", "providerAccountId"] as const)("a different %s never names the same payment scope", (field) => {
+    const other = { ...scope, [field]: "other" };
+    expect(sameScope({ a: scope, b: other })).toBe(false);
+    expect(sameScope({ a: other, b: scope })).toBe(false);
+  });
+  test("test mode is a valid scope independent of live mode", () => {
+    const testScope = { ...scope, mode: "test" as const };
+    expect(scopeProblem({ scope: testScope })).toBeNull();
+    expect(sameScope({ a: testScope, b: { ...testScope } })).toBe(true);
+  });
 });
 
 describe("provider helpers", () => {
@@ -32,6 +42,14 @@ describe("provider helpers", () => {
     expect(supportsCurrency({ capabilities: caps, currency: "USD" })).toBe(true);
     expect(supportsCurrency({ capabilities: caps, currency: "EUR" })).toBe(false);
     expect(supportsCurrency({ capabilities: { ...caps, currencies: "any" }, currency: "EUR" })).toBe(true);
+  });
+  test("an empty provider currency allowlist accepts no currency", () => {
+    const capabilities = { currencies: [] } as unknown as ProviderCapabilities;
+    expect(supportsCurrency({ capabilities, currency: "USD" })).toBe(false);
+  });
+  test("explicit false retryability and a zero provider status are preserved", () => {
+    expect(paymentError({ code: "PROVIDER_ERROR", message: "unavailable" }, { retryable: false, providerStatus: 0 }))
+      .toEqual({ code: "PROVIDER_ERROR", message: "unavailable", retryable: false, providerStatus: 0 });
   });
   test("DI tokens carry their ids and cardinality", () => {
     expect(PaymentProviderToken).toEqual({ id: "commerce.payments.provider", version: 1, cardinality: "many" });

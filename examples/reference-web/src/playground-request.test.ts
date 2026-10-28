@@ -6,6 +6,7 @@ import {
   decodePlaygroundRunRequest,
   failPlaygroundRunBeforeExecutor,
   promptWithPlaygroundAttachments,
+  playgroundAttachmentLaunchOptions,
 } from './playground-request.js';
 
 const allowedProjects = new Set(['starter-site', 'bug-hunt']);
@@ -17,6 +18,15 @@ const attachmentId = (index: number) =>
 function encodeContext(payload: unknown, prefix = 'playground:'): string {
   return `${prefix}${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
 }
+
+it('grants only the claimed upload directory and passes image paths in attachment order', () => {
+  const file = { path: '/uploads/doc.txt', name: 'doc.txt', kind: 'file' as const };
+  const image = { path: '/uploads/photo.png', name: 'photo.png', kind: 'image' as const };
+  expect(playgroundAttachmentLaunchOptions({ attachments: [], batchDirectory: '/uploads' })).toEqual({});
+  expect(playgroundAttachmentLaunchOptions({ attachments: [image], batchDirectory: undefined })).toEqual({});
+  expect(playgroundAttachmentLaunchOptions({ attachments: [file], batchDirectory: '/uploads' })).toEqual({ imagePaths: [], extraAllowedDirs: ['/uploads'], uploadRoot: '/uploads' });
+  expect(playgroundAttachmentLaunchOptions({ attachments: [file, image], batchDirectory: '/uploads' })).toEqual({ imagePaths: ['/uploads/photo.png'], extraAllowedDirs: ['/uploads'], uploadRoot: '/uploads' });
+});
 
 describe('decodePlaygroundRunRequest', () => {
   it('normalizes allowed fields and preserves syntactically valid attachment claims', () => {

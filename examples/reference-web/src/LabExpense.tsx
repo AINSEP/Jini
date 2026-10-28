@@ -329,14 +329,7 @@ export interface LabExpenseReceiptProps {
 
 /** View 3: the receipt. Values an agent can check its own work against, one element each. */
 export function LabExpenseReceipt({ receipt, onBack }: LabExpenseReceiptProps) {
-  const rows: ReadonlyArray<[string, string, string]> = [
-    ['receipt-reference', 'Reference', receipt?.reference ?? ''],
-    ['receipt-vendor', 'Vendor', receipt?.vendor ?? ''],
-    ['receipt-amount', 'Amount before tax', receipt?.amount ?? ''],
-    ['receipt-total', 'Total with tax', receipt?.total ?? ''],
-    ['receipt-category', 'Category', receipt?.category ?? ''],
-    ['receipt-justification', 'Justification', receipt?.justification ?? ''],
-  ];
+  const rows = receiptRows({ receipt });
 
   return (
     <section data-agent-page="expense-receipt" className="lab-page">
@@ -375,4 +368,16 @@ export function LabExpenseReceipt({ receipt, onBack }: LabExpenseReceiptProps) {
       </button>
     </section>
   );
+}
+
+function receiptRows({ receipt }: { receipt: ExpenseReceipt | null }): ReadonlyArray<[string, string, string]> {
+  const fields: ReadonlyArray<[string, string, keyof ExpenseReceipt]> = [
+    ['receipt-reference', 'Reference', 'reference'],
+    ['receipt-vendor', 'Vendor', 'vendor'],
+    ['receipt-amount', 'Amount before tax', 'amount'],
+    ['receipt-total', 'Total with tax', 'total'],
+    ['receipt-category', 'Category', 'category'],
+    ['receipt-justification', 'Justification', 'justification'],
+  ];
+  return fields.map(([handle, label, field]): [string, string, string] => [handle, label, receipt?.[field] ?? '']);
 }

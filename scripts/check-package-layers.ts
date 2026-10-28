@@ -63,6 +63,91 @@ function bundledAtBuild({ pkg, target }: { pkg: SourcePackage; target: string })
     && pkg.manifest.devDependencies?.[`@jini-ai/${target}`] !== undefined;
 }
 
+interface LayerEdge {
+  pkg: SourcePackage;
+  spec: string;
+  owner: string;
+  target: string;
+  sourcePath: string | undefined;
+  declaredPeer: boolean;
+  byName: Map<string, SourcePackage>;
+}
+
+function isOptionalPeer({ pkg, target, sourcePath, declaredPeer }: LayerEdge): boolean {
+  // Optional metadata must not exempt a required dependency in the manifest.
+  return declaredPeer || (sourcePath !== undefined
+    && pkg.manifest.peerDependencies?.[`@jini-ai/${target}`] !== undefined
+    && pkg.manifest.peerDependenciesMeta?.[`@jini-ai/${target}`]?.optional === true);
+}
+
+function hasReactPeer({ owner, target }: LayerEdge, optionalPeer: boolean): boolean {
+  return (owner === 'user-management' && ['ui', 'admin', 'agentic'].includes(target) && optionalPeer)
+    || (owner === 'chat' && target === 'ui');
+}
+
+// React integrations compose UI peers in their React subtree. Chat's declared UI
+// dependency covers its React components/hooks/helpers, including the embed adapter,
+// never its framework-free code.
+function isReactIntegration(edge: LayerEdge, optionalPeer: boolean): boolean {
+  const { owner, sourcePath } = edge;
+  return hasReactPeer(edge, optionalPeer)
+    && (sourcePath === undefined || /^src\/react\//.test(sourcePath)
+      || (owner === 'chat' && /^src\/embed-widget\/react\//.test(sourcePath)));
+}
+
+// User management owns an optional admin integration; only its admin subtree may
+// compose published admin entries, keeping server/core and private imports isolated.
+function isAdminIntegration({ owner, target, sourcePath, spec, byName }: LayerEdge, optionalPeer: boolean): boolean {
+  return owner === 'user-management' && target === 'admin' && optionalPeer
+    && sourcePath !== undefined && /^src\/admin\//.test(sourcePath)
+    && isPublicEntry({ spec, pkg: byName.get('@jini-ai/admin') });
+}
+
+function isReviewedLeaf({ owner, target, sourcePath, spec }: LayerEdge): boolean {
+  return leafEdges.some(edge => edge.owner === owner && edge.target === target
+    && (sourcePath === undefined ? spec === `@jini-ai/${edge.target}`
+      : spec === edge.spec && sourcePath === edge.sourcePath));
+}
+
+function isAllowedLayerEdge(edge: LayerEdge, ownerLayer: number, targetLayer: number): boolean {
+  const optionalPeer = isOptionalPeer(edge);
+  return targetLayer < ownerLayer || sameLayerEdges.has(`${edge.owner}→${edge.target}`)
+    || isReactIntegration(edge, optionalPeer) || isAdminIntegration(edge, optionalPeer) || isReviewedLeaf(edge);
+}
+
+function isMcpOauthEdge(owner: string, target: string): boolean {
+  return (owner === 'mcp' && target === 'oauth') || (owner === 'oauth' && target === 'mcp');
+}
+
+function checkBrowserPlatform(edge: LayerEdge, file: string, reason: string, violations: LayerViolation[]): void {
+  const { sourcePath, owner, target, spec } = edge;
+  if (sourcePath !== undefined && ['ui', 'chat'].includes(owner) && target === 'platform'
+    // The literal-host policy has no Node imports or DNS effects; UI and Node URL
+    // wrappers must reuse it rather than fork security-sensitive classification.
+    && spec !== '@jini-ai/platform/fetch-with-timeout'
+    && spec !== '@jini-ai/platform/net/endpoint-policy') {
+    violations.push({ rule: 'L2-browser-platform', file, reason: `${reason}: only the isomorphic fetch-with-timeout and literal endpoint-policy entries are allowed` });
+  }
+
+}
+
+function checkSourceDeclaration(edge: LayerEdge, file: string, reason: string, violations: LayerViolation[]): void {
+  const { sourcePath, pkg, target, byName } = edge;
+  if (sourcePath !== undefined && !bundledAtBuild({ pkg, target }) && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
+    && !pkg.manifest.peerDependencies?.[`@jini-ai/${target}`]) {
+    violations.push({ rule: 'L3-undeclared-edge', file, reason: `${reason}: production import must be a dependency or peerDependency` });
+  }
+  if (sourcePath !== undefined && !byName.has(`@jini-ai/${target}`)) {
+    violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: workspace package not found` });
+  }
+}
+
+function isLiteralModuleCall(node: ts.Node): node is ts.CallExpression & { arguments: ts.NodeArray<ts.Expression> & { 0: ts.StringLiteral } } {
+  return Boolean(ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
+    || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
+    && node.arguments[0] && ts.isStringLiteral(node.arguments[0]));
+}
+
 export function checkPackageLayers(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
   _optional: Record<string, never> = {},
@@ -81,49 +166,19 @@ export function checkPackageLayers(
     if (ownerLayer === undefined || targetLayer === undefined) {
       violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: package missing from the approved layer table` }); return;
     }
-    if ((owner === 'mcp' && target === 'oauth') || (owner === 'oauth' && target === 'mcp')) {
+    if (isMcpOauthEdge(owner, target)) {
       violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: MCP and OAuth must never depend on one another` }); return;
     }
     // Public self-imports select an isolated entry of the same package, not a dependency edge.
     if (owner === target && sourcePath !== undefined) return;
-    // Optional metadata must not exempt a required dependency in the manifest.
-    const optionalPeer = declaredPeer || (sourcePath !== undefined
-      && pkg.manifest.peerDependencies?.[`@jini-ai/${target}`] !== undefined
-      && pkg.manifest.peerDependenciesMeta?.[`@jini-ai/${target}`]?.optional === true);
-    // React integrations compose UI peers in their React subtree. Chat's declared UI
-    // dependency covers its React components/hooks/helpers, including the embed adapter,
-    // never its framework-free code.
-    const reactIntegration = ((owner === 'user-management' && ['ui', 'admin', 'agentic'].includes(target)
-      && optionalPeer) || (owner === 'chat' && target === 'ui'))
-      && (sourcePath === undefined || /^src\/react\//.test(sourcePath)
-        || (owner === 'chat' && /^src\/embed-widget\/react\//.test(sourcePath)));
-    // User management owns an optional admin integration; only its admin subtree may
-    // compose published admin entries, keeping server/core and private imports isolated.
-    const adminIntegration = owner === 'user-management' && target === 'admin' && optionalPeer
-      && sourcePath !== undefined && /^src\/admin\//.test(sourcePath)
-      && isPublicEntry({ spec, pkg: byName.get('@jini-ai/admin') });
-    const reviewedLeaf = leafEdges.some(edge => edge.owner === owner && edge.target === target
-      && (sourcePath === undefined ? spec === `@jini-ai/${edge.target}`
-        : spec === edge.spec && sourcePath === edge.sourcePath));
-    if (targetLayer >= ownerLayer && !sameLayerEdges.has(`${owner}→${target}`) && !reactIntegration && !adminIntegration && !reviewedLeaf) {
+    const edge = { pkg, spec, owner, target, sourcePath, declaredPeer, byName };
+    if (!isAllowedLayerEdge(edge, ownerLayer, targetLayer)) {
       violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
     }
-    if (sourcePath !== undefined && ['ui', 'chat'].includes(owner) && target === 'platform'
-      // The literal-host policy has no Node imports or DNS effects; UI and Node URL
-      // wrappers must reuse it rather than fork security-sensitive classification.
-      && spec !== '@jini-ai/platform/fetch-with-timeout'
-      && spec !== '@jini-ai/platform/net/endpoint-policy') {
-      violations.push({ rule: 'L2-browser-platform', file, reason: `${reason}: only the isomorphic fetch-with-timeout and literal endpoint-policy entries are allowed` });
-    }
-    if (sourcePath !== undefined && !bundledAtBuild({ pkg, target }) && !pkg.manifest.dependencies?.[`@jini-ai/${target}`]
-      && !pkg.manifest.peerDependencies?.[`@jini-ai/${target}`]) {
-      violations.push({ rule: 'L3-undeclared-edge', file, reason: `${reason}: production import must be a dependency or peerDependency` });
-    }
-    if (sourcePath !== undefined && !byName.has(`@jini-ai/${target}`)) {
-      violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: workspace package not found` });
-    }
+    checkBrowserPlatform(edge, file, reason, violations);
+    checkSourceDeclaration(edge, file, reason, violations);
   }
-  for (const pkg of packages) {
+  function checkManifest(pkg: SourcePackage): void {
     const manifestFile = relative(root, join(pkg.directory, 'package.json')).split('\\').join('/');
     if (layers[pkg.manifest.name.slice('@jini-ai/'.length)] === undefined) {
       violations.push({ rule: 'L0-unlisted-package', file: manifestFile, reason: 'package missing from the approved layer table' });
@@ -131,6 +186,9 @@ export function checkPackageLayers(
     for (const name of Object.keys(pkg.manifest.dependencies ?? {})) check(pkg, name, manifestFile);
     for (const name of Object.keys(pkg.manifest.peerDependencies ?? {})) check(pkg, name, manifestFile,
       undefined, pkg.manifest.peerDependenciesMeta?.[name]?.optional === true);
+
+  }
+  function checkSources(pkg: SourcePackage): void {
     for (const filename of packageSourceFiles({ directory: pkg.directory })) {
       if (filename.endsWith('.css')) continue;
       const ast = parseSource({ file: filename, source: readFileSync(filename, 'utf8') });
@@ -140,13 +198,15 @@ export function checkPackageLayers(
         if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
           && ts.isStringLiteral(node.moduleSpecifier)) check(pkg, node.moduleSpecifier.text, file, sourcePath);
         // Dynamic and require imports are included so the rule cannot be bypassed by syntax.
-        if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
-          || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))
-          && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) check(pkg, node.arguments[0].text, file, sourcePath);
+        if (isLiteralModuleCall(node)) check(pkg, node.arguments[0].text, file, sourcePath);
         ts.forEachChild(node, visit);
       }
       visit(ast);
     }
+  }
+  for (const pkg of packages) {
+    checkManifest(pkg);
+    checkSources(pkg);
   }
   return violations;
 }

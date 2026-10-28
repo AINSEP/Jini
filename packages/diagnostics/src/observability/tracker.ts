@@ -1,4 +1,3 @@
-import { isNoopProductAnalytics } from "@jini-ai/analytics/product";
 import type { AgentRunTrackingOutcome, OperationTrackingOutcome, RequestTrackingOutcome, TrackerScope } from "./ports.js";
 import type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerErrorContext, TrackerOptions, TrackerProviders, TrackerSpan } from "./tracker-types.js";
 import { createNoopTracker } from "./tracker-noop.js";
@@ -58,7 +57,8 @@ function thrownOutcome({ options, outcome, error }: { options: SpanOptions; outc
  * @complexity O(1) facade state; delivery/redaction costs remain with the existing ports.
  */
 export function createTracker(required: TrackerProviders, optional: TrackerOptions = {}): Tracker {
-  if ((!required.observability || isNoopObservabilityPort(required.observability)) && (!required.productAnalytics || isNoopProductAnalytics(required.productAnalytics))) return createNoopTracker({});
+  // Supplied analytics ports own their no-op behavior; their optional package must never load here.
+  if (!required.productAnalytics && (!required.observability || isNoopObservabilityPort(required.observability))) return createNoopTracker({});
   const failed = createTrackerWarning({}, optional);
   const observability = combineObservabilityPorts({ ports: required.observability ? [required.observability] : [] }, { onFailure: failed });
   // Takes unknown so trace hands a thrown non-Error over as-is: reportErrorOnce redacts it, and the

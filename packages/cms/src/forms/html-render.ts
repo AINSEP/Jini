@@ -2,8 +2,7 @@
  * Local prototype authorized 2026-10-04; that original dispatch kept Jini read-only.
  * The host owns the endpoint and the form's styling hook; author markup and CSS refine it. */
 import type { FieldDescriptor } from "./types.js";
-import { FIELD_TYPE_REGISTRY, isSafeFieldPattern } from "./field-registry.js";
-import { ATTRIBUTE_NAME_PATTERN } from "./forms.js";
+import { ATTRIBUTE_NAME_PATTERN, FIELD_TYPE_REGISTRY, isSafeFieldPattern } from "./field-registry.js";
 
 // Renderers need the shared retry copy without importing the forms service/repository barrel.
 export { FORM_SUBMISSION_TOO_FAST_MESSAGE } from "./errors.js";

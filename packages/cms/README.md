@@ -33,6 +33,7 @@ Configuration writes only through the injected guarded settings writer; no deliv
 
 Hosts that sanitize SVG uploads or ingest documents through `./media` must install the optional peers
 `dompurify` and `jsdom`. They load lazily: without them, other media still works, but SVG and Office uploads fail.
+The optional `jsdom` peer accepts `^25.0.1 || ^26.0.0 || ^27.0.0`; media uses the shared JSDOM window, DOMParser, XMLSerializer, basic DOM queries and close APIs.
 
 Node-bound domain adapters depend on `/core`. The reverse is a boundary violation — if a core module wants
 something from a Node adapter, the dependency is backwards and the fix is a port (interface) in core,

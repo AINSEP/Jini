@@ -28,4 +28,26 @@ describe("capability values and promised methods are checked at load", () => {
     expect(paymentProviderModuleProblem(provider(promise))).toMatch(new RegExp(`but ${method}\\(\\) is missing$`));
     expect(paymentProviderModuleProblem(provider(promise, { [method]: fn }))).toBeUndefined();
   });
+
+  test.each([
+    [{ refunds: "full" }, "refund"],
+    [{ retrieve: "payment+refunds" }, "retrieve"],
+  ])("alternative capability %o still requires its promised %s method", (capabilities, method) => {
+    expect(paymentProviderModuleProblem(provider(capabilities))).toContain(`but ${method}() is missing`);
+    expect(paymentProviderModuleProblem(provider(capabilities, { [method]: fn }))).toBeUndefined();
+  });
+
+  test.each([
+    [{ refunds: null }, 'capabilities.refunds must be "none" | "full" | "partial"'],
+    [{ confirmation: ["none", 1] }, "capabilities.confirmation must be an array of strings"],
+    [{ currencies: ["USD", null] }, 'capabilities.currencies must be "any" or an array of strings'],
+    [{ currencies: null }, 'capabilities.currencies must be "any" or an array of strings'],
+  ])("refuses malformed capability array %o", (capabilities, reason) => {
+    expect(paymentProviderModuleProblem(provider(capabilities))).toBe(reason);
+  });
+
+  test("an invalid earlier capability is reported before a missing promised method", () => {
+    expect(paymentProviderModuleProblem(provider({ refunds: "full", capture: "invalid" })))
+      .toBe('capabilities.capture must be "auto" | "manual"');
+  });
 });

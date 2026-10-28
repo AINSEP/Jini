@@ -24,13 +24,17 @@ function isImageMetadata({ element }: { element: Element }, _optional = {}): boo
 /** Attribute kinds are shared by rewriting, crawling and diagnostic references. Script-read
  *  `data-*-href`/`-src` values (the see-more button's batch URL) are URLs too; references skip them. */
 function attributeKind({ element, name }: { element: Element; name: string }, _optional = {}): HtmlUrlLocation['kind'] | undefined {
-  const urlName = /^data-(?:[\w-]*-)?(href|src|srcset|poster)$/.exec(name)?.[1] ?? name;
+  const urlName = normalizedUrlAttribute(name);
   if (URL_ATTRIBUTES.has(urlName)) return 'url';
   if (urlName === 'srcset') return 'srcset';
   if (name === 'style') return 'css';
   if (name === 'action' && element.tagName === 'form') return 'action';
   if (name === 'content' && element.tagName === 'meta' && isImageMetadata({ element })) return 'url';
   return undefined;
+}
+
+function normalizedUrlAttribute(name: string): string {
+  return /^data-(?:[\w-]*-)?(href|src|srcset|poster)$/.exec(name)?.[1] ?? name;
 }
 
 /** Style text is CSS; every other element's text remains untouched. */

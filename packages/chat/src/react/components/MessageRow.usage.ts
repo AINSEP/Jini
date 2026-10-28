@@ -13,12 +13,16 @@ export function usageEndLabel(
   const status = message?.runStatus;
   if (status === 'failed') return 'Failed';
   if (status === 'canceled') {
-    return /stopped/i.test(terminalMessageNotice({ message: message! }) ?? '') ? 'Stopped' : 'Canceled';
+    return canceledUsageLabel({ message: message! });
   }
   if (awaitingAnswer) return 'Waiting for your answer';
   const reason = usage.stopReason ?? '';
   if (/error|fail/i.test(reason)) return 'Failed';
   return /abort|interrupt|cancel|max_tokens|max_tool_turns|length|tool_use/i.test(reason) ? 'Interrupted' : 'Done';
+}
+
+function canceledUsageLabel({ message }: { message: ChatMessage }, _options = {}): string {
+  return /stopped/i.test(terminalMessageNotice({ message }) ?? '') ? 'Stopped' : 'Canceled';
 }
 
 /** A standalone row has one turn; MessageList supplies the full conversation projection. */

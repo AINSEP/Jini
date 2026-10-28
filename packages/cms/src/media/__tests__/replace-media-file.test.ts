@@ -25,10 +25,12 @@ async function fixture() {
 
 test('stages a new blob and delegates the atomic source switch without creating a new identity', async () => {
   const f = await fixture();
-  const bytes = new Uint8Array([2, 3, 4]);
-  const saved = await replaceMediaFile({ deps: f.deps, media: f.media, bytes, contentType: 'image/png', principalId: 'owner' });
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  const saved = await replaceMediaFile({ deps: f.deps, media: f.media, bytes, contentType: 'image/png', principalId: 'owner',
+    provenance: { kind: 'url', url: 'https://user:secret@example.com/new.jpg?token=secret#private' } });
   assert.ok(saved);
-  assert.deepEqual(saved, { ...f.media, source: { sha256: saved.source.sha256 }, version: f.media.version + 1 });
+  assert.deepEqual(saved, { ...f.media, source: { sha256: saved.source.sha256, contentType: 'image/jpeg',
+    provenance: { kind: 'url', url: 'https://example.com/new.jpg' } }, version: f.media.version + 1 });
   assert.notEqual(saved.source.sha256, f.media.source.sha256);
   const blob = await f.deps.assetBlobRepo.findByHash({ workspaceId: f.deps.workspaceId, sha256: saved.source.sha256 });
   assert.ok(blob);
@@ -39,7 +41,8 @@ test('stages a new blob and delegates the atomic source switch without creating 
   assert.ok(switchInput.originalRenditionId);
   assert.notEqual(switchInput.originalRenditionId, f.media.id);
   assert.deepEqual(f.switches, [{ workspaceId: f.deps.workspaceId, id: f.media.id, ifVersion: f.media.version,
-    sha256: blob.sha256, storageKey: blob.storageKey, originalRenditionId: switchInput.originalRenditionId, updatedAt: f.media.updatedAt }]);
+    sha256: blob.sha256, contentType: 'image/jpeg', provenance: { kind: 'url', url: 'https://example.com/new.jpg' },
+    storageKey: blob.storageKey, originalRenditionId: switchInput.originalRenditionId, updatedAt: f.media.updatedAt }]);
   assert.equal((await f.deps.mediaRepo.list({ workspaceId: f.deps.workspaceId })).length, 1);
 });
 

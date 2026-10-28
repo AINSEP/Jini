@@ -1,4 +1,5 @@
-import { validateDocumentIngress, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
+import { validateDocumentIngress, documentContentType, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from "./document-ingress.js";
+import { safeMediaProvenance } from './provenance.js';
 import { sanitizeSvg } from "./sanitize-svg.js";
 import { sniffContentType } from "./content-type-sniffer.js";
 import { isValidMediaSlugFormat } from "./slug.js";
@@ -36,7 +37,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
  *  3. **Origin-isolated serving** — a host may add an authenticated,
  *     workspace-scoped admin route that serves original bytes, with content
  *     type derived at serve time by `content-type-sniffer.ts` rather than
- *     trusted from upload, since no real content type is stored anywhere —
+ *     trusted from upload-time labels or stored metadata —
  *     that route's own security model is a host concern. What is still NOT
  *     built, per the full design: a second, cookie-less media
  *     origin/process, and signed mint-URLs (a `media.download_original`
@@ -262,6 +263,8 @@ async function deriveUniqueMediaSlug(mediaRepo: MediaRepoPort, workspaceId: UUID
 // ---------------------------------------------------------------------------
 
 export interface UploadMediaInput {
+  /** Safe per-item origin; omitted uploads are recorded as upload, legacy rows remain unknown. */
+  provenance?: import('./types.js').MediaProvenance | undefined;
   kind?: MediaKind | undefined;
   workspaceId: UUID;
   bytes: Uint8Array;
@@ -394,6 +397,7 @@ export async function uploadMedia(
 ): Promise<{ media: MediaRecord }> {
   const { deps, input } = required;
   const kind = resolveUploadKind(input);
+  const provenance = safeMediaProvenance({ source: input.provenance });
   // Document policy is mandatory even if a host overrides the ordinary media MIME/size policy.
   if (kind === "document") await validateDocumentIngress({ filename: input.filename, bytes: input.bytes }, { archiveReader: deps.documentArchiveReader });
   const maxUploadBytes = assertUploadAdmissible({ input, kind }, optional);
@@ -410,14 +414,15 @@ export async function uploadMedia(
 
   const media: MediaRecord = {
     kind,
-    originalFilename: kind === "document" ? input.filename : null,
+    originalFilename: input.filename.replace(/^.*[\\/]/, ''),
     id: deps.idGen.newId(),
     workspaceId: input.workspaceId,
     createdBy: input.createdByPrincipal,
     title,
     slug,
     ...uploadText(input),
-    source: resolveWriteOnceSource({ existing: undefined, requestedSha256: sha256 }),
+    source: { ...resolveWriteOnceSource({ existing: undefined, requestedSha256: sha256 }),
+      contentType: kind === 'document' ? documentContentType({ filename: input.filename }) : sniffContentType({ bytes }), provenance },
     status: "active",
     createdAt: nowIso,
     updatedAt: nowIso,

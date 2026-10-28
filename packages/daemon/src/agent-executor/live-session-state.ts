@@ -51,8 +51,12 @@ export function createLiveSessionState({ emit }: { emit: (payload: RunAgentPaylo
     const patch = isRecord(frame.patch) ? frame.patch : frame;
     const description = typeof patch.description === 'string' ? patch.description : previous?.description;
     const detail = typeof frame.summary === 'string' ? frame.summary : previous?.detail;
-    const local = frame.task_type === 'local_agent' || typeof frame.subagent_type === 'string' || previous?.local === true;
+    const local = isLocalTask({ frame, previous });
     return { local, ...(description === undefined ? {} : { description }), ...(detail === undefined ? {} : { detail }) };
+  }
+
+  function isLocalTask({ frame, previous }: { frame: Record<string, unknown>; previous: BackgroundTask | undefined }): boolean {
+    return frame.task_type === 'local_agent' || typeof frame.subagent_type === 'string' || previous?.local === true;
   }
 
   function nextTaskStatus(frame: Record<string, unknown>, previous: BackgroundTask | undefined): BackgroundTask['status'] {
