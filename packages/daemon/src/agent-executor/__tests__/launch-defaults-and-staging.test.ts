@@ -147,7 +147,7 @@ it('streams the typed native-policy failure once without spawning any CLI', asyn
   if (replay.kind !== 'ok') throw new Error('missing launch events');
   const failures = replay.entries.filter(entry => entry.event === 'error');
   expect(failures).toHaveLength(1);
-  expect(failures[0]!.data).toMatchObject({ error: { code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' }, message: expect.stringContaining('Choose a CLI') });
+  expect(failures[0]!.data).toMatchObject({ error: { code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' }, message: expect.stringContaining('choose Claude or Codex') });
   expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('failed');
 });
 
