@@ -4,7 +4,7 @@
  * Reject-parity block always apply. No DOM, no I/O. */
 // MOVED-FROM: @jini-ai/cms consent/css.ts (value rules, contrast check, parity block). Changed: the selector
 // gate is "anything under the scope" instead of a fixed surface list, and problems drop one rule instead
-// of the whole customization. TODO(P4): delete the cms copy once Tovu reads this package.
+// of the whole customization. TODO(P4): delete the cms copy once the consumer reads this package.
 import { ConsentCssSyntaxError, parseConsentCss, type ConsentCssDeclaration, type ConsentCssRule } from './css-parser.js';
 
 export const CONSENT_CSS_SCOPE = '#jini-consent';
@@ -35,7 +35,7 @@ const TOKEN_PROPERTIES: Record<keyof ConsentAppearanceTokens, string> = {
 };
 const DEFAULT_COLORS = { background: '#ffffff', text: '#222222' };
 type Colors = typeof DEFAULT_COLORS;
-const COLOR_PROPS = new Set(['background-color', 'color']);
+const COLOR_PROPS: ReadonlySet<string> = new Set(['background-color', 'color']);
 
 /** Opaque hex only: functions, variables, alpha and currentColor cannot hide notice text. @complexity O(1). */
 function isColor(value: string): boolean { return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value); }

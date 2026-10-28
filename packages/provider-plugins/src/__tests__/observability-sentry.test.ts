@@ -248,9 +248,12 @@ test('release reaches the private client and delivered event without global init
     try {
       resource.port.reportError({ error: new Error('fixture failure'), context: { operation: 'fixture' } });
       await flush();
-      const clientOptions = options.mock.results.find(result => result.value?.release === 'fixture-app@1.2.3')?.value;
+      const clientOptions = options.mock.results.flatMap(result => result.type === 'return' ? [result.value] : [])
+        .find(value => value.release === 'fixture-app@1.2.3');
       assert.equal(clientOptions?.release, 'fixture-app@1.2.3');
-      assert.deepEqual(clientOptions?.integrations, []);
+      // Sentry 11.6's ServerRuntimeClient adds this internal integration even to an empty list.
+      // It is set up by init(), which this private client must never call.
+      assert.deepEqual(clientOptions?.integrations.map(integration => integration.name), ['SpanStreaming']);
       assert.equal(clientOptions?.enableRuntimeChannelInjection, false);
       assert.equal(init.mock.calls.length, 0);
       assert.equal(getCurrentScope().getClient(), previousClient);

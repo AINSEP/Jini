@@ -168,6 +168,7 @@
     "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
+    "parse5": { "optional": true },
     "typescript": {
       "optional": true
     },

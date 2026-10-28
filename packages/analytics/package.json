@@ -43,11 +43,17 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
+    "@jini-ai/agent-runtime": "workspace:^",
     "esbuild": "^0.28.1"
+  },
+  "peerDependencies": {
+    "@jini-ai/agent-runtime": "^0.6.13"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/agent-runtime": { "optional": true }
   },
   "publishConfig": {
     "access": "public",

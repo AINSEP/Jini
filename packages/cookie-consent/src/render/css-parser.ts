@@ -1,4 +1,4 @@
-// MOVED-FROM: @jini-ai/cms consent/css-parser.ts, unchanged. TODO(P4): delete the cms copy once Tovu reads this package.
+// MOVED-FROM: @jini-ai/cms consent/css-parser.ts, unchanged. TODO(P4): delete the cms copy once the consumer reads this package.
 /** A deliberately small CSS grammar: qualified rules, optionally inside width media queries.
  * Comments, strings and balanced functions are tokenized before structural punctuation is read.
  * The HTML resource scanner classifies remote URLs, not declarations/selectors; customization

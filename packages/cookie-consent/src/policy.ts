@@ -1,7 +1,7 @@
 /** @file The one consent rule, shared by the browser client and the server so they can never disagree.
  * Pure functions: no DOM, no Node. */
 // MOVED-FROM: @jini-ai/cms consent/policy.ts (resolveConsentRegion, resolveConsentChoices, readConsentRecord,
-// createConsentRecord). TODO(P4): delete the cms copies once Tovu reads this package.
+// createConsentRecord). TODO(P4): delete the cms copies once the consumer reads this package.
 import { ACTIONS, type Choices, type ConsentAction, type ConsentState, type Flags, type RegionMode, type ReceiptStatus, type StoredChoice } from './contract.js';
 
 export const DAY_MS = 86_400_000;

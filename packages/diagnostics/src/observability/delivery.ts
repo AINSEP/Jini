@@ -18,7 +18,7 @@ export interface TelemetryDeliveryMonitor {
   read(required: Record<string, never>, optional?: Record<string, never>): ProviderDeliveryStatus[];
 }
 
-const ERROR_CLASSES = new Set(["Error", "TypeError", "RangeError", "TimeoutError", "AbortError", "OTLPExporterError", "PluginProviderError"]);
+const ERROR_CLASSES: ReadonlySet<string> = new Set(["Error", "TypeError", "RangeError", "TimeoutError", "AbortError", "OTLPExporterError", "PluginProviderError"]);
 /** HTTP status is numeric and bounded; transport codes and text are deliberately not exposed. */
 function httpStatus(value: unknown): number | undefined {
   return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : undefined;

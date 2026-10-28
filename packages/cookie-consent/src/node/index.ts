@@ -1,5 +1,5 @@
 // MOVED-FROM: @jini-ai/cms consent/node/index.ts, unchanged except the record types now come from ../server.
-// TODO(P4): delete the cms copy once Tovu reads this package.
+// TODO(P4): delete the cms copy once the consumer reads this package.
 import path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { isIP } from 'node:net';

@@ -1,11 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as filesystem from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { discoverPlugins, MAX_SITE_MANIFEST_BYTES, PluginDiscoveryVersionError } from '../../node/discovery.js';
 import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import { manifestHost, tierPolicy } from '../support/fixture-bindings.js';
+
+// A spyable namespace over the real filesystem; the fault case replaces only open().
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual };
+});
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -81,8 +88,18 @@ describe('site discovery edges', () => {
     await put(dir, 'broken', '1.0.0', '{');
     expect((await discover(dir)).map(({ id, name, status, tier }) => ({ id, name, status, tier }))).toEqual(['broken', 'scalar', 'typed'].map(id => ({ id, name: id, status: 'invalid', tier: 'tier-3' })));
     await put(dir, 'locked', '1.0.0');
-    await chmod(path.join(dir, 'locked', '1.0.0', PLUGIN_MANIFEST_FILENAME), 0o000);
-    await expect(discover(dir)).rejects.toMatchObject({ code: 'EACCES' });
+    const lockedPath = path.join(dir, 'locked', '1.0.0', PLUGIN_MANIFEST_FILENAME);
+    const open = filesystem.open;
+    // chmod cannot produce EACCES for root; inject the fault at the actual filesystem boundary.
+    const fault = Object.assign(new Error('manifest access denied'), { code: 'EACCES' });
+    const denied = vi.spyOn(filesystem, 'open').mockImplementation(async (...args) => {
+      if (String(args[0]) === lockedPath) throw fault;
+      return open(...args);
+    });
+    try {
+      await expect(discover(dir)).rejects.toMatchObject({ code: 'EACCES' });
+      expect(denied).toHaveBeenCalledWith(lockedPath, expect.any(Number));
+    } finally { denied.mockRestore(); }
   });
 
   // A manifest is a small regular file. One plugin's odd manifest makes that plugin invalid; it never

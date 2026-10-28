@@ -3,7 +3,7 @@
 import { OPEN_EVENT, OPTIONAL, type Choices, type ConsentAction, type ConsentState, type Flags, type JiniConsentApi, type Optional, type StoragePrefixes } from '../contract.js';
 
 const INERT = 'script[type="text/plain"][data-consent-category],iframe[data-consent-category][data-src]';
-const SKIP = new Set(['type', 'data-src', 'data-type', 'data-consent-category']);
+const SKIP: ReadonlySet<string> = new Set(['type', 'data-src', 'data-type', 'data-consent-category']);
 // Not <html>: the client sets html[data-consent-open] while the banner shows, and every click's closest() would hit it.
 const OPENERS = ':not(html)[data-consent-open],a[href="#privacy-choices"]';
 
@@ -39,7 +39,7 @@ export function purge(doc: Document, storage?: StoragePrefixes): void {
 }
 
 // MOVED-FROM: @jini-ai/cms consent/html/client.ts template release (ordered, each template consumed once).
-// TODO(P4): delete the cms runtime once Tovu inserts this client.
+// TODO(P4): delete the cms runtime once the consumer inserts this client.
 /** Allowed inert tags become live, in authored order (async=false). Unknown labels stay inert.
  * @complexity O(inert tags). */
 export function activateInert(doc: Document, { allowed, ran }: { allowed: Choices; ran: Set<Optional> }): void {

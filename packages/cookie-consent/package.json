@@ -18,6 +18,8 @@
       "./plugins": "universal",
       "./render": "universal",
       "./client": "browser",
+      "./client.min.js": "browser",
+      "./banner.css": "browser",
       "./server": "universal",
       "./node": "node"
     }

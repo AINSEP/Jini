@@ -22,7 +22,7 @@ export function createPluginRegistry(_required: object = {}, { slots = [], onPro
     held.filter(h => h.kind === kind).sort((a, b) => b.priority - a.priority).map(h => h.value as T);
   const emit = (kind: string) => listeners.forEach(l => { if (l.kind === kind) try { l.fn(list(kind)); } catch { /* isolate */ } });
 
-  /** Duplicate ids are refused, never guessed (same rule as Tovu's contribution loaders). */
+  /** Duplicate ids are refused, never guessed (same rule as the host's contribution loaders). */
   function admit(raw: RawContribution, options: RegistrationOptions): () => void {
     const refuse = (reason: string) => { onProblem({ id: String(raw.id), kind: raw.kind, reason, ...(options.source ? { source: options.source } : {}) }); return () => undefined; };
     if (!ID.test(String(raw.id))) return refuse('short lowercase id');

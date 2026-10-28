@@ -29,7 +29,7 @@ export const TOOL_CALL_OPERATION = "tool.call";
 const FAILED_STATUSES: ReadonlySet<ToolExecutionStatus> = new Set(["failed", "timed-out"]);
 
 /** The settled result's text as an Error, so an error tracker gets a type to group on. The text is
- * whatever the inner stack left (Tovu's `withRedactedToolFailures` has already blanked secrets);
+ * whatever the inner stack left (the host's `withRedactedToolFailures` has already blanked secrets);
  * adapters redact again regardless. */
 export class ToolExecutionFailure extends Error {
   override readonly name = "ToolExecutionFailure";

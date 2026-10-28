@@ -569,10 +569,7 @@ test("structural roots explicitly pass ROOT_CONTEXT and explicit parents stay li
   const { ROOT_CONTEXT, trace } = await import("@opentelemetry/api");
   const { adaptTracer } = await import("../observability-opentelemetry/opentelemetry.js");
   const contexts: unknown[] = [];
-  const sdkSpan = {
-    updateName() {}, setAttribute() {}, setStatus() {}, addEvent() {}, end() {},
-    spanContext: () => ({ traceId: "1".repeat(32), spanId: "2".repeat(16), traceFlags: 1 }),
-  };
+  const sdkSpan = trace.wrapSpanContext({ traceId: "1".repeat(32), spanId: "2".repeat(16), traceFlags: 1 });
   const tracer = adaptTracer({ tracer: { startSpan(_name, _options, context) {
     contexts.push(context);
     return sdkSpan;

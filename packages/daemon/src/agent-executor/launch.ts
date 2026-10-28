@@ -891,7 +891,7 @@ function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _opt
   return { ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}) };
 }
 
-/** Switch names a person sees for each native capability (Tovu's settings use the same words). */
+/** Switch names a person sees for each native capability (the host's settings use the same words). */
 const NATIVE_CAPABILITY_LABELS: Readonly<Record<string, string>> = {
   shell: 'Bash/shell', fileWrite: 'File edit/write', userMcp: 'Your MCP servers', subagents: 'Subagents/Task',
   userSettings: 'Your skills and settings', web: 'Web fetch/search', workflows: 'Workflows', loginEnvironment: 'Your shell environment',

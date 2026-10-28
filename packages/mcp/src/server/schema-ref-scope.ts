@@ -13,9 +13,9 @@
 
 const LOCAL_DEFS_REF = '#/$defs/';
 /** Keywords whose values are literal instance data, never schemas. */
-const LITERAL_KEYWORDS = new Set(['const', 'enum', 'default', 'examples']);
+const LITERAL_KEYWORDS: ReadonlySet<string> = new Set(['const', 'enum', 'default', 'examples']);
 /** Keywords whose values map names to schemas: the names (a property called `const`) are not keywords. */
-const SCHEMA_MAP_KEYWORDS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas']);
+const SCHEMA_MAP_KEYWORDS: ReadonlySet<string> = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas']);
 
 /** One enclosing `$defs`: its JSON pointer (URI-fragment encoded) and the names it declares. */
 interface DefsScope { readonly pointer: string; readonly names: ReadonlySet<string> }

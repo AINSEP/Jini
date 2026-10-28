@@ -67,14 +67,24 @@ describe('createNodeSidecarLauncher', () => {
 
   it('shutdown force-kills a child that never exits on its own', async () => {
     const launcher = createNodeSidecarLauncher({});
-    const handle = await launcher.launch({ command: node }, { args: ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"] });
+    const dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-force-kill-'));
+    const logPath = join(dir, 'sidecar.log');
+    const handle = await launcher.launch({ command: node }, { args: ['-e', "process.on('SIGTERM', () => {}); console.log('ready'); setInterval(() => {}, 1000)"], logPath });
     let exitInfo: { code: number | null; signal: NodeJS.Signals | null } | null = null;
     handle.process.onExit({ listener: ({ code, signal }) => {
       exitInfo = { code, signal };
     } });
-    await handle.shutdown({}, { gracefulTimeoutMs: 150 });
-    expect(exitInfo).not.toBeNull();
-    expect(exitInfo!.signal).toBe('SIGKILL');
+    try {
+      // Spawn precedes JavaScript startup; wait until the child has installed its SIGTERM handler.
+      await handle.waitUntilReady({ probe: () => readFile(logPath, 'utf8'), isReady: ({ status }) => status.trim() === 'ready' },
+        { pollIntervalMs: 10, timeoutMs: 5000 });
+      await handle.shutdown({}, { gracefulTimeoutMs: 150 });
+      expect(exitInfo).not.toBeNull();
+      expect(exitInfo!.signal).toBe('SIGKILL');
+    } finally {
+      await handle.shutdown({}, { gracefulTimeoutMs: 150 });
+      await rm(dir, { recursive: true, force: true });
+    }
   }, 10_000);
 
   it('shutdown falls through to process-level termination when requestShutdown rejects', async () => {

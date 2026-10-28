@@ -3,7 +3,7 @@ import { parse, type DefaultTreeAdapterMap } from 'parse5';
 type Node = DefaultTreeAdapterMap['node'];
 type Element = DefaultTreeAdapterMap['element'];
 export interface HtmlUrlLocation { start: number; end: number; kind: 'url' | 'srcset' | 'css' | 'action'; attribute?: string }
-const URL_ATTRIBUTES = new Set(['src', 'href', 'poster']);
+const URL_ATTRIBUTES: ReadonlySet<string> = new Set(['src', 'href', 'poster']);
 
 /** The exact attribute value range, preserving quotes, spacing and all surrounding source bytes. */
 function attributeLocation({ html, start, end, kind }: { html: string; start: number; end: number; kind: HtmlUrlLocation['kind'] }, _optional = {}): HtmlUrlLocation | undefined {

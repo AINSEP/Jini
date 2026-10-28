@@ -2,7 +2,7 @@
  * it chooses and lists `adapter` (a lazy `consent-adapter` entry) in the consent page config. The browser
  * imports the adapter only on an analytics grant; the adapter then loads the pinned SDK with SRI. */
 import { readFile } from 'node:fs/promises';
-import type { ConsentState, LazyAdapter } from '@jini-ai/cookie-consent';
+import type { ConsentState, LazyAdapter, RawContribution } from '@jini-ai/cookie-consent';
 import type { BrowserAnalyticsContribution } from '@jini-ai/analytics/product';
 import { anonymousPageview, POSTHOG_STORAGE, type PostHogConsentConfig } from './consent-adapter.js';
 
@@ -57,7 +57,7 @@ export async function forwardCollectorEvent(required: { host: string; path: stri
 export function postHogConsentContribution(
   required: ConsentContributionInput,
   { request = fetch, loadAsset = name => readFile(new URL(`./${name}`, import.meta.url), 'utf8') }: { request?: typeof fetch; loadAsset?: (name: string) => Promise<string> } = {},
-): { adapter: LazyAdapter & { config: PostHogConsentConfig }; http: { path: string; handle: ConsentAssetHandler } } {
+): { adapter: LazyAdapter & RawContribution & { config: PostHogConsentConfig }; http: { path: string; handle: ConsentAssetHandler } } {
   validatePostHogBrowserConfig(required);
   if (!/^(?:\/[a-z0-9_-]+)+$/i.test(required.path)) throw new TypeError('Mount the consent assets at a plain absolute path such as /_consent/posthog.');
   const sdk = `/sdk-${POSTHOG_BROWSER_VERSION}.js`;

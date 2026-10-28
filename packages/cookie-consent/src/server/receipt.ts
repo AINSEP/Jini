@@ -28,7 +28,7 @@ export interface ReceiptOptions {
   regionMode?: 'auto' | RegionMode;
   /** Host-owned region answer for this request; overrides regionMode/cookie. */
   region?: (required: { request: Request }) => RegionMode | Promise<RegionMode>;
-  /** Host-owned rate limit (Tovu binds consentRateLimitKey + its limiter). */
+  /** Host-owned rate limit (the host binds consentRateLimitKey + its limiter). */
   allow?: (required: { request: Request }) => boolean | Promise<boolean>;
 }
 type Body = { policy?: unknown; choices?: unknown; action?: unknown; gpc?: unknown; previousId?: unknown };

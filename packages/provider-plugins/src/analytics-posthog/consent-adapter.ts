@@ -33,9 +33,9 @@ interface PostHogClient {
   identify(id: string): void;
 }
 interface PostHogSdk { init(token: string, config: Properties, name: string): PostHogClient }
-type ScriptElement = { type: string; src: string; integrity: string; onload: (() => void) | null; onerror: (() => void) | null };
-/** The slice of `document` the default loader touches. */
-export interface LoaderDocument { createElement(tag: 'script'): ScriptElement; head: { append(node: ScriptElement): void } }
+type ScriptElement = Pick<HTMLScriptElement, 'type' | 'src' | 'integrity' | 'onload' | 'onerror'>;
+/** The slice of `document` the default loader touches. Preserve its element type for native append(). */
+export interface LoaderDocument<Script extends ScriptElement = ScriptElement> { createElement(tag: 'script'): Script; head: { append(node: Script): void } }
 export interface PostHogConsentPorts {
   /** Resolves the SDK only when the bytes matched `integrity`; rejects before any SDK code ran otherwise. */
   loadSdk(required: { src: string; integrity: string }, optional?: object): Promise<PostHogSdk>;
@@ -136,7 +136,7 @@ function settings(config: PostHogConsentConfig, ports: PostHogConsentPorts, sign
 
 /** SRI on a module <script>, then import() of the same URL, which the module map serves from that
  * verified load. A mismatch fires `error` before any SDK code runs. @complexity O(1) + one download. */
-export function loadVerifiedSdk({ src, integrity, doc }: { src: string; integrity: string; doc: LoaderDocument },
+export function loadVerifiedSdk<Script extends ScriptElement>({ src, integrity, doc }: { src: string; integrity: string; doc: LoaderDocument<Script> },
   { importModule = (url: string) => import(/* @vite-ignore */ url) as Promise<{ default: PostHogSdk }> }: { importModule?: (url: string) => Promise<{ default: PostHogSdk }> } = {}): Promise<PostHogSdk> {
   const script = doc.createElement('script');
   script.type = 'module';
@@ -193,7 +193,7 @@ export function createPostHogConsentAdapter({ ports }: { ports: PostHogConsentPo
 function browserPorts(): PostHogConsentPorts {
   const page = globalThis as unknown as { document: Document; location: PostHogConsentPorts['location'] };
   return {
-    loadSdk: ({ src, integrity }) => loadVerifiedSdk({ src, integrity, doc: page.document }),
+    loadSdk: ({ src, integrity }) => loadVerifiedSdk<HTMLScriptElement>({ src, integrity, doc: page.document }),
     get location() { return page.location; },
     get doc() { return page.document; },
   };

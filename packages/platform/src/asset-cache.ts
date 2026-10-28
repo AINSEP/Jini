@@ -52,7 +52,7 @@ const EXT_TO_MIME: Record<string, string> = {
   '.wav': 'audio/wav',
 };
 
-const CACHEABLE_MEDIA_MIME = new Set(Object.values(EXT_TO_MIME));
+const CACHEABLE_MEDIA_MIME: ReadonlySet<string> = new Set(Object.values(EXT_TO_MIME));
 
 /** True when `raw` is an absolute http(s) URL pointing at a media file we are
  *  willing to route through the cache. Pure + side-effect free so the URL

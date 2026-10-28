@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { defaultStackParser, makeNodeTransport } from "@sentry/node";
 import type { ProviderTelemetryReport } from "@jini-ai/diagnostics/observability";
 import { createProviderTelemetryReporter } from "../telemetry-reporter.js";
 import { createSentryObservabilityAdapter } from "../observability-sentry/sentry.js";
@@ -10,7 +11,8 @@ it.each(["", "not-a-dsn"])("a borrowed Sentry client tolerates malformed DSN %j 
   const reporter = createProviderTelemetryReporter({ endpoint: dsn }, { reportTelemetry: report => { reports.push(report); } });
   reporter.result({ phase: "export", outcome: "ok" });
   const resource = createSentryObservabilityAdapter({ config: { enabled: true, dsn, tracesSampleRate: 0 } }, {
-    client: { close: async () => { closed = true; return true; }, getOptions: () => ({}) },
+    client: { close: async () => { closed = true; return true; },
+      getOptions: () => ({ integrations: [], stackParser: defaultStackParser, transport: makeNodeTransport }) },
     info: message => { logs.push(message); },
   });
   try {

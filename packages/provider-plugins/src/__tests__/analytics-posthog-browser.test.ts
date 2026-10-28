@@ -127,7 +127,7 @@ it('anonymous first load clears both the configured and legacy persistence befor
 });
 
 it('same-origin adapter serves the pinned SDK and relays only collector paths with no browser headers', async () => {
-  const requests: { url: string; init?: RequestInit }[] = [];
+  const requests: { url: string; init: RequestInit | undefined }[] = [];
   const contribution = postHogBrowserContribution({ apiKey: 'phc_fixture', host: 'https://collector.example', sessionReplay: false,
     surface: 'site', attributes: { site_id: 'site-1', project_id: 'private-project', site_slug: 'private-slug', release: 'web@abc123', environment: 'staging' } }, {
     loadAsset: async () => 'export default fixture;', request: async (url, init) => {

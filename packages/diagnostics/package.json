@@ -86,19 +86,21 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@jini-ai/analytics": "workspace:^",
     "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
     "jszip": "^3.10.1"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
-    "js-tokens": "^9.0.1",
-    "@jini-ai/analytics": "workspace:^"
+    "js-tokens": "^9.0.1"
   },
   "peerDependencies": {
+    "@jini-ai/analytics": "^0.6.13",
     "jszip": "^3.10.1"
   },
   "peerDependenciesMeta": {
+    "@jini-ai/analytics": { "optional": true },
     "jszip": {
       "optional": true
     }

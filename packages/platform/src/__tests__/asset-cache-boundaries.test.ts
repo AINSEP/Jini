@@ -291,7 +291,8 @@ describe('createAssetCache boundaries', () => {
     const cache = cacheWith(
       async () => new Response(new Uint8Array(1), { headers: { 'content-type': 'Text/HTML; charset=utf-8' } }),
     );
-    await expect(cache.get('https://cdn.example.com/render.php?f=a.png')).rejects.toMatchObject({
+    // 6cb09d281 deliberately admits only media pathnames; reach the upstream MIME check.
+    await expect(cache.get('https://cdn.example.com/a.png')).rejects.toMatchObject({
       status: 415,
       message: 'unsupported content-type: text/html',
     });
