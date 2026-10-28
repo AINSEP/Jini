@@ -22,7 +22,7 @@ import type { AgentEvent } from './events.js';
 import { isDelegatedWrapperToolName } from './tool-events.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
 import { SURFACE_QUESTION_META_KEY } from './question-answer.js';
-import { acceptedInputEvent } from './accepted-input.js';
+import { recordedSurfaceAnswers } from './accepted-input.js';
 
 /** The latest thing a running turn is doing. */
 export type RunActivity =
@@ -107,7 +107,7 @@ interface Scan {
   displayOnlySurfaces: Set<string>;
   /** See {@link RunActivityOptions.isAnsweredCard}. */
   isAnsweredCard: IsAnsweredCard | undefined;
-  answeredSurfaces: ReadonlySet<string>;
+  answeredSurfaces: ReadonlyMap<unknown, string>;
 }
 
 /** Whether the person already answered a card, before its tool call returned. */
@@ -134,20 +134,13 @@ function isVisible(event: AgentEvent): boolean {
  */
 function isAnswerCard(scan: Scan, name: string, data: unknown): boolean {
   if (!CARD_EXT_NAMES.has(name)) return false;
-  if (hasSurfaceReceipt({ scan, name, data })) return false;
+  if (name === 'mcp-ui' && scan.answeredSurfaces.has(data)) return false;
   if (scan.isAnsweredCard?.({ name, data }) === true) return false;
   if (name !== A2UI_EXT_NAME) return true;
   const displayOnlyId = displayOnlySurfaceIdOf({ message: data });
   if (displayOnlyId !== undefined) scan.displayOnlySurfaces.add(displayOnlyId);
   const surfaceId = a2uiSurfaceIdOf({ message: data });
   return surfaceId === undefined || !scan.displayOnlySurfaces.has(surfaceId);
-}
-
-/** A replayed standalone receipt closes only the resource it answered. O(1), no effects. */
-function hasSurfaceReceipt({ scan, name, data }: { scan: Scan; name: string; data: unknown }, _options = {}): boolean {
-  if (name !== 'mcp-ui' || !isRecord(data)) return false;
-  const resource = data.resource;
-  return isRecord(resource) && typeof resource.uri === 'string' && scan.answeredSurfaces.has(resource.uri);
 }
 
 function scanStatus(
@@ -170,14 +163,14 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
     scan.lastVisible = { index, kind: event.kind };
     scan.visibleCount += 1;
   }
-  // Tool work after an explicit question proves the run moved past it (expired, skipped or aborted
+  // Starting tool work after an explicit question proves the run moved past it (expired, skipped or aborted
   // without a receipt); otherwise its waiting line would outlive the question for the whole run.
   if (event.kind === 'tool_use') {
     scan.pendingQuestionIndex = -1;
     scan.open = scan.open.filter((tool) => tool.id !== event.id);
     scan.open.push({ id: event.id, name: event.name, input: event.input, index });
   } else if (event.kind === 'tool_result') {
-    scan.pendingQuestionIndex = -1;
+    // Completion may be unrelated background work or the ask tool returning before human input.
     scan.open = scan.open.filter((tool) => tool.id !== event.toolUseId);
   } else if (event.kind === 'ext') {
     scanCard({ scan, event, index });
@@ -288,10 +281,8 @@ export function deriveRunActivity(
   { events }: { events: readonly AgentEvent[] | undefined },
   { isAnsweredCard }: RunActivityOptions = {},
 ): RunActivityState {
-  const answeredSurfaces = new Set((events ?? []).flatMap(event => {
-    const uri = acceptedInputEvent({ event })?.data.surfaceUri;
-    return typeof uri === 'string' ? [uri] : [];
-  }));
+  // A replayed standalone receipt closes only the document it followed, not every use of its URI.
+  const answeredSurfaces = recordedSurfaceAnswers({ events: events ?? [] });
   const scan: Scan = { open: [], lastVisible: null, lastCardIndex: -1, standaloneCardIndex: -1, pendingQuestionIndex: -1, lastWorkIndex: -1, retry: null, progress: null, visibleCount: 0, displayOnlySurfaces: new Set(), isAnsweredCard, answeredSurfaces };
   (events ?? []).forEach((event, index) => scanEvent(scan, event, index));
   return { ...latestSignal({ scan }), visibleCount: scan.visibleCount };

@@ -10,9 +10,9 @@ import { surfaceQuestionInput } from '../mcp-ui-question-input.js';
 
 vi.mock('@jini-ai/ui/mcp-ui', async original => ({
   ...await original<typeof import('@jini-ai/ui/mcp-ui')>(),
-  McpUiHost: ({ onToolCall }: McpUiHostProps) => <button onClick={() => {
+  McpUiHost: ({ onToolCall, title }: McpUiHostProps) => <section aria-label={title}><button onClick={() => {
     void onToolCall?.({ name: 'answer', arguments: { selections: ['site-guide'] } });
-  }}>Use guide</button>,
+  }}>Use guide</button></section>,
 }));
 
 const resource = buildFormSurface({
@@ -51,7 +51,7 @@ it('reads native labels as inert text without running surface scripts or exposin
   expect((window as unknown as Record<string, unknown>).__surfaceExecuted).toBeUndefined();
 });
 
-it('keeps readable receipt text after a non-choice tool result, outcome update and history reload', () => {
+it('keeps readable receipt text and displays the updated outcome after history reload', () => {
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html') });
   const savedEvents: AgentEvent[] = [
     { kind: 'tool_use', id: 'parent', name: 'update_page', input: {} }, ...events,
@@ -62,10 +62,12 @@ it('keeps readable receipt text after a non-choice tool result, outcome update a
   const renderSaved = () => render(<MessageRow message={{ ...message, events: JSON.parse(JSON.stringify(savedEvents)), runStatus: 'succeeded' }} />);
   const view = renderSaved();
   expect(view.container.querySelector('.jini-message-user .jini-message-content')?.textContent).toBe('Agent plugins: Site guide');
-  expect(view.container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Agent plugins: Site guide');
+  expect(view.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
+  expect(screen.getByRole('region', { name: 'Saved' })).toBeInTheDocument();
   expect(view.container.querySelectorAll('.jini-message-user')).toHaveLength(1);
   view.unmount();
   const reloaded = renderSaved();
   expect(reloaded.container.querySelector('.jini-message-user .jini-message-content')?.textContent).toBe('Agent plugins: Site guide');
-  expect(reloaded.container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Agent plugins: Site guide');
+  expect(reloaded.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
+  expect(screen.getByRole('region', { name: 'Saved' })).toBeInTheDocument();
 });

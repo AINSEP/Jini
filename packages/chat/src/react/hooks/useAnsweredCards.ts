@@ -8,10 +8,9 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { isTerminalRunStatus, type ChatRunStatus } from '../../core/messages.js';
-import { acceptedInputEvent } from '../../core/accepted-input.js';
+import { acceptedInputEvent, recordedSurfaceAnswers } from '../../core/accepted-input.js';
 import type { ExtEventGroup } from './useExtEventGroups.js';
 import type { AgentEvent, IsAnsweredCard } from '../../core/index.js';
-import { parseUIResource } from '@jini-ai/ui/mcp-ui';
 
 export interface AnsweredCards {
   /** Live rendering state; a terminal run overrides a stale streaming prop. */
@@ -33,17 +32,18 @@ export interface AnsweredCards {
  */
 function recordedCardAnswers({ events, groups }: { events: readonly AgentEvent[]; groups: readonly ExtEventGroup[] }, _options = {}): Map<string, string> {
   const receipts = new Map<string, string>();
-  const surfaces = new Map<string, string>();
+  const surfaces = recordedSurfaceAnswers({ events });
   for (const event of events) {
     const receipt = acceptedInputEvent({ event });
     if (receipt?.data.toolUseId) receipts.set(receipt.data.toolUseId, receipt.data.text);
-    if (typeof receipt?.data.surfaceUri === 'string') surfaces.set(receipt.data.surfaceUri,
-      typeof receipt.data.answerText === 'string' ? receipt.data.answerText : receipt.data.text);
   }
   return new Map(groups.flatMap(group => {
-    const uri = group.name === 'mcp-ui' ? parseUIResource(group.events[0])?.resource.uri : undefined;
-    const text = (uri === undefined ? undefined : surfaces.get(uri))
-      ?? (group.call?.id === undefined ? undefined : receipts.get(group.call.id));
+    const latest = group.events.at(-1);
+    const receipt = group.call?.id === undefined ? undefined : receipts.get(group.call.id);
+    // Grouping binds the call to its FIRST document. Even a late result cannot answer its replacement.
+    // Tool receipts keep their optimistic bubble's position, so projected order is not causal.
+    const originalDocument = group.name !== 'mcp-ui' || group.events.length === 1;
+    const text = surfaces.get(latest) ?? (originalDocument ? receipt : undefined);
     return text === undefined ? [] : [[group.slot, text] as const];
   }));
 }
@@ -64,14 +64,23 @@ export function useAnsweredCards({ slotOf, events = [], groups = [], runStreamin
   events?: readonly AgentEvent[];
   groups?: readonly ExtEventGroup[];
 }): AnsweredCards {
-  const [answered, setAnswered] = useState<ReadonlyMap<string, string | undefined>>(() => new Map());
+  const [answered, setAnswered] = useState<ReadonlyMap<string, { document: unknown; text: string | undefined }>>(() => new Map());
+  // MCP-UI replaces documents in one slot; other protocols retain their stream-wide answer state.
+  const documents = useMemo(() => new Map(groups.map(group => [group.slot,
+    group.name === 'mcp-ui' ? group.events.at(-1) : group.slot])), [groups]);
   // MOVE: Match by tool identity so receipt replay hides only its own card, even for equal answers.
   const recorded = useMemo(() => recordedCardAnswers({ events, groups }), [events, groups]);
   const markAnswered = useCallback((slot: string, answerText?: string) => {
-    setAnswered((current) => (current.has(slot) ? current : new Map(current).set(slot, answerText)));
-  }, []);
-  const isAnswered = useCallback((slot: string) => recorded.has(slot) || answered.has(slot), [answered, recorded]);
-  const answerText = useCallback((slot: string) => recorded.get(slot) ?? answered.get(slot), [answered, recorded]);
+    const document = documents.get(slot);
+    setAnswered(current => current.get(slot)?.document === document && current.has(slot)
+      ? current : new Map(current).set(slot, { document, text: answerText }));
+  }, [documents]);
+  const liveAnswer = useCallback((slot: string) => {
+    const answer = answered.get(slot);
+    return answer?.document === documents.get(slot) ? answer : undefined;
+  }, [answered, documents]);
+  const isAnswered = useCallback((slot: string) => recorded.has(slot) || liveAnswer(slot) !== undefined, [liveAnswer, recorded]);
+  const answerText = useCallback((slot: string) => recorded.get(slot) ?? liveAnswer(slot)?.text, [liveAnswer, recorded]);
   const isRecorded = useCallback((slot: string) => recorded.has(slot), [recorded]);
   const isAnsweredCard = useCallback<IsAnsweredCard>((card) => isAnswered(slotOf(card)), [isAnswered, slotOf]);
   // MOVE: Finished runs must keep orphaned questions closed even when the host still reports streaming.

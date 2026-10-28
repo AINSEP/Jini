@@ -7,7 +7,7 @@ import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
 export interface AcceptedChatInput {
   id: string;
   text: string;
-  /** Standalone questions have no owning tool id; their resource URI binds the durable receipt. */
+  /** Standalone questions have no owning tool id; a receipt answers the preceding document at its URI. */
   surfaceUri?: string;
   /** The card's answer without its title; text retains the complete user bubble. */
   answerText?: string;
@@ -52,6 +52,34 @@ export function acceptedInputEvent({ event }: { event: AgentEvent }, _options = 
   if (event.kind !== 'ext' || event.name !== MID_RUN_USER_MESSAGE_EVENT_NAME) return null;
   const data = event.data as Partial<UserMessageEvent['data']> | null;
   return data && typeof data.id === 'string' && typeof data.text === 'string' ? event as UserMessageEvent : null;
+}
+
+/** Read resource identity without importing the browser/UI parser into core. */
+function surfaceUriOf({ event }: { event: AgentEvent }, _options = {}): string | undefined {
+  if (event.kind !== 'ext' || event.name !== 'mcp-ui') return undefined;
+  const data = event.data as { resource?: { uri?: unknown } } | null;
+  return typeof data?.resource?.uri === 'string' ? data.resource.uri : undefined;
+}
+
+/** Bind each unique receipt to the preceding document, never a later outcome or retry at its URI.
+ * Both transcript closure and activity use this projection; resource identity alone is not an answer.
+ * @returns Answer labels keyed by the original ext-event data; no caller mutation or I/O.
+ * @complexity O(e) time/space for events, including replay deduplication by accepted-input id.
+ */
+export function recordedSurfaceAnswers({ events }: { events: readonly AgentEvent[] }, _options = {}): ReadonlyMap<unknown, string> {
+  const latest = new Map<string, unknown>();
+  const answers = new Map<unknown, string>();
+  const seen = new Set<string>();
+  for (const event of events) {
+    const uri = surfaceUriOf({ event });
+    if (uri !== undefined && event.kind === 'ext') latest.set(uri, event.data);
+    const receipt = acceptedInputEvent({ event })?.data;
+    if (typeof receipt?.surfaceUri !== 'string' || seen.has(receipt.id)) continue;
+    seen.add(receipt.id);
+    const document = latest.get(receipt.surfaceUri);
+    if (document !== undefined) answers.set(document, typeof receipt.answerText === 'string' ? receipt.answerText : receipt.text);
+  }
+  return answers;
 }
 
 /** Project a persisted answer through the same receipt owner as composer input. */

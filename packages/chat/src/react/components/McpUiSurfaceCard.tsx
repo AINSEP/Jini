@@ -172,7 +172,7 @@ function surfaceAnswerLabel({ call, label }: { call: ExtEventCall | undefined; l
   return questionAnswerLabel({ input: call?.input, text: label });
 }
 
-/** Name the frame by its question, keeping opaque resource identity out of the accessible title.
+/** Prefer the question as the frame title; untitled resources retain their URI fallback.
  * @complexity O(h + c) for fallback markup and controls; metadata needs O(1), no effects.
  */
 function surfaceQuestionTitle({ resource }: { resource: UIResource }, _options = {}): string {
@@ -225,16 +225,18 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
   const closed = single === undefined
     ? undefined
     : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
-  const answer = questionAnswerFromResult({ result: call?.result, input }) ?? answerText;
+  // A completed call answered the original document; a replacement outcome or retry owns its view.
+  const answer = (events.length === 1 ? questionAnswerFromResult({ result: call?.result, input }) : undefined) ?? answerText;
   return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
     answer={answer} closed={closed} call={displayCall} standalone={standalone} t={t} sandboxProxyUrl={sandboxProxyUrl}
     toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
 }
 
-/** A standalone form's call may lack the question; its first document's markup supplies the title
- * and option labels, so answers read as labels rather than raw values. */
+/** A standalone form's call may lack the question; its current document supplies the title and
+ * option labels, so retry answers read as labels rather than raw values from the replaced question.
+ * Receipt recovery retains the original document separately in useSurfaceAnswerContexts. */
 function useSurfaceQuestionCall({ events, call }: { events: readonly unknown[]; call: ExtEventCall | undefined }, _options = {}) {
-  const resource = parseUIResource(events[0]);
+  const resource = parseUIResource(events.at(-1));
   const input = useMemo(() => surfaceQuestionInput({ resource, input: call?.input }),
     [resource?.resource.text, resource?.resource._meta, call?.input]);
   const displayCall: ExtEventCall = call === undefined ? { name: '', input } : { ...call, input };
@@ -283,6 +285,8 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   maxHeight: number | undefined;
   expiry: ReturnType<typeof useSurfaceExpiry>;
 }) {
+  const frameTitle = useMemo(() => single === undefined ? undefined : surfaceQuestionTitle({ resource: single }),
+    [single?.resource.uri, single?.resource.text, single?.resource._meta]);
   const answered = single === undefined ? undefined : answeredSurface({ answerRecorded, answer, closed, call, standalone, t });
   if (answered !== undefined) return answered;
   if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
@@ -307,7 +311,7 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
         return (
           <Fragment key={resource.resource.uri}>
             <McpUiHost
-              title={surfaceQuestionTitle({ resource })}
+              title={frameTitle ?? surfaceQuestionTitle({ resource })}
               html={resource.resource.text}
               sandboxProxyUrl={sandboxProxyUrl}
               toolName={resource.resource.uri}

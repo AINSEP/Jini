@@ -12,6 +12,33 @@ function line(events: AgentEvent[], seconds = 0, idleMs = 0): string {
 }
 
 describe('run activity line — one table, exact words', () => {
+  it.each(['ask_choice', 'background_lookup'])('keeps an explicit question pending when %s returns before its receipt', name => {
+    const surfaceUri = 'ui://host/ask-choice/pending';
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'call', name, input: {} },
+      { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: {
+        uri: surfaceUri, mimeType: 'text/html', text: '<custom-choice></custom-choice>',
+        _meta: { [SURFACE_QUESTION_META_KEY]: { title: 'Choose', options: [] } },
+      } } },
+      { kind: 'tool_result', toolUseId: 'call', content: 'Ready', isError: false },
+    ];
+    expect(line(events)).toBe('Waiting for your answer above');
+    const receipt = acceptedInputUserEvent({ input: { id: 'answer', text: 'Yes', surfaceUri } }, { receipt: 'accepted' });
+    expect(isAwaitingAnswer({ events: [...events, receipt] })).toBe(false);
+  });
+
+  it.each(['earlier receipt', 'retry', 'duplicate receipt'] as const)('waits for a reused surface URI after %s', scenario => {
+    const uri = 'ui://host/ask-choice/reused';
+    const card = (): AgentEvent => ({ kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: {
+      uri, mimeType: 'text/html', text: '<form></form>',
+      _meta: { [SURFACE_QUESTION_META_KEY]: { title: 'Choose', options: [] } },
+    } } });
+    const receipt = acceptedInputUserEvent({ input: { id: 'old-answer', text: 'Yes', surfaceUri: uri } }, { receipt: 'accepted' });
+    const events = scenario === 'earlier receipt' ? [receipt, card()]
+      : scenario === 'retry' ? [card(), receipt, card()] : [card(), receipt, card(), receipt];
+    expect(line(JSON.parse(JSON.stringify(events)))).toBe('Waiting for your answer above');
+  });
+
   it('keeps a standalone question waiting across startup activity until its own receipt is replayed', () => {
     const uri = 'ui://host/ask-choice/one';
     const card: AgentEvent = { kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: {
