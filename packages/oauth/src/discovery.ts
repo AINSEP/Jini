@@ -4,6 +4,7 @@ import { resourceDiscoveryRequest, processResourceDiscoveryResponse,
     _nodiscoverycheck,
     customFetch as resourceCustomFetch, allowInsecureRequests as allowInsecureResourceRequests } from 'oauth4webapi';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 import { MAX_OAUTH_RESPONSE_BYTES, readOptionalString, readStringArray } from './bounded-json.js';
 import { createIssuerBoundDiscoveryPolicy, type OAuthDiscoveryPolicy } from './discovery-policy.js';
 import { assertOAuthResponseNotRedirect, assertSafeProviderEndpoint } from './endpoint-safety.js';
@@ -101,7 +102,7 @@ async function fetchMetadataDocument({ deps, candidate, timeoutMs }: {
     }
 }
 function authorizationServerMetadataCandidates(issuer: URL, allowOriginFallback: boolean): readonly URL[] {
-    const suffix = issuer.pathname.replace(/\/+$/, '');
+    const suffix = trimCharsEnd({ text: issuer.pathname, chars: '/' });
     // Exhaust RFC 8414 and both OIDC path layouts before an explicitly permitted origin fallback.
     const paths = [`/.well-known/oauth-authorization-server${suffix}`, `/.well-known/openid-configuration${suffix}`];
     if (suffix) paths.push(`${suffix}/.well-known/openid-configuration`);
@@ -174,7 +175,7 @@ export async function discoverProtectedResourceMetadata(requiredArgs: OAuthDisco
 }, optionalArgs: { readonly wwwAuthenticate?: string; readonly timeoutMs?: number } = {}): Promise<DiscoveredProtectedResource | null> {
     const resource = assertSafeProviderEndpoint(requiredArgs.resourceUrl, 'protected resource URL', requiredArgs.guard);
     const advertised = optionalArgs.wwwAuthenticate === undefined ? null : parseResourceMetadataUrl({ wwwAuthenticate: optionalArgs.wwwAuthenticate });
-    const suffix = resource.pathname.replace(/\/+$/, '');
+    const suffix = trimCharsEnd({ text: resource.pathname, chars: '/' });
     // RFC 9728 inserts the path after the well-known segment. Retain the root fallback.
     const candidates = advertised === null
         ? [...new Set([`/.well-known/oauth-protected-resource${suffix}`, '/.well-known/oauth-protected-resource'])].map(path => new URL(path, resource))
