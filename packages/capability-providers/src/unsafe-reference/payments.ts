@@ -24,8 +24,10 @@ export function createInMemoryPaymentsProvider(_required: Record<string, never>,
       if (input.amountCents <= 0) {
         throw new Error('amountCents must be positive');
       }
+      const chargeNumber = nextChargeId;
+      nextChargeId += 1;
       const record: Charge = {
-        id: `charge-${nextChargeId++}`,
+        id: `charge-${chargeNumber}`,
         status: 'succeeded',
         amountCents: input.amountCents,
         currency: input.currency,
