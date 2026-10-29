@@ -116,6 +116,11 @@ export interface FormEditorController {
   t: (key: string) => string;
 }
 
+/** Ordinary Builder saves keep their existing endpoint/permissions; a mode change is explicit. */
+function authoringPatch({ mode, html, savedMode }: { mode: "builder" | "html"; html: string; savedMode: "builder" | "html" | undefined }) {
+  if (mode === "html") return { mode, html };
+  return savedMode === "html" ? { mode } : {};
+}
 export function useFormEditor(
   props: { formId: string; tab: "fields" | "submissions"; port: AdminFormsPort; navigate: (path: string) => void; t: (key: string) => string },
   { clipboard }: { clipboard?: { writeText: (text: string) => Promise<void> } } = {},
@@ -207,7 +212,7 @@ export function useFormEditor(
 
   async function handleSave() {
     // Ordinary Builder saves keep their existing endpoint/permissions. A mode change is explicit.
-    const authoring = mode === "html" ? { mode, html } : form?.mode === "html" ? { mode } : {};
+    const authoring = authoringPatch({ mode, html, savedMode: form?.mode });
     try {
       if (isNew) {
         // `notify` here is always this hook's own blank default — a new form has no earlier value

@@ -73,6 +73,12 @@ export function useFieldAttributesView({ field, fieldIndex, controller, onCancel
     })),
   };
 }
+/** `<input type>` for a typed default: temporal kinds use their bounds type; boxes and choices have none. */
+function defaultInputTypeFor<B extends string>(kind: string | null, boundsType: B): B | 'number' | 'text' | null {
+  if (kind === 'temporal') return boundsType;
+  if (kind === 'number') return 'number';
+  return kind === 'text' || kind === 'textarea' ? 'text' : null;
+}
 /** Bind the settings section's controls; which ones render comes from the field's registry kind. */
 export function useFieldSettingsView({ field, controller, t }: { field: AdminFormField; controller: FieldAttributesDialogController; t: (key: string) => string }, _optional = {}) {
   const settings = fieldSettingsFor({ type: field.type });
@@ -87,7 +93,7 @@ export function useFieldSettingsView({ field, controller, t }: { field: AdminFor
     settings, form, boundsType,
     boundsClass: settings.bounds === 'number' ? 'field-settings-num' : 'field-settings-compact',
     /** `<input type>` for a typed default, or `null` when the default is a box or a choice. */
-    defaultInputType: kind === 'temporal' ? boundsType : kind === 'number' ? 'number' : kind === 'text' || kind === 'textarea' ? 'text' : null,
+    defaultInputType: defaultInputTypeFor(kind, boundsType),
     defaultClass: kind === 'number' || kind === 'temporal' ? 'field-settings-compact' : undefined,
     onPlaceholder: value('placeholder'), onHelpText: value('helpText'), onDefaultText: value('defaultText'),
     onMinLength: value('minLength'), onMaxLength: value('maxLength'), onPattern: value('pattern'),

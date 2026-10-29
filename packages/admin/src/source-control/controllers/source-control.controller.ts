@@ -6,7 +6,8 @@ import { blankSourceControlDraft, sourceControlProviders, defaultSourceControlCr
 function readySaveTarget({ state, providerId }: { state: SourceControlState; providerId: string }): { info: SourceControlProviderInfo; draft: SourceControlDraft } | null {
   const draft = state.drafts[providerId] ?? blankSourceControlDraft({});
   const info = sourceControlProviders({ providers: state.providers, credentials: state.credentials }).find(p => p.id === providerId);
-  return state.loaded && !draft.saving && info && sourceControlReady({ info, draft }) ? { info, draft } : null;
+  if (!state.loaded || draft.saving || !info) return null;
+  return sourceControlReady({ info, draft }) ? { info, draft } : null;
 }
 /** Replaces the row with `summary`'s id in place, or appends `summary` when it is new. */
 function spliceCredential({ credentials, summary }: { credentials: readonly SourceControlCredential[]; summary: SourceControlCredential }): readonly SourceControlCredential[] {

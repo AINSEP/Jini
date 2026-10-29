@@ -19,7 +19,8 @@ export function createOtherCredentialsController({ api, permissions = [] }: { ap
   // This is tab-local; cross-session races still require a server concurrency check.
   let lane = Promise.resolve();
   function write(row: OtherCredentialSummary, remove: boolean) {
-    if (store.signal.aborted || !grants.has('security.read') || !grants.has(otherWritePermission({ store: row.store })) || (!remove && !row.supportsReplace)) return Promise.resolve(false);
+    const permitted = grants.has('security.read') && grants.has(otherWritePermission({ store: row.store }));
+    if (store.signal.aborted || !permitted || (!remove && !row.supportsReplace)) return Promise.resolve(false);
     const token = store.getSnapshot().drafts[`${row.store}:${row.id}`]?.trim() ?? ''; if (!remove && !token) return Promise.resolve(false);
     const run = lane.then(async () => {
       if (store.signal.aborted) return false;

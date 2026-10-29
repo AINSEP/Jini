@@ -25,7 +25,10 @@ export function createMemorySecurityApi({ providers = [], rows = [] }: { provide
         ...(kind === 'custom' ? customProjection({ patch }, { initial }) : {}),
       });
     }
-    function check(label: string, providerId: string, id?: string) { if (items.some(r => r.kind === kind && r.id !== id && (kind === 'custom' || r.providerId === providerId) && r.label.toLowerCase() === label.toLowerCase())) throw new Error('Duplicate label'); }
+    function check(label: string, providerId: string, id?: string) {
+      const sameScope = (r: CredentialSummary) => r.kind === kind && r.id !== id && (kind === 'custom' || r.providerId === providerId);
+      if (items.some(r => sameScope(r) && r.label.toLowerCase() === label.toLowerCase())) throw new Error('Duplicate label');
+    }
     function insert(row: CredentialSummary) {
       if (row.isDefault) items = items.map(r => r.kind === kind && r.providerId === row.providerId ? Object.freeze({ ...r, isDefault: false }) : r);
       items = [...items.filter(r => !(r.kind === kind && r.id === row.id)), row]; return row;

@@ -72,17 +72,21 @@ async function saveSequentially(
 function rowStatus({ entry, pending }: { entry: ProviderEntry; pending: boolean }, _optional: Record<string, never> = {}) {
   const saved = isMarkerOnlyEntry(entry);
   const mask = saved ? maskedKeyLabel(entry) : null;
+  const unsavedLabel = pending ? 'Unsaved' : null;
   return {
     mask,
-    statusLabel: saved ? `Saved (${mask})` : pending ? 'Unsaved' : null,
+    statusLabel: saved ? `Saved (${mask})` : unsavedLabel,
     statusClassName: saved ? 'jini-field-status-badge jini-field-status-badge-success' : 'jini-field-status-badge',
   };
+}
+/** Names the provider default an empty endpoint falls back to, when it has one. */
+function defaultBaseUrlHint({ entry, item }: { entry: ProviderEntry; item: MediaProviderOption }) {
+  return !entry.baseUrl?.trim() && item.defaultBaseUrl ? `Uses ${item.defaultBaseUrl} by default.` : null;
 }
 function baseUrlHint({ entry, item }: { entry: ProviderEntry; item: MediaProviderOption }, _optional: Record<string, never> = {}) {
   const invalid = isProviderBaseUrlInvalid(entry);
   return {
-    invalid, hint: invalid ? 'Enter an absolute http:// or https:// URL that is not a private or internal address.'
-      : !entry.baseUrl?.trim() && item.defaultBaseUrl ? `Uses ${item.defaultBaseUrl} by default.` : null,
+    invalid, hint: invalid ? 'Enter an absolute http:// or https:// URL that is not a private or internal address.' : defaultBaseUrlHint({ entry, item }),
     hintClassName: invalid ? 'jini-field-hint jini-hint-error' : 'jini-field-hint',
     hintRole: invalid ? 'alert' as const : undefined,
     ariaInvalid: invalid || undefined,

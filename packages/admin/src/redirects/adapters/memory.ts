@@ -43,10 +43,9 @@ export function createMemoryRedirectsApi(
   }
   return {
     async listRedirects(_required, filter = {}) {
+      const matches = (wanted: string | undefined, actual: string) => wanted === undefined || actual === wanted;
       return Object.freeze([...rows.values()].filter(row => !trashed.has(row.id) &&
-        (filter.status === undefined || row.status === filter.status) &&
-        (filter.source === undefined || row.source === filter.source) &&
-        (filter.matchType === undefined || row.matchType === filter.matchType)));
+        matches(filter.status, row.status) && matches(filter.source, row.source) && matches(filter.matchType, row.matchType)));
     },
     async getRedirect({ id }) { return get(id); },
     async createRedirect(input, options = {}) { return create({ ...input, ...options }, 'manual'); },
