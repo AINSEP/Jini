@@ -20,7 +20,7 @@
  * - Methods never throw: definite refusals are `rejected`, indeterminate outcomes (timeout, network,
  *   provider down) are `unknown` and are reconciled, never blindly retried.
  */
-import type { HttpClientPort } from '@jini-ai/core/primitives';
+import { trimChars, type HttpClientPort } from '@jini-ai/core/primitives';
 import type { ProviderContext, ProviderResult } from '@jini-ai/core/provider-registry';
 import { sha256Hex } from './digest.js';
 
@@ -232,7 +232,7 @@ export function decodeSearchKey(required: { readonly encoded: string }): SearchD
  * @complexity O(input length).
  */
 export function searchIndexName(required: { readonly installId: string; readonly siteId: string; readonly providerId: string; readonly generation: number }): string {
-  const label = required.providerId.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24) || 'x';
+  const label = trimChars({ text: required.providerId.toLowerCase().replace(/[^a-z0-9]+/g, '_'), chars: '_' }).slice(0, 24) || 'x';
   const identity = sha256Hex({ text: JSON.stringify([required.installId, required.siteId, required.providerId]) }).slice(0, 40);
   return `js_${label}_${identity}_g${required.generation}`;
 }
