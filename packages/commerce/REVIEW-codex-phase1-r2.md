@@ -1,0 +1,30 @@
+Software Architect(Review): **REPLAN.** References below are to [revision 2](packages/commerce/PLAN-phase1.md (rev 2)).
+
+- **R1 RESOLVED** — §0.2 uses the existing artifact entry, setup registration and contract version.
+- **R2 PARTLY** — §0.2 names one authority; cached commerce ports still need the host lease’s retirement guard.
+- **R3 PARTLY** — §0.3 specifies account/mode isolation; define handling/tests for unreadable configuration, which [the reader can throw](packages/plugins/src/host/provider-config-source.ts:30).
+- **R4 PARTLY** — §§2.9–2.11 verify settlement correctly after association; association creation still has crash/concurrency gaps.
+- **R5 RESOLVED** — §2.12 distinguishes unpaid completion, paid completion and asynchronous outcomes.
+- **R6 PARTLY** — §2.12 still ignores `object !== "checkout.session"` even when our correlation metadata exists; classify that malformed.
+- **R7 PARTLY** — §§2.3/2.12 fix unit pricing; replace the currency-list ellipsis with an exact set and correct HUF/TWD reasoning.
+- **R8 RESOLVED** — §2.4 explicitly replays the stored rejection without another provider call.
+- **R9 PARTLY** — §2.5 adds bounded recovery, but parameter stability, concurrency and conflict persistence remain underspecified.
+- **R10 RESOLVED** — §1 removes unused purchase effects.
+- **R11 RESOLVED** — §1 defers the portal with customer identity.
+- **R12 RESOLVED** — §0.5 requires exact charging and preserves `PaymentEvidence.amount`.
+- **R13 PARTLY** — §§2.10–2.11 define validation and acknowledgement; missing-association acknowledgement can still lose fulfillment.
+- **R14 PARTLY** — §§2–3 correct earlier names; `createStripePaymentProvider(required?)` violates the required-object convention; schedule public repository-factory exports.
+- **R15 RESOLVED** — §§0.4/2.12 remove unnecessary settings and specify fake-local live-mode refusal.
+- **R16 PARTLY** — §§4/6 name the host migration, but P6 omits the shared attempt constructor required by its new fields.
+- **R17 NOT RESOLVED** — §6 still omits dependencies and fixture changes; details below.
+- **R18 RESOLVED** — §5 specifies actual Stripe/kernel integration with independent signatures and meaningful failure cases.
+- **R19 PARTLY** — §5 specifies measurement, but runner selection and incremental coverage gates remain broken.
+- **R20 RESOLVED** — §7 correctly places attribution at package roots and tests artifact retention.
+- **R21 RESOLVED** — §0.6 specifies production-source scanning, test exclusions and sibling-import enforcement.
+- **NEW—association:** §§2.10–2.11 save the link **after** dispatch. A crash before saving lets success be acknowledged as `not_ours` permanently; concurrent test/live calls can both dispatch before one association loses. Reserve order scope before dispatch and define durable recovery; test both cases.
+- **NEW—recovery parameters:** §§2.5/4 persist the request but omit context URLs used in Stripe parameters. Changed return/cancel settings can cause same-key conflicts. Snapshot or fence parameter-producing configuration/version changes; [Stripe requires unchanged parameters](https://docs.stripe.com/api/idempotent_requests).
+- **NEW—recovery state:** §2.5’s “same Tx2” contradicts “conflict never failed”: [the existing writer marks rejected dispatches failed](packages/commerce/src/payments/accounting/apply-evidence.ts:359). Preserve unresolved attempts/payments explicitly; atomically recheck eligibility/count, and pass the existing reconciliation workspace/mode filter.
+- **NEW—schedule:** §6 has **30 rows**. Add P22→P8a for its validator; put [common.ts’s attempt defaults](packages/commerce/src/payments/ops/common.ts:124) in P6; update reconciler assertions in P7b; include repository exports and lockfile ownership. Re-estimate implementation **plus tests** against the cap.
+- **NEW—coverage:** §§5–6 must separate Vitest files from the catalog `node --test *.test.ts` glob. Record baseline before enforcing new thresholds; activate each file’s final 100% gate with its tested shard. Current checkout also lacks the base commit’s combined coverage config/script.
+- **Open items:** **O1 YES**, owner-approved removal: no production consumers found in either clone. **O2 YES**, explicitly per **site**, account and mode. **O3 YES** to a fixed conservative list; HUF/TWD exclusions are scope choices—their restrictions concern payouts, not two-decimal charges ([Stripe](https://docs.stripe.com/currencies)). **O4 YES**, 23 hours is conservative within Stripe’s ≥24-hour retention, subject to the recovery corrections above ([Stripe](https://docs.stripe.com/error-low-level)).
+- **Changes:** Jini none; Tovu none; production **+0/−0**. Source/git review with index fallback; no tests, builds, installs or servers run. **Verdict: REPLAN around the association lifecycle, recovery contract and executable shard/gate ordering.**

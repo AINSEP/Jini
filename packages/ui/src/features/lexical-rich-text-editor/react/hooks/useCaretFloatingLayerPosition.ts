@@ -49,7 +49,7 @@ export function useCaretFloatingLayerPosition(
   }, [open, caret, reposition]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     let raf = 0;
     const onMove = () => {
       if (raf) return;

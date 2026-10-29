@@ -34,8 +34,8 @@ function workflow(value: unknown): value is GuideWorkflow {
 function topic(value: unknown): value is GuideTopic {
   if (!record(value) || !keys(value, ['id', 'title', 'summary', 'explanation', 'permissions', 'pointers', 'workflows'])) return false;
   if (!text(value.id, 64) || !/^[a-z][a-z0-9-]*$/.test(value.id)) return false;
-  return text(value.title, 128) && text(value.summary, 1_000) && text(value.explanation) && permissions(value.permissions)
-    && list(value.pointers, 24, pointer) && list(value.workflows, 16, workflow);
+  const prose = text(value.title, 128) && text(value.summary, 1_000) && text(value.explanation);
+  return prose && permissions(value.permissions) && list(value.pointers, 24, pointer) && list(value.workflows, 16, workflow);
 }
 
 /** Parse bounded data-only enrichment. Invalid fields and duplicate ids refuse the whole file.

@@ -25,3 +25,4 @@ export type { PluginProviderResource, PluginProviderFactory, PluginProviderContr
 export * from './provider-host.js';
 export * from './provider-setting-required.js';
 export * from './provider-settings-migrations.js';
+export type { ProviderConfigSource, ProviderKeyUsage, ProviderPluginConfig, ProviderSettingsView, ProviderWriteResult } from './provider-config-source.js';

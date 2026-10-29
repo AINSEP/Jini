@@ -28,7 +28,8 @@ export function createToastService(_required: Record<string, never>, optional: {
   return Object.freeze({
     push(input: Omit<ToastMessage, 'id'>, opts: { id?: string } = {}) {
       if (disposed) throw new Error('Toast service is disposed');
-      const id = opts.id ?? `toast-${++sequence}`;
+      if (opts.id == null) sequence += 1;
+      const id = opts.id ?? `toast-${sequence}`;
       dismiss({ id }); messages = Object.freeze([...messages, Object.freeze({ ...input, id })]); emit();
       const delayMs = input.durationMs ?? optional.durationMs ?? 5000;
       if (delayMs > 0) timers.set(id, scheduler.schedule({ delayMs, run: () => dismiss({ id }) }));

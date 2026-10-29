@@ -3,7 +3,7 @@ import type { KitAttrs, AgentAttrsPort } from '../attrs.js';
 import type { ConfirmInput, DismissReason } from '../confirm.js';
 import type { ImplementedComponentName } from '../kit-contract.js';
 import type { KitNeeds } from '../needs.js';
-import type { ToastService } from '../toast.js';
+import type { ToastMessage, ToastService } from '../toast.js';
 export interface BaseProps { readonly attrs?: KitAttrs; readonly className?: string }
 export type ActionPort = (required: Record<string, never>, optional?: Record<string, never>) => void;
 export type ValuePort<T> = (required: { value: T }, optional?: Record<string, never>) => void;
@@ -50,11 +50,11 @@ export interface TabItem { readonly id: string; readonly label: string; readonly
 export interface TabsProps extends BaseProps { readonly label: string; readonly value: string; readonly items: readonly TabItem[]; readonly onValueChange: ValuePort<string> }
 export interface MenuItem { readonly id: string; readonly label: string; readonly disabled?: boolean; readonly onPress: ActionPort; readonly attrs?: KitAttrs }
 export interface MenuProps extends BaseProps { readonly label: string; readonly items: readonly MenuItem[]; readonly disabled?: boolean }
-export interface ToastProps extends BaseProps { readonly message: string; readonly tone?: 'info' | 'success' | 'warning' | 'danger'; readonly onDismiss?: ActionPort; readonly dismissLabel?: string }
+export interface ToastProps extends BaseProps { readonly message: string; readonly tone?: NonNullable<ToastMessage['tone']>; readonly onDismiss?: ActionPort; readonly dismissLabel?: string }
 export interface TooltipProps extends BaseProps { readonly content: ReactNode; readonly children: ReactNode; readonly label?: string }
-export interface NoticeProps extends BaseProps { readonly children: ReactNode; readonly tone?: 'info' | 'success' | 'warning' | 'danger' }
+export interface NoticeProps extends BaseProps { readonly children: ReactNode; readonly tone?: NonNullable<ToastMessage['tone']> }
 export interface SpinnerProps extends BaseProps { readonly label?: string }
-export interface BadgeProps extends BaseProps { readonly children: ReactNode; readonly tone?: 'info' | 'success' | 'warning' | 'danger' }
+export interface BadgeProps extends BaseProps { readonly children: ReactNode; readonly tone?: NonNullable<ToastMessage['tone']> }
 export interface ReactKitProps {
   Button: ButtonProps; IconButton: IconButtonProps; TextField: TextFieldProps; TextArea: TextAreaProps;
   Select: SelectProps; Checkbox: CheckboxProps; Switch: SwitchProps; Dialog: DialogProps;

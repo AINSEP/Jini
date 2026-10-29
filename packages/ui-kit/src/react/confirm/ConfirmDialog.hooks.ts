@@ -65,14 +65,14 @@ export function useConfirmFacade(required: ConfirmDialogProps, _optional: Record
       initial.current = true;
       // React restores selection between cleanup and layout setup; restore the trigger after that step.
       if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus();
-      return;
+      return undefined;
     }
     c.focusInitial({});
     return () => { if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus(); };
   }, [c.open, Component]);
   useEffect(() => {
-    if (!c.open || failed || context.guard === 'off' || !isDevelopment({})) return;
-    if (!context.kit.overrides.includes('ConfirmDialog') && !context.kit.overrides.includes('Button')) return;
+    if (!c.open || failed || context.guard === 'off' || !isDevelopment({})) return undefined;
+    if (!context.kit.overrides.includes('ConfirmDialog') && !context.kit.overrides.includes('Button')) return undefined;
     // After the committed view's effects, including library portal/focus synchronization.
     const timer = setTimeout(() => {
       const reasons = inspectConfirm({ controller: c, checkFocus: initial.current });

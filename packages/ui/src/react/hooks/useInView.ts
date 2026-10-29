@@ -29,23 +29,23 @@ export function useInView<T extends Element = HTMLElement>(
 
   useEffect(() => {
     const node = ref.current;
-    if (!node) return;
+    if (!node) return undefined;
 
     if (typeof IntersectionObserver === 'undefined') {
       setInView(true);
-      return;
+      return undefined;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setInView(true);
-            if (options.once !== false) {
-              observer.disconnect();
-            }
-          } else if (options.once === false) {
-            setInView(false);
+          if (!entry.isIntersecting) {
+            if (options.once === false) setInView(false);
+            continue;
+          }
+          setInView(true);
+          if (options.once !== false) {
+            observer.disconnect();
           }
         }
       },

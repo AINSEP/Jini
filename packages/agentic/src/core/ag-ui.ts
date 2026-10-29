@@ -115,10 +115,13 @@ function encodeToolContent(output: unknown): string {
  * @param outcome - What happened.
  * @returns The `role: "tool"` message to send back.
  */
+/** A string output verbatim; anything else through the tool-content encoder. */
+function toolOutputText(output: unknown): string {
+  return typeof output === 'string' ? output : encodeToolContent(output);
+}
+
 export function createAgUiToolResult({ messageId, toolCallId, outcome }: { messageId: string; toolCallId: string; outcome: { ok: true; output: unknown } | { ok: false; error: string } }, _optional: Record<string, never> = {}
 ): AgUiToolResultMessage {
-  const content = outcome.ok
-    ? typeof outcome.output === 'string' ? outcome.output : encodeToolContent(outcome.output)
-    : JSON.stringify({ error: outcome.error });
+  const content = outcome.ok ? toolOutputText(outcome.output) : JSON.stringify({ error: outcome.error });
   return { id: messageId, role: 'tool', content, toolCallId };
 }

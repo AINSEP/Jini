@@ -91,7 +91,8 @@ function decodeApiErrorRecord(
   { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
 ): DecodedApiError {
   // Share/import routes use a flat code/message envelope; keep legacy string-error precedence.
-  const message = error === record ? (typeof record.error === 'string' ? record.error : record.message) : error.message;
+  const flatMessage = typeof record.error === 'string' ? record.error : record.message;
+  const message = error === record ? flatMessage : error.message;
   return {
     message: typeof message === 'string' ? message : fallbackMessage,
     ...(typeof error.code === 'string' ? { code: error.code } : {}),

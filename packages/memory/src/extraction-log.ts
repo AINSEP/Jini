@@ -191,13 +191,7 @@ export function createExtractionLog(_required: Record<string, never>, optional: 
     const idx = records.findIndex((r) => r.id === id);
     if (idx < 0) return 0;
     const [removed] = records.splice(idx, 1);
-    defer({ callback: () => {
-      try {
-        events.emit('attempt', { ...removed, phase: 'deleted' });
-      } catch {
-        // A listener throwing is not this module's problem.
-      }
-    } });
+    emit({ ...removed!, phase: 'deleted' }); // The matched index guarantees splice removed a record.
     return 1;
   }
 
@@ -206,13 +200,7 @@ export function createExtractionLog(_required: Record<string, never>, optional: 
     records.length = 0;
     if (removed > 0) {
       const now = nowMs();
-      defer({ callback: () => {
-        try {
-          events.emit('attempt', { id: 'all', phase: 'cleared', startedAt: now, finishedAt: now });
-        } catch {
-          // A listener throwing is not this module's problem.
-        }
-      } });
+      emit({ id: 'all', phase: 'cleared', startedAt: now, finishedAt: now });
     }
     return removed;
   }

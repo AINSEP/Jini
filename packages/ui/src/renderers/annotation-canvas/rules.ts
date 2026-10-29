@@ -45,15 +45,9 @@ export function normalizedRectFromPoints(a: Point, b: Point): NormalizedRect {
 }
 
 export function dockPlacementEquals(a: DockPlacement, b: DockPlacement): boolean {
-  return (
-    a.layout === b.layout &&
-    a.side === b.side &&
-    a.style.left === b.style.left &&
-    a.style.top === b.style.top &&
-    a.style.bottom === b.style.bottom &&
-    a.style.transform === b.style.transform &&
-    a.style.maxWidth === b.style.maxWidth
-  );
+  if (a.layout !== b.layout || a.side !== b.side) return false;
+  const samePosition = a.style.left === b.style.left && a.style.top === b.style.top && a.style.bottom === b.style.bottom;
+  return samePosition && a.style.transform === b.style.transform && a.style.maxWidth === b.style.maxWidth;
 }
 
 export const DRAW_DOCK_GAP = 12;
@@ -87,14 +81,11 @@ export function computeDockPlacement(input: DockPlacementInput): DockPlacement {
   const { hostRect, wrapRect, dockRect, anchor } = input;
 
   if (!anchor) return docked;
-  if (
-    hostRect.width <= DRAW_DOCK_MARGIN * 2 ||
-    hostRect.height <= DRAW_DOCK_MARGIN * 2 ||
-    dockRect.width <= 0 ||
-    dockRect.height <= 0 ||
-    hostRect.width < Math.max(DRAW_DOCK_MIN_WIDTH, dockRect.width) + DRAW_DOCK_MARGIN * 2 ||
-    hostRect.height < Math.max(DRAW_DOCK_MIN_HEIGHT, dockRect.height) + DRAW_DOCK_MARGIN * 2
-  ) {
+  const hostTooSmall = hostRect.width <= DRAW_DOCK_MARGIN * 2 || hostRect.height <= DRAW_DOCK_MARGIN * 2;
+  const dockEmpty = dockRect.width <= 0 || dockRect.height <= 0;
+  const dockDoesNotFit = hostRect.width < Math.max(DRAW_DOCK_MIN_WIDTH, dockRect.width) + DRAW_DOCK_MARGIN * 2
+    || hostRect.height < Math.max(DRAW_DOCK_MIN_HEIGHT, dockRect.height) + DRAW_DOCK_MARGIN * 2;
+  if (hostTooSmall || dockEmpty || dockDoesNotFit) {
     return docked;
   }
 

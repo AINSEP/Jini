@@ -50,7 +50,8 @@ export function httpsUrl({ value }: { value: unknown }, _options: Record<string,
     // No template syntax or parser normalization of control characters in persisted targets.
     requireCondition({ valid: !/[\s{}<>`\\]/u.test(decodeURIComponent(value as string)) });
     const url = new URL(value as string);
-    requireCondition({ valid: url.protocol === "https:" && url.port === "" && !url.username && !url.password && !url.hash });
+    const bareOrigin = !url.username && !url.password && !url.hash;
+    requireCondition({ valid: url.protocol === "https:" && url.port === "" && bareOrigin });
     return url;
   } catch { throw new SavedRequestError({ code: "invalid_definition" }); }
 }

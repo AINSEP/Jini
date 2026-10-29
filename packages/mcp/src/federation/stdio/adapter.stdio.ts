@@ -1,5 +1,5 @@
 import type { FederationMessages } from "../messages.js";
-import type { McpToolCallRequiredArgs, McpToolCallOptions, McpHttpRequestRequiredArgs, McpHttpRequestOptions } from "../ports.js";
+import type { McpToolCallRequiredArgs, McpToolCallOptions } from "../ports.js";
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -234,7 +234,8 @@ class McpStdioSession implements McpSessionPort {
     if (this.closedReason !== null) {
       return Promise.reject(new McpProtocolError({ message: `mcp-federation: session is closed (${this.closedReason})` }));
     }
-    const id = this.nextId++;
+    const id = this.nextId;
+    this.nextId += 1;
 
     return new Promise<unknown>((resolve, reject) => {
       // Deliberately NOT `unref()`ed. An unref'd timer lets the event loop drain while a request is

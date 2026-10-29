@@ -287,15 +287,11 @@ function compareVersionLikeDirNames(left: string, right: string): number {
   const leftSemver = parseVersionLikeDirName(left);
   const rightSemver = parseVersionLikeDirName(right);
   if (leftSemver && rightSemver) {
-    for (let index = 0; index < leftSemver.length; index += 1) {
-      const difference = rightSemver[index]! - leftSemver[index]!;
-      if (difference !== 0) return difference;
-    }
-  } else if (leftSemver) {
-    return -1;
-  } else if (rightSemver) {
-    return 1;
+    const difference = leftSemver.map((part, index) => rightSemver[index]! - part).find((value) => value !== 0);
+    return difference ?? left.localeCompare(right);
   }
+  if (leftSemver) return -1;
+  if (rightSemver) return 1;
   return left.localeCompare(right);
 }
 

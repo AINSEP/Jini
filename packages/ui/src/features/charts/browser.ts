@@ -107,7 +107,8 @@ export function mountChart(
     ready,
     async update({ spec: nextSpec, theme = input.theme }, _options = {}) {
       if (destroyed) return;
-      const updateRevision = ++revision;
+      revision += 1;
+      const updateRevision = revision;
       input = { spec: nextSpec, theme }; showData();
       const preferred = candidates()[0];
       if (active && preferred?.id === active.entry.id) {

@@ -425,11 +425,9 @@ export async function createLocalNodeDaemon(
           if (registryPath !== null) {
             // Best-effort: a daemon that already served every request successfully must not fail
             // its own shutdown just because its discovery record couldn't be removed.
-            try {
-              await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid });
-            } catch {
-              // Intentionally swallowed — see the try's own comment.
-            }
+            await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid }).catch(() => {
+              // Intentionally swallowed — removal is best-effort for a daemon that already served.
+            });
           }
           // A caller-supplied `onShutdown` failing must never leak any sqlite handle this call
           // opened: `finally` guarantees the close still runs, then the original rejection (if any)

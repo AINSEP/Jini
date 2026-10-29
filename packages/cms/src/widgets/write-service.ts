@@ -126,8 +126,9 @@ function widgetConfigValidationError(
   // the former `?? {}` fallback was unreachable — the registry is a static table, not caller input.
   const configKeys = new Set([...requiredKeys, ...Object.keys(registration.configSchema.properties as JsonObject)]);
   const expectedKeys = [...configKeys].map((key) => requiredKeys.has(key) ? `${key} (required)` : key).join(", ");
+  const reasons = fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ");
   return new WidgetConfigValidationError({
-    message: `config for widget type '${registration.typeKey}' failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}. Expected config keys: ${expectedKeys}`,
+    message: `config for widget type '${registration.typeKey}' failed schema validation: ${reasons}. Expected config keys: ${expectedKeys}`,
     fieldErrors,
   });
 }
@@ -223,51 +224,53 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
     permission: "widgets.update",
   });
 
-  return withEntryLock({ key: `${input.workspaceId}::${input.widgetInstanceId}`, fn: async () => {
-    const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
-    if (!current || current.type !== WIDGET_CONTENT_TYPE) {
-      throw new WidgetInstanceNotFoundError({ message: `widget instance '${input.widgetInstanceId}' was not found` });
-    }
-
-    const currentPayload = parseWidgetInstancePayload({ fieldsJson: current.fieldsJson });
-    // `currentPayload.widgetType` is typed `WidgetTypeKey` but only ASSERTED to be one —
-    // `parseWidgetInstancePayload` casts decoded, stored JSON (`entry-payload.ts`), so
-    // `findWidgetTypeRegistration` is the correct, honestly-partial accessor here too.
-    const registration = findWidgetTypeRegistration({ raw: currentPayload.widgetType });
-    if (!registration) {
-      throw new WidgetTypeUnregisteredError({ message: `widget type '${currentPayload.widgetType}' is not registered`, widgetType: currentPayload.widgetType });
-    }
-
-    const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
-    if (!validation.valid) {
-      throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
-    }
-
-    const result = await deps.host.entries.updateEntry({
-      deps: {
-        ...entriesWriteDeps(deps, input.workspaceId),
-        onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-      },
-      input: {
-        actorId: input.actor.principalId,
-        workspaceId: input.workspaceId,
-        id: input.widgetInstanceId,
-        title: input.title,
-        fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: currentPayload.widgetType, config: input.config, status: currentPayload.status } }),
-        expectedVersion: input.baseVersion,
-      },
-    });
-
-    if (!result.ok) {
-      if (deps.host.entries.isVersionConflict(result.error)) {
-        const latest = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
-        throw new WidgetVersionConflictError({ message: result.error.message, currentVersion: latest?.version ?? current.version });
+  return withEntryLock({
+    key: `${input.workspaceId}::${input.widgetInstanceId}`, fn: async () => {
+      const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
+      if (!current || current.type !== WIDGET_CONTENT_TYPE) {
+        throw new WidgetInstanceNotFoundError({ message: `widget instance '${input.widgetInstanceId}' was not found` });
       }
-      throw result.error;
-    }
 
-    return { instance: toWidgetInstanceEntry({ entry: result.value.entry }) };
-  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+      const currentPayload = parseWidgetInstancePayload({ fieldsJson: current.fieldsJson });
+      // `currentPayload.widgetType` is typed `WidgetTypeKey` but only ASSERTED to be one —
+      // `parseWidgetInstancePayload` casts decoded, stored JSON (`entry-payload.ts`), so
+      // `findWidgetTypeRegistration` is the correct, honestly-partial accessor here too.
+      const registration = findWidgetTypeRegistration({ raw: currentPayload.widgetType });
+      if (!registration) {
+        throw new WidgetTypeUnregisteredError({ message: `widget type '${currentPayload.widgetType}' is not registered`, widgetType: currentPayload.widgetType });
+      }
+
+      const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
+      if (!validation.valid) {
+        throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
+      }
+
+      const result = await deps.host.entries.updateEntry({
+        deps: {
+          ...entriesWriteDeps(deps, input.workspaceId),
+          onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
+        },
+        input: {
+          actorId: input.actor.principalId,
+          workspaceId: input.workspaceId,
+          id: input.widgetInstanceId,
+          title: input.title,
+          fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: currentPayload.widgetType, config: input.config, status: currentPayload.status } }),
+          expectedVersion: input.baseVersion,
+        },
+      });
+
+      if (!result.ok) {
+        if (deps.host.entries.isVersionConflict(result.error)) {
+          const latest = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
+          throw new WidgetVersionConflictError({ message: result.error.message, currentVersion: latest?.version ?? current.version });
+        }
+        throw result.error;
+      }
+
+      return { instance: toWidgetInstanceEntry({ entry: result.value.entry }) };
+    }
+  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface ImportWidgetInstanceInput {
@@ -315,29 +318,31 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });
 
-  return withEntryLock({ key: `${input.workspaceId}::${input.id}`, fn: async () => {
-    const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
-    const result = await deps.host.entries.importEntry({
-      deps: {
-        ...entriesWriteDeps(deps, input.workspaceId),
-        onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-      },
-      input: {
-        actorId: input.actor.principalId,
-        workspaceId: input.workspaceId,
-        id: input.id,
-        type: WIDGET_CONTENT_TYPE,
-        slug: input.slug,
-        title: input.title,
-        status: current?.status ?? "draft",
-        fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: input.widgetType, config: input.config, status: "active" } }),
-        publishedAt: current?.publishedAt ?? null,
-        expectedVersion: input.expectedVersion,
-      },
-    });
-    if (!result.ok) throw result.error;
-    return { instance: toWidgetInstanceEntry({ entry: result.value.entry }) };
-  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+  return withEntryLock({
+    key: `${input.workspaceId}::${input.id}`, fn: async () => {
+      const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
+      const result = await deps.host.entries.importEntry({
+        deps: {
+          ...entriesWriteDeps(deps, input.workspaceId),
+          onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
+        },
+        input: {
+          actorId: input.actor.principalId,
+          workspaceId: input.workspaceId,
+          id: input.id,
+          type: WIDGET_CONTENT_TYPE,
+          slug: input.slug,
+          title: input.title,
+          status: current?.status ?? "draft",
+          fieldsJson: buildWidgetInstanceFieldsJson({ payload: { widgetType: input.widgetType, config: input.config, status: "active" } }),
+          publishedAt: current?.publishedAt ?? null,
+          expectedVersion: input.expectedVersion,
+        },
+      });
+      if (!result.ok) throw result.error;
+      return { instance: toWidgetInstanceEntry({ entry: result.value.entry }) };
+    }
+  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface TrashWidgetInstanceInput {
@@ -388,27 +393,29 @@ export async function trashWidgetInstance(
     permission: "widgets.delete",
   });
 
-  return withEntryLock({ key: `${input.workspaceId}::${input.widgetInstanceId}`, fn: async () => {
-    const notFound = () => new WidgetInstanceNotFoundError({ message: `widget instance '${input.widgetInstanceId}' was not found` });
-    const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
-    if (!current || current.type !== WIDGET_CONTENT_TYPE) throw notFound();
+  return withEntryLock({
+    key: `${input.workspaceId}::${input.widgetInstanceId}`, fn: async () => {
+      const notFound = () => new WidgetInstanceNotFoundError({ message: `widget instance '${input.widgetInstanceId}' was not found` });
+      const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
+      if (!current || current.type !== WIDGET_CONTENT_TYPE) throw notFound();
 
-    const removed = await deps.remove({
-      workspaceId: input.workspaceId,
-      id: current.id,
-      display: { title: current.title, subtitle: current.slug },
-      at: clockNowIso({ clock: deps.clock }),
-      expectedVersion: current.version,
-      actor: { principalId: input.actor.principalId, pluginId: input.actor.pluginId ?? null },
-    });
-    if (removed.ok) return { widgetInstanceId: current.id, version: removed.version };
-    if (removed.reason === "not-found") throw notFound();
+      const removed = await deps.remove({
+        workspaceId: input.workspaceId,
+        id: current.id,
+        display: { title: current.title, subtitle: current.slug },
+        at: clockNowIso({ clock: deps.clock }),
+        expectedVersion: current.version,
+        actor: { principalId: input.actor.principalId, pluginId: input.actor.pluginId ?? null },
+      });
+      if (removed.ok) return { widgetInstanceId: current.id, version: removed.version };
+      if (removed.reason === "not-found") throw notFound();
 
-    const fresh = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
-    if (!fresh) throw notFound();
-    throw new WidgetVersionConflictError({ message: `widget instance '${input.widgetInstanceId}' changed while it was being deleted — reload and try again`, currentVersion: fresh.version }
-    );
-  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+      const fresh = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.widgetInstanceId });
+      if (!fresh) throw notFound();
+      throw new WidgetVersionConflictError({ message: `widget instance '${input.widgetInstanceId}' changed while it was being deleted — reload and try again`, currentVersion: fresh.version }
+      );
+    }
+  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 /** The payload statuses the old delete ladder left behind: `trash` (step 1) and `purged` (its
@@ -458,19 +465,19 @@ export async function adoptLegacyTrashedWidgets(
     } catch {
       continue;
     }
-    if (!LEGACY_DELETED_STATUSES.has(status)) continue;
-
-    const removed = await deps.remove({
-      workspaceId: input.workspaceId,
-      id: widget.id,
-      display: { title: widget.title, subtitle: widget.slug },
-      at: clockNowIso({ clock: deps.clock }),
-      expectedVersion: widget.version,
-      actor: ADOPTION_ACTOR,
-      priorMarker: ADOPTED_WIDGET_PRIOR_STATUS,
-    });
-    if (!removed.ok) throw new Error(`widget '${widget.id}' could not be moved to the Trash: ${removed.reason}`);
-    adopted.push({ id: widget.id, title: widget.title });
+    if (LEGACY_DELETED_STATUSES.has(status)) {
+      const removed = await deps.remove({
+        workspaceId: input.workspaceId,
+        id: widget.id,
+        display: { title: widget.title, subtitle: widget.slug },
+        at: clockNowIso({ clock: deps.clock }),
+        expectedVersion: widget.version,
+        actor: ADOPTION_ACTOR,
+        priorMarker: ADOPTED_WIDGET_PRIOR_STATUS,
+      });
+      if (!removed.ok) throw new Error(`widget '${widget.id}' could not be moved to the Trash: ${removed.reason}`);
+      adopted.push({ id: widget.id, title: widget.title });
+    }
   }
 
   return { adopted };

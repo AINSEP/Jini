@@ -21,7 +21,8 @@ function isDefaultPort(scheme: "https" | "http", port: number | undefined): bool
 }
 
 function composeOriginUrl(origin: VerifiedOrigin): string {
-  const authority = isDefaultPort(origin.scheme === "https" ? "https" : "http", origin.port)
+  const scheme = origin.scheme === "https" ? "https" : "http";
+  const authority = isDefaultPort(scheme, origin.port)
     ? origin.host
     : `${origin.host}:${origin.port}`;
   return `${origin.scheme}://${authority}`;

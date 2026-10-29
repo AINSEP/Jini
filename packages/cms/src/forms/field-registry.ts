@@ -2,6 +2,16 @@
 import type { FieldDescriptor, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
 import { isValidFormEmail } from "./email-format.js";
 
+/**
+ * Escaping makes an attribute value inert, but cannot make a name such as onclick safe. Names
+ * are deny-by-default: only aria-* and data-* namespaces and a fixed closed list are accepted.
+ * Event handlers, style/formaction/href/src/srcdoc can inject behavior; id/name/type overrides
+ * can break label association, submission keys or the renderer's declared field vocabulary.
+ * Shared here so rendering can use the vocabulary without loading submission/descriptor validation.
+ */
+export const ATTRIBUTE_NAME_PATTERN =
+  /^(aria-[a-z0-9-]+|data-[a-z0-9-]+|placeholder|autocomplete|inputmode|pattern|title|min|max|step|minlength|spellcheck|readonly)$/;
+
 export type FieldResolution =
   | { kind: "absent" }
   | { kind: "rejected"; reason: string }
@@ -53,16 +63,17 @@ function hasDottedHost(address: string, absolute: boolean): boolean {
 /** The scheme is http(s) by construction: absolute addresses matched ^https?:// and bare ones get https://. */
 function parsesAsDomainUrl(href: string): boolean {
   try {
-    return fullMatch(/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/i, new URL(href).hostname);
+    const labels = new URL(href).hostname.split(".");
+    return labels.length > 1 && labels.every(label => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label));
   } catch { return false; }
 }
 /** Validate HTTP(S) addresses and handles with no rewriting; refuse active schemes and whitespace. */
 function isFormUrl(address: string): boolean {
   // Owner decision 2026-10-13: store as typed, no forced https; any prefix below is validation-only.
-  if (/[\s\\\x00-\x1f\x7f]/u.test(address)) return false;
+  if (/[\s\\\x00-\x08\x0e-\x1f\x7f]/u.test(address)) return false;
   if (fullMatch(/@[A-Za-z0-9._]{1,30}/, address)) return true;
   const absolute = /^https?:\/\/[^/]/i.test(address);
-  if (!absolute && !fullMatch(/[^:/?#@]+(?::[0-9]+)?(?:[/?#].*)?/, address)) return false;
+  if (!absolute && !fullMatch(/[^:/?#@]+(?::\d+)?(?:[/?#].*)?/, address)) return false;
   return hasDottedHost(address, absolute) && parsesAsDomainUrl(absolute ? address : `https://${address}`);
 }
 const urlValue = formattedText(isFormUrl, "invalid_url");
@@ -75,7 +86,8 @@ function parseNativeNumber(value: unknown): number | undefined {
 }
 /** Range inputs have native 0..100 bounds when none are configured; number inputs have none. */
 const nativeRangeBound = (field: FieldDescriptor, bound: number): number | undefined => (field.type === "range" ? bound : undefined);
-function isOnStep(field: FieldDescriptor, { number, min }: { number: number; min: number | string | undefined }): boolean {
+type NumberBound = number | string | undefined;
+function isOnStep(field: FieldDescriptor, { number, min }: { number: number; min: NumberBound }): boolean {
   const step = field.step ?? Number(field.attributes?.step ?? 1);
   const units = (number - Number(min ?? 0)) / step;
   return Number.isFinite(units) && Math.abs(units - Math.round(units)) <= 1e-8;
@@ -211,14 +223,15 @@ export const SAFE_FORM_FILE_TYPES: Readonly<Record<string, readonly string[]>> =
   "video/mp4": ["mp4"], "video/webm": ["webm"], "application/pdf": ["pdf"],
 };
 export const MAX_FORM_FILE_BYTES = 10 * 1024 * 1024;
-const DANGEROUS_EXTENSION = /\.(?:exe|dll|com|bat|cmd|msi|sh|bash|ps1|js|mjs|cjs|ts|tsx|jsx|py|rb|pl|php\d*|phtml|html?|svg|xml|jar|zip|scr|vbs)(?:\.|$)/i;
+const EXECUTABLE_EXTENSION = /\.(?:exe|dll|com|bat|cmd|msi|sh|bash|ps1|js|mjs|cjs|ts|tsx|jsx)(?:\.|$)/i;
+const ACTIVE_DOCUMENT_EXTENSION = /\.(?:py|rb|pl|php\d*|phtml|html?|svg|xml|jar|zip|scr|vbs)(?:\.|$)/i;
 const isFileInput = (value: unknown): value is FormFileInput => {
   const file = value as Partial<FormFileInput>;
   return typeof file === "object" && file.bytes instanceof Uint8Array && typeof file.filename === "string" && typeof file.contentType === "string";
 };
 const isWithinSizeLimit = (bytes: Uint8Array, maxFileSize: number | undefined): boolean =>
   bytes.byteLength > 0 && bytes.byteLength <= Math.min(maxFileSize ?? MAX_FORM_FILE_BYTES, MAX_FORM_FILE_BYTES);
-const isUnsafeFilename = (filename: string): boolean => filename.length > 200 || /[\\/\x00-\x1f\x7f]/.test(filename) || DANGEROUS_EXTENSION.test(filename);
+const isUnsafeFilename = (filename: string): boolean => filename.length > 200 || /[\\/\x00-\x1f\x7f]/.test(filename) || (EXECUTABLE_EXTENSION.test(filename) || ACTIVE_DOCUMENT_EXTENSION.test(filename));
 const acceptsType = (accept: string, contentType: string): boolean => accept === contentType || accept === "*/*" || accept === `${contentType.split("/")[0]}/*`;
 /** The claim (if any) must equal the sniffed type, whose safe extensions must include the filename's. */
 function isAllowedFileType(file: FormFileInput, { contentType, accept }: { contentType: string; accept: string[] | undefined }): boolean {

@@ -5,3 +5,7 @@ export * from "./errors.js";
 export * from "./checkout.js";
 export * from "./storefront.js";
 export * from "./status.js";
+export * from "./load-payable-order.js";
+export * from "./pay-order.js";
+export * from "./settle-order-payment.js";
+export * from "./order-projection.js";

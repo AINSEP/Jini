@@ -1,3 +1,4 @@
+import { trimCharsEnd } from "@jini-ai/core/primitives";
 import { LISTING_AFTER_MAX } from './batch.js';
 
 /**
@@ -31,7 +32,7 @@ export interface ListingJsonPage<T> {
 
 /** The batch URL for `key`'s listing on `pagePath`, starting at source cursor `after`. @complexity O(n) over `pagePath`. */
 export function listingBatchPath({ pagePath, key, after, format }: ListingBatchRequest, _optional: Record<string, never> = {}): string {
-  return `${pagePath.replace(/\/+$/, '')}/_more/${key}/${after}${format === 'json' ? '.json' : ''}`;
+  return `${trimCharsEnd({ text: pagePath, chars: '/' })}/_more/${key}/${after}${format === 'json' ? '.json' : ''}`;
 }
 
 /**

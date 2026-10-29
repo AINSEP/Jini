@@ -148,7 +148,9 @@ function probeDuration(raw: ProbeOutput, video: ProbeStream | undefined): number
 }
 
 function isUsableVideo(video: ProbeStream | undefined, duration: number): video is ProbedVideo {
-  return !!video && Number.isFinite(duration) && duration > 0 && Number.isInteger(video.width) && Number.isInteger(video.height) && video.width! > 0 && video.height! > 0;
+  if (!video || !Number.isFinite(duration) || duration <= 0) return false;
+  if (!Number.isInteger(video.width) || !Number.isInteger(video.height)) return false;
+  return video.width! > 0 && video.height! > 0;
 }
 
 /** Parse only the ffprobe fields requested by the adapter. File size is measured from authorized

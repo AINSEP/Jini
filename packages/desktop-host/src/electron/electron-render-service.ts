@@ -14,19 +14,19 @@ import {
 } from '../render-service.js';
 import type { ElectronBrowserWindowFactory } from './electron-surfaces.js';
 import { withRenderWindow } from './render-window.js';
-import { captureElectronUrl, type ElectronUrlCaptureOptions } from './electron-url-capture.js';
+import { captureElectronUrl, type ElectronUrlCaptureOptions, type ElectronUrlCapturePoolPort } from './electron-url-capture.js';
 import type { UrlCaptureRequest, UrlCaptureResult } from '../url-capture.js';
 
 /** Bind HTML exports and bounded URL capture to an injected native window factory.
- * @example const service = createElectronRenderService({ createBrowserWindow });
+ * @example const service = createElectronRenderService({ createBrowserWindow, capturePool });
  * @complexity O(1) setup; each operation owns one temporary native window.
  */
-export function createElectronRenderService({ createBrowserWindow }: { createBrowserWindow: ElectronBrowserWindowFactory }, _options = {}): RenderService & {
+export function createElectronRenderService({ createBrowserWindow, capturePool }: { createBrowserWindow: ElectronBrowserWindowFactory; capturePool: ElectronUrlCapturePoolPort }, _options = {}): RenderService & {
   captureUrl(request: UrlCaptureRequest, options?: ElectronUrlCaptureOptions): Promise<UrlCaptureResult>;
 } {
   return {
     captureUrl(request: UrlCaptureRequest, options: ElectronUrlCaptureOptions = {}): Promise<UrlCaptureResult> {
-      return captureElectronUrl({ createBrowserWindow, request }, options);
+      return captureElectronUrl({ createBrowserWindow, capturePool, request }, options);
     },
     async renderToPdf({ html }: { html: string }, options: RenderToPdfOptions = {}): Promise<Uint8Array> {
       const buffer = await withRenderWindow({ createBrowserWindow, html, options, run: (win) =>

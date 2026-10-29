@@ -81,7 +81,8 @@ export function useLatestOperation(_requiredArgs: Record<string, never>): Latest
   const run = useCallback(async (
     { body, onError }: { body: (token: OperationToken) => Promise<void>; onError: (error: Error) => void },
   ): Promise<void> => {
-    const generation = ++generationRef.current;
+    generationRef.current += 1;
+    const generation = generationRef.current;
     const isCurrent = () => mountedRef.current && generation === generationRef.current;
     const token: OperationToken = {
       isCurrent,

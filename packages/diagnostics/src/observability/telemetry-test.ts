@@ -11,11 +11,14 @@ export interface TelemetryTestProbe {
   send(required: { tracker: Tracker; error: Error; userId: string }, optional?: Record<string, never>): Promise<TelemetryTestResult>;
 }
 
+/** The fixed name the telemetry self-test uses for its error operation, span and metric. */
+const TELEMETRY_TEST_NAME = "telemetry.test";
+
 /** Recognize only the fixed diagnostic signals; incidental work in the same scope is ignored. */
 function testSignal({ method, input }: { method: string; input: { name?: string; context?: { operation?: string } } }): TelemetryTestSignal | undefined {
-  if (method === "reportError" && input.context?.operation === "telemetry.test") return "error";
-  if (method === "trackOperation" && input.name === "telemetry.test") return "span";
-  if (method === "metric" && input.name === "telemetry.test") return "metric";
+  if (method === "reportError" && input.context?.operation === TELEMETRY_TEST_NAME) return "error";
+  if (method === "trackOperation" && input.name === TELEMETRY_TEST_NAME) return "span";
+  if (method === "metric" && input.name === TELEMETRY_TEST_NAME) return "metric";
   if (method === "capture" && input.name === "telemetry_test") return "analytics";
   return undefined;
 }
@@ -39,9 +42,9 @@ export function createTelemetryTestProbe(_required: Record<string, never>, _opti
     },
     async send({ tracker, error, userId }: { tracker: Tracker; error: Error; userId: string }, _optional = {}): Promise<TelemetryTestResult> {
       return active.run(new Map(), async () => {
-        await tracker.trace({ name: "telemetry.test", run: async () => {
-          tracker.metric({ name: "telemetry.test", value: 1 }, { kind: "counter" });
-          tracker.error({ error }, { context: { operation: "telemetry.test" } });
+        await tracker.trace({ name: TELEMETRY_TEST_NAME, run: async () => {
+          tracker.metric({ name: TELEMETRY_TEST_NAME, value: 1 }, { kind: "counter" });
+          tracker.error({ error }, { context: { operation: TELEMETRY_TEST_NAME } });
           await tracker.capture({ name: "telemetry_test", userId });
         } });
         return { providers: [...active.getStore()!].map(([providerId, signals]) => ({ providerId, signals: [...signals] })) };

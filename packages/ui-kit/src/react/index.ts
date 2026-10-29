@@ -5,3 +5,5 @@ export { Button, IconButton, TextField, TextArea, Select, Checkbox, Switch, Dial
 export { ConfirmDialog } from './confirm/ConfirmDialog.js';
 export { useConfirmController } from './confirm/ConfirmDialog.hooks.js';
 export type * from './types.js';
+export { SecretInput, type SecretInputProps } from './SecretInput.js';
+export { useSecretReveal, type SecretRevealRequired, type SecretRevealOptional } from './secret-reveal.hooks.js';

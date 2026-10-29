@@ -104,7 +104,7 @@ describe('renderDetailList', () => {
   it('renders label/value pairs, escaping both', () => {
     const doc = parse(renderDetailList([{ label: 'Title', value: '<script>x</script>' }, { label: 'Slug', value: '/a' }]));
     expect([...doc.querySelectorAll('dt')].map((node) => node.textContent)).toEqual(['Title', 'Slug']);
-    expect(doc.querySelectorAll('dd')[0]?.textContent).toBe('<script>x</script>');
+    expect(doc.querySelector('dd pre')?.textContent).toBe('<script>x</script>');
     expect(doc.querySelector('dd script')).toBeNull();
   });
 

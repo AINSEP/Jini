@@ -167,7 +167,7 @@ export async function startOperation<Meta>(required: RequiredArgs<OperationRunti
   const deps: OperationRuntimeDeps = { ...required, ...optional };
   const params: StartOperationParams<Meta> = { ...required, ...optional };
   const now = deps.clock ?? Date.now;
-  const newId = deps.newId ?? (() => `op_${Math.random().toString(36).slice(2, 10)}_${now()}`);
+  const newId = deps.newId ?? (() => `op_${globalThis.crypto.randomUUID().slice(0, 8)}_${now()}`);
   const startedAt = now();
   const operationId = newId();
 

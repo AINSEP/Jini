@@ -51,9 +51,12 @@ export function undeclaredDistImports(required: DistImportInput): string[] {
     const source = Buffer.from(fs.read({ path: file })).toString('utf8');
     for (const specifier of imports.imports({ file, source })) {
       const target = localTarget({ specifier, file, distDir, aliases });
-      const name = target === undefined ? undeclaredPackage({ specifier, declared }) : undefined;
-      if (target !== undefined) visit(target, specifier, relative);
-      else if (name !== undefined) problems.push(`${name} (${relative})`);
+      if (target !== undefined) {
+        visit(target, specifier, relative);
+        continue;
+      }
+      const name = undeclaredPackage({ specifier, declared });
+      if (name !== undefined) problems.push(`${name} (${relative})`);
     }
   };
   for (let index = 0; index < queue.length; index++) {

@@ -34,13 +34,10 @@ export async function buildRunEventLogSources(
   const entries = await readDirectorySafe({ path: runsDir, filesystem });
 
   const candidates: Array<{ runId: string; absolutePath: string; mtimeMs: number }> = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory) continue;
-    if (!SAFE_DIR_ENTRY.test(entry.name)) continue;
+  for (const entry of entries.filter((each) => each.isDirectory && SAFE_DIR_ENTRY.test(each.name))) {
     const absolutePath = join(runsDir, entry.name, "events.jsonl");
     const info = await statSafe({ path: absolutePath, filesystem });
-    if (!info || !info.isFile) continue;
-    candidates.push({ runId: entry.name, absolutePath, mtimeMs: info.mtimeMs });
+    if (info?.isFile) candidates.push({ runId: entry.name, absolutePath, mtimeMs: info.mtimeMs });
   }
 
   candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
@@ -59,13 +56,10 @@ async function latestLogFilesIn(
 ): Promise<Array<{ name: string; absolutePath: string }>> {
   const names = await readDirectorySafe({ path: dir, filesystem });
   const candidates: Array<{ name: string; absolutePath: string; mtimeMs: number }> = [];
-  for (const { name } of names) {
-    if (!name.endsWith(".log")) continue;
-    if (!SAFE_DIR_ENTRY.test(name)) continue;
+  for (const { name } of names.filter((each) => each.name.endsWith(".log") && SAFE_DIR_ENTRY.test(each.name))) {
     const absolutePath = join(dir, name);
     const info = await statSafe({ path: absolutePath, filesystem });
-    if (!info || !info.isFile) continue;
-    candidates.push({ name, absolutePath, mtimeMs: info.mtimeMs });
+    if (info?.isFile) candidates.push({ name, absolutePath, mtimeMs: info.mtimeMs });
   }
   candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
   return candidates.slice(0, max).map(({ name, absolutePath }) => ({ name, absolutePath }));

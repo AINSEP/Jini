@@ -6,6 +6,7 @@
  * `hosted: false`, so it can never make a site look configured.
  */
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
+import { effectivePort } from "../net/effective-port.js";
 import type { MailAdapterCredential } from "./adapter-module.js";
 import type { MailerPort } from "./ports.js";
 import type { MailProviderModule } from "./provider.js";
@@ -17,7 +18,7 @@ import { SmtpMailerAdapter, type SmtpTransport } from "./smtp.js";
  */
 export function parseSmtpEndpoint({ baseUrl }: { baseUrl: string }): { host: string; port: number; secure: boolean } {
   const url = new URL(baseUrl);
-  const port = url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80;
+  const port = effectivePort(url);
   return { host: url.hostname, port, secure: port === 443 || port === 465 };
 }
 
@@ -51,7 +52,8 @@ export function createConsoleMailProvider(
       // The body is the point of a local mailer: a sign-in or confirmation link must be usable from the
       // log, since nothing is delivered. Text is preferred (readable); an html-only message shows its html.
       const body = message.text ?? message.html;
-      log(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${body === undefined ? "" : `\n${body}`}`);
+      const bodySuffix = body === undefined ? "" : `\n${body}`;
+      log(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${bodySuffix}`);
       return { ok: true, providerMessageId: `console-${counter}`, acceptedAt: nowIso({ clock: required.clock }) };
     },
     async sendBatch({ messages, ...delivery }) {

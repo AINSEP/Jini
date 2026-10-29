@@ -162,7 +162,7 @@ export function createChatRunLedger<DB extends ChatDatabase>(
       return kernel.transaction(async () => {
         await kernel.lockKey(runLockKey(settlement));
         const saved = await kernel.run((db) => db.selectFrom("ai_chat_messages").select(["content", "events_json"])
-          .where((eb) => eb.and([isRunRow(eb, settlement), notTerminal(eb)])).executeTakeFirst());
+          .where(activeRunPredicate({ run: settlement })).executeTakeFirst());
         if (!saved) return false;
         const content = settlement.content.length >= saved.content.length ? settlement.content : saved.content;
         let events = keepToolCheckpoints(readEvents(saved.events_json), settlement.events);
@@ -179,7 +179,7 @@ export function createChatRunLedger<DB extends ChatDatabase>(
               run_status: settlement.status,
               ended_at: settlement.endedAt,
             })
-            .where((eb) => eb.and([isRunRow(eb, settlement), notTerminal(eb)]))
+            .where(activeRunPredicate({ run: settlement }))
             .executeTakeFirst()
         );
         if (Number(result.numUpdatedRows) === 0) return false;
@@ -198,7 +198,7 @@ export function createChatRunLedger<DB extends ChatDatabase>(
       return kernel.transaction(async () => {
       await kernel.lockKey(runLockKey(progress));
       const current = await kernel.run((db) => db.selectFrom("ai_chat_messages").select(["content", "events_json", "run_status"])
-        .where((eb) => eb.and([isRunRow(eb, progress), notTerminal(eb)])).executeTakeFirst());
+        .where(activeRunPredicate({ run: progress })).executeTakeFirst());
       if (!current || progress.content.length < current.content.length) return false;
       const { eventsJson, runStatus, grown, unchanged } = planCheckpoint({ current, progress });
       // An identical checkpoint would rewrite the same multi-MB column for nothing. Under this lock
@@ -210,7 +210,7 @@ export function createChatRunLedger<DB extends ChatDatabase>(
         db
           .updateTable("ai_chat_messages")
           .set({ content: progress.content, events_json: eventsJson, run_status: runStatus })
-          .where((eb) => eb.and([isRunRow(eb, progress), notTerminal(eb)]))
+          .where(activeRunPredicate({ run: progress }))
           .executeTakeFirst()
       );
       if (Number(result.numUpdatedRows) > 0 && grown) {
@@ -275,4 +275,8 @@ export function createChatRunLedger<DB extends ChatDatabase>(
       return count;
     },
   };
+}
+
+function activeRunPredicate({ run }: { run: RunRef }) {
+  return (eb: ExpressionBuilder<ChatDatabase, "ai_chat_messages">) => eb.and([isRunRow(eb, run), notTerminal(eb)]);
 }

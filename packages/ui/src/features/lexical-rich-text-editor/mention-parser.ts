@@ -284,9 +284,10 @@ export function foldPresentMentions(
   for (const part of parts) {
     if (part.kind !== 'mention' || part.entity.kind === 'unknown') continue;
     const key = `${part.entity.kind}:${part.entity.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(part.entity);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(part.entity);
+    }
   }
   return result;
 }

@@ -10,17 +10,21 @@ export function createOtherCredentialsController({ api, permissions = [] }: { ap
     catch { if (ticket === generation) store.set({ patch: { errors: { ...store.getSnapshot().errors, [id]: 'Credential store unavailable' } } }); }
   }
   async function load(_required: Record<string, never>, _optional = {}) {
-    if (store.signal.aborted || !grants.has('security.read')) return; const ticket = ++generation; store.set({ patch: { loading: true } });
+    if (store.signal.aborted || !grants.has('security.read')) return;
+    generation += 1;
+    const ticket = generation; store.set({ patch: { loading: true } });
     await Promise.all(OTHER_STORES.map(id => read(id, ticket))); if (ticket === generation) store.set({ patch: { loading: false } });
   }
   // One serial lane: whole-map media writes must read only after the previous write/refetch settled.
   // This is tab-local; cross-session races still require a server concurrency check.
   let lane = Promise.resolve();
   function write(row: OtherCredentialSummary, remove: boolean) {
-    if (store.signal.aborted || !grants.has('security.read') || !grants.has(otherWritePermission({ store: row.store })) || (!remove && !row.supportsReplace)) return Promise.resolve(false);
+    const permitted = grants.has('security.read') && grants.has(otherWritePermission({ store: row.store }));
+    if (store.signal.aborted || !permitted || (!remove && !row.supportsReplace)) return Promise.resolve(false);
     const token = store.getSnapshot().drafts[`${row.store}:${row.id}`]?.trim() ?? ''; if (!remove && !token) return Promise.resolve(false);
     const run = lane.then(async () => {
-      if (store.signal.aborted) return false; store.set({ patch: { saving: true } });
+      if (store.signal.aborted) return false;
+      store.set({ patch: { saving: true } });
       // One exit after `finally`: a catch that returned left a fall-through path nothing could take.
       let saved = false;
       try {

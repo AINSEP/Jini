@@ -1,4 +1,5 @@
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 import { OAuthError } from './errors.js';
 import type { OAuthUrlGuard } from './ports.js';
 /** Application policy must check outbound destinations; a paired fetch port must enforce DNS at connection time. */
@@ -11,7 +12,7 @@ export interface OAuthUrlGuardOptions {
     readonly allowLoopbackHttp?: boolean;
 }
 function isLoopbackHost({ hostname }: { hostname: string }, _optionalArgs: Record<string, never> = {}): boolean {
-    const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');
+    const host = trimCharsEnd({ text: hostname.toLowerCase().replace(/^\[|\]$/g, ''), chars: '.' });
     // URL parsing canonicalizes IPv4 and mapped IPv6; recognize their full loopback range.
     // This only gates plaintext. The required host policy still approves the destination.
     return host === 'localhost' || host === '::1'

@@ -20,12 +20,12 @@ function visualLineBounds({ textarea }: { textarea: HTMLTextAreaElement }) {
   mirror.append(text, document.createTextNode('\u200b'));
   document.body.append(mirror);
   try {
-    function lineAt(offset: number) {
+    const lineAt = (offset: number) => {
       const range = document.createRange();
       range.setStart(text, offset);
       range.setEnd(text, offset);
       return range.getBoundingClientRect().top;
-    }
+    };
     const first = lineAt(0);
     const last = lineAt(text.length);
     // Both selection endpoints must be on the boundary visual line. Selecting across soft

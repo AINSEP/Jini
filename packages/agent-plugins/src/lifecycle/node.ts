@@ -1,9 +1,12 @@
 import * as nativeFilesystem from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { setTimeout } from 'node:timers/promises';
 import type { AgentPluginClockPort, AgentPluginIdsPort, AgentPluginProcessPort, FilesystemPort } from './ports.js';
+
+/** Granularity of the uniform [0, 1) value: crypto.randomInt's largest exclusive bound (2^48 - 1). */
+const RANDOM_RESOLUTION = 2 ** 48 - 1;
 
 /** Opt-in native effects. Layout, fetch, guard, namespace and provisioning remain host-owned. */
 export function createNodeAgentPluginEffects(_required: Record<string, never>, optional: { readonly filesystem?: FilesystemPort } = {}): {
@@ -19,7 +22,7 @@ export function createNodeAgentPluginEffects(_required: Record<string, never>, o
       monotonicMs: () => performance.now(),
       sleep: ({ ms }) => setTimeout(ms),
     },
-    ids: { newId: () => randomUUID(), random: () => Math.random() },
+    ids: { newId: () => randomUUID(), random: () => randomInt(RANDOM_RESOLUTION) / RANDOM_RESOLUTION },
     process: {
       pid: process.pid,
       platform: process.platform,

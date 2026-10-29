@@ -2,7 +2,7 @@ import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
 import { recoveredRunEvents, type AgentEvent, type ChatMessage } from "../../core/index.js";
 import type { ChatKernel, ChatDatabase } from "./kernel.js";
 import { chatKernelTables } from "../sql/boundary.js";
-import { sql, type Selectable } from "kysely";
+import { sql, type Selectable, type Insertable, type Updateable } from "kysely";
 import { hasUnknownToolCall, CONTINUATION_DIVIDER } from "../../core/durable-runs/continuation.js";
 import { RECOVERY_WINDOW_MS } from "../../core/durable-runs/policies.js";
 import type { DurableRun, DurableRunHead, DurableRunStore } from "../../core/durable-runs/ports.js";
@@ -26,14 +26,16 @@ type RunRead = { head: DurableRunHead; transcript: readonly ChatMessage[] };
 type Metadata = ChatDatabase["assistant_run_attempts"] | undefined;
 
 function isAcceptedUserShape({ message }: { message: ChatMessage }, _optional = {}): boolean {
-  return Boolean(message) && typeof message.id === "string" && Boolean(message.id) && message.role === "user" && typeof message.content === "string"
-    && (message.createdAt === undefined || Number.isFinite(message.createdAt));
+  if (!message || typeof message.id !== "string" || !message.id) return false;
+  if (message.role !== "user" || typeof message.content !== "string") return false;
+  return message.createdAt === undefined || Number.isFinite(message.createdAt);
 }
 
 function areAcceptedAttachments({ attachments }: { attachments: unknown }, _optional = {}): boolean {
-  return Array.isArray(attachments) && attachments.every((attachment) =>
-    attachment && typeof attachment.path === "string" && typeof attachment.name === "string"
-    && (attachment.kind === "file" || attachment.kind === "image"));
+  return Array.isArray(attachments) && attachments.every((attachment) => {
+    if (!attachment || typeof attachment.path !== "string" || typeof attachment.name !== "string") return false;
+    return attachment.kind === "file" || attachment.kind === "image";
+  });
 }
 
 function acceptedUserMessage(
@@ -282,6 +284,14 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     });
   }
 
+  async function writeAttemptMetadata({ values, updates }: {
+    values: Insertable<ChatDatabase["assistant_run_attempts"]>;
+    updates: Updateable<ChatDatabase["assistant_run_attempts"]>;
+  }): Promise<void> {
+    await kernel.run(db => db.insertInto("assistant_run_attempts").values(values)
+      .onConflict(oc => oc.column("message_id").doUpdateSet(updates)).execute());
+  }
+
   async function advance({ run, nextRunId, now, events }: Parameters<DurableRunStore["advance"]>[0], _options = {}): Promise<boolean> {
     return kernel.transaction(async () => {
       await kernel.lockKey(runLockKey(run));
@@ -294,17 +304,17 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
         .where("id", "=", run.messageId).where("run_id", "=", run.runId)
         .where("run_status", "in", ["queued", "running"]).executeTakeFirst());
       if (Number(result.numUpdatedRows) === 0) return false;
-      await kernel.run((db) => db.insertInto("assistant_run_attempts").values({
+      await writeAttemptMetadata({ values: {
         message_id: run.messageId, engine: run.engine, accepted_json: JSON.stringify(run.request),
         recovery_count: current.recoveryCount + 1, recovery_deadline: current.recoveryDeadline ?? now + RECOVERY_WINDOW_MS,
         recovery_elapsed_ms: 0, attempt_started_at: now,
         last_progress_at: current.lastProgressAt, cancel_reason: null, session_id: null,
         session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: JSON.stringify(projection),
-      }).onConflict((oc) => oc.column("message_id").doUpdateSet({
+      }, updates: {
         recovery_count: current.recoveryCount + 1, recovery_deadline: current.recoveryDeadline ?? now + RECOVERY_WINDOW_MS,
         attempt_started_at: now,
         session_id: null, session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: JSON.stringify(projection),
-      })).execute());
+      } });
       return true;
     });
   }
@@ -323,8 +333,7 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     await kernel.transaction(async () => {
       const run = await lockedRun({ runId });
       if (!run) return;
-      await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...metadataForRun({ run }, {}), cancel_reason: reason })
-        .onConflict((oc) => oc.column("message_id").doUpdateSet({ cancel_reason: reason })).execute());
+      await writeAttemptMetadata({ values: { ...metadataForRun({ run }, {}), cancel_reason: reason }, updates: { cancel_reason: reason } });
     });
   }
 
@@ -345,18 +354,21 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     });
   }
 
+  async function saveAgentSession({ run, sessionId }: { run: DurableRunHead; sessionId: string }): Promise<void> {
+    await kernel.run((db) => db.insertInto("assistant_agent_sessions").values({ conversation_id: run.conversationId,
+      agent_id: run.request.agentId ?? "claude", session_id: sessionId, updated_at: Date.now() })
+      .onConflict((oc) => oc.columns(["conversation_id", "agent_id"]).doUpdateSet({ session_id: sessionId, updated_at: Date.now() })).execute());
+  }
+
   async function captureSession({ runId, sessionId, child, confirmed = true }: Parameters<DurableRunStore["captureSession"]>[0], _options = {}): Promise<boolean> {
     return kernel.transaction(async () => {
       const run = await lockedRun({ runId });
       if (!run || !attemptCanExecute({ run }, {})) return false;
       const fields = { session_id: sessionId, session_confirmed: confirmed ? 1 : 0, ...(child ? { child_pid: child.pid, child_started_at: child.startedAt } : {}) };
-      await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...metadataForRun({ run }, {}), ...fields })
-        .onConflict((oc) => oc.column("message_id").doUpdateSet(fields)).execute());
+      await writeAttemptMetadata({ values: { ...metadataForRun({ run }, {}), ...fields }, updates: fields });
       // Session and generation share the same lock/transaction; an old callback cannot write
       // the conversation's locator in the gap between a successful guard and a later CAS.
-      await kernel.run((db) => db.insertInto("assistant_agent_sessions").values({ conversation_id: run.conversationId,
-        agent_id: run.request.agentId ?? "claude", session_id: sessionId, updated_at: Date.now() })
-        .onConflict((oc) => oc.columns(["conversation_id", "agent_id"]).doUpdateSet({ session_id: sessionId, updated_at: Date.now() })).execute());
+      await saveAgentSession({ run, sessionId });
       return true;
     });
   }
@@ -410,8 +422,7 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
       let elapsed = row.recovery_elapsed_ms;
       if (active && deadline === null) deadline = now + Math.max(0, RECOVERY_WINDOW_MS - elapsed);
       if (!active && deadline !== null) { elapsed = Math.max(0, RECOVERY_WINDOW_MS - (deadline - now)); deadline = null; }
-      await kernel.run((db) => db.insertInto("assistant_run_attempts").values({ ...row, recovery_deadline: deadline, recovery_elapsed_ms: elapsed })
-        .onConflict((oc) => oc.column("message_id").doUpdateSet({ recovery_deadline: deadline, recovery_elapsed_ms: elapsed })).execute());
+      await writeAttemptMetadata({ values: { ...row, recovery_deadline: deadline, recovery_elapsed_ms: elapsed }, updates: { recovery_deadline: deadline, recovery_elapsed_ms: elapsed } });
     });
   }
 

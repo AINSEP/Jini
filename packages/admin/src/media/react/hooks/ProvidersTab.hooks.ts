@@ -47,7 +47,10 @@ async function saveProvider(
   { port, item, signal }: { port: MediaProvidersPort; item: MediaProvider; signal: AbortSignal },
   { entry }: { entry?: ProviderEntry | undefined } = {},
 ) {
-  if (!entry) return removeIfStored({ port, item, signal });
+  if (!entry) {
+    await removeIfStored({ port, item, signal });
+    return;
+  }
   await saveProviderSettings({ port, item, entry, signal });
   if (entry.apiKey?.trim()) await port.saveCredential({ id: item.id, credential: entry.apiKey }, { signal });
 }
@@ -69,17 +72,21 @@ async function saveSequentially(
 function rowStatus({ entry, pending }: { entry: ProviderEntry; pending: boolean }, _optional: Record<string, never> = {}) {
   const saved = isMarkerOnlyEntry(entry);
   const mask = saved ? maskedKeyLabel(entry) : null;
+  const unsavedLabel = pending ? 'Unsaved' : null;
   return {
     mask,
-    statusLabel: saved ? `Saved (${mask})` : pending ? 'Unsaved' : null,
+    statusLabel: saved ? `Saved (${mask})` : unsavedLabel,
     statusClassName: saved ? 'jini-field-status-badge jini-field-status-badge-success' : 'jini-field-status-badge',
   };
+}
+/** Names the provider default an empty endpoint falls back to, when it has one. */
+function defaultBaseUrlHint({ entry, item }: { entry: ProviderEntry; item: MediaProviderOption }) {
+  return !entry.baseUrl?.trim() && item.defaultBaseUrl ? `Uses ${item.defaultBaseUrl} by default.` : null;
 }
 function baseUrlHint({ entry, item }: { entry: ProviderEntry; item: MediaProviderOption }, _optional: Record<string, never> = {}) {
   const invalid = isProviderBaseUrlInvalid(entry);
   return {
-    invalid, hint: invalid ? 'Enter an absolute http:// or https:// URL that is not a private or internal address.'
-      : !entry.baseUrl?.trim() && item.defaultBaseUrl ? `Uses ${item.defaultBaseUrl} by default.` : null,
+    invalid, hint: invalid ? 'Enter an absolute http:// or https:// URL that is not a private or internal address.' : defaultBaseUrlHint({ entry, item }),
     hintClassName: invalid ? 'jini-field-hint jini-hint-error' : 'jini-field-hint',
     hintRole: invalid ? 'alert' as const : undefined,
     ariaInvalid: invalid || undefined,
@@ -190,7 +197,8 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
   const catalog = mediaProviders?.catalog ?? discoveredCatalog;
   const pinnedIds = mediaProviders?.pinnedProviderIds ?? [];
   const ordered = sortProvidersByConfigured(catalog, editor.providers, pinnedIds);
-  const toggleKey = (id: string) => setVisibleKeys(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const toggleKey = (id: string) => setVisibleKeys(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id);
+    return next; });
   const rows = ordered.map((item, index) => providerRow(
     { item, entry: editor.providers[item.id] ?? {}, editor, visible: visibleKeys.has(item.id), toggle: () => toggleKey(item.id) },
     { divider: index > 0 && !pinnedIds.includes(item.id) && pinnedIds.includes(ordered[index - 1]!.id), disabled: !mediaProviders },

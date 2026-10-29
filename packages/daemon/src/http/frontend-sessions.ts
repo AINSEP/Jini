@@ -134,7 +134,8 @@ function reportInternalError(deps: FrontendSessionsHttpDeps, source: string, err
  * from a bracketed query string) is rejected rather than coerced.
  */
 export function parseCapabilityQuery({ raw }: { readonly raw: unknown }, _optional: Record<string, never> = {}): readonly string[] | null {
-  const values = raw === undefined ? [] : (Array.isArray(raw) ? raw : [raw]);
+  const listed = Array.isArray(raw) ? raw : [raw];
+  const values = raw === undefined ? [] : listed;
   const capabilities: string[] = [];
   for (const value of values) {
     if (typeof value !== 'string' || value.trim().length === 0) return null;
@@ -255,10 +256,10 @@ export function registerFrontendSessionRoutes({ app, deps, adapter }: { readonly
       handleFrontendSessionStream({ req, res, deps });
     } catch (error) {
       reportInternalError(deps, 'stream', error);
-      if (!res.headersSent) {
+      if (res.headersSent) {
+        if (!res.writableEnded) res.end();
+      } else {
         res.status(500).json({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }) });
-      } else if (!res.writableEnded) {
-        res.end();
       }
     }
   });

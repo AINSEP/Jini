@@ -1,5 +1,20 @@
 # @jini-ai/commerce
 
+## Unreleased — Phase 1 (2026-10-29)
+
+- Compose one-time orders with the payment kernel through a reserved-before-dispatch association,
+  scoped price references and evidence-verified, idempotent paid projection. Hosts must migrate
+  the two new catalog tables before opting in; the payments ledger schema is unchanged.
+- Add the browser checkout client, cancel URL, validated intent line, ignored-webhook response,
+  rejection replay, site/mode credential adapter and plugin-host lease guard. Retire commerce's
+  second provider attachment path; LiPay remains test-only and refuses live mode.
+- Integrate the `payments-stripe` provider artifact for hosted Checkout, retrieval and signed
+  webhooks. Retain Open SaaS MIT attribution in both distributions. Lost responses remain unknown
+  without redispatch and settle through operator resolution or late evidence.
+- Add 16 cross-package E2E cases (P34–P35) for payment/fulfillment, redelivery, scope/mode fences,
+  lease retirement, lost responses, bind crashes and concurrent checkout. Execution and coverage
+  measurement are pending; no tests, builds or typechecks ran in this dispatch.
+
 ## 0.6.13
 
 ### Patch Changes

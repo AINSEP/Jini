@@ -26,6 +26,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { pathContains } from '@jini-ai/core/primitives';
 import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 /** Wire-level transport discriminator for how the daemon connects to an external MCP server. */
 export type McpTransport = 'stdio' | 'sse' | 'http';
@@ -242,8 +243,7 @@ export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
   const out: McpServerConfig[] = [];
   for (const entry of list) {
     const ok = sanitizeMcpServer({ raw: entry });
-    if (!ok) continue;
-    if (seen.has(ok.id)) continue; // de-dupe by id
+    if (!ok || seen.has(ok.id)) continue; // invalid, or a duplicate id (de-dupe by id)
     seen.add(ok.id);
     out.push(ok);
   }
@@ -555,7 +555,7 @@ function normalizeAllowedDirectory(dir: string): string {
   const resolved = path.resolve(dir);
   const root = path.parse(resolved).root;
   if (resolved === root) return root;
-  return resolved.replace(/[\\/]+$/, '');
+  return trimCharsEnd({ text: resolved, chars: '\\/' });
 }
 
 function normalizeAllowedDirectoryVariants(dir: string, resolvePath: (args: { filePath: string }) => string): string[] {

@@ -1,4 +1,4 @@
-// MOVED-FROM: @jini-ai/cms consent/css-parser.ts, unchanged. TODO(P4): delete the cms copy once the consumer reads this package.
+// MOVED-FROM: @jini-ai/cms consent/css-parser.ts, unchanged. Follow-up (P4): delete the cms copy once the consumer reads this package.
 /** A deliberately small CSS grammar: qualified rules, optionally inside width media queries.
  * Comments, strings and balanced functions are tokenized before structural punctuation is read.
  * The HTML resource scanner classifies remote URLs, not declarations/selectors; customization
@@ -77,9 +77,8 @@ function takeUntil({ tokens, state, delimiters }: { tokens: ConsentCssToken[]; s
 function declarations({ tokens, state }: { tokens: ConsentCssToken[]; state: { cursor: number } }): ConsentCssDeclaration[] {
   const result: ConsentCssDeclaration[] = [];
   while (state.cursor < tokens.length) {
-    if (tokens[state.cursor]!.kind === 'space') { state.cursor++; continue; }
+    if (tokens[state.cursor]!.kind === 'space' || tokens[state.cursor]!.value === ';') { state.cursor++; continue; }
     if (tokens[state.cursor]!.value === '}') { state.cursor++; return result; }
-    if (tokens[state.cursor]!.value === ';') { state.cursor++; continue; }
     result.push(declaration({ tokens, state }));
   }
   // Only entered after the rule's `{` was consumed, so `cursor - 1` is always a real token.
@@ -117,7 +116,8 @@ function mediaRules({ tokens, state, media }: RuleInput, _options = {}): Consent
   if (media !== undefined) throw new ConsentCssSyntaxError('Nested media queries are not supported.', offset);
   state.cursor++;
   const header = takeUntil({ tokens, state, delimiters: '{};@' });
-  const match = /^media\s*((?:screen\s+and\s+)?\((?:min|max)-width:\s*\d{1,4}(?:\.\d+)?px\)(?:\s+and\s+\((?:min|max)-width:\s*\d{1,4}(?:\.\d+)?px\))?)$/.exec(header);
+  const width = String.raw`\((?:min|max)-width:\s*\d{1,4}(?:\.\d+)?px\)`;
+  const match = new RegExp(String.raw`^media\s*((?:screen\s+and\s+)?${width}(?:\s+and\s+${width})?)$`).exec(header);
   if (!match || tokens[state.cursor]?.value !== '{') throw new ConsentCssSyntaxError('Only width @media queries are supported.', offset);
   state.cursor++;
   return ruleList({ tokens, state, media: match[1]! });
@@ -132,8 +132,8 @@ function ruleList(input: RuleInput, _options = {}): ConsentCssRule[] {
     const token = tokens[state.cursor]!;
     if (token.kind === 'space') { state.cursor++; continue; }
     if (token.value === '}' && media !== undefined) { state.cursor++; return rules; }
-    if (token.value === '@') { rules.push(...mediaRules(input)); continue; }
-    rules.push(qualifiedRule(input));
+    if (token.value === '@') rules.push(...mediaRules(input));
+    else rules.push(qualifiedRule(input));
   }
   if (media !== undefined) throw new ConsentCssSyntaxError('Unclosed media query.', tokens[state.cursor - 1]!.offset);
   return rules;

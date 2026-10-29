@@ -68,7 +68,7 @@ describe("inbox worker on SQLite", () => {
     const unloaded = createInboxWorker({ ...deps, providers: createKernelProviderRegistry({ items: [] }) }, { maxAttempts: 1 });
     expect(await unloaded.runOnce({ limit: 10 })).toEqual({ seen: 1, applied: 0, parked: 0, dead: 1, quarantined: 0 });
     expect(await w.inbox(row!.id)).toMatchObject({ state: "dead", factsJson: row!.factsJson, purgedAt: null });
-    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0, ignored: false } });
     expect(await createInboxWorker({ ...deps, providers: w.providers }).runOnce({ limit: 10 })).toEqual({ seen: 1, applied: 1, parked: 0, dead: 0, quarantined: 0 });
     expect((await w.read()).payment.intentStatus).toBe("succeeded");
   });

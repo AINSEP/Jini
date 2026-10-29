@@ -142,6 +142,8 @@ export class InMemoryMenuRepo implements MenuRepoPort {
       if (found !== options.expectedVersion) {
         throw menuVersionConflictError({ id: record.id, expectedVersion: options.expectedVersion, found });
       }
+    } else {
+      // An omitted expected version selects the existing unconditional-save contract.
     }
     if (index === -1) {
       this.rows.push(record);

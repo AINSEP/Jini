@@ -46,9 +46,11 @@ export class ModelCatalogCache<Model> {
       state = { inFlight: null, expiresAt: -Infinity, live: null };
       this.states.set(key, state);
     }
-    if (state.inFlight) {
-      await state.inFlight;
-    } else if (state.expiresAt <= this.required.clock.nowMs()) {
+    // An in-flight load is awaited; otherwise an expired entry starts a refresh.
+    const pending = state.inFlight;
+    const refreshDue = !pending && state.expiresAt <= this.required.clock.nowMs();
+    if (pending) await pending;
+    if (refreshDue) {
       state.expiresAt = this.required.clock.nowMs() + this.ttlMs;
       const current = state;
       const discover = options.discover ?? this.required.discover;

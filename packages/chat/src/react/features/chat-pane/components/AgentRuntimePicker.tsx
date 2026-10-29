@@ -45,6 +45,7 @@ function RuntimeModeButtons({
   onExecutionModeChange,
   t,
 }: RuntimeModeButtonsProps): ReactNode {
+  const localModeLabel = executionMode === 'local' ? t('active') : '';
   return (
     <>
       <button
@@ -56,7 +57,7 @@ function RuntimeModeButtons({
         <RemixIcon name="terminal-box-line" size={18} />
         <span>{t('Use Local CLI')}</span>
         <span className="jini-runtime-mode__meta">
-          {!daemonOnline ? t('offline') : executionMode === 'local' ? t('active') : ''}
+          {!daemonOnline ? t('offline') : localModeLabel}
         </span>
         {executionMode === 'local' ? (
           <RemixIcon name="check-line" size={19} className="jini-runtime-check" />

@@ -13,14 +13,23 @@ const text = (value: unknown, name: string): string | undefined => {
   return value;
 };
 
-const HEADER_PAIR = /^([^=\s][^=]*?)\s*=\s*(.+)$/;
+/** One trimmed `Name=Value` pair as `[name, value]`, or null — what `/^([^=\s][^=]*?)\s*=\s*(.+)$/`
+ *  captured: the name before the first `=` (trailing spaces dropped), and a non-empty value on
+ *  one line. Parsed directly because that pattern backtracks super-linearly. */
+function parseHeaderPair(pair: string): [string, string] | null {
+  const eq = pair.indexOf('=');
+  if (eq <= 0 || /\s/.test(pair[0]!)) return null;
+  const value = pair.slice(eq + 1).trimStart();
+  if (value === '' || /[\n\r\u2028\u2029]/.test(value)) return null;
+  return [pair.slice(0, eq).trimEnd(), value];
+}
 
 /** The OTLP text form a settings card holds (`Name=Value,Name=Value`, as in the OTLP exporter spec). */
 function headersFromText(value: string): Record<string, string> | undefined {
   if (!value.trim()) return undefined;
-  const pairs = value.split(',').map((pair) => HEADER_PAIR.exec(pair.trim()));
+  const pairs = value.split(',').map((pair) => parseHeaderPair(pair.trim()));
   if (pairs.some((pair) => !pair)) throw new TypeError('headers must be Name=Value pairs separated by commas');
-  return Object.fromEntries(pairs.map((pair) => [pair![1]!, pair![2]!.trim()]));
+  return Object.fromEntries(pairs.map((pair) => [pair![0], pair![1].trim()]));
 }
 
 /** Generic OTLP headers (a collector's auth header), never a vendor-specific option: an object, or the card's text form. */
@@ -46,7 +55,9 @@ function otlpAuthorization({ auth, username, token }: OtlpCredentials, _optional
     if (auth) throw new TypeError('Token is required');
     return undefined;
   }
-  return usesBasicAuthorization({ auth, username }) ? `Basic ${Buffer.from(`${username!.trim()}:${value}`).toString('base64')}` : `Bearer ${value}`;
+  if (!usesBasicAuthorization({ auth, username })) return `Bearer ${value}`;
+  const credentials = `${username!.trim()}:${value}`;
+  return `Basic ${Buffer.from(credentials).toString('base64')}`;
 }
 
 /** Explicit modes win; legacy callers infer Basic only from a saved username. O(u) username text. */

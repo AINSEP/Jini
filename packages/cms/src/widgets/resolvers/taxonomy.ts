@@ -19,20 +19,21 @@ export async function resolveTaxonomyEmbeds(
     // An ambiguous name is unresolved, never an arbitrary choice; real ids win.
     const matches = taxonomies.filter((taxonomy) => taxonomy.name === key);
     const taxonomy = taxonomies.find((candidate) => candidate.id === key) ?? (matches.length === 1 ? matches[0] : undefined);
-    if (!taxonomy) continue;
-    let terms = termsById.get(taxonomy.id);
-    if (!terms) {
-      terms = await deps.termRepo.listByTaxonomy({ taxonomyId: taxonomy.id });
-      termsById.set(taxonomy.id, terms);
+    if (taxonomy) {
+      let terms = termsById.get(taxonomy.id);
+      if (!terms) {
+        terms = await deps.termRepo.listByTaxonomy({ taxonomyId: taxonomy.id });
+        termsById.set(taxonomy.id, terms);
+      }
+      resolved.set(key, {
+        componentId: "taxonomy-list",
+        props: {
+          id: taxonomy.id, name: taxonomy.name, hierarchical: taxonomy.hierarchical,
+          terms: terms.filter((term) => term.taxonomyId === taxonomy.id && term.status !== "trash" && term.status !== "purged")
+            .map((term) => ({ id: term.id, name: term.name, parentId: term.parentId })),
+        },
+      });
     }
-    resolved.set(key, {
-      componentId: "taxonomy-list",
-      props: {
-        id: taxonomy.id, name: taxonomy.name, hierarchical: taxonomy.hierarchical,
-        terms: terms.filter((term) => term.taxonomyId === taxonomy.id && term.status !== "trash" && term.status !== "purged")
-          .map((term) => ({ id: term.id, name: term.name, parentId: term.parentId })),
-      },
-    });
   }
   return resolved;
 }

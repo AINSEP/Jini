@@ -2,7 +2,8 @@
 
 /** The string `code` of a structured error, or undefined when there is none. */
 export function errorCode({ error }: { error: unknown }, _optional: Record<string, never> = {}): string | undefined {
-  return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : undefined;
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
+  return typeof error.code === 'string' ? error.code : undefined;
 }
 
 /** A real Error's non-empty message, else the given fallback copy. */

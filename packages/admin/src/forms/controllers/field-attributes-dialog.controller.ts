@@ -13,7 +13,18 @@ export function initialFieldAttributesDialogState({ field }: { field: AdminFormF
   return { className: field.className ?? "", rows: attrRowsFromField({ field }), settings: settingsFormFromField({ field }), error: null };
 }
 /** Add or remove one value from a list setting (accepted uploads, default choices). */
-const toggled = (values: string[], value: string, on: boolean): string[] => on ? (values.includes(value) ? values : [...values, value]) : values.filter((item) => item !== value);
+const toggled = (values: string[], value: string, on: boolean): string[] => {
+  if (!on) return values.filter((item) => item !== value);
+  return values.includes(value) ? values : [...values, value];
+};
+/** A single-select default holds at most the one chosen (non-empty) value. */
+const singleChoice = (value: string, on: boolean): string[] => (on && value ? [value] : []);
+/** The first failure wins (settings before attributes); otherwise both patches merge. */
+function mergeSubmitPatches(settings: ReturnType<typeof buildFieldSettingsPatch>, attributes: ReturnType<typeof buildFieldAttributesPatch>) {
+  if (!settings.ok) return settings;
+  if (!attributes.ok) return attributes;
+  return { ok: true as const, patch: { ...settings.patch, ...attributes.patch } };
+}
 /** A headless section store. React owns subscriptions/effects, never this state. */
 export function createFieldAttributesDialogController({ field }: { field: AdminFormField }, _optional = {}) {
   const store = createFormsDraftStore({ initial: initialFieldAttributesDialogState({ field }) });
@@ -26,7 +37,7 @@ export function createFieldAttributesDialogController({ field }: { field: AdminF
     },
     /** `single` replaces the selection: a dropdown or radio group has one default. */
     toggleDefaultChoice({ value, on, single }: { value: string; on: boolean; single: boolean }, _options = {}) {
-      editSettings(settings => ({ ...settings, defaultChoices: single ? (on && value ? [value] : []) : toggled(settings.defaultChoices, value, on) }));
+      editSettings(settings => ({ ...settings, defaultChoices: single ? singleChoice(value, on) : toggled(settings.defaultChoices, value, on) }));
     },
     toggleAccept({ value, on }: { value: string; on: boolean }, _options = {}) {
       editSettings(settings => ({ ...settings, accept: toggled(settings.accept, value, on) }));
@@ -51,7 +62,7 @@ export function createFieldAttributesDialogController({ field }: { field: AdminF
       const snapshot = store.getSnapshot();
       const settings = buildFieldSettingsPatch({ form: snapshot.settings, field });
       const attributes = buildFieldAttributesPatch(snapshot);
-      const result = !settings.ok ? settings : !attributes.ok ? attributes : { ok: true as const, patch: { ...settings.patch, ...attributes.patch } };
+      const result = mergeSubmitPatches(settings, attributes);
       store.update({ key: 'error', value: result.ok ? null : result.error });
       return result;
     },

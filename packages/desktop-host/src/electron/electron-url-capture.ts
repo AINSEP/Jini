@@ -6,11 +6,23 @@ import { isCaptureUrlAllowed, readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_
 import { withRenderWindow } from './render-window.js';
 import type { ElectronBrowserWindowFactory, ElectronSessionLike, ElectronWebContentsLike } from './electron-surfaces.js';
 
-// Electron retains partitions for the process lifetime. The leases must therefore span every
-// render service/bridge in this process, without a per-site partition registry.
-const captureSlots = [false, false];
-const captureWaiters = new Set<(required: { slot: number }) => void>();
 const CAPTURE_CLEANUP_TIMEOUT_MS = 1_000;
+
+/** The host shares one lease pool across every render service in its Electron process. */
+export interface ElectronUrlCapturePoolPort {
+  acquire(required: { deadline: number }, options?: { signal?: AbortSignal | undefined }): Promise<number>;
+  release(required: { slot: number }, options?: object): void;
+}
+
+/** Create the host-owned FIFO for the two native capture partitions.
+ * Electron retains partitions for the process lifetime. The leases must therefore span every
+ * render service/bridge in this process, without a per-site partition registry.
+ * Create once at host startup and inject the same port into every render service.
+ * @complexity O(1) setup; O(w) space for w pending captures.
+ */
+export function createElectronUrlCapturePool(_required: object, _options: object = {}): ElectronUrlCapturePoolPort {
+  const captureSlots = [false, false];
+  const captureWaiters = new Set<(required: { slot: number }) => void>();
 
 /** Lease a partition in arrival order, charging queued time to the caller's deadline.
  * Timed-out/aborted waiters are removed; a simultaneous handoff returns its lease.
@@ -47,6 +59,9 @@ function returnCaptureSlot({ slot }: { slot: number }, _options = {}): void {
   receive({ slot });
 }
 
+  return { acquire: acquireCaptureSlot, release: returnCaptureSlot };
+}
+
 /** Clear native credentials, storage and network state before reuse; failures deny capture.
  * @throws RenderServiceError if the host cannot reset a session. @complexity O(1) native calls.
  */
@@ -73,7 +88,7 @@ export interface ElectronUrlCaptureOptions { allowedOrigins?: readonly string[];
  * @complexity O(pixels), capped at 1280×8000 CSS pixels and device scale 2.
  */
 export async function captureElectronUrl(
-  { createBrowserWindow, request: input }: { createBrowserWindow: ElectronBrowserWindowFactory; request: UrlCaptureRequest },
+  { createBrowserWindow, capturePool, request: input }: { createBrowserWindow: ElectronBrowserWindowFactory; capturePool: ElectronUrlCapturePoolPort; request: UrlCaptureRequest },
   { allowedOrigins = [], signal }: ElectronUrlCaptureOptions = {},
 ): Promise<UrlCaptureResult> {
   const request = readUrlCaptureRequest({ value: input });
@@ -81,7 +96,7 @@ export async function captureElectronUrl(
     throw new RenderServiceError({ code: 'navigation-blocked', message: 'capture URL must stay on the site origin' });
   }
   const deadline = Date.now() + URL_CAPTURE_TIMEOUT_MS;
-  const slot = await acquireCaptureSlot({ deadline }, { signal });
+  const slot = await capturePool.acquire({ deadline }, { signal });
   let captureSession: ElectronSessionLike | undefined;
   let initialReset: Promise<void> | undefined;
   let blockedRequests = 0;
@@ -140,7 +155,7 @@ export async function captureElectronUrl(
   } finally {
     // A stuck reset keeps its lease but must not hold the caller beyond the cleanup budget.
     // Cleanup must not replace a completed capture or its original error near the render deadline.
-    await withRenderTimeout({ promise: releaseCaptureSlot({ slot, session: captureSession, initialReset }) },
+    await withRenderTimeout({ promise: releaseCaptureSlot({ capturePool, slot, session: captureSession, initialReset }) },
       { timeoutMs: CAPTURE_CLEANUP_TIMEOUT_MS }).catch(() => {});
   }
 }
@@ -148,8 +163,8 @@ export async function captureElectronUrl(
 /** Return a lease only once its session is reset; the next capture resets again before use.
  * @throws RenderServiceError when the reset fails (the lease is still returned). @complexity O(1).
  */
-async function releaseCaptureSlot({ slot, session, initialReset }: {
-  slot: number; session: ElectronSessionLike | undefined; initialReset: Promise<void> | undefined;
+async function releaseCaptureSlot({ capturePool, slot, session, initialReset }: {
+  capturePool: ElectronUrlCapturePoolPort; slot: number; session: ElectronSessionLike | undefined; initialReset: Promise<void> | undefined;
 }, _options = {}): Promise<void> {
   try {
     // Destruction stops navigation first. A timed-out preparation must settle before its
@@ -160,7 +175,7 @@ async function releaseCaptureSlot({ slot, session, initialReset }: {
       await resetCaptureSession({ session });
     }
   } finally {
-    returnCaptureSlot({ slot });
+    capturePool.release({ slot });
   }
 }
 

@@ -1,8 +1,9 @@
-import type { RuntimeEnv, RuntimeModelOption } from './types.js';
+import type { RuntimeEnv, RuntimeModelOption, ModelIdentityKind } from './model-contracts.js';
 import type { ProviderModelsInput } from './providers/model-catalog.js';
 
+export type { ModelIdentityKind } from './model-contracts.js';
+
 export type ModelSource = 'cli' | 'rpc' | 'provider-api' | 'cli-cache' | 'config-file' | 'offline-fallback';
-export type ModelIdentityKind = 'concrete' | 'alias' | 'routing-mode';
 export interface DiscoveredModel extends RuntimeModelOption {
   identityKind: ModelIdentityKind;
   resolvedId?: string;

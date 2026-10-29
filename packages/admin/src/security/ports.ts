@@ -1,5 +1,5 @@
 import { adminPort } from '../core/module/token.js';
-import type { CredentialKind, CredentialSummary, CredentialProvider, CredentialInput, CredentialPatch, RequestOptions, OtherStoreId, OtherCredentialSummary, RootKeyStatus, RootKeyPreview, RootKeyResult } from './models.js';
+import type { CredentialSummary, CredentialProvider, CredentialInput, CredentialPatch, RequestOptions, OtherStoreId, OtherCredentialSummary, RootKeyStatus, RootKeyPreview, RootKeyResult } from './models.js';
 /** Separate method groups: connection shapes differ, and deployment and source identities must never merge. */
 export interface CredentialStorePort {
   list(required: Record<string, never>, optional?: RequestOptions): Promise<readonly CredentialSummary[]>;

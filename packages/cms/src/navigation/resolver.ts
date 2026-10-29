@@ -87,7 +87,7 @@ export interface ResolveForLocationRequired {
   input: ResolveForLocationServiceInput;
 }
 
-export interface ResolveForLocationOptional {}
+export interface ResolveForLocationOptional { }
 
 /**
  * Resolves the menu bound to a theme location into a render-ready
@@ -234,7 +234,6 @@ async function resolveItem(
     // consult returns null here, same as any other "cannot resolve" outcome.
     const result = await resolveTargetHref({ target: node.target, context });
     if (result === null) {
-      href = null;
       available = false;
     } else {
       href = result.path;

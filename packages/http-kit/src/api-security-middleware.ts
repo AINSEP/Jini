@@ -328,11 +328,10 @@ export function registerApiOriginGuardMiddleware({ app, deps }: { readonly app: 
     }
 
     const ports = allowedBrowserPorts({ config, port: resolvedPort, env });
-    if (!isAllowedBrowserOrigin({ config, origin, hostHeader: req.headers.host, ports, bindHost: host, extraAllowedOrigins: [...extraAllowedOrigins] })) {
-      if (req.method !== 'GET' || !isPortlessLoopbackOrigin(String(origin))) {
-        res.status(403).json({ error: 'Cross-origin requests are not allowed' });
-        return;
-      }
+    if (!isAllowedBrowserOrigin({ config, origin, hostHeader: req.headers.host, ports, bindHost: host, extraAllowedOrigins: [...extraAllowedOrigins] })
+      && (req.method !== 'GET' || !isPortlessLoopbackOrigin(String(origin)))) {
+      res.status(403).json({ error: 'Cross-origin requests are not allowed' });
+      return;
     }
     next();
   });

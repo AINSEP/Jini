@@ -13,6 +13,8 @@ export function createMemoryAgentPluginsApi({ plugins = [], files = {} }: { plug
       const row = rows.get(pluginId); if (!row) return notFound();
       const updated = agentPluginSummary({ row: { ...row, enabled } }); rows.set(pluginId, updated); return updated;
     },
-    async files({ pluginId }, options = {}) { options.signal?.throwIfAborted(); if (!rows.has(pluginId)) return notFound(); const listing = listings.get(pluginId); if (!listing) return agentPluginFilesSnapshot({ listing: { pluginId, files: [], truncated: false, limits: { maxFiles: 200, maxEntries: 2000, maxFileBytes: 524288, maxTotalBytes: 4194304 } } }); return listing; },
+    async files({ pluginId }, options = {}) { options.signal?.throwIfAborted(); if (!rows.has(pluginId)) return notFound();
+      const listing = listings.get(pluginId); if (!listing) return agentPluginFilesSnapshot({ listing: { pluginId, files: [], truncated: false, limits: { maxFiles: 200, maxEntries: 2000, maxFileBytes: 524288, maxTotalBytes: 4194304 } } });
+      return listing; },
   };
 }

@@ -24,6 +24,31 @@ function fixture({ replay = false, surface = 'site', returningId = 'opaque-retur
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 
+it('drops retained SDK events after consent returns to pending', async () => {
+  const f = fixture();
+  f.mode('full'); await flush();
+  const send = f.configs[0]!.before_send;
+  f.mode('pending'); await flush();
+  expect(send({ event: '$pageview', properties: {} })).toBeNull();
+  expect(f.stopped()).toBe(1);
+  expect(f.loads()).toBe(1);
+  expect(f.configs).toHaveLength(1);
+});
+
+it('redacts malformed and opaque path segments while keeping structural selectors', async () => {
+  const f = fixture({ path: '/%E0%A4%A/' + 'a'.repeat(40) + '/ok' });
+  f.mode('full'); await flush();
+  const event = f.configs[0]!.before_send({ event: '$identify', properties: {
+    $elements_chain: '123bad;button.private:nth-child(2);div#private',
+    $elements: [null, { tag_name: 'button', nth_child: 2, nth_of_type: -1 }, { tag_name: '1bad' }],
+    $set: { email: 'private@example.test' },
+  } });
+  expect(event.properties).toEqual({ $process_person_profile: true,
+    $pathname: '/:redacted/:redacted/ok', $current_url: 'https://site.example/:redacted/:redacted/ok',
+    $host: 'site.example', $elements_chain: 'button:nth-child(2);div',
+    $elements: [{ tag_name: 'button', nth_child: 2 }], $set: {}, site_id: 'site-1', surface: 'site' });
+});
+
 it('refuses personal keys and credential-bearing hosts before producing public source', () => {
   const valid = { apiKey: ['phc', 'fixture'].join('_'), host: 'https://collector.example', sessionReplay: false, surface: 'site' as const, attributes: {} };
   expect(() => postHogBrowserContribution({ ...valid, apiKey: ['phx', 'private', 'fixture'].join('_') }))

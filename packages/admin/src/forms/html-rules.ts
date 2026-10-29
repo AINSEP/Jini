@@ -1,4 +1,4 @@
-import { FIELD_TYPE_REGISTRY, type FieldType } from "@jini-ai/cms/forms";
+import { FIELD_TYPE_REGISTRY, escapeFormHtml, type FieldType } from "@jini-ai/cms/forms";
 import type { AdminFormField, AdminFormSubmission } from "./models.js";
 
 export interface FormAnswerColumn {
@@ -106,10 +106,6 @@ export function formSubmissionRows(
   });
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
-}
-
 type StarterKind = { control: string; htmlType: string; multiple?: boolean; attributes?: Readonly<Record<string, string>> };
 const kindOf = (type: string): StarterKind =>
   Object.hasOwn(FIELD_TYPE_REGISTRY, type) ? FIELD_TYPE_REGISTRY[type as FieldType] as StarterKind : { control: "input", htmlType: "text" };
@@ -123,8 +119,8 @@ function starterAttributes(field: AdminFormField, kind: StarterKind): string {
     ["pattern", field.pattern], ["min", field.min], ["max", field.max], ["step", field.step], ["accept", field.accept?.join(",")],
     ...Object.entries(kind.attributes ?? {}),
   ];
-  return `name="${escapeHtml(field.id)}"${field.required ? " required" : ""}` +
-    constraints.filter(([, value]) => value != null && value !== "").map(([name, value]) => ` ${name}="${escapeHtml(String(value))}"`).join("");
+  return `name="${escapeFormHtml({ value: field.id })}"${field.required ? " required" : ""}` +
+    constraints.filter(([, value]) => value != null && value !== "").map(([name, value]) => ` ${name}="${escapeFormHtml({ value: String(value) })}"`).join("");
 }
 
 type StarterInput = { field: AdminFormField; kind: StarterKind; label: string; attrs: string };
@@ -132,14 +128,14 @@ type StarterInput = { field: AdminFormField; kind: StarterKind; label: string; a
 /** One field's starter markup; every control comes from the registry kind, as the public render does. */
 function starterField(field: AdminFormField): string {
   const kind = kindOf(field.type);
-  return starterRendererFor({ kind })({ field, kind, label: escapeHtml(field.label), attrs: starterAttributes(field, kind) });
+  return starterRendererFor({ kind })({ field, kind, label: escapeFormHtml({ value: field.label }), attrs: starterAttributes(field, kind) });
 }
 
 function starterRendererFor({ kind }: { kind: StarterKind }): (input: StarterInput) => string {
   if (kind.control === "group") return starterGroup;
   if (kind.control === "select") return starterSelect;
   if (kind.control === "textarea") return ({ label, attrs }) => `<label>${label}\n  <textarea ${attrs}></textarea>\n</label>`;
-  if (kind.htmlType === "hidden") return ({ field, label, attrs }) => `<input type="hidden" ${attrs} value="${escapeHtml(String(field.default ?? ""))}" aria-label="${label}">`;
+  if (kind.htmlType === "hidden") return ({ field, label, attrs }) => `<input type="hidden" ${attrs} value="${escapeFormHtml({ value: String(field.default ?? "") })}" aria-label="${label}">`;
   if (kind.htmlType === "checkbox") return starterCheckbox;
   return ({ label, attrs }) => `<label>${label}\n  <input type="${kind.htmlType}" ${attrs}>\n</label>`;
 }
@@ -149,18 +145,18 @@ function starterGroup({ field, kind, label, attrs }: StarterInput): string {
   // Native `required` on every checkbox would demand ALL of them, so a checkbox group leaves it
   // off (the server still enforces one-or-more); a radio group's `required` means "pick one".
   const boxAttrs = kind.multiple ? starterAttributes({ ...field, required: false }, kind) : attrs;
-  const boxes = (field.options ?? []).map((option) => `  <label><input type="${kind.htmlType}" ${boxAttrs} value="${escapeHtml(option.value)}"${isDefault(field, option.value) ? " checked" : ""}> ${escapeHtml(option.label)}</label>`);
+  const boxes = (field.options ?? []).map((option) => `  <label><input type="${kind.htmlType}" ${boxAttrs} value="${escapeFormHtml({ value: option.value })}"${isDefault(field, option.value) ? " checked" : ""}> ${escapeFormHtml({ value: option.label })}</label>`);
   return `<fieldset>\n  <legend>${label}</legend>\n${boxes.join("\n")}\n</fieldset>`;
 }
 
 function starterSelect({ field, kind, label, attrs }: StarterInput): string {
-  const empty = kind.multiple ? [] : [`    <option value="">${escapeHtml(field.placeholder ?? "Choose an option")}</option>`];
-  const choices = (field.options ?? []).map((option) => `    <option value="${escapeHtml(option.value)}"${isDefault(field, option.value) ? " selected" : ""}>${escapeHtml(option.label)}</option>`);
+  const empty = kind.multiple ? [] : [`    <option value="">${escapeFormHtml({ value: field.placeholder ?? "Choose an option" })}</option>`];
+  const choices = (field.options ?? []).map((option) => `    <option value="${escapeFormHtml({ value: option.value })}"${isDefault(field, option.value) ? " selected" : ""}>${escapeFormHtml({ value: option.label })}</option>`);
   return `<label>${label}\n  <select ${attrs}${kind.multiple ? " multiple" : ""}>\n${[...empty, ...choices].join("\n")}\n  </select>\n</label>`;
 }
 
 function starterCheckbox({ field, label, attrs }: StarterInput): string {
-  const value = field.checkboxValue !== undefined ? ` value="${escapeHtml(field.checkboxValue)}"` : "";
+  const value = field.checkboxValue !== undefined ? ` value="${escapeFormHtml({ value: field.checkboxValue })}"` : "";
   const checked = field.default === true || (field.checkboxValue !== undefined && field.default === field.checkboxValue) ? " checked" : "";
   return `<label><input type="checkbox"${field.type === "toggle" ? ' role="switch"' : ""} ${attrs}${value}${checked}> ${label}</label>`;
 }
@@ -176,7 +172,7 @@ export function formHtmlStarter(
   { fields }: { fields: readonly AdminFormField[] },
   { submitLabel = "Send" }: { submitLabel?: string } = {},
 ): string {
-  return fields.map(starterField).join("\n\n") + `\n\n<button type="submit">${escapeHtml(submitLabel)}</button>`;
+  return fields.map(starterField).join("\n\n") + `\n\n<button type="submit">${escapeFormHtml({ value: submitLabel })}</button>`;
 }
 
 export function formHtmlEmbed({ slug }: { slug: string }, _optional = {}): string {

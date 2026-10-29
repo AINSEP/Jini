@@ -1,6 +1,9 @@
 import type { SettingsRepoPort } from "./ports.js";
 import type { SettingDefinitionRecord, SettingRevisionRecord, SettingValueRecord } from "./types.js";
 
+/** Statuses a definition lookup can resolve to (everything but superseded rows). */
+const RESOLVABLE_STATUSES: ReadonlySet<string> = new Set(["active", "alias", "tombstone"]);
+
 /**
  * @file In-memory adapter for `SettingsRepoPort` (the rule-of-two: in-memory + production adapters).
  *
@@ -65,7 +68,7 @@ export class InMemorySettingsRepo implements SettingsRepoPort {
           d.namespace === required.namespace &&
           d.key === required.key &&
           d.workspaceId === required.workspaceId &&
-          (d.status === "active" || d.status === "alias" || d.status === "tombstone")
+          RESOLVABLE_STATUSES.has(d.status)
       ) ?? null
     );
   }
@@ -198,7 +201,8 @@ export class InMemorySettingsRepo implements SettingsRepoPort {
   }
 
   async appendRevision(record: Omit<SettingRevisionRecord, "seq">): Promise<number> {
-    const seq = this.nextSeq++;
+    const seq = this.nextSeq;
+    this.nextSeq += 1;
     this.revisions.push({ ...record, seq });
     return seq;
   }

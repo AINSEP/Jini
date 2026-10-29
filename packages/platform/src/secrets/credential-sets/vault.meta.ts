@@ -44,16 +44,20 @@ type ParseInput = { meta: unknown; provider?: string | null | undefined };
  * @throws VaultError when a supplied subtype or compatibility list is invalid.
  * @complexity O(worksFor characters); returns a fresh metadata object.
  */
+/** Older vendor rows imply compatibility with their own provider; nothing else implies any. */
+function defaultWorksFor({ credentialType, provider }: { credentialType: unknown; provider?: string | null | undefined }): string[] {
+  return credentialType === "vendor" && provider != null ? [provider] : [];
+}
 function credentialMeta({ meta, kind, provider }: { meta: VaultMeta; kind: CredentialKind; provider?: string | null | undefined }): VaultMeta {
   const credentialType = meta.credentialType === undefined ? kind : meta.credentialType;
   if ((credentialType !== "vendor" && credentialType !== "custom") || (kind === "custom" && credentialType !== "custom")) throw new VaultError({ code: "invalid-meta" });
-  const worksFor = meta.worksFor === undefined ? (credentialType === "vendor" && provider != null ? [provider] : []) : meta.worksFor;
+  const worksFor = meta.worksFor === undefined ? defaultWorksFor({ credentialType, provider }) : meta.worksFor;
   return { ...meta, credentialType, worksFor: normalizeCredentialWorksFor({ value: worksFor }) };
 }
 
 /** Plain JSON object with identifier-only top-level keys; checked on input and on override output. */
 function requireMetaShape({ value }: { value: unknown }): VaultMeta {
-  if (!isObject(value) || !isJson(value) || Object.keys(value).some(key => !/^[A-Za-z0-9_]+$/.test(key))) throw new VaultError({ code: "invalid-meta" });
+  if (!isObject(value) || !isJson(value) || Object.keys(value).some(key => !/^\w+$/.test(key))) throw new VaultError({ code: "invalid-meta" });
   return value;
 }
 

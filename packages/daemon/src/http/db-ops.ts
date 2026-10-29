@@ -238,6 +238,11 @@ function toolResultToApiResult<T>(
       sink({ source, correlationId, error: result.status === 'failed' ? result.error : result.status });
       return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
     }
+    default: {
+      // Unreachable: every tool result status has a case above, and a new one fails typecheck here.
+      const unhandled: never = result.status;
+      throw new TypeError(`Unhandled tool result status: ${String(unhandled)}`);
+    }
   }
 }
 

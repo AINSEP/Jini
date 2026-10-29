@@ -42,7 +42,8 @@ export function useAdminShellSession(args: Owner): AdminShellSessionController {
     // A refresh must not race a pending logout and restore a soon-to-be-revoked principal.
     if (loggingOut.current === owner) return;
     if (operation === 'logout') loggingOut.current = owner;
-    const request = ++generation.current;
+    generation.current += 1;
+    const request = generation.current;
     const isCurrent = () => active.current === owner && generation.current === request;
     setOwned({ context, port, state: { status: 'checking' } });
     // settleOperation never rejects, so the logout latch below always clears.

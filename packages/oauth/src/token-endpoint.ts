@@ -28,9 +28,7 @@ export function createOAuthClientConfiguration({ client, endpoint, endpointName 
     readonly client: OAuthClient; readonly endpoint: URL;
     readonly endpointName: 'token_endpoint' | 'device_authorization_endpoint' | 'authorization_endpoint' | 'revocation_endpoint';
 }, _optionalArgs: OAuthEmptyArgs = {}): Configuration {
-    const auth = client.authMethod === 'none' ? None()
-        : client.authMethod === 'client_secret_basic' ? ClientSecretBasic(client.clientSecret ?? '')
-        : ClientSecretPost(client.clientSecret ?? '');
+    const auth = clientAuthentication(client);
     const config = new Configuration({ issuer: 'urn:jini:oauth:transport-only', [endpointName]: endpoint.href },
         client.clientId, {}, auth);
     // The guarded adapter owns the millisecond deadline through the complete body read.
@@ -114,10 +112,14 @@ function providerTokenError({ error, status }: { error: ResponseBodyError; statu
     }, { providerErrorCode: error.error,
         ...(typeof interval === 'number' && Number.isFinite(interval) ? { retryAfterSeconds: interval } : {}) });
 }
+function clientAuthentication(client: OAuthClient) {
+    if (client.authMethod === 'none') return None();
+    return client.authMethod === 'client_secret_basic' ? ClientSecretBasic(client.clientSecret ?? '') : ClientSecretPost(client.clientSecret ?? '');
+}
 function malformedTokenMessage({ error }: { error: unknown }): string {
     const reason = error instanceof Error && error.cause instanceof Error ? error.cause : error;
-    return reason instanceof SyntaxError ? 'the authorization server did not return a JSON object'
-        : reason instanceof Error && reason.message.includes('"access_token"') ? "the authorization server's response contained no access token"
+    if (reason instanceof SyntaxError) return 'the authorization server did not return a JSON object';
+    return reason instanceof Error && reason.message.includes('"access_token"') ? "the authorization server's response contained no access token"
         : "the authorization server's response did not contain a supported OAuth token set";
 }
 function tokenRequestError({ error, status }: { error: unknown; status: number }): OAuthError {

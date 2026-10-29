@@ -58,7 +58,8 @@ export { canonicalJson };
 
 /** sha-256 hex over the canonical plan, excluding any fingerprint it already carries. */
 export function fingerprintPlan(required: { readonly plan: Omit<DnsChangePlan, 'fingerprint'> & { readonly fingerprint?: string } }, _optional = {}): string {
-  const { fingerprint: _ignored, ...body } = required.plan;
+  const body = { ...required.plan };
+  delete body.fingerprint;
   return createHash('sha256').update(canonicalJson({ value: body })).digest('hex');
 }
 

@@ -1,4 +1,4 @@
-import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
+import type { AgentToolDefinition } from "@jini-ai/core";
 /**
  * @file The Entries agent-tool catalog — this domain's instance of the per-domain `agent-tools.ts`
  * convention `features/content-types/agent-tools.ts`, `features/settings/agent-tools.ts`, and every

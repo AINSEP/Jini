@@ -23,6 +23,31 @@ async function packageRoot(required: { id: string; manifestId?: string; license?
   return root;
 }
 
+it('retains a sibling license across string and object spellings of the same repository', async () => {
+  const root = await packageRoot({ id: 'alpha', entry:
+    "import { left } from 'licensed'; import { right } from 'bare'; export default { definition: { setup() { return [left, right]; } } };" });
+  for (const [name, repository, symbol] of [
+    ['licensed', 'git+https://github.com/example/shared.git', 'left'],
+    ['bare', { url: 'https://github.com/example/shared' }, 'right'],
+  ] as const) {
+    const directory = path.join(root, 'node_modules', name);
+    await mkdir(directory, { recursive: true });
+    await writeFile(path.join(directory, 'package.json'), JSON.stringify({ name, version: '1.0.0',
+      license: 'MIT', repository, main: 'index.js' }));
+    await writeFile(path.join(directory, 'index.js'), `exports.${symbol} = 1;`);
+  }
+  await writeFile(path.join(root, 'node_modules/licensed/COPYING'), 'shared MIT text');
+  // A nameless nearest manifest does not take ownership from the distribution manifest.
+  await writeFile(path.join(root, 'src/alpha/package.json'), '{}');
+  const [entry] = await buildProviderPlugins({ packageRoot: root });
+  const licenses = path.join(root, entry!.path, 'licenses', 'bare');
+  expect(await readFile(path.join(licenses, 'COPYING'), 'utf8')).toBe('shared MIT text');
+  expect(await readFile(path.join(licenses, 'LICENSE-SOURCE'), 'utf8'))
+    .toBe('License text copied from licensed@1.0.0 (same repository and declared license).\n');
+  expect(JSON.parse(await readFile(path.join(licenses, 'package-license.json'), 'utf8')))
+    .toEqual({ name: 'bare', version: '1.0.0', license: 'MIT' });
+});
+
 it('builds into the package root by default, versioning each artifact from the distribution', async () => {
   const root = await packageRoot({ id: 'alpha' });
   const catalog = await buildProviderPlugins({ packageRoot: root });

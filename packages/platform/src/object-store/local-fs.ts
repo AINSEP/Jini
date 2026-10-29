@@ -33,7 +33,9 @@ function contained(required: { readonly rootDir: string; readonly key: string })
   const { rootDir, key } = required;
   const path = join(rootDir, key);
   const rel = relative(resolve(rootDir), resolve(path));
-  if (key === '' || isAbsolute(key) || rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+  const invalidKey = key === '' || isAbsolute(key);
+  const escapesRoot = rel === '' || rel.startsWith('..') || isAbsolute(rel);
+  if (invalidKey || escapesRoot) {
     throw new Error(`object key '${key}' is outside the store root`);
   }
   return path;

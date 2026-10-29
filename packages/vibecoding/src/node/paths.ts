@@ -45,7 +45,8 @@ export function canonicalPath({ relativePath, maxDepth }: { relativePath: string
 }
 /** Each segment must survive Windows parsing without aliases, streams or device semantics. */
 function assertSegment({ segment }: { segment: string }): void {
-  if (!segment || segment === '.' || segment === '..' || /[<>:"|?*\x00-\x1f\x7f]/.test(segment) || /[. ]$/.test(segment) || DEVICE.test(segment)) {
+  const reservedName = !segment || segment === '.' || segment === '..';
+  if (reservedName || /[<>:"|?*\x00-\x1f\x7f]/.test(segment) || /[. ]$/.test(segment) || DEVICE.test(segment)) {
     throw new ProjectError({ code: 'INVALID_PATH', message: `nonportable path segment: ${segment}` });
   }
 }

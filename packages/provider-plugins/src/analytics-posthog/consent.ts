@@ -32,10 +32,11 @@ function consentBrowserConfig(required: ConsentContributionInput, _optional = {}
  * Errors are fixed copy: submitted values must never enter diagnostics. O(input bytes).
  */
 export function validatePostHogBrowserConfig({ apiKey, host }: { apiKey: string; host: string }, _optional = {}): void {
-  if (!/^phc_[A-Za-z0-9_]+$/.test(apiKey)) throw new TypeError('Use a PostHog project key starting with phc_, not a personal API key.');
+  if (!/^phc_\w+$/.test(apiKey)) throw new TypeError('Use a PostHog project key starting with phc_, not a personal API key.');
   let url: URL;
   try { url = new URL(host); } catch { throw new TypeError('Use an HTTP or HTTPS host URL without credentials.'); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+  const carriesExtras = url.username || url.password || url.search || url.hash;
+  if (!['http:', 'https:'].includes(url.protocol) || carriesExtras) {
     throw new TypeError('Use an HTTP or HTTPS host URL without credentials.');
   }
 }

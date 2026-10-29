@@ -40,6 +40,15 @@ function validateBrowserProviderDeclaration(
   return errors;
 }
 
+/** A plugin-relative `client/` file of the expected type whose bytes the integrity map covers. */
+function isDigestCoveredClientAsset(
+  { file, suffix, integrity }: { file: unknown; suffix: RegExp; integrity: Readonly<Record<string, unknown>> },
+): boolean {
+  if (typeof file !== 'string' || !file.startsWith('client/')) return false;
+  const shapeValid = isPluginRelativePath({ path: file }) && suffix.test(file);
+  return shapeValid && /^sha256-[0-9a-f]{64}$/.test(String(integrity[file]));
+}
+
 function validateBrowserProviderAssets(
   { provider, integrity }: { provider: Record<string, unknown>; integrity: Readonly<Record<string, unknown>> },
   _options: Record<string, never> = {},
@@ -48,7 +57,7 @@ function validateBrowserProviderAssets(
   for (const [key, suffix] of [['javascript', /\.(?:m?js)$/], ['stylesheet', /\.css$/]] as const) {
     const file = provider[key];
     if (key === 'stylesheet' && file === undefined) continue;
-    if (typeof file !== 'string' || !isPluginRelativePath({ path: file }) || !file.startsWith('client/') || !suffix.test(file) || !/^sha256-[0-9a-f]{64}$/.test(String(integrity[file]))) errors.push(`Browser provider ${key} must name a digest-covered client asset.`);
+    if (!isDigestCoveredClientAsset({ file, suffix, integrity })) errors.push(`Browser provider ${key} must name a digest-covered client asset.`);
   }
   return errors;
 }

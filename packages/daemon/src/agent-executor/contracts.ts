@@ -33,9 +33,7 @@ import type {
 } from '@jini-ai/agent-runtime';
 import type { createCommandInvocation } from '@jini-ai/platform/command';
 import type {
-   collectProcessTreePids,
    listProcessSnapshots,
-   stopProcesses,
    ProcessSnapshot,
    StopProcessesResult,
 } from '@jini-ai/platform/process';

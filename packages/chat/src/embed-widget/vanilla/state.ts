@@ -52,7 +52,10 @@ export function createVanillaChatController(args: VanillaChatControllerArgs, _op
     const actions = extractPageActions({ events, directiveEventName: args.directiveEventName })
       .filter(action => args.pageActions.allows({ action }));
     const { navigate, other } = splitPageActions({ actions });
-    if (!navigate) { if (other) args.pageActions.execute({ action: other }); return; }
+    if (!navigate) {
+      if (other) args.pageActions.execute({ action: other });
+      return;
+    }
     const proposal = { navigate, bundled: other };
     if (navigate.auto) go(proposal);
     else { state = { ...state, proposal }; publish(); }
@@ -63,7 +66,8 @@ export function createVanillaChatController(args: VanillaChatControllerArgs, _op
     async send({ text }: { text: string }, _opts = {}) {
       const content = text.trim();
       if (!content || state.busy) return false;
-      const token = ++generation;
+      generation += 1;
+      const token = generation;
       const abort = args.createAbortController({});
       active = abort;
       const history = [...state.messages, { id: args.ids({}), role: 'user' as const, content }];
@@ -90,8 +94,9 @@ export function createVanillaChatController(args: VanillaChatControllerArgs, _op
         active = null;
         events = final;
         state = { ...state, busy: false };
+        const completedStatus = abort.signal.aborted ? 'canceled' : 'succeeded';
         updateReply({ ...reply, content: assistantContentFromEvents({ events }), events: [...events],
-          runStatus: failed ? 'failed' : abort.signal.aborted ? 'canceled' : 'succeeded' }, { persist: true });
+          runStatus: failed ? 'failed' : completedStatus }, { persist: true });
         if (!failed && !abort.signal.aborted) settleActions(events);
       };
       try {

@@ -68,7 +68,7 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
   }, [fetchAssetById]);
 
   useEffect(() => {
-    if (!active || !liveUpdates) return;
+    if (!active || !liveUpdates) return undefined;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const pendingIngest = new Set<string>();
@@ -134,6 +134,12 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
     let flushing = false;
     let rerun = false;
 
+    const reportFlushFailure = () => {
+      if (!disposed) {
+        pendingFull = true;
+        console.error('[asset-grid] Live update failed.');
+      }
+    };
     const flush = async () => {
       timer = null;
       if (flushing) {
@@ -144,14 +150,7 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
       try {
         do {
           rerun = false;
-          try {
-            await runFlushPass();
-          } catch {
-            if (!disposed) {
-              pendingFull = true;
-              console.error('[asset-grid] Live update failed.');
-            }
-          }
+          await runFlushPass().catch(reportFlushFailure);
         } while (rerun && !disposed);
       } finally {
         flushing = false;

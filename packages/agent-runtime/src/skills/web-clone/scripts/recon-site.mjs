@@ -169,9 +169,57 @@ export async function collectSignals(page) {
       alt: img.alt || "",
       ...imageSize(img),
     });
+    // The references in a CSS value exactly as `/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi` captured
+    // them (each quote optional on its own), scanned linearly instead of by that backtracking regex.
+    const isSpaceChar = (ch) => ch !== undefined && /\s/.test(ch);
+    const isQuoteChar = (ch) => ch === "'" || ch === '"';
+    const skipSpaces = (value, index) => {
+      let i = index;
+      while (isSpaceChar(value[i])) i += 1;
+      return i;
+    };
+    const refRunEnd = (value, index) => {
+      let i = index;
+      while (i < value.length && !`'")`.includes(value[i])) i += 1;
+      return i;
+    };
+    // Index just past the reference's ")": directly after it, or after one quote and whitespace.
+    const closeOfRef = (value, end) => {
+      if (value[end] === ")") return end + 1;
+      if (!isQuoteChar(value[end])) return -1;
+      const close = skipSpaces(value, end + 1);
+      return value[close] === ")" ? close + 1 : -1;
+    };
+    // `url( ')` captures the space before the lone quote: the regex backtracks out of `\s*`.
+    const quotedCssRef = (value, start, quoteAt) => {
+      const end = refRunEnd(value, quoteAt + 1);
+      if (end === quoteAt + 1) return quoteAt > start && value[end] === ")" ? { ref: value[quoteAt - 1], end: end + 1 } : null;
+      const close = closeOfRef(value, end);
+      return close < 0 ? null : { ref: value.slice(quoteAt + 1, end), end: close };
+    };
+    const cssUrlRefAt = (value, start) => {
+      const first = skipSpaces(value, start);
+      if (isQuoteChar(value[first])) return quotedCssRef(value, start, first);
+      if (value[first] === ")") return first > start ? { ref: value[first - 1], end: first + 1 } : null;
+      const end = refRunEnd(value, first);
+      const close = end > first ? closeOfRef(value, end) : -1;
+      return close < 0 ? null : { ref: value.slice(first, end), end: close };
+    };
+    const cssUrlRefs = (value) => {
+      const refs = [];
+      const opener = /url\(/gi;
+      for (let open = opener.exec(value); open; open = opener.exec(value)) {
+        const found = cssUrlRefAt(value, open.index + 4);
+        if (found) {
+          refs.push(found.ref);
+          opener.lastIndex = found.end;
+        }
+      }
+      return refs;
+    };
     const fontFaceOf = (sheet) => (rule) => {
       const src = rule.style.getPropertyValue("src");
-      const srcUrls = Array.from(src.matchAll(/url\(\s*['"]?([^'")]+)['"]?\s*\)/gi)).map((m) => m[1]);
+      const srcUrls = cssUrlRefs(src);
       return {
         family: rule.style.getPropertyValue("font-family").replace(/['"]/g, "").trim(),
         weight: rule.style.getPropertyValue("font-weight") || "",

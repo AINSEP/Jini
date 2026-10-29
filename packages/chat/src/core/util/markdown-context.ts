@@ -127,16 +127,20 @@ function visitLineOutsideFence(scan: LineScan, line: Line): void {
   if (line.hasNewline && FENCE_OPEN_RE.test(line.text)) {
     closeBlockBefore(scan, line.start);
     scan.fenceStart = line.start;
-  } else if (line.text.trim() === '') {
+    return;
+  }
+  if (line.text.trim() === '') {
     closeBlockBefore(scan, line.start);
-  } else if (HEADING_RE.test(line.text) || UL_ITEM_RE.test(line.text) || OL_ITEM_RE.test(line.text)) {
+    return;
+  }
+  if (HEADING_RE.test(line.text) || UL_ITEM_RE.test(line.text) || OL_ITEM_RE.test(line.text)) {
     // Each heading/list-item line is its own inline-scan region rather
     // than joining adjacent paragraphs.
     closeBlockBefore(scan, line.start);
     scan.blockRegions.push([line.start, line.end]);
-  } else if (scan.blockStart === -1) {
-    scan.blockStart = line.start;
+    return;
   }
+  if (scan.blockStart === -1) scan.blockStart = line.start;
 }
 
 /** `true` when position `p` falls inside one of `ranges` (half-open intervals). */
@@ -145,4 +149,39 @@ export function rangeContains({ ranges, p }: { ranges: ReadonlyArray<Range>; p: 
     if (p >= s && p < e) return true;
   }
   return false;
+}
+
+export interface FencedCodeRange { start: number; end: number; body: string }
+
+/** Permissive model-output fences used for recovery/transcript cleanup, independent of the
+ * renderer's line-anchored fence grammar above. Opening whitespace is greedy through its last
+ * newline; an empty block may require giving that last newline back to the closing delimiter.
+ * Each opener and closing delimiter is scanned directly instead of backtracking across the body.
+ */
+export function* fencedCodeRanges({ content, opener }: { content: string; opener: RegExp }, _options = {}): Generator<FencedCodeRange> {
+  const openings = new RegExp(opener.source, 'g');
+  let opening = openings.exec(content);
+  while (opening !== null) {
+    const body = fencedBodyRange({ content, after: opening.index + opening[0].length });
+    if (body === null) return; // No later closing fence exists for any subsequent opener either.
+    if (body !== undefined) {
+      yield { start: opening.index, end: body.end, body: content.slice(body.start, body.end - 4) };
+      openings.lastIndex = body.end;
+    }
+    opening = openings.exec(content);
+  }
+}
+
+/** Undefined is an invalid opener; null is a valid opener with no possible closing fence. */
+function fencedBodyRange({ content, after }: { content: string; after: number }): { start: number; end: number } | null | undefined {
+  let whitespaceEnd = after;
+  while (whitespaceEnd < content.length && /\s/.test(content.charAt(whitespaceEnd))) whitespaceEnd += 1;
+  const newlineOffset = content.slice(after, whitespaceEnd).indexOf('\n');
+  if (newlineOffset === -1) return undefined;
+  const firstNewline = after + newlineOffset;
+  const lastNewline = content.lastIndexOf('\n', whitespaceEnd - 1);
+  const close = content.indexOf('\n```', lastNewline + 1);
+  if (close !== -1) return { start: lastNewline + 1, end: close + 4 };
+  if (lastNewline === firstNewline || !content.startsWith('\n```', lastNewline)) return null;
+  return { start: content.lastIndexOf('\n', lastNewline - 1) + 1, end: lastNewline + 4 };
 }

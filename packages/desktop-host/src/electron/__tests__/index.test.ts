@@ -8,6 +8,7 @@ describe('@jini-ai/desktop-host/electron barrel', () => {
       'createElectronWindowLifecyclePort', // electron-window-lifecycle.ts
       'createElectronProtocolHandlerPort', // electron-protocol.ts
       'createElectronRenderService', // electron-render-service.ts
+      'createElectronUrlCapturePool', // electron-url-capture.ts
       'createElectronShellPort', // electron-shell.ts
       'createElectronDesktopHost', // create-electron-desktop-host.ts
       'createFakeElectronApp', // testing.ts

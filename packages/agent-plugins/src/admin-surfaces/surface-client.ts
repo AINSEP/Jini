@@ -103,13 +103,18 @@ function isFailure(value: unknown): value is AdminSurfaceClientFailure {
   const error = value as Message;
   return typeof error.code === 'string' && typeof error.message === 'string' && typeof error.retryable === 'boolean';
 }
+/** A non-empty, bounded token value with nothing that could escape a CSS custom property. */
+function isSafeThemeValue(token: unknown): token is string {
+  if (typeof token !== 'string') return false;
+  return token.length > 0 && token.length <= 200 && !UNSAFE_THEME_VALUE.test(token);
+}
+
 /** The host's theme with every unknown name or unsafe value dropped; undefined when it is not a theme. */
 function acceptedTheme(value: unknown): AdminSurfaceClientTheme | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const { scheme, tokens } = value as Message;
   if ((scheme !== 'light' && scheme !== 'dark') || typeof tokens !== 'object' || tokens === null) return undefined;
-  const safe = Object.entries(tokens).slice(0, MAX_THEME_TOKENS).filter(([name, token]) => THEME_TOKEN.test(name)
-    && typeof token === 'string' && token.length > 0 && token.length <= 200 && !UNSAFE_THEME_VALUE.test(token));
+  const safe = Object.entries(tokens).slice(0, MAX_THEME_TOKENS).filter(([name, token]) => THEME_TOKEN.test(name) && isSafeThemeValue(token));
   return { scheme, tokens: Object.fromEntries(safe) as Record<string, string> };
 }
 /** The browser root when there is a document (none in a server-side test). */
@@ -215,9 +220,15 @@ export function createAdminSurfaceClient(
 
   const unsubscribe = required.listen((event) => {
     if (event.source !== required.parent) return;
-    if (isMessage(event.data, 'init')) onInit(event, event.data);
-    else if (isMessage(event.data, 'theme')) { if (event.origin === init?.origin && event.data.mountId === init.mountId) applyTheme(event.data.theme); }
-    else if (isMessage(event.data, 'action-response')) onResponse(event, event.data);
+    if (isMessage(event.data, 'init')) {
+      onInit(event, event.data);
+      return;
+    }
+    if (isMessage(event.data, 'theme')) {
+      if (event.origin === init?.origin && event.data.mountId === init.mountId) applyTheme(event.data.theme);
+      return;
+    }
+    if (isMessage(event.data, 'action-response')) onResponse(event, event.data);
   });
 
   /** Posts one request of `kind` to the host origin and waits for its `action-response`. */

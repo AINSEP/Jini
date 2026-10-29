@@ -546,8 +546,7 @@ function assertEveryEntryIsWiredOrDeclared(
   { unwiredToolIds }: { unwiredToolIds?: ReadonlySet<string> } = {},
 ): void {
   for (const id of spec.catalog.keys()) {
-    if (id in spec.handlers) continue;
-    if (unwiredToolIds?.has(id)) continue;
+    if (id in spec.handlers || unwiredToolIds?.has(id)) continue;
     throw new Error(
       `tool-registrations: ${spec.domain} catalog entry '${id}' is neither wired nor declared unwired — wire a handler for it, or add it to that domain's unwired set with the reason recorded next to it`,
     );

@@ -51,7 +51,7 @@ export function useModalWindowDragGuard(options: UseModalWindowDragGuardOptions)
   const { backdropSelector, enabled = true } = options;
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) return undefined;
 
     const stopBackdropDismissInDragStrip = (event: MouseEvent | PointerEvent) => {
       if (eventHitsModalWindowDragStrip(event, backdropSelector)) {

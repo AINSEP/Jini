@@ -63,6 +63,12 @@ function renderGridContent<TAsset extends AssetGridItem>(
   return <AssetGridBody {...bodyProps} />;
 }
 
+function withoutAssetIds<TAsset extends AssetGridItem>(
+  { assets, ids }: { assets: TAsset[]; ids: ReadonlySet<string> }, _options = {},
+): TAsset[] {
+  return assets.filter(asset => !ids.has(asset.id));
+}
+
 /**
  * A live-updating, filterable, multi-selectable asset grid — the generic
  * pattern behind a photo library / DAM. See `packages/ui/source-map.md` for
@@ -175,9 +181,10 @@ export function AssetGrid<TAsset extends AssetGridItem>({
     setConfirmDeleteOpen(false);
     const ids = [...selectedIds];
     if (!ids.length) return;
+    const idSet = new Set(ids);
+    const removeDeleted = (prev: TAsset[]) => withoutAssetIds({ assets: prev, ids: idSet });
     await runDelete(onDeleteSelected ? (batch) => onDeleteSelected([...batch]) : null, ids, () => {
-      const idSet = new Set(ids);
-      setAssets((prev) => prev.filter((a) => !idSet.has(a.id)));
+      setAssets(removeDeleted);
       setSelectedIds(new Set());
     });
   }, [selectedIds, onDeleteSelected, setAssets, setSelectedIds, runDelete]);
@@ -188,8 +195,9 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   const handleDeleteAsset = useMemo(
     () => onDeleteAsset
       ? async (id: string) => {
+        const removeDeleted = (prev: TAsset[]) => withoutAssetIds({ assets: prev, ids: new Set([id]) });
         await runDelete((batch) => onDeleteAsset(batch[0]!), [id], () => {
-          setAssets((prev) => prev.filter((a) => a.id !== id));
+          setAssets(removeDeleted);
         });
       }
       : undefined,

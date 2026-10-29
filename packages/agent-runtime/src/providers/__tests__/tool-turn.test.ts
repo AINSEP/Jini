@@ -722,8 +722,12 @@ describe('adapter port plumbing per protocol', () => {
     const controller = new AbortController();
     const events: unknown[] = [];
     let seen: Record<string, unknown> = {};
+    let seenRequired: object = {};
+    let seenOptional: object = {};
     const adapter = async (required: { onEvent: (event: never) => void }, optional: object = {}) => {
       seen = { ...optional, ...required };
+      seenRequired = required;
+      seenOptional = optional;
       required.onEvent(marker as never);
       required.onEvent(unknownToolUse as never);
       required.onEvent({ type: 'tool_result', toolUseId: 'u1', content: [{ type: 'text', text: 'caption' }, { type: 'image_url', image_url: { url: 'https://img.test/b.png' } }], isError: false } as never);
@@ -732,6 +736,8 @@ describe('adapter port plumbing per protocol', () => {
     const adapters: ProviderTurnAdapters = { ...providerTurnAdapters, [protocol]: adapter };
     const result = await runProviderToolTurn(turnInput(protocol, adapters, events), { baseUrl: 'https://resource.test', signal: controller.signal, maxTokens: 77, maxToolTurns: 4 });
     expect(seen).toMatchObject({ signal: controller.signal, maxTokens: 77, maxToolTurns: 4 });
+    expect(protocol === 'azure' ? seenRequired : seenOptional).toHaveProperty('baseUrl', 'https://resource.test');
+    expect(protocol === 'azure' ? seenOptional : seenRequired).not.toHaveProperty('baseUrl');
     expect(events).toEqual([expectedPassThrough, { type: 'tool_result', toolUseId: 'u1', content: 'caption\n[image: url]', isError: false }]);
     expect(result).toEqual({ stopReason: null, toolTurns: 0 });
   });

@@ -27,11 +27,12 @@ function handleSelectionKey(
   if (event.key === 'Escape') {
     if (isPreviewOpen) return; // the preview surface owns Escape while it's open
     if (hasSelection) onClearSelection();
-  } else if (event.key === 'Delete' || event.key === 'Backspace') {
-    if (typing || isPreviewOpen || !hasSelection) return;
-    event.preventDefault();
-    onRequestDeleteSelected();
+    return;
   }
+  if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+  if (typing || isPreviewOpen || !hasSelection) return;
+  event.preventDefault();
+  onRequestDeleteSelected();
 }
 
 /** Cmd/Ctrl+A select-all, Escape clear-selection, Delete/Backspace triggers the bulk-delete confirm flow. */

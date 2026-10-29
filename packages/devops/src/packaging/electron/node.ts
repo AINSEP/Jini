@@ -1,6 +1,13 @@
 import { existsSync, readFileSync, lstatSync, readdirSync, realpathSync, mkdirSync, cpSync, rmSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import path from 'node:path';
+import type { Stats } from 'node:fs';
 import type { PackagingFilesystemPort, PackageResolverPort } from './ports.js';
+
+/** lstat kind: symlinks and special files are 'other'. */
+function entryKind(info: Stats): 'file' | 'directory' | 'other' {
+  if (info.isFile()) return 'file';
+  return info.isDirectory() ? 'directory' : 'other';
+}
 
 /** Explicit Node filesystem adapter. No effects occur until a port method is called. */
 export function createNodePackagingFilesystem(_required: Record<string, never>): PackagingFilesystemPort {
@@ -16,7 +23,7 @@ export function createNodePackagingFilesystem(_required: Record<string, never>):
         return bytes.subarray(0, bytesRead);
       } finally { closeSync(fd); }
     },
-    stat: ({ path }) => { const info = lstatSync(path); return { kind: info.isFile() ? 'file' : info.isDirectory() ? 'directory' : 'other', mtimeMs: info.mtimeMs, diskBytes: info.blocks * 512 }; },
+    stat: ({ path }) => { const info = lstatSync(path); return { kind: entryKind(info), mtimeMs: info.mtimeMs, diskBytes: info.blocks * 512 }; },
     entries: ({ path }) => readdirSync(path), realpath: ({ path }) => realpathSync(path),
     copy: ({ from, to }, optional = {}) => {
       const source = realpathSync(from);

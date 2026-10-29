@@ -47,7 +47,7 @@ export interface FormWriteServiceDeps {
 
 // Export validation bounds so host tool schemas can share them rather than drift from the service.
 export const MAX_NOTIFY_RECIPIENTS = 10;
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@([^\s@]+)$/;
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const MIN_NAME_LENGTH = 1;
 export const MAX_NAME_LENGTH = 200;
@@ -59,23 +59,30 @@ function defaultNotify(): NotifyConfig {
 function validateNotify(notify: NotifyConfig | undefined): NotifyConfig {
   const resolved = notify ?? defaultNotify();
   if (!Array.isArray(resolved.recipients)) {
-    throw new FormFieldValidationError({ message: "notify.recipients must be an array", fieldErrors: [
-      { field: "notify.recipients", reason: "must be an array" },
-    ] });
+    throw new FormFieldValidationError({
+      message: "notify.recipients must be an array", fieldErrors: [
+        { field: "notify.recipients", reason: "must be an array" },
+      ]
+    });
   }
   if (typeof resolved.enabled !== "boolean") {
-    throw new FormFieldValidationError({ message: "notify.enabled must be a boolean", fieldErrors: [
-      { field: "notify.enabled", reason: "must be a boolean" },
-    ] });
+    throw new FormFieldValidationError({
+      message: "notify.enabled must be a boolean", fieldErrors: [
+        { field: "notify.enabled", reason: "must be a boolean" },
+      ]
+    });
   }
   if (resolved.recipients.length > MAX_NOTIFY_RECIPIENTS) {
     throw new FormFieldValidationError({ message: `notify.recipients may not exceed ${MAX_NOTIFY_RECIPIENTS} addresses`, fieldErrors: [{ field: "notify.recipients", reason: `at most ${MAX_NOTIFY_RECIPIENTS} recipients are allowed` }] });
   }
   for (const recipient of resolved.recipients) {
-    if (!EMAIL_PATTERN.test(recipient)) {
-      throw new FormFieldValidationError({ message: `'${recipient}' is not a valid email address`, fieldErrors: [
-        { field: "notify.recipients", reason: `'${recipient}' is not a valid email address` },
-      ] });
+    const address = EMAIL_PATTERN.exec(recipient);
+    if (!address || !address[1]!.slice(1, -1).includes(".")) {
+      throw new FormFieldValidationError({
+        message: `'${recipient}' is not a valid email address`, fieldErrors: [
+          { field: "notify.recipients", reason: `'${recipient}' is not a valid email address` },
+        ]
+      });
     }
   }
   return resolved;
@@ -83,19 +90,25 @@ function validateNotify(notify: NotifyConfig | undefined): NotifyConfig {
 
 function validateNameAndSlug(name: string, slug: string, reservedSlugs: ReadonlySet<string>): void {
   if (name.length < MIN_NAME_LENGTH || name.length > MAX_NAME_LENGTH) {
-    throw new FormFieldValidationError({ message: `name must be ${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters`, fieldErrors: [
-      { field: "name", reason: `must be ${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters` },
-    ] });
+    throw new FormFieldValidationError({
+      message: `name must be ${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters`, fieldErrors: [
+        { field: "name", reason: `must be ${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters` },
+      ]
+    });
   }
   if (!SLUG_PATTERN.test(slug)) {
-    throw new FormFieldValidationError({ message: "slug must match ^[a-z0-9][a-z0-9-]{0,63}$", fieldErrors: [
-      { field: "slug", reason: "must match ^[a-z0-9][a-z0-9-]{0,63}$" },
-    ] });
+    throw new FormFieldValidationError({
+      message: "slug must match ^[a-z0-9][a-z0-9-]{0,63}$", fieldErrors: [
+        { field: "slug", reason: "must match ^[a-z0-9][a-z0-9-]{0,63}$" },
+      ]
+    });
   }
   if (reservedSlugs.has(slug)) {
-    throw new FormFieldValidationError({ message: `slug '${slug}' is reserved`, fieldErrors: [
-      { field: "slug", reason: `'${slug}' is reserved by the host` },
-    ] });
+    throw new FormFieldValidationError({
+      message: `slug '${slug}' is reserved`, fieldErrors: [
+        { field: "slug", reason: `'${slug}' is reserved by the host` },
+      ]
+    });
   }
 }
 

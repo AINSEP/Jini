@@ -44,6 +44,9 @@ import { toContentTypeOutbox } from "./repo.memory.js";
 import type { ContentTypeFieldDef, ContentTypeRecord } from "./types.js";
 import { registerContentType, updateContentTypeFields, type ContentTypeRepoPort, type IndexProvisionerPort } from "./write-service.js";
 
+const MUTATES_DURABLE_STATE = "mutates-durable-state";
+
+
 const CATALOG_BY_ID = indexCatalogById({ catalog: contentTypesAgentToolCatalog });
 
 /**
@@ -76,16 +79,16 @@ export const contentTypesDerivedRisk: DerivedRiskByToolId = new Map<string, Agen
   // -> listContentTypes (list.ts): one repo.listByWorkspace read, no write of any kind.
   ["collections_content_type_list", "none"],
   // -> registerContentType (write-service.ts): repo.save + appendRevision in one tx.
-  ["collections_content_type_define", "mutates-durable-state"],
+  ["collections_content_type_define", MUTATES_DURABLE_STATE],
   // -> updateContentTypeFields (write-service.ts): full field-schema replace + index transitions.
-  ["collections_content_type_update_fields", "mutates-durable-state"],
+  ["collections_content_type_update_fields", MUTATES_DURABLE_STATE],
   // -> deprecateContentType (lifecycle.ts): status flip + revision.
-  ["collections_content_type_deprecate", "mutates-durable-state"],
+  ["collections_content_type_deprecate", MUTATES_DURABLE_STATE],
   // -> reactivateContentType (lifecycle.ts): status flip + revision.
-  ["collections_content_type_reactivate", "mutates-durable-state"],
+  ["collections_content_type_reactivate", MUTATES_DURABLE_STATE],
   // -> tombstoneContentType (lifecycle.ts): one-way terminal transition that tears down every
   //    provisioned index BEFORE persisting the flip. The heaviest of the five.
-  ["collections_content_type_tombstone", "mutates-durable-state"],
+  ["collections_content_type_tombstone", MUTATES_DURABLE_STATE],
 ]);
 
 /**

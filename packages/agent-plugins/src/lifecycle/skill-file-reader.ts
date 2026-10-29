@@ -31,9 +31,15 @@ async function readOpened(handle: FileHandle): Promise<ReadOutcome> {
   return length > MAX_FILE_BYTES ? { refusal: TOO_LARGE } : decodeText(buffer.subarray(0, length));
 }
 
+/** Whitespace control bytes text may carry: tab, LF and CR. */
+const TEXT_CONTROL_BYTES: ReadonlySet<number> = new Set([9, 10, 13]);
+function isControlByte(byte: number): boolean {
+  return byte === 127 || (byte < 32 && !TEXT_CONTROL_BYTES.has(byte));
+}
+
 /** Admit only control-free UTF-8 text (tab, LF and CR allowed). */
 function decodeText(bytes: Buffer): ReadOutcome {
-  if (bytes.some(byte => (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) || byte === 127)) return { refusal: "File request refused: binary content cannot be read as text." };
+  if (bytes.some(isControlByte)) return { refusal: "File request refused: binary content cannot be read as text." };
   try { return { text: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) }; }
   catch { return { refusal: "File request refused: binary or invalid UTF-8 content cannot be read as text." }; }
 }
@@ -63,7 +69,8 @@ export function createSkillFileReader(
   /** Reject traversal even when normalization would leave it inside the folder.
    * @returns The refusal message, or `undefined` for an admissible name. */
   function validateFile(file: string): string | undefined {
-    if (!file || file.includes("\0") || file.includes("\\") || path.posix.isAbsolute(file) || /^[a-zA-Z]:/.test(file) || file.split("/").some(segment => segment === "..")) {
+    const absolute = path.posix.isAbsolute(file) || /^[a-zA-Z]:/.test(file);
+    if (!file || /[\0\\]/.test(file) || absolute || file.split("/").some(segment => segment === "..")) {
       return "File request refused: use a path relative to this skill folder, without traversal or absolute paths.";
     }
     if (!TEXT_EXTENSIONS.has(path.extname(file).toLowerCase())) {
@@ -112,12 +119,17 @@ export function createSkillFileReader(
       const entries = await readDirectory(relative);
       if (!entries) { incomplete = true; return; }
       for (const entry of entries) {
-        if (remaining-- <= 0) { incomplete = true; break; }
+        const exhausted = remaining <= 0;
+        remaining -= 1;
+        if (exhausted) { incomplete = true; break; }
         await visit(entry, relative ? `${relative}/${entry.name}` : entry.name, depth);
       }
     }
     async function visit(entry: Dirent, file: string, depth: number): Promise<void> {
-      if (entry.isDirectory()) return walk(file, depth + 1);
+      if (entry.isDirectory()) {
+        await walk(file, depth + 1);
+        return;
+      }
       if (file === "SKILL.md" || !(entry.isFile() || entry.isSymbolicLink())) return;
       // Refused files must not be advertised as readable.
       if ("text" in await readText(file)) files.push(file);

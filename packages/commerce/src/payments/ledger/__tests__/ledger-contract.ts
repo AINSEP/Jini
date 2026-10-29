@@ -729,6 +729,193 @@ export function ledgerContract(adapter: string, open: () => Promise<LedgerHarnes
       });
     });
 
+    describe("boundary and recovery regressions", () => {
+      test.each([
+        { name: "attempts", insert: (tx: LedgerTx, id: string) => tx.insertAttempt({ attempt: attempt({ id, operationKey: id }) }), list: (tx: LedgerTx) => tx.listAttempts({ paymentId: "pay-1" }) },
+        { name: "refunds", insert: (tx: LedgerTx, id: string) => tx.insertRefund({ refund: refund({ id, idempotencyKey: id }) }), list: (tx: LedgerTx) => tx.listRefunds({ paymentId: "pay-1" }) },
+        { name: "disputes", insert: (tx: LedgerTx, id: string) => tx.insertDispute({ dispute: dispute({ id, providerDisputeRef: id }) }), list: (tx: LedgerTx) => tx.listDisputes({ paymentId: "pay-1" }) },
+        { name: "evidence", insert: (tx: LedgerTx, id: string) => tx.appendEvidence({ evidence: evidence({ id }) }), list: (tx: LedgerTx) => tx.listEvidence({ paymentId: "pay-1" }) },
+        { name: "operator actions", insert: (tx: LedgerTx, id: string) => tx.appendOperatorAction({ action: operatorAction({ id }) }), list: (tx: LedgerTx) => tx.listOperatorActions({ paymentId: "pay-1" }) },
+        { name: "quarantine", insert: (tx: LedgerTx, id: string) => tx.insertQuarantine({ entry: quarantine({ id }) }), list: (tx: LedgerTx) => tx.listQuarantine(LIVE) },
+      ])("$name with equal timestamps list by id, regardless of insertion order", async ({ insert, list }) => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment() });
+          for (const id of ["z", "a", "m"]) await insert(tx, id);
+          expect((await list(tx)).map((row) => row.id)).toEqual(["a", "m", "z"]);
+        });
+      });
+
+      test("all optional payment amounts and identities can be replaced and explicitly cleared", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment() });
+          const patch: PaymentPatch = {
+            partyId: "party-new", capturedMinor: 1_001, intentStatus: "succeeded", refundedMinor: 201, refundHeldMinor: 301,
+            disputedMinor: 401, status: "partially_refunded", providerRef: "pi-new", nextActionJson: '{"kind":"redirect"}',
+            feeCurrency: "USD", feeMinor: 17, netCurrency: "USD", netMinor: 984,
+            settlementCurrency: "JPY", settlementMinor: 123_456, updatedAt: 1_001,
+          };
+          expect(await tx.updatePayment({ id: "pay-1", expectedVersion: 1, patch })).toBe(true);
+          expect(await tx.getPayment({ ...LIVE, id: "pay-1" })).toEqual({ ...payment(), ...patch, version: 2 });
+          const clear: PaymentPatch = {
+            partyId: null, providerRef: null, nextActionJson: null, feeCurrency: null, feeMinor: null,
+            netCurrency: null, netMinor: null, settlementCurrency: null, settlementMinor: null, updatedAt: 1_002,
+          };
+          expect(await tx.updatePayment({ id: "pay-1", expectedVersion: 2, patch: clear })).toBe(true);
+          expect(await tx.getPayment({ ...LIVE, id: "pay-1" })).toEqual({ ...payment(), ...patch, ...clear, version: 3 });
+        });
+      });
+
+      test("nullable child patches clear stored errors, refund references, reasons and dispute deadlines", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment() });
+          await tx.insertAttempt({ attempt: attempt({ errorCode: "TIMEOUT", errorMessage: "lost reply" }) });
+          await tx.insertRefund({ refund: refund({ providerRefundRef: "re-1", reason: "requested" }) });
+          await tx.insertDispute({ dispute: dispute() });
+          expect(await tx.updateAttempt({ id: "att-1", patch: { errorCode: null, errorMessage: null, outcome: "ok", updatedAt: 4 } })).toBe(true);
+          expect(await tx.updateRefund({ id: "ref-1", patch: { providerRefundRef: null, reason: null, updatedAt: 5 } })).toBe(true);
+          expect(await tx.updateDispute({ id: "dis-1", patch: { dueBy: null, updatedAt: 6 } })).toBe(true);
+          expect(await tx.listAttempts({ paymentId: "pay-1" })).toEqual([attempt({ outcome: "ok", updatedAt: 4 })]);
+          expect(await tx.listRefunds({ paymentId: "pay-1" })).toEqual([refund({ updatedAt: 5 })]);
+          expect(await tx.listDisputes({ paymentId: "pay-1" })).toEqual([dispute({ dueBy: null, updatedAt: 6 })]);
+        });
+      });
+
+      test("lookups refuse a wrong provider, a missing operation, and refunds from another mode", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment({ providerRef: "pi-1" }) });
+          await tx.insertAttempt({ attempt: attempt() });
+          await tx.insertRefund({ refund: refund() });
+          expect(await tx.findPaymentByProviderRef({ ...LIVE, providerId: "lipay", providerAccountId: "acct-1", providerRef: "pi-1" })).toBeNull();
+          expect(await tx.findAttemptByOperationKey({ ...LIVE, operationKey: "missing" })).toBeNull();
+          expect(await tx.findAttemptByOperationKey({ workspaceId: "ws-other", mode: "live", operationKey: "op-1" })).toBeNull();
+          expect(await tx.findRefundByIdempotencyKey({ workspaceId: WS, mode: "test", key: "ridem-1" })).toBeNull();
+          expect(await tx.findRefundByIdempotencyKey({ ...LIVE, key: "missing" })).toBeNull();
+          expect(await tx.findRefund({ paymentId: "pay-1" }, { correlationId: "ref-1" })).toEqual(refund());
+          expect(await tx.findRefund({ paymentId: "pay-1" }, { providerRefundRef: "missing" })).toBeNull();
+          expect(await tx.listEvidence({ paymentId: "missing" })).toEqual([]);
+          expect(await tx.listDisputes({ paymentId: "missing" })).toEqual([]);
+        });
+      });
+
+      test("a duplicate webhook still validates its required fields before ignoring the redelivery", async () => {
+        await withLedger(async (ledger) => {
+          await ledger.transaction({ fn: (tx) => tx.insertInbox({ entry: inbox() }) });
+          await expectConstraint(ledger.transaction({ fn: (tx) => tx.insertInbox({
+            entry: inbox({ id: "bad-redelivery", bodySha256: null as unknown as string }),
+          }) }), "check", "commerce_webhook_inbox");
+          await expect(ledger.transaction({ fn: (tx) => tx.insertInbox({ entry: inbox({ id: "bad-time", receivedAt: 1.5 }) }) }))
+            .rejects.toThrow("ledger: expected a safe integer to write, got number 1.5");
+          expect(await ledger.transaction({ fn: (tx) => tx.getInbox({ id: "in-1" }) })).toEqual({
+            ...inbox(), state: "received", attempts: 0, lastError: null, appliedAt: null, purgedAt: null,
+          });
+        });
+      });
+
+      test("a zero limit returns no due events, pending messages, payments, refunds or attempts", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment({ intentStatus: "unknown" }) });
+          await tx.insertRefund({ refund: refund() });
+          await tx.insertAttempt({ attempt: attempt({ op: "capture" }) });
+          await tx.insertInbox({ entry: inbox() });
+          await tx.enqueueOutbox({ message: outbox() });
+          expect(await tx.listDueInbox({ now: 5_000, limit: 0 })).toEqual([]);
+          expect(await tx.listPendingOutbox({ limit: 0 })).toEqual([]);
+          expect(await tx.listUnknownPayments({ updatedBefore: 9_000, limit: 0 })).toEqual([]);
+          expect(await tx.listUnsettledRefunds({ updatedBefore: 9_000, limit: 0 })).toEqual([]);
+          expect(await tx.listOpenAttempts({ ops: ["capture"], updatedBefore: 9_000, limit: 0 })).toEqual([]);
+        });
+      });
+
+      test("refund and attempt cursors keep equal-time later ids while excluding earlier times and other scopes", async () => {
+        await within(async (tx) => {
+          await tx.insertPayment({ payment: payment() });
+          await tx.insertPayment({ payment: payment({ id: "pay-test", mode: "test" }) });
+          await tx.insertPayment({ payment: payment({ id: "pay-other", workspaceId: "ws-other" }) });
+          for (const row of [
+            { id: "z-old", updatedAt: 99 }, { id: "c", updatedAt: 100 }, { id: "a", updatedAt: 100 },
+            { id: "b", updatedAt: 100 }, { id: "a-new", updatedAt: 101 }, { id: "at-cutoff", updatedAt: 102 },
+            { id: "test", updatedAt: 100, paymentId: "pay-test", mode: "test" as const },
+            { id: "other", updatedAt: 100, paymentId: "pay-other", workspaceId: "ws-other" },
+          ]) {
+            await tx.insertRefund({ refund: refund({ ...row, idempotencyKey: row.id }) });
+            await tx.insertAttempt({ attempt: attempt({ ...row, operationKey: row.id, op: "capture" }) });
+          }
+          const options = { scope: LIVE, after: { updatedAt: 100, id: "b" } };
+          expect((await tx.listUnsettledRefunds({ updatedBefore: 102, limit: 10 }, options)).map((r) => r.id)).toEqual(["c", "a-new"]);
+          expect((await tx.listOpenAttempts({ ops: ["capture"], updatedBefore: 102, limit: 10 }, options)).map((r) => r.id)).toEqual(["c", "a-new"]);
+          expect((await tx.listUnsettledRefunds({ updatedBefore: 102, limit: 1 }, options)).map((r) => r.id)).toEqual(["c"]);
+          expect((await tx.listOpenAttempts({ ops: ["capture"], updatedBefore: 102, limit: 1 }, options)).map((r) => r.id)).toEqual(["c"]);
+          expect(await tx.listOpenAttempts({ ops: [], updatedBefore: 102, limit: 10 })).toEqual([]);
+        });
+      });
+
+      test("a non-Error rejection restores every table and the previous payment version", async () => {
+        await withLedger(async (ledger) => {
+          await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: payment() }) });
+          await expect(ledger.transaction({ fn: async (tx) => {
+            await tx.updatePayment({ id: "pay-1", expectedVersion: 1, patch: { capturedMinor: 123, updatedAt: 9 } });
+            await tx.insertAttempt({ attempt: attempt() });
+            await tx.insertRefund({ refund: refund() });
+            await tx.insertDispute({ dispute: dispute() });
+            await tx.appendEvidence({ evidence: evidence() });
+            await tx.insertInbox({ entry: inbox() });
+            await tx.enqueueOutbox({ message: outbox() });
+            await tx.insertQuarantine({ entry: quarantine() });
+            await tx.appendOperatorAction({ action: operatorAction() });
+            throw "rollback every table";
+          } })).rejects.toBe("rollback every table");
+          await ledger.transaction({ fn: async (tx) => {
+            expect(await tx.getPayment({ ...LIVE, id: "pay-1" })).toEqual({ ...payment(), version: 1 });
+            expect(await tx.listAttempts({ paymentId: "pay-1" })).toEqual([]);
+            expect(await tx.listRefunds({ paymentId: "pay-1" })).toEqual([]);
+            expect(await tx.listDisputes({ paymentId: "pay-1" })).toEqual([]);
+            expect(await tx.listEvidence({ paymentId: "pay-1" })).toEqual([]);
+            expect(await tx.getInbox({ id: "in-1" })).toBeNull();
+            expect(await tx.listPendingOutbox({ limit: 10 })).toEqual([]);
+            expect(await tx.listQuarantine(LIVE)).toEqual([]);
+            expect(await tx.listOperatorActions({ paymentId: "pay-1" })).toEqual([]);
+            // The failed transaction must not reserve unique keys or inbox event ids.
+            expect(await tx.insertInbox({ entry: inbox() })).toEqual({ inserted: true, id: "in-1" });
+            await tx.enqueueOutbox({ message: outbox() });
+            expect(await tx.listPendingOutbox({ limit: 10 })).toEqual([{ ...outbox(), publishedAt: null }]);
+          } });
+        });
+      });
+
+      test("a caught nested callback failure has no savepoint and its writes remain in the outer transaction", async () => {
+        await withLedger(async (ledger) => {
+          await ledger.transaction({ fn: async (tx) => {
+            await tx.insertPayment({ payment: payment() });
+            await expect(ledger.transaction({ fn: async (nested) => {
+              await nested.insertRefund({ refund: refund() });
+              throw new Error("callback failed after write");
+            } })).rejects.toThrow("callback failed after write");
+            expect(await tx.listRefunds({ paymentId: "pay-1" })).toEqual([refund()]);
+          } });
+          expect(await ledger.transaction({ fn: (tx) => tx.listRefunds({ paymentId: "pay-1" }) })).toEqual([refund()]);
+        });
+      });
+
+      test("retrying rolled-back outbox ids preserves enqueue order for equally timed messages", async () => {
+        await withLedger(async (ledger) => {
+          await expect(ledger.transaction({ fn: async (tx) => {
+            await tx.enqueueOutbox({ message: outbox({ id: "z-reused", createdAt: 100 }) });
+            await tx.enqueueOutbox({ message: outbox({ id: "m-rolled-back", createdAt: 100 }) });
+            throw new Error("retry this transaction");
+          } })).rejects.toThrow("retry this transaction");
+          await ledger.transaction({ fn: async (tx) => {
+            expect(await tx.listPendingOutbox({ limit: 10 })).toEqual([]);
+            await tx.enqueueOutbox({ message: outbox({ id: "z-reused", createdAt: 100, topic: "payment.succeeded", aggregateId: "pay-1" }) });
+            await tx.enqueueOutbox({ message: outbox({ id: "a-new", createdAt: 100 }) });
+          } });
+          expect(await ledger.transaction({ fn: (tx) => tx.listPendingOutbox({ limit: 10 }) })).toEqual([
+            { ...outbox({ id: "z-reused", createdAt: 100, topic: "payment.succeeded", aggregateId: "pay-1" }), publishedAt: null },
+            { ...outbox({ id: "a-new", createdAt: 100 }), publishedAt: null },
+          ]);
+        });
+      });
+    });
+
     describe("transactions", () => {
       test("a throw rolls back every write in the transaction and rethrows", async () => {
         await withLedger(async (ledger) => {

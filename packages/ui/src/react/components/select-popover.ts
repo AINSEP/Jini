@@ -118,7 +118,7 @@ export function useSelectPopoverPosition<P>(required: {
   // there indefinitely, nominally still "open" with no visible way to tell.
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll/resize listener wiring — see comment above; onOutOfView is read through latest; only lifecycle/ref changes re-arm it.
   useEffect(() => {
-    if (!open || !portal) return;
+    if (!open || !portal) return undefined;
     function reposition() {
       const trigger = triggerRef.current;
       if (!trigger) return;
@@ -163,7 +163,7 @@ export function useSelectPopover<P>(required: { measurePosition: (input: { trigg
     if (refocusTrigger) triggerRef.current?.focus();
   }
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     function onOutside(event: MouseEvent) {
       if (isSelectEventInside({ target: event.target as Node, trigger: triggerRef.current, panel: panelRef.current })) return;
       closePanel({ refocusTrigger: false });

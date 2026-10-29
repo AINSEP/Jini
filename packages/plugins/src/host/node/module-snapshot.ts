@@ -95,7 +95,10 @@ async function writeRuntimeSnapshot(
 /** Missing entries can race another boot's reap; every other filesystem failure stays visible. */
 async function inspectSnapshot({ snapshotRoot, fs }: { snapshotRoot: string; fs: PluginSnapshotFilesystem }): Promise<SnapshotStat | undefined> {
   try { return await fs.lstat(snapshotRoot); }
-  catch (error) { if (errorCode(error) !== "ENOENT") throw error; return undefined; }
+  catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error;
+    return undefined;
+  }
 }
 
 /** Recognize only atomic local ownership names; legacy/foreign snapshots remain unowned. */

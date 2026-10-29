@@ -24,7 +24,6 @@ import { createTrustedPluginFilesModule } from './trusted-plugin-files.js';
 import { createPluginContributionLoader } from './contribution-loader.js';
 import { createUninstallModule } from './uninstall.js';
 import type { AgentPluginLifecyclePorts, AgentPluginLifecycleRequired, AgentPluginLifecycleOptional } from './ports.js';
-import type { AgentPluginDeliveryMode } from './resolve-agent-plugin-refs.js';
 import type { InstalledDigestIdentity } from './bundled-digests.js';
 
 export type { SeededAgentPluginOutcome, SeedBundledAgentPluginsRequired, SeedBundledAgentPluginsOptional, SeedBundledAgentPluginsResult, PackingForSource } from './seed-bundled.js';

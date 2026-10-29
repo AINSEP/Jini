@@ -16,6 +16,15 @@
  * involved, so any host (React, Vue, a server-rendered list) can use it identically.
  */
 
+/** Strips leading and trailing `-` in one linear pass (the `/^-+|-+$/g` spelling backtracks). */
+function trimDashes(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text[start] === '-') start += 1;
+  while (end > start && text[end - 1] === '-') end -= 1;
+  return text.slice(start, end);
+}
+
 /**
  * Builds one distinct, stable base handle per id, positionally aligned with `ids`.
  *
@@ -43,7 +52,7 @@
 export function buildAgentListHandles({ prefix, ids }: { prefix: string; ids: readonly string[] }, _optional: Record<string, never> = {}): string[] {
   const used = new Set<string>();
   return ids.map((id, index) => {
-    const slug = id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const slug = trimDashes(id.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
     const preferred = `${prefix}-${slug === '' ? index + 1 : slug}`;
     let handle = preferred;
     let suffix = 2;

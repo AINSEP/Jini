@@ -12,6 +12,17 @@ import { createSentryObservabilityAdapter, type SentryConfigEnabled } from "../o
 const CONFIG: SentryConfigEnabled = { enabled: true, dsn: "https://public@sentry.invalid/1", tracesSampleRate: 1 };
 const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
 
+test.each(['ftp://public@sentry.invalid/123', 'https://%ZZ@sentry.invalid/123'])
+('a borrowed client advertises no crash upload for an unusable DSN %s', async dsn => {
+  const close = vi.fn(async () => true);
+  const resource = createSentryObservabilityAdapter({ config: { ...CONFIG, dsn } }, {
+    client: { close, getOptions: () => ({}) } as never,
+  });
+  try { assert.equal(Object.hasOwn(resource.port, 'crashUpload'), false); }
+  finally { await resource.dispose(); }
+  assert.equal(close.mock.calls.length, 0);
+});
+
 type Item = { type: string; payload: Record<string, any> };
 function recordingTransport() {
   const items: Item[] = [];

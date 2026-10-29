@@ -42,6 +42,21 @@ function flushAsync(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+it.each(['{}', '[1]', '[null]'])('rejects malformed startup IDs %s before server construction', async value => {
+  const create = vi.fn();
+  const deps = makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', [STARTUP_TOOL_IDS_ENV_VAR]: value },
+    createMcpToolServer: castMcpToolServer(create) });
+  await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+  expect(deps.errWritten).toEqual(['jini-mcp: JINI_STARTUP_TOOL_IDS must be a JSON array of registered tool IDs\n']);
+  expect(create).not.toHaveBeenCalled();
+});
+
+it('reports a non-Error server rejection through the stderr and exit boundary', async () => {
+  const deps = makeDeps({ createMcpToolServer: () => ({ run: async () => { throw 'transport unavailable'; } }) });
+  await expect(serve({}, deps)).rejects.toMatchObject({ code: 1 });
+  expect(deps.errWritten).toEqual(['jini-mcp: transport unavailable\n']);
+});
+
 describe('serve() — wiring, with a fully-injected fake createMcpToolServer', () => {
   it.each([false, true])('gates_the_message_tool_wrapper_and_nonce_guidance_at_spawn (relay: %s)', async enabled => {
     const nonce = 'a'.repeat(48);

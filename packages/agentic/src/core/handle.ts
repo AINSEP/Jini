@@ -19,6 +19,7 @@ import {
   isValidElementHandle,
   type AgentElementRole,
 } from './element-handles.js';
+import { omitKeys } from './omit-keys.js';
 
 /** Optional markup to attach alongside the handle itself. */
 export interface AgentHandleOptions {
@@ -142,6 +143,6 @@ export function agentHandleProps(_required: Record<string, never>, options: Agen
 ): AgentHandleProps | Record<string, never> {
   const { base } = options;
   if (base === undefined) return {};
-  const { action, base: _base, ...rest } = options;
+  const { action, ...rest } = omitKeys(options, ['base']);
   return agentHandle({ handle: action === undefined ? base : agentSubHandle({ base, action }) }, rest);
 }

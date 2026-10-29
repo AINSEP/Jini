@@ -53,7 +53,7 @@ test("macOS identity is unknown when sysctl output has no sec field", async () =
 test("Windows identity parses the UTC LastBootUpTime through a hidden, bounded PowerShell call", async () => {
   onPlatform("win32"); native.execFileSync.mockReturnValue("2023-11-14T22:15:23.0000000Z\r\n");
   expect(await freshRead()).toEqual({ id: String(Date.parse("2023-11-14T22:15:23Z")), startedAtMs: Date.parse("2023-11-14T22:15:23Z") });
-  expect(native.execFileSync).toHaveBeenCalledWith("powershell.exe",
+  expect(native.execFileSync).toHaveBeenCalledWith(expect.stringMatching(/\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i),
     ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"],
     { encoding: "utf8", timeout: 3000, windowsHide: true });
 });

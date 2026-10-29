@@ -383,13 +383,10 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
       // left to paint. The write itself still has to happen — through the same
       // lane as the debounce path, so it diffs against the base that is
       // current when it RUNS, not the one that was current when it was queued.
-      void writes.run({ task: () =>
-        runSave().then(
-          () => {},
-          // No view remains to show the failure; settings and native errors may contain secrets.
-          () => { console.error('[settings] Final save failed after unmount.'); },
-        ) },
-      );
+      // No view remains to show the failure; settings and native errors may contain secrets.
+      const reportFinalFailure = () => { console.error('[settings] Final save failed after unmount.'); };
+      const finalSave = async () => { try { await runSave(); } catch { reportFinalFailure(); } };
+      void writes.run({ task: finalSave });
     },
     [runSave, writes],
   );
@@ -406,16 +403,12 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
       // "operator has work in flight" signal, and a handle that never cleared would refuse every
       // external refresh for the rest of the component's life after the first keystroke.
       timer.current = null;
-      const ticket = ++saveTicket.current;
+      saveTicket.current += 1;
+      const ticket = saveTicket.current;
       setSaveState({ status: "saving" });
-      void writes.run({ task: () =>
-        commitQueuedSave({ ticket, deps: {
-          runSave,
-          currentTicket: () => saveTicket.current,
-          hasUnsavedEdits: () => hasUnsavedEdits.current,
-          setSaveState,
-        } }, {}) },
-      );
+      const deps = { runSave, currentTicket: () => saveTicket.current,
+        hasUnsavedEdits: () => hasUnsavedEdits.current, setSaveState };
+      void writes.run({ task: () => commitQueuedSave({ ticket, deps }, {}) });
     }, SAVE_DEBOUNCE_MS);
   }, [runSave, writes]);
 

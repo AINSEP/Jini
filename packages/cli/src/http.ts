@@ -109,13 +109,12 @@ async function readStreamText(body: ReadableStream<Uint8Array>, maxBytes: number
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done === true) break;
+      if (done === true) return text + decoder.decode();
       if (value === undefined) continue;
       total += value.byteLength;
       if (total > maxBytes) throw new ResponseTooLargeError(maxBytes);
       text += decoder.decode(value, { stream: true });
     }
-    return text + decoder.decode();
   } finally {
     reader.releaseLock();
   }
@@ -174,7 +173,7 @@ export interface PostJsonToDaemonOptions {
 /** `GET`'s options are identical to {@link PostJsonToDaemonOptions} minus the (POST-only) request body. */
 export type GetJsonFromDaemonOptions = PostJsonToDaemonOptions;
 
-interface RequestInit_ {
+interface DaemonRequestInit {
   readonly method: 'GET' | 'POST';
   readonly body?: unknown;
 }
@@ -217,7 +216,7 @@ function startDeadline({ route, timeoutMs }: { route: string; timeoutMs: number 
 }
 
 /** POST adds a JSON content-type (a caller header of the same name still wins) and the serialized body; GET sends only the caller headers. */
-function buildFetchInit(init: RequestInit_, headers: Record<string, string> | undefined, signal: AbortSignal): RequestInit {
+function buildFetchInit(init: DaemonRequestInit, headers: Record<string, string> | undefined, signal: AbortSignal): RequestInit {
   if (init.method === 'POST') {
     return { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(init.body), signal };
   }
@@ -247,7 +246,7 @@ function exitForReadFailure({ err, base, route, controller }: { err: unknown; ba
  * just the connection phase.
  */
 async function fetchJsonWithinDeadline(
-  { base, route, init }: { base: string; route: string; init: RequestInit_ },
+  { base, route, init }: { base: string; route: string; init: DaemonRequestInit },
   { options, structured }: { options: PostJsonToDaemonOptions; structured: StructuredExitOptions },
 ): Promise<{ resp: Response; data: unknown }> {
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -274,7 +273,7 @@ async function fetchJsonWithinDeadline(
 
 /** Maps a non-2xx daemon response to a structured exit: a recognized `error.code` keeps its own exit code and sanitized message/data; anything else exits with a bounded, redacted payload excerpt. */
 function exitForDaemonError(
-  { resp, data, method, route }: { resp: Response; data: unknown; method: RequestInit_['method']; route: string },
+  { resp, data, method, route }: { resp: Response; data: unknown; method: DaemonRequestInit['method']; route: string },
   structured: StructuredExitOptions,
 ): never {
   const errorObj = (data as DaemonJsonErrorBody | null)?.error;
@@ -299,7 +298,7 @@ function exitForDaemonError(
  * call site — nothing method-specific lives here beyond that.
  */
 async function requestJsonFromDaemon(
-  { base, route, init }: { base: string; route: string; init: RequestInit_ },
+  { base, route, init }: { base: string; route: string; init: DaemonRequestInit },
   options: PostJsonToDaemonOptions,
 ): Promise<unknown> {
   const structured = structuredExitOptions(options);

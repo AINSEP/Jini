@@ -95,6 +95,38 @@ describe("reconcileUnknown: payments", () => {
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 1 })).payments.scanned).toBe(1);
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 }, { scope: { workspaceId: "ws", mode: "test" } })).payments.scanned).toBe(1);
   });
+
+  test("a provider promising retrieval without a callable method is left for an operator", async () => {
+    const alerts = recordingAlerts();
+    const w = await world({ alerts, scriptedOmit: ["retrieve"] });
+    const payment = await insertPayment(w, { id: "p_hollow", providerId: "scripted", providerRef: "sp_hollow" });
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments).toEqual({ ...zero, scanned: 1, left: 1 });
+    expect(alerts.raised).toEqual([{
+      kind: "unknown-aged", workspaceId: "ws", mode: "test", paymentId: payment.id,
+      detail: "payment p_hollow is unknown: provider 'scripted' cannot retrieve",
+    }]);
+    expect(w.scripted.calls).toEqual([]);
+    expect((await w.read(payment.id)).payment).toMatchObject({ intentStatus: "unknown", capturedMinor: 0 });
+  });
+
+  test.each([
+    ["throw", "provider threw: scripted retrieve exploded"],
+    ["throw-value", "provider threw: scripted retrieve threw a string"],
+    ["garbage", "provider returned no readable Outcome"],
+  ] as const)("a retrieve that returns %s leaves money unknown even when the alert sink fails", async (answer, message) => {
+    const alerts = recordingAlerts({ fail: true });
+    const w = await world({ alerts });
+    const payment = await insertPayment(w, { id: "p_unreadable", providerId: "scripted", providerRef: "sp_unreadable" });
+    w.scripted.queue("retrieve", answer);
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments).toEqual({ ...zero, scanned: 1, left: 1 });
+    expect(alerts.raised).toEqual([{
+      kind: "unknown-aged", workspaceId: "ws", mode: "test", paymentId: payment.id, detail: `payment p_unreadable is unknown: ${message}`,
+    }]);
+    const after = await w.read(payment.id);
+    expect(after.payment).toMatchObject({ intentStatus: "unknown", currency: "USD", capturedMinor: 0 });
+    expect(after.evidence).toEqual([]);
+    expect(after.outbox).toEqual([]);
+  });
 });
 
 describe("reconcileUnknown: refunds", () => {
@@ -205,6 +237,41 @@ describe("reconcileUnknown: refunds", () => {
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).refunds).toEqual({ ...zero, scanned: 1, left: 1 });
     expect(alerts.raised.at(-1)?.detail).toBe(`refund ${refundId} is unsettled: timed out`);
   });
+
+  test("a quarantined refund explicitly correlated to ours cannot prove that ours never existed", async () => {
+    const alerts = recordingAlerts();
+    const w = await world({ alerts, scripted: { capture: "auto", retrieve: "payment+refunds" } });
+    const { id, refundId } = await unknownRefund(w, "payment+refunds");
+    w.scripted.queue("retrieve", { kind: "ok", value: {
+      providerRef: `sp_${id}`, status: "succeeded", disputes: [],
+      refunds: [{ providerRefundRef: "provider-refund", correlationId: refundId, amount: USD(3_001), status: "succeeded" }],
+    } });
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).refunds).toEqual({ ...zero, scanned: 1, left: 1 });
+    const after = await w.read(id);
+    expect(after.refunds).toEqual([expect.objectContaining({ id: refundId, status: "unknown", amountMinor: 3_000, providerRefundRef: null })]);
+    expect(after.payment).toMatchObject({ currency: "USD", capturedMinor: 10_000, refundHeldMinor: 3_000, refundedMinor: 0 });
+    expect(alerts.raised.map((a) => a.kind)).toEqual(["quarantine", "unknown-aged"]);
+    expect(alerts.raised.at(-1)?.detail).toBe(`refund ${refundId} is unknown: the snapshot lists a refund that may be it`);
+  });
+
+  test("a snapshot refund bound to a different refund row does not keep our absent refund held", async () => {
+    const w = await world({ scripted: { capture: "auto", retrieve: "payment+refunds" } });
+    const { id, refundId } = await unknownRefund(w, "payment+refunds");
+    const grant = await w.grant({ op: "refund", scope: SCRIPTED, paymentId: id, amount: USD(101), idempotencyKey: "second-refund" });
+    const other = await w.service.refund({ scope: SCRIPTED, paymentId: id, amount: USD(101), idempotencyKey: "second-refund", grant });
+    expect(other.ok).toBe(true);
+    if (!other.ok) throw new Error("fixture refund failed");
+    const row = (await w.read(id)).refunds.find((r) => r.id === other.refund.id)!;
+    w.scripted.queue("retrieve", { kind: "ok", value: {
+      providerRef: `sp_${id}`, status: "succeeded", disputes: [],
+      refunds: [{ providerRefundRef: row.providerRefundRef!, correlationId: row.id, amount: USD(101), status: "succeeded" }],
+    } });
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).refunds).toEqual({ ...zero, scanned: 1, failed: 1 });
+    const after = await w.read(id);
+    expect(after.refunds.find((r) => r.id === refundId)?.status).toBe("failed");
+    expect(after.refunds.find((r) => r.id === row.id)?.status).toBe("succeeded");
+    expect(after.payment).toMatchObject({ currency: "USD", capturedMinor: 10_000, refundHeldMinor: 0, refundedMinor: 101 });
+  });
 });
 
 /** A held authorization whose capture (or void) timed out: the attempt is `unknown`, the payment still authorized. */
@@ -249,6 +316,17 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
 }
 
 describe("reconcileUnknown: capture/void attempts, without asking the provider or leaving them open", () => {
+  test("a retrieved cancellation settles a lost void without charging the authorization", async () => {
+    const w = await world();
+    const { id, attemptId } = await ambiguous(w, "void");
+    w.scripted.queue("retrieve", { kind: "ok", value: { providerRef: `sp_${id}`, status: "canceled", refunds: [], disputes: [] } });
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).attempts)
+      .toEqual({ ...zero, scanned: 1, settled: 1 });
+    expect(await attemptOf(w, id, attemptId)).toMatchObject({ op: "void", outcome: "ok" });
+    expect((await w.read(id)).payment).toMatchObject({ intentStatus: "canceled", status: "canceled", currency: "USD", capturedMinor: 0 });
+    expect(w.scripted.calls.map((c) => c.op)).toEqual(["createIntent", "void", "retrieve"]);
+  });
+
   test("a payment already moved by a webhook settles the attempt from the ledger alone (no retrieve)", async () => {
     const w = await world();
     const done = await ambiguous(w, "void", "ik-1");
@@ -306,6 +384,17 @@ describe("reconcileUnknown: capture/void attempts, without asking the provider o
 });
 
 describe("reconcileUnknown: limited passes make progress past rows that never settle (cursor)", () => {
+  test("a zero scan limit visits no rows and returns empty cursors without calling the provider", async () => {
+    const alerts = recordingAlerts();
+    const w = await world({ alerts });
+    const payment = await insertPayment(w, { id: "p_zero_limit", providerId: "scripted", providerRef: "sp_zero_limit" });
+    expect(await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 0 }))
+      .toEqual({ payments: zero, refunds: zero, attempts: zero, cursor: restart });
+    expect(w.scripted.calls).toEqual([]);
+    expect(alerts.raised).toEqual([]);
+    expect((await w.read(payment.id)).payment?.intentStatus).toBe("unknown");
+  });
+
   test("payments, refunds and attempts: consecutive limit-1 passes visit every row, then start over", async () => {
     const alerts = recordingAlerts();
     const w = await world({ alerts, scripted: { retrieve: "none" } });

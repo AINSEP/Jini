@@ -49,7 +49,8 @@ export function followDurableRun(
   }
 
   function open() {
-    const epoch = ++streamEpoch;
+    streamEpoch += 1;
+    const epoch = streamEpoch;
     dropped = false;
     stopStream?.();
     stopStream = ports.stream({ runId, cursor,

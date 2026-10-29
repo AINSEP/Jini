@@ -21,6 +21,7 @@ export function createOverlayController(
   const store = createControllerStore({ initial: { entries: [] as readonly OverlayEntry[] } });
   let sequence = 0,
     cancelActive: (() => void) | null = null;
+  const nextSequence = () => { sequence += 1; return sequence; };
   return {
     getSnapshot: store.getSnapshot,
     subscribe: store.subscribe,
@@ -49,7 +50,7 @@ export function createOverlayController(
         signal?.addEventListener('abort', cancel, { once: true });
         store.set({
           patch: {
-            entries: [{ id: ++sequence, render: () => render({ resolve: finish, cancel }) }],
+            entries: [{ id: nextSequence(), render: () => render({ resolve: finish, cancel }) }],
           },
         });
       });

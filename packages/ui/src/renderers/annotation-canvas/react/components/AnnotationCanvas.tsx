@@ -11,7 +11,7 @@
 import { createPortal } from 'react-dom';
 import type { ReactElement, ReactNode } from 'react';
 import type { AnnotationCanvasPort } from '../../ports.js';
-import type { CaptureTarget, DrawToolbarElement, AnnotationAction } from '../../types.js';
+import type { CaptureTarget, DrawToolbarElement, AnnotationAction, MarkTool } from '../../types.js';
 import {
   useAnnotationCanvas,
   type AnnotationCanvasController,
@@ -41,6 +41,12 @@ export interface AnnotationCanvasProps {
 
 function maybePortal(node: ReactNode, host: HTMLElement | null | undefined) {
   return host ? createPortal(node, host) : node;
+}
+
+/** Crosshair for drawing tools, an I-beam for the text tool, the default pointer while inactive. */
+function annotationCursor(active: boolean, markTool: MarkTool): string {
+  if (!active) return 'default';
+  return markTool === 'text' ? 'text' : 'crosshair';
 }
 
 export function AnnotationCanvas(props: AnnotationCanvasProps) {
@@ -92,7 +98,7 @@ function DrawingCanvas({ c, active }: { c: AnnotationCanvasController; active: b
         position: 'absolute',
         inset: 0,
         pointerEvents: active ? 'auto' : 'none',
-        cursor: active ? (c.markTool === 'text' ? 'text' : 'crosshair') : 'default',
+        cursor: annotationCursor(active, c.markTool),
         visibility: c.chromeHidden ? 'hidden' : 'visible',
         touchAction: 'none',
         userSelect: 'none',

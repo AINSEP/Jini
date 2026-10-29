@@ -83,11 +83,10 @@ function assertOidcConfiguration({ clientId, nowMs, tolerance, expectedNonce, is
     clientId: string; nowMs: number; tolerance: number; expectedNonce: string | null;
     issuerUrl: URL; jwksUrl: URL;
 }, optionalArgs: Pick<ValidateOidcIdTokenInput, 'maxAgeSeconds'> = {}): void {
-    if (!clientId || !Number.isFinite(nowMs) || !Number.isFinite(tolerance) || tolerance < 0
-        || invalidNonce({ expectedNonce })
-        || invalidIssuerUrl({ issuerUrl })
-        || invalidJwksUrl({ jwksUrl })
-        || invalidMaxAge(optionalArgs))
+    const invalidClock = !Number.isFinite(nowMs) || !Number.isFinite(tolerance) || tolerance < 0;
+    const invalidMetadata = invalidIssuerUrl({ issuerUrl }) || invalidJwksUrl({ jwksUrl });
+    const invalidExpectations = invalidNonce({ expectedNonce }) || invalidMaxAge(optionalArgs);
+    if (!clientId || invalidClock || invalidMetadata || invalidExpectations)
         throw new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message: 'the OpenID Connect validation configuration is invalid',
             operatorAction: 'Supply trusted issuer/JWKS metadata, a client identity, clock and explicit nonce expectation.' });
 }

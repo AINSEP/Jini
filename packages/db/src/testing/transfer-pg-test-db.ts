@@ -35,7 +35,8 @@ export function createTransferPgTestDb(
   const host = env.PGHOST;
   const connectionFor = (database: string, password?: string): string => {
     const auth = password === undefined ? user : `${user}:${password}`;
-    return `postgresql://${auth}@localhost:${port}/${database}${host !== undefined ? `?host=${encodeURIComponent(host)}` : ""}`;
+    const query = host === undefined ? "" : "?host=" + encodeURIComponent(host);
+    return `postgresql://${auth}@localhost:${port}/${database}${query}`;
   };
   const sql = async (database: string, statement: string): Promise<string> => {
     const result = await target(connectionFor(database)).query(statement);

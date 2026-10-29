@@ -6,6 +6,7 @@ import {
   $isParagraphNode,
   $isTextNode,
   type EditorState,
+  type LexicalNode,
   type ParagraphNode,
 } from 'lexical';
 import { $isMentionNode } from './mention-node.js';
@@ -43,14 +44,18 @@ function serializeParagraph(at: {
 }): string {
   let line = '';
   for (const child of at.paragraph.getChildren()) {
-    if ($isMentionNode(child)) {
-      line += child.getToken();
-      at.mentions.push(child.getEntity());
-    } else if ($isLineBreakNode(child)) {
-      line += '\n';
-    } else if ($isTextNode(child) || $isElementNode(child)) {
-      line += child.getTextContent();
-    }
+    line += serializedChildText(child, at.mentions);
   }
   return line;
+}
+
+/** One paragraph child's plain-text contribution; a mention also records its entity. Other node kinds add nothing. */
+function serializedChildText(child: LexicalNode, mentions: SerializedRichText['mentions']): string {
+  if ($isMentionNode(child)) {
+    mentions.push(child.getEntity());
+    return child.getToken();
+  }
+  if ($isLineBreakNode(child)) return '\n';
+  if ($isTextNode(child) || $isElementNode(child)) return child.getTextContent();
+  return '';
 }

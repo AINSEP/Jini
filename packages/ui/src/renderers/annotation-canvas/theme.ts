@@ -4,8 +4,10 @@ import { defaultAdminTheme } from '../../theme/default.js';
 export function resolveAnnotationTheme({ canvas }: { readonly canvas?: HTMLCanvasElement },
   { getComputedStyle }: { readonly getComputedStyle?: (element: Element) => CSSStyleDeclaration } = {}) {
   const document = canvas?.ownerDocument;
-  const readStyle = getComputedStyle ?? (document?.defaultView ? document.defaultView.getComputedStyle.bind(document.defaultView) : undefined);
-  const style = document && readStyle ? readStyle(canvas?.isConnected ? canvas : document.documentElement) : undefined;
+  const view = document?.defaultView;
+  const readStyle = getComputedStyle ?? view?.getComputedStyle.bind(view);
+  let style: CSSStyleDeclaration | undefined;
+  if (document && readStyle) style = readStyle(canvas?.isConnected ? canvas : document.documentElement);
   const read = (name: string, fallback: string) => style?.getPropertyValue(name).trim() || fallback;
   return {
     stroke: read('--jini-danger', defaultAdminTheme.light.danger),

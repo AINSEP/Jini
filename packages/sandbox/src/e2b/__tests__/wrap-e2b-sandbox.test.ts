@@ -79,6 +79,18 @@ function createFakeHandle() {
 
 const CONFIG = { projectRoot: '/root', previewPort: 4000, previewCheckTimeoutMs: 100 };
 
+it('VM termination failure takes precedence over an earlier watcher cleanup failure', async () => {
+  const f = createFakeHandle();
+  const session = await wrapE2bSandbox({ handle: f.handle, config: CONFIG });
+  f.watchStop.mockRejectedValueOnce(new Error('watch cleanup failed'));
+  const cause = new Error('VM termination failed');
+  f.kill.mockRejectedValueOnce(cause);
+  await expect(session.teardown()).rejects.toMatchObject({ name: 'SandboxOperationError',
+    message: 'Failed to terminate the sandbox', category: 'unknown', cause });
+  expect(f.watchStop).toHaveBeenCalledOnce();
+  expect(f.kill).toHaveBeenCalledOnce();
+});
+
 describe('wrapE2bSandbox', () => {
   it('creates the project root and starts a recursive watch before returning', async () => {
     const fake = createFakeHandle();

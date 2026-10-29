@@ -23,7 +23,8 @@ import type { DerivedPaymentStatus, DisputeStatus, IntentStatus, RefundStatus } 
 // ---------------------------------------------------------------------------------------------
 // The one integer decoder.
 
-const DECIMAL_INTEGER = /^-?\d+$/;
+// Unlike `$`, this end assertion cannot match before a trailing line terminator.
+const DECIMAL_INTEGER = /^-?\d+(?![\s\S])/;
 
 function fail(value: unknown): never {
   throw new TypeError(`ledger: expected a safe integer from the database, got ${typeof value} ${String(value)}`);

@@ -121,9 +121,9 @@ export function registerDaemonCommands({ registry, resolveBaseUrl }: { registry:
         case '--help':
         case '-h':
           (deps.write ?? defaultWrite)({ text: `${DAEMON_USAGE}\n` });
-          return;
+          return undefined;
         default:
-          invalidFlag(deps, `unknown "daemon" subcommand: ${sub}`);
+          return invalidFlag(deps, `unknown "daemon" subcommand: ${sub}`);
       }
     } }, { usage: DAEMON_USAGE });
 }

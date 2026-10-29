@@ -51,9 +51,8 @@ function changeFiles({ files: base, changes, paths, limits }: {
 function changeFile({ files, change, path, limits }: {
   files: Map<string, Uint8Array>; change: FileChange; path: string; limits: ProjectLimits;
 }): void {
-  if (change.op === 'create') {
-    if (files.has(path)) fail('INVALID_CHANGE', `file already exists: ${path}`);
-  } else if (!files.has(path)) fail('INVALID_CHANGE', `file not listed: ${path}`);
+  if (change.op === 'create' && files.has(path)) fail('INVALID_CHANGE', `file already exists: ${path}`);
+  if (change.op !== 'create' && !files.has(path)) fail('INVALID_CHANGE', `file not listed: ${path}`);
   if (change.op === 'delete') { files.delete(path); return; }
   if (change.content.length > limits.maxFileBytes) fail('LIMIT', `file exceeds byte limit: ${path}`);
   const bytes = new TextEncoder().encode(change.content);
@@ -285,14 +284,16 @@ function assembleProject({ store, paths, limits, historyLimit, validator }: {
     undo: () => replay('undo'), redo: () => replay('redo'), restore: restoreText,
     entries: rawHistory.entries, retainedEntries: rawHistory.retainedEntries, clear: rawHistory.clear,
   };
+  const listPartsLocked = async () => [...(await captureLocked()).keys()].sort().map(id => ({ id }));
+  const readPartLocked = async (id: string) => {
+    paths.check({ relativePath: id });
+    const manifest = await store.manifest({ revisionId: selected().revision });
+    if (!manifest.files.some(file => file.path === id)) fail('INVALID_CHANGE', `file not listed: ${id}`);
+    return decodeText({ bytes: await store.readWorkingFile({ relativePath: id }) });
+  };
   const target: EditTarget = {
-    listParts: () => serial(() => locked(async () => [...(await captureLocked()).keys()].sort().map(id => ({ id })))),
-    readPart: ({ id }) => serial(() => locked(async () => {
-      paths.check({ relativePath: id });
-      const manifest = await store.manifest({ revisionId: selected().revision });
-      if (!manifest.files.some(file => file.path === id)) fail('INVALID_CHANGE', `file not listed: ${id}`);
-      return decodeText({ bytes: await store.readWorkingFile({ relativePath: id }) });
-    })),
+    listParts: () => serial(() => locked(listPartsLocked)),
+    readPart: ({ id }) => serial(() => locked(() => readPartLocked(id))),
     replacePart: async edit => {
       const outcomes = await applyEdits({ edits: [edit] });
       const outcome = outcomes[0]!;

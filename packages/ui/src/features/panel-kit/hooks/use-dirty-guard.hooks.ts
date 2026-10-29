@@ -24,7 +24,7 @@ export function useDirtyGuard<T>({ current, original }: { current: T; original: 
   const isDirty = original !== null && !shallowJsonEqual(current, original);
 
   useEffect(() => {
-    if (!isDirty) return;
+    if (!isDirty) return undefined;
     function onBeforeUnload(e: BeforeUnloadEvent) {
       e.preventDefault();
       // Both assignments are the standard cross-browser incantation (the returned string is

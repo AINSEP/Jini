@@ -1,3 +1,4 @@
+import { drainRunEventFrames } from './run-event-frames.js';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import {
   buildTranscript,
@@ -103,66 +104,51 @@ export function toAgentEvent(event: RunProtocolEventWire, handlers: RunHandlers)
   if (event.kind !== 'agent') return null;
 
   const payload = event.payload as Record<string, unknown>;
-  if (payload.type === 'status' && typeof payload.label === 'string') {
-    return {
-      kind: 'status',
-      label: payload.label,
-      ...(typeof payload.detail === 'string' ? { detail: payload.detail } : {}),
-    };
-  }
-  if (payload.type === 'text_delta' && typeof payload.delta === 'string') {
-    return { kind: 'text', text: payload.delta };
-  }
-  if (payload.type === 'thinking_delta' && typeof payload.delta === 'string') {
-    return { kind: 'thinking', text: payload.delta };
-  }
-  if (
-    payload.type === 'tool_input_delta' &&
-    typeof payload.id === 'string' &&
-    typeof payload.name === 'string' &&
-    typeof payload.delta === 'string'
-  ) {
-    handlers.onToolInputDelta?.(payload.id, payload.name, payload.delta);
-    return null;
-  }
-  if (payload.type === 'tool_use' && typeof payload.id === 'string' && typeof payload.name === 'string') {
-    return { kind: 'tool_use', id: payload.id, name: payload.name, input: payload.input };
-  }
-  if (payload.type === 'tool_result' && typeof payload.toolUseId === 'string' && typeof payload.content === 'string') {
-    return {
-      kind: 'tool_result',
-      toolUseId: payload.toolUseId,
-      content: payload.content,
-      isError: payload.isError === true,
-    };
-  }
-  if (payload.type === 'usage') {
-    const usage = payload.usage as { input_tokens?: unknown; output_tokens?: unknown } | undefined;
-    return {
-      kind: 'usage',
-      ...(typeof usage?.input_tokens === 'number' ? { inputTokens: usage.input_tokens } : {}),
-      ...(typeof usage?.output_tokens === 'number' ? { outputTokens: usage.output_tokens } : {}),
-      ...(typeof payload.costUsd === 'number' ? { costUsd: payload.costUsd } : {}),
-      ...(typeof payload.durationMs === 'number' ? { durationMs: payload.durationMs } : {}),
-    };
-  }
-  if (payload.type === 'a2ui') {
-    // Unwrap `.message` here rather than letting the generic `ext` fallback below carry the whole
-    // `{type, message}` envelope — `A2uiSurfaceCard` (registered against `ext-event-renderer-registry.ts`'s
-    // `'a2ui'` name) expects each event's `data` to already be one real `AgentToRendererMessage`.
-    return { kind: 'ext', name: 'a2ui', data: payload.message };
-  }
+  const convert = typeof payload.type === 'string' ? AGENT_EVENT_READERS.get(payload.type) : undefined;
+  const converted = convert?.(payload, handlers);
+  if (converted !== undefined) return converted;
   return { kind: 'ext', name: typeof payload.type === 'string' ? payload.type : 'agent', data: payload };
 }
 
-function parseSseFrame(frame: string): RunProtocolEventWire | null {
-  const data = frame
-    .split('\n')
-    .filter((line) => line.startsWith('data:'))
-    .map((line) => line.slice(5).trimStart())
-    .join('\n');
-  if (data.length === 0) return null;
-  return JSON.parse(data) as RunProtocolEventWire;
+type AgentPayloadReader = (payload: Record<string, unknown>, handlers: RunHandlers) => AgentEvent | null | undefined;
+const AGENT_EVENT_READERS = new Map<string, AgentPayloadReader>([
+  ['status', payload => {
+    if (typeof payload.label !== 'string') return undefined;
+    return { kind: 'status', label: payload.label, ...(typeof payload.detail === 'string' ? { detail: payload.detail } : {}) };
+  }],
+  ['text_delta', payload => typeof payload.delta === 'string' ? { kind: 'text', text: payload.delta } : undefined],
+  ['thinking_delta', payload => typeof payload.delta === 'string' ? { kind: 'thinking', text: payload.delta } : undefined],
+  ['tool_input_delta', (payload, handlers) => {
+    if (typeof payload.id !== 'string' || typeof payload.name !== 'string' || typeof payload.delta !== 'string') return undefined;
+    handlers.onToolInputDelta?.(payload.id, payload.name, payload.delta);
+    return null;
+  }],
+  ['tool_use', payload => {
+    if (typeof payload.id !== 'string' || typeof payload.name !== 'string') return undefined;
+    return { kind: 'tool_use', id: payload.id, name: payload.name, input: payload.input };
+  }],
+  ['tool_result', payload => {
+    if (typeof payload.toolUseId !== 'string' || typeof payload.content !== 'string') return undefined;
+    return { kind: 'tool_result', toolUseId: payload.toolUseId, content: payload.content, isError: payload.isError === true };
+  }],
+  ['usage', usageAgentEvent],
+  ['a2ui', payload => {
+    // Unwrap `.message` here rather than letting the generic `ext` fallback below carry the whole
+    // `{type, message}` envelope — `A2uiSurfaceCard` (registered against `ext-event-renderer-registry.ts`'s
+    // 'a2ui' name) expects each event's `data` to already be one real `AgentToRendererMessage`.
+    return { kind: 'ext', name: 'a2ui', data: payload.message };
+  }],
+]);
+
+function usageAgentEvent(payload: Record<string, unknown>): AgentEvent {
+  const usage = payload.usage as { input_tokens?: unknown; output_tokens?: unknown } | undefined;
+  return {
+    kind: 'usage',
+    ...(typeof usage?.input_tokens === 'number' ? { inputTokens: usage.input_tokens } : {}),
+    ...(typeof usage?.output_tokens === 'number' ? { outputTokens: usage.output_tokens } : {}),
+    ...(typeof payload.costUsd === 'number' ? { costUsd: payload.costUsd } : {}),
+    ...(typeof payload.durationMs === 'number' ? { durationMs: payload.durationMs } : {}),
+  };
 }
 
 async function streamRun(
@@ -189,37 +175,39 @@ async function streamRun(
     for (;;) {
       const { value, done } = await reader.read();
       buffered += decoder.decode(value, { stream: !done }).replaceAll('\r\n', '\n');
-      let boundary = buffered.indexOf('\n\n');
-      while (boundary >= 0) {
-        const frame = buffered.slice(0, boundary);
-        buffered = buffered.slice(boundary + 2);
-        boundary = buffered.indexOf('\n\n');
-        const wireEvent = parseSseFrame(frame);
-        if (!wireEvent) continue;
-        if (wireEvent.kind === 'error') {
-          const payload = wireEvent.payload as { message?: unknown };
-          handlers.onError(new Error(typeof payload.message === 'string' ? payload.message : 'The run failed'));
-          continue;
-        }
-        if (wireEvent.kind === 'end') {
-          const payload = wireEvent.payload as { status?: unknown };
-          if (payload.status === 'failed') handlers.onError(new Error('The agent run failed'));
-          reachedEnd = true;
-          handlers.onDone(events);
-          continue;
-        }
-        const event = toAgentEvent(wireEvent, handlers);
-        if (event) {
-          events.push(event);
-          handlers.onEvent(event);
-        }
-      }
+      buffered = drainRunEventFrames({ buffered, onEvent: wireEvent => {
+        if (deliverRunEvent({ wireEvent: wireEvent as RunProtocolEventWire, events, handlers })) reachedEnd = true;
+      } });
       if (done) break;
     }
     if (!reachedEnd && !signal?.aborted) throw new Error('The daemon event stream closed before the run ended');
   } finally {
     reader.releaseLock();
   }
+}
+
+function deliverRunEvent({ wireEvent, events, handlers }: { wireEvent: RunProtocolEventWire; events: AgentEvent[]; handlers: RunHandlers }): boolean {
+  if (wireEvent.kind === 'error') {
+    const payload = wireEvent.payload as { message?: unknown };
+    handlers.onError(new Error(typeof payload.message === 'string' ? payload.message : 'The run failed'));
+    return false;
+  }
+  if (wireEvent.kind === 'end') {
+    const payload = wireEvent.payload as { status?: unknown };
+    if (payload.status === 'failed') handlers.onError(new Error('The agent run failed'));
+    handlers.onDone(events);
+    return true;
+  }
+  const event = toAgentEvent(wireEvent, handlers);
+  if (event) {
+    events.push(event);
+    handlers.onEvent(event);
+  }
+  return false;
+}
+
+function nonEmptyRunOption(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 export function createDaemonChatTransport(): ChatTransport {
@@ -230,20 +218,11 @@ export function createDaemonChatTransport(): ChatTransport {
       if (!prompt) throw new Error('A prompt is required');
       const context = (input.context ?? {}) as PlaygroundContext;
       const project = typeof context.project === 'string' ? context.project : 'starter-site';
-      const model = typeof context.model === 'string' && context.model.length > 0 ? context.model : undefined;
-      const reasoning =
-        typeof context.reasoning === 'string' && context.reasoning.length > 0
-          ? context.reasoning
-          : undefined;
-      const workingDirectory =
-        typeof context.workingDirectory === 'string' && context.workingDirectory.length > 0
-          ? context.workingDirectory
-          : undefined;
+      const model = nonEmptyRunOption(context.model);
+      const reasoning = nonEmptyRunOption(context.reasoning);
+      const workingDirectory = nonEmptyRunOption(context.workingDirectory);
       // Proves which tab started this run so page.* calls can be routed back to it.
-      const frontendBindToken =
-        typeof context.frontendBindToken === 'string' && context.frontendBindToken.length > 0
-          ? context.frontendBindToken
-          : undefined;
+      const frontendBindToken = nonEmptyRunOption(context.frontendBindToken);
       const response = await fetchWithTimeout(
         '/api/runs',
         {

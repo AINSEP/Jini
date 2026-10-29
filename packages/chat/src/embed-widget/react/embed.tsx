@@ -61,7 +61,7 @@ export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
   useEffect(() => { session.save({ state: { open, messages } }); }, [session, open, messages]);
   useEffect(() => {
     const queued = { value: session.drain({}) };
-    if (!isQueuedPageAction(queued) || queued.value.type === 'navigate') return;
+    if (!isQueuedPageAction(queued) || queued.value.type === 'navigate') return undefined;
     const action = queued.value;
     return scheduleFrame({ callback: () => { pageActions.execute({ action }); } });
   }, [session, pageActions, scheduleFrame]);
@@ -89,7 +89,10 @@ export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
     const actions = extractPageActions({ events: latest.events, directiveEventName })
       .filter(action => pageActions.allows({ action }));
     const { navigate, other } = splitPageActions({ actions });
-    if (!navigate) { if (other) pageActions.execute({ action: other }); return; }
+    if (!navigate) {
+      if (other) pageActions.execute({ action: other });
+      return;
+    }
     const proposal = { navigate, bundled: other };
     if (navigate.auto) go(proposal, next); else setPending(proposal);
   }, [directiveEventName, pageActions, go]);

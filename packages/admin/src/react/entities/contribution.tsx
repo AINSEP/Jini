@@ -1,3 +1,4 @@
+import { trimCharsEnd } from '@jini-ai/core/text';
 import type { AdminNavEntry } from '../../core/manifest/types.js';
 import type { AdminShellPanel } from '../shell/types.js';
 import type { EntityRegistryPort, EntityRoutesPort, EntityRouteTarget, EntityTranslate } from './types.js';
@@ -26,7 +27,7 @@ function decodeSegment({ value }: { readonly value: string }): string {
 export function createEntityRoutes({ adminBase, panelId, navigate }: EntityRouteDependencies): EntityRoutesPort {
   if (!/^[a-zA-Z0-9_-]+$/.test(panelId)) throw new Error('Entity panelId must be one URL segment');
   if (!adminBase.startsWith('/') || adminBase.startsWith('//') || /[?#]/.test(adminBase)) throw new Error('Entity adminBase must be an absolute pathname');
-  const base = adminBase.replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: adminBase, chars: '/' });
   function routePath({ entity, id, view }: EntityRouteTarget): string {
     const root = `/${panelId}`;
     if (entity === undefined) return root;

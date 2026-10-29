@@ -12,8 +12,20 @@ export function validatePrivacyPolicy({ privacyPolicy: policy }: { privacyPolicy
   }
 }
 
-/** Loose email-shape check — deliberately simple for v1, not a general PII classifier. */
-const EMAIL_SHAPE_PATTERN = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+const DOMAIN_RUN = /[^\s@]+/y;
+/** Loose email-shape check — deliberately simple for v1, not a general PII classifier.
+ * Same verdict as `/[^\s@]+@[^\s@]+\.[^\s@]+/.test(text)` in linear time: some `@` has a local
+ * part before it and, after it, a run with a dot that is neither its first nor its last character. */
+function hasEmailShape(text: string): boolean {
+  for (let at = text.indexOf("@"); at !== -1; at = text.indexOf("@", at + 1)) {
+    if (at === 0 || /[\s@]/.test(text.charAt(at - 1))) continue;
+    DOMAIN_RUN.lastIndex = at + 1;
+    const domain = DOMAIN_RUN.exec(text)?.[0] ?? "";
+    const dot = domain.indexOf(".", 1);
+    if (dot !== -1 && dot < domain.length - 1) return true;
+  }
+  return false;
+}
 
 /** Decodes one path segment for the shape check; a malformed escape is checked as written. */
 function decodedSegment(segment: string): string {
@@ -27,12 +39,15 @@ function decodedSegment(segment: string): string {
  * @complexity O(n) over the path's characters.
  */
 export function redactPiiPathSegments(required: { path: string }, _optional: Record<string, never> = {}): string {
-  return required.path.split("/").map((segment) => (EMAIL_SHAPE_PATTERN.test(decodedSegment(segment)) ? ":redacted" : segment)).join("/");
+  return required.path.split("/").map((segment) => (hasEmailShape(decodedSegment(segment)) ? ":redacted" : segment)).join("/");
 }
 
 /** Property-key names that read as PII by themselves, regardless of value. */
-const PII_KEY_NAME_PATTERN =
-  /email|phone|ssn|social[-_]?security|password|credit[-_]?card|street[-_]?address|full[-_]?name|first[-_]?name|last[-_]?name/i;
+const PII_KEY_NAMES = [
+  "email", "phone", "ssn", "social[-_]?security", "password", "credit[-_]?card", "street[-_]?address",
+  "full[-_]?name", "first[-_]?name", "last[-_]?name",
+];
+const PII_KEY_NAME_PATTERN = new RegExp(PII_KEY_NAMES.join("|"), "i");
 
 /** Check one property or beacon label using the shared PII and string bounds; queue nested values.
  * @throws AnalyticsPiiRejectedError for PII-shaped keys/values or excessive length.
@@ -53,7 +68,7 @@ export function validateEventPropEntry(required: {
     if (value.length > maxLength) {
       throw new AnalyticsPiiRejectedError({ message: `event property '${key}' exceeds ${maxLength} characters` });
     }
-    if (EMAIL_SHAPE_PATTERN.test(value)) {
+    if (hasEmailShape(value)) {
       throw new AnalyticsPiiRejectedError({ message: `event property '${key}' looks like an email address` });
     }
   }

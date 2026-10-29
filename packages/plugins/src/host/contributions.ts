@@ -1,6 +1,7 @@
 /** Executable contribution admission on the existing plugin loader, never a second loader.
  * Captures stay private until setup succeeds. A sealed generation cannot register from a timer.
- * Tier-3 currently runs with full in-process authority; TODO: hardened worker at this boundary. */
+ * Tier-3 currently runs with full in-process authority; a hardened worker at this boundary is
+ * still to come. */
 import { PLUGIN_PROVIDER_CAPABILITY, isPluginProviderDeclaration, type PluginProviderContribution } from './provider-contributions.js';
 import { createContributionRegistry } from '@jini-ai/core/contribution-registry';
 import { normalizeRoute, resolveClaimConflicts, type ExtensionClaim } from './claim-conflicts.js';
@@ -43,18 +44,25 @@ export interface PluginContributionsSnapshot {
 export function pluginToolIdFor(required: { pluginId: string; name: string }, _optional: Record<string, never> = {}): string {
   return `p_${required.pluginId.replace(/-/g, '_')}__${required.name}`;
 }
+/** One route segment: a literal word (letters, digits, `_`, `-`) or an Express `:param`. */
+const ROUTE_SEGMENT = String.raw`(?:[\w-]+|:[a-zA-Z]\w*)`;
+const PLUGIN_ROUTE_PATH = new RegExp(String.raw`^/${ROUTE_SEGMENT}(?:/${ROUTE_SEGMENT})*/?$`);
 /** Relative route grammar intentionally excludes wildcard/regex routes: a handler cannot widen
  * its declared claim or leave /api/p/<id>. Express owns parameter matching. */
 export function validatePluginRoute(required: { method: string; path: string }, _optional: Record<string, never> = {}): void {
   if (!/^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(required.method)) throw new Error('unsupported plugin route method');
-  if (!/^\/(?:[a-zA-Z0-9_-]+|:[a-zA-Z][a-zA-Z0-9_]*)(?:\/(?:[a-zA-Z0-9_-]+|:[a-zA-Z][a-zA-Z0-9_]*))*\/?$/.test(required.path) && required.path !== '/') throw new Error('unsafe plugin route path');
+  if (!PLUGIN_ROUTE_PATH.test(required.path) && required.path !== '/') throw new Error('unsafe plugin route path');
 }
 
 /** Enforces the object-schema contract before and after plugin-controlled JSON serialization.
  * Throws a fixed admission error. O(1) time/space. */
+function isObjectSchema(schema: unknown): schema is Record<string, unknown> {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return false;
+  return 'type' in schema && schema.type === 'object';
+}
 function requireObjectSchema({ schema }: { schema: unknown }, _options = {}): Record<string, unknown> {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema) || !('type' in schema) || schema.type !== 'object') throw new Error('plugin tool input schema must describe an object');
-  return schema as Record<string, unknown>;
+  if (!isObjectSchema(schema)) throw new Error('plugin tool input schema must describe an object');
+  return schema;
 }
 
 function serializePluginToolSchema(
@@ -86,7 +94,7 @@ export function createPluginContributionCapture(required: { manifest: PluginMani
   const named = (name: string, declarations: readonly string[] | undefined) => {
     if (!/^[a-z][a-z0-9_-]{0,63}$/.test(name) || !declarations?.includes(name)) throw new Error(`undeclared plugin contribution '${name}'`);
   };
-  const capture = {
+  return {
     providers: { register(value: PluginProviderContribution, _optional: Record<string, never> = {}) {
       check();
       if (manifest.tier !== 'tier-3' || !isPluginProviderDeclaration({ value }) || typeof value.factory !== 'function') throw new Error('invalid plugin provider factory');
@@ -122,7 +130,6 @@ export function createPluginContributionCapture(required: { manifest: PluginMani
       return Object.freeze({ pluginId: manifest.id, sdk, routes: Object.freeze([...routes]), tools: Object.freeze([...tools]), widgets: Object.freeze([...widgets]), providers: Object.freeze([...providers]) });
     },
   };
-  return capture;
 }
 export interface PluginContributionRegistry {
   replace(required: { contributions: PluginContributionsSnapshot }, optional?: Record<string, never>): void;
@@ -168,7 +175,7 @@ export function createPluginContributionRegistry(_required: Record<string, never
 
 /** Resolves only named public fragments, isolating failures and bounding the awaited work.
  * Validation is an injected host renderer port; plugins cannot substitute their own validator.
- * TODO: client enhancement JS waits for an ADR-025 owner amendment. */
+ * Client enhancement JS is still pending: it waits for an ADR-025 owner amendment. */
 export async function renderPluginWidgetFragments(required: {
   registry: PluginContributionRegistry; names: readonly string[]; workspaceId: string;
   isEnabled: (required: { pluginId: string }, optional?: Record<string, never>) => Promise<boolean>;
@@ -181,8 +188,7 @@ export async function renderPluginWidgetFragments(required: {
   const fragments: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const snapshot of required.registry.list({})) {
     const selected = snapshot.widgets.filter(widget => names.includes(widget.name));
-    if (!selected.length) continue;
-    if (!await required.isEnabled({ pluginId: snapshot.pluginId })) continue;
+    if (!selected.length || !await required.isEnabled({ pluginId: snapshot.pluginId })) continue;
     await Promise.all(selected.map(async widget => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const controller = new AbortController();

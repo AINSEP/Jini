@@ -12,6 +12,21 @@ export interface PeerPackageJson extends PackageJson {
   readonly peerDependencies?: Readonly<Record<string, string>>;
 }
 
+type PeerDeclaration = { name: string; range: string };
+
+function peerConflicts(peer: string, declarations: PeerDeclaration[]): string[] {
+  const conflicts: string[] = [];
+
+  for (let left = 0;left < declarations.length;left++) {
+    for (let right = left + 1;right < declarations.length;right++) {
+      const a = declarations[left]!;
+      const b = declarations[right]!;
+      if (!semver.intersects(a.range, b.range)) conflicts.push(`${peer}: ${a.name} (${a.range}) and ${b.name} (${b.range}) have no common version`);
+    }
+  }
+  return conflicts;
+}
+
 /** Reject disjoint peer ranges across public packages, even when both peers are optional.
  * Throws with package names and ranges; never consults the registry or mutates manifests.
  * @complexity O(P + sum(n_peer²)) range comparisons over P peer declarations.
@@ -30,15 +45,6 @@ export function assertCompatiblePeerRanges(
       byPeer.set(peer, declarations);
     }
   }
-  const conflicts: string[] = [];
-  for (const [peer, declarations] of byPeer) {
-    for (let left = 0; left < declarations.length; left++) {
-      for (let right = left + 1; right < declarations.length; right++) {
-        const a = declarations[left]!;
-        const b = declarations[right]!;
-        if (!semver.intersects(a.range, b.range)) conflicts.push(`${peer}: ${a.name} (${a.range}) and ${b.name} (${b.range}) have no common version`);
-      }
-    }
-  }
+  const conflicts = [...byPeer].flatMap(([peer, declarations]) => peerConflicts(peer, declarations));
   if (conflicts.length) throw new Error(`Incompatible public package peers:\n${conflicts.join('\n')}`);
 }

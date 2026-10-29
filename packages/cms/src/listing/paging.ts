@@ -1,3 +1,4 @@
+import { trimCharsEnd } from "@jini-ai/core/primitives";
 import { LISTING_AFTER_MAX, type ListingSource } from './batch.js';
 import { isRefusedPage } from './paths.js';
 
@@ -47,7 +48,7 @@ export interface ListingPageRequest {
 /** `pagePath` itself for page 1, else `<pagePath>/page/<page>`. @complexity O(n) over `pagePath`. */
 export function listingPagePath({ pagePath, page }: ListingPageRequest, _optional: Record<string, never> = {}): string {
   if (page <= 1) return pagePath;
-  return `${pagePath.replace(/\/+$/, '')}/page/${page}`;
+  return `${trimCharsEnd({ text: pagePath, chars: '/' })}/page/${page}`;
 }
 
 /**

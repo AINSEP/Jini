@@ -58,7 +58,8 @@ async function waitUntilReady<T>(
     }
     await sleep(pollIntervalMs);
   }
-  throw new Error(`timed out waiting for sidecar to become ready${lastError instanceof Error ? ` (${lastError.message})` : ''}`);
+  const detail = lastError instanceof Error ? ` (${lastError.message})` : '';
+  throw new Error(`timed out waiting for sidecar to become ready${detail}`);
 }
 
 /** Use the host's shutdown request or SIGTERM, then bound the wait before SIGKILL. */

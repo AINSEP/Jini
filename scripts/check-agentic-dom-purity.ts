@@ -114,6 +114,49 @@ export interface CheckAgenticDomPurityOptions {
   readonly domSubdir?: string;
 }
 
+function checkRootDomConfig({ rootRaw, rootLib, rootFile, domSubdir, violations }: { rootRaw: RawTsconfig; rootLib: string[]; rootFile: string; domSubdir: string; violations: Violation[] }): void {
+  if (hasDomLibEntry(rootLib)) {
+    violations.push({
+      rule: 'R9-dom-purity',
+      file: rootFile,
+      reason: `effective "lib" (${JSON.stringify(rootLib)}) now includes a DOM entry — the root entry point must resolve to a DOM-free lib so a document/window reference cannot compile outside src/dom`,
+    });
+  }
+
+  const rootExclude = (rootRaw.exclude ?? []).map(normalizeGlob);
+  if (!rootExclude.includes(domSubdir)) {
+    violations.push({
+      rule: 'R9-dom-purity',
+      file: rootFile,
+      reason: `"exclude" (${JSON.stringify(rootRaw.exclude ?? [])}) no longer excludes "${domSubdir}" — the DOM-bearing code could be pulled into the DOM-free compile`,
+    });
+  }
+
+}
+
+function checkBrowserDomConfig({ domRaw, domLib, domFile, domSubdir, violations }: { domRaw: RawTsconfig; domLib: string[]; domFile: string; domSubdir: string; violations: Violation[] }): void {
+  const domInclude = (domRaw.include ?? []).map(normalizeGlob);
+  const coversOnlyDom =
+    domInclude.length > 0 &&
+    domInclude.every((entry) => entry === domSubdir || entry.startsWith(`${domSubdir}/`));
+  if (!coversOnlyDom) {
+    violations.push({
+      rule: 'R9-dom-purity',
+      file: domFile,
+      reason: `"include" (${JSON.stringify(domRaw.include ?? [])}) covers more than "${domSubdir}" — the DOM-bearing config must not compile universal code with a DOM lib in scope`,
+    });
+  }
+
+  if (!hasDomLibEntry(domLib)) {
+    violations.push({
+      rule: 'R9-dom-purity',
+      file: domFile,
+      reason: `effective "lib" (${JSON.stringify(domLib)}) no longer includes a DOM entry — src/dom would fail to compile, which would defeat the split rather than protect it`,
+    });
+  }
+
+}
+
 /**
  * @param options Overrides so `scripts/lib/self-test.ts` can run this exact function against
  * known-bad fixture tsconfig pairs and prove it still detects them, instead of trusting that the
@@ -147,42 +190,8 @@ export async function checkAgenticDomPurity(options: CheckAgenticDomPurityOption
   const rootLib = Array.isArray(rootOptions.lib) ? rootOptions.lib.map(String) : [];
   const domLib = Array.isArray(domOptions.lib) ? domOptions.lib.map(String) : [];
 
-  if (hasDomLibEntry(rootLib)) {
-    violations.push({
-      rule: 'R9-dom-purity',
-      file: rootFile,
-      reason: `effective "lib" (${JSON.stringify(rootLib)}) now includes a DOM entry — the root entry point must resolve to a DOM-free lib so a document/window reference cannot compile outside src/dom`,
-    });
-  }
-
-  const rootExclude = (rootRaw.exclude ?? []).map(normalizeGlob);
-  if (!rootExclude.includes(domSubdir)) {
-    violations.push({
-      rule: 'R9-dom-purity',
-      file: rootFile,
-      reason: `"exclude" (${JSON.stringify(rootRaw.exclude ?? [])}) no longer excludes "${domSubdir}" — the DOM-bearing code could be pulled into the DOM-free compile`,
-    });
-  }
-
-  const domInclude = (domRaw.include ?? []).map(normalizeGlob);
-  const coversOnlyDom =
-    domInclude.length > 0 &&
-    domInclude.every((entry) => entry === domSubdir || entry.startsWith(`${domSubdir}/`));
-  if (!coversOnlyDom) {
-    violations.push({
-      rule: 'R9-dom-purity',
-      file: domFile,
-      reason: `"include" (${JSON.stringify(domRaw.include ?? [])}) covers more than "${domSubdir}" — the DOM-bearing config must not compile universal code with a DOM lib in scope`,
-    });
-  }
-
-  if (!hasDomLibEntry(domLib)) {
-    violations.push({
-      rule: 'R9-dom-purity',
-      file: domFile,
-      reason: `effective "lib" (${JSON.stringify(domLib)}) no longer includes a DOM entry — src/dom would fail to compile, which would defeat the split rather than protect it`,
-    });
-  }
+  checkRootDomConfig({ rootRaw, rootLib, rootFile, domSubdir, violations });
+  checkBrowserDomConfig({ domRaw, domLib, domFile, domSubdir, violations });
 
   return violations;
 }

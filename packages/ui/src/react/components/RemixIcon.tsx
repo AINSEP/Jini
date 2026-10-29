@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { ensureRemixIconStylesheet } from './RemixIcon.stylesheet.js';
+import { withClassName } from '../../utils/class-names.js';
 export { installRemixIconStylesheet, REMIXICON_STYLESHEET_MARKER } from './RemixIcon.stylesheet.js';
 
 interface RemixIconProps {
@@ -23,7 +24,7 @@ export function RemixIcon({ name, size = 14, className, style }: RemixIconProps)
 
   return (
     <i
-      className={`ri-${name}${className ? ` ${className}` : ''}`}
+      className={withClassName(`ri-${name}`, className)}
       aria-hidden="true"
       style={{
         fontSize: size,

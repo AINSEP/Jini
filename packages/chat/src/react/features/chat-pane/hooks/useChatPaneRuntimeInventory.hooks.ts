@@ -142,7 +142,7 @@ export function useChatPaneRuntimeInventory({
   }, [access, health, reloadIfUnanswered, retry]);
 
   useEffect(() => {
-    if (!access) return;
+    if (!access) return undefined;
     retry.reset();
     void loadAgents(false);
     // Health polls only while the tab is visible: a hidden tab stops its timer, and showing it
@@ -185,7 +185,7 @@ export function useChatPaneRuntimeInventory({
   }, [access, health, inventory, loadAgents, pollIntervalMs, refreshStatus, retry]);
 
   useEffect(() => {
-    if (!access) return;
+    if (!access) return undefined;
     // The status check on becoming visible belongs to the polling effect above; this one only
     // retries an unanswered inventory load (and, on focus, checks status too).
     const onFocus = (): void => {

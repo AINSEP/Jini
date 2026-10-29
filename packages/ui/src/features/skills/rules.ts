@@ -186,7 +186,7 @@ const categoryValue = (skill: SkillSummary): string | null =>
 function valueFilterOptions({
   skills,
   matching,
-  valueOf,
+  valueOf: valueFor,
 }: {
   skills: readonly SkillSummary[];
   matching: readonly SkillSummary[];
@@ -194,13 +194,13 @@ function valueFilterOptions({
 }): { all: number; options: SkillFilterOption[] } {
   const values = new Set<string>();
   for (const skill of skills) {
-    const value = valueOf(skill);
+    const value = valueFor(skill);
     if (value !== null) values.add(value);
   }
 
   const counts = new Map<string, number>();
   for (const skill of matching) {
-    const value = valueOf(skill);
+    const value = valueFor(skill);
     if (value === null) continue;
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }

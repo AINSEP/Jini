@@ -78,7 +78,7 @@ export function createFederatedConnectionRevocationGate(required: {
     try { optional.onDiagnostic?.(diagnostic); } catch { /* Diagnostics cannot bypass refusal. */ }
   };
   return async ({ connectionId, call }) => {
-    if (call.origin?.kind === "preset") return;
+    if (call.origin?.kind === "preset") return undefined;
     const { record, reason } = await readRosterRefusal({ roster: required.roster, connectionId, call }, { scope: optional.scope, report });
     if (reason === null) return "current-grants-checked";
     const refusal = { serverId: connectionId, label: record?.label ?? null, remoteName: call.remoteName, reason };

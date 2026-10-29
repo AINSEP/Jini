@@ -8,7 +8,8 @@ function createQueryScopes(_required: Record<string, never>, _options: Record<st
   return ({ owner }: { owner: object }, _optional: Record<string, never> = {}): number => {
     let scope = scopes.get(owner);
     if (scope === undefined) {
-      scope = ++nextScope;
+      nextScope += 1;
+      scope = nextScope;
       scopes.set(owner, scope);
     }
     return scope;

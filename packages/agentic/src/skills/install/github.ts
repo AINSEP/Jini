@@ -53,7 +53,9 @@ function parseGitHubSkillUrl({ githubUrl }: { githubUrl: string }) {
 
 /** Plain https://github.com with no port, credentials, query or fragment. */
 function isGitHubOrigin({ url }: { url: URL }): boolean {
-  return url.protocol === "https:" && url.hostname === "github.com" && !url.port && !url.username && !url.password && !url.search && !url.hash;
+  const plainOrigin = url.protocol === "https:" && url.hostname === "github.com" && !url.port;
+  const nothingExtra = !url.username && !url.password && !url.search && !url.hash;
+  return plainOrigin && nothingExtra;
 }
 
 /** owner/repo, or owner/repo/tree/ref[/folder…]; every decoded segment is plain and never `.`/`..`. */
@@ -115,10 +117,17 @@ function selectSkillRow({ row, prefix }: { row: Record<string, unknown>; prefix:
 }
 
 /** Refuses non-regular entries (submodules, symlinks) and missing or oversized metadata. */
+/** Below zero or above the per-file limit (a NaN size is neither, as before). */
+function isOutsideFileLimit(bytes: number): boolean {
+  return bytes < 0 || bytes > MAX_SKILL_FILE_BYTES;
+}
+
 function readRegularBlobRow({ row }: { row: Record<string, unknown> }): { size: number; sha: string } {
   if (row.type !== "blob" || !REGULAR_FILE_MODES.includes(String(row.mode))) throw new SkillInputError({ message: "GitHub skills may contain only regular files." });
-  if (typeof row.size !== "number" || row.size < 0 || row.size > MAX_SKILL_FILE_BYTES || typeof row.sha !== "string" || !SHA_PATTERN.test(row.sha)) throw new SkillInputError({ message: "GitHub skill file exceeds its size limit or has invalid metadata." });
-  return { size: row.size, sha: row.sha };
+  const { size, sha } = row;
+  const validSize = typeof size === "number" && !isOutsideFileLimit(size);
+  if (!validSize || typeof sha !== "string" || !SHA_PATTERN.test(sha)) throw new SkillInputError({ message: "GitHub skill file exceeds its size limit or has invalid metadata." });
+  return { size, sha };
 }
 
 /** Fetches one base64 blob, enforcing the 1 MiB file cap and 8 MiB decoded total. */

@@ -72,7 +72,10 @@ import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupA
 import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
-import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './tool-turn-types.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
+import { omitKeys } from '../core/omit-keys.js';
 
 export interface OpenAiFunctionToolDef {
   readonly type: 'function';
@@ -183,11 +186,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function openAiRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string {
-  const base = (baseUrl ?? DEFAULT_OPENAI_BASE_URL).replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: baseUrl ?? DEFAULT_OPENAI_BASE_URL, chars: '/' });
   return /\/v\d+(\/|$)/.test(base) ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 }
 
-export function openAiHeaders(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Record<string, string> {
+/** The `OpenAiTurnOptions` keys every caller must pass. */
+type OpenAiRequiredOption = "apiKey" | "model" | "messages" | "onEvent";
+
+export function openAiHeaders(requiredArgs: Pick<OpenAiTurnOptions, OpenAiRequiredOption>, optionalArgs: Omit<OpenAiTurnOptions, OpenAiRequiredOption> = {}): Record<string, string> {
   const options: OpenAiTurnOptions = { ...optionalArgs, ...requiredArgs };
   return {
     'content-type': 'application/json',
@@ -283,6 +289,12 @@ export interface StrictToolRetryState {
   readonly downgrade: (input: { status: number; rawErrorText: string; toolNames: readonly string[] }) => boolean;
 }
 
+/** Wordings a provider uses to refuse a strict/schema feature; any one matching is enough. */
+const STRICT_REJECTION_PATTERNS: readonly RegExp[] = [
+  /unsupported|not support|unknown (?:field|parameter|name)|unrecognized|not (?:allowed|permitted)/i,
+  /invalid (?:json )?schema|schema[^\n]*invalid|requires?[^\n]*beta/i,
+  /invalid (?:enum )?value[^\n]*(?:VALIDATED|function[_ .]?calling[_ .]?config)/i,
+];
 /** Only explicit HTTP schema/capability rejections qualify, never auth, rate limits or transport failures.
  * @complexity O(e) time and O(e) space for at most 16 KiB of error text; no I/O.
  */
@@ -290,7 +302,7 @@ function isStrictToolRejection({ status, rawErrorText }: { status: number; rawEr
   if (status !== 400 && status !== 422) return false;
   const detail = rawErrorText.slice(0, 16384);
   const namesFeature = /\bstrict\b|\bVALIDATED\b|function[_ .]?calling[_ .]?config|(?:input[_ ]|json[_ ])?schema|structured.outputs/i.test(detail);
-  const rejectsFeature = /unsupported|not support|unknown (?:field|parameter|name)|unrecognized|not (?:allowed|permitted)|invalid (?:json )?schema|schema[^\n]*invalid|invalid (?:enum )?value[^\n]*(?:VALIDATED|function[_ .]?calling[_ .]?config)|requires?[^\n]*beta/i.test(detail);
+  const rejectsFeature = STRICT_REJECTION_PATTERNS.some((pattern) => pattern.test(detail));
   return namesFeature && rejectsFeature;
 }
 
@@ -331,7 +343,7 @@ export function refreshOpenAiTools<T extends OpenAiTurnOptions>(
 ): T {
   let tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
   if (!retry.enabled) tools = tools?.map(tool => {
-    const { strict: _strict, ...definition } = tool.function;
+    const definition = omitKeys(tool.function, ['strict']);
     return { ...tool, function: definition };
   });
   return { ...options, ...(tools !== undefined ? { tools } : {}) };
@@ -408,9 +420,8 @@ export function handleOpenAiChoiceDelta({ state, choice, onEvent }: { state: Ope
   const delta = isRecord(choice.delta) ? choice.delta : null;
   if (!delta) return 'continue';
 
-  if (typeof delta.content === 'string' && delta.content.length > 0) {
-    if (handleOpenAiTextContentDelta({ state: state, content: delta.content, onEvent: onEvent }) === 'break') return 'break';
-  }
+  const text = typeof delta.content === 'string' && delta.content.length > 0 ? delta.content : null;
+  if (text !== null && handleOpenAiTextContentDelta({ state: state, content: text, onEvent: onEvent }) === 'break') return 'break';
   if (Array.isArray(delta.tool_calls)) {
     for (const rawCall of delta.tool_calls) {
       accumulateOpenAiToolCallDelta({ state: state, rawCall: rawCall });
@@ -452,12 +463,12 @@ function resolveOpenAiRetry(
 ): OpenAiFetchOutcome | null {
   const toolRetryBody = init.retryToolBody?.({ status, rawErrorText: rawText, body: init.body });
   if (toolRetryBody) {
-    const { retryToolBody: _retryToolBody, ...retryInit } = init;
+    const retryInit = omitKeys(init, ['retryToolBody']);
     return { type: 'retry', retryInit: { ...retryInit, body: toolRetryBody } };
   }
   const retryBody = init.retryableBody?.(status, rawText);
   if (retryBody) {
-    const { retryableBody: _retryableBody, ...retryInit } = init;
+    const retryInit = omitKeys(init, ['retryableBody']);
     return { type: 'retry', retryInit: { ...retryInit, body: retryBody } };
   }
   return null;
@@ -591,9 +602,8 @@ export async function runOpenAiCompatibleRequest(requiredArgs: Pick<OpenAiCompat
     // after this loop, to decide whether pending tool_use events should still be emitted (a
     // contaminating delta can arrive on a *later* chunk than the one that set `finish_reason`).
     const result = processOpenAiStreamFrame({ state: state, frame: frame, onEvent: onEvent });
-    if (result === 'done') break;
-    if (result === 'contaminated') {
-      init.emitEnd('contaminated');
+    if (result === 'done' || result === 'contaminated') {
+      if (result === 'contaminated') init.emitEnd('contaminated');
       break;
     }
   }
@@ -810,7 +820,7 @@ export function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpPa
  * function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s doc for
  * the shared event-stream/`ended`-flag contract this mirrors exactly.
  */
-export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Promise<OpenAiTurnResult> {
+export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, OpenAiRequiredOption>, optionalArgs: Omit<OpenAiTurnOptions, OpenAiRequiredOption> = {}): Promise<OpenAiTurnResult> {
   const options: OpenAiTurnOptions = { ...optionalArgs, ...requiredArgs };
   const retry = createStrictToolRetry({ protocol: 'openai', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
@@ -826,15 +836,9 @@ export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "a
   while (true) {
     const outcome = await runSingleOpenAiRequest(options, messages, emitEnd, endGuard.hasEnded, retry);
     lastFinishReason = outcome.finishReason;
-    if (endGuard.hasEnded()) break;
-
-    const exitReason = openAiLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      emitEnd('stop');
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => openAiLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;

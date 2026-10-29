@@ -160,11 +160,9 @@ function findWithheldText(
   // are the user's data and whose driver has no `value` to report them as. It is gated by exactly
   // the rules `value` is gated by below, including the "arrived with nothing to check it against"
   // one — an unverifiable secret is withheld, not trusted.
-  return raw.textIsValue !== true
-    ? undefined
-    : raw.field === undefined
-      ? 'this element reported contents without the attributes needed to check them for secrets'
-      : refusal !== null ? describeFieldReadRefusal({ refusal }) : undefined;
+  if (raw.textIsValue !== true) return undefined;
+  if (raw.field === undefined) return 'this element reported contents without the attributes needed to check them for secrets';
+  return refusal !== null ? describeFieldReadRefusal({ refusal }) : undefined;
 }
 
 function projectOptionalState(
@@ -208,17 +206,15 @@ function projectFieldValue(
  * observe is not one this can report — and is why the field it feeds is named `targetChanged`.
  */
 function sameElementState(a: AgentElementState, b: AgentElementState): boolean {
-  return a.text === b.text
+  const sameText = a.text === b.text
     // Compared for the same reason `valueWithheld` is: without it, an editable region whose
     // contents are withheld reads as `text: ''` before and after, and a write into it would
     // report `targetChanged: false` — an answer that says "nothing happened" rather than the
     // honest "no caller may observe whether it did".
-    && a.textWithheld === b.textWithheld
-    && a.value === b.value
-    && a.valueWithheld === b.valueWithheld
-    && a.checked === b.checked
-    && a.disabled === b.disabled
-    && a.visible === b.visible;
+    && a.textWithheld === b.textWithheld;
+  const sameValue = a.value === b.value && a.valueWithheld === b.valueWithheld;
+  const sameFlags = a.checked === b.checked && a.disabled === b.disabled && a.visible === b.visible;
+  return sameText && sameValue && sameFlags;
 }
 
 /**

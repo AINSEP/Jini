@@ -126,6 +126,26 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
 /** Every durable fixture uses the external host's installed SQLite driver. */
 function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }
 
+it('a runtime disposal failure still closes every owned SQLite handle and retains the same close result', async () => {
+  const dataDir = makeTempDataDir();
+  const { spy, closes } = spyOnEventLogs(null);
+  const base = await createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } });
+  const failure = new Error('runtime disposal failed');
+  const dispose = vi.spyOn(base.agentRuntime, 'dispose').mockRejectedValueOnce(failure);
+  try {
+    const closing = base.close();
+    expect(base.close()).toBe(closing);
+    await expect(closing).rejects.toBe(failure);
+    expect(base.sqlite!.connection.open).toBe(false);
+    expect(closes.get('events.db')).toHaveBeenCalledOnce();
+    expect(closes.get('journal.db')).toHaveBeenCalledOnce();
+  } finally {
+    dispose.mockRestore();
+    await base.agentRuntime.dispose({});
+    spy.mockRestore();
+  }
+});
+
 
 describe('L039a runtime option pins', () => {
   it.each([undefined, false, true])('keeps explicit runtime policy values (%s)', async (codexDisablePlugins) => {

@@ -8,10 +8,11 @@ import type {
   ScopedPorts,
 } from './types.js';
 import type { AdminPortToken, PortMap, PortValues } from './token.js';
+const bulletLine = (issue: string) => `- ${issue}`;
 export class AdminConfigError extends Error {
   readonly issues: readonly string[];
   constructor({ issues }: { issues: readonly string[] }, _optional: Record<string, never> = {}) {
-    super(`Invalid admin configuration:\n${issues.map((issue) => `- ${issue}`).join('\n')}`);
+    super(`Invalid admin configuration:\n${issues.map(bulletLine).join('\n')}`);
     this.name = 'AdminConfigError';
     this.issues = Object.freeze([...issues]);
   }

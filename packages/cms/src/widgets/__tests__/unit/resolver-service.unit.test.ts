@@ -111,7 +111,7 @@ describe("media embed resolution", () => {
     const resolved = await media([ref({ id: "a1" })], deps());
     expect(resolved.get("a1")).toEqual({
       componentId: "media-image",
-      props: { assetId: "a1", slug: "a1-slug", transformName: "public", version: 3, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null },
+      props: { assetId: "a1", slug: "a1-slug", sha256: "sha-a1", transformName: "public", version: 3, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null },
     });
   });
 
@@ -169,7 +169,7 @@ describe("media embed resolution", () => {
     const resolved = await media([ref({ id: "a1" })], deps({ mediaContentTypeStore: contentTypes({ "sha-a1": type }) }));
     expect(resolved.get("a1")).toEqual({
       componentId: "media-image",
-      props: { assetId: "a1", slug: "a1-slug", contentType: type, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null },
+      props: { assetId: "a1", slug: "a1-slug", sha256: "sha-a1", contentType: type, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null },
     });
   });
 
@@ -286,7 +286,7 @@ describe("post-content media context", () => {
       ],
     });
     expect(props.mediaTransformVersions).toEqual({ public: 3 });
-    expect(props.mediaAssetMetadata).toEqual({ a1: { width: 640, height: 480, cssClass: null, htmlAttributes: null, slug: "a1-slug", contentType: null } });
+    expect(props.mediaAssetMetadata).toEqual({ a1: { width: 640, height: 480, cssClass: null, htmlAttributes: null, slug: "a1-slug", sha256: "sha-a1", contentType: null } });
   });
 
   it("ignores legacy src-only images, non-string asset ids, attr-less media and other node types", async () => {
@@ -577,7 +577,7 @@ describe("gallery embed resolution", () => {
     const ir = resolved.get("g1")!;
     expect(ir.componentId).toBe("gallery");
     expect(ir.props.config).toEqual(legacyConfig);
-    expect({ ...(ir.props.media as JsonObject) }).toEqual({ a1: { assetId: "a1", slug: "a1-slug", transformName: "public", version: 3, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null } });
+    expect({ ...(ir.props.media as JsonObject) }).toEqual({ a1: { assetId: "a1", slug: "a1-slug", sha256: "sha-a1", transformName: "public", version: 3, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null } });
   });
 
   it("reports an invalid gallery with the workspace id and leaves it unresolved", async () => {

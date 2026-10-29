@@ -1,5 +1,13 @@
 type Priority = 'version' | 'metadata';
 
+/** Runs `work` on a later microtask unless `signal` was aborted while it waited in the queue. */
+function startProbe<T>({ work, signal }: { work: () => Promise<T>; signal?: AbortSignal | undefined }): Promise<T> {
+  return Promise.resolve().then(() => {
+    if (signal?.aborted) throw new Error('Probe cancelled');
+    return work();
+  });
+}
+
 /** All metadata process adapters share one process-wide slot. Version checks precede queued
  * metadata, so expensive discovery cannot delay cheap availability checks. Actual chat runs
  * never use this queue. A slot is held until the child adapter settles, including cancellation.
@@ -13,16 +21,17 @@ export function createProbeScheduler(_input: Record<string, never>, _options: Re
     const entry = queue.splice(version < 0 ? 0 : version, 1)[0]!;
     running = true; entry.start();
   }
+  function release(): void {
+    running = false;
+    drain();
+  }
   return function schedule<T>(
     { work }: { work: () => Promise<T> },
     { priority = 'metadata', signal }: { priority?: Priority; signal?: AbortSignal | undefined } = {},
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       queue.push({ priority, start: () => {
-        Promise.resolve().then(() => {
-          if (signal?.aborted) throw new Error('Probe cancelled');
-          return work();
-        }).then(resolve, reject).finally(() => { running = false; drain(); });
+        startProbe({ work, signal }).then(resolve, reject).finally(release);
       } });
       drain();
     });

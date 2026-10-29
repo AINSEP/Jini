@@ -22,7 +22,7 @@ export function useShareImageWarning({ value, previewUrl, api }: {
   const [inspection, setInspection] = useState<Inspection | null>(null);
   useEffect(() => {
     const inspect = api.inspectShareImage;
-    if (!previewUrl || !inspect || !isBrowserSameOrigin({ url: previewUrl })) return;
+    if (!previewUrl || !inspect || !isBrowserSameOrigin({ url: previewUrl })) return undefined;
     const controller = new AbortController();
     let active = true;
     const timeout = setTimeout(() => {

@@ -83,7 +83,7 @@ const TRASH_SUBTITLE_MAX = 120;
  * row is unrecoverable from the UI, which is strictly worse than a failed moderation the operator
  * can retry.
  */
-export class CommentRemovalIndexError extends Error {}
+export class CommentRemovalIndexError extends Error { }
 
 export type ModerationResult =
   | { ok: true }
@@ -196,8 +196,9 @@ export function createCommentWriteService(deps: CommentWriteServiceDeps, _option
       const at = clockNowIso({ clock: deps.clock });
       const result = await deps.runInTransaction(async () => {
         const applied = await deps.repo.applyModeration({ ...repoRequired, at });
-        if (!applied.ok) return applied;
-        await syncRemovalIndex(deps, { at, log: applied.log, record: applied.record, actorPluginId: actorPluginId ?? null });
+        if (applied.ok) {
+          await syncRemovalIndex(deps, { at, log: applied.log, record: applied.record, actorPluginId: actorPluginId ?? null });
+        }
         return applied;
       });
       if (!result.ok) return result;

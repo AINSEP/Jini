@@ -140,11 +140,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
     const digests = new Map<string, string>();
     for (const [pluginId, entry] of Object.entries(value.plugins)) {
-      if (!SAFE_PLUGIN_ID_PATTERN.test(pluginId)) continue;
-      if (!isPlainObject(entry)) continue;
-      const { archiveDigest } = entry;
-      if (typeof archiveDigest !== "string" || !SHA256_DIGEST_PATTERN.test(archiveDigest)) continue;
-      digests.set(pluginId, archiveDigest);
+      const archiveDigest = SAFE_PLUGIN_ID_PATTERN.test(pluginId) && isPlainObject(entry) ? entry.archiveDigest : undefined;
+      if (typeof archiveDigest === "string" && SHA256_DIGEST_PATTERN.test(archiveDigest)) digests.set(pluginId, archiveDigest);
     }
     return digests;
   }

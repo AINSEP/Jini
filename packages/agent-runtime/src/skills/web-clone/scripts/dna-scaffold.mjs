@@ -159,20 +159,27 @@ function sectionColors(recon) {
   ]);
 }
 
-// 框架/特效信号
-function applyEffects(dna, fw, canvasCount) {
-  const effects = dna.visual_effects;
+// The strongest rendering signal names the primary technology: Three.js, then canvas, then GSAP.
+function applyPrimaryTechnology(effects, fw, canvasCount) {
   if (fw.three) {
     effects.overview.primary_technology = "WebGL/Three.js";
     effects.overview.performance_tier = "heavy";
     effects["3d_elements"].enabled = true;
     effects["3d_elements"].technology = "Three.js";
-  } else if (canvasCount > 0) {
+    return;
+  }
+  if (canvasCount > 0) {
     effects.overview.primary_technology = "Canvas 2D";
     effects.canvas_drawings.enabled = true;
-  } else if (fw.gsap) {
-    effects.overview.primary_technology = "GSAP";
+    return;
   }
+  if (fw.gsap) effects.overview.primary_technology = "GSAP";
+}
+
+// 框架/特效信号
+function applyEffects(dna, fw, canvasCount) {
+  const effects = dna.visual_effects;
+  applyPrimaryTechnology(effects, fw, canvasCount);
   if (fw.gsap || fw.lenis) {
     effects.scroll_effects.scroll_triggered_animations.enabled = true;
     effects.scroll_effects.scroll_triggered_animations.scrub_behavior = fw.lenis ? "lenis smooth-scroll detected" : "gsap detected";

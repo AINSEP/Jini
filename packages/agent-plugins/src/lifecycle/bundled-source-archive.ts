@@ -64,10 +64,16 @@ export interface PackedAgentPluginArchive {
 
 /** Opt-in source selection, resource bounds and archive identity. Omission preserves bundled-v1. */
 export interface PackAgentPluginDirectoryOptional {
-  /** Exact package-relative files or directory subtrees. Empty selects nothing; exclusions win. */
+  /** Exact package-relative files or directory subtrees. Empty selects nothing. An explicit path
+   * and its ancestors override excludeNames; excluded descendants of a selected subtree still skip.
+   * Suffix exclusions and default test skips win even over explicit paths. */
   readonly allowPaths?: readonly string[];
-  /** Entry basenames excluded at every depth, before entering directories. */
+  /** Entry basenames excluded at every depth unless explicitly allowed (or needed to reach one). */
   readonly excludeNames?: readonly string[];
+  /** Case-sensitive path suffixes excluded at every depth, including directories and explicit paths. */
+  readonly excludeSuffixes?: readonly string[];
+  /** Include __tests__ directories and .test./.spec. files. Defaults to false; other filters still apply. */
+  readonly includeTests?: boolean;
   /** Nonnegative safe integers; root depth is zero. Supplied bounds fail rather than truncate. */
   readonly limits?: {
     readonly maxEntries: number;
@@ -121,11 +127,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     assertPackingLimit({ state, name: 'maxArchiveBytes', value: state.archiveBytes });
     await refuseRoot({ sourceDir, state });
     const relativePaths = (await listRegularFiles({ dir: sourceDir, prefix: '', depth: 0, state })).sort();
-    if (relativePaths.length > MAX_SOURCE_FILES) {
-      throw new Error(
-        `bundled agent plugin at '${sourceDir}' has ${relativePaths.length} files, over the ${MAX_SOURCE_FILES}-file cap — is this the right directory?`,
-      );
-    }
+    assertSourceFileCount({ relativePaths, sourceDir });
 
     const chunks: Buffer[] = [Buffer.from(MAGIC, "utf8")];
     const snapshot: { entryPath: string; content: Buffer }[] = [];
@@ -153,6 +155,14 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       files: relativePaths,
       ...(canonical ? { archiveReader: createSnapshotReader({ token: bytes, snapshot }) } : {}),
     };
+  }
+
+  function assertSourceFileCount({ relativePaths, sourceDir }: { relativePaths: readonly string[]; sourceDir: string }): void {
+    if (relativePaths.length > MAX_SOURCE_FILES) {
+      throw new Error(
+        `bundled agent plugin at '${sourceDir}' has ${relativePaths.length} files, over the ${MAX_SOURCE_FILES}-file cap — is this the right directory?`,
+      );
+    }
   }
 
   /** Validate caller bounds before I/O and normalize selection through the package path owner. */
@@ -324,10 +334,11 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
   /**
  * Lists runtime regular files under `dir`, as POSIX-style package-relative paths.
- * Test directories and test/spec files are excluded so test-only edits cannot change installed
+ * By default, test directories and test/spec files are excluded so test-only edits cannot change installed
  * runtime contents or their content-addressed digest.
  *
- * @complexity O(e * a) selection checks for e enumerated entries and a allowlist paths (one when omitted).
+ * @complexity O(e * (a + s)) selection checks for e entries, a allowlist paths and s suffixes.
+ * Path comparison cost scales with path length; selection uses O(1) auxiliary space per entry.
  */
   async function listRegularFiles({ dir, prefix, depth, state }: {
     dir: string; prefix: string; depth: number; state: PackingState;
@@ -338,21 +349,31 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const files: string[] = [];
     for (const entry of entries) {
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (state.excluded.has(entry.name)) continue;
-      if (!selectPath({ relative, directory: entry.isDirectory(), state })) continue;
+      const directory = entry.isDirectory();
+      if (isNameExcluded({ name: entry.name, relative, directory, state }) || !selectPath({ relative, directory, state })) continue;
       if (entry.isDirectory()) {
-        if (entry.name === '__tests__') continue;
-        assertPackingLimit({ state, name: 'maxDepth', value: depth + 1 });
-        files.push(...(await listRegularFiles({ dir: path.join(dir, entry.name), prefix: relative, depth: depth + 1, state })));
-      } else if (entry.isFile() && !/\.(test|spec)\./.test(entry.name)) {
-        recordFile({ relative, state });
-        files.push(relative);
-      } else if (!entry.isFile()) {
-        refuseEntry({ state, entryPath: relative, symlink: entry.isSymbolicLink() });
+        files.push(...await directoryEntryFiles({ name: entry.name, dir, relative, depth, state }));
+      } else {
+        files.push(...regularEntryFiles({ entry, relative, state }));
       }
       // Symlinks and everything else: skipped by default. See this function's own doc.
     }
     return files;
+  }
+
+  async function directoryEntryFiles({ name, dir, relative, depth, state }: { name: string; dir: string; relative: string; depth: number; state: PackingState }): Promise<string[]> {
+    if (name === '__tests__' && !state.options.includeTests) return [];
+    assertPackingLimit({ state, name: 'maxDepth', value: depth + 1 });
+    return listRegularFiles({ dir: path.join(dir, name), prefix: relative, depth: depth + 1, state });
+  }
+
+  function regularEntryFiles({ entry, relative, state }: { entry: { name: string; isFile(): boolean; isSymbolicLink(): boolean }; relative: string; state: PackingState }): string[] {
+    if (entry.isFile() && (state.options.includeTests || !/\.(test|spec)\./.test(entry.name))) {
+      recordFile({ relative, state });
+      return [relative];
+    }
+    if (!entry.isFile()) refuseEntry({ state, entryPath: relative, symlink: entry.isSymbolicLink() });
+    return [];
   }
 
   function recordFile({ relative, state }: { relative: string; state: PackingState }): void {
@@ -360,8 +381,20 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     assertPackingLimit({ state, name: 'maxFiles', value: state.files.size });
   }
 
-  /** Ancestors of an allowed path must be traversed, but their unrelated siblings are pruned. */
+  /** An exact allow-path reopens excluded ancestors without reopening unrelated siblings.
+   * A selected subtree does not implicitly override name exclusions farther down that subtree.
+   * @complexity O(a * p) time for a allow-paths of length p, O(1) space. No I/O or mutation. */
+  function isNameExcluded({ name, relative, directory, state }: {
+    name: string; relative: string; directory: boolean; state: PackingState;
+  }): boolean {
+    return state.excluded.has(name) && !state.allowPaths?.some(allowed =>
+      relative === allowed || (directory && allowed.startsWith(`${relative}/`)));
+  }
+
+  /** Ancestors of an allowed path must be traversed, but their unrelated siblings are pruned.
+   * Suffix exclusions always win. O((a + s) * p) time, O(1) space; no I/O or mutation. */
   function selectPath({ relative, directory, state }: { relative: string; directory: boolean; state: PackingState }): boolean {
+    if (state.options.excludeSuffixes?.some(suffix => relative.endsWith(suffix))) return false;
     return state.allowPaths === undefined || state.allowPaths.some(allowed =>
       relative === allowed || relative.startsWith(`${allowed}/`) || (directory && allowed.startsWith(`${relative}/`)));
   }

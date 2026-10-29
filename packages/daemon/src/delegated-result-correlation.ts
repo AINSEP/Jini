@@ -1,4 +1,5 @@
 import type { CredentialCryptoPort } from './run-credentials.js';
+import { omitKeys } from './core/omit-keys.js';
 
 interface ResultIdentity {
   readonly runId: string;
@@ -27,8 +28,7 @@ function normalizeSourceImage({ record }: { record: Record<string, unknown> }, _
   if (record.type !== 'image' || 'data' in record || 'mimeType' in record) return record;
   const image = base64ImageSource({ source: record.source });
   if (!image) return record;
-  const { source: _source, ...rest } = record;
-  return { ...rest, data: image.data, mimeType: image.media_type };
+  return { ...omitKeys(record, ['source']), data: image.data, mimeType: image.media_type };
 }
 
 /** Normalize unambiguous CLI images and JSON object key order.

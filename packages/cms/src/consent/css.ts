@@ -62,8 +62,12 @@ function lengthList({ value, min = 0, max = 32, count = 4 }: { value: string; mi
  * @complexity O(value length); channels and alpha have fixed bounds. */
 function shadowColor({ value }: { value: string }, _options = {}): boolean {
   if (isColor(value)) return true;
-  const match = /^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|1(?:\.0+)?|\.\d+)\s*\)$/.exec(value);
-  return match !== null && match.slice(1, 4).every(channel => Number(channel) <= 255);
+  const match = /^rgba\(([\s\S]*)\)$/.exec(value);
+  if (!match) return false;
+  const channels = match[1]!.split(",").map(channel => channel.trim());
+  if (channels.length !== 4) return false;
+  return channels.slice(0, 3).every(channel => /^\d{1,3}$/.test(channel) && Number(channel) <= 255)
+    && /^(?:0(?:\.\d+)?|1(?:\.0+)?|\.\d+)$/.test(channels[3]!);
 }
 
 /** A bounded shadow cannot cover the page or disguise the banner with a huge spread.
@@ -247,7 +251,8 @@ function compileRules({ rules }: { rules: ConsentCssRule[] }, _options = {}): Co
 /** Emit only validated selectors/declarations, retaining their optional width condition.
  * @complexity O(rule bytes) time/space; does not evaluate authored code. */
 function emitRule({ rule }: { rule: ConsentCssRule }, _options = {}): string {
-  const css = `${rule.selector.split(',').map(scopedSelector).join(',')}{${rule.declarations.map(({ property, value }) => `${property}:${value}`).join(';')}}`;
+  const declarations = rule.declarations.map(({ property, value }) => `${property}:${value}`).join(';');
+  const css = `${rule.selector.split(',').map(scopedSelector).join(',')}{${declarations}}`;
   return rule.media === undefined ? css : `@media ${rule.media}{${css}}`;
 }
 

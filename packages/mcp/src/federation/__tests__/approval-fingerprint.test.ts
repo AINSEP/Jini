@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test, onTestFinished, vi } from "vitest";
 import { federatedToolApprovalFingerprint, type FederatedToolIdentity } from "../tool-approvals.js";
+import { canonicalArgumentDigest, CanonicalJsonError } from "@jini-ai/core/records";
 
 const identity: FederatedToolIdentity = {
   "connectionId": "service",
@@ -66,13 +67,21 @@ test("preset origin pins only the kind and differs from roster and absent origin
   assert.notEqual(preset, absent);
 });
 
-// PARITY: values JSON cannot express (undefined array slots, functions) hash as `null`, like JSON.stringify.
-test("unserialisable schema values canonicalise to null instead of vanishing", () => {
-  const withHole = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: [undefined, "a"] } } });
+// Non-JSON slots previously collided with null; malformed schemas must fail before approval.
+test("unserialisable schema values are rejected instead of sharing a null fingerprint", () => {
+  for (const value of [undefined, () => 1, 1n, NaN, Infinity]) {
+    assert.throws(() => federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: {
+      ...identity, inputSchema: { enum: [value, "a"] },
+    } }), CanonicalJsonError);
+  }
   const withNull = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: [null, "a"] } } });
-  const withFn = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: [() => 1, "a"] } } });
   const withoutSlot = federatedToolApprovalFingerprint({ fingerprintDomain: "d", identity: { ...identity, inputSchema: { enum: ["a"] } } });
-  assert.equal(withHole, withNull);
-  assert.equal(withFn, withNull);
-  assert.notEqual(withHole, withoutSlot);
+  assert.notEqual(withNull, withoutSlot);
+});
+
+test("host approvals and plugin digests use the same canonical preimage", async () => {
+  const args = ['g3-approval-v2', identity.connectionId, ['roster', 'revision-1'], identity.remoteName,
+    identity.declaredAnnotations, identity.description, identity.inputSchema];
+  assert.equal(await canonicalArgumentDigest({ args }), expected);
+  assert.equal(federatedToolApprovalFingerprint({ identity, fingerprintDomain: 'g3-approval-v2' }), expected);
 });

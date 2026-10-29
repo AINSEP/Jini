@@ -68,7 +68,7 @@ export function useEdgeAutoScroll(contentKey?: unknown): EdgeAutoScroll {
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el) return undefined;
     const updateEdges = () => {
       const maxScroll = el.scrollWidth - el.clientWidth;
       setEdges({

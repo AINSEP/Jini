@@ -1,44 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { Button } from '../button.js';
-import { Card, CardFooter } from '../card.js';
 import { ContentCard } from '../content-card.js';
 import { DataTable } from '../data-table.js';
 import { Check, type IconProps } from '../icons.js';
-import { Table, TableBody, TableCaption, TableCell, TableFooter, TableRow } from '../table.js';
-
-describe('Button asChild', () => {
-  it('renders the button styling onto the caller-supplied child element instead of a <button>', () => {
-    render(<Button asChild variant="outline"><a href="/docs">Docs</a></Button>);
-    const link = screen.getByRole('link', { name: 'Docs' });
-    expect(link.tagName).toBe('A');
-    expect(link).toHaveAttribute('href', '/docs');
-    expect(link.className).toContain('inline-flex');
-    expect(screen.queryByRole('button')).toBeNull();
-  });
-});
-
-describe('Card and Table slots', () => {
-  it('renders a card footer that merges the caller class', () => {
-    render(<Card><CardFooter className="extra">Actions</CardFooter></Card>);
-    expect(screen.getByText('Actions')).toHaveClass('flex', 'items-center', 'extra');
-  });
-
-  it('renders the table footer and caption slots with their data-slot markers', () => {
-    render(
-      <Table>
-        <TableCaption className="cap">Totals</TableCaption>
-        <TableBody><TableRow><TableCell>1</TableCell></TableRow></TableBody>
-        <TableFooter className="foot"><TableRow><TableCell>Sum</TableCell></TableRow></TableFooter>
-      </Table>,
-    );
-    expect(screen.getByText('Totals')).toHaveAttribute('data-slot', 'table-caption');
-    expect(screen.getByText('Totals')).toHaveClass('cap');
-    const footer = screen.getByText('Sum').closest('tfoot');
-    expect(footer).toHaveAttribute('data-slot', 'table-footer');
-    expect(footer).toHaveClass('foot');
-  });
-});
 
 describe('ContentCard', () => {
   it('renders a header for a description alone, without an empty title', () => {

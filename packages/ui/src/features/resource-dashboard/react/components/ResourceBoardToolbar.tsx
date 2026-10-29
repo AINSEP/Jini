@@ -33,6 +33,53 @@ export interface ResourceBoardToolbarProps {
   onCreate?: () => void;
 }
 
+type ResourceBoardSelectControlsProps = Pick<
+  ResourceBoardToolbarProps,
+  | 'selectMode'
+  | 'selectedCount'
+  | 'bulkDeleteBusy'
+  | 'onEnterSelectMode'
+  | 'onExitSelectMode'
+  | 'onBulkDelete'
+  | 'selectModeLabel'
+  | 'selectedCountLabel'
+  | 'deleteSelectedLabel'
+  | 'cancelSelectLabel'
+>;
+
+/** The select-mode bar while selecting, otherwise the button that enters select mode. */
+function ResourceBoardSelectControls({
+  selectMode,
+  selectedCount,
+  bulkDeleteBusy,
+  onEnterSelectMode,
+  onExitSelectMode,
+  onBulkDelete,
+  selectModeLabel,
+  selectedCountLabel,
+  deleteSelectedLabel,
+  cancelSelectLabel,
+}: ResourceBoardSelectControlsProps) {
+  if (!selectMode) {
+    return (
+      <button type="button" className="resource-board-select-toggle" onClick={onEnterSelectMode}>
+        {selectModeLabel}
+      </button>
+    );
+  }
+  return (
+    <div className="resource-board-select-bar" role="group">
+      <span className="resource-board-select-count">{selectedCountLabel(selectedCount)}</span>
+      <button type="button" disabled={selectedCount === 0 || bulkDeleteBusy} onClick={onBulkDelete}>
+        {deleteSelectedLabel}
+      </button>
+      <button type="button" onClick={onExitSelectMode}>
+        {cancelSelectLabel}
+      </button>
+    </div>
+  );
+}
+
 /**
  * DesignsTab's toolbar: sub-tab sort pills + a create button + search +
  * select-mode/bulk-delete bar (grid view only) + the grid/kanban view
@@ -99,21 +146,18 @@ export function ResourceBoardToolbar({
           <input placeholder={searchPlaceholder} value={query} onChange={(event) => onQueryChange(event.target.value)} />
         </div>
         {showSelectControls ? (
-          selectMode ? (
-            <div className="resource-board-select-bar" role="group">
-              <span className="resource-board-select-count">{selectedCountLabel(selectedCount)}</span>
-              <button type="button" disabled={selectedCount === 0 || bulkDeleteBusy} onClick={onBulkDelete}>
-                {deleteSelectedLabel}
-              </button>
-              <button type="button" onClick={onExitSelectMode}>
-                {cancelSelectLabel}
-              </button>
-            </div>
-          ) : (
-            <button type="button" className="resource-board-select-toggle" onClick={onEnterSelectMode}>
-              {selectModeLabel}
-            </button>
-          )
+          <ResourceBoardSelectControls
+            selectMode={selectMode}
+            selectedCount={selectedCount}
+            bulkDeleteBusy={bulkDeleteBusy}
+            onEnterSelectMode={onEnterSelectMode}
+            onExitSelectMode={onExitSelectMode}
+            onBulkDelete={onBulkDelete}
+            selectModeLabel={selectModeLabel}
+            selectedCountLabel={selectedCountLabel}
+            deleteSelectedLabel={deleteSelectedLabel}
+            cancelSelectLabel={cancelSelectLabel}
+          />
         ) : null}
         <div className="resource-board-view-pill" role="group" aria-label={viewToggleAriaLabel}>
           <button

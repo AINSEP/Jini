@@ -1,3 +1,4 @@
+import { trimCharsEnd } from "@jini-ai/core/primitives";
 import { SLUG_PATTERN } from "./write-service.js";
 import { deriveAvailableName } from "@jini-ai/core/naming";
 
@@ -67,7 +68,7 @@ export function slugifyFormName(
   { name, slugify }: { name: string; slugify: (name: string) => string },
   _optional: Record<string, never> = {},
 ): string {
-  return slugify(name).slice(0, FORM_SLUG_MAX_LENGTH).replace(/-+$/g, "");
+  return trimCharsEnd({ text: slugify(name).slice(0, FORM_SLUG_MAX_LENGTH), chars: "-" });
 }
 
 /**
@@ -110,7 +111,7 @@ export async function deriveAvailableFormSlug(
       },
       exhaustionMessage: ({ maxAttempts }) =>
         `no free slug could be derived from '${required.name}' after ${maxAttempts} attempts — ` +
-          "give the copy an explicit slug",
+        "give the copy an explicit slug",
     },
     { maxAttempts: required.maxAttempts },
   );
@@ -126,5 +127,5 @@ export async function deriveAvailableFormSlug(
 function withSuffix(base: string, suffix: number): string {
   const tail = `-${suffix}`;
   const room = FORM_SLUG_MAX_LENGTH - tail.length;
-  return `${base.slice(0, room).replace(/-+$/g, "")}${tail}`;
+  return `${trimCharsEnd({ text: base.slice(0, room), chars: "-" })}${tail}`;
 }

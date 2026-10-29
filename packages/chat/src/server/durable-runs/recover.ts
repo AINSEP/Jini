@@ -4,7 +4,7 @@ import { continuationRequest } from "../../core/durable-runs/continuation.js";
 import { isAwaitingAnswer } from "../../core/run-activity.js";
 import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, RecoveryTrigger, RunProbe } from "../../core/durable-runs/ports.js";
 
-import { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
+import { RECOVERY_LIMIT, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
 export { RECOVERY_LIMIT, RECOVERY_WINDOW_MS, RUN_STALENESS_MS, SAVED_WORK_NOTICE, AWAITING_ANSWER_NOTICE, EXHAUSTED_NOTICE } from "../../core/durable-runs/policies.js";
 // Older saved run error frames hold only their message: the daemon's MCP_BRIDGE_UNAVAILABLE
 // code was dropped, so the bridge failure is still matched by its text.
@@ -58,9 +58,9 @@ function attemptDiagnostics({ run }: { run: DurableRun }, _optional = {}): strin
 /** Quota/billing and bad requests need human repair. A 429 for rate throttling and a 5xx
  * overload remain retryable; the provider's coarse RATE_LIMITED class also includes billing. */
 function needsHumanRepair({ diagnostics }: { diagnostics: string }, _optional = {}): boolean {
-  const requestStatuses = diagnostics.matchAll(/\b(?:http(?:[ /]?\d(?:\.\d)?)?|(?:status|error|response)(?:[ _-]?code)?|code(?=\s*[:=#]))[\s:=#-]*(4\d\d)\b/gi);
-  if ([...requestStatuses].some((match) => match[1] !== "408" && match[1] !== "429")) return true;
-  return /another answer in this chat is still running|invalid[_ -]?request|context[_ -](length|window)|maximum context|model.*(?:not[_ -]found|does not exist|not supported)|unsupported|does not support|permission denied|forbidden|insufficient[_ -]?(quota|balance|credit|funds)|credit balance is too low|exceeded your current quota|quota[_ -]?exceeded|usage limit|billing|payment required/i.test(diagnostics);
+  const hasRejectedStatus = REQUEST_STATUS_PATTERNS.some(pattern =>
+    [...diagnostics.matchAll(pattern)].some(match => match[1] !== "408" && match[1] !== "429"));
+  return hasRejectedStatus || HUMAN_REPAIR_PATTERNS.some(pattern => pattern.test(diagnostics));
 }
 
 function attemptFailure({ diagnostics }: { diagnostics: string }, _optional = {}): FailureClass {
@@ -273,3 +273,14 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     },
   };
 }
+
+const REQUEST_STATUS_PATTERNS = [
+  /\bhttp(?:[ /]?\d(?:\.\d)?)?[\s:=#-]*(4\d\d)\b/gi,
+  /\b(?:status|error|response)(?:[ _-]?code)?[\s:=#-]*(4\d\d)\b/gi,
+  /\bcode(?=\s*[:=#])[\s:=#-]*(4\d\d)\b/gi,
+];
+const HUMAN_REPAIR_PATTERNS = [
+  /another answer in this chat is still running|invalid[_ -]?request|context[_ -](length|window)|maximum context/i,
+  /model.*(?:not[_ -]found|does not exist|not supported)|unsupported|does not support|permission denied|forbidden/i,
+  /insufficient[_ -]?(quota|balance|credit|funds)|credit balance is too low|exceeded your current quota|quota[_ -]?exceeded|usage limit|billing|payment required/i,
+];

@@ -90,8 +90,7 @@ function recordInnerRange(
 function indexChildren(children: readonly Parse5Node[], parentPath: ElementPath, out: Map<string, ElementSourceRange>): void {
   let elementIndex = 0;
   for (const node of children) {
-    if (!isElement(node)) continue;
-    if (UNINDEXED_TAGS.has(node.tagName)) continue;
+    if (!isElement(node) || UNINDEXED_TAGS.has(node.tagName)) continue;
 
     const currentPath = [...parentPath, elementIndex];
     recordInnerRange({ node, currentPath, out }, {});
@@ -216,7 +215,11 @@ export function indexSourceElements({ html }: { html: string }, _options: object
     let slot = 0;
     const elements = nodes.filter(isElement).map(node => {
       const atom = UNINDEXED_TAGS.has(node.tagName);
-      const path = atom ? null : [...parentPath, slot++];
+      let path: ElementPath | null = null;
+      if (!atom) {
+        path = [...parentPath, slot];
+        slot += 1;
+      }
       const loc = node.sourceCodeLocation;
       const children = walk({ nodes: node.childNodes, parentPath: path ?? parentPath, parentStart: loc?.startTag?.endOffset ?? parentStart, parentEnd: loc?.endTag?.startOffset ?? parentEnd }, {});
       const outerRange = sourceOuterRange({ node, html, parentStart, parentEnd }, {});

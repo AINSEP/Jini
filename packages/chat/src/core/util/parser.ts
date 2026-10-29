@@ -110,11 +110,10 @@ function findTagEnd({ buffer, from }: { buffer: string; from: number }): number 
     const c = buffer.charAt(j);
     if (quote !== null) {
       if (c === quote) quote = null;
-    } else if (c === '"' || c === "'") {
-      quote = c;
-    } else if (c === '>') {
-      return j;
+      continue;
     }
+    if (c === '>') return j;
+    if (c === '"' || c === "'") quote = c;
   }
   return -1;
 }
@@ -227,14 +226,16 @@ export function createArtifactParser(_requiredArgs: Record<string, never>): {
   }
 
   function* flush(_requiredArgs: Record<string, never>): Generator<ArtifactEvent> {
-    if (state.inside) {
+    const wasInside = state.inside;
+    if (wasInside) {
       if (state.buffer.length > 0) {
         state.content += state.buffer;
         yield { type: 'artifact:chunk', identifier: state.identifier, delta: state.buffer };
         state.buffer = '';
       }
       yield { type: 'artifact:end', identifier: state.identifier, fullContent: state.content };
-    } else if (state.buffer.length > 0) {
+    }
+    if (!wasInside && state.buffer.length > 0) {
       yield { type: 'text', delta: state.buffer };
     }
     state.buffer = '';

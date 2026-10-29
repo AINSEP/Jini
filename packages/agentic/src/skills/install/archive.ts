@@ -23,7 +23,8 @@ async function collectArchiveFiles({ entries }: { entries: AsyncIterable<Archive
   const budget = { total: 0 };
   let count = 0;
   for await (const entry of entries) {
-    if (++count > MAX_SKILL_FILES) throw new SkillInputError({ message: "A skill archive may contain at most 256 entries." });
+    count += 1;
+    if (count > MAX_SKILL_FILES) throw new SkillInputError({ message: "A skill archive may contain at most 256 entries." });
     if (isRegularFileEntry({ entry })) files.push(await readArchiveFile({ entry, budget }));
   }
   return files;
@@ -37,8 +38,13 @@ function isRegularFileEntry({ entry }: { entry: ArchiveEntry }): boolean {
 }
 
 /** Streams one file under its own 1 MiB cap and the archive-wide budget, then checks metadata. */
+/** A whole, non-negative byte count within the per-file limit. */
+function isAllowedFileSize(bytes: number): boolean {
+  return Number.isSafeInteger(bytes) && bytes >= 0 && bytes <= MAX_SKILL_FILE_BYTES;
+}
+
 async function readArchiveFile({ entry, budget }: { entry: ArchiveEntry; budget: { total: number } }): Promise<SkillUploadFile> {
-  if (!Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > MAX_SKILL_FILE_BYTES) throw new SkillInputError({ message: "Skill archive file exceeds 1 MiB." });
+  if (!isAllowedFileSize(entry.size)) throw new SkillInputError({ message: "Skill archive file exceeds 1 MiB." });
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of entry.read({})) {

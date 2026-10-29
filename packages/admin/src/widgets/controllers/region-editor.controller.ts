@@ -11,7 +11,8 @@ export function createWidgetRegionEditorController({ api, regionKey: initialKey 
   let regionKey = initialKey, generation = 0;
   const isLiveRead = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     store.set({ patch: { loading: true, error: null, saving: false } });
     try {
       const result = await api.getWidgetRegion({ regionKey }, { signal: store.signal });

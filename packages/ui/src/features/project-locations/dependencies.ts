@@ -22,6 +22,12 @@ const DEFAULT_BUILT_IN: ProjectLocation = {
 
 let nextFakeId = 1;
 
+function takeFakeId(): string {
+  const id = `fake-location-${nextFakeId}`;
+  nextFakeId += 1;
+  return id;
+}
+
 /**
  * An in-memory test/demo double. Per this package's established convention
  * (see `execution/dependencies.ts`, `integrations/dependencies.ts`), ships a
@@ -48,7 +54,7 @@ export function createFakeProjectLocationsPort(options: FakeProjectLocationsPort
     saveLocations(drafts: readonly ProjectLocationDraft[]) {
       const builtIn = locations.filter((location) => location.builtIn);
       const nextExternal = drafts.map((draft) => ({
-        id: draft.id ?? `fake-location-${nextFakeId++}`,
+        id: draft.id ?? takeFakeId(),
         name: draft.path.split(/[\\/]/).filter(Boolean).pop() || draft.path,
         path: draft.path,
       }));

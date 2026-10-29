@@ -1,3 +1,4 @@
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 export interface ObservabilityConfigDisabled { enabled: false; }
 export interface ObservabilityConfigEnabled {
  enabled: true; serviceName: string; tracerName: string; endpoint: string;
@@ -21,5 +22,5 @@ export function resolveObservabilityConfig(
  if (!tracerName.trim()) throw new TypeError('tracerName must be non-empty');
  // A signal-specific endpoint already names its route; the general endpoint needs /v1/traces.
  // Treating the general endpoint as complete would send traces to the collector's wrong route.
- return { enabled: true, serviceName: serviceName.trim(), tracerName: tracerName.trim(), endpoint: traces || `${base!.replace(/\/+$/, '')}/v1/traces` };
+ return { enabled: true, serviceName: serviceName.trim(), tracerName: tracerName.trim(), endpoint: traces || `${trimCharsEnd({ text: base!, chars: '/' })}/v1/traces` };
 }

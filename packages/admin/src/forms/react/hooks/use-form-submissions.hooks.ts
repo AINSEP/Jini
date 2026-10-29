@@ -80,15 +80,11 @@ export function useFormSubmissions(props: { formId: string; port: AdminFormsPort
 
   const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormSubmissionsController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormSubmissionsState({});
-  const morePages = state.morePages;
+  const { morePages, moreCursor, moreError, selectedId, loadingMore } = state;
   const setMorePages = (value: FormSubmissionsStateValue<"morePages">) => stateController?.update({ key: "morePages", value });
-  const moreCursor = state.moreCursor;
   const setMoreCursor = (value: FormSubmissionsStateValue<"moreCursor">) => stateController?.update({ key: "moreCursor", value });
-  const moreError = state.moreError;
   const setMoreError = (value: FormSubmissionsStateValue<"moreError">) => stateController?.update({ key: "moreError", value });
-  const selectedId = state.selectedId;
   const setSelectedId = (value: FormSubmissionsStateValue<"selectedId">) => stateController?.update({ key: "selectedId", value });
-  const loadingMore = state.loadingMore;
   const setLoadingMore = (value: FormSubmissionsStateValue<"loadingMore">) => stateController?.update({ key: "loadingMore", value });
 
   // The "latest call wins" guard for accumulated pages — see the file header. `loadingMoreRef` is

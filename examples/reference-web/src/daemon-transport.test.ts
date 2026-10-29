@@ -1,13 +1,45 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '@jini-ai/chat/core';
 import type { RunHandlers } from '@jini-ai/chat/react';
-import { composeRunPrompt, encodeRunContext, toAgentEvent } from './daemon-transport.js';
+import { composeRunPrompt, createDaemonChatTransport, encodeRunContext, toAgentEvent } from './daemon-transport.js';
 
 const handlers: RunHandlers = {
   onEvent: vi.fn(),
   onError: vi.fn(),
   onDone: vi.fn(),
 };
+
+it('starts a scoped run and delivers streamed text before the terminal callback', async () => {
+  const calls: string[] = [];
+  const events: unknown[] = [];
+  let complete!: () => void;
+  let fail!: (error: Error) => void;
+  const finished = new Promise<void>((resolve, reject) => { complete = resolve; fail = reject; });
+  const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    if (url === '/api/runs') {
+      const body = JSON.parse(String(init?.body));
+      expect(body.agentId).toBe('demo');
+      expect(JSON.parse(Buffer.from(body.contextRef.slice('playground:'.length), 'base64url').toString())).toMatchObject({ project: 'bug-hunt', model: 'chosen', reasoning: 'high', workingDirectory: '/workspace' });
+      return Response.json({ run: { id: 'run/1', state: 'running' } });
+    }
+    expect(url).toBe('/api/runs/run%2F1/events');
+    return new Response('data: {"kind":"agent","payload":{"type":"text_delta","delta":"hello"}}\n\ndata: {"kind":"end","payload":{"status":"succeeded"}}\n\n');
+  });
+  vi.stubGlobal('fetch', fetch);
+  try {
+    expect(await createDaemonChatTransport().startRun({
+      agentId: 'demo', history: [{ id: 'u', role: 'user', content: 'inspect' }],
+      context: { project: 'bug-hunt', model: 'chosen', reasoning: 'high', workingDirectory: '/workspace' }, signal: new AbortController().signal,
+    }, {
+      onEvent(event) { calls.push('event'); events.push(event); },
+      onError(error) { fail(error); },
+      onDone(done) { calls.push('done'); expect(done).toEqual([{ kind: 'text', text: 'hello' }]); complete(); },
+    })).toEqual({ runId: 'run/1' });
+    await finished;
+    expect(calls).toEqual(['event', 'done']);
+    expect(events).toEqual([{ kind: 'text', text: 'hello' }]);
+  } finally { vi.unstubAllGlobals(); }
+});
 
 describe('composeRunPrompt', () => {
   it('builds an ordered, sanitized multi-turn transcript without the synthetic welcome', () => {

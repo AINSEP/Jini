@@ -1,7 +1,8 @@
 /**
- * Ported verbatim from shadcn's `new-york` style registry (`ui.shadcn.com/r/styles/new-york/select.json`,
+ * Ported from shadcn's `new-york` style registry (`ui.shadcn.com/r/styles/new-york/select.json`,
  * 2026-08-18). Only the `cn` import path changed, same as `table.tsx`; every class name and
  * `data-*` attribute below is unmodified CLI output.
+ * Unused private group, label, and separator primitives are omitted.
  */
 import * as React from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
@@ -10,8 +11,6 @@ import { Check, ChevronDown, ChevronUp } from './icons.js';
 import { cn } from './lib/utils.js';
 
 const Select = SelectPrimitive.Root;
-
-const SelectGroup = SelectPrimitive.Group;
 
 const SelectValue = SelectPrimitive.Value;
 
@@ -90,12 +89,6 @@ const SelectContent = React.forwardRef<
 ));
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
-const SelectLabel = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Label>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
->(({ className, ...props }, ref) => <SelectPrimitive.Label ref={ref} className={cn('px-2 py-1.5 text-sm font-semibold', className)} {...props} />);
-SelectLabel.displayName = SelectPrimitive.Label.displayName;
-
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
@@ -118,21 +111,12 @@ const SelectItem = React.forwardRef<
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
 
-const SelectSeparator = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Separator>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
->(({ className, ...props }, ref) => <SelectPrimitive.Separator ref={ref} className={cn('-mx-1 my-1 h-px bg-muted', className)} {...props} />);
-SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
-
 export {
   Select,
-  SelectGroup,
   SelectValue,
   SelectTrigger,
   SelectContent,
-  SelectLabel,
   SelectItem,
-  SelectSeparator,
   SelectScrollUpButton,
   SelectScrollDownButton,
 };

@@ -27,7 +27,7 @@ export function useSeo({ api }: { api: AdminSeoPort }, { t, events }: { t?: SeoT
     controller.set({ patch: { settings: cached.query.data, ...(imageUntouched ? { defaultOgImage: cached.query.data.defaultOgImage ?? '' } : {}) } });
   }, [controller, cached.query.data]);
   useEffect(() => {
-    if (!controller || !events) return;
+    if (!controller || !events) return undefined;
     return events.subscribe({ onRefresh: () => { invalidate({ key: SEO_KEYS.settings }); } });
   }, [controller, events, invalidate]);
   return {

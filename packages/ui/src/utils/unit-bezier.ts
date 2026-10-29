@@ -20,13 +20,12 @@ export function unitBezier(x1: number, y1: number, x2: number, y2: number): (x: 
     let t = x;
     for (let i = 0; i < 8; i += 1) {
       const err = sampleX(t) - x;
-      if (Math.abs(err) < 1e-6) break;
       const d = sampleDX(t);
       // A flat x-derivative would make the Newton step divide by ~0. For smooth-scroll-to-top's
       // fixed ease-out curve sampleDX stays at least about 0.6095 over [0, 1], so it never fires
       // there; it does for degenerate control points (e.g. x1 = x2 = 0 near x = 0), where the
       // current estimate is kept rather than stepping to Infinity/NaN.
-      if (Math.abs(d) < 1e-6) break;
+      if (Math.abs(err) < 1e-6 || Math.abs(d) < 1e-6) break;
       t -= err / d;
     }
     return sampleY(Math.min(1, Math.max(0, t)));

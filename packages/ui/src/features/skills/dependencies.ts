@@ -1,5 +1,6 @@
 import type { SkillDetail, SkillFileEntry, SkillSummary } from './types.js';
 import type { SkillsPort, SkillWritePayload } from './ports.js';
+import { omitKeys } from '../../utils/omit-keys.js';
 
 export interface FakeSkillsPortOptions {
   /** Seed skills, body included. Defaults to one built-in demo skill. */
@@ -24,9 +25,14 @@ const DEFAULT_FAKE_SKILLS: readonly SkillDetail[] = [
 
 let nextFakeId = 1;
 
+function takeFakeSkillId(): string {
+  const id = `fake-skill-${nextFakeId}`;
+  nextFakeId += 1;
+  return id;
+}
+
 function toSummary(detail: SkillDetail): SkillSummary {
-  const { body: _body, ...summary } = detail;
-  return summary;
+  return omitKeys(detail, ['body']);
 }
 
 /**
@@ -55,7 +61,7 @@ export function createFakeSkillsPort(options: FakeSkillsPortOptions = {}): Skill
       return delay([...(files.get(id) ?? [])]);
     },
     createSkill(payload: SkillWritePayload) {
-      const id = `fake-skill-${nextFakeId++}`;
+      const id = takeFakeSkillId();
       const detail: SkillDetail = {
         id,
         name: payload.name,
@@ -73,7 +79,7 @@ export function createFakeSkillsPort(options: FakeSkillsPortOptions = {}): Skill
       if (!existing) return Promise.reject(new Error(`Unknown skill: ${id}`));
       // A built-in edit writes a NEW user-owned shadow copy, same as the
       // origin — the requested id is never mutated in place.
-      const targetId = existing.source === 'user' ? id : `fake-skill-${nextFakeId++}`;
+      const targetId = existing.source === 'user' ? id : takeFakeSkillId();
       const detail: SkillDetail = {
         ...existing,
         id: targetId,

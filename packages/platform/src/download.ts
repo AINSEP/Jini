@@ -258,6 +258,8 @@ function normalizeChecksum(input: ManagedDownloadChecksum): ManagedDownloadCheck
   return { algorithm: input.algorithm, value };
 }
 
+const DOT_SEGMENTS: ReadonlySet<string> = new Set([".", ".."]);
+
 function normalizeSegment(value: string, label: string): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.INVALID_TARGET, `${label} must be a non-empty string`);
@@ -266,7 +268,7 @@ function normalizeSegment(value: string, label: string): string {
   // `isAbsolute`/`[\\/]` checks above don't reject it, but `path.win32.resolve`
   // treats it as a real drive reference, which can escape `basePath` onto a
   // different drive entirely.
-  if (value === "." || value === ".." || value.includes("\0") || value.includes(":") || /[\\/]/.test(value) || isAbsolute(value)) {
+  if (DOT_SEGMENTS.has(value) || value.includes("\0") || /[:\\/]/.test(value) || isAbsolute(value)) {
     throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.INVALID_TARGET, `${label} must be a safe single path segment`);
   }
   return value;
@@ -402,13 +404,14 @@ async function ensureManagedBase(basePath: string): Promise<void> {
   }
   const sentinelPath = join(basePath, STORE_SENTINEL);
   const sentinel = await readJson<unknown>(sentinelPath);
+  if (sentinel != null && !isStoreSentinel(sentinel)) {
+    throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_NOT_OWNED, `download base has an invalid ownership marker: ${basePath}`);
+  }
   if (sentinel == null) {
     if (!(await directoryIsEmpty(basePath))) {
       throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_NOT_OWNED, `download base is not empty and has no ownership marker: ${basePath}`);
     }
     await writeSentinel(basePath);
-  } else if (!isStoreSentinel(sentinel)) {
-    throw new ManagedDownloadError(MANAGED_DOWNLOAD_ERROR_CODES.STORE_NOT_OWNED, `download base has an invalid ownership marker: ${basePath}`);
   }
   await ensureStoreDirs(basePath);
 }
@@ -435,23 +438,22 @@ const MANIFEST_STRING_FIELDS = [
 function isManifest(value: unknown): value is DownloadManifest {
   if (!isPlainObject(value)) return false;
   const record = value as Partial<DownloadManifest>;
+  const versionMatches = record.kind === MANIFEST_KIND && record.schemaVersion === MANIFEST_SCHEMA_VERSION;
+  const knownState = record.state === "complete" || record.state === "partial";
   return (
-    record.kind === MANIFEST_KIND &&
-    record.schemaVersion === MANIFEST_SCHEMA_VERSION &&
+    versionMatches &&
     MANIFEST_STRING_FIELDS.every((field) => typeof record[field] === "string") &&
     isChecksum(record.checksum) &&
-    (record.state === "complete" || record.state === "partial")
+    knownState
   );
 }
 
 function isDownloadLockFile(value: unknown): value is DownloadLockFile {
   if (!isPlainObject(value)) return false;
   const record = value as Partial<DownloadLockFile>;
-  return typeof record.createdAt === "string" &&
-    typeof record.pid === "number" &&
-    Number.isInteger(record.pid) &&
-    record.pid > 0 &&
-    (record.processStartedAt == null || typeof record.processStartedAt === "string");
+  const validPid = typeof record.pid === "number" && Number.isInteger(record.pid) && record.pid > 0;
+  const validStartedAt = record.processStartedAt == null || typeof record.processStartedAt === "string";
+  return typeof record.createdAt === "string" && validPid && validStartedAt;
 }
 
 function parseTimeMs(value: string | undefined): number | null {
@@ -489,16 +491,16 @@ async function readManifest(path: string): Promise<DownloadManifest | "invalid" 
   }
 }
 
+const MANIFEST_IDENTITY_FIELDS = ["bucket", "fileName", "targetKey", "identityDigest", "urlDigest"] as const satisfies ReadonlyArray<
+  keyof DownloadManifest & keyof NormalizedTarget
+>;
+
 function manifestMatchesTarget(manifest: DownloadManifest, target: NormalizedTarget): boolean {
-  return (
-    manifest.bucket === target.bucket &&
-    manifest.fileName === target.fileName &&
-    manifest.targetKey === target.targetKey &&
-    manifest.identityDigest === target.identityDigest &&
-    manifest.urlDigest === target.urlDigest &&
+  const identityMatches = MANIFEST_IDENTITY_FIELDS.every((field) => manifest[field] === target[field]);
+  const checksumMatches =
     manifest.checksum.algorithm === target.checksum.algorithm &&
-    manifest.checksum.value.toLowerCase() === target.checksum.value
-  );
+    manifest.checksum.value.toLowerCase() === target.checksum.value;
+  return identityMatches && checksumMatches;
 }
 
 function createManifest(
@@ -707,9 +709,11 @@ async function downloadWithRetries(
   const deps: DownloadDeps = { emit: options.emit, fetchImpl: options.fetchImpl };
   for (let attempt = 1; attempt <= options.maxAttempts; attempt += 1) {
     try {
-      if (nextManifest?.state === "partial") {
-        const resume = await tryResumeDownload({ ...deps, manifest: nextManifest, target }, options);
-        if (resume !== "restart") return resume;
+      const resume = nextManifest?.state === "partial"
+        ? await tryResumeDownload({ ...deps, manifest: nextManifest, target }, options)
+        : null;
+      if (resume !== null && resume !== "restart") return resume;
+      if (resume === "restart") {
         await rm(target.partialPath, { force: true }).catch(() => undefined);
         nextManifest = null;
       }
@@ -1118,8 +1122,9 @@ async function removeEntriesOlderThan(root: string, olderThan: number): Promise<
     const info = await stat(path).catch(() => null);
     if (info == null || info.mtimeMs > olderThan) continue;
     const result = await removePathBestEffort(path);
+    // A successful removal never carries an error, so the two checks are exclusive.
     if (result.removed) removed += 1;
-    else if (result.error != null) warnings.push(result.error);
+    if (result.error != null) warnings.push(result.error);
   }
   return { removed, warnings };
 }

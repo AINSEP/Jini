@@ -14,6 +14,7 @@
  * return type — a compile error at the switch itself. A `default` that threw would instead move
  * that failure to runtime, and add a branch no test could reach.
  */
+import { unhandledCase } from '../../../utils/unhandled-case.js';
 import { renderCheckbox } from './checkbox.js';
 import { renderChoiceGroup } from './choice-group.js';
 import { renderSelect, type SelectOption } from './select.js';
@@ -140,6 +141,7 @@ export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInp
     case 'multi-enum':
       return renderChoiceGroup({ ...base(field), selection: 'multiple', options: field.options, ...present(field, ['value']) });
   }
+  return unhandledCase(field);
 }
 
 /** What the surface's inline script needs to read a field's value back and coerce it — the runtime half of {@link SurfaceField}, with the presentation stripped out. */

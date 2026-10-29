@@ -217,7 +217,8 @@ function collectManifestProblems(
 
   const specVersion = readSpecVersion(raw.$schema, "plugin");
   if (specVersion.error) errors.push(specVersion.error);
-  else if (specVersion.warning) warnings.push(specVersion.warning);
+  // A version error already explains the schema; its warning would only repeat it.
+  if (!specVersion.error && specVersion.warning) warnings.push(specVersion.warning);
 
   if (raw.extensions !== undefined && !isJsonObject(raw.extensions)) errors.push("plugin.json extensions must be an object");
   if (nameError) errors.push(nameError);
@@ -559,7 +560,7 @@ function collectMcpConfigErrors({ raw }: { readonly raw: Readonly<Record<string,
   const mcpVersion = mcpSpec.version;
   const pluginVersion = isJsonObject(pluginManifest) ? readSpecVersion(pluginManifest.$schema, "plugin").version : undefined;
   if (mcpSpec.error) errors.push(mcpSpec.error);
-  else if (pluginVersion !== undefined && pluginVersion !== mcpVersion) {
+  if (!mcpSpec.error && pluginVersion !== undefined && pluginVersion !== mcpVersion) {
     errors.push(`mcp.json targets Agent Plugins ${mcpVersion} but plugin.json targets ${pluginVersion}; the versions must match`);
   }
 

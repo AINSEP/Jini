@@ -61,16 +61,14 @@ export function workspacePackageGlobs(workspaceRoot: string): string[] {
   return globs;
 }
 
-/**
- * Discovers every real `@jini-ai/*` package in the workspace from `pnpm-workspace.yaml`'s globs —
- * never a hardcoded list. Nested members such as `packages/<family>/<domain>` are found because the
- * workspace file lists them; a one-level `packages/*` scan never saw them, so they never published.
- * Private packages are included (dependency closures need them); publish paths filter them out.
- */
-export function discoverJiniPackages(workspaceRoot: string): Map<string, JiniPackageEntry> {
+function isSupportedWorkspaceGlob(glob: string): boolean {
+  return !glob.startsWith('!') && !/[*?{[]/.test(glob.replace(/\/\*$/, ''));
+}
+
+function workspacePackageDirectories(workspaceRoot: string): string[] {
   const dirs: string[] = [];
   for (const glob of workspacePackageGlobs(workspaceRoot)) {
-    if (glob.startsWith('!') || /[*?{[]/.test(glob.replace(/\/\*$/, ''))) {
+    if (!isSupportedWorkspaceGlob(glob)) {
       throw new Error(`pack-jini-packages: unsupported pnpm-workspace.yaml glob "${glob}" — only "dir/*" and literal paths`);
     }
     if (!glob.endsWith('/*')) {
@@ -79,10 +77,21 @@ export function discoverJiniPackages(workspaceRoot: string): Map<string, JiniPac
     }
     const parent = join(workspaceRoot, glob.slice(0, -2));
     if (!existsSync(parent)) continue;
-    for (const entry of readdirSync(parent, { withFileTypes: true })) {
-      if (entry.isDirectory()) dirs.push(join(parent, entry.name));
-    }
+    dirs.push(...readdirSync(parent, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => join(parent, entry.name)));
   }
+  return dirs;
+}
+
+/**
+ * Discovers every real `@jini-ai/*` package in the workspace from `pnpm-workspace.yaml`'s globs —
+ * never a hardcoded list. Nested members such as `packages/<family>/<domain>` are found because the
+ * workspace file lists them; a one-level `packages/*` scan never saw them, so they never published.
+ * Private packages are included (dependency closures need them); publish paths filter them out.
+ */
+export function discoverJiniPackages(workspaceRoot: string): Map<string, JiniPackageEntry> {
+  const dirs = workspacePackageDirectories(workspaceRoot);
   const registry = new Map<string, JiniPackageEntry>();
   for (const dir of dirs) {
     if (!existsSync(join(dir, 'package.json'))) continue;
@@ -120,11 +129,6 @@ export function computeClosure(registry: Map<string, JiniPackageEntry>, rootName
   return order;
 }
 
-/** Builds one package's TypeScript project (`tsc`), producing the `dist/` that its own `"files"` field packs. */
-export function buildPackage(name: string, repoRoot: string): void {
-  execFileSync('pnpm', ['--filter', name, 'run', 'build'], { cwd: repoRoot, stdio: 'inherit' });
-}
-
 /**
  * `pnpm pack`s one package into `destDir`, then rewrites the tarball's own `package.json` so every
  * `@jini-ai/*` dependency points at its sibling tarball's file path (`file:<abs path>.tgz`). This is
@@ -146,7 +150,7 @@ export function packAndRewrite(
   if (expected && expected !== packed.filename) {
     throw new Error(
       `pack-jini-packages: tarball filename mismatch for ${name} — expected "${expected}", pnpm produced "${packed.filename}". ` +
-        'The precomputed tarball-path map is out of sync with pnpm pack\'s own naming.',
+      'The precomputed tarball-path map is out of sync with pnpm pack\'s own naming.',
     );
   }
   const tarballPath = packed.filename;
@@ -193,19 +197,22 @@ export function buildAndPackClosure(
   const registry = discoverJiniPackages(repoRoot);
   const closure = computeClosure(registry, rootNames);
 
-  for (const name of closure) buildPackage(name, repoRoot);
+  // Build each package's TypeScript project, producing the dist/ its own "files" field packs.
+  for (const name of closure) {
+    execFileSync('pnpm', ['--filter', name, 'run', 'build'], { cwd: repoRoot, stdio: 'inherit' });
+  }
 
+  // computeClosure validated every name against this private registry; these synchronous
+  // build/pack loops never mutate the map, so both lookups below must succeed.
   const tarballPathByName = new Map<string, string>();
   for (const name of closure) {
-    const entry = registry.get(name);
-    if (!entry) throw new Error(`pack-jini-packages: unreachable — "${name}" missing from registry`);
+    const entry = registry.get(name)!;
     const version = entry.pkg.version ?? '0.0.0';
     tarballPathByName.set(name, join(destDir, tarballFileName(name, version)));
   }
 
   for (const name of closure) {
-    const entry = registry.get(name);
-    if (!entry) throw new Error(`pack-jini-packages: unreachable — "${name}" missing from registry`);
+    const entry = registry.get(name)!;
     packAndRewrite(name, entry.dir, destDir, tarballPathByName);
   }
 

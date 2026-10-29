@@ -12,7 +12,8 @@ export function validateKernel<DB>({ kernel, transports, dialect }: { kernel: St
 
 /** Copy primitive identity fields so subsequent caller mutation cannot rebind the store. */
 export function copyScope({ scope }: { scope: ChatOwnerScope }): ChatOwnerScope {
-  if (!scope || typeof scope.scopeId !== 'string' || !scope.scopeId || typeof scope.ownerId !== 'string' || !scope.ownerId || !['user', 'guest'].includes(scope.ownerKind)) {
+  if (!scope || typeof scope.scopeId !== 'string' || !scope.scopeId) throw new ChatStoreError({ code: 'invalid-input' });
+  if (typeof scope.ownerId !== 'string' || !scope.ownerId || !['user', 'guest'].includes(scope.ownerKind)) {
     throw new ChatStoreError({ code: 'invalid-input' });
   }
   return { scopeId: scope.scopeId, ownerKind: scope.ownerKind, ownerId: scope.ownerId };

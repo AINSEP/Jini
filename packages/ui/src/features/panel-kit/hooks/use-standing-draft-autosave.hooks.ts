@@ -250,7 +250,7 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     backupEntryIdRef.current = null;
     minBaseVersionRef.current = null;
     latestDraftRef.current = null;
-    if (!enabled || !entryId) return;
+    if (!enabled || !entryId) return undefined;
     let cancelled = false;
     port
       .getAutosave({ id: entryId }, {})
@@ -408,7 +408,7 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
   // debounce had not written. Each handler is a no-op when nothing is pending, so overlapping
   // events (a close fires blur AND pagehide) cost one write, not three.
   useEffect(() => {
-    if (!enabled || !entryId) return;
+    if (!enabled || !entryId) return undefined;
     // Wrapped rather than passed straight to `addEventListener`: a listener is called WITH the
     // Event, which would arrive as `flushPendingAutosave`'s `keepalive` argument — a truthy object,
     // so every flush would silently request keepalive whether or not it is an exit.

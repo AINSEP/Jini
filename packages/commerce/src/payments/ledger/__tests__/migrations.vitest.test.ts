@@ -13,6 +13,8 @@ import { PAYMENTS_OPERATOR_ACTIONS_ID } from "../migrations/0002_payments_operat
 import { PAYMENTS_ATTEMPT_RECOVERY_ID } from "../migrations/0004_payments_attempt_recovery.js";
 import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "../migrations/checksums.js";
 import { LEDGER_INTEGER_COLUMNS, LEDGER_TABLE_RULES, LEDGER_TABLES } from "../rows.js";
+import { sqlPaymentsLedger } from "../repo.sql.js";
+import { payment } from "./ledger-contract.js";
 
 /**
  * @file Holds the payments ledger's migration history immutable (ADR-066 §3) and proves it applies:
@@ -66,6 +68,112 @@ describe("payments ledger migrations", () => {
     const { pinnedChecksum } = await history();
     expect(pinnedChecksum({ id: "x" }, { checksums: { x: "c" } })).toBe("c");
     expect(() => pinnedChecksum({ id: "9999_nope" })).toThrow(/9999_nope has no pinned checksum/);
+  });
+
+  // Regression: a migration id must name an own checksum, never Object.prototype data.
+  test.each(["toString", "constructor", "hasOwnProperty", "__proto__"])
+    ("an inherited property %s is not a pinned migration checksum", async (id) => {
+      const { pinnedChecksum } = await history();
+      expect(() => pinnedChecksum({ id })).toThrow(`commerce payments migration ${id} has no pinned checksum in checksums.ts`);
+    });
+
+  test.each(["toString", "constructor", "hasOwnProperty", "__proto__"])
+    ("an injected checksum table also refuses inherited property %s", async (id) => {
+      const { pinnedChecksum } = await history();
+      expect(() => pinnedChecksum({ id }, { checksums: {} })).toThrow(`commerce payments migration ${id} has no pinned checksum in checksums.ts`);
+    });
+
+  test("upgrading a populated first-step database preserves attempts and outbox enqueue order", async () => {
+    const { COMMERCE_PAYMENTS_MIGRATIONS, COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } = await history();
+    const kernel = openKernel();
+    try {
+      await runMigrations(kernel, COMMERCE_PAYMENTS_MIGRATIONS.slice(0, 1), { ledgerTable: COMMERCE_PAYMENTS_LEDGER_TABLE });
+      const ledger = sqlPaymentsLedger({ kernel });
+      await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: payment() }) });
+      await kernel.execute(sql`INSERT INTO commerce_payment_attempts
+        (id, payment_id, workspace_id, site_id, provider_id, provider_account_id, mode, op, operation_key,
+         refund_id, outcome, error_code, error_message, created_at, updated_at)
+        VALUES ('legacy-attempt', 'pay-1', 'ws-1', 'site-1', 'stripe', 'acct-1', 'live', 'capture', 'legacy-op',
+                NULL, 'unknown', NULL, NULL, 101, 203)`);
+      await kernel.execute(sql`INSERT INTO commerce_outbox
+        (id, workspace_id, mode, topic, aggregate_id, payload_json, created_at, published_at)
+        VALUES ('z-legacy', 'ws-1', 'live', 'payment.succeeded', 'pay-1', '{"minor":101}', 307, NULL)`);
+      expect(await migrateCommercePayments({ kernel })).toEqual({
+        applied: [PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID], alreadyApplied: [PAYMENTS_LEDGER_ID], notes: [],
+      });
+      await ledger.transaction({ fn: async (tx) => {
+        expect(await tx.findAttemptByOperationKey({ workspaceId: "ws-1", mode: "live", operationKey: "legacy-op" })).toEqual({
+          id: "legacy-attempt", paymentId: "pay-1", workspaceId: "ws-1", siteId: "site-1", providerId: "stripe",
+          providerAccountId: "acct-1", mode: "live", op: "capture", operationKey: "legacy-op", refundId: null,
+          outcome: "unknown", errorCode: null, errorMessage: null, createdAt: 101, updatedAt: 203, currency: null, amountMinor: null,
+        });
+        await tx.insertAttempt({ attempt: {
+          id: "new-attempt", paymentId: "pay-1", workspaceId: "ws-1", siteId: "site-1", providerId: "stripe",
+          providerAccountId: "acct-1", mode: "live", op: "capture", operationKey: "new-op", refundId: null,
+          outcome: "dispatched", errorCode: null, errorMessage: null, createdAt: 409, updatedAt: 503, currency: "JPY", amountMinor: 601,
+        } });
+        await tx.enqueueOutbox({ message: {
+          id: "a-new", workspaceId: "ws-1", mode: "live", topic: "refund.succeeded", aggregateId: "refund",
+          payloadJson: '{"minor":601}', createdAt: 307,
+        } });
+        expect(await tx.listPendingOutbox({ limit: 10 })).toEqual([
+          { id: "z-legacy", workspaceId: "ws-1", mode: "live", topic: "payment.succeeded", aggregateId: "pay-1", payloadJson: '{"minor":101}', createdAt: 307, publishedAt: null },
+          { id: "a-new", workspaceId: "ws-1", mode: "live", topic: "refund.succeeded", aggregateId: "refund", payloadJson: '{"minor":601}', createdAt: 307, publishedAt: null },
+        ]);
+        expect((await tx.listOpenAttempts({ ops: ["capture"], updatedBefore: 504, limit: 10 })).map(({ id, currency, amountMinor }) => ({ id, currency, amountMinor }))).toEqual([
+          { id: "legacy-attempt", currency: null, amountMinor: null }, { id: "new-attempt", currency: "JPY", amountMinor: 601 },
+        ]);
+      } });
+      expect(await migrateCommercePayments({ kernel })).toEqual({
+        applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID], notes: [],
+      });
+      expect(await ledger.transaction({ fn: (tx) => tx.getPayment({ workspaceId: "ws-1", mode: "live", id: "pay-1" }) })).toEqual({ ...payment(), version: 1 });
+    } finally {
+      await kernel.close();
+    }
+  });
+
+  test("migration options forward the host clock to every recorded application time", async () => {
+    const { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } = await history();
+    const kernel = openKernel();
+    try {
+      await migrateCommercePayments({ kernel }, { clock: { nowMs: () => 1_700_000_000_123 }, atomicity: "batch" });
+      const rows = await kernel.query<{ id: string; applied_at: string }>(sql.raw(`SELECT id, applied_at FROM ${COMMERCE_PAYMENTS_LEDGER_TABLE} ORDER BY id`));
+      expect(rows).toEqual([
+        { id: PAYMENTS_LEDGER_ID, applied_at: "2023-11-14T22:13:20.123Z" },
+        { id: PAYMENTS_OPERATOR_ACTIONS_ID, applied_at: "2023-11-14T22:13:20.123Z" },
+        { id: PAYMENTS_ATTEMPT_RECOVERY_ID, applied_at: "2023-11-14T22:13:20.123Z" },
+      ]);
+    } finally {
+      await kernel.close();
+    }
+  });
+
+  test.each(["step", "batch"] as const)("a failed %s migration rolls back its owned scope and can be retried", async (atomicity) => {
+    const { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } = await history();
+    const kernel = openKernel();
+    try {
+      await kernel.run((db) => db.schema.createTable("commerce_operator_actions").addColumn("id", "text").execute());
+      await expect(migrateCommercePayments({ kernel }, { atomicity })).rejects.toThrow(/commerce_operator_actions.*already exists/);
+      const tables = await listTables(kernel);
+      expect(tables.includes(LEDGER_TABLES.payments)).toBe(atomicity === "step");
+      expect(tables.includes(COMMERCE_PAYMENTS_LEDGER_TABLE)).toBe(atomicity === "step");
+      const auditColumns = await kernel.query<{ name: string }>(sql`PRAGMA table_info(commerce_operator_actions)`);
+      expect(auditColumns.map((row) => row.name)).toEqual(["id"]);
+      if (atomicity === "step") {
+        const recorded = await kernel.query<{ id: string }>(sql.raw(`SELECT id FROM ${COMMERCE_PAYMENTS_LEDGER_TABLE} ORDER BY id`));
+        expect(recorded).toEqual([{ id: PAYMENTS_LEDGER_ID }]);
+        const outboxColumns = await kernel.query<{ name: string }>(sql`PRAGMA table_info(commerce_outbox)`);
+        expect(outboxColumns.map((row) => row.name)).toEqual(["id", "workspace_id", "mode", "topic", "aggregate_id", "payload_json", "created_at", "published_at"]);
+      }
+      await kernel.run((db) => db.schema.dropTable("commerce_operator_actions").execute());
+      expect(await migrateCommercePayments({ kernel }, { atomicity })).toEqual({
+        applied: atomicity === "step" ? [PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID] : [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID],
+        alreadyApplied: atomicity === "step" ? [PAYMENTS_LEDGER_ID] : [], notes: [],
+      });
+    } finally {
+      await kernel.close();
+    }
   });
 
   test("applies once on a fresh database; a rerun is a no-op", async () => {

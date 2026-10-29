@@ -83,13 +83,11 @@ async function crashReportsInDirectory(
 ): Promise<CrashReportCandidate[]> {
   const entries = await readDirectorySafe({ path: dir, filesystem });
   const found: CrashReportCandidate[] = [];
-  for (const { name: entry } of entries) {
-    const lower = entry.toLowerCase();
-    if (!matches.some((needle) => lower.includes(needle))) continue;
+  const matching = entries.filter(({ name }) => matches.some((needle) => name.toLowerCase().includes(needle)));
+  for (const { name: entry } of matching) {
     const absolutePath = join(dir, entry);
     const info = await statSafe({ path: absolutePath, filesystem });
-    if (!info || !info.isFile) continue;
-    if (info.mtimeMs < cutoff) continue;
+    if (!info?.isFile || info.mtimeMs < cutoff) continue;
     found.push({ absolutePath, mtimeMs: info.mtimeMs, name: entry });
   }
   return found;

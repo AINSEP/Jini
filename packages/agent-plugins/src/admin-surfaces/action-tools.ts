@@ -66,7 +66,7 @@ export function buildAdminSurfaceActionTools(required: {
           await required.authorize({ context });
           const payload = checkedPayload({ input, action });
           const dispatcher = createAdminSurfaceActionDispatcher({ descriptor, handlers: required.handlersFor({ pluginId, surfaceId: descriptor.id }) });
-          const dispatch = () => dispatcher.dispatch({ action: action.name, payload, context });
+          const dispatch = dispatcher.dispatch.bind(dispatcher, { action: action.name, payload, context });
           return optional.run ? optional.run({ dispatch }) : dispatch();
         },
       },

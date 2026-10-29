@@ -82,9 +82,25 @@ describe("assessPreChargeRisk", () => {
     ["an unknown verdict", { verdict: "maybe", reasons: [] }],
     ["missing reasons", { verdict: "allow" }],
     ["null", null],
+    ["undefined", undefined],
+    ["a primitive", false],
+    ["a missing verdict", { reasons: [] }],
+    ["string reasons", { verdict: "allow", reasons: "risk.reason" }],
+    ["null reasons", { verdict: "allow", reasons: null }],
     ["non-string reasons", { verdict: "allow", reasons: [{ email: "a@b.c" }] }],
   ])("%s is malformed and uses the fail policy", async (_name, answer) => {
     const { run } = gate({ assess: async () => answer as never }, "review");
     expect(await run()).toEqual({ verdict: "review", reasons: ["risk.malformed"], fallback: true });
+  });
+
+  test("a valid decision detaches its reason codes from later mutations by the risk provider", async () => {
+    const reasons = ["velocity.party", "geo.mismatch"];
+    const { timer, run } = gate({ assess: async () => ({ verdict: "review", reasons }) });
+    const decision = await run();
+    reasons[0] = "changed";
+    reasons.push("new.reason");
+    expect(decision).toEqual({ verdict: "review", reasons: ["velocity.party", "geo.mismatch"], fallback: false });
+    expect(Object.isFrozen(decision.reasons)).toBe(true);
+    expect(timer.state.cancelled).toBe(true);
   });
 });

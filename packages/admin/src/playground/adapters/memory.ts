@@ -5,13 +5,22 @@ export function createMemoryPlaygroundTargets(_required: Record<string, never>, 
   const listeners = new Set<() => void>();
   function publish(target: object | null) {
     // No-op on unchanged value: ref replay cannot produce a notification storm.
-    if (snapshot.target === target) return; snapshot = Object.freeze({ target });
+    if (snapshot.target === target) return;
+    snapshot = Object.freeze({ target });
     for (const listener of [...listeners]) { try { listener(); } catch (error) { onListenerError?.({ error }); } }
   }
   return {
     getSnapshot: (_required = {}, _optional = {}) => snapshot,
-    subscribe({ listener }, _optional = {}) { if (!disposed) listeners.add(listener); return () => listeners.delete(listener); },
-    register({ target }, _optional = {}) { if (disposed) throw new Error('Playground target scope disposed'); const ticket = {}; owner = ticket; publish(target); return { release(_required = {}, _optional = {}) { if (owner !== ticket) return; owner = null; publish(null); } }; },
-    dispose(_required = {}, _optional = {}) { if (disposed) return; disposed = true; owner = null; publish(null); listeners.clear(); },
+    subscribe({ listener }, _optional = {}) { if (!disposed) listeners.add(listener);
+      return () => listeners.delete(listener); },
+    register({ target }, _optional = {}) { if (disposed) throw new Error('Playground target scope disposed');
+      const ticket = {}; owner = ticket; publish(target);
+      return { release(_required = {}, _optional = {}) {
+        if (owner !== ticket) return;
+        owner = null; publish(null);
+      } };
+    },
+    dispose(_required = {}, _optional = {}) { if (disposed) return;
+      disposed = true; owner = null; publish(null); listeners.clear(); },
   };
 }

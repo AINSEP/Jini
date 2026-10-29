@@ -110,15 +110,12 @@ export function useLocalCliAgentCard({
   };
 
   const hasSettings =
-    reasoning.hasModels ||
-    reasoning.hasReasoning ||
-    Boolean(onTest) ||
-    result !== null ||
-    cliEnvFieldsForAgent(cliEnvFields, agent.id).length > 0;
+    reasoning.hasModels || reasoning.hasReasoning || Boolean(onTest) || result !== null;
+  const hasEnvironmentSettings = cliEnvFieldsForAgent(cliEnvFields, agent.id).length > 0;
 
   return {
     reasoning,
-    hasSettings,
+    hasSettings: hasSettings || hasEnvironmentSettings,
     source,
     sourceLabel,
     sourceHint,

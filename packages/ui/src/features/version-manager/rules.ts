@@ -116,13 +116,8 @@ export function isRestoreDisabled<TVersion extends VersionRecord>(
   input: RestoreDisabledInput<TVersion>,
 ): boolean {
   const { selectedVersion, restoring, loadingContent, selectedContentMatchesVersion } = input;
-  return (
-    !selectedVersion ||
-    selectedVersion.current ||
-    restoring ||
-    loadingContent ||
-    !selectedContentMatchesVersion
-  );
+  if (!selectedVersion || selectedVersion.current) return true;
+  return restoring || loadingContent || !selectedContentMatchesVersion;
 }
 
 /** Whether the currently-loaded preview content actually corresponds to the

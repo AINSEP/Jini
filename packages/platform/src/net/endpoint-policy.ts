@@ -13,7 +13,12 @@ function normalizeBracketedIpv6(hostname: string): string {
   // form, so `localhost.` must normalize to `localhost` before the equality
   // check below — and `0.0.0.0.`, `10.0.0.1.`, etc. must normalize before
   // the IPv4 classifier parses them. Strips one or more trailing dots.
-  return stripped.toLowerCase().replace(/\.+$/, '');
+  // A scan rather than /\.+$/, which backtracks quadratically on long interior dot runs. This module
+  // stays import-free (see its contract test), so it does not use core's trimCharsEnd.
+  const lowered = stripped.toLowerCase();
+  let end = lowered.length;
+  while (end > 0 && lowered[end - 1] === '.') end -= 1;
+  return lowered.slice(0, end);
 }
 
 function parseIpv4(hostname: string): [number, number, number, number] | null {
@@ -66,7 +71,7 @@ export function expandIpv6({ address: addr }: { address: string }): number[] | n
     const right = parse(halves[1]!);
     const fill = 8 - left.length - right.length;
     if (fill < 1) return null;
-    groups = [...left, ...new Array(fill).fill(0), ...right];
+    groups = [...left, ...Array.from({ length: fill }, () => 0), ...right];
   }
   if (!validIpv6Groups(groups)) return null;
   return groups;
@@ -82,8 +87,8 @@ function foldIpv4Tail(s: string): string | null {
     const o = v4[2]!.split('.').map((n) => Number(n));
     if (o.length !== 4 || o.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
     // `o` is now a validated 4-element array — indices 0-3 always defined.
-    const hi = (((o[0]! << 8) | o[1]!)).toString(16);
-    const lo = (((o[2]! << 8) | o[3]!)).toString(16);
+    const hi = ((o[0]! << 8) | o[1]!).toString(16);
+    const lo = ((o[2]! << 8) | o[3]!).toString(16);
     s = `${v4[1]}${hi}:${lo}`;
   }
   return s;
@@ -110,9 +115,9 @@ function classifyIpv4Bytes(bytes: readonly number[]): AddressClass {
 
 function isPrivateIpv4Bytes([a, b]: readonly number[]): boolean {
   if (a === 100) return b! >= 64 && b! <= 127;
-  return a === 10 ||
-    (a === 172 && b! >= 16 && b! <= 31) ||
-    (a === 192 && b === 168);
+  if (a === 172) return b! >= 16 && b! <= 31;
+  if (a === 192) return b === 168;
+  return a === 10;
 }
 
 // Each /96 prefix carries IPv4 in the final four bytes. Matching canonical

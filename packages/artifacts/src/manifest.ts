@@ -274,6 +274,12 @@ export function validateArtifactManifestInput(
   return { ok: true, value: sanitizeManifest({ manifest, entry: safeEntry }, options) };
 }
 
+/** `true`, a forward-slash path, or undefined for anything else. */
+function normalizedPrimary(primary: unknown): true | string | undefined {
+  if (primary === true) return true;
+  return typeof primary === 'string' ? primary.replace(/\\/g, '/') : undefined;
+}
+
 function normalizeManifestFiles(
   { manifest }: { manifest: JsonRecord },
   _options: Record<string, never> = {},
@@ -281,12 +287,7 @@ function normalizeManifestFiles(
   const supportingFiles = Array.isArray(manifest.supportingFiles)
     ? manifest.supportingFiles.map((x) => String(x).replace(/\\/g, '/'))
     : undefined;
-  const primary =
-    manifest.primary === true
-      ? true
-      : typeof manifest.primary === 'string'
-        ? manifest.primary.replace(/\\/g, '/')
-        : undefined;
+  const primary = normalizedPrimary(manifest.primary);
   return {
     ...(primary !== undefined ? { primary } : {}),
     ...(supportingFiles !== undefined ? { supportingFiles } : {}),

@@ -48,7 +48,12 @@ export async function buildFeed(required: { deps: SeoSitemapDeps; input: { works
   const entries = await computeIndexableEntries({ deps, input: { workspaceId: input.workspaceId } });
   const items = entries
     .filter(({ post }) => post.kind === "post")
-    .sort((a, b) => (a.post.updatedAt < b.post.updatedAt ? 1 : a.post.updatedAt > b.post.updatedAt ? -1 : 0))
+    .sort((a, b) => {
+      if (a.post.updatedAt < b.post.updatedAt) {
+        return 1;
+      }
+      return a.post.updatedAt > b.post.updatedAt ? -1 : 0;
+    })
     .slice(0, FEED_ITEM_LIMIT)
     .map(({ post, meta }) => ({ title: post.title, link: meta.canonical, publishedAt: deps.liveness.postDisplayDateIso({ post }), description: deriveExcerpt({ post, postRepo: deps.postRepo }) }));
   const origin = await resolveWorkspaceOrigin({ originRegistry: deps.originRegistry, workspaceId: input.workspaceId, runtimeMode: deps.runtimeMode });

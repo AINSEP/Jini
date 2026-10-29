@@ -1,17 +1,16 @@
-/** `payments-stripe`: moved only. Setup registers an inert factory; no host selects or activates it. */
+/** Setup registers the commerce adapter; the host owns selection and activation. */
 import type { PluginSdk } from '@jini-ai/plugins/host';
-import { StripePaymentsProvider, type StripePaymentsProviderOptionalArgs } from './stripe.js';
+import { createStripePaymentProvider } from './provider.js';
 
 /**
- * Builds the legacy-port adapter. Payments select ONE provider per account; never fan out.
- * @param required `{ secretKey }` from the host's secure settings.
- * @param optional `{ now?, fetchFn?, apiBase? }` test seams.
- * @returns `{ port, dispose }`; the adapter holds no resources, so dispose is a no-op.
- * @throws StripePaymentsProviderError (status 401) on a missing or non-string key, via the adapter's own check.
+ * Builds a stateless resource. Payments select ONE provider per account; never fan out.
+ * Credentials are explicit per-call context, never read from environment or retained by the factory.
+ * @param _required Host initialization input; credentials are resolved separately for each site/mode.
+ * @returns A commerce port and no-op disposer; allocates no connections and throws no errors.
+ * @complexity O(1) time and space; no I/O.
  */
-export function createStripeProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
-  const port = new StripePaymentsProvider({ secretKey: typeof required.secretKey === 'string' ? required.secretKey : '' }, optional as StripePaymentsProviderOptionalArgs);
-  return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => {} };
+export function createStripeProvider(_required: Readonly<Record<string, unknown>>, _optional: Readonly<Record<string, unknown>> = {}) {
+  return { port: createStripePaymentProvider({}), dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => {} };
 }
 
 export default {

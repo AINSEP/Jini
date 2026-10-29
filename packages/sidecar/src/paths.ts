@@ -9,7 +9,7 @@
  * public types.
  */
 
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import type {
   AppIpcPathRequest,

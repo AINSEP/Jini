@@ -75,7 +75,13 @@ function assertRealDirectory(info: Stats, message: string): void {
   if (!info.isDirectory() || info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", message);
 }
 async function exists(target: string): Promise<boolean> {
-  try { await lstat(target); return true; } catch (e) { if ((e as NodeJS.ErrnoException).code === "ENOENT") return false; throw e; }
+  try {
+    await lstat(target);
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw e;
+  }
 }
 /** Activation callbacks share this guard; the activation service compensates a rejected enable. */
 export async function assertPluginInstallIdle(required: { installDir: string }, _optional: Record<string, never> = {}): Promise<void> {
@@ -135,7 +141,8 @@ async function snapshot(sourceDir: string, limits: PluginSnapshotLimits = {}): P
   async function walk(dir: string, prefix: string): Promise<void> {
     assertRealDirectory(await lstat(dir), "Package directories must not be symbolic links.");
     for (const name of (await readdir(dir)).sort()) {
-      if (++entries > maxEntries) fail("PLUGIN_PACKAGE_TOO_LARGE", "Package has too many entries.");
+      entries += 1;
+      if (entries > maxEntries) fail("PLUGIN_PACKAGE_TOO_LARGE", "Package has too many entries.");
       const target = path.join(dir, name); const relative = prefix + name;
       const info = await lstat(target);
       if (info.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Symbolic links are not allowed.");
@@ -270,8 +277,8 @@ async function readInstalledIdentity(required: { scan: IdentityScan; versionDir:
 async function assertSlotIdentityFree(required: { scan: IdentityScan; root: string; localId: string; candidate: InstalledIdentity & { family: string; localId: string }; deps: PluginInstallDeps }): Promise<void> {
   const { scan, localId, deps } = required;
   const slot = path.join(required.root, localId);
-  for (const version of await scanSlotVersions({ scan, slot, localId, deps })) {
-    if (!semver.valid(version)) continue;
+  const versions = (await scanSlotVersions({ scan, slot, localId, deps })).filter((version) => semver.valid(version) !== null);
+  for (const version of versions) {
     const versionDir = path.join(slot, version);
     if (!(await isScannableVersion({ scan, versionDir, localId, deps }))) continue;
     const installed = await readInstalledIdentity({ scan, versionDir, localId, deps });
@@ -311,7 +318,10 @@ async function latestInstalledVersion(required: { manifest: PluginManifest; inpu
 async function checkDestination(manifest: PluginManifest, input: PluginInstallInput, deps: PluginInstallDeps): Promise<string | undefined> {
   const root = path.resolve(deps.installDir);
   const scan = deps.identityFilesystem ?? { lstat, readdir, readFile };
-  const entries = await scan.readdir(root).catch((e: NodeJS.ErrnoException) => { if (e.code === "ENOENT") return []; throw e; });
+  const entries = await scan.readdir(root).catch((e: NodeJS.ErrnoException) => {
+    if (e.code === "ENOENT") return [];
+    throw e;
+  });
   const candidate = { ...identityOf(manifest, deps), family: "site-runtime", localId: manifest.id };
   assertIdentityFree(candidate, (deps.builtInManifests ?? []).map(builtIn => ({
     ...identityOf(builtIn, deps), family: "site-runtime", localId: builtIn.id, version: builtIn.version, enabled: false,
@@ -397,7 +407,10 @@ async function withPluginInstallLock<T>(required: { root: string; run: () => Pro
   const lock = required.root + '-install-lock';
   await mkdir(path.dirname(required.root), { recursive: true });
   try { await mkdir(lock); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') fail('PLUGIN_INSTALL_BUSY', 'Another install is in progress.'); throw error; }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') fail('PLUGIN_INSTALL_BUSY', 'Another install is in progress.');
+    throw error;
+  }
   try { return await required.run(); }
   finally { await rm(lock, { recursive: true, force: true }); }
 }

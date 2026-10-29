@@ -146,34 +146,34 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
             at: required.at,
             expectedVersion: required.expectedVersion,
           }, { actor: required.actor });
-          if (!marker.ok) return marker;
-
-          const row: TrashItem = {
-            id: deps.idGen.newId(),
-            workspaceId: required.workspaceId,
-            entityType: required.entityType,
-            entityId: required.entityId,
-            trashedAt: required.at,
-            purgeAfter: computePurgeAfter({ at: required.at }, { retentionDays }),
-            actorPrincipalId: required.actor.principalId,
-            actorPluginId: required.actor.pluginId ?? null,
-            displayTitle: required.display.title,
-            displaySubtitle: required.display.subtitle ?? null,
-            entityVersion: marker.version,
-
-            // The adapter's marker reading wins; caller state only fills in for adapters without one.
-            priorMarker: marker.priorMarker ?? trashOptional.priorMarker ?? null,
-          };
-          await deps.repo.insert({ row });
-          // A successful noop may repair a missing index, but did not change the domain marker.
-          // Repeated removal must not emit another recovery watermark or outbox event (F1487).
-          if (!marker.noop) {
-            await notifyChanged(optional, {
+          if (marker.ok) {
+            const row: TrashItem = {
+              id: deps.idGen.newId(),
               workspaceId: required.workspaceId,
               entityType: required.entityType,
               entityId: required.entityId,
-              change: "trash",
-            });
+              trashedAt: required.at,
+              purgeAfter: computePurgeAfter({ at: required.at }, { retentionDays }),
+              actorPrincipalId: required.actor.principalId,
+              actorPluginId: required.actor.pluginId ?? null,
+              displayTitle: required.display.title,
+              displaySubtitle: required.display.subtitle ?? null,
+              entityVersion: marker.version,
+
+              // The adapter's marker reading wins; caller state only fills in for adapters without one.
+              priorMarker: marker.priorMarker ?? trashOptional.priorMarker ?? null,
+            };
+            await deps.repo.insert({ row });
+            // A successful noop may repair a missing index, but did not change the domain marker.
+            // Repeated removal must not emit another recovery watermark or outbox event (F1487).
+            if (!marker.noop) {
+              await notifyChanged(optional, {
+                workspaceId: required.workspaceId,
+                entityType: required.entityType,
+                entityId: required.entityId,
+                change: "trash",
+              });
+            }
           }
           return marker;
         }
@@ -242,23 +242,8 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
       const byId = new Map(rows.map((row) => [row.id, row]));
       const results: { id: string; outcome: PurgeItemOutcome; }[] = [];
 
-      for (const id of required.ids) {
-        const row = byId.get(id);
-        if (!row) {
-          results.push({ id, outcome: "not-found" });
-          continue;
-        }
-        if (!(await required.authorizeItem({ item: row }))) {
-          results.push({ id, outcome: "forbidden" });
-          continue;
-        }
-        const adapter = deps.adapters.get(row.entityType);
-        if (!adapter) {
-          results.push({ id, outcome: "adapter-unavailable" });
-          continue;
-        }
-        if (!deps.entityPolicy({ entityType: row.entityType })) { results.push({ id, outcome: "forbidden" }); continue; }
-        const outcome = await deps.transaction({
+      function purgeItem(row: TrashItem, adapter: TrashAdapter): Promise<PurgeItemOutcome> {
+        return deps.transaction({
           work: async (): Promise<PurgeItemOutcome> => {
             const result = await adapter.purge({
               workspaceId: row.workspaceId,
@@ -285,7 +270,25 @@ export function createTrashService(deps: TrashServiceDeps, optional: TrashServic
             return result;
           }
         });
-        results.push({ id, outcome });
+      }
+
+      for (const id of required.ids) {
+        const row = byId.get(id);
+        if (!row) {
+          results.push({ id, outcome: "not-found" });
+        } else if (!(await required.authorizeItem({ item: row }))) {
+          results.push({ id, outcome: "forbidden" });
+        } else {
+          const adapter = deps.adapters.get(row.entityType);
+          if (!adapter) {
+            results.push({ id, outcome: "adapter-unavailable" });
+          } else if (!deps.entityPolicy({ entityType: row.entityType })) {
+            results.push({ id, outcome: "forbidden" });
+          } else {
+            const outcome = await purgeItem(row, adapter);
+            results.push({ id, outcome });
+          }
+        }
       }
 
       return { purged: results.filter((r) => r.outcome === "purged").length, results };

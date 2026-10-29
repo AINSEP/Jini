@@ -43,7 +43,14 @@ export function firstLogoStage(opts: {
   logoSrc?: string | null | undefined;
   host?: string | undefined;
 }): LogoStage {
-  return opts.canUseBrandStage ? 'brand' : opts.logoSrc ? 'custom' : opts.host ? 'favicon' : 'letter';
+  if (opts.canUseBrandStage) return 'brand';
+  return fallbackLogoStage(opts);
+}
+
+/** The first non-brand stage whose source is available. */
+function fallbackLogoStage(opts: { logoSrc?: string | null | undefined; host?: string | undefined }): LogoStage {
+  if (opts.logoSrc) return 'custom';
+  return opts.host ? 'favicon' : 'letter';
 }
 
 /** The next stage to try after the current one fails to load. */
@@ -51,7 +58,7 @@ export function advanceLogoStage(
   stage: LogoStage,
   opts: { logoSrc?: string | null | undefined; host?: string | undefined },
 ): LogoStage {
-  if (stage === 'brand') return opts.logoSrc ? 'custom' : opts.host ? 'favicon' : 'letter';
+  if (stage === 'brand') return fallbackLogoStage(opts);
   if (stage === 'custom') return 'favicon';
   return 'letter';
 }

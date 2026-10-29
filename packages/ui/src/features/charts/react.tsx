@@ -40,9 +40,12 @@ export function ChartHost({ spec, registry, theme = DEFAULT_CHART_THEME, sitePro
 /** Known wire kinds use the established shapes. Other providers register spec-based entries without
  * adding fields or kinds to the core grammar. This closure is built once per host snapshot.
  */
+/** Wire kinds that predate spec-based entries and keep their established prop shapes. */
+const LEGACY_CHART_KINDS = ['bar', 'line', 'pie'] as const;
+
 function chartComponent(kind: ChartKind, providers: ChartProviderRegistry, options: { siteProvider?: string | undefined; theme?: ChartTheme }): ComponentType<Record<string, unknown>> {
   return function RegisteredChart(props: Record<string, unknown>): ReactElement {
-    const legacyKind = kind === 'bar' ? 'bar' : kind === 'line' ? 'line' : kind === 'pie' ? 'pie' : undefined;
+    const legacyKind = LEGACY_CHART_KINDS.find((legacy) => legacy === kind);
     const spec = legacyKind ? legacyChartSpec({ kind: legacyKind, props }) : chartSpecSchema.parse(props.spec);
     return <ChartHost spec={spec} registry={providers} {...options} />;
   };

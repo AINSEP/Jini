@@ -127,15 +127,11 @@ export function AssetTreeFileRow({
               onCommitRename();
             }}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                event.currentTarget.dataset.skipRenameCommit = '1';
-                onCommitRename();
-              } else if (event.key === 'Escape') {
-                event.preventDefault();
-                event.currentTarget.dataset.skipRenameCommit = '1';
-                onCancelRename();
-              }
+              if (event.key !== 'Enter' && event.key !== 'Escape') return;
+              event.preventDefault();
+              event.currentTarget.dataset.skipRenameCommit = '1';
+              if (event.key === 'Enter') onCommitRename();
+              else onCancelRename();
             }}
           />
         ) : (

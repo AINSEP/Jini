@@ -13,7 +13,8 @@ export function createAccessTokensController({ api, permissions = [] }: { api: S
   const allowed = (kind: CredentialKind) => !store.signal.aborted && grants.has('security.read') && grants.has(writePermission({ kind }));
   async function load(_required: Record<string, never>, _optional = {}) {
     if (store.signal.aborted || !grants.has('security.read')) return;
-    const ticket = ++generation; store.set({ patch: { loading: true } });
+    generation += 1;
+    const ticket = generation; store.set({ patch: { loading: true } });
     // Independent stores retain their own successful results; one unavailable store cannot hide the rest.
     const kinds = ['publish', 'source-control', 'custom'] as const;
     const tasks = kinds.map(async kind => {
@@ -63,7 +64,8 @@ export function createAccessTokensController({ api, permissions = [] }: { api: S
     cancel(_required: Record<string, never>, _optional = {}) { if (!store.getSnapshot().saving) store.set({ patch: { draft: null, error: null } }); },
     filter({ query, category }: { query?: string; category?: CredentialCategory | 'all' }, _optional = {}) { store.set({ patch: { ...(query !== undefined ? { query } : {}), ...(category ? { category } : {}) } }); },
     remove({ row }: { row: CredentialSummary }, _optional = {}) { return write({ row, remove: true }); },
-    makeDefault({ row }: { row: CredentialSummary }, _optional = {}) { if (row.kind === 'custom') return Promise.resolve(false); return write({ row, remove: false }); },
+    makeDefault({ row }: { row: CredentialSummary }, _optional = {}) { if (row.kind === 'custom') return Promise.resolve(false);
+      return write({ row, remove: false }); },
     dispose(_required: Record<string, never> = {}, _optional = {}) { generation++; store.dispose(); },
   };
 }

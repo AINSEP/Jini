@@ -51,9 +51,9 @@ export function setRichTextFromPlainText(
                 title: part.entity.title,
               }),
             );
-          } else if (part.text) {
-            p.append($createTextNode(part.text));
+            continue;
           }
+          if (part.text) p.append($createTextNode(part.text));
         }
       });
       root.append(p);

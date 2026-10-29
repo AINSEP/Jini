@@ -102,6 +102,30 @@ function isTestFile(repoRelativePath: string): boolean {
   return repoRelativePath.includes('/__tests__/') || /\.test\.tsx?$/.test(repoRelativePath);
 }
 
+function checkEscapingNames({ root, absFile, file, content, chatPaneDirRel, publicSurface, barrelAbs, violations }: { root: string; absFile: string; file: string; content: string; chatPaneDirRel: string; publicSurface: Set<string>; barrelAbs: string; violations: Violation[] }): void {
+  for (const m of content.matchAll(NAMED_IMPORT_RE)) {
+    const clauseBody = m[2]!;
+    const specifier = m[3]!;
+
+    const resolvedAbs = resolve(dirname(absFile), specifier);
+    const resolvedRel = relative(root, resolvedAbs).split('\\').join('/');
+    // Only imports that ESCAPE chat-pane's own subtree are in scope — a relative import that
+    // stays inside features/chat-pane/** is ChatPane composing its own internals, not reaching
+    // for something a consumer couldn't also reach.
+    if (resolvedRel === chatPaneDirRel || resolvedRel.startsWith(`${chatPaneDirRel}/`)) continue;
+
+    for (const name of namesFromClause(clauseBody)) {
+      if (!publicSurface.has(name)) {
+        violations.push({
+          rule: 'R10-chatpane-public-surface',
+          file,
+          reason: `imports "${name}" from "${specifier}" (resolves outside features/chat-pane/**), but "${name}" is not in the public barrel's export list (${relative(root, barrelAbs).split('\\').join('/')}) — a consumer of the published API could not reach this the same way ChatPane does`,
+        });
+      }
+    }
+  }
+}
+
 /**
  * @param options Overrides so a self-test can run this against known-bad fixtures instead of the
  * real `features/chat-pane/**` tree — see this file's own module doc.
@@ -122,27 +146,7 @@ export async function checkChatPanePublicSurface(
     if (isTestFile(file)) continue;
     const content = stripComments(readFileSync(absFile, 'utf8'));
 
-    for (const m of content.matchAll(NAMED_IMPORT_RE)) {
-      const clauseBody = m[2]!;
-      const specifier = m[3]!;
-
-      const resolvedAbs = resolve(dirname(absFile), specifier);
-      const resolvedRel = relative(root, resolvedAbs).split('\\').join('/');
-      // Only imports that ESCAPE chat-pane's own subtree are in scope — a relative import that
-      // stays inside features/chat-pane/** is ChatPane composing its own internals, not reaching
-      // for something a consumer couldn't also reach.
-      if (resolvedRel === chatPaneDirRel || resolvedRel.startsWith(`${chatPaneDirRel}/`)) continue;
-
-      for (const name of namesFromClause(clauseBody)) {
-        if (!publicSurface.has(name)) {
-          violations.push({
-            rule: 'R10-chatpane-public-surface',
-            file,
-            reason: `imports "${name}" from "${specifier}" (resolves outside features/chat-pane/**), but "${name}" is not in the public barrel's export list (${relative(root, barrelAbs).split('\\').join('/')}) — a consumer of the published API could not reach this the same way ChatPane does`,
-          });
-        }
-      }
-    }
+    checkEscapingNames({ root, absFile, file, content, chatPaneDirRel, publicSurface, barrelAbs, violations });
   }
 
   return violations;

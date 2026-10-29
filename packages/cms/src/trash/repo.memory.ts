@@ -21,7 +21,10 @@ function identityKey(workspaceId: string, entityType: string, entityId: string):
  * yields `0` here, without a dedicated `return 0` branch no stored data can reach.
  */
 function compareDesc(a: TrashItem, b: TrashItem): number {
-  if (a.trashedAt !== b.trashedAt) return a.trashedAt < b.trashedAt ? 1 : -1;
+  if (a.trashedAt !== b.trashedAt) {
+    return a.trashedAt < b.trashedAt ? 1 : -1;
+  }
+
   return Number(a.id < b.id) - Number(a.id > b.id);
 }
 
@@ -47,7 +50,10 @@ export class InMemoryTrashRepo implements TrashRepoPort {
   async findByEntity(required: { workspaceId: string; entityType: TrashEntityType; entityId: string; }): Promise<TrashItem | null> {
     const wanted = identityKey(required.workspaceId, required.entityType, required.entityId);
     for (const row of this.rows.values()) {
-      if (identityKey(row.workspaceId, row.entityType, row.entityId) === wanted) return { ...row };
+      if (identityKey(row.workspaceId, row.entityType, row.entityId) === wanted) {
+        return { ...row };
+      }
+
     }
     return null;
   }
@@ -91,8 +97,14 @@ export class InMemoryTrashRepo implements TrashRepoPort {
       .filter((row) => (types ? types.has(row.entityType) : true))
       .sort(compareDesc)
       .filter((row) => {
-        if (!after) return true;
-        if (row.trashedAt !== after.trashedAt) return row.trashedAt < after.trashedAt;
+        if (!after) {
+          return true;
+        }
+
+        if (row.trashedAt !== after.trashedAt) {
+          return row.trashedAt < after.trashedAt;
+        }
+
         return row.id < after.id;
       });
 
@@ -109,7 +121,12 @@ export class InMemoryTrashRepo implements TrashRepoPort {
         const lease = this.leases.get(row.id);
         return !lease || lease.expiresAt <= required.now;
       })
-      .sort((a, b) => (a.purgeAfter < b.purgeAfter ? -1 : a.purgeAfter > b.purgeAfter ? 1 : 0))
+      .sort((a, b) => {
+        if (a.purgeAfter < b.purgeAfter) {
+          return -1;
+        }
+        return a.purgeAfter > b.purgeAfter ? 1 : 0;
+      })
       .slice(0, required.limit);
 
     for (const row of due) {

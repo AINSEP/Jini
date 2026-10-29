@@ -14,7 +14,9 @@ export function useAdminTheme({ userId, workspace }: {
 } = {}): AdminShellAppearance | undefined {
   const scope = JSON.stringify([userId, Object.entries(workspace).sort(([a], [b]) => a.localeCompare(b))]);
   const [saved, setSaved] = useState<{ scope: string; preference: ColorSchemePreference } | null>(null);
-  const [mediaRevision, setMediaRevision] = useState(0);
+  // Only the setter is used: bumping the revision re-renders, which re-reads the live media
+  // snapshot below; explicit choices never query the OS.
+  const [, setMediaRevision] = useState(0);
   const preference = colorScheme ?? (saved?.scope === scope ? saved.preference : 'system');
 
   useEffect(() => {
@@ -24,24 +26,22 @@ export function useAdminTheme({ userId, workspace }: {
   }, [userId, workspace, scope, preferenceStore]);
 
   useEffect(() => {
-    if (!theme) return;
+    if (!theme) return undefined;
     if (!environment) throw new TypeError('AdminShell theme requires a themeEnvironment port');
     return applyAdminTheme({ theme }, environment);
   }, [theme, environment]);
 
   useEffect(() => {
-    if (!environment || preference !== 'system') return;
+    if (!environment || preference !== 'system') return undefined;
     const media = environment.matchMedia('(prefers-color-scheme: dark)');
     const changed = () => setMediaRevision((revision) => revision + 1);
     media.addEventListener?.('change', changed);
     return () => media.removeEventListener?.('change', changed);
   }, [environment, preference]);
 
-  // A revision refreshes the live media snapshot; explicit choices never query the OS.
-  void mediaRevision;
   const resolved = environment ? resolveColorScheme({ preference }, { matchMedia: environment.matchMedia }) : 'light';
   useEffect(() => {
-    if (!environment) return;
+    if (!environment) return undefined;
     const previous = environment.target.getAttribute('data-color-scheme');
     environment.target.setAttribute('data-color-scheme', resolved);
     return () => {

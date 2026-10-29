@@ -310,8 +310,8 @@ function rehydratedRunRecord(
 function terminalStateFromEndEntry(entry: EventLogEntry): { state: TerminalRunOutcome; resumable: boolean } {
   if (!isRecord(entry.data)) return { state: 'failed', resumable: false };
   const status = entry.data.status;
-  const state: TerminalRunOutcome =
-    status === 'succeeded' ? 'succeeded' : status === 'canceled' ? 'cancelled' : 'failed';
+  const unsuccessful: TerminalRunOutcome = status === 'canceled' ? 'cancelled' : 'failed';
+  const state: TerminalRunOutcome = status === 'succeeded' ? 'succeeded' : unsuccessful;
   return { state, resumable: entry.data.resumable === true };
 }
 

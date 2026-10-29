@@ -57,10 +57,14 @@ function addExtEvent(state: GroupingState, { name, data }: { name: string; data:
 function visitEvent(state: GroupingState, ev: AgentEvent): void {
   if (ev.kind === 'tool_use') {
     state.openCalls.set(ev.id, { name: ev.name, input: ev.input });
-  } else if (ev.kind === 'tool_result') {
+    return;
+  }
+  if (ev.kind === 'tool_result') {
     state.openCalls.delete(ev.toolUseId);
     state.results.set(ev.toolUseId, { content: ev.content, isError: ev.isError });
-  } else if (ev.kind === 'ext') {
+    return;
+  }
+  if (ev.kind === 'ext') {
     addExtEvent(state, ev);
   }
 }

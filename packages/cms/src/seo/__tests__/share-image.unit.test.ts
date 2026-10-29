@@ -34,6 +34,18 @@ const sourceCases: { overrides?: Record<string, string>; featured?: boolean }[] 
   { featured: true },
   { featured: false },
 ];
+// Guards buildSeoImageUrl's source-SHA argument to the host-owned public URL builder.
+test("share-image URL construction passes the current source hash through the host port", async () => {
+  const ports = deps({ featured: true });
+  const original = ports.media.featuredImage.mediaPublicPath;
+  const calls: unknown[] = [];
+  ports.media.featuredImage.mediaPublicPath = input => { calls.push(input); return original(input); };
+  const meta = await getEntryMeta({ deps: ports, input: { workspaceId: "w", entryId: "post" } });
+  assert.ok(meta.openGraph.image);
+  assert.ok(calls.length > 0);
+  for (const call of calls) assert.deepEqual(call, { key: "cover", sha256: "abc", variant: { kind: "transform", name: "og", version: 2, ext: "jpg" } });
+});
+
 test.each(sourceCases)("share images use latest og JPEG for overrides, featured media and site defaults: %j", async (input) => {
   const meta = await getEntryMeta({ deps: deps(input), input: { workspaceId: "w", entryId: "post" } });
   assert.equal(meta.openGraph.image, "https://unchanged.example/m/cover/og.v2/image.jpg");

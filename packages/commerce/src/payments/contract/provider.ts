@@ -74,10 +74,23 @@ export interface ProviderContext {
   /** Absolute webhook URL for this site + account (site in the path, gap check item 1). */
   readonly webhookUrl: string;
   readonly returnUrl: string;
+  readonly cancelUrl: string;
+}
+
+/** The kernel guarantees unitAmount × quantity equals the intent amount, in the same currency. */
+export interface IntentLine {
+  /** Display only; never personal data. */
+  readonly description: string;
+  /** Safe integer ≥ 1. */
+  readonly quantity: number;
+  readonly unitAmount: Money;
+  /** Mapping for the price, provider account and mode. */
+  readonly providerPriceRef?: string;
 }
 
 export interface IntentRequest {
   readonly amount: Money;
+  readonly line?: IntentLine;
   /** Kernel-generated, stable across retries; forwarded to providers that support one. */
   readonly idempotencyKey: string;
   /** OUR payment id, sent so the provider can echo it. */
@@ -131,6 +144,9 @@ export interface PaymentProvider {
    * Verify the signature over the EXACT raw bytes and translate to facts. Secret rotation: a provider
    * declares an extra slot (e.g. `webhookSecretPrevious`) in `credentialKeys` and accepts either; one
    * slot holds one value. Never throws; a bad signature is `rejected` with SIGNATURE_INVALID.
+   * Unsupported verified event types and foreign objects return `ok([])`. A supported event with
+   * our correlation but malformed data returns `rejected INVALID_REQUEST`; our object with
+   * incomplete evidence returns an id-only fact so the worker can retrieve it.
    */
   verifyWebhook(
     required: { rawBody: Uint8Array; headers: Readonly<Record<string, string>>; ctx: ProviderContext },

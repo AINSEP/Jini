@@ -40,6 +40,11 @@ export function VersionPreviewFrame({
   const preset = findViewportPreset(viewportPresets, viewport);
   const scale = effectivePreviewScale(preset, 1, canvasSize, DEFAULT_PREVIEW_CANVAS_PADDING);
 
+  const showEmpty = !previewDocument && !loading && !loadingContent;
+  const showLoading = loading || loadingContent || (previewDocument && !frameReady);
+
+  const emptyState = showEmpty ? <div className="jini-viewer-empty">{t('No preview available.')}</div> : null;
+
   return (
     <div className="jini-version-preview" ref={frameRef}>
       {error ? (
@@ -61,10 +66,9 @@ export function VersionPreviewFrame({
                 </div>
               </div>
             </div>
-          ) : !loading && !loadingContent ? (
-            <div className="jini-viewer-empty">{t('No preview available.')}</div>
           ) : null}
-          {loading || loadingContent || (previewDocument && !frameReady) ? (
+          {emptyState}
+          {showLoading ? (
             <div className="jini-version-preview-overlay" role="status" aria-label={t('Loading preview…')}>
               <span className="jini-version-preview-spinner" aria-hidden="true" />
             </div>

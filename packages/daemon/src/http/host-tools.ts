@@ -104,6 +104,12 @@ export function defaultProbeEnv(_required: Record<string, never>, _optional: Rec
   return { access: ({ path, mode }) => fsAccess(path, mode), env: process.env, platform: currentPlatform({}) };
 }
 
+/** The login-shell bin directories a GUI-launched daemon's `PATH` tends to lack, per platform. */
+function extraProbeDirs(platform: HostToolProbeEnv['platform'], home: string): string[] {
+  if (platform === 'darwin') return ['/usr/local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin', `${home}/.local/bin`];
+  return platform === 'linux' ? ['/usr/local/bin', '/usr/bin', '/bin', `${home}/.local/bin`] : [];
+}
+
 /**
  * `$PATH` directories to probe, plus the common macOS/Linux locations a login shell would have
  * that a GUI-launched daemon's thin inherited `PATH` often lacks (no `/usr/local/bin`, no
@@ -114,12 +120,7 @@ export function pathDirs(probeEnv: HostToolProbeEnv): string[] {
   const raw = probeEnv.env.PATH ?? '';
   const sep = probeEnv.platform === 'win32' ? ';' : ':';
   const home = probeEnv.env.HOME ?? '';
-  const extras =
-    probeEnv.platform === 'darwin'
-      ? ['/usr/local/bin', '/opt/homebrew/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin', `${home}/.local/bin`]
-      : probeEnv.platform === 'linux'
-        ? ['/usr/local/bin', '/usr/bin', '/bin', `${home}/.local/bin`]
-        : [];
+  const extras = extraProbeDirs(probeEnv.platform, home);
   return [...raw.split(sep), ...extras].filter((dir) => dir.length > 0);
 }
 

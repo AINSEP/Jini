@@ -28,6 +28,7 @@
  * with the real origin lookup and the real browser port.
  * See docs/decisions/DR-001-trusted-evidence-addresses.md.
  */
+import { trimCharsEnd, trimCharsStart } from "@jini-ai/core/primitives";
 /** Caller-owned origin verification data; no origin is derived from request input. */
 export interface VerifiedOrigin {
  readonly scheme: "http" | "https"; readonly host: string; readonly port?: number;
@@ -176,8 +177,8 @@ export function verifiedOriginToBaseUrl({ origin }: { origin: VerifiedOrigin }):
  */
 export function resolveSameOriginUrl({ baseUrl, path }: { baseUrl: string; path: string }): string {
   const base = new URL(baseUrl);
-  const basePath = base.pathname.replace(/\/+$/, "");
-  const rootRelative = `/${path.replace(/^\/+/, "")}`;
+  const basePath = trimCharsEnd({ text: base.pathname, chars: "/" });
+  const rootRelative = `/${trimCharsStart({ text: path, chars: "/" })}`;
   return new URL(`${basePath}${rootRelative}`, base.origin).toString();
 }
 

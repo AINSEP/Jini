@@ -19,6 +19,7 @@ import type {
 import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-bridge.js';
 import { buildCodexHomeConfigToml } from './home-config.js';
 import { assertCodexHomeConfigParses, assertStagedHomeIsolated, CodexMcpIsolationError, codexIsolationRefusalMessage } from './isolation.js';
+import { omitKeys } from '../../core/omit-keys.js';
 
 /**
  * Where `'codex-toml'` reads the operator's REAL Codex config from, to seed a run's scratch copy —
@@ -43,8 +44,7 @@ export function resolveSourceCodexHomeDir({ hostEnv }: { readonly hostEnv: NodeJ
  * `mcp_skill_dependencies.rs`), and `codex exec` is `codex_exec` without it.
  */
 export function withStagedCodexHome({ env, codexHomeDir }: { readonly env: NodeJS.ProcessEnv; readonly codexHomeDir: string }, _options = {}): NodeJS.ProcessEnv {
-  const { CODEX_INTERNAL_ORIGINATOR_OVERRIDE: _originator, ...rest } = env;
-  return { ...rest, CODEX_HOME: codexHomeDir };
+  return { ...omitKeys(env, ['CODEX_INTERNAL_ORIGINATOR_OVERRIDE']), CODEX_HOME: codexHomeDir };
 }
 
 function defaultMkdtempCodexHome({ prefix }: { readonly prefix: string }): Promise<string> {

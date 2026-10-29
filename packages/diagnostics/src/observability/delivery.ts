@@ -21,7 +21,8 @@ export interface TelemetryDeliveryMonitor {
 const ERROR_CLASSES: ReadonlySet<string> = new Set(["Error", "TypeError", "RangeError", "TimeoutError", "AbortError", "OTLPExporterError", "PluginProviderError"]);
 /** HTTP status is numeric and bounded; transport codes and text are deliberately not exposed. */
 function httpStatus(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599 ? value : undefined;
+  if (typeof value !== "number" || !Number.isInteger(value)) return undefined;
+  return value >= 100 && value <= 599 ? value : undefined;
 }
 
 /** Reduces opaque SDK failures to fixed labels; even an Error's name can contain credentials.
@@ -65,7 +66,8 @@ export function createTelemetryDeliveryMonitor(
       if (failures.has(kind)) return;
       failures.add(kind);
       logged.set(providerId, failures);
-      try { warn(`observability: ${providerId} ${report.phase} failed (${report.errorClass ?? "Error"}${report.statusCode === undefined ? "" : `, HTTP ${report.statusCode}`}, host ${report.host})`); }
+      const httpNote = report.statusCode === undefined ? "" : `, HTTP ${report.statusCode}`;
+      try { warn(`observability: ${providerId} ${report.phase} failed (${report.errorClass ?? "Error"}${httpNote}, host ${report.host})`); }
       catch { /* A broken log sink must not fail an exporter callback or shutdown. */ }
     },
     read(_required: Record<string, never>, _options = {}) {

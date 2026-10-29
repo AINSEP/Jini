@@ -116,12 +116,11 @@ function createKernelAgentRuntime(
   { options }: { options: CreateJiniKernelBaseOptions },
   _optional: Record<string, never> = {},
 ): NativeAgentRuntime {
-  const agentRuntime = createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
+  return createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
     ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
     ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codexDisablePlugins: options.agentExecutor.codexDisablePlugins } : {}),
     ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { piGracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } : {}),
   });
-  return agentRuntime;
 }
 
 /**

@@ -10,6 +10,5 @@ export function initialFormsListState(_required: Record<string, never>, _optiona
 }
 /** A headless section store. React owns subscriptions/effects, never this state. */
 export function createFormsListController(_required: Record<string, never>, _optional = {}) {
-  const store = createFormsDraftStore({ initial: initialFormsListState({}) });
-  return store;
+  return createFormsDraftStore({ initial: initialFormsListState({}) });
 }

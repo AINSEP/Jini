@@ -8,6 +8,5 @@ export function initialFormSubmissionDetailState(_required: Record<string, never
 }
 /** A headless section store. React owns subscriptions/effects, never this state. */
 export function createFormSubmissionDetailController(_required: Record<string, never>, _optional = {}) {
-  const store = createFormsDraftStore({ initial: initialFormSubmissionDetailState({}) });
-  return store;
+  return createFormsDraftStore({ initial: initialFormSubmissionDetailState({}) });
 }

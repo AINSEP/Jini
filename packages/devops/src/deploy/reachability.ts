@@ -294,6 +294,7 @@ async function sweepCandidates(
   { lastMessage }: { lastMessage: string },
 ): Promise<{ done: ReachabilityWaitResult } | { lastMessage: string }> {
   let protectedResult: ReachabilityWaitResult | undefined;
+  let message = lastMessage;
   for (const url of ctx.candidates) {
     const remainingMs = remainingBudget(ctx);
     if (remainingMs <= 0) break;
@@ -308,27 +309,27 @@ async function sweepCandidates(
         url,
         statusMessage: result.statusMessage || `${ctx.providerLabel} is gating this link behind its own auth wall.`,
       };
-      continue;
+    } else {
+      // Real refactor, not a padded test: `result.statusMessage` is
+      // unconditionally truthy by this point. `result` comes from
+      // `checkDeploymentUrl`, which — for every `reachable: false`,
+      // non-`'protected'` shape it can produce (the empty-URL guard, and
+      // both `requestDeploymentUrl`-derived returns after the dead-branch
+      // refactor just above) — always sets a non-empty `statusMessage`. The
+      // `reachable: true` and `status === 'protected'` shapes are both
+      // handled by the `return` and the protected branch above, so neither
+      // can reach here. `|| lastMessage` (falling back to the *previous*
+      // sweep's message) could therefore never actually be selected — see
+      // the archived extraction source map's 2026-07-22 addition for the proof.
+      // Non-null assertion (not `||`/`??`, which would just reintroduce the
+      // same dead branch): the type is `string | undefined` because
+      // `DeploymentUrlCheck.statusMessage` is optional in general, but this
+      // exact call site's result is always defined per the proof above.
+      message = result.statusMessage!;
     }
-    // Real refactor, not a padded test: `result.statusMessage` is
-    // unconditionally truthy by this point. `result` comes from
-    // `checkDeploymentUrl`, which — for every `reachable: false`,
-    // non-`'protected'` shape it can produce (the empty-URL guard, and
-    // both `requestDeploymentUrl`-derived returns after the dead-branch
-    // refactor just above) — always sets a non-empty `statusMessage`. The
-    // `reachable: true` and `status === 'protected'` shapes are both
-    // handled by the `return` and `continue` above this line, so neither
-    // can reach here. `|| lastMessage` (falling back to the *previous*
-    // sweep's message) could therefore never actually be selected — see
-    // the archived extraction source map's 2026-07-22 addition for the proof.
-    // Non-null assertion (not `||`/`??`, which would just reintroduce the
-    // same dead branch): the type is `string | undefined` because
-    // `DeploymentUrlCheck.statusMessage` is optional in general, but this
-    // exact call site's result is always defined per the proof above.
-    lastMessage = result.statusMessage!;
   }
   // A protected candidate is a fallback only after the other candidates had their turn.
-  return protectedResult ? { done: protectedResult } : { lastMessage };
+  return protectedResult ? { done: protectedResult } : { lastMessage: message };
 }
 
 /**
@@ -379,13 +380,16 @@ async function pollCandidates(
   { sleep, intervalMs }: { sleep: ReachabilityWaitArgs['sleep']; intervalMs: number },
 ): Promise<ReachabilityWaitResult> {
   let lastMessage = '';
-  while (remainingBudget(ctx) > 0) {
+  let keepPolling = remainingBudget(ctx) > 0;
+  while (keepPolling) {
     const sweep = await sweepCandidates(ctx, { lastMessage });
     if ('done' in sweep) return sweep.done;
     lastMessage = sweep.lastMessage;
     const remainingMs = remainingBudget(ctx);
-    if (remainingMs <= 0) break;
-    if (!await sleepWithinBudget({ sleep, ms: Math.min(intervalMs, remainingMs), timeoutMs: remainingMs })) break;
+    // Stop when the budget is spent, the sleep is cut short, or the sleep consumed the rest.
+    keepPolling = remainingMs > 0 &&
+      await sleepWithinBudget({ sleep, ms: Math.min(intervalMs, remainingMs), timeoutMs: remainingMs }) &&
+      remainingBudget(ctx) > 0;
   }
 
   return {

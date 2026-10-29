@@ -62,7 +62,8 @@ type ComposerHistoryKeyAction = 'previous' | 'next' | 'restore';
 type ComposerHistoryTransition = { state: ComposerHistoryState; text: string; handled: boolean };
 
 function hasModifierOrPopup({ input }: { input: ComposerHistoryKeyInput }, _optional: {} = {}): boolean {
-  return Boolean(input.shiftKey || input.ctrlKey || input.altKey || input.metaKey || input.isComposing || input.popupOpen);
+  const modified = input.shiftKey || input.ctrlKey || input.altKey || input.metaKey;
+  return Boolean(modified || input.isComposing || input.popupOpen);
 }
 
 /**

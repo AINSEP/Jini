@@ -21,12 +21,19 @@ export function createMemoryRedirectsApi(
     if (!row) throw new AdminApiError({ message: `redirect '${id}' was not found`, status: 404 }, { code: 'REDIRECT_NOT_FOUND' });
     return row;
   }
+  /** The core port documents reference-host rejection of a regex `matchType`. A supplied
+   *  validator owns alternate hosts and sees the whole candidate instead. */
+  function validateOrRejectRegex(candidate: AdminRedirectCreateInput, matchType: string | undefined) {
+    if (validate) {
+      validate(candidate);
+      return;
+    }
+    if (matchType === 'regex') throw new AdminApiError({ message: 'regex match type is not supported', status: 400 }, { code: 'REDIRECT_VALIDATION_ERROR' });
+  }
   function create(input: AdminRedirectCreateInput, source: 'manual' | 'import'): AdminRedirect {
-    // The core port documents reference-host rejection. A supplied validator owns alternate hosts.
-    if (validate) validate(input);
-    else if (input.matchType === 'regex') throw new AdminApiError({ message: 'regex match type is not supported', status: 400 }, { code: 'REDIRECT_VALIDATION_ERROR' });
+    validateOrRejectRegex(input, input.matchType);
     let id: string;
-    do { id = `memory-redirect-${nextId++}`; } while (rows.has(id));
+    do { id = `memory-redirect-${nextId}`; nextId += 1; } while (rows.has(id));
     const row: AdminRedirect = Object.freeze({ ...input, id, status: 'active', override: input.override ?? false,
       priority: input.priority ?? 0, source, sourceEntryId: null, fromPathAtCapture: null, toPathAtCapture: null,
       createdByPrincipal: 'memory-principal', createdByPluginId: null,
@@ -36,18 +43,16 @@ export function createMemoryRedirectsApi(
   }
   return {
     async listRedirects(_required, filter = {}) {
+      const matches = (wanted: string | undefined, actual: string) => wanted === undefined || actual === wanted;
       return Object.freeze([...rows.values()].filter(row => !trashed.has(row.id) &&
-        (filter.status === undefined || row.status === filter.status) &&
-        (filter.source === undefined || row.source === filter.source) &&
-        (filter.matchType === undefined || row.matchType === filter.matchType)));
+        matches(filter.status, row.status) && matches(filter.source, row.source) && matches(filter.matchType, row.matchType)));
     },
     async getRedirect({ id }) { return get(id); },
     async createRedirect(input, options = {}) { return create({ ...input, ...options }, 'manual'); },
     async updateRedirect({ id }, patch = {}) {
       const before = get(id);
       const next = { ...before, ...patch };
-      if (validate) validate(next);
-      else if (patch.matchType === 'regex') throw new AdminApiError({ message: 'regex match type is not supported', status: 400 }, { code: 'REDIRECT_VALIDATION_ERROR' });
+      validateOrRejectRegex(next, patch.matchType);
       const row = Object.freeze({ ...next, version: before.version + 1 });
       rows.set(id, row);
       if (patch.status === 'active') trashed.delete(id);

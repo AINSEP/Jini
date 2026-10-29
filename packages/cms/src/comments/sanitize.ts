@@ -4,9 +4,8 @@
  * library" reference is design-forward, not something this spec can reuse). Strips HTML tags
  * entirely (comments render as plain text, never `dangerouslySetInnerHTML`-equivalent raw HTML on
  * any read path this spec builds) and collapses excess whitespace. Bounded, non-Turing-complete —
- * a fixed regex pass, not a parser.
+ * fixed delimiter and whitespace passes, not a parser.
  */
-const TAG_PATTERN = /<[^>]*>/g;
 const EXCESS_WHITESPACE = /[ \t]{2,}/g;
 const EXCESS_BLANK_LINES = /\n{3,}/g;
 
@@ -15,8 +14,16 @@ const EXCESS_BLANK_LINES = /\n{3,}/g;
  * @example sanitizeCommentBody({ raw: "<b>Hello</b>" }, {})
  */
 export function sanitizeCommentBody({ raw }: { raw: string }, _optional: Record<string, never> = {}): string {
-  return raw
-    .replace(TAG_PATTERN, "")
+  const parts: string[] = [];
+  let cursor = 0;
+  for (let start = raw.indexOf("<"); start !== -1; start = raw.indexOf("<", cursor)) {
+    const end = raw.indexOf(">", start + 1);
+    if (end === -1) break;
+    parts.push(raw.slice(cursor, start));
+    cursor = end + 1;
+  }
+  parts.push(raw.slice(cursor));
+  return parts.join("")
     .replace(EXCESS_WHITESPACE, " ")
     .replace(EXCESS_BLANK_LINES, "\n\n")
     .trim();

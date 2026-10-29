@@ -11,5 +11,8 @@ export interface MembersPageProps {
   readonly refresh?: MembersRefreshPort;
 }
 export function useMembersScope(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-  const scope = useContext(ScopeContext); if (!scope) throw new Error('Members admin scope is unavailable.'); return scope;
+  const scope = useContext(ScopeContext); if (!scope) {
+    throw new Error('Members admin scope is unavailable.');
+  }
+  return scope;
 }

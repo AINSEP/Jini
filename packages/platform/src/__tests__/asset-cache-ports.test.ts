@@ -5,6 +5,20 @@ import { Agent, MockAgent, type Dispatcher } from 'undici';
 import { expect, it, vi } from 'vitest';
 import { createAssetCache, createAssetCacheDispatcher } from '../asset-cache.js';
 
+it('returns fetched media even when its cache directory cannot be created', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'jini-unwritable-cache-'));
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(join(dir, 'file'), 'block directory creation');
+  const dispatcher = new MockAgent();
+  const fetchImpl = vi.fn<typeof fetch>(async () => new Response(new Uint8Array([7, 8]), { headers: { 'content-type': 'image/png' } }));
+  const cache = createAssetCache({ cacheDir: join(dir, 'file', 'cache'), fetchImpl }, { dispatcher });
+  try {
+    expect(await cache.get('https://assets.example.test/image.png')).toEqual({ buf: Buffer.from([7, 8]), contentType: 'image/png' });
+    expect(await cache.get('https://assets.example.test/image.png')).toEqual({ buf: Buffer.from([7, 8]), contentType: 'image/png' });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  } finally { await cache.close?.(); await dispatcher.close(); await rm(dir, { recursive: true, force: true }); }
+});
+
 // hwb #24: source data is served by the fake fetch; no socket opens.
 it('forwards the host dispatcher while retaining URL rejection and host ownership', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'hwb-assets-')); const dispatcher = new MockAgent();

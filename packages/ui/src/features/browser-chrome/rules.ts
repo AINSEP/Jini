@@ -5,6 +5,7 @@ import type {
   BrowserNavigationState,
 } from './types.js';
 import { DEFAULT_HOME_NAVIGATION_ENTRY, EMPTY_URL, HISTORY_LIMIT } from './constants.js';
+import { trimTrailingChars } from '../../utils/trim-chars.js';
 
 // ---------------------------------------------------------------------------
 // Address normalization
@@ -66,7 +67,7 @@ export function formatAddressDisplayParts(
   if (!cleanTitle) return { url };
   const fallback = labelFromUrl(url, homeLabel);
   if (cleanTitle === fallback || cleanTitle === url) return { url };
-  return { url: url.replace(/\/+$/, ''), title: cleanTitle };
+  return { url: trimTrailingChars(url, '/'), title: cleanTitle };
 }
 
 export function formatAddressDisplay(
@@ -106,7 +107,7 @@ export function isHistoryUrl(url: string): boolean {
 }
 
 export function sameUrl(left: string, right: string): boolean {
-  return left.replace(/\/+$/, '') === right.replace(/\/+$/, '');
+  return trimTrailingChars(left, '/') === trimTrailingChars(right, '/');
 }
 
 function cleanIconUrl(url?: string): string | undefined {
@@ -123,13 +124,9 @@ function cleanIconUrl(url?: string): string | undefined {
 export function isHistoryEntry(value: unknown): value is BrowserHistoryEntry {
   if (typeof value !== 'object' || value == null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return (
-    typeof record.url === 'string'
-    && typeof record.title === 'string'
-    && typeof record.lastVisitedAt === 'number'
-    && typeof record.visitCount === 'number'
-    && (record.iconUrl === undefined || typeof record.iconUrl === 'string')
-  );
+  if (typeof record.url !== 'string' || typeof record.title !== 'string') return false;
+  if (typeof record.lastVisitedAt !== 'number' || typeof record.visitCount !== 'number') return false;
+  return record.iconUrl === undefined || typeof record.iconUrl === 'string';
 }
 
 /** Namespace + scope key -> storage key. Namespace defaults to a generic Jini prefix (see `constants.ts`); scope key is host-supplied (e.g. a project or tab id). */
@@ -322,7 +319,8 @@ function findRejoinTarget(
 ): RejoinTarget | undefined {
   const { navigationStack: stack, navigationIndex: index } = state;
   const current = stack[index];
-  if (current && (sameUrl(current.url, url) || (replacePendingTarget && pendingTarget && sameUrl(current.url, pendingTarget)))) {
+  const replacingCurrent = current && replacePendingTarget && pendingTarget && sameUrl(current.url, pendingTarget);
+  if (current && (sameUrl(current.url, url) || replacingCurrent)) {
     return { index, entry: current };
   }
   return [index - 1, index + 1]

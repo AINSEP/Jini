@@ -76,7 +76,9 @@ export class EntryFieldValidationError extends Error {
 
   constructor(requiredArgs: { fieldErrors: Array<{ field: string; reason: string }>; entitySchema?: { type: string; owner: string; fields: OwningContentType["fields"] } }, optionalArgs: Record<string, never> = {}) {
     const { fieldErrors, entitySchema } = requiredArgs;
-    super(`fieldsJson failed schema validation: ${fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ")}${entitySchema ? `. Entity schema: ${JSON.stringify(entitySchema)}` : ""}`);
+    const reasons = fieldErrors.map((e) => `${e.field}: ${e.reason}`).join("; ");
+    const schemaDetail = entitySchema ? `. Entity schema: ${JSON.stringify(entitySchema)}` : "";
+    super(`fieldsJson failed schema validation: ${reasons}${schemaDetail}`);
     this.name = "EntryFieldValidationError";
     this.fieldErrors = fieldErrors;
     this.entitySchema = entitySchema;

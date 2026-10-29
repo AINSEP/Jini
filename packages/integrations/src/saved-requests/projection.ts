@@ -43,5 +43,6 @@ function checkValue({ value, field }: { value: unknown; field: SavedRequestOutpu
 function checkPublicUrl({ value, origin }: { value: string; origin: string }, _options: Record<string, never> = {}): void {
   const url = new URL(value);
   requireCondition({ valid: url.protocol === "https:" && url.origin === origin && !url.username && !url.password, code: "invalid_response" });
-  requireCondition({ valid: !/[\s\u0000-\u001f\u007f]/u.test(value), code: "invalid_response" });
+  // \s already covers \u0009-\u000d, so the control ranges skip them.
+  requireCondition({ valid: !/[\s\u0000-\u0008\u000e-\u001f\u007f]/u.test(value), code: "invalid_response" });
 }

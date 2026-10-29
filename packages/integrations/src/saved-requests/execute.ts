@@ -71,7 +71,8 @@ async function resolveCredential({ deps, workspaceId, definition }: { deps: Save
   requireCondition({ valid: credential.revision === definition.credential.revision, code: "credential_changed" });
   requireCondition({ valid: new URL(credential.baseUrl).origin === definition.credential.origin, code: "credential_changed" });
   // Legacy credentials allow additional hosts; visitor release approval covers only the base origin.
-  requireCondition({ valid: !/[\r\n\u0000]/u.test(credential.connection.token), code: "credential_changed" });
+  const token = credential.connection.token;
+  requireCondition({ valid: !/[\r\n]/.test(token) && !token.includes("\0"), code: "credential_changed" });
   return { ...credential, additionalHosts: [] };
 }
 

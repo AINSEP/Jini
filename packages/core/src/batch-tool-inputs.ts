@@ -56,7 +56,13 @@ export interface BatchResult {
 export function batchOutcomeFor({ output }: { output: unknown }, _options = {}): BatchResult['outcome'] | undefined {
   if (!isPlainObject(output) || output.batch !== true || !Array.isArray(output.results) || output.results.length === 0) return undefined;
   const failed = output.results.filter(item => isPlainObject(item) && item.ok === false).length;
-  return failed === 0 ? 'completed' : failed === output.results.length ? 'error' : 'partial_failure';
+  return outcomeFor({ failed, total: output.results.length });
+}
+
+/** No failure completes the batch, all failing is an error, anything between is partial. */
+function outcomeFor({ failed, total }: { failed: number; total: number }): BatchResult['outcome'] {
+  if (failed === 0) return 'completed';
+  return failed === total ? 'error' : 'partial_failure';
 }
 
 /** A JSON object: not null, not an array. */
@@ -96,7 +102,8 @@ export function batchDescriptorFor(
   }
   const maxItems = tool.maxItems ?? DEFAULT_MAX_BATCH_ITEMS;
   const requiredFields = schema.required ?? [];
-  const { required: _required, ...rest } = schema;
+  const rest = { ...schema };
+  delete rest.required;
   const needs = requiredFields.length > 0 ? ` Each item needs ${requiredFields.join(", ")} (inside each item).` : "";
   const items = {
     type: "array",
@@ -170,7 +177,7 @@ function batchItemResult({ index, output, notes }: { index: number; output: unkn
  */
 function summarizeBatchResults({ results }: { results: BatchItemResult[] }, _options = {}): BatchResult {
   const succeeded = results.filter((result) => result.ok).length;
-  const outcome = succeeded === results.length ? 'completed' : succeeded === 0 ? 'error' : 'partial_failure';
+  const outcome = outcomeFor({ failed: results.length - succeeded, total: results.length });
   return { batch: true, outcome, ...(succeeded === 0 ? { isError: true as const } : {}), total: results.length, succeeded, failed: results.length - succeeded, results };
 }
 

@@ -76,9 +76,8 @@ function takeUntil({ tokens, state, delimiters }: { tokens: ConsentCssToken[]; s
 function declarations({ tokens, state }: { tokens: ConsentCssToken[]; state: { cursor: number } }): ConsentCssDeclaration[] {
   const result: ConsentCssDeclaration[] = [];
   while (state.cursor < tokens.length) {
-    if (tokens[state.cursor]!.kind === 'space') { state.cursor++; continue; }
+    if (tokens[state.cursor]!.kind === 'space' || tokens[state.cursor]!.value === ';') { state.cursor++; continue; }
     if (tokens[state.cursor]!.value === '}') { state.cursor++; return result; }
-    if (tokens[state.cursor]!.value === ';') { state.cursor++; continue; }
     result.push(declaration({ tokens, state }));
   }
   // Only entered after the rule's `{` was consumed, so `cursor - 1` is always a real token.
@@ -131,8 +130,8 @@ function ruleList(input: RuleInput, _options = {}): ConsentCssRule[] {
     const token = tokens[state.cursor]!;
     if (token.kind === 'space') { state.cursor++; continue; }
     if (token.value === '}' && media !== undefined) { state.cursor++; return rules; }
-    if (token.value === '@') { rules.push(...mediaRules(input)); continue; }
-    rules.push(qualifiedRule(input));
+    if (token.value === '@') rules.push(...mediaRules(input));
+    else rules.push(qualifiedRule(input));
   }
   if (media !== undefined) throw new ConsentCssSyntaxError('Unclosed media query.', tokens[state.cursor - 1]!.offset);
   return rules;

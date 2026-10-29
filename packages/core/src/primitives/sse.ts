@@ -53,10 +53,11 @@ function createRecordDecoder() {
       const field = colon === -1 ? line : line.slice(0, colon);
       let value = colon === -1 ? '' : line.slice(colon + 1);
       if (value.startsWith(' ')) value = value.slice(1);
+      // The field names are distinct, so at most one of these applies; retry/unknown fields do not
+      // belong to per-record interpretation.
       if (field === 'event') event = value;
-      else if (field === 'data') dataLines.push(value);
-      else if (field === 'id') id = value;
-      // retry/unknown fields do not belong to per-record interpretation.
+      if (field === 'data') dataLines.push(value);
+      if (field === 'id') id = value;
     },
     take(): DecodedSseFrame {
       const frame = { event, data: dataLines.join('\n'), dataLines, ...(id !== undefined ? { id } : {}) };

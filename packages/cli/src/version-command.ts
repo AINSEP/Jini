@@ -99,6 +99,5 @@ export async function versionCommand({ args, resolveBaseUrl }: { args: readonly 
 
 /** Registers `version` against `registry`. */
 export function registerVersionCommand({ registry, resolveBaseUrl }: { registry: CommandRegistry; resolveBaseUrl: VersionCommandDeps["resolveBaseUrl"] }, optionalArgs: Omit<VersionCommandDeps, "resolveBaseUrl"> = {}): void {
-  const deps: VersionCommandDeps = { resolveBaseUrl, ...optionalArgs };
-  registry.add({ name: 'version', handler: ({ args }) => versionCommand({ args, resolveBaseUrl: resolveBaseUrl }, optionalArgs) }, { usage: VERSION_USAGE });
+  registry.add({ name: 'version', handler: ({ args }) => versionCommand({ args, resolveBaseUrl }, optionalArgs) }, { usage: VERSION_USAGE });
 }

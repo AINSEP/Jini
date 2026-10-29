@@ -28,7 +28,10 @@ export async function listInstalledPackageRoots(
   };
   let folders;
   try { folders = await effects.readdir(workspaceRoot, { withFileTypes: true }); }
-  catch (error) { if (isEnoent(error)) return []; throw error; }
+  catch (error) {
+    if (isEnoent(error)) return [];
+    throw error;
+  }
   const roots: InstalledPackageRoot[] = [];
   for (const folder of folders) {
     if (!folder.isDirectory() || !/^[a-z0-9]+(?:[-.][a-z0-9]+)*$/.test(folder.name) || folder.name.length > 64) continue;

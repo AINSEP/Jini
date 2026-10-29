@@ -2,9 +2,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { extractImports, listSourceFiles } from '../lib/walk-imports.js';
+import { extractImports, listSourceFiles, stripComments } from '../lib/walk-imports.js';
 
 describe('shared import extraction', () => {
+  it('masks line and block comments while preserving literal contents, escapes and offsets', () => {
+    const source = '"https://host"; // note\n/*block\nend*/ `raw // text`; \'it\\\'s /*text*/\'';
+    expect(stripComments(source)).toBe('"https://host";        \n       \n      `raw // text`; \'it\\\'s /*text*/\'');
+  });
   let directory: string;
   function refs(source: string) {
     const file = join(directory, 'entry.ts');

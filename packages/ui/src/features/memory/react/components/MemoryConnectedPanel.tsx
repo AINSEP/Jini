@@ -59,8 +59,9 @@ function connectorRowState({ connector, context }: { connector: Connector; conte
   const connecting = context.connectingConnectorIds.has(connector.id);
   const authorizationPending = context.pendingConnectorAuthIds.has(connector.id);
   const connectError = context.connectorConnectErrors[connector.id];
-  const checkingStatus =
-    context.connectorsLoading && !isStatusResolved({ connector, context }) && !connected && !authorizationPending && !connectError && !connecting;
+  const statusUnresolved = context.connectorsLoading && !isStatusResolved({ connector, context });
+  const idle = !connected && !authorizationPending && !connectError && !connecting;
+  const checkingStatus = statusUnresolved && idle;
   return {
     connected,
     selected: context.selectedConnectorIds.has(connector.id) && connected,

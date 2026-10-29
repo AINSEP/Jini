@@ -7,7 +7,6 @@ import { isIssuedToolFailureDiagnostic, type ToolFailureDiagnostic } from "./dia
 import {
   askOnce,
   SURFACE_DISMISSED_PARAM,
-  SURFACE_EXCHANGE_ID_PARAM,
   type SurfaceExchange,
   type SurfaceExchangeStore,
 } from "../surface-exchanges.js";
@@ -139,7 +138,8 @@ function isActionableDiagnostic(value: Record<string, unknown>): value is Action
  * @complexity O(1).
  */
 function remedyReportedFailure(output: unknown): boolean {
-  return isPlainObject(output) && (output["saved"] === false || output["created"] === false || output["cancelled"] === true || output["connected"] === false);
+  if (!isPlainObject(output)) return false;
+  return output["saved"] === false || output["created"] === false || output["cancelled"] === true || output["connected"] === false;
 }
 
 /** Mutable, explicitly-threaded scan budget for {@link walkForDiagnostic} — a plain object passed down
@@ -494,7 +494,7 @@ function remedyApplied(remedyResult: ToolExecutionResult): boolean {
 export function withToolFailureRecovery({ inner, ...deps }: ToolFailureRecoveryDeps & { inner: ToolExecutor }, _optional = {}): ToolExecutor {
   return {
     execute: async (required, optional = {}): Promise<ToolExecutionResult> => {
-      const { principal, toolId, input } = required;
+      const { principal, input } = required;
       const { signal, emitSurface } = optional;
       const result = await inner.execute(required, optional);
 

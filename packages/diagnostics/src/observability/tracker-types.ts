@@ -1,5 +1,12 @@
-import type { ProductAnalyticsPort, ProductEvent } from "@jini-ai/analytics/product";
 import type { AgentRunTrackingInput, AgentRunTrackingOptions, AgentRunTrackingOutcome, ObservabilityPort, OperationAttributes, OperationTrackingOutcome, RequestTrackingInput, RequestTrackingOptions, RequestTrackingOutcome, MetricInput, MetricOptions } from "./ports.js";
+
+/** Capture-only consumer port; higher-layer analytics adapters satisfy it structurally. */
+interface CaptureEvent { name: string; userId: string; properties?: Readonly<Record<string, string | number | boolean>>; }
+interface CapturePort {
+  capture(event: CaptureEvent): void | Promise<void>;
+  /** Retained for existing provider literals; the tracker never identifies users. */
+  identify?(identity: { userId: string; traits?: CaptureEvent['properties'] }): void;
+}
 
 /** Signals share one dependency; each method retains its own typed payload. */
 export interface TrackerErrorContext {
@@ -26,7 +33,7 @@ export interface Tracker {
   /** Current tracing IDs, absent without an active span; optional for older host facades. */
   activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): import('./ports.js').TraceIds | undefined;
   /** Awaitable local admission; does not wait for remote delivery. */
-  capture(input: Pick<ProductEvent, "name" | "userId">, options?: Pick<ProductEvent, "properties">): void | Promise<void>;
+  capture(input: Pick<CaptureEvent, "name" | "userId">, options?: Pick<CaptureEvent, "properties">): void | Promise<void>;
   error(input: { error: Error }, options?: { context?: TrackerErrorContext }): void;
   trace<T>(input: { name: string; run: (span: TrackerSpan<RequestTrackingOutcome>) => T | Promise<T> }, options: RequestSpanOptions): Promise<T>;
   trace<T>(input: { name: string; run: (span: TrackerSpan<AgentRunTrackingOutcome>) => T | Promise<T> }, options: AgentSpanOptions): Promise<T>;
@@ -37,7 +44,7 @@ export interface Tracker {
 
 export interface TrackerProviders {
   /** Already guarded by the host's existing consent policy; never guard a second time. */
-  productAnalytics?: ProductAnalyticsPort | undefined;
+  productAnalytics?: CapturePort | undefined;
   observability?: ObservabilityPort | undefined;
 }
 export interface TrackerOptions { warn?: ((message: string) => void) | undefined; }

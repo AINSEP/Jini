@@ -90,8 +90,9 @@ function isNullableString(value: unknown): value is string | null {
 export function parseTokenSet({ value }: { value: unknown }): OAuthTokenSet {
   if (!isRecord(value)) throw invalid();
   const { accessToken, refreshToken, tokenType, scopes, expiresAt } = value;
-  const valid = typeof accessToken === "string" && accessToken.length > 0 && isNullableString(refreshToken) &&
-    typeof tokenType === "string" && isStringList(scopes) && isNullableString(expiresAt);
+  const hasAccessToken = typeof accessToken === "string" && accessToken.length > 0;
+  const grantValid = isNullableString(refreshToken) && typeof tokenType === "string";
+  const valid = hasAccessToken && grantValid && isStringList(scopes) && isNullableString(expiresAt);
   if (!valid) throw invalid();
   return { accessToken, refreshToken, tokenType, scopes: [...scopes], expiresAt };
 }

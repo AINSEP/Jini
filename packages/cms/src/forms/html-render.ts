@@ -2,8 +2,7 @@
  * Local prototype authorized 2026-10-04; that original dispatch kept Jini read-only.
  * The host owns the endpoint and the form's styling hook; author markup and CSS refine it. */
 import type { FieldDescriptor } from "./types.js";
-import { FIELD_TYPE_REGISTRY, isSafeFieldPattern } from "./field-registry.js";
-import { ATTRIBUTE_NAME_PATTERN } from "./forms.js";
+import { ATTRIBUTE_NAME_PATTERN, FIELD_TYPE_REGISTRY, isSafeFieldPattern } from "./field-registry.js";
 
 // Renderers need the shared retry copy without importing the forms service/repository barrel.
 export { FORM_SUBMISSION_TOO_FAST_MESSAGE } from "./errors.js";
@@ -26,7 +25,10 @@ const attr = (name: string, value: string | number): string => ` ${name}="${esca
 
 /** Extra attributes cannot override structural or server-backed constraints. Values are escaped at this sink. */
 function extraAttributes(field: FieldDescriptor, claimed: ReadonlySet<string>): string {
-  return Object.entries(field.attributes ?? {}).filter(([name, value]) => ATTRIBUTE_NAME_PATTERN.test(name) && !claimed.has(name) && typeof value === "string" && (name !== "pattern" || isSafeFieldPattern({ pattern: value }))).map(([name, value]) => attr(name, value)).join("");
+  return Object.entries(field.attributes ?? {}).filter(([name, value]) => {
+    if (!ATTRIBUTE_NAME_PATTERN.test(name) || claimed.has(name) || typeof value !== "string") return false;
+    return name !== "pattern" || isSafeFieldPattern({ pattern: value });
+  }).map(([name, value]) => attr(name, value)).join("");
 }
 type RenderKind = { control: string; htmlType: string; multiple?: boolean; attributes?: Readonly<Record<string, string>> };
 /** What every control shape of one field shares, computed once per field. */

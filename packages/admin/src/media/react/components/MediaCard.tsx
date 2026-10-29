@@ -2,17 +2,20 @@ import { Badge, Button, Menu } from '@jini-ai/ui-kit/react';
 import { useMediaCard } from '../hooks/MediaCard.hooks.js';
 import type { MediaCardProps } from '../hooks/MediaCard.hooks.js';
 import { EyeIcon, ExpandIcon, DocumentIcon } from './MediaIcons.js';
+/** Image (expandable when a preview exists), then video, then a download placeholder. */
+function previewMedia(vm: ReturnType<typeof useMediaCard>) {
+  if (vm.image) {
+    const img = <img className="jini-media-card-media" src={vm.src} alt={vm.alt} loading="lazy" onError={vm.onImageError} />;
+    return vm.imagePreview ? <Button className="jini-media-card-expand jini-media-card-expand-fill" variant="ghost" attrs={vm.previewAttrs} onPress={vm.preview}>
+      {img}<ExpandIcon />
+    </Button> : img;
+  }
+  if (vm.video) return <video className="jini-media-card-media" src={vm.src} controls preload="metadata" aria-label={vm.alt} onError={vm.onVideoError} />;
+  return <div className="jini-media-card-placeholder"><DocumentIcon /><p className="jini-media-card-placeholder-text">Preview not available</p>{vm.src && <a className="jini-media-card-placeholder-link" href={vm.src} target="_blank" rel="noreferrer">Download original</a>}</div>;
+}
 function PreviewMarkup(vm: ReturnType<typeof useMediaCard>, _optional: Record<string, never> = {}) {
   return <>
-    {vm.image ? (
-      vm.imagePreview ? <Button className="jini-media-card-expand jini-media-card-expand-fill" variant="ghost" attrs={vm.previewAttrs} onPress={vm.preview}>
-        <img className="jini-media-card-media" src={vm.src} alt={vm.alt} loading="lazy" onError={vm.onImageError} /><ExpandIcon />
-      </Button> : <img className="jini-media-card-media" src={vm.src} alt={vm.alt} loading="lazy" onError={vm.onImageError} />
-    ) : vm.video ? (
-      <video className="jini-media-card-media" src={vm.src} controls preload="metadata" aria-label={vm.alt} onError={vm.onVideoError} />
-    ) : (
-      <div className="jini-media-card-placeholder"><DocumentIcon /><p className="jini-media-card-placeholder-text">Preview not available</p>{vm.src && <a className="jini-media-card-placeholder-link" href={vm.src} target="_blank" rel="noreferrer">Download original</a>}</div>
-    )}
+    {previewMedia(vm)}
     {vm.onEdit && <Button className="jini-media-card-edit" variant="ghost" attrs={vm.editAttrs} onPress={vm.onEdit} disabled={vm.busy}><EyeIcon /><span className="jini-visually-hidden">Edit metadata</span></Button>}
     {vm.canPreview && !vm.imagePreview && <Button className="jini-media-card-expand" variant="ghost" attrs={vm.previewAttrs} onPress={vm.preview}><ExpandIcon /><span className="jini-visually-hidden">View larger</span></Button>}
   </>;

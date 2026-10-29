@@ -3,6 +3,12 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { FOLDER_MAX_FILES, FOLDER_UNREADABLE, FolderZipError, zipFolderFiles } from "./folder-zip.js";
 
+/** Code-unit order, independent of locale. */
+function compareCodeUnits(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 type FolderFilesystem = Pick<typeof fs, "realpath" | "lstat" | "opendir" | "open">;
 type FolderCollection = { files: File[]; pending: string[]; entries: number; total: number };
 
@@ -41,7 +47,8 @@ async function collectDirectory(required: {
   const handle = await filesystem.opendir(directory);
   // Mutate the traversal's owned buffers so visiting directories does not copy accumulated files.
   for await (const entry of handle) {
-    if (++collection.entries > FOLDER_MAX_FILES) throw new FolderZipError("too-many", `More than ${FOLDER_MAX_FILES} entries.`);
+    collection.entries += 1;
+    if (collection.entries > FOLDER_MAX_FILES) throw new FolderZipError("too-many", `More than ${FOLDER_MAX_FILES} entries.`);
     const filename = path.join(directory, entry.name);
     if (entry.isDirectory()) { collection.pending.push(filename); continue; }
     if (!entry.isFile()) throw new FolderZipError("unreadable", FOLDER_UNREADABLE);
@@ -68,7 +75,7 @@ export async function zipLocalFolder(required: { path: string; maxBytes: number 
     }
     const { files } = collection;
     // Stable order gives repeat local-folder installs identical ZIP digests.
-    files.sort((a, b) => a.webkitRelativePath < b.webkitRelativePath ? -1 : a.webkitRelativePath > b.webkitRelativePath ? 1 : 0);
+    files.sort((a, b) => compareCodeUnits(a.webkitRelativePath, b.webkitRelativePath));
     return new Uint8Array(await (await zipFolderFiles({ files, maxBytes: required.maxBytes })).arrayBuffer());
   } catch (error) {
     if (error instanceof FolderZipError) throw error;

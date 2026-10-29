@@ -16,7 +16,7 @@ export function useEmbedChatHeader({ hasMessages, onReset, keyboard }: Pick<Embe
     wasConfirming.current = confirming;
   }, [confirming]);
   useEffect(() => {
-    if (!confirming) return;
+    if (!confirming) return undefined;
     return keyboard.subscribe({ onEscape: () => setConfirming(false) });
   }, [confirming, keyboard]);
   return { confirming, cancel, headerRef, resetButtonRef,

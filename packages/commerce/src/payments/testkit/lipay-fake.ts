@@ -56,9 +56,15 @@ function verify(required: { rawBody: Uint8Array; header: string | undefined; sec
 }
 
 const unknown = () => ({ kind: "unknown" as const, error: paymentError({ code: "TRANSPORT_ERROR", message: "lipay fake: timed out" }, { retryable: true }) });
+// Fake-local: core must not know which providers are test doubles.
+const liveRefusal = () => ({ kind: "rejected" as const, error: paymentError({ code: "INVALID_REQUEST", message: "LiPay fake is test-only" }) });
 const rejected = (message: string) => ({ kind: "rejected" as const, error: paymentError({ code: "DECLINED", message }) });
 
-/** Builds the fake server and its provider. `now` is the test's clock (epoch ms). */
+/**
+ * Builds the fake server and its provider. `now` is the test's clock (epoch ms).
+ * Every operation refuses live mode before touching state or consuming scripted outcomes.
+ * @complexity O(1) setup; evidence snapshots use O(r) time/space for the fake's r refunds. No external I/O.
+ */
 export function createLipayFake(
   { now }: { now: () => number },
   optional: { echoesCorrelation?: boolean } = {}
@@ -102,7 +108,8 @@ export function createLipayFake(
       refunds: "partial", capture: "auto", void: false, disputes: false, retrieve: "payment+refunds",
       echoesCorrelation: echo, confirmation: ["none"], currencies: "any",
     },
-    createIntent: async ({ req }) => {
+    createIntent: async ({ req, ctx }, _optional = {}) => {
+      if (ctx.account.mode === "live") return liveRefusal();
       const behaviour = nextBehaviour(scripts.createIntent);
       if (behaviour === "reject") return rejected("card_declined");
       const charge: FakeCharge = { id: `ch_${++seq}`, amount: req.amount, status: "succeeded", correlationId: req.correlationId };
@@ -110,18 +117,21 @@ export function createLipayFake(
       if (behaviour === "timeout") return unknown();
       return { kind: "ok", value: { evidence: chargeEvidence(charge, echo), next: { kind: "none" } } };
     },
-    refund: async ({ req }) => {
+    refund: async ({ req, ctx }, _optional = {}) => {
+      if (ctx.account.mode === "live") return liveRefusal();
       const behaviour = nextBehaviour(scripts.refund);
       if (behaviour === "reject") return rejected("refund refused");
       const refund: FakeRefund = { id: `re_${++seq}`, chargeId: req.providerRef, amount: req.amount, status: "pending", correlationId: req.correlationId };
       refunds.set(refund.id, refund);
       return behaviour === "timeout" ? unknown() : { kind: "ok", value: refundEvidence(refund, echo) };
     },
-    retrieve: async ({ providerRef }): Promise<Outcome<PaymentEvidence>> => {
+    retrieve: async ({ providerRef, ctx }, _optional = {}): Promise<Outcome<PaymentEvidence>> => {
+      if (ctx.account.mode === "live") return liveRefusal();
       const charge = charges.get(providerRef);
       return charge ? { kind: "ok", value: chargeEvidence(charge, echo) } : rejected(`no charge ${providerRef}`);
     },
-    verifyWebhook: async ({ rawBody, headers, ctx }: { rawBody: Uint8Array; headers: Readonly<Record<string, string>>; ctx: ProviderContext }) => {
+    verifyWebhook: async ({ rawBody, headers, ctx }: { rawBody: Uint8Array; headers: Readonly<Record<string, string>>; ctx: ProviderContext }, _optional = {}) => {
+      if (ctx.account.mode === "live") return liveRefusal();
       if (!verify({ rawBody, header: headers[HEADER], secret: ctx.credentials.webhookSecret, nowMs: ctx.now() })) {
         return { kind: "rejected", error: paymentError({ code: "SIGNATURE_INVALID", message: "lipay fake: bad signature" }) };
       }
@@ -137,7 +147,7 @@ export function lipayFakeContext({ now }: { now: () => number }, _optional: Reco
   const httpClient = {} as HttpClientPort;
   return {
     credentials: { webhookSecret: LIPAY_FAKE_SECRET }, account: { providerAccountId: "acct_fake", mode: "test" },
-    httpClient, now, webhookUrl: "https://example.test/payments/webhook/site/lipay", returnUrl: "https://example.test/return",
+    httpClient, now, webhookUrl: "https://example.test/payments/webhook/site/lipay", returnUrl: "https://example.test/return", cancelUrl: "https://example.test/cancel",
   };
 }
 

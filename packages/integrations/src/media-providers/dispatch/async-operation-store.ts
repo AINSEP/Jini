@@ -463,13 +463,12 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       const limit = options.limit ?? 10;
       const claimed: AsyncOperationRecord[] = [];
 
-      for (const row of [...rows.values()].sort((a, b) => a.nextPollAt - b.nextPollAt)) {
+      // A live lease held by anyone (including this worker's previous tick) blocks the claim;
+      // an expired one does not, which is what makes a dead worker's rows recoverable.
+      const blocked = (row: AsyncOperationRecord): boolean =>
+        TERMINAL_STATUSES.has(row.status) || row.nextPollAt > now || (row.leaseExpiresAt !== null && row.leaseExpiresAt > now);
+      for (const row of [...rows.values()].sort((a, b) => a.nextPollAt - b.nextPollAt).filter((each) => !blocked(each))) {
         if (claimed.length >= limit) break;
-        if (TERMINAL_STATUSES.has(row.status)) continue;
-        if (row.nextPollAt > now) continue;
-        // A live lease held by anyone (including this worker's previous tick) blocks the claim;
-        // an expired one does not, which is what makes a dead worker's rows recoverable.
-        if (row.leaseExpiresAt !== null && row.leaseExpiresAt > now) continue;
 
         const leased: AsyncOperationRecord = {
           ...row,
@@ -497,9 +496,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       let leasesReleased = 0;
       let deadlineExpired = 0;
 
-      for (const row of [...rows.values()]) {
-        if (TERMINAL_STATUSES.has(row.status)) continue;
-
+      for (const row of [...rows.values()].filter((each) => !TERMINAL_STATUSES.has(each.status))) {
         if (row.deadlineAt <= now) {
           rows.set(row.id, {
             ...row,

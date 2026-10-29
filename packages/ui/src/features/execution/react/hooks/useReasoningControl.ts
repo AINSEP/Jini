@@ -111,7 +111,7 @@ export function useReasoningControl(
 export function useReasoningControl(
   optionsOrAgent: UseReasoningControlOptions | DetectedAgent,
   maybeConfig?: LocalCliConfig,
-  maybeExplicitCustomMode?: boolean,
+  maybeExplicitCustomMode = false,
 ): UseReasoningControlResult {
   const { agent, config, explicitCustomMode = false, onReasoningChange } =
     reasoningControlOptions(optionsOrAgent, maybeConfig, maybeExplicitCustomMode);
@@ -138,7 +138,7 @@ export function useReasoningControl(
     if (isStaleReasoningPick({ agent, config, flatReasoningOptions, reasoningOptions })) onReasoningChange('');
     // `reasoningOptionIdsKey` stands in for `reasoningOptions` (a fresh array every render) so this
     // only re-runs when the narrowed vocabulary actually changes, not on every unrelated re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Dependency list intentionally follows the lifecycle rationale above.
   }, [flatReasoningOptions.length, onReasoningChange, config.reasoningByAgentId, agent.id, reasoningOptionIdsKey]);
 
   const { allowCustomModel, knownModelIds, customActive } =
@@ -213,7 +213,7 @@ export function useReasoningControl(
 function reasoningControlOptions(
   optionsOrAgent: UseReasoningControlOptions | DetectedAgent,
   maybeConfig: LocalCliConfig | undefined,
-  maybeExplicitCustomMode: boolean | undefined,
+  maybeExplicitCustomMode = false,
 ): UseReasoningControlOptions {
   if ('agent' in optionsOrAgent && 'config' in optionsOrAgent) return optionsOrAgent;
   return {

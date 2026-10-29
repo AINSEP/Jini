@@ -1,4 +1,8 @@
-import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
+import type { AgentToolDefinition } from "@jini-ai/core";
+
+const ADMIN_TAXONOMY_MANAGE = "admin.taxonomy.manage";
+const MUTATES_DURABLE_STATE = "mutates-durable-state";
+
 /**
  * @file The Taxonomy agent-tool catalog — this domain's instance of the per-domain
  * `agent-tools.ts` convention `features/content-types/agent-tools.ts`,
@@ -96,7 +100,7 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
     name: "taxonomy_list",
     description: "Lists every taxonomy in the workspace together with its terms — the Categories & Tags screen's own two-pane source.",
     sideEffects: "none",
-    authorization: { permission: "admin.taxonomy.manage" },
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: { type: "object", additionalProperties: false, required: [], properties: {} },
   },
   {
@@ -104,8 +108,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
     description:
       "Creates a new taxonomy (a 'category'-shaped hierarchical grouping, or a 'tag'-shaped flat one — same shared table, distinguished only " +
       "by the hierarchical flag).",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.taxonomy.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -122,8 +126,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       "Creates a new term under an existing taxonomy. If parentId is supplied, the taxonomy must be hierarchical, the parent must exist and " +
       "belong to the SAME taxonomy, and assigning it must not create a cycle — a freshly-created term has no descendants yet, so a cycle can " +
       "never actually occur here, but the same validation chain runs regardless.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.taxonomy.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -138,8 +142,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "taxonomy_rename_term",
     description: "Renames an existing term in place (its id, taxonomy, parent, and status are unchanged).",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.taxonomy.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -154,8 +158,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       "Tags screen both use). This call ADDS assignments; calling it twice with the same term is a no-op (idempotent). Use " +
       "taxonomy_unassign_terms to remove an assignment. Every termId is validated (must exist; its taxonomy must be applicable to contentType) " +
       "before ANY row is written, so a bad id in the list rejects the whole call rather than partially assigning.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.taxonomy.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -173,8 +177,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       "Removes one or more previously-assigned terms from a piece of content. Idempotent — removing a term that isn't currently assigned is a " +
       "no-op, not an error. Every termId is validated the same way taxonomy_assign_terms validates them (must exist; its taxonomy must be " +
       "applicable to contentType) before anything is removed.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.taxonomy.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -194,7 +198,7 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       "a human can use in the admin UI's own merge confirmation ceremony. Read-only — performs no merge. Rejects immediately if fromTermId " +
       "equals intoTermId, before computing anything. To actually merge, call taxonomy_execute_merge_term, which asks the user to confirm first.",
     sideEffects: "none",
-    authorization: { permission: "admin.taxonomy.manage" },
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -212,8 +216,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       "Merges one term into another: every piece of content tagged with fromTermId is re-tagged with intoTermId, and fromTermId is " +
       "deprecated. Shows the user a confirm dialog first and only merges if they confirm. The merge can't be undone. Call " +
       "taxonomy_plan_merge_term first to see how many items are affected.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.taxonomy.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_TAXONOMY_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,

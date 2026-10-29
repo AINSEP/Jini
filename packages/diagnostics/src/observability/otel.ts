@@ -12,10 +12,12 @@ type Attributes = Record<string, string | number>;
  * Both `error.code` and `Error.name` are writable secret channels (review 2026-10-25 #2):
  * select the label, then redact and cap it
  * to {@link MAX_ERROR_TYPE} (redact first: a cut could leave a secret prefix too short to match). */
+function fallbackErrorLabel(error: unknown): string {
+ return error instanceof Error ? String(error.name) : typeof error;
+}
 export function errorType(error: unknown): string {
  const code = (error as { code?: unknown } | null)?.code;
- const label = typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code)
-  ? code : error instanceof Error ? String(error.name) : typeof error;
+ const label = typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code) ? code : fallbackErrorLabel(error);
  return redactLabel(label).slice(0, MAX_ERROR_TYPE) || 'Error';
 }
 
@@ -35,10 +37,9 @@ function redactLabel(text: string): string {
  * @param required The caller's attributes. @returns A fresh, redacted copy. @complexity O(total text). */
 export function redactOperationAttributes({ attributes }: { attributes: Readonly<Record<string, string | number>> }): Attributes {
  const safe: Attributes = {};
- for (const name of Object.keys(attributes)) {
-  if (Object.keys(safe).length >= MAX_ATTRIBUTES) break;
-  // Keys are a bounded label allow-list too: never export emails, URLs or credential-shaped keys.
-  if (!ATTRIBUTE_KEY.test(name) || redactLabel(name) !== name) continue;
+ // Keys are a bounded label allow-list too: never export emails, URLs or credential-shaped keys.
+ const names = Object.keys(attributes).filter(name => ATTRIBUTE_KEY.test(name) && redactLabel(name) === name);
+ for (const name of names.slice(0, MAX_ATTRIBUTES)) {
   const value = attributes[name]!;
   safe[name] = typeof value === 'string' ? redactLabel(value).slice(0, MAX_ATTRIBUTE_TEXT) : value;
  }
@@ -62,9 +63,14 @@ function safePathSegment({ segment }: { segment: string }, _options = {}): strin
  * segments; raw ids no longer cross the export boundary (correlation belongs on explicit ids).
  * @returns A bounded request target. @complexity O(p) path text.
  */
+/** Cuts at the first `?` or `#`, as /[?#][\s\S]*$/ did, without its backtracking. */
+function withoutQueryOrFragment(target: string): string {
+ const cut = target.search(/[?#]/);
+ return cut === -1 ? target : target.slice(0, cut);
+}
 export function redactRequestTarget({ path }: { path: string }, { routePattern }: { routePattern?: string } = {}): string {
- if (routePattern && routePattern !== 'unmatched') return routePattern.replace(/[?#][\s\S]*$/, '').slice(0, 1024);
- return path.replace(/[?#][\s\S]*$/, '').split('/').map(segment => safePathSegment({ segment })).join('/').slice(0, 1024);
+ if (routePattern && routePattern !== 'unmatched') return withoutQueryOrFragment(routePattern).slice(0, 1024);
+ return withoutQueryOrFragment(path).split('/').map(segment => safePathSegment({ segment })).join('/').slice(0, 1024);
 }
 
 /** Scheme, host and explicit port only. Paths carry bot tokens and signed-URL keys; userinfo carries passwords. */
@@ -83,7 +89,11 @@ const FAILED_RUN_STATUSES: ReadonlySet<AgentRunStatus> = new Set(['failed', 'int
 /** Wraps an end handler so a second end() is ignored. */
 function once<O>(handler: (outcome: O) => void): (outcome: O) => void {
  let ended = false;
- return (outcome) => { if (ended) return; ended = true; handler(outcome); };
+ return (outcome) => {
+  if (ended) return;
+  ended = true;
+  handler(outcome);
+ };
 }
 
 /** Builds request, DB, outbound, agent-run and operation spans, and exception events for reported errors, through injected provider/exporter factories.
@@ -154,7 +164,10 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
    const span = start({ name: `${method} ${target['server.address']}`, kind: 'client', attributes: { 'http.request.method': method, ...target } });
    return { run: runIn(span), end: once(({ statusCode, error }) => {
     const attributes = statusCode !== undefined ? { 'http.response.status_code': statusCode } : {};
-    if (error !== undefined) return finish({ span, attributes }, { failure: errorType(error), error });
+    if (error !== undefined) {
+     finish({ span, attributes }, { failure: errorType(error), error });
+     return;
+    }
     // Client-span semantics: a 4xx is this caller's failure, unlike a server span's 4xx.
     finish({ span, attributes }, statusCode !== undefined && statusCode >= 400 ? { failure: String(statusCode) } : {});
    }) };
@@ -178,6 +191,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     span.setStatus({ code: 'error', description: type });
     reportedSpans.add(span);
     if (!active) span.end({});
+    return true;
    } catch {
     // Reporting is best-effort: a broken exporter must not turn an already-handled failure into a crash.
     return false;
@@ -191,7 +205,10 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
    } }, { root: true });
    return { run: runIn(span), end: once(({ status, error }) => {
     const attributes = { 'agent.run.status': status };
-    if (error !== undefined) return finish({ span, attributes }, { failure: errorType(error), error });
+    if (error !== undefined) {
+     finish({ span, attributes }, { failure: errorType(error), error });
+     return;
+    }
     finish({ span, attributes }, FAILED_RUN_STATUSES.has(status) ? { failure: status } : {});
    }) };
   },

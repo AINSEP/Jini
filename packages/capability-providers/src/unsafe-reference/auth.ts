@@ -39,8 +39,10 @@ export function createInMemoryAuthProvider(_required: Record<string, never>, opt
       if (usersByEmail.has(credentials.email)) {
         throw new Error(`email already registered: ${credentials.email}`);
       }
+      const id = nextId;
+      nextId += 1;
       const user: StoredUser = {
-        id: `user-${nextId++}`,
+        id: `user-${id}`,
         email: credentials.email,
         password: credentials.password,
         createdAt: now(),
@@ -54,8 +56,10 @@ export function createInMemoryAuthProvider(_required: Record<string, never>, opt
       if (!user || user.password !== credentials.password) {
         throw new Error('invalid email or password');
       }
+      const tokenNumber = nextToken;
+      nextToken += 1;
       const session: AuthSession = {
-        token: `session-${nextToken++}`,
+        token: `session-${tokenNumber}`,
         userId: user.id,
         expiresAt: now() + sessionTtlMs,
       };

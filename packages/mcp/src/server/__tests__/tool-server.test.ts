@@ -119,6 +119,20 @@ beforeEach(() => {
   hoisted.dispose.mockClear();
 });
 
+it('a rejected transport close on stdin EOF still completes hosting and disposes idle tracking', async () => {
+  const stdin = new EventEmitter() as unknown as Readable;
+  const transport = new FakeTransport();
+  const close = vi.spyOn(transport, 'close').mockRejectedValue(new Error('transport already failed'));
+  const handle = createMcpToolServer(...splitServerFixture(baseOptions({ stdin,
+    createServer: () => makeFakeServer(), createTransport: () => transport })));
+  const running = handle.run({});
+  await flushAsync();
+  stdin.emit('end');
+  await running;
+  expect(close).toHaveBeenCalledExactlyOnceWith({});
+  expect(hoisted.dispose).toHaveBeenCalled();
+});
+
 describe('createMcpToolServer', () => {
   it('describes a schema-less family without publication or notification, then publishes and executes its concrete card', async () => {
     const server = makeFakeServer();

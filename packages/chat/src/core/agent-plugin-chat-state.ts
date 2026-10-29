@@ -12,7 +12,8 @@ function isStringList({ value }: { value: unknown }): boolean {
 }
 /** A stored row is usable only when its exclusions and (null or listed) decision are all string ids. */
 function usableChatState({ value }: { value: AgentPluginChatState | null }): AgentPluginChatState | null {
-  return value && isStringList({ value: value.excluded }) && (value.decision === null || isStringList({ value: value.decision?.selected })) ? value : null;
+  if (!value || !isStringList({ value: value.excluded })) return null;
+  return value.decision === null || isStringList({ value: value.decision?.selected }) ? value : null;
 }
 /** Corrupt/blocked storage permits a fresh question, as clearing localStorage does. */
 export function readAgentPluginChatState(

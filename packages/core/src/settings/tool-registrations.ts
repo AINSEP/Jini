@@ -79,6 +79,15 @@ const CROSS_PRINCIPAL_SETTINGS_READ_PERMISSION = "settings.user.read";
  * @complexity O(1); at most one `authorize()` call (none for a self-read or no-op read).
  * @overallScore 100
  */
+/** Why a dotted key did not resolve to exactly one namespace/key pair. */
+function dottedKeyMismatchMessage(matches: readonly { namespace: string; key: string }[]): string {
+  if (matches.length === 0) {
+    return "settings_set_value: no registered namespace/key pair matches this dotted key. Call settings_list_definitions to see valid keys; send namespace and key explicitly.";
+  }
+  const candidates = matches.map(match => `namespace=${match.namespace}, key=${match.key}`).join("; ");
+  return `settings_set_value: dotted key is ambiguous (${candidates}). Send namespace and key explicitly.`;
+}
+
 async function resolveOwnOrOtherPrincipalRead(
   routeDeps: SettingsToolDeps,
   required: { requestedPrincipalId: string | undefined; callerPrincipalId: string }
@@ -354,9 +363,7 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
       await routeDeps.settingsReady;
       await routeDeps.settingsUiTabsReady;
       const matches = await findDottedKeySplits(routeDeps, input.key);
-      if (matches.length !== 1) throw new ToolInputError({ message: matches.length
-        ? `settings_set_value: dotted key is ambiguous (${matches.map(match => `namespace=${match.namespace}, key=${match.key}`).join("; ")}). Send namespace and key explicitly.`
-        : "settings_set_value: no registered namespace/key pair matches this dotted key. Call settings_list_definitions to see valid keys; send namespace and key explicitly." });
+      if (matches.length !== 1) throw new ToolInputError({ message: dottedKeyMismatchMessage(matches) });
       return { input: { ...input, ...matches[0] }, notes: ["dotted key→namespace + key"] };
     } },
   }, { unwiredToolIds: UNWIRED_SETTINGS_TOOL_IDS });

@@ -50,7 +50,7 @@ function optionalAttribute(name: string, value: string | number | undefined): st
   return ` ${name}="${escapeHtml(String(value))}"`;
 }
 
-function booleanAttribute(name: string, value: boolean | undefined): string {
+function booleanAttribute(name: string, value: boolean | undefined = false): string {
   return value === true ? ` ${name}` : '';
 }
 

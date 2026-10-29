@@ -29,7 +29,7 @@ import { WidgetRegionEditorHeaderActions } from '../components/WidgetRegionEdito
 export function WidgetRegionEditor(props: WidgetRegionEditorProps) {
   const { slots: { AddControl: WidgetAddControl }, widgetTypes } = useWidgetsOptions();
   const { regionKey, useWidgetRegionEditorHook = useWiredWidgetRegionEditor } = props;
-  const { area, placements, message, error, loading, saving, removeAt, moveAt, toggleEnabled, addPlacement, save, t, locale, placementHandles } =
+  const { area, placements, message, error, loading, saving, removeAt, moveAt, toggleEnabled, addPlacement, save, t, placementHandles } =
     useWidgetRegionEditorView({ regionKey, useWidgetRegionEditorHook });
 
   if (error && !area) return <div className="notice error">{error}</div>;

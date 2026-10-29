@@ -76,10 +76,13 @@ import { redactSecrets } from '@jini-ai/core';
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
-import { decodeSseStream } from './sse-decode.js';
+import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
-import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
+import { omitKeys } from '../core/omit-keys.js';
 
 export interface AnthropicTextBlockParam {
   readonly type: 'text';
@@ -226,11 +229,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function anthropicRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string {
-  const base = (baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, chars: '/' });
   return `${base}/v1/messages`;
 }
 
-export function anthropicHeaders(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Record<string, string> {
+/** The `AnthropicTurnOptions` keys every caller must pass. */
+type AnthropicRequiredOption = "apiKey" | "model" | "messages" | "maxTokens" | "onEvent";
+
+export function anthropicHeaders(requiredArgs: Pick<AnthropicTurnOptions, AnthropicRequiredOption>, optionalArgs: Omit<AnthropicTurnOptions, AnthropicRequiredOption> = {}): Record<string, string> {
   const options: AnthropicTurnOptions = { ...optionalArgs, ...requiredArgs };
   return {
     'content-type': 'application/json',
@@ -512,8 +518,7 @@ const ANTHROPIC_FRAME_HANDLERS: Record<string, AnthropicFrameHandler> = {
 function refreshAnthropicTools(options: AnthropicTurnOptions, retry: StrictToolRetryState): AnthropicTurnOptions {
   let tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
   if (!retry.enabled) tools = tools?.map(tool => {
-    const { strict: _strict, ...definition } = tool;
-    return definition;
+    return omitKeys(tool, ['strict']);
   });
   return { ...options, ...(tools !== undefined ? { tools } : {}) };
 }
@@ -622,6 +627,15 @@ async function runSingleAnthropicRequest(
     usage: null,
   };
 
+  /** The handler's verdict for one frame, or `null` when the frame carries nothing to act on. */
+  const handleFrame = (frame: DecodedSseEvent) => {
+    const data = parseAnthropicSseData({ raw: frame.data });
+    if (!data) return null; // malformed/empty keep-alive frame, or a non-object payload
+    const handler = ANTHROPIC_FRAME_HANDLERS[anthropicFrameKind({ data: data, frameEvent: frame.event })];
+    if (!handler) return null; // `message_stop`, `ping`, or a future event type — nothing to do
+    return handler(state, data, onEvent, options.apiKey);
+  };
+
   for await (const frame of decodeSseStream({ source: body })) {
     // No `isEnded()` re-check at the top of this loop: every `emitEnd(...)` call site below is
     // immediately followed by `break`, so `ended` can never be true when a new iteration starts
@@ -629,14 +643,8 @@ async function runSingleAnthropicRequest(
     // early returns inside `openAnthropicResponseStream` plus the two in-loop
     // contamination/error branches below). Verified, not assumed; see
     // `__tests__/anthropic-messages.test.ts`'s duplicate-end-event regression case.
-    const data = parseAnthropicSseData({ raw: frame.data });
-    if (!data) continue; // malformed/empty keep-alive frame, or a non-object payload
-
-    const handler = ANTHROPIC_FRAME_HANDLERS[anthropicFrameKind({ data: data, frameEvent: frame.event })];
-    if (!handler) continue; // `message_stop`, `ping`, or a future event type — nothing to do
-
-    const outcome = handler(state, data, onEvent, options.apiKey);
-    if (outcome.action === 'end') {
+    const outcome = handleFrame(frame);
+    if (outcome?.action === 'end') {
       emitEnd(outcome.reason);
       break;
     }
@@ -694,7 +702,7 @@ export async function executeAnthropicToolCalls({ executeTool, calls, onEvent }:
   return toolResultBlocks;
 }
 
-export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Promise<AnthropicTurnResult> {
+export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, AnthropicRequiredOption>, optionalArgs: Omit<AnthropicTurnOptions, AnthropicRequiredOption> = {}): Promise<AnthropicTurnResult> {
   const options: AnthropicTurnOptions = { ...optionalArgs, ...requiredArgs };
   const retry = createStrictToolRetry({ protocol: 'anthropic', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
@@ -710,18 +718,9 @@ export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptio
   while (true) {
     const outcome = await runSingleAnthropicRequest(options, messages, emitEnd, retry);
     lastStopReason = outcome.stopReason;
-    if (endGuard.hasEnded()) break;
-
-    const exitReason = anthropicLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      // Pending tool calls were already emitted as `tool_use` events above;
-      // with no executor to run them, the turn ends here rather than
-      // silently retrying forever.
-      emitEnd('stop');
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => anthropicLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;

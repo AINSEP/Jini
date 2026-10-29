@@ -119,13 +119,12 @@ export function hasPrecisionSensitiveJsonNumberText(text: string): boolean {
 
     numberTokenPattern.lastIndex = i;
     const match = numberTokenPattern.exec(text);
-    if (!match) {
+    if (match) {
+      if (isPrecisionSensitiveNumberLiteral(match[0])) return true;
+      i = numberTokenPattern.lastIndex;
+    } else {
       i += 1;
-      continue;
     }
-
-    if (isPrecisionSensitiveNumberLiteral(match[0])) return true;
-    i = numberTokenPattern.lastIndex;
   }
   return false;
 }
@@ -134,8 +133,8 @@ export function hasPrecisionSensitiveJsonNumberText(text: string): boolean {
  *  `start` (honouring `\` escapes), or `text.length` when it is unterminated. */
 function indexAfterJsonString(text: string, start: number): number {
   for (let i = start; i < text.length; i += 1) {
+    if (text[i] === '"') return i + 1;
     if (text[i] === '\\') i += 1;
-    else if (text[i] === '"') return i + 1;
   }
   return text.length;
 }

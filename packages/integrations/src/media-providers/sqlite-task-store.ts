@@ -232,12 +232,18 @@ export async function createSqliteMediaTaskStore(
     for (const row of selectAllStmt.all()) {
       const task = rowToTask(row);
       const action = reconcileAction(task, now, cutoff);
-      if (action.kind === 'interrupt') {
-        writeRow(action.next, false);
-        interrupted += 1;
-      } else if (action.kind === 'delete') {
-        deleteStmt.run(task.id);
-        deleted += 1;
+      switch (action.kind) {
+        case 'interrupt':
+          writeRow(action.next, false);
+          interrupted += 1;
+          break;
+        case 'delete':
+          deleteStmt.run(task.id);
+          deleted += 1;
+          break;
+        default:
+          // 'keep': the task stays as it is.
+          break;
       }
     }
     return { interrupted, deleted };

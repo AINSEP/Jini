@@ -103,7 +103,13 @@ function isRemixIconFaceRule(rule: CSSRule): rule is CSSFontFaceRule {
 function findRemixIconFontSource({ rules }: { rules: CSSRuleList }): string | undefined {
   const face = Array.from(rules).find(isRemixIconFaceRule);
   // This package owns one url(...) WOFF2 source, not a general CSS font-source parser.
-  return face?.style.getPropertyValue('src').match(/url\(\s*["']?([^"')]+)["']?\s*\)/)?.[1];
+  const source = face?.style.getPropertyValue('src');
+  if (!source) return undefined;
+  const open = source.indexOf('url(');
+  const close = source.indexOf(')', open + 4);
+  if (open < 0 || close < 0) return undefined;
+  // URL construction below already discards surrounding whitespace. Keep quotes outside the URL.
+  return /^["']?([^"']+)["']?$/.exec(source.slice(open + 4, close).trim())?.[1];
 }
 
 /** The source URL tagged with the attempt number; only http(s) URLs accept a query parameter. */

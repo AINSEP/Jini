@@ -54,12 +54,8 @@ export function rpcErrorMessage(raw: unknown): string {
   if (!obj || !error) {
     return '';
   }
-  const message =
-    typeof error.message === 'string' && error.message.trim()
-      ? error.message
-      : typeof error.code === 'number'
-        ? String(error.code)
-        : 'json-rpc error';
+  const codeText = typeof error.code === 'number' ? String(error.code) : 'json-rpc error';
+  const message = typeof error.message === 'string' && error.message.trim() ? error.message : codeText;
   return typeof obj.id === 'number'
     ? `json-rpc id ${obj.id}: ${message}`
     : message;
@@ -168,9 +164,8 @@ export function formatUsage(usage: unknown): FormattedUsage | null {
  */
 export function choosePermissionOutcome(options: unknown, policy: Pick<RuntimeBuildOptions, 'permissionMode' | 'cliParity'> = {}): string | null {
   const list = Array.isArray(options) ? options : [];
-  const kinds = policy.permissionMode === 'bypass'
-    ? policy.cliParity ? ['allow_once', 'allow_always', 'reject_once', 'reject_always'] : ['allow_once', 'reject_once', 'reject_always']
-    : ['reject_once', 'reject_always'];
+  const bypassKinds = policy.cliParity ? ['allow_once', 'allow_always', 'reject_once', 'reject_always'] : ['allow_once', 'reject_once', 'reject_always'];
+  const kinds = policy.permissionMode === 'bypass' ? bypassKinds : ['reject_once', 'reject_always'];
   for (const kind of kinds) {
     const option = list.find((value) => {
       const record = asObject(value);

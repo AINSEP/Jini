@@ -1,3 +1,4 @@
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 /** Versioned keyset continuations. Encoding grants no authority; all queries remain scoped. */
 import type { ChatOwnerScope, ChatPageOptions } from '../ports.js';
 import { ChatStoreError } from '../errors.js';
@@ -21,7 +22,7 @@ function ownerTuple(scope: ChatOwnerScope): readonly string[] {
 export function encodeCursor({ kind, scope, conversation, anchor }: { kind: ReadKind; scope: ChatOwnerScope; conversation: string | null; anchor: Anchor }): string {
   const bytes = new TextEncoder().encode(JSON.stringify([1, kind, ownerTuple(scope), conversation, anchor]));
   const binary = Array.from(bytes, byte => String.fromCharCode(byte)).join('');
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  return trimCharsEnd({ text: btoa(binary).replaceAll('+', '-').replaceAll('/', '_'), chars: '=' });
 }
 
 /** Every structural failure is the same refusal; callers never learn which check rejected it. */
@@ -46,7 +47,8 @@ function decodeBody({ cursor }: { cursor: string }): unknown {
 
 /** Version, exact length, read kind and conversation binding. */
 function readEnvelope({ value, kind, conversation }: { value: unknown; kind: ReadKind; conversation: string | null }): unknown[] {
-  if (!Array.isArray(value) || value.length !== 5 || value[0] !== 1 || value[1] !== kind || value[3] !== conversation) invalidCursor();
+  if (!Array.isArray(value) || value.length !== 5) invalidCursor();
+  if (value[0] !== 1 || value[1] !== kind || value[3] !== conversation) invalidCursor();
   return value;
 }
 
@@ -58,7 +60,8 @@ function assertOwner({ owner, scope }: { owner: unknown; scope: ChatOwnerScope }
 
 /** A [finite number, string] pair; message positions must also be non-negative safe integers. */
 function readAnchor({ anchor, kind }: { anchor: unknown; kind: ReadKind }): Anchor {
-  if (!Array.isArray(anchor) || anchor.length !== 2 || typeof anchor[0] !== 'number' || !Number.isFinite(anchor[0]) || typeof anchor[1] !== 'string') {
+  if (!Array.isArray(anchor) || anchor.length !== 2) invalidCursor();
+  if (typeof anchor[0] !== 'number' || !Number.isFinite(anchor[0]) || typeof anchor[1] !== 'string') {
     invalidCursor();
   }
   if (kind === 'messages' && (!Number.isSafeInteger(anchor[0]) || anchor[0] < 0)) invalidCursor();

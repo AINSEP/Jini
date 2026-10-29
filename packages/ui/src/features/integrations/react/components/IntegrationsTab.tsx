@@ -211,11 +211,13 @@ function DeeplinkInstallRow({ deeplink, info, agentHandle }: { deeplink: string;
 /** The generated snippet, or a loading / could-not-resolve placeholder while there is none. */
 function InstallSnippet({ resolved, loading, error }: { resolved: McpClientSnippet | null; loading: boolean; error: string | null }) {
   const t = useT();
+  const errorPlaceholder = error ? t('Could not resolve install paths.') : '';
+  const placeholder = loading ? t('Loading install paths…') : errorPlaceholder;
   return (
     <SnippetBlock
       snippet={resolved?.snippet ?? ''}
       language={resolved?.language ?? 'json'}
-      placeholder={loading ? t('Loading install paths…') : error ? t('Could not resolve install paths.') : ''}
+      placeholder={placeholder}
     />
   );
 }

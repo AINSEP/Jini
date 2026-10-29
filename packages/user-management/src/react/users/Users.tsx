@@ -663,6 +663,7 @@ function UserResetPasswordDialog({
 }: UserResetPasswordDialogProps) {
   const useFields = resolveResetPasswordFieldsHook(useFieldsProp);
   const fields = useFields({ resetPasswordFor, newPassword });
+  const displayedError = fields.mismatch ? t("Passwords do not match.") : passwordError;
 
   /** Blocks the reset entirely when the two fields disagree — a mismatch never reaches
    *  `confirmResetPassword`/the server. The inline message below is driven by the same `mismatch`
@@ -715,13 +716,9 @@ function UserResetPasswordDialog({
                 `passwordError` left over from a previous failed attempt, so the two can never be
                 shown — or appear to conflict — at the same time. Once the fields agree again, the
                 stale server error (if any) reappears until the next submit or Cancel clears it. */}
-            {fields.mismatch ? (
+            {fields.mismatch || passwordError ? (
               <p className="save-error" role="alert">
-                {t("Passwords do not match.")}
-              </p>
-            ) : passwordError ? (
-              <p className="save-error" role="alert">
-                {passwordError}
+                {displayedError}
               </p>
             ) : null}
           </>

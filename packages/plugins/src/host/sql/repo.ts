@@ -37,7 +37,10 @@ export class SqlPluginActivationRepo implements PluginActivationRepoPort {
 
   async save(record: PluginActivationRecord, _optional: Record<string, never> = {}): Promise<void> {
     const row = toActivationRow({ record });
-    const { workspace_id: _workspaceId, plugin_id: _pluginId, ...set } = row;
+    // The conflict key columns are never part of the update.
+    const set: Partial<typeof row> = { ...row };
+    delete set.workspace_id;
+    delete set.plugin_id;
     await this.kernel.run((db) =>
       db
         .insertInto(this.tables.activations)

@@ -22,6 +22,26 @@ afterEach(() => {
   mocks.spawn.mockReset();
 });
 
+it('a zero readiness budget never calls the probe or retains an exit listener', async () => {
+  vi.useFakeTimers();
+  const { child, handle } = await launch();
+  const probe = vi.fn(async () => true);
+  await expect(handle.waitUntilReady({ probe, isReady: ({ status }) => status }, { timeoutMs: 0 }))
+    .rejects.toThrow(new Error('timed out waiting for sidecar to become ready'));
+  expect(probe).not.toHaveBeenCalled();
+  expect(child.listenerCount('exit')).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('a ready result returns unchanged and releases its deadline and exit listener', async () => {
+  vi.useFakeTimers();
+  const { child, handle } = await launch();
+  const status = { ready: true, version: 'fixture' };
+  expect(await handle.waitUntilReady({ probe: async () => status, isReady: ({ status }) => status.ready })).toBe(status);
+  expect(child.listenerCount('exit')).toBe(0);
+  expect(vi.getTimerCount()).toBe(0);
+});
+
 it('C11: sidecars receive SIGTERM and Tauri remembers prior exits for readiness and shutdown', async () => {
   vi.useFakeTimers();
   const { child, handle } = await launch();

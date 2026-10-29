@@ -1,3 +1,4 @@
+import { trimChars } from '@jini-ai/core/primitives';
 /**
  * @module components/McpUiSurfaceCard
  *
@@ -135,7 +136,7 @@ function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[]
 function pendingMirrorHandle(uri: string): string {
   // Never empty: only resources whose URI starts with `ui://` reach a card (`@jini-ai/ui/mcp-ui`'s
   // resource parser rejects every other scheme), so the sanitized handle always keeps at least `ui`.
-  const sanitized = uri.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const sanitized = trimChars({ text: uri.toLowerCase().replace(/[^a-z0-9]+/g, '-'), chars: '-' });
   return `mcp-ui-pending-${sanitized}`;
 }
 

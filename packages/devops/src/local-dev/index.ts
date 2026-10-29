@@ -18,8 +18,11 @@ export function parseLsofListeners({ stdout }: { stdout: string }): PortListener
   const found: PortListener[] = [];
   let pid: string | undefined;
   for (const line of stdout.replace(/\r\n/g, '\n').split('\n')) {
-    if (line.startsWith('p')) pid = line.slice(1);
-    else if (line.startsWith('c') && pid) {
+    if (line.startsWith('p')) {
+      pid = line.slice(1);
+      continue;
+    }
+    if (line.startsWith('c') && pid) {
       found.push({ pid, command: line.slice(1) });
       pid = undefined;
     }
@@ -53,7 +56,9 @@ export interface ServerListenerPort {
 
 function validListenRange(required: { port: number; attempts: number }): boolean {
   const { port, attempts } = required;
-  return Number.isInteger(attempts) && attempts >= 1 && Number.isInteger(port) && port >= 0 && port + attempts - 1 <= 65535;
+  const validAttempts = Number.isInteger(attempts) && attempts >= 1;
+  const validPorts = Number.isInteger(port) && port >= 0 && port + attempts - 1 <= 65535;
+  return validAttempts && validPorts;
 }
 
 /** One bind attempt; both one-shot handlers are removed however it ends, including a synchronous throw. */

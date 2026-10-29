@@ -119,7 +119,7 @@ export function useLightbox(input: LightboxHookInput): LightboxController {
   // image that failed over to a video) focus drops to the body, and arrow keys must keep working.
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (!dialog || !input.open) return;
+    if (!dialog || !input.open) return undefined;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       // Known limitation: a focused `<video controls>` also seeks on these keys natively, so the

@@ -166,7 +166,7 @@ const COLOR_KEYWORD = /^[a-z]+$/i;
  * A colour function. The argument charset deliberately excludes `(`, so no nested function —
  * `var()`, `url()`, `image-set()`, `attr()` — can appear inside one of these either.
  */
-const COLOR_FUNCTION = /^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(\s*[0-9a-z%.,/\s+-]*\)$/i;
+const COLOR_FUNCTION = /^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\([0-9a-z%.,/\s+-]*\)$/i;
 
 /**
  * Whether a model-supplied palette entry may be written into a CSS value.

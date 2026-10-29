@@ -8,16 +8,25 @@ import type ts from 'typescript';
 import { diffHardwiringDebt, HARDWIRING_RULES, syntaxError } from './hardwiring.js';
 import type { HardwiringViolation } from './hardwiring.js';
 
+const SKIPPED_DIRECTORY_NAMES: ReadonlySet<string> = new Set(['node_modules', 'dist', 'build', 'coverage', 'release', 'release-verify', 'staging', '__tests__', '__measurements__', 'fixtures', 'vendor', '.git', '.build']);
+
+/** JS/TS source that is not a test; declaration files only when asked for. */
+function isAuthoredSource({ file, declarations }: { file: string; declarations: boolean }): boolean {
+  const includesDeclarations = declarations || !/\.d\.[cm]?ts$/.test(file);
+  return /\.[cm]?[jt]sx?$/.test(file) && !/\.(?:test|spec)\./.test(file) && includesDeclarations;
+}
+
 /** Authored inventory excludes generated output, fixtures and tests. O(directory entries). */
 export function sourceFiles({ directory, declarations = false }: { directory: string; declarations?: boolean }, _options: Record<string, never> = {}): string[] {
   const found: string[] = [];
   function visit(dir: string): void {
     if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (['node_modules', 'dist', 'build', 'coverage', 'release', 'release-verify', 'staging', '__tests__', '__measurements__', 'fixtures', 'vendor', '.git', '.build'].includes(entry.name)) continue;
+      if (SKIPPED_DIRECTORY_NAMES.has(entry.name)) continue;
       const file = join(dir, entry.name);
-      if (entry.isDirectory()) visit(file);
-      else if (/\.[cm]?[jt]sx?$/.test(file) && !/\.(?:test|spec)\./.test(file) && (declarations || !/\.d\.[cm]?ts$/.test(file))) found.push(file);
+      const isDirectory = entry.isDirectory();
+      if (isDirectory) visit(file);
+      if (!isDirectory && isAuthoredSource({ file, declarations })) found.push(file);
     }
   }
   visit(directory);
@@ -100,11 +109,16 @@ function publicTargets(directory: string, exports: unknown): string[] {
     if (condition) select(record[condition]);
   }
   function select(value: unknown): void {
-    if (typeof value === 'string') selectPath(value);
-    else if (Array.isArray(value)) {
+    if (typeof value === 'string') {
+      selectPath(value);
+      return;
+    }
+    if (Array.isArray(value)) {
       const candidate = value.find(item => item !== null);
       if (candidate !== undefined) select(candidate);
-    } else if (value && typeof value === 'object') selectRecord(value as Record<string, unknown>);
+      return;
+    }
+    if (value && typeof value === 'object') selectRecord(value as Record<string, unknown>);
   }
   select(exports);
   return targets;

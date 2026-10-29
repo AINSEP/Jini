@@ -83,9 +83,10 @@ function applyHeaderPart(acc: SignatureHeaderAccumulator, part: SignatureHeaderP
     const parsedTimestamp = Number(part.value);
     if (!Number.isFinite(parsedTimestamp)) return false;
     acc.timestamp = parsedTimestamp;
-  } else if (part.key === vocabulary.signatureField) {
-    acc.signatures.push(part.value);
+    return true;
   }
+  // Unknown keys are ignored.
+  if (part.key === vocabulary.signatureField) acc.signatures.push(part.value);
   return true;
 }
 

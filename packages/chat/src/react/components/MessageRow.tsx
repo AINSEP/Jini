@@ -391,14 +391,13 @@ function AssistantMessageRow({
   };
 
   const renderTextSegments = (text: string, keyPrefix: string): ReactNode =>
-    splitOnQuestionForms({ input: text }).map((segment, i) =>
-      segment.kind === 'text' ? (
-        segment.text.trim() ? (
+    splitOnQuestionForms({ input: text }).map((segment, i) => {
+      if (segment.kind === 'text') return segment.text.trim() ? (
           <div className="jini-message-content" key={`${keyPrefix}-${i}`}>
             <Markdown>{segment.text}</Markdown>
           </div>
-        ) : null
-      ) : (
+        ) : null;
+      return (
         <QuestionForm
           key={`${keyPrefix}-${i}`}
           form={segment.form}
@@ -406,8 +405,8 @@ function AssistantMessageRow({
           {...(questionFormSubmittedAnswers !== undefined ? { submittedAnswers: questionFormSubmittedAnswers } : {})}
           {...(onQuestionFormSubmit !== undefined ? { onSubmit: onQuestionFormSubmit } : {})}
         />
-      ),
-    );
+      );
+    });
 
   const renderBlock = (block: AssistantBlock): ReactNode => {
     if (block.kind === 'text') {
@@ -416,8 +415,9 @@ function AssistantMessageRow({
     if (block.kind === 'reply-end') {
       const reply = usage.replies[block.index];
       // A trailing input may have no reply: its predecessor's usage belongs above that input.
-      return reply && showUsageLine ? <UsageSummary key={block.key} usage={reply} showTotal={showUsageTotal}
-        {...(block.index === lastFinishedReply ? { message } : {})} /> : null;
+      if (!reply || !showUsageLine) return null;
+      return <UsageSummary key={block.key} usage={reply} showTotal={showUsageTotal}
+        {...(block.index === lastFinishedReply ? { message } : {})} />;
     }
     if (block.kind === 'tools') return renderTools(block.rows, block.key);
     if (block.kind === 'thinking') return <ThinkingBlock key={block.key} text={block.text} />;

@@ -339,9 +339,7 @@ function partitionRequestedPaths(paths: readonly string[]): {
     const normalized = normalizeSitePath({ raw });
     if (!normalized.ok) {
       skipped.push(skip(raw, "invalid-path", `${normalized.message} (${normalized.reason})`));
-      continue;
-    }
-    if (accepted.length >= SITE_EVIDENCE_LIMITS.maxPagesPerCall) {
+    } else if (accepted.length >= SITE_EVIDENCE_LIMITS.maxPagesPerCall) {
       skipped.push(
         skip(
           normalized.path,
@@ -349,9 +347,9 @@ function partitionRequestedPaths(paths: readonly string[]): {
           `this call already accepted the maximum of ${SITE_EVIDENCE_LIMITS.maxPagesPerCall} pages — request the remaining paths in a follow-up call`,
         ),
       );
-      continue;
+    } else {
+      accepted.push(normalized.path);
     }
-    accepted.push(normalized.path);
   }
 
   return { accepted, skipped };

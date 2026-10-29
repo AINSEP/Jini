@@ -104,9 +104,10 @@ function deriveDownloaded(model: UpdaterModel): AboutUpdateControl {
     };
   }
   const installable = canInstall(model);
+  const installLabelKey = payload ? K.installRestart : K.installNow;
   return {
     primaryAction: installable ? 'install' : null,
-    primaryLabelKey: installable ? (payload ? K.installRestart : K.installNow) : null,
+    primaryLabelKey: installable ? installLabelKey : null,
     showReleaseLink: true,
     statusKey: model.availableVersion ? K.ready : K.readyUnknown,
     statusTone: 'success',
