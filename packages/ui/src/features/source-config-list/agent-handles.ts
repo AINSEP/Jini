@@ -39,6 +39,7 @@
  * why cards are keyed by id rather than list position.
  */
 import { agentHandle, buildAgentListHandles, type AgentElementRole, type AgentHandleProps } from '@jini-ai/agentic';
+import { trimChars } from '../../utils/trim-chars.js';
 
 /** Segments of a derived handle: `<base>-field-<key>` and `<base>-<action>` share one joiner. */
 const HANDLE_SEPARATOR = '-';
@@ -71,11 +72,11 @@ const LIST_ITEM_NAMESPACE = 'item';
  * @complexity O(n) in `segment.length`.
  */
 function sanitizeHandleSegment(segment: string): string {
-  return segment
+  const separated = segment
     .replace(/([a-z0-9])([A-Z])/g, `$1${HANDLE_SEPARATOR}$2`)
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, HANDLE_SEPARATOR)
-    .replace(/^-+|-+$/g, '');
+    .replace(/[^a-z0-9]+/g, HANDLE_SEPARATOR);
+  return trimChars(separated, '-');
 }
 
 /**

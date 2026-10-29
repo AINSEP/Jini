@@ -270,7 +270,7 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const dropdownIdRef = useRef(`onboarding-dropdown-${Math.random().toString(36).slice(2)}`);
+  const dropdownIdRef = useRef(`onboarding-dropdown-${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!.toString(36)}`);
 
   const { placement: resolvedPlacement, maxHeight: menuMaxHeight } = useOnboardingDropdownPlacement(
     rootRef,

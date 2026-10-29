@@ -5,6 +5,7 @@ import type {
   BrowserNavigationState,
 } from './types.js';
 import { DEFAULT_HOME_NAVIGATION_ENTRY, EMPTY_URL, HISTORY_LIMIT } from './constants.js';
+import { trimTrailingChars } from '../../utils/trim-chars.js';
 
 // ---------------------------------------------------------------------------
 // Address normalization
@@ -66,7 +67,7 @@ export function formatAddressDisplayParts(
   if (!cleanTitle) return { url };
   const fallback = labelFromUrl(url, homeLabel);
   if (cleanTitle === fallback || cleanTitle === url) return { url };
-  return { url: url.replace(/\/+$/, ''), title: cleanTitle };
+  return { url: trimTrailingChars(url, '/'), title: cleanTitle };
 }
 
 export function formatAddressDisplay(
@@ -106,7 +107,7 @@ export function isHistoryUrl(url: string): boolean {
 }
 
 export function sameUrl(left: string, right: string): boolean {
-  return left.replace(/\/+$/, '') === right.replace(/\/+$/, '');
+  return trimTrailingChars(left, '/') === trimTrailingChars(right, '/');
 }
 
 function cleanIconUrl(url?: string): string | undefined {

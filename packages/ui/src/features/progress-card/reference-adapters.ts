@@ -61,7 +61,7 @@ function isStatusEvent(event: AgentEventLike): event is AgentStatusEventLike {
 }
 
 // ---------------------------------------------------------------------------
-// Todo/step derivation (ported from the source `runtime/todos.ts`)
+// To-do/step derivation (ported from the source `runtime/todos.ts`)
 // ---------------------------------------------------------------------------
 
 export type TodoStatusLike = 'pending' | 'in_progress' | 'completed' | 'stopped';

@@ -11,6 +11,7 @@ import type {
   ConnectorStatus,
   ProviderTab,
 } from './types.js';
+import { omitKeys } from '../../utils/omit-keys.js';
 
 /** Restricts the catalog to a single provider tab's `match` predicate, defaulting to the first tab. */
 export function scopeConnectorsToProvider(
@@ -231,8 +232,7 @@ export function applyConnectorStatuses(current: Connector[], statuses: Connector
   return current.map((connector) => {
     const next = statuses[connector.id];
     if (!next) return connector;
-    const { accountLabel: _accountLabel, lastError: _lastError, ...base } = connector;
-    return { ...base, ...next };
+    return { ...omitKeys(connector, ['accountLabel', 'lastError']), ...next };
   });
 }
 
@@ -272,8 +272,7 @@ export function mergeConnectorToolPreview(current: Connector, next: Connector, a
     ...(featuredToolNames !== undefined ? { featuredToolNames } : {}),
   };
   if (next.toolsNextCursor !== undefined) return { ...merged, toolsNextCursor: next.toolsNextCursor };
-  const { toolsNextCursor: _toolsNextCursor, ...withoutCursor } = merged;
-  return withoutCursor;
+  return omitKeys(merged, ['toolsNextCursor']);
 }
 
 export function mergeConnectorActionResult(current: Connector, next: Connector): Connector {

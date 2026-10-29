@@ -1,3 +1,4 @@
+import { trimTrailingChars } from '../../utils/trim-chars.js';
 /**
  * @module features/mcp-ui/confirmation-store
  *
@@ -151,7 +152,7 @@ function defaultRandomToken(): string {
   const bytes = source.getRandomValues(new Uint8Array(TOKEN_BYTES));
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return trimTrailingChars(btoa(binary).replace(/\+/g, '-').replace(/\//g, '_'), '=');
 }
 
 /**

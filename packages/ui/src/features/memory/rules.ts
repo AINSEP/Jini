@@ -18,6 +18,7 @@
 import { applyConnectorStatuses, mergeConnectors } from '../connectors/rules.js';
 import type { Connector, ConnectorStatusMap } from '../connectors/types.js';
 import type { MemoryExtractionRecord, MemorySuggestion, MemoryType, UpdateMemoryConfigRequest } from './types.js';
+import { omitKeys } from '../../utils/omit-keys.js';
 
 /**
  * The per-hook config flags the hooks panel toggles individually. This union
@@ -86,7 +87,7 @@ export function applyMemoryConnectorStatus(
  *  tracks pending state separately rather than mutating the connector's
  *  displayed status, so this transform is genuinely local to this slice. */
 export function connectorWithPendingAuthorization(connector: Connector): Connector {
-  const { accountLabel: _accountLabel, lastError: _lastError, ...base } = connector;
+  const base = omitKeys(connector, ['accountLabel', 'lastError']);
   return {
     ...base,
     status: base.status === 'disabled' ? 'disabled' : 'available',

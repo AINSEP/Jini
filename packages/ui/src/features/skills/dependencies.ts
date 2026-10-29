@@ -1,5 +1,6 @@
 import type { SkillDetail, SkillFileEntry, SkillSummary } from './types.js';
 import type { SkillsPort, SkillWritePayload } from './ports.js';
+import { omitKeys } from '../../utils/omit-keys.js';
 
 export interface FakeSkillsPortOptions {
   /** Seed skills, body included. Defaults to one built-in demo skill. */
@@ -31,8 +32,7 @@ function takeFakeSkillId(): string {
 }
 
 function toSummary(detail: SkillDetail): SkillSummary {
-  const { body: _body, ...summary } = detail;
-  return summary;
+  return omitKeys(detail, ['body']);
 }
 
 /**

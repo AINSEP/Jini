@@ -13,9 +13,8 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
  * @overallScore 100
  */
 export function isImeComposing(
-  event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  _event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
   composing: boolean,
 ): boolean {
-  void event;
   return composing;
 }

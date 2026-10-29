@@ -27,12 +27,14 @@ export interface PaletteSwatch {
   stripe: string[];
 }
 
+const PRIMARY = 'var(--jini-primary)';
+
 export const PALETTE_TWEAKS_SWATCHES: PaletteSwatch[] = [
-  { id: 'coral',       label: 'Coral - default', stripe: ['var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)'] },
-  { id: 'electric',    label: 'Electric',        stripe: ['var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)'] },
-  { id: 'acid-forest', label: 'Acid forest',     stripe: ['var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)'] },
-  { id: 'risograph',   label: 'Risograph',       stripe: ['var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)'] },
-  { id: 'mono-noir',   label: 'Mono noir',       stripe: ['var(--jini-text)', 'var(--jini-primary)', 'var(--jini-primary)', 'var(--jini-primary)'] },
+  { id: 'coral',       label: 'Coral - default', stripe: [PRIMARY, PRIMARY, PRIMARY, PRIMARY] },
+  { id: 'electric',    label: 'Electric',        stripe: [PRIMARY, PRIMARY, PRIMARY, PRIMARY] },
+  { id: 'acid-forest', label: 'Acid forest',     stripe: [PRIMARY, PRIMARY, PRIMARY, PRIMARY] },
+  { id: 'risograph',   label: 'Risograph',       stripe: [PRIMARY, PRIMARY, PRIMARY, PRIMARY] },
+  { id: 'mono-noir',   label: 'Mono noir',       stripe: ['var(--jini-text)', PRIMARY, PRIMARY, PRIMARY] },
 ];
 
 export interface PaletteTweaksProps {

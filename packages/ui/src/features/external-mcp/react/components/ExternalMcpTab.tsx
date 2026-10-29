@@ -123,42 +123,59 @@ export function ExternalMcpTab({
         <div className="source-config-list-loading" role="status">
           {t('Loading…')}
         </div>
-      ) : null}
-      {!list.loading && list.sources.length === 0 ? (
-        <div className="external-mcp-empty">
-          <p className="external-mcp-empty-title">{t('No MCP servers configured.')}</p>
-          <p className="external-mcp-empty-hint">
-            {t('Click "Add server" to get started — pick a template or set up a custom stdio / HTTP server.')}
-          </p>
-        </div>
-      ) : null}
-      {!list.loading && list.sources.length > 0 ? (
-        <div className="source-config-list-items">
-          {list.sources.map((source) => (
-            <SourceConfigItemCard
-              key={source.id}
-              source={source}
-              fieldSpecs={fieldSpecs}
-              {...(trustOptions ? { trustOptions } : {})}
-              capabilities={list.capabilities}
-              removing={list.isPending(source.id, 'remove')}
-              refreshing={list.isPending(source.id, 'refresh')}
-              settingTrust={list.isPending(source.id, 'trust')}
-              testing={list.isPending(source.id, 'test')}
-              updating={list.isPending(source.id, 'update')}
-              onRefresh={() => void list.refresh(source.id)}
-              onRemove={() => void list.remove(source.id)}
-              onTrustChange={(trust) => void list.setTrust(source.id, trust)}
-              onTest={() => void list.test(source.id)}
-              onUpdate={(patch) => void list.update(source.id, patch)}
-              {...(list.testResults[source.id] ? { testResult: list.testResults[source.id] } : {})}
-            />
-          ))}
-        </div>
-      ) : null}
+      ) : (
+        <ExternalMcpSources list={list} fieldSpecs={fieldSpecs} trustOptions={trustOptions} />
+      )}
 
       <ExternalMcpFooter saveStatusLabel={saveStatusLabel} configPath={configPath} />
     </section>
+  );
+}
+
+/** The configured servers, or the empty-state hint when there are none yet. */
+function ExternalMcpSources({
+  list,
+  fieldSpecs,
+  trustOptions,
+}: {
+  list: ReturnType<typeof useWiredSourceConfigList<SourceConfigItem>>;
+  fieldSpecs: NonNullable<ExternalMcpTabProps['fieldSpecs']>;
+  trustOptions: ExternalMcpTabProps['trustOptions'];
+}) {
+  const t = useT();
+  if (list.sources.length === 0) {
+    return (
+      <div className="external-mcp-empty">
+        <p className="external-mcp-empty-title">{t('No MCP servers configured.')}</p>
+        <p className="external-mcp-empty-hint">
+          {t('Click "Add server" to get started — pick a template or set up a custom stdio / HTTP server.')}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="source-config-list-items">
+      {list.sources.map((source) => (
+        <SourceConfigItemCard
+          key={source.id}
+          source={source}
+          fieldSpecs={fieldSpecs}
+          {...(trustOptions ? { trustOptions } : {})}
+          capabilities={list.capabilities}
+          removing={list.isPending(source.id, 'remove')}
+          refreshing={list.isPending(source.id, 'refresh')}
+          settingTrust={list.isPending(source.id, 'trust')}
+          testing={list.isPending(source.id, 'test')}
+          updating={list.isPending(source.id, 'update')}
+          onRefresh={() => void list.refresh(source.id)}
+          onRemove={() => void list.remove(source.id)}
+          onTrustChange={(trust) => void list.setTrust(source.id, trust)}
+          onTest={() => void list.test(source.id)}
+          onUpdate={(patch) => void list.update(source.id, patch)}
+          {...(list.testResults[source.id] ? { testResult: list.testResults[source.id] } : {})}
+        />
+      ))}
+    </div>
   );
 }
 

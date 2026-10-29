@@ -8,6 +8,7 @@
 import { micromark } from 'micromark';
 import { gfm, gfmHtml } from 'micromark-extension-gfm';
 import { resolveArtifactManifest, type ArtifactRenderer } from '../registry.js';
+import { trimTrailingWhere } from '../../utils/trim-chars.js';
 
 export function renderMarkdownToSafeHtml(markdown: string): string {
   return postProcessMarkdownHtml(
@@ -64,7 +65,7 @@ function isTableDelimiter(line: string): boolean {
 
 function escapeCodeSpanPipes(line: string): string {
   if (!line.includes('|') || !line.includes('`')) return line;
-  return line.replace(/`([^`]*\|[^`]*)`/g, (_match, code: string) => `\`${code.replace(/\|/g, '\\|')}\``);
+  return line.replace(/`([^`|]*\|[^`]*)`/g, (_match, code: string) => `\`${code.replace(/\|/g, '\\|')}\``);
 }
 
 function postProcessMarkdownHtml(html: string): string {
@@ -87,7 +88,7 @@ function postProcessMarkdownHtml(html: string): string {
 
 function normalizeSafeHref(href: string): string | null {
   const decoded = decodeHref(href);
-  const stripped = decoded.replace(/[!"')}\],.;:\s]+$/, '');
+  const stripped = trimTrailingWhere(decoded, (char) => /[!"')}\],.;:\s]/.test(char));
   if (
     stripped.startsWith('#') ||
     stripped.startsWith('/') ||

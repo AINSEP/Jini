@@ -1,3 +1,4 @@
+import { trimTrailingChars } from '../../utils/trim-chars.js';
 /**
  * `editor.getCss()` always returns single-line, semicolon-packed CSS — confirmed directly in
  * GrapesJS's own bundled source (`CssRule.prototype.toCSS`/`getDeclaration`): there is no
@@ -69,7 +70,7 @@ export function prettifyCss(css: string): string {
   };
 
   const openRule = (_input: object, _options: object = {}): boolean => {
-    out = out.replace(/[ \t]+$/, '');
+    out = trimTrailingChars(out, ' \t');
     out += ' {';
     depth++;
     atDeclStart = true;
@@ -81,7 +82,7 @@ export function prettifyCss(css: string): string {
 
   const closeRule = (_input: object, _options: object = {}): boolean => {
     depth = Math.max(0, depth - 1);
-    out = out.replace(/[ \t]+$/, '');
+    out = trimTrailingChars(out, ' \t');
     // A `}` immediately after `{` (an empty rule) needs no newline before it; otherwise close on
     // its own indented line.
     if (!out.endsWith('{')) out += '\n' + INDENT.repeat(depth);

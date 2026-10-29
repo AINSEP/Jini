@@ -1,6 +1,6 @@
 import { RendererRegistry } from '../registry.js';
 import { HtmlRenderer } from './html.js';
-import { MarkdownRenderer, renderMarkdownToSafeHtml } from './markdown.js';
+import { MarkdownRenderer } from './markdown.js';
 import { SvgRenderer } from './svg.js';
 import { ReactComponentRenderer } from './react-component.js';
 

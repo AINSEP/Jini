@@ -55,7 +55,7 @@ function scalarText({ value }: { value: unknown }, _options = {}): string {
 
 /** Classifies content for a disclosure, preserving the original text bytes in the body. */
 function codeKind({ value, path, format }: { value: string; path: string; format?: SurfaceDetail['format'] }, _options = {}): string | undefined {
-  if (/css$/i.test(path) || (/\{[^}]*:[^}]*\}/.test(value) && !/^\s*[\[{]/.test(value))) return 'CSS';
+  if (/css$/i.test(path) || (/\{[^}:]*:[^}]*\}/.test(value) && !/^\s*[\[{]/.test(value))) return 'CSS';
   if (/^\s*</.test(value)) return 'HTML';
   if (/^\s*[\[{]/.test(value)) return 'JSON';
   if (format === 'code') return 'Code';
