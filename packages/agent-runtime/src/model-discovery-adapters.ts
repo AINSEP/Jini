@@ -34,7 +34,9 @@ export async function probeCliSubcommand(context: ModelDiscoveryContext, config:
   const { stdout } = await withModelProbeTimeout(active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs }), timeoutMs, signal);
   const models = config.parse?.({ stdout });
   if (!models) throw new ModelProbeError('malformed-response');
-  const defaultSelectionId = stdout.match(/^[^\S\n\r\u2028\u2029]*Default model:\s*(\S+)[^\S\n\r\u2028\u2029]*$/mi)?.[1];
+  // The bracketed class is `\s` minus line terminators, so neither end of the line can slide into
+  // a neighbouring line (which is what made the plain `\s*` version backtrack quadratically).
+  const defaultSelectionId = stdout.match(/^[\t\v\f \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]*Default model:\s*(\S+)[\t\v\f \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]*$/mi)?.[1];
   return { models, source: 'cli', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
 }
 /** ACP can create CLI session state/start services. It never sends a user prompt. */
@@ -56,9 +58,13 @@ function claudeInitializeRows(line: string): ClaudeModelRow[] | null {
   return Array.isArray(rows) ? rows : null;
 }
 /** One selection row, plus its concrete resolved row when the selection is an alias. */
+/** A selection that resolves to another id is an alias; an unresolved one is classified by shape. */
+function selectionIdentityKind(id: string, resolvedId: string | undefined) {
+  return resolvedId ? 'alias' as const : modelIdentityKind(id);
+}
 function claudeSelectionModels(id: string, resolvedId: string | undefined, displayName: unknown): DiscoveredModel[] {
   const label = typeof displayName === 'string' && displayName.trim() ? displayName.trim() : resolvedId || id;
-  const identityKind = id === resolvedId ? 'concrete' : resolvedId ? 'alias' : modelIdentityKind(id);
+  const identityKind = id === resolvedId ? 'concrete' : selectionIdentityKind(id, resolvedId);
   const selection: DiscoveredModel = { id, label, identityKind, ...(resolvedId ? { resolvedId } : {}) };
   if (!resolvedId || id === resolvedId) return [selection];
   return [selection, { id: resolvedId, label, identityKind: modelIdentityKind(resolvedId) }];
@@ -70,9 +76,15 @@ function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResu
     if (!row || typeof row.value !== 'string') continue;
     const id = row.value.trim();
     const resolvedId = typeof row.resolvedModel === 'string' ? row.resolvedModel.trim() : undefined;
-    if (id !== 'default') { models.push(...claudeSelectionModels(id, resolvedId, row.displayName)); continue; }
-    // This displayName describes the CLI's default policy, not the model it resolves to.
-    if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') { defaultSelectionId = resolvedId; models.push({ id: resolvedId, label: resolvedId, identityKind: 'concrete' }); }
+    if (id === 'default') {
+      // This displayName describes the CLI's default policy, not the model it resolves to.
+      if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') {
+        defaultSelectionId = resolvedId;
+        models.push({ id: resolvedId, label: resolvedId, identityKind: 'concrete' });
+      }
+    } else {
+      models.push(...claudeSelectionModels(id, resolvedId, row.displayName));
+    }
   }
   return { models, source: 'rpc', coverage: 'account', ...withDefaultSelection(defaultSelectionId) };
 }

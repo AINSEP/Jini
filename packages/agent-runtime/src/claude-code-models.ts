@@ -124,18 +124,24 @@ export function parseClaudeCodePickerCache(raw: string): ClaudeCodePickerCachePa
 /** One `response.models` entry of the initialize payload, as far as this module reads it. */
 type InitializeModelEntry = { value?: unknown; resolvedModel?: unknown; displayName?: unknown };
 
+/** The models array of one successful `control_response` line, or `null` for any other line. */
+function initializeModelsFromLine(line: string): unknown[] | null {
+  try {
+    const msg = JSON.parse(line) as { type?: unknown; response?: { subtype?: unknown; response?: { models?: unknown } } };
+    if (msg.type !== 'control_response' || msg.response?.subtype !== 'success') return null;
+    const models = msg.response.response?.models;
+    return Array.isArray(models) ? models : null;
+  } catch {
+    // Not a JSON line (or a truncated one on timeout) — keep scanning.
+    return null;
+  }
+}
+
 /** Pulls `response.response.models` out of the one `control_response` line, or `null`. */
 function findInitializeModels(stdout: string): unknown[] | null {
   for (const line of stdout.split('\n')) {
-    if (!line.includes('control_response')) continue;
-    try {
-      const msg = JSON.parse(line) as { type?: unknown; response?: { subtype?: unknown; response?: { models?: unknown } } };
-      if (msg.type !== 'control_response' || msg.response?.subtype !== 'success') continue;
-      const models = msg.response.response?.models;
-      if (Array.isArray(models)) return models;
-    } catch {
-      // Not a JSON line (or a truncated one on timeout) — keep scanning.
-    }
+    const models = line.includes('control_response') ? initializeModelsFromLine(line) : null;
+    if (models) return models;
   }
   return null;
 }
@@ -147,8 +153,8 @@ function initializeEntryRows(entry: InitializeModelEntry): RuntimeModelOption[] 
   const rows: RuntimeModelOption[] = [];
   const displayName = typeof entry.displayName === 'string' ? entry.displayName : '';
   for (const raw of [entry.value, entry.resolvedModel]) {
-    if (typeof raw !== 'string') continue;
-    const id = normalizeClaudePickerModelId(raw);
+    const id = typeof raw === 'string' ? normalizeClaudePickerModelId(raw) : 'default';
+    // A non-string value contributes nothing, same as the `default` sentinel.
     if (id === 'default' || sanitizeCustomModel({ id: id }) !== id) continue;
     const isAlias = !id.startsWith('claude-');
     rows.push({ id, label: isAlias && displayName ? `${displayName} (alias)` : id });

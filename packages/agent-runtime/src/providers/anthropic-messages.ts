@@ -708,21 +708,18 @@ export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptio
   let toolTurns = 0;
   let lastStopReason: string | null = null;
 
+  // With no executor, a turn that wants tools still ends ('stop') instead of looping.
+  const noExecutorReason = executeTool ? null : 'stop' as const;
   while (true) {
     const outcome = await runSingleAnthropicRequest(options, messages, emitEnd, retry);
     lastStopReason = outcome.stopReason;
-    if (endGuard.hasEnded()) break;
-
-    const exitReason = anthropicLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      // Pending tool calls were already emitted as `tool_use` events above;
-      // with no executor to run them, the turn ends here rather than
-      // silently retrying forever.
-      emitEnd('stop');
+    // Ending mid-request leaves nothing more to emit. Otherwise a loop exit reason ends the turn,
+    // and so does a missing executor: pending tool calls were already emitted as `tool_use` events,
+    // so with nothing to run them the turn ends with 'stop' rather than silently retrying forever.
+    const ended = endGuard.hasEnded();
+    const exitReason = ended ? null : anthropicLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) || noExecutorReason;
+    if (ended || exitReason || !executeTool) {
+      if (exitReason) emitEnd(exitReason);
       break;
     }
     toolTurns += 1;

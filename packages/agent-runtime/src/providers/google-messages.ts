@@ -742,32 +742,31 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
   let toolTurns = 0;
   let lastFinishReason: string | null = null;
 
+  // With no executor, a turn that wants tools still ends ('stop') instead of looping.
+  const noExecutorReason = executeTool ? null : 'stop' as const;
+  /** `'error'` (after reporting it) for a content-free first turn, else the regular loop exit reason. */
+  const turnExitReason = (outcome: Awaited<ReturnType<typeof runSingleGoogleRequest>>, turns: number) => {
+    if (!isEmptyInitialGoogleTurn({ toolTurns: turns, outcome })) {
+      return googleLoopExitReason({ outcome: outcome, toolTurns: turns, maxToolTurns: maxToolTurns });
+    }
+    // Thinking can consume the entire output budget without producing any answer. Preserve
+    // the reason for operator diagnostics rather than turning a content-free response into stop.
+    options.onEvent({ type: 'error', message: redactSecrets({
+      input: `Google returned no text or tool calls (${outcome.finishReason ?? 'missing finish reason'})`,
+    }, { exactSecrets: [options.apiKey] }) });
+    return 'error' as const;
+  };
   while (true) {
     const outcome = await runSingleGoogleRequest(options, contents, emitEnd, retry);
     lastFinishReason = outcome.finishReason;
 
-    if (endGuard.hasEnded()) break;
-
-    if (isEmptyInitialGoogleTurn({ toolTurns, outcome })) {
-      // Thinking can consume the entire output budget without producing any answer. Preserve
-      // the reason for operator diagnostics rather than turning a content-free response into stop.
-      options.onEvent({ type: 'error', message: redactSecrets({
-        input: `Google returned no text or tool calls (${outcome.finishReason ?? 'missing finish reason'})`,
-      }, { exactSecrets: [options.apiKey] }) });
-      emitEnd('error');
-      break;
-    }
-
-    const exitReason = googleLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      // Pending tool calls were already emitted as `tool_use` events above;
-      // with no executor to run them, the turn ends here rather than
-      // silently retrying forever.
-      emitEnd('stop');
+    // Ending mid-request leaves nothing more to emit. Otherwise a turn exit reason ends the turn,
+    // and so does a missing executor: pending tool calls were already emitted as `tool_use` events,
+    // so with nothing to run them the turn ends with 'stop' rather than silently retrying forever.
+    const ended = endGuard.hasEnded();
+    const exitReason = ended ? null : turnExitReason(outcome, toolTurns) || noExecutorReason;
+    if (ended || exitReason || !executeTool) {
+      if (exitReason) emitEnd(exitReason);
       break;
     }
     toolTurns += 1;

@@ -233,9 +233,10 @@ export function buildPiImagePayloads(imagePaths: string[] | undefined, uploadRoo
   for (const imgPath of imagePaths) {
     if (images.length >= MAX_IMAGE_COUNT) break;
     const read = tryReadImagePayload(imgPath, uploadRoot, totalBytes);
-    if (!read) continue;
-    images.push(read.payload);
-    totalBytes += read.size;
+    if (read) {
+      images.push(read.payload);
+      totalBytes += read.size;
+    }
   }
   return images;
 }

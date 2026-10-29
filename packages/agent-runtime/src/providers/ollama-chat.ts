@@ -621,19 +621,19 @@ export async function runOllamaToolTurn(requiredArgs: Pick<OllamaTurnOptions, "a
   let toolTurns = 0;
   let lastFinishReason: string | null = null;
 
+  // With no executor, a turn that wants tools still ends ('stop') instead of looping.
+  const noExecutorReason = executeTool ? null : 'stop' as const;
   while (true) {
     const outcome = await runSingleOllamaRequest(options, messages, emitEnd);
     lastFinishReason = outcome.finishReason;
 
-    if (endGuard.hasEnded()) break;
-
-    const exitReason = ollamaLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      emitEnd('stop');
+    // Ending mid-request leaves nothing more to emit. Otherwise a loop exit reason ends the turn,
+    // and so does a missing executor: pending tool calls were already emitted as `tool_use` events,
+    // so with nothing to run them the turn ends with 'stop' rather than silently retrying forever.
+    const ended = endGuard.hasEnded();
+    const exitReason = ended ? null : ollamaLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) || noExecutorReason;
+    if (ended || exitReason || !executeTool) {
+      if (exitReason) emitEnd(exitReason);
       break;
     }
     toolTurns += 1;
