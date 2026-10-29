@@ -1,4 +1,4 @@
-import { executeDdl } from "../../migrate/ddl.js";
+import { executeDdl } from "../../shared/ddl.adapter.js";
 import type { MigrationStep } from "../../migrate/step.js";
 
 /** Owner-only history: no site tables or foreign workspace records are required. */

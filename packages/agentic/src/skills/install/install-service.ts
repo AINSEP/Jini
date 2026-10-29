@@ -39,12 +39,16 @@ async function fetchRemoteSkill<Source extends object>({ input, deps }: {
   if (deps.fetchSource) {
     if (!deps.validateSource) throw new SkillInputError({ message: "Skill source provenance validation is required." });
     const result = await deps.fetchSource({ url: "url" in input ? input.url : input.githubUrl }, {});
-    if (!result.source || typeof result.source !== "object" || Array.isArray(result.source) || !deps.validateSource({ source: result.source }, {})) throw new SkillInputError({ message: "Invalid skill source provenance." });
+    if (!isSourceObject(result.source) || !deps.validateSource({ source: result.source }, {})) throw new SkillInputError({ message: "Invalid skill source provenance." });
     return result;
   }
   if ("url" in input) throw new SkillInputError({ message: "A skill source provider is required for URL installation." });
   if (!deps.fetch) throw new SkillInputError({ message: "A legacy GitHub fetch transport is required." });
   return fetchGitHubSkill({ githubUrl: input.githubUrl, fetch: deps.fetch });
+}
+
+function isSourceObject(source: unknown): boolean {
+  return !!source && typeof source === "object" && !Array.isArray(source);
 }
 
 export interface SkillInstaller<Source extends object = GitHubSkillSource> {

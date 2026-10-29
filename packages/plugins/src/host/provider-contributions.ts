@@ -99,12 +99,12 @@ function choicesProblem({ name, field }: { name: string; field: Record<string, u
 function settingFieldProblem({ field }: { field: unknown }, _optional: Record<string, never> = {}): string | undefined {
   if (!field || typeof field !== 'object' || Array.isArray(field)) return 'a provider setting must be an object';
   const { name, label } = field as Record<string, unknown>;
-  if (typeof name !== 'string' || !SETTING_NAME.test(name)) return 'a provider setting name must be 1-64 letters, digits or _ (starting with a letter)';
+  if (!settingNameValid(name)) return 'a provider setting name must be 1-64 letters, digits or _ (starting with a letter)';
   if (!labelValid(label)) return `provider setting '${name}' needs a label of 1-120 characters`;
   if (!optionalFlagsValid(field as Record<string, unknown>)) return `provider setting '${name}' has a malformed secret/required/hint/allowCustom`;
   if (!requiredUnlessValid((field as Record<string, unknown>).requiredUnless)) return `provider setting '${name}' has a malformed requiredUnless`;
   if (!requiredWhenValid((field as Record<string, unknown>).requiredWhen)) return `provider setting '${name}' has a malformed requiredWhen`;
-  return choicesProblem({ name, field: field as Record<string, unknown> });
+  return choicesProblem({ name: name as string, field: field as Record<string, unknown> });
 }
 
 /** Declared provider settings (see `PluginProviderDeclaration.settings`): problems in words. */
@@ -175,7 +175,14 @@ export function validatePluginProviderDeclarations(
     seen.add(key);
   }
   if (!required.value.length) return errors;
-  if (required.tier !== 'tier-3') errors.push(error('provider declarations require tier-3'));
-  if (!Array.isArray(required.capabilities) || !required.capabilities.includes(PLUGIN_PROVIDER_CAPABILITY)) errors.push(error('provider declarations require providers.register'));
+  errors.push(...providerAdmissionErrors({ tier: required.tier, capabilities: required.capabilities }));
+  return errors;
+}
+
+function providerAdmissionErrors({ tier, capabilities }: { tier: unknown; capabilities: unknown }, _optional = {}): PluginValidationError[] {
+  const errors: PluginValidationError[] = [];
+  const error = (message: string): PluginValidationError => ({ code: 'PROVIDERS_INVALID', file: null, message });
+  if (tier !== 'tier-3') errors.push(error('provider declarations require tier-3'));
+  if (!Array.isArray(capabilities) || !capabilities.includes(PLUGIN_PROVIDER_CAPABILITY)) errors.push(error('provider declarations require providers.register'));
   return errors;
 }

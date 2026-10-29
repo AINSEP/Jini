@@ -4,7 +4,7 @@
 // MOVED-FROM: @jini-ai/cms consent/policy.ts createConsentRecord/readConsentRecord and consent/express receipt
 // handling (origin check, policy race, no IP/user-agent in evidence). TODO(P4): delete the cms copies.
 import { ACTIONS, CONSENT_COOKIE, REGION_COOKIE, type Choices, type ConsentAction, type ConsentState, type RegionMode } from '../contract.js';
-import { choicesFor, clamp, DEFAULT_MAX_AGE_MS, effective, isFlags, parseStored, RECEIPT_ID, regionFrom } from '../policy.js';
+import { choicesFor, clamp, DEFAULT_MAX_AGE_MS, effective, isFlags, parseStored, RECEIPT_ID, regionFrom } from '../contracts/policy.js';
 
 /** Immutable evidence; no IP, user-agent, or principal identity is collected. */
 export interface ConsentRecord { id: string; timestamp: string; policyVersion: string; choices: Choices; regionMode: RegionMode; gpc: boolean; action: ConsentAction }

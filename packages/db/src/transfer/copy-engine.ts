@@ -5,7 +5,8 @@ import { defaultDbMessages, type DbMessages } from "../core/messages.js";
 import { constraintSql, createTableSql, indexSql, qualified, quoteIdent, quoteLiteral, reseedIdentitySql } from "./internal-ddl.js";
 import type { PostgresTargetPort } from "./postgres-target.js";
 import type { TransferSource } from "./sqlite-source.js";
-import type { TransferColumn, TransferTable } from "./types.js";
+import type { TableCount, TransferColumn, TransferTable } from "./types.js";
+export type { TableCount } from "./types.js";
 
 
 /**
@@ -76,11 +77,6 @@ function withHash(site: string, slug: string, naming: TransferNaming): string {
 function schemaCandidates(site: string, naming: TransferNaming): string[] {
   const slug = site.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   return [...new Set([naming.defaultSchema, siteSchemaNameInternal(site, naming), withHash(site, slug, naming)])];
-}
-
-export interface TableCount {
-  readonly table: TransferTable;
-  readonly rows: number;
 }
 
 export class SourceSchemaMismatchError extends Error {}

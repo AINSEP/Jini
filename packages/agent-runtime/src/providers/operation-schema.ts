@@ -1,8 +1,7 @@
 import { googleParametersOf, findNumericEnumPaths, coerceNumericEnumStringsToNumbers } from './google-schema.js';
-import type { ProviderProtocol } from './tool-turn-types.js';
+import type { ProviderProtocol, OperationSchemaFallbackReason } from './provider-tool-policy.js';
 
-/** Closed reason codes are safe to observe: no schema, argument values or provider error text. */
-export type OperationSchemaFallbackReason = 'endpoint-unsupported' | 'endpoint-rejected' | 'open-map' | 'recursive-schema' | 'unresolved-reference' | 'unsupported-schema' | 'optional-nullable' | 'schema-limit';
+export type { OperationSchemaFallbackReason } from './provider-tool-policy.js';
 export interface CompiledOperationSchema {
   readonly schema: Record<string, unknown>;
   readonly strict: boolean;

@@ -76,7 +76,7 @@ function fillSlotText(
   // A single replace pass prevents a prop containing {{host.secret}} becoming another slot.
   if (/{{|}}/.test(text.replace(SLOT, ''))) throw new Error('unsupported plugin export slot');
   const output = text.replace(SLOT, (_match, scope: 'props' | 'host', path: string) => {
-    if (url && scope === 'props') throw new Error('plugin export URL props are unsupported');
+    // HOST_URL_SLOT above permits only a whole host slot in URL attributes.
     return slotValue({ source: definition[scope] ?? {}, path });
   });
   if (url) assertLocalUrl({ value: output });

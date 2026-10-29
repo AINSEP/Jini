@@ -13,9 +13,9 @@
  * concurrent requests for the same not-yet-generated rendition never run
  * the image transformer twice.
  *
- * `blob-gc-lock.ts` itself is untouched — this is a separate module, not a
- * modification of that file's exports (its shape is deliberately mirrored
- * here, not imported, so `blob-gc-lock.ts`'s own signature stays untouched).
+ * `blob-gc-lock.ts` also uses this factory for its own independent hash
+ * namespace, shared by uploads, replacements and GC. Its public signature
+ * stays unchanged.
  * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 
@@ -31,6 +31,12 @@
  * @overallScore 100
  */
 export function createKeyedLock(_required: Record<string, never>, _optional: Record<string, never> = {}): <T>(required: { key: string; criticalSection: () => Promise<T> }, optional?: Record<string, never>) => Promise<T> {
+  /**
+   * Tracks the tail of the promise chain for each in-flight/queued key. An
+   * entry is removed once its own critical section is the last one queued and
+   * has settled, so the map stays bounded by the number of keys with
+   * work currently in flight — not by the number ever seen.
+   */
   const lockTails = new Map<string, Promise<void>>();
 
   return function withLock<T>({ key, criticalSection }: { key: string; criticalSection: () => Promise<T> }, _optional: Record<string, never> = {}): Promise<T> {

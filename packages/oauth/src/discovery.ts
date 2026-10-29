@@ -200,10 +200,7 @@ export async function discoverAuthorizationServer(requiredArgs: OAuthRequiredArg
     const metadata = await discoverProtectedResourceMetadata(requiredArgs, optionalArgs);
     const scopes = optionalArgs.wwwAuthenticate === undefined ? [] : parseWwwAuthenticateScopes({ wwwAuthenticate: optionalArgs.wwwAuthenticate });
     const resourceScopes = selectResourceScopes({ scopes, metadata });
-    const issuers = (metadata?.authorizationServers ?? []).filter(issuer => {
-        try { assertSafeProviderEndpoint(issuer, 'authorization server issuer', requiredArgs.guard); return true; }
-        catch { return false; }
-    });
+    const issuers = safeAdvertisedIssuers({ metadata, guard: requiredArgs.guard });
     // Stand-alone providers often share the resource origin; use it if no safe issuer was advertised.
     for (const issuer of issuers.length > 0 ? issuers : [resource.origin]) {
         try {
@@ -214,6 +211,13 @@ export async function discoverAuthorizationServer(requiredArgs: OAuthRequiredArg
         }
     }
     throw noMetadataError(resource.host);
+}
+
+function safeAdvertisedIssuers({ metadata, guard }: { metadata: DiscoveredProtectedResource | null; guard: OAuthDiscoveryDeps['guard'] }): string[] {
+    return (metadata?.authorizationServers ?? []).filter(issuer => {
+        try { assertSafeProviderEndpoint(issuer, 'authorization server issuer', guard); return true; }
+        catch { return false; }
+    });
 }
 
 /** Narrow only after the caller has applied issuer policy to the unmodified document. */

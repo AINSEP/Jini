@@ -153,6 +153,9 @@ function scanMatch({ updatedBefore, options }: { updatedBefore: number; options:
 const parentRef = (row: ParentRef): ParentRef => row;
 
 class MemoryLedgerTables {
+  /** The outbox enqueue order (the SQL `seq` column, 0002): ties on `createdAt` keep enqueue order. */
+  outboxSeq = new Map<string, number>();
+
   readonly payments = new MemoryTable<PaymentRecord>({ name: LEDGER_TABLES.payments, codec: codec(paymentToRow, paymentFromRow) }, {
     uniques: [
       (r) => key([r.workspaceId, r.mode, r.idempotencyKey]),
@@ -191,21 +194,20 @@ class MemoryLedgerTables {
     ] as unknown as MemoryTable<Row>[];
   }
 
-  snapshot(): Map<string, Row>[] {
-    return this.all().map((table) => new Map(table.rows));
+  /** Sequence bookkeeping must roll back with the rows, so retried ids cannot change enqueue order. */
+  snapshot(): { rows: Map<string, Row>[]; outboxSeq: Map<string, number> } {
+    return { rows: this.all().map((table) => new Map(table.rows)), outboxSeq: new Map(this.outboxSeq) };
   }
 
-  restore(snapshot: readonly Map<string, Row>[]): void {
+  restore(snapshot: ReturnType<MemoryLedgerTables["snapshot"]>): void {
     this.all().forEach((table, index) => {
-      table.rows = snapshot[index] as Map<string, Row>;
+      table.rows = snapshot.rows[index] as Map<string, Row>;
     });
+    this.outboxSeq = snapshot.outboxSeq;
   }
 }
 
 class MemoryLedgerTx implements LedgerTx {
-  /** The outbox enqueue order (the SQL `seq` column, 0002): ties on `createdAt` keep enqueue order. */
-  private readonly outboxSeq = new Map<string, number>();
-
   constructor(
     private readonly t: MemoryLedgerTables,
     private readonly inTransaction: () => boolean
@@ -378,11 +380,11 @@ class MemoryLedgerTx implements LedgerTx {
 
   async enqueueOutbox({ message }: { message: NewOutbox }): Promise<void> {
     this.insert({ table: this.t.outbox, record: { ...message, publishedAt: null } });
-    this.outboxSeq.set(message.id, this.outboxSeq.size + 1);
+    this.t.outboxSeq.set(message.id, this.t.outboxSeq.size + 1);
   }
 
   async listPendingOutbox({ limit }: { limit: number }): Promise<OutboxRecord[]> {
-    const seq = (r: OutboxRecord) => this.outboxSeq.get(r.id) as number;
+    const seq = (r: OutboxRecord) => this.t.outboxSeq.get(r.id) as number;
     return this.t.outbox.list((r) => r.publishedAt === null, (r) => r.createdAt).sort((a, b) => a.createdAt - b.createdAt || seq(a) - seq(b)).slice(0, limit);
   }
 

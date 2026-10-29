@@ -22,7 +22,7 @@ function useField(required: BaseProps & { label: string; disabled?: boolean; req
 /** Eye / eye-off glyphs, decorative: the button's aria-label carries the meaning. */
 const EYE_PATHS = ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z', 'M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z'];
 const EYE_OFF_PATHS = ['M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a17.8 17.8 0 0 1-2.16 3.19M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M14.12 14.12a3 3 0 1 1-4.24-4.24', 'M2 2l20 20'];
-function eyeIcon(required: { revealed: boolean }, _optional: Record<string, never> = {}) {
+export function eyeIcon(required: { revealed: boolean }, _optional: Record<string, never> = {}) {
   const paths = (required.revealed ? EYE_OFF_PATHS : EYE_PATHS).map(d => createElement('path', { key: d, d }));
   return createElement('svg', { 'aria-hidden': true, focusable: 'false', viewBox: '0 0 24 24', width: 18, height: 18, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, paths);
 }

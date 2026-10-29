@@ -21,6 +21,8 @@ formats. Native Argon2 is optional; construct its adapter with
 `new Argon2PasswordHasher({ loadBinding: loadArgon2Binding }, { memoryCost: 19456 })`.
 Server entry imports never pull in React or a native binding eagerly.
 
+`ensurePrincipal({ principalRepo, externalId, displayName }, { workspaceId, clock })` from the server entry ensures only a credential-free user principal (no roles/policies), using the trimmed external ID as its principal ID; scope defaults to `"local"`, inputs allow 1–255 trimmed characters, and existing rows remain unchanged. It requires the optional atomic `PrincipalRepoPort.insertIfAbsent` capability (otherwise it fails closed); durable adapters must enforce composite-key uniqueness across processes. `InMemoryPrincipalRepo` implements it for tests/dev only.
+
 React consumers install compatible React/React DOM and `@jini-ai/{ui,admin,agentic}`
 peers. These peers are optional for universal/server consumers. Mount Users
 inside `FetchQueryProvider` from `@jini-ai/ui/panel-kit`; the current provider owns

@@ -72,7 +72,7 @@ import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupA
 import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
-import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './tool-turn-types.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
 
 export interface OpenAiFunctionToolDef {
   readonly type: 'function';

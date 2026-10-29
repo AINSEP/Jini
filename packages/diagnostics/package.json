@@ -96,11 +96,9 @@
     "js-tokens": "^9.0.1"
   },
   "peerDependencies": {
-    "@jini-ai/analytics": "^0.6.13",
     "jszip": "^3.10.1"
   },
   "peerDependenciesMeta": {
-    "@jini-ai/analytics": { "optional": true },
     "jszip": {
       "optional": true
     }

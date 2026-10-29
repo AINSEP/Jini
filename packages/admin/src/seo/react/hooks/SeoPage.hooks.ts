@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import type { FormEvent, ComponentType } from 'react';
+import type { FormEvent } from 'react';
 import type { TabBarTab } from '@jini-ai/ui/tab-strip';
 import { SeoDefaultsIcon, SeoSitemapIcon, SeoEntriesIcon } from '../components/SeoIcons.js';
 import { buildSeoSettingsPatch, resolveSeoTabId, sortIssuesBySeverity, scoreTone } from '../../rules.js';
@@ -42,16 +42,4 @@ export interface SeoTabController {
   setDefaultOgImage: (value: string) => void;
   regenerateSitemap: () => void;
   openSitemapModal: () => void;
-}
-/** Panel selection is presentation dispatch; this never changes the defaults form's field set. */
-export function seoTabPanel(
-  { activeTabId, controller, components }: {
-    activeTabId: import('../../rules.js').SeoTabId;
-    controller: SeoTabController;
-    components: { SeoDefaultsTab: ComponentType<{ controller: SeoTabController }>; SeoSitemapTab: ComponentType<{ controller: SeoTabController }>; SeoEntrySection: ComponentType<{ locale: string }> };
-  }, _optional: Record<string, never> = {},
-) {
-  if (activeTabId === 'sitemap') return createElement(components.SeoSitemapTab, { controller });
-  if (activeTabId === 'entries') return createElement(components.SeoEntrySection, { locale: controller.locale });
-  return createElement(components.SeoDefaultsTab, { controller });
 }

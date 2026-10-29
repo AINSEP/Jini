@@ -74,6 +74,14 @@ export class InMemoryPrincipalRepo extends InMemoryIdentityRows<PrincipalRecord>
   async save(record: PrincipalRecord): Promise<void> {
     upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
+
+  async insertIfAbsent({ record }: { record: PrincipalRecord }, _optional: Record<string, never> = {}): Promise<PrincipalRecord> {
+    // No await between lookup and insert: competing calls on this store cannot interleave.
+    const existing = this.rows.find(row => matchesRecordFields({ record: row, fields: { workspaceId: record.workspaceId, id: record.id } }));
+    if (existing) return existing;
+    this.rows.push(record);
+    return record;
+  }
 }
 
 export class InMemoryUserRepo extends InMemoryIdentityRows<UserRecord> implements UserRepoPort {

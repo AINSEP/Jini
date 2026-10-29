@@ -24,6 +24,11 @@ export interface ImportRef {
 
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
 
+function isSourceEntry(entry: string, includeJavaScript = false): boolean {
+  return (/\.(?:ts|tsx|mts|cts)$/.test(entry) || (includeJavaScript && /\.(?:js|jsx|mjs|cjs)$/.test(entry)))
+    && !/\.d\.(?:ts|mts|cts)$/.test(entry);
+}
+
 /** Recursively lists TS source under `dir`, skipping declarations and generated/dependency trees.
  * Runtime-closure analysis also opts into build-free JavaScript source.
  */
@@ -36,13 +41,12 @@ export function listSourceFiles(dir: string, options: { includeJavaScript?: bool
     return out;
   }
   for (const entry of entries) {
-    if (entry === 'node_modules' || entry === 'dist' || entry === '.git') continue;
+    if (['node_modules', 'dist', '.git'].includes(entry)) continue;
     const full = join(dir, entry);
     const st = statSync(full);
     if (st.isDirectory()) {
       out.push(...listSourceFiles(full, options));
-    } else if ((/\.(?:ts|tsx|mts|cts)$/.test(entry) || (options.includeJavaScript && /\.(?:js|jsx|mjs|cjs)$/.test(entry)))
-      && !/\.d\.(?:ts|mts|cts)$/.test(entry)) {
+    } else if (isSourceEntry(entry, options.includeJavaScript)) {
       out.push(full);
     }
   }
@@ -51,6 +55,23 @@ export function listSourceFiles(dir: string, options: { includeJavaScript?: bool
 
 function toRepoRelative(absPath: string): string {
   return relative(REPO_ROOT, absPath).split('\\').join('/');
+}
+
+function commentStart(c: string, next: string | undefined): 'line' | 'block' | undefined {
+  if (c !== '/') return undefined;
+  if (next === '/') return 'line';
+  if (next === '*') return 'block';
+  return undefined;
+}
+
+function blockCommentChunk(c: string, next: string | undefined): { text: string; skip: number; closed: boolean } {
+  if (c === '*' && next === '/') return { text: '  ', skip: 1, closed: true };
+  return { text: c === '\n' ? '\n' : ' ', skip: 0, closed: false };
+}
+
+function stringChunk(c: string, next: string | undefined, quote: string): { text: string; skip: number; closed: boolean } {
+  if (c === '\\' && next !== undefined) return { text: c + next, skip: 1, closed: false };
+  return { text: c, skip: 0, closed: c === quote };
 }
 
 /**
@@ -68,54 +89,83 @@ export function stripComments(source: string): string {
   let inLineComment = false;
   let inBlockComment = false;
   let inString: string | null = null;
-  for (let i = 0; i < source.length; i += 1) {
-    const c = source[i]!;
-    const next = source[i + 1];
-    if (inLineComment) {
-      out += c === '\n' ? '\n' : ' ';
-      if (c === '\n') inLineComment = false;
-      continue;
-    }
-    if (inBlockComment) {
-      if (c === '*' && next === '/') {
-        out += '  ';
-        i += 1;
-        inBlockComment = false;
-      } else {
-        out += c === '\n' ? '\n' : ' ';
-      }
-      continue;
-    }
-    if (inString) {
-      out += c;
-      if (c === '\\' && next !== undefined) {
-        out += next;
-        i += 1;
-        continue;
-      }
-      if (c === inString) inString = null;
-      continue;
-    }
-    if (c === '/' && next === '/') {
-      inLineComment = true;
+  let i = 0;
+  function consumeCode(c: string, next: string | undefined): void {
+    const comment = commentStart(c, next);
+    if (comment) {
+      inLineComment = comment === 'line';
+      inBlockComment = comment === 'block';
       out += '  ';
       i += 1;
-      continue;
+      return;
     }
-    if (c === '/' && next === '*') {
-      inBlockComment = true;
-      out += '  ';
-      i += 1;
-      continue;
-    }
-    if (c === '"' || c === "'" || c === '`') {
+    if (['"', "'", '`'].includes(c)) {
       inString = c;
       out += c;
-      continue;
+      return;
     }
     out += c;
   }
+  function consumeCharacter(c: string, next: string | undefined): void {
+    if (inLineComment) {
+      out += c === '\n' ? '\n' : ' ';
+      if (c === '\n') inLineComment = false;
+      return;
+    }
+    if (inBlockComment) {
+      const chunk = blockCommentChunk(c, next);
+      out += chunk.text;
+      i += chunk.skip;
+      inBlockComment = !chunk.closed;
+      return;
+    }
+    if (inString) {
+      const chunk = stringChunk(c, next, inString);
+      out += chunk.text;
+      i += chunk.skip;
+      if (chunk.closed) inString = null;
+      return;
+    }
+    consumeCode(c, next);
+  }
+  for (;i < source.length;i += 1) consumeCharacter(source[i]!, source[i + 1]);
   return out;
+}
+
+function importClauseRef(node: ts.ImportDeclaration, file: string): ImportRef | undefined {
+  if (!ts.isStringLiteral(node.moduleSpecifier)) return undefined;
+  const clause = node.importClause;
+  const bindings = clause?.namedBindings;
+  const inlineTypes = !clause?.name && bindings && ts.isNamedImports(bindings)
+    && bindings.elements.length > 0 && bindings.elements.every(element => element.isTypeOnly);
+  return { file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(clause?.isTypeOnly || inlineTypes) };
+}
+
+function exportClauseRef(node: ts.ExportDeclaration, file: string): ImportRef | undefined {
+  if (!node.moduleSpecifier || !ts.isStringLiteral(node.moduleSpecifier)) return undefined;
+  const clause = node.exportClause;
+  const inlineTypes = clause && ts.isNamedExports(clause) && clause.elements.length > 0
+    && clause.elements.every(element => element.isTypeOnly);
+  return { file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(node.isTypeOnly || inlineTypes) };
+}
+
+function callImportRef(node: ts.CallExpression, file: string, requireNames: Set<string>): ImportRef | undefined {
+  const imports = node.expression.kind === ts.SyntaxKind.ImportKeyword
+    || (ts.isIdentifier(node.expression) && requireNames.has(node.expression.text));
+  const argument = node.arguments[0];
+  if (imports && argument && ts.isStringLiteralLike(argument)) return { file, specifier: argument.text, typeOnly: false };
+  return undefined;
+}
+
+function nodeImportRef(node: ts.Node, file: string, requireNames: Set<string>): ImportRef | undefined {
+  if (ts.isImportDeclaration(node)) return importClauseRef(node, file);
+  if (ts.isExportDeclaration(node)) return exportClauseRef(node, file);
+  if (ts.isCallExpression(node)) return callImportRef(node, file, requireNames);
+  if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
+    && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) {
+    return { file, specifier: node.moduleReference.expression.text, typeOnly: node.isTypeOnly };
+  }
+  return undefined;
 }
 
 /** Extracts every import/export specifier from one `.ts`/`.tsx` file, repo-root-absolute or relative. */
@@ -137,34 +187,12 @@ export function extractImports(absFilePath: string): ImportRef[] {
     }
   }
   function visit(node: ts.Node): void {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      const clause = node.importClause;
-      const bindings = clause?.namedBindings;
-      const inlineTypes = !clause?.name && bindings && ts.isNamedImports(bindings)
-        && bindings.elements.length > 0 && bindings.elements.every(element => element.isTypeOnly);
-      refs.push({ file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(clause?.isTypeOnly || inlineTypes) });
-    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
-      const clause = node.exportClause;
-      const inlineTypes = clause && ts.isNamedExports(clause) && clause.elements.length > 0
-        && clause.elements.every(element => element.isTypeOnly);
-      refs.push({ file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(node.isTypeOnly || inlineTypes) });
-    } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword
-      || (ts.isIdentifier(node.expression) && requireNames.has(node.expression.text)))
-      && node.arguments[0] && ts.isStringLiteralLike(node.arguments[0])) {
-      refs.push({ file, specifier: node.arguments[0].text, typeOnly: false });
-    } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
-      && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) {
-      refs.push({ file, specifier: node.moduleReference.expression.text, typeOnly: node.isTypeOnly });
-    }
+    const ref = nodeImportRef(node, file, requireNames);
+    if (ref) refs.push(ref);
     ts.forEachChild(node, visit);
   }
   visit(source);
   return refs;
-}
-
-/** Every import/export ref across every `.ts`/`.tsx` file under `dir` (repo-absolute). */
-export function walkImports(dir: string): ImportRef[] {
-  return listSourceFiles(dir).flatMap(extractImports);
 }
 
 export { REPO_ROOT };

@@ -1,41 +1,6 @@
-import { ResourceBoardToolbar } from './ResourceBoardToolbar.js';
 import { ResourceCard } from './ResourceCard.js';
 import { ResourceKanbanBoard } from './ResourceKanbanBoard.js';
 import type { ResourceBoardViewProps } from './ResourceBoardView.js';
-
-/** Maps the view's props onto `ResourceBoardToolbar` (sort, search, view toggle, select-mode/bulk-delete, create CTA). */
-export function ResourceBoardViewToolbar<TBody>(props: ResourceBoardViewProps<TBody>) {
-  const { activeSort, createLabel, onCreate } = props;
-  return (
-    <ResourceBoardToolbar
-      sortOptions={props.sortOptions}
-      {...(activeSort !== undefined ? { activeSort } : {})}
-      onSortChange={props.onSortChange}
-      sortAriaLabel={props.sortAriaLabel}
-      query={props.query}
-      onQueryChange={props.onQueryChange}
-      searchPlaceholder={props.searchPlaceholder}
-      viewMode={props.viewMode}
-      onViewModeChange={props.onViewModeChange}
-      viewToggleAriaLabel={props.viewToggleAriaLabel}
-      gridViewLabel={props.gridViewLabel}
-      kanbanViewLabel={props.kanbanViewLabel}
-      enableBulkDelete={props.enableBulkDelete}
-      selectMode={props.selectMode}
-      selectedCount={props.selected.size}
-      bulkDeleteBusy={props.bulkDeleteBusy}
-      onEnterSelectMode={props.onEnterSelectMode}
-      onExitSelectMode={props.onExitSelectMode}
-      onBulkDelete={props.onBulkDelete}
-      selectModeLabel={props.selectModeLabel}
-      selectedCountLabel={props.selectedCountLabel}
-      deleteSelectedLabel={props.deleteSelectedLabel}
-      cancelSelectLabel={props.cancelSelectLabel}
-      {...(createLabel !== undefined ? { createLabel } : {})}
-      {...(onCreate !== undefined ? { onCreate } : {})}
-    />
-  );
-}
 
 /** The LOAD-failure banner and, independently, the single-item action-failure banner (shown ABOVE the still-visible item list). */
 export function ResourceBoardAlerts<TBody>({

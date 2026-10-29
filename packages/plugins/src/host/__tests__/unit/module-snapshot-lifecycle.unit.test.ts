@@ -53,6 +53,29 @@ function fixture() {
   return { fs, proc, options, entries, removed, writes, writeSnapshotFile };
 }
 
+test('unsafe owner PIDs and malformed ownership suffixes never authorize deletion', async () => {
+  const f = fixture();
+  const names = ['9007199254740992-overflow', '0-zero', '10-has-dash', '10-', '-1-negative'];
+  for (const name of names) f.entries.set(path.join(ROOT, PREFIX + name), stat());
+  const owner = createPluginModuleSnapshotLifecycle({ runtimeRoot: ROOT }, f.options);
+  await owner.ready;
+  assert.deepEqual(f.removed, []);
+  for (const name of names) assert.equal(f.entries.has(path.join(ROOT, PREFIX + name)), true);
+  await owner.dispose({});
+});
+
+test('an invalid snapshot path leaves no partial snapshot and does not escape its runtime root', async () => {
+  const f = fixture();
+  const owner = createPluginModuleSnapshotLifecycle({ runtimeRoot: ROOT }, f.options);
+  await owner.ready;
+  await assert.rejects(owner.createSnapshot({ files: new Map([['../escape', Buffer.from('private')]]) },
+    { writeSnapshotFile: f.writeSnapshotFile }),
+  { name: 'Error', message: 'Snapshot file must remain inside its package.' });
+  assert.equal(f.writes.size, 0);
+  assert.equal(f.removed.length, 1);
+  await owner.dispose({});
+});
+
 test("boot reaps only old dead local ownership, retaining live, new, foreign, legacy and unsafe entries", async () => {
   const f = fixture();
   const oldDead = path.join(ROOT, `${PREFIX}10-dead`);

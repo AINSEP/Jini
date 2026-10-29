@@ -179,13 +179,17 @@ function unconsumedQueuedInputs({ inputs, messages }: { inputs: QueuedChatInput[
     for (const event of projectAcceptedInputEvents({ events: message.events ?? [] })) {
       const receipt = acceptedInputEvent({ event });
       if (receipt?.data.deliveryState !== 'consumed') continue;
-      for (const input of [receipt.data, ...(receipt.data.inputs ?? [])]) {
-        consumed.add(input.id);
-        for (const alias of input.aliases ?? []) consumed.add(alias);
-      }
+      recordConsumedInputs({ receipt: receipt.data, consumed });
     }
   }
   return inputs.filter(input => !consumed.has(input.liveMessageId ?? input.id));
+}
+
+function recordConsumedInputs({ receipt, consumed }: { receipt: AcceptedChatInput & { inputs?: AcceptedChatInput[] }; consumed: Set<string> }): void {
+  for (const input of [receipt, ...(receipt.inputs ?? [])]) {
+    consumed.add(input.id);
+    for (const alias of input.aliases ?? []) consumed.add(alias);
+  }
 }
 
 /** The conversation copies run events onto its messages one effect after streaming stops, so a

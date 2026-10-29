@@ -11,6 +11,7 @@ export * from './electron-single-instance.js';
 export * from './electron-window-lifecycle.js';
 export * from './electron-protocol.js';
 export * from './electron-render-service.js';
+export { createElectronUrlCapturePool, type ElectronUrlCapturePoolPort } from './electron-url-capture.js';
 export * from './electron-process-memory.js';
 export * from './electron-shell.js';
 export * from './create-electron-desktop-host.js';

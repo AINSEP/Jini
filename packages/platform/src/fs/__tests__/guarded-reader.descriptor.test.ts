@@ -166,3 +166,21 @@ it("closes when descriptor stat or stream construction fails", async () => {
   await expect(streamFailure.make().readBytes({ relativePath: "file", maxBytes: 32 })).rejects.toThrow("stream failed");
   expect(streamFailure.close.mock.calls).toEqual([[71]]);
 });
+
+it('preserves a stream construction failure when descriptor cleanup also throws', async () => {
+  const f = fixture();
+  const failure = new Error('stream construction failed');
+  f.stream.mockImplementation(() => { throw failure; });
+  f.close.mockImplementation(() => { throw new Error('close failed'); });
+  await expect(f.make().readBytes({ relativePath: 'file', maxBytes: 32 })).rejects.toBe(failure);
+  expect(f.close.mock.calls).toEqual([[71]]);
+});
+
+it.each([NaN, Infinity, -1, 0.5])('refuses an invalid descriptor size %s before reading', async size => {
+  const f = fixture({ size });
+  await expect(f.make().readBytes({ relativePath: 'file', maxBytes: 32 })).rejects.toThrow(
+    new FsFilePathError({ message: "file 'file' exceeds the 32-byte descriptor limit" }),
+  );
+  expect(f.stream).not.toHaveBeenCalled();
+  expect(f.close.mock.calls).toEqual([[71]]);
+});

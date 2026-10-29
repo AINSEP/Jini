@@ -1,11 +1,8 @@
 /** One credential policy for chat text; secure card values must bypass this text-only boundary. */
 import { redactSecretShapes, type RedactionRule } from '@jini-ai/diagnostics/redaction/secrets-only';
-import type { ChatMessage } from './messages.js';
+import type { ChatMessage, SecretRedactionSignal } from './messages.js';
+export type { SecretRedactionSignal } from './messages.js';
 
-export interface SecretRedactionSignal {
-  readonly secretRedacted: true;
-  readonly count: number;
-}
 export interface UserTextRedaction {
   readonly text: string;
   readonly secretRedacted: boolean;

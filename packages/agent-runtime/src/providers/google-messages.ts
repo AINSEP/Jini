@@ -100,7 +100,7 @@ import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
-import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 
 export interface GoogleTextPart {
   readonly text: string;

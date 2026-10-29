@@ -680,6 +680,7 @@ async function buildMediaImageIr(
       // emitter. See the rewritten comment at this function's own caller for why emitting the slug
       // here is now safe (S2a/S2b's `media_slug_history` rename safety).
       slug: mediaIrSlug(record),
+      sha256: record.source.sha256,
       transformName,
       version: definition.version,
       alt: record.alt,
@@ -725,6 +726,7 @@ function playerMediaIr({ canonicalAssetId, record, contentType }: { canonicalAss
     props: {
       assetId: canonicalAssetId,
       slug: mediaIrSlug(record),
+      sha256: record.source.sha256,
       contentType,
       alt: record.alt,
       width: record.width,
@@ -947,6 +949,7 @@ async function resolvePostContentMediaContext(
           cssClass: record.cssClass,
           htmlAttributes: record.htmlAttributes,
           slug: mediaIrSlug(record),
+          sha256: record.source.sha256,
           contentType: contentTypes?.get(record.source.sha256) ?? null,
         },
       ])

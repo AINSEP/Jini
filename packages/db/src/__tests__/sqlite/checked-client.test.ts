@@ -63,6 +63,37 @@ function deferred() {
   return { promise, resolve };
 }
 
+test('checked clients decode array and scalar rows while preserving binary values by identity', () => {
+  const f = nativeFake();
+  const blob = new Uint8Array([0, 255]);
+  f.state.rows = [[1n, 'text', null, blob], 2n, null, blob];
+  const client = createCheckedSqliteClient({ database: f.database });
+  const statement = client.prepare('select raw values');
+  const expected = [[1, 'text', null, blob], 2, null, blob];
+  assert.deepEqual(statement.all(), expected);
+  assert.deepEqual([...statement.iterate()], expected);
+  assert.equal(statement.all()[3], blob);
+  assert.deepEqual(f.state.rows[0], [1n, 'text', null, blob], 'decoding must not mutate native result rows');
+});
+
+test('checked clients preserve native metadata and delegate pragma and backup to the borrowed handle', async () => {
+  const f = nativeFake();
+  const calls: unknown[] = [];
+  const backupResult = { completed: true };
+  f.database.pragma = source => { calls.push(['pragma', source]); return 37; };
+  f.database.backup = async destination => { calls.push(['backup', destination]); return backupResult; };
+  const client = createCheckedSqliteClient({ database: f.database });
+  assert.equal(client.name, ':memory:');
+  assert.equal(client.memory, true);
+  assert.equal(client.prepare('select value').reader, true);
+  assert.equal(client.prepare('update things').reader, false);
+  assert.equal(client.pragma('busy_timeout'), 37);
+  assert.equal(await client.backup('/tmp/checked-client-backup.db'), backupResult);
+  assert.deepEqual(calls, [['pragma', 'busy_timeout'], ['backup', '/tmp/checked-client-backup.db']]);
+  client.close();
+  assert.equal(f.state.closes, 0);
+});
+
 describe("checked SQLite integer boundary", () => {
   for (const value of [BigInt(Number.MIN_SAFE_INTEGER), BigInt(Number.MAX_SAFE_INTEGER)]) {
     test(`decodes the exact safe boundary ${value} on every result path`, () => {

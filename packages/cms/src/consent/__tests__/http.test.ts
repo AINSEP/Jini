@@ -442,3 +442,13 @@ it('does not consult consent for an oversized response whose content type become
   expect(await response.json()).toEqual({ ok: true });
   expect(response.headers.get('content-security-policy')).toBeNull(); expect(failures).toEqual([]);
 });
+
+it('m1: resolves the host nonce and reviewed resource origins for each HTML request', async () => {
+  const { base, failures } = await site({ pageHtml: '<html><head><link rel="preload" as="style" href="https://reviewed.example/theme.css"><link rel="preload" as="style" href="https://unreviewed.example/theme.css"></head><body>Page</body></html>',
+    register: { nonce: ({ request }) => request.get('x-test-nonce'), resourceOrigins: () => ['https://reviewed.example'] } });
+  const html = await (await fetch(base, { headers: { 'x-test-nonce': 'request-nonce' } })).text();
+  expect(html).toContain('nonce="request-nonce"');
+  expect(html).toContain('href="https://reviewed.example/theme.css"');
+  expect(html).not.toContain('href="https://unreviewed.example/theme.css"');
+  expect(failures).toEqual([]);
+});

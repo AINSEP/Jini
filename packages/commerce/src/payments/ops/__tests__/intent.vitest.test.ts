@@ -120,6 +120,14 @@ describe("createIntent: refusals write nothing", () => {
     expect(await w.service.createIntent(intent())).toMatchObject({ ok: false, error: { code: "NO_CREDENTIALS_CONFIGURED" } });
     expect(await w.ledger.transaction({ fn: (tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }) })).toBeNull();
   });
+
+  test("a non-string reference is refused with a typed error before the provider is called", async () => {
+    const w = await world();
+    expect(await w.service.createIntent({ ...intent(), scope: SCRIPTED, reference: undefined as never }))
+      .toEqual({ ok: false, error: { code: "INVALID_REQUEST", message: "reference must be a non-empty string", retryable: false } });
+    expect(w.scripted.calls).toEqual([]);
+    expect(await w.ledger.transaction({ fn: (tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }) })).toBeNull();
+  });
 });
 
 describe("createIntent: risk gate", () => {

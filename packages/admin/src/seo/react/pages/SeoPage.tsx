@@ -1,6 +1,6 @@
-import { useAnalyzePanel, useSeoDefaults, useSeoTabs, seoTabPanel } from "../hooks/SeoPage.hooks.js";
+import { useAnalyzePanel, useSeoDefaults, useSeoTabs } from "../hooks/SeoPage.hooks.js";
 import type { ReactNode } from "react";
-import type { SeoTabController } from "../hooks/SeoPage.hooks.js";
+import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
 
 import { agentHandle } from "@jini-ai/agentic";
 
@@ -801,7 +801,7 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
         onChange={changeTab}
         containerHandle="seo-tab-bar"
       />
-      {seoTabPanel({ activeTabId, controller, components: { SeoDefaultsTab, SeoSitemapTab, SeoEntrySection } })}
+      {seoTabPanel({ activeTabId, controller })}
 
       {/* The sitemap modal stays on the shell rather than inside `SeoSitemapTab`: it is a portal-
           shaped overlay over the whole page, and `sitemapModalOpen`/`closeSitemapModal` are shell
@@ -817,6 +817,16 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
       ) : null}
     </div>
   );
+}
+
+/** Panel selection is presentation dispatch; this never changes the defaults form's field set. */
+function seoTabPanel(
+  { activeTabId, controller }: { activeTabId: SeoTabId; controller: SeoTabController },
+  _optional: Record<string, never> = {},
+) {
+  if (activeTabId === 'sitemap') return <SeoSitemapTab controller={controller} />;
+  if (activeTabId === 'entries') return <SeoEntrySection locale={controller.locale} />;
+  return <SeoDefaultsTab controller={controller} />;
 }
 
 export { Seo as SeoPage };

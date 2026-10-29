@@ -98,6 +98,21 @@ const REPLACEMENT_TREE: NavItemNode[] = [
   { id: "term-link", label: "News", target: { kind: "termRef", termId: "term-news", taxonomy: "category" } },
 ];
 
+test("m1: direct handler callers cannot bypass conflicting menu target aliases", async () => {
+  const deps = fakeDeps();
+  const id = await seededMenu({ deps });
+  const before = await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id });
+  const update = registrationFor({ deps, toolId: "menus_update_menu_tree" });
+  for (const selectors of [{ id, menuId: id }, { menuId: id, "menu-id": id }]) {
+    await assert.rejects(update.handler(executionContext({ ...selectors, expectedVersion: 1, items: [] })), error => {
+      assert.ok(error instanceof ToolInputError);
+      assert.equal(error.message, "Conflicting inputs for the menu target. Send only 'id', not multiple id/menuId spellings.");
+      return true;
+    });
+  }
+  assert.deepEqual(await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id }), before);
+});
+
 test("only the update target publishes id; menu reader and assignment references retain their ABI", () => {
   const entry = menusAgentToolCatalog.find((tool) => tool.name === "menus_update_menu_tree");
   assert.ok(entry);

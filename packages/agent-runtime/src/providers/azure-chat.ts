@@ -74,7 +74,7 @@
  */
 import { defaultDnsLookup, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { runOpenAiCompatibleRequest, refreshOpenAiTools, createStrictToolRetry, type StrictToolRetryState, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
-import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 

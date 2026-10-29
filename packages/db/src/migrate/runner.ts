@@ -1,12 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { type Kysely, sql } from "kysely";
+import { sql } from "kysely";
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
 
 import { listTables, type StorageKernel, tableExists } from "../kernel/index.js";
 import { ownedTransactionOf } from "../kernel/owned-transaction.js";
 import { ensureLegacyLedger, insertLegacyRow, readLegacyLedger, validateLegacyMapping, type LegacyLedgerMapping } from "./legacy-ledger.js";
+import type { Ledger, LedgerRow } from "./ledger-contracts.js";
+export type { Ledger, LedgerRow } from "./ledger-contracts.js";
 import {
   MIGRATION_ID,
   MigrationChecksumError,
@@ -40,12 +42,6 @@ import {
  *   go through Kysely `withSchema`, never `SET search_path` (no session state on a shared PGlite).
  */
 
-export interface LedgerRow {
-  id: string;
-  checksum: string;
-  applied_at: string;
-}
-
 type LedgerDb = Record<string, LedgerRow>;
 
 export interface MigrationOptions {
@@ -67,15 +63,6 @@ export interface MigrationOptions {
   clock?: Clock;
   /** Explicit persisted identities and column names for an existing version/name ledger. */
   legacyLedger?: LegacyLedgerMapping;
-}
-
-/** Where one history's ledger lives, resolved from {@link MigrationOptions}. */
-export interface Ledger {
-  readonly table: string;
-  readonly schema: string | undefined;
-  readonly lockKey: string;
-  readonly mapping: LegacyLedgerMapping | undefined;
-  run<T>(fn: (db: Kysely<LedgerDb>) => Promise<T>): Promise<T>;
 }
 
 function ledgerFor(kernel: StorageKernel<unknown>, options: MigrationOptions): Ledger {
@@ -241,9 +228,8 @@ export async function runMigrations(
   let backedUp = false;
   for (const step of steps) {
     if (done.has(step.id)) continue;
-    if (!backedUp) await backUpBeforeChange(kernel, context);
+    await preparePendingStep({ kernel, context, step, backedUp });
     backedUp = true;
-    await step.prepare?.(kernel, context);
     const applied = await kernel.transaction(async () => {
       await kernel.lockKey(ledger.lockKey);
       await ensureLedger(kernel, ledger);
@@ -255,6 +241,11 @@ export async function runMigrations(
     (applied ? report.applied : report.alreadyApplied).push(step.id);
   }
   return report;
+}
+
+async function preparePendingStep({ kernel, context, step, backedUp }: { kernel: StorageKernel<unknown>; context: MigrationContext; step: MigrationStep; backedUp: boolean }): Promise<void> {
+  if (!backedUp) await backUpBeforeChange(kernel, context);
+  await step.prepare?.(kernel, context);
 }
 
 /** The pre-change copy (see the file header). Outside any transaction: a backup cannot run inside one. */

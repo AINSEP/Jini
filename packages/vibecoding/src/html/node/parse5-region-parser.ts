@@ -255,7 +255,7 @@ function droppedRegionProblem(masked: string, regionCount: number): string | und
 export function scanHtmlRegions(
   { html: html_ }: { readonly html: string },
   _options: Record<string, never> = {},
-): HtmlRegionScan {
+): HtmlRegionScan & { readonly parseErrorReasons: readonly string[] } {
   const parseErrorReasons: string[] = [];
   /** Fresh `<div>` fragment-context element — see this module's doc for why `<div>`, not the default. */
   const context = defaultTreeAdapter.createElement("div", html.NS.HTML, []);
@@ -309,7 +309,8 @@ export function createParse5RegionParser(): HtmlRegionParser & Required<Pick<Htm
       const scan = scanHtmlRegions({ html: html_ });
       const problem = locationProblem(scan);
       if (problem !== undefined) return { ok: false, reason: problem };
-      const parseErrorReasons = scan.parseErrorReasons ?? [];
+      // This concrete scanner always initializes the list, unlike the optional generic port field.
+      const parseErrorReasons = scan.parseErrorReasons;
       if (parseErrorReasons.length > 0) {
         return { ok: false, reason: `the document does not parse cleanly: ${parseErrorReasons.join("; ")}` };
       }

@@ -1,5 +1,4 @@
 import { isNonArrayRecord } from './records.js';
-import type { ToolRegistration } from './tool-registry.js';
 import { ToolInputError, ToolInputNormalizationError } from './tool-input-errors.js';
 export { ToolInputNormalizationError } from './tool-input-errors.js';
 
@@ -9,6 +8,13 @@ export interface NormalizedToolInput {
   readonly notes: readonly string[];
 }
 export type ToolInputNormalizer = (required: { input: Readonly<Record<string, unknown>> }, optional?: Record<string, never>) => NormalizedToolInput | Promise<NormalizedToolInput>;
+
+/** Only the registration facts consumed by normalization; carries no execution authority. */
+interface NormalizationRegistration {
+  readonly descriptor: { readonly id: string; readonly inputSchema?: unknown };
+  readonly invocationSchema?: unknown;
+  readonly normalizeInput?: ToolInputNormalizer;
+}
 
 const object = (value: unknown): value is Record<string, unknown> => isNonArrayRecord({ value });
 const keyShape = (key: string) => key.replace(/[_-]/g, '').toLowerCase();
@@ -216,7 +222,7 @@ export function canonicalizeToolInputKeys(
  * @complexity Two bounded schema walks plus the optional domain hook's cost.
  */
 export async function normalizeToolInput(
-  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput' | 'invocationSchema'> },
+  { input, registration }: { input: unknown; registration: NormalizationRegistration },
   _options: Record<string, never> = {},
 ): Promise<NormalizedToolInput> {
   try {
@@ -231,7 +237,7 @@ const isObjectTool = (schema: unknown): boolean => object(schema) && schema.type
 
 /** First pass (open), the optional domain hook, then the final closed-schema pass. */
 async function normalizeWithinGate(
-  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput' | 'invocationSchema'> },
+  { input, registration }: { input: unknown; registration: NormalizationRegistration },
 ): Promise<NormalizedToolInput> {
   const schema = registration.invocationSchema ?? registration.descriptor.inputSchema;
   if (isObjectTool(schema) && !object(input)) throw new ToolInputError({ message: `${registration.descriptor.id}: send one input object containing the tool's fields.` });

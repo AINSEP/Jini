@@ -67,6 +67,81 @@ const STORAGE_PUBLIC_IMPORTS = new Set([
   '@jini-ai/server/store/projects/sqlite',
 ]);
 
+const EXACT_PUBLIC_IMPORTS = new Set([
+  // R2 exception: canonical host ports and JSON/time/ID types have a public kernel entry.
+  // Exact literal only; private nested implementation paths remain forbidden.
+  '@jini-ai/core/primitives',
+  // Public daemon concepts and its optional HTTP integration; nested paths remain private.
+  '@jini-ai/daemon/http',
+  '@jini-ai/daemon/read-only-tools',
+  '@jini-ai/daemon/scheduler',
+  '@jini-ai/daemon/tool-audit',
+  '@jini-ai/daemon/surface-exchanges',
+  '@jini-ai/daemon/session-coordination',
+  '@jini-ai/daemon/run-credentials',
+  // Public CMS soft-delete capability; only this exact entry is public.
+  '@jini-ai/cms/trash',
+  // Public domain HTTP entry; private nested paths remain forbidden by exact matching.
+  '@jini-ai/cms/settings/express',
+  // R2 exception: the shared untrusted-text sanitizer is a public kernel entry,
+  // independent of the CLI shell that previously owned it.
+  '@jini-ai/core/text',
+  // R2 exception #2 (2026-07-26 extraction): @jini-ai/agentic ships two entry points on
+  // purpose — a DOM-free root and a browser-only "./dom" half, split across two
+  // tsconfigs so the root's DOM-free guarantee stays compile-time (see
+  // packages/agentic/source-map.md's "The DOM split"). @jini-ai/chat-react genuinely needs
+  // the DOM half (createDomPageDriver) and there is no third package for it to live in
+  // without adding to the sprawl this rule exists to bound. Gated to this exact literal,
+  // not a pattern — no other package's subpath is exempted by this branch.
+  '@jini-ai/agentic/dom',
+  // R2 exception #3 (2026-07-28 fold-in): the standalone @jini-ai/a2ui package folded into
+  // @jini-ai/agentic/src/a2ui/ (see packages/agentic/source-map.md's "Folded from
+  // @jini-ai/a2ui") rather than adding a fourth top-level package — the same
+  // sprawl-avoidance reasoning as ./dom above. Published as its own subpath (not bundled
+  // into the bare root barrel) since it has zero DOM/React dependency and a consumer of
+  // only the A2UI protocol shouldn't have to pull in agentic's page-control vocabulary to
+  // get it. @jini-ai/chat-react's A2uiSurfaceCard is the one real consumer today. Gated to
+  // this exact literal, same as ./dom — no other subpath is exempted by this branch.
+  '@jini-ai/agentic/a2ui',
+  // R2 exception #4 (2026-08-05, REF-001 review backlog): @jini-ai/ui ships a genuinely
+  // second entry point on purpose, same shape as @jini-ai/agentic's ./dom and ./a2ui above
+  // — checked before adding this branch, not assumed: @jini-ai/ui's root barrel
+  // (packages/ui/src/index.ts) does NOT re-export McpUiHost/parseUIResource/
+  // MCP_UI_MIME_TYPE/etc., and ./mcp-ui maps to a genuinely different built file
+  // (dist/react/mcp-ui/index.js) than "." (dist/index.js) — switching the three real
+  // consumers (packages/chat/src/react/components/McpUiSurfaceCard.tsx and its test, plus
+  // create-mcp-ui-tool-caller.ts) to the bare "@jini-ai/ui" specifier would not compile.
+  // Gated to this exact literal, same as the other three — no other @jini-ai/ui subpath is
+  // exempted by this branch.
+  '@jini-ai/ui/mcp-ui',
+  // Optional Node defaults have isolated public entries; never allow private nested paths.
+  '@jini-ai/devops/deploy/node',
+  '@jini-ai/sidecar/supervisor/node',
+  // Canonical SSRF address policies, atomic filesystem writes and filesystem locks are public Node platform entries.
+  // Exact literals only: neither nested implementation paths nor arbitrary subpaths qualify.
+  '@jini-ai/platform/net',
+  '@jini-ai/platform/fs',
+  '@jini-ai/platform/fs/file-lock',
+  // R2 exception #5 (2026-08-17): unlike the four exceptions above, the bare
+  // "@jini-ai/platform" barrel DOES already re-export fetchWithTimeout/FETCH_TIMEOUT_MS
+  // (packages/platform/src/index.ts) — this is not a "only reachable via the subpath" case.
+  // The subpath exists because the barrel ALSO re-exports Node-only surfaces (process
+  // helpers, etc.), and pulling the barrel into a browser bundle drags those in too. Proven
+  // empirically, not assumed: esbuild --bundle --platform=browser on the bare barrel produced
+  // 154 resolution errors on transitively re-exported node:* builtins; `vite dev` (native ESM,
+  // no bundling) failed harder — Vite serves every node:* builtin as a Proxy that throws on
+  // first property access, so the whole module graph throws the instant anything imports the
+  // barrel, regardless of which export is actually used. `vite build` (this repo's real prod
+  // bundler) succeeds and tree-shakes the barrel import down to just fetch-with-timeout.js
+  // (5.92kB, zero node:* code) — but "works after tree-shaking in prod" does not help a dev
+  // server that never bundles. The five real browser consumers (packages/chat's
+  // frontend-session-bridge.ts and create-daemon-attachment-uploader.ts, packages/ui's
+  // memory/dependencies.ts, ExportDiagnosticsButton.tsx, useBrandFonts.ts) all need the dev
+  // server to work, so they originally imported this subpath; they now inject browser fetch. Gated
+  // to this exact literal — no other @jini-ai/platform subpath is exempted by this branch.
+  '@jini-ai/platform/fetch-with-timeout',
+]);
+
 const PRODUCT_IDENTITY_STRINGS = [
   'Open Design',
   '--od-stamp',
@@ -123,6 +198,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function resolveJiniEntry({ subpath, value, exportKeys, file, violations }: { subpath: string; value: unknown; exportKeys: Set<string>; file: string; violations: Violation[] }): string | undefined {
+  if (typeof value !== 'string' || !PACKAGE_RUNTIMES.has(value)) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `invalid jini.entries[${JSON.stringify(subpath)}] runtime ${JSON.stringify(value)}`,
+    });
+    return undefined;
+  }
+  if (!exportKeys.has(subpath)) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `jini.entries[${JSON.stringify(subpath)}] has no matching "exports" subpath — entries must name real export paths`,
+    });
+  }
+  return value;
+}
+
+function checkMissingEntryRuntimes({ exportKeys, rawEntries, file, violations }: { exportKeys: Set<string>; rawEntries: Record<string, unknown>; file: string; violations: Violation[] }): void {
+  for (const exportKey of exportKeys) {
+    if (!(exportKey in rawEntries)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `"exports" subpath ${JSON.stringify(exportKey)} has no matching jini.entries key — a package that declares per-entry runtimes must cover every export`,
+      });
+    }
+  }
+
+}
+
 /**
  * Validates the optional `jini.entries` extension (R8, see this file's module doc) and returns
  * the parsed map, or `null` when the package doesn't set it. Pushes a violation for every: key
@@ -151,33 +258,11 @@ function resolveJiniEntries(
   const entries: Record<string, string> = {};
 
   for (const [subpath, value] of Object.entries(rawEntries)) {
-    if (typeof value !== 'string' || !PACKAGE_RUNTIMES.has(value)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `invalid jini.entries[${JSON.stringify(subpath)}] runtime ${JSON.stringify(value)}`,
-      });
-      continue;
-    }
-    entries[subpath] = value;
-    if (!exportKeys.has(subpath)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `jini.entries[${JSON.stringify(subpath)}] has no matching "exports" subpath — entries must name real export paths`,
-      });
-    }
+    const parsed = resolveJiniEntry({ subpath, value, exportKeys, file, violations });
+    if (parsed !== undefined) entries[subpath] = parsed;
   }
 
-  for (const exportKey of exportKeys) {
-    if (!(exportKey in rawEntries)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `"exports" subpath ${JSON.stringify(exportKey)} has no matching jini.entries key — a package that declares per-entry runtimes must cover every export`,
-      });
-    }
-  }
+  checkMissingEntryRuntimes({ exportKeys, rawEntries, file, violations });
 
   if (entries['.'] !== undefined && entries['.'] !== runtime) {
     violations.push({
@@ -223,6 +308,92 @@ function gitIgnoredDirectories(packagesDir: string, candidates: readonly string[
   }
 }
 
+function resolvePackageMetadata({ manifest, file, violations }: { manifest: Record<string, unknown>; file: string; violations: Violation[] }): JiniPackageMetadata | null {
+  const rawMetadata = manifest.jini;
+  if (!isRecord(rawMetadata)) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: 'missing canonical jini metadata (domain, kind, runtime)',
+    });
+    return null;
+  }
+
+  const runtime = typeof rawMetadata.runtime === 'string' ? rawMetadata.runtime : '';
+  const entries = resolveJiniEntries(rawMetadata.entries, manifest.exports, runtime, file, violations);
+
+  const metadata: JiniPackageMetadata = {
+    domain: typeof rawMetadata.domain === 'string' ? rawMetadata.domain : '',
+    kind: typeof rawMetadata.kind === 'string' ? rawMetadata.kind : '',
+    runtime,
+    entries,
+  };
+
+  if (!PACKAGE_DOMAINS.has(metadata.domain)) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `invalid jini.domain ${JSON.stringify(rawMetadata.domain)}`,
+    });
+  }
+  if (metadata.kind.trim().length === 0) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: 'jini.kind must be a non-empty string',
+    });
+  }
+  if (!PACKAGE_RUNTIMES.has(metadata.runtime)) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `invalid jini.runtime ${JSON.stringify(rawMetadata.runtime)}`,
+    });
+  }
+
+  return metadata;
+}
+
+function loadPackageRecord({ root, packagesDir, directory, violations }: { root: string; packagesDir: string; directory: string; violations: Violation[] }): PackageRecord {
+  const manifestPath = join(packagesDir, directory, 'package.json');
+  const file = relative(root, manifestPath).split('\\').join('/');
+  const packageName = `@jini-ai/${directory}`;
+
+  if (!existsSync(manifestPath)) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `package directory "${directory}" is missing package.json`,
+    });
+    return { directory, packageName, metadata: null };
+  }
+
+  let manifest: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    if (!isRecord(parsed)) throw new Error('root value is not an object');
+    manifest = parsed;
+  } catch (error) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `invalid package.json: ${error instanceof Error ? error.message : String(error)}`,
+    });
+    return { directory, packageName, metadata: null };
+  }
+
+  if (manifest.name !== packageName) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `package name must be "${packageName}" (found ${JSON.stringify(manifest.name)})`,
+    });
+  }
+
+  const metadata = resolvePackageMetadata({ manifest, file, violations });
+  return { directory, packageName, metadata };
+}
+
 function loadPackageRecords(
   root: string,
   packagesDir: string,
@@ -238,90 +409,33 @@ function loadPackageRecords(
   for (const directory of directories) {
     if (ignored.has(directory)) continue;
 
-    const manifestPath = join(packagesDir, directory, 'package.json');
-    const file = relative(root, manifestPath).split('\\').join('/');
-    const packageName = `@jini-ai/${directory}`;
-
-    if (!existsSync(manifestPath)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `package directory "${directory}" is missing package.json`,
-      });
-      records.set(directory, { directory, packageName, metadata: null });
-      continue;
-    }
-
-    let manifest: Record<string, unknown>;
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
-      if (!isRecord(parsed)) throw new Error('root value is not an object');
-      manifest = parsed;
-    } catch (error) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `invalid package.json: ${error instanceof Error ? error.message : String(error)}`,
-      });
-      records.set(directory, { directory, packageName, metadata: null });
-      continue;
-    }
-
-    if (manifest.name !== packageName) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `package name must be "${packageName}" (found ${JSON.stringify(manifest.name)})`,
-      });
-    }
-
-    const rawMetadata = manifest.jini;
-    if (!isRecord(rawMetadata)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: 'missing canonical jini metadata (domain, kind, runtime)',
-      });
-      records.set(directory, { directory, packageName, metadata: null });
-      continue;
-    }
-
-    const runtime = typeof rawMetadata.runtime === 'string' ? rawMetadata.runtime : '';
-    const entries = resolveJiniEntries(rawMetadata.entries, manifest.exports, runtime, file, violations);
-
-    const metadata: JiniPackageMetadata = {
-      domain: typeof rawMetadata.domain === 'string' ? rawMetadata.domain : '',
-      kind: typeof rawMetadata.kind === 'string' ? rawMetadata.kind : '',
-      runtime,
-      entries,
-    };
-
-    if (!PACKAGE_DOMAINS.has(metadata.domain)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `invalid jini.domain ${JSON.stringify(rawMetadata.domain)}`,
-      });
-    }
-    if (metadata.kind.trim().length === 0) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: 'jini.kind must be a non-empty string',
-      });
-    }
-    if (!PACKAGE_RUNTIMES.has(metadata.runtime)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `invalid jini.runtime ${JSON.stringify(rawMetadata.runtime)}`,
-      });
-    }
-
-    records.set(directory, { directory, packageName, metadata });
+    records.set(directory, loadPackageRecord({ root, packagesDir, directory, violations }));
   }
 
   return records;
+}
+
+function checkRelativeImport({ root, absFile, file, spec, ownPackage, violations }: { root: string; absFile: string; file: string; spec: string; ownPackage: string | null; violations: Violation[] }): void {
+  // R1 / R2: resolve the relative import and classify where it lands.
+  const resolvedAbs = resolve(dirname(absFile), spec);
+  const resolvedRel = relative(root, resolvedAbs).split('\\').join('/');
+  const topSegment = resolvedRel.split('/')[0] ?? '';
+
+  if (FORBIDDEN_TOP_LEVEL_DIRS.includes(topSegment)) {
+    violations.push({ rule: 'R1-boundary', file, reason: `relative import "${spec}" resolves into ${topSegment}/` });
+    return;
+  }
+  if (topSegment === 'packages') {
+    const targetPackage = packageNameOf(resolvedRel);
+    if (targetPackage && ownPackage && targetPackage !== ownPackage) {
+      violations.push({
+        rule: 'R2-deep-path',
+        file,
+        reason: `relative import "${spec}" reaches into another package's src (${targetPackage}) — import by package name instead`,
+      });
+    }
+  }
+  return;
 }
 
 export interface CheckEngineBoundariesOptions {
@@ -346,7 +460,7 @@ export async function checkEngineBoundaries(
   const files = listSourceFiles(packagesDir);
   const packageRecords = loadPackageRecords(root, packagesDir, violations);
   const publicEntries = new Map(sourcePackages({ packagesDir }).map(pkg => [pkg.manifest.name,
-    Object.keys(pkg.manifest.exports ?? {}).filter(key => key.startsWith('./'))]));
+  Object.keys(pkg.manifest.exports ?? {}).filter(key => key.startsWith('./'))]));
   function isPublishedEntry(packageName: string, subpath: string): boolean {
     const key = `./${subpath}`;
     return (publicEntries.get(packageName) ?? []).some(entry => {
@@ -356,14 +470,42 @@ export async function checkEngineBoundaries(
     });
   }
 
-  for (const absFile of files) {
-    const file = relative(root, absFile).split('\\').join('/');
-    const ownPackage = packageNameOf(file);
-    // Comment-stripped so module-doc provenance citations (e.g. "the OD_DATA_DIR env var name
-    // ... was removed") don't get flagged as a live violation — see stripComments's doc.
-    const rawContent = readFileSync(absFile, 'utf8');
-    const content = stripComments(rawContent);
+  function checkJiniImport(spec: string, ref: { typeOnly: boolean }, ownPackage: string | null, file: string): void {
+    const withoutScope = spec.slice('@jini-ai/'.length);
+    const slashIdx = withoutScope.indexOf('/');
+    if (slashIdx === -1) return;
+    const targetPackage = withoutScope.slice(0, slashIdx);
+    const targetPackageName = `@jini-ai/${targetPackage}`;
+    const subpath = withoutScope.slice(slashIdx + 1);
+    if (spec === '@jini-ai/core/composition') {
+      // R2 exception: the public assembly entry isolates authorization values from the root.
+      // R6 below still restricts its runtime imports; type-only DI contracts remain public.
+      // R6: only a VALUE import (currently authorizeToolInvocation) from outside
+      // @jini-ai/daemon is a leak. Type-only imports (server's AnyPack/MissingTokenIds) are
+      // unrestricted.
+      if (!ref.typeOnly && ownPackage !== 'daemon') {
+        violations.push({
+          rule: 'R6-internal-leak',
+          file,
+          reason: 'value import of @jini-ai/core/composition outside packages/daemon — bypasses the ToolExecutor authz gate',
+        });
+      }
+    } else if (isPublishedEntry(targetPackageName, subpath)) {
+      // Public exports are the package's contract. Private source/dist paths are still
+      // rejected, and the authorization value boundary above remains independently enforced.
+    } else if (EXACT_PUBLIC_IMPORTS.has(spec) || DB_PUBLIC_IMPORTS.has(spec) || STORAGE_PUBLIC_IMPORTS.has(spec)) {
+      // Public subpath imports preserve optional-peer isolation and concern ownership.
+      // The self-test rejects unlisted nested paths and direct source reaches.
+    } else {
+      violations.push({
+        rule: 'R2-deep-path',
+        file,
+        reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/composition / @jini-ai/core/primitives / @jini-ai/core/text / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout / @jini-ai/platform/net / @jini-ai/platform/fs / @jini-ai/platform/fs/file-lock / @jini-ai/devops/deploy/node / @jini-ai/sidecar/supervisor/node / approved @jini-ai/db public entries) is allowed`,
+      });
+    }
+  }
 
+  function checkProductIdentity(content: string, file: string): void {
     // R5: product-identity strings.
     for (const needle of PRODUCT_IDENTITY_STRINGS) {
       if (content.includes(needle)) {
@@ -379,134 +521,30 @@ export async function checkEngineBoundaries(
       });
     }
 
+  }
+
+  function checkFile(absFile: string): void {
+    const file = relative(root, absFile).split('\\').join('/');
+    const ownPackage = packageNameOf(file);
+    // Comment-stripped so module-doc provenance citations (e.g. "the OD_DATA_DIR env var name
+    // ... was removed") don't get flagged as a live violation — see stripComments's doc.
+    const rawContent = readFileSync(absFile, 'utf8');
+    const content = stripComments(rawContent);
+
+    checkProductIdentity(content, file);
+
     for (const ref of extractImports(absFile)) {
       const spec = ref.specifier;
 
       if (spec.startsWith('.')) {
-        // R1 / R2: resolve the relative import and classify where it lands.
-        const resolvedAbs = resolve(dirname(absFile), spec);
-        const resolvedRel = relative(root, resolvedAbs).split('\\').join('/');
-        const topSegment = resolvedRel.split('/')[0] ?? '';
-
-        if (FORBIDDEN_TOP_LEVEL_DIRS.includes(topSegment)) {
-          violations.push({ rule: 'R1-boundary', file, reason: `relative import "${spec}" resolves into ${topSegment}/` });
-          continue;
-        }
-        if (topSegment === 'packages') {
-          const targetPackage = packageNameOf(resolvedRel);
-          if (targetPackage && ownPackage && targetPackage !== ownPackage) {
-            violations.push({
-              rule: 'R2-deep-path',
-              file,
-              reason: `relative import "${spec}" reaches into another package's src (${targetPackage}) — import by package name instead`,
-            });
-          }
-        }
+        checkRelativeImport({ root, absFile, file, spec, ownPackage, violations });
         continue;
       }
 
-      if (spec.startsWith('@jini-ai/')) {
-        const withoutScope = spec.slice('@jini-ai/'.length);
-        const slashIdx = withoutScope.indexOf('/');
-        const targetPackage = slashIdx === -1 ? withoutScope : withoutScope.slice(0, slashIdx);
-        const targetPackageName = `@jini-ai/${targetPackage}`;
-        const subpath = slashIdx === -1 ? null : withoutScope.slice(slashIdx + 1);
-
-        if (subpath !== null) {
-          if (spec === '@jini-ai/core/composition') {
-            // R2 exception: the public assembly entry isolates authorization values from the root.
-            // R6 below still restricts its runtime imports; type-only DI contracts remain public.
-            // R6: only a VALUE import (currently authorizeToolInvocation) from outside
-            // @jini-ai/daemon is a leak. Type-only imports (server's AnyPack/MissingTokenIds) are
-            // unrestricted.
-            if (!ref.typeOnly && ownPackage !== 'daemon') {
-              violations.push({
-                rule: 'R6-internal-leak',
-                file,
-                reason: 'value import of @jini-ai/core/composition outside packages/daemon — bypasses the ToolExecutor authz gate',
-              });
-            }
-          } else if (isPublishedEntry(targetPackageName, subpath)) {
-            // Public exports are the package's contract. Private source/dist paths are still
-            // rejected, and the authorization value boundary above remains independently enforced.
-          } else if (spec === '@jini-ai/core/primitives') {
-            // R2 exception: canonical host ports and JSON/time/ID types have a public kernel entry.
-            // Exact literal only; private nested implementation paths remain forbidden.
-          } else if (spec === '@jini-ai/daemon/http' || spec === '@jini-ai/daemon/read-only-tools' || spec === '@jini-ai/daemon/scheduler' || spec === '@jini-ai/daemon/tool-audit' || spec === '@jini-ai/daemon/surface-exchanges' || spec === '@jini-ai/daemon/session-coordination' || spec === '@jini-ai/daemon/run-credentials') {
-            // Public daemon concepts and its optional HTTP integration; nested paths remain private.
-          } else if (spec === '@jini-ai/cms/trash') {
-            // Public CMS soft-delete capability; only this exact entry is public.
-          } else if (spec === '@jini-ai/cms/settings/express') {
-            // Public domain HTTP entry; private nested paths remain forbidden by exact matching.
-          } else if (spec === '@jini-ai/core/text') {
-            // R2 exception: the shared untrusted-text sanitizer is a public kernel entry,
-            // independent of the CLI shell that previously owned it.
-          } else if (spec === '@jini-ai/agentic/dom') {
-            // R2 exception #2 (2026-07-26 extraction): @jini-ai/agentic ships two entry points on
-            // purpose — a DOM-free root and a browser-only "./dom" half, split across two
-            // tsconfigs so the root's DOM-free guarantee stays compile-time (see
-            // packages/agentic/source-map.md's "The DOM split"). @jini-ai/chat-react genuinely needs
-            // the DOM half (createDomPageDriver) and there is no third package for it to live in
-            // without adding to the sprawl this rule exists to bound. Gated to this exact literal,
-            // not a pattern — no other package's subpath is exempted by this branch.
-          } else if (spec === '@jini-ai/agentic/a2ui') {
-            // R2 exception #3 (2026-07-28 fold-in): the standalone @jini-ai/a2ui package folded into
-            // @jini-ai/agentic/src/a2ui/ (see packages/agentic/source-map.md's "Folded from
-            // @jini-ai/a2ui") rather than adding a fourth top-level package — the same
-            // sprawl-avoidance reasoning as ./dom above. Published as its own subpath (not bundled
-            // into the bare root barrel) since it has zero DOM/React dependency and a consumer of
-            // only the A2UI protocol shouldn't have to pull in agentic's page-control vocabulary to
-            // get it. @jini-ai/chat-react's A2uiSurfaceCard is the one real consumer today. Gated to
-            // this exact literal, same as ./dom — no other subpath is exempted by this branch.
-          } else if (spec === '@jini-ai/ui/mcp-ui') {
-            // R2 exception #4 (2026-08-05, REF-001 review backlog): @jini-ai/ui ships a genuinely
-            // second entry point on purpose, same shape as @jini-ai/agentic's ./dom and ./a2ui above
-            // — checked before adding this branch, not assumed: @jini-ai/ui's root barrel
-            // (packages/ui/src/index.ts) does NOT re-export McpUiHost/parseUIResource/
-            // MCP_UI_MIME_TYPE/etc., and ./mcp-ui maps to a genuinely different built file
-            // (dist/react/mcp-ui/index.js) than "." (dist/index.js) — switching the three real
-            // consumers (packages/chat/src/react/components/McpUiSurfaceCard.tsx and its test, plus
-            // create-mcp-ui-tool-caller.ts) to the bare "@jini-ai/ui" specifier would not compile.
-            // Gated to this exact literal, same as the other three — no other @jini-ai/ui subpath is
-            // exempted by this branch.
-          } else if (spec === '@jini-ai/devops/deploy/node' || spec === '@jini-ai/sidecar/supervisor/node') {
-            // Optional Node defaults have isolated public entries; never allow private nested paths.
-          } else if (spec === '@jini-ai/platform/net' || spec === '@jini-ai/platform/fs' || spec === '@jini-ai/platform/fs/file-lock') {
-            // Canonical SSRF address policies, atomic filesystem writes and filesystem locks are public Node platform entries.
-            // Exact literals only: neither nested implementation paths nor arbitrary subpaths qualify.
-          } else if (spec === '@jini-ai/platform/fetch-with-timeout') {
-            // R2 exception #5 (2026-08-17): unlike the four exceptions above, the bare
-            // "@jini-ai/platform" barrel DOES already re-export fetchWithTimeout/FETCH_TIMEOUT_MS
-            // (packages/platform/src/index.ts) — this is not a "only reachable via the subpath" case.
-            // The subpath exists because the barrel ALSO re-exports Node-only surfaces (process
-            // helpers, etc.), and pulling the barrel into a browser bundle drags those in too. Proven
-            // empirically, not assumed: esbuild --bundle --platform=browser on the bare barrel produced
-            // 154 resolution errors on transitively re-exported node:* builtins; `vite dev` (native ESM,
-            // no bundling) failed harder — Vite serves every node:* builtin as a Proxy that throws on
-            // first property access, so the whole module graph throws the instant anything imports the
-            // barrel, regardless of which export is actually used. `vite build` (this repo's real prod
-            // bundler) succeeds and tree-shakes the barrel import down to just fetch-with-timeout.js
-            // (5.92kB, zero node:* code) — but "works after tree-shaking in prod" does not help a dev
-            // server that never bundles. The five real browser consumers (packages/chat's
-            // frontend-session-bridge.ts and create-daemon-attachment-uploader.ts, packages/ui's
-            // memory/dependencies.ts, ExportDiagnosticsButton.tsx, useBrandFonts.ts) all need the dev
-            // server to work, so they originally imported this subpath; they now inject browser fetch. Gated
-            // to this exact literal — no other @jini-ai/platform subpath is exempted by this branch.
-          } else if (DB_PUBLIC_IMPORTS.has(spec) || STORAGE_PUBLIC_IMPORTS.has(spec)) {
-            // Public subpath imports preserve optional-peer isolation and concern ownership.
-            // The self-test rejects unlisted nested paths and direct source reaches.
-          } else {
-            violations.push({
-              rule: 'R2-deep-path',
-              file,
-              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/composition / @jini-ai/core/primitives / @jini-ai/core/text / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout / @jini-ai/platform/net / @jini-ai/platform/fs / @jini-ai/platform/fs/file-lock / @jini-ai/devops/deploy/node / @jini-ai/sidecar/supervisor/node / approved @jini-ai/db public entries) is allowed`,
-            });
-          }
-        }
-
-      }
+      if (spec.startsWith('@jini-ai/')) checkJiniImport(spec, ref, ownPackage, file);
     }
   }
+  for (const absFile of files) checkFile(absFile);
 
   return violations;
 }

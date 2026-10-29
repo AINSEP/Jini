@@ -90,7 +90,7 @@ function syncInputs(root: HTMLElement, s: ConsentState): void {
 }
 
 /** A durable grant that is still waiting for its receipt keeps the banner open with its alert. */
-const waiting = (s: ConsentState) => OPTIONAL.some(c => s.choices[c] && !s.allowed[c]);
+export const waiting = (s: ConsentState) => OPTIONAL.some(c => s.choices[c] && !s.allowed[c]);
 
 /** Wire #jini-consent (renderBanner's markup) to the public API. @complexity O(1) per click. */
 export function bindBanner({ api, doc }: { api: JiniConsentApi; doc: Document }): void {

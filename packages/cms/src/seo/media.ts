@@ -87,7 +87,7 @@ function buildSeoImageUrl(deps: ResolveSeoImageRefDeps, asset: MediaRecord, tran
   // No fallback for an unknown format: `params.format` is a `TransformFormat`, and the transform
   // registry (`assertValidTransformParams`, the only insert path) refuses any other value.
   const ext = EXT_BY_TRANSFORM_FORMAT[latest.params.format];
-  return deps.featuredImage.mediaPublicPath({ key: deps.featuredImage.mediaUrlKey({ asset }), variant: { kind: "transform", name: transformName, version: latest.version, ext } });
+  return deps.featuredImage.mediaPublicPath({ key: deps.featuredImage.mediaUrlKey({ asset }), sha256: asset.source.sha256, variant: { kind: "transform", name: transformName, version: latest.version, ext } });
 }
 
 /**

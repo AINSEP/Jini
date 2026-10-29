@@ -34,7 +34,8 @@ export * from './tool-exposure.js';
 
 export * from './gated-mutations.js';
 export * from './model-facing-tool-errors.js';
-export * from './contribution-registry.js';
+export { createContributionRegistry } from './contribution-registry.js';
+export type { ContributionRegistry, ToolContributor, DerivedToolContributor, ToolContributions } from './contribution-registry.js';
 export * from './provider-registry.js';
 export * from './object-store.js';
 export * from './naming.js';

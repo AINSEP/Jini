@@ -309,16 +309,6 @@ function asOptionalString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-/** Fires the optional `onSessionInit` callback; kept as a one-liner so the optional-chaining call is scored against this function, not its caller. */
-function notifySessionInit(effects: AcpSessionEffects): void {
-  effects.onSessionInit?.();
-}
-
-/** Resolves a `session/new` response's model config id, if any. */
-function resolveModelConfigId(modelConfig: { configId?: string } | null | undefined): string | null {
-  return modelConfig?.configId ?? null;
-}
-
 /**
  * Handles a JSON-RPC error frame from the agent.
  *
@@ -572,7 +562,7 @@ export function handleMessageChunkUpdate({
   const isCumulativeSnapshot = state.emittedTextBuffer.length > 0 &&
     text.length > state.emittedTextBuffer.length && text.startsWith(state.emittedTextBuffer);
   const delta = isCumulativeSnapshot ? text.slice(state.emittedTextBuffer.length) : text;
-  if (delta.length === 0) return;
+  // text is nonempty above; a cumulative snapshot is strictly longer than the prior buffer.
   state.emittedTextChunk = true;
   state.emittedTextBuffer += delta;
   const toolCallStrippedDelta = stripToolCallText({ effects, delta });
@@ -849,8 +839,11 @@ export function handleSessionNewAck({
 }): void {
   recordSessionIdentity({ state, result }, { resumeSessionId: effects.resumeSessionId });
   // session/new acknowledged with a session id = handshake done.
-  if (state.sessionId) notifySessionInit(effects);
-  state.modelConfigId = resolveModelConfigId(findModelConfigOption(result.configOptions));
+  // Invoke the optional callback here instead of relocating its complexity score to a one-line wrapper.
+  if (state.sessionId) effects.onSessionInit?.();
+  // findModelConfigOption returns null or a parsed config with a required string id.
+  const modelConfig = findModelConfigOption(result.configOptions);
+  state.modelConfigId = modelConfig ? modelConfig.configId : null;
   state.activeModel = currentModelFromSessionResult(result);
   if (state.sessionId && state.activeModel && (!effects.model || effects.model === state.activeModel)) {
     effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });

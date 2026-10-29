@@ -113,21 +113,23 @@ export function decodePlaygroundRunRequest({
     throw new Error('Jini Playground received an unknown sample project');
   }
 
-  const model = typeof parsed.model === 'string' && parsed.model.trim().length > 0
-    ? parsed.model.trim()
-    : undefined;
-  const reasoning = typeof parsed.reasoning === 'string' && parsed.reasoning.trim().length > 0
-    ? parsed.reasoning.trim()
-    : undefined;
-  const workingDirectory =
-    typeof parsed.workingDirectory === 'string' && parsed.workingDirectory.trim().length > 0
-      ? parsed.workingDirectory.trim()
-      : undefined;
-  if (Array.isArray(parsed.attachments) && parsed.attachments.length > maxAttachments) {
+  return {
+    prompt: parsed.prompt,
+    project: parsed.project,
+    ...playgroundRunOptions({ parsed, maxAttachments }),
+  };
+}
+
+function trimmedRunOption(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function decodeRunAttachments({ attachments, maxAttachments }: { attachments: unknown; maxAttachments: number }): PlaygroundAttachment[] | undefined {
+  if (Array.isArray(attachments) && attachments.length > maxAttachments) {
     throw new Error('Jini Playground received too many attachments');
   }
-  const attachments = Array.isArray(parsed.attachments)
-    ? parsed.attachments.map((candidate) => {
+  return Array.isArray(attachments)
+    ? attachments.map((candidate) => {
         if (!candidate || typeof candidate !== 'object') {
           throw new Error('Jini Playground received a malformed attachment');
         }
@@ -148,15 +150,16 @@ export function decodePlaygroundRunRequest({
         };
       })
     : undefined;
+}
 
-  const frontendBindToken =
-    typeof parsed.frontendBindToken === 'string' && parsed.frontendBindToken.length > 0
-      ? parsed.frontendBindToken
-      : undefined;
-
+function playgroundRunOptions({ parsed, maxAttachments }: { parsed: Partial<PlaygroundRunRequest>; maxAttachments: number }): Omit<PlaygroundRunRequest, 'prompt' | 'project'> {
+  const model = trimmedRunOption(parsed.model);
+  const reasoning = trimmedRunOption(parsed.reasoning);
+  const workingDirectory = trimmedRunOption(parsed.workingDirectory);
+  const attachments = decodeRunAttachments({ attachments: parsed.attachments, maxAttachments });
+  const frontendBindToken = typeof parsed.frontendBindToken === 'string' && parsed.frontendBindToken.length > 0
+    ? parsed.frontendBindToken : undefined;
   return {
-    prompt: parsed.prompt,
-    project: parsed.project,
     ...(frontendBindToken !== undefined ? { frontendBindToken } : {}),
     ...(model !== undefined ? { model } : {}),
     ...(reasoning !== undefined ? { reasoning } : {}),
@@ -196,9 +199,7 @@ export async function failPlaygroundRunBeforeExecutor({
   const status = await lifecycle.get({ runId });
   if (
     !status
-    || status.state === 'succeeded'
-    || status.state === 'failed'
-    || status.state === 'cancelled'
+    || terminalPlaygroundRun(status)
   ) return false;
   try {
     await lifecycle.emit({
@@ -213,9 +214,7 @@ export async function failPlaygroundRunBeforeExecutor({
   } catch (error) {
     const racedStatus = await lifecycle.get({ runId });
     if (
-      racedStatus?.state === 'succeeded'
-      || racedStatus?.state === 'failed'
-      || racedStatus?.state === 'cancelled'
+      terminalPlaygroundRun(racedStatus)
     ) return false;
     throw error;
   }
@@ -227,4 +226,18 @@ export async function failPlaygroundRunBeforeExecutor({
     resumable: false,
   });
   return true;
+}
+
+function terminalPlaygroundRun(status: { state: string } | undefined): boolean {
+  return ['succeeded', 'failed', 'cancelled'].includes(status?.state ?? '');
+}
+
+/** Only claimed uploads grant paths to the runtime; non-image files share the same approved root. */
+export function playgroundAttachmentLaunchOptions({ attachments, batchDirectory }: { attachments: readonly PlaygroundAttachment[]; batchDirectory: string | undefined }, _options = {}): { imagePaths?: string[]; extraAllowedDirs?: string[]; uploadRoot?: string } {
+  if (attachments.length === 0 || !batchDirectory) return {};
+  return {
+    imagePaths: attachments.filter(attachment => attachment.kind === 'image').map(attachment => attachment.path),
+    extraAllowedDirs: [batchDirectory],
+    uploadRoot: batchDirectory,
+  };
 }

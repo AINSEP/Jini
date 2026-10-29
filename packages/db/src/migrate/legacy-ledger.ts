@@ -1,14 +1,8 @@
 import { type Kysely, sql } from "kysely";
 import type { MigrationStep } from "./step.js";
-import type { Ledger, LedgerRow } from "./runner.js";
+import type { Ledger, LedgerRow, LegacyLedgerMapping } from "./ledger-contracts.js";
+export type { LegacyLedgerMapping } from "./ledger-contracts.js";
 import type { StorageDialect } from "../kernel/port.js";
-
-/** Persisted identities remain host-owned; no existing row is rewritten. */
-export interface LegacyLedgerMapping {
-  columns: { version: string; name: string; checksum: string; appliedAt: string };
-  identities: Readonly<Record<string, { version: number; name: string }>>;
-  timestamps?: "database-default" | "iso";
-}
 
 /** Validate the whole map before backups, DDL or migration work. O(steps + identities). */
 export function validateLegacyMapping({ mapping, steps }: { mapping: LegacyLedgerMapping; steps: readonly MigrationStep[] }, _optional: {} = {}): void {

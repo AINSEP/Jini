@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 import {
   EMPTY_EXPENSE_FORM,
   EXPENSE_CLAIMS,
   expenseTotal,
+  LabExpenseReceipt,
   findExpenseErrors,
   type ExpenseForm,
 } from './LabExpense.js';
@@ -22,6 +25,20 @@ const VALID: ExpenseForm = {
   category: 'equipment',
   justification: '',
 };
+
+it('shows an empty receipt before submission and every submitted value in its labeled row', () => {
+  const empty = renderToStaticMarkup(createElement(LabExpenseReceipt, { receipt: null, onBack() {} }));
+  expect(empty).toContain('Nothing submitted yet');
+  expect(empty.match(/>—<\/dd>/g)).toHaveLength(6);
+  const submitted = renderToStaticMarkup(createElement(LabExpenseReceipt, {
+    receipt: { ...VALID, reference: 'claim-42', total: '144.00', justification: 'A replacement' }, onBack() {},
+  }));
+  expect(submitted).toContain('Claim submitted');
+  for (const [handle, value] of [['reference', 'claim-42'], ['vendor', 'Atlas Hardware'], ['amount', '120.00'], ['total', '144.00'], ['category', 'equipment'], ['justification', 'A replacement']] as const) {
+    const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    expect(submitted).toMatch(new RegExp(`data-agent-element="receipt-${handle}"[^>]*>${escaped}</dd>`));
+  }
+});
 
 describe('findExpenseErrors', () => {
   it('accepts a complete small claim with no justification', () => {

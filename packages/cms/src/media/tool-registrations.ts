@@ -1,5 +1,7 @@
+import { DocumentTextExtractionError, type DocumentTextExtractorPort } from './document-text.js';
 import { readDocumentText } from "./document-read.js";
 import { documentContentType, documentDisplayFilename } from "./document-ingress.js";
+import { listMediaPage, type MediaListTypeStore } from './list-page.js';
 import type { IdGenerator } from "@jini-ai/core/primitives";
 import type { Clock } from "@jini-ai/core/primitives";
 /**
@@ -36,7 +38,7 @@ import type { AuthorizeFn } from "../core/commands/command.js";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { mediaAgentToolCatalog } from "./agent-tools.js";
-import { listMedia, MediaValidationError, rollbackUploadedMedia, trashMedia, updateMediaMetadata, uploadMedia } from "./media-service.js";
+import { MediaValidationError, rollbackUploadedMedia, trashMedia, updateMediaMetadata, uploadMedia } from "./media-service.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort } from "./ports.js";
 import { MediaNotFoundError, type MediaRecord } from "./types.js";
 
@@ -49,6 +51,8 @@ const CATALOG_BY_ID = indexCatalogById({ catalog: mediaAgentToolCatalog });
  * object after binding the kernel clock/ID contracts.
  */
 export interface MediaToolDeps {
+  /** Existing host MIME lookup for pre-provenance rows; new uploads carry their sniffed type. */
+  listContentTypes?: MediaListTypeStore | undefined;
   authorize: AuthorizeFn;
   workspaceId: string;
   clock: Clock;
@@ -57,6 +61,8 @@ export interface MediaToolDeps {
   assetBlobRepo: AssetBlobRepoPort;
   assetRenditionRepo: AssetRenditionRepoPort;
   blobStore: BlobStorePort;
+  /** Optional format adapters; SDKs are loaded only when library_read extracts that format. */
+  documentTextExtractors?: readonly DocumentTextExtractorPort[] | undefined;
   /**
    * Optional, batch-shaped resolver for each listed asset's host-served public URL — see this
    * file's header, "`publicUrl`". Called with every asset `media_list_assets`/`media_upload_asset`
@@ -136,6 +142,7 @@ function isMediaShapeRejection({ error }: { error: unknown }): boolean {
 
 /** What a Media tool returns to the model — see {@link toMediaToolView}. */
 interface MediaToolView {
+  source?: import('./types.js').MediaProvenance | undefined;
   id: string;
   createdBy: string | null;
   /** The asset's short lookup name (2026-09-16) — a page marker can reference this instead of the
@@ -162,6 +169,7 @@ interface MediaToolView {
  */
 function toMediaToolView(record: MediaRecord): MediaToolView {
   return {
+    ...(record.source.provenance ? { source: record.source.provenance } : {}),
     id: record.id,
     createdBy: record.createdBy ?? null,
     slug: record.slug,
@@ -194,11 +202,11 @@ interface MediaToolViewWithPublicUrl extends MediaToolView {
  * responsibility — see `MediaToolDeps.resolvePublicUrls`'s own doc).
  */
 async function toMediaToolViewsWithPublicUrls(routeDeps: MediaToolDeps, records: readonly MediaRecord[]): Promise<MediaToolViewWithPublicUrl[]> {
-  const urls = routeDeps.resolvePublicUrls ? await routeDeps.resolvePublicUrls({ assets: records }) : new Map<string, string | null>();
+  const urls = routeDeps.resolvePublicUrls ? await routeDeps.resolvePublicUrls({ assets: records.filter(row => row.kind !== 'document') }) : new Map<string, string | null>();
   return records.map((record) => ({ ...toMediaToolView(record), publicUrl: urls.get(record.id) ?? null }));
 }
 
-export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes"> = {}): ToolRegistration[] {
+export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes"> = {}): ToolRegistration[] {
   const routeDeps: MediaToolDeps = {
     authorize: required.authorize,
     workspaceId: required.workspaceId,
@@ -208,6 +216,7 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
     assetBlobRepo: required.assetBlobRepo,
     assetRenditionRepo: required.assetRenditionRepo,
     blobStore: required.blobStore,
+    documentTextExtractors: required.documentTextExtractors,
     ...optional,
   };
   const mediaWriteDeps = () => ({
@@ -222,16 +231,18 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
   const handlers: Record<string, ToolHandler> = {
     library_list: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
-      const { media } = await listMedia({ deps: { mediaRepo: routeDeps.mediaRepo }, input: { workspaceId: routeDeps.workspaceId, kind: "document" } });
+      const { media, nextCursor } = await listMediaPage({ mediaRepo: routeDeps.mediaRepo, workspaceId: routeDeps.workspaceId,
+        input: requireInputRecord({ input: ctx.input ?? {} }), library: true }, { contentTypes: routeDeps.listContentTypes });
       const documents = [];
-      for (const row of media.filter(row => row.status === "active")) {
+      for (const row of media) {
         const blob = await routeDeps.assetBlobRepo.findByHash({ workspaceId: routeDeps.workspaceId, sha256: row.source.sha256 });
         documents.push({ id: row.id, title: row.title, filename: documentDisplayFilename(row), originalFilename: row.originalFilename ?? null,
           contentType: documentContentType({ filename: row.originalFilename ?? "" }),
           byteSize: blob ? await routeDeps.blobStore.sizeOf?.({ storageKey: blob.storageKey }) ?? null : null,
-          createdAt: row.createdAt, createdBy: row.createdBy ?? null, publicUrl: null });
+          createdAt: row.createdAt, createdBy: row.createdBy ?? null, publicUrl: null,
+          ...(row.source.provenance ? { source: row.source.provenance } : {}) });
       }
-      return { documents };
+      return { documents, nextCursor };
     },
     library_read: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
@@ -241,15 +252,23 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
         isShapeRejection: ({ error }) => error instanceof MediaValidationError || error instanceof MediaNotFoundError,
         fn: async () => {
           if (input.offset !== undefined && typeof input.offset !== "number") throw new MediaValidationError({ message: "offset must be a non-negative byte offset" });
-          return readDocumentText({ deps: { mediaRepo: routeDeps.mediaRepo, blobRepo: routeDeps.assetBlobRepo, blobStore: routeDeps.blobStore },
-            input: { workspaceId: routeDeps.workspaceId, id, offset: input.offset as number | undefined } });
+          try {
+            return await readDocumentText({ deps: { mediaRepo: routeDeps.mediaRepo, blobRepo: routeDeps.assetBlobRepo,
+              blobStore: routeDeps.blobStore, documentTextExtractors: routeDeps.documentTextExtractors },
+              input: { workspaceId: routeDeps.workspaceId, id, offset: input.offset as number | undefined } });
+          } catch (error) {
+            if (!(error instanceof DocumentTextExtractionError)) throw error;
+            return { untrusted: true, error: { code: error.code, message: error.message,
+              ...(error.install ? { install: error.install } : {}) } };
+          }
         },
       });
     },
     media_list_assets: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
-      const { media } = await listMedia({ deps: { mediaRepo: routeDeps.mediaRepo }, input: { workspaceId: routeDeps.workspaceId } });
-      return { media: await toMediaToolViewsWithPublicUrls(routeDeps, media) };
+      const { media, nextCursor } = await listMediaPage({ mediaRepo: routeDeps.mediaRepo, workspaceId: routeDeps.workspaceId,
+        input: requireInputRecord({ input: ctx.input ?? {} }), library: false }, { contentTypes: routeDeps.listContentTypes });
+      return { media: await toMediaToolViewsWithPublicUrls(routeDeps, media), nextCursor };
     },
 
     media_upload_asset: async (ctx) => {

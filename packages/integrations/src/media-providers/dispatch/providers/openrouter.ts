@@ -31,7 +31,7 @@
  * `parseResponse`.
  */
 import { assertAndFetchExternalAsset } from '../ssrf-guard.js';
-import { sniffImageExt, truncate, withRequestInit } from '../openai-compatible.js';
+import { sniffImageExt, standardImageAspectFor as openRouterAspectFor, truncate, withRequestInit } from '../openai-compatible.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
@@ -43,23 +43,7 @@ import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 // `AbortSignal.timeout` covers the whole request for both vendors).
 const OPENROUTER_IMAGE_TIMEOUT_MS = 10 * 60 * 1000;
 
-/**
- * OpenRouter normalizes aspect ratios across the providers it fronts;
- * `providers.ts`'s `MEDIA_ASPECTS` are all natively supported, default to
- * 16:9 for anything else. Written as independent `if` returns (rather than
- * the origin's one `||`-chained condition) to match this package's
- * established aspect-mapping style (see `imagerouter.ts`'s
- * `imageRouterSizeFor`) — same input -> output mapping for every case, not
- * a behavior change.
- */
-export function openRouterAspectFor({ aspect }: { aspect: string | undefined }): string {
-  if (aspect === '1:1') return '1:1';
-  if (aspect === '16:9') return '16:9';
-  if (aspect === '9:16') return '9:16';
-  if (aspect === '4:3') return '4:3';
-  if (aspect === '3:4') return '3:4';
-  return '16:9';
-}
+export { openRouterAspectFor };
 
 const NO_CREDENTIAL_MESSAGE = 'no OpenRouter API key — configure it or set OPENROUTER_API_KEY';
 

@@ -78,3 +78,22 @@ it('releases a factory result rejected by the domain validator', async () => {
     expect(closed).toHaveBeenCalledTimes(1);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+it('refuses failed discovery before importing any artifact', async () => {
+  const { root, required, imported } = await fixture({});
+  try {
+    await expect(loadProviderPluginArtifact({ ...required, load: { ...required.load,
+      record: { ...required.load.record, status: 'invalid' },
+    } })).rejects.toThrow('provider artifact discovery failed');
+    expect(imported).not.toHaveBeenCalled();
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it('refuses an artifact that does not contribute the selected provider', async () => {
+  const { root, required, imported } = await fixture({});
+  try {
+    await expect(loadProviderPluginArtifact({ ...required, id: 'not-contributed' }))
+      .rejects.toThrow('provider artifact did not supply the selected provider');
+    expect(imported).toHaveBeenCalledTimes(1);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

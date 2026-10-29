@@ -348,7 +348,7 @@ function ipMatchesRange({ ip, range }: { ip: string; range: string }, _optional:
 
   const [rangeIp = "", prefixRaw = ""] = range.split("/");
   const prefix = Number(prefixRaw);
-  if (ip.includes(":") || rangeIp.includes(":") || !/^\d+$/.test(prefixRaw) || prefix > 32) return false;
+  if (!isIpv4Cidr({ ip, rangeIp, prefixRaw, prefix })) return false;
 
   const ipInt = ipv4ToInt(ip);
   const rangeInt = ipv4ToInt(rangeIp);
@@ -356,6 +356,10 @@ function ipMatchesRange({ ip, range }: { ip: string; range: string }, _optional:
 
   const mask = prefix <= 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
   return (ipInt & mask) === (rangeInt & mask);
+}
+
+function isIpv4Cidr({ ip, rangeIp, prefixRaw, prefix }: { ip: string; rangeIp: string; prefixRaw: string; prefix: number }, _optional = {}): boolean {
+  return !ip.includes(":") && !rangeIp.includes(":") && /^\d+$/.test(prefixRaw) && prefix <= 32;
 }
 
 function ipv4ToInt(ip: string): number | null {

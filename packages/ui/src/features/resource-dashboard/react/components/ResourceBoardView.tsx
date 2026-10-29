@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from 'react';
-import { ResourceBoardAlerts, ResourceBoardContent, ResourceBoardViewToolbar } from './ResourceBoardViewParts.js';
+import { ResourceBoardAlerts, ResourceBoardContent } from './ResourceBoardViewParts.js';
+import { ResourceBoardToolbar } from './ResourceBoardToolbar.js';
 import type { ResourceKanbanColumn } from './ResourceKanbanBoard.js';
 import type { ResourceBoardItem, ResourceBoardViewMode, ResourceSortOption, ResourceStatusToneMap } from '../../types.js';
 
@@ -74,7 +75,7 @@ export interface ResourceBoardViewProps<TBody = unknown> {
 export function ResourceBoardView<TBody = unknown>(props: ResourceBoardViewProps<TBody>) {
   return (
     <div className={`resource-board${props.viewMode === 'kanban' ? ' is-kanban' : ''}`}>
-      <ResourceBoardViewToolbar {...props} />
+      <ResourceBoardToolbar {...props} selectedCount={props.selected.size} />
 
       <ResourceBoardAlerts {...props} />
 

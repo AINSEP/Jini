@@ -8,6 +8,7 @@ import {
   createAgentPluginLayout, createAgentPluginLifecycle, type AgentPluginArchiveReaderPort,
 } from '../../index.js';
 import { createPersistentStateModule } from '../../persistent-state.js';
+import { createSetEnabledModule } from '../../set-enabled.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
 
@@ -43,6 +44,33 @@ async function withHarness(run: (h: { api: ReturnType<typeof createAgentPluginLi
 }
 
 const toggle = (pluginId: string, enabled: boolean) => ({ workspaceId, pluginId, enabled, actor: 'operator:alice' });
+
+test('activation observers run only for committed transitions and cannot undo a toggle', async () => {
+  await withHarness(async ({ api, context, workspaceRoot, install }) => {
+    await install('observed');
+    const events: unknown[] = [];
+    const module = createSetEnabledModule({ ...context, onActivationChanged: (event, options) => {
+      events.push([event, options]);
+      throw new Error('observer unavailable');
+    } });
+    expect(await module.setAgentPluginEnabled(toggle('observed', false))).toEqual({ pluginId: 'observed', enabled: false });
+    const disabled = await api.readAgentPluginActivations({ workspaceRoot });
+    expect(disabled.plugins.observed).toMatchObject({ enabled: false, updatedBy: 'operator:alice' });
+    expect(await module.setAgentPluginEnabled(toggle('observed', false))).toEqual({ pluginId: 'observed', enabled: false });
+    expect(await module.setAgentPluginEnabled(toggle('observed', true), { unlessOperatorDisabled: true }))
+      .toEqual({ pluginId: 'observed', enabled: false });
+    expect(await api.readAgentPluginActivations({ workspaceRoot })).toEqual(disabled);
+    expect(await module.setAgentPluginEnabled(toggle('observed', true))).toEqual({ pluginId: 'observed', enabled: true });
+    expect(await module.setAgentPluginEnabled(toggle('observed', true), { unlessOperatorDisabled: true }))
+      .toEqual({ pluginId: 'observed', enabled: true });
+    expect((await api.readAgentPluginActivations({ workspaceRoot })).plugins.observed)
+      .toMatchObject({ enabled: true, updatedBy: 'operator:alice' });
+    expect(events).toEqual([
+      [{ pluginId: 'observed', workspaceId, enabled: false, actor: 'operator:alice' }, {}],
+      [{ pluginId: 'observed', workspaceId, enabled: true, actor: 'operator:alice' }, {}],
+    ]);
+  });
+});
 
 test('installed index carries requires/hostRange from the host namespace, and omits them when absent', async () => {
   await withHarness(async ({ api, workspaceRoot, install }) => {

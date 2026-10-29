@@ -12,6 +12,9 @@
     "domain": "capability",
     "kind": "consent",
     "runtime": "universal",
+    "isolation": {
+      "entries": { "./client.min.js": "client" }
+    },
     "entries": {
       ".": "universal",
       "./policy": "universal",

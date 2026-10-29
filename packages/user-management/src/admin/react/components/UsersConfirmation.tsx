@@ -1,5 +1,4 @@
-import { ConfirmDialog, Notice } from '@jini-ai/ui-kit/react';
-import { SecretInput } from '@jini-ai/ui';
+import { ConfirmDialog, Notice, SecretInput } from '@jini-ai/ui-kit/react';
 import { useId } from 'react';
 import { useUsersConfirmation, newPasswordAttrs } from '../hooks/UsersTab.hooks.js';
 /** Kept mounted independently of row menus. Confirmation and cancellation share ui-kit's guards. */

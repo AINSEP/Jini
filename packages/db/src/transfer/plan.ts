@@ -1,9 +1,10 @@
 /** Every physical source must account for every table before a copy can be planned. */
 import type { TransferSource } from "./sqlite-source.js";
 import type { SnapshotTablePlan } from "./table-catalog.js";
+import type { TableCount } from "./types.js";
 export interface TransferPlanSource extends SnapshotTablePlan { readonly name: string; readonly source: TransferSource;
   /** Optional frozen counts from a prior plan; checked inside the destination transaction. */
-  readonly counts?: readonly import("./copy-engine.js").TableCount[];
+  readonly counts?: readonly TableCount[];
 }
 export class IncompleteTransferPlanError extends Error {
   readonly missing: readonly { source: string; table: string }[];

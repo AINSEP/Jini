@@ -13,6 +13,7 @@ export default [
       'AI-Dev-Shop/**',
     ],
   },
+  { plugins: { sonarjs } },
   {
     // Pre-existing inline `eslint-disable` comments in this repo reference rules
     // from plugins this minimal config intentionally does not load. Without
@@ -21,7 +22,6 @@ export default [
     linterOptions: { noInlineConfig: true },
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: { parser: tseslint.parser },
-    plugins: { sonarjs },
     rules: {
       complexity: ['warn', 15],
       'sonarjs/cognitive-complexity': ['warn', 15],

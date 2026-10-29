@@ -137,6 +137,7 @@
     "test:postgres": "vitest run --config vitest.postgres.config.ts src/store/agent-sessions/__tests__/postgres.postgres.test.ts"
   },
   "devDependencies": {
+    "smol-toml": "1.9.1",
     "@vitest/coverage-v8": "^2.1.9",
     "node-pty": "^1.1.0",
     "@jini-ai/db": "workspace:*",
@@ -157,10 +158,10 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/protocol": "workspace:^",
-    "smol-toml": "1.9.1"
+    "@jini-ai/protocol": "workspace:^"
   },
   "peerDependencies": {
+    "smol-toml": "1.9.1",
     "node-pty": "^1.1.0",
     "@jini-ai/db": "^0.6.10",
     "kysely": "^0.29.6",
@@ -173,6 +174,7 @@
     "@jini-ai/platform": "^0.6.10"
   },
   "peerDependenciesMeta": {
+    "smol-toml": { "optional": true },
     "node-pty": {
       "optional": true
     },
