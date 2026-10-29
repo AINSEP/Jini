@@ -26,4 +26,5 @@ export type RuntimeModelOption = {
   reasoning?: readonly RuntimeReasoningOption[];
 };
 
-export type RuntimeReasoningOption = RuntimeModelOption;
+/** A reasoning-effort choice; same shape as a model option. */
+export interface RuntimeReasoningOption extends RuntimeModelOption {}

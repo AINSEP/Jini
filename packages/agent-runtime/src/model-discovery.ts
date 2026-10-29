@@ -47,9 +47,12 @@ const DIAGNOSTIC_MESSAGES: Record<Diagnostic['code'], string> = {
   'malformed-response': 'Native metadata contained no usable catalog.',
   offline: 'Model discovery could not reach its source.',
 };
+function probeErrorCode(error: unknown) {
+  return error instanceof ModelProbeError ? error.code : 'offline';
+}
 function diagnostic(error: unknown): Diagnostic {
   // Never stringify vendor errors: stderr/HTTP bodies may include credentials or OAuth URLs.
-  const code = error instanceof ProbeTimeout ? 'timeout' : error instanceof ModelProbeError ? error.code : 'offline';
+  const code = error instanceof ProbeTimeout ? 'timeout' : probeErrorCode(error);
   return { code, message: DIAGNOSTIC_MESSAGES[code] };
 }
 function isUnexpired(snapshot: ModelCatalogSnapshot, now: number): boolean {

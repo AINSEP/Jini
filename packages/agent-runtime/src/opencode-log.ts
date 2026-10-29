@@ -132,15 +132,14 @@ function codeFromStatus(statusCode: number): AgentServiceFailureCode | null {
   return null;
 }
 
+const DEFAULT_FAILURE_MESSAGES: Readonly<Record<AgentServiceFailureCode, string>> = {
+  AGENT_AUTH_REQUIRED: 'OpenCode could not authenticate with the model provider.',
+  RATE_LIMITED: 'OpenCode hit a provider usage or rate limit.',
+  UPSTREAM_UNAVAILABLE: "OpenCode's model provider is temporarily unavailable.",
+};
+
 function defaultMessageForCode(code: AgentServiceFailureCode): string {
-  switch (code) {
-    case 'AGENT_AUTH_REQUIRED':
-      return 'OpenCode could not authenticate with the model provider.';
-    case 'RATE_LIMITED':
-      return 'OpenCode hit a provider usage or rate limit.';
-    case 'UPSTREAM_UNAVAILABLE':
-      return "OpenCode's model provider is temporarily unavailable.";
-  }
+  return DEFAULT_FAILURE_MESSAGES[code];
 }
 
 // Classify the latest `service=llm` provider error in an OpenCode log tail.

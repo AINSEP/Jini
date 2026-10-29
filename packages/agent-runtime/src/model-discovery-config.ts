@@ -2,6 +2,9 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { ModelDiscoveryContext, ModelDiscoveryDeps } from './model-discovery-types.js';
 
+/** JSON path of the model setting in the Qoder and Qwen settings files. */
+const MODEL_NAME_PATH = 'model.name';
+
 type ConfigFile = { path: string; format: 'json' | 'toml' | 'yaml'; key?: string };
 const json = (path: string, key = 'model'): ConfigFile => ({ path, format: 'json', key });
 type ConfigPaths = {
@@ -34,8 +37,8 @@ const CONFIG_FILES: ReadonlyMap<string, (paths: ConfigPaths) => ConfigFile[]> = 
   ['copilot', ({ user }) => [json(user('.copilot/config.json'))]],
   ['cursor-agent', ({ user }) => [json(user('.cursor/cli-config.json'))]],
   ['droid', ({ user }) => [json(user('.factory/settings.json'), 'sessionDefaultSettings.model')]],
-  ['qoder', ({ env, user, local }) => [json(join(env.QODER_CONFIG_DIR || user('.qoder'), 'settings.json'), 'model.name'), json(local('.qoder/settings.json'), 'model.name'), json(local('.qoder/settings.local.json'), 'model.name')]],
-  ['qwen', ({ user, local }) => [json(user('.qwen/settings.json'), 'model.name'), json(local('.qwen/settings.json'), 'model.name')]],
+  ['qoder', ({ env, user, local }) => [json(join(env.QODER_CONFIG_DIR || user('.qoder'), 'settings.json'), MODEL_NAME_PATH), json(local('.qoder/settings.json'), MODEL_NAME_PATH), json(local('.qoder/settings.local.json'), MODEL_NAME_PATH)]],
+  ['qwen', ({ user, local }) => [json(user('.qwen/settings.json'), MODEL_NAME_PATH), json(local('.qwen/settings.json'), MODEL_NAME_PATH)]],
   ['deepseek', ({ user }) => [{ path: user('.deepseek/config.toml'), format: 'toml' }, { path: user('.codewhale/config.toml'), format: 'toml' }]],
   ['mimo', ({ configHome, local }) => [json(join(configHome, 'mimocode/mimocode.json')), json(local('.mimocode/mimocode.jsonc'))]],
   ['crush', ({ configHome, local }) => [json(join(configHome, 'crush/crush.json'), 'models.large.model'), json(local('crush.json'), 'models.large.model')]],
@@ -143,7 +146,8 @@ export async function readModelConfiguration(agentId: string, context: ModelDisc
   const settingsRaw = await claudeSettingsRaw(agentId, context, deps, signal);
   const settingsModel = settingsRaw ? scalar(parseSettingsJson(settingsRaw)?.model) : undefined;
   // Precedence, strongest first: launch model, Claude --settings, model env, inline config content, config files.
-  const selection = context.model || settingsModel || envSelection(agentId, context.env) || inlineSelection(agentId, context.env) || fileSelection(agentId, contents, context.profile);
+  const launchSelection = context.model || settingsModel;
+  const selection = launchSelection || envSelection(agentId, context.env) || inlineSelection(agentId, context.env) || fileSelection(agentId, contents, context.profile);
   // Material is hashed by the orchestration layer and is never exposed over HTTP.
   return { ...(selection ? { selection } : {}), fingerprintMaterial: JSON.stringify([contents.map(({ file, raw }) => [file.path, raw]), settingsRaw || '']) };
 }

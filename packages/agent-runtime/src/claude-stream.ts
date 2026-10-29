@@ -73,6 +73,10 @@ export type ClaudeStreamEvent =
   | RoleMarkerWarningEvent;
 
 export type EventSink = (event: ClaudeStreamEvent) => void;
+/** The first argument that is a string (possibly empty), or `undefined` when none is. */
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === 'string');
+}
 export type BlockState = {
   type?: unknown;
   name?: unknown;
@@ -182,11 +186,7 @@ export function applyTaskCreate(
   tasks: Map<string, RuntimeTask>,
   counter: RuntimeTaskIdCounter,
 ): boolean {
-  const content = typeof input.subject === 'string'
-    ? input.subject
-    : typeof input.description === 'string'
-      ? input.description
-      : '';
+  const content = firstString(input.subject, input.description) ?? '';
   if (!content) return false;
   const id = runtimeTaskIdFromCreate(input, counter);
   const activeForm = typeof input.activeForm === 'string' ? input.activeForm : undefined;
@@ -203,11 +203,7 @@ export function applyTaskUpdate(input: Record<string, unknown>, tasks: Map<strin
   if (typeof input.taskId !== 'string') return false;
   const existing = tasks.get(input.taskId);
   if (!existing) return false;
-  const content = typeof input.subject === 'string'
-    ? input.subject
-    : typeof input.description === 'string'
-      ? input.description
-      : existing.content;
+  const content = firstString(input.subject, input.description) ?? existing.content;
   const activeForm = typeof input.activeForm === 'string' ? input.activeForm : existing.activeForm;
   tasks.set(input.taskId, {
     ...existing,
@@ -229,9 +225,7 @@ export function emitCanonicalTaskSnapshot(
   if (registry.seenToolUseIds.has(toolUseId)) return true;
   const applied = name === 'TaskCreate'
     ? applyTaskCreate(input, registry.tasks, registry.counter)
-    : name === 'TaskUpdate'
-      ? applyTaskUpdate(input, registry.tasks)
-      : false;
+    : name === 'TaskUpdate' && applyTaskUpdate(input, registry.tasks);
   if (!applied) return false;
   // Coverage-driven refactor (2026-07-18, no behavior change): the
   // original OD source guarded this emission with
@@ -822,14 +816,9 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
   }
 
   function handleResultMessage(obj: Record<string, unknown>): void {
-    // Explicit annotation: the `&&`/`||` chain's inferred type includes a phantom `false` (TS
-    // widens each unresolved `&&` branch to its check's boolean), even though no runtime path
-    // through this chain can ever produce the literal `false` — the last `|| null` guarantees a
-    // string or null. Pinning the declared type to what's actually true, not casting past it.
+    // The first non-empty string of `stop_reason`, then `terminal_reason`; otherwise null.
     const stopReason: string | null =
-      (typeof obj.stop_reason === 'string' && obj.stop_reason) ||
-      (typeof obj.terminal_reason === 'string' && obj.terminal_reason) ||
-      null;
+      [obj.stop_reason, obj.terminal_reason].find((reason): reason is string => typeof reason === 'string' && reason !== '') ?? null;
     // Claude Code 2.1.201 does not always emit a terminal
     // stream_event/message_delta. In that wire shape, the top-level result
     // is the only frame carrying `end_turn`. Surface it as a turn boundary
@@ -916,26 +905,27 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     }
   }
 
-  function handleContentBlockStop(ev: Record<string, unknown>): void {
-    const key = blockKey(ev.index);
-    const state = blocks.get(key);
-    if (state && state.type === 'tool_use' && typeof state.id === 'string' && state.input.trim()) {
+  /** Emits a finished tool_use block from its streamed JSON text, else from its complete input value. */
+  function emitFinishedToolBlock(state: BlockState, id: string): void {
+    if (state.input.trim()) {
       try {
-        emitToolUse(state.id, state.name, JSON.parse(state.input));
-        streamedToolUseIds.add(state.id);
+        emitToolUse(id, state.name, JSON.parse(state.input));
+        streamedToolUseIds.add(id);
       } catch {
         // Fall through to the final assistant wrapper's input if the
         // streamed JSON is malformed or incomplete.
       }
-    } else if (
-      state &&
-      state.type === 'tool_use' &&
-      typeof state.id === 'string' &&
-      state.inputValue !== undefined
-    ) {
-      emitToolUse(state.id, state.name, state.inputValue);
-      streamedToolUseIds.add(state.id);
+      return;
     }
+    if (state.inputValue === undefined) return;
+    emitToolUse(id, state.name, state.inputValue);
+    streamedToolUseIds.add(id);
+  }
+
+  function handleContentBlockStop(ev: Record<string, unknown>): void {
+    const key = blockKey(ev.index);
+    const state = blocks.get(key);
+    if (state?.type === 'tool_use' && typeof state.id === 'string') emitFinishedToolBlock(state, state.id);
     blocks.delete(key);
   }
 

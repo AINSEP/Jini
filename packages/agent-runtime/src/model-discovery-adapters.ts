@@ -105,7 +105,9 @@ export async function probeClaudeInitialize(context: ModelDiscoveryContext, deps
   const args = [...CLAUDE_CODE_INITIALIZE_ARGS];
   if (context.settingSources) args.push('--setting-sources', context.settingSources.join(','));
   // The last settings argument must still disable hooks; the probe never executes hooks.
-  const raw = context.settings ? (context.settings.trim().startsWith('{') ? context.settings : await deps.fs.read(context.settings, { signal })) : null;
+  // Inline JSON is used as is; anything else names a settings file to read.
+  const inlineSettings = context.settings?.trim().startsWith('{') ? context.settings : null;
+  const raw = inlineSettings ?? (context.settings ? await deps.fs.read(context.settings, { signal }) : null);
   const settings = raw ? parseSettingsJson(raw) : undefined;
   if (settings) args.push('--settings', JSON.stringify({ ...settings, disableAllHooks: true }));
   const result = await deps.process.run({ context, args, stdin: CLAUDE_CODE_INITIALIZE_REQUEST, signal, timeoutMs: 15_000 });
@@ -156,9 +158,13 @@ function opencodeCacheModels(data: Record<string, unknown>): DiscoveredModel[] {
 function configurationCacheModels(entries: unknown): DiscoveredModel[] {
   if (!Array.isArray(entries)) return [];
   return entries.flatMap((row) => {
-    const id = typeof row?.slug === 'string' ? row.slug : typeof row?.value === 'string' ? row.value : typeof row?.id === 'string' ? row.id : undefined;
+    const id = firstString(row?.slug, row?.value, row?.id);
     return id ? [{ id, label: row.display_name || row.displayName || id, identityKind: modelIdentityKind(id) }] : [];
   });
+}
+/** The first argument that is a string, or `undefined` when none is. */
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === 'string');
 }
 function parseGenericCliModels(stdout: string): DiscoveredModel[] {
   let parsed: unknown;
@@ -167,7 +173,7 @@ function parseGenericCliModels(stdout: string): DiscoveredModel[] {
     const object = parsed as { models?: unknown; model?: unknown };
     const entries = Array.isArray(parsed) ? parsed : object.models;
     if (Array.isArray(entries)) return entries.flatMap((row) => {
-      const id = typeof row === 'string' ? row : typeof row?.id === 'string' ? row.id : typeof row?.model === 'string' ? row.model : undefined;
+      const id = firstString(row, row?.id, row?.model);
       return id ? [{ id, label: typeof row?.name === 'string' ? row.name : id, identityKind: modelIdentityKind(id) }] : [];
     });
   }
@@ -258,6 +264,11 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     const invocation = createCommandInvocation({ command: input.context.executable, args: [...input.args], env: input.context.env });
     const tree = input.terminateProcessTree && process.platform !== 'win32';
     let treeTimer: ReturnType<typeof setTimeout> | undefined;
+    /** Settles the probe with the exec outcome; an error only rejects when nothing completed first. */
+    const settle = (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => {
+      if (error && !completed) reject(error);
+      else resolve({ stdout: String(stdout), stderr: String(stderr) });
+    };
     const killTree = () => { if (tree && child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} } };
     // execFile forwards `detached` to spawn at runtime, but its typings omit it; a typed
     // variable (not a literal) keeps the process-group option without a cast.
@@ -270,9 +281,10 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
       if (treeTimer) clearTimeout(treeTimer);
       input.signal.removeEventListener('abort', killTree);
       if (error) killTree();
-      const settle = () => { error && !completed ? reject(error) : resolve({ stdout: String(stdout), stderr: String(stderr) }); };
-      if (child.pid && child.exitCode === null && child.signalCode === null) child.once('close', settle);
-      else settle();
+      // Wait for a still-running child to close before settling; otherwise settle now.
+      const settleOutcome = settle.bind(undefined, error, stdout, stderr);
+      if (child.pid && child.exitCode === null && child.signalCode === null) child.once('close', settleOutcome);
+      else settleOutcome();
     });
     if (tree) {
       input.signal.addEventListener('abort', killTree, { once: true });
@@ -412,9 +424,10 @@ export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
 /** Stable dependency identity preserves the existing per-host single-probe budget as well as its cache. */
 export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeState }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
   if (state === defaultRuntimeState) return defaultModelDiscoveryDeps;
-  return state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog,
+  state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog,
     acp: createAcpDiscoveryAdapter({ probe: state.acpModelProbe ?? nativeAcpModelProbe }),
   };
+  return state.discoveryDeps;
 }
 
 /** Adapt the existing ACP port to catalog metadata; array-only transports cannot claim a default.

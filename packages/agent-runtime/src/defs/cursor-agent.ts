@@ -3,6 +3,9 @@ import { DEFAULT_MODEL_OPTION } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
 import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeModelOption } from '../types.js';
 
+/** Agent id, binary name and event-parser key: one string for all three. */
+const CURSOR_AGENT_ID = 'cursor-agent';
+
 /** One `<id>` or `<id> - <label>` listing line; header lines and non-id lines yield null. */
 function parseCursorAgentModelLine(line: string): RuntimeModelOption | null {
   if (/^(available models|models)$/i.test(line)) return null;
@@ -50,7 +53,7 @@ function bypassArgs(options: RuntimeBuildOptions): string[] {
   // only one of them would still hand the run most of what it asked to
   // withhold.
   if (options.permissionMode === 'restricted') return [];
-  const caps = (options.capabilities ?? agentCapabilities.get('cursor-agent')) || {};
+  const caps = (options.capabilities ?? agentCapabilities.get(CURSOR_AGENT_ID)) || {};
   // `--trust` grants workspace trust in headless runs, but only newer
   // cursor-agent builds accept it; older ones exit 1 with "unknown option"
   // (issue #4461). Pass it only when the `--help` probe saw it.
@@ -59,10 +62,10 @@ function bypassArgs(options: RuntimeBuildOptions): string[] {
 
 export const cursorAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('cursor-agent', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => cursorAgentDef.fallbackModels, args: ['models'], parse: parseCursorAgentListing }),
-    id: 'cursor-agent',
+  ...createAgentModelDiscovery(CURSOR_AGENT_ID, { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => cursorAgentDef.fallbackModels, args: ['models'], parse: parseCursorAgentListing }),
+    id: CURSOR_AGENT_ID,
     name: 'Cursor Agent',
-    bin: 'cursor-agent',
+    bin: CURSOR_AGENT_ID,
     versionArgs: ['--version'],
     helpArgs: ['--help'],
     capabilityFlags: {
@@ -102,7 +105,7 @@ export const cursorAgentDef = {
     ],
     promptViaStdin: true,
     streamFormat: 'json-event-stream',
-    eventParser: 'cursor-agent',
+    eventParser: CURSOR_AGENT_ID,
     // `cursor-agent status` is a cheap, side-effect-free auth check. Declaring
     // it here is what makes detection surface an "auth required" badge for
     // Cursor Agent (the generalized probe only runs for adapters that opt in).

@@ -270,12 +270,7 @@ export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBi
   // Use `balanceUsd` — the same field the console wallet page renders as the
   // headline "余额" — so the two surfaces always agree. Fall back to the total
   // available only if `balanceUsd` is missing.
-  const balanceUsd =
-    typeof data.balanceUsd === 'string'
-      ? data.balanceUsd
-      : typeof data.totalAvailableCreditsUsd === 'string'
-        ? data.totalAvailableCreditsUsd
-        : null;
+  const balanceUsd = [data.balanceUsd, data.totalAvailableCreditsUsd].find((value): value is string => typeof value === 'string') ?? null;
   // `membershipTier` is omitted for free accounts. A SUCCESSFUL summary with no
   // tier therefore means "free" — normalize to the explicit sentinel so the UI
   // shows the plan and the Upgrade CTA for free users. "Unknown" (billing
