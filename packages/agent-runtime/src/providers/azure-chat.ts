@@ -78,6 +78,7 @@ import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './prov
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
 
 export interface AzureFunctionToolDef {
   readonly type: 'function';
@@ -386,19 +387,13 @@ export async function runAzureToolTurn(requiredArgs: Pick<AzureTurnOptions, "api
   let toolTurns = 0;
   let lastFinishReason: string | null = null;
 
-  // With no executor, a turn that wants tools still ends ('stop') instead of looping.
-  const noExecutorReason = executeTool ? null : 'stop' as const;
   while (true) {
     const outcome = await runSingleAzureRequest(options, messages, emitEnd, endGuard.hasEnded, retry);
     lastFinishReason = outcome.finishReason;
 
-    // Ending mid-request leaves nothing more to emit. Otherwise a loop exit reason ends the turn,
-    // and so does a missing executor: pending tool calls were already emitted as `tool_use` events,
-    // so with nothing to run them the turn ends with 'stop' rather than silently retrying forever.
-    const ended = endGuard.hasEnded();
-    const exitReason = ended ? null : azureLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) || noExecutorReason;
-    if (ended || exitReason || !executeTool) {
-      if (exitReason) emitEnd(exitReason);
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => azureLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;

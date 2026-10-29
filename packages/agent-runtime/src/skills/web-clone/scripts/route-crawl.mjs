@@ -147,9 +147,10 @@ export async function collectPage(page) {
 function enqueueLinks(links, current, crawl) {
   for (const link of links) {
     const nextUrl = normalizeUrl(link.href, current.url);
-    if (!nextUrl || crawl.seen.has(nextUrl)) continue;
-    if (!sameSite(nextUrl, crawl.startUrl, crawl.args.allowSubdomains)) continue;
-    crawl.queue.push({ url: nextUrl, depth: current.depth + 1, from: current.url });
+    const fresh = nextUrl && !crawl.seen.has(nextUrl);
+    if (fresh && sameSite(nextUrl, crawl.startUrl, crawl.args.allowSubdomains)) {
+      crawl.queue.push({ url: nextUrl, depth: current.depth + 1, from: current.url });
+    }
   }
 }
 
@@ -205,9 +206,9 @@ async function crawlRoutes(page, crawl) {
     crawl.seen.add(current.url);
     if (current.depth > args.maxDepth) {
       crawl.skipped.push({ url: current.url, reason: `depth>${args.maxDepth}` });
-      continue;
+    } else {
+      await visit(page, current, crawl);
     }
-    await visit(page, current, crawl);
   }
 }
 

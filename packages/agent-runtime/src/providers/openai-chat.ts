@@ -74,6 +74,7 @@ import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
 
 export interface OpenAiFunctionToolDef {
   readonly type: 'function';
@@ -598,9 +599,8 @@ export async function runOpenAiCompatibleRequest(requiredArgs: Pick<OpenAiCompat
     // after this loop, to decide whether pending tool_use events should still be emitted (a
     // contaminating delta can arrive on a *later* chunk than the one that set `finish_reason`).
     const result = processOpenAiStreamFrame({ state: state, frame: frame, onEvent: onEvent });
-    if (result === 'done') break;
-    if (result === 'contaminated') {
-      init.emitEnd('contaminated');
+    if (result === 'done' || result === 'contaminated') {
+      if (result === 'contaminated') init.emitEnd('contaminated');
       break;
     }
   }
@@ -830,18 +830,12 @@ export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "a
   let toolTurns = 0;
   let lastFinishReason: string | null = null;
 
-  // With no executor, a turn that wants tools still ends ('stop') instead of looping.
-  const noExecutorReason = executeTool ? null : 'stop' as const;
   while (true) {
     const outcome = await runSingleOpenAiRequest(options, messages, emitEnd, endGuard.hasEnded, retry);
     lastFinishReason = outcome.finishReason;
-    // Ending mid-request leaves nothing more to emit. Otherwise a loop exit reason ends the turn,
-    // and so does a missing executor: pending tool calls were already emitted as `tool_use` events,
-    // so with nothing to run them the turn ends with 'stop' rather than silently retrying forever.
-    const ended = endGuard.hasEnded();
-    const exitReason = ended ? null : openAiLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) || noExecutorReason;
-    if (ended || exitReason || !executeTool) {
-      if (exitReason) emitEnd(exitReason);
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => openAiLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;

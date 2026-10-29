@@ -695,16 +695,20 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     while ((nl = buffer.indexOf('\n')) !== -1) {
       const line = buffer.slice(0, nl).trim();
       buffer = buffer.slice(nl + 1);
-      if (!line) continue;
-      let obj;
-      try {
-        obj = JSON.parse(line);
-      } catch {
-        onEvent({ type: 'raw', line });
-        continue;
-      }
-      handleObject(obj);
+      if (line) feedLine(line);
     }
+  }
+
+  /** One complete, non-blank line: a JSON object is handled, anything else passes through raw. */
+  function feedLine(line: string) {
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      onEvent({ type: 'raw', line });
+      return;
+    }
+    handleObject(obj);
   }
 
   function flush() {

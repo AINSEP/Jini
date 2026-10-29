@@ -429,17 +429,17 @@ export function selectStep(state: JsonScanState, index: number, char: string): J
 export function classifyJsonCandidate(value: string): 'complete' | 'incomplete' | 'invalid' {
   const state: JsonScanState = { value, stack: [], rootComplete: false };
 
-  for (let index = 0; index < value.length; index += 1) {
+  let index = 0;
+  while (index < value.length) {
     // The loop bound (`index < value.length`) guarantees this index always
     // yields a defined character; the non-null assertion documents that
     // runtime invariant in place of a `noUncheckedIndexedAccess`-driven
     // guard that could never actually trigger.
     const char = value[index]!;
-    if (/\s/.test(char)) continue;
-
-    const step = selectStep(state, index, char);
+    // Whitespace between tokens is skipped; a step reports the last index it consumed.
+    const step = /\s/.test(char) ? null : selectStep(state, index, char);
     if (step === 'invalid' || step === 'incomplete') return step;
-    index = step.nextIndex;
+    index = (step === null ? index : step.nextIndex) + 1;
   }
 
   return state.rootComplete && state.stack.length === 0 ? 'complete' : 'incomplete';

@@ -69,6 +69,13 @@ function claudeSelectionModels(id: string, resolvedId: string | undefined, displ
   if (!resolvedId || id === resolvedId) return [selection];
   return [selection, { id: resolvedId, label, identityKind: modelIdentityKind(resolvedId) }];
 }
+/** The picker rows one initialize row contributes; the `default` row also names the default selection. */
+function claudeRowModels(id: string, resolvedId: string | undefined, displayName: unknown): { models: DiscoveredModel[]; defaultId?: string } {
+  if (id !== 'default') return { models: claudeSelectionModels(id, resolvedId, displayName) };
+  // This displayName describes the CLI's default policy, not the model it resolves to.
+  if (!resolvedId || modelIdentityKind(resolvedId) !== 'concrete') return { models: [] };
+  return { models: [{ id: resolvedId, label: resolvedId, identityKind: 'concrete' }], defaultId: resolvedId };
+}
 function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResult {
   const models: DiscoveredModel[] = [];
   let defaultSelectionId: string | undefined;
@@ -76,15 +83,9 @@ function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResu
     if (!row || typeof row.value !== 'string') continue;
     const id = row.value.trim();
     const resolvedId = typeof row.resolvedModel === 'string' ? row.resolvedModel.trim() : undefined;
-    if (id === 'default') {
-      // This displayName describes the CLI's default policy, not the model it resolves to.
-      if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') {
-        defaultSelectionId = resolvedId;
-        models.push({ id: resolvedId, label: resolvedId, identityKind: 'concrete' });
-      }
-    } else {
-      models.push(...claudeSelectionModels(id, resolvedId, row.displayName));
-    }
+    const rowResult = claudeRowModels(id, resolvedId, row.displayName);
+    models.push(...rowResult.models);
+    if (rowResult.defaultId) defaultSelectionId = rowResult.defaultId;
   }
   return { models, source: 'rpc', coverage: 'account', ...withDefaultSelection(defaultSelectionId) };
 }

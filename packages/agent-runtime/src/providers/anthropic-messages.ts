@@ -76,11 +76,12 @@ import { redactSecrets } from '@jini-ai/core';
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
-import { decodeSseStream } from './sse-decode.js';
+import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
 
 export interface AnthropicTextBlockParam {
   readonly type: 'text';
@@ -623,6 +624,15 @@ async function runSingleAnthropicRequest(
     usage: null,
   };
 
+  /** The handler's verdict for one frame, or `null` when the frame carries nothing to act on. */
+  const handleFrame = (frame: DecodedSseEvent) => {
+    const data = parseAnthropicSseData({ raw: frame.data });
+    if (!data) return null; // malformed/empty keep-alive frame, or a non-object payload
+    const handler = ANTHROPIC_FRAME_HANDLERS[anthropicFrameKind({ data: data, frameEvent: frame.event })];
+    if (!handler) return null; // `message_stop`, `ping`, or a future event type — nothing to do
+    return handler(state, data, onEvent, options.apiKey);
+  };
+
   for await (const frame of decodeSseStream({ source: body })) {
     // No `isEnded()` re-check at the top of this loop: every `emitEnd(...)` call site below is
     // immediately followed by `break`, so `ended` can never be true when a new iteration starts
@@ -630,14 +640,8 @@ async function runSingleAnthropicRequest(
     // early returns inside `openAnthropicResponseStream` plus the two in-loop
     // contamination/error branches below). Verified, not assumed; see
     // `__tests__/anthropic-messages.test.ts`'s duplicate-end-event regression case.
-    const data = parseAnthropicSseData({ raw: frame.data });
-    if (!data) continue; // malformed/empty keep-alive frame, or a non-object payload
-
-    const handler = ANTHROPIC_FRAME_HANDLERS[anthropicFrameKind({ data: data, frameEvent: frame.event })];
-    if (!handler) continue; // `message_stop`, `ping`, or a future event type — nothing to do
-
-    const outcome = handler(state, data, onEvent, options.apiKey);
-    if (outcome.action === 'end') {
+    const outcome = handleFrame(frame);
+    if (outcome?.action === 'end') {
       emitEnd(outcome.reason);
       break;
     }
@@ -708,18 +712,12 @@ export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptio
   let toolTurns = 0;
   let lastStopReason: string | null = null;
 
-  // With no executor, a turn that wants tools still ends ('stop') instead of looping.
-  const noExecutorReason = executeTool ? null : 'stop' as const;
   while (true) {
     const outcome = await runSingleAnthropicRequest(options, messages, emitEnd, retry);
     lastStopReason = outcome.stopReason;
-    // Ending mid-request leaves nothing more to emit. Otherwise a loop exit reason ends the turn,
-    // and so does a missing executor: pending tool calls were already emitted as `tool_use` events,
-    // so with nothing to run them the turn ends with 'stop' rather than silently retrying forever.
-    const ended = endGuard.hasEnded();
-    const exitReason = ended ? null : anthropicLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) || noExecutorReason;
-    if (ended || exitReason || !executeTool) {
-      if (exitReason) emitEnd(exitReason);
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => anthropicLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;
