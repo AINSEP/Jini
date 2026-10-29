@@ -80,7 +80,8 @@ export class InMemoryFencedOutbox<E> implements FencedOutboxPort<E>, FencedEnque
       return original.requestDigest === intent.requestDigest ? { status: 'existing' }
         : { status: 'conflict', reason: 'request-digest-mismatch' };
     }
-    const id = `row-${++this.#sequence}`;
+    this.#sequence += 1;
+    const id = `row-${this.#sequence}`;
     this.rows.set(id, { ...structuredClone(intent), id, claimToken: '', leaseExpiresAt: EPOCH,
       attempts: 0, status: 'pending', nextAttemptAt: EPOCH });
     if (transaction) this.#joinInsert({ id, transaction });
@@ -98,7 +99,8 @@ export class InMemoryFencedOutbox<E> implements FencedOutboxPort<E>, FencedEnque
       && !this.#uncommitted.has(candidate.id)).slice(0, input.batchSize);
     for (const candidate of ready) {
       candidate.status = 'leased';
-      candidate.claimToken = `token-${++this.#sequence}`;
+      this.#sequence += 1;
+      candidate.claimToken = `token-${this.#sequence}`;
       candidate.leaseExpiresAt = new Date(Date.parse(input.nowIso) + input.claimLeaseMs).toISOString();
       ++candidate.attempts;
     }
