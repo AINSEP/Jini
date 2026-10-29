@@ -2,7 +2,7 @@ import { htmlUrlLocations } from './html-url-locations.js';
 export { exportUrlLocations } from './html-url-locations.js';
 import { ExportPathError } from './contracts.js';
 import { cssUrlTokens } from './css-urls.js';
-import { trimCharsEnd } from '@jini-ai/core/text';
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 
 // Reserved `.invalid` origins used only to resolve and compare URLs locally; never fetched. Both
 // schemes are "special" to the URL parser, so https resolves exactly as http did.

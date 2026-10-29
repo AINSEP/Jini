@@ -19,7 +19,7 @@
  */
 import path from 'node:path';
 import { promises as fsp, type Dirent } from 'node:fs';
-import { trimChars, trimCharsEnd, trimCharsStart } from '@jini-ai/core/text';
+import { trimChars, trimCharsEnd, trimCharsStart } from '@jini-ai/core/primitives';
 import { encodeS3PathSegment, signSigV4, type SigV4Credentials } from './aws-sigv4.js';
 
 /** Metadata for a single stored blob. */

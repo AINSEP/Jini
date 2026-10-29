@@ -11,7 +11,7 @@
  * itself.
  */
 import { extname } from "node:path";
-import { trimCharsEnd } from "@jini-ai/core/text";
+import { trimCharsEnd } from "@jini-ai/core/primitives";
 
 export type CommandInvocation = {
   args: string[];

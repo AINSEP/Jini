@@ -1,7 +1,7 @@
 import nodeFs from "node:fs";
 import type { Stats } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { trimCharsEnd } from "@jini-ai/core/text";
+import { trimCharsEnd } from "@jini-ai/core/primitives";
 import { FsFilePathError, type DenyRules, type GuardedFileReader, type GuardedReaderLimits } from '@jini-ai/core/filesystem';
 
 /** Path segments that never add a component: empty (doubled separator), ".", and "..". */

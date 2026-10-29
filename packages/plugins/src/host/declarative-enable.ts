@@ -52,7 +52,10 @@ export async function enableDeclaredPlugin(required: EnableDeclaredPluginRequire
   // ADR-024 §1: a Tier-1 plugin is zero executable code — the runtime never imports anything for it.
   const load = manifest.tier === "tier-1" ? async () => {} : loadCode;
   const { decls } = required.declarativeContentTypes.parse({ value: manifest.contentTypes });
-  if (decls.length === 0) return load();
+  if (decls.length === 0) {
+    await load();
+    return;
+  }
   const ports = optional.contentTypes;
   if (!ports) throw new PluginInvalidError(`plugin '${pluginId}' declares content types, but this site cannot create them`);
 

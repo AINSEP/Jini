@@ -1,4 +1,4 @@
-import { trimChars, trimCharsEnd } from '@jini-ai/core/text';
+import { trimChars, trimCharsEnd } from '@jini-ai/core/primitives';
 /**
  * Shared label-sanitizing helpers deploy targets use to turn a caller-supplied `projectName` into a
  * provider-safe identifier (lowercase, hyphenated, length-capped). Lifted

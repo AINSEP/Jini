@@ -1,7 +1,7 @@
 import { ExportPathError } from "./contracts.js";
 import type { DroppedReference, ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, ManifestSkip, RouteManifest } from './contracts.js';
 import { extractAssetUrls, extractHtmlReferences, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, rewriteAssetBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
-import { trimCharsEnd } from '@jini-ai/core/text';
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 
 const BASE_PATH_REWRITE_WARNING = "base-path rewriting is a best-effort TEXT rewrite over already-rendered responses — it cannot rewrite a path a theme's own JavaScript constructs at runtime from a string (same category of gap as the unreferenced-theme-file warning, just invisible to this rewrite instead of to the asset crawl).";
 interface RunContext { args: ExportSiteArgs; baseUrl: string; basePath: string; timeoutMs: number }

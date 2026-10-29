@@ -160,11 +160,12 @@ function slotsFor(claim: ExtensionClaim, rules: Readonly<Record<string, ClaimKin
 /** The first already-held slot a pending slot collides with, if any (rule 2: shared+shared never
  *  collides; anything involving an exclusive claim does). */
 function findHolder(held: readonly HeldSlot[], ownerId: string, pending: PendingSlot): HeldSlot | undefined {
+  const bothShared = (each: HeldSlot): boolean => each.mode === "shared" && pending.claim.mode === "shared";
   return held.find(
     (each) =>
       each.ownerId !== ownerId &&
       each.kind === pending.claim.kind &&
-      !(each.mode === "shared" && pending.claim.mode === "shared") &&
+      !bothShared(each) &&
       slotsOverlap(each.slot, pending.slot),
   );
 }
@@ -174,8 +175,7 @@ function conflictsFor(held: readonly HeldSlot[], owner: ClaimOwner, pending: rea
   const conflicts: ClaimConflict[] = [];
   const reported = new Set<ExtensionClaim>();
   for (const each of pending) {
-    if (reported.has(each.claim)) continue;
-    const holder = findHolder(held, owner.id, each);
+    const holder = reported.has(each.claim) ? undefined : findHolder(held, owner.id, each);
     if (!holder) continue;
     reported.add(each.claim);
     conflicts.push({ ownerId: owner.id, kind: each.claim.kind, key: each.claim.key, heldBy: holder.ownerId, heldKey: holder.key });
