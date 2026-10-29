@@ -37,9 +37,8 @@ export function VersionSidebar<TVersion extends VersionRecord>({
   restoredFrom,
 }: VersionSidebarProps<TVersion>) {
   const t = useT();
-  let emptyMessage: string | null = null;
-  if (versions.length === 0) emptyMessage = t('No versions yet.');
-  else if (visibleVersions.length === 0) emptyMessage = t('No results for “{query}”.', { query: search.trim() });
+  const noResultsMessage = visibleVersions.length === 0 ? t('No results for “{query}”.', { query: search.trim() }) : null;
+  const emptyMessage = versions.length === 0 ? t('No versions yet.') : noResultsMessage;
 
   return (
     <div className="jini-version-sidebar">

@@ -146,8 +146,11 @@ export function useActiveTabInView({ activeId }: { activeId: string }, _optional
       const tabBox = tab.getBoundingClientRect();
       // A host's end padding (e.g. room for an edge fade) counts as off-screen.
       const visibleRight = stripBox.right - (parseFloat(getComputedStyle(strip).paddingRight) || 0);
-      if (tabBox.left < stripBox.left) strip.scrollLeft += tabBox.left - stripBox.left;
-      else if (tabBox.right > visibleRight) strip.scrollLeft += tabBox.right - visibleRight;
+      if (tabBox.left < stripBox.left) {
+        strip.scrollLeft += tabBox.left - stripBox.left;
+        return;
+      }
+      if (tabBox.right > visibleRight) strip.scrollLeft += tabBox.right - visibleRight;
     }
     scrollActiveTabIntoView();
     let cancelled = false;

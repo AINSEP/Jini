@@ -8,6 +8,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import { Icon } from './Icon.js';
+import { withClassName } from '../../utils/class-names.js';
 
 export type WorkingDirPlacement = 'down' | 'up';
 
@@ -475,7 +476,7 @@ export function WorkingDirPicker({
   return (
     <div
       ref={wrapRef}
-      className={`jini-working-dir-picker${className ? ` ${className}` : ''}`}
+      className={withClassName('jini-working-dir-picker', className)}
       data-testid="working-dir-picker"
     >
       <WorkingDirTrigger

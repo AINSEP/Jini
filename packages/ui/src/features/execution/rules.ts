@@ -624,9 +624,10 @@ export function pickerModelOptions(
     const existing = choices.get(id);
     if (!existing) {
       choices.set(id, option);
-    } else if (existing.label === id && label !== id) {
-      choices.set(id, { ...existing, label });
+      continue;
     }
+    // A later duplicate only upgrades an entry whose label was just its id.
+    if (existing.label === id && label !== id) choices.set(id, { ...existing, label });
   }
   return [...choices.values()];
 }

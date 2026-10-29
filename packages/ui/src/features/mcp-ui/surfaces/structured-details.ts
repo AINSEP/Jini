@@ -80,7 +80,10 @@ function renderArray({ value, ...context }: ValueContext & { value: readonly unk
   const compact = value.every(item => item === null || ['boolean', 'number', 'string'].includes(typeof item))
     && value.every(item => String(item).length <= 80 && !/[\r\n<{[]/.test(String(item)));
   if (compact) return renderText({ ...context, value: value.map(item => scalarText({ value: item })).join(', ') });
-  const items = value.map((item, index) => `<li>${renderValue({ ...context, value: item, path: context.path ? `${context.path}.${index}` : String(index) })}</li>`);
+  const items = value.map((item, index) => {
+    const path = context.path ? `${context.path}.${index}` : String(index);
+    return `<li>${renderValue({ ...context, value: item, path })}</li>`;
+  });
   const rest = items.length <= 5 ? '' : disclosure({ summary: `Show more (${items.length - 5} items)`, body: `<ul class="mcpui-detail-array">${items.slice(5).join('')}</ul>` });
   return `<ul class="mcpui-detail-array">${items.slice(0, 5).join('')}</ul>${rest}`;
 }

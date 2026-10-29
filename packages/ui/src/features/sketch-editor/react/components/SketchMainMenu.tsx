@@ -32,9 +32,8 @@ export function SketchMainMenu({
   canClear,
   onClear,
 }: SketchMainMenuProps) {
-  let saveLabel = t('Save');
-  if (saving) saveLabel = t('Saving…');
-  else if (showSaved) saveLabel = t('Saved');
+  const idleSaveLabel = showSaved ? t('Saved') : t('Save');
+  const saveLabel = saving ? t('Saving…') : idleSaveLabel;
   const exportLabel = exporting ? t('Exporting image…') : t('Export image');
 
   return (

@@ -1,5 +1,6 @@
 import { agentHandle } from "@jini-ai/agentic";
 import { useSeeMoreClamp } from "./SeeMore.hooks.js";
+import { withClassName } from "../../../../utils/class-names.js";
 
 /**
  * Clamp the rendered region instead of slicing children: hidden text must stay in the DOM so
@@ -51,7 +52,7 @@ export function resolveSeeMoreView({
 } = {}): SeeMoreView {
   return {
     wrapperClassName: className ? `see-more ${className}` : "see-more",
-    textClassName: `see-more-text${expanded ? " is-expanded" : ""}${textClassName ? ` ${textClassName}` : ""}`,
+    textClassName: withClassName(expanded ? "see-more-text is-expanded" : "see-more-text", textClassName),
     toggleClassName: toggleClassName ? `see-more-toggle ${toggleClassName}` : "see-more-toggle",
     toggleLabel: expanded ? lessLabel : moreLabel,
   };

@@ -208,10 +208,11 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
           if (ok) {
             enabledConfirmedRef.current = value;
             if (!hasNewerIntent) setError(null);
-          } else if (!hasNewerIntent) {
-            setEnabled(enabledConfirmedRef.current);
-            setError(CONFIG_SAVE_ERROR_MESSAGE);
+            return;
           }
+          if (hasNewerIntent) return;
+          setEnabled(enabledConfirmedRef.current);
+          setError(CONFIG_SAVE_ERROR_MESSAGE);
         },
       );
     },
@@ -246,10 +247,11 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
           if (ok) {
             hookConfirmedRef.current[key] = value;
             if (!hasNewerIntent) setError(null);
-          } else if (!hasNewerIntent) {
-            setter(() => hookConfirmedRef.current[key]);
-            setError(CONFIG_SAVE_ERROR_MESSAGE);
+            return;
           }
+          if (hasNewerIntent) return;
+          setter(() => hookConfirmedRef.current[key]);
+          setError(CONFIG_SAVE_ERROR_MESSAGE);
         },
       );
     },

@@ -42,7 +42,8 @@ export function buildMcpStdioServerConfig(info: McpInstallInfo): McpStdioServerC
 export function buildCodexEnvToml(serverName: string, info: McpInstallInfo): string {
   const entries = Object.entries(info.env ?? {});
   if (entries.length === 0) return '';
-  return `\n\n[mcp_servers.${serverName}.env]\n${entries.map(([key, value]) => `${key} = ${JSON.stringify(value)}`).join('\n')}`;
+  const lines = entries.map(([key, value]) => `${key} = ${JSON.stringify(value)}`).join('\n');
+  return `\n\n[mcp_servers.${serverName}.env]\n${lines}`;
 }
 
 /** The `{"mcpServers": {"<serverName>": {...}}}` shape shared by Cursor,

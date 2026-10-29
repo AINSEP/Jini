@@ -313,19 +313,17 @@ export function useResizableSplitPane(
 
   const onHandleKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
-      let nextWidth: number | null = null;
       const container = containerRef.current;
       const isRtl = container ? window.getComputedStyle(container).direction === 'rtl' : false;
-      if (event.key === 'ArrowLeft') {
-        nextWidth = widthRef.current + (isRtl ? 1 : -1) * keyboardStep;
-      } else if (event.key === 'ArrowRight') {
-        nextWidth = widthRef.current + (isRtl ? -1 : 1) * keyboardStep;
-      } else if (event.key === 'Home') {
-        nextWidth = minWidth;
-      } else if (event.key === 'End') {
-        nextWidth = maxWidthRef.current;
-      }
-      if (nextWidth === null) return;
+      // ArrowRight grows the pane in LTR and shrinks it in RTL; ArrowLeft is the mirror.
+      const rightStep = (isRtl ? -1 : 1) * keyboardStep;
+      const nextWidth = new Map<string, number>([
+        ['ArrowLeft', widthRef.current - rightStep],
+        ['ArrowRight', widthRef.current + rightStep],
+        ['Home', minWidth],
+        ['End', maxWidthRef.current],
+      ]).get(event.key);
+      if (nextWidth === undefined) return;
       event.preventDefault();
       const next = applyWidth(nextWidth);
       saveWidth(storageKey, next, minWidth, maxWidthOption);

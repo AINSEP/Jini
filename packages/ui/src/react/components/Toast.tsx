@@ -22,6 +22,7 @@ import {
 } from 'react';
 
 import { Icon } from './Icon.js';
+import { withClassName } from '../../utils/class-names.js';
 
 export type ToastTone = 'default' | 'success' | 'error' | 'loading';
 export type ToastPlacement = 'bottom' | 'top';
@@ -118,7 +119,8 @@ export function toastClassName(options: {
   leaving: boolean;
 }): string {
   const { tone, placement, className, leaving } = options;
-  return `jini-toast tone-${tone} placement-${placement}${className ? ` ${className}` : ''}${leaving ? ' leaving' : ''}`;
+  const base = withClassName(`jini-toast tone-${tone} placement-${placement}`, className);
+  return leaving ? `${base} leaving` : base;
 }
 
 // --- Hooks (co-located, exported) -----------------------------------------

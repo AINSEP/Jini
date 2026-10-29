@@ -224,7 +224,8 @@ function renderSourceShells(
       .map(name => ` ${name}="${escapeAttribute(attrs[name]!)}"`).join('');
     const tag = instance.nonvisual ? 'span' : instance.tagName;
     const voidTag = instance.openingEnd === instance.outerEnd;
-    const shell = `<${tag} ${markerAttribute}="${i}"${layout}>${voidTag && !instance.nonvisual ? '' : `</${tag}>`}`;
+    const closingTag = voidTag && !instance.nonvisual ? '' : `</${tag}>`;
+    const shell = `<${tag} ${markerAttribute}="${i}"${layout}>${closingTag}`;
     prepared = prepared.slice(0, instance.outerStart) + shell + prepared.slice(instance.outerEnd);
   }
   return prepared;

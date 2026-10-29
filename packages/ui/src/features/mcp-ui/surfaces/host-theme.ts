@@ -90,6 +90,7 @@ export function applyHostSurfaceTokens(html: string, tokens: HostSurfaceTokens):
   const close = html.indexOf('</style>');
   if (close === -1) return html;
   const at = close + '</style>'.length;
-  const rule = `\n<style ${HOST_THEME_STYLE_ATTRIBUTE}>\n:root {\n${entries.map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n</style>`;
+  const declarations = entries.map(([name, value]) => `  ${name}: ${value};`).join('\n');
+  const rule = `\n<style ${HOST_THEME_STYLE_ATTRIBUTE}>\n:root {\n${declarations}\n}\n</style>`;
   return `${html.slice(0, at)}${rule}${html.slice(at)}`;
 }
