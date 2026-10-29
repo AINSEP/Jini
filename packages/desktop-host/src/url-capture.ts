@@ -39,10 +39,9 @@ function integerInRange({ value, min, max }: { value: unknown; min: number; max:
 }
 
 function validCaptureViewport({ viewport }: { viewport: UrlCaptureRequest['viewport'] | undefined }, _options = {}): boolean {
-  return !!viewport && integerInRange({ value: viewport.width, min: 1, max: 1280 })
-    && integerInRange({ value: viewport.height, min: 1, max: 1024 })
-    && [undefined, 1, 2].includes(viewport.deviceScaleFactor)
-    && [undefined, true, false].includes(viewport.isMobile);
+  if (!viewport) return false;
+  const sizeOk = integerInRange({ value: viewport.width, min: 1, max: 1280 }) && integerInRange({ value: viewport.height, min: 1, max: 1024 });
+  return sizeOk && [undefined, 1, 2].includes(viewport.deviceScaleFactor) && [undefined, true, false].includes(viewport.isMobile);
 }
 
 /** Parse the wire request before allocating a renderer; reject oversized images and waits.

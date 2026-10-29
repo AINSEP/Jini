@@ -149,7 +149,9 @@ async function checkAvailability(deps: AvailabilityDeps): Promise<TranscriptionA
 }
 
 function readSuccessfulTranscription({ result, messages }: { result: HelperPayload; messages: MacTranscriberMessages }, _options = {}): TranscriptionResult {
-  if ((result.text !== undefined && typeof result.text !== "string") || (result.elapsedMs !== undefined && (typeof result.elapsedMs !== "number" || !Number.isFinite(result.elapsedMs)))) {
+  const badText = result.text !== undefined && typeof result.text !== "string";
+  const badElapsed = result.elapsedMs !== undefined && (typeof result.elapsedMs !== "number" || !Number.isFinite(result.elapsedMs));
+  if (badText || badElapsed) {
     throw new Error(messages.invalidOutput({ stdout: JSON.stringify(result) }));
   }
   return { text: result.text ?? "", elapsedMs: result.elapsedMs ?? 0 };

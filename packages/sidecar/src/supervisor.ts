@@ -159,7 +159,10 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
         deps.logger.emit({ type: "exit", at: deps.now(), pid: child.pid, code, signal, deliberate: state.deliberate });
       }
       if (terminating) return;
-      if (state.replaceAfterExit) { if (!state.stopping) attemptSpawn(); return; }
+      if (state.replaceAfterExit) {
+        if (!state.stopping) attemptSpawn();
+        return;
+      }
       if (!state.deliberate) handleUnexpectedExit(code, signal);
     } });
   }

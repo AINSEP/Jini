@@ -125,15 +125,14 @@ export function createFakeTauriSidecarCommandApi(_requiredArgs: Record<string, n
     async spawnSidecar({ binaryName, args }) {
       spawned.push({ binaryName, args });
       const exitListeners: Array<(args: { code: number | null; signal: NodeJS.Signals | null }) => void> = [];
-      let killed = false;
       const child: TauriChildProcessLike = {
         pid: 4242,
         onExit({ listener }) {
           exitListeners.push(listener);
         },
         kill(_requiredArgs, { signal } = {}) {
+          // A child that ignores graceful shutdown still accepts the signal; only SIGKILL ends it.
           if (script.ignoresGracefulShutdown === true && signal !== 'SIGKILL') return true;
-          killed = true;
           // A macrotask, not queueMicrotask: real process exit delivery
           // happens after the event loop's current microtask work drains
           // (the caller's own await chains included). queueMicrotask here
@@ -158,7 +157,6 @@ export function createFakeTauriSidecarCommandApi(_requiredArgs: Record<string, n
           for (const listener of exitListeners) listener({ code: exitImmediatelyWithCode, signal: null });
         }, 0);
       }
-      void killed;
       return child;
     },
   };

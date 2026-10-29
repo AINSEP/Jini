@@ -30,6 +30,7 @@ function toWindowHandle(win: TauriWindowLike): WindowHandle {
         timer.unref?.();
       };
       observeClosed();
+      return undefined;
     },
   };
 }

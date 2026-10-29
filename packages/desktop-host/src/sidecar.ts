@@ -89,9 +89,10 @@ async function waitUntilReady<T>(
       logPath == null ? '' : `; see ${logPath} for details`
     }`,
   );
-  const timeoutError = () => new Error(
-    `timed out waiting for sidecar to become ready${lastError instanceof Error ? ` (${lastError.message})` : ''}`,
-  );
+  const timeoutError = () => {
+    const detail = lastError instanceof Error ? ` (${lastError.message})` : '';
+    return new Error(`timed out waiting for sidecar to become ready${detail}`);
+  };
   if (child.exitCode !== null || child.signalCode !== null) throw exitError(child.exitCode, child.signalCode);
   if (timeoutMs <= 0) throw timeoutError();
 
