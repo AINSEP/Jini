@@ -82,14 +82,14 @@ export function claudeAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }:
 export function isCursorAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
-  return (
-    /authentication required/i.test(value) ||
-    /not authenticated/i.test(value) ||
-    /not logged in/i.test(value) ||
-    /unauthenticated/i.test(value) ||
-    /agent login/i.test(value) ||
-    /cursor_api_key/i.test(value)
-  );
+  return [
+    /authentication required/i,
+    /not authenticated/i,
+    /not logged in/i,
+    /unauthenticated/i,
+    /agent login/i,
+    /cursor_api_key/i,
+  ].some((pattern) => pattern.test(value));
 }
 
 // agy's plain-mode output when no keyring credentials are available:
@@ -115,13 +115,10 @@ export function isAntigravityAuthFailureText({ text }: { text: string }): boolea
 export function isDeepSeekAuthFailureText({ text }: { text: string }): boolean {
   const value = String(text || '');
   if (!value.trim()) return false;
-  return (
-    /KEY=<your-key>/i.test(value) ||
-    /api_key\s*=\s*["']<your-key>["']/i.test(value) ||
-    (/~\/\.deepseek\/config\.toml/i.test(value) && /api[_ -]?key|KEY=/i.test(value)) ||
-    (/DEEPSEEK_API_KEY/i.test(value) &&
-      /auth|api[_ -]?key|missing|not set|required|unauthorized/i.test(value))
-  );
+  const placeholderKey = /KEY=<your-key>/i.test(value) || /api_key\s*=\s*["']<your-key>["']/i.test(value);
+  const configMentionsKey = /~\/\.deepseek\/config\.toml/i.test(value) && /api[_ -]?key|KEY=/i.test(value);
+  const envKeyProblem = /DEEPSEEK_API_KEY/i.test(value) && /auth|api[_ -]?key|missing|not set|required|unauthorized/i.test(value);
+  return placeholderKey || configMentionsKey || envKeyProblem;
 }
 
 export function isReasonixAuthFailureText({ text }: { text: string }): boolean {
@@ -154,14 +151,14 @@ function claudeTextAuthFailure({ value }: { value: string }): boolean {
   if (/"authenticated"\s*:\s*true/i.test(value) || /"loggedIn"\s*:\s*true/i.test(value)) {
     return false;
   }
-  return (
-    /"authenticated"\s*:\s*false/i.test(value) ||
-    /"loggedIn"\s*:\s*false/i.test(value) ||
-    /not authenticated/i.test(value) ||
-    /not logged[ _-]?in/i.test(value) ||
-    /authentication required/i.test(value) ||
-    /please (?:sign|log)[ _-]?in/i.test(value)
-  );
+  return [
+    /"authenticated"\s*:\s*false/i,
+    /"loggedIn"\s*:\s*false/i,
+    /not authenticated/i,
+    /not logged[ _-]?in/i,
+    /authentication required/i,
+    /please (?:sign|log)[ _-]?in/i,
+  ].some((pattern) => pattern.test(value));
 }
 
 export function isClaudeAuthFailureText({ text }: { text: string }): boolean {

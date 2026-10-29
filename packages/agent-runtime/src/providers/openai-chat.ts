@@ -75,6 +75,7 @@ import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
 import { toolLoopVerdict } from './tool-loop-verdict.js';
+import { omitKeys } from '../core/omit-keys.js';
 
 export interface OpenAiFunctionToolDef {
   readonly type: 'function';
@@ -339,7 +340,7 @@ export function refreshOpenAiTools<T extends OpenAiTurnOptions>(
 ): T {
   let tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
   if (!retry.enabled) tools = tools?.map(tool => {
-    const { strict: _strict, ...definition } = tool.function;
+    const definition = omitKeys(tool.function, ['strict']);
     return { ...tool, function: definition };
   });
   return { ...options, ...(tools !== undefined ? { tools } : {}) };
@@ -460,12 +461,12 @@ function resolveOpenAiRetry(
 ): OpenAiFetchOutcome | null {
   const toolRetryBody = init.retryToolBody?.({ status, rawErrorText: rawText, body: init.body });
   if (toolRetryBody) {
-    const { retryToolBody: _retryToolBody, ...retryInit } = init;
+    const retryInit = omitKeys(init, ['retryToolBody']);
     return { type: 'retry', retryInit: { ...retryInit, body: toolRetryBody } };
   }
   const retryBody = init.retryableBody?.(status, rawText);
   if (retryBody) {
-    const { retryableBody: _retryableBody, ...retryInit } = init;
+    const retryInit = omitKeys(init, ['retryableBody']);
     return { type: 'retry', retryInit: { ...retryInit, body: retryBody } };
   }
   return null;

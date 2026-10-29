@@ -82,6 +82,7 @@ import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
 import { toolLoopVerdict } from './tool-loop-verdict.js';
+import { omitKeys } from '../core/omit-keys.js';
 
 export interface AnthropicTextBlockParam {
   readonly type: 'text';
@@ -514,7 +515,7 @@ const ANTHROPIC_FRAME_HANDLERS: Record<string, AnthropicFrameHandler> = {
 function refreshAnthropicTools(options: AnthropicTurnOptions, retry: StrictToolRetryState): AnthropicTurnOptions {
   let tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
   if (!retry.enabled) tools = tools?.map(tool => {
-    const { strict: _strict, ...definition } = tool;
+    const definition = omitKeys(tool, ['strict']);
     return definition;
   });
   return { ...options, ...(tools !== undefined ? { tools } : {}) };

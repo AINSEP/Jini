@@ -16,10 +16,24 @@ function eventForCapture({ event, mode }: { event: AiTraceEvent; mode: AiContent
     case 'model_turn': return { ...event, input: text(event.input), output: text(event.output), reasoning: text(event.reasoning), errorContent: text(event.errorContent), error: event.error === null ? null : 'model_error' };
     case 'tool_call': return { ...event, input: text(event.input), output: text(event.output) };
     case 'run_finished': return { ...event, error: event.error === null ? null : { ...event.error, message: 'run_error', content: text(event.error.content) } };
+    default: {
+      // Unreachable: every AiTraceEvent kind has a case above, and a new kind fails typecheck here.
+      const unhandled: never = event;
+      throw new TypeError(`Unknown AI trace event kind: ${String((unhandled as { kind?: unknown }).kind)}`);
+    }
   }
 }
 
 export const noopAiTraceSink: AiTraceSink = { record: () => {} };
+
+/** Calls `load` right away and settles with its result; a synchronous throw becomes a rejection. */
+function settleSync<T>(load: () => T | PromiseLike<T>): Promise<T> {
+  try {
+    return Promise.resolve(load());
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
 
 export interface RecordingAiTraceSink extends AiTraceSink {
   readonly events: readonly AiTraceEvent[];
@@ -84,7 +98,7 @@ export function createLazyAiTraceSink({ load }: { load: () => Promise<AiTraceSin
     try { target?.record(event); } catch (error) { reportError({ error, onError: onSinkError }); }
   }
   // Invoke load synchronously for existing hosts, but contain a synchronous throw as well as rejection.
-  const loading = new Promise<AiTraceSink>((resolve) => resolve(load()));
+  const loading = settleSync(load);
   const ready = loading.then(
     (sink) => {
       target = sink;
@@ -101,7 +115,10 @@ export function createLazyAiTraceSink({ load }: { load: () => Promise<AiTraceSin
     ready,
     dropped: () => dropped,
     record(event) {
-      if (target) return deliver(event);
+      if (target) {
+        deliver(event);
+        return;
+      }
       if (queue.length >= maxQueued) {
         queue.shift();
         dropped += 1;

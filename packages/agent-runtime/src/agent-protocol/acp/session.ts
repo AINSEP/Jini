@@ -71,6 +71,8 @@ export interface AcpPermissionOption {
 }
 
 /** ACP `PermissionOptionKind` values; other offered options are ignored. */
+/** `source` tag on every diagnostic this session reports about the ACP JSON-RPC stream. */
+const ACP_JSON_RPC_SOURCE = 'acp-json-rpc';
 const ACP_PERMISSION_OPTION_KINDS: readonly string[] = ['allow_once', 'allow_always', 'reject_once', 'reject_always'];
 /** ACP `ToolKind` values; anything else is logged as `other`. */
 const ACP_TOOL_KINDS: readonly string[] = ['read', 'edit', 'delete', 'move', 'search', 'execute', 'think', 'fetch', 'switch_mode', 'other'];
@@ -352,12 +354,8 @@ function isRecoverableModelSelectionError({
   obj: UnknownRecord;
   error: UnknownRecord | null;
 }): boolean {
-  return (
-    obj.id === state.setModelRequestId &&
-    modelSelectionErrorIsRecoverable(error?.code) &&
-    state.promptRequestId === null &&
-    (!effects.model || effects.model === 'default')
-  );
+  const awaitingSetModel = obj.id === state.setModelRequestId && state.promptRequestId === null;
+  return awaitingSetModel && modelSelectionErrorIsRecoverable(error?.code) && (!effects.model || effects.model === 'default');
 }
 
 /** Fails the run for a real RPC error, promoting a known OpenCode session error
@@ -1040,8 +1038,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     });
     throw error;
   }
-  const stdin = child.stdin;
-  const stdout = child.stdout;
+  const { stdin, stdout } = child;
   const state = createAcpSessionState();
   let emittedFirstTokenStatus = false;
   let rawAcpShapeDiagnosticCount = 0;
@@ -1163,30 +1160,27 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     const useModelUnavailable =
       modelUnavailableErrorCode &&
       (options.forceModelUnavailable || isModelUnavailableError(message));
-    sendFailure({ payload: useModelUnavailable
-        ? amrModelUnavailablePayload(message)
-        : options.details === undefined && options.retryable === undefined
-          ? { message }
-          : {
-              message,
-              error: {
-                code: 'AGENT_EXECUTION_FAILED',
-                message,
-                retryable: options.retryable ?? false,
-                // Every real call site that reaches this branch (the
-                // RPC-error path and the no-visible-output path) always
-                // supplies `details` whenever it supplies `retryable`, and
-                // `retryable` is itself derived from the same `details`
-                // source at the RPC-error call site — so `options.details`
-                // is never actually undefined here. Spreading it
-                // unconditionally (rather than conditionally omitting the
-                // key) is behaviorally identical for every real caller;
-                // simplified per this package's coverage-driven
-                // dead-branch discipline. See archived provenance ledger.
-                details: options.details,
-              },
-            } }
-    );
+    const bareFailure = options.details === undefined && options.retryable === undefined;
+    const failurePayload = bareFailure ? { message } : {
+      message,
+      error: {
+        code: 'AGENT_EXECUTION_FAILED',
+        message,
+        retryable: options.retryable ?? false,
+        // Every real call site that reaches this branch (the
+        // RPC-error path and the no-visible-output path) always
+        // supplies `details` whenever it supplies `retryable`, and
+        // `retryable` is itself derived from the same `details`
+        // source at the RPC-error call site — so `options.details`
+        // is never actually undefined here. Spreading it
+        // unconditionally (rather than conditionally omitting the
+        // key) is behaviorally identical for every real caller;
+        // simplified per this package's coverage-driven
+        // dead-branch discipline. See archived provenance ledger.
+        details: options.details,
+      },
+    };
+    sendFailure({ payload: useModelUnavailable ? amrModelUnavailablePayload(message) : failurePayload });
     if (!child.killed) child.kill('SIGTERM');
   };
 
@@ -1206,7 +1200,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_raw_event_shape',
-      source: 'acp-json-rpc',
+      source: ACP_JSON_RPC_SOURCE,
       elapsedMs: Date.now() - runStartedAt,
       shape: acpRawEventShape(update),
     } });
@@ -1248,7 +1242,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_artifact_text_suppression',
-      source: 'acp-json-rpc',
+      source: ACP_JSON_RPC_SOURCE,
       elapsedMs: Date.now() - runStartedAt,
       reason,
       suppressedChars: artifactTextSuppressionSummary.suppressedChars,
@@ -1266,7 +1260,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
       send({ event: 'agent', payload: {
         type: 'diagnostic',
         name: 'unexpected_text_artifact_in_filesystem_run',
-        source: 'acp-json-rpc',
+        source: ACP_JSON_RPC_SOURCE,
         elapsedMs: Date.now() - runStartedAt,
         suppressedChars: artifactTextSuppressionSummary.suppressedChars,
         suppressedChunks: artifactTextSuppressionSummary.suppressedChunks,
@@ -1277,7 +1271,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_artifact_text_suppression_summary',
-      source: 'acp-json-rpc',
+      source: ACP_JSON_RPC_SOURCE,
       elapsedMs: Date.now() - runStartedAt,
       ...artifactTextSuppressionSummary,
     } });
@@ -1297,7 +1291,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_tool_call_text_suppression',
-      source: 'acp-json-rpc',
+      source: ACP_JSON_RPC_SOURCE,
       elapsedMs: Date.now() - runStartedAt,
       reason,
       suppressedChars: toolCallTextSuppressionSummary.suppressedChars,
@@ -1314,7 +1308,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     send({ event: 'agent', payload: {
       type: 'diagnostic',
       name: 'acp_tool_call_text_suppression_summary',
-      source: 'acp-json-rpc',
+      source: ACP_JSON_RPC_SOURCE,
       elapsedMs: Date.now() - runStartedAt,
       ...toolCallTextSuppressionSummary,
     } });

@@ -315,8 +315,7 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   parentSession,
   gracefulShutdownMs = 5000,
 }: PiRpcSessionOptions = { ...optionalArgs, ...requiredArgs };
-  const stdin = child.stdin;
-  const stdout = child.stdout;
+  const { stdin, stdout } = child;
   if (stdin === null) {
     throw new Error('pi RPC child process is missing stdin');
   }
@@ -336,7 +335,8 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
 
   function sendCommand(writable: Writable, type: string, params: PiRpcParams = {}): number | null {
     if (!stdinOpen) return null;
-    const id = nextRpcId++;
+    const id = nextRpcId;
+    nextRpcId += 1;
     writable.write(`${JSON.stringify({ id, type, ...params })}\n`);
     return id;
   }

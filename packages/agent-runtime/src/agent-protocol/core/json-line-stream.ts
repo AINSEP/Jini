@@ -201,7 +201,10 @@ export function parseString(value: string, start: number): number | null {
   return null;
 }
 
-export function parseLiteral(value: string, start: number, literal: string): number | null | false {
+/** Index of a scanned value's last character, `null` when the input ends mid-value, `false` when it is not valid JSON. */
+type JsonScanEnd = number | null | false;
+
+export function parseLiteral(value: string, start: number, literal: string): JsonScanEnd {
   for (let offset = 0; offset < literal.length; offset += 1) {
     const char = value[start + offset];
     if (char === undefined) return null;
@@ -275,16 +278,15 @@ function openContainer(state: JsonScanState, index: number, frame: JsonScanFrame
   return index;
 }
 
-export function parseLiteralValue(state: JsonScanState, index: number, literal: string): number | null | false {
+export function parseLiteralValue(state: JsonScanState, index: number, literal: string): JsonScanEnd {
   const end = parseLiteral(state.value, index, literal);
-  if (end === false || end === null) return end;
-  afterValue(state);
+  if (typeof end === 'number') afterValue(state);
   return end;
 }
 
 const LITERAL_STARTS: Record<string, string> = { t: 'true', f: 'false', n: 'null' };
 
-export function parseValue(state: JsonScanState, index: number): number | null | false {
+export function parseValue(state: JsonScanState, index: number): JsonScanEnd {
   const char = state.value[index];
   if (char === '"') return parseStringValue(state, index);
   if (char === '{') return openContainer(state, index, { kind: 'object', expect: 'keyOrEnd' });
