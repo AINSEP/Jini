@@ -63,7 +63,16 @@ export const SECRET_SHAPE_PATTERNS: readonly SecretShapePattern[] = [
 ];
 
 /** Broad token shapes for agent-failure text; consumers retain their plain [REDACTED] pipeline. */
-export const AGENT_FAILURE_SECRET_SHAPE_RE = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[\w.-]+|gh[pousr]_[\w]+|github_pat_[\w]+|ya29\.[\w.-]+|eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)/g;
+const AGENT_FAILURE_TOKEN_SHAPES: readonly RegExp[] = [
+  /AIza[\w-]+/, // Google API key
+  /AQ\.[\w.\/-]+/, // AI Studio key
+  /sk-[\w.-]+/, // OpenAI-style secret key
+  /gh[pousr]_\w+/, // GitHub token
+  /github_pat_\w+/, // GitHub fine-grained token
+  /ya29\.[\w.-]+/, // Google OAuth access token
+  /eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?/, // JWT
+];
+export const AGENT_FAILURE_SECRET_SHAPE_RE = new RegExp(`\\b(?:${AGENT_FAILURE_TOKEN_SHAPES.map((shape) => shape.source).join('|')})`, 'g');
 
 /**
  * Exact path SEGMENT names refused at any depth, matched case-insensitively against each segment
@@ -107,6 +116,13 @@ export interface SecretRedactionPattern {
 // Order matters: list specific rules before more general ones. Langfuse
 // keys (`sk-lf-...`) would otherwise be eaten by the generic `sk-...`
 // rule and labeled as a generic OpenAI-style key.
+// One IPv4 octet, 0-255, so junk shapes like 999.1.1.1 do not count.
+const IPV4_OCTET = '(?:25[0-5]|2[0-4]\\d|[01]?\\d?\\d)';
+// Optional +country code, then a bare or parenthesized area code, with optional separators.
+const PHONE_SEPARATOR = '[\\s.-]?';
+const PHONE_COUNTRY_CODE = /(?:\+?\d{1,3}[\s.-]?)?/;
+const PHONE_AREA_CODE = /(?:\(\d{3}\)|\d{3})/;
+
 const PATTERNS: readonly SecretRedactionPattern[] = [
   // Langfuse public/secret keys (pk-lf- / sk-lf-). Must run before the
   // generic sk- rule so the more specific label wins.
@@ -151,7 +167,9 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // Bearer tokens in HTTP Authorization header copy/paste. We only match
   // the value, not the literal 'Bearer ', so the marker stays readable in
   // the redacted output ("Authorization: Bearer [REDACTED:bearer_token]").
-  { name: 'bearer_token', regex: /(?<=\bBearer\s+)[A-Za-z0-9._~+/-]{16,}={0,2}/g },
+  // The leading lookahead only lets the lookbehind run where a value can start, so a long
+  // whitespace run is not rescanned from every position inside it.
+  { name: 'bearer_token', regex: /(?=[A-Za-z0-9._~+/-])(?<=\bBearer\s+)[A-Za-z0-9._~+/-]{16,}={0,2}/g },
 
   // Alphabetic TLDs preserve versioned package paths in error stacks (e.g. pkg@1.2.3).
   { name: 'email', regex: /\b[\w.+-]+@(?:[\w-]+\.)+[A-Za-z]{2,}\b/g },
@@ -160,7 +178,7 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // each octet being 0-255.
   {
     name: 'ipv4',
-    regex: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b/g,
+    regex: new RegExp(`\\b(?:${IPV4_OCTET}\\.){3}${IPV4_OCTET}\\b`, 'g'),
   },
 
   // Phone numbers. Tight US-leaning shape; a global PII detector would
@@ -171,7 +189,7 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
   // hashes and identifiers stay readable; separators within phones still match.
   {
     name: 'phone',
-    regex: /(?<![\w-])(?:\+?\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])/g,
+    regex: new RegExp(`(?<![\\w-])${PHONE_COUNTRY_CODE.source}${PHONE_AREA_CODE.source}${PHONE_SEPARATOR}\\d{3}${PHONE_SEPARATOR}\\d{4}(?![\\w-])`, 'g'),
   },
 ];
 
@@ -231,7 +249,10 @@ export interface SecretRedactionOptions {
 const SECRET_LABELS = 'authorization|bearer|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|password|secret|cookie';
 export const LABELED_SECRET_RE = new RegExp(`\\b(${SECRET_LABELS})\\b\\s*[:=]\\s*\\S+`, 'gi');
 export const OPAQUE_TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;
-export const NON_SECRET_TOKEN_RE = /^(?:ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}|delegated-tool-calls|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)$/;
+// Pattern parts, only ever used inside the anchored NON_SECRET_TOKEN_RE.
+const CORRELATION_ID = 'ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}';
+const UPPER_SNAKE_DIAGNOSTIC = '[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+';
+export const NON_SECRET_TOKEN_RE = new RegExp(`^(?:${CORRELATION_ID}|delegated-tool-calls|${UPPER_SNAKE_DIAGNOSTIC})$`);
 // Runtime markers must survive a second pass; the bounded sanitizer deliberately retains
 // its historical lowercase marker contract and uses the unmodified lexical vocabulary.
 // Reject a masked header/query value before matching, so a following field's credential
@@ -241,7 +262,8 @@ const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
   LABELED_SECRET_RE.flags,
 );
 // Provider failures also echo short bearer values. Exclude our own marker on subsequent passes.
-const SHORT_BEARER_RE = /(?<=Bearer\s+)[A-Za-z0-9_\-.+/=]+/gi;
+// The leading lookahead only lets the lookbehind run where a value can start (see bearer_token).
+const SHORT_BEARER_RE = /(?=[\w.+/=-])(?<=Bearer\s+)[\w.+/=-]+/gi;
 const PROVIDER_API_KEY_HEADER = /(x-api-key|api-key|x-goog-api-key)\s*[:=]\s*([^\s,;"']+)/gi;
 const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s]+)/gi;
 // URL userinfo and signed query values have explicit credential context; unlike opaque runs,
@@ -255,8 +277,11 @@ const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|
 // monkey) are masked too; over-masking a URL value is the cheaper failure. Empty values stay.
 // Match through a trailing fragment; only '&', quotes, parentheses or whitespace end the value.
 // Both name runs are bounded so a long separator-free run costs linear time, not quadratic.
-const URL_SECRET_PARAM_RE =
-  /[?&#;]([\w.-]{0,128}?(?:token|key|secret|signature|sig|code|password|passwd|pwd|auth|authorization|credential)s?(?=[._=-])[\w.-]{0,128})=[^&\s"'<>()]+/gi;
+const URL_SECRET_WORDS = 'token|key|secret|signature|sig|code|password|passwd|pwd|auth|authorization|credential';
+const URL_SECRET_PARAM_RE = new RegExp(
+  `[?&#;]([\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&\\s"'<>()]+`,
+  'gi',
+);
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
 const LABELED_URL_PARAM_NAME_RE = new RegExp(`(?:^|[.-])(?:${SECRET_LABELS})$`, 'i');
 

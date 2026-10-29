@@ -46,6 +46,9 @@ import type { AgentToolDefinition } from "../agent-tools.js";
 
 import { AGENT_WRITABLE_PREFERENCE_IDS, AGENT_WRITABLE_PREFERENCES } from "./agent-writable-preferences.js";
 
+/** The side-effect class every settings write tool declares. */
+const MUTATES_DURABLE_STATE = "mutates-durable-state" as const;
+
 
 
 /**
@@ -182,7 +185,7 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
       name: "settings_set_ui_preference",
       description:
         "Sets one of the operator's own admin-UI preferences (interface language, theme, accent color, or notification sounds) and returns the stored value. Writes only to the calling operator's own user layer — it cannot target another operator, another scope, or any setting outside its fixed list. Use settings_get_effective to read current values first.",
-      sideEffects: "mutates-durable-state",
+      sideEffects: MUTATES_DURABLE_STATE,
       // The narrowest write grant in the system, and it is what this tool derives BECAUSE it never
       // names a target principal (`write-service.ts`'s `deriveRequiredPermission`). Declared here
       // to match; the handler does not pass this string, it lets the chokepoint derive it, so the
@@ -193,14 +196,14 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
     {
       name: "settings_set_value",
       description: "Sets one registered setting at workspace scope (default) or the caller's own user scope. Call settings_list_definitions for valid keys, schemas, scopes and confirmation policy. Returns {key, scope, previous, value, revisionSeq}; previous is the old override, or null if absent. Privacy, instructions and host-protected assistant settings need a human confirmation card; the agent cannot confirm itself. Rejects unknown/tombstoned keys, disallowed scopes, invalid values and missing permissions. Cannot write globally, target another operator, reset a namespace or change definitions.",
-      sideEffects: "mutates-durable-state",
+      sideEffects: MUTATES_DURABLE_STATE,
       authorization: { permission: "settings.workspace.write" },
       inputSchema: SET_VALUE_SCHEMA,
     },
     {
       name: "settings_clear_value",
       description: "Clears one setting override at workspace scope (default) or the caller's own user scope so the next layer/default applies. Use to put one setting back to its inherited value; not to reset a namespace or delete a definition. Returns {key, scope, previous, effective}; restore a non-null previous override with settings_set_value. Protected assistant settings require a human confirmation card. Rejects unknown/tombstoned keys, disallowed scopes and missing permissions; cannot target global or another operator's layer.",
-      sideEffects: "mutates-durable-state",
+      sideEffects: MUTATES_DURABLE_STATE,
       authorization: { permission: "settings.workspace.write" },
       inputSchema: CLEAR_VALUE_SCHEMA,
     },
@@ -209,7 +212,7 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
       // clears every value in an operator-named namespace at a scope in one call, irreversible.
       name: "settings_reset",
       description: "Resets every setting in a namespace to defaults at a scope. NEVER agent-callable — see file header.",
-      sideEffects: "mutates-durable-state",
+      sideEffects: MUTATES_DURABLE_STATE,
       authorization: { permission: "settings.reset.workspace" },
     },
     {
@@ -218,7 +221,7 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
       // every existing stored value for that key is interpreted platform-wide.
       name: "settings_register_definitions",
       description: "Registers, renames, retypes, deprecates, or tombstones setting definitions. NEVER agent-callable — see file header.",
-      sideEffects: "mutates-durable-state",
+      sideEffects: MUTATES_DURABLE_STATE,
       authorization: { permission: "settings.definitions.manage" },
     },
   ];

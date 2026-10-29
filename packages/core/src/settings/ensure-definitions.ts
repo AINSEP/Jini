@@ -133,13 +133,16 @@ export async function ensureSettingDefinitions(
       { repo: deps.settingsRepo },
       { namespace: target.namespace, key: def.key, workspaceId },
     );
-    if (!existing) await registerMissingDefinition(target, def);
+    if (!existing) {
+      await registerMissingDefinition(target, def);
+      continue;
+    }
     // Core registration is once-only, but the DEFAULT is not. Without this, a
     // `defaultValue` changed in source is unreachable in any install that
     // has already booted — the stored `default_json` from first boot keeps
     // winning, for every settings-dialog tab. See `reconcileDefinitionDefault`
     // for the bug this closes.
-    else if (isReconcilableCoreSlot(existing, { ownerKind: target.ownerKind, namespace: target.namespace, key: def.key })) {
+    if (isReconcilableCoreSlot(existing, { ownerKind: target.ownerKind, namespace: target.namespace, key: def.key })) {
       await reconcileExistingCoreDefinition(target, def);
     }
   }

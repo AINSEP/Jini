@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { trimChars, trimCharsEnd, trimCharsStart } from '../index.js';
+import { trimChars, trimCharsEnd, trimCharsStart } from '../trim-chars.js';
 
 // Each helper must agree with the regex spelling it replaces, on every shape of input.
 const SAMPLES = ['', '/', '///', 'a', '/a', 'a/', '//a//', 'a//b', '/a/b/', 'a/b//c///', '-_-', 'x-_'];

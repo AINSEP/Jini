@@ -47,6 +47,7 @@ export function readValueMutation(
   const namespace = String(body.namespace ?? "");
   const key = String(body.key ?? "");
   const scope = body.scope as SettingScope;
-  const complete = namespace && key && SETTING_SCOPES.includes(scope) && (operation === "clear" || "valueJson" in body);
+  const hasValue = operation === "clear" || "valueJson" in body;
+  const complete = namespace && key && SETTING_SCOPES.includes(scope) && hasValue;
   return complete ? { namespace, key, scope } : null;
 }

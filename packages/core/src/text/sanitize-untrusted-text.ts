@@ -79,13 +79,15 @@ function escapeSequenceEnd(text: string, start: number): number {
  */
 export function stripControlSequences({ text }: { text: string }): string {
   let out = '';
-  for (let i = 0; i < text.length; i++) {
+  let i = 0;
+  while (i < text.length) {
     const code = text.charCodeAt(i);
     if (code === ESC) {
-      i = escapeSequenceEnd(text, i); // land on the last consumed byte; the loop's i++ steps past it
+      i = escapeSequenceEnd(text, i) + 1; // escapeSequenceEnd is the last consumed byte; step past it
       continue;
     }
     if (!isOtherControlCode(code)) out += text[i];
+    i += 1;
   }
   return out;
 }
@@ -104,7 +106,32 @@ const DIAGNOSTIC_TOKENS: ReadonlySet<string> = new Set([
  * @complexity O(n) in token length; pure. */
 function isIdentifierShaped({ token }: { token: string }): boolean {
   return token.length <= 31 && /[a-z]/.test(token)
-    && /^(?:[a-z]{1,15}|[0-9]{1,15})(?:[-_](?:[a-z]{1,15}|[0-9]{1,15})){2,}$/.test(token);
+    && /^(?:[a-z]{1,15}|\d{1,15})(?:[-_](?:[a-z]{1,15}|\d{1,15})){2,}$/.test(token);
+}
+
+const isSpace = (char: string | undefined): boolean => char !== undefined && /\s/.test(char);
+const LABEL_SEPARATORS = ':=';
+
+/** Replaces the value after a label's `:`/`=` with `[redacted]`, exactly as
+ * `match.replace(/([:=]\s*)\S+$/, '$1[redacted]')` does, without that pattern's quadratic
+ * backtracking. The value is the final non-space run; its separator is the `:`/`=` right before
+ * the spaces preceding it, else the first one inside the run. @complexity O(match length). */
+function redactLabeledValue(match: string): string {
+  let valueStart = match.length;
+  while (valueStart > 0 && !isSpace(match[valueStart - 1])) valueStart -= 1;
+  if (valueStart === match.length) return match;
+  let gapStart = valueStart;
+  while (isSpace(match[gapStart - 1])) gapStart -= 1;
+  const spacedSeparator = gapStart > 0 && gapStart < valueStart && LABEL_SEPARATORS.includes(match.charAt(gapStart - 1));
+  if (spacedSeparator) return match.slice(0, valueStart) + '[redacted]';
+  return redactAfterInnerSeparator(match, valueStart);
+}
+
+function redactAfterInnerSeparator(match: string, valueStart: number): string {
+  for (let i = valueStart; i < match.length - 1; i += 1) {
+    if (LABEL_SEPARATORS.includes(match.charAt(i))) return match.slice(0, i + 1) + '[redacted]';
+  }
+  return match;
 }
 
 /** Mask credentials before preserving trusted IDs and UPPER_SNAKE diagnostics; redact opaque spans elsewhere.
@@ -115,7 +142,7 @@ function redactSecretLike({ text }: { text: string }, options: SanitizeTextOptio
   const keepOpaque = (match: string): boolean => NON_SECRET_TOKEN_RE.test(match) || DIAGNOSTIC_TOKENS.has(match)
     || (options.keepIdentifiers === true && isIdentifierShaped({ token: match }));
   return redactSecrets({ input: text }, { redactPii: false, exactSecrets: options.exactSecrets ?? [] })
-    .replace(LABELED_SECRET_RE, match => match.replace(/([:=]\s*)\S+$/, '$1[redacted]'))
+    .replace(LABELED_SECRET_RE, match => redactLabeledValue(match))
     .replace(/\[REDACTED:[^\]\r\n]+\]/g, '[redacted]')
     // Trust whole dotted IDs so their components cannot become a general redaction bypass.
     .replace(/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, token => diagnosticToolIds.has(token) ? token

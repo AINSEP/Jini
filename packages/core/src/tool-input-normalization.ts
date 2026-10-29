@@ -149,7 +149,8 @@ function unknownKeyError({ key, location, shape }: { key: string; location: stri
   const names = [...shape.names.filter(name => required.has(name)), ...shape.names.filter(name => !required.has(name))];
   const declared = names.map(name => `${name} (${required.has(name) ? 'required' : 'optional'})`).join(', ') || 'none';
   const hints = names.filter(name => nearMiss({ left: keyShape(key), right: keyShape(name) }));
-  const suggestion = hints.length ? ` Did you mean ${hints.map(name => `'${name}'`).join(', ')}?` : '';
+  const quotedHints = hints.map(name => `'${name}'`).join(', ');
+  const suggestion = hints.length ? ` Did you mean ${quotedHints}?` : '';
   return new ToolInputError({ message: `Unknown input '${location}'. Declared inputs: ${declared}.${suggestion} Resend with the declared name.` });
 }
 
@@ -169,7 +170,8 @@ function normalizeEntry(
   if (previous !== undefined) throw new ToolInputError({ message: `Conflicting inputs '${previous}' and '${key}' both name '${target}'. Send only '${target}'.` });
   sources.set(target, key);
   if (target !== key) walk.notes.push(`${location}→${target}`);
-  return [target, normalizeValue({ value: raw, schema: shape.properties[target], step: { path: `${path ? `${path}.` : ''}${target}`, depth: depth + 1, walk } })];
+  const parentPrefix = path ? `${path}.` : '';
+  return [target, normalizeValue({ value: raw, schema: shape.properties[target], step: { path: `${parentPrefix}${target}`, depth: depth + 1, walk } })];
 }
 
 function normalizeObject({ value, schema, step }: { value: Record<string, unknown>; schema: Record<string, unknown>; step: Step }): Record<string, unknown> {
