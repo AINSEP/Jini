@@ -867,6 +867,11 @@ export interface FederatedImageBlock {
   readonly data: string;
 }
 
+/** Bytes `image` adds to the serialized array: its JSON, plus a separating comma unless first. */
+function imageEntryBytes(image: FederatedImageBlock, isFirst: boolean): number {
+  return Buffer.byteLength(JSON.stringify(image), "utf8") + (isFirst ? 0 : 1);
+}
+
 /**
  * R7's media carve-out: splits a remote's raw `content` array into well-formed image blocks and
  * everything else, so {@link buildFederatedMcpRegistrations}'s handler can route each half through a
@@ -910,9 +915,7 @@ export function extractFederatedImageBlocks(params: { content: unknown; maxResul
 
   for (const entry of content) {
     const image = asFederatedImageBlock(entry);
-    // A comma separates every image after the first in the serialized array.
-    const separatorBytes = images.length > 0 ? 1 : 0;
-    const addedBytes = image ? Buffer.byteLength(JSON.stringify(image), "utf8") + separatorBytes : 0;
+    const addedBytes = image ? imageEntryBytes(image, images.length === 0) : 0;
     if (!image) {
       kept.push(entry);
     } else if (imageBytes + addedBytes > maxResultBytes) {
