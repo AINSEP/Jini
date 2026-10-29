@@ -35,7 +35,6 @@ import {
   type RuntimeAgentDef,
 } from '@jini-ai/agent-runtime';
 import {
-  collectProcessTreePids,
   listProcessSnapshots,
   stopProcesses,
 } from '@jini-ai/platform/process';
@@ -126,6 +125,11 @@ function createStreamHandlerForDef(
       return createQoderStreamHandler({ onEvent: onEvent });
     case 'json-event-stream':
       return createJsonEventStreamHandler({ kind: def.eventParser ?? '', onEvent: onEvent });
+    default: {
+      // Unreachable: every stream format has a case above, and a new one fails typecheck here.
+      const unknownFormat: never = streamFormat;
+      throw new TypeError(`Unknown agent stream format: ${String(unknownFormat)}`);
+    }
   }
 }
 
@@ -614,10 +618,9 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    */
   function handleTurnEnd(stopReason: string | undefined): void {
     const toolUse = pendingToolUse;
+    const toolTurnPending = stopReason === 'tool_use' && toolUse !== undefined && continuation !== undefined;
     const shouldInject =
-      stopReason === 'tool_use' &&
-      toolUse !== undefined &&
-      continuation !== undefined &&
+      toolTurnPending &&
       resolveContinuationTransport({ def: def }) === 'stdin-injection' &&
       continuation.autonomousToolNames.has(toolUse.name);
     if (!shouldInject) {
@@ -694,9 +697,11 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
               const payload = projectEcho({ payload: translation.payload, rawEvent }, {});
               return lifecycle.emit({ runId, input: { event: 'agent', data: statusWithChildIdentity({ payload, childPid: ctx.child.pid }, {}) } });
             });
-          } else if (translation.kind === 'error') {
+          }
+          if (translation.kind === 'error') {
             enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
-          } else if (translation.kind === 'turn-end') {
+          }
+          if (translation.kind === 'turn-end') {
             handleTurnEnd(translation.stopReason);
           }
         });
@@ -1034,7 +1039,9 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       unsubscribeCancel();
       // Guarded for the same reasons as the child-driven handler above.
       await cleanupStagedFilesSafely(ctx);
-      const status = await output.settle({ status: cancelRequested ? 'cancelled' : controller?.completedSuccessfully() ? 'succeeded' : 'failed' });
+      let finalStatus: 'cancelled' | 'succeeded' | 'failed' = 'cancelled';
+      if (!cancelRequested) finalStatus = controller?.completedSuccessfully() ? 'succeeded' : 'failed';
+      const status = await output.settle({ status: finalStatus });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
           ? await classifyFailureSafely(ctx, classifyFailure, {
@@ -1061,7 +1068,8 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
             onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
           } });
           enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
-        } else if (translation.kind === 'error') {
+        }
+        if (translation.kind === 'error') {
           enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
         }
         return;
@@ -1157,7 +1165,9 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
       unsubscribeCancel();
       // Guarded for the same reasons as the child-driven handler above.
       await cleanupStagedFilesSafely(ctx);
-      const status = await output.settle({ status: cancelRequested ? 'cancelled' : session?.hasFatalError() ? 'failed' : 'succeeded' });
+      let finalStatus: 'cancelled' | 'succeeded' | 'failed' = 'cancelled';
+      if (!cancelRequested) finalStatus = session?.hasFatalError() ? 'failed' : 'succeeded';
+      const status = await output.settle({ status: finalStatus });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
           ? await classifyFailureSafely(ctx, classifyFailure, {
@@ -1177,17 +1187,14 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
       if (translation.kind === 'agent') {
             const receipt = modelReceipt(translation.payload);
             if (receipt) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: receipt } }));
-        if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
-        if (translation.payload.type === 'tool_use') {
-          toolCallSeen = true;
-        } else if (
-          (translation.payload.type === 'text_delta' || translation.payload.type === 'thinking_delta') &&
-          translation.payload.delta.length > 0
-        ) {
-          userVisibleOutputSeen = true;
-        }
+        applyAgentTranslationSideEffects({ payload: translation.payload, sessionId: translation.sessionId, sink: {
+          onSessionId: ({ sessionId }) => { capturedSessionId = sessionId; },
+          onToolCall: () => { toolCallSeen = true; },
+          onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
+        } });
         enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
-      } else if (translation.kind === 'error') {
+      }
+      if (translation.kind === 'error') {
         enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
       }
     } }, { cwd: ctx.cwd, ...(ctx.model !== undefined ? { model: ctx.model } : {}), ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}), ...(ctx.uploadRoot !== undefined ? { uploadRoot: ctx.uploadRoot } : {}) });
@@ -1296,8 +1303,8 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       deps.onCleanupFailure,
     );
     await deps.releaseStagedResources();
-    // `failBeforeSpawn` always rejects (`Promise<never>`); returning it propagates that rejection.
-    return deps.failBeforeSpawn(
+    // `failBeforeSpawn` always rejects (`Promise<never>`); awaiting it propagates that rejection.
+    await deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }
@@ -1360,7 +1367,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
       deps.onCleanupFailure,
     );
     await deps.releaseStagedResources();
-    return deps.failBeforeSpawn(
+    await deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }

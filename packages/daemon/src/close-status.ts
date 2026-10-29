@@ -75,8 +75,8 @@ export function resolveTimeoutMs(requiredArgs: Pick<ResolveTimeoutMsInput, "defa
   const env = input.env ?? (typeof process !== 'undefined' ? process.env : {});
   const rawFromEnv = input.envVar ? env[input.envVar] : undefined;
   const fromEnv = rawFromEnv !== undefined ? Number(rawFromEnv) : undefined;
-  const candidate =
-    fromEnv !== undefined && Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : (input.agentDefaultMs ?? input.defaultMs);
+  const envOverride = fromEnv !== undefined && Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : undefined;
+  const candidate = envOverride ?? input.agentDefaultMs ?? input.defaultMs;
   return Math.min(candidate, input.maxMs);
 }
 

@@ -82,7 +82,8 @@ export function openSqliteEventLog(
     } }, { pragmas: ['journal_mode = WAL'] });
     const log = bindSqliteEventLog(db, options);
     let closed = false;
-    return { ...log, async close(_args: Record<string, never>) { if (closed) return; closed = true; db!.close(); } };
+    return { ...log, async close(_args: Record<string, never>) { if (closed) return;
+      closed = true; db!.close(); } };
   } catch (error) {
     try { db?.close(); } catch { /* Preserve the setup failure. */ }
     throw error;

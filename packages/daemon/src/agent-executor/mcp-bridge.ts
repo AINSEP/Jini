@@ -309,6 +309,11 @@ export function buildMcpBridgeDelivery(input: {
       return { kind: 'codex-toml', serverEntry };
     case 'env-passthrough':
       return { kind: 'env-passthrough', serverEntry };
+    default: {
+      // Unreachable: every bridge strategy has a case above, and a new one fails typecheck here.
+      const unknownStrategy: never = strategy;
+      throw new TypeError(`Unknown MCP bridge strategy: ${String(unknownStrategy)}`);
+    }
   }
 }
 

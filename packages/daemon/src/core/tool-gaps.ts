@@ -182,7 +182,7 @@ export function createToolGapCollector(required: {
       if (event.kind !== 'agent') return;
       const payload = event.payload;
       if (payload.type === 'text_delta') readDelta(payload.delta);
-      else if (payload.type === 'tool_use') recordToolUse(payload, event.ts);
+      if (payload.type === 'tool_use') recordToolUse(payload, event.ts);
     },
     /** Await outstanding audit writes during graceful shutdown/tests. */
     flush: () => pending,

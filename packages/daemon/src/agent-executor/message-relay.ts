@@ -36,7 +36,8 @@ export function createMessageRelay({ emit }: { emit: (payload: RunAgentPayload) 
   return {
     enqueue({ id, text, hasAttachments }) {
       if (closed) return 'not-running';
-      pending.push({ id, text, hasAttachments, seq: ++seq });
+      seq += 1;
+      pending.push({ id, text, hasAttachments, seq });
       emit({ type: 'user_message', id, text, deliveryState: 'queued' });
       return 'delivered';
     },
@@ -45,10 +46,9 @@ export function createMessageRelay({ emit }: { emit: (payload: RunAgentPayload) 
       let count = 0;
       let chars = 0;
       for (const message of pending) {
-        if (message.hasAttachments) break;
-        const size = JSON.stringify({ id: message.id, seq: message.seq, text: message.text }).length;
-        // Whole messages only; a single oversized message is delivered alone.
-        if (count > 0 && chars + size > maxChars) break;
+        // Whole messages only, stopping at an attachment; a single oversized message is delivered alone.
+        const size = message.hasAttachments ? 0 : JSON.stringify({ id: message.id, seq: message.seq, text: message.text }).length;
+        if (message.hasAttachments || (count > 0 && chars + size > maxChars)) break;
         chars += size;
         count++;
       }

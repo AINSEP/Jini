@@ -13,7 +13,7 @@ export function createTimeoutScheduler(
     schedule({ delayMs, callback }) {
       const timer = setTimeout(callback, delayMs);
       // Exchanges may be abandoned; active start gates must keep their timeout alive until settlement.
-    if (!keepAlive) timer.unref?.();
+      if (!keepAlive) timer.unref?.();
       return () => clearTimeout(timer);
     },
   };

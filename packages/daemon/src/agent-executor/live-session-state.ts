@@ -1,5 +1,6 @@
 import type { RunAgentPayload } from '@jini-ai/protocol';
 import { isRecord } from './values.js';
+import { omitKeys } from '../core/omit-keys.js';
 
 type BackgroundTask = Extract<RunAgentPayload, { type: 'background_task' }> & { local: boolean };
 
@@ -43,8 +44,7 @@ export function createLiveSessionState({ emit }: { emit: (payload: RunAgentPaylo
 
   function publishTask(task: BackgroundTask): void {
     tasks.set(task.id, task);
-    const { local: _local, ...payload } = task;
-    emit(payload);
+    emit(omitKeys(task, ['local']));
   }
 
   function taskDetails(frame: Record<string, unknown>, previous: BackgroundTask | undefined) {

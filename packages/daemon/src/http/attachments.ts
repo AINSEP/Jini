@@ -576,13 +576,12 @@ export interface ObservedAttachmentIdentity {
  */
 export function isUnchangedAttachment({ recorded, observed }: { readonly recorded: RecordedAttachmentIdentity; readonly observed: ObservedAttachmentIdentity }, _optional: Record<string, never> = {}
 ): boolean {
-  return observed.isRegularFile
-    && observed.canonicalPath === recorded.filePath
-    && observed.dev === recorded.dev
-    && observed.ino === recorded.ino
-    && observed.size === recorded.size
-    && (recorded.mtimeMs === undefined || observed.mtimeMs === recorded.mtimeMs)
+  const sameFile = observed.isRegularFile && observed.canonicalPath === recorded.filePath
+    && observed.dev === recorded.dev && observed.ino === recorded.ino;
+  // A recorded timestamp must still hold; one never recorded cannot disagree.
+  const sameTimes = (recorded.mtimeMs === undefined || observed.mtimeMs === recorded.mtimeMs)
     && (recorded.ctimeMs === undefined || observed.ctimeMs === recorded.ctimeMs);
+  return sameFile && observed.size === recorded.size && sameTimes;
 }
 
 /**
@@ -682,13 +681,17 @@ export function sanitizeAttachmentName({ requestedName }: { readonly requestedNa
   return basename(requestedName).replaceAll(/[^a-zA-Z0-9._ -]/gu, '_') || 'attachment';
 }
 
+/** An attachment no run has claimed, or one claimed by `runId` (never by an absent run id). */
+function isUnclaimedOrClaimedBy(claimedRunId: string | undefined, runId: string | undefined): boolean {
+  return claimedRunId === undefined || (runId !== undefined && claimedRunId === runId);
+}
+
+/** The bytes `hasPngSignature` compares: `\x89PNG`, the first four of the 8-byte signature. */
+const PNG_SIGNATURE_PREFIX: readonly number[] = [0x89, 0x50, 0x4e, 0x47];
+
 /** `true` when `body`'s first 8 bytes are the PNG signature. */
 export function hasPngSignature({ body }: { readonly body: Uint8Array }, _optional: Record<string, never> = {}): boolean {
-  return body.length >= 8
-    && body[0] === 0x89
-    && body[1] === 0x50
-    && body[2] === 0x4e
-    && body[3] === 0x47;
+  return body.length >= 8 && PNG_SIGNATURE_PREFIX.every((byte, index) => body[index] === byte);
 }
 
 /** `true` when `body`'s first 3 bytes are the JPEG start-of-image marker. */
@@ -1323,7 +1326,7 @@ export async function createDiskAttachmentStore(requiredArgs: Omit<CreateDiskAtt
         // what makes an ownerless record excluded rather than accidentally matched by a falsy-ish
         // `ownerId` argument — see this method's own doc on why that must never be a wildcard.
         .filter((record) => record.ownerId !== undefined && record.ownerId === ownerId
-          && (record.claimedRunId === undefined || (runId !== undefined && record.claimedRunId === runId)))
+          && isUnclaimedOrClaimedBy(record.claimedRunId, runId))
         .sort((a, b) => a.createdAt - b.createdAt)
         .map((record) => ({ ref: record.id, name: record.name, kind: record.kind, size: record.size, createdAt: record.createdAt }));
     },
