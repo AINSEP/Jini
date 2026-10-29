@@ -55,6 +55,8 @@ import {
   type ProcessStampContract,
 } from '../process.js';
 
+const POWERSHELL_PATH = /^[A-Za-z]:\\.*\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i;
+
 afterEach(() => {
   mockState.execFileImpl = null;
   mockState.spawnImpl = null;
@@ -500,7 +502,8 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
 
   it('converts a single CIM object with byte RSS and 100ns CPU counters, exposing only its basename', async () => {
     mockState.execFileImpl = (command, args, _options, callback) => {
-      expect(command).toBe('powershell.exe');
+      // Resolved under System32 rather than through the cwd-first Windows command search.
+      expect(command).toMatch(POWERSHELL_PATH);
       expect(args).toEqual(['-NoProfile', '-NonInteractive', '-Command',
         "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize, UserModeTime, KernelModeTime, Name | ConvertTo-Json -Compress"]);
       callback(null, JSON.stringify(cimRecord), '');
@@ -563,7 +566,8 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
 
   it('defaults to the host platform when no ports are supplied', async () => {
     mockState.execFileImpl = (command, _args, _options, callback) => {
-      expect(command).toBe(process.platform === 'win32' ? 'powershell.exe' : 'ps');
+      if (process.platform === 'win32') expect(command).toMatch(POWERSHELL_PATH);
+      else expect(command).toBe('ps');
       callback(null, '', '');
     };
     await expect(listProcessUsage()).resolves.toEqual([]);

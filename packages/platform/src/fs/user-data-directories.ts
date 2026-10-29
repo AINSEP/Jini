@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
+import { windowsSystemTool } from "../windows-system-tools.js";
 import { fallbackIfMissing } from "./errno.js";
 
 export interface UserDirectoryOptions {
@@ -59,16 +60,14 @@ export function readOptionalText({ file }: { file: string }, _options = {}): str
   catch (error) { return fallbackIfMissing(error, undefined); }
 }
 function readWindowsDocuments(): string | undefined {
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed Windows registry utility/argv intentionally uses the desktop operator's trusted PATH, not request input.
-  const output = execFileSync("reg.exe", ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], { encoding: "utf8", timeout: 3000, windowsHide: true });
+  const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"] }), ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], { encoding: "utf8", timeout: 3000, windowsHide: true });
   return /Personal\s+REG_(?:EXPAND_)?SZ\s+(.+)/.exec(output)?.[1]?.trim();
 }
 
 /** OneDrive publishes account mount paths in HKCU; absent accounts are a normal empty result. */
 export function readWindowsOneDriveRoots(_required: Record<string, never>, _options = {}): readonly string[] {
   try {
-    // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed Windows registry utility/argv intentionally uses the desktop operator's trusted PATH, not request input.
-    const output = execFileSync("reg.exe", ["query", "HKCU\\Software\\Microsoft\\OneDrive\\Accounts", "/s", "/v", "UserFolder"], { encoding: "utf8", timeout: 3000, windowsHide: true });
+      const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"] }), ["query", "HKCU\\Software\\Microsoft\\OneDrive\\Accounts", "/s", "/v", "UserFolder"], { encoding: "utf8", timeout: 3000, windowsHide: true });
     return [...output.matchAll(/UserFolder\s+REG_(?:EXPAND_)?SZ\s+([^\r\n]+)/g)].map((match) => match[1]!.trim());
   } catch (error) {
     if ((error as { status?: number }).status === 1) return [];

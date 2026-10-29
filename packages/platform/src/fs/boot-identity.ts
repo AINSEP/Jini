@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
+import { windowsPowerShell } from "../windows-system-tools.js";
 
 export interface BootIdentity { id: string; startedAtMs: number; }
 let cached: BootIdentity | null | undefined;
@@ -18,8 +19,7 @@ function darwinBootIdentity(): BootIdentity | null {
   return timestampIdentity(Number(/sec\s*=\s*(\d+)/.exec(text)?.[1]) * 1000);
 }
 function windowsBootIdentity(): BootIdentity | null {
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed OS utility with fixed argv, resolved through the desktop operator's trusted PATH; no request controls the executable.
-  const text = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, windowsHide: true });
+  const text = execFileSync(windowsPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, windowsHide: true });
   return timestampIdentity(Date.parse(text.trim()));
 }
 const PLATFORM_READERS: Partial<Record<NodeJS.Platform, () => BootIdentity | null>> = { linux: linuxBootIdentity, darwin: darwinBootIdentity, win32: windowsBootIdentity };
