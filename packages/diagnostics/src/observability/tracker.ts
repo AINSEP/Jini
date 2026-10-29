@@ -94,7 +94,14 @@ export function createTracker(required: TrackerProviders, optional: TrackerOptio
   }
   return {
     activeTraceIds: (_required = {}, _optional = {}) => observability.activeTraceIds?.(),
-    capture(input, options = {}) { try { return Promise.resolve(required.productAnalytics?.capture({ ...input, ...options })).catch(failed); } catch { failed(); } },
+    capture(input, options = {}) {
+      try {
+        return Promise.resolve(required.productAnalytics?.capture({ ...input, ...options })).catch(failed);
+      } catch {
+        failed();
+        return undefined;
+      }
+    },
     metric(input, options = {}) { observability.metric(input, options); },
     error,
     trace: trace as Tracker["trace"],

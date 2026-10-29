@@ -122,7 +122,10 @@ export function combineObservabilityPorts({ ports }: { ports: readonly Observabi
    const results = live.map(port => handOffError({ port, report: correlated, failed }));
    if (results.includes(true)) return true;
    // One fulfilled admission is enough; a stalled destination must not delay another's receipt.
-   const admissions = results.map(async result => { if (!await result) throw new Error('Report refused'); return true; });
+   const admissions = results.map(async result => {
+    if (!await result) throw new Error('Report refused');
+    return true;
+   });
    return Promise.any(admissions).catch(() => false);
   },
  };

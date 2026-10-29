@@ -20,9 +20,13 @@ function redact(text: string): string {
  * @param required The raw error as handed to `ObservabilityPort.reportError`.
  * @returns Type label, redacted capped message, and redacted capped stack when there is one.
  * @complexity O(n) in message + stack length. */
+function rawMessage({ error, type }: { error: unknown; type: string }): string {
+ if (error instanceof Error) return error.message;
+ return typeof error === 'string' ? error : type;
+}
 export function describeReportedError({ error }: { error: unknown }, _options = {}): ReportedErrorDescription {
  const type = errorType(error);
- const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : type;
+ const raw = rawMessage({ error, type });
  const stack = error instanceof Error && typeof error.stack === 'string'
   ? redact(error.stack).split('\n').slice(0, MAX_STACK_LINES).join('\n') : undefined;
  return { type, message: redact(raw).slice(0, MAX_MESSAGE), ...(stack ? { stack } : {}) };

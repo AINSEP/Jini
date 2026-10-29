@@ -28,6 +28,11 @@ export interface DomainDnsDependencies {
   listExpectedHosts(required: Record<string, never>): Promise<string[]>;
   probeTls(input: { domain: string }): Promise<TlsStatus>;
 }
+function hostDnsStatus({ hasExpected, differs }: { hasExpected: boolean; differs: boolean }): "unknown" | "mismatch" | "matches-host-dns" {
+  if (!hasExpected) return "unknown";
+  return differs ? "mismatch" : "matches-host-dns";
+}
+
 /**
  * Normalizes a public hostname before any effect.
  * @param required Hostname text and the caller's error-message prefix.
@@ -59,7 +64,8 @@ function readPublicName(value: unknown, toolId: string, options: { allowUndersco
   const validLabels = labels.every(label => labelPattern.test(label));
   const validSuffix = /^[a-z][a-z0-9-]*$/.test(labels.at(-1)!);
   const reservedName = /\.(?:local|localhost|internal|invalid|test|onion)$/.test(domain);
-  if (!domain || domain.length > 253 || isIP(domain) || labels.length < 2 || !validLabels || !validSuffix || reservedName) throw invalid();
+  const validShape = Boolean(domain) && domain.length <= 253 && !isIP(domain) && labels.length >= 2;
+  if (!validShape || !validLabels || !validSuffix || reservedName) throw invalid();
   return domain;
 }
 function readPublicNameText(
@@ -72,7 +78,8 @@ function readPublicNameText(
 /** Checks the bounded record type selection without silently dropping unknown/duplicate types. */
 function readTypes(value: unknown): DnsRecordType[] {
   if (value === undefined) return [...DNS_TYPES];
-  if (!Array.isArray(value) || value.length < 1 || value.length > 6 || new Set(value).size !== value.length || !value.every(type => DNS_TYPES.includes(type))) {
+  const validList = Array.isArray(value) && value.length >= 1 && value.length <= 6;
+  if (!validList || new Set(value).size !== value.length || !value.every(type => DNS_TYPES.includes(type))) {
     throw new DomainDnsInputError({ message: "domain_lookup_dns: types must be a non-empty list of distinct A, AAAA, CNAME, MX, TXT, or NS record types." });
   }
   return value as DnsRecordType[];
@@ -110,7 +117,7 @@ async function checkHost(deps: DomainDnsDependencies, domain: string, selected: 
   const missing = { A: difference(expected.A, observed.A), AAAA: difference(expected.AAAA, observed.AAAA) };
   const hasExpected = expected.A.length + expected.AAAA.length > 0;
   const differs = unexpected.A.length + unexpected.AAAA.length + missing.A.length + missing.AAAA.length > 0;
-  return { domain, expectedHost, status: !hasExpected ? "unknown" as const : differs ? "mismatch" as const : "matches-host-dns" as const, expectationSource: "host-dns" as const, expected, observed, unexpected, missing, untrusted: true as const, limitation: "Compares current public DNS, not provider-required records. Shared/CDN addresses do not prove that traffic reaches the correct app." };
+  return { domain, expectedHost, status: hostDnsStatus({ hasExpected, differs }), expectationSource: "host-dns" as const, expected, observed, unexpected, missing, untrusted: true as const, limitation: "Compares current public DNS, not provider-required records. Shared/CDN addresses do not prove that traffic reaches the correct app." };
 }
 
 export interface DomainDnsChecks {
