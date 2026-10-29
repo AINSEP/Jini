@@ -54,6 +54,13 @@
  */
 export const MODEL_VISIBLE_BLOCK_TYPES: readonly string[] = ['text', 'image'];
 
+/** A record block whose string `type` is one the model may see. */
+function isModelVisibleBlock(block: unknown): block is Record<string, unknown> {
+  if (!isRecord(block)) return false;
+  const type = block['type'];
+  return typeof type === 'string' && MODEL_VISIBLE_BLOCK_TYPES.includes(type);
+}
+
 /** One entry of an MCP tool result's `content` array. Structure beyond `type` is not this module's business. */
 export type ToolResultBlock = Record<string, unknown>;
 
@@ -94,16 +101,8 @@ export function splitToolResultSurfaces({ output }: { readonly output: unknown }
   for (const block of content) {
     // A non-record block carries no `type` to check, so it cannot be shown to be model-safe.
     // Withheld rather than passed through, per this module's fail-closed rule.
-    if (!isRecord(block)) {
-      surfaces.push({ type: 'unknown', value: block });
-      continue;
-    }
-    const type = block['type'];
-    if (typeof type === 'string' && MODEL_VISIBLE_BLOCK_TYPES.includes(type)) {
-      modelBlocks.push(block);
-      continue;
-    }
-    surfaces.push(block);
+    if (isModelVisibleBlock(block)) modelBlocks.push(block);
+    else surfaces.push(isRecord(block) ? block : { type: 'unknown', value: block });
   }
 
   if (surfaces.length === 0) return { modelOutput: output, surfaces: [] };

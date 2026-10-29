@@ -183,6 +183,26 @@ function stagePayload(legacyDir: string, stagingDir: string, payloadEntries: rea
  * @param entries - The payload entries to promote.
  * @returns The entries that were placed into `dataDir` before any failure.
  */
+/** Renames `src` to `dst`, falling back to copy-then-delete (e.g. across devices); a failed copy
+ *  removes its partial `dst` before rethrowing. */
+function moveEntry(src: string, dst: string, fs: LegacyFilesystemPort): void {
+  try {
+    fs.renameSync(src, dst);
+  } catch {
+    copyThenRemove(src, dst, fs);
+  }
+}
+
+function copyThenRemove(src: string, dst: string, fs: LegacyFilesystemPort): void {
+  try {
+    fs.cpSync(src, dst, { recursive: true, force: true, errorOnExist: false });
+    fs.rmSync(src, { recursive: true, force: true });
+  } catch (cpErr) {
+    fs.rmSync(dst, { recursive: true, force: true });
+    throw cpErr;
+  }
+}
+
 export function promoteStaged({ stagingDir, dataDir, entries }: { readonly stagingDir: string; readonly dataDir: string; readonly entries: readonly string[] }, { filesystem: fs = nodeFilesystem }: { filesystem?: LegacyFilesystemPort } = {}): readonly string[] {
   fs.mkdirSync(dataDir, { recursive: true });
   const promoted: string[] = [];
@@ -190,17 +210,7 @@ export function promoteStaged({ stagingDir, dataDir, entries }: { readonly stagi
     for (const entry of entries) {
       const src = path.join(stagingDir, entry);
       const dst = path.join(dataDir, entry);
-      try {
-        fs.renameSync(src, dst);
-      } catch {
-        try {
-          fs.cpSync(src, dst, { recursive: true, force: true, errorOnExist: false });
-          fs.rmSync(src, { recursive: true, force: true });
-        } catch (cpErr) {
-          fs.rmSync(dst, { recursive: true, force: true });
-          throw cpErr;
-        }
-      }
+      moveEntry(src, dst, fs);
       promoted.push(entry);
     }
   } catch (err) {
