@@ -56,7 +56,10 @@ export function pgliteOps<DB>(
   return {
     async copyTo(targetPath) {
       outsideTransaction("copyTo");
-      if (owner !== undefined) return copyServedPgliteTo(owner, targetPath, required);
+      if (owner !== undefined) {
+        await copyServedPgliteTo(owner, targetPath, required);
+        return;
+      }
       await restoreDataDir(targetPath, required, async () => {
         const tarball = `${targetPath}.${randomUUID()}.tar`;
         try {

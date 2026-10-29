@@ -9,7 +9,7 @@ export interface TransferPlanSource extends SnapshotTablePlan { readonly name: s
 export class IncompleteTransferPlanError extends Error {
   readonly missing: readonly { source: string; table: string }[];
   constructor({ missing }: { missing: readonly { source: string; table: string }[] }, _optional = {}) {
-    super(`incomplete transfer plan: ${missing.map(entry => `${entry.source}: ${entry.table}`).join(", ")}`);
+    super(`incomplete transfer plan: ${missing.map(entry => entry.source + ": " + entry.table).join(", ")}`);
     this.name = "IncompleteTransferPlanError";
     this.missing = missing;
   }

@@ -2,7 +2,7 @@
 import { readToolLimit, ToolInputError, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
 import { defaultDbMessages, type DbMessages } from "../core/messages.js";
-import { getDatabaseAgentToolCatalog } from "./database-catalog.js";
+import { DATABASE_READ_PERMISSION, getDatabaseAgentToolCatalog } from "./database-catalog.js";
 import { DEFAULT_TIMELINE_PAGE_SIZE, getTimeline, MAX_TIMELINE_PAGE_SIZE, type LedgerReadPort } from "./timeline.js";
 import { createRestorePoint as createDatabaseRestorePoint, listRestorePoints, type RestorePointListPort, type RestorePointSavePort } from "./restore-points.js";
 import { registrations, type InputReaders } from "./registration.js";
@@ -31,7 +31,7 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
     database_query_timeline: async (ctx) => {
       if (ctx.input !== undefined && !isRecord(ctx.input)) throw new ToolInputError({ message: "input must be an object" });
       const input = isRecord(ctx.input) ? ctx.input : {};
-      await ports.requirePermission({ principalId: ctx.principal.id, permission: "database.read", entityType: "database-ledger" });
+      await ports.requirePermission({ principalId: ctx.principal.id, permission: DATABASE_READ_PERMISSION, entityType: "database-ledger" });
 
       return getTimeline({
         ledger: ports.ledger,
@@ -50,25 +50,25 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
 
     database_list_restore_points: async (ctx) => {
       requireNoInput(ctx.input);
-      await ports.requirePermission({ principalId: ctx.principal.id, permission: "database.read", entityType: "restore-point" });
+      await ports.requirePermission({ principalId: ctx.principal.id, permission: DATABASE_READ_PERMISSION, entityType: "restore-point" });
       return listRestorePoints({ repo: ports.restorePoints });
     },
 
     database_get_health: async (ctx) => {
       requireNoInput(ctx.input);
-      await ports.requirePermission({ principalId: ctx.principal.id, permission: "database.read", entityType: "database" });
+      await ports.requirePermission({ principalId: ctx.principal.id, permission: DATABASE_READ_PERMISSION, entityType: "database" });
       return ports.introspection.getHealth();
     },
 
     database_get_schema_state: async (ctx) => {
       requireNoInput(ctx.input);
-      await ports.requirePermission({ principalId: ctx.principal.id, permission: "database.read", entityType: "database" });
+      await ports.requirePermission({ principalId: ctx.principal.id, permission: DATABASE_READ_PERMISSION, entityType: "database" });
       return ports.introspection.getSchemaState();
     },
 
     database_list_pending_migrations: async (ctx) => {
       requireNoInput(ctx.input);
-      await ports.requirePermission({ principalId: ctx.principal.id, permission: "database.read", entityType: "database" });
+      await ports.requirePermission({ principalId: ctx.principal.id, permission: DATABASE_READ_PERMISSION, entityType: "database" });
       return ports.introspection.listPendingMigrations();
     },
 

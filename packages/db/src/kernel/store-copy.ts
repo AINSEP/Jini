@@ -229,17 +229,25 @@ async function copyRows(source: StorageKernel<unknown>, target: StorageKernel<un
     if (rows.length === 0) return copied;
     // Bind text before the catalog type cast: PGlite's bytea serializer accepts bytes, not text.
     // The server's input functions decode the unchanged text, including nulls, JSON and arrays.
-    const values = sql.join(rows.map((row) => sql`(${sql.join(columns.map((c) => sql`${row[c.name]}::text::${sql.raw(c.type)}`))})`));
+    const values = sql.join(rows.map((row) => {
+      const cells = columns.map((c) => sql`${row[c.name]}::text::${sql.raw(c.type)}`);
+      return sql`(${sql.join(cells)})`;
+    }));
     await target.execute(sql`INSERT INTO ${tableRef(table)} (${into}) OVERRIDING SYSTEM VALUE VALUES ${values}`);
     copied += rows.length;
     after = rows[rows.length - 1]!.__ctid as string;
   }
 }
 
+/** Each primary-key column as text, for the fingerprint's key concatenation. */
+function primaryKeyTexts(table: CatalogTable) {
+  return table.primaryKey.map((c) => sql`${sql.ref(c)}::text`);
+}
+
 /** Row count and an order-independent checksum of the primary keys (count only without one). */
 async function fingerprint(kernel: StorageKernel<unknown>, table: CatalogTable): Promise<string> {
   const key =
-    table.primaryKey.length === 0 ? sql`''` : sql`concat_ws(E'\\t', ${sql.join(table.primaryKey.map((c) => sql`${sql.ref(c)}::text`))})`;
+    table.primaryKey.length === 0 ? sql`''` : sql`concat_ws(E'\\t', ${sql.join(primaryKeyTexts(table))})`;
   const [row] = await kernel.query<{ n: number; sum: string }>(
     sql`SELECT count(*)::int AS n, md5(coalesce(string_agg(k, E'\\n' ORDER BY k COLLATE "C"), '')) AS sum
         FROM (SELECT ${key} AS k FROM ${tableRef(table)}) keyed`

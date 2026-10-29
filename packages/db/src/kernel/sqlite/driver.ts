@@ -5,7 +5,7 @@ import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 import { buildKernel, type StorageKernel, TurnLock } from "../index.js";
 import type { SqliteClient, SqliteOpener } from "../../sqlite/types.js";
 import { checkedClients, checkedStates, connectionsByKernel, rawKernelClients } from "../../sqlite/checked-state.js";
-import { ownedTransactions } from "../owned-transaction.js";
+import { inheritOwnedTransaction } from "../owned-transaction.js";
 
 /**
  * @file The better-sqlite3 driver: a kernel over an ALREADY OPEN SQLite connection the consumer
@@ -58,7 +58,20 @@ export function sqliteClientOf(source: SqliteConnectionSource): SqliteClient {
   return "$client" in source ? source.$client : source;
 }
 
-const bindable = (value: unknown) => (typeof value === "boolean" ? (value ? 1 : 0) : value);
+/** Rolls back a failed transaction; a checked kernel reports a failing rollback with the original error. */
+function rollbackAfterFailure({ client, error, checked }: { client: { inTransaction: boolean; exec(sql: string): unknown }; error: unknown; checked: boolean }): void {
+  if (!checked) {
+    if (client.inTransaction) client.exec("ROLLBACK");
+    return;
+  }
+  try {
+    if (client.inTransaction) client.exec("ROLLBACK");
+  } catch (cleanup) {
+    throw new AggregateError([error, cleanup], "SQLite transaction and rollback failed");
+  }
+}
+
+const bindable = (value: unknown) => (typeof value === "boolean" ? Number(value) : value);
 
 /** better-sqlite3 as Kysely's `SqliteDatabase`, with booleans bound as integers. */
 function bindingShim(client: SqliteClient): SqliteDatabase {
@@ -100,13 +113,7 @@ export function sqliteKernel<DB>(source: SqliteConnectionSource): SqliteKernel<D
         client.exec("COMMIT");
         return result;
       } catch (error) {
-        if (checked) {
-          try {
-            if (client.inTransaction) client.exec("ROLLBACK");
-          } catch (cleanup) {
-            throw new AggregateError([error, cleanup], "SQLite transaction and rollback failed");
-          }
-        } else if (client.inTransaction) client.exec("ROLLBACK");
+        rollbackAfterFailure({ client, error, checked });
         throw error;
       }
     },
@@ -162,8 +169,7 @@ export function openSqliteFileKernel<DB>(
     close: async () => closeSqliteConnection(client),
   };
   connectionsByKernel.set(owned as SqliteKernel<unknown>, client);
-  const control = ownedTransactions.get(kernel as StorageKernel<unknown>);
-  if (control !== undefined) ownedTransactions.set(owned as StorageKernel<unknown>, control);
+  inheritOwnedTransaction({ from: kernel as StorageKernel<unknown>, to: owned as StorageKernel<unknown> });
   return owned;
 }
 

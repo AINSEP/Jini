@@ -86,13 +86,18 @@ function environmentWithout(parent: NodeJS.ProcessEnv): Record<string, string> {
 
 /** Classifies copier failure codes; arbitrary psql text never reaches public errors or logs.
  * @complexity O(n) time/space in stderr length. */
+/** Only the transfer's own signals pass through; any other psql text stays in the log. */
+function publicFailure({ message, countedTable }: { message: string; countedTable: string | undefined }): string {
+  if (message === FOREIGN_SCHEMA_SIGNAL) return FOREIGN_SCHEMA_SIGNAL;
+  if (message.startsWith(`${COUNT_MISMATCH_SIGNAL} `)) return `${COUNT_MISMATCH_SIGNAL} ${countedTable ?? "[redacted]"}`;
+  return "psql request failed";
+}
 function failureFrom({ stderr }: { stderr: string }, _options = {}): { ok: false; error: string; copyTable?: string } {
   const lines = stderr.split("\n").map((line) => line.trim()).filter((line) => line !== "");
   const line = lines.find((candidate) => /\bERROR:|FATAL:|could not|timeout/i.test(candidate)) ?? lines[0] ?? "psql failed without a message";
   const message = line.replace(/^psql:[^ ]*: /, "").replace(/^ERROR:\s*/, "");
   const countMismatch = new RegExp(`^${COUNT_MISMATCH_SIGNAL} ([A-Za-z_][A-Za-z0-9_]{0,62})$`).exec(message);
-  const error = message === FOREIGN_SCHEMA_SIGNAL ? FOREIGN_SCHEMA_SIGNAL
-    : message.startsWith(`${COUNT_MISMATCH_SIGNAL} `) ? `${COUNT_MISMATCH_SIGNAL} ${countMismatch?.[1] ?? "[redacted]"}` : "psql request failed";
+  const error = publicFailure({ message, countedTable: countMismatch?.[1] });
   const copyMatch = /\bCOPY ([A-Za-z0-9_."]+), line \d+/.exec(stderr);
   const copyTable = copyMatch ? copyMatch[1]!.replace(/"/g, "") : undefined;
   return copyTable === undefined ? { ok: false, error } : { ok: false, error, copyTable };

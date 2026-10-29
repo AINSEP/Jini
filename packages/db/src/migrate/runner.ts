@@ -104,7 +104,10 @@ export function assertValidSteps(steps: readonly MigrationStep[]): void {
  * `prepare` is the database exactly as it was. */
 async function ensureLedger(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<void> {
   if (ledger.schema !== undefined) await kernel.run((db) => db.schema.createSchema(ledger.schema as string).ifNotExists().execute());
-  if (ledger.mapping !== undefined) return ensureLegacyLedger({ ledger, mapping: ledger.mapping, dialect: kernel.dialect });
+  if (ledger.mapping !== undefined) {
+    await ensureLegacyLedger({ ledger, mapping: ledger.mapping, dialect: kernel.dialect });
+    return;
+  }
   await ledger.run((db) =>
     db.schema
       .createTable(ledger.table)
@@ -137,7 +140,10 @@ function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationSte
 
 async function insertRow({ ledger, step, options }: { ledger: Ledger; step: MigrationStep; options: MigrationOptions }, _optional: {} = {}): Promise<void> {
   const timestamp = () => options.clock === undefined ? new Date().toISOString() : nowIso({ clock: options.clock });
-  if (ledger.mapping !== undefined) return insertLegacyRow({ ledger, mapping: ledger.mapping, step, timestamp });
+  if (ledger.mapping !== undefined) {
+    await insertLegacyRow({ ledger, mapping: ledger.mapping, step, timestamp });
+    return;
+  }
   await ledger.run((db) => db.insertInto(ledger.table).values({ id: step.id, checksum: step.checksum, applied_at: timestamp() }).execute());
 }
 
@@ -260,7 +266,7 @@ async function backUpBeforeChange(kernel: StorageKernel<unknown>, context: Migra
 
 async function ledgerExists(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<boolean> {
   if (ledger.schema === undefined) return tableExists(kernel, ledger.table);
-  const [row] = await kernel.query<{ found: string | null }>(sql`SELECT to_regclass(${`${ledger.schema}.${ledger.table}`})::text AS found`);
+  const [row] = await kernel.query<{ found: string | null }>(sql`SELECT to_regclass(${ledger.schema + "." + ledger.table})::text AS found`);
   return row?.found != null;
 }
 
