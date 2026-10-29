@@ -144,6 +144,10 @@ import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { trimCharsEnd } from '@jini-ai/core/text';
+
+/** The redacted message every internal failure answers with; details go to the error sink. */
+const INTERNAL_ERROR_MESSAGE = 'an internal error occurred';
 
 const DEFAULT_TOKEN_FILE_NAME = 'xai-oauth-token.json';
 /** Matches the loopback listener's own 30-minute self-close timeout (OD's real comment: keeps the
@@ -453,7 +457,7 @@ export const xaiOauthStartRoute = defineJsonRoute<void, XaiOauthStartResponse, X
         await stopListener(resolved);
         const correlationId = randomUUID();
         resolved.onInternalError({ source: 'oauth-start', correlationId, error });
-        return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+        return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
       }
     });
   }
@@ -513,7 +517,7 @@ fetchImpl: resolved.fetchImpl
       }
       const correlationId = randomUUID();
       resolved.onInternalError({ source: 'oauth-complete', correlationId, error: redactError(error) });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
     }
   }
 }, { requireSameOrigin: true });
@@ -564,7 +568,7 @@ export const xaiAuthStatusRoute = defineJsonRoute<void, XaiAuthStatusResponse, X
     } catch (error) {
       const correlationId = randomUUID();
       resolved.onInternalError({ source: 'auth-status', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
     }
   }
 }, { requireSameOrigin: true });
@@ -583,7 +587,7 @@ export const xaiOauthDisconnectRoute = defineJsonRoute<void, XaiOkResponse, XaiH
     } catch (error) {
       const correlationId = randomUUID();
       resolved.onInternalError({ source: 'oauth-disconnect', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
     }
   }
 }, { requireSameOrigin: true });
@@ -737,7 +741,7 @@ async function readXaiJson(response: Response, guard: XaiCallGuard): Promise<unk
 async function callXaiSearch(resolved: ResolvedXaiHttpDeps, accessToken: string, request: XaiSearchRequest): Promise<XaiSearchResponse> {
   const baseUrlCheck = validateBaseUrl({ baseUrl: resolved.searchBaseUrl });
   if (baseUrlCheck.error) throw new Error(baseUrlCheck.error);
-  const base = resolved.searchBaseUrl.replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: resolved.searchBaseUrl, chars: '/' });
   const model = request.model ?? resolved.searchDefaultModel;
 
   const requestBody = {
@@ -778,7 +782,7 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
     } catch (error) {
       const correlationId = randomUUID();
       resolved.onInternalError({ source: 'search', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
     }
     if (!credential) {
       // No entitlement gate here — see module doc's "Dropped: OD's SuperGrok subscription gate"
@@ -794,7 +798,7 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
     } catch (error) {
       const correlationId = randomUUID();
       resolved.onInternalError({ source: 'search', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
     }
   }
 }, { requireSameOrigin: true });

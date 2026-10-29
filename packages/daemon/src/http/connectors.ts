@@ -51,6 +51,9 @@ import { ClientFacingError, defineJsonRoute, mountJsonRoute, type AdapterContext
 import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
+/** Validation message for a request body that is not a JSON object. */
+const BODY_NOT_OBJECT_MESSAGE = 'body must be a JSON object';
+
 export interface AuthCredentials {
   readonly email: string;
   readonly password: string;
@@ -180,7 +183,7 @@ function firstQueryValue(raw: unknown): string | undefined {
 // ---------------------------------------------------------------------------
 
 function parseAuthCredentials(input: RouteInputContext): Result<AuthCredentials> {
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  if (!isRecord(input.body)) return err({ error: validationError({ message: BODY_NOT_OBJECT_MESSAGE }) });
   const email = nonEmptyString(input.body.email);
   if (!email) return err({ error: validationError({ message: 'email must be a non-empty string' }, { issues: [{ path: 'email', message: 'required non-empty string' }] }) });
   const password = nonEmptyString(input.body.password);
@@ -189,7 +192,7 @@ function parseAuthCredentials(input: RouteInputContext): Result<AuthCredentials>
 }
 
 function parseAuthToken(input: RouteInputContext): Result<string> {
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  if (!isRecord(input.body)) return err({ error: validationError({ message: BODY_NOT_OBJECT_MESSAGE }) });
   const token = nonEmptyString(input.body.token);
   if (!token) return err({ error: validationError({ message: 'token must be a non-empty string' }, { issues: [{ path: 'token', message: 'required non-empty string' }] }) });
   return ok({ value: token });
@@ -279,7 +282,7 @@ function isWellFormedBase64(value: string): boolean {
 function parseStoragePut(input: RouteInputContext): Result<StoragePutRequest> {
   const keyResult = parseStorageKey(input);
   if (!keyResult.ok) return keyResult;
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  if (!isRecord(input.body)) return err({ error: validationError({ message: BODY_NOT_OBJECT_MESSAGE }) });
   const dataBase64 = input.body.dataBase64;
   if (typeof dataBase64 !== 'string' || !isWellFormedBase64(dataBase64)) {
     return err({ error: validationError({ message: 'dataBase64 must be a non-empty base64-encoded string' }, { issues: [{ path: 'dataBase64', message: 'required base64 string' }] }) });
@@ -364,7 +367,7 @@ interface DbInsertRequest {
 function parseDbInsert(input: RouteInputContext): Result<DbInsertRequest> {
   const collectionResult = parseDbCollection(input);
   if (!collectionResult.ok) return collectionResult;
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  if (!isRecord(input.body)) return err({ error: validationError({ message: BODY_NOT_OBJECT_MESSAGE }) });
   const id = input.body.id;
   if (typeof id !== 'string' || id.length === 0) {
     return err({ error: validationError({ message: 'id must be a non-empty string field' }, { issues: [{ path: 'id', message: 'required non-empty string' }] }) });
@@ -392,7 +395,7 @@ interface DbUpdateRequest extends DbCollectionIdParams {
 function parseDbUpdate(input: RouteInputContext): Result<DbUpdateRequest> {
   const parsed = parseDbCollectionId(input);
   if (!parsed.ok) return parsed;
-  if (!isRecord(input.body)) return err({ error: validationError({ message: 'body must be a JSON object' }) });
+  if (!isRecord(input.body)) return err({ error: validationError({ message: BODY_NOT_OBJECT_MESSAGE }) });
   return ok({ value: { ...parsed.value, patch: input.body } });
 }
 

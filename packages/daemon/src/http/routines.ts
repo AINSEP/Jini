@@ -82,6 +82,9 @@ import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/h
 import { validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
+/** The 404 message for an unknown routine id. */
+const ROUTINE_NOT_FOUND_MESSAGE = 'routine not found';
+
 /** The scheduler surface these routes need — a structural subset of `RoutineService`, matching OD's own `RoutineRoutesService` narrowing (`Pick<RoutineService, 'nextRunAt' | 'rescheduleOne' | 'runNow' | 'unschedule'>`). Wiring a real `RoutineService` in satisfies this with zero adapter code. */
 export type RoutineScheduler = Pick<RoutineService, 'nextRunAt' | 'rescheduleOne' | 'runNow' | 'unschedule'>;
 
@@ -301,7 +304,7 @@ export const routineGetRoute = defineJsonRoute<string, RoutineResponse, RoutineH
   method: 'get', path: '/api/routines/:id', parse: parseRoutineId, handle: async ({ input: id, deps }) => {
     const routine = await deps.store.get({ id });
     return routine === null
-      ? err({ error: createApiError({ code: 'NOT_FOUND', message: 'routine not found' }) })
+      ? err({ error: createApiError({ code: 'NOT_FOUND', message: ROUTINE_NOT_FOUND_MESSAGE }) })
       : ok({ value: { routine: attachNextRunAt(routine, deps.scheduler) } });
   }
 });
@@ -313,7 +316,7 @@ export const routineUpdateRoute = defineJsonRoute<RoutineUpdateRequest, RoutineR
       if (targetError) return err({ error: targetError });
     }
     const routine = await deps.store.update({ id, patch });
-    if (routine === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: 'routine not found' }) });
+    if (routine === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: ROUTINE_NOT_FOUND_MESSAGE }) });
     deps.scheduler.rescheduleOne({ routineId: id });
     return ok({ value: { routine: attachNextRunAt(routine, deps.scheduler) } });
   }
@@ -327,7 +330,7 @@ export const routineDeleteRoute = defineJsonRoute<string, RoutineDeleteResponse,
   method: 'delete', path: '/api/routines/:id', parse: parseRoutineId, handle: async ({ input: id, deps }) => {
     deps.scheduler.unschedule({ routineId: id });
     const removed = await deps.store.delete({ id });
-    return removed ? ok({ value: { ok: true } }) : err({ error: createApiError({ code: 'NOT_FOUND', message: 'routine not found' }) });
+    return removed ? ok({ value: { ok: true } }) : err({ error: createApiError({ code: 'NOT_FOUND', message: ROUTINE_NOT_FOUND_MESSAGE }) });
   }
 }, { requireSameOrigin: true });
 
@@ -346,7 +349,7 @@ export interface RoutineRunNowResponse {
 export const routineRunNowRoute = defineJsonRoute<string, RoutineRunNowResponse, RoutineHttpDeps>({
   method: 'post', path: '/api/routines/:id/run', parse: parseRoutineId, handle: async ({ input: id, deps }) => {
     const existing = await deps.store.get({ id });
-    if (existing === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: 'routine not found' }) });
+    if (existing === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: ROUTINE_NOT_FOUND_MESSAGE }) });
     const started = await deps.scheduler.runNow({ routineId: id });
     const [routine, run] = await Promise.all([deps.store.get({ id }), deps.store.getLatestRun({ routineId: id })]);
     return ok({
@@ -372,7 +375,7 @@ export interface RoutineRunsResponse {
 export const routineRunsListRoute = defineJsonRoute<RoutineRunsQuery, RoutineRunsResponse, RoutineHttpDeps>({
   method: 'get', path: '/api/routines/:id/runs', parse: parseRoutineRunsQuery, handle: async ({ input: { id, limit }, deps }) => {
     const existing = await deps.store.get({ id });
-    if (existing === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: 'routine not found' }) });
+    if (existing === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: ROUTINE_NOT_FOUND_MESSAGE }) });
     const runs = await deps.store.listRuns({ routineId: id, limit });
     return ok({ value: { runs } });
   }

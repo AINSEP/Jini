@@ -2,6 +2,7 @@
 import { validateBaseUrl } from '@jini-ai/agent-runtime';
 import { redactSecrets } from '@jini-ai/core';
 import type { ResearchProvider, ResearchProviderCredentials, ResearchSearchRequest, ResearchSource } from './research.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 const DEFAULT_TAVILY_BASE_URL = 'https://api.tavily.com';
 /** Tavily's own documented cap on `max_results` (see OD's `tavily.ts#TAVILY_MAX_RESULTS_LIMIT`). */
 const TAVILY_MAX_RESULTS_LIMIT = 20;
@@ -41,7 +42,7 @@ function resolveTavilyBase(credentials: ResearchProviderCredentials): string {
   if (baseUrlCheck.error) {
     throw new Error(baseUrlCheck.error);
   }
-  return baseUrl.replace(/\/+$/, '');
+  return trimCharsEnd({ text: baseUrl, chars: '/' });
 }
 
 function trimmedOrUndefined(value: unknown): string | undefined {
