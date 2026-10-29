@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { trimDashes } from "./lib/trim-dashes.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge;
 // tests pass fakes (no real browser, captured output, fixed clock).
@@ -74,7 +75,7 @@ export function sameSite(candidate, origin, allowSubdomains) {
 // name can never be empty.
 export function routeFileName(url) {
   const parsed = new URL(url);
-  const clean = `${parsed.hostname}${parsed.pathname}`.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 90);
+  const clean = trimDashes(`${parsed.hostname}${parsed.pathname}`.replace(/[^a-z0-9._-]+/gi, "-")).slice(0, 90);
   const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 8);
   return `${clean}-${hash}.png`;
 }

@@ -95,8 +95,12 @@ function readFileTail({ file, maxBytes }: { file: string; maxBytes: number }): s
 // prompt text, but tool schemas and user prompts could still contain a
 // stray `"message"` key, so this keyword gate keeps unrelated payload text
 // from masquerading as the error.
-const SERVICE_ERROR_MESSAGE_RE =
-  /usage limit|rate[ _-]?limit|quota|limit reached|insufficient|credit|balance|overloaded|unavailable|unauthor|authenticat|invalid[ _-]?(?:api[ _-]?)?key|api key|\/login|exhaust|too many requests/i;
+// Split by theme only to keep each pattern readable; any one matching is enough.
+const SERVICE_ERROR_MESSAGE_PATTERNS: readonly RegExp[] = [
+  /usage limit|rate[ _-]?limit|quota|limit reached|exhaust|too many requests/i,
+  /insufficient|credit|balance|overloaded|unavailable/i,
+  /unauthor|authenticat|invalid[ _-]?(?:api[ _-]?)?key|api key|\/login/i,
+];
 
 function pickServiceErrorMessage(line: string): string | null {
   const re = /"message":"((?:[^"\\]|\\.)*)"/g;
@@ -116,7 +120,7 @@ function pickServiceErrorMessage(line: string): string | null {
     // anti-masquerade keyword gate this function exists to enforce. Independently recommended
     // as the safe default by three separate reviews (code review, security, and a prior model
     // session) — see ADS-memory/reports/{code-review,security}/*-backend-coverage-push-2026-07-20.md.
-    if (SERVICE_ERROR_MESSAGE_RE.test(value)) return value;
+    if (SERVICE_ERROR_MESSAGE_PATTERNS.some((pattern) => pattern.test(value))) return value;
   }
   return null;
 }

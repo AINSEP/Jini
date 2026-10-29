@@ -282,7 +282,7 @@ function titlePath(update: UnknownRecord): string | null {
   // Keeping the real extension lets `isArtifactPath` correctly EXCLUDE
   // non-artifact writes (e.g. "edit config.json"), matching the claude path.
   const title = typeof update.title === 'string' ? update.title : '';
-  const match = title.match(/[\w./-]+\.[A-Za-z0-9]+/);
+  const match = title.match(/(?<![\w./-])[\w./-]+\.[A-Za-z0-9]+/);
   if (match?.[0]) return match[0];
   return null;
 }

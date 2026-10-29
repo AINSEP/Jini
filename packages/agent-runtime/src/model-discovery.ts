@@ -30,12 +30,14 @@ async function boundedProbe<T>(deps: ModelDiscoveryDeps, work: () => Promise<T>,
   if (pool.active >= 1) {
     await new Promise<void>((resolve, reject) => {
       const ready = () => { signal?.removeEventListener('abort', abort); resolve(); };
-      const abort = () => { const index = pool.queue.indexOf(ready); if (index >= 0) pool.queue.splice(index, 1); reject(new ProbeTimeout('Probe cancelled')); };
+      const abort = () => { const index = pool.queue.indexOf(ready); if (index >= 0) pool.queue.splice(index, 1);
+        reject(new ProbeTimeout('Probe cancelled')); };
       pool.queue.push(ready);
       if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true });
     });
   } else pool.active += 1;
-  try { if (signal?.aborted) throw new ProbeTimeout('Probe cancelled'); return await work(); }
+  try { if (signal?.aborted) throw new ProbeTimeout('Probe cancelled');
+    return await work(); }
   finally { const next = pool.queue.shift(); if (next) next(); else pool.active -= 1; }
 }
 const DIAGNOSTIC_MESSAGES: Record<Diagnostic['code'], string> = {

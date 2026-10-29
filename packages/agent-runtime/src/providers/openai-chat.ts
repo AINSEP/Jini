@@ -73,6 +73,7 @@ import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export interface OpenAiFunctionToolDef {
   readonly type: 'function';
@@ -183,7 +184,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function openAiRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string {
-  const base = (baseUrl ?? DEFAULT_OPENAI_BASE_URL).replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: baseUrl ?? DEFAULT_OPENAI_BASE_URL, chars: '/' });
   return /\/v\d+(\/|$)/.test(base) ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 }
 
@@ -283,6 +284,12 @@ export interface StrictToolRetryState {
   readonly downgrade: (input: { status: number; rawErrorText: string; toolNames: readonly string[] }) => boolean;
 }
 
+/** Wordings a provider uses to refuse a strict/schema feature; any one matching is enough. */
+const STRICT_REJECTION_PATTERNS: readonly RegExp[] = [
+  /unsupported|not support|unknown (?:field|parameter|name)|unrecognized|not (?:allowed|permitted)/i,
+  /invalid (?:json )?schema|schema[^\n]*invalid|requires?[^\n]*beta/i,
+  /invalid (?:enum )?value[^\n]*(?:VALIDATED|function[_ .]?calling[_ .]?config)/i,
+];
 /** Only explicit HTTP schema/capability rejections qualify, never auth, rate limits or transport failures.
  * @complexity O(e) time and O(e) space for at most 16 KiB of error text; no I/O.
  */
@@ -290,7 +297,7 @@ function isStrictToolRejection({ status, rawErrorText }: { status: number; rawEr
   if (status !== 400 && status !== 422) return false;
   const detail = rawErrorText.slice(0, 16384);
   const namesFeature = /\bstrict\b|\bVALIDATED\b|function[_ .]?calling[_ .]?config|(?:input[_ ]|json[_ ])?schema|structured.outputs/i.test(detail);
-  const rejectsFeature = /unsupported|not support|unknown (?:field|parameter|name)|unrecognized|not (?:allowed|permitted)|invalid (?:json )?schema|schema[^\n]*invalid|invalid (?:enum )?value[^\n]*(?:VALIDATED|function[_ .]?calling[_ .]?config)|requires?[^\n]*beta/i.test(detail);
+  const rejectsFeature = STRICT_REJECTION_PATTERNS.some((pattern) => pattern.test(detail));
   return namesFeature && rejectsFeature;
 }
 

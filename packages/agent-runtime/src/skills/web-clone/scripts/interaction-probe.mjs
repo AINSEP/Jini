@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { trimDashes } from "./lib/trim-dashes.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge;
 // tests pass fakes (no real browser, captured output, fixed clock).
@@ -49,7 +50,7 @@ export function shortHash(value) {
 }
 
 export function safeFileName(label) {
-  return label.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "step";
+  return trimDashes(label.replace(/[^a-z0-9._-]+/gi, "-")).slice(0, 90) || "step";
 }
 
 function actionRow(action, index) {

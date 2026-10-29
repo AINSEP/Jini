@@ -310,10 +310,32 @@ function isHtmlArtifact(candidate: string): boolean {
 }
 
 function normalizeArtifactEchoContent(value: string): string {
-  return value
+  const normalized = value
     .replace(/^\uFEFF/, '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/^(?:\s|\\r|\\n)+|(?:\s|\\r|\\n)+$/g, '');
+    .replace(/\r\n?/g, '\n');
+  return trimEchoPadding(normalized);
+}
+
+/** Length of the padding token (whitespace, or a literal `\r`/`\n` escape) starting at `index`; 0 if none. */
+function echoPaddingAt(text: string, index: number): number {
+  if (/\s/.test(text.charAt(index))) return 1;
+  return text.startsWith('\\r', index) || text.startsWith('\\n', index) ? 2 : 0;
+}
+
+/** Length of the padding token ending just before `end`; 0 if none. */
+function echoPaddingBefore(text: string, end: number): number {
+  if (end > 0 && /\s/.test(text.charAt(end - 1))) return 1;
+  return end > 1 && echoPaddingAt(text, end - 2) === 2 ? 2 : 0;
+}
+
+/** Strips leading and trailing runs of whitespace and literal `\r`/`\n` escapes. Same result as
+ *  `text.replace(/^(?:\s|\\r|\\n)+|(?:\s|\\r|\\n)+$/g, '')`, without its quadratic backtracking. */
+function trimEchoPadding(text: string): string {
+  let start = 0;
+  for (let step = echoPaddingAt(text, start); step > 0; step = echoPaddingAt(text, start)) start += step;
+  let end = text.length;
+  for (let step = echoPaddingBefore(text, end); step > 0 && end - step >= start; step = echoPaddingBefore(text, end)) end -= step;
+  return text.slice(start, end);
 }
 
 export function isRedundantWrittenArtifact(candidate: string, ctx: ArtifactEchoContext): boolean {

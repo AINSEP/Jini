@@ -1,3 +1,4 @@
+import { trimCharsEnd } from '@jini-ai/core/text';
 /**
  * @module providers/google
  *
@@ -11,11 +12,9 @@ export function googleGenerativeLanguageBaseUrl({ baseUrl }: { baseUrl: string }
   const url = new URL(baseUrl);
   url.search = '';
   url.hash = '';
-  const pathname = url.pathname
-    .replace(/\/+$/, '')
-    .replace(/\/v\d+(?:beta)?$/i, '');
+  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' }).replace(/\/v\d+(?:beta)?$/i, '');
   url.pathname = pathname || '/';
-  return url.toString().replace(/\/+$/, '');
+  return trimCharsEnd({ text: url.toString(), chars: '/' });
 }
 
 /** Strips the `models/` prefix Google's API sometimes includes in a model id. */

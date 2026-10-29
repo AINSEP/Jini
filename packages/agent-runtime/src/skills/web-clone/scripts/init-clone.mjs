@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
+import { trimDashes } from "./lib/trim-dashes.mjs";
 
 export function usage(log) {
   log(`Usage:
@@ -44,12 +45,11 @@ export function parseArgs(argv) {
 }
 
 export function cleanSlug(input) {
-  return input
+  return trimDashes(input
     .trim()
     .toLowerCase()
     .replace(/https?:\/\//g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[^a-z0-9]+/g, "-"));
 }
 
 export function notesTemplate({ name, url, mode, level }) {

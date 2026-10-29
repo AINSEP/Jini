@@ -20,8 +20,14 @@
 /** A single streamed text delta event, as consumed by `emitWithTextSuppressor`. */
 type EventSink = (event: { type: 'text_delta'; delta: string }) => void;
 
-const ARTIFACT_OPEN_RE = /(?:<\s*\|?\s*DSML[\s,]+artifact\b[^>]*>|<\s*artifact\b[^>]*>)/i;
-const DSML_ARTIFACT_CLOSE_RE = /(?:<\/artifact>|<\/\s*\|?\s*DSML\s*>|<\s*\|?\s*\/\s*DSML\s*\|?\s*>)/i;
+const ARTIFACT_OPEN_RE = /<\s*(?:(?:\|\s*)?DSML[\s,]+)?artifact\b[^>]*>/i;
+// The three closing spellings, tried in this order: `</artifact>`, `</|DSML>` (slash first),
+// and `<|/DSML|>` (pipe first, optional trailing pipe). Whitespace may separate every token.
+const DSML_ARTIFACT_CLOSE_RE = new RegExp([
+  /<\/artifact>/,
+  /<\/\s*(?:\|\s*)?DSML\s*>/,
+  /<\s*(?:\|\s*)?\/\s*DSML\s*(?:\|\s*)?>/,
+].map((spelling) => spelling.source).join('|'), 'i');
 const DSML_OPEN_CANONICAL = 'dsmlartifact';
 const ARTIFACT_OPEN_CANONICAL = 'artifact';
 const ARTIFACT_CLOSE_CANONICALS = ['artifact', 'dsml'];
@@ -235,11 +241,10 @@ function possibleTagStart(text: string, predicate: (tail: string) => boolean): n
 function isPossibleDsmlArtifactOpen(text: string): boolean {
   if (!text.startsWith('<') || text.includes('>')) return false;
   const compact = text.toLowerCase().replace(/[<|,\s]/g, '');
-  return compact.length === 0 ||
-    DSML_OPEN_CANONICAL.startsWith(compact) ||
-    compact.startsWith(DSML_OPEN_CANONICAL) ||
-    ARTIFACT_OPEN_CANONICAL.startsWith(compact) ||
-    compact.startsWith(ARTIFACT_OPEN_CANONICAL);
+  // An empty `compact` (a bare `<`) is a prefix of every canonical form, so it matches too.
+  return [DSML_OPEN_CANONICAL, ARTIFACT_OPEN_CANONICAL].some(
+    (canonical) => canonical.startsWith(compact) || compact.startsWith(canonical),
+  );
 }
 
 /**

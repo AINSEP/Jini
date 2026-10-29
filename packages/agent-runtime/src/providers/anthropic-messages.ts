@@ -80,6 +80,7 @@ import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export interface AnthropicTextBlockParam {
   readonly type: 'text';
@@ -226,7 +227,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function anthropicRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string {
-  const base = (baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, chars: '/' });
   return `${base}/v1/messages`;
 }
 

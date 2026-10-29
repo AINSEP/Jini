@@ -78,7 +78,16 @@ export const CLAUDE_CODE_INITIALIZE_ARGS: readonly string[] = [
 /** Strips the bracketed context-window variant marker (`claude-fable-5-1[1m]`) —
  *  `models.ts#sanitizeCustomModel` rejects brackets, and `--model` accepts the bare name. */
 export function normalizeClaudePickerModelId(raw: string): string {
-  return raw.replace(/\[[^\]]*\]$/, '').trim();
+  return stripTrailingBracketGroup(raw).trim();
+}
+
+/** `x[1m]` -> `x`: drops a final `[...]` group (one containing no `]`); leaves `raw` alone otherwise.
+ *  Same result as `raw.replace(/\[[^\]]*\]$/, '')`, in one linear pass. */
+function stripTrailingBracketGroup(raw: string): string {
+  if (!raw.endsWith(']')) return raw;
+  const close = raw.length - 1;
+  const open = raw.indexOf('[', raw.lastIndexOf(']', close - 1) + 1);
+  return open !== -1 && open < close ? raw.slice(0, open) : raw;
 }
 
 /** Outcome of parsing `~/.claude.json`. The failure reasons are distinct so the freshness guard can

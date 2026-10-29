@@ -89,7 +89,7 @@ function pinWireName(descriptor: ProviderToolDescriptor, names: Map<string, stri
   if (descriptor.wireName === undefined) return;
   const existing = names.get(descriptor.id);
   const owner = occupied.get(descriptor.wireName);
-  if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(descriptor.wireName)) throw new ProviderToolProjectionError({});
+  if (!/^[A-Za-z_]\w{0,63}$/.test(descriptor.wireName)) throw new ProviderToolProjectionError({});
   if (existing !== undefined && existing !== descriptor.wireName) throw new ProviderToolProjectionError({});
   if (owner !== undefined && owner !== descriptor.id) throw new ProviderToolProjectionError({});
   names.set(descriptor.id, descriptor.wireName);

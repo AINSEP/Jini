@@ -34,7 +34,7 @@ export async function probeCliSubcommand(context: ModelDiscoveryContext, config:
   const { stdout } = await withModelProbeTimeout(active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs }), timeoutMs, signal);
   const models = config.parse?.({ stdout });
   if (!models) throw new ModelProbeError('malformed-response');
-  const defaultSelectionId = stdout.match(/^\s*Default model:\s*(\S+)\s*$/mi)?.[1];
+  const defaultSelectionId = stdout.match(/^[^\S\n\r\u2028\u2029]*Default model:\s*(\S+)[^\S\n\r\u2028\u2029]*$/mi)?.[1];
   return { models, source: 'cli', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
 }
 /** ACP can create CLI session state/start services. It never sends a user prompt. */
@@ -159,7 +159,7 @@ function parseGenericCliModels(stdout: string): DiscoveredModel[] {
     });
   }
   return stdout.split('\n').flatMap((line) => {
-    const match = line.trim().match(/^(?:[-*•]\s*)?([\w][\w./:[\]-]*)(?:\s+-\s+(.+))?$/);
+    const match = line.trim().match(/^(?:[-*•]\s*)?(\w[\w./:[\]-]*)(?:\s+-\s+(\S.*))?$/);
     if (!match || /^(models|available|provider|model)$/i.test(match[1]!)) return [];
     return [{ id: match[1]!, label: match[2] || match[1]!, identityKind: modelIdentityKind(match[1]!) }];
   });
@@ -344,7 +344,8 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
       let directory = cwd;
       for (let depth = 0; depth < 64 && !signal.aborted; depth++) {
         if (await stat(join(directory, '.git')).then(() => true, () => false)) return directory;
-        const parent = dirname(directory); if (parent === directory) break; directory = parent;
+        const parent = dirname(directory); if (parent === directory) break;
+        directory = parent;
       }
       return null;
     },

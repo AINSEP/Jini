@@ -26,6 +26,7 @@ import type {
   ProviderModelsRequest,
   ProviderModelsResponse,
 } from './types.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export type ProviderModelsInput = ProviderModelsRequest & {
   signal?: AbortSignal;
@@ -68,7 +69,7 @@ const BEDROCK_MODEL_OPTIONS: ProviderModelOption[] = [
 
 function appendVersionedApiPath(baseUrl: string, suffix: string): string {
   const url = new URL(baseUrl);
-  const pathname = url.pathname.replace(/\/+$/, '');
+  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
   url.pathname = /\/v\d+(\/|$)/.test(pathname)
     ? `${pathname}${suffix}`
     : `${pathname}/v1${suffix}`;

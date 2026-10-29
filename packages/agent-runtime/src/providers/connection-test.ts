@@ -24,6 +24,7 @@ import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js
 import { googleGenerateContentUrl } from './google.js';
 import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam } from './token-params.js';
 import type { ConnectionTestKind, ConnectionTestProtocol } from './types.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 /** The four wire protocols this smoke test knows how to speak. A narrower
  *  type than {@link ConnectionTestProtocol} on purpose — see this module's
@@ -86,7 +87,7 @@ function isSupportedProtocol(protocol: ConnectionTestProtocol): protocol is Supp
 
 function appendVersionedApiPath(baseUrl: string, suffix: string): string {
   const url = new URL(baseUrl);
-  const pathname = url.pathname.replace(/\/+$/, '');
+  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
   url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
   return url.toString();
 }
@@ -215,7 +216,7 @@ function buildAzureProviderCall(
 ): ProviderCallShape {
   const { baseUrl, apiKey, model } = input;
   const url = new URL(baseUrl);
-  const basePath = url.pathname.replace(/\/+$/, '');
+  const basePath = trimCharsEnd({ text: url.pathname, chars: '/' });
   const usesVersionedOpenAIPath = /\/openai\/v\d+(?:$|\/)/.test(basePath);
   const apiVersion = input.apiVersion?.trim() || (usesVersionedOpenAIPath ? '' : '2024-10-21');
   url.pathname = usesVersionedOpenAIPath

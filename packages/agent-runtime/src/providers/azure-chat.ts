@@ -77,6 +77,7 @@ import { runOpenAiCompatibleRequest, refreshOpenAiTools, createStrictToolRetry, 
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export interface AzureFunctionToolDef {
   readonly type: 'function';
@@ -185,7 +186,7 @@ const DEFAULT_MAX_TOOL_TURNS = 8;
 const DEFAULT_AZURE_MAX_TOKENS = 8192;
 
 function azureRequestUrl(baseUrl: string, model: string, apiVersion: string | undefined): string {
-  const base = baseUrl.replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: baseUrl, chars: '/' });
   const version = apiVersion && apiVersion.trim() ? apiVersion.trim() : DEFAULT_AZURE_API_VERSION;
   return `${base}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(version)}`;
 }

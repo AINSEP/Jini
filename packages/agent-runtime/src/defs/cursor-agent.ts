@@ -6,7 +6,7 @@ import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeModelOption } from '.
 /** One `<id>` or `<id> - <label>` listing line; header lines and non-id lines yield null. */
 function parseCursorAgentModelLine(line: string): RuntimeModelOption | null {
   if (/^(available models|models)$/i.test(line)) return null;
-  const match = line.match(/^([A-Za-z0-9][A-Za-z0-9._/:@-]*)(?:\s+-\s+(.+))?$/);
+  const match = line.match(/^([A-Za-z0-9][A-Za-z0-9._/:@-]*)(?:\s+-\s+(\S.*))?$/);
   if (!match) return null;
   // The id group is mandatory and non-empty whenever the pattern matched.
   const id = match[1] as string;

@@ -149,10 +149,10 @@ export function rewriteSrcset(project, ownerFile, srcset) {
   return srcset
     .split(",")
     .map((candidate) => {
-      // /^\s*/ and /\s*$/ always match (possibly empty), and a non-empty
-      // trimmed body always splits into a non-empty first token.
-      const leading = candidate.match(/^\s*/)[0];
-      const trailing = candidate.match(/\s*$/)[0];
+      // The whitespace around the body, kept verbatim; a non-empty trimmed
+      // body always splits into a non-empty first token.
+      const leading = candidate.slice(0, candidate.length - candidate.trimStart().length);
+      const trailing = candidate.slice(candidate.trimEnd().length);
       const body = candidate.trim();
       if (!body) return candidate;
       const [url, ...descriptors] = body.split(/\s+/);

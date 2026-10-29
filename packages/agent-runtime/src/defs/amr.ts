@@ -70,25 +70,25 @@ function stripPrefix({ value, prefix }: { value: string; prefix: string }): stri
 // interpolation the way it restricts a method call on a possibly-undefined
 // value).
 function normalizeKnownVelaVersionId(rawId: string): string | null {
-  const claude = /^claude[_-](haiku|opus|sonnet)[_-](\d+)[_-](\d+)(.*)$/i.exec(rawId);
+  const claude = /^claude[_-](haiku|opus|sonnet)[_-](\d+)[_-](\d+)(?!\d)(.*)$/i.exec(rawId);
   if (claude) {
     const [, family, major, minor, suffix = ''] = claude;
     return `claude-${family!.toLowerCase()}-${major}.${minor}${suffix.replace(/_/g, '-')}`;
   }
 
-  const gpt = /^gpt_(\d+)_(\d+)(.*)$/i.exec(rawId);
+  const gpt = /^gpt_(\d+)_(\d+)(?!\d)(.*)$/i.exec(rawId);
   if (gpt) {
     const [, major, minor, suffix = ''] = gpt;
     return `gpt-${major}.${minor}${suffix.replace(/_/g, '-')}`;
   }
 
-  const gemini = /^gemini_(\d+)_(\d+)(.*)$/i.exec(rawId);
+  const gemini = /^gemini_(\d+)_(\d+)(?!\d)(.*)$/i.exec(rawId);
   if (gemini) {
     const [, major, minor, suffix = ''] = gemini;
     return `gemini-${major}.${minor}${suffix.replace(/_/g, '-')}`;
   }
 
-  const minimax = /^minimax_m(\d+)_(\d+)(.*)$/i.exec(rawId);
+  const minimax = /^minimax_m(\d+)_(\d+)(?!\d)(.*)$/i.exec(rawId);
   if (minimax) {
     const [, major, minor, suffix = ''] = minimax;
     return `minimax-m${major}.${minor}${suffix.replace(/_/g, '-')}`;

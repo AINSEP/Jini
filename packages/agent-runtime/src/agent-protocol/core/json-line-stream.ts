@@ -211,7 +211,7 @@ export function parseLiteral(value: string, start: number, literal: string): num
 }
 
 function isDigit(char: string | undefined): boolean {
-  return /[0-9]/.test(char ?? '');
+  return /\d/.test(char ?? '');
 }
 
 function consumeDigits(value: string, start: number): number {
@@ -297,7 +297,7 @@ export function parseValue(state: JsonScanState, index: number): number | null |
   // with an `index` already known to be within `value`'s bounds, so `char`
   // is always defined here; the non-null assertion documents that instead
   // of a `?? ''` fallback that could never actually be exercised.
-  if (char === '-' || /[0-9]/.test(char!)) return parseNumberValue(state, index);
+  if (char === '-' || /\d/.test(char!)) return parseNumberValue(state, index);
   return false;
 }
 

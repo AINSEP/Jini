@@ -7,6 +7,7 @@
  * is a narrower id/label probe shape, so their names and contracts stay separate.
  */
 import type { AgentDefinition, CredentialStatus, ModelCatalogOption, ModelProvider } from '@jini-ai/protocol';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 
 export interface AgentModelChoice {
@@ -68,7 +69,7 @@ export function modelCatalogCacheKey({ providerId, baseUrl, credential }: { prov
   if (typeof variant !== 'string') throw new TypeError('Model catalog variant must be a string');
   return [
     providerId,
-    baseUrl.trim().replace(/\/+$/, ''),
+    trimCharsEnd({ text: baseUrl.trim(), chars: '/' }),
     fingerprintCredential({ value: credential.trim() }),
     variant.trim(),
   ].join('\n');

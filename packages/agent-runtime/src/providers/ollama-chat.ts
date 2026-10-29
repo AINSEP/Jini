@@ -107,6 +107,7 @@ import { redactSecrets } from '@jini-ai/core';
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export interface OllamaFunctionToolDef {
   readonly type: 'function';
@@ -224,7 +225,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Strips a trailing `/api` (with or without a trailing slash) before appending `/api/chat` — matches OD's `.replace(/\/+$/, '').replace(/\/api\/?$/, '')` so a caller-supplied `baseUrl` ending in `/api` doesn't produce `/api/api/chat`. */
 function ollamaRequestUrl(baseUrl: string | undefined): string {
-  const trimmed = (baseUrl ?? DEFAULT_OLLAMA_BASE_URL).replace(/\/+$/, '').replace(/\/api\/?$/, '');
+  const trimmed = trimCharsEnd({ text: baseUrl ?? DEFAULT_OLLAMA_BASE_URL, chars: '/' }).replace(/\/api\/?$/, '');
   return `${trimmed}/api/chat`;
 }
 
