@@ -167,7 +167,10 @@ export function mediaRowHandles({ media }: { media: readonly Pick<MediaAsset, 'i
     const slug = item.id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const preferred = `media-item-${slug || index + 1}`;
     let handle = preferred, suffix = 2;
-    while (used.has(handle)) handle = `${preferred}-${suffix++}`;
+    while (used.has(handle)) {
+      handle = `${preferred}-${suffix}`;
+      suffix += 1;
+    }
     used.add(handle);
     return handle;
   });

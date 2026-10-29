@@ -19,7 +19,8 @@ export function createProvidersController(
     _optional: Record<string, never> = {},
   ) {
     if (store.signal.aborted) return;
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     store.set({ patch: { loading: true } });
     try {
       const items = await api.list({}, { signal: store.signal });

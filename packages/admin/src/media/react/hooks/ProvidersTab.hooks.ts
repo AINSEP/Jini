@@ -190,7 +190,8 @@ export function useProvidersTab(_required: Record<string, never> = {}, _optional
   const catalog = mediaProviders?.catalog ?? discoveredCatalog;
   const pinnedIds = mediaProviders?.pinnedProviderIds ?? [];
   const ordered = sortProvidersByConfigured(catalog, editor.providers, pinnedIds);
-  const toggleKey = (id: string) => setVisibleKeys(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const toggleKey = (id: string) => setVisibleKeys(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id);
+    return next; });
   const rows = ordered.map((item, index) => providerRow(
     { item, entry: editor.providers[item.id] ?? {}, editor, visible: visibleKeys.has(item.id), toggle: () => toggleKey(item.id) },
     { divider: index > 0 && !pinnedIds.includes(item.id) && pinnedIds.includes(ordered[index - 1]!.id), disabled: !mediaProviders },

@@ -25,7 +25,8 @@ export function useWidgetRegions({ api }: { api: AdminWidgetsPort }, { t = widge
   const invalidate = useInvalidate();
   const latest = useRef({ t, navigate }); latest.current = { t, navigate };
   const { controller, snapshot } = useController({ create: () => createWidgetRegionsController({ api: cached.api }, { t: key => latest.current.t(key), navigate: path => latest.current.navigate?.(path) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
-  useEffect(() => { if (!controller) return; return events?.subscribe({ resource: WIDGETS_REGIONS_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.regions }) }); }, [controller, events, invalidate]);
+  useEffect(() => { if (!controller) return;
+    return events?.subscribe({ resource: WIDGETS_REGIONS_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.regions }) }); }, [controller, events, invalidate]);
   return { ...mergeRegionsState({ snapshot, data: cached.query.data, queryError: cached.query.error }), setNewRegionKey: value => controller?.setNewRegionKey({ value }), bind: async () => { await controller?.bind(); }, t };
 }
 const EMPTY_REGIONS_STATE: WidgetRegionsState = { regions: null, error: null, newRegionKey: '', binding: false };

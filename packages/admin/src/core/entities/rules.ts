@@ -95,7 +95,8 @@ function describeNonJsonValue(
   _optional: Record<string, never> = {},
 ): string | null {
   if (depth > MAX_JSON_DEPTH) return `nests deeper than ${MAX_JSON_DEPTH} levels`;
-  if (++budget.nodes > MAX_JSON_NODES) return `holds more than ${MAX_JSON_NODES} values`;
+  budget.nodes += 1;
+  if (budget.nodes > MAX_JSON_NODES) return `holds more than ${MAX_JSON_NODES} values`;
   if (value === null || typeof value !== 'object') return describeNonJsonScalar(value);
   // Rejects class instances, `Map`, `Date`, and anything else that survives `typeof === 'object'`
   // but does not round-trip through JSON as itself.

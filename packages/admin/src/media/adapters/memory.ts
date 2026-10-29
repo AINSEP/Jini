@@ -23,6 +23,7 @@ export function createMemoryMediaApi(
 ): MediaApiPort {
   const items = new Map(assets.map((item) => [item.id, Object.freeze({ ...item })]));
   let sequence = 0;
+  const nextSequence = () => { sequence += 1; return sequence; };
   function check(options: MediaRequestOptions) {
     options.signal?.throwIfAborted();
   }
@@ -40,7 +41,7 @@ export function createMemoryMediaApi(
     // The REAL server ignores the declared string and stores sniffContentType(bytes) instead.
     // This fake has no bytes to sniff — its input is an opaque base64 string a test made up —
     // so it echoes what the caller declared. Tests needing disagreement must seed assets directly.
-    return { byteSize: base64ByteSize(input), contentType: input.contentType, sha256: `memory-content-${++sequence}` };
+    return { byteSize: base64ByteSize(input), contentType: input.contentType, sha256: `memory-content-${nextSequence()}` };
   }
   return {
     replaceSupported: true,
@@ -53,7 +54,7 @@ export function createMemoryMediaApi(
       check(options);
       let id: string;
       do {
-        id = `memory-${++sequence}`;
+        id = `memory-${nextSequence()}`;
       } while (items.has(id));
       const timestamp = now();
       return put({

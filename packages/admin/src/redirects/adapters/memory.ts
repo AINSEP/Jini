@@ -26,7 +26,7 @@ export function createMemoryRedirectsApi(
     if (validate) validate(input);
     else if (input.matchType === 'regex') throw new AdminApiError({ message: 'regex match type is not supported', status: 400 }, { code: 'REDIRECT_VALIDATION_ERROR' });
     let id: string;
-    do { id = `memory-redirect-${nextId++}`; } while (rows.has(id));
+    do { id = `memory-redirect-${nextId}`; nextId += 1; } while (rows.has(id));
     const row: AdminRedirect = Object.freeze({ ...input, id, status: 'active', override: input.override ?? false,
       priority: input.priority ?? 0, source, sourceEntryId: null, fromPathAtCapture: null, toPathAtCapture: null,
       createdByPrincipal: 'memory-principal', createdByPluginId: null,

@@ -103,7 +103,8 @@ export function createCommentQueueController(
     const { nextCursor, status } = store.getSnapshot();
     if (store.signal.aborted || !nextCursor || loadingMore) return;
     loadingMore = true;
-    const generation = ++pageGeneration;
+    pageGeneration += 1;
+    const generation = pageGeneration;
     moreError = null; // A retry clears the prior failure before its request settles.
     store.set({ patch: { loadingMore: true } });
     publishPages();

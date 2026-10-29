@@ -8,7 +8,8 @@ interface ConformanceProbe {
 /** Mutates an isolated adapter. Returns named checks and throws at the first contract failure. */
 export async function runWidgetsApiConformance({ api }: { api: AdminWidgetsPort }, _optional: Record<string, never> = {}): Promise<readonly string[]> {
   const checks: string[] = [];
-  function assert(condition: boolean, name: string) { if (!condition) throw new Error(`Widgets API conformance: ${name}`); checks.push(name); }
+  function assert(condition: boolean, name: string) { if (!condition) throw new Error(`Widgets API conformance: ${name}`);
+    checks.push(name); }
   async function rejects(run: () => Promise<unknown>, name: string) { let rejected = false; try { await run(); } catch { rejected = true; } assert(rejected, name); }
   const probe: ConformanceProbe = { api, assert, rejects };
   const { widget, updated } = await checkInstanceLifecycle({ probe });

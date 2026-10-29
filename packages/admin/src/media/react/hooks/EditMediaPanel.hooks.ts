@@ -23,7 +23,8 @@ export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<
   const mounted = useRef(false);
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; for (const timer of timers.current.values()) clearTimeout(timer); timers.current.clear(); };
+    return () => { mounted.current = false; for (const timer of timers.current.values()) clearTimeout(timer);
+      timers.current.clear(); };
   }, []);
   const saving = !snapshot || snapshot.saving;
   const titleRef = useRef<HTMLInputElement>(null);

@@ -38,7 +38,8 @@ export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files:
   const visible = (path: string | null) => path !== null && rows.some(r => r.node.path === path);
   const activePath = visible(focused) ? focused : visible(selectedPath) ? selectedPath : rows[0]?.node.path ?? null;
   // Move DOM focus only after keyboard navigation, never when opening the inspector.
-  useEffect(() => { const tree = focusWithin.current; if (!tree) return; focusWithin.current = null; Array.from(tree.querySelectorAll<HTMLElement>('[data-tree-path]')).find(el => el.dataset.treePath === activePath)?.focus(); });
+  useEffect(() => { const tree = focusWithin.current; if (!tree) return;
+    focusWithin.current = null; Array.from(tree.querySelectorAll<HTMLElement>('[data-tree-path]')).find(el => el.dataset.treePath === activePath)?.focus(); });
   const setExpanded = (path: string, expanded: boolean) => setToggled(current => new Map(current).set(path, expanded));
   return {
     rows: rows.map(row => { const { node } = row, folder = node.kind === 'folder', expanded = folder && isExpanded({ path: node.path }); return { key: `${node.kind}:${node.path}`, name: node.name, path: node.path, depth: row.depth + 1, setSize: row.setSize, posInSet: row.posInSet, expanded: folder ? expanded : undefined, selected: folder ? undefined : node.path === selectedPath, tabIndex: node.path === activePath ? 0 : -1,
@@ -49,7 +50,9 @@ export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files:
       if (activePath === null) return;
       const action = packageFileTreeKeyAction({ rows, currentPath: activePath, key: event.key, isExpanded });
       if (!action.focus && !action.setExpanded && !action.open) return;
-      event.preventDefault(); if (action.setExpanded) setExpanded(action.setExpanded.path, action.setExpanded.expanded); if (action.open) onOpen({ path: action.open }); if (action.focus) { setFocused(action.focus); focusWithin.current = event.currentTarget; }
+      event.preventDefault(); if (action.setExpanded) setExpanded(action.setExpanded.path, action.setExpanded.expanded);
+      if (action.open) onOpen({ path: action.open });
+      if (action.focus) { setFocused(action.focus); focusWithin.current = event.currentTarget; }
     },
   };
 }

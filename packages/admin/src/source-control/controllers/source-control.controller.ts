@@ -20,7 +20,9 @@ export function createSourceControlController({ api, permissions = [] }: { api: 
   const canWrite = () => canRead() && grants.has('source-control.credentials.write');
   function patchDraft(id: string, patch: Partial<SourceControlDraft>) { const state = store.getSnapshot(); store.set({ patch: { drafts: { ...state.drafts, [id]: { ...(state.drafts[id] ?? blankSourceControlDraft({})), ...patch } } } }); }
   async function load(_required: Record<string, never>, _optional = {}) {
-    if (!canRead()) return; const ticket = ++generation, revision = credentialRevision; store.set({ patch: { loading: true } });
+    if (!canRead()) return;
+    generation += 1;
+    const ticket = generation, revision = credentialRevision; store.set({ patch: { loading: true } });
     // Catalog failure must not hide saved connections; retain each successful store independently.
     await Promise.all([
       (async () => { try { const credentials = await api.list({}, { signal: store.signal }); if (ticket === generation && revision === credentialRevision) store.set({ patch: { credentials: credentials.map(row => sourceControlSummary({ row })), loaded: true, error: null } }); } catch { if (ticket === generation) store.set({ patch: { error: 'Connections unavailable' } }); } })(),
@@ -37,7 +39,8 @@ export function createSourceControlController({ api, permissions = [] }: { api: 
     const current = defaultSourceControlCredential({ credentials: state.credentials, providerId }), connection = buildSourceControlConnection(target); patchDraft(providerId, { saving: true, error: null });
     try {
       const row = await writeCredential({ current, connection });
-      if (store.signal.aborted) return false; credentialRevision++;
+      if (store.signal.aborted) return false;
+      credentialRevision++;
       // One round trip per write: splice the summary, then erase accepted secret drafts immediately.
       store.set({ patch: { credentials: spliceCredential({ credentials: store.getSnapshot().credentials, summary: sourceControlSummary({ row }) }) } }); patchDraft(providerId, blankSourceControlDraft({})); return true;
     } catch (error) { patchDraft(providerId, { saving: false, error: sourceControlErrorMessage({ error }) }); return false; }

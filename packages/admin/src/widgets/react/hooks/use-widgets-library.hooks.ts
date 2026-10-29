@@ -39,7 +39,8 @@ export function useWidgetsLibrary({ api }: { api: AdminWidgetsPort }, { t = widg
   const invalidate = useInvalidate();
   const latestT = useRef(t); latestT.current = t;
   const { controller, snapshot } = useController({ create: () => createWidgetsLibraryController({ api: cached.api }, { t: key => latestT.current(key) }), dependencies: [cached.api] }, { start: ({ controller }) => { void controller.load(); } });
-  useEffect(() => { if (!controller) return; return events?.subscribe({ resource: WIDGETS_LIBRARY_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.library }) }); }, [controller, events, invalidate]);
+  useEffect(() => { if (!controller) return;
+    return events?.subscribe({ resource: WIDGETS_LIBRARY_RESOURCE, onRefresh: () => invalidate({ key: WIDGET_QUERY_KEYS.library }) }); }, [controller, events, invalidate]);
   return { ...mergeLibraryState({ snapshot, data: cached.query.data, queryError: cached.query.error }),
     setCreateType: type => controller?.setCreateType({ type }), requestTrash: widget => controller?.requestTrash({ widget }),
     confirmTrash: async () => { await controller?.confirmTrash(); }, cancelTrash: () => controller?.cancelTrash(), t, locale };
