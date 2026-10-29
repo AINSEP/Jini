@@ -47,8 +47,13 @@ export interface FederatedToolIdentity {
  *
  * @complexity Core canonical serialization plus O(h + s) hashing over hints and schema bytes.
  */
+/** The origin's part of an approval fingerprint: a roster admission names its revision. */
+function originFingerprintPart(origin: NonNullable<FederatedToolIdentity["origin"]>): unknown[] {
+  return origin.kind === "roster" ? ["roster", origin.admissionRevision] : ["preset"];
+}
+
 export function federatedToolApprovalFingerprint({ identity, fingerprintDomain }: { identity: FederatedToolIdentity; fingerprintDomain: string }): string {
-  const origin = identity.origin === undefined ? null : identity.origin.kind === "roster" ? ["roster", identity.origin.admissionRevision] : ["preset"];
+  const origin = identity.origin === undefined ? null : originFingerprintPart(identity.origin);
   return createHash("sha256")
     .update(
       canonicalJson({ value: [

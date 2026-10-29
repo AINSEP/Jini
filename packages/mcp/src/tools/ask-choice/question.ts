@@ -84,9 +84,11 @@ export function parseQuestion({ input, toolId }: { input: Record<string, unknown
 
 export function matchesOptions({ question, params }: { question: AskChoiceQuestion; params: Record<string, unknown> }): boolean {
   const choice = params['choice'];
-  if (question.singleSelect) {
-    if (!question.singleSelect.options.some(option => option.value === choice)) return false;
-  } else if (choice !== undefined) return false;
+  // A single-select question needs one of its options; any other question takes no `choice`.
+  const choiceAccepted = question.singleSelect
+    ? question.singleSelect.options.some(option => option.value === choice)
+    : choice === undefined;
+  if (!choiceAccepted) return false;
   const selections = params['selections'];
   if (selections === undefined) return true;
   if (!question.multiSelect || !Array.isArray(selections)) return false;

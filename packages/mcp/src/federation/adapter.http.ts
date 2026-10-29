@@ -326,7 +326,8 @@ class McpHttpSession implements McpSessionPort {
    *  @throws {McpProtocolError} On a transport failure, a non-2xx, an unparseable body, or a
    *  JSON-RPC error frame. */
   private async request(method: string, params: Record<string, unknown>, signal?: AbortSignal | undefined): Promise<unknown> {
-    const id = this.nextId++;
+    const id = this.nextId;
+    this.nextId += 1;
     const response = await this.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }), signal);
     assertOkStatus(method, response, this.messages);
 
@@ -367,6 +368,11 @@ function assertOkStatus(method: string, response: McpHttpResponse, messages: Fed
   throw new McpProtocolError({ message: `mcp-federation: the server answered '${method}' with HTTP ${response.status}` });
 }
 
+/** A plain JSON-RPC response body; an empty body carries no frame. Throws on invalid JSON. */
+function parseJsonRpcBody(text: string): JsonRpcResponse | null {
+  return text.trim() === "" ? null : JSON.parse(text) as JsonRpcResponse;
+}
+
 /**
  * Pulls the request's JSON-RPC response out of whichever mode the server chose.
  *
@@ -383,7 +389,7 @@ function extractJsonRpcFrame({ method, response, id }: { method: string; respons
   try {
     frame = response.contentType.startsWith("text/event-stream")
       ? matchingSseResponse({ body: response.text, id })
-      : response.text.trim() === "" ? null : JSON.parse(response.text) as JsonRpcResponse;
+      : parseJsonRpcBody(response.text);
   } catch {
     throw new McpProtocolError({ message: `mcp-federation: the server's response to '${method}' was not valid JSON` });
   }
