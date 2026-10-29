@@ -349,8 +349,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const files: string[] = [];
     for (const entry of entries) {
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (isNameExcluded({ name: entry.name, relative, directory: entry.isDirectory(), state })) continue;
-      if (!selectPath({ relative, directory: entry.isDirectory(), state })) continue;
+      const directory = entry.isDirectory();
+      if (isNameExcluded({ name: entry.name, relative, directory, state }) || !selectPath({ relative, directory, state })) continue;
       if (entry.isDirectory()) {
         files.push(...await directoryEntryFiles({ name: entry.name, dir, relative, depth, state }));
       } else {

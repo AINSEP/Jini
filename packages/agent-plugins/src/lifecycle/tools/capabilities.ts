@@ -105,8 +105,10 @@ export function createIssuedTokenMemories(_required: Record<string, never> = {},
   const byPlugin = new Map<string, IssuedTokenMemory>();
   return Object.freeze({
     forPlugin({ pluginId }: { readonly pluginId: string }): IssuedTokenMemory {
-      let issued = byPlugin.get(pluginId);
-      if (issued === undefined) byPlugin.set(pluginId, issued = new Set());
+      const existing = byPlugin.get(pluginId);
+      if (existing !== undefined) return existing;
+      const issued: IssuedTokenMemory = new Set();
+      byPlugin.set(pluginId, issued);
       return issued;
     },
   });

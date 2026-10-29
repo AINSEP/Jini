@@ -85,9 +85,11 @@ export function createPluginContributionLoader(required: PluginContributionPorts
     const refusals: string[] = [];
     for (const verdict of verdicts) {
       if ('refusal' in verdict) { refusals.push(verdict.refusal); continue; }
+      // A host package policy refusal stands in for the plugin's contributions.
       const refusal = packageRefusal?.({ plugin: verdict.trusted });
-      if (refusal !== undefined) { refusals.push(refusal); continue; }
-      const loaded = await loadPluginContributionsFromSource({ plugin: verdict.trusted, definition });
+      const loaded = refusal === undefined
+        ? await loadPluginContributionsFromSource({ plugin: verdict.trusted, definition })
+        : { items: [], refusals: [refusal] };
       items.push(...loaded.items);
       refusals.push(...loaded.refusals);
     }

@@ -33,7 +33,8 @@ function isOpenLinkEnvelope(data: unknown): data is AdminSurfaceOpenLinkRequest 
   if (typeof data !== 'object' || data === null) return false;
   const message = data as Readonly<Record<string, unknown>>;
   const isProtocol = message.protocol === ADMIN_SURFACE_PROTOCOL && message.version === ADMIN_SURFACE_PROTOCOL_VERSION && message.kind === 'open-link';
-  return isProtocol && typeof message.mountId === 'string' && typeof message.requestId === 'string' && REQUEST_ID_PATTERN.test(message.requestId) && typeof message.url === 'string';
+  const hasRequestId = typeof message.requestId === 'string' && REQUEST_ID_PATTERN.test(message.requestId);
+  return isProtocol && typeof message.mountId === 'string' && hasRequestId && typeof message.url === 'string';
 }
 
 type LinkRefusal = { readonly code: string; readonly message: string };

@@ -115,7 +115,7 @@ function admitAll(loaded: readonly LoadedAgentPluginTool[], refusals: string[], 
   const claimants = new Map<string, Set<string>>();
   for (const tool of admitted) claimants.set(tool.toolId, (claimants.get(tool.toolId) ?? new Set()).add(tool.loaded.pluginId));
   for (const [toolId, owners] of claimants) {
-    if (owners.size > 1) refusals.push(`agent tool '${toolId}' was not loaded: more than one plugin declares it (${[...owners].map(id => `'${id}'`).sort().join(', ')})`);
+    if (owners.size > 1) refusals.push(`agent tool '${toolId}' was not loaded: more than one plugin declares it (${[...owners].map(id => "'" + id + "'").sort().join(', ')})`);
   }
   return admitted.filter(tool => claimants.get(tool.toolId)!.size === 1);
 }
@@ -203,9 +203,9 @@ function countProjectionClaims({ loaded, additionalTools, refusals, idFor }: {
     ...(additionalTools ?? []).map(entry => idFor({ pluginId: entry.pluginId, name: entry.tool.name }))];
   for (const id of claimedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, count] of counts) {
-    if (count <= 1) continue;
     // MOVE: Admission already reports executable collisions with their owners; preserve that diagnostic once.
-    if (refusals.some(reason => reason.startsWith(`agent tool '${id}' was not loaded:`))) continue;
+    const alreadyReported = refusals.some(reason => reason.startsWith(`agent tool '${id}' was not loaded:`));
+    if (count <= 1 || alreadyReported) continue;
     refusals.push(`agent tool '${id}' was not loaded: more than one contribution declares it`);
   }
   return counts;

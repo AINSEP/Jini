@@ -443,10 +443,17 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   /** Ported from Jini 78d4b60b: reject from metadata before a staging transaction exists.
  * A second central-directory walk opens no content streams and avoids over-cap disk churn. */
   async function assertEntryCountWithinCap(entries: AsyncIterable<AgentPluginArchiveEntry>): Promise<void> {
+    // Only the count matters, so the entries are stepped through without being bound to a name.
+    // Leaving early closes the walk the way for-await would, without letting a failing close
+    // replace the cap error.
+    const iterator = entries[Symbol.asyncIterator]();
     let entryCount = 0;
-    for await (const _entry of entries) {
+    for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
       entryCount += 1;
-      if (entryCount > LIMITS.maxEntries) throw tooManyEntriesError();
+      if (entryCount > LIMITS.maxEntries) {
+        await Promise.resolve(iterator.return?.()).catch(() => undefined);
+        throw tooManyEntriesError();
+      }
     }
   }
 

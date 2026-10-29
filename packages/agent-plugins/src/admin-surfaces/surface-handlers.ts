@@ -193,7 +193,10 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
         const key = keyOf(entry.pluginId, entry.descriptor.id);
         const reason = claims.get(key)! > 1 ? 'more than one handler module claims this surface' : admissionRefusal(entry);
         const line = `admin surface handlers for '${entry.descriptor.id}' from '${entry.pluginId}' were not loaded: ${reason}`;
-        if (reason !== null) { if (!refusals.includes(line)) refusals.push(line); continue; }
+        if (reason !== null) {
+          if (!refusals.includes(line)) refusals.push(line);
+          continue;
+        }
         next.set(key, unchanged(previous.get(key), entry) ?? admit(key, entry));
       }
       admitted = next;

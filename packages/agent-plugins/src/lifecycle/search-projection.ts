@@ -57,12 +57,14 @@ export function projectAgentPluginSearchPage(
   // whether to suggest installing something new versus rephrasing the search.
   const page = (): AgentPluginDiscoveryPage => ({ matches, totalInstalled, totalMatches: candidates.length,
     nextOffset: offset + matches.length < candidates.length ? offset + matches.length : null });
+  // Add candidates while the page still fits; the first one that overflows is taken back out.
   for (const candidate of candidates.slice(offset, offset + limit)) {
     matches.push(discoveryMatch({ candidate }));
-    if (Buffer.byteLength(JSON.stringify(page())) <= maxBytes) continue;
-    matches.pop();
-    if (!matches.length) throw new RangeError('Plugin identity exceeds the discovery page byte budget');
-    break;
+    if (Buffer.byteLength(JSON.stringify(page())) > maxBytes) {
+      matches.pop();
+      if (!matches.length) throw new RangeError('Plugin identity exceeds the discovery page byte budget');
+      break;
+    }
   }
   return page();
 }
