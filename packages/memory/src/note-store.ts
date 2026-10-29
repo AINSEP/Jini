@@ -42,6 +42,8 @@ import { promises as nodeFilesystem } from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { parseEntryFrontmatter, renderEntryFrontmatter } from './entry-frontmatter.js';
+import { randomUUID } from 'node:crypto';
+import { trimBoth } from './text-scan.js';
 
 export interface NoteStoreConfig {
   /** The entry-type buckets a host's notes may declare (host-owned taxonomy). */
@@ -294,7 +296,7 @@ export function buildUpsertChangeEvent(
 export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOptionalArgs = {}): NoteStore {
   const fsp = optional.filesystem ?? nodeFilesystem;
   const now = optional.now ?? Date.now;
-  const ids = optional.ids ?? (() => `${process.pid}.${now().toString(36)}.${Math.random().toString(36).slice(2)}`);
+  const ids = optional.ids ?? (() => `${process.pid}.${now().toString(36)}.${randomUUID()}`);
   const validTypes = new Set(config.validTypes);
   const subdir = optional.subdir ?? 'notes';
   assertSafeSubdir(subdir);
@@ -431,11 +433,10 @@ export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOpti
   function deriveId({ type, name }: { type: string; name: string }): string {
     const safeType = isValidType(type) ? type : config.defaultType;
     const raw = String(name || '');
-    const cleaned = raw
+    const joined = raw
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 48);
+      .replace(/[^a-z0-9]+/g, '_');
+    const cleaned = trimBoth(joined, '_').slice(0, 48);
     if (cleaned.length > 0) return `${safeType}_${cleaned}`;
     // FNV-1a 32-bit on the original name — deterministic, dependency-free,
     // and avoids colliding two purely-non-ASCII names on the same fallback slug.
@@ -537,16 +538,14 @@ export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOpti
       return [];
     }
     const out: NoteEntrySummary[] = [];
-    for (const name of names) {
-      if (!name.endsWith('.md') || name === INDEX_FILE) continue;
+    const entryFiles = names.filter((name) => name.endsWith('.md') && name !== INDEX_FILE && isValidId(name.slice(0, -3)));
+    for (const name of entryFiles) {
       const id = name.slice(0, -3);
-      if (!isValidId(id)) continue;
       const filePath = path.join(base, name);
       // Skip unreadable/malformed/non-regular (e.g. symlink) files rather
       // than let one shadow the rest or read through a planted symlink.
       const found = await readRegularFileOrNull(filePath);
-      if (!found) continue;
-      out.push(summarize(id, found.raw, found.mtimeMs).summary);
+      if (found) out.push(summarize(id, found.raw, found.mtimeMs).summary);
     }
     out.sort((a, b) => b.updatedAt - a.updatedAt);
     return out;
@@ -573,12 +572,9 @@ export function createNoteStore(config: NoteStoreConfig, optional: NoteStoreOpti
   function parseIndexLinkIds(indexBody: string): Set<string> {
     const ids = new Set<string>();
     for (const line of indexBody.split(/\r?\n/)) {
-      const m = INDEX_LINK_RE.exec(line);
-      if (!m) continue;
-      // Group 2 is `([^)]+)` (one-or-more, mandatory) — always populated on
-      // a successful match; the assertion is TS-required, not reachable-undefined.
-      const target = m[2]!;
-      if (!target.endsWith('.md') || target === INDEX_FILE) continue;
+      // Group 2 is `([^)]+)` (one-or-more, mandatory), so it is set whenever the line matches.
+      const target = INDEX_LINK_RE.exec(line)?.[2];
+      if (target === undefined || !target.endsWith('.md') || target === INDEX_FILE) continue;
       const id = target.slice(0, -3);
       if (isValidId(id)) ids.add(id);
     }
