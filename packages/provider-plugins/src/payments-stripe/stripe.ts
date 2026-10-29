@@ -18,6 +18,7 @@
  * a separate, non-production stub under capability-providers' `src/unsafe-reference/`.
  */
 import type { Charge, ChargeInput, ChargeStatus, PaymentsProvider } from '@jini-ai/capability-providers';
+import { trimTrailingSlashes } from '../trim-trailing-slashes.js';
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 
@@ -98,7 +99,7 @@ export class StripePaymentsProvider implements PaymentsProvider {
     }
     this.fetchFn = fn;
     this.now = optional.now ?? Date.now;
-    this.apiBase = (optional.apiBase ?? STRIPE_API_BASE).replace(/\/+$/, '');
+    this.apiBase = trimTrailingSlashes(optional.apiBase ?? STRIPE_API_BASE);
   }
 
   async charge(input: ChargeInput, optional: { description?: string } = {}): Promise<Charge> {

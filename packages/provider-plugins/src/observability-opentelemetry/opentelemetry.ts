@@ -38,6 +38,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { createOtelObservabilityPort, redactOperationAttributes, type MetricInput, type MetricOptions, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
+import { trimTrailingSlashes } from "../trim-trailing-slashes.js";
 
 export interface OtelAdapterOptions extends ProviderTelemetryOptions {
   /** OTLP/HTTP request headers (e.g. a collector's `Authorization`); any OTLP endpoint, no vendor-specific code. */
@@ -216,7 +217,7 @@ export function resolveMetricsEndpoint(
   { tracesEndpoint }: { tracesEndpoint: string },
   { endpoint }: { endpoint?: string | undefined } = {},
 ): string {
-  if (endpoint?.trim()) return `${endpoint.trim().replace(/\/+$/, "")}/v1/metrics`;
+  if (endpoint?.trim()) return `${trimTrailingSlashes(endpoint.trim())}/v1/metrics`;
   if (/\/v1\/traces(?=[?#]|$)/.test(tracesEndpoint)) return tracesEndpoint.replace(/\/v1\/traces(?=[?#]|$)/, "/v1/metrics");
   return new URL("/v1/metrics", tracesEndpoint).href;
 }

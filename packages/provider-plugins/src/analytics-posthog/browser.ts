@@ -3,7 +3,7 @@ import type { BrowserAnalyticsContribution } from '@jini-ai/analytics/product';
 import { forwardCollectorEvent, POSTHOG_BROWSER_VERSION, SDK_FILE, validatePostHogBrowserConfig } from './consent.js';
 import { postHogBrowserAttributes } from './consent-adapter.js';
 
-// TODO(P4): this bridge retires with the old consent engine; consent.ts keeps the shared pieces.
+// Planned retirement (P4): this bridge goes with the old consent engine; consent.ts keeps the shared pieces.
 /** Pinned browser distribution; no SDK is fetched until the existing consent owner has a choice. */
 export { POSTHOG_BROWSER_VERSION, validatePostHogBrowserConfig };
 const BROWSER_PATH = '/_jini/browser-analytics/posthog';

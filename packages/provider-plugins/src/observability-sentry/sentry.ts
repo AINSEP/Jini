@@ -36,6 +36,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { NodeClient, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
 import { createNoopObservabilityPort, describeReportedError, redactOperationAttributes, type ObservabilityAdapter } from "@jini-ai/diagnostics/observability";
 import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
+import { trimTrailingSlashes } from '../trim-trailing-slashes.js';
 
 export interface SentryConfigEnabled {
   enabled: true; dsn: string; environment?: string; tracesSampleRate: number;
@@ -84,7 +85,7 @@ function privateClient({ config }: { config: SentryConfigEnabled }, { transport 
 function minidumpEndpoint({ dsn }: { dsn: string }, _options = {}): string | undefined {
   try {
     const url = new URL(dsn);
-    const parts = url.pathname.replace(/\/+$/, '').split('/');
+    const parts = trimTrailingSlashes(url.pathname).split('/');
     const project = parts.pop();
     if (!/^https?:$/.test(url.protocol) || !url.username || !/^\d+$/.test(project ?? '')) return undefined;
     return `${url.protocol}//${url.host}${parts.join('/')}/api/${project}/minidump/?sentry_key=${encodeURIComponent(decodeURIComponent(url.username))}`;
@@ -136,7 +137,8 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       return {
         run: (fn) => active.run(span, fn),
         end({ outcome, failed, attributes: settled = {} }) {
-          if (ended) return; ended = true;
+          if (ended) return;
+          ended = true;
           span.setAttributes(redactOperationAttributes({ attributes: { ...settled, "operation.outcome": outcome } }));
           span.setStatus(failed ? { code: SPAN_STATUS_ERROR, message: outcome } : { code: SPAN_STATUS_OK });
           span.end();
@@ -151,6 +153,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
           ...(context.trace ? { otel: { trace_id: context.trace.traceId, span_id: context.trace.spanId } } : {}),
         } });
         inClient(() => (span ? withActiveSpan(span, capture) : capture()));
+        return undefined;
       } catch {
         // Best-effort, as in every adapter: a broken SDK must not turn a handled failure into a crash.
         return false;
@@ -158,5 +161,11 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
     },
   };
   reporter.initialized({ message: "Sentry reporting" });
-  return { port, dispose: async () => { if (!owned) return; try { await client.close(2_000); } catch { /* best-effort */ } } };
+  return {
+    port,
+    dispose: async () => {
+      if (!owned) return;
+      try { await client.close(2_000); } catch { /* best-effort */ }
+    },
+  };
 }
