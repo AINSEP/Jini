@@ -13,7 +13,10 @@ export function createYauzlSkillArchiveReader({ yauzl }: { yauzl: SkillZipSdkPor
       entries: (async function* () {
         for await (const entry of zip.eachEntry()) {
           const type = (entry.externalFileAttributes >>> 16) & 0xf000;
-          const kind = type && type !== 0x8000 && type !== 0x4000 ? "other" : entry.fileName.endsWith("/") ? "directory" : "file";
+          // A set file type other than regular (0x8000) or directory (0x4000) is never extracted.
+          const special = type !== 0 && type !== 0x8000 && type !== 0x4000;
+          const namedKind = entry.fileName.endsWith("/") ? "directory" : "file";
+          const kind = special ? "other" : namedKind;
           yield { path: entry.fileName, size: entry.uncompressedSize, kind,
             async *read() {
               const stream = await zip.openReadStreamPromise(entry);

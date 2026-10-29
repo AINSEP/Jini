@@ -1,5 +1,6 @@
 import path from 'node:path';
 import type { SkillLayoutPort } from './ports.js';
+import { hasSeparatorOrNul } from './unsafe-chars.js';
 
 /**
  * One safe, indivisible path segment: lowercase alphanumerics in `-`/`.`-separated runs, with no
@@ -34,7 +35,7 @@ export function createSkillLayout(required: { root: string; stagingRoot: string;
   const { root, stagingRoot, workspaceDirectory, stateFileName } = required;
   if (!path.isAbsolute(root) || !path.isAbsolute(stagingRoot)) throw new Error('Skill roots must be absolute paths.');
   if (!/^[a-z0-9]+(?:[-.][a-z0-9]+)*$/.test(workspaceDirectory)) throw new Error('Invalid workspace directory segment.');
-  if (!stateFileName || /[/\\\x00]/.test(stateFileName) || ['.', '..', 'SKILL.md', 'README.md', 'LICENSE', 'references', 'scripts', 'assets'].includes(stateFileName)) throw new Error('Invalid skill state file name.');
+  if (!stateFileName || hasSeparatorOrNul(stateFileName) || ['.', '..', 'SKILL.md', 'README.md', 'LICENSE', 'references', 'scripts', 'assets'].includes(stateFileName)) throw new Error('Invalid skill state file name.');
   return Object.freeze({ resolve({ workspaceId }: { workspaceId: string }) {
     // Normalize BEFORE validating, not after — see `agent-plugins/layout.ts`'s own comment at the
     // identical line: the pattern is deliberately lowercase-only, and the normalized value is the

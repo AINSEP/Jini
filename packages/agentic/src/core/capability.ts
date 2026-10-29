@@ -133,8 +133,14 @@ function findPropertyInputError(
   return null;
 }
 
+/** `typeof`, except `null` and arrays get their own names. */
+function valueKind(value: unknown): string {
+  if (value === null) return 'null';
+  return Array.isArray(value) ? 'array' : typeof value;
+}
+
 function propertyInputError({ name, schema, value }: { name: string; schema: CapabilityInputSchema['properties'][string]; value: unknown }): string | null {
-  const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+  const actual = valueKind(value);
   if (!matchesPropertyType({ value, actual, expected: schema.type })) {
     const received = typeof value === 'number' && !Number.isFinite(value) ? String(value) : actual;
     return `"${name}" must be a ${schema.type}, received ${received}`;

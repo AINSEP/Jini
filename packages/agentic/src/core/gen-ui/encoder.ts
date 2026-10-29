@@ -144,7 +144,8 @@ export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Recor
         return { ...baseFields(ctx), kind: 'run.lifecycle', status: 'started' };
 
       case 'end': {
-        const status = event.payload.status === 'failed' ? 'failed' : event.payload.status === 'canceled' ? 'cancelled' : 'completed';
+        const endedStatus = event.payload.status === 'canceled' ? 'cancelled' : 'completed';
+        const status = event.payload.status === 'failed' ? 'failed' : endedStatus;
         // A run can legitimately end while a tool_use is still in flight (its tool_result never
         // arrived, or arrived after 'end' and was already rejected by RunLifecycle — see
         // run-lifecycle.ts's "cannot emit on terminal run" guard). Clearing here means any such

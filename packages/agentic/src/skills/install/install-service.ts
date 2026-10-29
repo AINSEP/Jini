@@ -4,6 +4,7 @@ import { readSkillArchive } from "./archive.js";
 import { fetchGitHubSkill, type GitHubSkillSource } from "./github.js";
 import { readSkillState } from "./state.js";
 import type { SkillInstallDeps } from "./ports.js";
+import { hasSeparatorOrNul } from "./unsafe-chars.js";
 
 export interface ManagedSkill<Source extends object = GitHubSkillSource> { readonly toolId: string; readonly name: string; readonly description: string; readonly enabled: boolean; readonly source: "uploaded" | GitHubSkillSource | Source }
 export type SkillInstallInput = { readonly workspaceId: string } & (
@@ -68,7 +69,7 @@ export function createSkillInstaller<Source extends object = GitHubSkillSource>(
   const layoutFor = (workspaceId: string) => {
     const layout = deps.layout.resolve({ workspaceId });
     if (!path.isAbsolute(layout.workspaceRoot) || !path.isAbsolute(layout.stagingRoot)) throw new SkillInputError({ message: "Skill roots must be absolute." });
-    if (!layout.stateFileName || /[/\\\x00]/.test(layout.stateFileName) || [".", ".."].includes(layout.stateFileName) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(layout.stateFileName)) throw new SkillInputError({ message: "Invalid skill state file name." });
+    if (!layout.stateFileName || hasSeparatorOrNul(layout.stateFileName) || [".", ".."].includes(layout.stateFileName) || ["SKILL.md", "README.md", "LICENSE", "references", "scripts", "assets"].includes(layout.stateFileName)) throw new SkillInputError({ message: "Invalid skill state file name." });
     return layout;
   };
   /** Serializes mutations in this server without leaving persistent locks after a crash. */
@@ -131,7 +132,7 @@ export function createSkillInstaller<Source extends object = GitHubSkillSource>(
         const layout = layoutFor(input.workspaceId);
         const state = await readSkillState<Source>({ directory, stateFileName: layout.stateFileName, filesystem: deps.filesystem, validateSource: deps.validateSource });
         const id = deps.ids.next({});
-        if (!id || /[/\\\x00]/.test(id)) throw new SkillInputError({ message: "Invalid skill temporary id." });
+        if (!id || hasSeparatorOrNul(id)) throw new SkillInputError({ message: "Invalid skill temporary id." });
         const temporary = path.join(directory, `.skill-state-${id}.tmp`);
         try {
           // A rejected write can leave partial bytes; cleanup must cover writing as well as rename.
@@ -153,6 +154,6 @@ export function createSkillInstaller<Source extends object = GitHubSkillSource>(
 }
 
 function containedDirectory(root: string, directory: string): string {
-  if (!directory || directory === "." || directory === ".." || /[/\\\x00]/.test(directory)) throw new SkillInputError({ message: "Skill directory must be one safe segment." });
+  if (!directory || directory === "." || directory === ".." || hasSeparatorOrNul(directory)) throw new SkillInputError({ message: "Skill directory must be one safe segment." });
   return path.join(root, directory);
 }

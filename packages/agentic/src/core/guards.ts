@@ -53,8 +53,13 @@ const DENIED_AUTOCOMPLETE = new Set([
  * spellings people actually use. `api_key`, `api-key` and `apiKey` are all the same field; a
  * literal-substring match sees only the last one, which is the least common of the three.
  */
-const SUSPICIOUS_NAME =
-  /(?:password|passwd|secret|token|csrf|xsrf|otp|cvv|cvc|ssn|creditcard|cardnumber|apikey|ccnumber|cardnum|accountnumber|routing|iban|sortcode|securitycode|passphrase|privatekey|clientsecret|accesskey|secretkey|recoverycode|backupcode|mfa)/i;
+const SUSPICIOUS_NAME_PATTERNS: readonly RegExp[] = [
+  /(?:password|passwd|passphrase|secret|token|csrf|xsrf|otp|mfa)/i,
+  /(?:cvv|cvc|ssn|creditcard|cardnumber|ccnumber|cardnum|accountnumber|routing|iban|sortcode|securitycode)/i,
+  /(?:apikey|privatekey|clientsecret|accesskey|secretkey|recoverycode|backupcode)/i,
+];
+/** Whether any suspicious-name pattern occurs in `text` (split only to keep each pattern readable). */
+const isSuspiciousName = (text: string): boolean => SUSPICIOUS_NAME_PATTERNS.some((pattern) => pattern.test(text));
 
 // Deliberately NOT added as bare substrings, even though both are real PCI/banking terms
 // ("pin", "PAN" — Primary Account Number): they collide with ordinary field names once
@@ -80,7 +85,7 @@ const SUSPICIOUS_NAME =
  * This does NOT close the general homoglyph class. NFKC has no cross-script confusables table:
  * Cyrillic `а` (U+0430) and Greek `ο` (U+03BF) stay distinct codepoints from Latin `a`/`o` after
  * NFKC, so `pаssword` (Cyrillic а) still squashes to something other than `password` and still
- * bypasses `SUSPICIOUS_NAME`. Closing that would need an explicit confusables-folding table
+ * bypasses `SUSPICIOUS_NAME_PATTERNS`. Closing that would need an explicit confusables-folding table
  * (e.g. Unicode TR39's) mapping each look-alike script's letters onto Latin before squashing —
  * deliberately not built here; see the "known limit" test in guards.test.ts for the concrete gap.
  */
@@ -160,8 +165,8 @@ function hasSuspiciousFieldName(
   _optional: Record<string, never> = {},
 ): boolean {
   return (
-    SUSPICIOUS_NAME.test(squashSeparators(field.name ?? ''))
-    || SUSPICIOUS_NAME.test(squashSeparators(field.id ?? ''))
+    isSuspiciousName(squashSeparators(field.name ?? ''))
+    || isSuspiciousName(squashSeparators(field.id ?? ''))
     // `name`/`id` are the *machine* names; a form builder or CMS that emits `name="field_47"`
     // next to a visible "Card number" label left the guard nothing to judge until this existed.
     //
@@ -169,7 +174,7 @@ function hasSuspiciousFieldName(
     // deletes the separators, so a join would let two innocuous labels form a trigger word across
     // their boundary ("Address" + "Snapshot" -> "addresssnapshot", which contains "ssn"). This
     // guard is deliberately over-inclusive, but not at the cost of matching text no page wrote.
-    || (field.accessibleLabels ?? []).some((label) => SUSPICIOUS_NAME.test(squashSeparators(label)))
+    || (field.accessibleLabels ?? []).some((label) => isSuspiciousName(squashSeparators(label)))
   );
 }
 
