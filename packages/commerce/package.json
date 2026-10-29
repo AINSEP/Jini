@@ -88,7 +88,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
-    "test:react": "vitest run"
+    "test:react": "vitest run",
+    "test:coverage": "vitest run -c vitest.coverage.config.ts --maxWorkers=2 --minWorkers=1 --coverage"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
