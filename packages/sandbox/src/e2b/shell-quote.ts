@@ -17,5 +17,6 @@
  *  only arguments — since it is expected to be a trusted program name, not caller-controlled
  *  data. */
 export function shellQuote({ value }: { value: string }): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
+  const escapedQuote = "'\\''";
+  return `'${value.replaceAll("'", escapedQuote)}'`;
 }

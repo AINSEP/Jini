@@ -115,7 +115,8 @@ export function mapE2bFileChangeKind({ type }: { type: E2bFilesystemEventType })
       return 'modified';
     case 'remove':
       return 'deleted';
-    case 'chmod':
+    default:
+      // 'chmod' (and any kind E2B adds later) changes no content.
       return null;
   }
 }
