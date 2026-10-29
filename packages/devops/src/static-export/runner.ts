@@ -1,6 +1,7 @@
 import { ExportPathError } from "./contracts.js";
 import type { DroppedReference, ExportedAsset, ExportedRoute, ExportReport, ExportSiteArgs, ExportSiteOptions, FailedAsset, FailedRoute, ManifestRoute, ManifestSkip, RouteManifest } from './contracts.js';
 import { extractAssetUrls, extractHtmlReferences, extractCssUrls, normalizeBasePath, outputFileForUrl, redirectOutcomeFor, renderRedirectStub, rewriteRouteBodyForBasePath, rewriteAssetBodyForBasePath, safeRelativeOutputFile } from './transforms.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 const BASE_PATH_REWRITE_WARNING = "base-path rewriting is a best-effort TEXT rewrite over already-rendered responses — it cannot rewrite a path a theme's own JavaScript constructs at runtime from a string (same category of gap as the unreferenced-theme-file warning, just invisible to this rewrite instead of to the asset crawl).";
 interface RunContext { args: ExportSiteArgs; baseUrl: string; basePath: string; timeoutMs: number }
@@ -66,9 +67,12 @@ function enqueueDiscovered(required: { state: RouteQueue; routes: readonly Manif
   for (const next of required.routes) {
     if (state.queued.has(next.path)) continue;
     state.queued.add(next.path);
-    if (state.discovered >= MAX_DISCOVERED_ROUTES) { state.skipped.push({ reason: 'discovered-route-cap', detail: `${next.path} (over ${MAX_DISCOVERED_ROUTES} discovered routes)` }); continue; }
-    state.discovered += 1;
-    state.queue.push(next);
+    if (state.discovered >= MAX_DISCOVERED_ROUTES) {
+      state.skipped.push({ reason: 'discovered-route-cap', detail: `${next.path} (over ${MAX_DISCOVERED_ROUTES} discovered routes)` });
+    } else {
+      state.discovered += 1;
+      state.queue.push(next);
+    }
   }
 }
 /** Discovery uses the response route's format, so prose cannot masquerade as a manifest. */
@@ -84,16 +88,26 @@ async function writeRoutes(ctx: RunContext, routes: readonly ManifestRoute[]): P
   for (let index = 0; index < state.queue.length; index++) {
     const route = state.queue[index]!;
     try {
-      const outcome = await writeRoute(ctx, route);
-      if ('reason' in outcome) { failed.push({ path: route.path, kind: route.kind, reason: outcome.reason }); continue; }
-      succeeded.push(outcome.route);
-      const html = outcome.crawlHtml;
-      if (html === undefined) continue;
-      for (const url of extractAssetUrls({ html, prefixes: ctx.args.assetUrlPrefixes }, { format: routeAssetFormat({ path: route.path }) })) assets.add(url);
-      enqueueDiscovered({ state, routes: ctx.args.discoverRoutes?.({ path: route.path, html }) ?? [] });
+      await writeAndScanRoute({ ctx, route, state }, { succeeded, failed, assets });
     } catch (error) { failed.push({ path: route.path, kind: route.kind, reason: failureReason(ctx, route.path, error) }); }
   }
   return { succeeded, failed, assets, skipped: state.skipped };
+}
+/** Writes one route, then crawls its HTML (when any) for assets and further routes. */
+async function writeAndScanRoute(
+  { ctx, route, state }: { ctx: RunContext; route: ManifestRoute; state: RouteQueue },
+  out: { succeeded: ExportedRoute[]; failed: FailedRoute[]; assets: Set<string> },
+): Promise<void> {
+  const outcome = await writeRoute(ctx, route);
+  if ('reason' in outcome) {
+    out.failed.push({ path: route.path, kind: route.kind, reason: outcome.reason });
+    return;
+  }
+  out.succeeded.push(outcome.route);
+  const html = outcome.crawlHtml;
+  if (html === undefined) return;
+  for (const url of extractAssetUrls({ html, prefixes: ctx.args.assetUrlPrefixes }, { format: routeAssetFormat({ path: route.path }) })) out.assets.add(url);
+  enqueueDiscovered({ state, routes: ctx.args.discoverRoutes?.({ path: route.path, html }) ?? [] });
 }
 async function fetchAsset(required: { ctx: RunContext; url: string; crawlCss: boolean }): Promise<{ asset: ExportedAsset; children: string[] } | { reason: string }> {
   const { ctx, url } = required;
@@ -121,6 +135,19 @@ function assetFailureReason(required: { ctx: RunContext; url: string; error: unk
   const { ctx, url, error } = required;
   return error instanceof ExportPathError && ctx.args.assetPathFailureReason !== undefined ? ctx.args.assetPathFailureReason : failureReason(ctx, url, error);
 }
+/** Fetches one asset; a crawled stylesheet's children join the queue without further crawling. */
+async function fetchAndQueueAsset(
+  { ctx, url, crawlCss, queue }: { ctx: RunContext; url: string; crawlCss: boolean; queue: { url: string; crawlCss: boolean }[] },
+  out: { succeeded: ExportedAsset[]; failed: FailedAsset[] },
+): Promise<void> {
+  const outcome = await fetchAsset({ ctx, url, crawlCss });
+  if ('reason' in outcome) {
+    out.failed.push({ url, reason: outcome.reason });
+    return;
+  }
+  out.succeeded.push(outcome.asset);
+  for (const child of outcome.children) queue.push({ url: child, crawlCss: false });
+}
 async function writeAssets(ctx: RunContext, initial: readonly string[]): Promise<{ succeeded: ExportedAsset[]; failed: FailedAsset[] }> {
   const succeeded: ExportedAsset[] = [], failed: FailedAsset[] = [];
   const seen = new Set<string>();
@@ -130,10 +157,7 @@ async function writeAssets(ctx: RunContext, initial: readonly string[]): Promise
     if (seen.has(url)) continue;
     seen.add(url);
     try {
-      const outcome = await fetchAsset({ ctx, url, crawlCss });
-      if ('reason' in outcome) { failed.push({ url, reason: outcome.reason }); continue; }
-      succeeded.push(outcome.asset);
-      for (const child of outcome.children) queue.push({ url: child, crawlCss: false });
+      await fetchAndQueueAsset({ ctx, url, crawlCss, queue }, { succeeded, failed });
     } catch (error) { failed.push({ url, reason: assetFailureReason({ ctx, url, error }) }); }
   }
   return { succeeded, failed };
@@ -154,7 +178,7 @@ async function unreferenced(ctx: RunContext, manifest: RouteManifest, assets: re
 const MAX_DROPPED_REFERENCES = 200;
 /** Site path normalization shared by written outputs and references: no trailing slashes, root as '/'. */
 function pathNormalizer(required: { origin: string }): (url: string) => string {
-  return url => new URL(url, required.origin).pathname.replace(/\/+$/, '') || '/';
+  return url => trimCharsEnd({ text: new URL(url, required.origin).pathname, chars: '/' }) || '/';
 }
 /** Every path this run wrote: artifact paths (and index.html directory aliases), route paths except the error-page probe, and asset URLs. */
 function writtenPaths(required: { routes: readonly ExportedRoute[]; assets: readonly ExportedAsset[]; normalize: (url: string) => string }): Set<string> {
@@ -203,9 +227,9 @@ function droppedReference(required: { scan: DropScan; page: string; reference: {
 function recordDrop(required: { dropped: Map<string, DroppedReference>; drop: DroppedReference }): void {
   const { dropped, drop } = required;
   const key = drop.page + '\n' + drop.url;
-  if (dropped.has(key)) {
-    if (drop.reason === 'needs-server') dropped.set(key, drop);
-  } else if (dropped.size < MAX_DROPPED_REFERENCES) dropped.set(key, drop);
+  const replacesEarlier = dropped.has(key) && drop.reason === 'needs-server';
+  const addsNew = !dropped.has(key) && dropped.size < MAX_DROPPED_REFERENCES;
+  if (replacesEarlier || addsNew) dropped.set(key, drop);
 }
 /** Compare written HTML with this run's outputs only; no requests or filesystem reads.
  * At most 200 drops are retained. O(output count + scanned HTML bytes) time; output paths plus
@@ -227,7 +251,9 @@ function droppedReferences(required: { routes: readonly ExportedRoute[]; assets:
 /** The app session's origin. Anything but a bare http(s) origin without credentials is refused. */
 function sessionOrigin(required: { baseUrl: string }): string {
   const origin = new URL(required.baseUrl);
-  if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('App session baseUrl must be an HTTP origin without credentials.');
+  const hasCredentials = Boolean(origin.username || origin.password);
+  const hasPathOrQuery = origin.pathname !== '/' || Boolean(origin.search || origin.hash);
+  if (!['http:', 'https:'].includes(origin.protocol) || hasCredentials || hasPathOrQuery) throw new Error('App session baseUrl must be an HTTP origin without credentials.');
   return origin.origin;
 }
 function fetchTimeout(required: { fetchTimeoutMs: number | undefined }): number {

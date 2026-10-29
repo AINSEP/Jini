@@ -27,8 +27,9 @@ function isStringList(value: unknown): boolean {
 }
 
 function capabilitiesValid(value: unknown): boolean {
-  return isObject(value) && typeof value.automatic === 'boolean' && isStringList(value.recordTypes)
-    && typeof value.apexFlattening === 'boolean' && typeof value.proxy === 'boolean';
+  if (!isObject(value)) return false;
+  const flagsValid = typeof value.apexFlattening === 'boolean' && typeof value.proxy === 'boolean';
+  return typeof value.automatic === 'boolean' && isStringList(value.recordTypes) && flagsValid;
 }
 
 function optionalFunction(value: unknown): boolean {

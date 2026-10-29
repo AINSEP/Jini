@@ -1,6 +1,11 @@
-/** Kinds describe the host's routes; only redirect/not-found/well-known affect writing. */
-export type ManifestRouteKind = string;
-export interface ManifestRoute { path: string; kind: ManifestRouteKind; label: string; redirectTarget?: string; redirectStatusCode?: number }
+export interface ManifestRoute {
+  path: string;
+  /** Kinds describe the host's routes; only redirect/not-found/well-known affect writing. */
+  kind: string;
+  label: string;
+  redirectTarget?: string;
+  redirectStatusCode?: number;
+}
 export interface ManifestActiveTheme { id: string; dir: string; apiVersion?: number }
 export interface ManifestSkip { reason: string; detail: string }
 export interface RouteManifest { routes: ManifestRoute[]; skipped: ManifestSkip[]; activeTheme?: ManifestActiveTheme }
@@ -14,8 +19,8 @@ export interface ArtifactWriterPort {
 }
 export interface AssetSourcePort { listThemeFiles(required: { theme: ManifestActiveTheme }): Promise<readonly string[]> }
 export interface ThemeLayoutPort { resolve(required: { theme: ManifestActiveTheme }): { pagesDir: string; assetUrlPrefix: string } }
-export interface ExportedRoute { path: string; kind: ManifestRouteKind; outputFile: string; data: string; contentType?: string | null }
-export interface FailedRoute { path: string; kind: ManifestRouteKind; reason: string }
+export interface ExportedRoute { path: string; kind: string; outputFile: string; data: string; contentType?: string | null }
+export interface FailedRoute { path: string; kind: string; reason: string }
 export interface ExportedAsset { url: string; outputFile: string; data: Buffer; contentType?: string | null }
 export interface FailedAsset { url: string; reason: string }
 export interface DroppedReference {

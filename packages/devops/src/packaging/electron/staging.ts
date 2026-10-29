@@ -3,9 +3,11 @@ import { isBundleInput, prebuildTarget, strippableReason } from './policies.js';
 import type { PrebuildBuilt, Target } from './policies.js';
 import type { PackagingFilesystemPort, PackageResolverPort, WorkspacePackagePackerPort, ProcessRunnerPort } from './ports.js';
 
+const PACKAGE_JSON = 'package.json';
+
 interface Manifest { name?: string; version?: string; dependencies?: Record<string, string> }
 function manifest(directory: string, fs: PackagingFilesystemPort): Manifest {
-  const file = path.join(directory, 'package.json');
+  const file = path.join(directory, PACKAGE_JSON);
   return fs.exists({ path: file }) ? JSON.parse(Buffer.from(fs.read({ path: file })).toString('utf8')) as Manifest : {};
 }
 function safePackageName(name: string): void {
@@ -35,7 +37,7 @@ function resolveDependency(required: { from: string; name: string; fs: Packaging
  */
 function assertFlattenable(required: { name: string; planned: PlannedPackage; existing: PlannedPackage | undefined; destination: string; fs: PackagingFilesystemPort }): void {
   const { name, planned: { directory, version }, existing, destination, fs } = required;
-  const destinationVersion = fs.exists({ path: path.join(destination, 'package.json') }) ? manifest(destination, fs).version : undefined;
+  const destinationVersion = fs.exists({ path: path.join(destination, PACKAGE_JSON) }) ? manifest(destination, fs).version : undefined;
   const plannedConflict = existing !== undefined && existing.directory !== directory && (!version || existing.version !== version);
   const stagedConflict = fs.exists({ path: destination }) && (!version || destinationVersion !== version);
   if (plannedConflict || stagedConflict) throw new Error(`Package version conflict while flattening ${name}`);
@@ -82,8 +84,8 @@ export function stagedPackageDirs({ modulesDir, fs }: { modulesDir: string; fs: 
   if (!fs.exists({ path: modulesDir })) return [];
   return fs.entries({ path: modulesDir }).filter(entry => !entry.startsWith('.')).flatMap(entry => {
     const full = path.join(modulesDir, entry);
-    if (!entry.startsWith('@')) return fs.exists({ path: path.join(full, 'package.json') }) ? [full] : [];
-    return fs.entries({ path: full }).map(scoped => path.join(full, scoped)).filter(dir => fs.exists({ path: path.join(dir, 'package.json') }));
+    if (!entry.startsWith('@')) return fs.exists({ path: path.join(full, PACKAGE_JSON) }) ? [full] : [];
+    return fs.entries({ path: full }).map(scoped => path.join(full, scoped)).filter(dir => fs.exists({ path: path.join(dir, PACKAGE_JSON) }));
   });
 }
 /** Check nested/hoisted dependencies only inside shipped modules; ancestors cannot fill gaps. */
@@ -93,7 +95,7 @@ export function assertClosureComplete(required: { outDir: string; excluded: Read
   const missing: string[] = [];
   if (!fs.exists({ path: modulesDir })) throw new Error('staged node_modules tree is missing');
   // Hoisted beside the package, or nested inside it: the only two places a shipped require can land.
-  const shipped = (directory: string, name: string) => fs.exists({ path: path.join(modulesDir, name, 'package.json') }) || fs.exists({ path: path.join(directory, 'node_modules', name, 'package.json') });
+  const shipped = (directory: string, name: string) => fs.exists({ path: path.join(modulesDir, name, PACKAGE_JSON) }) || fs.exists({ path: path.join(directory, 'node_modules', name, PACKAGE_JSON) });
   for (const directory of stagedPackageDirs({ modulesDir, fs })) {
     for (const name of declaredDependencies({ packageDir: directory, fs })) {
       safePackageName(name);
@@ -144,14 +146,17 @@ export function stripNonRuntimeFiles(required: { outDir: string; keepScopes: Rea
     if (!fs.exists({ path: coverage }) || fs.stat({ path: coverage }).kind !== 'directory') continue;
     tally.bytes += diskBytes({ absolutePath: coverage, fs }); tally.coverage++; fs.remove({ path: coverage });
   }
+  function stripFile(full: string, diskBytes: number): void {
+    const reason = strippableReason({ relPath: path.relative(modulesDir, full).split(path.sep).join('/'), keepScopes });
+    if (!reason) return;
+    tally.bytes += diskBytes; tally[reason]++; fs.remove({ path: full });
+  }
   function walk(directory: string): void {
     for (const name of fs.entries({ path: directory })) {
       const full = path.join(directory, name);
       const info = fs.stat({ path: full });
-      if (info.kind === 'directory') { walk(full); continue; }
-      const reason = strippableReason({ relPath: path.relative(modulesDir, full).split(path.sep).join('/'), keepScopes });
-      if (!reason) continue;
-      tally.bytes += info.diskBytes; tally[reason]++; fs.remove({ path: full });
+      if (info.kind === 'directory') walk(full);
+      else stripFile(full, info.diskBytes);
     }
   }
   walk(modulesDir);
@@ -213,6 +218,9 @@ export function stageBundledNpm(required: {
   if (!fs.readPrefix) throw new Error('stageBundledNpm: bounded prefix-read port is required');
   const readPrefix = fs.readPrefix.bind(fs);
   const excluded = ({ path: full, directory }: { path: string; directory: boolean }) => directory ? droppedDirectoryNames.has(path.basename(full)) : droppedFileSuffixes.some(suffix => full.endsWith(suffix));
+  function assertNotNativeBinary(full: string): void {
+    if (hasNativeBinaryMagic({ bytes: readPrefix({ path: full, maxBytes: 4 }) })) throw new Error(`stageBundledNpm: ${path.relative(source, full)} starts with native-binary magic bytes`);
+  }
   function inspect(directory: string): void {
     for (const entry of fs.entries({ path: directory })) {
       const full = path.join(directory, entry);
@@ -220,7 +228,7 @@ export function stageBundledNpm(required: {
       if (info.kind === 'other') throw new Error(`stageBundledNpm: nonregular input ${full}`);
       if (excluded({ path: full, directory: info.kind === 'directory' })) continue;
       if (info.kind === 'directory') inspect(full);
-      else if (hasNativeBinaryMagic({ bytes: readPrefix({ path: full, maxBytes: 4 }) })) throw new Error(`stageBundledNpm: ${path.relative(source, full)} starts with native-binary magic bytes`);
+      else assertNotNativeBinary(full);
     }
   }
   inspect(source);

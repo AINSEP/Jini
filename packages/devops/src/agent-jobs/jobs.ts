@@ -63,7 +63,7 @@ export async function runAgentJobs(required: {
     ids.add(job.id);
   }
   await fs.mkdir({ path: options.outputDirectory });
-  const results: AgentJobResult[] = new Array(jobs.length);
+  const results = Array.from<AgentJobResult>({ length: jobs.length });
   let cursor = 0;
   async function runOne(job: AgentJob): Promise<AgentJobResult> {
     const base = path.join(options.outputDirectory, job.id);
@@ -95,7 +95,8 @@ export async function runAgentJobs(required: {
   }
   async function worker(): Promise<void> {
     while (cursor < jobs.length) {
-      const index = cursor++;
+      const index = cursor;
+      cursor += 1;
       results[index] = await runOne(jobs[index]!);
     }
   }

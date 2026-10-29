@@ -6,8 +6,9 @@ import type { ReachabilityArgs } from './reachability.js';
 
 
 function isLookupAddress(value: unknown): value is LookupAddress {
-  return value !== null && typeof value === 'object' && 'address' in value &&
-    typeof value.address === 'string' && 'family' in value && typeof value.family === 'number';
+  if (value === null || typeof value !== 'object') return false;
+  const hasAddress = 'address' in value && typeof value.address === 'string';
+  return hasAddress && 'family' in value && typeof value.family === 'number';
 }
 
 /**

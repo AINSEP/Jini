@@ -1,4 +1,5 @@
 import { parse, type DefaultTreeAdapterMap } from 'parse5';
+import { cssUrlTokens } from './css-urls.js';
 
 type Node = DefaultTreeAdapterMap['node'];
 type Element = DefaultTreeAdapterMap['element'];
@@ -76,7 +77,7 @@ export function htmlUrlLocations({ html }: { html: string }, _optional = {}): Ht
 /** CSS, sitemap and manifest positions use their response format, never an HTML text scan. */
 export function exportUrlLocations({ body, contentType }: { body: string; contentType: string }, _optional = {}): HtmlUrlLocation[] {
   if (/^text\/html\b/i.test(contentType)) return htmlUrlLocations({ html: body });
-  if (/^text\/css\b/i.test(contentType)) return [...body.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)].map(match => ({ start: match.index!, end: match.index! + match[0].length, kind: 'css' }));
+  if (/^text\/css\b/i.test(contentType)) return cssUrlTokens(body).map(({ start, end }) => ({ start, end, kind: 'css' }));
   if (/\bxml\b/i.test(contentType)) return [...body.matchAll(/<((?:[\w-]+:)?loc)>([^<]*)<\/\1>/g)].map(match => ({ start: match.index! + match[1]!.length + 2, end: match.index! + match[0].length - match[1]!.length - 3, kind: 'url' }));
   if (!/\bjson\b/i.test(contentType)) return [];
   try { JSON.parse(body); } catch { return []; }

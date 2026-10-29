@@ -1,3 +1,4 @@
+import { trimChars, trimCharsEnd } from '@jini-ai/core/text';
 /**
  * Shared label-sanitizing helpers deploy targets use to turn a caller-supplied `projectName` into a
  * provider-safe identifier (lowercase, hyphenated, length-capped). Lifted
@@ -11,14 +12,12 @@
  * @overallScore 100/100
  */
 export function safeProjectLabel({ raw, maxLength }: { raw: unknown; maxLength: number }): string {
-  return String(raw)
+  const collapsed = String(raw)
     .normalize('NFKD')
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, maxLength)
-    .replace(/-+$/g, '');
+    .replace(/-+/g, '-');
+  return trimCharsEnd({ text: trimChars({ text: collapsed, chars: '-' }).slice(0, maxLength), chars: '-' });
 }
 
 /** DNS-label-safe variant (63-char cap, the DNS label limit). */
