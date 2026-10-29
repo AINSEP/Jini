@@ -184,9 +184,9 @@ export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductA
       },
     } : {}),
     capture({ name, userId, properties }) {
-      if (!EVENT_NAME.test(name)) return;
+      if (!EVENT_NAME.test(name)) return undefined;
       const safe = safeProperties(properties);
-      if (safe === null) return;
+      if (safe === null) return undefined;
       return whenAllowed({ userId, send: () => inner.capture({ name, userId, ...(safe ? { properties: safe } : {}) }) });
     },
     identify({ userId, traits }) {
