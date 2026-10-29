@@ -8,6 +8,7 @@
  * Keeps private `errorCode` / `errorMessage` copies so it owns no cross-module
  * runtime surface.
  */
+import { randomUUID } from "node:crypto";
 import { copyFile, mkdir, readFile, rename, rm, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
@@ -100,7 +101,7 @@ export async function atomicCopyFile(
 
   const tempPath = join(
     destinationDir,
-    `.${basename(destination)}.${process.pid}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2)}.tmp`,
+    `.${basename(destination)}.${process.pid}.${Date.now().toString(36)}.${randomUUID()}.tmp`,
   );
   try {
     await copyFile(source, tempPath);

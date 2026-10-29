@@ -13,6 +13,7 @@
 import { execFile, spawn, type ChildProcess, type StdioOptions } from "node:child_process";
 import { posix, win32 } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { captureLineTail } from "@jini-ai/core/text";
 
 import { createCommandInvocation, type CommandInvocationRequest } from "./command.js";
 import { execFileBuffered } from "./shell.js";
@@ -282,8 +283,7 @@ export function isProcessAlive(pid: number | null | undefined): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    if (errorCode(error) === "ESRCH") return false;
-    return true;
+    return errorCode(error) !== "ESRCH";
   }
 }
 
@@ -308,9 +308,11 @@ function parsePsOutput(stdout: string): ProcessSnapshot[] {
   return stdout
     .split(/\r?\n/)
     .map((line) => {
-      const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.+)$/);
-      if (!match) return null;
-      return { pid: Number(match[1]), ppid: Number(match[2]), command: match[3] };
+      // Same as /^\s*(\d+)\s+(\d+)\s+(.+)$/, split so the command tail cannot backtrack.
+      const match = /^\s*(\d+)\s+(\d+)/.exec(line);
+      const command = match ? captureLineTail({ rest: line.slice(match[0].length) }, { minWhitespace: 1 }) : null;
+      if (!match || command === null) return null;
+      return { pid: Number(match[1]), ppid: Number(match[2]), command };
     })
     .filter((snapshot): snapshot is ProcessSnapshot => snapshot != null);
 }

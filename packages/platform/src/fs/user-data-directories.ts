@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
+import { fallbackIfMissing } from "./errno.js";
 
 export interface UserDirectoryOptions {
   /** Resolved host profile directory; owns config/catalog/DB/lease paths without an app-name suffix. */
@@ -55,7 +56,7 @@ function xdgDirectories({ homeDir, appName, env, appDataDir, paths }: DirectoryC
 /** Native reads are isolated so cross-platform fixtures never execute registry commands. */
 export function readOptionalText({ file }: { file: string }, _options = {}): string | undefined {
   try { return fs.readFileSync(file, "utf8"); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw error; }
+  catch (error) { return fallbackIfMissing(error, undefined); }
 }
 function readWindowsDocuments(): string | undefined {
   // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed Windows registry utility/argv intentionally uses the desktop operator's trusted PATH, not request input.

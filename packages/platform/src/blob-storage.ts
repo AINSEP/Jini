@@ -19,6 +19,7 @@
  */
 import path from 'node:path';
 import { promises as fsp, type Dirent } from 'node:fs';
+import { trimChars, trimCharsEnd, trimCharsStart } from '@jini-ai/core/text';
 import { encodeS3PathSegment, signSigV4, type SigV4Credentials } from './aws-sigv4.js';
 
 /** Metadata for a single stored blob. */
@@ -236,14 +237,15 @@ export class S3BlobStorage implements BlobStorage {
   keyFor(namespace: string, relpath: string, { allowPrefix = false }: { allowPrefix?: boolean } = {}): string {
     validateNamespace(namespace);
     const normalized = validateRelpath(relpath, { allowPrefix });
-    const segments = [this.options.prefix?.replace(/^\/+|\/+$/g, ''), namespace, normalized].filter(
+    const prefix = this.options.prefix === undefined ? undefined : trimChars({ text: this.options.prefix, chars: '/' });
+    const segments = [prefix, namespace, normalized].filter(
       (s): s is string => typeof s === 'string' && s.length > 0,
     );
     return segments.join('/');
   }
 
   private endpointBase(): string {
-    if (this.options.endpoint) return this.options.endpoint.replace(/\/+$/, '');
+    if (this.options.endpoint) return trimCharsEnd({ text: this.options.endpoint, chars: '/' });
     return `https://${this.options.bucket}.s3.${this.options.region}.amazonaws.com`;
   }
 
@@ -277,7 +279,8 @@ export class S3BlobStorage implements BlobStorage {
       now,
     });
 
-    const url = `${base.replace(/\/+$/, '')}${pathSegment}${args.extraQuery ? `?${args.extraQuery}` : ''}`;
+    const query = args.extraQuery ? `?${args.extraQuery}` : '';
+    const url = `${trimCharsEnd({ text: base, chars: '/' })}${pathSegment}${query}`;
     const init: RequestInit = {
       method: args.method,
       headers,
@@ -386,10 +389,9 @@ function namespaceEntries(entries: readonly ListBucketEntry[], namespacePrefix: 
   for (const e of entries) {
     // It includes the non-empty, validated namespace and its trailing separator,
     // so sibling namespaces (ns10 vs ns1) cannot leak into this listing.
-    if (!e.key.startsWith(namespacePrefix)) continue;
-    const rel = e.key.slice(namespacePrefix.length).replace(/^\/+/, '');
-    if (!rel) continue; // skip the prefix marker itself
-    out.push({ path: rel, size: e.size, mtimeMs: e.lastModifiedMs });
+    const rel = e.key.startsWith(namespacePrefix) ? trimCharsStart({ text: e.key.slice(namespacePrefix.length), chars: '/' }) : '';
+    // An empty rel is either a foreign key or the prefix marker itself; both are skipped.
+    if (rel) out.push({ path: rel, size: e.size, mtimeMs: e.lastModifiedMs });
   }
   return out;
 }

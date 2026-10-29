@@ -1,6 +1,7 @@
 // Policy refusals use EgressRefusedError; DNS, connection and transport failures retain their
 // own errors because they are operational failures, not decisions that a different URL fixes.
 import { classifyIpAddress } from "../../net/address.js";
+import { effectivePort } from "../../net/effective-port.js";
 import { FetchTimeoutError } from "../../fetch-with-timeout.js";
 import { isIP } from "node:net";
 
@@ -69,7 +70,7 @@ function assertNoPrivateAddress(hostname: string, addresses: readonly string[]):
 async function resolvePinnedPeer(url: URL, policy: EgressPolicy, dns: DnsResolver): Promise<PinnedPeer> {
   assertAllowedTarget(url, policy);
 
-  const port = url.port ? Number(url.port) : url.protocol === "https:" ? 443 : 80;
+  const port = effectivePort(url);
 
   const hostname = stripIpv6Brackets(url.hostname);
   const isDevAllowlisted = policy.devHostAllowlist.includes(hostname);

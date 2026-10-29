@@ -77,7 +77,7 @@ export async function prepareSenderEmail(
   validateEmailSourceTemplate({ fields: source.fields, template });
   const resolved = await sender.resolveEvent({ ...context, eventId });
   // MOVE: Compare against the latest activation so re-enabling cannot revive a backlog.
-  if (!binding.activatedAt || !(Date.parse(resolved.occurredAt) >= Date.parse(binding.activatedAt))) throw new EmailSenderError({ code: "configuration" });
+  if (!occurredSinceActivation({ occurredAt: resolved.occurredAt, activatedAt: binding.activatedAt })) throw new EmailSenderError({ code: "configuration" });
   const to = recipientAddress({ source, resolved, recipientId: binding.recipientId });
   const { values, warnings } = templateValues({ fields: source.fields, tokens: template.fields, values: resolved.values });
   const rendered = await templates.render({ ...templateContext, version: template.version, values });
@@ -85,4 +85,10 @@ export async function prepareSenderEmail(
   return { bindingId: binding.bindingId, templateId: binding.templateId, templateVersion: template.version, to,
     replyTo: { email: binding.replyTo }, subject: rendered.subject, html: rendered.html, text: rendered.text,
     purpose: source.purpose, lane: source.lane, warnings };
+}
+
+/** True only for an event at or after the binding's activation; an unparsable time is never current. */
+function occurredSinceActivation({ occurredAt, activatedAt }: { occurredAt: string; activatedAt: string | null | undefined }): boolean {
+  if (!activatedAt) return false;
+  return Date.parse(occurredAt) >= Date.parse(activatedAt);
 }

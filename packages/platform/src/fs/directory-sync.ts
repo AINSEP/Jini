@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readOptionalText, readWindowsOneDriveRoots, type UserDirectoryOptions } from "./user-data-directories.js";
+import { fallbackIfMissing } from "./errno.js";
 
 export type DirectorySyncProvider = "iCloud" | "OneDrive" | "Dropbox" | "Google Drive";
 
@@ -14,7 +15,7 @@ interface SyncPorts {
 const MOUNT_PROVIDERS: readonly (readonly [prefix: string, provider: DirectorySyncProvider])[] = [["OneDrive-", "OneDrive"], ["GoogleDrive-", "Google Drive"], ["Dropbox", "Dropbox"]];
 
 function canonicalOrResolved({ path: value }: { path: string }): string { try { return fs.realpathSync(value); } catch { return path.resolve(value); } }
-function listDirectoriesOrEmpty(root: string): string[] { try { return fs.readdirSync(root); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; } }
+function listDirectoriesOrEmpty(root: string): string[] { try { return fs.readdirSync(root); } catch (error) { return fallbackIfMissing(error, []); } }
 
 function macRoots({ homeDir, documents }: { homeDir: string; documents: string }, { paths, exists, listDirectories }: { paths: PathApi; exists: SyncPorts["exists"]; listDirectories: SyncPorts["listDirectories"] }): SyncRoot[] {
   const cloud = paths.join(homeDir, "Library", "Mobile Documents", "com~apple~CloudDocs");

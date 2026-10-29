@@ -46,8 +46,13 @@ export const BOOT_CLOCK_TOLERANCE_MS = 10 * 60_000;
  * compared exactly; numeric (time-derived) ids and legacy timestamps get the tolerance above. A record
  * from a "later" boot is clock skew, never proof of death. @complexity O(1).
  */
+/** Legacy records carry only a timestamp; time-derived boot ids are numeric; a UUID id has no time. */
+function recordedBootTimeMs({ bootId, atMs }: { bootId: string | undefined; atMs: number }): number | undefined {
+  if (bootId === undefined) return atMs;
+  return /^\d+$/.test(bootId) ? Number(bootId) : undefined;
+}
 export function fromEarlierBoot({ boot, bootId, atMs }: { boot: BootIdentity | undefined; bootId: string | undefined; atMs: number }, _options = {}): boolean {
   if (!boot) return false;
-  const recordedAtMs = bootId === undefined ? atMs : /^\d+$/.test(bootId) ? Number(bootId) : undefined;
+  const recordedAtMs = recordedBootTimeMs({ bootId, atMs });
   return recordedAtMs === undefined ? bootId !== boot.id : recordedAtMs < boot.startedAtMs - BOOT_CLOCK_TOLERANCE_MS;
 }

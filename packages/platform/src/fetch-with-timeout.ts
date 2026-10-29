@@ -161,7 +161,10 @@ export function createDeadlineSignal(
   const deadline = new AbortController();
   const timer = new AbortController();
   const dispose = () => { timer.abort(); signal?.removeEventListener("abort", onAbort); };
-  const finish = (reason: unknown) => { if (!timer.signal.aborted) deadline.abort(reason); dispose(); };
+  const finish = (reason: unknown) => {
+    if (!timer.signal.aborted) deadline.abort(reason);
+    dispose();
+  };
   const onAbort = () => finish(signal!.reason);
   if (signal?.aborted) onAbort();
   else {

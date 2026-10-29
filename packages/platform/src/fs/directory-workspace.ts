@@ -8,6 +8,10 @@ import type { UserDirectoryOptions } from "./user-data-directories.js";
 import { resolveDirectoryHome } from "./directory-home.js";
 import { createDirectoryRegistry, type DirectoryRegistry } from "./directory-registry.js";
 import { createDirectoryRunningLock } from "./directory-running-lock.js";
+import { fallbackIfMissing } from "./errno.js";
+
+/** Migration id recorded once the old per-app catalogs are merged into the shared registry. */
+const APP_DATA_CATALOG_MIGRATION = "app-data-catalog-v1";
 
 /** Node assembly only. Policy modules receive explicit filesystem, clock and process ports.
  * Settings live outside the selected home so changing the setting never loses the pointer.
@@ -26,7 +30,7 @@ export function createNodeDirectoryWorkspace(
     prefix: "Directory workspace", lockTimeout: ({ lockPath }) => `Timed out waiting for file lock: ${lockPath}`,
   } }, { staleMs: Infinity });
   const config = userConfig ? createDirectoryUserConfig({ homeDir, defaultFolder, envName, policy: userConfig,
-    fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; } },
+    fileAt, canonicalPath, removeFile: ({ filePath }) => ports.filesystem.rmSync(filePath, { force: true }), isDirectory: (file) => ports.filesystem.statSync(file).isDirectory(), exists: (file) => { try { ports.filesystem.statSync(file); return true; } catch (error) { return fallbackIfMissing(error, false); } },
   }, { env, cwd, report: (message) => ports.report.error({ message }), ...directoryOptions }) : undefined;
   const settings = fileAt(config?.filePath ?? settingsFile);
   function readSetting(): string | undefined {
@@ -55,7 +59,7 @@ export function createNodeDirectoryWorkspace(
       if (!temporary && !fixturePattern!.test(entry.id)) return false;
       // A live temp-path folder is a real site. Only ENOENT proves this candidate is stale.
       try { ports.filesystem.statSync(entry.path); return false; }
-      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return true; throw error; }
+      catch (error) { return fallbackIfMissing(error, true); }
     },
     reportDiscarded: ({ entries }) => ports.report.error({ message: `Directory workspace: removed ${entries.length} test/temporary catalog entries: ${entries.map((entry) => entry.id).join(", ")}` }),
   } : {});
@@ -76,9 +80,9 @@ export function createNodeDirectoryWorkspace(
   };
   const importOldCatalog = () => {
     const current = atHome();
-    if (!config || current.hasMigration({ migration: "app-data-catalog-v1" })) return;
+    if (!config || current.hasMigration({ migration: APP_DATA_CATALOG_MIGRATION })) return;
     const previous = oldCatalogs();
-    current.merge({ entries: previous.flatMap((catalog) => catalog.list({})), migrations: previous.flatMap((catalog) => catalog.migrations({})), migration: "app-data-catalog-v1" });
+    current.merge({ entries: previous.flatMap((catalog) => catalog.list({})), migrations: previous.flatMap((catalog) => catalog.migrations({})), migration: APP_DATA_CATALOG_MIGRATION });
   };
   // One lease adapter for both the app-data and the site-local (legacy) lease locations.
   const runningLockAt = (filePath: string) => createDirectoryRunningLock({ file: fileAt(filePath), isAlive: ports.process.isAlive,
@@ -89,7 +93,7 @@ export function createNodeDirectoryWorkspace(
   const registry: DirectoryRegistry = {
     list: (required, options = {}) => {
       const current = atHome();
-      if (!config || current.hasMigration({ migration: "app-data-catalog-v1" })) return current.list(required, options);
+      if (!config || current.hasMigration({ migration: APP_DATA_CATALOG_MIGRATION })) return current.list(required, options);
       const rows = [...oldCatalogs().flatMap((catalog) => catalog.list(required, options)), ...current.list(required, options)];
       return [...new Map(rows.map((row) => [canonicalPath({ path: row.path }), row])).values()];
     },
@@ -125,7 +129,7 @@ export function createNodeDirectoryWorkspace(
       const selected = home();
       const parent = config?.legacyHomes({}, { includeMissing: true }).includes(path.dirname(selected)) ? path.dirname(path.dirname(selected)) : path.dirname(selected);
       try { return ports.filesystem.statSync(parent).isDirectory(); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+      catch (error) { return fallbackIfMissing(error, false); }
     },
     legacyHomes: (_required: Record<string, never>, _options = {}) => config?.legacyHomes({}) ?? [],
     /** Commit a verified move's catalog and every injected path reference as one locked unit.
@@ -158,9 +162,9 @@ export function createNodeDirectoryWorkspace(
             read: () => state === undefined ? { state: "missing" } : { state: "ok", value: state },
             write: ({ value: next }) => { state = next; }, withLock: ({ critical }) => critical(),
           } });
-          if (!staged.hasMigration({ migration: "app-data-catalog-v1" })) {
+          if (!staged.hasMigration({ migration: APP_DATA_CATALOG_MIGRATION })) {
             const previous = oldCatalogs();
-            staged.merge({ entries: previous.flatMap((catalog) => catalog.list({})), migrations: previous.flatMap((catalog) => catalog.migrations({})), migration: "app-data-catalog-v1" });
+            staged.merge({ entries: previous.flatMap((catalog) => catalog.list({})), migrations: previous.flatMap((catalog) => catalog.migrations({})), migration: APP_DATA_CATALOG_MIGRATION });
           }
           const existing = staged.list({}).find((row) => row.path === from || row.id === entry.id);
           if (existing && existing.path !== from && existing.path !== to) throw new Error("Site identity is registered at an unrelated path.");

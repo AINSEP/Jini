@@ -2,7 +2,7 @@
 
 import { nowIso, type Clock as ClockPort } from "@jini-ai/core/primitives";
 import type { MailerPort } from "./ports.js";
-import type { EmailAddress, MailerCapabilities, MailerSendOptions, MailerSendResult, OutboundEmail, MailerSendRequired, MailerBatchRequired, MailerOptional } from "./types.js";
+import type { EmailAddress, MailerCapabilities, MailerSendResult, MailerSendRequired, MailerBatchRequired, MailerOptional } from "./types.js";
 
 export interface SmtpTransport {
   // Keep the vendor behind a structural seam so delivery rules can run without a real SMTP socket.
