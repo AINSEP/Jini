@@ -13,7 +13,7 @@ Tests were collected correctly under their own config, none import `dist`, and o
 - Added `pnpm test:coverage` script in package.json. Use `--maxWorkers=2 --minWorkers=1` (included in the script).
 
 ## Before / after
-Before (default config): 4.01% lines, 39.7% branches. After the config fix alone: 98.31% lines (kernel config only) / 100% lines, 99.95% branches (combined config). After one new test: **100% statements / branches / functions / lines across all 67 source files.**
+Before (default config): 4.01% lines, 39.7% branches. After the config fix alone: 98.31% lines (kernel config only) / 100% lines, 99.95% branches (combined config). After one new test: **100% statements / branches / functions / lines across all 68 source files.**
 
 | directory | files | lines | branches |
 |---|---|---|---|
