@@ -1,710 +1,775 @@
-# `@jini-ai/commerce` — Phase 1 plan: one-time purchases through a real provider
+# `@jini-ai/commerce` — Phase 1 plan: one-time purchases through the attached Stripe plugin
 
-Plan only; no code changed. Written 2026-10-29 on top of `32226f0e` (branch
-`cloud/commerce-opensaas-1029`). Row numbers (#N) refer to `REPORT-opensaas-gap.md`.
-Paths are relative to `packages/commerce/` unless they start with `packages/` or `open-saas/`.
+**Revision 2 (2026-10-29).** This replans after the Codex review
+(`REVIEW-codex-phase1.md`, verdict REPLAN) and the owner's decisions of the same day. It
+supersedes revision 1 (`db41e253`). It is still a plan only: no code is changed. Base:
+`32226f0e`. Gap-report rows are written #N (`REPORT-opensaas-gap.md`) and review items R1–R21.
+Paths are relative to `packages/commerce/` unless they start with `packages/`.
 
 **Phase 1 goal.** A member buys one active one-time price, is redirected to a real Stripe-hosted
-checkout, pays, and the order becomes `paid`, using only mechanisms that already exist:
-`checkout()` → `PaymentsPort.createIntent` → `NextAction` → webhook receiver → inbox worker →
-single writer → outbox → order projection.
+Checkout, and pays. The order becomes `paid` only after that payment's evidence is verified
+against the order's durable payment association, which pins workspace, site, account, provider,
+mode, amount and currency. The path reuses `checkout()`, `PaymentsPort.createIntent`, `NextAction`,
+the scoped ledger, the inbox/worker, the single writer, the outbox and the storefront.
 
 ```
-checkout()  ──order──▶  payOrder()  ──createIntent(reference=order.id, line)──▶  PaymentsPort
-                                                                                  │ provider.createIntent
-browser ◀── NextAction{redirect} ◀── PaymentView.next ◀─────────────────────────── Stripe plugin
-Stripe ──webhook──▶ receive (verify → facts | ignored) ──▶ inbox ──▶ worker ──▶ single writer
-                                                                                  │ outbox payment.succeeded{reference}
-                                               order projector ◀── host bus ◀──── outbox relay
-                                               orders.markPaid(order.id)
+checkout() → payOrder() ─createIntent(key order:<id>, line)→ PaymentsPort ─→ Stripe plugin: POST checkout/sessions
+   │            └─ save OrderPayment association (order ↔ payment, full scope, amount)       └→ NextAction{redirect}
+browser ← openCheckout(next) ← PaymentView.next
+Stripe ─signed webhook→ receive (verify; facts | ignored) → inbox → worker (retrieve if id-only) → single writer
+single writer ─outbox payment.succeeded(aggregateId = payment id)→ relay → host bus → order projector
+order projector → settleOrderPayment: association by payment id → scope-fenced getPayment → verify all → markPaid
 ```
 
 ---
 
-## 0. Plugin model (owner requirement, 2026-10-29)
+## 0. Owner decisions (2026-10-29) and plugin model
 
-> Every payment vendor (Stripe now; PayPal, Lemon Squeezy, Paddle and Polar later) is a
-> **self-contained, attachable plugin** that implements the core commerce `PaymentProvider`
-> contract. Core keeps only the vendor-neutral contract plus the default provider. A site turns a
-> vendor on by attaching its plugin, never by changing code in core. Phase 1 **extends the existing
-> `payments-stripe` plugin**; it does not create a second one.
+| # | Decision | Effect on this plan |
+|---|---|---|
+| D1 | **Yes**: delete the legacy `payments-stripe/stripe.ts` adapter and its 2 tests | Shard P22 |
+| D2 | **The host** ships catalog schema changes through its own migration (Tovu: ADR-066 TS migrations); borrowed-schema fixtures are updated in the same shard | §4, P10–P12 |
+| D3 | Retire the catalog's second webhook inbox in **Phase 2** | Untouched now |
+| D11 | **The Stripe plugin is the default production provider.** LiPay fake is test-only, enforced fake-locally, never by LiPay policy in core | P2 |
+| D12 | Keep manifest `contributes.providers` only if the loader needs it today → **it does** (setup capture + `contractVersion === 1` validation) | §0.2 |
+| D13 | **Not now.** `PaymentEvidence.amount` keeps its meaning; tax/subtotal is a later explicit design | §0.5 |
+| Cuts | Purchase effects (#3, R10) and customer portal (#8, R11) **deferred** | Removed from scope |
 
-### 0.1 Where the plugin lives
+### 0.1 Where vendors live
 
-`packages/provider-plugins/src/payments-stripe/`, inside the existing `@jini-ai/provider-plugins`
-distribution. That distribution's build (`scripts/build.ts`) emits one self-contained,
-digest-pinned folder per plugin, listed in `catalog.json`. The plugin keeps its id
-`payments-stripe` and its manifest `jini.plugin.json`. The legacy `stripe.ts` adapter inside it is
-rewritten in place against the commerce contract (§2.12). Later vendors are siblings in the same
-distribution, each self-contained: `payments-paypal/`, `payments-lemonsqueezy/`,
-`payments-paddle/`, `payments-polar/`. Core never imports any of them, and they import only
-**types** from `@jini-ai/commerce` plus its testkit (devDependency).
+Every payment vendor is a **self-contained provider artifact** in `@jini-ai/provider-plugins`:
+`packages/provider-plugins/src/payments-<vendor>/`. Each one is built by `scripts/build.ts:97`
+into its own digest-pinned `plugins/<id>/<version>/server/index.mjs`. Phase 1 **extends the
+existing `payments-stripe`** artifact: same id, same folder, same `contract: "payments"` / `id:
+"stripe"`. Its port now implements commerce's canonical `PaymentProvider` instead of the legacy
+`charge`/`getCharge`/`refund` port. PayPal, Lemon Squeezy, Paddle and Polar will be sibling
+folders. Core holds the vendor-neutral contract only. LiPay is a test fake, not a provider (§0.4).
 
-### 0.2 How a host attaches and registers it
+### 0.2 One attachment authority: `@jini-ai/plugins/host` provider artifacts (R1, R2)
 
-This uses the mechanism that already exists (`src/payments/plugin-contribution.ts`,
-`src/payments/provider-registry.ts`). No new registry is added.
+The **only** way a payment vendor attaches is the existing provider-artifact path. No new
+lifecycle is added, and commerce's unused agent-plugins contribution spec is **removed**
+(`payments/plugin-contribution.ts`, 138 lines, plus its 192-line test; `rg` finds no consumer
+outside its own test). Lifecycle:
 
-1. The plugin's `jini.plugin.json` declares
-   `"extensions": { "ai.jini.commerce": { "provider": "./provider.js" } }`. The default export of
-   `provider.js` is the `PaymentProvider` object.
-2. The host installs or attaches the plugin folder and passes commerce's
-   `PaymentProviderContributionSpec` to `@jini-ai/agent-plugins`'
-   `defineExecutablePluginContribution` / `createPluginContributionLoader`. That loader owns trust:
-   activation, shipped-digest verification and module containment. Commerce's `validate` runs
-   `paymentProviderModuleProblem` on the export, so a malformed plugin is refused, never half-loaded.
-3. The loaded items go into the kernel provider registry. It refuses duplicate ids and binds the
-   id `stripe` to the plugin `payments-stripe`, so a second plugin cannot claim `stripe` and receive
-   its webhooks (`provider-registry.ts:7-8`).
-4. A site **selects** the vendor per scope: the `PaymentScope.providerId` / `providerAccountId` /
-   `mode` it configures, and the webhook endpoint it registers
-   (`POST …/payments/webhooks/:siteId/stripe/:endpointId`). Turning Stripe off means detaching the
-   plugin or removing the scope. Core code never changes.
+| Step | Who / where | What happens |
+|---|---|---|
+| install | existing installer + `catalog.json` | Immutable-version folder; `jini.plugin.json` integrity covers `server/index.mjs` and `licenses/**` |
+| discover → load | `loadPlugin` (`packages/plugins/src/host/node/loader.ts`); standalone via `loadProviderPluginArtifact` (`node/provider-artifact.ts:16`), per site via the site provider host | Integrity → SDK range → import → `definition.setup(sdk)` (`loader.ts:184-205`) |
+| register | the plugin's `setup` | `sdk.providers.register({ contract: "payments", id: "stripe", contractVersion: 1, factory })`. `contractVersion: 1` is the only accepted value (`provider-contributions.ts:23-32`), so "payments v1" now **means** the commerce `PaymentProvider` port. The legacy port's only consumer is the artifact test, updated in P22. |
+| validate | the host's provider host `contracts` (`provider-host.ts:6-11`) | The domain owner supplies the validator: commerce exports `paymentsProviderContract = { contract: "payments", validate: ({ provider }) => paymentProviderModuleProblem(provider) }` (new `payments/provider-contract.ts`). It is typed structurally, so commerce still never imports the plugin host. |
+| initialize | `host.initialize({ contract: "payments", id: "stripe", input: {} })` | The factory takes no credentials (the provider is stateless; credentials arrive per call in `ctx`). It returns `{ port: PaymentProvider, dispose: noop }`. |
+| commerce registration | host composition | `createKernelProviderRegistry({ items: [{ pluginId: "payments-stripe", module: resource.port }] }, { bindings: { stripe: "payments-stripe" } })` (`provider-registry.ts:55-58`). **Bindings are passed explicitly**, and the E2E test (P25) asserts that a second plugin claiming `stripe` is refused. |
+| detach | host | `resource.dispose({})`; the host rebuilds the registry without the item. With no registry entry, the webhook route answers `503 PROVIDER_NOT_REGISTERED` and redelivery keeps events safe (`receive.ts:113-115`). |
 
-The legacy `setup(sdk) { sdk.providers.register({ contract: 'payments', … }) }` in
-`payments-stripe/index.ts`, which registers the old capability-providers port, is **removed**.
-The commerce extension above is the only way a payments vendor attaches. See D12 for the manifest's
-`contributes.providers` entry.
+`contributes.providers[0]` stays in the manifest because the loader requires it today (D12). It
+also carries `settings`, which the host settings UI renders.
 
-### 0.3 How credentials are supplied (the plugin owns its fields)
+### 0.3 Credentials: plugin-owned fields + a real per-account/per-mode adapter (R3)
 
-- **The plugin declares its own fields**, in two places that must agree:
-  - `PaymentProvider.credentialKeys = ["secretKey", "webhookSecret"]` is what the kernel resolves.
-  - `jini.plugin.json` → `contributes.providers[0].settings` is what the host settings UI renders.
-    It follows the `analytics-posthog` pattern: `{ "name": "secretKey", "label": "Secret key",
-    "secret": true, "required": true, "hint": "Stripe Dashboard → Developers → API keys (sk_live_… / sk_test_…)" }`
-    and `{ "name": "webhookSecret", "label": "Webhook signing secret", "secret": true, "required": true,
-    "hint": "… (whsec_…)" }`.
-  - A manifest test (S10) asserts the two name lists are equal.
-- **Values** are stored by the host's secret store, per provider account **and mode**. They reach
-  the plugin only as `ctx.credentials`, which the host's `ProviderContextPort.resolve`
-  (`provider-registry.ts:81-86`) fills for exactly this scope. The kernel checks every slot before
-  any call (`NO_CREDENTIALS_CONFIGURED` otherwise).
-- The plugin never reads environment variables or globals, keeps no key in module state, and makes
-  every outbound call through `ctx.httpClient`. Rotation follows the existing contract note: add a
-  `webhookSecretPrevious` slot when someone needs it. Phase 1 does not add it.
-- Core has **no** Stripe-named credential, setting or constant.
+- **Fields (plugin-owned).** Fields are declared in `contributes.providers[0].settings` under a
+  vendor-neutral convention that core enforces for every payments plugin:
+  - `accountId` (public, required): the provider account this config is for.
+  - For each slot `k` in `provider.credentialKeys`, two secret settings: `test_<k>` and `live_<k>`.
+  - Stripe: `credentialKeys = ["secretKey", "webhookSecret"]` gives `test_secretKey`,
+    `test_webhookSecret`, `live_secretKey` and `live_webhookSecret`.
+  - The names satisfy the setting grammar `^[A-Za-z][A-Za-z0-9_]{0,63}$`. The manifest test
+    (P22) asserts that this convention matches `credentialKeys`.
+- **Storage.** The existing `ProviderConfigSource` (`packages/plugins/src/host/provider-config-source.ts:26-41`)
+  is keyed by `pluginId` within a project or site store. It is unchanged.
+- **Adapter (new, core, vendor-neutral): `payments/provider-contexts.ts`**, implementing the
+  existing `ProviderContextPort` (`provider-registry.ts:81-86`):
 
-### 0.4 "No Stripe outside the plugin": verified 2026-10-29
+```ts
+/** Structural mirror of the plugin host's ProviderConfigSource.read — commerce never imports the host. */
+export interface ProviderConfigReaderPort {
+  read(required: { pluginId: string }, optional?: Record<string, never>): Promise<{ settings: Readonly<Record<string, string>>; secrets: Readonly<Record<string, string>> } | null>;
+}
+/** Host-owned: the site's absolute URLs for this scope (null = site not configured for payments). */
+export interface ProviderUrlsPort {
+  resolve(required: { scope: PaymentScope }, optional?: Record<string, never>): Promise<{ webhookUrl: string; returnUrl: string; cancelUrl: string } | null>;
+}
+export function createProviderContexts(
+  required: {
+    configFor: (required: { siteId: string }) => ProviderConfigReaderPort;   // the SITE's store; never another site's
+    pluginIdOf: Readonly<Record<string, string>>;                           // the same bindings object as the registry
+    urls: ProviderUrlsPort; httpClient: HttpClientPort; now: () => number;
+  },
+  optional?: Record<string, never>
+): ProviderContextPort;
+```
 
-- `rg "from ['\"]stripe['\"]|require\(['\"]stripe['\"]\)|\"stripe\":"` over `packages/` and
-  `examples/` finds **no import of the `stripe` SDK anywhere**. The only hit is a test string in
-  `provider-plugins/src/__tests__/core-boundary.test.ts:104`.
-- That boundary test already **fails the build** if any workspace package other than the plugin
-  distribution imports `stripe` (its `VENDOR` regex includes `stripe$`), so the rule is enforced,
-  not just true today. The Phase 1 plugin uses raw REST, so the plugin itself takes no SDK either.
-- Stripe *mentions* in core are comments and examples only (`contract/provider.ts:5`,
-  `contract/scope.ts:18-20`, `state/status.ts:6,35,41`, `contract/evidence.ts:39`,
-  `catalog/checkout.ts:55`, `catalog/types.ts:132`, `plugin-contribution.ts:17-18`). They are
-  harmless and left alone.
-- **One real leak:** `src/react/Payments.tsx:56-57` hard-codes `Stripe` and `PayPal` badges in
-  the core panel. S12 replaces them with a `providers: readonly ProviderSummary[]` prop, which the
-  host fills from `PaymentsPort.listProviders()`, so attaching a plugin is what makes a vendor
-  appear.
-- S10 adds one more boundary case: no file outside `provider-plugins/src/payments-stripe/` contains
-  `api.stripe.com`. That catches a raw-REST leak the import check cannot see.
+  `resolve` fails with `NO_CREDENTIALS_CONFIGURED` when:
+  - there is no binding for the provider;
+  - nothing is saved for the plugin on this site;
+  - `settings.accountId !== scope.providerAccountId` (a wrong-account config is never used);
+  - any `${scope.mode}_${k}` slot is missing (a test key never satisfies live, or the reverse);
+  - the URLs are unconfigured.
 
-### 0.5 The "default provider"
+  `ctx.credentials` holds **only** the bare slot names, with only this mode's values.
+- **Phase 1 constraint (stated in the README):** one provider account per (site, plugin), and one
+  webhook endpoint per (site, provider account, mode). The endpoint's signing secret is that
+  mode's `webhookSecret`. Several accounts per site, or several endpoints per scope, are Phase 2
+  and need keyed config rows.
+- **Isolation tests (P9):** missing slot; wrong account; wrong mode (live requested, only test
+  saved); cross-site (site B's saved config never resolves for site A); unbound provider; URLs
+  missing; the result carries no slot outside `credentialKeys`.
 
-Today core has **no production provider**. The only in-core provider is the deterministic LiPay
-fake (`src/payments/testkit/lipay-fake.ts`, exported from `./payments/testkit`). It is test-only
-and must never be selectable in `live` mode. Phase 1 keeps it as the default dev/test provider and
-updates it for the new contract fields (S1). Whether "default provider" should mean something more
-(for example a "manual / pay offline" provider usable in production) is **D11**.
+### 0.4 LiPay is test-only (D11, R15)
 
-### 0.6 Will PayPal, Lemon Squeezy, Paddle and Polar fit without core changes?
+`createLipayFake` (`testkit/lipay-fake.ts`) gets a **fake-local guard**. Every method returns
+`rejected INVALID_REQUEST "lipay fake is test-only"` when `ctx.account.mode === "live"`. It ships
+only from `./payments/testkit`. Core gets no LiPay-specific branch.
 
-This checks every contract field Phase 1 adds or relies on against the four later vendors.
+### 0.5 Cross-vendor fit (R12, narrowed)
 
-| Contract element | Stripe | PayPal | Lemon Squeezy | Paddle | Polar | Verdict |
-|---|---|---|---|---|---|---|
-| `createIntent` → `NextAction` | `redirect` (Checkout) | `redirect` (approve link) | `redirect` (checkout URL) | `client_action` (overlay, `transactionId`), or `redirect` | `redirect` | generic |
-| `ProviderContext.returnUrl` | `success_url` | `return_url` | `checkout_data…redirect_url` | `checkout.url` / client success | `success_url` | generic |
-| `ProviderContext.cancelUrl` | `cancel_url` | `cancel_url` | — (ignored) | — (ignored) | — (ignored) | generic: required of hosts, optional for plugins to use |
-| `IntentLine.providerPriceRef` | Price id | none (ignored; amount-only orders) | variant id | price id | product/price id | generic name, **not** Stripe-only |
-| `IntentLine.description` / `quantity` | line item | `purchase_units[].items` | — | items | — | generic; ignorable |
-| `IntentRequest.idempotencyKey` | `Idempotency-Key` header | `PayPal-Request-Id` | none | none | none | generic. Vendors without one may create a duplicate *checkout* on a kernel retry. No money moves until the shopper pays, and the kernel's existing quarantine catches the mismatch. Documented in the contract, not a core change. |
-| `customerPortal(customerRef)` + capability | billing-portal session | none → capability `false` | `GET /customers/{id}` → `urls.customer_portal` | `customerPortalSessions.create` | customer session | generic |
-| `verifyWebhook(rawBody, headers, ctx)` | HMAC, local | **API call** (`verify-webhook-signature`, needs a `webhookId` credential slot) via `ctx.httpClient`; `unknown` → 503 → redelivery | HMAC (`X-Signature`) | HMAC (`Paddle-Signature`) | Standard Webhooks HMAC | generic |
-| `WebhookFact.providerEventId` (required) | `event.id` | `id` | **no stable event id**: the plugin derives a deterministic one (hash of `meta.event_name` + `data.id` + `updated_at`) | `event_id` | `webhook-id` header | generic; the derivation requirement is added to the contract doc in S1 |
-| `ok([])` = ignored (#31) | unhandled types | same | same | same | same | generic |
-| `credentialKeys` + manifest `settings` | `secretKey`, `webhookSecret` | `clientId`, `clientSecret`, `webhookId` | `apiKey`, `storeId`, `webhookSecret` | `apiKey`, `webhookSecret` | `accessToken`, `webhookSecret` | generic (each plugin owns its fields) |
-| `capabilities.currencies` | `any` | list | `any` (store currency) | list | list | generic |
+- **New core fields are vendor-neutral.** None is Stripe-only:
+  - `ProviderContext.cancelUrl`: PayPal uses it. Lemon Squeezy, Paddle and Polar ignore it.
+  - `IntentLine { description, quantity, unitAmount, providerPriceRef? }`: Lemon Squeezy variant,
+    Paddle price, Polar product/price.
+  - `capabilities.idempotencyWindowMs` (§2.1).
+- **Exact charging is required, not "ignorable".**
+  - A plugin may drop `description` or `quantity`, but it **must charge exactly `req.amount`**.
+  - The kernel verifies `unitAmount × quantity === amount` before any row is written (P5).
+  - Stripe additionally refuses a session whose `amount_total`/currency differs from the request
+    and returns no redirect (P18).
+  - Quarantine of mismatched evidence remains detection, not prevention.
+- **Retries.** A same-key `createIntent` replay never re-dispatches (R8). Only the bounded
+  recovery in P7 re-dispatches, only with the **original** key, and only for providers declaring
+  a non-null `idempotencyWindowMs`. Vendors without request idempotency (Lemon Squeezy, Paddle,
+  Polar → `null`) get operator-only recovery.
+- **Unchanged and deferred** (D13): `PaymentEvidence.amount` still means authorized/charged money;
+  capture and refund arithmetic depend on it (`plan-evidence.ts:295`).
+  - Merchant-of-record tax and subtotal modelling (Lemon Squeezy, Paddle, Polar).
+  - Subscription facts (#13). These are explicit later designs, with no Stripe fields in core.
+- **Stripe-specific choices stay in the plugin:** Checkout Session id as `providerRef`,
+  `metadata[jini_payment_id]`, Bearer auth with form encoding, and the currency allow-list.
 
-**Fields that fit Stripe only:** none in the core contract. The Stripe-specific choices stay in
-the plugin: Checkout Session as the `providerRef`, `metadata[jini_payment_id]` for correlation,
-the `expand[]=payment_intent` retrieve, and the Bearer + form encoding.
+### 0.6 No Stripe outside the plugin: an executable gate (R21)
 
-**Two gaps would force a core change for some later vendors.** Neither is Stripe-specific, and
-neither blocks Phase 1:
+- **Verified now:**
+  - No `stripe` SDK import exists anywhere; `core-boundary.test.ts` already bans it outside the
+    plugin distribution (`:19`, `VENDOR`).
+  - No production file outside `payments-stripe/` holds a Stripe API destination. The only
+    `api.stripe.com` literals live in the legacy plugin and its tests, which are deleted in P22.
+  - Core has two hard-coded vendor badges in `react/Payments.tsx:56-57`, fixed in P16.
+- **New gate (P24), extending `core-boundary.test.ts`:**
+  1. TypeScript-AST scan of **production** sources (paths under `__tests__/` and `*.test.ts(x)`
+     are excluded by an explicit, asserted rule) in every workspace package plus
+     `provider-plugins/src/*`. It fails on any string or template literal containing
+     `api.stripe.com` outside `src/payments-stripe/`.
+  2. No plugin folder imports a sibling plugin folder (`src/<a>/**` → `../<b>/`).
+  3. Fixture cases prove that each rule fires.
 
-1. **Merchant-of-record tax (Lemon Squeezy, Paddle, Polar).** These vendors can charge our amount
-   *plus* tax. `PaymentEvidence.amount` is checked against our amount, so a tax-exclusive charge
-   would be **quarantined**. Before the first merchant-of-record plugin, core needs an optional
-   `tax?: Money` on the evidence, and the amount check must compare the pre-tax amount. This is
-   gap #19's "record outcomes" item. Until then those plugins must use tax-inclusive prices. See D13.
-2. **Subscription facts (Lemon Squeezy, Paddle, Polar, and Stripe Phase 2).** `WebhookFact` carries
-   payment evidence only (#13). One-time purchases from all five vendors fit today. Their
-   subscription events need the Phase 2 fact union, which is a planned core change shared by every
-   vendor, not a per-vendor one.
+  This is a **test gate** run by `pnpm --prefix packages/provider-plugins test` and CI. The
+  distribution build does not run it.
 
 ---
 
 ## 1. Scope
 
-### In
+**In:**
+- #12 checkout pays, with a verified order↔payment association.
+- #4 our price → vendor price.
+- #10 open-checkout client.
+- #11 cancel URL.
+- #31 explicit ignored outcome.
+- #28 Stripe plugin (Checkout `mode=payment`, `retrieve`, signed webhooks, currency allow-list).
+- Rejected-intent replay (R8).
+- Bounded lost-response recovery (R9).
+- The credential adapter (R3).
+- The single attachment authority (R1/R2).
+- LiPay test-only guard (D11).
+- Core UI vendor-name fix.
+- Coverage gates, NOTICE packaging and the boundary gate.
 
-| # | Item | Shape in one line |
-|---|---|---|
-| 12 | Catalog checkout creates the payment | New `payOrder()` calls the **existing** `PaymentsPort.createIntent` with the order id as `reference`; a projector marks the order `paid` from the outbox. No second payment path. |
-| 3 | Purchase effect union | `CommercePurchaseEffect = { kind: "none" } \| { kind: "credits"; credits }` on the product. Data shape + validation only; nothing consumes it yet. |
-| 4 | Our price ↔ vendor price | `CommercePriceProviderRefRepoPort`, keyed by (workspace, price, provider, provider account, **mode**). Its value reaches the provider through a new neutral `IntentRequest.line`. |
-| 8 | Customer portal | Optional `PaymentProvider.customerPortal?`, gated by a new `capabilities.customerPortal`; exposed as the non-money `PaymentsPort.customerPortal`. |
-| 10 | Browser open-checkout contract | `openCheckout({ next, navigate })` over the existing `NextAction` (`redirect` / `client_action`), with a scheme allow-list. Universal entry, no React. |
-| 11 | Cancel URL | `ProviderContext.cancelUrl` (required, host-resolved like `returnUrl`). |
-| 31 | Unhandled webhook types | Documented contract: a verified event the provider does not translate is `ok([])`. The receiver answers `200 { received: 0, duplicates: 0, ignored: true }` and writes nothing. |
-| 28 | Stripe provider plugin | The **existing** `packages/provider-plugins/src/payments-stripe/` plugin (same id, same folder; §0), extended onto the commerce `PaymentProvider` contract: hosted Checkout Session (`mode=payment`), `retrieve`, signature-verified webhooks → `WebhookFact`, billing-portal link. Vendor code lives only here. |
-
-### Out (Phase 2+ or never in core)
-
-- Subscriptions, recurring checkout and their fact kinds: #1, #2, #13–#16. `billingInterval` prices are **refused** by `payOrder` in Phase 1.
-- Credit ledger, entitlement consumer and gating: #5–#7. The #3 effect is stored only.
-- Customer identity map / `ensureCustomer`: #9. Phase 1's `customerPortal` takes a caller-supplied `customerRef` (see D5).
-- Stripe refunds, disputes, manual capture and void. The plugin declares `refunds: "none"`, `disputes: false`, `capture: "auto"`, `void: false`. The kernel's refund ops refuse it with `CAPABILITY_UNSUPPORTED`, which already works.
-- Order `failed` / `canceled` projection. There is no `payment.failed` topic today. An abandoned order stays `pending`, and no money is involved (D6).
-- Retiring the catalog's second webhook inbox (`CommerceWebhookEventRepoPort.applyProviderEvent`, `catalog/ports.ts:65-89`). Phase 1 stops *using* it but does not delete it (D3).
-- Tax, coupons, invoices, revenue, pricing/account UI, email: #17–#27.
-- Polar, Paddle and Lemon Squeezy plugins.
+**Out:**
+- Purchase effects (#3) and customer portal (#8, which also needs #9 customer identity): deferred.
+- Subscriptions, entitlements and credits: #1, #2, #5–#7, #13–#16.
+- Stripe refunds, disputes, manual capture and void. The plugin declares `refunds: "none"`,
+  `disputes: false`, `capture: "auto"`, `void: false`.
+- Order `failed`/`canceled` projection: there is no `payment.failed` topic; an abandoned order
+  stays `pending`.
+- The catalog's second inbox (D3, Phase 2).
+- Tax, coupons and invoices: #17–#20.
+- Several accounts or endpoints per site.
 
 ---
 
-## 2. Contracts: exact TypeScript
+## 2. Contracts (exact TypeScript; `(required, optional = {})`; ports injected; complexity ≤ 10)
 
-All new functions follow the house shape `fn(required, optional = {})`. Dependencies are ports.
-Every function stays under cyclomatic complexity 11. Nothing throws across a provider boundary.
-
-### 2.1 `src/payments/contract/provider.ts` (edited)
+### 2.1 `payments/contract/provider.ts`
 
 ```ts
 export interface ProviderCapabilities {
-  // …existing fields unchanged…
-  /** `customerPortal` method present. A self-serve billing page; never moves money. */
-  readonly customerPortal: boolean;
-}
-
-export interface ProviderContext {
-  // …credentials, account, httpClient, now, webhookUrl, returnUrl unchanged…
-  /** Absolute URL the shopper lands on after abandoning a hosted checkout. Host-resolved per site + account, like `returnUrl`. */
-  readonly cancelUrl: string;
-}
-
-/** What is being bought, for providers whose hosted checkout shows line items. Optional: the kernel's amount stays the truth. */
-export interface IntentLine {
-  /** Shown to the shopper (the product name snapshot). Never personal data. */
-  readonly description: string;
-  /** Integer ≥ 1. `amount` must equal unit × quantity; a provider-reported mismatch is quarantined by the existing amount check. */
-  readonly quantity: number;
-  /** The provider's own price id for (price, provider account, mode), when the host mapped one (#4). */
-  readonly providerPriceRef?: string;
-}
-
-export interface IntentRequest {
-  // …existing fields unchanged…
-  readonly line?: IntentLine;
-}
-
-export interface PaymentProvider {
-  // …existing members unchanged…
-  /** Present iff `capabilities.customerPortal`. Read-only: no ledger row, no grant, no idempotency. */
-  customerPortal?(
-    required: { customerRef: string; ctx: ProviderContext },
-    optional?: { signal?: AbortSignal }
-  ): Promise<Outcome<{ readonly url: string }>>;
-  /**
-   * (doc only, #31) … A verified event whose type this provider does not translate is `ok([])`,
-   * never `rejected`: a 4xx makes the provider redeliver it forever.
-   */
-  verifyWebhook(/* signature unchanged */): Promise<Outcome<readonly WebhookFact[]>>;
-}
-```
-
-### 2.2 `src/payments/provider-module-guard.ts` (edited)
-
-```ts
-export const OPTIONAL_PROVIDER_METHODS = ["refund", "capture", "void", "retrieve", "customerPortal"] as const;
-// CAPABILITY_CHECKS += [(c) => typeof c.customerPortal === "boolean", "capabilities.customerPortal must be a boolean"]
-// CAPABILITY_METHOD_RULES += ["customerPortal", "capabilities.customerPortal === true", (c) => c.customerPortal === true]
-```
-
-### 2.3 `src/payments/contract/payments-port.ts` (edited)
-
-```ts
-export interface ProviderSummary {
   // …existing…
-  readonly customerPortal: boolean;
+  /**
+   * How long the provider honours `IntentRequest.idempotencyKey` (same key + same request → same
+   * result, no second object). `null` = no request idempotency: a lost createIntent response is
+   * never re-dispatched automatically (operator-only, see reconcile-intent-dispatch).
+   */
+  readonly idempotencyWindowMs: number | null;
 }
+export interface ProviderContext { /* …existing… */ readonly cancelUrl: string; }
 
-export type PortalResult =
-  | { readonly ok: true; readonly url: string }
-  | { readonly ok: false; readonly error: PaymentError };
-
-export interface PaymentsPort {
-  createIntent(
-    required: { scope: PaymentScope; amount: Money; idempotencyKey: string; reference: string },
-    optional?: {
-      captureMode?: "auto" | "manual"; partyId?: string;
-      providerOptions?: Readonly<Record<string, unknown>>;
-      /** Forwarded to the provider unchanged. Not part of the idempotency comparison (`reference` already pins the order). */
-      line?: IntentLine;
-    }
-  ): Promise<IntentResult>;
-  // refund/capture/void/getPayment/listProviders unchanged
-  /** Non-money: no grant, no ledger write. `CAPABILITY_UNSUPPORTED` when the provider has no portal. */
-  customerPortal(
-    required: { scope: PaymentScope; customerRef: string },
-    optional?: { signal?: AbortSignal }
-  ): Promise<PortalResult>;
+/** What is being bought. The kernel guarantees `unitAmount.minorUnits × quantity === amount.minorUnits`, same currency. */
+export interface IntentLine {
+  readonly description: string;          // display only; never personal data
+  readonly quantity: number;             // safe integer ≥ 1
+  readonly unitAmount: Money;            // the order item's snapshot
+  readonly providerPriceRef?: string;    // (price, provider account, mode) mapping, #4
 }
+export interface IntentRequest { /* …existing… */ readonly line?: IntentLine; }
 ```
 
-### 2.4 `src/payments/ops/portal.ts` (new)
+Doc additions on `verifyWebhook`: a verified event type the provider does not translate, or an
+event about an object it did not create, is `ok([])`. It is never `rejected`, because a 4xx makes
+the vendor redeliver forever. A supported event about **our** object that lacks evidence is an
+id-only fact; it is not dropped (R6).
+
+Doc addition on `WebhookFact.providerEventId` (`evidence.ts:238-248`): it must be **stable across
+redeliveries**. A vendor without event ids derives one deterministically.
+
+### 2.2 `payments/provider-module-guard.ts`
+
+`CAPABILITY_CHECKS +=` `idempotencyWindowMs` is `null` or a positive safe integer.
+
+### 2.3 `payments/contract/payments-port.ts`
 
 ```ts
-/** checkProvider → capability → checkText(customerRef) → resolveContext → dispatch(provider.customerPortal). `unknown` and `rejected` both map to ok:false. */
-export async function customerPortal(
-  { deps, required }: { deps: OpsDeps; required: { scope: PaymentScope; customerRef: string } },
-  optional: { signal?: AbortSignal } = {}
-): Promise<PortalResult>;
+createIntent(required: { scope; amount; idempotencyKey; reference },
+  optional?: { captureMode?; partyId?; providerOptions?; line?: IntentLine }): Promise<IntentResult>;
 ```
 
-It reuses `checkProvider`, `checkText`, `resolveContext`, `dispatch` and `fail` from
-`ops/common.ts`. It adds no new helper there.
+`line` is validated in `checkIntent` (`ops/intent.ts:44-56`): a safe integer quantity ≥ 1, the
+same currency as `amount`, and an exact product. Otherwise `INVALID_REQUEST`, with no row written.
+`line` is persisted for recovery (§4) and is **not** part of the replay comparison; `reference`
+already pins the order.
 
-### 2.5 `src/payments/ingest/receive.ts` (edited, #31)
+### 2.4 Rejected-intent replay (R8): `ops/intent.ts` `lookupIntent` (`:58-68`)
+
+Today a same-key replay of a payment whose intent was `rejected` returns `ok: true, replayed`.
+New behaviour: when the prior payment's intent attempt (`findAttemptByOperationKey`,
+`ledger/repo.ts:96`, key `intent:<key>`) has outcome `rejected`, return
+`rejectedReplay(attempt)` (`ops/common.ts:154-160`), the same stored-rejection mechanism that
+refund, capture and void already use. That is `ok: false`, the original code, "replayed … key
+spent", and `payment` attached. **No provider call happens on any replay.**
+
+Consequences for `payOrder`:
+- Retrying after a rejection returns that rejection again. It never creates a fresh session.
+- The shopper starts a new `checkout()`, which creates a new order.
+
+### 2.5 Bounded lost-response recovery (R9): `ops/reconcile-intent-dispatch.ts` (new)
 
 ```ts
-export interface WebhookResponse {
-  readonly status: 200 | 400 | 404 | 500 | 503;
-  readonly body:
-    | { readonly received: number; readonly duplicates: number; readonly ignored: boolean }
-    | { readonly code: string; readonly message: string };
-}
+export const MAX_INTENT_REDISPATCHES = 3;
+/** One scan; called from reconcileUnknown (ops/reconciler.ts:146) alongside the existing scans. */
+export async function reconcileIntentDispatch(
+  required: { deps: OpsDeps; olderThanMs: number; limit: number; cursor: ScanCursor | null },
+  optional?: Record<string, never>
+): Promise<{ counts: ReconcileCounts; next: ScanCursor | null }>;
 ```
 
-When `verified.facts.length === 0`, `receive` returns `200 { received: 0, duplicates: 0, ignored: true }`
-**before** opening a ledger transaction. Every other 200 carries `ignored: false`.
+**Candidates:** open `intent` attempts (`listOpenAttempts({ ops: ["intent"] })`,
+`ledger/repo.ts:196`) whose payment is `unknown` with `providerRef === null`.
 
-### 2.6 `src/payments/accounting/apply-evidence.ts` (edited)
+For each candidate, the outcome is decided in this order:
 
-`payment.succeeded` payloads gain `reference: string` (our order id or other caller reference,
-never personal data) at both enqueue sites (`:253`, `:413`). No new topic and no new column:
-`reference` is already on the payment row.
+| Condition | Outcome |
+|---|---|
+| Provider has `idempotencyWindowMs === null` | **leave** + `unknown-aged` alert (operator-only) |
+| `now − attempt.createdAt ≥ window − olderThanMs` | **leave** + alert. The window is spent, so a re-dispatch could create a second object. |
+| `redispatchCount ≥ MAX_INTENT_REDISPATCHES` | **leave** + alert |
+| `requestJson === null` (rows from before 0005, or the request carried `providerOptions`, which are never persisted: they may hold personal data, `rows.ts:10`) | **leave** + alert |
+| Otherwise | Tx: `redispatchCount + 1`. Then dispatch `provider.createIntent` with the **unchanged** request rebuilt from the payment row and `requestJson`, using the **original** `idempotencyKey = attempt.id` and `correlationId = payment.id`. Then the same Tx2 as a fresh intent (`markAttempt`, then `applyPaymentEvidence` or `recordIntentDispatchOutcome`). |
 
-### 2.7 `src/payments/contract/checkout-client.ts` (new, universal, #10)
+**Outcome mapping** for the re-dispatch:
+
+| Re-dispatch result | Mapping |
+|---|---|
+| Stripe `409` "idempotency key in use" (concurrent) | `unknown`, retryable, left for the next pass |
+| `400 idempotency_error` (parameters differ) | `rejected IDEMPOTENCY_CONFLICT`, recorded as **left + alert**, never `failed` |
+
+Once recovered, the shopper's `payOrder` retry replays the payment, which now has `next`.
+
+### 2.6 Webhook "ignored" (#31): `payments/ingest/receive.ts`
+
+`WebhookResponse.body` success arm gains `readonly ignored: boolean`. `ok([])` →
+`200 { received: 0, duplicates: 0, ignored: true }` before any ledger transaction. All other 200s
+carry `ignored: false`.
+
+### 2.7 Attachment and credentials
+
+`payments/provider-contract.ts` (§0.2) and `payments/provider-contexts.ts` (§0.3) are both
+exported from `./payments/kernel`. `plugin-contribution.ts` is deleted (P8).
+
+### 2.8 Browser client (#10): `payments/contract/checkout-client.ts` + entry `./payments/client` (universal)
 
 ```ts
-import type { NextAction } from "./evidence.js";
-
 export type OpenCheckoutResult =
   | { readonly kind: "navigated"; readonly url: string }
   | { readonly kind: "client_action_handled" }
-  | { readonly kind: "nothing_to_open"; readonly next: "none" | "out_of_band" }
+  | { readonly kind: "nothing_to_open"; readonly next: "none" | "out_of_band" | "pending" }   // "pending" = next === null
   | { readonly kind: "refused"; readonly reason: "unsafe_url" | "no_client_action_handler" };
-
-/** Browser-side handler for a provider's in-page flow (Paddle overlay, 3-D Secure). Supplied by a provider's client glue. */
-export type ClientActionHandler = (
-  required: { payload: Readonly<Record<string, unknown>> },
-  optional?: Record<string, never>
-) => Promise<void>;
-
-/**
- * Opens what `PaymentView.next` asks for. `navigate` is the DI seam (`(url) => window.location.assign(url)` in a host).
- * Only `https:` URLs are followed (`http:` only for `localhost`/`127.0.0.1`); `javascript:`, `data:` etc. are refused.
- */
+export type ClientActionHandler = (required: { payload: Readonly<Record<string, unknown>> }, optional?: Record<string, never>) => Promise<void>;
 export async function openCheckout(
-  required: { next: NextAction; navigate: (required: { url: string }) => void },
+  required: { next: NextAction | null; navigate: (required: { url: string }) => void },   // PaymentView.next is nullable (payments-port.ts:29)
   optional?: { clientAction?: ClientActionHandler }
 ): Promise<OpenCheckoutResult>;
 ```
 
-It is exported from a new universal entry `@jini-ai/commerce/payments/client`, so a browser bundle
-never pulls the node kernel.
+URLs are followed only if they are `https:`, or `http:` on `localhost`/`127.0.0.1`. Anything
+else is refused.
 
-### 2.8 `src/catalog/types.ts` + `src/catalog/effect.ts` (#3)
-
-```ts
-// types.ts
-/** What buying a product grants. Phase 2 adds `{ kind: "subscription"; grantsMemberTierId: UUID }`. */
-export type CommercePurchaseEffect =
-  | { readonly kind: "none" }
-  | { readonly kind: "credits"; readonly credits: number };
-
-export interface CommerceProductRecord {
-  // …existing…
-  /** `undefined` = `{ kind: "none" }`. */
-  effect?: (CommercePurchaseEffect) | undefined;
-}
-
-// effect.ts (new)
-export const MAX_CREDITS_PER_PURCHASE = 1_000_000;
-/** null = valid. `credits` is a safe integer in 1..MAX_CREDITS_PER_PURCHASE. */
-export function purchaseEffectProblem(
-  required: { effect: unknown },
-  optional?: Record<string, never>
-): string | null;
-```
-
-`toProductRow` / `fromProductRow` (`catalog/repo.rows.ts:44-89`) serialize this to
-`effect_json`. `save` refuses an invalid effect with `CommerceCheckoutValidationError`, the
-package's existing validation error.
-
-### 2.9 `src/catalog/ports.ts` (edited, #4 + #12)
+### 2.9 Catalog ports: `catalog/ports.ts`
 
 ```ts
-export interface CommercePriceProviderRefRecord {
-  workspaceId: UUID;
-  priceId: UUID;
-  providerId: string;
-  providerAccountId: string;
-  mode: PaymentMode;            // "test" | "live": a test ref never resolves in live mode
-  providerPriceRef: string;
-  createdAt: ISODateTime;
-}
-
 export interface CommercePriceProviderRefRepoPort {
-  find(
-    required: { workspaceId: string; priceId: string; providerId: string; providerAccountId: string; mode: PaymentMode },
-    optional?: Record<string, never>
-  ): Promise<string | null>;
-  /** Upsert on the five-part key. */
-  save(record: CommercePriceProviderRefRecord, optional?: Record<string, never>): Promise<void>;
+  find(required: { workspaceId: string; priceId: string; providerId: string; providerAccountId: string; mode: PaymentMode }, optional?: Record<string, never>): Promise<string | null>;
+  save(record: CommercePriceProviderRefRecord, optional?: Record<string, never>): Promise<void>;   // upsert on the 5-part key
 }
-
+/** The durable order ↔ payment association (R4). Written by payOrder; the only thing the projector trusts. */
+export interface CommerceOrderPaymentRecord {
+  workspaceId: UUID; orderId: UUID; paymentId: string;
+  siteId: string; providerId: string; providerAccountId: string; mode: PaymentMode;
+  amount: Money; createdAt: ISODateTime;
+}
+export type SaveOrderPaymentResult = "saved" | "unchanged" | "conflict";   // conflict = same order, different payment or scope
+export interface CommerceOrderPaymentRepoPort {
+  save(record: CommerceOrderPaymentRecord, optional?: Record<string, never>): Promise<SaveOrderPaymentResult>;
+  findByOrder(required: { workspaceId: string; orderId: string }, optional?: Record<string, never>): Promise<CommerceOrderPaymentRecord | null>;
+  findByPayment(required: { workspaceId: string; mode: PaymentMode; paymentId: string }, optional?: Record<string, never>): Promise<CommerceOrderPaymentRecord | null>;
+}
 export type MarkOrderPaidResult = "paid" | "already_paid" | "not_pending" | "not_found";
-
-export interface CommerceOrderRepoPort {
-  // …existing…
-  /** `pending → paid` only, with `version + 1`, as one conditional UPDATE (no read-then-write). Idempotent. */
-  markPaid(
-    required: { workspaceId: string; orderId: string; at: ISODateTime },
-    optional?: Record<string, never>
-  ): Promise<MarkOrderPaidResult>;
-}
+// CommerceOrderRepoPort += markPaid(required: { workspaceId; orderId; at }): Promise<MarkOrderPaidResult>
+//   one conditional UPDATE … WHERE status = 'pending' (version + 1), then a point read only to classify a 0-row result
 ```
 
-### 2.10 `src/catalog/pay-order.ts` (new, #12)
+### 2.10 `catalog/pay-order.ts` (#12, R13)
 
 ```ts
-export interface PayOrderDeps {
-  orders: CommerceOrderRepoPort;
-  prices: CommercePriceRepoPort;
-  priceRefs: CommercePriceProviderRefRepoPort;
-  payments: PaymentsPort;          // the EXISTING port; no parallel path
-}
-
-export interface PayOrderInput {
-  workspaceId: UUID;
-  orderId: UUID;
-  /** Must name the same provider as `order.provider`, and the same workspace. */
-  scope: PaymentScope;
-}
-
+export interface PayOrderDeps { orders; prices; priceRefs; orderPayments: CommerceOrderPaymentRepoPort; payments: PaymentsPort; settle: SettleOrderPaymentDeps; }
 export type PayOrderResult =
   | { readonly ok: true; readonly order: CommerceOrderRecord; readonly payment: PaymentView; readonly replayed: boolean }
   | { readonly ok: false; readonly order: CommerceOrderRecord; readonly error: PaymentError; readonly payment?: PaymentView };
-
-/**
- * Loads the pending order and its single item → refuses a recurring price (Phase 1) → resolves the
- * provider price ref (nullable) → `payments.createIntent({ scope, amount: order.totalAmount,
- * idempotencyKey: \`order:${order.id}\`, reference: order.id }, { partyId: order.memberId, line })`.
- * Retrying is safe: the same order replays the same payment (kernel idempotency).
- * @throws {CommerceOrderNotFoundError} no such order in this workspace.
- * @throws {CommerceCheckoutValidationError} order not `pending`, scope/provider/workspace mismatch, recurring price.
- */
-export async function payOrder(
-  required: { deps: PayOrderDeps; input: PayOrderInput },
-  optional?: Record<string, never>
-): Promise<PayOrderResult>;
+export async function payOrder(required: { deps: PayOrderDeps; input: { workspaceId: UUID; orderId: UUID; scope: PaymentScope } }, optional?: Record<string, never>): Promise<PayOrderResult>;
 ```
 
-`checkout()` (`catalog/checkout.ts:220`) is **unchanged**. The host calls `checkout()` and then
-`payOrder()`. A failed `payOrder` is retried with the same `orderId`.
+`loadPayableOrder` (≤ 10 branches) throws **typed** errors before any money call:
 
-### 2.11 `src/catalog/order-projection.ts` (new, #12)
+| Condition | Error |
+|---|---|
+| Order missing | `CommerceOrderNotFoundError` |
+| Order not `pending` | `CommerceCheckoutValidationError` |
+| `scope.workspaceId`/`providerId` ≠ the order's | `CommerceCheckoutValidationError` |
+| Item count ≠ **exactly 1** | `CommerceCheckoutValidationError` |
+| Item price missing | `CommercePriceNotFoundError` |
+| Recurring price (`billingInterval`) | `CommerceCheckoutValidationError` |
+| `orderTotal([{ item.unitAmount, item.quantity }]) ≠ order.totalAmount` (the snapshot is preserved; the live price amount is never used) | `CommerceCheckoutValidationError` |
+| Existing association with a different scope | `CommerceCheckoutValidationError` |
+
+Then:
+1. `payments.createIntent({ scope, amount: order.totalAmount, idempotencyKey: "order:<id>", reference: order.id }, { partyId: order.memberId, line })`.
+2. If a `payment` is returned, call `orderPayments.save(...)`. A `conflict` throws
+   `CommerceCheckoutValidationError`. Storage errors propagate, so the caller retries `payOrder`,
+   which replays.
+3. Call `settleOrderPayment({ paymentId })`. This covers providers that succeed synchronously, and
+   the window in which the outbox message is processed before the association exists.
+
+### 2.11 `catalog/settle-order-payment.ts` + `catalog/order-projection.ts` (R4, R13)
 
 ```ts
-export interface OrderPaymentProjectorDeps {
-  orders: CommerceOrderRepoPort;
-  clock: ClockPort;
-}
-
-export type OrderProjectionOutcome = "paid" | "already_paid" | "not_pending" | "not_found" | "ignored";
-
-/** Host wires this behind its `OutboxPublisherPort`. Only `payment.succeeded` with a string `payload.reference` acts; everything else is `ignored`. */
-export function createOrderPaymentProjector(
-  required: { deps: OrderPaymentProjectorDeps },
-  optional?: Record<string, never>
-): { handle(required: { message: PaymentsOutboxMessage }, optional?: Record<string, never>): Promise<OrderProjectionOutcome> };
+export interface SettleOrderPaymentDeps { orders; orderPayments; payments: PaymentsPort; alerts: PaymentsAlertPort; clock: ClockPort; }
+export type SettleOutcome = "paid" | "already_paid" | "not_ours" | "not_succeeded" | "blocked";
+export async function settleOrderPayment(required: { deps: SettleOrderPaymentDeps; input: { workspaceId: string; mode: PaymentMode; paymentId: string } }, optional?: Record<string, never>): Promise<SettleOutcome>;
+export function createOrderPaymentProjector(required: { deps: SettleOrderPaymentDeps }, optional?: Record<string, never>):
+  { handle(required: { message: PaymentsOutboxMessage }, optional?: Record<string, never>): Promise<SettleOutcome | "ignored"> };
 ```
 
-Redelivery is safe because `markPaid` is idempotent, so the projector needs no dedupe table.
-A `not_pending` order (canceled, then paid late) raises nothing in Phase 1; see D6.
+`settleOrderPayment` steps, in order:
+1. Look up the association by `(workspaceId, mode, paymentId)`. None → `not_ours`, no alert:
+   payments made outside `payOrder`, such as agent tools, are not orders.
+2. Read the order. Missing → **alert** + `blocked`.
+3. Call `payments.getPayment({ scope: association scope, paymentId })`. The read is scope-fenced,
+   so a different site, account, provider or mode returns `null` → **alert** + `blocked`.
+4. `payment.status !== "succeeded"` → `not_succeeded` (no alert; it is early).
+5. Run `settlementProblem`. It requires `payment.reference === order.id`, `payment.amount`,
+   `payment.captured`, `order.totalAmount` and the association amount all equal in minor units and
+   currency, `order.provider === association.providerId`, and the same workspace. Any mismatch →
+   **alert** + `blocked`.
+6. Call `orders.markPaid`. `not_pending` (money arrived on a canceled order) or `not_found` →
+   **alert** + `blocked`.
 
-### 2.12 Stripe plugin: `packages/provider-plugins/src/payments-stripe/` (#28)
+**Acknowledgement policy:**
+- Every outcome above **returns**, so the relay marks the message published. The alert is the
+  escalation, delivered through the existing `PaymentsAlertPort` with a new kind
+  `"fulfillment-blocked"`, which names the order and payment ids.
+- Storage exceptions **propagate**: the relay stops its batch and redelivers
+  (`outbox-relay.ts:69`, at least once). `markPaid` is idempotent, so this is safe.
+- The projector acts only on `payment.succeeded`; every other topic returns `ignored`.
+
+### 2.12 Stripe plugin (`packages/provider-plugins/src/payments-stripe/`)
 
 ```ts
-// provider.ts
-export const STRIPE_CAPABILITIES: ProviderCapabilities = {
-  refunds: "none", capture: "auto", void: false, disputes: false, retrieve: "payment",
-  echoesCorrelation: true, confirmation: ["redirect"], customerPortal: true,
-  currencies: "any",
-};
-export function createStripeProvider(
-  required?: Record<string, never>,
-  optional?: { apiBase?: string; toleranceSeconds?: number }   // test seam + Stripe's documented 300 s default
-): PaymentProvider;   // id "stripe", credentialKeys ["secretKey", "webhookSecret"]
+// provider.ts — the port the factory returns; no options (R15: ctx.httpClient and ctx.now are the seams)
+export const STRIPE_CAPABILITIES: ProviderCapabilities = { refunds: "none", capture: "auto", void: false, disputes: false,
+  retrieve: "payment", echoesCorrelation: true, confirmation: ["redirect"], currencies: STRIPE_CURRENCIES, idempotencyWindowMs: 23 * 3_600_000 };
+export function createStripePaymentProvider(required?: Record<string, never>, optional?: Record<string, never>): PaymentProvider;
+// index.ts — setup(sdk) registers { contract: "payments", id: "stripe", contractVersion: 1, factory: () => ({ port: createStripePaymentProvider(), dispose: () => {} }) }
 
-// http.ts — the only file that talks to Stripe; every call goes through ctx.httpClient (ADR-038 seam)
-export async function stripeRequest(
-  required: { ctx: ProviderContext; method: "GET" | "POST"; path: string },
-  optional?: { form?: ReadonlyArray<readonly [string, string]>; idempotencyKey?: string; signal?: AbortSignal }
-): Promise<Outcome<Readonly<Record<string, unknown>>>>;
-/** 2xx → ok; transport throw / 5xx / 2xx-unparseable → unknown; 400/402/404 → rejected (card_error → DECLINED, else INVALID_REQUEST);
- *  401/403 → rejected NO_CREDENTIALS_CONFIGURED; 409 idempotency_error → rejected IDEMPOTENCY_CONFLICT; 429 → rejected, retryable. */
+// amount.ts — exact, reversible, plugin-local (R7)
+export const STRIPE_CURRENCIES: readonly string[];   // allow-list where ISO exponent == Stripe API exponent (USD EUR GBP CAD AUD NZD CHF SEK NOK DKK PLN CZK SGD HKD MXN BRL JPY KRW …); excludes ISK UGX HUF TWD and all 3-decimal codes
+export function toStripeAmount(required: { money: Money }, optional?: Record<string, never>): { amount: number; currency: string } | null;   // null = not allowed
+export function fromStripeAmount(required: { amount: unknown; currency: unknown }, optional?: Record<string, never>): Money | null;
+
+// http.ts
+export async function stripeRequest(required: { ctx: ProviderContext; method: "GET" | "POST"; path: string },
+  optional?: { form?: ReadonlyArray<readonly [string, string]>; idempotencyKey?: string }): Promise<Outcome<Readonly<Record<string, unknown>>>>;
 export function stripeOutcome(required: { status: number; json: unknown }, optional?: Record<string, never>): Outcome<Readonly<Record<string, unknown>>>;
 
 // checkout-session.ts
-export function checkoutSessionForm(required: { req: IntentRequest; ctx: ProviderContext }, optional?: Record<string, never>): Array<[string, string]>;
-/** Session JSON → evidence. `status` from (session.status, session.payment_status, expanded payment_intent.status, eventType?). */
-export function sessionEvidence(
-  required: { session: Readonly<Record<string, unknown>> },
-  optional?: { eventType?: string }
-): PaymentEvidence | null;   // null = not a session we created (no metadata.jini_payment_id) or malformed
+export function checkoutSessionForm(required: { req: IntentRequest; ctx: ProviderContext }, optional?: Record<string, never>): Array<[string, string]> | null;
+export type SessionReading = { kind: "evidence"; evidence: PaymentEvidence } | { kind: "id_only"; sessionId: string } | { kind: "foreign" };
+export function readSession(required: { session: unknown; mode: PaymentMode }, optional?: { eventType?: string }): SessionReading;
 
 // webhook.ts
-/** Parses `Stripe-Signature: t=…,v1=…[,v1=…]`; HMAC-SHA256(webhookSecret, `${t}.${rawBody}`), hex, timingSafeEqual; |now − t| ≤ tolerance. */
-export function verifyStripeSignature(
-  required: { rawBody: Uint8Array; header: string | undefined; secret: string; nowMs: number },
-  optional?: { toleranceSeconds?: number }
-): boolean;
-export function translateStripeEvent(required: { event: unknown }, optional?: Record<string, never>): readonly WebhookFact[];
-
-// portal.ts
-// POST /v1/billing_portal/sessions  customer=<customerRef>  return_url=<ctx.returnUrl>  → ok({ url })
+export function verifyStripeSignature(required: { rawBody: Uint8Array; header: string | undefined; secret: string; nowMs: number }, optional?: Record<string, never>): boolean;
+export type Translation = { kind: "facts"; facts: readonly WebhookFact[] } | { kind: "ignored" } | { kind: "malformed"; reason: string };
+export function translateStripeEvent(required: { event: unknown; mode: PaymentMode }, optional?: Record<string, never>): Translation;
 ```
 
-**Stripe mapping (Phase 1)**
+**HTTP outcome table** (`stripeOutcome`), as R7 and R9 require:
 
-| Our call | Stripe call | Notes |
-|---|---|---|
-| `createIntent` | `POST /v1/checkout/sessions`, header `Idempotency-Key: req.idempotencyKey` | `mode=payment`, `success_url=ctx.returnUrl`, `cancel_url=ctx.cancelUrl`, `client_reference_id=correlationId`, `metadata[jini_payment_id]` and `payment_intent_data[metadata][jini_payment_id]` = correlationId, one `line_items[0]`: `price=line.providerPriceRef` or `price_data{currency (lowercase), unit_amount, product_data[name]=line.description}`, `quantity=line.quantity ?? 1`. Evidence: `providerRef=session.id`, `status: requires_action`, `amount` from `amount_total`. Next: `{ kind: "redirect", url: session.url }`. A 2xx without `id`/`url` → `unknown`. |
-| `retrieve` | `GET /v1/checkout/sessions/{id}?expand[]=payment_intent` | `open` → `requires_action`; `expired` → `canceled`; `complete`+`paid` → `succeeded`; `complete`+`unpaid` → PI `processing` → `pending`, PI `requires_payment_method`/`canceled` → `failed`. |
-| `verifyWebhook` | — | Bad or missing signature or stale timestamp → `rejected SIGNATURE_INVALID`. Missing `webhookSecret` cannot happen (the kernel resolves slots first). Translated: `checkout.session.completed`, `.async_payment_succeeded` (→ `succeeded`), `.async_payment_failed` (→ `failed`), `.expired` (→ `canceled`). Each becomes `{ providerEventId: event.id, providerRef: session.id, occurredAt: created*1000, evidence }`. Any other type, or a session without `metadata.jini_payment_id`, → `ok([])` (#31 ignored). Unparseable JSON with a valid signature → `rejected INVALID_REQUEST`. |
-| `customerPortal` | `POST /v1/billing_portal/sessions` | `return_url=ctx.returnUrl`. |
+| Response | Outcome |
+|---|---|
+| 2xx with a JSON object | ok |
+| 2xx unparseable | **unknown** |
+| Transport throw, 5xx | **unknown**, retryable |
+| 409 (`idempotency_key_in_use`) | **unknown**, retryable |
+| 400 `idempotency_error` | rejected `IDEMPOTENCY_CONFLICT` |
+| 402 / `card_error` | rejected `DECLINED` |
+| 400 / 404 | rejected `INVALID_REQUEST` |
+| 401 / 403 | rejected `NO_CREDENTIALS_CONFIGURED` |
+| 429 | rejected, retryable (Stripe guarantees no side effect) |
 
-Authentication is `Authorization: Bearer <secretKey>`. Bodies are `application/x-www-form-urlencoded`.
-The plugin needs no SDK dependency, so the `stripe` package stays banned by
-`src/__tests__/core-boundary.test.ts`.
+**createIntent**
+1. Map the amount with `toStripeAmount`; `null` → rejected `CURRENCY_UNSUPPORTED` with no HTTP.
+2. Build the form:
+
+   | Field | Value |
+   |---|---|
+   | `mode` | `payment` |
+   | `success_url` | `ctx.returnUrl` |
+   | `cancel_url` | `ctx.cancelUrl` |
+   | `client_reference_id` | `correlationId` |
+   | `metadata[jini_payment_id]` | `correlationId` |
+   | `payment_intent_data[metadata][jini_payment_id]` | `correlationId` |
+   | `line_items[0][price]` | `line.providerPriceRef`, when set |
+   | `line_items[0][price_data]` | otherwise: `{ currency, unit_amount: toStripeAmount(line.unitAmount), product_data[name]: line.description }` |
+   | `quantity` | `line.quantity` |
+
+   **The order total is never sent as a unit price.** Without a `line`, the request becomes one
+   unit of `req.amount`, named `Payment <correlationId>`; it never uses `IntentRequest.reference`,
+   which does not exist (R14).
+3. Send it with header `Idempotency-Key: req.idempotencyKey`.
+4. Check the response: `id` and `url` must be strings, and
+   `fromStripeAmount(amount_total, currency)` must **equal `req.amount`**. If not, the outcome is
+   `unknown` for missing ids and `rejected INVALID_REQUEST` for an amount mismatch. No redirect is
+   returned in either case, so nobody can pay that session.
+5. Otherwise: evidence `{ providerRef: session.id, correlationId, status: "requires_action",
+   amount }`, plus `next: { kind: "redirect", url }`.
+
+**State mapping (`readSession`, R5):**
+
+| Session state | Our status |
+|---|---|
+| `status: "open"` | `requires_action` |
+| `status: "expired"` | `canceled` |
+| `status: "complete"` + `payment_status: "paid"` | `succeeded` |
+| `status: "complete"` + `payment_status: "unpaid"` (async method) | **`pending`**: completion is not payment |
+| `status: "complete"` + `payment_status: "no_payment_required"` | `id_only` (never success from a zero charge; the worker retrieves; the kernel refuses zero amounts anyway) |
+| Event `checkout.session.async_payment_failed` | `failed` (event type wins over the session's lingering `unpaid`) |
+| Event `checkout.session.async_payment_succeeded` | `succeeded` only if `payment_status === "paid"`, else `pending` |
+
+- Webhooks **never require an expanded PaymentIntent**. The session's own `payment_status` is
+  authoritative.
+- `retrieve` does `GET /v1/checkout/sessions/{id}?expand[]=payment_intent`. If `payment_intent`
+  comes back expanded, `processing` keeps `pending`, and `requires_payment_method` or `canceled`
+  under `complete+unpaid` → `failed`. If it is only an id string, the session status alone
+  decides.
+
+**Webhook classification (`verifyWebhook`, R6), in order:**
+
+| Check | Result |
+|---|---|
+| Signature: header `t=…,v1=…`, `HMAC-SHA256(secret, "<t>." + exact raw bytes)`, hex. Every `v1` is compared with `timingSafeEqual` **only when lengths match** (a malformed-length digest is a non-match, never a throw). `abs(ctx.now()/1000 − t) ≤ 300`. | Failure → rejected `SIGNATURE_INVALID` |
+| Body not JSON, or missing `id`/`type`/`created`(number)/`data.object` | rejected `INVALID_REQUEST` |
+| `event.livemode !== (ctx.account.mode === "live")` | rejected `INVALID_REQUEST` |
+| `type` not one of the four `checkout.session.*` types | `ok([])` (ignored) |
+| `object !== "checkout.session"`, or no `metadata.jini_payment_id` | `ok([])` (foreign) |
+| Ours but `mode !== "payment"` or no session `id` | rejected `INVALID_REQUEST` |
+| Ours but evidence fields missing or unreadable | **id-only fact** `{ providerEventId, providerRef: session.id, occurredAt }`; the worker calls `retrieve` (`worker.ts:161-170`) |
+| Otherwise | `[{ providerEventId: event.id, providerRef: session.id, occurredAt: created * 1000, evidence }]` |
 
 ---
 
-## 3. Files per change (new vs edited, with anchors)
+## 3. Files (new / edited / deleted, with anchors)
 
-| Change | File | New / edited | Anchor |
+| Area | File | Kind | Anchor |
 |---|---|---|---|
-| #11 cancel URL | `src/payments/contract/provider.ts` | edited | `ProviderContext` `:68-77` |
-| #8 capability + method | same file | edited | `ProviderCapabilities` `:52-66`; `PaymentProvider` `:100-139` |
-| `IntentLine` | same file | edited | `IntentRequest` `:79-90` |
-| #31 contract doc | same file | edited | `verifyWebhook` doc `:130-134` |
-| guard | `src/payments/provider-module-guard.ts` | edited | `OPTIONAL_PROVIDER_METHODS` `:14`, `CAPABILITY_CHECKS` `:27-36`, `CAPABILITY_METHOD_RULES` `:39-44` |
-| fake + ctx | `src/payments/testkit/lipay-fake.ts` | edited | capabilities `:101-104`; `lipayFakeContext` `:136-143` |
-| conformance | `src/payments/testkit/provider-conformance.ts` | edited | `providerConformanceCases` `:78-114` (add "customerPortal: returns an Outcome and never throws" when promised) |
-| test harness ctx | `src/payments/ops/__tests__/harness.ts` | edited | `:129` |
-| test ctx | `src/payments/testkit/__tests__/provider-conformance.vitest.test.ts` | edited | `:24` |
-| docs | `packages/core/docs/provider-registry.md` | edited | `:56` (ctx field list) |
-| port | `src/payments/contract/payments-port.ts` | edited | `ProviderSummary` `:47-52`, `PaymentsPort` `:54-78` |
-| line forward | `src/payments/ops/intent.ts` | edited | `IntentOptional` `:35-39`; `req` build `:163-167` |
-| portal op | `src/payments/ops/portal.ts` | **new** | — |
-| service | `src/payments/ops/service.ts` | edited | `createPaymentsService` `:33-41` (+`customerPortal`); `providerSummary` (+`customerPortal`) |
-| #31 receiver | `src/payments/ingest/receive.ts` | edited | `WebhookResponse` `:50-53`; `receive` `:118-143` |
-| #31 route test | `src/http/__tests__/payments-webhook.vitest.test.ts` | edited | fixtures `:71`, `:89`, `:104` gain `ignored: false` |
-| outbox payload | `src/payments/accounting/apply-evidence.ts` | edited | `:253`, `:413` |
-| #10 client | `src/payments/contract/checkout-client.ts` | **new** | — |
-| #10 entry | `src/payments/client.ts` | **new** (barrel: `checkout-client.ts` + `NextAction` types) | — |
-| #10 export | `package.json` | edited | `jini.entries` + `exports` (`"./payments/client"`, universal) |
-| #3 effect | `src/catalog/types.ts` | edited | `CommerceProductRecord` `:32-47` |
-| #3 validation | `src/catalog/effect.ts` | **new** | — |
-| #3 + #4 schema contract | `src/catalog/database.ts` | edited | `CommerceDatabase` `:4-11` (+`commerce_price_provider_refs`); `CommerceProductsTable` (+`effect_json`) |
-| #3 rows | `src/catalog/repo.rows.ts` | edited | product mapping `:44-89` |
-| #4 + markPaid ports | `src/catalog/ports.ts` | edited | `CommerceOrderRepoPort` `:42-54`; new port after `:34` |
-| #4 SQL adapter | `src/catalog/repo.price-refs.ts` | **new** | — |
-| markPaid SQL + factory | `src/catalog/repo.ts` | edited | order repo `:205-250` (+`markPaid`); factories (+`commercePriceProviderRefRepoFor`) |
-| #12 orchestration | `src/catalog/pay-order.ts` | **new** | — |
-| #12 projection | `src/catalog/order-projection.ts` | **new** | — |
-| exports | `src/catalog/index.ts` | edited | `:1-7` (+`effect`, `pay-order`, `order-projection`) |
-| header truth | `src/catalog/checkout.ts` | edited (doc only) | header `:92-112`: "payment is `payOrder`'s job" |
-| #28 plugin | `packages/provider-plugins/src/payments-stripe/{http,checkout-session,webhook,portal,provider}.ts` | **new** | — |
-| #28 entry | `…/payments-stripe/index.ts`, `jini.plugin.json`, `README.md` | edited | `index.ts` drops the legacy `sdk.providers.register` setup (`:16-23`); `jini.plugin.json` gains `extensions["ai.jini.commerce"].provider` and `contributes.providers[0].settings` (secretKey, webhookSecret; §0.3); README states the attach recipe |
-| §0.4 boundary | `packages/provider-plugins/src/__tests__/core-boundary.test.ts` | edited | + case: no `api.stripe.com` outside `src/payments-stripe/` |
-| §0.4 core UI leak | `src/react/Payments.tsx`, its test | edited | `:56-57` hard-coded `Stripe`/`PayPal` → `providers: readonly ProviderSummary[]` prop |
-| #28 legacy | `…/payments-stripe/stripe.ts`, `src/__tests__/payments-stripe.test.ts`, `payments-stripe-runtime-ports.test.ts` | replaced in place (the plugin is extended; its legacy class and tests give way to the new modules; **D1**) | — |
-| #28 deps | `packages/provider-plugins/package.json` | edited | `devDependencies` += `"@jini-ai/commerce": "workspace:^"` (types + conformance kit only) |
-| attribution | `packages/provider-plugins/src/payments-stripe/NOTICE` | **new** | see §7 |
-| docs | `README.md`, `source-map.md`, `CHANGELOG.md` (commerce) | edited | Phase 1 section / new files / entry |
+| contract | `payments/contract/provider.ts` | edit | caps `:52-66`, ctx `:68-77`, req `:79-90`, verify doc `:130-134` |
+| contract | `payments/contract/evidence.ts` | edit (doc) | `WebhookFact` `:238-248` |
+| guard | `payments/provider-module-guard.ts` | edit | `CAPABILITY_CHECKS` `:27-36` |
+| fixtures (cap/ctx) | `ingest/__tests__/harness.ts`, `ingest/__tests__/worker.vitest.test.ts`, `accounting/__tests__/{harness,apply-evidence.vitest,review-fixes.vitest}.ts`, `ops/__tests__/{harness,reconciler.vitest}.ts`, `testkit/__tests__/{provider-conformance,lipay-fake}.vitest.test.ts`, `__tests__/kernel/{provider-module-guard,plugin-contribution}.vitest.test.ts`, `testkit/lipay-fake.ts`, `tools/__tests__/read-tools.vitest.test.ts:50` | edit | every `capabilities` literal / ctx literal (`rg echoesCorrelation`, `rg webhookUrl`) |
+| docs | `packages/core/docs/provider-registry.md` | edit | `:56` |
+| replay | `payments/ops/intent.ts` | edit | `lookupIntent` `:58-68`, `checkIntent` `:44-56`, `openIntent` `:103-117`, `req` `:163-167` |
+| port | `payments/contract/payments-port.ts` | edit | `PaymentsPort.createIntent` `:55-58` |
+| ledger | `payments/ledger/migrations/0005_payments_intent_request.ts` | new | — |
+| ledger | `ledger/migrations/{index,checksums}.ts`, `ledger/rows.ts` (`AttemptRecord` `:398-417` + row mapping), `ledger/repo.ts` (+`noteRedispatch`), `ledger/repo.sql.ts`, `ledger/repo.memory.ts`, `ledger/__tests__/{ledger-contract.ts,migrations.vitest.test.ts}` | edit | — |
+| recovery | `payments/ops/reconcile-intent-dispatch.ts` | new | — |
+| recovery | `payments/ops/reconciler.ts` | edit | `reconcileUnknown` `:146` (+ scan), counts/cursor types `:39-60` |
+| receive | `payments/ingest/receive.ts` | edit | `:50-53`, `:118-143` |
+| attach | `payments/provider-contract.ts` | new | — |
+| attach | `payments/plugin-contribution.ts` + `__tests__/kernel/plugin-contribution.vitest.test.ts` | **delete** (−330) | — |
+| attach | `payments/kernel.ts` | edit | exports `:17-19` |
+| credentials | `payments/provider-contexts.ts` | new | — |
+| alerts | `payments/contract/alerts.ts` | edit | `PaymentsAlertKind` `:8-16` (+`fulfillment-blocked`) |
+| client | `payments/contract/checkout-client.ts`, `payments/client.ts` | new | — |
+| client | `package.json` | edit | `jini.entries` + `exports` (`./payments/client`), `files` (+`NOTICE`), `test:coverage` thresholds |
+| catalog | `catalog/database.ts` | edit | `CommerceDatabase` `:4-11` (+2 tables) |
+| catalog | `catalog/ports.ts` | edit | `:30-54` (+2 ports, `markPaid`) |
+| catalog | `catalog/repo.price-refs.ts`, `catalog/repo.order-payments.ts` | new | — |
+| catalog | `catalog/repo.ts` | edit | order repo `:205-250` (+`markPaid`), factories |
+| catalog | `catalog/pay-order.ts`, `catalog/settle-order-payment.ts`, `catalog/order-projection.ts` | new | — |
+| catalog | `catalog/index.ts` `:1-7`; `catalog/checkout.ts` header `:92-112` (doc) | edit | — |
+| fixtures (borrowed schema / ports) | `catalog/__tests__/unit/repo.vitest.test.ts:37-55` (DDL), `checkout.unit.test.ts:26`, `checkout-boundaries.vitest.test.ts` (fake order repo) | edit | — |
+| UI | `react/Payments.tsx:56-57` + its test | edit | — |
+| packaging | `NOTICE` (commerce root) | new | — |
+| plugin | `provider-plugins/src/payments-stripe/{amount,http,checkout-session,webhook,provider}.ts` | new | — |
+| plugin | `…/payments-stripe/{index.ts,jini.plugin.json,README.md}` | edit | `index.ts:1-23`, manifest `contributes.providers[0]` (+`settings`) |
+| plugin | `…/payments-stripe/stripe.ts`, `src/__tests__/payments-stripe.test.ts`, `src/__tests__/payments-stripe-runtime-ports.test.ts` | **delete** (−484, D1) | — |
+| plugin | `src/__tests__/artifact.integration.test.ts` | edit | `SPECS['payments-stripe']` `:43-44`, NOTICE assertion near `:75` |
+| plugin | `src/__tests__/core-boundary.test.ts` | edit | `VENDOR` `:19` kept; new production-literal + sibling-import cases |
+| plugin | `provider-plugins/package.json` (devDep `@jini-ai/commerce`, `files` + `NOTICE`, `test:coverage`), `provider-plugins/vitest.coverage.config.ts` (new), `provider-plugins/NOTICE` (new) | edit/new | — |
 
 ---
 
-## 4. Data, ledger, migrations
+## 4. Data, ledger and migrations
 
-**Payments ledger** (`src/payments/ledger/`, owns its own checksummed migrations): **no change.**
-No new table, column or migration. `payment.succeeded` payloads gain `reference`. Payload JSON is
-schemaless, and old pending messages simply lack it; the projector treats them as `ignored`.
-
-**Catalog tables** (`src/catalog/database.ts:3`, "borrowed table contract; this package never
-creates … the host's schema"). The host must apply this DDL. It is shipped as documentation in
-`README.md` and mirrored in test fixtures, not as a commerce migration (see D2):
+**Payments ledger** (commerce-owned, ADR-066 checksummed steps): new frozen step
+**`0005_payments_intent_request`**. It is pinned in `checksums.ts` and appended in
+`migrations/index.ts:33-35`:
 
 ```sql
-ALTER TABLE commerce_products ADD COLUMN effect_json TEXT NULL;   -- NULL = {"kind":"none"}
+ALTER TABLE commerce_payment_attempts ADD COLUMN request_json TEXT NULL;          -- intent attempts only: {"captureMode","partyId"?,"line"?}; NULL when providerOptions were present (may hold personal data) or the op is not an intent
+ALTER TABLE commerce_payment_attempts ADD COLUMN redispatch_count BIGINT NOT NULL DEFAULT 0;
+```
 
+`AttemptRecord` gains `requestJson: string | null` and `redispatchCount: number`. `LedgerTx` gains
+`noteRedispatch({ id, at })`. Rows written before this step read as `null`/`0`, which is
+operator-only recovery.
+
+**Catalog tables are host-owned (D2).** The prerequisite is a **host migration in Tovu**, an
+ADR-066 TS migration owned by the Tovu host. It must run before the host enables `payOrder`.
+Commerce never creates catalog tables (`database.ts:3`). The DDL, documented in the README and
+mirrored in the borrowed-schema fixture `repo.vitest.test.ts:37-55` **in the same shard** as each
+`database.ts` change:
+
+```sql
 CREATE TABLE commerce_price_provider_refs (
-  workspace_id        TEXT NOT NULL,
-  price_id            TEXT NOT NULL,
-  provider_id         TEXT NOT NULL,
-  provider_account_id TEXT NOT NULL,
-  mode                TEXT NOT NULL CHECK (mode IN ('test','live')),
-  provider_price_ref  TEXT NOT NULL CHECK (length(provider_price_ref) > 0),
-  created_at          TEXT NOT NULL,
-  PRIMARY KEY (workspace_id, price_id, provider_id, provider_account_id, mode)
-);
+  workspace_id TEXT NOT NULL, price_id TEXT NOT NULL, provider_id TEXT NOT NULL, provider_account_id TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK (mode IN ('test','live')), provider_price_ref TEXT NOT NULL CHECK (length(provider_price_ref) > 0),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, price_id, provider_id, provider_account_id, mode));
+
+CREATE TABLE commerce_order_payments (
+  workspace_id TEXT NOT NULL, order_id TEXT NOT NULL, payment_id TEXT NOT NULL,
+  site_id TEXT NOT NULL, provider_id TEXT NOT NULL, provider_account_id TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK (mode IN ('test','live')), amount_minor BIGINT NOT NULL, currency TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, order_id),
+  UNIQUE (workspace_id, mode, payment_id));
 ```
 
-`commerce_orders` is **unchanged**. `markPaid` reuses `status`, `updated_at` and `version`. The
-order ↔ payment link is `payment.reference = order.id`, with idempotency key `order:<id>`, so no
-`payment_id` column is needed.
+`commerce_orders` and `commerce_products` are **unchanged**. Effects are cut, and `markPaid`
+reuses `status`, `updated_at` and `version`.
 
 ---
 
-## 5. Test plan (failing test first for every behaviour; DI fakes; 100% line/branch/function)
+## 5. Tests and coverage
 
-The Phase 1 dispatch prompt must carry the `honest-testing` rules: no ignore comments, no widened
-excludes, no softened assertions, and the before/after **test count** in every shard report.
+**Rules for every shard:**
+- The failing test is written first, and each behaviour's tests ship in the **same** shard.
+- DI fakes only; no live keys or network.
+- The dispatch prompt carries `honest-testing`'s banned moves.
+- Each report gives the shard id, test counts **before/after**, the coverage JSON summary and the
+  pushed SHAs.
 
-| File under test | Test file | Cases |
+**Coverage gate (R19):**
+- **Commerce.** Every new Phase 1 test is a vitest file named `*.vitest.test.ts`, so
+  `vitest.coverage.config.ts:10` already includes it. That config keeps `all: true`, an unchanged
+  include/exclude, `json-summary`, and the full `src/**` denominator. P0 adds
+  `coverage.thresholds` with **per-file 100/100/100/100 (lines, branches, functions, statements)**
+  for every Phase 1 new or edited source file (an explicit glob list). Package totals are no lower
+  than the P0 baseline. The existing `node:test` catalog suite (`src/catalog/__tests__/unit/*.test.ts`,
+  run by `npm test`) stays as a regression suite and is edited only where port fakes must grow.
+  Phase 1 coverage is never claimed from it.
+- **Provider plugins.** P0 adds `vitest.coverage.config.ts`: include
+  `src/payments-stripe/**/*.ts`, exclude `__tests__`, `json-summary`, thresholds 100 on all four
+  metrics. It also adds the script `test:coverage`.
+- **Baseline.** P0 records both packages' coverage and test counts at `32226f0e` in
+  `ADS-memory/.local-artifacts/handoff/commerce-phase1-baseline.md`.
+
+**Test plan per behaviour** (each lives in its shard, §6):
+
+| Behaviour | Test file (runner: vitest) | Key cases |
 |---|---|---|
-| `provider-module-guard.ts` | `src/payments/__tests__/kernel/provider-module-guard.vitest.test.ts` (edit) | non-boolean `customerPortal` refused; `customerPortal: true` without the method refused; with the method accepted |
-| `testkit/provider-conformance.ts` | `testkit/__tests__/provider-conformance.vitest.test.ts` (edit) | new case runs only when promised; a throwing `customerPortal` fails the case |
-| `ops/portal.ts` | `ops/__tests__/portal.vitest.test.ts` (new, reuses `ops/__tests__/harness.ts`) | unregistered provider; capability false → `CAPABILITY_UNSUPPORTED`; empty `customerRef` → `INVALID_REQUEST`; ctx unresolved; provider `ok` → url; `rejected` and `unknown` → ok:false; provider throws → ok:false (via `dispatch`); **no ledger write** (transaction count unchanged) |
-| `ops/intent.ts` | `ops/__tests__/intent.vitest.test.ts` (edit) | `line` forwarded verbatim; absent `line` not forwarded (`"line" in req` false); a replay with a different `line` is still a replay |
-| `ops/service.ts` | `__tests__/kernel/*` (edit the existing service test) | `customerPortal` wired; `listProviders` reports `customerPortal` |
-| `ingest/receive.ts` | `ingest/__tests__/receive.vitest.test.ts` (edit) | `ok([])` → `200 ignored:true`, zero ledger transactions; non-empty → `ignored:false` |
-| `http/payments-webhook.ts` | `http/__tests__/payments-webhook.vitest.test.ts` (edit) | the ignored body passes through unchanged |
-| `accounting/apply-evidence.ts` | `accounting/__tests__/apply-evidence.vitest.test.ts` (edit) | `payment.succeeded` payload contains `reference` on both the response path and the operator-resolve path |
-| `contract/checkout-client.ts` | `contract/__tests__/checkout-client.vitest.test.ts` (new) | redirect https → `navigated`; `http://localhost` allowed; `http://evil` / `javascript:` / `data:` / unparseable → `refused unsafe_url`, `navigate` not called; `client_action` with/without handler; `none` / `out_of_band` → `nothing_to_open`; handler rejection propagates (caller's error) |
-| `catalog/effect.ts` | `catalog/__tests__/unit/effect.unit.test.ts` (new) | none ok; credits 1 / MAX ok; 0, negative, non-integer, > MAX, unknown kind, non-object → problem string |
-| `catalog/repo.rows.ts` | `catalog/__tests__/unit/repo.rows.unit.test.ts` (edit) | effect round-trips; NULL → undefined; corrupt JSON → typed error (same style as `specs_json`) |
-| `catalog/repo.price-refs.ts` | `catalog/__tests__/unit/repo.price-refs.vitest.test.ts` (new; own DDL against `openMemorySqliteKernel`) | find hit; miss on another mode / account / provider / workspace; save upserts |
-| `catalog/repo.ts` `markPaid` | `catalog/__tests__/unit/repo.mark-paid.vitest.test.ts` (new; own DDL) | pending → paid (version + 1); paid → `already_paid`; canceled → `not_pending`; missing / other workspace → `not_found`; concurrent double call → exactly one `paid` |
-| `catalog/pay-order.ts` | `catalog/__tests__/unit/pay-order.unit.test.ts` (new; fake ports, fake `PaymentsPort` recording calls) | not found; not pending; workspace mismatch; provider mismatch; recurring price refused; price ref present → `line.providerPriceRef`; absent → no ref; exact `createIntent` args (key `order:<id>`, reference, amount, partyId); `ok` / `ok:false` passthrough; second call replays |
-| `catalog/order-projection.ts` | `catalog/__tests__/unit/order-projection.unit.test.ts` (new) | other topics → `ignored`; missing / non-string reference → `ignored`; each `markPaid` result surfaces; `at` comes from the injected clock |
-| E2E kernel | `src/payments/__tests__/kernel/one-time-purchase.vitest.test.ts` (new) | in-memory ledger + LiPay fake (now redirect-capable via script) + fake catalog repos: checkout → payOrder → webhook → worker → relay → projector → order `paid`; redelivered webhook and redelivered outbox change nothing |
-| Stripe `http.ts` | `packages/provider-plugins/src/__tests__/payments-stripe-http.test.ts` (new; fake `HttpClientPort`) | every status class in the `stripeOutcome` table; transport throw → unknown; non-JSON 2xx → unknown; Bearer header; form encoding (nested keys); Idempotency-Key only when given |
-| Stripe `checkout-session.ts` | `…/payments-stripe-checkout.test.ts` (new) | form with price ref vs `price_data`; lowercase currency; quantity default 1; success/cancel URLs from ctx; metadata on both session and PI; evidence + redirect; 2xx missing url → unknown; every `sessionEvidence` status row in §2.12; foreign session → null |
-| Stripe `webhook.ts` | `…/payments-stripe-webhook.test.ts` (new) | signature valid / tampered body / wrong secret / stale and future `t` / multiple `v1` (one matches) / missing header / malformed header; 4 translated types; unhandled type → `[]`; no metadata → `[]`; bad JSON → rejected; signature computed in-test with `node:crypto` from a fixed secret, **no real key** |
-| Stripe `portal.ts` + `provider.ts` | `…/payments-stripe-provider.test.ts` (new) | portal ok / rejected / unknown; `retrieve` path; **commerce `providerConformanceCases` all pass**; `isPaymentProviderModule` true |
-| plugin manifest | `…/payments-stripe-manifest.test.ts` (new) | `jini.plugin.json` declares `extensions["ai.jini.commerce"].provider`; commerce's `parse` + `validate` (from `plugin-contribution.ts`) accept the built module; manifest `settings` names == `provider.credentialKeys`, all `secret: true`; registry binding `stripe` → `payments-stripe` |
-| boundary | `core-boundary.test.ts` (edit) | `api.stripe.com` appears in no package file outside `src/payments-stripe/` (fixture proves the check fires) |
-| `react/Payments.tsx` | its existing test (edit) | renders exactly the provided summaries; empty list → "Setup required", no vendor names |
-
-Coverage gates: `npm --prefix packages/commerce run test:coverage` (existing config) and the
-provider-plugins vitest run with coverage scoped to `src/payments-stripe/**`.
-
----
-
-## 6. Build shards (in order; each ≤ ~150 changed lines incl. tests; file sets disjoint)
-
-| # | Shard | Files (exclusive to this shard) | Depends on |
-|---|---|---|---|
-| S1 | Provider contract: `cancelUrl`, `customerPortal` capability + method, `IntentLine`, #31 doc, `providerEventId` derivation doc (§0.6) | `payments/contract/provider.ts`, `payments/contract/evidence.ts` (doc only, `WebhookFact` `:238-248`), `payments/provider-module-guard.ts`, `payments/testkit/lipay-fake.ts`, `payments/testkit/provider-conformance.ts`, `payments/ops/__tests__/harness.ts`, `payments/testkit/__tests__/provider-conformance.vitest.test.ts`, `payments/__tests__/kernel/provider-module-guard.vitest.test.ts`, `packages/core/docs/provider-registry.md` | — |
-| S2 | Port + ops: `line` forwarding, `customerPortal` op | `payments/contract/payments-port.ts`, `payments/ops/intent.ts`, `payments/ops/portal.ts`, `payments/ops/service.ts`, `payments/ops/__tests__/intent.vitest.test.ts`, `payments/ops/__tests__/portal.vitest.test.ts`, the existing service test under `payments/__tests__/kernel/` (not the guard test) | S1 |
-| S3 | #31 ignored + outbox `reference` | `payments/ingest/receive.ts`, `payments/ingest/__tests__/receive.vitest.test.ts`, `http/__tests__/payments-webhook.vitest.test.ts`, `payments/accounting/apply-evidence.ts`, `payments/accounting/__tests__/apply-evidence.vitest.test.ts` | S1 |
-| S4 | #10 browser client contract | `payments/contract/checkout-client.ts`, `payments/client.ts`, `payments/contract/__tests__/checkout-client.vitest.test.ts`, `package.json` | — |
-| S5 | #3 effect + catalog schema contract | `catalog/types.ts`, `catalog/effect.ts`, `catalog/database.ts`, `catalog/repo.rows.ts`, `catalog/__tests__/unit/effect.unit.test.ts`, `catalog/__tests__/unit/repo.rows.unit.test.ts` | — |
-| S6 | #4 price refs + `markPaid` | `catalog/ports.ts`, `catalog/repo.price-refs.ts`, `catalog/repo.ts`, `catalog/__tests__/unit/repo.price-refs.vitest.test.ts`, `catalog/__tests__/unit/repo.mark-paid.vitest.test.ts` | S5 |
-| S7 | #12 `payOrder` + projector + E2E | `catalog/pay-order.ts`, `catalog/order-projection.ts`, `catalog/index.ts`, `catalog/checkout.ts` (doc), `catalog/__tests__/unit/pay-order.unit.test.ts`, `catalog/__tests__/unit/order-projection.unit.test.ts`, `payments/__tests__/kernel/one-time-purchase.vitest.test.ts` | S2, S3, S6 |
-| S8 | Stripe HTTP + checkout session | `provider-plugins/src/payments-stripe/http.ts`, `…/checkout-session.ts`, `…/__tests__/payments-stripe-http.test.ts`, `…/__tests__/payments-stripe-checkout.test.ts`, `provider-plugins/package.json` | S1 |
-| S9 | Stripe webhook verify + translate | `…/payments-stripe/webhook.ts`, `…/__tests__/payments-stripe-webhook.test.ts` | S8 |
-| S10 | Stripe provider assembly, portal, manifest + credential fields, legacy class replaced, NOTICE, boundary case | `…/payments-stripe/{provider,portal,index}.ts`, `jini.plugin.json`, `README.md`, `NOTICE`, delete `stripe.ts` and the two legacy tests, `…/__tests__/payments-stripe-provider.test.ts`, `…/__tests__/payments-stripe-manifest.test.ts`, `provider-plugins/src/__tests__/core-boundary.test.ts` | S9, D1 |
-| S12 | Core UI vendor-name leak (§0.4) | `react/Payments.tsx`, its test file under `react/` | S2 |
-| S11 | Docs | commerce `README.md` (host DDL, wiring recipe), `source-map.md`, `CHANGELOG.md`, `REPORT-opensaas-gap.md` status column for rows 3/4/8/10/11/12/28/31 | S1–S10 |
-
-Shards that touch no common file can run in parallel: S4 and S5 alongside S1, and S8 after S1.
-Each shard ends with `pnpm guard`, `pnpm typecheck`, the package's tests and a coverage run. Per
-`AGENTS.md`'s cloud rule 2, each shard is committed and pushed on its own.
-
-Line estimates (code + tests): S1 ≈ 90, S2 ≈ 140, S3 ≈ 70, S4 ≈ 120, S5 ≈ 110, S6 ≈ 150,
-S7 ≈ 150, S8 ≈ 150, S9 ≈ 140, S10 ≈ 140 changed (excluding the ~480 deleted legacy lines), S11
-docs. If S6 or S7 runs over, split its test file off into a follow-up shard rather than adding to
-another shard's files.
+| Capability/ctx contract | `__tests__/kernel/provider-module-guard.vitest.test.ts` | `idempotencyWindowMs` 0, negative, float, string refused; `null` and positive accepted |
+| LiPay test-only | `testkit/__tests__/lipay-fake.vitest.test.ts` | every method → rejected in `live`; test mode unchanged |
+| Ignored webhooks | `ingest/__tests__/receive.vitest.test.ts`, `http/__tests__/payments-webhook.vitest.test.ts` | `ok([])` → 200 `ignored:true`, zero transactions; others `ignored:false` |
+| Rejected replay | `ops/__tests__/intent.vitest.test.ts` | rejected then same key → `ok:false`, original code, "replayed", no provider call; ok replay unchanged; unknown replay → `ok:true` with `next: null` |
+| `line` | same | forwarded verbatim; absent not forwarded; product mismatch, currency mismatch, quantity 0 / non-integer / unsafe → `INVALID_REQUEST`, no row |
+| Ledger 0005 | `ledger/__tests__/migrations.vitest.test.ts`, `ledger-contract.ts` (memory + SQL) | checksum pinned; old rows read null/0; `requestJson` round-trips; `noteRedispatch` increments once per call |
+| Recovery | `ops/__tests__/reconcile-intent-dispatch.vitest.test.ts` | window null / spent / cap reached / no request → left + alert; re-dispatch uses the **original** key and identical request (asserted on the fake's received req); ok → settled with `next`; 409 → stays unknown; `IDEMPOTENCY_CONFLICT` → left + alert, never failed; counter increments before dispatch (a crash mid-dispatch still counts) |
+| Attachment | `__tests__/kernel/provider-contract.vitest.test.ts` | validator accepts the LiPay fake, refuses a malformed port with the guard's message |
+| Credentials | `__tests__/kernel/provider-contexts.vitest.test.ts` | §0.3 isolation list |
+| Client | `contract/__tests__/checkout-client.vitest.test.ts` | `null` → pending; https / localhost http followed; `http://evil`, `javascript:`, `data:`, unparseable refused without `navigate`; `client_action` with and without handler; handler rejection propagates |
+| Price refs | `catalog/__tests__/unit/repo.price-refs.vitest.test.ts` | hit; miss per key part (mode, account, provider, workspace); upsert |
+| Association | `catalog/__tests__/unit/repo.order-payments.vitest.test.ts` | save, unchanged, conflict (other payment, other scope); find by order and by payment; mode-fenced |
+| `markPaid` | `catalog/__tests__/unit/repo.mark-paid.vitest.test.ts` | four results; concurrent double call → exactly one `paid` |
+| `payOrder` | `catalog/__tests__/unit/pay-order.vitest.test.ts` | every `loadPayableOrder` refusal; exact `createIntent` args; ref present and absent; association saved; conflict; replay; synchronous success settles; rejected passthrough |
+| Settlement | `catalog/__tests__/unit/settle-order-payment.vitest.test.ts` | **one negative test per mismatch**: workspace, site, account, provider, mode (scope-fenced null), amount, currency, reference, captured, status; not ours; order missing; `not_pending` alert; storage throw propagates |
+| Projector | `catalog/__tests__/unit/order-projection.vitest.test.ts` | non-success topics ignored; redelivery idempotent |
+| UI | `react/__tests__/Payments.test.tsx` | renders the given summaries only; empty → "Setup required", no vendor names |
+| Stripe amount | `provider-plugins/src/__tests__/payments-stripe-amount.test.ts` | USD 1099 ↔ 1099; JPY 500 ↔ 500; ISK, UGX, HUF, TWD, KWD → null; non-integer or negative Stripe amount → null; round-trip property over the allow-list |
+| Stripe HTTP | `…/payments-stripe-http.test.ts` | every row of the outcome table; Bearer header; nested form keys; Idempotency-Key only when given |
+| Stripe session | `…/payments-stripe-checkout.test.ts` | form with price ref vs `price_data`; **quantity 3 sends the unit amount, not the total**; no-line fallback name; unsupported currency → no HTTP; `amount_total` mismatch → rejected with no redirect; missing url → unknown; every `readSession` row |
+| Stripe signature | `…/payments-stripe-signature.test.ts` | valid; tampered byte; whitespace-reserialized body fails (**exact bytes**); wrong secret; `t` at ±300 s passes and ±301 s fails (via `ctx.now`); several `v1` with one match; `v1` of wrong hex length / non-hex; missing or garbled header. Signatures are computed **in the test** with `node:crypto`, not the plugin's function. |
+| Stripe translate | `…/payments-stripe-webhook.test.ts` | every classification row; livemode mismatch; id-only fact |
+| Stripe provider | `…/payments-stripe-provider.test.ts` | commerce `providerConformanceCases` all pass; `retrieve` mapping incl. PI id-only vs expanded |
+| Manifest | `…/payments-stripe-manifest.test.ts` | settings follow the §0.3 convention vs `credentialKeys`, all secrets `secret: true`; `contributes.providers[0]` = payments/stripe/v1 |
+| **Stripe E2E** (R18) | `…/payments-stripe-kernel.test.ts` | Real Stripe provider + commerce kernel (memory ledger, receiver, worker, relay) + catalog fakes + `createProviderContexts` + registry with bindings + scripted fake `HttpClientPort` + **independently signed** webhook bytes. (a) checkout → `payOrder` → redirect; `completed+unpaid` → order stays `pending`; `async_payment_succeeded` → `paid` exactly once; redelivered webhook and redelivered outbox change nothing. (b) Reordered: success before `completed+unpaid` → never regresses. (c) A same-reference payment of a smaller amount, and a test-mode payment for a live association, never settle. (d) Create-session timeout → `unknown`, no URL → reconciler re-dispatches with the same `Idempotency-Key` → `payOrder` replay now returns the URL. (e) A second plugin claiming `stripe` is refused by bindings. |
+| Packed artifact | `src/__tests__/artifact.integration.test.ts` (extend) | `payments-stripe` validated by commerce's `paymentsProviderContract.validate`; probe: `verifyWebhook` on a garbage body → rejected with no network; `licenses/@jini-ai_provider-plugins/NOTICE` present, integrity-pinned, containing "Open SaaS" and `c2c6285b` |
+| Commerce pack | `src/__tests__/packaging.vitest.test.ts` | `npm pack --dry-run --json` includes `NOTICE` |
+| Boundary | `core-boundary.test.ts` (extend) | §0.6 rules with fixtures that prove each fires |
 
 ---
 
-## 7. Adapted from OpenSaaS, and attribution
+## 6. Build shards
 
-OpenSaaS is `wasp-lang/open-saas`, MIT, © 2023 wasp-lang. Paths are under `open-saas/template/app/src/payment/`.
+**Rules:**
+- Lines are counted as **additions + deletions**, tests included, with a cap of about 150.
+- Every behaviour ships with its tests in its shard.
+- A file appears in more than one shard **only** in strict sequence (the "after" column).
+- Every shard ends green: `pnpm guard`, `pnpm typecheck`, both packages' tests and coverage gates,
+  then commit and push.
 
-| OpenSaaS | What we take | How it is adapted |
+| # | Shard | Files | +/− (est.) | After |
+|---|---|---|---|---|
+| P0 | Coverage gates + baseline | commerce `vitest.coverage.config.ts` (thresholds), provider-plugins `vitest.coverage.config.ts` (new), provider-plugins `package.json` (script) | +40 | — |
+| P1 | Contract fields + guard + **every** fixture ripple | `provider.ts`, `evidence.ts` (doc), `provider-module-guard.ts`, `lipay-fake.ts`, the 13 fixture files in §3, `core/docs/provider-registry.md`, guard test | +70 / −20 | P0 |
+| P2 | LiPay test-only guard | `lipay-fake.ts`, `lipay-fake.vitest.test.ts` | +35 / −3 | P1 |
+| P3 | Ignored webhooks (#31) | `receive.ts`, `receive.vitest.test.ts`, `payments-webhook.vitest.test.ts` | +30 / −6 | P1 |
+| P4 | Rejected-intent replay | `ops/intent.ts`, `ops/__tests__/intent.vitest.test.ts` | +45 / −4 | P1 |
+| P5 | `line` validation + forwarding | `payments-port.ts`, `ops/intent.ts`, `intent.vitest.test.ts` | +70 / −4 | P4 |
+| P6 | Ledger 0005 | `migrations/0005_…` (new), `migrations/{index,checksums}.ts`, `rows.ts`, `repo.ts`, `repo.sql.ts`, `repo.memory.ts`, `ledger-contract.ts`, `migrations.vitest.test.ts` | +140 / −6 | P1 |
+| P7a | Intent writes `request_json` | `ops/intent.ts`, `intent.vitest.test.ts` | +35 / −3 | P5, P6 |
+| P7b | Bounded re-dispatch | `ops/reconcile-intent-dispatch.ts` (new), `ops/reconciler.ts`, `ops/__tests__/reconcile-intent-dispatch.vitest.test.ts` (new) | +150 / −6 | P7a |
+| P8a | Contract validator | `payments/provider-contract.ts` (new), `kernel.ts`, its test | +45 | P1 |
+| **P8b** | Remove second attachment authority | delete `plugin-contribution.ts` + its test; `kernel.ts` export line | +0 / **−331** | P8a; **cap exception, pure deletion, Coordinator sign-off + owner OK (O1)** |
+| P9 | Credential adapter | `payments/provider-contexts.ts` (new), `kernel.ts`, `__tests__/kernel/provider-contexts.vitest.test.ts` | +150 | P8b |
+| P10 | Price refs (#4) | `catalog/database.ts`, `catalog/ports.ts`, `catalog/repo.price-refs.ts` (new), `repo.vitest.test.ts` (DDL), `repo.price-refs.vitest.test.ts` | +120 / −2 | P1 |
+| P11 | Order↔payment association | `catalog/database.ts`, `catalog/ports.ts`, `catalog/repo.order-payments.ts` (new), `repo.vitest.test.ts` (DDL), `repo.order-payments.vitest.test.ts` | +145 / −2 | P10 |
+| P12 | `markPaid` | `catalog/ports.ts`, `catalog/repo.ts`, `checkout.unit.test.ts`, `checkout-boundaries.vitest.test.ts`, `repo.mark-paid.vitest.test.ts` (new) | +110 / −2 | P11 |
+| P13 | Settlement + projector | `payments/contract/alerts.ts`, `catalog/settle-order-payment.ts` (new), `catalog/order-projection.ts` (new), their 2 tests | +150 / −1 | P12 |
+| P14 | `payOrder` | `catalog/pay-order.ts` (new), `catalog/index.ts`, `catalog/checkout.ts` (doc), `pay-order.vitest.test.ts` | +150 / −6 | P5, P13 |
+| P15 | Browser client (#10) | `checkout-client.ts`, `client.ts` (new), `package.json` (entry), its test | +125 / −1 | P0 |
+| P16 | Core UI vendor leak | `react/Payments.tsx`, its test | +35 / −6 | P1 |
+| P17 | Stripe amount + HTTP | `payments-stripe/{amount,http}.ts` (new), 2 tests, provider-plugins `package.json` (devDep) | +150 | P1 |
+| P18 | Stripe session create + read | `checkout-session.ts` (new), its test | +150 | P17 |
+| P19 | Stripe signature | `webhook.ts` (new: `verifyStripeSignature`), signature test | +100 | P17 |
+| P20 | Stripe translation | `webhook.ts`, translate test | +140 | P18, P19 |
+| P21 | Stripe provider assembly | `provider.ts` (new), provider test (conformance) | +110 | P20 |
+| **P22** | Switch artifact to commerce contract + delete legacy (D1) | `index.ts`, `jini.plugin.json`, `README.md`, `artifact.integration.test.ts`, manifest test (new); delete `stripe.ts` + 2 legacy tests | +95 / **−505** | P21; **cap exception: −484 are D1-approved deletions; Coordinator sign-off** |
+| P23 | NOTICE packaging (R20) | `provider-plugins/NOTICE`, `provider-plugins/package.json` (`files`), `commerce/NOTICE`, commerce `package.json` (`files`), `artifact.integration.test.ts`, `packaging.vitest.test.ts` (new) | +80 | P15, P22 |
+| P24 | Boundary gate (R21) | `core-boundary.test.ts` | +90 / −2 | P22 |
+| P25a | E2E: happy / unpaid / reorder / redelivery / bindings | `payments-stripe-kernel.test.ts` (new) | +150 | P9, P14, P22 |
+| P25b | E2E: mismatch + lost-response recovery | same file | +130 | P25a, P7b |
+| P26 | Docs | commerce `README.md` (host DDL prerequisite, composition recipe §0.2/§0.3, Phase 1 constraints), `source-map.md`, `CHANGELOG.md`, gap-report status column | docs | all |
+
+**Parallel lanes once P1 is green** (no shared files): {P2}, {P3}, {P4→P5→P7a}, {P6}, {P8a},
+{P10→P11→P12→P13}, {P15}, {P16}, {P17→…}. `ops/intent.ts`, `catalog/ports.ts`,
+`catalog/database.ts`, `repo.vitest.test.ts`, `kernel.ts`, `webhook.ts`,
+`artifact.integration.test.ts` and both `package.json` files are serialised by the "after"
+column. P8b and P22 exceed the cap **only through deletions**. They go to the Coordinator before
+dispatch, as R17 asks, and are not split into a broken intermediate state.
+
+---
+
+## 7. OpenSaaS adaptation and attribution (R20)
+
+**Reference:** `wasp-lang/open-saas` at commit **`c2c6285bdb14b040584505372ad9bb062a0bca11`**,
+MIT, © 2023 wasp-lang. Paths are under `template/app/src/payment/`.
+
+| OpenSaaS | Adapted as | Notable differences |
 |---|---|---|
-| `plans.ts:18-41` (`PaymentPlanEffect`) | the subscription-vs-credits effect union idea | Data on our product row (`CommercePurchaseEffect`), not a code constant. No credits counter on a user row: credits will be a ledger (Phase 2). |
-| `paymentProcessorPlans.ts:9-42` | plan id ↔ vendor price id mapping | A scoped repo keyed by provider **account and mode**, not env vars. |
-| `stripe/checkoutUtils.ts:34-71` | Checkout Session parameters for `mode: "payment"` | Raw REST through `ctx.httpClient`, not the SDK. URLs come from `ProviderContext`, and our correlation id is in metadata. Not copied: `automatic_tax`, `allow_promotion_codes`, `invoice_creation` (out of scope) and email-based customer lookup (`:10-24`, a known weakness; #9). |
-| `stripe/paymentProcessor.ts:57-76` | billing-portal session call | Optional capability on `PaymentProvider`, returning an `Outcome`. |
-| `redirectToCheckout.ts`, `paymentProcessorClient.ts`, `stripe/paymentProcessorClient.ts` | the client-side "open checkout" seam | `openCheckout` over our `NextAction` union, with an injected `navigate` and a URL scheme allow-list (OpenSaaS calls `window.open(url)` unchecked). |
-| `stripe/webhook.ts:45-57`, `errors.ts` (`UnhandledWebhookEventError` → 2xx) | the "unhandled event still answers 2xx" policy | `ok([])` → `200 ignored:true`, with no thrown error used as control flow. |
-| `paths.ts` (success/cancel URLs) | the separate cancel URL | `ProviderContext.cancelUrl`, host-resolved per site + account. |
+| `paymentProcessorPlans.ts:9-42` | `CommercePriceProviderRefRepoPort` | DB rows keyed by account **and mode**, not env vars |
+| `stripe/checkoutUtils.ts:34-71` | `checkoutSessionForm` | Raw REST via `ctx.httpClient`; exact unit amount and currency allow-list. **Omitted:** `customer` / `customer_update` (customer-dependent, #9), `automatic_tax`, `allow_promotion_codes`, `invoice_creation`. |
+| `stripe/webhook.ts:106`, `:266` (fulfil on `invoice.paid` with `paid_at`) | `readSession` + settlement | **Changed fulfilment trigger:** Checkout Session `payment_status === "paid"` (completion alone is not payment), through the single writer → outbox → association-verified projector, never a direct user-row write |
+| `stripe/webhook.ts:45-57`, `errors.ts` | `ok([])` → `200 ignored:true` | No exception-as-control-flow; malformed supported events are not swallowed |
+| `redirectToCheckout.ts`, `paymentProcessorClient.ts` | `openCheckout` | Injected `navigate`, scheme allow-list, nullable `next` |
+| `paths.ts:19` | `returnUrl` / `cancelUrl` | Portal-return destination deferred with the portal |
 
-**Never copied:** the user-row billing model (`user.ts`, `User.subscriptionStatus` / `credits`),
-the record-then-delete webhook idempotency table (`processedWebhookEvent.ts`), and the
-vendor-sum revenue (`stripe/paymentProcessor.ts:79-108`).
+**Never copied:**
+- The user-row billing model (`user.ts`).
+- `processedWebhookEvent.ts`.
+- The vendor-sum revenue.
+- Inline billing emails.
+- Email-based customer lookup.
 
-**Attribution.** No OpenSaaS file is copied verbatim; the Stripe request is written against
-Stripe's REST docs. Because S8–S10 adapt the parameter set and structure above, S10 still adds
-`packages/provider-plugins/src/payments-stripe/NOTICE`:
-
-```
-Portions of this plugin's design (Stripe Checkout Session parameters for one-time payments,
-billing-portal session creation, client "open checkout" seam, unhandled-webhook 2xx policy) are
-adapted from Open SaaS (https://github.com/wasp-lang/open-saas), Copyright (c) 2023 wasp-lang,
-licensed under the MIT License:
-
-<full MIT license text>
-```
-
-The commerce `NOTICE`/`source-map.md` gets one line pointing to it for `checkout-client.ts`
-and `effect.ts`. Is `provider-plugins/license-supplements/` the house location instead (it
-exists)? That is D7.
+**Packaging:**
+- `NOTICE` files carry the full MIT text and the commit: one at the `provider-plugins` package
+  root, and one at the `commerce` package root for `checkout-client.ts` and the price-map design.
+- `scripts/build.ts:49-73` (`retainLicenses`) copies an owning package root's `notice*` files
+  into every artifact's `licenses/<package>/`, under integrity hashing.
+- Both packages' `files` lists gain `NOTICE`. Commerce's currently omits it (`package.json:76`).
+- Packed contents are tested in P23.
 
 ---
 
-## 8. Open decisions for the owner
+## 8. Open items for the owner
 
-| # | Decision | Recommendation |
+| # | Item | Recommendation |
 |---|---|---|
-| D1 | **Partly settled by the owner (2026-10-29): extend the existing `payments-stripe` plugin.** Still to confirm: its legacy `StripePaymentsProvider` class (`stripe.ts`, old capability-providers `charge`/`getCharge`/`refund` port) and its two tests are deleted in S10, rather than kept beside the new commerce provider. | Delete. Keeping it would mean two Stripe adapters on two contracts, and nothing selects the old one (its README). One-line confirmation needed because it removes code this plan did not author. |
-| D2 | Catalog tables are borrowed (`database.ts:3`). Who ships the `effect_json` column and the `commerce_price_provider_refs` table? | Document the DDL in the README and keep the borrowed-schema rule. Alternative: start a commerce-owned catalog migration set like the payments ledger has. That is a bigger policy change. |
-| D3 | Retire the catalog's own webhook inbox (`CommerceWebhookEventRepoPort`, `commerce_webhook_events`) now or in Phase 2? | Mark it `@deprecated` in S7 and delete it in Phase 2, before subscriptions. Deleting an exported API needs consumer sign-off. |
-| D4 | Effect on the **product** or on the **price**? | Product, next to `grantsMemberTierId`. A "50 credits" pack is its own product. Prices stay immutable money records. |
-| D5 | `customerPortal` takes a caller-supplied `customerRef` until #9 lands, and Phase 1 evidence carries no Stripe customer id. Should the session set `customer_creation=always` and add `customerRef?` to `PaymentEvidence` now? | No. Keep Phase 1 to the contract plus the plugin method. Customer identity is #9, which needs the party ↔ customer map. |
-| D6 | Expired or failed checkouts leave the order `pending` (there is no `payment.failed` topic). Add `payment.failed` / `payment.canceled` topics and `markFailed`/`markCanceled` now? | Phase 2. No money is held, and adding topics changes `LedgerOutboxTopic` for every consumer. |
-| D7 | Attribution location: per-plugin `NOTICE` vs `provider-plugins/license-supplements/`. | Follow whatever `license-supplements/` already does for the other plugins. If it covers only vendored binaries, use `NOTICE`. |
-| D8 | Order **mode**: orders have no test/live column, so a test-mode payment can mark a real order paid if a host mis-wires scopes. | Accept for Phase 1. `payOrder` pins scope at creation, and the projector only follows `reference`. Add a mode column with subscriptions. |
-| D9 | `payOrder` idempotency key `order:<id>`: after a **rejected** checkout-session creation the same order cannot be retried (replay of the failed payment). | Accept. Session creation is rarely rejected, and the shopper re-runs `checkout()`. Owned retry attempts (`order:<id>:<n>`) are an option nobody has asked for yet. |
-| D11 | What does "core keeps the default provider" mean? Today the only in-core provider is the test-only LiPay fake (§0.5). | Keep LiPay as the dev/test default and refuse it in `live` mode. A production "manual / pay offline" provider would be new scope. |
-| D12 | The manifest's `contributes.providers` entry (`contract: "payments"`, `contractVersion: 1`) points at the old capability-providers contract. The host settings UI reads `settings` from it. | Keep the entry only as the settings carrier and bump it to `contractVersion: 2` = the commerce contract. Registration happens only through `extensions["ai.jini.commerce"]`. Confirm with the plugin-host owner that a `contributes.providers` entry with no `setup` registration is legal. If not, move `settings` under the commerce extension. |
-| D13 | Merchant-of-record tax (§0.6 gap 1): add `tax?: Money` to the evidence plus a pre-tax amount check before the first Lemon Squeezy, Paddle or Polar plugin? | Yes, as a separate small core shard before those plugins. It is not needed for Stripe Phase 1 (no `automatic_tax`). |
-| D10 | Fallback `product_data[name]` when a caller creates a Stripe intent with no `line` (agent money tools, LiPay-style callers). | Use the `reference`, since it is ours and not personal data. Alternative: reject `INVALID_REQUEST` without a `line`. |
+| O1 | Delete commerce's unused agent-plugins contribution spec (`payments/plugin-contribution.ts` + test, −331), so the plugin-host artifact path is the **one** attachment authority | Yes. No consumer exists (`rg`); keeping it is a second lifecycle (R2). |
+| O2 | Phase 1 constraint: one provider account per (site, plugin), one webhook endpoint per (site, account, mode) | Accept for Phase 1 |
+| O3 | Stripe currency allow-list (§2.12): which currencies the business needs beyond the listed set | Start with the list; extend only with tested exponent pairs |
+| O4 | `idempotencyWindowMs` for Stripe: 23 h (Stripe keys live at least 24 h; 1 h safety margin) | Accept |
 
 ---
 
-*Hard caps for the build dispatch: one shard per agent run; each run reports the shard id, test
-count before/after, coverage numbers and pushed SHAs.*
+## Review responses (`REVIEW-codex-phase1.md`, all 21 items)
+
+| R | Verdict | Response |
+|---|---|---|
+| 1 | **Accept** | Confirmed: the build emits `server/index.mjs` (`build.ts:97`), the loader requires `definition.setup` (`loader.ts:184-205`), and `contractVersion` must be 1 (`provider-contributions.ts:23-32`). The plan now extends the existing artifact registration/factory: the same `sdk.providers.register({ contract: "payments", id: "stripe", contractVersion: 1 })`, whose port now implements `PaymentProvider`, validated by a commerce-supplied contract validator (§0.2). There is no `./provider.js` and no version 2. |
+| 2 | **Accept** | One authority: `@jini-ai/plugins/host` provider artifacts. Install → load → setup capture → validate → initialize → commerce registry (with bindings) → detach are tabulated in §0.2. The unused agent-plugins contribution spec is removed (P8b, O1), so no parallel lifecycle remains. |
+| 3 | **Accept** | Real adapter `createProviderContexts` over the existing `ProviderConfigSource` shape. It uses a site-scoped reader, an `accountId` match and `test_*`/`live_*` slots, and has missing-slot, wrong-account, wrong-mode and cross-site tests. The webhook-secret-per-endpoint constraint is explicit, and bindings `{ stripe: "payments-stripe" }` are passed and tested (§0.3, P9, P25a). |
+| 4 | **Accept** (D8 withdrawn) | Durable `commerce_order_payments` association. The projector trusts only it, reads the payment **scope-fenced** from the association's scope, and verifies reference, amount, captured, currency, status, provider and workspace before `markPaid`. One negative test per mismatch (§2.9, §2.11). |
+| 5 | **Accept** | Full `readSession` mapping: `complete+unpaid` → `pending`, `paid` → `succeeded`, async success and failure handled explicitly, and expanded vs id-only PaymentIntent defined. Webhooks never need an expanded PaymentIntent (§2.12). The OpenSaaS "paid" guard survives as the `payment_status` check. |
+| 6 | **Accept** | `Translation = facts | ignored | malformed`, plus `SessionReading = evidence | id_only | foreign`. Ours-but-incomplete becomes an id-only fact for worker retrieval. Malformed supported events are rejected. `livemode`, `mode=payment`, `created`, `id` and `type` are validated before facts are produced (§2.12). |
+| 7 | **Accept** | `IntentLine.unitAmount` carries the snapshot. The kernel verifies `unit × quantity = amount` (P5). Stripe sends the unit amount and checks `amount_total`. `currencies` becomes an allow-list; ISK, UGX, HUF, TWD and 3-decimal currencies are refused. USD, JPY, quantity > 1, overflow and refused-currency tests are included (§2.12, P17–P18). |
+| 8 | **Accept** | Replay of a rejected intent now returns the stored rejection via the existing `rejectedReplay` (`common.ts:154-160`). The plan no longer claims that a retry creates a fresh session (§2.4, P4). |
+| 9 | **Accept** | Bounded recovery with the **original** key and the persisted unchanged request. It is gated by provider `idempotencyWindowMs`, capped at 3, and operator-only otherwise. It distinguishes 409 in-use (`unknown`) from 400 parameter conflict (left + alert). This needs ledger step 0005 (§2.5, §4, P6–P7b, P25b). |
+| 10 | **Accept** (owner cut) | Purchase effects removed. No `effect_json`, no `effect.ts`. Deferred to the credit-ledger phase, with purchase-time snapshots and reconciliation against `grantsMemberTierId`. |
+| 11 | **Accept** (owner cut) | Customer portal removed (capability, port method, op). Deferred with #9 customer identity and host-authorized ownership; separate portal-return URL noted. |
+| 12 | **Accept** | §0.5 rewritten. "Ignorable" quantity is replaced by "must charge exactly `req.amount`", the "kernel retry" claim is corrected, and D13 is withdrawn (owner: not now). `PaymentEvidence.amount` keeps its meaning. |
+| 13 | **Accept** | `payOrder` requires exactly one item and preserves the snapshot, with typed outcomes for missing price and malformed item. The projector's acknowledgement policy is defined: business outcomes acknowledge with a `fulfillment-blocked` alert, storage failures propagate for redelivery. Existing alert and relay mechanisms are reused (§2.10–2.11). |
+| 14 | **Accept** | `providerSummary` → `ops/view.ts:40` (no longer touched; portal cut). The fallback name uses the correlation id, not `reference`. `openCheckout` takes `NextAction | null`. `toProductRecord` is no longer touched (effects cut). Provider types are imported from `@jini-ai/commerce/payments/kernel`. Complexity ≤ 10 is stated in §2. |
+| 15 | **Accept** | `apiBase` and `toleranceSeconds` are dropped: `ctx.httpClient` and `ctx.now` are the seams, and 300 s is a constant. The LiPay restriction is a fake-local guard with tests (P2); core gets no LiPay policy. |
+| 16 | **Accept** | Host prerequisite named: a Tovu ADR-066 TS migration (D2). Borrowed-schema DDL fixture `repo.vitest.test.ts:37-55` is updated in the same shard as each `database.ts` change. Port-fake ripples (`checkout.unit.test.ts:26`, `checkout-boundaries`) and capability-fixture ripples (13 files) are inside the shards that cause them (P1, P10–P12). |
+| 17 | **Accept** | Schedule rebuilt (§6). It counts additions and deletions, keeps tests with their behaviour, serialises shared files, puts the LiPay changes in P1 → P2 sequence, and routes the two deletion-only cap exceptions (P8b, P22) to the Coordinator. |
+| 18 | **Accept** | The Stripe E2E uses the real adapter, the kernel and independently signed bytes, covering unpaid-then-paid, exactly-once, reorder, mismatch, scope and mode, lost response and bindings (P25a/b). Signature tests cover wrong-length digests and exact bytes. The packed-artifact test is extended, not replaced (P23). |
+| 19 | **Accept** | Both runners are addressed. Phase 1 tests are vitest only and covered by the existing all-files config, with per-file 100% thresholds. `node:test` stays a regression suite. Provider-plugins gets its own coverage config. JSON summaries are produced, and baseline and final counts are recorded (§5, P0). |
+| 20 | **Accept** | `NOTICE` at both package roots, carried by `retainLicenses` into artifacts. Both `files` lists are updated, packed contents are tested, the reference commit is pinned, and the changed fulfilment trigger and the `customer_update` omission are recorded (§7, P23). |
+| 21 | **Accept** | The boundary gate is an AST scan of production literals and imports, with explicit test-file handling. Sibling-plugin imports are banned, fixtures prove each rule fires, and the existing SDK scanner is preserved. It is described as a test gate, not a build step (§0.6, P24). |
