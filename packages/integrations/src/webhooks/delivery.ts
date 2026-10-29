@@ -134,7 +134,10 @@ export async function enqueueDelivery(
  * Preserve the public form payload and leave the immutable source envelope untouched. O(fields). */
 function publicWebhookEnvelope({ envelope }: { envelope: WebhookEventEnvelope }, _options = {}): WebhookEventEnvelope {
   if (envelope.topic !== 'form.submission.received') return envelope;
-  const { analyticsProvenance: _proof, deliveryMode: _mode, ...data } = envelope.data;
+  // Internal provenance and delivery-mode fields never leave the host.
+  const data = { ...envelope.data };
+  delete data.analyticsProvenance;
+  delete data.deliveryMode;
   return { ...envelope, data };
 }
 

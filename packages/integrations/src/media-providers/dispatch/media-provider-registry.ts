@@ -107,8 +107,12 @@ function byOrder(left: { model: MediaProviderModel; index: number }, right: { mo
 
 /** Strips the registry-only fields so callers see the same `MediaModel` shape as the static catalogue. */
 function asMediaModel(model: MediaProviderModel): MediaModel {
-  const { surface: _surface, audioKind: _audioKind, order: _order, ...rest } = model;
-  return rest;
+  // Registry-only placement fields are not part of the public model shape.
+  const rest: { -readonly [K in keyof MediaProviderModel]?: MediaProviderModel[K] } = { ...model };
+  delete rest.surface;
+  delete rest.audioKind;
+  delete rest.order;
+  return rest as MediaModel;
 }
 
 /**

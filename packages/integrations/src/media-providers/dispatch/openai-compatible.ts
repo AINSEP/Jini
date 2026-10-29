@@ -6,6 +6,7 @@
  * helpers inside Open Design's `apps/daemon/src/media/index.ts` — see
  * `archived provenance ledger`.
  */
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 import { assertAndFetchExternalAsset } from './ssrf-guard.js';
 import type { MediaOutboundOptions } from './outbound.js';
 import type { MediaGenerationRequestInit, MediaSpeechFormat, RenderContext } from './types.js';
@@ -120,7 +121,7 @@ export function normalizeOpenAICompatiblePath(
   endpoint: 'images' | 'videos',
   mode: 'generations' | 'edits',
 ): string {
-  const strippedPath = pathname.replace(/\/+$/, '');
+  const strippedPath = trimCharsEnd({ text: pathname, chars: '/' });
   const generationsSuffix = `/${endpoint}/generations`;
   if (endpoint === 'videos') {
     // Videos have no edits endpoint, so `edits` mode still targets generations.
@@ -217,7 +218,7 @@ export function buildOpenAISpeechUrl(baseUrl: string, isAzure: boolean): string 
     const stripped = baseUrl.replace(/\/$/, '');
     return `${stripped}/audio/speech`;
   }
-  parsed.pathname = parsed.pathname.replace(/\/+$/, '') + '/audio/speech';
+  parsed.pathname = trimCharsEnd({ text: parsed.pathname, chars: '/' }) + '/audio/speech';
   applyDefaultAzureApiVersion(parsed, isAzure);
   return parsed.toString();
 }

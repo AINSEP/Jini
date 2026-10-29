@@ -8,6 +8,12 @@
  */
 import { IntegrationError } from "../argument-error.js";
 import { CredentialedRequestValidationError } from "../contracts/credentialed-request-errors.js";
+/** The scheme name a resolved authorization actually sends. */
+function schemeLabel(resolved: ReturnType<typeof resolveAuthorizationScheme>): string {
+  if (resolved.kind === "self-describing") return resolved.scheme;
+  return resolved.kind === "basic" ? "Basic" : "Bearer";
+}
+
 export { CredentialedRequestValidationError } from "../contracts/credentialed-request-errors.js";
 import { nowIso, type Clock, type HttpClientPort, type HttpResponse, type UUID } from "@jini-ai/core/primitives";
 import type { CredentialConnection, CredentialTarget, CredentialResolverPort, CredentialSchemeRegistryPort, CredentialedRequestErrorPolicyPort } from "./ports.js";
@@ -180,7 +186,7 @@ export interface AuthFailureDiagnostic {
 function buildAuthFailureDiagnostic(connection: CredentialConnection, status: 401 | 403, schemes: readonly CredentialSchemeRule[]): AuthFailureDiagnostic {
   const usernameStored = connection.username !== undefined;
   const resolved = resolveAuthorizationScheme(connection, schemes);
-  const schemeSent = resolved.kind === "self-describing" ? resolved.scheme : resolved.kind === "basic" ? "Basic" : "Bearer";
+  const schemeSent = schemeLabel(resolved);
   // A provider once returned 403 for a missing User-Agent, and suggesting Basic auth led to an
   // ineffective username repair. Scope/policy/header refusals explain 403 too; retain facts without
   // guessing. Gate on the scheme actually sent, not username presence alone.
