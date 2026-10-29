@@ -176,8 +176,7 @@ export async function findPriorArtifactSiblings(
   }
   const results: PriorArtifactSibling[] = [];
   for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    if (!pattern.test(entry.name)) continue;
+    if (!entry.isFile() || !pattern.test(entry.name)) continue;
     const sibling = await readMatchingSibling(
       { scanDir, identifier, entry, extensionPattern, suffixPattern },
       { filesystem },
