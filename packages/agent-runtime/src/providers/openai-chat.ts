@@ -190,7 +190,10 @@ export function openAiRequestUrl({ baseUrl }: { baseUrl: string | undefined }): 
   return /\/v\d+(\/|$)/.test(base) ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
 }
 
-export function openAiHeaders(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Record<string, string> {
+/** The `OpenAiTurnOptions` keys every caller must pass. */
+type OpenAiRequiredOption = "apiKey" | "model" | "messages" | "onEvent";
+
+export function openAiHeaders(requiredArgs: Pick<OpenAiTurnOptions, OpenAiRequiredOption>, optionalArgs: Omit<OpenAiTurnOptions, OpenAiRequiredOption> = {}): Record<string, string> {
   const options: OpenAiTurnOptions = { ...optionalArgs, ...requiredArgs };
   return {
     'content-type': 'application/json',
@@ -417,9 +420,8 @@ export function handleOpenAiChoiceDelta({ state, choice, onEvent }: { state: Ope
   const delta = isRecord(choice.delta) ? choice.delta : null;
   if (!delta) return 'continue';
 
-  if (typeof delta.content === 'string' && delta.content.length > 0) {
-    if (handleOpenAiTextContentDelta({ state: state, content: delta.content, onEvent: onEvent }) === 'break') return 'break';
-  }
+  const text = typeof delta.content === 'string' && delta.content.length > 0 ? delta.content : null;
+  if (text !== null && handleOpenAiTextContentDelta({ state: state, content: text, onEvent: onEvent }) === 'break') return 'break';
   if (Array.isArray(delta.tool_calls)) {
     for (const rawCall of delta.tool_calls) {
       accumulateOpenAiToolCallDelta({ state: state, rawCall: rawCall });
@@ -818,7 +820,7 @@ export function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpPa
  * function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s doc for
  * the shared event-stream/`ended`-flag contract this mirrors exactly.
  */
-export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Promise<OpenAiTurnResult> {
+export async function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, OpenAiRequiredOption>, optionalArgs: Omit<OpenAiTurnOptions, OpenAiRequiredOption> = {}): Promise<OpenAiTurnResult> {
   const options: OpenAiTurnOptions = { ...optionalArgs, ...requiredArgs };
   const retry = createStrictToolRetry({ protocol: 'openai', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;

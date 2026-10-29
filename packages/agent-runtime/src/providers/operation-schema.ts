@@ -33,13 +33,15 @@ const TYPES: ReadonlySet<string> = new Set(['object', 'array', 'string', 'intege
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
+/** The fallback reason for any schema construct this projection does not translate. */
+const UNSUPPORTED_SCHEMA = 'unsupported-schema' satisfies OperationSchemaFallbackReason;
 function reject(reason: OperationSchemaFallbackReason): never { throw new SchemaProjectionError(reason); }
 
 /** Resolve local JSON pointers only. Expansion is bounded by the same node/depth budget as inline schemas. */
 function resolveReference(schema: Record<string, unknown>, context: WalkContext): Record<string, unknown> {
   if (schema.$ref === undefined) return schema;
   if (typeof schema.$ref !== 'string' || !schema.$ref.startsWith('#/')) return reject('unresolved-reference');
-  if (Object.keys(schema).some(key => !['$ref', 'description', 'title'].includes(key))) return reject('unsupported-schema');
+  if (Object.keys(schema).some(key => !['$ref', 'description', 'title'].includes(key))) return reject(UNSUPPORTED_SCHEMA);
   let target: unknown = context.root;
   for (const part of schema.$ref.slice(2).split('/')) {
     const key = part.replace(/~1/g, '/').replace(/~0/g, '~');
@@ -53,23 +55,23 @@ function resolveReference(schema: Record<string, unknown>, context: WalkContext)
 /** Only simple nullable unions are projected; ambiguous variant decoders use host-validated fallback. */
 function normalizedNode(schema: Record<string, unknown>): Record<string, unknown> {
   if (schema.anyOf === undefined) return schema;
-  if (!Array.isArray(schema.anyOf) || schema.anyOf.length !== 2) return reject('unsupported-schema');
+  if (!Array.isArray(schema.anyOf) || schema.anyOf.length !== 2) return reject(UNSUPPORTED_SCHEMA);
   const nullMember = schema.anyOf.find(member => isRecord(member) && member.type === 'null');
-  if (!isRecord(nullMember) || Object.keys(nullMember).some(key => !['type', 'title', 'description'].includes(key))) return reject('unsupported-schema');
+  if (!isRecord(nullMember) || Object.keys(nullMember).some(key => !['type', 'title', 'description'].includes(key))) return reject(UNSUPPORTED_SCHEMA);
   const nonNull = schema.anyOf.filter(member => !isRecord(member) || member.type !== 'null');
-  if (nonNull.length !== 1 || !isRecord(nonNull[0])) return reject('unsupported-schema');
-  if (Object.keys(schema).some(key => !['anyOf', 'title', 'description', 'default'].includes(key))) return reject('unsupported-schema');
+  if (nonNull.length !== 1 || !isRecord(nonNull[0])) return reject(UNSUPPORTED_SCHEMA);
+  if (Object.keys(schema).some(key => !['anyOf', 'title', 'description', 'default'].includes(key))) return reject(UNSUPPORTED_SCHEMA);
   const child = nonNull[0];
-  if (typeof child.type !== 'string') return reject('unsupported-schema');
+  if (typeof child.type !== 'string') return reject(UNSUPPORTED_SCHEMA);
   return { ...child, type: [child.type, 'null'] };
 }
 
 function nodeTypes(schema: Record<string, unknown>): string[] {
   const types: unknown[] = Array.isArray(schema.type) ? schema.type : [schema.type];
-  if (types.length === 0) return reject('unsupported-schema');
-  if (!types.every((type): type is string => typeof type === 'string' && TYPES.has(type))) return reject('unsupported-schema');
-  if (new Set(types).size !== types.length) return reject('unsupported-schema');
-  if (types.length > 1 && (types.length !== 2 || !types.includes('null'))) return reject('unsupported-schema');
+  if (types.length === 0) return reject(UNSUPPORTED_SCHEMA);
+  if (!types.every((type): type is string => typeof type === 'string' && TYPES.has(type))) return reject(UNSUPPORTED_SCHEMA);
+  if (new Set(types).size !== types.length) return reject(UNSUPPORTED_SCHEMA);
+  if (types.length > 1 && (types.length !== 2 || !types.includes('null'))) return reject(UNSUPPORTED_SCHEMA);
   return types;
 }
 
@@ -81,14 +83,14 @@ function schemaMetadata(schema: Record<string, unknown>): Record<string, unknown
 function projectLiterals(schema: Record<string, unknown>, projected: Record<string, unknown>): void {
   if (schema.enum !== undefined) projected.enum = literalValues(schema.enum);
   if (Object.hasOwn(schema, 'const')) {
-    if (schema.enum !== undefined) return reject('unsupported-schema');
+    if (schema.enum !== undefined) return reject(UNSUPPORTED_SCHEMA);
     projected.enum = literalValues([schema.const]);
   }
 }
 
 function literalValues(value: unknown): unknown[] {
-  if (!Array.isArray(value) || value.length === 0) return reject('unsupported-schema');
-  if (value.some(member => member !== null && !['string', 'number', 'boolean'].includes(typeof member))) return reject('unsupported-schema');
+  if (!Array.isArray(value) || value.length === 0) return reject(UNSUPPORTED_SCHEMA);
+  if (value.some(member => member !== null && !['string', 'number', 'boolean'].includes(typeof member))) return reject(UNSUPPORTED_SCHEMA);
   return [...value];
 }
 
@@ -105,8 +107,8 @@ function projectObject(schema: Record<string, unknown>, context: WalkContext): P
   if (schema.additionalProperties !== false) return reject('open-map');
   const properties = schema.properties ?? {};
   const required = schema.required ?? [];
-  if (!isRecord(properties) || !Array.isArray(required)) return reject('unsupported-schema');
-  if (required.some(key => typeof key !== 'string' || !Object.hasOwn(properties, key))) return reject('unsupported-schema');
+  if (!isRecord(properties) || !Array.isArray(required)) return reject(UNSUPPORTED_SCHEMA);
+  if (required.some(key => typeof key !== 'string' || !Object.hasOwn(properties, key))) return reject(UNSUPPORTED_SCHEMA);
   const requiredKeys = new Set(required);
   const children = Object.entries(properties).map(([key, child]) => [key, projectNode(child, context, !requiredKeys.has(key))] as const);
   const projected = {
@@ -140,7 +142,7 @@ function googleEnumDecoder(schema: Record<string, unknown>, decoder: Decoder, pr
   if (values.length === 0 || !values.every(value => typeof value === 'number')) return decoder;
   if (schema.enum.includes(null)) {
     const types = nodeTypes(schema);
-    if (!types.includes('null')) return reject('unsupported-schema');
+    if (!types.includes('null')) return reject(UNSUPPORTED_SCHEMA);
     schema.enum = values;
   }
   return { ...decoder, numericEnum: values as number[] };
@@ -148,13 +150,14 @@ function googleEnumDecoder(schema: Record<string, unknown>, decoder: Decoder, pr
 
 /** O(n) for the expanded tree, bounded to 2048 nodes and 32 levels; no I/O or input mutation. */
 function projectNode(value: unknown, context: WalkContext, optional: boolean): Projection {
-  if (--context.budget.remaining < 0 || context.depth > 32) return reject('schema-limit');
-  if (!isRecord(value)) return reject('unsupported-schema');
+  context.budget.remaining -= 1;
+  if (context.budget.remaining < 0 || context.depth > 32) return reject('schema-limit');
+  if (!isRecord(value)) return reject(UNSUPPORTED_SCHEMA);
   const resolved = resolveReference(value, context);
   if (context.ancestors.has(resolved)) return reject('recursive-schema');
-  if (Object.keys(resolved).some(key => !SCHEMA_KEYS.has(key))) return reject('unsupported-schema');
+  if (Object.keys(resolved).some(key => !SCHEMA_KEYS.has(key))) return reject(UNSUPPORTED_SCHEMA);
   const schema = normalizedNode(resolved);
-  if (Object.keys(schema).some(key => !SCHEMA_KEYS.has(key))) return reject('unsupported-schema');
+  if (Object.keys(schema).some(key => !SCHEMA_KEYS.has(key))) return reject(UNSUPPORTED_SCHEMA);
   const types = nodeTypes(schema);
   // Required wire properties cannot represent both omission and a genuine null-as-clear.
   // Prefer fallback over inventing a sentinel or forcing an unintended clear operation.
@@ -194,7 +197,7 @@ function fallback(schema: Record<string, unknown>, protocol: ProviderProtocol, r
 
 function compileStrict(schema: Record<string, unknown>, protocol: ProviderProtocol): CompiledOperationSchema {
   const result = projectNode(schema, { root: schema, protocol, ancestors: new Set(), budget: { remaining: 2048 }, depth: 0 }, false);
-  if (result.schema.type !== 'object') return reject('unsupported-schema');
+  if (result.schema.type !== 'object') return reject(UNSUPPORTED_SCHEMA);
   const wireSchema = protocol === 'google' ? googleParametersOf({ descriptor: { id: '', inputSchema: result.schema } }) : result.schema;
   return { schema: wireSchema, strict: true, decodeInput: input => decodeValue(input, result.decoder) };
 }
@@ -212,7 +215,7 @@ export function compileOperationSchema(
   { strict = false }: { strict?: boolean } = {},
 ): CompiledOperationSchema {
   const schema = isRecord(inputSchema) ? inputSchema : EMPTY_SCHEMA;
-  if (inputSchema !== undefined && !isRecord(inputSchema)) return fallback(schema, protocol, 'unsupported-schema');
+  if (inputSchema !== undefined && !isRecord(inputSchema)) return fallback(schema, protocol, UNSUPPORTED_SCHEMA);
   if (!strict) return fallback(schema, protocol, 'endpoint-unsupported');
   try {
     return compileStrict(schema, protocol);

@@ -385,12 +385,11 @@ export function handleOllamaTextContent({ state, content, onEvent }: { state: Ol
 export function processOllamaLine({ state, line, onEvent, emitEnd }: { state: OllamaStreamState; line: Record<string, unknown>; onEvent: (event: OllamaTurnEvent) => void; emitEnd: (reason: OllamaTurnEndReason) => void }
 ): 'continue' | 'break' | 'done' {
   const message = isRecord(line.message) ? line.message : null;
-  if (message && typeof message.content === 'string' && message.content.length > 0) {
-    if (handleOllamaTextContent({ state: state, content: message.content, onEvent: onEvent }) === 'break') {
-      state.finishReason = 'contaminated';
-      emitEnd('contaminated');
-      return 'break';
-    }
+  const text = message && typeof message.content === 'string' && message.content.length > 0 ? message.content : null;
+  if (text !== null && handleOllamaTextContent({ state: state, content: text, onEvent: onEvent }) === 'break') {
+    state.finishReason = 'contaminated';
+    emitEnd('contaminated');
+    return 'break';
   }
   if (message) handleOllamaToolCallsField({ state: state, message: message });
 

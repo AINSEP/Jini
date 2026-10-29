@@ -233,7 +233,10 @@ export function anthropicRequestUrl({ baseUrl }: { baseUrl: string | undefined }
   return `${base}/v1/messages`;
 }
 
-export function anthropicHeaders(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Record<string, string> {
+/** The `AnthropicTurnOptions` keys every caller must pass. */
+type AnthropicRequiredOption = "apiKey" | "model" | "messages" | "maxTokens" | "onEvent";
+
+export function anthropicHeaders(requiredArgs: Pick<AnthropicTurnOptions, AnthropicRequiredOption>, optionalArgs: Omit<AnthropicTurnOptions, AnthropicRequiredOption> = {}): Record<string, string> {
   const options: AnthropicTurnOptions = { ...optionalArgs, ...requiredArgs };
   return {
     'content-type': 'application/json',
@@ -515,8 +518,7 @@ const ANTHROPIC_FRAME_HANDLERS: Record<string, AnthropicFrameHandler> = {
 function refreshAnthropicTools(options: AnthropicTurnOptions, retry: StrictToolRetryState): AnthropicTurnOptions {
   let tools = options.getTools?.({ strict: retry.enabled }) ?? options.tools;
   if (!retry.enabled) tools = tools?.map(tool => {
-    const definition = omitKeys(tool, ['strict']);
-    return definition;
+    return omitKeys(tool, ['strict']);
   });
   return { ...options, ...(tools !== undefined ? { tools } : {}) };
 }
@@ -700,7 +702,7 @@ export async function executeAnthropicToolCalls({ executeTool, calls, onEvent }:
   return toolResultBlocks;
 }
 
-export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Promise<AnthropicTurnResult> {
+export async function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, AnthropicRequiredOption>, optionalArgs: Omit<AnthropicTurnOptions, AnthropicRequiredOption> = {}): Promise<AnthropicTurnResult> {
   const options: AnthropicTurnOptions = { ...optionalArgs, ...requiredArgs };
   const retry = createStrictToolRetry({ protocol: 'anthropic', onSchemaFallback: options.onSchemaFallback });
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;

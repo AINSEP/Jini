@@ -236,10 +236,15 @@ function buildAzureProviderCall(
   };
 }
 
+/** Why a 2xx reply with no assistant text failed the smoke test, naming the finish reason when known. */
+function emptyReplyDetail(finishReason: string | null | undefined): string {
+  return finishReason
+    ? `Provider returned a 2xx response without assistant text (finish reason: ${finishReason})`
+    : 'Provider returned a 2xx response without assistant text';
+}
+
 function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: SupportedConnectionTestProtocol }): ProviderCallShape {
-  const baseUrl = input.baseUrl;
-  const apiKey = input.apiKey;
-  const model = input.model;
+  const { baseUrl, apiKey, model } = input;
   switch (input.protocol) {
     case 'anthropic':
       return {
@@ -315,6 +320,11 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
         },
       };
     }
+    default: {
+      // Unreachable: every supported protocol has a case above, and a new one fails typecheck here.
+      const unsupported: never = input.protocol;
+      throw new TypeError(`Unsupported connection-test protocol: ${String(unsupported)}`);
+    }
   }
 }
 
@@ -370,11 +380,7 @@ function inspectProviderResponse(
     latencyMs,
     model,
     status: response.status,
-    detail: sample
-      ? `Expected smoke test reply "ok"; got "${sample}"`
-      : finishReason
-        ? `Provider returned a 2xx response without assistant text (finish reason: ${finishReason})`
-        : 'Provider returned a 2xx response without assistant text',
+    detail: sample ? `Expected smoke test reply "ok"; got "${sample}"` : emptyReplyDetail(finishReason),
   };
 }
 

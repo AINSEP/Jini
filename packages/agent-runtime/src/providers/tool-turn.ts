@@ -31,7 +31,7 @@ function toGoogleToolContent(content: ProviderToolResult["content"]): string | G
     return content;
   return content.map((block) => (block.type === "text" ? { text: block.text } : { inlineData: { mimeType: block.mimeType, data: block.data } }));
 }
-function foldToolError(content: string | OpenAiContentPart[], isError: boolean | undefined): string | OpenAiContentPart[] {
+function foldToolError(content: string | OpenAiContentPart[], isError = false): string | OpenAiContentPart[] {
   if (!isError)
     return content;
   return typeof content === "string" ? `${TOOL_ERROR_PREFIX}${content}` : [{ type: "text", text: TOOL_ERROR_PREFIX.trimEnd() }, ...content];
@@ -325,5 +325,10 @@ export async function runProviderToolTurn(required: ProviderToolTurnInput, optio
       return runAzureTurn(input);
     case "google":
       return runGoogleTurn(input);
+    default: {
+      // Unreachable: every supported protocol has a case above, and a new one fails typecheck here.
+      const unsupported: never = input.protocol;
+      throw new TypeError(`Unsupported provider tool-turn protocol: ${String(unsupported)}`);
+    }
   }
 }
