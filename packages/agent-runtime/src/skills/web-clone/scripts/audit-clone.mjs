@@ -141,16 +141,19 @@ const includeExt = new Set([".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".jso
 const skipDirs = new Set([".git", "node_modules", "dist", "build", ".next", ".nuxt", "coverage", "RECON"]);
 const skipFiles = new Set(["NOTES.md", "TEARDOWN.md", "CLONE_REPORT.md", "CLONE_AUDIT.md", "REPLACE_GUIDE.md"]);
 
+// A scannable text file: an included extension, and not one of the notes files.
+function isTextSource(name) {
+  return !skipFiles.has(name) && includeExt.has(path.extname(name).toLowerCase());
+}
+
 /** Text sources to scan: skips build/vendor dirs, screenshots/, notes files and binaries. */
 export function walk(dir, fsImpl = fs, files = []) {
   for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
     if (skipDirs.has(entry.name)) continue;
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      if (entry.name !== "screenshots") walk(full, fsImpl, files);
-    } else if (!skipFiles.has(entry.name) && includeExt.has(path.extname(entry.name).toLowerCase())) {
-      files.push(full);
-    }
+    const isDirectory = entry.isDirectory();
+    if (isDirectory && entry.name !== "screenshots") walk(full, fsImpl, files);
+    if (!isDirectory && isTextSource(entry.name)) files.push(full);
   }
   return files;
 }

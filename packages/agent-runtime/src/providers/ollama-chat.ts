@@ -382,10 +382,15 @@ export function handleOllamaTextContent({ state, content, onEvent }: { state: Ol
  * the caller (`runSingleOllamaRequest`) still owns the normal-completion `emitEnd`, exactly like
  * every sibling turn-runner's `emitEnd` contract.
  */
+/** The message's text content when it is a non-empty string, else `null`. */
+function nonEmptyContent(message: Record<string, unknown> | null): string | null {
+  return message && typeof message.content === 'string' && message.content.length > 0 ? message.content : null;
+}
+
 export function processOllamaLine({ state, line, onEvent, emitEnd }: { state: OllamaStreamState; line: Record<string, unknown>; onEvent: (event: OllamaTurnEvent) => void; emitEnd: (reason: OllamaTurnEndReason) => void }
 ): 'continue' | 'break' | 'done' {
   const message = isRecord(line.message) ? line.message : null;
-  const text = message && typeof message.content === 'string' && message.content.length > 0 ? message.content : null;
+  const text = nonEmptyContent(message);
   if (text !== null && handleOllamaTextContent({ state: state, content: text, onEvent: onEvent }) === 'break') {
     state.finishReason = 'contaminated';
     emitEnd('contaminated');

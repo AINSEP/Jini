@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { ModelDiscoveryContext, ModelDiscoveryDeps } from './model-discovery-types.js';
+import { yamlModelCapture } from './model-discovery-yaml.js';
 
 /** JSON path of the model setting in the Qoder and Qwen settings files. */
 const MODEL_NAME_PATH = 'model.name';
@@ -102,7 +103,7 @@ function parseTomlModel(file: ConfigFile, raw: string, profile?: string): string
 }
 export function parseConfiguredModel(file: ConfigFile, raw: string, profile?: string): string | undefined {
   if (file.format === 'json') return parseJsonModel(file, raw);
-  if (file.format === 'yaml') return scalar(raw.match(/^model\s*:\s*["']?([^\n"'#]+)["']?\s*(?:#.*)?$/m)?.[1]);
+  if (file.format === 'yaml') return scalar(yamlModelCapture(raw));
   return parseTomlModel(file, raw, profile);
 }
 const MODEL_ENV: Record<string, readonly string[]> = {

@@ -156,7 +156,8 @@ export async function candidates(page) {
         const rect = node.getBoundingClientRect();
         const tag = node.tagName.toLowerCase();
         const href = node.href || node.getAttribute("href") || "";
-        const safeClick = tag === "button" || tag === "summary" || node.getAttribute("role") === "button" || href.startsWith("#") || href.startsWith(location.origin);
+        const buttonLike = tag === "button" || tag === "summary" || node.getAttribute("role") === "button";
+        const safeClick = buttonLike || href.startsWith("#") || href.startsWith(location.origin);
         return {
           selector: selectorFor(node),
           tag,
@@ -236,7 +237,8 @@ export async function captureAction(page, outDir, index, action, before) {
   await ACTION_PERFORMERS[action.type](page, action);
   await page.waitForTimeout(450);
   const after = await hashSnapshot(page, await snapshot(page));
-  const screenshotName = `${String(index + 1).padStart(2, "0")}-${safeFileName(`${action.type}-${action.target || action.selector || "page"}`)}-${shortHash(JSON.stringify(action))}.png`;
+  const actionLabel = `${action.type}-${action.target || action.selector || "page"}`;
+  const screenshotName = `${String(index + 1).padStart(2, "0")}-${safeFileName(actionLabel)}-${shortHash(JSON.stringify(action))}.png`;
   const screenshotPath = path.join(outDir, "screenshots", screenshotName);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   return {

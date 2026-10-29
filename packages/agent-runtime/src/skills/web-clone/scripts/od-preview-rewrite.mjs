@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { HELP_OPTIONS, parseCliArgs } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { replaceCssUrls } from "./lib/css-url.mjs";
 
 // fs / cwd / output are ports with real defaults wired here at the CLI edge.
 // The rewrite functions take a `project` = { root, fs } so they can be
@@ -161,15 +162,20 @@ export function rewriteSrcset(project, ownerFile, srcset) {
     .join(",");
 }
 
+// A site-root path ("/x"), not protocol-relative ("//host"): what the former regex's
+// `\/(?!\/)[^'")]+` reference group admitted.
+const isRootRelativeRef = (ref) => ref.length >= 2 && ref[0] === "/" && ref[1] !== "/";
+
 export function rewriteCssUrls(project, ownerFile, text) {
-  return text.replace(
-    /url\(\s*(['"]?)(\/(?!\/)[^'")]+)\1\s*\)/gi,
+  return replaceCssUrls(
+    text,
     (match, quote, value) => {
       const rewritten = rewriteRootRef(project, ownerFile, value);
       if (rewritten === value) return match;
       const q = quote || "";
       return `url(${q}${rewritten}${q})`;
     },
+    { accept: isRootRelativeRef },
   );
 }
 
