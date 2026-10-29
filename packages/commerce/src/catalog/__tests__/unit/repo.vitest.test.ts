@@ -7,7 +7,7 @@ import { checkout, CommerceProductSlugConflictError } from "../../../index.js";
 import type { CommerceDatabase } from "../../database.js";
 import {
   commerceOrderRepoFor, commercePriceRepoFor, commerceProductImageRepoFor,
-  commerceProductRepoFor, commerceWebhookEventRepoFor,
+  commerceProductRepoFor, commerceWebhookEventRepoFor, SqlCommerceWebhookEventRepo,
 } from "../../repo.js";
 import type { CommerceOrderItemRecord, CommerceOrderRecord, CommercePriceRecord, CommerceProductRecord } from "../../types.js";
 
@@ -240,5 +240,21 @@ describe("catalog repositories on a borrowed SQLite kernel", () => {
     expect(await w.events.applyProviderEvent(input)).toBe("applied");
     expect((await w.orders.findById({ workspaceId: "ws-a", id: "order-a" }))?.status).toBe("paid");
     expect((await w.orders.findById({ workspaceId: "ws-a", id: "order-a" }))?.version).toBe(2);
+  });
+});
+
+describe("webhook event repo against a driver that omits the affected-row count", () => {
+  test("a missing numInsertedOrUpdatedRows counts as zero rows, so the event is reported duplicate and nothing else runs", async () => {
+    const runs: string[] = [];
+    const kernel = {
+      transaction: async <T,>(fn: () => Promise<T>) => fn(),
+      run: async () => { runs.push("run"); return {}; },
+    };
+    const repo = new SqlCommerceWebhookEventRepo({ kernel: kernel as never });
+    const event = { id: "inbox-1", workspaceId: "ws-a", provider: "regional-pay", eventId: "evt-1", eventType: "charge.succeeded",
+      eventOccurredAt: AT, payload: "{}", status: "received" as const, receivedAt: LATER };
+    const projection = { status: "paid" as const, providerEventAt: AT, updatedAt: LATER };
+    expect(await repo.applyProviderEvent({ event, orderId: "order-a", projection, processedAt: LATER })).toBe("duplicate");
+    expect(runs).toEqual(["run"]);
   });
 });
