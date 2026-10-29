@@ -173,6 +173,9 @@ export interface AnnotationCanvasController {
   closeOverlay: () => void;
 }
 
+/** The analytics toolbar element each mark tool reports as. */
+const TOOLBAR_TOOL_FOR_MARK_TOOL: Partial<Record<MarkTool, DrawToolbarElement>> = { box: 'rect', text: 'text' };
+
 export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): AnnotationCanvasController {
   const { active, onActiveChange, captureViewport = false, captureTarget = null, filePath, sendDisabled = false, hideChrome = false, onToolbarClick, port } = options;
   const t = useT();
@@ -661,7 +664,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
   }, [extraFiles]);
 
   function selectMarkTool(nextTool: MarkTool) {
-    onToolbarClick?.(nextTool === 'box' ? 'rect' : nextTool === 'text' ? 'text' : 'pen');
+    onToolbarClick?.(TOOLBAR_TOOL_FOR_MARK_TOOL[nextTool] ?? 'pen');
     setMarkTool(nextTool);
     setMarkToolMenuOpen(false);
   }

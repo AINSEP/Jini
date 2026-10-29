@@ -260,6 +260,8 @@ function useItemCardEdit<TSource extends SourceConfigItem>({ source, fieldSpecs,
 /** The expanded body: the Edit/Save/Cancel toggle, the editable or read-only fields, and the test control. */
 function ItemCardBody<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource> & { edit: ItemCardEdit }) {
   const { capabilities, testing, testResult, onTest, agentHandle, edit } = props;
+  const testResultProps = testResult ? { result: testResult } : {};
+  const testHandleProps = agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {};
   return (
     <div className="source-config-item-card-body">
       {capabilities.canUpdate ? <ItemCardEditToggle {...props} edit={edit} /> : null}
@@ -269,8 +271,8 @@ function ItemCardBody<TSource extends SourceConfigItem>(props: ItemCardPartProps
           running={testing}
           disabled={isAnyActionPending(props)}
           onTest={onTest}
-          {...(testResult ? { result: testResult } : {})}
-          {...(agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {})}
+          {...testResultProps}
+          {...testHandleProps}
         />
       ) : null}
     </div>

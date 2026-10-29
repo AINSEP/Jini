@@ -61,7 +61,8 @@ export function VersionPreviewFrame({
                 </div>
               </div>
             </div>
-          ) : !loading && !loadingContent ? (
+          ) : null}
+          {!previewDocument && !loading && !loadingContent ? (
             <div className="jini-viewer-empty">{t('No preview available.')}</div>
           ) : null}
           {loading || loadingContent || (previewDocument && !frameReady) ? (

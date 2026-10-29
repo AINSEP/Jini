@@ -66,6 +66,7 @@ function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle }:
   } = reasoning;
   const additionalOptions = allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined;
 
+  const modelHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {};
   return (
     <div className="jini-agent-settings-row">
       {hasModels ? (
@@ -82,7 +83,7 @@ function LocalCliAgentModelControls({ agent, card, onModelChange, agentHandle }:
             searchPlaceholder={t('Search models')}
             testId={`jini-agent-model-${agent.id}`}
             searchInputTestId={`jini-agent-model-search-${agent.id}`}
-            {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'model' }) } : {})}
+            {...modelHandleProps}
             value={selectValue}
             models={modelChoices}
             additionalOptions={additionalOptions}

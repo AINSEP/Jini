@@ -86,7 +86,7 @@ function normalizeTodoStatus(status: unknown): TodoStatusLike {
 export function parseTodoWriteInput(input: unknown): TodoItemLike[] {
   if (!input || typeof input !== 'object') return [];
   const record = input as { todos?: unknown; plan?: unknown };
-  const rawItems = Array.isArray(record.todos) ? record.todos : Array.isArray(record.plan) ? record.plan : [];
+  const rawItems = [record.todos, record.plan].find(Array.isArray) ?? [];
   return rawItems
     .map((todo): TodoItemLike | null => {
       if (!todo || typeof todo !== 'object') return null;
@@ -212,7 +212,8 @@ function fileOpFromAgentEvent(
   const fullPath = extractFileOpPath(event.input);
   if (!fullPath) return null;
   const result = resultByToolUseId.get(event.id);
-  const status: FileOpStatusLike = result === undefined ? 'running' : result.isError ? 'error' : 'done';
+  let status: FileOpStatusLike = 'running';
+  if (result !== undefined) status = result.isError ? 'error' : 'done';
   return { fullPath, kind, status };
 }
 
@@ -293,7 +294,7 @@ function fallbackChatActivitySteps(status: ProgressStatus, fileOps: FileOpEntryL
     {
       id: 'read-current-state',
       label: 'Read current state',
-      status: hasRead || hasMutation || status === 'succeeded' ? 'succeeded' : status === 'running' ? 'running' : 'pending',
+      status: fallbackReadStatus({ status, done: hasRead || hasMutation }),
     },
     {
       id: 'update-files',
@@ -303,9 +304,14 @@ function fallbackChatActivitySteps(status: ProgressStatus, fileOps: FileOpEntryL
     {
       id: 'finalize',
       label: 'Finalize',
-      status: status === 'succeeded' ? 'succeeded' : status === 'failed' ? 'failed' : 'pending',
+      status: status === 'succeeded' || status === 'failed' ? status : 'pending',
     },
   ];
+}
+
+function fallbackReadStatus({ status, done }: { status: ProgressStatus; done: boolean }): ProgressStatus {
+  if (done || status === 'succeeded') return 'succeeded';
+  return status === 'running' ? 'running' : 'pending';
 }
 
 function fallbackUpdateStatus(

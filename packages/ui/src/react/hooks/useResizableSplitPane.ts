@@ -200,14 +200,10 @@ export function useResizableSplitPane(
 
     const updateAllowedWidth = () => {
       const containerWidth = container.clientWidth;
-      const nextSecondaryMin =
-        !Number.isFinite(containerWidth) || containerWidth <= 0
-          ? minSecondaryWidth
-          : containerWidth < minNormalContainerWidth
-            ? 0
-            : minSecondaryWidth;
+      const unmeasured = !Number.isFinite(containerWidth) || containerWidth <= 0;
+      const nextSecondaryMin = !unmeasured && containerWidth < minNormalContainerWidth ? 0 : minSecondaryWidth;
       const nextMax =
-        !Number.isFinite(containerWidth) || containerWidth <= 0
+        unmeasured
           ? maxWidthOption
           : Math.max(0, Math.min(maxWidthOption, Math.floor(containerWidth - handleWidth - nextSecondaryMin)));
       maxWidthRef.current = nextMax;

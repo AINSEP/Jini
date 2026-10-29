@@ -88,7 +88,8 @@ export type OnboardingDropdownProps =
  * string (or otherwise falsy value) becomes an empty selection.
  */
 export function resolveOnboardingSelectedValues(value: string | string[]): string[] {
-  return Array.isArray(value) ? value : value ? [value] : [];
+  if (Array.isArray(value)) return value;
+  return value ? [value] : [];
 }
 
 /**

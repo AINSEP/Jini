@@ -91,13 +91,19 @@ function describeBlock(
   return { reason, host };
 }
 
+/** `.first.second` from an element's class attribute (first two classes), or undefined when it has none. */
+function classIdentity(className: string | undefined): string | undefined {
+  if (!className) return undefined;
+  return `.${className.trim().split(/\s+/).slice(0, 2).join('.')}`;
+}
+
 function createEditorBlock(
   { el, reason, host }: { el: SourceElement; reason: EditorBlockReason; host: CanvasEmbedPlaceholderDescriptor | undefined },
   options: EditorBlockOptions = {},
 ): EditorBlock {
   const t = options.translate ?? ((key: string) => key);
   const id = el.attributes.id;
-  const identity = id ? `#${id}` : el.attributes.class ? `.${el.attributes.class.trim().split(/\s+/).slice(0, 2).join('.')}` : el.tagName;
+  const identity = id ? `#${id}` : classIdentity(el.attributes.class) ?? el.tagName;
   return {
     ...el.outerRange!, tagName: el.tagName, ...(id ? { id } : {}), reason, element: el,
     descriptor: reason === 'embed' && host ? host : {

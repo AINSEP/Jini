@@ -37,6 +37,9 @@ export function VersionSidebar<TVersion extends VersionRecord>({
   restoredFrom,
 }: VersionSidebarProps<TVersion>) {
   const t = useT();
+  let emptyMessage: string | null = null;
+  if (versions.length === 0) emptyMessage = t('No versions yet.');
+  else if (visibleVersions.length === 0) emptyMessage = t('No results for “{query}”.', { query: search.trim() });
 
   return (
     <div className="jini-version-sidebar">
@@ -71,11 +74,9 @@ export function VersionSidebar<TVersion extends VersionRecord>({
               <div key={row} className="jini-version-skeleton-item" aria-hidden="true" />
             ))}
           </div>
-        ) : versions.length === 0 ? (
-          <div className="jini-version-empty">{t('No versions yet.')}</div>
-        ) : visibleVersions.length === 0 ? (
-          <div className="jini-version-empty">{t('No results for “{query}”.', { query: search.trim() })}</div>
-        ) : (
+        ) : null}
+        {!loading && emptyMessage ? <div className="jini-version-empty">{emptyMessage}</div> : null}
+        {!loading && !emptyMessage ? (
           visibleVersions.map((version) => {
             const selected = version.id === selectedVersionId;
             const itemRestoredFrom = restoredFrom(version);
@@ -112,7 +113,7 @@ export function VersionSidebar<TVersion extends VersionRecord>({
               </button>
             );
           })
-        )}
+        ) : null}
       </div>
     </div>
   );

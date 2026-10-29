@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react';
 import { getNumericColumnKeys, sortTableRows, type TableSort } from '../../table-data.js';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table.js';
 
+/** Header glyph per column sort state; `none` marks a sortable but unsorted column. */
+const SORT_GLYPHS: Record<TableSort['direction'] | 'none', string> = { ascending: '↑', descending: '↓', none: '↕' };
+
 export interface DataTableColumn {
   readonly key: string;
   readonly label: string;
@@ -47,9 +50,11 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
       <Table className="jini-data-table">
         <TableHeader>
           <TableRow>
-            {columns.map((column) => (
+            {columns.map((column) => {
+              const columnSort = activeSort?.key === column.key ? activeSort.direction : undefined;
+              return (
               <TableHead key={column.key} scope="col" data-numeric={numericKeys.has(column.key)}
-                aria-sort={sortable ? (activeSort?.key === column.key ? activeSort.direction : 'none') : undefined}>
+                aria-sort={sortable ? (columnSort ?? 'none') : undefined}>
                 {sortable ? (
                   <button type="button" className="jini-data-table-sort" onClick={() => {
                     setSort({ key: column.key, direction: activeSort?.key === column.key && activeSort.direction === 'ascending'
@@ -57,11 +62,12 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
                     setPage(0);
                   }}>
                     <span>{column.label}</span>
-                    <span aria-hidden="true">{activeSort?.key === column.key ? (activeSort.direction === 'ascending' ? '↑' : '↓') : '↕'}</span>
+                    <span aria-hidden="true">{SORT_GLYPHS[columnSort ?? 'none']}</span>
                   </button>
                 ) : column.label}
               </TableHead>
-            ))}
+              );
+            })}
           </TableRow>
         </TableHeader>
         <TableBody>

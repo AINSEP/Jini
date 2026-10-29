@@ -53,6 +53,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
   const l = resolveLabels({ defaults: DEFAULT_SKILLS_TAB_LABELS, t }, { labels });
   const loadErrorLabel = labels?.loadErrorLabel ?? t('Could not load skills: {error}', { error: tab.loadError ?? '' });
 
+  const createFormHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'create-form' }) } : {};
   return (
     <section className="jini-settings-section jini-settings-skills">
       <SkillsTabToolbar tab={tab} labels={l} agentHandle={agentHandle} />
@@ -74,7 +75,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
           onCancel={tab.cancelDraft}
           onSubmit={tab.submitDraft}
           labels={labels}
-          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'create-form' }) } : {})}
+          {...createFormHandleProps}
         />
       ) : null}
 

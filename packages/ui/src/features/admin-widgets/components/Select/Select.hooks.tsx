@@ -228,7 +228,8 @@ export function useSelectDropdown({
     const initialIndex = options.findIndex((o) => o.value === value);
     setQuery("");
     popover.openPanel();
-    setHighlightedIndex(initialIndex >= 0 ? initialIndex : options.length ? 0 : -1);
+    const firstIndex = options.length ? 0 : -1;
+    setHighlightedIndex(initialIndex >= 0 ? initialIndex : firstIndex);
   }
 
   function selectOption(option: SelectOption) {

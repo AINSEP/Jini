@@ -75,6 +75,7 @@ export function ExternalMcpTab({
   // text — showing both would just be two banners saying overlapping things.
   const banner = list.error ?? connectionError;
 
+  const draftTestResultProps = list.testResults[DRAFT_TEST_SCOPE] ? { testResult: list.testResults[DRAFT_TEST_SCOPE] } : {};
   return (
     <section className="external-mcp-tab">
       <div className="external-mcp-head">
@@ -112,7 +113,7 @@ export function ExternalMcpTab({
           onSubmit={() => void addForm.submit()}
           canTest={list.capabilities.canTest}
           testing={list.isPending(DRAFT_TEST_SCOPE, 'test')}
-          {...(list.testResults[DRAFT_TEST_SCOPE] ? { testResult: list.testResults[DRAFT_TEST_SCOPE] } : {})}
+          {...draftTestResultProps}
           onTest={() => void list.test(undefined, addForm.values)}
           addLabel="Add server"
         />
@@ -122,14 +123,16 @@ export function ExternalMcpTab({
         <div className="source-config-list-loading" role="status">
           {t('Loading…')}
         </div>
-      ) : list.sources.length === 0 ? (
+      ) : null}
+      {!list.loading && list.sources.length === 0 ? (
         <div className="external-mcp-empty">
           <p className="external-mcp-empty-title">{t('No MCP servers configured.')}</p>
           <p className="external-mcp-empty-hint">
             {t('Click "Add server" to get started — pick a template or set up a custom stdio / HTTP server.')}
           </p>
         </div>
-      ) : (
+      ) : null}
+      {!list.loading && list.sources.length > 0 ? (
         <div className="source-config-list-items">
           {list.sources.map((source) => (
             <SourceConfigItemCard
@@ -152,7 +155,7 @@ export function ExternalMcpTab({
             />
           ))}
         </div>
-      )}
+      ) : null}
 
       <ExternalMcpFooter saveStatusLabel={saveStatusLabel} configPath={configPath} />
     </section>

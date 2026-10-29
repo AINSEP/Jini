@@ -64,6 +64,7 @@ export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: handle, ...pr
   const { expanded, setExpanded, overflows, textRef, regionId, lineCount } = useClamp({ lines, children });
   const view = resolveSeeMoreView({ expanded }, { moreLabel, lessLabel, className, textClassName, toggleClassName });
 
+  const toggleHandleProps = handle ? agentHandle({ handle: handle }, { role: "button", label: toggleAriaLabel ?? view.toggleLabel }) : {};
   return (
     <div className={view.wrapperClassName}>
       <div
@@ -84,7 +85,7 @@ export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: handle, ...pr
           aria-controls={regionId}
           aria-label={toggleAriaLabel}
           onClick={() => setExpanded((current) => !current)}
-          {...(handle ? agentHandle({ handle: handle }, { role: "button", label: toggleAriaLabel ?? view.toggleLabel }) : {})}
+          {...toggleHandleProps}
         >
           {view.toggleLabel}
         </button>
