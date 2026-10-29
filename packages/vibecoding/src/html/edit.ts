@@ -9,6 +9,23 @@
  * if ("region" in found) replaceRegionInner({ html, region: found.region, fragment: "<h1>Hi</h1>" });
  */
 import type { ParsedRegion } from "./regions.js";
+import { trimCharsEnd } from "@jini-ai/core/primitives";
+
+/** Replaces each `<...>` tag with a space, exactly as `text.replace(/<[^>]*>/g, " ")` does but in
+ * linear time: once a `<` has no closing `>` after it, no later `<` has one either. */
+function replaceTags(text: string): string {
+  let out = "";
+  let from = 0;
+  let open = text.indexOf("<");
+  let close = open === -1 ? -1 : text.indexOf(">", open + 1);
+  while (close !== -1) {
+    out += text.slice(from, open) + " ";
+    from = close + 1;
+    open = text.indexOf("<", from);
+    close = open === -1 ? -1 : text.indexOf(">", open + 1);
+  }
+  return out + text.slice(from);
+}
 
 /** A discovered handle, including unsafe regions so reads never silently lose an address. */
 export interface ScannedRegion extends ParsedRegion {
@@ -133,7 +150,7 @@ export function suggestRegionHandle(
 ): string | undefined {
   const heading = HEADING_PATTERN.exec(inner);
   if (!heading) return undefined;
-  const slug = slugify((heading[1] as string).replace(/<[^>]*>/g, " ")).slice(0, 48).replace(/-+$/g, "");
+  const slug = trimCharsEnd({ text: slugify(replaceTags(heading[1] as string)).slice(0, 48), chars: "-" });
   if (slug === "" || taken.has(slug)) return undefined;
   return slug;
 }

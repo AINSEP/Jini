@@ -87,16 +87,19 @@ export async function applyEdits(
  * @returns one `{ id, reason }` per non-applied outcome, in input order.
  * @complexity 3
  */
+/** Why an outcome needs correcting; applied outcomes need none. */
+function correctionReason(outcome: ApplyOutcome): string | undefined {
+  if (outcome.status === "rejected") return outcome.reason;
+  return outcome.status === "failed" ? outcome.error.message : undefined;
+}
+
 export function correctionsFor(
   { outcomes }: { readonly outcomes: readonly ApplyOutcome[] }
 ): readonly { readonly id: PartId; readonly reason: string }[] {
   const corrections: { id: PartId; reason: string }[] = [];
   for (const outcome of outcomes) {
-    if (outcome.status === "rejected") {
-      corrections.push({ id: outcome.id, reason: outcome.reason });
-    } else if (outcome.status === "failed") {
-      corrections.push({ id: outcome.id, reason: outcome.error.message });
-    }
+    const reason = correctionReason(outcome);
+    if (reason !== undefined) corrections.push({ id: outcome.id, reason });
   }
   return corrections;
 }

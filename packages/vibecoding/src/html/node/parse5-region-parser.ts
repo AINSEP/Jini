@@ -118,8 +118,7 @@ function* walkNodes(root: Parse5Node): Generator<Parse5Node> {
   while (pending.length > 0) {
     const node = pending.pop() as Parse5Node; // Nonempty stack on this branch.
     yield node;
-    const children = "content" in node ? node.content.childNodes : "childNodes" in node ? node.childNodes : undefined;
-    if (children === undefined) continue;
+    const children = childrenOf(node);
     for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index] as Parse5Node);
   }
 }
@@ -190,13 +189,18 @@ function analyzeRegion(element: Parse5Element, handle: string): ScannedRegion {
   };
 }
 
+/** A template's content children, an ordinary node's children, or none for a leaf. */
+function childrenOf(node: Parse5Node): readonly unknown[] {
+  if ("content" in node) return node.content.childNodes;
+  return "childNodes" in node ? node.childNodes : [];
+}
+
 /** Direct fragment children in source order; implied closes suffice for tagging advice, not edits. */
 function topLevelElements(fragment: DefaultTreeAdapterTypes.DocumentFragment): HtmlTopLevelElement[] {
   const elements: HtmlTopLevelElement[] = [];
   for (const child of fragment.childNodes) {
-    if (!("tagName" in child)) continue;
-    const location = child.sourceCodeLocation;
-    if (!location?.startTag) continue; // Implicit wrappers have no authored open tag to annotate.
+    // Implicit wrappers have no authored open tag to annotate.
+    if (!("tagName" in child) || !child.sourceCodeLocation?.startTag) continue;
     const handle = attributeValue(child, AGENT_ELEMENT_ATTRIBUTE);
     elements.push({
       tag: child.tagName,

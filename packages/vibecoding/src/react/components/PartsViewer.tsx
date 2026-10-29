@@ -101,6 +101,15 @@ const EMPTY_STYLE: CSSProperties = { padding: 12, color: '#6b7280' };
  * @complexity O(parts.length) to render the list; content rendering is O(content.length).
  * @overallScore 100/100
  */
+/** The content pane: a prompt with no selection, a loading note, or the selected part's text. */
+function partContent({ selectedId, contentLoading, content }: { selectedId: PartId | null | undefined; contentLoading: boolean | undefined; content: string | undefined }) {
+  if (selectedId === undefined || selectedId === null) {
+    return <p style={{ ...CONTENT_STYLE, ...EMPTY_STYLE }}>Select a part to inspect its content.</p>;
+  }
+  if (contentLoading) return <p style={{ ...CONTENT_STYLE, ...EMPTY_STYLE }}>Loading…</p>;
+  return <pre style={CONTENT_STYLE}>{content ?? ''}</pre>;
+}
+
 export function PartsViewer({ parts, selectedId, onSelect, content, contentLoading, className, style }: PartsViewerProps) {
   return (
     <div className={className} style={style ? { ...ROOT_STYLE, ...style } : ROOT_STYLE}>
@@ -129,13 +138,7 @@ export function PartsViewer({ parts, selectedId, onSelect, content, contentLoadi
           })
         )}
       </ul>
-      {selectedId === undefined || selectedId === null ? (
-        <p style={{ ...CONTENT_STYLE, ...EMPTY_STYLE }}>Select a part to inspect its content.</p>
-      ) : contentLoading ? (
-        <p style={{ ...CONTENT_STYLE, ...EMPTY_STYLE }}>Loading…</p>
-      ) : (
-        <pre style={CONTENT_STYLE}>{content ?? ''}</pre>
-      )}
+      {partContent({ selectedId, contentLoading, content })}
     </div>
   );
 }

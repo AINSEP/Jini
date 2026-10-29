@@ -92,7 +92,7 @@ export function VibecodingWorkbench({ session, documentHtml, className, style }:
   useEffect(() => {
     if (selectedId === null) {
       setSelectedContent(undefined);
-      return;
+      return undefined;
     }
     let cancelled = false;
     setContentLoading(true);

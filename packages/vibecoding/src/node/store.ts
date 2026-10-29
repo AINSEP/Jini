@@ -52,10 +52,16 @@ function assertHash(hash: string): void { if (!HASH.test(hash)) corrupt('invalid
 function missing(error: unknown): boolean { return (error as NodeJS.ErrnoException)?.code === 'ENOENT'; }
 /** Absent destinations (or a file where a parent folder was expected) are not errors here. */
 async function lstatIfPresent(path: string) {
-  return fs.lstat(path).catch(error => { if (missing(error) || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return undefined; throw error; });
+  return fs.lstat(path).catch(error => {
+    if (missing(error) || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return undefined;
+    throw error;
+  });
 }
 async function statIfPresent(path: string) {
-  return fs.stat(path).catch(error => { if (missing(error)) return undefined; throw error; });
+  return fs.stat(path).catch(error => {
+    if (missing(error)) return undefined;
+    throw error;
+  });
 }
 
 /** Reject links and special files even when platform containment permits an in-root alias.
@@ -113,11 +119,20 @@ function checkManifest({ value, paths, limits }: { value: unknown; paths: Projec
   assertCandidatePaths({ paths: [...seen] });
   return manifest;
 }
+/** A safe, non-negative integer no larger than `max` (a stored size is untrusted data). */
+function isByteCount(value: number, max = Number.POSITIVE_INFINITY): boolean {
+  return Number.isSafeInteger(value) && value >= 0 && value <= max;
+}
+/** Code-unit order, independent of locale. */
+function compareCodeUnits(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
 function checkManifestFile({ file, paths, limits }: { file: ManifestFile; paths: ProjectPaths; limits: ProjectLimits }): void {
   if (!file || typeof file.path !== 'string' || typeof file.hash !== 'string') corrupt('invalid manifest file');
   assertHash(file.hash);
   paths.check({ relativePath: file.path });
-  if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > limits.maxFileBytes) corrupt('invalid manifest size');
+  if (!isByteCount(file.size, limits.maxFileBytes)) corrupt('invalid manifest size');
 }
 function checkCurrent({ value, root }: { value: unknown; root: string }): Current {
   const current = value as Current | null;
@@ -134,7 +149,7 @@ function checkObserved(observed: Current['observed']): void {
 }
 function checkFingerprint(value: Fingerprint): void {
   if (!value || typeof value !== 'object') corrupt('invalid file fingerprint');
-  if (!Number.isSafeInteger(value.size) || value.size < 0) corrupt('invalid fingerprint size');
+  if (!isByteCount(value.size)) corrupt('invalid fingerprint size');
   if (!Number.isFinite(value.mtimeMs) || !Number.isFinite(value.ctimeMs)) corrupt('invalid fingerprint timestamps');
 }
 function checkPending(pending: Current['pending']): void {
@@ -195,7 +210,7 @@ export function createProjectStore({ root, stateDir, paths, limits, filesystem }
   async function prepare({ files }: { files: ReadonlyMap<string, Uint8Array> }): Promise<string> {
     assertCandidatePaths({ paths: [...files.keys()] });
     const entries: ManifestFile[] = [];
-    for (const [path, bytes] of [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
+    for (const [path, bytes] of [...files].sort(([a], [b]) => compareCodeUnits(a, b))) {
       const file = { path, hash: digest({ bytes }), size: bytes.byteLength };
       entries.push(file);
     }
@@ -427,7 +442,10 @@ export function createProjectStore({ root, stateDir, paths, limits, filesystem }
 }
 /** Generated orphan objects/manifests are safe to discard only while holding the project lock. */
 async function removeUnreferenced({ directory, keep }: { directory: string; keep: ReadonlySet<string> }): Promise<void> {
-  const names = await fs.readdir(directory).catch(error => { if (missing(error)) return []; throw error; });
+  const names = await fs.readdir(directory).catch(error => {
+    if (missing(error)) return [];
+    throw error;
+  });
   for (const name of names) {
     if (!keep.has(name)) await fs.rm(resolve(directory, name), { force: true });
   }
