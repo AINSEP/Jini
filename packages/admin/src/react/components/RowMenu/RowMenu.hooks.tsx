@@ -167,13 +167,9 @@ export function useRowMenu(
   }
 
   function onTriggerKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      openAt(0);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      openAt(itemCount - 1);
-    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    openAt(e.key === 'ArrowDown' ? 0 : itemCount - 1);
   }
 
   function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {

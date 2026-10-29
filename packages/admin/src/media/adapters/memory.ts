@@ -1,3 +1,4 @@
+import { trimCharsEnd } from '@jini-ai/core/text';
 import type { MediaApiPort, MediaProvidersPort } from '../ports.js';
 import type {
   MediaAsset,
@@ -14,7 +15,7 @@ function pickMetadata({ patch }: { patch: MediaMetadataPatch }): MediaMetadataPa
 }
 /** Decoded length of a base64 string: 3 bytes per 4 chars, minus trailing padding. */
 function base64ByteSize({ dataBase64 }: { dataBase64: string }) {
-  const padding = dataBase64.match(/=+$/)?.[0].length ?? 0;
+  const padding = dataBase64.length - trimCharsEnd({ text: dataBase64, chars: '=' }).length;
   return Math.max(0, Math.floor(dataBase64.length * 3 / 4) - padding);
 }
 export function createMemoryMediaApi(

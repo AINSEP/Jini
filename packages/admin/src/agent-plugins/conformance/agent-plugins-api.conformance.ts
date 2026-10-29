@@ -10,7 +10,7 @@ export async function runAgentPluginsApiConformance({ create, pluginId, otherPlu
   const expectRejection = async (run: () => Promise<unknown>) => { let rejected = false; try { await run(); } catch { rejected = true; } check(rejected); };
   try {
     await test('lists installed packages independent of activation', () => { check(initial.length >= 2 && new Set(initial.map(p => p.pluginId)).size === initial.length); });
-    await test('list snapshots are immutable', () => { check(Object.isFrozen(initial) && Object.isFrozen(first) && Object.isFrozen(first.skills) && Object.isFrozen(first.keywords) && Object.isFrozen(first.mcpServerIds)); });
+    await test('list snapshots are immutable', () => { check([initial, first, first.skills, first.keywords, first.mcpServerIds].every(value => Object.isFrozen(value))); });
     await test('activation replies with the single updated row', async () => { const row = await api.setEnabled({ pluginId, enabled: !first.enabled }); check(row.pluginId === pluginId && row.enabled === !first.enabled && row.description === first.description); });
     await test('accepted activation is visible on reload', async () => { check((await api.list({})).find(p => p.pluginId === pluginId)?.enabled === !first.enabled); });
     await test('old snapshot retains its original enabled value', () => { check(initial.find(p => p.pluginId === pluginId)?.enabled === first.enabled); });

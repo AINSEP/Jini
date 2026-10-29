@@ -19,7 +19,7 @@ import {
 import { MediaRefField } from "../components/MediaRefField.js";
 import { SitemapModal } from "../components/SitemapModal.js";
 
-import type { SeoEntryAnalysis, SeoEntryPanelController, SeoSettings, SeoSettingsPatch } from "../../models.js";
+import type { SeoEntryAnalysis, SeoEntryPanelController } from "../../models.js";
 
 /**
  * `SeoSettingsScreen` (SPEC-008 ui.spec.md §2.4) — the site-wide `seo.*` settings form +
@@ -161,6 +161,12 @@ function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredE
   );
 }
 
+/** Status-chip modifier for an issue: errors read as failures, warnings as warnings, anything else as success. */
+function issueStatusClass(severity: string): string {
+  if (severity === "error") return "failure";
+  return severity === "warning" ? "warning" : "success";
+}
+
 /** Read-only score + issues view (REQ-07) — exact field names read off `SeoAnalysis`/`SeoIssue`
  * (`src/seo/types.ts`), not guessed. No state of its own — only the severity sort, which lives in
  * `rules.ts` as `sortIssuesBySeverity`. */
@@ -186,7 +192,7 @@ function AnalyzePanel(props: { locale: string; analysis: SeoEntryAnalysis }) {
         <ul className="jini-seo-issues">
           {sortedIssues.map((issue, i) => (
             <li key={`${issue.code}-${i}`} className="jini-seo-issue">
-              <span className={`jini-status jini-status-${issue.severity === "error" ? "failure" : issue.severity === "warning" ? "warning" : "success"}`}>
+              <span className={`jini-status jini-status-${issueStatusClass(issue.severity)}`}>
                 {issue.severity}
               </span>
               <span className="jini-seo-issue-text">

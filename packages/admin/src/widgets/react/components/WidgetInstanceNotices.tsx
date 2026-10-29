@@ -34,6 +34,8 @@ export function WidgetInstanceGuardNotice({ guard, t }: { guard: WidgetInstanceG
       return <div className="notice error">{t("No widget type specified.")}</div>;
     case "unknown-type":
       return <div className="notice error">{t('Unknown widget type "')}{guard.widgetType}".</div>;
+    default:
+      return null;
   }
 }
 

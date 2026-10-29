@@ -2,10 +2,11 @@ import { createControllerStore } from '../../core/module/controller-store.js';
 import type { RootKeyPort } from '../ports.js';
 import type { RootKeyStatus, RootKeyPreview, RootKeyResult } from '../models.js';
 import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked } from '../rules.js';
+const receiverLabel = (w: NonNullable<RootKeyResult['affectedWebhooks']>[number]) => `${w.label} (${w.targetUrl})`;
 /** Receivers named in a result need their new signing secret; the message tells the operator which ones. */
 function resultMessage({ result, response }: { result: string; response: RootKeyResult }, _optional = {}) {
   const hooks = response.affectedWebhooks;
-  return hooks?.length ? `${result} Update receivers: ${hooks.map(w => `${w.label} (${w.targetUrl})`).join(', ')}` : result;
+  return hooks?.length ? `${result} Update receivers: ${hooks.map(receiverLabel).join(', ')}` : result;
 }
 export function createRootKeyController({ api, permissions = [] }: { api: RootKeyPort; permissions?: readonly string[] }, _optional = {}) {
   const granted = permissions.includes(ROOT_KEY_PERMISSION);

@@ -62,7 +62,7 @@ export function createWidgetInstanceEditorController(
     store.set({ patch: { saving: true, message: null, error: null, fieldErrors: [] } });
     try {
       if (isNew) await createAndOpen({ widgetType, title, config });
-      else if (widget) await updateExisting({ widget, title, config, savingFor });
+      if (!isNew && widget) await updateExisting({ widget, title, config, savingFor });
     } catch (error) {
       if (isLiveSave({ savingFor })) store.set({ patch: resolveWidgetSaveError({ error }, { t }) });
     } finally {

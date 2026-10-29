@@ -6,7 +6,7 @@ export async function runSecurityApiConformance({ createApi, provider }: { creat
   const api = await createApi({}), target = credentialStore({ api, kind: provider.kind }); let passed = 0;
   function check(value: boolean, message: string) { if (!value) throw new Error(`Security contract: ${message}`);
     passed++; }
-  const suffix = `${Date.now()}-${Math.random()}`; const secret = `contract-secret-${suffix}`;
+  const suffix = `${Date.now()}-${globalThis.crypto.randomUUID()}`; const secret = `contract-secret-${suffix}`;
   const connection = { providerId: provider.id, [provider.tokenField]: secret, ...Object.fromEntries(provider.fields.filter(f => f.name !== provider.tokenField).map(f => [f.name, 'test-value'])) };
   const ids: string[] = [];
   try {

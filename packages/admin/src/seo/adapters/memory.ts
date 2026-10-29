@@ -1,5 +1,6 @@
 import type { AdminSeoPort } from '../ports.js';
 import type { SeoEntryMeta, SeoEntryAnalysis, SeoEntryOverridesPatch, SeoSettings, SeoSettingsPatch, AdminPost } from '../models.js';
+import { omitKeys } from '../../core/omit-keys.js';
 export interface SeoEntrySeed { meta: SeoEntryMeta; analysis: SeoEntryAnalysis }
 export interface MemorySeoOptions { settings?: SeoSettings; entries?: Record<string, SeoEntrySeed>; posts?: readonly AdminPost[]; pages?: readonly AdminPost[]; sitemapText?: string; sitemapError?: string; mediaOriginalUrl?: (required: { id: string }, optional?: Record<string, never>) => string }
 const defaultSettings = (): SeoSettings => ({ titleTemplate: '%s', defaultRobots: { noindex: false, nofollow: false }, sitemapEnabled: true, robotsRules: [] });
@@ -73,7 +74,7 @@ function settingOrCleared(patchValue: string | null | undefined, currentValue: s
  *  @complexity O(1) — three fixed field reads, no iteration. */
 function applySettingsPatch(current: SeoSettings, patch: SeoSettingsPatch): SeoSettings {
   const { defaultDescription, defaultOgImage, twitterSite, ...rest } = patch;
-  const { defaultDescription: _description, defaultOgImage: _image, twitterSite: _site, ...retained } = current;
+  const retained = omitKeys(current, ['defaultDescription', 'defaultOgImage', 'twitterSite']);
   return {
     ...retained,
     ...rest,
@@ -117,8 +118,9 @@ export function createMemorySeoApi(
       // O(k) in patch keys; null removes only touched overrides, omission preserves other edits.
       for (const key of Object.keys(patch) as (keyof SeoEntryOverridesPatch)[]) {
         const value = patch[key];
+        if (value === undefined) continue;
         if (value === null) delete current[key];
-        else if (value !== undefined) Object.assign(current, { [key]: value });
+        else Object.assign(current, { [key]: value });
       }
       overrides[entryId] = current;
       return clone(resolved(entryId));

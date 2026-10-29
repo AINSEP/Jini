@@ -125,18 +125,12 @@ export function useFormEditor(
   const isNew = props.formId === "new";
   const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormEditorController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormEditorState({});
-  const form = state.form;
+  const { form, mode, html, copyFeedback, name, slug, fields, notify } = state;
   const setForm = (value: FormEditorStateValue<"form">) => stateController?.update({ key: "form", value });
-  const mode = state.mode;
-  const html = state.html;
   const setHtml = (value: FormEditorStateValue<"html">) => stateController?.update({ key: "html", value });
-  const copyFeedback = state.copyFeedback;
   const setCopyFeedback = (value: FormEditorStateValue<"copyFeedback">) => stateController?.update({ key: "copyFeedback", value });
-  const name = state.name;
   const setName = (value: FormEditorStateValue<"name">) => stateController?.update({ key: "name", value });
-  const slug = state.slug;
   const setSlug = (value: FormEditorStateValue<"slug">) => stateController?.update({ key: "slug", value });
-  const fields = state.fields;
   const setFields = (value: FormEditorStateValue<"fields">) => stateController?.update({ key: "fields", value });
   // No UI edits this (owner ask 2026-09-22 removed the notify checkbox/recipients input from the
   // Fields tab — a future outside mail integration will design its own way to set it). Seeded from
@@ -144,7 +138,6 @@ export function useFormEditor(
   // wipes out a `notify` setting that predates this UI removal. Lives in the section controller, not a
   // `const`, only so `handleSave`'s existing-form branch can resync it from the write's own response
   // exactly like `form`/`name`/`slug`/`fields` already do below.
-  const notify = state.notify;
   // Roving-tabindex focus targets for the tab strip below, indexed the same as `FORM_TABS` — see
   // `nextTabIndex`'s doc comment for why the index math itself lives outside the component.
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);

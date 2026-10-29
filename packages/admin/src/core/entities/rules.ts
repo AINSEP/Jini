@@ -150,6 +150,17 @@ function describeNonJson(value: unknown): string | null {
   return reason === null ? null : `is not a JSON value: it ${reason}`;
 }
 
+/** One describer per declared kind; the `Record` type makes a new kind without one fail typecheck. */
+const FIELD_MISMATCH_BY_KIND: Readonly<Record<AdminEntityField['kind'], (value: unknown) => string | null>> = {
+  text: (value) => describeWrongType({ value, type: 'string', label: 'a string' }),
+  relation: (value) => describeWrongType({ value, type: 'string', label: 'a string' }),
+  datetime: describeNonDatetime,
+  integer: (value) => describeNonNumber({ value, accepts: Number.isInteger, reason: 'is not an integer' }),
+  real: (value) => describeNonNumber({ value, accepts: Number.isFinite, reason: 'is not a finite number' }),
+  boolean: (value) => describeWrongType({ value, type: 'boolean', label: 'a boolean' }),
+  json: describeNonJson,
+};
+
 /**
  * Whether `value` is a legal runtime value for `field`.
  *
@@ -172,25 +183,7 @@ export function describeAdminEntityFieldMismatch(
   field: AdminEntityField,
   value: unknown,
 ): string | null {
-  switch (field.kind) {
-    case 'text':
-    case 'relation':
-      return describeWrongType({ value, type: 'string', label: 'a string' });
-    case 'datetime':
-      return describeNonDatetime(value);
-    case 'integer':
-      return describeNonNumber({ value, accepts: Number.isInteger, reason: 'is not an integer' });
-    case 'real':
-      return describeNonNumber({
-        value,
-        accepts: Number.isFinite,
-        reason: 'is not a finite number',
-      });
-    case 'boolean':
-      return describeWrongType({ value, type: 'boolean', label: 'a boolean' });
-    case 'json':
-      return describeNonJson(value);
-  }
+  return FIELD_MISMATCH_BY_KIND[field.kind](value);
 }
 
 /**

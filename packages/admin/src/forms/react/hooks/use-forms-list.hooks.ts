@@ -88,7 +88,7 @@ export function useFormsList(
   useEffect(() => events?.subscribe({ onRefresh: invalidateList }), [events, invalidateList]);
   const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormsListController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormsListState({});
-  const rowSavingId = state.rowSavingId;
+  const { rowSavingId, pendingDelete } = state;
   const setRowSavingId = (value: FormsListStateValue<"rowSavingId">) => stateController?.update({ key: "rowSavingId", value });
 
   const toggleMutation = useFetchMutation({
@@ -101,7 +101,6 @@ export function useFormsList(
   // The form a `RowMenu` "Delete" selection is asking to confirm — `null` when the `ConfirmDialog`
   // is closed. `ConfirmDialog` stays mounted unconditionally in `FormsList.tsx`; this is what drives
   // its `open` prop — same shape `use-posts.hooks.ts`'s `pendingDelete` uses for its own row delete.
-  const pendingDelete = state.pendingDelete;
   const setPendingDelete = (value: FormsListStateValue<"pendingDelete">) => stateController?.update({ key: "pendingDelete", value });
 
   const deleteMutation = useFetchMutation({

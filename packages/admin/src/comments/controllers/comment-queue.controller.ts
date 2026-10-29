@@ -13,13 +13,14 @@ import { englishComments, type CommentsTranslator } from '../messages.en.js';
  * @returns An instance-scoped store and actions; dispose makes pending settlements inert.
  */
 export function createCommentQueueController(
-  { api, permissions = [] }: { api: AdminCommentsPort; permissions?: readonly string[] },
+  { api, permissions: initialPermissions = [] }: { api: AdminCommentsPort; permissions?: readonly string[] },
   { t = englishComments, onInvalidate, loadPage }: { t?: CommentsTranslator; onInvalidate?: () => void; loadPage?: (required: { status: CommentStatus; cursor: string }) => Promise<AdminCommentsQueuePage> } = {},
 ) {
   const store = createControllerStore<CommentQueueState>({ initial: {
     status: 'pending', items: null, nextCursor: null, error: null, loadingMore: false,
     rowState: {}, pendingPurge: null,
   } });
+  let permissions = initialPermissions;
   let firstPage: AdminCommentsQueuePage | null = null;
   let morePages: readonly AdminComment[] = [];
   let firstError: Error | null = null;

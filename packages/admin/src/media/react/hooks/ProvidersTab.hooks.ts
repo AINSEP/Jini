@@ -47,7 +47,10 @@ async function saveProvider(
   { port, item, signal }: { port: MediaProvidersPort; item: MediaProvider; signal: AbortSignal },
   { entry }: { entry?: ProviderEntry | undefined } = {},
 ) {
-  if (!entry) return removeIfStored({ port, item, signal });
+  if (!entry) {
+    await removeIfStored({ port, item, signal });
+    return;
+  }
   await saveProviderSettings({ port, item, entry, signal });
   if (entry.apiKey?.trim()) await port.saveCredential({ id: item.id, credential: entry.apiKey }, { signal });
 }

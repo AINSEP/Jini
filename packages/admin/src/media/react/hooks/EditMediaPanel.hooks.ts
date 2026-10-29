@@ -12,6 +12,12 @@ export interface EditMediaPanelProps {
   readonly onSaved: (required?: { message?: string }) => void | Promise<void>;
   readonly onClose: () => void;
 }
+/** Draft value for an edited field: pixel sizes parse, optional text clears to null when blank. */
+function draftFieldValue(key: string, value: string) {
+  if (key === 'width' || key === 'height') return parseOptionalPixelSize({ value });
+  if (key === 'cssClass' || key === 'htmlAttributes') return value.trim() === '' ? null : value;
+  return value;
+}
 export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<string, never> = {}) {
   const cached = useMediaLibraryQuery({ api: props.api }, { enabled: false });
   const { controller, snapshot } = useController({
@@ -59,9 +65,7 @@ export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<
       ...(key === 'title' ? { 'data-jini-autofocus': true } : {}),
       ...(key === 'htmlAttributes' ? { 'aria-invalid': !!hint } : {}) },
     onValueChange: ({ value }: { value: string }, _optional: Record<string, never> = {}) => {
-      const next = key === 'width' || key === 'height' ? parseOptionalPixelSize({ value })
-        : key === 'cssClass' || key === 'htmlAttributes' ? value.trim() === '' ? null : value : value;
-      controller?.setDraft({ patch: { [key]: next } });
+      controller?.setDraft({ patch: { [key]: draftFieldValue(key, value) } });
     },
   }));
   // Server-computed public URL, never the authenticated original route. Trashed assets
@@ -71,6 +75,7 @@ export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<
   const embed = mediaEmbedSnippet({ slug: props.item.slug });
   // Visible text is the legacy "Copy"/"Copied" on every row; the accessible name keeps
   // the value's noun so three identical buttons stay distinguishable, even mid-feedback.
+  const markCopied = (id: string, value: boolean) => setCopied(current => ({ ...current, [id]: value }));
   const copies = [
     { id: 'url', label: 'File URL', value: publicUrl, noun: 'URL' },
     { id: 'embed', label: 'Embed code', value: embed, noun: 'embed code' },
@@ -83,11 +88,11 @@ export function useEditMediaPanel(props: EditMediaPanelProps, _optional: Record<
         try {
           await navigator.clipboard.writeText(row.value);
           if (!mounted.current) return;
-          setCopied(current => ({ ...current, [row.id]: true }));
+          markCopied(row.id, true);
           clearTimeout(timers.current.get(row.id));
           timers.current.set(row.id, setTimeout(() => {
             timers.current.delete(row.id);
-            setCopied(current => ({ ...current, [row.id]: false }));
+            markCopied(row.id, false);
           }, 1500));
         } catch {
           // Clipboard may be denied/insecure. The full value stays selectable for manual copy.

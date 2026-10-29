@@ -1,5 +1,5 @@
 import type { SourceControlApiPort } from '../ports.js';
-import type { SourceControlCredential, SourceControlCredentialInput, SourceControlCredentialPatch, SourceControlProvider } from '../models.js';
+import type { SourceControlCredential, SourceControlCredentialInput, SourceControlProvider } from '../models.js';
 import { sourceControlProviders, sourceControlReady, sourceControlSummary, blankSourceControlDraft } from '../rules.js';
 export function createMemorySourceControlApi({ providers = [], credentials = [] }: { providers?: readonly SourceControlProvider[]; credentials?: readonly SourceControlCredential[] }, { now = () => new Date().toISOString() }: { now?: () => string } = {}): SourceControlApiPort {
   const catalog: readonly SourceControlProvider[] = Object.freeze(providers.map(p => Object.freeze({ ...p, ...(p.credential ? { credential: Object.freeze({ ...p.credential, fields: Object.freeze(p.credential.fields.map(f => Object.freeze({ ...f }))) }) } : {}) })));

@@ -1,3 +1,4 @@
+import { trimChars } from "@jini-ai/core/text";
 import { FIELD_TYPE_REGISTRY, isBrowserSafeFieldPattern, MAX_FORM_FILE_BYTES, SAFE_FORM_FILE_TYPES, type FieldType } from "@jini-ai/cms/forms";
 import type { AdminFormField } from "./models.js";
 
@@ -122,8 +123,10 @@ export function fieldTypeGroups({ current }: { current?: string }, _optional: Re
 
 /** Lowercase letters, digits and `_`, starting with a letter: the CMS `FIELD_ID_PATTERN`. */
 export function fieldIdFromLabel({ label }: { label: string }, _optional: Record<string, never> = {}): string {
-  const slug = label.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-  return slug === "" ? "" : /^[a-z]/.test(slug) ? slug : `field_${slug}`;
+  const underscored = label.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const slug = trimChars({ text: underscored, chars: "_" }).slice(0, 60);
+  if (slug === "") return "";
+  return /^[a-z]/.test(slug) ? slug : `field_${slug}`;
 }
 
 /**

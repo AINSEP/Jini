@@ -27,6 +27,7 @@ function inspectorStatus({ state, hasFiles }: { state: AgentPluginFilesState | n
   return hasFiles ? null : { text: m.filesEmpty, role: 'status' as const };
 }
 const fileGlyphs = { json: '{}', markdown: 'M↓', javascript: 'JS', typescript: 'TS', config: '⚙', html: '<>', css: '#', image: '▧', shell: '>', text: '¶', file: '▤' };
+const folderGlyph = (expanded: boolean) => (expanded ? '▾' : '▸');
 export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files: readonly AgentPluginPackageFile[]; selectedPath: string | null; onOpen: (required: { path: string }, optional?: Record<string, never>) => void }, _optional = {}) {
   const tree = buildPackageFileTree({ paths: files.map(f => f.relativePath) }), [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map());
   // Set by keyboard navigation to the tree that received the key, so the effect always has a real element.
@@ -36,14 +37,14 @@ export function useAgentPluginFileTree({ files, selectedPath, onOpen }: { files:
   const isExpanded = ({ path }: { path: string }) => toggled.get(path) ?? ancestors.has(path);
   const rows = visiblePackageFileRows({ nodes: tree, isExpanded });
   const visible = (path: string | null) => path !== null && rows.some(r => r.node.path === path);
-  const activePath = visible(focused) ? focused : visible(selectedPath) ? selectedPath : rows[0]?.node.path ?? null;
+  const activePath = [focused, selectedPath].find(path => visible(path)) ?? rows[0]?.node.path ?? null;
   // Move DOM focus only after keyboard navigation, never when opening the inspector.
   useEffect(() => { const tree = focusWithin.current; if (!tree) return;
     focusWithin.current = null; Array.from(tree.querySelectorAll<HTMLElement>('[data-tree-path]')).find(el => el.dataset.treePath === activePath)?.focus(); });
   const setExpanded = (path: string, expanded: boolean) => setToggled(current => new Map(current).set(path, expanded));
   return {
     rows: rows.map(row => { const { node } = row, folder = node.kind === 'folder', expanded = folder && isExpanded({ path: node.path }); return { key: `${node.kind}:${node.path}`, name: node.name, path: node.path, depth: row.depth + 1, setSize: row.setSize, posInSet: row.posInSet, expanded: folder ? expanded : undefined, selected: folder ? undefined : node.path === selectedPath, tabIndex: node.path === activePath ? 0 : -1,
-      icon: folder ? expanded ? '▾' : '▸' : fileGlyphs[packageFileIconKind({ fileName: node.name })], indent: { paddingInlineStart: `${row.depth * 1.25}rem`, ...(node.kind === 'file' && node.path === selectedPath ? { backgroundColor: 'Highlight', color: 'HighlightText' } : {}) },
+      icon: folder ? folderGlyph(expanded) : fileGlyphs[packageFileIconKind({ fileName: node.name })], indent: { paddingInlineStart: `${row.depth * 1.25}rem`, ...(node.kind === 'file' && node.path === selectedPath ? { backgroundColor: 'Highlight', color: 'HighlightText' } : {}) },
       onClick() { setFocused(node.path); if (folder) setExpanded(node.path, !expanded); else onOpen({ path: node.path }); }, onFocus() { setFocused(node.path); },
     }; }),
     onKeyDown(event: KeyboardEvent<HTMLElement>) {

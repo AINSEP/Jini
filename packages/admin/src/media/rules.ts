@@ -1,3 +1,4 @@
+import { trimChars } from '@jini-ai/core/text';
 import type {
   MediaAsset,
   MediaContentTabId,
@@ -164,7 +165,7 @@ export function mediaEmbedSnippet({ slug }: { slug?: string | undefined }, _opti
 export function mediaRowHandles({ media }: { media: readonly Pick<MediaAsset, 'id'>[] }, _optional: Record<string, never> = {}): readonly string[] {
   const used = new Set<string>();
   return media.map((item, index) => {
-    const slug = item.id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const slug = trimChars({ text: item.id.toLowerCase().replace(/[^a-z0-9]+/g, '-'), chars: '-' });
     const preferred = `media-item-${slug || index + 1}`;
     let handle = preferred, suffix = 2;
     while (used.has(handle)) {
