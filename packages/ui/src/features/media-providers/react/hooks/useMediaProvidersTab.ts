@@ -297,7 +297,8 @@ export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: 
 
   const fetchAndReconcile = useCallback(
     (migrateOnFirstUpload: boolean) => {
-      const ticket = ++loadTicket.current;
+      loadTicket.current += 1;
+      const ticket = loadTicket.current;
       const isCurrent = () => alive.current && loadTicket.current === ticket;
       // Captured for the MIGRATION decision only — `shouldSyncLocalProvidersToDaemon` asks "did the
       // operator already have local data before this fetch answered", which is a question about the

@@ -71,7 +71,7 @@ export function lineIntersectsLine(a1: Point, a2: Point, b1: Point, b2: Point): 
 /** Standard even-odd-rule ray-casting point-in-polygon test. */
 export function pointInPolygon(point: Point, polygon: readonly Point[]): boolean {
   let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
     const pi = polygon[i]!;
     const pj = polygon[j]!;
     // No `|| Number.EPSILON` divide-by-zero guard on `(pj.y - pi.y)`: the

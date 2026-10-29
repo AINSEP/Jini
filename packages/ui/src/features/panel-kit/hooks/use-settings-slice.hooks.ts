@@ -406,7 +406,8 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
       // "operator has work in flight" signal, and a handle that never cleared would refuse every
       // external refresh for the rest of the component's life after the first keystroke.
       timer.current = null;
-      const ticket = ++saveTicket.current;
+      saveTicket.current += 1;
+      const ticket = saveTicket.current;
       setSaveState({ status: "saving" });
       void writes.run({ task: () =>
         commitQueuedSave({ ticket, deps: {

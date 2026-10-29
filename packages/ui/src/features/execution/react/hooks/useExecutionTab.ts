@@ -111,7 +111,8 @@ export function useExecutionTab({
   const runDetection: (detect: () => Promise<readonly DetectedAgent[]>) => void = useCallback(
     (detect: () => Promise<readonly DetectedAgent[]>) => {
       clearTimeout(detectionTimer.current);
-      const ticket = ++detectionTicket.current;
+      detectionTicket.current += 1;
+      const ticket = detectionTicket.current;
       const isCurrent = () => alive.current && detectionTicket.current === ticket;
       setScan({ status: 'scanning' });
       detect().then(
@@ -148,7 +149,8 @@ export function useExecutionTab({
 
   const testConnection = useCallback(
     (config: ByokConfig) => {
-      const ticket = ++connectionTestTicket.current;
+      connectionTestTicket.current += 1;
+      const ticket = connectionTestTicket.current;
       const isCurrent = () => alive.current && connectionTestTicket.current === ticket;
       setConnectionTest({ status: 'testing' });
       port.testConnection(config).then(
@@ -173,7 +175,8 @@ export function useExecutionTab({
     (agentId: string, model?: string | undefined) => {
       const run = port.testAgent;
       if (!run) return;
-      const ticket = ++agentTestTicket.current;
+      agentTestTicket.current += 1;
+      const ticket = agentTestTicket.current;
       const isCurrent = () => alive.current && agentTestTicket.current === ticket;
       setAgentTest({ status: 'testing', agentId });
       run.call(port, agentId, model).then(
@@ -207,7 +210,8 @@ export function useExecutionTab({
     (config: ByokConfig) => {
       const listModels = port.listModels;
       if (!listModels) return;
-      const ticket = ++modelDiscoveryTicket.current;
+      modelDiscoveryTicket.current += 1;
+      const ticket = modelDiscoveryTicket.current;
       const isCurrent = () => alive.current && modelDiscoveryTicket.current === ticket;
       setModelDiscovery({ status: 'loading' });
       listModels.call(port, config).then(

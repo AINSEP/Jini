@@ -192,7 +192,10 @@ export function prepareEditorSource({ html }: { html: string }, options: EditorB
   instances.sort((a, b) => a.outerStart - b.outerStart);
   let markerAttribute = 'data-jini-raw-source-0';
   let namespace = 0;
-  while (html.toLowerCase().includes(markerAttribute)) markerAttribute = `data-jini-raw-source-${++namespace}`;
+  while (html.toLowerCase().includes(markerAttribute)) {
+    namespace += 1;
+    markerAttribute = `data-jini-raw-source-${namespace}`;
+  }
   const prepared = renderSourceShells({ html, instances, blocks: detected.blocks, markerAttribute }, {});
   return { ok: true, html: prepared, markerAttribute, instances, canvasCss: css.join('\n') };
 }
@@ -229,7 +232,9 @@ export function findEditorBlockOpening(
   let result: { start: number; end: number; openingTag: string } | undefined;
   const walk = (el: SourceElement) => {
     if (el.tagName === target.tagName.toLowerCase() && (target.id === undefined || el.attributes.id === target.id)) {
-      if (occurrence++ === target.occurrenceIndex && el.outerRange) {
+      const index = occurrence;
+      occurrence += 1;
+      if (index === target.occurrenceIndex && el.outerRange) {
         const { outerStart: start, openingEnd: end } = el.outerRange;
         result = { start, end, openingTag: html.slice(start, end) };
       }

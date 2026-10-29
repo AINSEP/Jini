@@ -421,17 +421,15 @@ export function toolsBadgeTranslation(count: number): { key: string; vars?: Reco
   return { key: '{count} tools', vars: { count } };
 }
 
+const STATUS_LABELS: Record<ConnectorStatus, string> = {
+  available: 'Available',
+  connected: 'Connected',
+  error: 'Error',
+  disabled: 'Disabled',
+};
+
 export function statusLabel(status: ConnectorStatus): string {
-  switch (status) {
-    case 'available':
-      return 'Available';
-    case 'connected':
-      return 'Connected';
-    case 'error':
-      return 'Error';
-    case 'disabled':
-      return 'Disabled';
-  }
+  return STATUS_LABELS[status];
 }
 
 export function defaultCategoryLabel(category: string): string {

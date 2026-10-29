@@ -19,7 +19,7 @@ export function usePreviewCanvasSize<T extends HTMLElement>(): [RefObject<T | nu
     // dead code, not a real defense. See this package's Phase 9.5
     // dead-branch-gets-refactored-away rule.
     const el = ref.current;
-    if (!el) return;
+    if (!el) return undefined;
     const measure = () => {
       const rect = el.getBoundingClientRect();
       setSize({ width: rect.width, height: rect.height });

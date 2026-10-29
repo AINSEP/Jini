@@ -1,3 +1,4 @@
+import { unhandledCase } from '../../utils/unhandled-case.js';
 import type { McpClientId, McpClientSnippet, McpInstallInfo, McpInstallPlatform, McpStdioServerConfig } from './types.js';
 
 /** Path hint per OS — a Windows user shouldn't see a `~/...` path their
@@ -204,7 +205,7 @@ export function snippetForClient(clientId: McpClientId, serverName: string, info
   // refactored away rather than kept behind a coverage-suppression comment.
   // TypeScript still catches a missing case if `McpClientId` grows a member
   // and only `methodLabelForClient` gets updated: with every current case
-  // returning, `tsc` requires this switch to be exhaustive too, or the
-  // function's declared `McpClientSnippet` return type is violated on the
-  // "falls through" path.
+  // returning, `unhandledCase`'s `never` parameter makes `tsc` require this
+  // switch to be exhaustive too.
+  return unhandledCase(clientId);
 }

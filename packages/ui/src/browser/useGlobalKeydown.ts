@@ -56,10 +56,10 @@ export function useGlobalKeydown(
   }, [handler]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) return undefined;
     const eventTarget = resolveTarget({ target });
     // A host may intentionally provide no target while its surface is detached.
-    if (typeof eventTarget === 'undefined') return;
+    if (typeof eventTarget === 'undefined') return undefined;
 
     function onKeyDown(event: KeyboardEvent) {
       handlerRef.current(event);

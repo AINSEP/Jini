@@ -67,7 +67,7 @@ export function useDismissOnOutsideOrEscape(
   }, [onDismiss]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) return undefined;
     return subscription.subscribe({ containerRef, onDismiss: () => onDismissRef.current() });
   }, [enabled, containerRef, subscription]);
 }

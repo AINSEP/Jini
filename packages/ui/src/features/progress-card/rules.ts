@@ -18,17 +18,15 @@ export function progressCardItemIcon(status: ProgressStatus): IconName | null {
   return status === 'succeeded' ? 'check' : null;
 }
 
+const STATUS_LABELS: Record<ProgressStatus, string> = {
+  pending: 'Queued',
+  running: 'Running',
+  succeeded: 'Complete',
+  failed: 'Needs attention',
+};
+
 export function progressCardStatusLabel(status: ProgressStatus): string {
-  switch (status) {
-    case 'pending':
-      return 'Queued';
-    case 'running':
-      return 'Running';
-    case 'succeeded':
-      return 'Complete';
-    case 'failed':
-      return 'Needs attention';
-  }
+  return STATUS_LABELS[status];
 }
 
 /** Neutral fallback title used when a host doesn't supply one. Deliberately
@@ -39,17 +37,15 @@ export function defaultProgressCardTitle(status: ProgressStatus): string {
 }
 
 /** Neutral fallback detail line used when a host doesn't supply one. */
+const DEFAULT_DETAILS: Record<ProgressStatus, string> = {
+  pending: 'Waiting to start.',
+  running: 'In progress.',
+  succeeded: 'Completed.',
+  failed: 'Needs attention.',
+};
+
 export function defaultProgressCardDetail(status: ProgressStatus): string {
-  switch (status) {
-    case 'pending':
-      return 'Waiting to start.';
-    case 'running':
-      return 'In progress.';
-    case 'succeeded':
-      return 'Completed.';
-    case 'failed':
-      return 'Needs attention.';
-  }
+  return DEFAULT_DETAILS[status];
 }
 
 export function clampProgressPercent(value: number): number {

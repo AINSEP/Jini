@@ -58,9 +58,9 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
     if (!unlocked || !port.fetchConnectorEnrichment) {
       setEnriched(false);
       setEnriching(false);
-      return;
+      return undefined;
     }
-    if (enriched) return;
+    if (enriched) return undefined;
 
     let cancelled = false;
     setEnriching(true);

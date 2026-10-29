@@ -128,7 +128,7 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     return claimOpenTip(hide);
   }, [open]);
 
@@ -136,7 +136,7 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   // itself is pointer-events:none, so "outside the icon" is every other target.
   useDismissOnOutsideOrEscape({ onDismiss: hide }, { enabled: pinned !== false, containerRef: iconRef });
   useEffect(() => {
-    if (pinned !== "tap") return;
+    if (pinned !== "tap") return undefined;
     const timer = setTimeout(hide, TAP_TIP_MS);
     return () => clearTimeout(timer);
   }, [pinned]);
@@ -146,7 +146,7 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   // without a mouseleave firing yet: close it. A scroll in an unrelated pane (a streaming chat)
   // leaves it be. A resize re-measures instead, so it keeps following its icon.
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const closeIfMoved = (e: Event) => {
       const icon = iconRef.current;
       if (icon && e.target instanceof Node && !e.target.contains(icon)) return;

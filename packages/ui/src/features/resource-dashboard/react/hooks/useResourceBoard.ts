@@ -148,7 +148,7 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
   // click handler runs — checked via `menuContainerRef.contains(target)`,
   // same guard DesignsTab's own `menuContainerRef`-based effect uses.
   useEffect(() => {
-    if (!openMenuId) return;
+    if (!openMenuId) return undefined;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpenMenuId(null);
     };

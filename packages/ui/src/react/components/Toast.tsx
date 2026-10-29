@@ -182,7 +182,7 @@ export function useToastAutoDismiss(
     // Re-entrant: a new message reuses the same mounted toast, so clear any
     // prior leaving state before re-arming the timers.
     setLeaving(false);
-    if (!toastShouldAutoDismiss(hasDismiss, effectiveTtl)) return;
+    if (!toastShouldAutoDismiss(hasDismiss, effectiveTtl)) return undefined;
     const fadeId = window.setTimeout(() => setLeaving(true), toastFadeDelay(effectiveTtl));
     const dismissId = window.setTimeout(fireDismiss, effectiveTtl);
     return () => {

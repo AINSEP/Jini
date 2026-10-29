@@ -267,7 +267,7 @@ export function useConnectorAuthorization(
 
   // Poll statuses while any authorization is in flight.
   useEffect(() => {
-    if (Object.keys(pending).length === 0) return;
+    if (Object.keys(pending).length === 0) return undefined;
     const interval = setInterval(() => {
       setPending((curr) => pruneConnectorAuthorizationPending(curr, Date.now()));
       void reloadStatuses();

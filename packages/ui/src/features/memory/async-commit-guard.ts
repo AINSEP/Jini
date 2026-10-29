@@ -30,7 +30,10 @@ export interface AsyncCommitGuard {
 export function createAsyncCommitGuard(): AsyncCommitGuard {
   let currentRevision = 0;
   return {
-    begin: () => ++currentRevision,
+    begin: () => {
+      currentRevision += 1;
+      return currentRevision;
+    },
     capture: () => currentRevision,
     invalidate: () => {
       currentRevision += 1;

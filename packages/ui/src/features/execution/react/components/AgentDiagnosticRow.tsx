@@ -2,6 +2,7 @@ import { useT } from '../../../i18n/index.js';
 import { agentDiagnosticTooltip } from '../../rules.js';
 import type { AgentDiagnostic, AgentFixIntent } from '../../types.js';
 import { Icon } from '../../../../react/components/Icon.js';
+import { unhandledCase } from '../../../../utils/unhandled-case.js';
 import type { IconName } from '../../../../react/components/Icon.js';
 
 /**
@@ -62,6 +63,7 @@ function resolveAction(
     case 'launchOAuth':
       return null;
   }
+  return unhandledCase(intent);
 }
 
 /**

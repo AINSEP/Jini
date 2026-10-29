@@ -224,7 +224,7 @@ export function useTooltipLayer(): UseTooltipLayerResult {
   }, [restoreNativeTitle]);
 
   useEffect(() => {
-    if (!state?.target || typeof MutationObserver === 'undefined') return;
+    if (!state?.target || typeof MutationObserver === 'undefined') return undefined;
     const target = state.target;
     const observer = new MutationObserver(() => {
       if (!isTooltipTarget(target)) {

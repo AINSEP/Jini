@@ -68,7 +68,7 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
   }, [fetchAssetById]);
 
   useEffect(() => {
-    if (!active || !liveUpdates) return;
+    if (!active || !liveUpdates) return undefined;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const pendingIngest = new Set<string>();

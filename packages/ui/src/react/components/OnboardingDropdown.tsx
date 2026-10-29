@@ -194,7 +194,7 @@ export function useOnboardingDropdownPlacement(
   });
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
 
     function measureMenu() {
       const node = rootRef.current;
@@ -279,7 +279,7 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
 
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {

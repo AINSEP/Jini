@@ -131,7 +131,7 @@ export function usePaletteDismiss(options: {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     function onDoc(ev: MouseEvent) {
       if (!rootRef.current) return;
       if (rootRef.current.contains(ev.target as Node)) return;
