@@ -3,6 +3,9 @@ import { describe, expect, test } from "vitest";
 import {
   decodeMinor, decodeNullableMinor, encodeColumns, encodeMinor, encodeNullableMinor, inboxFromRow, PAYMENT_PATCH_COLUMNS, patchColumns,
   paymentFromRow,
+  attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, evidenceFromRow, evidenceToRow,
+  operatorActionFromRow, operatorActionToRow, outboxFromRow, outboxToRow, quarantineFromRow, quarantineToRow,
+  refundFromRow, refundToRow, revivedPayload,
 } from "../rows.js";
 
 describe("decodeMinor: the one integer decoder every row mapper uses", () => {
@@ -35,6 +38,132 @@ describe("decodeMinor: the one integer decoder every row mapper uses", () => {
     expect(decodeNullableMinor({ value: null })).toBeNull();
     expect(decodeNullableMinor({ value: "7" })).toBe(7);
     expect(() => decodeNullableMinor({ value: undefined })).toThrow(TypeError);
+  });
+});
+
+describe("integer boundaries refuse coercion and rounding", () => {
+  test.each([
+    [Number.MIN_SAFE_INTEGER, Number.MIN_SAFE_INTEGER],
+    [String(Number.MIN_SAFE_INTEGER), Number.MIN_SAFE_INTEGER],
+    [BigInt(Number.MIN_SAFE_INTEGER), Number.MIN_SAFE_INTEGER],
+    ["0007", 7], ["-0007", -7], ["0", 0], ["9", 9],
+  ])("decodes %s to the exact safe integer %s", (value, expected) => {
+    expect(decodeMinor({ value }, {})).toBe(expected);
+  });
+
+  test.each([[], {}, false, -Infinity, -1.5, -(2 ** 53), "-9007199254740993", -9007199254740993n, "1e2", "+7", "7 ", " 7", "7!", "a7", "7a", "--7", "7.0", "７", "\n7"].map((value) => ({ value })))
+    ("rejects a non-integer database representation $value", ({ value }) => {
+      expect(() => decodeMinor({ value })).toThrow(TypeError);
+      expect(() => decodeMinor({ value })).toThrow("ledger: expected a safe integer from the database");
+    });
+
+  // Regression: `$` accepts a position before a final newline; database integer strings must not contain whitespace.
+  test.each(["7\n", "-7\n"])("rejects the trailing newline in database integer %j", (value) => {
+    expect(() => decodeMinor({ value })).toThrow(TypeError);
+    expect(() => decodeMinor({ value })).toThrow("ledger: expected a safe integer from the database");
+  });
+
+  test("encoding copies its input and preserves exact signed monetary adjustments", () => {
+    const input = Object.freeze({ fee_minor: -17, net_minor: Number.MIN_SAFE_INTEGER, settlement_minor: null, currency: "USD" });
+    const encoded = encodeColumns(input, {});
+    expect(encoded).toEqual({ fee_minor: -17, net_minor: -9_007_199_254_740_991, settlement_minor: null, currency: "USD" });
+    expect(encoded).not.toBe(input);
+    expect(encodeMinor({ value: Number.MIN_SAFE_INTEGER }, {})).toBe(-9_007_199_254_740_991);
+    expect(encodeNullableMinor({ value: null }, {})).toBeNull();
+    expect(decodeNullableMinor({ value: null }, {})).toBeNull();
+  });
+
+  test("a revived payload replaces only verified facts, hash and purge time", () => {
+    expect(revivedPayload({}, {})).toEqual({});
+    const payload = Object.freeze({ factsJson: '{"verified":true}', bodySha256: "cd".repeat(32) });
+    expect(revivedPayload({ payload }, {})).toEqual({ facts_json: '{"verified":true}', body_sha256: "cd".repeat(32), purged_at: null });
+    expect(payload).toEqual({ factsJson: '{"verified":true}', bodySha256: "cd".repeat(32) });
+  });
+});
+
+describe("record codecs preserve independent monetary and time fields", () => {
+  const scope = { workspaceId: "ws", siteId: "site", providerId: "stripe", providerAccountId: "acct", mode: "live" as const };
+  const rowScope = { workspace_id: "ws", site_id: "site", provider_id: "stripe", provider_account_id: "acct", mode: "live" };
+
+  test("capture amounts and both timestamps survive driver integer representations", () => {
+    const record = {
+      ...scope, id: "att", paymentId: "pay", op: "capture" as const, operationKey: "operation", refundId: "refund",
+      outcome: "unknown" as const, errorCode: "TIMEOUT", errorMessage: "reply lost", createdAt: 101, updatedAt: 203,
+      currency: "JPY", amountMinor: 307,
+    };
+    const row = {
+      ...rowScope, id: "att", payment_id: "pay", op: "capture", operation_key: "operation", refund_id: "refund",
+      outcome: "unknown", error_code: "TIMEOUT", error_message: "reply lost", created_at: 101, updated_at: 203,
+      currency: "JPY", amount_minor: 307,
+    };
+    expect(attemptToRow(record, {})).toEqual(row);
+    expect(attemptFromRow({ ...row, created_at: "101", updated_at: 203n, amount_minor: "307" }, {})).toEqual(record);
+  });
+
+  test("a refund preserves its currency, exact amount, reason and scoped references", () => {
+    const record = {
+      ...scope, id: "refund", paymentId: "pay", idempotencyKey: "key", providerRefundRef: "re_1", currency: "USD",
+      amountMinor: 101, status: "succeeded" as const, reason: "requested", createdAt: 203, updatedAt: 307,
+    };
+    const row = {
+      ...rowScope, id: "refund", payment_id: "pay", idempotency_key: "key", provider_refund_ref: "re_1", currency: "USD",
+      amount_minor: 101, status: "succeeded", reason: "requested", created_at: 203, updated_at: 307,
+    };
+    expect(refundToRow(record, {})).toEqual(row);
+    expect(refundFromRow({ ...row, amount_minor: 101n, created_at: "203", updated_at: "307" }, {})).toEqual(record);
+  });
+
+  test("a dispute keeps amount, deadline, creation and update times distinct", () => {
+    const record = {
+      ...scope, id: "dispute", paymentId: "pay", providerDisputeRef: "dp_1", currency: "EUR", amountMinor: 101,
+      status: "lost" as const, dueBy: 203, createdAt: 307, updatedAt: 409,
+    };
+    const row = {
+      ...rowScope, id: "dispute", payment_id: "pay", provider_dispute_ref: "dp_1", currency: "EUR", amount_minor: 101,
+      status: "lost", due_by: 203, created_at: 307, updated_at: 409,
+    };
+    expect(disputeToRow(record, {})).toEqual(row);
+    expect(disputeFromRow({ ...row, amount_minor: "101", due_by: 203n, created_at: "307", updated_at: "409" }, {})).toEqual(record);
+  });
+
+  test("operator evidence retains its source, subject, observation and exact signed amount", () => {
+    const record = {
+      ...scope, id: "ev", paymentId: "pay", source: "operator" as const, subject: "payment" as const, subjectRef: "pi_1",
+      observedStatus: "succeeded", currency: "GBP", amountMinor: -17, inboxId: "in", recordedAt: 203,
+    };
+    const row = {
+      ...rowScope, id: "ev", payment_id: "pay", source: "operator", subject: "payment", subject_ref: "pi_1",
+      observed_status: "succeeded", currency: "GBP", amount_minor: -17, inbox_id: "in", recorded_at: 203,
+    };
+    expect(evidenceToRow(record, {})).toEqual(row);
+    expect(evidenceFromRow({ ...row, amount_minor: "-17", recorded_at: 203n }, {})).toEqual(record);
+  });
+
+  test("a published outbox row preserves its payload and publication timestamp", () => {
+    const record = { id: "out", workspaceId: "ws", mode: "test" as const, topic: "dispute.closed" as const, aggregateId: "dis", payloadJson: '{"closed":true}', createdAt: 101, publishedAt: 203 };
+    const row = { id: "out", workspace_id: "ws", mode: "test", topic: "dispute.closed", aggregate_id: "dis", payload_json: '{"closed":true}', created_at: 101, published_at: 203 };
+    expect(outboxToRow(record, {})).toEqual(row);
+    expect(outboxFromRow({ ...row, created_at: "101", published_at: 203n }, {})).toEqual(record);
+  });
+
+  test("a resolved quarantine preserves its open-ended subject and reason", () => {
+    const record = { id: "q", workspaceId: "ws", mode: "test" as const, paymentId: "pay", subject: "future-subject", reason: "future-reason", evidenceJson: '{"evidence":1}', createdAt: 101, resolvedAt: 203 };
+    const row = { id: "q", workspace_id: "ws", mode: "test", payment_id: "pay", subject: "future-subject", reason: "future-reason", evidence_json: '{"evidence":1}', created_at: 101, resolved_at: 203 };
+    expect(quarantineToRow(record, {})).toEqual(row);
+    expect(quarantineFromRow({ ...row, created_at: 101n, resolved_at: "203" }, {})).toEqual(record);
+  });
+
+  test("operator audit preserves actor, outcome and refund correlation", () => {
+    const record = {
+      ...scope, id: "action", paymentId: "pay", refundId: "refund", action: "resolve-unknown" as const,
+      outcome: "succeeded", actor: "operator-1", reason: "provider confirmed", createdAt: 101,
+    };
+    const row = {
+      ...rowScope, id: "action", payment_id: "pay", refund_id: "refund", action: "resolve-unknown",
+      outcome: "succeeded", actor: "operator-1", reason: "provider confirmed", created_at: 101,
+    };
+    expect(operatorActionToRow(record, {})).toEqual(row);
+    expect(operatorActionFromRow({ ...row, created_at: "101" }, {})).toEqual(record);
   });
 });
 

@@ -126,7 +126,7 @@ export async function world(optional: WorldOptions = {}) {
       if (contextFailures.has(provider.id)) return { ok: false, error: paymentError({ code: "NO_CREDENTIALS_CONFIGURED", message: `no credentials for ${provider.id}` }) };
       const ctx: ProviderContext = provider.id === "lipay" ? lipayFakeContext({ now }) : {
         credentials: {}, account: { providerAccountId: "acct_fake", mode: "test" }, httpClient: {} as HttpClientPort, now,
-        webhookUrl: "https://example.test/hook", returnUrl: "https://example.test/return",
+        webhookUrl: "https://example.test/hook", returnUrl: "https://example.test/return", cancelUrl: "https://example.test/cancel",
       };
       return { ok: true, ctx };
     },

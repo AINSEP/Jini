@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PaymentProvider, ProviderContext } from "../../contract/provider.js";
 import { providerConformanceCases, type ProviderConformanceCase } from "../index.js";
+import { lipayFakeContext } from "../lipay-fake.js";
 
 const declined = { kind: "rejected", error: { code: "SIGNATURE_INVALID", message: "bad signature", retryable: false } } as const;
 
@@ -21,7 +22,7 @@ function conforming(overrides: Record<string, unknown> = {}): PaymentProvider {
   } as unknown as PaymentProvider;
 }
 
-const context = { credentials: { secretKey: "sk_test" }, account: { providerAccountId: "acct_1", mode: "test" }, httpClient: { send: vi.fn() }, now: () => 0, webhookUrl: "https://shop.example/hooks", returnUrl: "https://shop.example/return" } as unknown as ProviderContext;
+const context = { credentials: { secretKey: "sk_test" }, account: { providerAccountId: "acct_1", mode: "test" }, httpClient: { send: vi.fn() }, now: () => 0, webhookUrl: "https://shop.example/hooks", returnUrl: "https://shop.example/return", cancelUrl: "https://shop.example/cancel" } as unknown as ProviderContext;
 
 function cases(provider: PaymentProvider, optional = {}) {
   const makeContext = vi.fn(() => context);
@@ -31,6 +32,13 @@ function cases(provider: PaymentProvider, optional = {}) {
 }
 
 describe("providerConformanceCases", () => {
+  it("provides the cancellation URL to both provider calls", async () => {
+    const provider = conforming();
+    for (const entry of providerConformanceCases({ provider, makeContext: () => lipayFakeContext({ now: () => 0 }) })) await entry.run();
+    expect(vi.mocked(provider.createIntent).mock.calls[0]![0].ctx.cancelUrl).toBe("https://example.test/cancel");
+    expect(vi.mocked(provider.verifyWebhook).mock.calls[0]![0].ctx.cancelUrl).toBe("https://example.test/cancel");
+  });
+
   it("returns the four skeleton cases in a stable order", () => {
     expect(cases(conforming()).list.map((entry) => entry.name)).toEqual([
       "identity and shape: passes isPaymentProviderModule",

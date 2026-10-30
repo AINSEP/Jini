@@ -388,13 +388,13 @@ describe("inbox worker: dead-letter recovery", () => {
     const w = await ingestWorld();
     const row = await deadForMissingProvider(w);
     w.clock.now = T0 + 5_000;
-    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0, ignored: false } });
     expect(await w.inbox(row.id)).toMatchObject({ state: "received", attempts: 0, nextAttemptAt: T0 + 5_000 });
     expect(await workerOf(w).runOnce({ limit: 10 })).toEqual(counts({ seen: 1, applied: 1 }));
     expect((await w.read()).payment).toMatchObject({ intentStatus: "succeeded", providerRef: "ch_1" });
     expect(await w.inbox(row.id)).toMatchObject({ state: "applied", factsJson: null });
     // Once applied, a further redelivery is a plain duplicate again.
-    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 0, duplicates: 1 } });
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 0, duplicates: 1, ignored: false } });
   });
 
   test("an operator requeues a dead letter from its kept facts; it then applies", async () => {

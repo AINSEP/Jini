@@ -10,17 +10,17 @@
  * unconfigured charge leaves no row. The attempt row is written BEFORE the call so a crash
  * mid-call leaves something to reconcile.
  */
-import type { Money } from "../../money/money.js";
+import { moneyProblem, type Money } from "../../money/money.js";
 import type { PaymentEvidence, NextAction } from "../contract/evidence.js";
 import type { IntentResult } from "../contract/payments-port.js";
-import type { Outcome, PaymentProvider } from "../contract/provider.js";
+import type { IntentLine, Outcome, PaymentProvider } from "../contract/provider.js";
 import { assessPreChargeRisk, type RiskDecision } from "../contract/risk.js";
 import { sameScope, type PaymentScope } from "../contract/scope.js";
 import { applyPaymentEvidence, recordIntentDispatchOutcome } from "../accounting/apply-evidence.js";
 import type { AttemptRecord, PaymentRecord } from "../ledger/rows.js";
 import {
   REPLAY_RISK, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied, onUniqueRace,
-  readPayment, resolveContext, type Failure,
+  readPayment, rejectedReplay, resolveContext, type Failure,
 } from "./common.js";
 import type { OpsDeps } from "./deps.js";
 import { paymentView, scopeOf } from "./view.js";
@@ -33,6 +33,8 @@ export interface IntentRequired {
 }
 
 export interface IntentOptional {
+  /** Forwarded display snapshot only: never persisted or compared when replaying. */
+  readonly line?: IntentLine;
   readonly captureMode?: "auto" | "manual";
   readonly partyId?: string;
   readonly providerOptions?: Readonly<Record<string, unknown>>;
@@ -41,13 +43,31 @@ export interface IntentOptional {
 type CaptureMode = "auto" | "manual";
 const ALLOW: RiskDecision = { verdict: "allow", reasons: [], fallback: false };
 
+/** Refuse inconsistent display snapshots before opening a payment or dispatching money. */
+function checkLine(
+  { amount, line }: { amount: Money; line: IntentLine | undefined },
+  _optional: Record<string, never> = {}
+): Failure | null {
+  if (line === undefined) return null;
+  if (!Number.isSafeInteger(line.quantity) || line.quantity < 1) {
+    return fail({ code: "INVALID_REQUEST", message: "line.quantity must be a safe integer greater than zero" });
+  }
+  const problem = moneyProblem({ money: line.unitAmount });
+  if (problem) return fail({ code: "INVALID_REQUEST", message: `line.unitAmount: ${problem}` });
+  if (line.unitAmount.currency !== amount.currency || line.unitAmount.minorUnits * line.quantity !== amount.minorUnits) {
+    return fail({ code: "INVALID_REQUEST", message: "line must equal the intent amount in the same currency" });
+  }
+  return null;
+}
+
 function checkIntent(
   { deps, required, optional }: { deps: OpsDeps; required: IntentRequired; optional: IntentOptional }
 ): { readonly ok: true; readonly provider: PaymentProvider } | Failure {
   const checked = checkProvider({ deps, scope: required.scope });
   if (!checked.ok) return checked;
   const problem = checkAmount({ amount: required.amount, provider: checked.provider })
-    ?? checkText({ fields: { idempotencyKey: required.idempotencyKey, reference: required.reference } });
+    ?? checkText({ fields: { idempotencyKey: required.idempotencyKey, reference: required.reference } })
+    ?? checkLine({ amount: required.amount, line: optional.line });
   if (problem) return problem;
   if (optional.captureMode === "manual" && checked.provider.capabilities.capture !== "manual") {
     return fail({ code: "CAPABILITY_UNSUPPORTED", message: `provider '${checked.provider.id}' cannot authorize without capturing` });
@@ -55,7 +75,11 @@ function checkIntent(
   return checked;
 }
 
-/** Same key + same scope, amount, currency and reference = replay; same key, anything else = conflict. */
+/**
+ * Same key + same scope, amount, currency and reference = replay; anything else = conflict.
+ * Rejected attempts keep their original error; replay never dispatches to the provider.
+ * @complexity O(1) ledger lookups and additional space; storage errors propagate.
+ */
 async function lookupIntent({ deps, required }: { deps: OpsDeps; required: IntentRequired }): Promise<IntentResult | null> {
   const { scope, amount } = required;
   const prior = await deps.ledger.transaction({ fn: (tx) =>
@@ -64,6 +88,11 @@ async function lookupIntent({ deps, required }: { deps: OpsDeps; required: Inten
   const same = sameScope({ a: scopeOf(prior), b: scope }) && prior.amountMinor === amount.minorUnits
     && prior.currency === amount.currency && prior.reference === required.reference;
   if (!same) return fail({ code: "IDEMPOTENCY_CONFLICT", message: "idempotency key already used for a different payment request" });
+  const attempt = await deps.ledger.transaction({ fn: tx => tx.findAttemptByOperationKey({
+    workspaceId: scope.workspaceId, mode: scope.mode, operationKey: `intent:${required.idempotencyKey}`,
+  }) });
+  const rejection = attempt ? rejectedReplay({ attempt }) : null;
+  if (rejection) return { ...rejection, payment: paymentView(prior) };
   return { ok: true, payment: paymentView(prior), replayed: true, risk: REPLAY_RISK };
 }
 
@@ -164,6 +193,7 @@ export async function createIntent(
     amount: required.amount, idempotencyKey: opened.attempt.id, correlationId: paymentId, captureMode: gate.captureMode,
     ...(optional.partyId === undefined ? {} : { partyId: optional.partyId }),
     ...(optional.providerOptions === undefined ? {} : { providerOptions: optional.providerOptions }),
+    ...(optional.line === undefined ? {} : { line: optional.line }),
   };
   const outcome = await dispatch({ call: () => provider.createIntent({ req, ctx: resolved.ctx }) });
   return settleIntent({ deps, opened, outcome, risk: gate.risk });

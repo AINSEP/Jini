@@ -250,7 +250,7 @@ export async function applyPaymentEvidence(
   };
   ctx.payment = { ...ctx.payment, ...intent } as PaymentRecord;
   // The intent's topics first: consumers must see payment.succeeded before any refund of it.
-  await enqueue(ctx, plan.outbox, { amountMinor: ctx.payment.capturedMinor, currency: ctx.payment.currency });
+  await enqueue(ctx, plan.outbox, { reference: ctx.payment.reference, amountMinor: ctx.payment.capturedMinor, currency: ctx.payment.currency });
   // Failures first: a snapshot listing a later refund before an earlier one's failure must not
   // trip the over-refund cap on money the failure already returned (L3 review).
   for (const refund of failuresFirst(evidence.refunds)) await applyOneRefund(ctx, refund);
@@ -410,7 +410,7 @@ export async function settleUnknownIntent(
   const succeeded = required.status === "succeeded";
   const intent: Partial<PaymentRecord> = succeeded ? { intentStatus: "succeeded", capturedMinor: p.amountMinor } : { intentStatus: "failed" };
   ctx.payment = { ...p, ...intent } as PaymentRecord;
-  await enqueue(ctx, succeeded ? ["payment.succeeded"] : [], { amountMinor: p.amountMinor, currency: p.currency });
+  await enqueue(ctx, succeeded ? ["payment.succeeded"] : [], { reference: p.reference, amountMinor: p.amountMinor, currency: p.currency });
   await writeCaches(ctx, intent);
   return { kind: "settled", outbox: ctx.outbox };
 }

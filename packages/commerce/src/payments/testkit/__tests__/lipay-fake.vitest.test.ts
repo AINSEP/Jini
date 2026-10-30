@@ -8,6 +8,29 @@ const ctx = lipayFakeContext({ now });
 const intent = { amount: USD(10_000), idempotencyKey: "k1", correlationId: "pay_1", captureMode: "auto" as const };
 
 describe("LiPay fake", () => {
+  test("every implemented method refuses live mode before consuming scripts or touching fake state", async () => {
+    const { server, provider } = createLipayFake({ now });
+    await provider.createIntent({ req: intent, ctx });
+    const live = { ...ctx, account: { ...ctx.account, mode: "live" as const } };
+    const refund = { providerRef: "ch_1", amount: USD(1_000), idempotencyKey: "r1", correlationId: "rf_1" };
+    server.script({ op: "createIntent", behaviours: ["reject"] });
+    server.script({ op: "refund", behaviours: ["reject"] });
+    const refusal = { kind: "rejected", error: { code: "INVALID_REQUEST", message: "LiPay fake is test-only", retryable: false } };
+    expect(await provider.createIntent({ req: intent, ctx: live }, {})).toEqual(refusal);
+    expect(await provider.refund!({ req: refund, ctx: live }, {})).toEqual(refusal);
+    expect(await provider.retrieve!({ providerRef: "ch_1", ctx: live }, {})).toEqual(refusal);
+    // Even malformed bytes stop at the mode guard, before signature verification or parsing.
+    expect(await provider.verifyWebhook({ rawBody: Buffer.from("not json"), headers: {}, ctx: live }, {})).toEqual(refusal);
+    expect(server.refundOf({ refundId: "re_2" })).toBeUndefined();
+    expect(await provider.createIntent({ req: intent, ctx })).toMatchObject({ kind: "rejected", error: { code: "DECLINED" } });
+    expect(await provider.refund!({ req: refund, ctx })).toMatchObject({ kind: "rejected", error: { code: "DECLINED" } });
+    expect(await provider.createIntent({ req: intent, ctx })).toMatchObject({ kind: "ok", value: { evidence: { providerRef: "ch_2" } } });
+    expect(await provider.refund!({ req: refund, ctx })).toMatchObject({ kind: "ok", value: { providerRefundRef: "re_3" } });
+    expect(await provider.retrieve!({ providerRef: "ch_1", ctx })).toMatchObject({ kind: "ok", value: { refunds: [{ providerRefundRef: "re_3" }] } });
+    const delivery = server.webhook({ type: "charge.succeeded", id: "ch_1", eventId: "evt_after_live" });
+    expect(await provider.verifyWebhook({ ...delivery, ctx })).toMatchObject({ kind: "ok", value: [{ providerEventId: "evt_after_live" }] });
+  });
+
   test("passes the provider conformance kit", async () => {
     const { provider } = createLipayFake({ now });
     for (const c of providerConformanceCases({ provider, makeContext: () => ctx })) await c.run();

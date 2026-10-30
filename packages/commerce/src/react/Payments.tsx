@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { agentHandle } from "@jini-ai/agentic";
+import type { ProviderSummary } from "../payments/contract/payments-port.js";
 import { t as translateCommerce } from "./commerce-i18n.js";
 
 /**
@@ -15,14 +16,16 @@ import { t as translateCommerce } from "./commerce-i18n.js";
 /**
  * Renders the read-only starting point for the host payment journey.
  *
- * @returns Provider labels, links to existing Commerce routes, and explicit backend-boundary copy.
+ * @returns Host-supplied provider labels, Commerce links, and explicit backend-boundary copy.
  * @example
  * ```tsx
  * <Payments />
  * ```
- * @complexity O(1) time and space; the screen renders a fixed capability set with no I/O.
+ * @complexity O(n) time and space for n supplied provider summaries; no I/O.
  */
-export function Payments({ locale = "en" }: { locale?: (string) | undefined } = {}): ReactElement {
+export function Payments({ locale = "en", providers = [] }: {
+  locale?: (string) | undefined; providers?: readonly ProviderSummary[];
+} = {}): ReactElement {
   const t = (key: string): string => translateCommerce({ locale, key });
   return (
     <div className="page">
@@ -53,8 +56,7 @@ export function Payments({ locale = "en" }: { locale?: (string) | undefined } = 
               {t("Provider adapters remain separate from Commerce. Connectors can change without changing the payment journey shown here.")}
             </p>
             <div className="page-actions" aria-label={t("Planned payment provider adapters")}>
-              <span className="status status-disabled">Stripe</span>
-              <span className="status status-disabled">PayPal</span>
+              {providers.map(provider => <span key={provider.id} className="status status-disabled">{provider.displayName}</span>)}
             </div>
           </div>
         </section>

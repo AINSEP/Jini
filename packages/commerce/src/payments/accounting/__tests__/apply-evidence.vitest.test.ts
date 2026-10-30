@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 
 import { memoryPaymentsLedger } from "../../ledger/repo.memory.js";
 import {
-  applyPaymentEvidence, applyRefundEvidence, recordRefundDispatchOutcome, reserveRefund,
+  applyPaymentEvidence, applyRefundEvidence, recordRefundDispatchOutcome, reserveRefund, settleUnknownIntent,
 } from "../apply-evidence.js";
-import { NOW, USD, newPayment, paidPayment, type LedgerKind } from "./harness.js";
+import { NOW, USD, newPayment, openLedger, paidPayment, type LedgerKind } from "./harness.js";
 
 /**
  * @file L3: the single writer under every delivery race the design names — webhook before the
@@ -17,6 +17,24 @@ const count = (topics: string[], topic: string) => topics.filter((t) => t === to
 
 for (const kind of ["memory", "sqlite"] as LedgerKind[]) {
   describe(`single writer on ${kind}`, () => {
+    test.each(["evidence", "operator"] as const)("payment.succeeded carries the payment reference after %s settlement", async path => {
+      const ledger = await openLedger(kind);
+      let seq = 0;
+      const deps = { now: () => NOW, newId: () => `reference_${++seq}` };
+      await ledger.transaction({ fn: tx => tx.insertPayment({ payment: newPayment({ reference: "order-reference-42" }) }) });
+      await ledger.transaction({ fn: async tx => {
+        const target = { tx, deps, workspaceId: "ws", mode: "test" as const, paymentId: "pay_1" };
+        if (path === "operator") return settleUnknownIntent({ ...target, source: "operator", status: "succeeded" });
+        return applyPaymentEvidence({ ...target, source: "webhook", evidence: {
+          providerRef: "ch_reference", status: "succeeded", amount: USD(10_000), refunds: [], disputes: [],
+        } });
+      } });
+      const pending = await ledger.transaction({ fn: tx => tx.listPendingOutbox({ limit: 10 }) });
+      expect(pending.map(row => ({ topic: row.topic, payload: JSON.parse(row.payloadJson) }))).toEqual([{
+        topic: "payment.succeeded", payload: { paymentId: "pay_1", reference: "order-reference-42", amountMinor: 10_000, currency: "USD" },
+      }]);
+    });
+
     test("the charge response binds the payment: succeeded, captured, payment.succeeded once", async () => {
       const w = await paidPayment(kind);
       const { payment, outbox, evidence } = await w.read();

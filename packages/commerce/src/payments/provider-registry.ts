@@ -40,7 +40,7 @@ function registrationProblem(
   if (!PROVIDER_ID.test(id)) return `invalid payment provider id '${id}' — must match ${PROVIDER_ID.source}`;
   const existing = seen.get(id);
   if (existing) return `payment provider '${id}' from '${item.pluginId}' is already registered by '${existing.pluginId}'`;
-  const bound = bindings[id];
+  const bound = Object.hasOwn(bindings, id) ? bindings[id] : undefined;
   if (bound !== undefined && bound !== item.pluginId) return `payment provider '${id}' is bound to plugin '${bound}', not '${item.pluginId}'`;
   return null;
 }

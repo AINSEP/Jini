@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Payments } from "..";
@@ -15,11 +15,16 @@ import { Payments } from "..";
 
 describe("Payments — provider-neutral Commerce overview", () => {
   it("connects the Open SaaS payment journey to Tovu's existing Commerce routes", () => {
-    render(<Payments />);
+    render(<Payments providers={[
+      { id: "regional-pay", displayName: "Regional Pay", refunds: "none", capture: "auto" },
+      { id: "bank-transfer", displayName: "Bank Transfer", refunds: "full", capture: "manual" },
+    ]} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Payments" })).toBeInTheDocument();
-    expect(screen.getByText("Stripe")).toBeInTheDocument();
-    expect(screen.getByText("PayPal")).toBeInTheDocument();
+    const providers = screen.getByLabelText("Planned payment provider adapters");
+    expect(Array.from(providers.children, badge => badge.textContent)).toEqual(["Regional Pay", "Bank Transfer"]);
+    expect(screen.queryByText("Stripe")).not.toBeInTheDocument();
+    expect(screen.queryByText("PayPal")).not.toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: "Open products" })).toHaveAttribute("href", "/admin/products");
     expect(screen.getByRole("link", { name: "Open subscriptions" })).toHaveAttribute(
@@ -27,6 +32,19 @@ describe("Payments — provider-neutral Commerce overview", () => {
       "/admin/subscriptions",
     );
     expect(screen.getByRole("link", { name: "Open orders" })).toHaveAttribute("href", "/admin/orders");
+  });
+
+  it("shows setup required with no supplied providers and removes retired summaries on rerender", () => {
+    const { rerender } = render(<Payments providers={[]} />);
+    const region = screen.getByRole("region", { name: "Payment providers" });
+    expect(within(region).getByText("Setup required")).toBeInTheDocument();
+    expect(screen.getByLabelText("Planned payment provider adapters")).toBeEmptyDOMElement();
+    rerender(<Payments providers={[{ id: "regional-pay", displayName: "<Regional Pay>", refunds: "none", capture: "auto" }]} />);
+    expect(within(region).getByText("<Regional Pay>")).toBeInTheDocument();
+    expect(region.querySelector("regional")).toBeNull();
+    rerender(<Payments />);
+    expect(screen.getByLabelText("Planned payment provider adapters")).toBeEmptyDOMElement();
+    expect(within(region).getByText("Setup required")).toBeInTheDocument();
   });
 
   it("states the missing backend boundary instead of inventing readiness, metrics, or controls", () => {

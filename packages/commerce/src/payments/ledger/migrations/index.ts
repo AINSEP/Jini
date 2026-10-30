@@ -23,7 +23,8 @@ export function pinnedChecksum(
   required: { id: string },
   optional: { checksums?: Readonly<Record<string, string>> } = {}
 ): string {
-  const checksum = (optional.checksums ?? COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS)[required.id];
+  const checksums = optional.checksums ?? COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS;
+  const checksum = Object.hasOwn(checksums, required.id) ? checksums[required.id] : undefined;
   if (checksum === undefined) throw new Error(`commerce payments migration ${required.id} has no pinned checksum in checksums.ts`);
   return checksum;
 }

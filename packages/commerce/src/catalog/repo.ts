@@ -1,5 +1,7 @@
 import type { StorageKernel } from "@jini-ai/db/kernel";
 export type { CommerceKernel, CommerceDatabase } from "./database.js";
+export { commercePriceProviderRefRepoFor } from "./repo.price-refs.js";
+export { commerceOrderPaymentRepoFor } from "./repo.order-payments.js";
 import type { CommerceKernel as ContentKernel } from "./database.js";
 import { CommerceProductSlugConflictError } from "./errors.js";
 import type {
@@ -9,6 +11,7 @@ import type {
   CommerceProductImageRepoPort,
   CommerceProductRepoPort,
   CommerceWebhookEventRepoPort,
+  MarkOrderPaidResult,
 } from "./ports.js";
 import {
   toOrderItemRecord,
@@ -205,6 +208,20 @@ export class SqlCommercePriceRepo implements CommercePriceRepoPort {
 export class SqlCommerceOrderRepo implements CommerceOrderRepoPort {
   protected readonly kernel: ContentKernel;
   constructor({ kernel }: { kernel: ContentKernel }, _optional: Record<string, never> = {}) { this.kernel = kernel; }
+
+  /** The pending predicate arbitrates concurrent settlements; a replay never rewrites paid data. */
+  async markPaid(required: Parameters<CommerceOrderRepoPort["markPaid"]>[0], _optional: Record<string, never> = {}): Promise<MarkOrderPaidResult> {
+    return this.kernel.transaction<MarkOrderPaidResult>(async () => {
+      const updated = await this.kernel.run(db => db.updateTable("commerce_orders")
+        .set(eb => ({ status: "paid", updated_at: required.at, version: eb("version", "+", 1) }))
+        .where("workspace_id", "=", required.workspaceId).where("id", "=", required.orderId)
+        .where("status", "=", "pending").executeTakeFirstOrThrow());
+      if (Number(updated.numUpdatedRows) > 0) return "paid";
+      const order = await this.findById({ workspaceId: required.workspaceId, id: required.orderId });
+      if (!order) return "not_found";
+      return order.status === "paid" ? "already_paid" : "not_pending";
+    });
+  }
 
   async findById(required: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<CommerceOrderRecord | null> {
     const row = await this.kernel.run((db) =>

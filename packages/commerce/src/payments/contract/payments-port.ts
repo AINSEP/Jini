@@ -9,7 +9,7 @@
  */
 import type { Money } from "../../money/money.js";
 import type { NextAction } from "./evidence.js";
-import type { PaymentError } from "./provider.js";
+import type { IntentLine, PaymentError } from "./provider.js";
 import type { RiskDecision } from "./risk.js";
 import type { PaymentScope } from "./scope.js";
 import type { DerivedPaymentStatus, RefundStatus } from "../state/status.js";
@@ -54,7 +54,7 @@ export interface ProviderSummary {
 export interface PaymentsPort {
   createIntent(
     required: { scope: PaymentScope; amount: Money; idempotencyKey: string; reference: string },
-    optional?: { captureMode?: "auto" | "manual"; partyId?: string; providerOptions?: Readonly<Record<string, unknown>> }
+    optional?: { captureMode?: "auto" | "manual"; partyId?: string; providerOptions?: Readonly<Record<string, unknown>>; line?: IntentLine }
   ): Promise<IntentResult>;
   refund(
     required: { scope: PaymentScope; paymentId: string; amount: Money; idempotencyKey: string; grant: string },

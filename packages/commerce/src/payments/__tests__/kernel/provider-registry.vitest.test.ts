@@ -21,6 +21,23 @@ describe("createKernelProviderRegistry", () => {
     expect(createKernelProviderRegistry({ items: [] }).list()).toEqual([]);
   });
 
+  test("listing providers returns a detached list that callers cannot empty out of the registry", () => {
+    const registry = createKernelProviderRegistry({ items: [{ pluginId: "p-lipay", module: lipay }] });
+    const listed = registry.list();
+    (listed as unknown[]).length = 0;
+    expect(registry.list()).toEqual([{ provider: lipay, pluginId: "p-lipay" }]);
+    expect(registry.get({ id: "lipay" })).toEqual({ provider: lipay, pluginId: "p-lipay" });
+  });
+
+  test("a valid constructor provider id does not inherit an undeclared host binding", () => {
+    const provider = as("constructor");
+    // Regression: registrationProblem reads bindings[id] on {}, inheriting Object's constructor
+    // and refusing this otherwise valid URL-safe id as if the host had pinned it to another plugin.
+    const registry = createKernelProviderRegistry({ items: [{ pluginId: "p-constructor", module: provider }] });
+    expect(registry.get({ id: "constructor" })).toEqual({ provider, pluginId: "p-constructor" });
+    expect(registry.list()).toEqual([{ provider, pluginId: "p-constructor" }]);
+  });
+
   test("a second plugin claiming an id is refused, naming both plugins", () => {
     expect(() => createKernelProviderRegistry({ items: [{ pluginId: "real", module: lipay }, { pluginId: "evil", module: lipay }] }))
       .toThrow("commerce: payment provider 'lipay' from 'evil' is already registered by 'real'");

@@ -29,6 +29,20 @@ const message = (id: string, overrides: Partial<NewOutbox> = {}): NewOutbox => (
 });
 
 describe("outbox relay", () => {
+  test("relays a payment.succeeded payload enqueued before reference was added", async () => {
+    const w = await ingestWorld();
+    await w.insertPayment();
+    const payload = { paymentId: "pay_1", amountMinor: 10_000, currency: "USD" };
+    await w.tx(tx => tx.enqueueOutbox({ message: message("legacy", { payloadJson: JSON.stringify(payload) }) }));
+    const publish = recordingPublisher();
+    expect(await createOutboxRelay({ ledger: w.ledger, publish, now: w.now }).runOnce({ limit: 10 }))
+      .toEqual({ published: 1, stopped: false });
+    expect(publish.sent).toEqual([{
+      id: "legacy", workspaceId: "ws", mode: "test", topic: "payment.succeeded", aggregateId: "pay_1", payload, createdAt: T0,
+    }]);
+    expect(await w.tx(tx => tx.listPendingOutbox({ limit: 10 }))).toEqual([]);
+  });
+
   test("publishes pending messages oldest first as parsed messages, then marks them published", async () => {
     const w = await ingestWorld();
     await w.insertPayment();

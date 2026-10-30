@@ -49,7 +49,7 @@ export interface WebhookReceiverDeps {
 /** What the HTTP adapter sends back. `code` is machine-readable; `message` never carries provider text. */
 export interface WebhookResponse {
   readonly status: 200 | 400 | 404 | 500 | 503;
-  readonly body: { readonly received: number; readonly duplicates: number } | { readonly code: string; readonly message: string };
+  readonly body: { readonly received: number; readonly duplicates: number; readonly ignored: boolean } | { readonly code: string; readonly message: string };
 }
 
 /** An endpoint the receiver accepts deliveries for: its verified scope and the provider that owns it. */
@@ -103,7 +103,7 @@ async function verify(
 
 /**
  * Builds the receiver.
- * @complexity O(facts) per delivery; one ledger transaction.
+ * @complexity O(facts) per delivery; one ledger transaction unless the verified delivery is ignored.
  */
 export function createWebhookReceiver(deps: WebhookReceiverDeps, _optional: Record<string, never> = {}): WebhookReceiver {
   return {
@@ -118,6 +118,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps, _optional: Reco
     receive: async ({ endpoint, rawBody, headers }, optional = {}) => {
       const verified = await verify(deps, { endpoint, rawBody, headers, ...(optional.signal ? { signal: optional.signal } : {}) });
       if (!verified.ok) return verified.response;
+      if (verified.facts.length === 0) return { status: 200, body: { received: 0, duplicates: 0, ignored: true } };
       if (!verified.facts.every(isRecordableFact)) return fail(500, "INVALID_FACT", "payments provider returned an unusable webhook fact");
       const bodySha256 = createHash("sha256").update(rawBody).digest("hex");
       const { scope } = endpoint;
@@ -139,7 +140,7 @@ export function createWebhookReceiver(deps: WebhookReceiverDeps, _optional: Reco
         return results;
       } });
       const received = inserted.filter(Boolean).length;
-      return { status: 200, body: { received, duplicates: inserted.length - received } };
+      return { status: 200, body: { received, duplicates: inserted.length - received, ignored: false } };
     },
   };
 }

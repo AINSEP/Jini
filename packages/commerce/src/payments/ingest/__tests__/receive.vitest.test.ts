@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import type { WebhookFact } from "../../contract/evidence.js";
 import { paymentError, type PaymentProvider } from "../../contract/provider.js";
@@ -63,13 +63,25 @@ describe("receive", () => {
     return resolved.endpoint;
   }
 
+  test("verified empty facts return ignored without opening a ledger transaction", async () => {
+    const w = await ingestWorld();
+    const endpoint = await endpointOf(w);
+    const transaction = vi.spyOn(w.ledger, "transaction");
+    const provider: PaymentProvider = { ...endpoint.provider, verifyWebhook: vi.fn(async () => ({ kind: "ok" as const, value: [] })) };
+    const delivery = { rawBody: Buffer.from("verified foreign event"), headers: {} };
+    expect(await w.receiver.receive({ endpoint: { ...endpoint, provider }, ...delivery }))
+      .toEqual({ status: 200, body: { received: 0, duplicates: 0, ignored: true } });
+    expect(provider.verifyWebhook).toHaveBeenCalledWith({ ...delivery, ctx: expect.objectContaining({ account: { providerAccountId: "acct_fake", mode: "test" } }) });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
   test("a signed delivery records the fact (not the body) with the body hash, due now, and is NOT applied", async () => {
     const w = await ingestWorld();
     await w.insertPayment();
     await w.charge();
     const delivery = w.fake.server.webhook({ type: "charge.succeeded", id: "ch_1", eventId: "evt_1" });
     const response = await w.receiver.receive({ endpoint: await endpointOf(w), ...delivery });
-    expect(response).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
+    expect(response).toEqual({ status: 200, body: { received: 1, duplicates: 0, ignored: false } });
     const [row] = await w.tx((t) => t.listDueInbox({ now: w.now(), limit: 10 }));
     expect(row).toMatchObject({
       ...SCOPE, providerEventId: "evt_1", state: "received", attempts: 0, nextAttemptAt: w.now(), receivedAt: w.now(),
@@ -87,8 +99,8 @@ describe("receive", () => {
     const w = await ingestWorld();
     await w.insertPayment();
     await w.charge();
-    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0 } });
-    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 0, duplicates: 1 } });
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 1, duplicates: 0, ignored: false } });
+    expect(await w.deliver("charge.succeeded", "ch_1", "evt_1")).toEqual({ status: 200, body: { received: 0, duplicates: 1, ignored: false } });
     expect(await w.tx((t) => t.listDueInbox({ now: w.now(), limit: 10 }))).toHaveLength(1);
   });
 
@@ -132,16 +144,16 @@ describe("receive", () => {
     expect(seen).toEqual([{ signal }, {}]);
   });
 
-  test("several facts in one delivery are recorded in one transaction; zero facts is a plain 200", async () => {
+  test("several facts are recorded; a verified empty delivery is explicitly ignored", async () => {
     const w = await ingestWorld();
     const endpoint = await endpointOf(w);
     const facts: WebhookFact[] = [{ providerEventId: "evt_a", providerRef: "ch_1" }, { providerEventId: "evt_b", providerRef: "ch_1" }];
     const many = { ...endpoint.provider, verifyWebhook: async () => ({ kind: "ok" as const, value: facts }) };
     expect(await w.receiver.receive({ endpoint: { ...endpoint, provider: many }, rawBody: Buffer.from("x"), headers: {} }))
-      .toEqual({ status: 200, body: { received: 2, duplicates: 0 } });
+      .toEqual({ status: 200, body: { received: 2, duplicates: 0, ignored: false } });
     const none = { ...endpoint.provider, verifyWebhook: async () => ({ kind: "ok" as const, value: [] }) };
     expect(await w.receiver.receive({ endpoint: { ...endpoint, provider: none }, rawBody: Buffer.from("x"), headers: {} }))
-      .toEqual({ status: 200, body: { received: 0, duplicates: 0 } });
+      .toEqual({ status: 200, body: { received: 0, duplicates: 0, ignored: true } });
     const rows = await w.tx((t) => t.listDueInbox({ now: w.now(), limit: 10 }));
     expect(rows.map((r) => r.providerEventId).sort()).toEqual(["evt_a", "evt_b"]);
   });

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { LedgerConstraintError, type LedgerTx, type PaymentsLedger } from "../../ledger/repo.js";
 import { LIPAY, SCRIPTED, USD, recordingAlerts, rejected, riskPort, timedOut, world } from "./harness.js";
@@ -32,10 +32,58 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
 }
 
 describe("createIntent: idempotency", () => {
+  test.each(["memory", "sqlite"] as const)("a rejected intent replays its original code without dispatch on %s", async ledgerKind => {
+    const w = await world({ ledgerKind });
+    const request = { ...intent(), scope: SCRIPTED };
+    w.scripted.queue("createIntent", rejected("INVALID_REQUEST"));
+    const first = await w.service.createIntent(request);
+    expect(first).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" }, payment: { status: "failed" } });
+    expect(await w.service.createIntent(request)).toEqual({
+      ok: false, payment: first.payment,
+      error: { code: "INVALID_REQUEST", retryable: false, message: "provider said no (replayed: the earlier intent under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)" },
+    });
+    expect(w.scripted.calls).toHaveLength(1);
+  });
+
+  test("a declined intent replays DECLINED and preserves its failed payment", async () => {
+    const w = await world();
+    const request = { ...intent(), scope: SCRIPTED };
+    w.scripted.queue("createIntent", rejected());
+    const first = await w.service.createIntent(request);
+    expect(await w.service.createIntent(request)).toMatchObject({ ok: false, error: { code: "DECLINED", message: expect.stringContaining("replayed") }, payment: first.payment });
+    expect(w.scripted.calls).toHaveLength(1);
+  });
+
+  test("an unknown intent replays with pending next action and never dispatches again", async () => {
+    const w = await world();
+    const request = { ...intent(), scope: SCRIPTED };
+    w.scripted.queue("createIntent", timedOut());
+    const first = await w.service.createIntent(request);
+    expect(first).toMatchObject({ ok: false, payment: { status: "unknown", next: null } });
+    expect(await w.service.createIntent(request)).toEqual({ ok: true, payment: first.payment, replayed: true, risk: { verdict: "allow", reasons: ["idempotent-replay"], fallback: false } });
+    expect(w.scripted.calls).toHaveLength(1);
+  });
+
+  test("a payment with no readable attempt still replays without dispatch", async () => {
+    let hideAttempt = false;
+    const w = await world({ wrapLedger: ledger => ({
+      transaction: ({ fn }) => ledger.transaction({ fn: tx => fn(new Proxy(tx, {
+        get: (target, name) => name === "findAttemptByOperationKey" && hideAttempt ? async () => null : Reflect.get(target, name).bind(target),
+      })) }),
+    }) });
+    const request = { ...intent(), scope: SCRIPTED };
+    const first = await w.service.createIntent(request);
+    hideAttempt = true;
+    expect(await w.service.createIntent(request)).toMatchObject({ ok: true, payment: first.payment, replayed: true });
+    expect(w.scripted.calls).toHaveLength(1);
+  });
+
   test("the same request again is replayed from the ledger; the provider is called once", async () => {
     const w = await world();
+    const dispatch = vi.spyOn(w.lipay.provider, "createIntent");
     const first = await w.service.createIntent(intent());
     const again = await w.service.createIntent(intent());
+    expect(dispatch).toHaveBeenCalledTimes(1);
     expect(again).toEqual({ ok: true, payment: (first as { payment: unknown }).payment, replayed: true, risk: { verdict: "allow", reasons: ["idempotent-replay"], fallback: false } });
     const id = (first as { payment: { id: string } }).payment.id;
     expect((await w.read(id)).attempts).toHaveLength(1);
@@ -119,6 +167,59 @@ describe("createIntent: refusals write nothing", () => {
     w.failContextFor("lipay");
     expect(await w.service.createIntent(intent())).toMatchObject({ ok: false, error: { code: "NO_CREDENTIALS_CONFIGURED" } });
     expect(await w.ledger.transaction({ fn: (tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }) })).toBeNull();
+  });
+
+  test("a non-string reference is refused with a typed error before the provider is called", async () => {
+    const w = await world();
+    expect(await w.service.createIntent({ ...intent(), scope: SCRIPTED, reference: undefined as never }))
+      .toEqual({ ok: false, error: { code: "INVALID_REQUEST", message: "reference must be a non-empty string", retryable: false } });
+    expect(w.scripted.calls).toEqual([]);
+    expect(await w.ledger.transaction({ fn: (tx) => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }) })).toBeNull();
+  });
+});
+
+describe("createIntent: line snapshot", () => {
+  const line = { description: "Notebook", quantity: 2, unitAmount: USD(5_000), providerPriceRef: "price-notebook" };
+
+  test("forwards the exact line, omits it when absent, and excludes it from replay comparison", async () => {
+    const w = await world();
+    const request = { ...intent(), scope: SCRIPTED };
+    const first = await w.service.createIntent(request, { line });
+    expect(first).toMatchObject({ ok: true, payment: { amount: USD(10_000) } });
+    expect(w.scripted.calls[0]?.req).toHaveProperty("line", line);
+    expect(await w.service.createIntent(request, { line: { description: "Renamed", providerPriceRef: "other", quantity: 1, unitAmount: USD(10_000) } }))
+      .toMatchObject({ ok: true, replayed: true, payment: first.payment });
+    expect(await w.service.createIntent(request)).toMatchObject({ ok: true, replayed: true, payment: first.payment });
+    expect(w.scripted.calls).toHaveLength(1);
+    await w.service.createIntent({ ...request, idempotencyKey: "without-line" });
+    expect(w.scripted.calls).toHaveLength(2);
+    expect(w.scripted.calls[1]?.req).not.toHaveProperty("line");
+  });
+
+  test.each([
+    ["zero quantity", { ...line, quantity: 0 }],
+    ["negative quantity", { ...line, quantity: -2, unitAmount: USD(-5_000) }],
+    ["fractional quantity with an exact product", { ...line, quantity: 2.5, unitAmount: USD(4_000) }],
+    ["unsafe quantity", { ...line, quantity: Number.MAX_SAFE_INTEGER + 1 }],
+    ["NaN quantity", { ...line, quantity: NaN }],
+    ["infinite quantity", { ...line, quantity: Infinity }],
+    ["wrong currency", { ...line, unitAmount: { minorUnits: 5_000, currency: "EUR" } }],
+    ["wrong product", { ...line, unitAmount: USD(4_999) }],
+    ["fractional minor units with an exact product", { ...line, quantity: 20_000, unitAmount: USD(0.5) }],
+  ])("refuses %s before any row or dispatch", async (_name, invalidLine) => {
+    const w = await world();
+    expect(await w.service.createIntent({ ...intent(), scope: SCRIPTED }, { line: invalidLine }))
+      .toMatchObject({ ok: false, error: { code: "INVALID_REQUEST", retryable: false } });
+    expect(w.scripted.calls).toEqual([]);
+    expect(await w.ledger.transaction({ fn: tx => tx.findPaymentByIdempotencyKey({ workspaceId: "ws", mode: "test", key: "ik-1" }) })).toBeNull();
+  });
+
+  test.each([1, 2, 3, 7, Number.MAX_SAFE_INTEGER])("accepts an exact safe-integer product for quantity %s", async quantity => {
+    const w = await world();
+    const snapshot = { description: "Item", quantity, unitAmount: USD(1) };
+    expect(await w.service.createIntent({ ...intent(), scope: SCRIPTED, amount: USD(quantity) }, { line: snapshot }))
+      .toMatchObject({ ok: true, payment: { amount: USD(quantity) } });
+    expect(w.scripted.calls[0]?.req).toHaveProperty("line", snapshot);
   });
 });
 

@@ -13,6 +13,35 @@ Tovu contains CMS-specific adapters and unchanged historical storage declaration
 | `apps/admin/src/features/commerce/` | `src/react/` |
 | `apps/website/src/server/inbound/public-http/routes/site/payments-webhook.ts` | `src/http/payments-webhook.ts` |
 
+## Phase 1 additions (2026-10-29)
+
+Source implementation follows [PLAN-phase1.md](PLAN-phase1.md), revision 3. Runtime verification
+and coverage measurement are pending; this inventory is not a validation result. Tovu still
+keeps commerce off and must ship its host catalog migration before enabling `payOrder`.
+
+| Ownership | Source |
+| --- | --- |
+| Pending order → reserved scope → intent → binding | `src/catalog/{load-payable-order,pay-order}.ts` |
+| Scoped price mapping and atomic association repositories | `src/catalog/repo.{price-refs,order-payments}.ts`, exported from `./repo` |
+| Evidence-verified, idempotent paid projection | `src/catalog/{settle-order-payment,order-projection}.ts` |
+| Host artifact validator, lease guard and site credential adapter | `src/payments/{provider-contract,provider-contexts}.ts`, exported from `./payments/kernel` |
+| Browser action handling | `src/payments/contract/checkout-client.ts`, exported from `./payments/client` |
+| Stripe REST/session/signature translation and artifact setup | `../provider-plugins/src/payments-stripe/`; vendor code stays in that plugin |
+| Cross-package E2E specification (P34–P35) | `../provider-plugins/src/payments-stripe/__tests__/payments-stripe-kernel.test.ts` |
+
+The unused commerce `payments/plugin-contribution.ts` and the legacy plugin `stripe.ts` path
+were removed in P11/P30. Provider attachment belongs to the existing plugin host; commerce
+validates and guards its leases. The host owns the new `commerce_price_provider_refs` and
+`commerce_order_payments` tables and constraints documented in the README. The payments ledger
+has no Phase 1 schema change: only the success outbox payload gains the order reference.
+
+Open SaaS adaptations (price mapping, session form, paid-session interpretation, ignored events
+and browser checkout) derive from MIT-licensed `wasp-lang/open-saas` at
+`c2c6285bdb14b040584505372ad9bb062a0bca11`; see both packages' `NOTICE`. User-row billing,
+inline fulfillment/email effects and the portal were not copied. Lost responses stay unknown
+without automatic redispatch; existing reconciliation, operator resolution and late webhooks
+own recovery. The sections below retain the original extraction record.
+
 Moved tests accompany their owners: catalog units, payment credentials/registry/state machines,
 payment/refund/replay/webhook suites, HTTP raw-byte verification, stock checkout and React readiness/
 locale suites. Refused-preparation tests use injected fakes and assert that SQL/HTTP never starts.
