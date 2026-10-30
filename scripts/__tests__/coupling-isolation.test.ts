@@ -104,9 +104,8 @@ describe('re-verify dependency and state regressions', () => {
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/ui'
       && finding.rule === 'SI-dependency')).toEqual([]);
     const pkg = JSON.parse(readFileSync(new URL('../../packages/ui/package.json', import.meta.url), 'utf8'));
-    expect(pkg.devDependencies['@jini-ai/ui-kit']).toBe('workspace:^');
-    expect(pkg.peerDependencies['@jini-ai/ui-kit']).toBe('^0.6.10');
-    expect(pkg.peerDependenciesMeta['@jini-ai/ui-kit']).toEqual({ optional: true });
+    expect(pkg.dependencies['@jini-ai/ui-kit']).toBe('workspace:^');
+    expect(pkg.peerDependencies?.['@jini-ai/ui-kit']).toBeUndefined();
   });
 
   it.each([
