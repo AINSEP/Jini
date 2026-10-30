@@ -1,4 +1,4 @@
-import { trimCharsEnd } from "@jini-ai/core/primitives";
+import { trimCharsEnd } from "@jini-ai/core/text";
 import { LISTING_AFTER_MAX } from './batch.js';
 
 /**

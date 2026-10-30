@@ -1,4 +1,4 @@
-import { trimChars } from "@jini-ai/core/primitives";
+import { trimChars } from "@jini-ai/core/text";
 /** Binary URL import; the outbound adapter owns per-hop SSRF controls, while this module enforces caller MIME/byte policy and preserves source provenance. */
 // URL/byte rules are separate from tool permissions and persistence so a fake HTTP port or a byte
 // array can exercise them directly. Composition supplies the guarded client; never construct an

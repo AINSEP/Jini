@@ -1,4 +1,4 @@
-import { trimCharsEnd } from "@jini-ai/core/primitives";
+import { trimCharsEnd } from "@jini-ai/core/text";
 import { LISTING_AFTER_MAX, type ListingSource } from './batch.js';
 import { isRefusedPage } from './paths.js';
 
