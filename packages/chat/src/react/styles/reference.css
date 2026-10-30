@@ -43,6 +43,15 @@
   min-width: 0;
 }
 
+/* The picker, plus menu and send share this <div>; flex keeps them on one line, and it wraps
+   whole to its own line when the footer runs out of room. */
+.jini-composer-footer-trailing {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin-left: auto;
+}
+
 /* The grouped add menu and slash autocomplete anchor to the composer rather than escaping the
    host's layout. Visual tokens remain the host's responsibility. */
 .jini-composer,

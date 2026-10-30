@@ -492,19 +492,23 @@ export function Composer({
           onClose={() => setWorkdirOpen(false)}
           t={t}
         />
-        <AccessorySlot className="jini-composer-footer-accessories">{footerAccessories}</AccessorySlot>
-        <ComposerPlusMenu items={plusMenuItems} t={t} />
-        <ComposerSendGroup
-          running={running}
-          disabled={disabled}
-          sendDisabled={sendDisabled}
-          canSubmit={composer.canSubmit}
-          onSend={onSend}
-          onCancel={onCancel}
-          sendDisabledReason={sendDisabledReason}
-          sendDisabledReasonId={sendDisabledReasonId}
-          t={t}
-        />
+        {/* One group, so a footer too narrow for everything wraps the picker and send to their own
+            line together instead of leaving send alone on it (see the styles' footer rules). */}
+        <div className="jini-composer-footer-trailing">
+          <AccessorySlot className="jini-composer-footer-accessories">{footerAccessories}</AccessorySlot>
+          <ComposerPlusMenu items={plusMenuItems} t={t} />
+          <ComposerSendGroup
+            running={running}
+            disabled={disabled}
+            sendDisabled={sendDisabled}
+            canSubmit={composer.canSubmit}
+            onSend={onSend}
+            onCancel={onCancel}
+            sendDisabledReason={sendDisabledReason}
+            sendDisabledReasonId={sendDisabledReasonId}
+            t={t}
+          />
+        </div>
       </div>
     </div>
   );

@@ -717,10 +717,13 @@ export const CHAT_PANE_STYLES = `
   .jini-chat-pane.jini-chat-pane .jini-composer-input { font-size: 16px; }
 }
 .jini-chat-pane .jini-composer-input::placeholder { color: var(--jini-chat-faint); }
+/* Wraps as a last resort: the leading slot gives way first (below), then the trailing group moves
+   to its own line whole. Unwrapped, a picked-folder chip in the leading slot squeezed the model
+   picker until send sat on its label (owner report, 2026-10-29). */
 .jini-chat-pane .jini-composer-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   min-height: 42px;
   gap: 6px;
   padding: 6px 8px 8px;
@@ -730,7 +733,14 @@ export const CHAT_PANE_STYLES = `
 /* Host controls slotted at the start of the footer row, right after the attach/discovery "+"
    trigger above -- see ComposerSlots.footerLeadingAccessory's own doc (slots.ts) for why this
    exists as a third footer slot alongside footerAccessories/plusMenuItems. */
-.jini-chat-pane .jini-composer-footer-leading { display: inline-flex; align-items: center; }
+/* Basis 0, so a line break is decided on the slot's min-content, not its full width: a chip in it
+   truncates before the trailing group wraps. It grows back to its content, never past it. */
+.jini-chat-pane .jini-composer-footer-leading {
+  display: inline-flex;
+  flex: 1 1 0%;
+  align-items: center;
+  max-width: max-content;
+}
 /* NOT 'position: relative' — the discovery popover (below) anchors off '.jini-composer' itself
    (the nearest positioned ancestor once this wrapper opts out), not off this small trigger-button
    wrapper. Anchoring to the wrapper put the popover's bottom edge at the wrapper's own top edge —
@@ -951,9 +961,19 @@ export const CHAT_PANE_STYLES = `
   color: var(--jini-chat-muted);
   font-size: 12px;
 }
+/* Picker, plus menu and send: one group at the trailing edge that wraps as a unit. Its own
+   max-content decides the line break; alone on a line it may shrink, and the model label truncates. */
+.jini-chat-pane .jini-composer-footer-trailing {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+}
 /* Always pushed to the trailing edge. This also covers a footer with no attach/accessory controls
    before the send group (a public visitor chat), which would otherwise leave the lone send button
-   at the start under the footer's space-between. */
+   at the start of the row. */
 .jini-chat-pane .jini-composer-send-group {
   display: flex;
   flex-shrink: 0;
@@ -1177,6 +1197,9 @@ export const CHAT_PANE_STYLES = `
   cursor: pointer;
 }
 .jini-runtime-trigger { gap: 6px; padding: 3px 4px; }
+/* The model label truncates, but the trigger keeps room for its chevron and a few characters;
+   at the shared 'min-width: 0' it shrank to 12px and the chevron spilled onto the effort label. */
+.jini-runtime-picker .jini-runtime-dropup-trigger { min-width: 4.5em; }
 /* Local mode's trigger is the icon alone, so it has nothing to give way: shrunk under the shared
    \`min-width: 0\` on a narrow bar, the 22px icon spilled over the model/effort labels beside it
    (owner report, 2026-10-21). API mode keeps shrinking -- its model label ellipsizes. */
