@@ -67,7 +67,8 @@ export function isLoopbackPeerAddress({ address }: { readonly address: unknown }
 
 function isBareHttpOrigin({ parsed }: { readonly parsed: URL }, _optional: Record<string, never> = {}): boolean {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-  if (parsed.pathname !== '/' || parsed.search || parsed.hash || parsed.username || parsed.password) return false;
+  if (parsed.pathname !== '/' || parsed.search || parsed.hash) return false;
+  if (parsed.username || parsed.password) return false;
   return true;
 }
 

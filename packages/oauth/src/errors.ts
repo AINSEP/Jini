@@ -80,6 +80,6 @@ function normalizeProviderError({ body }: { body: Record<string, unknown> | null
 }
 function oauthResponseStatus({ body, response }: { body: Record<string, unknown> | null; response: Response },
     { successStatus }: { successStatus?: number } = {}): number {
-    return typeof body?.error === 'string' ? 400
-        : response.ok ? successStatus ?? response.status : response.status;
+    if (typeof body?.error === 'string') return 400;
+    return response.ok ? successStatus ?? response.status : response.status;
 }

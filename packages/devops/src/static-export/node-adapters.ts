@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import { constants, type Stats } from 'node:fs';
 import { lstat, mkdir, open, readdir, realpath, rm } from 'node:fs/promises';
-import { createServer, type RequestListener } from 'node:http';
+import { createServer, type RequestListener, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { ExportPathError, type AppFactoryPort, type ArtifactWriterPort, type AssetSourcePort } from './contracts.js';
@@ -63,6 +63,9 @@ export function createNodeArtifactWriter(_required: Record<string, never>, _opti
     },
   };
 }
+function closeServer(server: Server): Promise<void> {
+  return new Promise<void>(resolve => { server.close(() => resolve()); });
+}
 /** Independent Node loopback adapter. The app factory is required and remains owned by the host. */
 export function createNodeAppFactory(required: { createApp(required: Record<string, never>): RequestListener | Promise<RequestListener> }, _optional = {}): AppFactoryPort {
   return { async open() {
@@ -72,7 +75,7 @@ export function createNodeAppFactory(required: { createApp(required: Record<stri
       if (closed) return;
       closed = true;
       server.closeAllConnections();
-      await new Promise<void>(resolve => { server.close(() => resolve()); });
+      await closeServer(server);
     };
     try {
       server.listen(0, '127.0.0.1');
@@ -88,8 +91,11 @@ export function createNodeAssetSource(_required: Record<string, never>, _optiona
     const files: string[] = [];
     for (const entry of await readdir(directory, { withFileTypes: true })) {
       const relative = prefix + entry.name;
-      if (entry.isDirectory()) files.push(...await list(path.join(directory, entry.name), relative + '/'));
-      else if (entry.isFile()) files.push(relative);
+      if (entry.isDirectory()) {
+        files.push(...await list(path.join(directory, entry.name), relative + '/'));
+        continue;
+      }
+      if (entry.isFile()) files.push(relative);
     }
     return files;
   }

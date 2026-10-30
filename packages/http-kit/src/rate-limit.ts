@@ -94,6 +94,8 @@ export function createRateLimiter(
         if (nowMs - state.windowStartMs >= windowMs) await store.delete({ key: expiredKey });
       }
       lastSweepMs = nowMs;
+    } else {
+      // The active window needs no expiry sweep.
     }
 
     const existing = await store.get({ key });

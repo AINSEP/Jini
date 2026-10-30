@@ -63,6 +63,30 @@ import { fetchWithTimeout, FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with
 const response = await fetchWithTimeout('https://example.test/status', {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
 ```
 
+`createDeadlineSignal({ waitMs: number }, options?: DeadlineSignalOptions): { signal: AbortSignal; dispose(): void }`
+and `DeadlineSignalOptions` are exported here and from the root. Options accept `signal?: AbortSignal`,
+`startedAt?: number`, `now?: () => number` (default `Date.now`), and
+`wait?: ({ ms, signal }: { ms: number; signal: AbortSignal }) => Promise<void>` (default real timers).
+The host wait resolves after `ms` and must release its timer and settle on signal abort.
+Elapsed time is subtracted once; the remaining delay is clamped to zero and must be a safe integer.
+Zero expires asynchronously. Parent cancellation preserves its reason; deadline expiry uses
+`DOMException` with name `TimeoutError`; host wait failures propagate as the signal's abort reason.
+Disposal is idempotent, cancels the pending wait, and detaches parent listeners without aborting
+the returned signal. Parent abort and deadline completion also release these resources.
+
+```ts
+import { createDeadlineSignal } from '@jini-ai/platform/fetch-with-timeout';
+const { signal, dispose } = createDeadlineSignal({ waitMs: 25_000 });
+try {
+  await fetch('https://example.test/status', { signal });
+} finally {
+  dispose();
+}
+```
+
+Prerelease migration: rc.1/rc.2 callers that used the return value as an `AbortSignal`
+must destructure `{ signal, dispose }` and dispose in `finally`.
+
 ## Root: paths, toolchains, sandbox environment
 
 | Export | Current signature / return |

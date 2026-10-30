@@ -97,10 +97,9 @@ function resolvePostgresConfig(
  *   explicit SSL modes are trimmed and lowercased before validation.
  */
 export function resolveSqliteBackendConfig(
-  required: Record<string, never>,
+  _required: Record<string, never>,
   optional: { env?: Record<string, string | undefined> } = {},
 ): SqliteBackendConfig {
-  void required;
   const e = optional.env ?? process.env;
   const kind = (e.JINI_SQLITE_BACKEND ?? 'sqlite').trim().toLowerCase();
   if (kind === 'postgres') {

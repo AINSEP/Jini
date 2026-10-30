@@ -49,6 +49,17 @@ function toRow(record: VaultRecord): SecretsVaultTable {
  * serializes every writer, including targeted patches and boot rotation. Nested transactions join
  * the host's transaction, allowing MCP payload/pointer/status writes to commit together.
  */
+function batchOpWorkspaceId(op: VaultBatchOp): string {
+  if ("put" in op) return op.put.record.workspaceId;
+  return "delete" in op ? op.delete.workspaceId : op.patchMeta.workspaceId;
+}
+
+/** Code-unit order, independent of any database collation. */
+function compareIds(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
 export class SqlSecretsVaultRepo implements VaultRepoPort {
   private readonly kernel: StorageKernel<SecretsVaultDatabase>;
   constructor({ kernel }: { kernel: StorageKernel<SecretsVaultDatabase> }, _options: VaultOptions = {}) { this.kernel = kernel; }
@@ -91,14 +102,19 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
    */
   async applyBatch({ ops }: { ops: readonly VaultBatchOp[] }, _options: VaultOptions = {}): Promise<VaultBatchResult[]> {
     return this.kernel.transaction(async () => {
-      const workspaces = ops.map(op => "put" in op ? op.put.record.workspaceId : "delete" in op ? op.delete.workspaceId : op.patchMeta.workspaceId);
+      const workspaces = ops.map(batchOpWorkspaceId);
       for (const workspaceId of [...new Set(workspaces)].sort()) await this.kernel.lockKey(`secrets_vault:${workspaceId}`);
       const results: VaultBatchResult[] = [];
       for (const op of ops) {
-        results.push("put" in op ? await this.put(op.put) : "delete" in op ? await this.delete(op.delete) : await this.patchMeta(op.patchMeta));
+        results.push(await this.applyOp(op));
       }
       return results;
     });
+  }
+  private applyOp(op: VaultBatchOp): Promise<VaultBatchResult> {
+    if ("put" in op) return this.put(op.put);
+    if ("delete" in op) return this.delete(op.delete);
+    return this.patchMeta(op.patchMeta);
   }
   /** One indexed exact-group lookup; ciphertext is loaded only for the chosen default.
    * The group is restated in the default index's normalized expressions and `is_default` is a
@@ -114,7 +130,7 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
   async list(input: VaultQuery, _options: VaultOptions = {}): Promise<VaultRecord[]> {
     const rows = await this.kernel.run(db => this.scoped({ db, input }).selectAll().execute());
     // Sort identifiers in JS to avoid host database collation changing the memory contract.
-    return rows.map(fromRow).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    return rows.map(fromRow).sort((a, b) => compareIds(a.id, b.id));
   }
   private async assertLabelAvailable(
     { record, existing, moved, scope }: { record: Parameters<VaultRepoPort["put"]>[0]["record"]; existing: VaultRecord | null; moved: boolean; scope: VaultQuery },

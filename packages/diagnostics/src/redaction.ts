@@ -21,7 +21,8 @@ const BARE_SECRET_RE = /(^|[\s,;])(access_token|refresh_token|id_token|api[_-]?k
 // Character class covers RFC 6750 token68 (ALPHA / DIGIT / "-" / "." / "_"
 // / "~" / "+" / "/" / "=") plus ":" for Basic credentials. Missing "~"
 // previously left tokens like `Bearer abcd~efgh` partially exposed.
-const HTTP_AUTH_SCHEME_RE = /\b(Bearer|Token|Basic)\s+([A-Za-z0-9._~\-+/=:]{4,})/gi;
+// Case-insensitive, so the class needs only one letter case.
+const HTTP_AUTH_SCHEME_RE = /\b(Bearer|Token|Basic)\s+([a-z0-9._~\-+/=:]{4,})/gi;
 
 const REDACTED = "[REDACTED]";
 
@@ -94,8 +95,13 @@ export function redactJsonText({ text }: { text: string }, opts: RedactionOption
 // Each alternative consumes one path in a forward scan; no nested repetitions or wildcard retries.
 // `<`/`>` stay inside a plain path: an upstream username redaction yields `/Users/<USER>/…`, whose
 // tail would otherwise escape after a masked `/Users/` prefix.
-const LOCAL_PATH_RE = /(["'(])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~[\\/]|\/)[^"'()\r\n]*)(["')])|(^|[\s="'(<[\]{},;`])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~[\\/]|\/)[^\s"'`()[\]{},;]*)/g;
-const QUOTED_LOCAL_PATH_RE = /(["'])((?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~[\\/]|\/)[^"'\r\n]*)\1/g;
+// How a local path starts: a file URL, a drive letter, a UNC prefix, a home `~`, or a root `/`.
+const BACKTICK = "`";
+const LOCAL_PATH_START = String.raw`(?:file:\/\/|[A-Za-z]:[\\/]|\\\\|~[\\/]|\/)`;
+const DELIMITED_LOCAL_PATH = String.raw`(["'(])(${LOCAL_PATH_START}[^"'()\r\n]*)(["')])`;
+const BARE_LOCAL_PATH = String.raw`(^|[\s="'(<[\]{},;${BACKTICK}])(${LOCAL_PATH_START}[^\s"'${BACKTICK}()[\]{},;]*)`;
+const LOCAL_PATH_RE = new RegExp(`${DELIMITED_LOCAL_PATH}|${BARE_LOCAL_PATH}`, "g");
+const QUOTED_LOCAL_PATH_RE = new RegExp(String.raw`(["'])(${LOCAL_PATH_START}[^"'\r\n]*)\1`, "g");
 
 /** Decode local file URLs independently of the host OS; invalid URLs are always masked. O(n). */
 function decodedLocalPath({ value }: { value: string }, _options = {}): string | undefined {

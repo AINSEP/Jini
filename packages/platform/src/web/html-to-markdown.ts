@@ -22,16 +22,24 @@ function isElement(node: Node): node is Element {
   return "tagName" in node;
 }
 
+/** A node's children for {@link plainText}; skipped elements and leaves contribute none. */
+function scannableChildren(node: Node): readonly Node[] {
+  if (!("childNodes" in node) || (isElement(node) && SKIPPED.has(node.tagName))) return [];
+  return node.childNodes;
+}
+
 /** Iterative so a degraded, very deep subtree cannot overflow the stack either. O(subtree nodes). */
 function plainText(root: Node): string {
   const pending = [root];
   const parts: string[] = [];
   while (pending.length) {
     const node = pending.pop()!;
-    if (node.nodeName === "#text" && "value" in node) parts.push(node.value);
-    else if ("childNodes" in node && !(isElement(node) && SKIPPED.has(node.tagName))) {
-      for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push(node.childNodes[i]!);
+    if (node.nodeName === "#text" && "value" in node) {
+      parts.push(node.value);
+      continue;
     }
+    const children = scannableChildren(node);
+    for (let i = children.length - 1; i >= 0; i--) pending.push(children[i]!);
   }
   return parts.join("").replace(/\s+/g, " ");
 }
@@ -117,9 +125,11 @@ function splitAttention({ node, parent }: { node: Element; parent: Element }, _o
 function takeEdgeWhitespace({ node, last }: { node: Element; last: boolean }, _options: Record<string, never> = {}): string {
   const edge = edgeText({ node, last });
   if (!edge) return "";
-  const whitespace = (last ? /\s+$/ : /^\s+/).exec(edge.value)?.[0] ?? "";
-  edge.value = last ? edge.value.slice(0, edge.value.length - whitespace.length) : edge.value.slice(whitespace.length);
-  return whitespace;
+  const value = edge.value;
+  // trimStart/trimEnd strip exactly the characters `\s` matches.
+  const kept = last ? value.trimEnd() : value.trimStart();
+  edge.value = kept;
+  return last ? value.slice(kept.length) : value.slice(0, value.length - kept.length);
 }
 
 /** The first/last leaf of the subtree when it is a text node. */
@@ -148,8 +158,11 @@ function hastText(root: ReaderNode): string {
   while (pending.length) {
     const node = pending.pop()!;
     // HAST text nodes always carry a value.
-    if (node.type === "text") parts.push(node.value!);
-    else if (node.children) for (let i = node.children.length - 1; i >= 0; i--) pending.push(node.children[i]!);
+    if (node.type === "text") {
+      parts.push(node.value!);
+      continue;
+    }
+    if (node.children) for (let i = node.children.length - 1; i >= 0; i--) pending.push(node.children[i]!);
   }
   return parts.join("");
 }
@@ -191,7 +204,10 @@ function prepare(document: DefaultTreeAdapterMap["document"], base: string): voi
   while (pending.length) {
     const entry = pending.pop()!;
     // A node's attention is split only after all its children were prepared (post-order).
-    if (entry.prepared) { if (isElement(entry.node)) attentionChildren(entry.node); continue; }
+    if (entry.prepared) {
+      if (isElement(entry.node)) attentionChildren(entry.node);
+      continue;
+    }
     visit({ entry, base, pending });
   }
 }

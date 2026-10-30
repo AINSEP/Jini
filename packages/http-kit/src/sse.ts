@@ -183,13 +183,15 @@ export function createSseChannel<E extends SseEvent>({ res }: { readonly res: Se
         return;
       }
       if (wroteOk === false) writable = false;
-      if (options.isEndEvent?.({ event })) {
+      if (isTerminalEvent(event)) {
         finish();
         return;
       }
     }
     if (ending) end();
   };
+
+  const isTerminalEvent = (event: E): boolean | undefined => options.isEndEvent?.({ event });
 
   const enqueue = ({ event }: { readonly event: E }): void => {
     if (closed || ending) return;

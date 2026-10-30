@@ -34,7 +34,8 @@ function createSchedulingLoop<Result>(input: {
   /** Schedule only after settlement; generation also rejects a stale queued callback. */
   const schedule = (delayMs: number): void => {
     if (stopped) return;
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     timer = input.scheduler.schedule({ delayMs, callback: () => {
       // Cancellation can race an already queued callback in a host scheduler.
       if (stopped || ticket !== generation) return;

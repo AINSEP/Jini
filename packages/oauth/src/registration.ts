@@ -128,13 +128,16 @@ function registrationError({ error, status }: { error: unknown; status: number |
     }
     return malformedRegistrationError({ error });
 }
+function registrationFailureMessage({ invalidInput, missingId }: { invalidInput: boolean; missingId: boolean }): string {
+    if (invalidInput) return 'the OAuth client registration configuration is invalid';
+    return missingId ? 'the client registration response contained no client id' : 'the client registration endpoint did not return a JSON object';
+}
 function malformedRegistrationError({ error }: { error: unknown }): OAuthError {
     const invalidInput = error instanceof TypeError;
     const missingId = error instanceof Error && error.message.includes('"client_id"');
     return new OAuthError({
         code: invalidInput ? 'OAUTH_INVALID_REQUEST' : 'OAUTH_MALFORMED_RESPONSE',
-        message: invalidInput ? 'the OAuth client registration configuration is invalid'
-            : missingId ? 'the client registration response contained no client id' : 'the client registration endpoint did not return a JSON object',
+        message: registrationFailureMessage({ invalidInput, missingId }),
         operatorAction: invalidInput ? "Check this provider's registration endpoint and initial access token."
             : "This server's dynamic client registration endpoint is not behaving like an RFC 7591 endpoint.",
     });

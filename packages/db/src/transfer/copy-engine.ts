@@ -5,7 +5,8 @@ import { defaultDbMessages, type DbMessages } from "../core/messages.js";
 import { constraintSql, createTableSql, indexSql, qualified, quoteIdent, quoteLiteral, reseedIdentitySql } from "./internal-ddl.js";
 import type { PostgresTargetPort } from "./postgres-target.js";
 import type { TransferSource } from "./sqlite-source.js";
-import type { TransferColumn, TransferTable } from "./types.js";
+import type { TableCount, TransferColumn, TransferTable } from "./types.js";
+export type { TableCount } from "./types.js";
 
 
 /**
@@ -41,6 +42,24 @@ import type { TransferColumn, TransferTable } from "./types.js";
 /** The schema the first site to copy into a database gets. */
 import type { TransferNaming } from "./types.js";
 import { planTransfer, type TransferPlanSource } from "./plan.js";
+
+/** COPY text-format escapes for the characters that would otherwise end or split a field. */
+const COPY_TEXT_ESCAPES: Readonly<Record<string, string>> = { "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t" };
+
+/** Drops trailing `_`; a scan rather than /_+$/, which backtracks quadratically. The transfer entry
+ * loads no other package (see loads-without-driver.test.ts), so core's trimChars is not used here. */
+function trimTrailingUnderscores(text: string): string {
+  let end = text.length;
+  while (end > 0 && text[end - 1] === "_") end -= 1;
+  return text.slice(0, end);
+}
+
+/** A site's lowercase `_`-joined alphanumeric runs, with no leading or trailing `_`. */
+function siteSlug(site: string): string {
+  // Runs are collapsed first, so at most one `_` can lead.
+  const joined = site.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  return trimTrailingUnderscores(joined.startsWith("_") ? joined.slice(1) : joined);
+}
 /** Postgres truncates identifiers past 63 bytes (NAMEDATALEN - 1). */
 const MAX_IDENTIFIER_BYTES = 63;
 
@@ -59,7 +78,7 @@ function shortHash(text: string): string {
  */
 function siteSchemaNameInternal(site: string, naming: TransferNaming): string {
   const SCHEMA_PREFIX = naming.schemaPrefix;
-  const slug = site.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const slug = siteSlug(site);
   const lossless = /^[A-Za-z0-9 ._-]*$/.test(site);
   if (lossless && slug !== "" && SCHEMA_PREFIX.length + slug.length <= MAX_IDENTIFIER_BYTES) return `${SCHEMA_PREFIX}${slug}`;
   return withHash(site, slug, naming);
@@ -68,19 +87,15 @@ function siteSchemaNameInternal(site: string, naming: TransferNaming): string {
 function withHash(site: string, slug: string, naming: TransferNaming): string {
   const SCHEMA_PREFIX = naming.schemaPrefix;
   const room = MAX_IDENTIFIER_BYTES - SCHEMA_PREFIX.length - 9;
-  const kept = slug.slice(0, room).replace(/_+$/, "");
-  return `${SCHEMA_PREFIX}${kept === "" ? "" : `${kept}_`}${shortHash(site)}`;
+  const kept = trimTrailingUnderscores(slug.slice(0, room));
+  const keptPart = kept === "" ? "" : kept + "_";
+  return `${SCHEMA_PREFIX}${keptPart}${shortHash(site)}`;
 }
 
 /** The schemas a site without a copy may take, in order. */
 function schemaCandidates(site: string, naming: TransferNaming): string[] {
-  const slug = site.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const slug = siteSlug(site);
   return [...new Set([naming.defaultSchema, siteSchemaNameInternal(site, naming), withHash(site, slug, naming)])];
-}
-
-export interface TableCount {
-  readonly table: TransferTable;
-  readonly rows: number;
 }
 
 export class SourceSchemaMismatchError extends Error {}
@@ -172,7 +187,7 @@ export async function inspectTarget({ target, site, naming }: { target: Postgres
 function copyField(value: unknown, table: string, column: TransferColumn): string {
   if (value === null || value === undefined) return "\\N";
   if (typeof value === "number" || typeof value === "bigint") return String(value);
-  if (typeof value === "string") return value.replace(/[\\\n\r\t]/g, (ch) => (ch === "\\" ? "\\\\" : ch === "\n" ? "\\n" : ch === "\r" ? "\\r" : "\\t"));
+  if (typeof value === "string") return value.replace(/[\\\n\r\t]/g, (ch) => COPY_TEXT_ESCAPES[ch]!);
   if (Buffer.isBuffer(value) && column.sqlType === "bytea") return `\\\\x${value.toString("hex")}`;
   throw new SourceSchemaMismatchError(`'${table}.${column.name}' holds binary data, which its Postgres column does not accept`);
 }
@@ -215,7 +230,7 @@ function guardSql(schema: string, site: string, TRANSFER_MARKER_TABLE: string, s
 
 function countCheckSql(schema: string, counts: readonly TableCount[], sqlTag: string): string {
   const checks = counts.map(
-    ({ table, rows }) => `SELECT count(*) INTO n FROM ${qualified(schema, table.name)}; IF n <> ${rows} THEN RAISE EXCEPTION ${quoteLiteral(`${COUNT_MISMATCH_SIGNAL} ${table.name}`)}; END IF;`
+    ({ table, rows }) => `SELECT count(*) INTO n FROM ${qualified(schema, table.name)}; IF n <> ${rows} THEN RAISE EXCEPTION ${quoteLiteral(COUNT_MISMATCH_SIGNAL + " " + table.name)}; END IF;`
   );
   return `DO $${sqlTag}$ DECLARE n bigint; BEGIN ${checks.join(" ")} END $${sqlTag}$;\n`;
 }
@@ -334,7 +349,7 @@ export async function runCopy(input: RunCopyInput, _optional: { messages?: Pick<
   }
   const mismatch = new RegExp(`${COUNT_MISMATCH_SIGNAL} (\\S+)`).exec(result.error);
   if (mismatch) return { ok: false, code: "COUNT_MISMATCH", message: `the copy of '${mismatch[1]}' did not match, so the whole copy was thrown away. Any earlier copy is untouched.`, logDetail: result.error };
-  const where = result.copyTable ? ` while copying '${result.copyTable.replace(`${schema}.`, "")}'` : "";
+  const where = result.copyTable ? ` while copying '${result.copyTable.replace(schema + ".", "")}'` : "";
   return { ok: false, code: "COPY_FAILED", message: `the destination refused the copy${where}, so the whole copy was thrown away. Any earlier copy is untouched.`, logDetail: result.error };
 }
 

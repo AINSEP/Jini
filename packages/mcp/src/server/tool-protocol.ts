@@ -164,8 +164,8 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
  */
 export function okResult({ payload }: { payload: unknown }): CallToolResult {
   const outcome = batchOutcomeFor({ output: payload });
-  const isError = (typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true)
-    || outcome === 'partial_failure' || outcome === 'error';
+  const flaggedError = typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true;
+  const isError = flaggedError || outcome === 'partial_failure' || outcome === 'error';
   if (isMcpContentEnvelope(payload)) {
     return { content: payload.content as CallToolResult['content'], ...(isError ? { isError: true } : {}) };
   }

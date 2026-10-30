@@ -24,7 +24,9 @@ export function createMailLaneLimiter(
   optional: { reservedForTransactional?: number; now?: () => number } = {},
 ): MailLaneLimiter {
   const { perSecond, burst } = required.limit;
-  if (!(perSecond > 0) || !(burst >= 1)) throw new RangeError("mail rate limit needs perSecond > 0 and burst >= 1");
+  // Positive comparisons on purpose: NaN fails both and is rejected.
+  const validLimit = perSecond > 0 && burst >= 1;
+  if (!validLimit) throw new RangeError("mail rate limit needs perSecond > 0 and burst >= 1");
   const now = optional.now ?? Date.now;
   // At least one token whenever burst > 1: 20% of a small burst (Resend's 2) floors to 0, which let
   // bulk drain the bucket and starve an interactive sign-in link. Never all of it (bulk must move).

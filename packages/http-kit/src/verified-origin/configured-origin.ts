@@ -1,6 +1,6 @@
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 import { hasForbiddenRawUrlCharacter } from "./origin.js";
 import { createVerifiedOrigin, type VerifiedOrigin } from "./types.js";
-type ISODateTime = string;
 
 /**
  * Loopback (including *.localhost and 127.0.0.0/8) cannot represent a public deployment. Rejecting
@@ -50,7 +50,7 @@ function refusalReason(url: URL): string | null {
 
 // Omit absent port/basePath keys entirely: explicit undefined differs from an omitted optional
 // property under strict equality, and storage adapters preserve that distinction.
-function buildConfiguredOrigin(url: URL, now: ISODateTime): VerifiedOrigin {
+function buildConfiguredOrigin(url: URL, now: string): VerifiedOrigin {
   const candidate: VerifiedOrigin = {
     scheme: "https",
     host: normalizeHost(url.hostname),
@@ -58,7 +58,7 @@ function buildConfiguredOrigin(url: URL, now: ISODateTime): VerifiedOrigin {
     source: "workspace-setting",
   };
   if (url.port !== "") candidate.port = Number(url.port);
-  const basePath = url.pathname.replace(/\/+$/, "");
+  const basePath = trimCharsEnd({ text: url.pathname, chars: "/" });
   if (basePath !== "") candidate.basePath = basePath;
   return createVerifiedOrigin(candidate);
 }

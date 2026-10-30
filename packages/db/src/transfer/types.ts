@@ -45,5 +45,10 @@ export interface TransferTable {
   readonly checks: readonly TransferCheck[];
 }
 
+export interface TableCount {
+  readonly table: TransferTable;
+  readonly rows: number;
+}
+
 
 export type { TransferNaming } from '../core/transfer-naming.js';

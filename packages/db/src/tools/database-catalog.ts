@@ -49,6 +49,9 @@ import type { AgentToolDefinition } from "@jini-ai/core";
 import { defaultDbMessages, type DbMessages } from "../core/messages.js";
 
 /** No arguments — shared by every parameterless read tool in this catalog. */
+/** The permission every read-only database tool requires. */
+export const DATABASE_READ_PERMISSION = "database.read";
+
 const NO_INPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -115,7 +118,7 @@ export function getDatabaseAgentToolCatalog(
       name: "database_get_health",
       description: messages.databaseHealth,
       sideEffects: "none",
-      authorization: { permission: "database.read" },
+      authorization: { permission: DATABASE_READ_PERMISSION },
       inputSchema: NO_INPUT_SCHEMA,
     },
     {
@@ -126,7 +129,7 @@ export function getDatabaseAgentToolCatalog(
       name: "database_get_schema_state",
       description: messages.databaseSchemaState,
       sideEffects: "none",
-      authorization: { permission: "database.read" },
+      authorization: { permission: DATABASE_READ_PERMISSION },
       inputSchema: NO_INPUT_SCHEMA,
     },
     {
@@ -137,7 +140,7 @@ export function getDatabaseAgentToolCatalog(
       name: "database_list_pending_migrations",
       description: messages.databasePendingMigrations,
       sideEffects: "none",
-      authorization: { permission: "database.read" },
+      authorization: { permission: DATABASE_READ_PERMISSION },
       inputSchema: NO_INPUT_SCHEMA,
     },
     {
@@ -145,14 +148,14 @@ export function getDatabaseAgentToolCatalog(
       description:
         "Returns a filtered, cursor-paginated page of the append-only database ledger (migrations, snapshots, restores, interrupted migrations), newest first.",
       sideEffects: "none",
-      authorization: { permission: "database.read" },
+      authorization: { permission: DATABASE_READ_PERMISSION },
       inputSchema: TIMELINE_QUERY_SCHEMA,
     },
     {
       name: "database_list_restore_points",
       description: messages.databaseRestorePoints,
       sideEffects: "none",
-      authorization: { permission: "database.read" },
+      authorization: { permission: DATABASE_READ_PERMISSION },
       inputSchema: NO_INPUT_SCHEMA,
     },
     {
@@ -166,7 +169,7 @@ export function getDatabaseAgentToolCatalog(
       name: "database_plan_migrate_forward",
       description: messages.databasePlanMigrate,
       sideEffects: "none",
-      authorization: { permission: "database.read" },
+      authorization: { permission: DATABASE_READ_PERMISSION },
       inputSchema: NO_INPUT_SCHEMA,
     },
     {
@@ -206,7 +209,7 @@ export function getDatabaseAgentToolCatalog(
       description:
         messages.databaseRestoreGuidance,
       sideEffects: "none",
-      authorization: { permission: "database.read" },
+      authorization: { permission: DATABASE_READ_PERMISSION },
     },
   ];
 }

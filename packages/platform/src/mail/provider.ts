@@ -76,9 +76,13 @@ export function validateMailProvider({ provider }: { provider: MailProviderModul
   if (typeof caps !== "object" || caps === null) return "capabilities are missing";
   // A capability claim without the code behind it is how Resend once advertised feedback with no route.
   if (caps.feedback !== (provider.feedback !== undefined)) return "capabilities.feedback must match the presence of a feedback parser";
-  const hasDomain = typeof provider.domainRequirements === "function" && typeof provider.domainStatus === "function";
+  const hasDomain = hasDomainVerification(provider);
   if (caps.domainVerification !== hasDomain) return "capabilities.domainVerification must match domainRequirements + domainStatus";
   return undefined;
+}
+
+function hasDomainVerification(provider: MailProviderModule): boolean {
+  return typeof provider.domainRequirements === "function" && typeof provider.domainStatus === "function";
 }
 
 export type MailProviderRegistry = ProviderRegistry<MailProviderModule>;
@@ -154,11 +158,18 @@ export function computeMailStatus(
 ): MailStatus {
   const { setting, registry, hasCredential } = required;
   const lanes = (["transactional", "bulk"] as const).map((lane) => laneStatus({ lane, providerId: setting[lane], registry, hasCredential }));
-  const warnings: MailStatusWarning[] = [];
-  const domain = optional.senderDomainState;
-  if (domain === null) warnings.push("sender_unknown");
-  else if (domain !== undefined && domain !== "verified") warnings.push("sender_unverified");
-  const ready = lanes.filter((status) => status.state === "ready").length;
-  const state = ready === lanes.length ? "ready" : lanes[0]!.state === "unconfigured" ? "unconfigured" : "degraded";
-  return { state, lanes, warnings };
+  const senderWarning = senderDomainWarning(optional.senderDomainState);
+  const warnings: MailStatusWarning[] = senderWarning === undefined ? [] : [senderWarning];
+  return { state: overallMailState(lanes), lanes, warnings };
+}
+
+function senderDomainWarning(domain: MailDomainState | null | undefined): MailStatusWarning | undefined {
+  if (domain === null) return "sender_unknown";
+  if (domain === undefined || domain === "verified") return undefined;
+  return "sender_unverified";
+}
+
+function overallMailState(lanes: readonly { state: string }[]): "ready" | "unconfigured" | "degraded" {
+  if (lanes.every((status) => status.state === "ready")) return "ready";
+  return lanes[0]!.state === "unconfigured" ? "unconfigured" : "degraded";
 }

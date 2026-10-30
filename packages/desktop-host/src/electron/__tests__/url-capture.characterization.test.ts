@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { captureElectronUrl } from '../electron-url-capture.js';
+import { captureElectronUrl, createElectronUrlCapturePool } from '../electron-url-capture.js';
 import { createFakeBrowserWindowFactory } from '../testing.js';
 import type { ElectronBrowserWindowFactory } from '../electron-surfaces.js';
 import { URL_CAPTURE_MAX_BYTES, type UrlCaptureRequest } from '../../url-capture.js';
@@ -53,7 +53,7 @@ describe('URL capture height and refusal behavior before extraction', () => {
     [-Infinity, 812, 812], [-3, 1, 1], [0, 1, 1], [1024.2, 1025, 1025], [9000, 9000, 2000],
   ])('preserves full-page height selection for %s', async (rawHeight, pageHeight, capturedHeight) => {
     const f = fixture({}, { rawHeight });
-    const result = await captureElectronUrl({ createBrowserWindow: f.factory, request }, { allowedOrigins });
+    const result = await captureElectronUrl({ capturePool: createElectronUrlCapturePool({}), createBrowserWindow: f.factory, request }, { allowedOrigins });
     expect(result).toEqual({ png: Buffer.from('png'), finalUrl: request.url, title: 't'.repeat(300),
       status: null, pageHeight, capturedHeight, blockedRequests: 0 });
     expect(f.commands.at(-1)).toEqual(['Page.captureScreenshot', {
@@ -65,7 +65,7 @@ describe('URL capture height and refusal behavior before extraction', () => {
 
   it('uses viewport capture regardless of a taller document and skips lazy scrolling', async () => {
     const f = fixture({}, { rawHeight: 9000 });
-    const result = await captureElectronUrl({ createBrowserWindow: f.factory, request: { ...request, fullPage: false } }, { allowedOrigins });
+    const result = await captureElectronUrl({ capturePool: createElectronUrlCapturePool({}), createBrowserWindow: f.factory, request: { ...request, fullPage: false } }, { allowedOrigins });
     expect(result.pageHeight).toBe(812);
     expect(result.capturedHeight).toBe(812);
     expect(Buffer.from(result.png).toString()).toBe('png');
@@ -75,7 +75,7 @@ describe('URL capture height and refusal behavior before extraction', () => {
 
   it.each(['debugger', 'executeJavaScript', 'getURL', 'getTitle'] as const)('refuses missing native %s capability and destroys the window', async missing => {
     const f = fixture({}, { missing });
-    await expect(captureElectronUrl({ createBrowserWindow: f.factory, request }, { allowedOrigins })).rejects.toMatchObject({
+    await expect(captureElectronUrl({ capturePool: createElectronUrlCapturePool({}), createBrowserWindow: f.factory, request }, { allowedOrigins })).rejects.toMatchObject({
       code: 'not-implemented', message: missing === 'debugger' ? 'native device emulation unavailable' : 'host does not support URL capture',
     });
     expect(f.windows[0]!.isDestroyed()).toBe(true);
@@ -83,7 +83,7 @@ describe('URL capture height and refusal behavior before extraction', () => {
 
   it('rejects a redirect before reading page height', async () => {
     const f = fixture({}, { finalUrl: 'https://other.example/' });
-    await expect(captureElectronUrl({ createBrowserWindow: f.factory, request }, { allowedOrigins })).rejects.toMatchObject({
+    await expect(captureElectronUrl({ capturePool: createElectronUrlCapturePool({}), createBrowserWindow: f.factory, request }, { allowedOrigins })).rejects.toMatchObject({
       code: 'navigation-blocked', message: 'capture redirected off site',
     });
     expect(f.scripts).toHaveLength(1);
@@ -92,10 +92,10 @@ describe('URL capture height and refusal behavior before extraction', () => {
 
   it('normalizes native errors and enforces the PNG byte limit', async () => {
     const failed = fixture({}, { nativeError: new Error('native detail') });
-    await expect(captureElectronUrl({ createBrowserWindow: failed.factory, request }, { allowedOrigins }))
+    await expect(captureElectronUrl({ capturePool: createElectronUrlCapturePool({}), createBrowserWindow: failed.factory, request }, { allowedOrigins }))
       .rejects.toMatchObject({ code: 'load-failed', message: 'native page capture failed' });
     const large = fixture({}, { png: Buffer.alloc(URL_CAPTURE_MAX_BYTES + 1) });
-    await expect(captureElectronUrl({ createBrowserWindow: large.factory, request }, { allowedOrigins }))
+    await expect(captureElectronUrl({ capturePool: createElectronUrlCapturePool({}), createBrowserWindow: large.factory, request }, { allowedOrigins }))
       .rejects.toMatchObject({ code: 'load-failed', message: 'capture exceeds PNG byte limit' });
     expect(large.windows[0]!.isDestroyed()).toBe(true);
   });

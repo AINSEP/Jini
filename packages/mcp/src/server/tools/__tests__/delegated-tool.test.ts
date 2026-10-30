@@ -44,6 +44,19 @@ describe('opt-in delegated result metadata', () => {
 });
 
 describe('createExecuteDelegatedToolTool', () => {
+  it('tells every gateway and concrete tool to wait for a result that says the action started', () => {
+    const tools = [
+      createExecuteDelegatedToolTool({ runId: 'run-1' }),
+      createExecuteReadonlyDelegatedToolTool({ runId: 'run-1' }),
+      createTypedDelegatedToolTool({ runId: 'run-1', tool: { wireName: 'publish', descriptor: { id: 'publish', description: 'Publish the site', inputSchema: { type: 'object', properties: {} } } } }),
+    ];
+    for (const tool of tools) {
+      expect(tool.description).toContain('Never say an action has started until its tool result explicitly says it started');
+      expect(tool.description).toContain('awaiting_approval');
+      expect(tool.description).toContain('started:false');
+    }
+  });
+
   it('declares the execute_delegated_tool name, schema, and write annotations', () => {
     const tool = createExecuteDelegatedToolTool(...splitGatewayFixture({ runId: 'run-1' }));
     expect(tool.name).toBe('execute_delegated_tool');

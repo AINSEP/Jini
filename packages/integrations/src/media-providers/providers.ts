@@ -9,6 +9,9 @@
 import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from './types.js';
 
 /** One adapter-owned endpoint catalog; protocols and UI presets project this data. */
+/** The OpenAI-compatible custom image endpoint's provider id. */
+const CUSTOM_IMAGE_PROVIDER_ID = 'custom-image';
+
 export const VENDOR_API_BASE_URLS = {
   anthropic: 'https://api.anthropic.com', openai: 'https://api.openai.com/v1', azure: '',
   google: 'https://generativelanguage.googleapis.com', openrouter: 'https://openrouter.ai/api/v1',
@@ -23,7 +26,7 @@ export const VENDOR_API_BASE_URLS = {
 
 /** Old UI ids remain accepted at boundaries; canonical ids match the existing dispatch catalog. */
 export const MEDIA_PROVIDER_ID_ALIASES: Readonly<Record<string, string>> = {
-  'nano-banana': 'nanobanana', 'custom-image-api': 'custom-image', 'fal-ai': 'fal',
+  'nano-banana': 'nanobanana', 'custom-image-api': CUSTOM_IMAGE_PROVIDER_ID, 'fal-ai': 'fal',
   'leonardo-ai': 'leonardo', 'tavily-search': 'tavily', 'volcengine-ark': 'volcengine', 'xai-grok-imagine': 'grok',
 };
 /** Resolve legacy aliases without changing unknown extension IDs. @complexity O(1). */
@@ -51,7 +54,7 @@ export const MEDIA_PROVIDERS: readonly MediaProvider[] = [
   { id: 'nanobanana', label: 'Nano Banana', hint: 'Google official by default; custom gateway configurable', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.google, supportsCustomModel: true },
   { id: 'imagerouter', label: 'ImageRouter', hint: 'OpenAI-compatible image + video routing', integrated: true, defaultBaseUrl: VENDOR_API_BASE_URLS.imagerouter, docsUrl: 'https://docs.imagerouter.io/api-reference/image-generation/', supportsCustomModel: true, customModelPlaceholder: 'openai/gpt-image-2 or xAI/grok-imagine-video' },
   { id: 'openrouter', label: 'OpenRouter', hint: 'Unified gateway for image + video models', integrated: true, credentialsRequired: true, settingsVisible: true, defaultBaseUrl: VENDOR_API_BASE_URLS.openrouter, docsUrl: 'https://openrouter.ai/settings/keys' },
-  { id: 'custom-image', label: 'Custom Media API', hint: 'OpenAI-compatible images/generations + images/edits (local or cloud)', integrated: true, docsUrl: 'https://platform.openai.com/docs/api-reference/images', supportsCustomModel: true, customModelPlaceholder: 'my-image-model' },
+  { id: CUSTOM_IMAGE_PROVIDER_ID, label: 'Custom Media API', hint: 'OpenAI-compatible images/generations + images/edits (local or cloud)', integrated: true, docsUrl: 'https://platform.openai.com/docs/api-reference/images', supportsCustomModel: true, customModelPlaceholder: 'my-image-model' },
   { id: 'comfyui', label: 'ComfyUI', hint: 'Local JSON workflow server (planned adapter)', integrated: false, defaultBaseUrl: VENDOR_API_BASE_URLS.comfyui, docsUrl: 'https://docs.comfy.org/development/core-concepts/workflow' },
   { id: 'bfl', label: 'Black Forest Labs', hint: 'FLUX 1.1 Pro / FLUX Pro / Dev', integrated: false, defaultBaseUrl: VENDOR_API_BASE_URLS.bfl },
   { id: 'fal', label: 'Fal.ai', hint: 'FLUX / Sora / Veo / Wan / Ideogram / Recraft and any fal-ai/* model', integrated: false, defaultBaseUrl: VENDOR_API_BASE_URLS.fal, supportsCustomModel: true },
@@ -104,7 +107,7 @@ export const IMAGE_MODELS: readonly MediaModel[] = [
   { id: 'openrouter/google/gemini-2.5-flash-image', label: 'gemini-flash-image (OR)', hint: 'OpenRouter · Gemini', provider: 'openrouter', caps: ['t2i'] },
   { id: 'openrouter/black-forest-labs/flux-1.1-pro', label: 'flux-1.1-pro (OR)', hint: 'OpenRouter · BFL', provider: 'openrouter', caps: ['t2i'] },
   { id: 'openrouter/recraft/recraft-v3', label: 'recraft-v3 (OR)', hint: 'OpenRouter · Recraft', provider: 'openrouter', caps: ['t2i'] },
-  { id: 'custom-image', label: 'custom-image', hint: 'Custom · OpenAI-compatible endpoint', provider: 'custom-image', caps: ['t2i', 'i2i'] },
+  { id: CUSTOM_IMAGE_PROVIDER_ID, label: CUSTOM_IMAGE_PROVIDER_ID, hint: 'Custom · OpenAI-compatible endpoint', provider: CUSTOM_IMAGE_PROVIDER_ID, caps: ['t2i', 'i2i'] },
   { id: 'flux-1.1-pro', label: 'flux-1.1-pro', hint: 'BFL · flagship', provider: 'bfl', caps: ['t2i', 'i2i'] },
   { id: 'flux-pro', label: 'flux-pro', hint: 'BFL', provider: 'bfl', caps: ['t2i'] },
   { id: 'flux-dev', label: 'flux-dev', hint: 'BFL · open weights', provider: 'bfl', caps: ['t2i'] },
@@ -234,7 +237,7 @@ export const PROVIDER_CREDENTIAL_ENV_VARS: Readonly<Record<string, readonly stri
   nanobanana: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
   imagerouter: ['IMAGEROUTER_API_KEY'],
   openrouter: ['OPENROUTER_API_KEY'],
-  'custom-image': ['CUSTOM_IMAGE_API_KEY'],
+  [CUSTOM_IMAGE_PROVIDER_ID]: ['CUSTOM_IMAGE_API_KEY'],
   bfl: ['BFL_API_KEY'],
   fal: ['FAL_KEY'],
   replicate: ['REPLICATE_API_TOKEN'],

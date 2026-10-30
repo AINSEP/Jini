@@ -1,20 +1,28 @@
 import { htmlUrlLocations } from './html-url-locations.js';
 export { exportUrlLocations } from './html-url-locations.js';
 import { ExportPathError } from './contracts.js';
+import { cssUrlTokens } from './css-urls.js';
+import { trimCharsEnd } from '@jini-ai/core/primitives';
+
+// Reserved `.invalid` origins used only to resolve and compare URLs locally; never fetched. Both
+// schemes are "special" to the URL parser, so https resolves exactly as http did.
+const SAFE_HREF_ORIGIN = 'https://export-safehref.invalid';
+const LOCAL_CSS_ORIGIN = 'https://export-local.invalid';
+/** JSON keys whose string values are links. */
+const LINK_KEYS: ReadonlySet<string> = new Set(['href', 'url', 'src']);
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!); }
 function safeHref(value: string): string {
   const href = value.trim();
   if (href.startsWith('#') || /^https?:\/\//i.test(href) || /^mailto:/i.test(href)) return href;
   if (href.startsWith('/')) {
-    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid sentinel used only for local URL resolution/origin comparison; never fetched.
-    try { if (new URL(href, 'http://export-safehref.invalid/').origin === 'http://export-safehref.invalid') return href; } catch { return '#'; }
+    try { if (new URL(href, `${SAFE_HREF_ORIGIN}/`).origin === SAFE_HREF_ORIGIN) return href; } catch { return '#'; }
   }
   return '#';
 }
 /** Normalize the optional output URL prefix; no product layout is implied. */
 export function normalizeBasePath(required: { raw: string }): string {
-  const trimmed = required.raw.trim().replace(/\/+$/, '');
+  const trimmed = trimCharsEnd({ text: required.raw.trim(), chars: '/' });
   if (trimmed === '' || trimmed === '/') return '';
   if (/[\\\x00-\x20\x7f?#"'<>]/.test(trimmed) || trimmed.startsWith('//')) throw new ExportPathError('Invalid export base path.');
   const normalized = trimmed.startsWith('/') ? trimmed : '/' + trimmed;
@@ -57,7 +65,7 @@ function isJsonRoute(path: string): boolean {
 function rewriteJson(body: string, basePath: string): string {
   let parsed: unknown;
   try { parsed = JSON.parse(body); } catch { return body; }
-  return JSON.stringify(parsed, (key, value: unknown) => (typeof value === 'string' && (key === 'href' || key === 'url' || key === 'src') ? prefix(value, basePath) : value));
+  return JSON.stringify(parsed, (key, value: unknown) => (typeof value === 'string' && LINK_KEYS.has(key) ? prefix(value, basePath) : value));
 }
 function rewriteHtml(html: string, basePath: string): string {
   const output: string[] = [];
@@ -77,7 +85,14 @@ function rewriteHtml(html: string, basePath: string): string {
 }
 /** Root-relative CSS URLs keep working in inline styles and stylesheets under an export prefix. */
 function rewriteCss(body: string, basePath: string): string {
-  return body.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g, (_match, quote: string, value: string) => `url(${quote}${prefix(value.trim(), basePath)}${quote})`);
+  const output: string[] = [];
+  let offset = 0;
+  for (const { start, end, quote, value } of cssUrlTokens(body)) {
+    output.push(body.slice(offset, start), `url(${quote}${prefix(value.trim(), basePath)}${quote})`);
+    offset = end;
+  }
+  output.push(body.slice(offset));
+  return output.join('');
 }
 /** Same bounded text transforms as the exporter origin; crawl the raw body before applying these. */
 export function rewriteRouteBodyForBasePath(required: { path: string; body: string; basePath: string }, _optional = {}): string {
@@ -122,7 +137,7 @@ function jsonUrls({ body }: { body: string }, _optional = {}): string[] {
   const urls: string[] = [];
   try {
     JSON.parse(body, (key, value: unknown) => {
-      if (typeof value === 'string' && ['src', 'url', 'href'].includes(key)) urls.push(value);
+      if (typeof value === 'string' && LINK_KEYS.has(key)) urls.push(value);
       return value;
     });
   } catch { /* A non-JSON response has no manifest link positions. */ }
@@ -134,9 +149,9 @@ function assetCandidates(required: { html: string; prefixes: readonly string[] }
   if (optional.format === 'xml') return [...required.html.matchAll(/<(?:[\w-]+:)?(?:loc|url)>([^<]+)<\//g)].map(match => match[1]!);
   const candidates: string[] = [];
   for (const { start, end, kind } of htmlUrlLocations(required)) {
+    if (kind === 'action') continue;
     const value = required.html.slice(start, end);
-    if (kind === 'css') candidates.push(...extractCssUrls({ css: value, cssUrl: '/', prefixes: required.prefixes }));
-    else if (kind !== 'action') candidates.push(...attributeUrls(kind, value));
+    candidates.push(...(kind === 'css' ? extractCssUrls({ css: value, cssUrl: '/', prefixes: required.prefixes }) : attributeUrls(kind, value)));
   }
   return candidates;
 }
@@ -152,17 +167,18 @@ export function extractAssetUrls(required: { html: string; prefixes: readonly st
 /** A single CSS hop, resolved against the stylesheet URL and restricted to the same synthetic origin. */
 export function extractCssUrls(required: { css: string; cssUrl: string; prefixes: readonly string[] }): string[] {
   const found = new Set<string>();
-  for (const match of required.css.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)) {
-    const ref = match[2]!.trim();
-    if (!ref || ref.startsWith('data:')) continue;
-    let resolved: URL;
-    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid sentinel used only for local URL resolution/origin comparison; never fetched.
-    try { resolved = new URL(ref, 'http://export-local.invalid' + required.cssUrl); } catch { continue; }
-    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- Reserved .invalid sentinel used only for local URL resolution/origin comparison; never fetched.
-    if (resolved.origin !== 'http://export-local.invalid') continue;
-    if (required.prefixes.some(prefix => resolved.pathname.startsWith(prefix))) found.add(resolved.pathname);
+  for (const { value } of cssUrlTokens(required.css)) {
+    const pathname = localCssPath({ ref: value.trim(), cssUrl: required.cssUrl });
+    if (pathname !== undefined && required.prefixes.some(prefix => pathname.startsWith(prefix))) found.add(pathname);
   }
   return [...found];
+}
+/** The same-origin path a stylesheet reference resolves to; data URIs, unparsable and foreign refs have none. */
+function localCssPath({ ref, cssUrl }: { ref: string; cssUrl: string }): string | undefined {
+  if (!ref || ref.startsWith('data:')) return undefined;
+  let resolved: URL;
+  try { resolved = new URL(ref, LOCAL_CSS_ORIGIN + cssUrl); } catch { return undefined; }
+  return resolved.origin === LOCAL_CSS_ORIGIN ? resolved.pathname : undefined;
 }
 /** Reject path escapes and separators before HTTP or writing; returns forward-slash relative output. */
 export function safeRelativeOutputFile(required: { value: string }): string {
@@ -171,13 +187,16 @@ export function safeRelativeOutputFile(required: { value: string }): string {
   if (value.split('/').some(segment => !segment || segment === '.' || segment === '..')) throw new ExportPathError('Output path resolved outside the output directory — refused');
   return value;
 }
+function contentIndexFile(relative: string): string {
+  return relative ? relative + '/index.html' : 'index.html';
+}
 /** URL request path to portable artifact path, with decoded traversal refusal. */
 export function outputFileForUrl(required: { url: string }, optional: { contentRoute?: boolean } = {}): string {
   if (!required.url.startsWith('/') || required.url.startsWith('//') || /[\\\x00-\x1f\x7f]/.test(required.url)) throw new ExportPathError('URL resolved outside the output directory — refused');
   let decoded: string;
   try { decoded = decodeURIComponent(required.url.split(/[?#]/)[0]!); } catch { throw new ExportPathError('Invalid URL encoding — refused'); }
-  const relative = decoded.replace(/^\//, '').replace(/\/+$/, '');
+  const relative = trimCharsEnd({ text: decoded.startsWith('/') ? decoded.slice(1) : decoded, chars: '/' });
   if (relative) safeRelativeOutputFile({ value: relative });
-  const output = optional.contentRoute && !isJsonRoute(relative) ? (relative ? relative + '/index.html' : 'index.html') : relative;
+  const output = optional.contentRoute && !isJsonRoute(relative) ? contentIndexFile(relative) : relative;
   return safeRelativeOutputFile({ value: output });
 }

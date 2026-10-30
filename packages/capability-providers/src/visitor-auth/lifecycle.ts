@@ -47,12 +47,16 @@ export interface VisitorAuthAuthorizationPlan {
   readonly transaction: VisitorAuthTransaction;
 }
 
+function invalidInput(message: string): VisitorAuthConfigurationError {
+  return new VisitorAuthConfigurationError({ code: 'invalid-input', message });
+}
+
 function parsedSecureUrl(value: string, label: string, allowLoopbackHttp: boolean): URL {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: `${label} must be an absolute URL` });
+    throw invalidInput(`${label} must be an absolute URL`);
   }
 
   const secure = isSecureProtocol(url, allowLoopbackHttp);
@@ -69,7 +73,7 @@ function isSecureProtocol(url: URL, allowLoopbackHttp: boolean): boolean {
 
 function assertNonEmpty(value: string, label: string): void {
   if (!value.trim()) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: `${label} must not be empty` });
+    throw invalidInput(`${label} must not be empty`);
   }
 }
 
@@ -89,7 +93,7 @@ function assertProviderAlignment(required: {
 function validatedTransactionTtl(ttlMs: number | undefined): number {
   const resolved = ttlMs ?? DEFAULT_TRANSACTION_TTL_MS;
   if (!Number.isInteger(resolved) || resolved <= 0 || resolved > MAX_TRANSACTION_TTL_MS) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: `ttlMs must be an integer between 1 and ${MAX_TRANSACTION_TTL_MS}` });
+    throw invalidInput(`ttlMs must be an integer between 1 and ${MAX_TRANSACTION_TTL_MS}`);
   }
   return resolved;
 }
@@ -106,7 +110,7 @@ function assertPlanContext(required: {
     assertNonEmpty(required.registration.clientSecretRef.id, 'clientSecretRef.id');
   }
   if (!Number.isFinite(required.nowMs)) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'nowMs must be finite' });
+    throw invalidInput('nowMs must be finite');
   }
 }
 
@@ -115,16 +119,16 @@ function validatedOidcNonce(
   security: VisitorAuthSecurityArtifacts,
 ): string | undefined {
   if (!OPAQUE_SECURITY_VALUE.test(security.state)) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'state is malformed or too short' });
+    throw invalidInput('state is malformed or too short');
   }
   if (!PKCE_VALUE.test(security.codeVerifier) || !PKCE_VALUE.test(security.codeChallenge)) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'PKCE verifier and S256 challenge must be 43-128 URL-safe characters' });
+    throw invalidInput('PKCE verifier and S256 challenge must be 43-128 URL-safe characters');
   }
   if (protocol !== 'oidc') return undefined;
 
   const nonce = security.nonce;
   if (!nonce || !OPAQUE_SECURITY_VALUE.test(nonce)) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'OIDC authorization requires a strong nonce' });
+    throw invalidInput('OIDC authorization requires a strong nonce');
   }
   return nonce;
 }
@@ -137,10 +141,10 @@ function assertAuthorizationServerSecurity(required: {
     throw new VisitorAuthConfigurationError({ code: 'pkce-s256-required', message: 'visitor-auth requires authorization servers that support PKCE S256' });
   }
   if (required.provider.protocol === 'oidc' && !required.server.issuer) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'OIDC authorization server metadata must declare an issuer' });
+    throw invalidInput('OIDC authorization server metadata must declare an issuer');
   }
   if (required.server.requiresAuthorizationResponseIssuer && !required.server.issuer) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'authorization response issuer validation requires a configured issuer' });
+    throw invalidInput('authorization response issuer validation requires a configured issuer');
   }
 }
 
@@ -390,7 +394,7 @@ export type VisitorAuthIdentityClaimsDecision =
 function validatedClockSkew(clockSkewSeconds: number | undefined): number {
   const skew = clockSkewSeconds ?? 60;
   if (!Number.isFinite(skew) || skew < 0 || skew > 300) {
-    throw new VisitorAuthConfigurationError({ code: 'invalid-input', message: 'clockSkewSeconds must be between 0 and 300' });
+    throw invalidInput('clockSkewSeconds must be between 0 and 300');
   }
   return skew;
 }

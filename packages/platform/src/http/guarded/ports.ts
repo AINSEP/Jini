@@ -1,4 +1,4 @@
-import type { Clock, HttpRequest, HttpResponse, HttpClientPort } from "@jini-ai/core/primitives";
+import type { Clock, HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import type { PinnedPeer } from "./types.js";
 export type { PinnedPeer } from "./types.js";
 /** Resolver returns every peer address; a mixed public/private answer is refused as a whole. */

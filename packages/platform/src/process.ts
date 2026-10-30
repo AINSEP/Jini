@@ -13,6 +13,8 @@
 import { execFile, spawn, type ChildProcess, type StdioOptions } from "node:child_process";
 import { posix, win32 } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
+import { captureLineTail } from "@jini-ai/core/text";
+import { windowsPowerShell } from "./windows-system-tools.js";
 
 import { createCommandInvocation, type CommandInvocationRequest } from "./command.js";
 import { execFileBuffered } from "./shell.js";
@@ -282,8 +284,7 @@ export function isProcessAlive(pid: number | null | undefined): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    if (errorCode(error) === "ESRCH") return false;
-    return true;
+    return errorCode(error) !== "ESRCH";
   }
 }
 
@@ -308,9 +309,11 @@ function parsePsOutput(stdout: string): ProcessSnapshot[] {
   return stdout
     .split(/\r?\n/)
     .map((line) => {
-      const match = line.match(/^\s*(\d+)\s+(\d+)\s+(.+)$/);
-      if (!match) return null;
-      return { pid: Number(match[1]), ppid: Number(match[2]), command: match[3] };
+      // Same as /^\s*(\d+)\s+(\d+)\s+(.+)$/, split so the command tail cannot backtrack.
+      const match = /^\s*(\d+)\s+(\d+)/.exec(line);
+      const command = match ? captureLineTail({ rest: line.slice(match[0].length) }, { minWhitespace: 1 }) : null;
+      if (!match || command === null) return null;
+      return { pid: Number(match[1]), ppid: Number(match[2]), command };
     })
     .filter((snapshot): snapshot is ProcessSnapshot => snapshot != null);
 }
@@ -334,8 +337,7 @@ async function listWindowsProcessSnapshots(): Promise<ProcessSnapshot[]> {
     "Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, CommandLine | ConvertTo-Json -Compress",
   ].join("; ");
   const stdout = await new Promise<string>((resolveList, rejectList) => {
-    // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed process-enumeration utility intentionally uses the trusted host PATH; command and argv are code-owned.
-    execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }, (error, out) => {
+    execFile(windowsPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", command], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 }, (error, out) => {
       if (error) rejectList(error);
       else resolveList(out);
     });
@@ -424,7 +426,7 @@ function parseCimUsage(stdout: string): ProcessUsage[] {
 /** @internal Fixed executable and argv, invoked directly without a command shell. */
 function processUsageCommand(windows: boolean): { command: string; args: string[] } {
   return windows
-    ? { command: "powershell.exe", args: ["-NoProfile", "-NonInteractive", "-Command",
+    ? { command: windowsPowerShell(), args: ["-NoProfile", "-NonInteractive", "-Command",
       "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize, UserModeTime, KernelModeTime, Name | ConvertTo-Json -Compress"] }
     : { command: "ps", args: ["-axo", "pid=,ppid=,rss=,time=,comm="] };
 }

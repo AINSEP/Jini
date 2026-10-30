@@ -11,6 +11,7 @@
  * itself.
  */
 import { extname } from "node:path";
+import { trimCharsEnd } from "@jini-ai/core/primitives";
 
 export type CommandInvocation = {
   args: string[];
@@ -46,7 +47,9 @@ function quoteWindowsCommandArg({ value }: { value: string }, _options = {}): st
   if (/[\r\n]/.test(value)) throw new Error("Windows command shim arguments cannot contain line breaks");
   if (value !== "" && !/[\s"&<>|^%=,;()]/.test(value)) return value;
   // Backslashes before the closing quote must survive the child's argv parser.
-  const escaped = value.replace(/"/g, '""').replace(/%/g, '"^%"').replace(/\\+$/, '$&$&');
+  const quoted = value.replace(/"/g, '""').replace(/%/g, '"^%"');
+  const trailingBackslashes = quoted.slice(trimCharsEnd({ text: quoted, chars: '\\' }).length);
+  const escaped = quoted + trailingBackslashes;
   return `"${escaped}"`;
 }
 

@@ -43,6 +43,18 @@ const REUSED_CREDENTIAL_RULES: readonly RedactionRule[] = SECRET_SHAPE_PATTERNS.
 const LABELED_SECRET_LABELS =
   "password|passwd|pwd|secret|client_secret|api_key|apikey|access_token|refresh_token|id_token|auth_token|token|private_key|secret_access_key|signing_secret|webhook_secret";
 
+// Parts of the auth-header rule below. The separator's optional quote now carries its own trailing
+// space run (`\s*(?:["']\s*)?` matches exactly what `\s*["']?\s*` did) so two adjacent `\s*` runs no
+// longer backtrack against each other across long whitespace.
+const AUTH_HEADER_NAMES = "(?:proxy-)?authorization|x-api-key|api-key|x-goog-api-key|x-auth-token";
+const AUTH_SCHEMES = "Bearer|Basic|Token|Digest|ApiKey";
+const AUTH_VALUE = String.raw`(?!\[REDACTED)[^\s"'),;]+`;
+const AUTH_HEADER_VALUE_RE = new RegExp(
+  String.raw`(?<![a-z0-9-])(${AUTH_HEADER_NAMES})(\s*(?:["']\s*)?[:=]\s*["']?)` +
+    String.raw`(?:((?:${AUTH_SCHEMES})\s+)${AUTH_VALUE}|(?!(?:${AUTH_SCHEMES})\s)${AUTH_VALUE})`,
+  "gi",
+);
+
 /**
  * Every rule this module applies, in order. Order matters: `private_key` must run before the
  * reused header-only PEM pattern (inside {@link REUSED_CREDENTIAL_RULES}) so a full block is
@@ -74,12 +86,12 @@ const REDACTION_RULES: readonly RedactionRule[] = [
     // scheme keyword, so when the first alternative's lookahead fails there is no fallback left to
     // backtrack into, and the whole rule correctly finds no match on a second pass.
     pattern:
-      /(?<![A-Za-z0-9-])((?:proxy-)?authorization|x-api-key|api-key|x-goog-api-key|x-auth-token)(\s*["']?\s*[:=]\s*["']?)(?:((?:Bearer|Basic|Token|Digest|ApiKey)\s+)(?!\[REDACTED)[^\s"'),;]+|(?!\[REDACTED)(?!(?:Bearer|Basic|Token|Digest|ApiKey)\s)[^\s"'),;]+)/gi,
+      AUTH_HEADER_VALUE_RE,
     replacement: ({ match: m }) => `${m[1]}${m[2]}${m[3] ?? ""}[REDACTED:auth_header]`,
   },
   {
     kind: "auth_header",
-    pattern: /(?<![A-Za-z0-9-])((?:set-)?cookie)(\s*[:=]\s*)(?!\[REDACTED)[^\s"'),;]+(?:;\s*[^\s"'),;]+)*/gi,
+    pattern: /(?<![a-z0-9-])((?:set-)?cookie)(\s*[:=]\s*)(?!\[REDACTED)[^\s"'),;]+(?:;\s*[^\s"'),;]+)*/gi,
     replacement: ({ match: m }) => `${m[1]}${m[2]}[REDACTED:auth_header]`,
   },
   {
@@ -95,18 +107,18 @@ const REDACTION_RULES: readonly RedactionRule[] = [
   ...REUSED_CREDENTIAL_RULES,
   {
     kind: "stripe_key",
-    pattern: /(?<![A-Za-z0-9_])(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}/g,
+    pattern: /(?<!\w)(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}/g,
     replacement: () => "[REDACTED:stripe_key]",
   },
   {
     kind: "stripe_key",
-    pattern: /(?<![A-Za-z0-9_])whsec_[A-Za-z0-9]{24,}/g,
+    pattern: /(?<!\w)whsec_[A-Za-z0-9]{24,}/g,
     replacement: () => "[REDACTED:stripe_key]",
   },
   {
     kind: "github_token",
     // Covers `ghs_`/`ghu_`/`ghr_` and lengths the exact-length SECRET_SHAPE_PATTERNS entries miss.
-    pattern: /(?<![A-Za-z0-9_])gh[pousr]_[A-Za-z0-9]{30,}/g,
+    pattern: /(?<!\w)gh[pousr]_[A-Za-z0-9]{30,}/g,
     replacement: () => "[REDACTED:github_token]",
   },
   {
@@ -258,7 +270,7 @@ function hasSecretLiteralContext(
   const name = previous.at(-2);
   if (!name || (name.type !== "IdentifierName" && name.type !== "StringLiteral")) return false;
   const label = name.type === "StringLiteral" ? decodeStaticLiteral({ content: name.value.slice(1, -1) }) : name.value;
-  if (!/(pass(word|wd)?|secret|token|api[-_]?key|access[-_]?key|private[-_]?key|client[-_]?secret|auth(orization)?|bearer|cookie|credential)s?$/i.test(label)) return false;
+  if (!SECRET_LABEL_SUFFIX.test(label)) return false;
   if (separator === ":" || separator === "=") return true;
   return isFirstNamedCallArgument({ previous, separator, name });
 }
@@ -296,19 +308,26 @@ function redactUnclassifiedLiteral(
   return { text: content, redactions: 0 };
 }
 
+/** Names that label a secret value, matched at the end of a property/argument name (plural allowed). */
+const SECRET_LABEL_WORDS = [
+  'pass(word|wd)?', 'secret', 'token', 'api[-_]?key', 'access[-_]?key', 'private[-_]?key', 'client[-_]?secret',
+  'auth(orization)?', 'bearer', 'cookie', 'credential',
+];
+const SECRET_LABEL_SUFFIX = new RegExp(`(${SECRET_LABEL_WORDS.join('|')})s?$`, 'i');
+
 /** Decodes static JavaScript escapes for classification without evaluating source.
  * O(n) time/space in literal length; nonsecret source keeps its original spelling. */
 function decodeStaticLiteral({ content }: { content: string }, _options = {}): string {
   const escapes: Readonly<Record<string, string>> = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v" };
-  return content.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[0-7]{1,3}|\r\n|[\s\S])/g, (_match, escape: string) => {
-    if (escape.startsWith("u{")) {
-      const point = Number.parseInt(escape.slice(2, -1), 16);
+  return content.replace(/\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[0-7]{1,3}|\r\n|[\s\S])/g, (_match, sequence: string) => {
+    if (sequence.startsWith("u{")) {
+      const point = Number.parseInt(sequence.slice(2, -1), 16);
       return point <= 0x10ffff ? String.fromCodePoint(point) : "";
     }
-    if (/^[ux]/.test(escape) && escape.length > 1) return String.fromCharCode(Number.parseInt(escape.slice(1), 16));
-    if (/^[0-7]+$/.test(escape)) return String.fromCharCode(Number.parseInt(escape, 8));
-    if (/^[\r\n]/.test(escape)) return "";
-    return escapes[escape] ?? escape;
+    if (/^[ux]/.test(sequence) && sequence.length > 1) return String.fromCharCode(Number.parseInt(sequence.slice(1), 16));
+    if (/^[0-7]+$/.test(sequence)) return String.fromCharCode(Number.parseInt(sequence, 8));
+    if (/^[\r\n]/.test(sequence)) return "";
+    return escapes[sequence] ?? sequence;
   });
 }
 

@@ -20,6 +20,7 @@
         "./tools": "transfer"
       },
       "shared": [
+        "src/shared/ddl.adapter.ts",
         "src/kernel/dialect.ts",
         "src/kernel/index.ts",
         "src/kernel/kernel-core.ts",

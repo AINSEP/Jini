@@ -158,12 +158,18 @@ export function createInMemoryMediaTaskStore(): MediaTaskStore {
       let deleted = 0;
       for (const task of [...tasks.values()]) {
         const action = reconcileAction(task, now, cutoff);
-        if (action.kind === 'interrupt') {
-          tasks.set(task.id, action.next);
-          interrupted += 1;
-        } else if (action.kind === 'delete') {
-          tasks.delete(task.id);
-          deleted += 1;
+        switch (action.kind) {
+          case 'interrupt':
+            tasks.set(task.id, action.next);
+            interrupted += 1;
+            break;
+          case 'delete':
+            tasks.delete(task.id);
+            deleted += 1;
+            break;
+          default:
+            // 'keep': the task stays as it is.
+            break;
         }
       }
       return { interrupted, deleted };

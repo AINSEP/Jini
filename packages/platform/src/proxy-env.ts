@@ -11,6 +11,7 @@
  * proxy-config tools; owns no other sibling dependency.
  */
 import { execFileSync } from "node:child_process";
+import { captureLineTail } from "@jini-ai/core/text";
 
 export type SystemProxyCommandRunner = (command: string, args: string[]) => string;
 
@@ -106,17 +107,22 @@ function collectSourceProxyEntries(input: {
   for (const [key, value] of Object.entries(input.source)) {
     if (value == null) continue;
     const canonicalKey = canonicalProxyEnvKey(key);
-    if (!canonicalKey) {
-      input.merged[key] = value;
-      continue;
-    }
-    const current = proxyEntries.get(canonicalKey);
-    const preferLowercase = key === key.toLowerCase();
-    if (!current || preferLowercase || !current.preferLowercase) {
-      proxyEntries.set(canonicalKey, { preferLowercase, value });
-    }
+    if (canonicalKey) keepPreferredProxyEntry(proxyEntries, { canonicalKey, key, value });
+    else input.merged[key] = value;
   }
   return proxyEntries;
+}
+
+/** @internal Record `key`'s value unless a lowercase spelling of the same variable already won. */
+function keepPreferredProxyEntry(
+  proxyEntries: Map<CanonicalProxyKey, SourceProxyEntry>,
+  entry: { canonicalKey: CanonicalProxyKey; key: string; value: string },
+): void {
+  const current = proxyEntries.get(entry.canonicalKey);
+  const preferLowercase = entry.key === entry.key.toLowerCase();
+  if (!current || preferLowercase || !current.preferLowercase) {
+    proxyEntries.set(entry.canonicalKey, { preferLowercase, value: entry.value });
+  }
 }
 
 /** @internal Whether `env` already contains any case-variant of the given canonical proxy key. */
@@ -300,15 +306,19 @@ function parseScutilLines(stdout: string): { exceptions: string[]; scalars: Map<
 
 /** @internal Record one `N : value` ExceptionsList entry; returns whether the array is still open (false on `}`). */
 function collectScutilException(line: string, exceptions: string[]): boolean {
-  const match = line.match(/^\d+\s*:\s*(.+)$/);
-  if (match) exceptions.push(match[1]!.trim());
+  // Same as /^\d+\s*:\s*(.+)$/, split so the value tail cannot backtrack.
+  const index = /^\d+\s*:/.exec(line);
+  const value = index ? captureLineTail({ rest: line.slice(index[0].length) }) : null;
+  if (value !== null) exceptions.push(value.trim());
   return line !== "}";
 }
 
 /** @internal Record one top-level `Name : value` scutil scalar, ignoring lines of any other shape. */
 function collectScutilScalar(line: string, scalars: Map<string, string>): void {
-  const match = line.match(/^([A-Za-z][A-Za-z0-9]*)\s*:\s*(.+)$/);
-  if (match) scalars.set(match[1]!, match[2]!.trim());
+  // Same as /^([A-Za-z][A-Za-z0-9]*)\s*:\s*(.+)$/, split so the value tail cannot backtrack.
+  const name = /^([A-Za-z][A-Za-z0-9]*)\s*:/.exec(line);
+  const value = name ? captureLineTail({ rest: line.slice(name[0].length) }) : null;
+  if (name && value !== null) scalars.set(name[1]!, value.trim());
 }
 
 /** @internal The `<prefix>Proxy`/`<prefix>Port` URL when `<prefix>Enable` is `1`, else `null`. */

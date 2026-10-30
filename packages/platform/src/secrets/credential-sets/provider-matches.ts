@@ -39,13 +39,24 @@ export function matchingCredentialProviderIds({ credential, providers }: {
   providers: readonly CredentialProviderDescriptor[];
 }, _options: VaultOptions = {}): string[] {
   const { credentialType, worksFor } = credential.meta;
-  if ((credential.kind !== "vendor" && credential.kind !== "custom") ||
-    (credential.kind === "custom" && credentialType !== "custom") || (credentialType !== "vendor" && credentialType !== "custom") ||
-    !Array.isArray(worksFor) || Array.from(worksFor).some(id => typeof id !== "string" || !id || id !== id.toLowerCase() || /\s/.test(id))) return [];
+  if (!hasMatchableType({ kind: credential.kind, credentialType }) ||
+    !Array.isArray(worksFor) || !Array.from(worksFor).every(isCanonicalProviderId)) return [];
   const ids = new Set(worksFor);
   return providers.filter(provider => (credentialType !== "custom" || provider.acceptsCustomToken) &&
     (ids.has(provider.id.toLowerCase()) || ids.has(provider.vendorId.toLowerCase())))
     .map(provider => provider.id);
+}
+
+/** vendor/custom rows only; a custom-kind row must also carry the custom subtype. */
+function hasMatchableType({ kind, credentialType }: { kind: string; credentialType: unknown }): boolean {
+  if (kind !== "vendor" && kind !== "custom") return false;
+  if (kind === "custom" && credentialType !== "custom") return false;
+  return credentialType === "vendor" || credentialType === "custom";
+}
+
+/** A non-empty, already-lowercased ID without whitespace, as {@link normalizeCredentialWorksFor} stores it. */
+function isCanonicalProviderId(id: unknown): boolean {
+  return typeof id === "string" && id !== "" && id === id.toLowerCase() && !/\s/.test(id);
 }
 
 /** Select an eligible explicit ID, the descriptor's provider-group default, or a sole candidate.

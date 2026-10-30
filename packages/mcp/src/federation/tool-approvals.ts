@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-
+import { canonicalJson } from "@jini-ai/core/records";
 
 import type { FederatedConnectionOrigin, RemoteToolDescriptor } from "./ports.js";
 
@@ -33,20 +33,6 @@ export interface FederatedToolIdentity {
   readonly inputSchema: Readonly<Record<string, unknown>>;
 }
 
-/** Stable JSON: object keys sorted at every depth, so the same hints always hash the same. */
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, child]) => child !== undefined)
-      // Object.entries never yields the same key twice, so two keys are never equal and a
-      // two-way comparison is a total order here.
-      .sort(([a], [b]) => (a < b ? -1 : 1));
-    return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
 /**
  * The fingerprint a remembered approval is saved under and later matched against: the connection,
  * the server it reaches (its origin and admission revision), the remote tool name, its declared
@@ -59,13 +45,18 @@ function canonicalJson(value: unknown): string {
  * The v2 revision (2026-09-27, "hint drift") added description and input schema: v1 grants
  * no longer matched, asked once and were saved again. A host must keep its chosen bytes stable.
  *
- * @complexity O(h + s) in the size of the hints and the schema.
+ * @complexity Core canonical serialization plus O(h + s) hashing over hints and schema bytes.
  */
+/** The origin's part of an approval fingerprint: a roster admission names its revision. */
+function originFingerprintPart(origin: NonNullable<FederatedToolIdentity["origin"]>): unknown[] {
+  return origin.kind === "roster" ? ["roster", origin.admissionRevision] : ["preset"];
+}
+
 export function federatedToolApprovalFingerprint({ identity, fingerprintDomain }: { identity: FederatedToolIdentity; fingerprintDomain: string }): string {
-  const origin = identity.origin === undefined ? null : identity.origin.kind === "roster" ? ["roster", identity.origin.admissionRevision] : ["preset"];
+  const origin = identity.origin === undefined ? null : originFingerprintPart(identity.origin);
   return createHash("sha256")
     .update(
-      canonicalJson([
+      canonicalJson({ value: [
         fingerprintDomain,
         identity.connectionId,
         origin,
@@ -73,7 +64,7 @@ export function federatedToolApprovalFingerprint({ identity, fingerprintDomain }
         identity.declaredAnnotations ?? null,
         identity.description,
         identity.inputSchema,
-      ]),
+      ] }),
     )
     .digest("hex");
 }

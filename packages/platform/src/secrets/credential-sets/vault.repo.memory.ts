@@ -1,4 +1,4 @@
-import { assertVaultReplacement, vaultGroupKey, VaultError, type VaultBatchOp, type VaultBatchResult, type VaultDefaultQuery, type VaultSingletonQuery, type VaultMeta, type VaultOptions, type VaultQuery, type VaultRecord, type VaultRepoPort } from "./vault.types.js";
+import { assertVaultReplacement, isInVaultQueryScope, vaultGroupKey, VaultError, type VaultBatchOp, type VaultBatchResult, type VaultDefaultQuery, type VaultSingletonQuery, type VaultMeta, type VaultOptions, type VaultQuery, type VaultRecord, type VaultRepoPort } from "./vault.types.js";
 
 /** Single-turn mutations are atomic in JS; clones prevent callers bypassing CAS through aliases. */
 export class InMemoryVaultRepo implements VaultRepoPort {
@@ -53,14 +53,12 @@ export class InMemoryVaultRepo implements VaultRepoPort {
   /** O(n) memory scan, n stored rows; clones only the default, never its siblings. */
   async findDefault(input: VaultDefaultQuery, _options: VaultOptions = {}): Promise<VaultRecord | null> {
     for (const row of this.rows.values()) {
-      if (row.isDefault && row.workspaceId === input.workspaceId && row.kind === input.kind && row.ownerKey === input.ownerKey &&
-        row.principalId === input.principalId && row.provider === input.provider) return structuredClone(row);
+      if (row.isDefault && row.provider === input.provider && isInVaultQueryScope({ record: row, query: input })) return structuredClone(row);
     }
     return null;
   }
   async list(input: VaultQuery, _options: VaultOptions = {}): Promise<VaultRecord[]> {
-    return structuredClone([...this.rows.values()].filter(row => row.workspaceId === input.workspaceId && row.kind === input.kind &&
-      row.ownerKey === input.ownerKey && row.principalId === input.principalId && (input.provider === undefined || row.provider === input.provider))
+    return structuredClone([...this.rows.values()].filter(row => isInVaultQueryScope({ record: row, query: input }))
       // Rows are keyed by (workspaceId, id), so one workspace never lists two equal IDs.
       .sort((a, b) => a.id < b.id ? -1 : 1));
   }

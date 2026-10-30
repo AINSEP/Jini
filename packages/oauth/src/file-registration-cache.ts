@@ -64,7 +64,8 @@ function validClient({ client }: { client: unknown }, _optionalArgs: Record<stri
     const c = client as Record<string, unknown>;
     const nullableString = (value: unknown): boolean => value === null || typeof value === 'string';
     const nullableNumber = (value: unknown): boolean => value === null || (typeof value === 'number' && Number.isFinite(value));
-    return typeof c.clientId === 'string' && c.clientId !== '' && nullableString(c.clientSecret)
-        && ['none', 'client_secret_post', 'client_secret_basic'].includes(String(c.tokenEndpointAuthMethod))
-        && nullableString(c.registrationClientUri) && nullableNumber(c.clientIdIssuedAt) && nullableNumber(c.clientSecretExpiresAt);
+    const identityValid = typeof c.clientId === 'string' && c.clientId !== '' && nullableString(c.clientSecret);
+    const authMethodValid = ['none', 'client_secret_post', 'client_secret_basic'].includes(String(c.tokenEndpointAuthMethod));
+    const timestampsValid = nullableNumber(c.clientIdIssuedAt) && nullableNumber(c.clientSecretExpiresAt);
+    return identityValid && authMethodValid && nullableString(c.registrationClientUri) && timestampsValid;
 }

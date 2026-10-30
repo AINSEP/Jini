@@ -1,19 +1,20 @@
 /** Standalone OAuth 2.x client. All effects and application identity are explicit. */
+/** Public operations use the same argument contracts as their protocol modules. */
 export type { OAuthClient, OAuthClientAuthMethod, OAuthFetch, OAuthGrantKind, OAuthProviderDescriptor, OAuthRandomBytes, OAuthTokenSet, OAuthAppOptions, OAuthUrlGuard, OAuthHttpPorts, OAuthSleep, OAuthResource, OAuthTokenStore, TokenRefreshPort, ClientRegistrationCache, } from './ports.js';
 export { OAuthError } from './errors.js';
-export { isOAuthError, mapProviderErrorCode } from './api.js';
+export { isOAuthError, mapProviderErrorCode } from './errors.js';
 export type { OAuthErrorCode, OAuthErrorOptions } from './errors.js';
-export { createPkcePair, deriveCodeChallenge, assertValidCodeVerifier } from './api.js';
+export { createPkcePair, deriveCodeChallenge, assertValidCodeVerifier } from './pkce.js';
 export type { PkcePair } from './pkce.js';
 export { DEFAULT_MAX_ENTRIES as PENDING_AUTHORIZATION_DEFAULT_MAX_ENTRIES, DEFAULT_TTL_MS as PENDING_AUTHORIZATION_DEFAULT_TTL_MS, STATE_BYTES as PENDING_AUTHORIZATION_STATE_BYTES, invalidState as invalidPendingAuthorizationState, } from './pending-authorizations.js';
-export { secureEqualsForOwnerBinding } from './api.js';
+export { secureEquals as secureEqualsForOwnerBinding } from './pending-authorizations.js';
 export type { PendingAuthorization, PendingAuthorizationStore, PendingAuthorizationStoreDeps } from './pending-authorizations.js';
 export { createOAuthUrlGuard } from './endpoint-safety.js';
-export { assertSafeUserFacingUrl } from './api.js';
+export { assertSafeUserFacingUrl } from './endpoint-safety.js';
 export type { OAuthUrlGuardOptions } from './endpoint-safety.js';
-export { discoverAuthorizationServer, discoverProtectedResourceMetadata, fetchAuthorizationServerMetadata, parseResourceMetadataUrl, parseWwwAuthenticateScopes, } from './api.js';
+export { discoverAuthorizationServer, discoverProtectedResourceMetadata, fetchAuthorizationServerMetadata, parseResourceMetadataUrl, parseWwwAuthenticateScopes, } from './discovery.js';
 export type { OAuthDiscoveryDeps, DiscoveredAuthorizationServer, DiscoveredOAuthConfiguration, DiscoverAuthorizationServerInput, DiscoveredProtectedResource, } from './discovery.js';
-export { registerOAuthClientDynamically } from './api.js';
+export { registerOAuthClientDynamically } from './registration.js';
 export type { DynamicClientRegistrationDeps, DynamicClientRegistrationInput, RegisteredOAuthClient } from './registration.js';
 export { createOAuthClientRegistrar } from './registration-cache.js';
 export type { OAuthClientRegistrar, OAuthClientRegistrarDeps, CachedRegistrationInput } from './registration-cache.js';
@@ -21,20 +22,20 @@ export { createFileClientRegistrationCache } from './file-registration-cache.js'
 export type { RegistrationCacheFilePort, FileClientRegistrationCacheOptions } from './file-registration-cache.js';
 export { createNodeRegistrationCacheFileIO, type NodeRegistrationCacheFs } from './node-file-cache.js';
 export { DEFAULT_TOKEN_REQUEST_TIMEOUT_MS } from './token-endpoint.js';
-export { requestOAuthToken } from './api.js';
+export { requestOAuthToken } from './token-endpoint.js';
 export type { TokenRequestDeps, TokenRequestInput } from './token-endpoint.js';
-export { beginAuthorizationCode, completeAuthorizationCode } from './api.js';
+export { beginAuthorizationCode, completeAuthorizationCode } from './authorization-code.js';
 export type { AuthorizationCallbackParams, BeginAuthorizationCodeDeps, BeginAuthorizationCodeInput, BeginAuthorizationCodeResult, CompleteAuthorizationCodeDeps, CompleteAuthorizationCodeInput, } from './authorization-code.js';
 export type { BeginStatelessAuthorizationCodeDeps, CompleteStatelessAuthorizationCodeDeps } from './authorization-code.js';
 export { createSealedAuthorizationState, MAX_AUTHORIZATION_STATE_LENGTH } from './sealed-state.js';
 export type { AuthorizationStateCodec, SealedAuthorizationState } from './sealed-state.js';
-export { beginDeviceAuthorization, pollDeviceAuthorizationOnce } from './api.js';
+export { beginDeviceAuthorization, pollDeviceAuthorizationOnce } from './device-code.js';
 export type { DeviceAuthorization, DeviceAuthorizationDeps, BeginDeviceAuthorizationInput, PollDeviceAuthorizationInput } from './device-code.js';
 export { createTokenRefresher } from './refresh.js';
-export { isTokenDueForRefresh, refreshAccessToken } from './api.js';
+export { isTokenDueForRefresh, refreshAccessToken } from './refresh.js';
 export type { TokenRefresher, TokenRefresherDeps, RefreshAccessTokenInput } from './refresh.js';
 export { createOAuthProviderRegistry } from './registry.js';
-export { buildOperatorOAuthProvider, assertValidOAuthProvider } from './api.js';
+export { buildOperatorOAuthProvider, assertValidOAuthProvider } from './registry.js';
 export type { OAuthProviderRegistry, OperatorOAuthProviderInput } from './registry.js';
 export type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
 

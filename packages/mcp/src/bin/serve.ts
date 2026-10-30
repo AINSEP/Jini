@@ -167,14 +167,16 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
   const runId = env[RUN_ID_ENV_VAR];
   if (typeof runId !== 'string' || runId.length === 0) {
     writeErr({ text: `${SERVER_NAME}: missing required ${RUN_ID_ENV_VAR} environment variable (this process must be spawned by a Jini daemon, which sets it)\n` });
-    return exit({ code: 1 });
+    exit({ code: 1 });
+    return;
   }
 
   let baseUrlResolution: Promise<string> | undefined;
   const resolveBaseUrl = (): Promise<string> => {
     const options: McpDaemonUrlOptions = { flagUrl: null, env, envVarName: DAEMON_URL_ENV_VAR, warn: ({ message }) => writeErr({ text: message }) };
     // Startup discovery and subsequent execution must use the same resolved daemon.
-    return baseUrlResolution ??= resolveDaemonUrlFn({}, options);
+    baseUrlResolution ??= resolveDaemonUrlFn({}, options);
+    return baseUrlResolution;
   };
 
   const delegatedGatewayOptions = buildDelegatedGatewayOptions({ env }, deps);
@@ -199,7 +201,7 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     writeErr({ text: `${SERVER_NAME}: ${message}\n` });
-    return exit({ code: 1 });
+    exit({ code: 1 });
   }
 }
 

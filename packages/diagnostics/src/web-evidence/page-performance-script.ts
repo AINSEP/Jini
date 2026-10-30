@@ -38,8 +38,11 @@ export async function collectPagePerformance(
   }
 
   function countNode(node: Node): void {
-    if (node.nodeType === Node.ELEMENT_NODE) countElement(node as Element);
-    else if (node.nodeType === Node.TEXT_NODE && node.parentElement?.closest('pre')?.getClientRects().length === 0) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      countElement(node as Element);
+      return;
+    }
+    if (node.nodeType === Node.TEXT_NODE && node.parentElement?.closest('pre')?.getClientRects().length === 0) {
       // Count text once, without copying hidden output into model context.
       counts.hiddenPreTextChars += node.textContent?.length ?? 0;
     }

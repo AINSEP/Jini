@@ -304,7 +304,8 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
   };
 
   const emit = (session: InternalSession, event: 'data' | 'exit', data: TerminalEventData): TerminalEventRecord => {
-    const id = session.nextEventId++;
+    const id = session.nextEventId;
+    session.nextEventId += 1;
     const byteLength = recordByteLength(data);
     const record: TerminalEventRecord = { id, event, data, timestamp: Date.now(), byteLength };
     session.events.push(record);
@@ -416,12 +417,8 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
 
   const list = (filter: { projectId?: string | null } = {}): TerminalSession[] =>
     Array.from(sessions.values())
-      .filter((session) => {
-        if (typeof filter.projectId === 'string' && filter.projectId && session.projectId !== filter.projectId) {
-          return false;
-        }
-        return true;
-      })
+      // Only a non-empty string projectId filters; anything else lists every session.
+      .filter((session) => !(typeof filter.projectId === 'string' && filter.projectId && session.projectId !== filter.projectId))
       .map(toPublicSession);
 
   const attach = (id: string, lastEventId: number, sink: TerminalSseSink): 'attached' | 'ended' | 'not-found' => {

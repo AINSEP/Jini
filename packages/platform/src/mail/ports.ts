@@ -2,7 +2,6 @@
 import type { UUID } from "@jini-ai/core/primitives";
 import type {
   MailerCapabilities,
-  MailerSendOptions,
   MailerSendResult,
   OutboundEmail, MailerSendRequired, MailerBatchRequired, MailerOptional,
 } from "./types.js";

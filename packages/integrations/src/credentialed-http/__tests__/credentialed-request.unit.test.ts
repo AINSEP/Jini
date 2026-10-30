@@ -69,6 +69,20 @@ class FakeHttpClient implements HttpClientPort {
 function makeDeps(overrides: Partial<CredentialedRequestDeps> & { httpClient: HttpClientPort }, base: CustomCredentialWriteDeps): CredentialedRequestDeps {
   return { resolver: base.repo, clock: base.clock, schemeRegistry: { load: loadBundledAuthSchemes }, audit: new InMemoryCredentialedRequestAuditLog(), ...overrides };
 }
+
+test('a non-Error transport failure redacts the credential and audits UTF-8 body bytes with status zero', async () => {
+  const base = await seedBasicAndBearer();
+  const audit = new InMemoryCredentialedRequestAuditLog();
+  const deps = makeDeps({ audit, httpClient: { async send() { throw 'bearer-secret-token failed'; } } }, base);
+  await assert.rejects(request({ deps, input: { workspaceId: WORKSPACE, label: 'token.example',
+    method: 'POST', url: 'https://api.token.example/data' } }, { body: '€' }), (error: unknown) => {
+    assert.ok(error instanceof CredentialedRequestTransportError);
+    assert.equal(error.message, "request to 'token.example' failed: [REDACTED] failed");
+    return true;
+  });
+  assert.deepEqual(audit.entries, [{ label: 'token.example', host: 'api.token.example', method: 'POST',
+    status: 0, bodyBytes: 3, at: FIXED_NOW }]);
+});
 function makeCredentialedRequest(deps: CredentialedRequestDeps, input: Parameters<typeof request>[0]["input"] & { headers?: unknown; body?: unknown }) {
   const { headers, body, ...requiredInput } = input;
   return request({ deps, input: requiredInput }, { headers, body, errorPolicy: { isEgressRefusal: ({ error }) => error instanceof EgressRefusedError, describeEgressRefusal: ({ error }) => (error as Error).message } });

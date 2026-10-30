@@ -147,6 +147,13 @@ function handleCounts(regions: readonly ParsedRegion[]): ReadonlyMap<string, num
 }
 
 /** A stable, order-insensitive description of a handle multiset, for comparison in a message. */
+/** Which way an edit disturbed the region's agent handles. */
+function handleChangeDetail({ invented, removed }: { invented: readonly string[]; removed: readonly string[] }): string {
+  if (invented.length > 0) return `it adds ${AGENT_ELEMENT_ATTRIBUTE} handles that did not exist (${describeHandles(invented)})`;
+  if (removed.length > 0) return `it removes existing ${AGENT_ELEMENT_ATTRIBUTE} handles (${describeHandles(removed)})`;
+  return `it changes how many times a ${AGENT_ELEMENT_ATTRIBUTE} handle appears`;
+}
+
 function describeHandles(handles: readonly string[]): string {
   return [...handles].sort().join(", ") || "(none)";
 }
@@ -284,12 +291,7 @@ export function createHtmlRegionTarget(
       if (beforeKey !== afterKey) {
         const invented = afterHandles.filter((handle) => !beforeHandles.includes(handle));
         const removed = beforeHandles.filter((handle) => !afterHandles.includes(handle));
-        const detail =
-          invented.length > 0
-            ? `it adds ${AGENT_ELEMENT_ATTRIBUTE} handles that did not exist (${describeHandles(invented)})`
-            : removed.length > 0
-              ? `it removes existing ${AGENT_ELEMENT_ATTRIBUTE} handles (${describeHandles(removed)})`
-              : `it changes how many times a ${AGENT_ELEMENT_ATTRIBUTE} handle appears`;
+        const detail = handleChangeDetail({ invented, removed });
         return {
           ok: false,
           reason: `${detail}. Edit only the content inside the region you were asked to change, and do not add, remove or duplicate ${AGENT_ELEMENT_ATTRIBUTE} attributes.`,

@@ -115,7 +115,8 @@ export function createSearchService(required: SearchServiceRequired, optional: S
       const { active, provider, ctx } = configured;
       // Vendors are public-only: a viewer's audiences reach only a provider that may hold restricted
       // content. The query object is rebuilt so a caller cannot smuggle audiences in through it.
-      const { audiences: _smuggled, ...rest } = query as SearchQuery;
+      const rest: { -readonly [K in keyof SearchQuery]?: SearchQuery[K] } = { ...(query as SearchQuery) };
+      delete rest.audiences;
       const effective = provider.capabilities.acceptsRestricted ? (audiences ?? []) : [];
       const providerQuery: SearchQuery = { ...rest, text, limit, ...(provider.capabilities.acceptsRestricted ? { audiences: effective } : {}) };
       const raced = await Promise.race([

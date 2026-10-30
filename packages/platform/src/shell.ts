@@ -55,7 +55,8 @@ export function execFileBuffered(
 /** @internal Single-quote a POSIX shell argument, escaping embedded single quotes. */
 function quotePosixShellArg(value: string | null | undefined): string {
   const text = String(value ?? "");
-  return `'${text.replace(/'/g, `'\\''`)}'`;
+  const escapedQuote = "'\\''";
+  return `'${text.replace(/'/g, escapedQuote)}'`;
 }
 
 /** @internal Join a command and its arguments into one quoted POSIX shell command line. */

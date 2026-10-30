@@ -47,5 +47,6 @@ export async function waitForHttpOk(url: string, { timeoutMs = 20000 }: HttpWait
     }
     await sleep(150);
   }
-  throw new Error(`timed out waiting for ${url}${lastError ? ` (${lastError.message})` : ""}`);
+  const detail = lastError ? ` (${lastError.message})` : "";
+  throw new Error(`timed out waiting for ${url}${detail}`);
 }

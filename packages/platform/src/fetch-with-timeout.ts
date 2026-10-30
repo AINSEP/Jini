@@ -67,6 +67,19 @@ export class FetchTimeoutError extends Error {
   }
 }
 
+/** Observed response bytes exceeded the configured cap. Extends RangeError for existing catches;
+ * invalid cap configuration still throws a plain RangeError. */
+export class ResponseLimitExceededError extends RangeError {
+  readonly limitBytes: number;
+
+  /** Records the byte ceiling without retaining response content. O(1) time and space. */
+  constructor({ limitBytes }: { limitBytes: number }, _options: Record<string, never> = {}) {
+    super(`response exceeds the ${limitBytes}-byte limit`);
+    this.name = "ResponseLimitExceededError";
+    this.limitBytes = limitBytes;
+  }
+}
+
 /**
  * Shared, documented timeout classes for outbound `fetch()` calls. Every call site names one
  * explicitly (or its own justified number) rather than relying on an unstated default.
@@ -99,6 +112,70 @@ export interface FetchWithTimeoutOptions {
   fetch?: typeof fetch;
 }
 
+/** Optional caller cancellation and elapsed-time accounting for a wait budget. */
+export interface DeadlineSignalOptions {
+  signal?: AbortSignal;
+  /** Start time in milliseconds, on the same clock as `now`. */
+  startedAt?: number;
+  /** Clock port in milliseconds; defaults to Date.now and is read only with startedAt. */
+  now?: () => number;
+  /** Resolves after ms; aborting signal must release the wait and settle its promise. */
+  wait?: (input: { ms: number; signal: AbortSignal }) => Promise<void>;
+}
+
+/** Browser-safe timer adapter; completion and cancellation both release its listener. */
+function waitForDeadline(
+  { ms, signal }: { ms: number; signal: AbortSignal }, _options: Record<string, never> = {},
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    signal.throwIfAborted();
+    const abort = () => { clearTimeout(timer); reject(signal.reason); };
+    const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, ms);
+    // Like native timeout signals, pending deadlines must not keep a Node process alive.
+    if (typeof timer === "object") timer.unref();
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
+/**
+ * Creates one signal that aborts when the remaining wait budget expires or the caller cancels.
+ * Spent time is subtracted once; future start times cannot increase the original budget.
+ * @param input - Wait budget in milliseconds. Negative remaining budgets become zero.
+ * @param options - Optional caller signal, start time, clock and cancellable wait ports.
+ * @returns A signal preserving the first abort reason and an idempotent dispose function.
+ * Dispose in finally to cancel the wait and detach the parent without aborting the returned signal.
+ * Zero expires asynchronously,
+ * following AbortSignal.timeout(0); an already-aborted caller is reflected immediately.
+ * Uses real timers by default without mutating inputs or the caller's signal.
+ * @throws {RangeError} If the remaining delay is invalid for AbortSignal.timeout.
+ * @complexity O(1) time and space.
+ * @example const { signal, dispose } = createDeadlineSignal({ waitMs: 5_000 }, { wait });
+ */
+export function createDeadlineSignal(
+  { waitMs }: { waitMs: number },
+  { signal, startedAt, now = Date.now, wait = waitForDeadline }: DeadlineSignalOptions = {},
+): { signal: AbortSignal; dispose: () => void } {
+  const elapsedMs = startedAt === undefined ? 0 : Math.max(0, now() - startedAt);
+  const ms = Math.max(0, waitMs - elapsedMs);
+  if (!Number.isSafeInteger(ms)) throw new RangeError("remaining deadline must be a nonnegative safe integer");
+  const deadline = new AbortController();
+  const timer = new AbortController();
+  const dispose = () => { timer.abort(); signal?.removeEventListener("abort", onAbort); };
+  const finish = (reason: unknown) => {
+    if (!timer.signal.aborted) deadline.abort(reason);
+    dispose();
+  };
+  const onAbort = () => finish(signal!.reason);
+  if (signal?.aborted) onAbort();
+  else {
+    signal?.addEventListener("abort", onAbort, { once: true });
+    void wait({ ms, signal: timer.signal }).then(
+      () => finish(new DOMException("The operation was aborted due to timeout", "TimeoutError")), finish,
+    );
+  }
+  return { signal: deadline.signal, dispose };
+}
+
 /** Opt-in byte and decoding guards; defaults remain unlimited and replacement-decoded. */
 export type TextReadOptions = {
   /** Nonnegative safe integer. Actual streamed bytes, independent of Content-Length. */
@@ -126,7 +203,8 @@ type StreamTextReadOptions = TextReadOptions & {
  * Details mode reports retained source bytes and truncates only on observed overflow;
  * reaching the cap still requires EOF to establish completeness. Defaults reject overflow
  * and replace malformed UTF-8. A supplied signal interrupts even a stalled read.
- * @throws {RangeError} An invalid cap or a response exceeding it.
+ * @throws {RangeError} An invalid cap.
+ * @throws {ResponseLimitExceededError} Observed bytes exceed the cap (also a RangeError).
  * @throws {TypeError} Invalid UTF-8 when strict decoding is enabled.
  * Read failures and abort reasons propagate; acquired readers are cancelled on failure
  * and always released. Details mode observes cancellation failures without awaiting cleanup.
@@ -214,7 +292,7 @@ async function decodeResponseStream(
     if (done) break;
     const remaining = maxResponseBytes - total;
     if (value.byteLength > remaining) {
-      if (onLimit === "reject") throw new RangeError(`response exceeds the ${maxResponseBytes}-byte limit`);
+      if (onLimit === "reject") throw new ResponseLimitExceededError({ limitBytes: maxResponseBytes });
       text += decoder.decode(value.subarray(0, remaining), { stream: true });
       return { text: text + decoder.decode(), byteLength: maxResponseBytes, truncated: true };
     }

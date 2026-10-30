@@ -53,6 +53,8 @@ export function evaluateMemoryFloors(
   if (checkSlope) {
     if (growth > limit) failures.push('end floor');
     if (tailGrowth > limit / 2) failures.push('rising tail');
-  } else if (floors.some(floor => (floor - baselineFloor) / baselineFloor > limit)) failures.push('checkpoint floor');
+  }
+  // Without a slope check, every checkpoint is held to the limit instead.
+  if (!checkSlope && floors.some(floor => (floor - baselineFloor) / baselineFloor > limit)) failures.push('checkpoint floor');
   return { pass: failures.length === 0, baselineFloor, floors, growth, tailGrowth, failures };
 }

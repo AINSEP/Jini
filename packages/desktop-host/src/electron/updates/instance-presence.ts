@@ -77,9 +77,10 @@ export function createFileInstancePresence({ directory, filesystem, isAlive, wri
         catch { continue; }
         // Leave unreadable/malformed records alone: a sibling may be writing on a filesystem
         // without atomic rename. Remove confirmed dead PIDs so crashes do not linger.
-        if (record === null || name !== `${record.pid}.json`) continue;
-        if (isAlive({ pid: record.pid })) live.push(record);
-        else remove({ pid: record.pid });
+        if (record !== null && name === `${record.pid}.json`) {
+          if (isAlive({ pid: record.pid })) live.push(record);
+          else remove({ pid: record.pid });
+        }
       }
       return live;
     },

@@ -36,7 +36,8 @@ export function createDirectoryRunningLock(
     if (!record) return null;
     const earlierBoot = fromEarlierBoot({ boot: bootIdentity?.(), bootId: record.bootId, atMs: Date.parse(record.started) });
     if (!earlierBoot && isAlive({ pid: record.pid })) return record;
-    if (cleanup) remove(); return null;
+    if (cleanup) remove();
+    return null;
   }
   return {
     peek: (_required, _optional = {}) => readLive(false),
@@ -70,11 +71,17 @@ export function createDirectoryRunningLock(
 function validRunningRecord(value: unknown): value is DirectoryRunningRecord {
   if (!value || typeof value !== "object") return false;
   const record = value as DirectoryRunningRecord;
-  return Number.isSafeInteger(record.pid) && record.pid > 0 && Number.isInteger(record.port) && record.port >= 0 && record.port <= 65535 &&
-    validRunningIdentity({ record }) && ["http", "https"].includes(record.scheme);
+  const validPid = Number.isSafeInteger(record.pid) && record.pid > 0;
+  const validPort = Number.isInteger(record.port) && record.port >= 0 && record.port <= 65535;
+  return validPid && validPort && validRunningIdentity({ record }) && ["http", "https"].includes(record.scheme);
 }
 
 function validRunningIdentity({ record }: { record: DirectoryRunningRecord }, _options = {}): boolean {
-  return typeof record.app === "string" && record.app.length > 0 && typeof record.token === "string" && record.token.length > 0 &&
-    (record.bootId === undefined || typeof record.bootId === "string") && typeof record.started === "string" && Number.isFinite(Date.parse(record.started));
+  const validBootId = record.bootId === undefined || typeof record.bootId === "string";
+  const validStarted = typeof record.started === "string" && Number.isFinite(Date.parse(record.started));
+  return isNonEmptyString(record.app) && isNonEmptyString(record.token) && validBootId && validStarted;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }

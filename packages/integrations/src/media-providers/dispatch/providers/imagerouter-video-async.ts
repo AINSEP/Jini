@@ -34,6 +34,7 @@ import { imageRouterSizeFor } from './imagerouter.js';
 import { withUnsignedRequestInit } from '../polling-adapter.js';
 import type { PollOutcome, PollingVendorAdapter, SubmitOutcome, UnsignedVendorRequest } from '../polling-adapter.js';
 import type { RenderContext, RenderResult } from '../types.js';
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 
 const DEFAULT_BASE_URL = 'https://api.imagerouter.io/v1/openai';
 
@@ -53,7 +54,7 @@ export interface ImageRouterVideoMeta {
 const TERMINAL_FAILED_STATUSES: ReadonlySet<string> = new Set(['failed', 'error', 'cancelled', 'canceled']);
 
 function trimTrailingSlash(value: string): string {
-  return value.replace(/\/+$/, '');
+  return trimCharsEnd({ text: value, chars: '/' });
 }
 
 /** Reads a vendor-supplied `Retry-After` (seconds) header, ignoring anything non-numeric. */
@@ -81,7 +82,7 @@ async function completedVideo({ data, ctx, meta }: { data: Record<string, unknow
     kind: 'complete',
     result: {
       bytes,
-      providerNote: `imagerouter/${wireModel} · ${size} · ${seconds === 'auto' ? 'auto' : `${seconds}s`} · ${bytes.length} bytes`,
+      providerNote: `imagerouter/${wireModel} · ${size} · ${seconds === 'auto' ? 'auto' : seconds + 's'} · ${bytes.length} bytes`,
       suggestedExt: '.mp4',
     },
   };

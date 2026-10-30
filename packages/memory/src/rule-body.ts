@@ -1,3 +1,4 @@
+import { splitLabeledLine } from './text-scan.js';
 /**
  * @module rule-body
  *
@@ -27,7 +28,8 @@ export interface ParsedRuleBody {
   rationale: string;
 }
 
-const LABELED_LINE_RE = /^([A-Za-z][A-Za-z ]*?):\s*(.*)$/;
+/** A rule label: letters and spaces, starting with a letter (it never contains the colon). */
+const RULE_LABEL = /^[A-Za-z][A-Za-z ]*$/;
 
 const RULE_LABEL_FIELDS: ReadonlyMap<string, keyof ParsedRuleBody> = new Map<string, keyof ParsedRuleBody>([
   ['assertion', 'assertion'],
@@ -52,16 +54,10 @@ export function parseRuleBody({ body }: { body: string }): ParsedRuleBody {
   const fields: ParsedRuleBody = { assertion: '', check: '', rationale: '' };
 
   for (const rawLine of body.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    const match = LABELED_LINE_RE.exec(line);
-    if (match === null) continue;
-    // Group 1 requires at least one `[A-Za-z]` char and group 2 is `(.*)`
-    // (zero-or-more, matches even ''), so a successful match always
-    // populates both — these assertions are TS-required, not a real
-    // runtime possibility (mirrors `entry-frontmatter.ts`'s same pattern).
-    const label = match[1]!.toLowerCase();
-    const value = match[2]!.trim();
-    if (value.length === 0) continue;
+    const match = splitLabeledLine({ line: rawLine.trim(), label: RULE_LABEL });
+    const value = match?.value.trim() ?? '';
+    if (match === null || value.length === 0) continue;
+    const label = match.label.toLowerCase();
     const field = RULE_LABEL_FIELDS.get(label);
     if (field !== undefined && fields[field].length === 0) fields[field] = value;
   }

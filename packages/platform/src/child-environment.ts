@@ -65,7 +65,7 @@ export function nodeLoginShellPorts(): LoginShellPorts {
 function parseNullSeparatedEnvironment({ stdout }: { stdout: string }): Record<string, string> {
   const entries = stdout.split('\0').flatMap(pair => {
     const at = pair.indexOf('=');
-    return at > 0 && /^[A-Za-z_][A-Za-z0-9_]*$/.test(pair.slice(0, at)) ? [[pair.slice(0, at), pair.slice(at + 1)]] : [];
+    return at > 0 && /^[A-Za-z_]\w*$/.test(pair.slice(0, at)) ? [[pair.slice(0, at), pair.slice(at + 1)]] : [];
   });
   return Object.fromEntries(entries);
 }

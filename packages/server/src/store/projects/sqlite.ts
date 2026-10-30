@@ -372,13 +372,9 @@ function normalizeProject(row: DbRow) {
 function normalizeProjectRunStatus(status: unknown) {
   if (status === 'starting') return 'running';
   if (status === 'cancelled') return 'canceled';
-  if (
-    status === 'queued' ||
-    status === 'running' ||
-    status === 'succeeded' ||
-    status === 'failed' ||
-    status === 'canceled'
-  ) {
+  const active = status === 'queued' || status === 'running';
+  const finished = status === 'succeeded' || status === 'failed' || status === 'canceled';
+  if (active || finished) {
     return status;
   }
   return 'not_started';

@@ -1,6 +1,7 @@
 export type * from "./types.js";
 export type * from "./ports.js";
 export type * from "./adapter-module.js";
+export { createMailAdapterContext } from "./adapter-module.js";
 export type * from "./engine-contracts.js";
 export { wrapMailerWithPurposeGate, isPurposeGateOpen } from "./purpose-scoped-mailer.js";
 export type { WrapMailerWithPurposeGateOptions, PurposeGateRequired } from "./purpose-scoped-mailer.js";

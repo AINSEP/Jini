@@ -24,8 +24,8 @@ const BODY_WITHHELD_SHORT_TOKEN_MARKER = "[body withheld: credential too short t
 export function redactResponseHeaders(headers: Readonly<Record<string, string>>, secrets: readonly string[]): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
-    if (FORBIDDEN_RESPONSE_HEADER_NAMES.has(key.trim().toLowerCase())) continue;
-    if (secrets.some((secret) => secret !== "" && value.includes(secret))) continue;
+    const forbidden = FORBIDDEN_RESPONSE_HEADER_NAMES.has(key.trim().toLowerCase());
+    if (forbidden || secrets.some((secret) => secret !== "" && value.includes(secret))) continue;
     result[key] = value;
   }
   return result;

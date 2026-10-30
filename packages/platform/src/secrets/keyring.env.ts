@@ -299,8 +299,7 @@ function toActiveRootKeyMaterial(source: "env" | "file", raw: string): ActiveRoo
  * @example inspectRootKeyMaterial({ env, envVarName, keyFilePath })
  */
 export function inspectRootKeyMaterial(options: InspectRootKeyMaterialOptions): RootKeyStatus {
-  const envVarName = options.envVarName;
-  const keyFilePath = options.keyFilePath;
+  const { envVarName, keyFilePath } = options;
   const raw = readActiveRootKeyMaterial({ env: options.env, envVarName, keyFilePath });
 
   if (raw.hex) return { active: true, source: raw.source, fingerprint: fingerprintRootKeyHex({ hex: raw.hex }), keyFilePath };
@@ -320,8 +319,7 @@ export interface RootKeyReveal extends RootKeyStatus {
  * @example revealRootKeyMaterial({ env, envVarName, keyFilePath })
  */
 export function revealRootKeyMaterial(options: InspectRootKeyMaterialOptions): RootKeyReveal {
-  const envVarName = options.envVarName;
-  const keyFilePath = options.keyFilePath;
+  const { envVarName, keyFilePath } = options;
   const raw = readActiveRootKeyMaterial({ env: options.env, envVarName, keyFilePath });
 
   if (raw.hex) return { active: true, source: raw.source, hex: raw.hex, fingerprint: fingerprintRootKeyHex({ hex: raw.hex }), keyFilePath };

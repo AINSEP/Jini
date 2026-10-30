@@ -23,8 +23,15 @@ const SCRYPT_KEYLEN = 64;
 const SCRYPT_SALT_BYTES = 16;
 const DEFAULT_SESSION_TTL_MS = 60 * 60 * 1000;
 
+function isSessionJwtPayload(parsed: unknown): parsed is SessionJwtPayload {
+  if (!parsed || typeof parsed !== 'object') return false;
+  const claims = parsed as Record<string, unknown>;
+  return typeof claims.sub === 'string' && typeof claims.jti === 'string' && typeof claims.exp === 'number';
+}
+
 function base64url(input: Buffer): string {
-  return input.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  // Node's own base64url alphabet and unpadded form: the same bytes as translating base64 by hand.
+  return input.toString('base64url');
 }
 
 function base64urlToBuffer(input: string): Buffer {
@@ -104,15 +111,7 @@ function verifySessionJwt(token: string, secret: string): SessionJwtVerifyResult
   } catch {
     return { ok: false };
   }
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    typeof (parsed as Record<string, unknown>).sub !== 'string' ||
-    typeof (parsed as Record<string, unknown>).jti !== 'string' ||
-    typeof (parsed as Record<string, unknown>).exp !== 'number'
-  ) {
-    return { ok: false };
-  }
+  if (!isSessionJwtPayload(parsed)) return { ok: false };
   return { ok: true, payload: parsed as SessionJwtPayload };
 }
 
@@ -177,8 +176,10 @@ export class JwtAuthProvider implements AuthProvider {
     if (this.usersByEmail.has(credentials.email)) {
       throw new Error(`email already registered: ${credentials.email}`);
     }
+    const id = this.nextId;
+    this.nextId += 1;
     const user: StoredUser = {
-      id: `user-${this.nextId++}`,
+      id: `user-${id}`,
       email: credentials.email,
       createdAt: this.now(),
       passwordHash: hashPassword(credentials.password),

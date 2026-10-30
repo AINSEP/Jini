@@ -32,8 +32,8 @@ export function createDirectoryRegistry(
     if (result.state === "missing") return { version: 1, entries: [], migrations: [] };
     if (result.state !== "ok") throw new Error("The shared directory registry is unreadable; nothing was overwritten.");
     const state = result.value as RegistryState | null;
-    if (state?.version !== 1 || !Array.isArray(state.entries) || !Array.isArray(state.migrations) ||
-      !state.migrations.every((item) => typeof item === "string") || !state.entries.every(validRecord)) {
+    const shapeOk = state?.version === 1 && Array.isArray(state.entries) && Array.isArray(state.migrations);
+    if (!shapeOk || !state.migrations.every((item) => typeof item === "string") || !state.entries.every(validRecord)) {
       throw new Error("The shared directory registry has an invalid format; nothing was overwritten.");
     }
     return state;

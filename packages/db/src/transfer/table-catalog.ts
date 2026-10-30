@@ -110,17 +110,20 @@ export function planSnapshotTables({ source, policy }: { source: TransferSource;
   const names = source.tableNames();
   const layouts = new Map(names.map((name) => [name, source.layout(name)] as const));
   const virtualTables = names.filter((name) => layouts.get(name)?.virtual === true);
-  for (const name of names) {
+  // Excluded tables are reported; core and layout-less tables are skipped silently.
+  const decide = (name: string): { table: TransferTable } | { reason: string } | null => {
     const excluded = policy.excludedTables[name];
-    if (excluded !== undefined) {
-      leftOut.push({ table: name, reason: excluded });
-      continue;
-    }
+    if (excluded !== undefined) return { reason: excluded };
     const layout = layouts.get(name);
-    if (core.has(name) || layout === null || layout === undefined) continue;
+    if (core.has(name) || layout === null || layout === undefined) return null;
     const reason = reasonToLeaveOut(name, layout, derived, virtualTables, policy);
-    if (reason === null) tables.push(introspectedTable({ name, layout }));
-    else leftOut.push({ table: name, reason });
+    return reason === null ? { table: introspectedTable({ name, layout }) } : { reason };
+  };
+  for (const name of names) {
+    const decision = decide(name);
+    if (decision === null) continue;
+    if ("reason" in decision) leftOut.push({ table: name, reason: decision.reason });
+    else tables.push(decision.table);
   }
   return { tables, leftOut };
 }

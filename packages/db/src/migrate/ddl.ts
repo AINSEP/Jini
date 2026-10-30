@@ -1,14 +1,2 @@
-import { sql } from "kysely";
-import type { StorageKernel } from "../kernel/index.js";
-
-/**
- * Runs a `;`-separated DDL script one statement at a time; the runner owns the encompassing
- * transaction. Lives here so migration steps outside kernel/migrate need no Kysely import.
- * @complexity O(statements).
- */
-export async function executeDdl({ kernel, ddl }: { kernel: StorageKernel<unknown>; ddl: string }, _options = {}): Promise<void> {
-  // Kysely executes one SQLite statement at a time.
-  for (const statement of ddl.split(";").filter(part => part.trim())) {
-    await kernel.execute(sql.raw(statement));
-  }
-}
+/** Compatibility entry for the shared database DDL adapter. */
+export { executeDdl } from "../shared/ddl.adapter.js";

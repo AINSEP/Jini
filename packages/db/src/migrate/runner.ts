@@ -1,12 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { type Kysely, sql } from "kysely";
+import { sql } from "kysely";
 import { nowIso, type Clock } from "@jini-ai/core/primitives";
 
 import { listTables, type StorageKernel, tableExists } from "../kernel/index.js";
 import { ownedTransactionOf } from "../kernel/owned-transaction.js";
 import { ensureLegacyLedger, insertLegacyRow, readLegacyLedger, validateLegacyMapping, type LegacyLedgerMapping } from "./legacy-ledger.js";
+import type { Ledger, LedgerRow } from "./ledger-contracts.js";
+export type { Ledger, LedgerRow } from "./ledger-contracts.js";
 import {
   MIGRATION_ID,
   MigrationChecksumError,
@@ -40,12 +42,6 @@ import {
  *   go through Kysely `withSchema`, never `SET search_path` (no session state on a shared PGlite).
  */
 
-export interface LedgerRow {
-  id: string;
-  checksum: string;
-  applied_at: string;
-}
-
 type LedgerDb = Record<string, LedgerRow>;
 
 export interface MigrationOptions {
@@ -67,15 +63,6 @@ export interface MigrationOptions {
   clock?: Clock;
   /** Explicit persisted identities and column names for an existing version/name ledger. */
   legacyLedger?: LegacyLedgerMapping;
-}
-
-/** Where one history's ledger lives, resolved from {@link MigrationOptions}. */
-export interface Ledger {
-  readonly table: string;
-  readonly schema: string | undefined;
-  readonly lockKey: string;
-  readonly mapping: LegacyLedgerMapping | undefined;
-  run<T>(fn: (db: Kysely<LedgerDb>) => Promise<T>): Promise<T>;
 }
 
 function ledgerFor(kernel: StorageKernel<unknown>, options: MigrationOptions): Ledger {
@@ -117,7 +104,10 @@ export function assertValidSteps(steps: readonly MigrationStep[]): void {
  * `prepare` is the database exactly as it was. */
 async function ensureLedger(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<void> {
   if (ledger.schema !== undefined) await kernel.run((db) => db.schema.createSchema(ledger.schema as string).ifNotExists().execute());
-  if (ledger.mapping !== undefined) return ensureLegacyLedger({ ledger, mapping: ledger.mapping, dialect: kernel.dialect });
+  if (ledger.mapping !== undefined) {
+    await ensureLegacyLedger({ ledger, mapping: ledger.mapping, dialect: kernel.dialect });
+    return;
+  }
   await ledger.run((db) =>
     db.schema
       .createTable(ledger.table)
@@ -150,7 +140,10 @@ function verifyRecorded(rows: readonly LedgerRow[], steps: readonly MigrationSte
 
 async function insertRow({ ledger, step, options }: { ledger: Ledger; step: MigrationStep; options: MigrationOptions }, _optional: {} = {}): Promise<void> {
   const timestamp = () => options.clock === undefined ? new Date().toISOString() : nowIso({ clock: options.clock });
-  if (ledger.mapping !== undefined) return insertLegacyRow({ ledger, mapping: ledger.mapping, step, timestamp });
+  if (ledger.mapping !== undefined) {
+    await insertLegacyRow({ ledger, mapping: ledger.mapping, step, timestamp });
+    return;
+  }
   await ledger.run((db) => db.insertInto(ledger.table).values({ id: step.id, checksum: step.checksum, applied_at: timestamp() }).execute());
 }
 
@@ -241,9 +234,8 @@ export async function runMigrations(
   let backedUp = false;
   for (const step of steps) {
     if (done.has(step.id)) continue;
-    if (!backedUp) await backUpBeforeChange(kernel, context);
+    await preparePendingStep({ kernel, context, step, backedUp });
     backedUp = true;
-    await step.prepare?.(kernel, context);
     const applied = await kernel.transaction(async () => {
       await kernel.lockKey(ledger.lockKey);
       await ensureLedger(kernel, ledger);
@@ -255,6 +247,11 @@ export async function runMigrations(
     (applied ? report.applied : report.alreadyApplied).push(step.id);
   }
   return report;
+}
+
+async function preparePendingStep({ kernel, context, step, backedUp }: { kernel: StorageKernel<unknown>; context: MigrationContext; step: MigrationStep; backedUp: boolean }): Promise<void> {
+  if (!backedUp) await backUpBeforeChange(kernel, context);
+  await step.prepare?.(kernel, context);
 }
 
 /** The pre-change copy (see the file header). Outside any transaction: a backup cannot run inside one. */
@@ -269,7 +266,7 @@ async function backUpBeforeChange(kernel: StorageKernel<unknown>, context: Migra
 
 async function ledgerExists(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<boolean> {
   if (ledger.schema === undefined) return tableExists(kernel, ledger.table);
-  const [row] = await kernel.query<{ found: string | null }>(sql`SELECT to_regclass(${`${ledger.schema}.${ledger.table}`})::text AS found`);
+  const [row] = await kernel.query<{ found: string | null }>(sql`SELECT to_regclass(${ledger.schema + "." + ledger.table})::text AS found`);
   return row?.found != null;
 }
 

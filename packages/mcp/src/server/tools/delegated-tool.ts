@@ -45,6 +45,9 @@ interface DelegatedToolExecuteResponse {
   readonly result: unknown;
 }
 
+/** Shared by legacy gateways and concrete definitions for every MCP-capable agent CLI. */
+const APPROVAL_GUIDANCE = 'Never say an action has started until its tool result explicitly says it started. An approval-gated action waiting for Confirm has not started. While approval is pending, other writes are refused with awaiting_approval and started:false; reads may continue. Wait for the final result before reporting an outcome.';
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -169,7 +172,7 @@ function createDelegatedGateway(
 
   return {
     name: variant.name,
-    description: `${variant.description} Put the tool's own arguments inside input; non-conflicting top-level tool arguments are moved there automatically.`,
+    description: `${variant.description} ${APPROVAL_GUIDANCE} Put the tool's own arguments inside input; non-conflicting top-level tool arguments are moved there automatically.`,
     argumentNormalization: { foldIntoInput: true },
     inputSchema: {
       type: 'object',
@@ -321,7 +324,7 @@ export function createTypedDelegatedToolTool(
     : createExecuteDelegatedToolTool({ runId }, options);
   return {
     name: wireName,
-    description: descriptor.description ?? descriptor.id,
+    description: `${descriptor.description ?? descriptor.id} ${APPROVAL_GUIDANCE}`,
     // Parse to check the MCP boundary, but publish the original schema, including extensions.
     inputSchema: descriptor.inputSchema as typeof inputSchema,
     annotations: { ...gateway.annotations, title: descriptor.id },
