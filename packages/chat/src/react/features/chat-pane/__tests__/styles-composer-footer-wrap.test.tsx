@@ -7,8 +7,10 @@ import { CHAT_PANE_STYLES } from '../styles.js';
 afterEach(cleanup);
 
 // Owner report, 2026-10-29: a picked-folder chip in the footer's leading slot squeezed the model
-// picker under the send button at dock width. jsdom cannot lay out flex, so the declarations that
-// order the give-way (chip first, then the trailing group wraps whole) are the observable.
+// picker under the send button at dock width. Owner, 2026-10-30: the footer stays on one line, so
+// the model label truncates before the group wraps. jsdom cannot lay out flex, so the declarations
+// that order the give-way (leading slot first, then the model label, then the trailing group wraps
+// whole) are the observable.
 describe('composer footer with a leading chip', () => {
   function renderFooter() {
     const { result } = renderHook(() => useComposer());
@@ -42,7 +44,28 @@ describe('composer footer with a leading chip', () => {
     expect(trailing.parentElement).toBe(footer);
     expect(getComputedStyle(footer).flexWrap).toBe('wrap');
     expect(getComputedStyle(trailing).marginLeft).toBe('auto');
-    expect(getComputedStyle(trailing).minWidth).toBe('0');
+  });
+
+  it('decides the trailing line break on its truncated width, never growing past its content', () => {
+    const { accessories } = renderFooter();
+    const style = getComputedStyle(accessories.parentElement!);
+
+    expect(style.flexBasis).toBe('0%');
+    expect(style.flexGrow).toBe('1');
+    expect(style.maxWidth).toBe('max-content');
+    expect(style.minWidth).not.toBe('0');
+  });
+
+  it('gives the model label a one-character min-content so it truncates before the group wraps', () => {
+    const { accessories } = renderFooter();
+    const label = document.createElement('span');
+    label.className = 'jini-runtime-dropup-trigger__label';
+    accessories.querySelector('.jini-runtime-dropup-trigger')!.append(label);
+    const style = getComputedStyle(label);
+
+    expect(style.whiteSpace).toBe('normal');
+    expect(style.wordBreak).toBe('break-all');
+    expect(style.getPropertyValue('-webkit-line-clamp')).toBe('1');
   });
 
   it('lets the leading slot give way first, never wider than its content', () => {

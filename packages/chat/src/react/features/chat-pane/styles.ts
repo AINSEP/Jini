@@ -717,9 +717,11 @@ export const CHAT_PANE_STYLES = `
   .jini-chat-pane.jini-chat-pane .jini-composer-input { font-size: 16px; }
 }
 .jini-chat-pane .jini-composer-input::placeholder { color: var(--jini-chat-faint); }
-/* Wraps as a last resort: the leading slot gives way first (below), then the trailing group moves
-   to its own line whole. Unwrapped, a picked-folder chip in the leading slot squeezed the model
-   picker until send sat on its label (owner report, 2026-10-29). */
+/* Wraps as a last resort: the leading slot gives way first (below), then the model label truncates,
+   and only then does the trailing group move to its own line whole. Unwrapped, a picked-folder chip
+   in the leading slot squeezed the model picker until send sat on its label (owner report,
+   2026-10-29); wrapping on the group's full width put picker and send on a second row whenever the
+   untruncated labels did not fit (owner, 2026-10-30: one line). */
 .jini-chat-pane .jini-composer-footer {
   display: flex;
   flex-wrap: wrap;
@@ -961,14 +963,16 @@ export const CHAT_PANE_STYLES = `
   color: var(--jini-chat-muted);
   font-size: 12px;
 }
-/* Picker, plus menu and send: one group at the trailing edge that wraps as a unit. Its own
-   max-content decides the line break; alone on a line it may shrink, and the model label truncates. */
+/* Picker, plus menu and send: one group at the trailing edge that wraps as a unit. Basis 0 with an
+   automatic minimum, like the leading slot: the line break is decided on the group's min-content
+   (model label truncated, below), so the label gives way before the group wraps. It grows back to
+   its content, never past it. */
 .jini-chat-pane .jini-composer-footer-trailing {
   display: flex;
-  flex: 0 1 auto;
+  flex: 1 1 0%;
   align-items: center;
   gap: 6px;
-  min-width: 0;
+  max-width: max-content;
   margin-left: auto;
 }
 /* Always pushed to the trailing edge. This also covers a footer with no attach/accessory controls
@@ -1228,6 +1232,16 @@ export const CHAT_PANE_STYLES = `
   font-size: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* In the composer footer: one clamped line that may break anywhere, so its min-content is one
+   character and the trailing group's min-content (\`.jini-composer-footer-trailing\`) counts the label
+   at the trigger's 4.5em floor, not its full text. */
+.jini-chat-pane .jini-composer-footer-trailing .jini-runtime-dropup-trigger__label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  white-space: normal;
+  word-break: break-all;
 }
 .jini-runtime-trigger__chevron { flex: none; }
 /* The effort label is short; the model label is the one that gives way on a narrow bar. */
