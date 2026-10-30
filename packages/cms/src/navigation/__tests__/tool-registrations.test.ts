@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { normalizeToolInput, requireInputRecord, ToolInputError, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
+import { normalizeToolInput, requireInputRecord, ToolInputError, ToolInputNormalizationError, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 
 import { menusAgentToolCatalog } from "../agent-tools.js";
 import { MenuVersionConflictError } from "../menu-service.js";
@@ -154,20 +154,34 @@ for (const alias of ["menuId", "menu_id", "menu-id", "MenuId"]) {
   });
 }
 
+test("agreeing alias values (id, menuId) coalesce and update the menu", async () => {
+  const deps = fakeDeps();
+  const id = await seededMenu({ deps });
+  let authorizations = 0;
+  deps.authorize = async () => { authorizations++; return { allowed: true, reason: "matched" }; };
+  // Core intentionally coalesces agreeing aliases before the domain hook (c936b4a68).
+  const output = await normalizedUpdate({ deps, input: { id, menuId: id, expectedVersion: 1, items: REPLACEMENT_TREE } }) as { menu: { id: string; version: number; items: NavItemNode[] } };
+  assert.equal(output.menu.id, id);
+  assert.equal(output.menu.version, 2);
+  assert.deepEqual(output.menu.items, REPLACEMENT_TREE);
+  assert.equal(authorizations, 1);
+  const saved = await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id });
+  assert.equal(saved?.version, 2);
+});
+
 for (const target of [
   { id: "private-menu-id", menuId: "other-private-id" },
-  { id: "private-menu-id", menuId: "private-menu-id" },
   { menuId: "private-menu-id", id: "other-private-id" },
   { ID: "private-menu-id", menuId: "other-private-id" },
   { menuId: "private-menu-id", menu_id: "other-private-id" },
 ]) {
-  test(`alias collisions (${Object.keys(target).join(", ")}) fail before authorization or mutation`, async () => {
+  test(`differing alias values (${Object.keys(target).join(", ")}) fail before authorization or mutation`, async () => {
     const deps = fakeDeps();
     const id = await seededMenu({ deps });
     let authorizations = 0;
     deps.authorize = async () => { authorizations++; return { allowed: true, reason: "matched" }; };
     await assert.rejects(() => normalizedUpdate({ deps, input: { ...target, expectedVersion: 1, items: [] } }), (error: unknown) => {
-      assert.ok(error instanceof ToolInputError);
+      assert.ok(error instanceof ToolInputNormalizationError);
       assert.match(error.message, /Conflicting inputs.*Send only 'id'/);
       assert.equal(error.message.includes("private-menu-id"), false);
       assert.equal(error.message.includes("other-private-id"), false);

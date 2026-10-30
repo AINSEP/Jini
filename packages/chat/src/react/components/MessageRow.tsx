@@ -444,11 +444,12 @@ function AssistantMessageRow({
     );
   };
 
+  // The live footer follows the run as transcript sections split; its clock must not remount.
   const renderAssistantSection = ({ section, key, footer }: {
     section: readonly AssistantBlock[] | null; key: string; footer: boolean;
   }) => (
     <div
-      key={key}
+      key={footer ? message.id : key}
       className={usageLineMeetsActions({ footer: footerUsage, terminalNotice, pending, runInProgress }, { showTotal: showUsageTotal })
         ? 'jini-message jini-message-assistant jini-message-assistant--usage-actions'
         : 'jini-message jini-message-assistant'}
@@ -473,9 +474,10 @@ function AssistantMessageRow({
   );
   // The lossless fallback keeps the host's text intact; user receipts still own separate rows,
   // in their original receipt order, outside the assistant's actions and usage footer.
+  // Keep the same child-array nesting as the interleaved path so React preserves the footer.
   if (blocks === null) return <>
     <RunAccessNotice events={message.events} />
-    {renderAssistantSection({ section: null, key: message.id, footer: true })}
+    {[renderAssistantSection({ section: null, key: message.id, footer: true })]}
     {extGroups.filter(group => group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME).map(renderExtGroup)}
   </>;
   // A reply boundary without reported usage renders nothing; it must not create an empty row's gap.

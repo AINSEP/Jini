@@ -130,6 +130,23 @@ describe('MessageRow', () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it('keeps the tool activity clock when a queued message splits an existing assistant section', () => {
+    vi.useFakeTimers();
+    try {
+      const tool: AgentEvent = { kind: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pwd' } };
+      const message: ChatMessage = { id: 'tool-relay-clock', role: 'assistant', content: '', runStatus: 'running', events: [tool] };
+      const { rerender, container } = render(<MessageRow message={message} runStreaming />);
+      act(() => { vi.advanceTimersByTime(3_000); });
+      expect(screen.getByText('Running Bash… 3 s')).toBeInTheDocument();
+      const queued: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'relay', text: 'follow up', deliveryState: 'queued' } };
+      rerender(<MessageRow message={{ ...message, events: [tool, queued] }} runStreaming />);
+      expect(screen.getByText('Running Bash… 3 s')).toBeInTheDocument();
+      expect(container.querySelectorAll('.jini-run-activity')).toHaveLength(1);
+      act(() => { vi.advanceTimersByTime(2_000); });
+      expect(screen.getByText('Running Bash… 5 s')).toBeInTheDocument();
+    } finally { vi.useRealTimers(); }
+  });
+
   it('tags each message for agent inspection, distinctly per role and message id', () => {
     const userMessage: ChatMessage = { id: 'u-9', role: 'user', content: 'hi' };
     const { container: userContainer } = render(<MessageRow message={userMessage} />);
