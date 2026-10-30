@@ -65,6 +65,14 @@ jobs:
       # refuses any tarball that still has one).
       - run: find packages/*/dist -name '*.map' -delete
 
+      # Run even for filtered releases: a core package must never publish plugin payloads.
+      # Catalog generation validates completed manifests and integrity without loading vendor code.
+      - run: pnpm guard:plugins
+      - run: pnpm guard:plugins:catalog
+      - run: pnpm exec vitest run scripts/__tests__/check-plugin-isolation.test.ts scripts/__tests__/plugin-package-gates.test.ts scripts/__tests__/standalone-agent-plugin.integration.test.ts
+      - run: pnpm test:plugins:artifacts
+      - run: pnpm guard:plugins:packed
+
       # Passed through env, not interpolated into the script, so the input cannot inject shell.
       - run: |
           if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" == *.only.* ]]; then
