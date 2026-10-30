@@ -23,6 +23,12 @@ export function validateSessionKernel<DB>({ kernel, dialect, transports }: { rea
 function runSessionQuery<DB extends AgentSessionDatabase,T>(kernel:StorageKernel<DB>,body:(db:Kysely<AgentSessionDatabase>)=>Promise<T>):Promise<T> {
  return kernel.run(db=>body(db as unknown as Kysely<AgentSessionDatabase>));
 }
+/** The one atomic upsert behind `setSessionId`: insert the pair, or replace its session id and time. */
+function upsertSessionQuery({ conversationId, agentId, sessionId, updatedAt }: { readonly conversationId: string; readonly agentId: string; readonly sessionId: string; readonly updatedAt: number }) {
+ return (db:Kysely<AgentSessionDatabase>)=>db.insertInto('assistant_agent_sessions')
+  .values({conversation_id:conversationId,agent_id:agentId,session_id:sessionId,updated_at:updatedAt})
+  .onConflict(oc=>oc.columns(['conversation_id','agent_id']).doUpdateSet({session_id:sessionId,updated_at:updatedAt})).execute();
+}
 /** Translate opaque driver failures without losing their cause or mutating host state. */
 async function atSessionBoundary<T>(operation:()=>Promise<T>):Promise<T> {
  try {return await operation();}
@@ -49,9 +55,7 @@ export function createSqlAgentSessionStore<DB extends AgentSessionDatabase>({ ke
   setSessionId({ conversationId, agentId, sessionId }: { readonly conversationId: string; readonly agentId: string; readonly sessionId: string }) {
    return atSessionBoundary(async()=>{
     const updatedAt=clock.nowMs();
-    await runSessionQuery(kernel,db=>db.insertInto('assistant_agent_sessions')
-     .values({conversation_id:conversationId,agent_id:agentId,session_id:sessionId,updated_at:updatedAt})
-     .onConflict(oc=>oc.columns(['conversation_id','agent_id']).doUpdateSet({session_id:sessionId,updated_at:updatedAt})).execute());
+    await runSessionQuery(kernel,upsertSessionQuery({conversationId,agentId,sessionId,updatedAt}));
    });
   },
   clearSessionId({ conversationId, agentId }: { readonly conversationId: string; readonly agentId: string }) {

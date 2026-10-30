@@ -37,30 +37,6 @@ import { SETTINGS_DIALOG_HI } from './settings-dialog.hi.js';
 import { SETTINGS_DIALOG_UR } from './settings-dialog.ur.js';
 import { SETTINGS_DIALOG_BN } from './settings-dialog.bn.js';
 
-export {
-  SETTINGS_DIALOG_ES,
-  SETTINGS_DIALOG_ID,
-  SETTINGS_DIALOG_DE,
-  SETTINGS_DIALOG_ZH_CN,
-  SETTINGS_DIALOG_ZH_TW,
-  SETTINGS_DIALOG_PT_BR,
-  SETTINGS_DIALOG_RU,
-  SETTINGS_DIALOG_FA,
-  SETTINGS_DIALOG_AR,
-  SETTINGS_DIALOG_JA,
-  SETTINGS_DIALOG_KO,
-  SETTINGS_DIALOG_PL,
-  SETTINGS_DIALOG_HU,
-  SETTINGS_DIALOG_FR,
-  SETTINGS_DIALOG_UK,
-  SETTINGS_DIALOG_TR,
-  SETTINGS_DIALOG_TH,
-  SETTINGS_DIALOG_IT,
-  SETTINGS_DIALOG_HI,
-  SETTINGS_DIALOG_UR,
-  SETTINGS_DIALOG_BN,
-};
-
 /** Every non-English locale this dictionary covers, keyed the same way `@jini-ai/ui`'s
  *  `SETTINGS_DIALOG_DICTIONARIES` is. */
 export const SETTINGS_DIALOG_DICTIONARIES: Readonly<Record<string, Record<string, string>>> = {

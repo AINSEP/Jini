@@ -26,6 +26,7 @@ import type {
   ProviderModelsRequest,
   ProviderModelsResponse,
 } from './types.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export type ProviderModelsInput = ProviderModelsRequest & {
   signal?: AbortSignal;
@@ -68,7 +69,7 @@ const BEDROCK_MODEL_OPTIONS: ProviderModelOption[] = [
 
 function appendVersionedApiPath(baseUrl: string, suffix: string): string {
   const url = new URL(baseUrl);
-  const pathname = url.pathname.replace(/\/+$/, '');
+  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
   url.pathname = /\/v\d+(\/|$)/.test(pathname)
     ? `${pathname}${suffix}`
     : `${pathname}/v1${suffix}`;
@@ -162,12 +163,7 @@ function extractAnthropicModels(data: unknown): ProviderModelOption[] {
           ? item as { id?: unknown; display_name?: unknown; displayName?: unknown }
           : null;
         const id = typeof obj?.id === 'string' ? obj.id : '';
-        const label =
-          typeof obj?.display_name === 'string'
-            ? obj.display_name
-            : typeof obj?.displayName === 'string'
-              ? obj.displayName
-              : id;
+        const label = [obj?.display_name, obj?.displayName].find((name): name is string => typeof name === 'string') ?? id;
         return id ? { id, label } : null;
       })
       .filter((item): item is ProviderModelOption => item != null),
@@ -210,6 +206,12 @@ function extractGoogleModels(data: unknown): ProviderModelOption[] {
       })
       .filter((item): item is ProviderModelOption => item != null),
   );
+}
+
+/** The query parameter each protocol's model listing pages with. */
+function pageCursorParam(protocol: ConnectionTestProtocol): string {
+  if (protocol === 'google') return 'pageToken';
+  return protocol === 'anthropic' ? 'after_id' : 'cursor';
 }
 
 function providerModelsUrl(protocol: ConnectionTestProtocol, baseUrl: string, apiKey: string): string {
@@ -469,7 +471,7 @@ function nextCatalogPage(
   if (cursors.has(cursor)) return { ok: false, kind: 'unknown', latencyMs, detail: 'Provider repeated a pagination cursor.' };
   cursors.add(cursor);
   const next = new URL(url);
-  next.searchParams.set(protocol === 'google' ? 'pageToken' : protocol === 'anthropic' ? 'after_id' : 'cursor', cursor);
+  next.searchParams.set(pageCursorParam(protocol), cursor);
   return next.toString();
 }
 

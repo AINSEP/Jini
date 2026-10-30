@@ -249,12 +249,9 @@ function visibilityOf(element: Element): boolean | undefined {
  * form submission entirely. `:disabled` is the platform's own answer and covers both cases.
  */
 function disabledOf(control: Element): boolean | undefined {
-  return control instanceof HTMLInputElement
-    || control instanceof HTMLTextAreaElement
-    || control instanceof HTMLButtonElement
-    || control instanceof HTMLSelectElement
-    ? control.matches(':disabled')
-    : undefined;
+  const formControl = control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement
+    || control instanceof HTMLButtonElement || control instanceof HTMLSelectElement;
+  return formControl ? control.matches(':disabled') : undefined;
 }
 
 const PRIVATE_SELECTOR = `[${AGENT_PRIVATE_ATTRIBUTE}]`;

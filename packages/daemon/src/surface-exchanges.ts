@@ -196,9 +196,9 @@ export function createSurfaceExchangeStore(
       const entry = openExchanges.get(spec.exchangeId);
       // Unknown and closed are the same situation to a human whose dialog is no longer waiting.
       if (!entry) return { ok: false, reason: 'unknown-or-closed' };
-      if ((spec.toolId !== undefined && entry.binding.toolId !== spec.toolId)
-        || (entry.binding.channel ?? deps.defaultChannel) !== (spec.channel ?? deps.defaultChannel)
-        || entry.binding.principalId !== spec.principalId) {
+      const toolMismatch = spec.toolId !== undefined && entry.binding.toolId !== spec.toolId;
+      const channelMismatch = (entry.binding.channel ?? deps.defaultChannel) !== (spec.channel ?? deps.defaultChannel);
+      if (toolMismatch || channelMismatch || entry.binding.principalId !== spec.principalId) {
         // A wrong-binding delivery must not consume a conversation the right human is still having.
         return { ok: false, reason: 'binding-mismatch' };
       }

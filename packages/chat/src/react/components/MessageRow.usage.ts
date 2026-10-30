@@ -13,12 +13,16 @@ export function usageEndLabel(
   const status = message?.runStatus;
   if (status === 'failed') return 'Failed';
   if (status === 'canceled') {
-    return /stopped/i.test(terminalMessageNotice({ message: message! }) ?? '') ? 'Stopped' : 'Canceled';
+    return canceledUsageLabel({ message: message! });
   }
   if (awaitingAnswer) return 'Waiting for your answer';
   const reason = usage.stopReason ?? '';
   if (/error|fail/i.test(reason)) return 'Failed';
   return /abort|interrupt|cancel|max_tokens|max_tool_turns|length|tool_use/i.test(reason) ? 'Interrupted' : 'Done';
+}
+
+function canceledUsageLabel({ message }: { message: ChatMessage }, _options = {}): string {
+  return /stopped/i.test(terminalMessageNotice({ message }) ?? '') ? 'Stopped' : 'Canceled';
 }
 
 /** A standalone row has one turn; MessageList supplies the full conversation projection. */
@@ -51,7 +55,8 @@ export function usageLineMeetsActions(
   { footer, terminalNotice, pending, runInProgress }: { footer: ChatUsageSummary | undefined; terminalNotice: string | null; pending: boolean; runInProgress: boolean },
   { showTotal = true }: { showTotal?: boolean } = {},
 ): boolean {
-  const hasText = footer !== undefined && (footer.durationMs !== undefined || footer.costUsd !== undefined || (showTotal && footer.totalCostUsd !== undefined));
+  if (footer === undefined) return false;
+  const hasText = footer.durationMs !== undefined || footer.costUsd !== undefined || (showTotal && footer.totalCostUsd !== undefined);
   return hasText && !terminalNotice && !pending && !runInProgress;
 }
 

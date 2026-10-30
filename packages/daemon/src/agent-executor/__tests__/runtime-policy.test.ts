@@ -23,7 +23,7 @@ afterEach(() => vi.useRealTimers());
 /** Run through real launch composition and native protocol attachment with only OS effects replaced. */
 async function startFixture(
   { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude' | 'antigravity' | 'opencode'; hostEnv: NodeJS.ProcessEnv },
-  policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number; mcpJsonInjection?: McpJsonInjectionOptions } = {},
+  policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number; mcpJsonInjection?: McpJsonInjectionOptions; bufferedStdoutMaxBytes?: number } = {},
   runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
   { ownRuntimeState = true }: { ownRuntimeState?: boolean } = {},
 ) {
@@ -45,7 +45,7 @@ async function startFixture(
   });
   const { run } = await lifecycle.start({ contextRef: 'host-policy' });
   await executor.run({ runId: run.id, agentId, prompt: 'question', cwd: '/missing-fixture-workspace' }, runPolicy);
-  return { child, calls };
+  return { child, calls, lifecycle, runId: run.id };
 }
 
 it('carries the native-tool grant through real executor composition to Codex create argv', async () => {
@@ -86,6 +86,18 @@ it('refuses to ignore individual restrictions on an unsupported CLI even in pari
 const hostDefaultCapabilities = { shell: true, fileWrite: true, userMcp: false, subagents: true,
   userSettings: true, web: true, workflows: true, loginEnvironment: true };
 const parityRun = { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' } as const;
+
+it.each([
+  ['shell', 'Bash/shell'], ['fileWrite', 'File edit/write'], ['userMcp', 'Your MCP servers'],
+  ['subagents', 'Subagents/Task'], ['userSettings', 'Your skills and settings'], ['web', 'Web fetch/search'],
+  ['workflows', 'Workflows'], ['loginEnvironment', 'Your shell environment'],
+] as const)('refuses only the requested unsupported Antigravity limit: %s', async (key, label) => {
+  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
+    nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true, [key]: false } })).rejects.toMatchObject({
+    code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+    message: `Antigravity can't run with '${label}' off. Turn it on in the assistant settings, or choose Claude or Codex.`,
+  });
+});
 
 it.each([
   ['antigravity', "Antigravity can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex."],
@@ -136,6 +148,50 @@ it('runs antigravity in parity once personal MCP is ON', async () => {
     expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions');
     expect(run.calls[0]!.args.at(-2)).toBe('-p');
   } finally { run.child.emit('close', 0, null); }
+});
+
+it('publishes Antigravity native shell receipts through the real executor lifecycle', async () => {
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
+    nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true } });
+  const events: unknown[] = [];
+  const subscription = await run.lifecycle.stream({ runId: run.runId, onEvent: event => events.push(event) });
+  expect(subscription.kind).toBe('ok');
+  try {
+    expect(run.calls[0]!.args).toContain('stream-json');
+    run.child.stdout.write(JSON.stringify({ event: 'step_update', step_update: {
+      conversation_id: 'agy', step_index: 2, state: 'DONE', step_type: 'tool', tool_name: 'run_command',
+      tool_info: { name: 'run_command', parameters: { CommandLine: 'echo receipt' }, output: 'receipt' },
+    } }) + '\n');
+    // Buffered stdout is intentionally held until close to retain sign-in URL redaction.
+    expect(events).not.toContainEqual(expect.objectContaining({ kind: 'agent', payload: expect.objectContaining({ type: 'tool_use' }) }));
+    run.child.emit('close', 0, null);
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ kind: 'agent', payload:
+      expect.objectContaining({ type: 'tool_use', name: 'Bash', input: { command: 'echo receipt' } }) })));
+  } finally { if (subscription.kind === 'ok') subscription.unsubscribe(); }
+});
+
+it('redacts buffered Antigravity JSON sign-in errors before any lifecycle event', async () => {
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, parityRun);
+  const events: unknown[] = [];
+  await run.lifecycle.stream({ runId: run.runId, onEvent: event => events.push(event) });
+  const wire = JSON.stringify({ event: 'result', result: { status: 'ERROR', error:
+    'Sign in at https://accounts.google.com/o/oauth2/auth?client_id=secret&redirect_uri=private' } }) + '\n';
+  run.child.stdout.write(wire.slice(0, 85));
+  run.child.stdout.write(wire.slice(85));
+  expect(JSON.stringify(events)).not.toContain('client_id');
+  run.child.emit('close', 0, null);
+  expect((await run.lifecycle.waitForTerminal({ runId: run.runId })).state).toBe('failed');
+  expect(JSON.stringify(events)).not.toContain('client_id');
+  expect(JSON.stringify(events)).not.toContain('private');
+  expect(JSON.stringify(events)).toContain('[redacted sign-in URL]');
+});
+
+it('fails closed when buffered structured audit output is truncated', async () => {
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, { bufferedStdoutMaxBytes: 100 }, parityRun);
+  run.child.stdout.write(JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: 'Done' } }) + '\n');
+  run.child.stdout.write('x'.repeat(101));
+  run.child.emit('close', 0, null);
+  expect((await run.lifecycle.waitForTerminal({ runId: run.runId })).state).toBe('failed');
 });
 
 it('passes explicit plugin policy through the executor instead of consulting ambient env in buildArgs', async () => {

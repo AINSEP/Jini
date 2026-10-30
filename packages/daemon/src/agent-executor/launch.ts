@@ -18,6 +18,7 @@ import {
 } from 'node:path';
 import {
   agentCapabilities,
+  assessNativeToolPolicy,
   createClaudeFilesystemSupportProbe,
   claudeFilesystemRuntimePaths,
   claudeFilesystemSettings,
@@ -820,8 +821,8 @@ export async function guardWindowsCommandLineBudget({ input, deps }: { readonly 
     checkWindowsDirectExeCommandLineBudget({ def: input.def, resolvedBin: input.launchPath, args: input.args });
   if (windowsBudgetError) {
     await deps.releaseStagedResources();
-    // `failBeforeSpawn` always rejects (`Promise<never>`); returning it propagates that rejection.
-    return deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_PROMPT_TOO_LARGE', message: windowsBudgetError.message });
+    // `failBeforeSpawn` always rejects (`Promise<never>`); awaiting it propagates that rejection.
+    await deps.failBeforeSpawn({ runId: input.runId, code: 'AGENT_PROMPT_TOO_LARGE', message: windowsBudgetError.message });
   }
 }
 
@@ -878,7 +879,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
     await waitForSpawnOrError(input.child);
   } catch (err) {
     await deps.releaseStagedResources();
-    return deps.failBeforeSpawn(
+    await deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: failed to spawn agent "${input.def.id}": ${errorMessage(err)}` },
     );
   }
@@ -889,24 +890,6 @@ type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExec
 /** Only include declared capability restrictions; absence has a distinct downstream contract. */
 function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _options = {}) {
   return { ...(input.nativeCapabilities !== undefined ? { nativeCapabilities: input.nativeCapabilities } : {}) };
-}
-
-/** Switch names a person sees for each native capability (the host's settings use the same words). */
-const NATIVE_CAPABILITY_LABELS: Readonly<Record<string, string>> = {
-  shell: 'Bash/shell', fileWrite: 'File edit/write', userMcp: 'Your MCP servers', subagents: 'Subagents/Task',
-  userSettings: 'Your skills and settings', web: 'Web fetch/search', workflows: 'Workflows', loginEnvironment: 'Your shell environment',
-};
-
-/** The refusal a person reads when a CLI without a native-tool policy cannot honor this run's switches:
- * it names the CLI and the switch to turn on. Owner 2026-10-27: the old "no native-tool policy and
- * audit adapter" told a Gemini user nothing. Pure, O(c) for c OFF switches.
- * @example nativeToolPolicyRefusal({ cliName: 'Antigravity', offSwitches: ['userMcp'] }, {});
- */
-function nativeToolPolicyRefusal({ cliName, offSwitches }: { cliName: string; offSwitches: readonly string[] }, _options = {}): string {
-  const switches = offSwitches.map(key => `'${NATIVE_CAPABILITY_LABELS[key] ?? key}'`);
-  const blocked = switches.length > 0 ? `with ${new Intl.ListFormat('en', { type: 'conjunction' }).format(switches)} off` : `with this chat's CLI tool limits`;
-  const action = switches.length === 0 ? `Turn on 'Full CLI access'` : `Turn ${switches.length === 1 ? 'it' : 'them'} on`;
-  return `${cliName} can't run ${blocked}. ${action} in the assistant settings, or choose Claude or Codex.`;
 }
 
 /** Correlation projects retained stdout, so exact-byte journals need a separate blob writer. */
@@ -985,13 +968,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   } = resolveProcessDeps(options);
   const { onCleanupFailure: onCleanupFailureFn, bufferedStdoutMaxBytes } = resolveMiscExecutorDeps(options);
   validateStdoutJournalOptions(options);
-  const journal = options.journal;
-  const continuation = options.continuation;
-  const classifyFailure = options.classifyFailure;
-  const mcpJsonInjection = options.mcpJsonInjection;
-  const claudeConfigDirIsolation = options.claudeConfigDirIsolation;
+  const { journal, continuation, classifyFailure, mcpJsonInjection, claudeConfigDirIsolation, promptAugmenter } = options;
   const claudeConfigDirIsolationEnabled = options.claudeConfigDirIsolationEnabled ?? false;
-  const promptAugmenter = options.promptAugmenter;
 
   const filesystemTemps = new Map<string, string[]>();
   const verifyClaudeFilesystem = options.assertClaudeFilesystemSupport ?? createClaudeFilesystemSupportProbe({});
@@ -1049,7 +1027,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     { imageContents }: { readonly imageContents?: readonly MessageAttachmentImage[] } = {},
   ): Promise<UserMessageDelivery> {
     const deliver = liveRunInputs.get(runId);
-    return deliver ? deliver({ text, id, ...(attachmentIds ? { attachmentIds } : {}) }, imageContents ? { imageContents } : {}) : 'not-running';
+    if (!deliver) return 'not-running';
+    return deliver({ text, id, ...(attachmentIds ? { attachmentIds } : {}) }, imageContents ? { imageContents } : {});
   }
 
   /** Validates launch input and selects the definition synchronously before yielding. */
@@ -1069,10 +1048,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Never silently ignore a host's locked native-tool policy on another CLI.
     // Parity cannot override an explicit lock or a restricted run.
     input.cliParity = input.cliParity === true && input.permissionMode === 'bypass' && input.nativeToolAccess !== false;
-    if (def.supportsNativeToolAccess === true) return;
-    const offSwitches = Object.entries(input.nativeCapabilities ?? {}).filter(([, value]) => value === false).map(([key]) => key);
-    if (input.nativeToolAccess !== undefined && !input.cliParity || offSwitches.length > 0) {
-      return failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: nativeToolPolicyRefusal({ cliName: def.name, offSwitches }, {}) });
+    const refusal = assessNativeToolPolicy({ def, policy: input });
+    if (refusal !== null) {
+      await failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: refusal });
     }
   }
 
@@ -1089,7 +1067,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       if (input.readOnlyExtraDirs) input.readOnlyExtraDirs = validateReadOnlyExtraDirs({ filesystemRoot: input.filesystemRoot, dirs: input.readOnlyExtraDirs }, {});
       input.cwd = input.filesystemRoot;
     } catch {
-      return failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_INVALID', message: 'Folder-limited launch refused: invalid filesystem root, working directory or attachment path.' });
+      await failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_INVALID', message: 'Folder-limited launch refused: invalid filesystem root, working directory or attachment path.' });
     }
   }
 
@@ -1140,7 +1118,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       // A login environment can otherwise force auto-memory back on despite the host setting.
       spawnEnv.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
     } catch {
-      return failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_UNSUPPORTED', message: 'Folder-limited launch refused: invalid host settings or private runtime directory.' });
+      await failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_UNSUPPORTED', message: 'Folder-limited launch refused: invalid host settings or private runtime directory.' });
     }
   }
 
@@ -1368,10 +1346,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
 
   /**
    * `AgentExecutor.run()` — see that interface method's own doc for the
-   * public contract. Implementation note on shape: every guard below
-   * returns `failBeforeSpawn(...)` directly (a `Promise<never>`, valid
-   * wherever `Promise<void>` is expected) rather than `await`-then-`return`,
-   * so each failure path reads as a single, obviously-terminal statement.
+   * public contract. Implementation note on shape: every failure path below
+   * awaits `failBeforeSpawn(...)` (a `Promise<never>`, so the await always
+   * throws) and then returns, so each one reads as obviously terminal.
    * @param input - `{runId, agentId, prompt, cwd, model?, reasoning?, imagePaths?, extraAllowedDirs?, uploadRoot?, env?}` — `runId` must already be `lifecycle.start()`-ed.
    * @throws {@link AgentExecutorError} — see index.ts module doc's Invariant; never a bare `Error`.
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
@@ -1589,9 +1566,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     const spawnResult = spawnAgentChildProcess({ input: { cwd: input.cwd, childEnv, invocation }, deps: { spawn: spawnFn } });
     if (spawnResult.kind === 'error') {
       await releaseStagedResources();
-      return failBeforeSpawn(
+      await failBeforeSpawn(
         { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage(spawnResult.error)}` },
       );
+      return;
     }
     const child = spawnResult.child;
 
@@ -1623,10 +1601,12 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     );
 
     if (streamFormat === 'acp-json-rpc') {
-      return dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }, {});
+      await dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }, {});
+      return;
     }
     if (streamFormat === 'pi-rpc') {
-      return dispatchPiPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, overlayDelivery }, {});
+      await dispatchPiPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, overlayDelivery }, {});
+      return;
     }
     dispatchStdinPrompt({ input, def, child, overlayDelivery, imageDelivery, stdinHandle }, {});
   }

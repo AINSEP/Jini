@@ -54,9 +54,8 @@ export function createChatHistoryStore<DB extends ChatDatabase>(
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
   const required = { kernel, scope };
   const optional = { clock: { nowMs: now } };
-  const store = kernel.transport === "better-sqlite3" ? createSqliteChatStore(required, optional)
-    : kernel.transport === "pglite" || kernel.transport === "pglite-socket" ? createPgliteChatStore(required, optional)
-    : createPostgresChatStore(required, optional);
+  const createStore = storeFactory(kernel.transport);
+  const store = createStore(required, optional);
   return { ...store,
     // Admin reload and recovery use this full-transcript compatibility read. Preserve stored
     // positions (and Jini's position-based page cursors); existing user databases need no migration.
@@ -64,4 +63,10 @@ export function createChatHistoryStore<DB extends ChatDatabase>(
       return repairLegacyTurnOrder({ messages: await store.messages(required, optional), isDaemonRunId }, {});
     },
   };
+}
+
+function storeFactory(transport: ChatKernel<ChatDatabase>["transport"]) {
+  if (transport === "better-sqlite3") return createSqliteChatStore;
+  if (transport === "pglite" || transport === "pglite-socket") return createPgliteChatStore;
+  return createPostgresChatStore;
 }

@@ -62,8 +62,9 @@ function usageCost({ event, agentId, sessions }: { event: UsageEvent; agentId: s
   const key = JSON.stringify([agentId, sessionId]);
   const chargedUsd = sessions.get(key)?.chargedUsd ?? 0;
   const cumulative = validCost(event.cumulativeCostUsd);
-  const cost = cumulative === undefined ? validCost(event.costUsd)
-    : cumulative < chargedUsd ? cumulative : cumulative - chargedUsd;
+  let snapshotCost: number | undefined;
+  if (cumulative !== undefined) snapshotCost = cumulative < chargedUsd ? cumulative : cumulative - chargedUsd;
+  const cost = cumulative === undefined ? validCost(event.costUsd) : snapshotCost;
   // Interim interrupted-segment charges are already paid; later snapshots subtract them.
   // After a counter reset the new snapshot, rather than the old epoch's total, is the baseline.
   sessions.set(key, { sessionId, chargedUsd: cumulative ?? chargedUsd + (cost ?? 0) });
@@ -87,9 +88,13 @@ export function turnUsage({ events }: { events: readonly AgentEvent[] | undefine
     addReportedCounts({ total, event });
     if (event.stopReason !== undefined) total.stopReason = event.stopReason;
     const cost = usageCost({ event, agentId, sessions });
-    if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
+    addReportedCost({ total, cost });
   }
   return total;
+}
+
+function addReportedCost({ total, cost }: { total: UsageEvent; cost: number | undefined }, _options = {}): void {
+  if (cost !== undefined) total.costUsd = (total.costUsd ?? 0) + cost;
 }
 
 /** Add an event's well-formed token and duration counts into `total`, in place. */

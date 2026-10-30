@@ -48,3 +48,46 @@ export function resolveNativeToolDenies(required: {
   if (required.enabled) return denied.filter(tool => !NATIVE_FALLBACK_TOOLS.includes(tool));
   return [...new Set([...denied, ...NATIVE_FALLBACK_TOOLS])];
 }
+
+/** Current run limits, shared by launch enforcement and browser preflight. */
+export interface NativeToolPolicyInput {
+  nativeToolAccess?: boolean;
+  nativeCapabilities?: Partial<NativeCapabilities>;
+  cliParity?: boolean;
+  permissionMode?: 'bypass' | 'restricted';
+}
+
+/** Switch names a person sees for each native capability (the host's settings use the same words). */
+const NATIVE_CAPABILITY_LABELS: Readonly<Record<string, string>> = {
+  shell: 'Bash/shell', fileWrite: 'File edit/write', userMcp: 'Your MCP servers', subagents: 'Subagents/Task',
+  userSettings: 'Your skills and settings', web: 'Web fetch/search', workflows: 'Workflows', loginEnvironment: 'Your shell environment',
+};
+
+/** The refusal a person reads when a CLI without a native-tool policy cannot honor this run's switches:
+ * it names the CLI and the switch to turn on. Owner 2026-10-27: the old "no native-tool policy and
+ * audit adapter" told a Gemini user nothing. Pure, O(c) for c OFF switches.
+ * @example nativeToolPolicyRefusal({ cliName: 'Antigravity', offSwitches: ['userMcp'] }, {});
+ */
+function nativeToolPolicyRefusal({ cliName, offSwitches }: { cliName: string; offSwitches: readonly string[] }, _options = {}): string {
+  const switches = offSwitches.map(key => `'${NATIVE_CAPABILITY_LABELS[key] ?? key}'`);
+  const blocked = switches.length > 0 ? `with ${new Intl.ListFormat('en', { type: 'conjunction' }).format(switches)} off` : `with this chat's CLI tool limits`;
+  const pronoun = switches.length === 1 ? 'it' : 'them';
+  const action = switches.length === 0 ? `Turn on 'Full CLI access'` : `Turn ${pronoun} on`;
+  return `${cliName} can't run ${blocked}. ${action} in the assistant settings, or choose Claude or Codex.`;
+}
+
+/** The same fail-closed assessment at selection and spawn; no CLI-name allowlist.
+ * Unknown explicit OFF switches stay blocked. O(c) over declared limits, without effects.
+ */
+export function assessNativeToolPolicy({ def, policy }: {
+  def: { name: string; supportsNativeToolAccess?: boolean };
+  policy: NativeToolPolicyInput;
+}, _options: Record<string, never> = {}): string | null {
+  if (def.supportsNativeToolAccess === true) return null;
+  const parity = policy.cliParity === true && policy.permissionMode === 'bypass' && policy.nativeToolAccess !== false;
+  const offSwitches = Object.entries(policy.nativeCapabilities ?? {}).filter(([, value]) => value === false).map(([key]) => key);
+  if ((policy.nativeToolAccess !== undefined && !parity) || offSwitches.length > 0) {
+    return nativeToolPolicyRefusal({ cliName: def.name, offSwitches });
+  }
+  return null;
+}

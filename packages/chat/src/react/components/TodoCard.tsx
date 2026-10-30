@@ -61,7 +61,7 @@ export function TodoCard({ todos, runStreaming, onDismiss }: TodoCardProps) {
             {todos.map((todo, i) => (
               <li key={i} className={`todo-item todo-${todo.status}`}>
                 <span className="todo-check" aria-hidden>
-                  {todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '◐' : todo.status === 'stopped' ? '!' : '○'}
+                  {todoStatusGlyph({ status: todo.status })}
                 </span>
                 <span className="todo-text">{todoLabel({ todo })}</span>
               </li>
@@ -85,4 +85,13 @@ function todoProgress({ todos }: { todos: TodoItem[] }, { runStreaming = false }
 
 function todoLabel({ todo }: { todo: TodoItem }, _options = {}): string {
   return todo.status === 'in_progress' && todo.activeForm ? todo.activeForm : todo.content;
+}
+
+function todoStatusGlyph({ status }: { status: TodoItem['status'] }): string {
+  switch (status) {
+    case 'completed': return '✓';
+    case 'in_progress': return '◐';
+    case 'stopped': return '!';
+    default: return '○';
+  }
 }

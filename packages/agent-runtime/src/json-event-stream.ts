@@ -1,13 +1,14 @@
 /** @module json-event-stream
  * Multi-CLI JSON event parsing with per-handler stream state. */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { handleAntigravityEvent, type AntigravityStreamState } from './defs/antigravity-event-stream.js';
 
 type JsonObject = Record<string, unknown>;
 type StreamEvent = Record<string, unknown>;
 type StreamEventHandler = (event: StreamEvent) => void;
-type ParserKind = string;
 
 type ParserState = {
+  antigravity: AntigravityStreamState;
   cursorTextSoFar: string;
   cursorTurnStart: number;
   openCodeToolUses: Set<string>;
@@ -478,7 +479,7 @@ function normalizeTodoStatus(value: unknown): string {
   return rule ? rule.status : 'pending';
 }
 
-/** Todo text fields in precedence order; the first string-typed one wins, even when empty. */
+/** Text fields of a to-do item in precedence order; the first string-typed one wins, even when empty. */
 const TODO_CONTENT_FIELDS = ['content', 'label', 'description', 'text'] as const;
 
 function todoFromItem(raw: unknown): JsonObject | null {
@@ -578,11 +579,7 @@ function flushPendingArtifactText(state: ParserState, onEvent: StreamEventHandle
 
 function isFileWriteToolUse(toolName: string, input: unknown): boolean {
   if (!isRecord(input)) return false;
-  const path = typeof input.file_path === 'string'
-    ? input.file_path
-    : typeof input.path === 'string'
-      ? input.path
-      : '';
+  const path = [input.file_path, input.path].find((value): value is string => typeof value === 'string') ?? '';
   const writesFile = toolName === 'write_file' ||
     toolName === 'write' ||
     toolName === 'replace' ||
@@ -725,12 +722,15 @@ function handleCodexItemUpdated(item: JsonObject, onEvent: StreamEventHandler, s
 function completeCodexFileChange(item: CodexItem, onEvent: StreamEventHandler, state: ParserState): boolean {
   // Codex reports direct patches as file_change, rather than command_execution. Surface paths
   // through the SAME native-tool event channel so audit sees edits without persisting patches.
-  if (!claimCodexToolUse(state, item.id)) return true;
+  if (claimCodexToolUse(state, item.id)) emitCodexFileChange(item, onEvent);
+  return true;
+}
+
+function emitCodexFileChange(item: CodexItem, onEvent: StreamEventHandler): void {
   const changes = Array.isArray(item.changes) ? item.changes : [];
   onEvent({ type: 'tool_use', id: item.id, name: 'apply_patch',
     input: { paths: changes.filter(isRecord).map(change => change.path).filter(path => typeof path === 'string') } });
   onEvent({ type: 'tool_result', toolUseId: item.id, content: 'File change reported by Codex.', isError: item.status === 'failed' });
-  return true;
 }
 
 function completeCodexCommand(item: CodexItem, onEvent: StreamEventHandler, state: ParserState): boolean {
@@ -1014,7 +1014,8 @@ function emitModelReceipts(obj: unknown, onEvent: StreamEventHandler): void {
   }
 }
 
-const PARSERS_BY_KIND: ReadonlyMap<ParserKind, (obj: unknown, onEvent: StreamEventHandler, state: ParserState) => boolean> = new Map([
+const PARSERS_BY_KIND: ReadonlyMap<string, (obj: unknown, onEvent: StreamEventHandler, state: ParserState) => boolean> = new Map([
+  ['antigravity', (frame, emit, state) => handleAntigravityEvent({ frame, emit, state: state.antigravity })],
   ['opencode', handleOpenCodeEvent],
   ['legacy-google-stream-json', handleLegacyGoogleStreamEvent],
   ['kimi', handleKimiEvent],
@@ -1022,9 +1023,10 @@ const PARSERS_BY_KIND: ReadonlyMap<ParserKind, (obj: unknown, onEvent: StreamEve
   ['codex', handleCodexEvent],
 ]);
 
-export function createJsonEventStreamHandler({ kind, onEvent }: { kind: ParserKind; onEvent: StreamEventHandler }) {
+export function createJsonEventStreamHandler({ kind, onEvent }: { kind: string; onEvent: StreamEventHandler }) {
   let buffer = '';
   const state: ParserState = {
+    antigravity: { textEmitted: false, toolUses: new Set<string>(), toolResults: new Set<string>() },
     cursorTextSoFar: '',
     cursorTurnStart: 0,
     openCodeToolUses: new Set<string>(),

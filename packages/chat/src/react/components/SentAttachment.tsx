@@ -24,6 +24,9 @@ export function SentAttachmentButton({ attachment, onOpen, renderAttachment, obj
     { attachment, hostRendered: renderAttachment !== undefined },
     objectUrls === undefined ? {} : { objectUrls },
   );
+  const fallback = thumbnailUrl
+    ? <img className="jini-message-attachment-thumb" src={thumbnailUrl} alt="" onError={onThumbnailError} />
+    : attachment.name;
   return (
     <button
       type="button"
@@ -32,13 +35,7 @@ export function SentAttachmentButton({ attachment, onOpen, renderAttachment, obj
       title={t('Open {name}', { name: attachment.name })}
       aria-label={t('Open {name}', { name: attachment.name })}
     >
-      {renderAttachment ? (
-        renderAttachment(attachment)
-      ) : thumbnailUrl ? (
-        <img className="jini-message-attachment-thumb" src={thumbnailUrl} alt="" onError={onThumbnailError} />
-      ) : (
-        attachment.name
-      )}
+      {renderAttachment ? renderAttachment(attachment) : fallback}
     </button>
   );
 }

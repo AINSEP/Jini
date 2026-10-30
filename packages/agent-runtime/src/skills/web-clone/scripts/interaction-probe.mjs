@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { trimDashes } from "./lib/trim-dashes.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge;
 // tests pass fakes (no real browser, captured output, fixed clock).
@@ -49,7 +50,7 @@ export function shortHash(value) {
 }
 
 export function safeFileName(label) {
-  return label.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "step";
+  return trimDashes(label.replace(/[^a-z0-9._-]+/gi, "-")).slice(0, 90) || "step";
 }
 
 function actionRow(action, index) {
@@ -155,7 +156,8 @@ export async function candidates(page) {
         const rect = node.getBoundingClientRect();
         const tag = node.tagName.toLowerCase();
         const href = node.href || node.getAttribute("href") || "";
-        const safeClick = tag === "button" || tag === "summary" || node.getAttribute("role") === "button" || href.startsWith("#") || href.startsWith(location.origin);
+        const buttonLike = tag === "button" || tag === "summary" || node.getAttribute("role") === "button";
+        const safeClick = buttonLike || href.startsWith("#") || href.startsWith(location.origin);
         return {
           selector: selectorFor(node),
           tag,
@@ -235,7 +237,8 @@ export async function captureAction(page, outDir, index, action, before) {
   await ACTION_PERFORMERS[action.type](page, action);
   await page.waitForTimeout(450);
   const after = await hashSnapshot(page, await snapshot(page));
-  const screenshotName = `${String(index + 1).padStart(2, "0")}-${safeFileName(`${action.type}-${action.target || action.selector || "page"}`)}-${shortHash(JSON.stringify(action))}.png`;
+  const actionLabel = `${action.type}-${action.target || action.selector || "page"}`;
+  const screenshotName = `${String(index + 1).padStart(2, "0")}-${safeFileName(actionLabel)}-${shortHash(JSON.stringify(action))}.png`;
   const screenshotPath = path.join(outDir, "screenshots", screenshotName);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   return {

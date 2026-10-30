@@ -1,3 +1,5 @@
+type AnswerValue = string | string[] | undefined;
+
 import { CREDENTIAL_CARD_GUIDANCE, SECRET_REDACTED_NOTICE, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import { useUserTextGuard } from '../hooks/useUserTextGuard.js';
 /**
@@ -199,7 +201,7 @@ function QuestionFormFoot({ locked, answered, ready, submitLabel, onSubmit }: { 
 type FieldHandlers = ReturnType<typeof useQuestionAnswers>['handlers'];
 interface FieldContext extends FieldHandlers {
   q: Question;
-  value: string | string[] | undefined;
+  value: AnswerValue;
   formId: string;
   locked: boolean;
   t: ReturnType<typeof useT>;
@@ -225,12 +227,12 @@ function QuestionField(ctx: FieldContext) {
   );
 }
 
-function stringValue(value: string | string[] | undefined): string {
+function stringValue(value: AnswerValue): string {
   return typeof value === 'string' ? value : '';
 }
 
 /** A range with no usable answer yet (e.g. mid-stream) shows its minimum, matching `emptyQuestionValue`. */
-function rangeValue(q: Question, value: string | string[] | undefined): string {
+function rangeValue(q: Question, value: AnswerValue): string {
   return typeof value === 'string' && value.trim() ? value : String(q.min ?? 0);
 }
 
@@ -323,8 +325,8 @@ function DirectionCardsControl(ctx: FieldContext) {
 function TextControl({ q, value, locked, update, t }: FieldContext) {
   const shared = { className: 'qf-input', value: stringValue(value), placeholder: q.placeholder, disabled: locked, onChange: (e: ChangeEvent<HTMLInputElement>) => update(q.id, e.target.value) };
   const props = questionTextInputProps({ question: q });
-  if (props.type === 'password') {
-    const { type: _type, ...secretProps } = props;
+  const { type, ...secretProps } = props;
+  if (type === 'password') {
     return <SecretInput {...secretProps} {...shared} aria-label={q.label} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
   }
   return <input {...props} {...shared} />;
@@ -474,8 +476,7 @@ function collectFileSubmissions(form: QuestionFormType, fileAnswers: Record<stri
   for (const q of form.questions) {
     if (q.type !== 'file') continue;
     const files = fileAnswers[q.id] ?? [];
-    if (files.length === 0) continue;
-    out.push({ questionId: q.id, questionLabel: q.label, files });
+    if (files.length > 0) out.push({ questionId: q.id, questionLabel: q.label, files });
   }
   return out;
 }
@@ -503,12 +504,12 @@ function questionValueIsKnown(q: QuestionFormType['questions'][number], value: s
   return false;
 }
 
-function customSingleValue(q: QuestionFormType['questions'][number], value: string | string[] | undefined): string {
+function customSingleValue(q: QuestionFormType['questions'][number], value: AnswerValue): string {
   if (typeof value !== 'string' || value.length === 0) return '';
   return questionValueIsKnown(q, value) ? '' : value;
 }
 
-function customCheckboxValue(q: QuestionFormType['questions'][number], value: string | string[] | undefined): string {
+function customCheckboxValue(q: QuestionFormType['questions'][number], value: AnswerValue): string {
   if (!Array.isArray(value)) return '';
   return value.filter((entry) => !questionValueIsKnown(q, entry)).join(', ');
 }
@@ -525,12 +526,12 @@ function customInputCharCount(value: string, placeholder: string): number {
   return Math.max(18, Math.min(base + 2, 72));
 }
 
-function normalizeColorInputValue(value: string | string[] | undefined): string {
+function normalizeColorInputValue(value: AnswerValue): string {
   if (typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value)) return value;
   return '#000000';
 }
 
-function fileValueLabel(value: string | string[] | undefined): string {
+function fileValueLabel(value: AnswerValue): string {
   if (Array.isArray(value)) return value.join(', ');
   return typeof value === 'string' ? value : '';
 }

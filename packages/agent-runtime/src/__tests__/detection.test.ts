@@ -143,7 +143,7 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     expect((antigravity as unknown as { stdoutPolicy?: unknown }).stdoutPolicy).toBeUndefined();
     expect((antigravity as unknown as { runtimeLock?: unknown }).runtimeLock).toBeUndefined();
     // …while the declarative metadata a picker actually needs survives.
-    expect(antigravity.streamFormat).toBe('plain');
+    expect(antigravity.streamFormat).toBe('json-event-stream');
     expect(antigravity.supportsCustomModel).toBe(false);
     // And nothing that survived would misrepresent itself once serialized.
     expect(JSON.parse(JSON.stringify(antigravity))).not.toHaveProperty('stdoutPolicy');

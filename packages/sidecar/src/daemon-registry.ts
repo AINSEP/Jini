@@ -155,16 +155,10 @@ function isPositiveInteger({ value }: { value: unknown }, _options: Record<strin
 function isValidRegistryRecord(value: unknown): value is LocalDaemonRegistryRecord {
   if (value === null || typeof value !== "object") return false;
   const record = value as Partial<LocalDaemonRegistryRecord>;
-  return (
-    typeof record.url === "string" &&
-    record.url.length > 0 &&
-    typeof record.host === "string" &&
-    record.host.length > 0 &&
-    isPositiveInteger({ value: record.port }) &&
-    isPositiveInteger({ value: record.pid }) &&
-    typeof record.startedAt === "string" &&
-    record.startedAt.length > 0
-  );
+  const hasAddress = typeof record.url === "string" && record.url.length > 0
+    && typeof record.host === "string" && record.host.length > 0;
+  const hasProcess = isPositiveInteger({ value: record.port }) && isPositiveInteger({ value: record.pid });
+  return hasAddress && hasProcess && typeof record.startedAt === "string" && record.startedAt.length > 0;
 }
 
 /**

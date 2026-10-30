@@ -257,6 +257,11 @@ function toolExecutionResultToApiResult(
       return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error: result.status, runId, toolId, status: result.status }) });
     case 'failed':
       return err({ error: failedResultToApiError(deps, { runId, toolId, result }) });
+    default: {
+      // Unreachable: every tool result status has a case above, and a new one fails typecheck here.
+      const unhandled: never = result.status;
+      throw new TypeError(`Unhandled tool result status: ${String(unhandled)}`);
+    }
   }
 }
 

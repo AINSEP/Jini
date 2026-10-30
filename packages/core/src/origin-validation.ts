@@ -179,7 +179,10 @@ function parseDottedQuad(host: string): Octets | undefined {
 
 /** RFC 1918 (10/8, 172.16/12, 192.168/16) or link-local (169.254/16), from the first two octets. */
 function isPrivateIpv4Prefix([a, b]: Octets): boolean {
-  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  if (a === 10) return true;
+  if (a === 172) return b >= 16 && b <= 31;
+  if (a === 192) return b === 168;
+  return a === 169 && b === 254;
 }
 
 /** Whether `hostname` is an RFC 1918 private IPv4 address (10/8, 172.16/12, 192.168/16) or link-local (169.254/16).
@@ -198,19 +201,13 @@ export function isIpLiteralHostname({ hostname }: { hostname: unknown }): boolea
   return parseDottedQuad(host) !== undefined;
 }
 
+const LOOPBACK_OR_UNSPECIFIED_HOSTS: ReadonlySet<string> = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0', '::']);
+
 /** Whether `hostname` is loopback, unspecified, or a private-LAN address.
  * Implements the dev-browser LAN allow-list, not SSRF blocking (@jini-ai/platform/net). */
 export function isLoopbackOrPrivateLanHost({ hostname }: { hostname: unknown }): boolean {
   const host = String(hostname || '').toLowerCase();
-  return (
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host === '::1' ||
-    host === '[::1]' ||
-    host === '0.0.0.0' ||
-    host === '::' ||
-    isPrivateIpv4({ hostname: host })
-  );
+  return LOOPBACK_OR_UNSPECIFIED_HOSTS.has(host) || isPrivateIpv4({ hostname: host });
 }
 
 /** Whether a request's `Host` header names a locally-served or explicitly allow-listed host. */

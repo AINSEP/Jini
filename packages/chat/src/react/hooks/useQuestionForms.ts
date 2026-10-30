@@ -95,21 +95,16 @@ export function parseSubmittedAnswers({ form, userMessageContent }: { form: Ques
     // `i < lines.length` is the loop condition, so this index is always
     // in-bounds and defined — same reasoning as `header` above.
     const line = lines[i]!;
-    const m = /^[-*]\s*([^:]+):\s*(.*)$/.exec(line);
-    if (!m) continue;
-    // Both capture groups are required (non-optional) in this pattern, so
-    // they're always defined once `m` is non-null — TS just can't express
-    // that for regex capture groups.
-    const labelKey = m[1]!.trim().toLowerCase();
-    const value = m[2]!.trim();
-    const id = labelToId.get(labelKey);
-    if (!id) continue;
-    // `id` only ever comes from `labelToId`, which was populated from this
-    // same `form.questions` array immediately above, so a question with
-    // this exact `id` is always found — the `!` reflects that invariant
-    // rather than gaming an untestable defensive branch.
-    const question = form.questions.find((x) => x.id === id)!;
-    answers[id] = decodeAnswerValue(question, value);
+    const parsed = submittedAnswerLine({ line });
+    if (!parsed) continue;
+    const id = labelToId.get(parsed.labelKey);
+    if (id) {
+      // `id` only ever comes from `labelToId`, populated from this same `form.questions` array,
+      // so this exact question exists; the assertion reflects that invariant rather than adding
+      // an untestable defensive branch.
+      const question = form.questions.find((x) => x.id === id)!;
+      answers[id] = decodeAnswerValue(question, parsed.value);
+    }
   }
   return Object.keys(answers).length > 0 ? answers : null;
 }
@@ -126,10 +121,24 @@ function decodeAnswerValue(question: FormQuestion, value: string): string | stri
 }
 
 function parseSubmittedOptionToken(raw: string): string {
-  const match = /\s+\[value:\s*([^\]]+)\]\s*$/i.exec(raw);
-  if (!match) return raw.trim();
-  // The single capture group is non-optional in this pattern, so it's
-  // always defined once `match` is non-null — same regex-capture-group
-  // caveat as `parseSubmittedAnswers` above.
-  return match[1]!.trim();
+  const trimmed = raw.trimEnd();
+  if (!trimmed.endsWith(']')) return raw.trim();
+  const end = trimmed.length - 1;
+  // The value cannot cross an earlier ']'; search the remaining suffix once, from the start
+  // of each whitespace run, retaining the first eligible (possibly nested) value marker.
+  const base = trimmed.lastIndexOf(']', end - 1) + 1;
+  const marker = /(?<!\s)\s+\[value:/i.exec(trimmed.slice(base, end));
+  if (!marker) return raw.trim();
+  const value = trimmed.slice(base + marker.index + marker[0].length, end);
+  return value.length > 0 ? value.trim() : raw.trim();
+}
+
+function submittedAnswerLine({ line }: { line: string }): { labelKey: string; value: string } | null {
+  const label = /^[-*]([^:]+):/.exec(line);
+  if (!label) return null;
+  const value = /^(.*)$/.exec(line.slice(label[0].length).trimStart());
+  if (!value) return null;
+  // Each capture is required in its own pattern and is defined after a successful match;
+  // TypeScript cannot express that invariant for RegExpExecArray's numeric capture slots.
+  return { labelKey: label[1]!.trim().toLowerCase(), value: value[1]!.trim() };
 }

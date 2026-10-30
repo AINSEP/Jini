@@ -22,7 +22,8 @@ export interface RunAgentWirePayload {
 }
 
 function asString(v: unknown): string {
-  return typeof v === "string" ? v : v == null ? "" : JSON.stringify(v);
+  if (typeof v === "string") return v;
+  return v == null ? "" : JSON.stringify(v);
 }
 
 function reduceUsagePayload(payload: RunAgentWirePayload): AgentEvent {

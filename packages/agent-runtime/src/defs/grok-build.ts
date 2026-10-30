@@ -4,6 +4,9 @@ import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeModelOption } from '../types.js';
 import type { RuntimeAgentDef } from '../types.js';
 
+/** Agent id, binary name and the routing-mode default model id. */
+const GROK_BUILD_ID = 'grok-build';
+
 const GROK_MODEL_ID_RE = /^(?:[*•-]\s*|(?=grok-))([a-z0-9][a-z0-9./_:@\[\]-]*)(?:\s+\(default\))?\s*$/i;
 
 export function parseGrokBuildModels({ stdout }: { stdout: string }): RuntimeModelOption[] {
@@ -14,13 +17,13 @@ export function parseGrokBuildModels({ stdout }: { stdout: string }): RuntimeMod
     const id = match?.[1];
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, label: id, identityKind: /^(?:xai\/)?grok-/i.test(id) && id !== 'grok-build' ? 'concrete' : 'routing-mode' });
+    out.push({ id, label: id, identityKind: /^(?:xai\/)?grok-/i.test(id) && id !== GROK_BUILD_ID ? 'concrete' : 'routing-mode' });
   }
   return out;
 }
 
 function grokModelSupportsReasoningEffort(model: string | null | undefined): boolean {
-  if (!model || model === DEFAULT_MODEL_OPTION.id || model === 'grok-build') return false;
+  if (!model || model === DEFAULT_MODEL_OPTION.id || model === GROK_BUILD_ID) return false;
   return /reasoning/i.test(model);
 }
 
@@ -46,8 +49,8 @@ function grokModelSupportsReasoningEffort(model: string | null | undefined): boo
 // tool_use streaming). Upgrading to a `grok-stream-json` event parser is
 // follow-up work once the format is stable enough to lock in.
 export const grokBuildAgentDef = {
-  ...createAgentModelDiscovery('grok-build', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => grokBuildAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => grokBuildAgentDef.listModels.parse(input) }),
-  id: 'grok-build',
+  ...createAgentModelDiscovery(GROK_BUILD_ID, { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => grokBuildAgentDef.fallbackModels, args: ['models'], parse: (input): import('../types.js').RuntimeModelOption[] | null => grokBuildAgentDef.listModels.parse(input) }),
+  id: GROK_BUILD_ID,
   name: 'Grok Build',
   bin: 'grok',
   versionArgs: ['--version'],
@@ -62,7 +65,7 @@ export const grokBuildAgentDef = {
   },
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
-    { id: 'grok-build', label: 'grok-build (xAI · default)' },
+    { id: GROK_BUILD_ID, label: 'grok-build (xAI · default)' },
     { id: 'grok-4.3', label: 'grok-4.3 (xAI)' },
     { id: 'grok-4.20-reasoning', label: 'grok-4.20-reasoning (xAI · deep)' },
     {

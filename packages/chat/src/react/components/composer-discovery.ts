@@ -23,7 +23,7 @@ export interface ComposerSlashQuery {
   argument: string | null;
 }
 
-const SLASH_QUERY_RE = /^\/([^\s/]*)(?:(\s+)([\s\S]*))?$/;
+const SLASH_QUERY_RE = /^\/([^\s/]*)(\s+)?/;
 
 /**
  * Open Design's active slash-token rule (`/^\/([^\s/]*)$/`), extended to admit one optional
@@ -34,13 +34,12 @@ const SLASH_QUERY_RE = /^\/([^\s/]*)(?:(\s+)([\s\S]*))?$/;
 export function parseComposerSlashQuery({ draft }: { draft: string }): ComposerSlashQuery | null {
   const match = SLASH_QUERY_RE.exec(draft);
   if (!match) return null;
-  // The `as string` casts are guaranteed by SLASH_QUERY_RE itself, not assumed: group 1 is a bare
-  // `*` capture outside any optional group, so it always participates (possibly as ''); group 3 is
-  // `*` inside the same optional group as group 2, so it participates whenever a separator does.
-  // `noUncheckedIndexedAccess` cannot see either guarantee, and the `?? ''` fallbacks that used to
-  // satisfy it were unreachable branches.
-  const [, command, separator, rest] = match;
-  return { command: command as string, argument: separator === undefined ? null : (rest as string) };
+  // Group 1 always participates, including the empty command; without a separator the entire
+  // draft must be the command. With one, the greedy separator consumes all leading whitespace.
+  // This preserves the whole-draft grammar without overlapping separator/rest repetitions.
+  const [, command, separator] = match;
+  if (separator === undefined && match[0].length !== draft.length) return null;
+  return { command: command as string, argument: separator === undefined ? null : draft.slice(match[0].length) };
 }
 
 /**

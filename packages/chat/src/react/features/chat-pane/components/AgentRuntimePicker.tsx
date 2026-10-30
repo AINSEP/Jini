@@ -2,6 +2,7 @@ import { pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabe
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
+import { assessNativeToolPolicy, type NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
 
 import { useT } from '../../../hooks/context.js';
 import { definedProps } from '../../../util/defined-props.js';
@@ -30,6 +31,15 @@ export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string 
   return agent.version ?? 'Installed';
 }
 
+/** Selection preflight uses the launch assessor; it never substitutes for enforcement. */
+function NativeToolPolicyWarning({ agent, policy, isApi }: {
+  agent: ChatPaneAgent | undefined; policy: NativeToolPolicyInput | undefined; isApi: boolean;
+}): ReactNode {
+  if (!agent || !policy || isApi) return null;
+  const warning = assessNativeToolPolicy({ def: agent, policy });
+  return warning ? <p role="alert">{warning}</p> : null;
+}
+
 interface RuntimeModeButtonsProps {
   executionMode: 'local' | 'api';
   daemonOnline: boolean;
@@ -45,6 +55,7 @@ function RuntimeModeButtons({
   onExecutionModeChange,
   t,
 }: RuntimeModeButtonsProps): ReactNode {
+  const localModeLabel = executionMode === 'local' ? t('active') : '';
   return (
     <>
       <button
@@ -56,7 +67,7 @@ function RuntimeModeButtons({
         <RemixIcon name="terminal-box-line" size={18} />
         <span>{t('Use Local CLI')}</span>
         <span className="jini-runtime-mode__meta">
-          {!daemonOnline ? t('offline') : executionMode === 'local' ? t('active') : ''}
+          {!daemonOnline ? t('offline') : localModeLabel}
         </span>
         {executionMode === 'local' ? (
           <RemixIcon name="check-line" size={19} className="jini-runtime-check" />
@@ -452,6 +463,7 @@ function RuntimePopover({
  */
 export function AgentRuntimePicker({
   agents,
+  nativeToolPolicy,
   value,
   onChange,
   onRescan,
@@ -484,6 +496,7 @@ export function AgentRuntimePicker({
       {isApi ? null : (
         <RuntimeBarMenus selectedAgent={picker.selectedAgent} value={value} onChange={onChange} modelLabel={picker.modelLabel} t={t} />
       )}
+      <NativeToolPolicyWarning agent={picker.selectedAgent} policy={nativeToolPolicy} isApi={isApi} />
 
       <RuntimePopover
         picker={picker}

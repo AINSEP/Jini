@@ -52,7 +52,8 @@ const BRAND_CASING: Readonly<Record<string, string>> = { gpt: 'GPT' };
 
 function prettifyRawModelId(id: string): string[] {
   // A routing prefix ("anthropic/") is the full name's job; the bar names only the model.
-  const tokens = id.slice(id.lastIndexOf('/') + 1).replace(/\[[^\]]*\]$/, '').split(/[-_]+/).filter((token) => token && !/^\d{8}$/.test(token));
+  // The caller proved RAW_MODEL_ID, so the first '[' can only start its trailing context suffix.
+  const tokens = id.slice(id.lastIndexOf('/') + 1).split('[', 1)[0]!.split(/[-_]+/).filter((token) => token && !/^\d{8}$/.test(token));
   const words: string[] = [];
   for (const token of tokens) {
     const previous = words[words.length - 1];
@@ -78,6 +79,7 @@ export function shortModelLabel({ label, agentId }: { label: string; agentId?: s
   const vendors = (agentId && BAR_VENDOR_WORDS[agentId]) || [];
   const dropVendor = words.length > 1 && vendors.includes(words[0]!.toLowerCase());
   // A display name with no vendor word to drop is shown as the catalog wrote it.
-  const short = dropVendor ? words.slice(1).join(' ') : raw ? words.join(' ') : trimmed;
+  const normalized = raw ? words.join(' ') : trimmed;
+  const short = dropVendor ? words.slice(1).join(' ') : normalized;
   return short.length > max ? `${short.slice(0, max - 1).trimEnd()}…` : short;
 }

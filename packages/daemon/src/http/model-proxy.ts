@@ -373,11 +373,11 @@ function toStreamEvent(seq: number, event: AnyProxyTurnEvent): ModelProxyStreamE
 
 /** Answers a failure that happened before any SSE stream existed: a redacted JSON 500 if nothing was sent yet, otherwise just end the response (matching `mountJsonRoute`'s own SEC-005 catch). */
 function respondInternalError(res: Response, correlationId: string): void {
-  if (!res.headersSent) {
-    sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
-  } else if (!res.writableEnded) {
-    res.end();
+  if (res.headersSent) {
+    if (!res.writableEnded) res.end();
+    return;
   }
+  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
 }
 
 type ProxyProvider = ModelProxyInternalErrorContext['provider'];
@@ -409,6 +409,11 @@ async function runProxyStream({ req, res, adapter, provider, onInternalError, en
   // reach them however far execution got — including a throw from `guardSameOrigin`/`parse`,
   // before either exists yet.
   let seq = 0;
+  const nextSeq = () => {
+    const current = seq;
+    seq += 1;
+    return current;
+  };
   let channel: SseChannel<ModelProxyStreamEvent> | undefined;
   try {
     const origin = guardSameOrigin({ req, origin: adapter });
@@ -426,7 +431,7 @@ async function runProxyStream({ req, res, adapter, provider, onInternalError, en
     channel = openChannel;
     openChannel.open();
 
-    await entry.run(parsed.value, (event) => openChannel.enqueue({ event: toStreamEvent(seq++, event as AnyProxyTurnEvent) }));
+    await entry.run(parsed.value, (event) => openChannel.enqueue({ event: toStreamEvent(nextSeq(), event as AnyProxyTurnEvent) }));
     // No `channel.end()` call here: every reachable exit path inside every turn-runner emits
     // exactly one `'end'`-kind event before its promise resolves (the duplicate-end-event fix —
     // see each provider module's own `turn-end-guard.ts` usage, and each function's own
@@ -455,8 +460,8 @@ async function runProxyStream({ req, res, adapter, provider, onInternalError, en
     // here (an exception escaping `run` — e.g. a caller-supplied `executeTool` throwing — means
     // no `'end'` event was ever emitted for this connection), and the synthetic `'end'`-kind
     // event's own `isEndEvent` match closes the channel via the same path as a real one.
-    channel.enqueue({ event: toStreamEvent(seq++, { type: 'error', message: 'an internal error occurred', code: correlationId } as AnyProxyTurnEvent) });
-    channel.enqueue({ event: toStreamEvent(seq++, { type: 'end', reason: 'error' } as AnyProxyTurnEvent) });
+    channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'error', message: 'an internal error occurred', code: correlationId } as AnyProxyTurnEvent) });
+    channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'end', reason: 'error' } as AnyProxyTurnEvent) });
   }
 }
 

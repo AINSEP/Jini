@@ -183,6 +183,7 @@ export function createAssistantRunFinalizer(args: AssistantRunFinalizerArgs, opt
       await scheduler.sleep({ delayMs: reconnectDelayMs });
     }
     // Exhaustion alone is not evidence of a terminal run; the host can reattach or repair at boot.
+    return undefined;
   }
 
   return {

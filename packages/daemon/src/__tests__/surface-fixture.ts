@@ -10,8 +10,9 @@ export const scheduler: SchedulerPort = {
   schedule({ delayMs, callback }) { const timer = setTimeout(callback, delayMs); timer.unref?.(); return () => clearTimeout(timer); },
 };
 type LegacyExchange = { id: string; send(emission: SurfaceEmission): Promise<void>; receive(): Promise<implementation.SurfaceMessage>; close(): void; expiresAtMs(): number };
-function objectExchange(exchange: LegacyExchange): implementation.SurfaceExchange {
-  return { id: exchange.id, send: ({ emission }) => exchange.send(emission), receive: () => exchange.receive(), close: () => exchange.close(), expiresAtMs: () => exchange.expiresAtMs() };
+function objectExchange(exchange: LegacyExchange): implementation.SurfaceExchangeConversation {
+  // The conversation helpers consume send/receive/close only; deadlines stay on LegacyExchange.
+  return { id: exchange.id, send: ({ emission }) => exchange.send(emission), receive: () => exchange.receive(), close: () => exchange.close() };
 }
 /** Test-only adapter retains copied assertion call shapes; production APIs use objects. */
 export function createSurfaceExchangeStore(options: { idleTtlMs?: number; maxLifetimeMs?: number; newExchangeId?: () => string } = {}) {

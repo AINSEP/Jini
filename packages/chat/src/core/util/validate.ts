@@ -44,8 +44,9 @@ const URL_ATTRIBUTE_RE = /\b(href|src|srcset|poster|action|formaction|data|xlink
 const STYLE_ATTRIBUTE_RE = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/gi;
 const HTML_TAG_RE = /<[a-z][^>]*>/gi;
 const STYLE_BLOCK_RE = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
-const CSS_URL_RE = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)/gi;
-const CSS_IMPORT_RE = /@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*?))\s*\)|"([^"]*)"|'([^']*)')/gi;
+const CSS_URL_RE = /\burl\((?:\s*"([^"]*)"\s*|\s*'([^']*)'\s*|([^)]*))\)/gi;
+const CSS_IMPORT_START_RE = /@import\s+/gi;
+const CSS_QUOTED_IMPORT_RE = /(?:"([^"]*)"|'([^']*)')/y;
 
 export type HtmlArtifactValidationResult = { ok: true } | { ok: false; reason: string };
 
@@ -137,21 +138,33 @@ function hasReservedWorkspacePathInStyleBlocks(content: string): boolean {
 }
 
 function cssTextReferencesReservedWorkspacePath(cssText: string): boolean {
-  for (const pattern of [CSS_URL_RE, CSS_IMPORT_RE]) {
-    pattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(cssText)) !== null) {
-      // Both CSS_URL_RE and CSS_IMPORT_RE are single top-level alternations
-      // across all their capture groups, so exactly one group is ever defined
-      // on a successful match — `.find` always finds it; the assertion just
-      // satisfies `noUncheckedIndexedAccess`.
-      const candidate = match.slice(1).find((value) => value !== undefined)!;
-      if (candidateReferencesReservedWorkspacePath(candidate, false)) {
-        return true;
-      }
-    }
+  for (const match of cssReferenceMatches({ cssText })) {
+    // Quote/unquoted alternatives are mutually exclusive, so exactly one capture is defined
+    // after success; TypeScript cannot express that guarantee for RegExpExecArray.
+    const candidate = match.slice(1).find((value) => value !== undefined)!;
+    if (candidateReferencesReservedWorkspacePath(candidate, false)) return true;
   }
   return false;
+}
+
+/** Keep each import's whole span consumed, including URL imports already inspected by the first
+ * pass. Rescanning @import text quoted inside such a URL would change the path-refusal policy. */
+function* cssReferenceMatches({ cssText }: { cssText: string }): Generator<RegExpExecArray> {
+  yield* cssText.matchAll(CSS_URL_RE);
+  const imports = new RegExp(CSS_IMPORT_START_RE);
+  const url = new RegExp(CSS_URL_RE.source, 'iy');
+  const quoted = new RegExp(CSS_QUOTED_IMPORT_RE);
+  let header = imports.exec(cssText);
+  while (header !== null) {
+    url.lastIndex = imports.lastIndex;
+    quoted.lastIndex = imports.lastIndex;
+    const value = url.exec(cssText) ?? quoted.exec(cssText);
+    if (value) {
+      imports.lastIndex = value.index + value[0].length;
+      yield value;
+    }
+    header = imports.exec(cssText);
+  }
 }
 
 function candidateReferencesReservedWorkspacePath(candidate: string, splitCandidates: boolean): boolean {
@@ -185,9 +198,8 @@ function srcsetCandidateUrls(srcset: string): string[] {
       continue;
     }
     candidate ??= { isDataUrl: /^data:/i.test(srcset.slice(index)), sawWhitespaceAfterUrl: false };
-    if (isSpace) {
-      candidate.sawWhitespaceAfterUrl = true;
-    } else if (endsSrcsetCandidate(candidate, char)) {
+    if (isSpace) candidate.sawWhitespaceAfterUrl = true;
+    if (!isSpace && endsSrcsetCandidate(candidate, char)) {
       candidates.push(srcset.slice(start, index));
       start = index + 1;
       candidate = null;

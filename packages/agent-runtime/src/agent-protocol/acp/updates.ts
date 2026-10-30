@@ -25,9 +25,7 @@ import {
  * @returns A flat diagnostic object suitable for inclusion in an agent event payload.
  */
 export function acpRawEventShape(update: UnknownRecord) {
-  const content = update.content;
-  const rawInput = update.rawInput;
-  const locations = update.locations;
+  const { content, rawInput, locations } = update;
   return {
     sessionUpdate: typeof update.sessionUpdate === 'string' ? update.sessionUpdate : null,
     keys: objectKeys(update),
@@ -68,6 +66,7 @@ export function isAcpCompletedStatus(update: UnknownRecord): boolean {
   const status = acpUpdateStatus(update);
   return status === 'completed' || status === 'complete' || status === 'succeeded' || status === 'success';
 }
+const ACP_TERMINAL_FAILURE_STATUSES: ReadonlySet<string> = new Set(['failed', 'failure', 'error', 'cancelled', 'canceled']);
 /**
  * Returns `true` when the update's `status` field represents a terminal
  * failure state (`failed`, `failure`, `error`, `cancelled`, or `canceled`).
@@ -75,7 +74,7 @@ export function isAcpCompletedStatus(update: UnknownRecord): boolean {
  */
 export function isAcpTerminalFailureStatus(update: UnknownRecord): boolean {
   const status = acpUpdateStatus(update);
-  return status === 'failed' || status === 'failure' || status === 'error' || status === 'cancelled' || status === 'canceled';
+  return ACP_TERMINAL_FAILURE_STATUSES.has(status);
 }
 /**
  * Returns `true` when the update's status is `'retry'`. Signals that the AMR
@@ -282,7 +281,7 @@ function titlePath(update: UnknownRecord): string | null {
   // Keeping the real extension lets `isArtifactPath` correctly EXCLUDE
   // non-artifact writes (e.g. "edit config.json"), matching the claude path.
   const title = typeof update.title === 'string' ? update.title : '';
-  const match = title.match(/[\w./-]+\.[A-Za-z0-9]+/);
+  const match = title.match(/(?<![\w./-])[\w./-]+\.[A-Za-z0-9]+/);
   if (match?.[0]) return match[0];
   return null;
 }

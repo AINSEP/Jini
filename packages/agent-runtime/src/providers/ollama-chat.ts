@@ -107,6 +107,8 @@ import { redactSecrets } from '@jini-ai/core';
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
 
 export interface OllamaFunctionToolDef {
   readonly type: 'function';
@@ -224,7 +226,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Strips a trailing `/api` (with or without a trailing slash) before appending `/api/chat` — matches OD's `.replace(/\/+$/, '').replace(/\/api\/?$/, '')` so a caller-supplied `baseUrl` ending in `/api` doesn't produce `/api/api/chat`. */
 function ollamaRequestUrl(baseUrl: string | undefined): string {
-  const trimmed = (baseUrl ?? DEFAULT_OLLAMA_BASE_URL).replace(/\/+$/, '').replace(/\/api\/?$/, '');
+  const trimmed = trimCharsEnd({ text: baseUrl ?? DEFAULT_OLLAMA_BASE_URL, chars: '/' }).replace(/\/api\/?$/, '');
   return `${trimmed}/api/chat`;
 }
 
@@ -380,15 +382,19 @@ export function handleOllamaTextContent({ state, content, onEvent }: { state: Ol
  * the caller (`runSingleOllamaRequest`) still owns the normal-completion `emitEnd`, exactly like
  * every sibling turn-runner's `emitEnd` contract.
  */
+/** The message's text content when it is a non-empty string, else `null`. */
+function nonEmptyContent(message: Record<string, unknown> | null): string | null {
+  return message && typeof message.content === 'string' && message.content.length > 0 ? message.content : null;
+}
+
 export function processOllamaLine({ state, line, onEvent, emitEnd }: { state: OllamaStreamState; line: Record<string, unknown>; onEvent: (event: OllamaTurnEvent) => void; emitEnd: (reason: OllamaTurnEndReason) => void }
 ): 'continue' | 'break' | 'done' {
   const message = isRecord(line.message) ? line.message : null;
-  if (message && typeof message.content === 'string' && message.content.length > 0) {
-    if (handleOllamaTextContent({ state: state, content: message.content, onEvent: onEvent }) === 'break') {
-      state.finishReason = 'contaminated';
-      emitEnd('contaminated');
-      return 'break';
-    }
+  const text = nonEmptyContent(message);
+  if (text !== null && handleOllamaTextContent({ state: state, content: text, onEvent: onEvent }) === 'break') {
+    state.finishReason = 'contaminated';
+    emitEnd('contaminated');
+    return 'break';
   }
   if (message) handleOllamaToolCallsField({ state: state, message: message });
 
@@ -545,8 +551,7 @@ async function runSingleOllamaRequest(
   };
 
   for await (const line of decodeNdjsonStream(body)) {
-    if (!isRecord(line)) continue;
-    const result = processOllamaLine({ state: state, line: line, onEvent: onEvent, emitEnd: emitEnd });
+    const result = isRecord(line) ? processOllamaLine({ state: state, line: line, onEvent: onEvent, emitEnd: emitEnd }) : null;
     if (result === 'break' || result === 'done') break;
   }
 
@@ -624,15 +629,9 @@ export async function runOllamaToolTurn(requiredArgs: Pick<OllamaTurnOptions, "a
     const outcome = await runSingleOllamaRequest(options, messages, emitEnd);
     lastFinishReason = outcome.finishReason;
 
-    if (endGuard.hasEnded()) break;
-
-    const exitReason = ollamaLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      emitEnd('stop');
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => ollamaLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;

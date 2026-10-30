@@ -297,6 +297,13 @@ describe('detectAttachmentKind', () => {
 // ---------------------------------------------------------------------------
 
 describe('hasPngSignature', () => {
+  it.each([4, 5, 6, 7])('rejects a PNG prefix with a corrupted signature byte at offset %i', (offset) => {
+    const body = Uint8Array.from(PNG);
+    body[offset] = 0;
+    expect(hasPngSignature({ body })).toBe(false);
+    expect(detectAttachmentKind({ body })).toBe('file');
+  });
+
   it('matches only a well-formed PNG signature', () => {
     expect(hasPngSignature({ body: PNG })).toBe(true);
     expect(hasPngSignature({ body: Uint8Array.from([0x89, 0x50, 0x4e]) })).toBe(false); // too short
@@ -1353,6 +1360,19 @@ describe('createDiskAttachmentStore', () => {
 // ---------------------------------------------------------------------------
 
 describe('POST /api/attachments', () => {
+  it('stores a file with only the four-byte PNG prefix as a file, even with an image MIME type', async () => {
+    const { url } = await harness();
+    const response = await upload(url, {
+      batch: 'batch-invalid-png', name: 'forged.png',
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]), contentType: 'image/png',
+    });
+    expect(response.status).toBe(201);
+    const body = await response.json() as { attachment: StoredAttachment };
+    expect(body.attachment).toEqual({
+      path: expect.stringMatching(/^attachment:[a-f0-9-]{36}$/u), name: 'forged.png', kind: 'file', size: 8,
+    });
+  });
+
   it('stores an upload and returns its opaque capability with server-derived metadata', async () => {
     const { url } = await harness();
 

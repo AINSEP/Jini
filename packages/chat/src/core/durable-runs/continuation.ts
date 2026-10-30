@@ -10,7 +10,8 @@ export function canonicalToolInput({ value }: { value: unknown }, _optional = {}
   if (Array.isArray(value)) return `[${value.map((item) => canonicalToolInput({ value: item }, {})).join(",")}]`;
   if (value !== null && typeof value === "object") {
     const object = value as Record<string, unknown>;
-    return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonicalToolInput({ value: object[key] }, {})}`).join(",")}}`;
+    const fields = Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonicalToolInput({ value: object[key] }, {})}`);
+    return `{${fields.join(",")}}`;
   }
   return JSON.stringify(value) ?? "null";
 }

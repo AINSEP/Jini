@@ -1,3 +1,4 @@
+import { fencedCodeRanges } from './util/markdown-context.js';
 /**
  * @module transcript
  *
@@ -162,12 +163,7 @@ export function sanitizePriorAssistantTurn({ content }: { content: string }, { p
   // Strip ```json (or plain ```) fenced blocks whose body matches the form
   // schema shape — `"questions": [` is the strongest tell. A generic JSON
   // snippet without that key is left intact.
-  sanitized = sanitized.replace(/```(?:json)?\s*\n([\s\S]*?)\n```/g, (match, body: string) => {
-    if (/"questions"\s*:\s*\[/.test(body)) {
-      return '[form schema was echoed here on a prior turn; stripped to avoid a loop.]';
-    }
-    return match;
-  });
+  sanitized = stripEchoedFormFences({ content: sanitized });
   // Replace prior-turn `<artifact>` HTML with a one-line summary for
   // artifacts CONFIRMED persisted (see summarizeArtifactsForTranscript's own
   // doc for why an unconfirmed save is left verbatim).
@@ -233,4 +229,15 @@ export function buildTranscript({ history }: { history: ChatMessage[] }, options
     .join('\n\n');
   const warning = buildPriorRunContextWarning(scopedHistory, largeToolResultChars, highInputTokenWarningThreshold);
   return warning ? `${warning}\n\n${transcript}` : transcript;
+}
+
+function stripEchoedFormFences({ content }: { content: string }): string {
+  const chunks: string[] = [];
+  let copied = 0;
+  for (const range of fencedCodeRanges({ content, opener: /```(?:json)?/g })) {
+    if (!/"questions"\s*:\s*\[/.test(range.body)) continue;
+    chunks.push(content.slice(copied, range.start), '[form schema was echoed here on a prior turn; stripped to avoid a loop.]');
+    copied = range.end;
+  }
+  return chunks.join('') + content.slice(copied);
 }

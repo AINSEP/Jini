@@ -32,6 +32,11 @@ export interface ChatAttachment {
   order?: number;
 }
 
+export interface SecretRedactionSignal {
+  readonly secretRedacted: true;
+  readonly count: number;
+}
+
 /**
  * A single turn in a conversation. This is the generic subset of OD's
  * `ChatMessage` (`packages/contracts/src/api/chat.ts`): product-shaped
@@ -43,7 +48,7 @@ export interface ChatMessage {
   /** A normal send stays outside recall until the transport accepts it. */
   inputPending?: boolean;
   /** Transient safe receipt; storage requires no new column. */
-  secretRedaction?: import('./user-text-redaction.js').SecretRedactionSignal;
+  secretRedaction?: SecretRedactionSignal;
   id: string;
   role: ChatRole;
   content: string;

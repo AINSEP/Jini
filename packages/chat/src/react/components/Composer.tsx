@@ -225,10 +225,10 @@ export function Composer({
    * component doesn't otherwise need direct handles to.
    */
   useEffect(() => {
-    if (!anyPopoverOpen(popovers)) return;
+    if (!anyPopoverOpen(popovers)) return undefined;
     const textarea = textareaRef.current;
     const composerRoot = textarea?.closest('.jini-composer');
-    if (!composerRoot) return;
+    if (!composerRoot) return undefined;
 
     function handleOutsideMouseDown(event: MouseEvent) {
       const target = event.target as Node | null;
@@ -650,7 +650,9 @@ function ComposerWorkdirControl({ workingDirectory, onChangeWorkingDirectory, on
               if (e.key === 'Enter') {
                 e.preventDefault();
                 onConfirm();
-              } else if (e.key === 'Escape') {
+                return;
+              }
+              if (e.key === 'Escape') {
                 e.preventDefault();
                 onClose();
               }

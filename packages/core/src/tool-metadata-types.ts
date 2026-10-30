@@ -8,6 +8,11 @@ export interface ToolApprovalMetadata {
 }
 
 export interface ToolMetadata<A extends ToolApprovalMetadata = ToolApprovalMetadata> {
+  /** Human-facing action name and optional button verb; presentation only, never authority. */
+  readonly title?: string;
+  /** Plain-language consequence shown before approval; never used to classify or authorize. */
+  readonly summary?: string;
+  readonly actionVerb?: string;
   /** Installed guidance capabilities needed by a writer; independent of permission and risk. */
   readonly guidanceCapabilities?: readonly string[];
   readonly search?: { readonly keywords?: string; readonly queries?: readonly string[] };

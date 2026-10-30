@@ -54,6 +54,8 @@ export interface AgentSummary {
    * as `true` (no known reason to warn) rather than assuming the worst.
    */
   readonly supportsTools?: boolean;
+  /** Project the runtime definition so picker preflight agrees with launch enforcement. */
+  readonly supportsNativeToolAccess?: boolean;
 }
 
 export interface AgentsHttpDeps {

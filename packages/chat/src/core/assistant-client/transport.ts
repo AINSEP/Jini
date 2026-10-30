@@ -423,7 +423,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     } else if (frame.event === "error") {
       const payload = JSON.parse(frame.data) as { message?: unknown };
       ctx.handlers.onError(new Error(asString(payload.message) || "BYOK turn failed"));
-    } else if (frame.event === "end") {
+    } else {
+      if (frame.event !== "end") return;
       const notice = terminalReasonNotice(readTerminalReason(frame.data, false));
       if (notice) {
         ctx.collected.push(notice);
@@ -531,7 +532,8 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     // A response whose body stream errors out (e.g. a dropped connection) must not turn "the server
     // rejected the request" into "the client crashed reading the rejection".
     const detail = await response.text().catch(() => "");
-    return new Error(`${action} (${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
+    const suffix = detail ? ": " + detail.slice(0, 300) : "";
+    return new Error(`${action} (${response.status})${suffix}`);
   }
 
   /**
@@ -730,8 +732,9 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
       prompt: ports.projectPrompt({ prompt, context: input.context }, {}),
       // Select one complete transcript after binding; concatenating it with the tail repeats turns.
       coldStartContext: ports.projectPrompt({ prompt: runPrompt(input.history), context: input.context }, {}),
-      // The transcript is already sanitized; retain its signal across the daemon JSON boundary.
-      ...(input.history.some(message => message.role === "user" && message.secretRedaction?.secretRedacted) ? { secretRedacted: true } : {}),
+      // The transcript is already sanitized; retain only the CURRENT user's signal across the
+      // daemon JSON boundary. Replaying an old signal reports another paste on every later turn.
+      ...(newestUserMessage({ history: input.history }, {})?.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
       assistantMessageId: (input as StartRunInput & { assistantMessageId?: string }).assistantMessageId,
       ...frontendBindTokenField(input),
       ...modelField(input),
@@ -946,7 +949,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         // can never arrive.
         if (runId.startsWith(BYOK_RUN_ID_PREFIX)) {
           handlers.onDone([]);
-          return;
+          return undefined;
         }
         // Same "no server-side record to resume" reasoning as the BYOK branch above — see
         // `assistant-transport-ag-ui.ts`'s own doc for why this path has no reattach story yet.
@@ -954,6 +957,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
           return ports.agUi.reattachAgUiRun({ handlers }, {});
         }
         subscribeToRun(runId, handlers, options?.signal);
+        return undefined;
       },
 
       async fetchRunStatus(runId: string) {
@@ -973,7 +977,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
         // this exact id — there is no server-side run to `POST .../cancel` against.
         if (runId.startsWith(BYOK_RUN_ID_PREFIX)) {
           byokAbortControllers.get(runId)?.abort();
-          return;
+          return undefined;
         }
         if (ports.agUi.isAgUiRunId({ runId }, {})) {
           return ports.agUi.stopAgUiRun({ runId }, {});
@@ -985,10 +989,11 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
           body: JSON.stringify({ runId, messageId: ports.runBinding({ runId }, {})?.messageId }),
         });
         // 404: the daemon no longer knows this run (it restarted), so nothing is left running to stop.
-        if (response.status === 404) return;
+        if (response.status === 404) return undefined;
         // `fetch` resolves on any status: without this a refused cancel (401/403/500) resolved exactly
         // like a successful one while the run kept executing. `useRunStream` logs a rejection here.
         if (!response.ok) throw await refusalError({ action: "cancelling agent run failed", response }, {});
+        return undefined;
       },
     };
   }

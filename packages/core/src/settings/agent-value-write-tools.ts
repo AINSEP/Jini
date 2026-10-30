@@ -80,8 +80,12 @@ function snapshotJsonValue(toolId: SettingsValueWriteToolId, input: Record<strin
   }
 }
 
+/** `typeof` results JSON cannot represent. */
+const NON_JSON_TYPES: ReadonlySet<string> = new Set(["undefined", "function", "symbol"]);
+
 function rejectNonJson(_key: string, value: unknown): unknown {
-  if (value === undefined || typeof value === "function" || typeof value === "symbol" || (typeof value === "number" && !Number.isFinite(value))) throw new Error("not JSON");
+  const nonFiniteNumber = typeof value === "number" && !Number.isFinite(value);
+  if (NON_JSON_TYPES.has(typeof value) || nonFiniteNumber) throw new Error("not JSON");
   return value;
 }
 
@@ -92,7 +96,8 @@ async function resolveTarget(deps: SettingsToolDeps, target: WriteTarget, isSet:
   const name = `${target.namespace}.${target.key}`;
   if (!definition) throw new DefinitionNotFoundError(`setting '${name}' was not found`);
   if (definition.status === "tombstone") throw new DefinitionTombstonedError(`setting '${name}' has been tombstoned`);
-  if ((definition.scopes & SCOPE_BIT[target.scope]) === 0) throw new ScopeNotAllowedError(name);
+  const scopeAllowed = (definition.scopes & SCOPE_BIT[target.scope]) !== 0;
+  if (!scopeAllowed) throw new ScopeNotAllowedError(name);
   if (isSet && !validateValueAgainstSchema(definition.schema, target.value!)) throw new ValueValidationFailedError(`value for '${name}' does not match the definition schema`);
   return definition;
 }
@@ -243,6 +248,6 @@ export function buildSettingsValueWriteHandler(deps: SettingsToolDeps, toolId: S
       if (prepared.rule) await confirmProtectedWrite(deps, request, { ...prepared, rule: prepared.rule }, options);
       assertRunActive(ctx, toolId);
       return await applyWrite(deps, request, prepared);
-    } catch (error) { rethrowWriteError(error, toolId, target, permission); }
+    } catch (error) { return rethrowWriteError(error, toolId, target, permission); }
   };
 }

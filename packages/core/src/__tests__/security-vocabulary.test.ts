@@ -9,7 +9,8 @@ import {
 
 describe('baseline security vocabulary', () => {
   it('pins the original agent-failure expression, alternative order and global flag', () => {
-    const original = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[\w.-]+|gh[pousr]_[\w]+|github_pat_[\w]+|ya29\.[\w.-]+|eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)/g;
+    // `\w` was spelled `[\w]` before the shapes were split into named parts; same set either way.
+    const original = /\b(?:AIza[\w-]+|AQ\.[\w.\/-]+|sk-[\w.-]+|gh[pousr]_\w+|github_pat_\w+|ya29\.[\w.-]+|eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)/g;
     expect(AGENT_FAILURE_SECRET_SHAPE_RE.source).toBe(original.source);
     expect(AGENT_FAILURE_SECRET_SHAPE_RE.flags).toBe('g');
   });

@@ -4,6 +4,11 @@ import type { IdGenerator } from '@jini-ai/core/primitives';
 import { toolCandidates } from './tool-candidates.js';
 import type { ToolCatalogQuery } from '../http/tool-catalog.js';
 
+/** ` — did you mean a, b?` for any close tool ids, else nothing. */
+function didYouMean(candidates: readonly string[]): string {
+  return candidates.length > 0 ? ` — did you mean ${candidates.join(', ')}?` : '';
+}
+
 /**
  * A `Principal` narrowed to tools that only read.
  *
@@ -41,7 +46,7 @@ export const defaultDaemonMessages = {
     unknownToolMessage: ({ toolId, candidates }: { toolId: string; candidates: readonly string[] }) =>
       toolId === 'check_messages'
         ? 'check_messages is an MCP-local tool; call check_messages directly, never as toolId in a delegated gateway'
-        : `no tool "${toolId}" is registered; use search_tools${candidates.length > 0 ? ` — did you mean ${candidates.join(', ')}?` : ''}`,
+        : `no tool "${toolId}" is registered; use search_tools${didYouMean(candidates)}`,
   },
 };
 

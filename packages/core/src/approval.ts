@@ -13,18 +13,25 @@ export interface ApprovalPlan<TDescription> {
 export type ApprovalAnswer = { confirmed: true; choice?: string } | { confirmed: false; reason: 'declined' | 'expired' | 'abandoned' };
 
 /** The decision reducer shared by parked tool calls and the browser's explicit reply transport.
- * An answer never revives an aborted operation. Transport failures propagate without an effect. */
+ * An answer never revives an aborted operation. Transport failures propagate without an effect.
+ * @param optional.onApprovalStateChange Reports only the human wait, released on every outcome.
+ * @complexity O(1) local time/space plus the injected human transport's wait. */
 export async function resolveApproval(
-  { signal, askHuman }: { signal: AbortSignal; askHuman: () => Promise<ApprovalAnswer> }, _optional = {},
+  { signal, askHuman }: { signal: AbortSignal; askHuman: () => Promise<ApprovalAnswer> },
+  { onApprovalStateChange }: Pick<ToolExecutionOptions, 'onApprovalStateChange'> = {},
 ): Promise<ApprovalAnswer> {
   if (signal.aborted) return { confirmed: false, reason: 'abandoned' };
   let abandon!: () => void;
   const aborted = new Promise<ApprovalAnswer>(resolve => { abandon = () => resolve({ confirmed: false, reason: 'abandoned' }); });
   signal.addEventListener('abort', abandon, { once: true });
   try {
+    onApprovalStateChange?.({ pending: true });
     const answer = await Promise.race([askHuman(), aborted]);
     return signal.aborted ? { confirmed: false, reason: 'abandoned' } : answer;
-  } finally { signal.removeEventListener('abort', abandon); }
+  } finally {
+    signal.removeEventListener('abort', abandon);
+    onApprovalStateChange?.({ pending: false });
+  }
 }
 /** The confirmer is always the run's own delegating principal, as a user. */
 const confirmerOf = (ctx: ToolExecutionContext): HumanConfirmer => ({ id: ctx.principal.id, kind: 'user' });
@@ -69,7 +76,7 @@ export function createApprovalHandler<TPrepared, TDescription>(
     { prepared, plan }: { prepared: Prepared; plan: ApprovalPlan<TDescription> }, options: ToolExecutionOptions = {},
   ): Promise<HumanConfirmationAnswer> => {
     const { ctx } = prepared;
-    const answer = await resolveApproval({ signal: ctx.signal, askHuman: () => steps.askHuman({ ctx, description: plan.description }, options) });
+    const answer = await resolveApproval({ signal: ctx.signal, askHuman: () => steps.askHuman({ ctx, description: plan.description }, options) }, options);
     if (ctx.signal.aborted) return abandoned(prepared);
     if (answer.confirmed !== true) return { confirmed: false, result: steps.notConfirmed({ reason: answer.reason, prepared: prepared.value }) };
     prepared.choice = answer.choice;

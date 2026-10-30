@@ -140,7 +140,8 @@ function matchesWallClock(
   minute: number,
 ): boolean {
   const p = partsInTimezone({ timezone: timezone, atUtc: at });
-  return p.year === year && p.month === month && p.day === day && p.hour === hour && p.minute === minute;
+  const sameDate = p.year === year && p.month === month && p.day === day;
+  return sameDate && p.hour === hour && p.minute === minute;
 }
 
 /** Minutes east of UTC for `timezone` at instant `at`. e.g. Asia/Shanghai returns 480. */

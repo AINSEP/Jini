@@ -48,7 +48,8 @@ export interface RunProtocolEventWire {
 }
 
 function wireString(v: unknown): string {
-  return typeof v === "string" ? v : v == null ? "" : JSON.stringify(v);
+  if (typeof v === "string") return v;
+  return v == null ? "" : JSON.stringify(v);
 }
 
 /** Display a wire scalar or JSON value using the existing empty-null convention. */
@@ -573,7 +574,8 @@ function chunkEvent(raw: string | undefined, channel: string, carry?: RunFrameCa
   const frame = parseWire(raw);
   if (!frame) return [];
   const chunk = wireString((frame.payload as { chunk?: unknown } | null)?.chunk);
-  const open = carry ? (carry.openEchoChannels ??= new Set()) : undefined;
+  if (carry) carry.openEchoChannels ??= new Set();
+  const open = carry?.openEchoChannels;
   const { kept, statuses, droppedAny } = splitChunk({ chunk, channel }, { open });
   const line = droppedAny ? kept : chunk;
   return line.length > 0 ? [{ kind: "raw", line }, ...statuses] : statuses;

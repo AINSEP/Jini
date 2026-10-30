@@ -89,7 +89,7 @@ export function useRuntimeDropUp({ width }: { width: number }): UseRuntimeDropUp
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const closeOnOutsidePointer = (event: MouseEvent) => {
       const target = event.target as Node;
       if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
@@ -108,7 +108,7 @@ export function useRuntimeDropUp({ width }: { width: number }): UseRuntimeDropUp
   }, [closeToTrigger, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const update = () => {
       const rect = triggerRef.current?.getBoundingClientRect();
       const bounds = triggerRef.current?.closest('.jini-composer')?.getBoundingClientRect();

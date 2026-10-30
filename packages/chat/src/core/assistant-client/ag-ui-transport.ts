@@ -110,7 +110,7 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
       context: [],
       forwardedProps: {
         ...(input.agentId ? { agentId: input.agentId } : {}),
-        ...(input.history.some(message => message.role === "user" && message.secretRedaction?.secretRedacted) ? { secretRedacted: true } : {}),
+        ...(input.history.findLast(message => message.role === "user")?.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
       },
     };
 

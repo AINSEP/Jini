@@ -1,3 +1,5 @@
+const ARIA_LABEL = 'aria-label';
+
 export { CHAT_BUBBLE_STYLE } from '../../contracts/chat-bubble-style.js';
 
 export interface LazyChatLoaderArgs {
@@ -23,31 +25,34 @@ export function installLazyChatLoader(args: LazyChatLoaderArgs, _options = {}) {
   let shouldOpen = false;
   let shouldFocus = false;
   const initialContent = args.button.innerHTML;
-  const label = args.button.getAttribute('aria-label') ?? '';
+  const label = args.button.getAttribute(ARIA_LABEL) ?? '';
   const activate = async ({ open = true, focus = open }: { open?: boolean; focus?: boolean } = {}, _options = {}): Promise<void> => {
-    if (disposed) return;
+    if (disposed) return undefined;
     if (!pending) { shouldOpen = false; shouldFocus = false; }
     shouldOpen ||= open;
     shouldFocus ||= focus;
     if (pending) return pending;
     args.button.setAttribute('aria-busy', 'true');
-    args.button.setAttribute('aria-label', args.loadingLabel);
+    args.button.setAttribute(ARIA_LABEL, args.loadingLabel);
     args.button.textContent = args.loadingLabel;
     delete args.button.dataset.loadFailed;
     // Defer through a promise so a synchronous host load failure follows the same retry path.
-    pending = Promise.resolve().then(() => { if (!ready) return args.load({}); }).then(() => {
+    pending = Promise.resolve().then(() => {
+      if (!ready) return args.load({});
+      return undefined;
+    }).then(() => {
       if (disposed) return;
       // Asset readiness survives an open failure; retry must never evaluate the script twice.
       ready = true;
       if (shouldOpen) args.open({ focus: shouldFocus });
-      args.button.setAttribute('aria-label', label);
+      args.button.setAttribute(ARIA_LABEL, label);
       args.button.innerHTML = initialContent;
       args.button.hidden = true;
     }).catch(() => {
       if (!disposed) {
         args.button.hidden = false;
         args.button.dataset.loadFailed = 'true';
-        args.button.setAttribute('aria-label', args.retryLabel);
+        args.button.setAttribute(ARIA_LABEL, args.retryLabel);
         args.button.textContent = args.retryLabel;
       }
     }).finally(() => {
@@ -65,15 +70,17 @@ export function installLazyChatLoader(args: LazyChatLoaderArgs, _options = {}) {
   args.button.addEventListener('click', click);
   args.button.addEventListener('keydown', keydown);
   args.button.dataset.loaderReady = 'true';
-  if (args.resume || args.deepLink) void activate({ focus: args.deepLink });
-  else if (args.preload) void activate({ open: false });
+  if (args.resume || args.deepLink || args.preload) {
+    const resume = args.resume || args.deepLink;
+    void activate({ open: resume, focus: resume && args.deepLink });
+  }
   return {
     activate,
     dispose(_input: Record<string, never> = {}, _options = {}) {
       disposed = true;
       args.button.removeEventListener('click', click);
       args.button.removeEventListener('keydown', keydown);
-      args.button.setAttribute('aria-label', label);
+      args.button.setAttribute(ARIA_LABEL, label);
       args.button.innerHTML = initialContent;
       args.button.removeAttribute('aria-busy');
       delete args.button.dataset.loadFailed;

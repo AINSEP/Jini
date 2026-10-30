@@ -66,15 +66,21 @@ export type ResolveResult = ResolveOk | ResolveFailure;
  * `applyAgentMessage`, which this module's own doc says cannot happen.
  */
 function isDataBinding(value: unknown): value is DataBinding {
-  return typeof value === 'object'
-    && value !== null
-    && !Array.isArray(value)
-    && 'path' in value
-    && typeof (value as { path: unknown }).path === 'string'
-    && Object.keys(value).length === 1;
+  return hasStringField(value, 'path') && Object.keys(value).length === 1;
 }
 function isFunctionCall(value: unknown): value is FunctionCall {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'call' in value && typeof (value as { call: unknown }).call === 'string';
+  return hasStringField(value, 'call');
+}
+/** A plain (non-array) object whose `key` holds a string. */
+function hasStringField(value: unknown, key: string): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  return key in value && typeof (value as Record<string, unknown>)[key] === 'string';
+}
+
+/** A relative path resolved under the current list item, or null outside any list-template item. */
+function itemRelativePointer(path: string, ctx: ResolveContext): string | null {
+  if (!ctx.itemScope) return null;
+  return joinPointer({ base: ctx.itemScope.basePath, tokens: [String(ctx.itemScope.index), ...parsePointerTokens({ pointer: `/${path}` })] });
 }
 
 function resolveBindingPath(path: string, ctx: ResolveContext): ResolveResult {
@@ -82,11 +88,7 @@ function resolveBindingPath(path: string, ctx: ResolveContext): ResolveResult {
   // token text before `joinPointer` re-escapes them. Splitting the raw string on `/` instead would
   // hand `joinPointer` already-escaped text and double-escape it, making a relative `a~1b` resolve
   // the literal key `a~1b` while the equivalent absolute pointer correctly resolves `a/b`.
-  const absolute = path.startsWith('/')
-    ? path
-    : ctx.itemScope
-      ? joinPointer({ base: ctx.itemScope.basePath, tokens: [String(ctx.itemScope.index), ...parsePointerTokens({ pointer: `/${path}` })] })
-      : null;
+  const absolute = path.startsWith('/') ? path : itemRelativePointer(path, ctx);
   if (absolute === null) {
     return { ok: false, reason: 'RELATIVE_PATH_OUTSIDE_LIST_CONTEXT', detail: `relative path "${path}" used outside a list-template item context` };
   }
@@ -110,7 +112,8 @@ function resolveIndexCall(call: FunctionCall, ctx: ResolveContext): ResolveResul
 }
 
 function isCallableFromSide(callableFrom: CallableFrom, side: ResolveSide): boolean {
-  return callableFrom === 'rendererOrAgent' || (callableFrom === 'rendererOnly' && side === 'renderer') || (callableFrom === 'agentOnly' && side === 'agent');
+  if (callableFrom === 'rendererOrAgent') return true;
+  return (callableFrom === 'rendererOnly' && side === 'renderer') || (callableFrom === 'agentOnly' && side === 'agent');
 }
 
 /** The catalog-side refusals, in the order they apply: not registered, then the `callableFrom` boundary, then no implementation. Returns the implementation when all three pass. */

@@ -191,13 +191,15 @@ export function aihubmixWireModel({ catalogId }: { catalogId: string }): string 
 //   wan:  5, 10     (default 5)
 //   seedance/doubao + unknown: accepts a range — clamp to 3-12.
 // `wireModel` is the upstream name (prefix already stripped).
+const AIHUBMIX_VIDEO_SECONDS: readonly (readonly [prefix: string, seconds: readonly number[]])[] = [
+  ['veo', [4, 6, 8]],
+  ['sora', [4, 8, 12]],
+  ['wan', [5, 10]],
+];
 export function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: string; requested: number }): string {
   const m = (wireModel || '').toLowerCase();
   const req = Number.isFinite(requested) ? requested : 5;
-  let allowed: number[] | null = null;
-  if (m.startsWith('veo')) allowed = [4, 6, 8];
-  else if (m.startsWith('sora')) allowed = [4, 8, 12];
-  else if (m.startsWith('wan')) allowed = [5, 10];
+  const allowed = AIHUBMIX_VIDEO_SECONDS.find(([prefix]) => m.startsWith(prefix))?.[1] ?? null;
   if (!allowed) {
     // Seedance/doubao and unknown families take a continuous range.
     return String(Math.min(12, Math.max(3, Math.round(req))));

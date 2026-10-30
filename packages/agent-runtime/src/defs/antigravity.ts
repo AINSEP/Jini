@@ -53,14 +53,14 @@ const OAUTH_URL_PATTERN = new RegExp(
     // Google's own OAuth 2.0 authorization host — the endpoint agy actually
     // prints. Host-anchored rather than path-anchored so an upstream move
     // from `/o/oauth2/auth` to any other path on that host still redacts.
-    String.raw`https?://accounts\.google\.com/\S*`,
+    String.raw`https?://accounts\.google\.com/[^\s"]*`,
     // Any other absolute URL carrying an OAuth request's or a bearer
     // credential's hallmark query parameter, so a future change of identity
     // provider degrades to "redacted" instead of "leaked". Deliberately keyed
     // on the parameter names rather than on the word "oauth" appearing
     // somewhere in the URL, which would also eat ordinary documentation links
     // an assistant reply might legitimately contain.
-    String.raw`https?://\S*[?&](?:client_id|code_challenge|code_verifier|access_token|id_token|refresh_token)=\S*`,
+    String.raw`https?://[^\s"]*[?&](?:client_id|code_challenge|code_verifier|access_token|id_token|refresh_token)=[^\s"]*`,
   ].join('|'),
   'gi',
 );
@@ -115,15 +115,10 @@ export function parseAgyModels({ stdout }: { stdout: string }): RuntimeModelOpti
   const out = [DEFAULT_MODEL_OPTION];
   const seen = new Set<string>([DEFAULT_MODEL_OPTION.id]);
   for (const line of lines) {
-    if (/^fetching available models\.\.\.$/i.test(line)) continue;
-    const tabIndex = line.indexOf('\t');
-    if (tabIndex === -1) continue;
-    // `line` is already trimmed, so a tab inside it always has a non-blank character on each
-    // side: neither the id nor the label can come out empty here.
-    const id = line.slice(0, tabIndex).trim();
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push({ id, label: line.slice(tabIndex + 1).trim() });
+    const row = antigravityModelRow(line);
+    if (!row || seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
   }
 
   return out.length > 1 ? out : null;
@@ -253,14 +248,20 @@ export const antigravityAgentDef = {
     //   - `agy -p '<prompt>'`      -> the prompt actually lands.
     // So the prompt rides argv as `-p`'s value. That is also why this def is
     // argv-budgeted (`maxPromptArgBytes` below) rather than `promptViaStdin`.
-    return [...skipPermissionsArgs({ options }), ...modelArgs({ options }), ...logFileArgs({ runtimeContext }), '-p', prompt];
+    return ['--output-format', 'stream-json', ...skipPermissionsArgs({ options }), ...modelArgs({ options }), ...logFileArgs({ runtimeContext }), '-p', prompt];
   },
   // agy takes its prompt on argv (see `buildArgs`), so this def is
   // argv-budgeted like the other plain-stream argv adapters (aider,
   // deepseek) rather than `promptViaStdin`. Without one of these three
   // fields `assessAgentExecutorCompatibility` rejects the def outright.
   maxPromptArgBytes: 30_000,
-  streamFormat: 'plain',
+  // Structured receipts enable native-tool auditing; they do not enforce an OFF switch.
+  // agy's CLI reference exposes no run-scoped settings/permission/MCP override. Global settings
+  // writes race other runs, and relocating HOME breaks auth, so audited output alone cannot grant this.
+  // Keep refusing each requested OFF capability until its real run-scoped control exists.
+  streamFormat: 'json-event-stream',
+  eventParser: 'antigravity',
+  supportsNativeToolAccess: false,
   // `buildArgs` above already consumes `runtimeContext.agentLogFilePath` when
   // the caller supplies one; this is what asks it to. Print mode never
   // echoes auth/quota failures on stdout, so post-exit log inspection is the
@@ -340,3 +341,13 @@ export const antigravityAgentDef = {
   // default 5m).
   externalMcpInjection: 'env-passthrough',
 } satisfies RuntimeAgentDef;
+
+/** One `id<TAB>label` row of `agy models`, or `null` for the progress banner and tab-less lines. */
+function antigravityModelRow(line: string): { id: string; label: string } | null {
+  if (/^fetching available models\.\.\.$/i.test(line)) return null;
+  const tabIndex = line.indexOf('\t');
+  if (tabIndex === -1) return null;
+  // `line` is already trimmed, so a tab inside it always has a non-blank character on each
+  // side: neither the id nor the label can come out empty here.
+  return { id: line.slice(0, tabIndex).trim(), label: line.slice(tabIndex + 1).trim() };
+}

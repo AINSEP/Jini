@@ -219,7 +219,7 @@ export function parsePartialQuestionForm({ input }: { input: string }): Question
 // body — but only when those backticks are the closing wrapper, not content
 // of a JSON string value still being typed.
 function stripTrailingFence(body: string): string {
-  const m = /\s*`{1,3}\s*$/.exec(body);
+  const m = /(?<!\s)\s*`{1,3}\s*$/.exec(body);
   if (!m) return body;
   const before = body.slice(0, m.index);
   if (endsInsideJsonString(before)) return body;
@@ -227,9 +227,11 @@ function stripTrailingFence(body: string): string {
 }
 
 function endsInsideJsonString(s: string): boolean {
-  for (let i = s.indexOf('"'); i !== -1; i = s.indexOf('"', i)) {
-    i = jsonStringEnd({ s, start: i });
-    if (i === -1) return true;
+  let i = s.indexOf('"');
+  while (i !== -1) {
+    const end = jsonStringEnd({ s, start: i });
+    if (end === -1) return true;
+    i = s.indexOf('"', end);
   }
   return false;
 }
@@ -238,8 +240,8 @@ function endsInsideJsonString(s: string): boolean {
 // quote is at `start`, or -1 when that literal hasn't finished streaming.
 function jsonStringEnd({ s, start }: { s: string; start: number }): number {
   for (let i = start + 1; i < s.length; i++) {
-    if (s[i] === '\\') i++;
-    else if (s[i] === '"') return i + 1;
+    if (s[i] === '\\') { i++; continue; }
+    if (s[i] === '"') return i + 1;
   }
   return -1;
 }
@@ -252,10 +254,12 @@ const DEPTH_DELTA: Record<string, number> = { '{': 1, '[': 1, '}': -1, ']': -1 }
 function completeTopLevelString(body: string, field: string): string | undefined {
   const marker = `"${field}"`;
   let depth = 0;
-  for (let i = 0; i < body.length; i++) {
+  let i = 0;
+  while (i < body.length) {
     const c = body[i] as string;
     if (c !== '"') {
       depth += DEPTH_DELTA[c] ?? 0;
+      i += 1;
       continue;
     }
     const valueStart = depth === 1 ? keyValueStart({ body, at: i, marker }) : -1;
@@ -263,7 +267,7 @@ function completeTopLevelString(body: string, field: string): string | undefined
     // A string that isn't our key (any other key, or a value) — skip it.
     const end = jsonStringEnd({ s: body, start: i });
     if (end === -1) return undefined;
-    i = end - 1;
+    i = end;
   }
   return undefined;
 }
@@ -334,17 +338,21 @@ function countClosedQuestionObjects(body: string): number {
 // it never closes (string-aware so braces inside strings don't count).
 function balancedObjectEnd({ s, start }: { s: string; start: number }): number {
   let depth = 0;
-  for (let i = start; i < s.length; i++) {
+  let i = start;
+  while (i < s.length) {
     const c = s[i];
     if (c === '"') {
       const end = jsonStringEnd({ s, start: i });
       if (end === -1) return -1;
-      i = end - 1;
-    } else if (c === '{') {
-      depth++;
-    } else if (c === '}' && --depth === 0) {
-      return i + 1;
+      i = end;
+      continue;
     }
+    if (c === '{') depth += 1;
+    if (c === '}') {
+      depth -= 1;
+      if (depth === 0) return i + 1;
+    }
+    i += 1;
   }
   return -1;
 }

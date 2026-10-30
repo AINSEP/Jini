@@ -45,7 +45,7 @@ import { createToolExecutor, type ToolExecutor, type PrepareToolGuidance } from 
 import type { ToolRegistry } from "@jini-ai/core";
 import type { ToolAttemptAuditSink } from "../core/tool-audit.js";
 import type { SurfaceExchangeStore } from "../surface-exchanges.js";
-import { withReadOnlyToolConstraint, type ReadOnlyToolMessages } from "../core/read-only-tools.js";
+import { withReadOnlyToolConstraint } from "../core/read-only-tools.js";
 import { withToolAttemptAudit } from "../core/tool-audit.js";
 import { withToolFailureRecovery, type ToolFailureRecoveryDeps } from "./recovery.js";
 import { withRedactedToolFailures, readToolErrorId, type RedactedToolFailuresDeps } from "./redaction.js";
@@ -60,6 +60,11 @@ export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps,
   readonly toolFailures: RedactedToolFailuresDeps;
 }
 
+/** The audit wrapper's options: only an error sink the caller actually supplied. */
+function auditOptions(audit: NonNullable<AssistantToolExecutorDeps['toolAttemptAudit']>): { onSinkError?: (error: unknown) => void } {
+  return audit.onSinkError ? { onSinkError: audit.onSinkError } : {};
+}
+
 /** One registry and innermost read-only gate protect original, remedy and retry alike.
  * Redaction precedes observation; recovery is outermost so each actual attempt is audited.
  * @complexity O(1) composition; each decorator owns its runtime cost.
@@ -69,7 +74,7 @@ export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _op
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});
   const redacted = withRedactedToolFailures({ inner: guarded, ...deps.toolFailures }, {});
   const audited = deps.toolAttemptAudit
-    ? withToolAttemptAudit({ inner: redacted, ...deps.toolAttemptAudit, readErrorId: readToolErrorId }, deps.toolAttemptAudit.onSinkError ? { onSinkError: deps.toolAttemptAudit.onSinkError } : {})
+    ? withToolAttemptAudit({ inner: redacted, ...deps.toolAttemptAudit, readErrorId: readToolErrorId }, auditOptions(deps.toolAttemptAudit))
     : redacted;
   return withToolFailureRecovery({ ...deps, inner: audited }, {});
 }

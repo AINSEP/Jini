@@ -171,6 +171,9 @@ export interface ToolExecutionContext {
 /** Optional handler ports supplied by the invoking transport. */
 export interface ToolExecutionOptions {
   readonly emitSurface?: SurfaceEmitter;
+  /** Reports the human wait to the executor so concurrent writes can be refused. This is
+   * notification only; it never supplies a confirmation decision or grants authority. */
+  readonly onApprovalStateChange?: (required: { pending: boolean }, optional?: Record<string, never>) => void;
   /** Invoke through the same executor, retaining this call's principal, run, cancellation and
    * transport gates. Rejects on denial, failed confirmation, validation or execution failure.
    * A composition-owned registry may retain a source registration behind a derived catalog card.

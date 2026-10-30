@@ -70,7 +70,7 @@ export function useChatPaneWorkingDirectory(
   }, []);
 
   useEffect(() => {
-    if (observedDirectoryRef.current === workingDirectory) return;
+    if (observedDirectoryRef.current === workingDirectory) return undefined;
     observedDirectoryRef.current = workingDirectory;
     operation.supersede();
     const access = options.workingDirectoryAccess;
@@ -78,7 +78,7 @@ export function useChatPaneWorkingDirectory(
     if (workingDirectory === null || !access) {
       setWorkingDirectoryInvalid(false);
       setWorkingDirectoryPending(false);
-      return;
+      return undefined;
     }
     let validationSettled = false;
     setWorkingDirectoryPending(true);

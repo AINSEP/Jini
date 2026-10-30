@@ -43,7 +43,7 @@ export function ChatSettingsDialog(required: {
   const openerRef = useRef<Element | null>(null);
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
-    if (!dialog || !required.open) return;
+    if (!dialog || !required.open) return undefined;
     openerRef.current = document.activeElement;
     if (typeof dialog.showModal === 'function') { if (!dialog.open) dialog.showModal(); }
     else dialog.setAttribute('open', '');
@@ -57,7 +57,7 @@ export function ChatSettingsDialog(required: {
   // Return focus to the opener from a passive cleanup: React's commit-time focus restore runs after
   // layout cleanups and would pull focus straight back to the closing dialog's × button.
   useEffect(() => {
-    if (!required.open) return;
+    if (!required.open) return undefined;
     return () => {
       const opener = openerRef.current;
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus({ preventScroll: true });
@@ -71,7 +71,9 @@ export function ChatSettingsDialog(required: {
     onClick={event => {
       if (event.target !== event.currentTarget) return;
       const { clientX: x, clientY: y } = event, box = event.currentTarget.getBoundingClientRect();
-      if ((x === 0 && y === 0) || x < box.left || x > box.right || y < box.top || y > box.bottom) required.onClose();
+      const horizontalOutside = x < box.left || x > box.right;
+      const verticalOutside = y < box.top || y > box.bottom;
+      if ((x === 0 && y === 0) || horizontalOutside || verticalOutside) required.onClose();
     }}>
     <header className="jini-chat-settings-header">
       <h2 id={titleId} className="jini-dialog-title">{vm.t('Chat settings')}</h2>
@@ -81,37 +83,46 @@ export function ChatSettingsDialog(required: {
     <TabBar tabs={vm.tabs} activeId={vm.tab} onChange={vm.setTab} ariaLabel={vm.t('Chat settings')} />
     <div className="jini-chat-settings-body" role="tabpanel"
       aria-label={vm.tab === 'display' ? vm.t('Display') : vm.t('Agent permissions')}>
-      {vm.tab === 'display' ? vm.display.map(section => section.radio
-        // One ⓘ for the whole choice, beside the legend (owner, 2026-10-18), not one per option. The
-        // fieldset is named by the label span alone, so the tip's text never joins the group's name.
-        ? <fieldset key={section.key} className="jini-chat-settings-group" aria-labelledby={section.label ? section.labelId : undefined}
-          aria-describedby={[section.hint ? section.hintId : '', section.tooltip ? section.tooltipId : ''].filter(Boolean).join(' ') || undefined}>
-          {section.label && <legend className="jini-chat-settings-legend">
-            <span id={section.labelId}>{section.label}</span>
-            {section.tooltip && <InfoTip label={section.tooltip} descriptionId={section.tooltipId} />}
-          </legend>}
-          {section.hint && <p id={section.hintId} className="jini-chat-settings-description jini-chat-settings-description--group">{section.hint}</p>}
-          <ChatSettingsSegmented name={section.name} items={section.items} />
-        </fieldset>
-        : <fieldset key={section.key} className="jini-chat-settings-group">
-          {section.label && <legend className="jini-chat-settings-legend">{section.label}</legend>}
-          {section.items.map(item => <SettingSwitch key={item.key} label={item.label} checked={!!item.checked}
-            disabled={item.disabled} onChange={item.change} description={item.hint} descriptionId={item.hintId} tooltip={item.tooltip} />)}
-        </fieldset>)
-      : <>
-        <p className="jini-chat-settings-note">{vm.t('Permission changes apply to the next run.')}</p>
-        {vm.permissions.unavailableReason && <p className="jini-chat-settings-note">{vm.t(vm.permissions.unavailableReason)}</p>}
-        <SettingSwitch className="jini-chat-settings-row--master" label={vm.master.label} checked={vm.master.checked}
-          disabled={vm.master.disabled} onChange={checked => vm.master.onCheckedChange({ checked })}
-          description={vm.master.description} descriptionId={vm.master.descriptionId} />
-        <div className="jini-chat-settings-capabilities">
-          {vm.capabilities.map(item => <SettingSwitch key={item.key} label={item.control.label} checked={item.control.checked}
-            disabled={item.control.disabled} onChange={checked => item.control.onCheckedChange({ checked })}
-            description={item.description} descriptionId={item.descriptionId} />)}
-        </div>
-        {vm.permissions.busy && <p role="status" className="jini-chat-settings-note">{vm.t('Saving…')}</p>}
-        {vm.permissions.error && <p role="alert" className="jini-chat-settings-error">{vm.permissions.error}</p>}
-      </>}
+      {vm.tab === 'display' ? vm.display.map(renderDisplaySection)
+      : renderPermissions(vm)}
     </div>
   </dialog>;
+}
+
+function renderDisplaySection(section: ReturnType<typeof useChatSettingsView>["display"][number]) {
+  if (section.radio) return (
+    // One ⓘ for the whole choice, beside the legend (owner, 2026-10-18), not one per option. The
+    // fieldset is named by the label span alone, so the tip's text never joins the group's name.
+    <fieldset key={section.key} className="jini-chat-settings-group" aria-labelledby={section.label ? section.labelId : undefined}
+      aria-describedby={[section.hint ? section.hintId : '', section.tooltip ? section.tooltipId : ''].filter(Boolean).join(' ') || undefined}>
+      {section.label && <legend className="jini-chat-settings-legend">
+        <span id={section.labelId}>{section.label}</span>
+        {section.tooltip && <InfoTip label={section.tooltip} descriptionId={section.tooltipId} />}
+      </legend>}
+      {section.hint && <p id={section.hintId} className="jini-chat-settings-description jini-chat-settings-description--group">{section.hint}</p>}
+      <ChatSettingsSegmented name={section.name} items={section.items} />
+    </fieldset>
+  );
+  return <fieldset key={section.key} className="jini-chat-settings-group">
+    {section.label && <legend className="jini-chat-settings-legend">{section.label}</legend>}
+    {section.items.map(item => <SettingSwitch key={item.key} label={item.label} checked={!!item.checked}
+      disabled={item.disabled} onChange={item.change} description={item.hint} descriptionId={item.hintId} tooltip={item.tooltip} />)}
+  </fieldset>;
+}
+
+function renderPermissions(vm: ReturnType<typeof useChatSettingsView>) {
+  return <>
+    <p className="jini-chat-settings-note">{vm.t('Permission changes apply to the next run.')}</p>
+    {vm.permissions.unavailableReason && <p className="jini-chat-settings-note">{vm.t(vm.permissions.unavailableReason)}</p>}
+    <SettingSwitch className="jini-chat-settings-row--master" label={vm.master.label} checked={vm.master.checked}
+      disabled={vm.master.disabled} onChange={checked => vm.master.onCheckedChange({ checked })}
+      description={vm.master.description} descriptionId={vm.master.descriptionId} />
+    <div className="jini-chat-settings-capabilities">
+      {vm.capabilities.map(item => <SettingSwitch key={item.key} label={item.control.label} checked={item.control.checked}
+        disabled={item.control.disabled} onChange={checked => item.control.onCheckedChange({ checked })}
+        description={item.description} descriptionId={item.descriptionId} />)}
+    </div>
+    {vm.permissions.busy && <p role="status" className="jini-chat-settings-note">{vm.t('Saving…')}</p>}
+    {vm.permissions.error && <p role="alert" className="jini-chat-settings-error">{vm.permissions.error}</p>}
+  </>;
 }

@@ -1,3 +1,5 @@
+type WorkingDirectoryControlPlacement = 'below' | 'composer' | 'none';
+
 import { AgentPluginUsage } from './AgentPluginUsage.js';
 import { SECRET_REDACTED_NOTICE } from '../../../../core/user-text-redaction.js';
 import { useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
@@ -57,19 +59,9 @@ function defaultHeader(
   );
 }
 
-/** Collapses `header ?? defaultHeader(...)` out of `ChatPane` itself — nesting is what taxes the
- * `??` in the caller's score, not the branch itself. */
-function resolveChatPaneHeader(
-  header: ReactNode | undefined,
-  title: string | undefined,
-  onReset: () => void,
-  t: (key: string) => string,
-): ReactNode {
-  return header ?? defaultHeader(title, onReset, t);
-}
-
 function chatPaneClassName(variant: ChatPaneVariant, className: string | undefined): string {
-  return `jini-chat-pane jini-chat-pane--${variant}${className ? ` ${className}` : ''}`;
+  const suffix = className ? ' ' + className : '';
+  return `jini-chat-pane jini-chat-pane--${variant}${suffix}`;
 }
 
 /** What the view needs after collapsing the four `runtimeAccess === undefined ? host : inventory`
@@ -355,7 +347,7 @@ function ChatPaneStatusMessages({
 
 interface ChatPaneWorkingDirectoryBlockProps {
   workingDirectoryAccess: ChatPaneWorkingDirectoryAccess | undefined;
-  workingDirectoryControlPlacement: 'below' | 'composer' | 'none';
+  workingDirectoryControlPlacement: WorkingDirectoryControlPlacement;
   pane: UseChatPaneResult;
   t: (key: string) => string;
 }
@@ -485,7 +477,7 @@ interface ChatPaneComposerAreaProps {
   slots: ComposerSlots;
   attachmentAccept: ChatPaneProps['attachmentAccept'];
   workingDirectoryAccess: ChatPaneWorkingDirectoryAccess | undefined;
-  workingDirectoryControlPlacement: 'below' | 'composer' | 'none';
+  workingDirectoryControlPlacement: WorkingDirectoryControlPlacement;
   t: (key: string) => string;
 }
 
@@ -613,7 +605,7 @@ function useComposerHandlePublisher(
   const composerDraftRef = useRef(pane.composer.draft);
   composerDraftRef.current = pane.composer.draft;
   useEffect(() => {
-    if (!composerHandle) return;
+    if (!composerHandle) return undefined;
     composerHandle.current = {
       insertText: (text) => {
         pane.composer.setDraft(appendComposerDiscovery({ draft: composerDraftRef.current, insertText: text }));
@@ -823,6 +815,7 @@ export function ChatPane(props: ChatPaneProps) {
           onExecutionModeChange: p.onExecutionModeChange,
           byokRuntime: p.byokRuntime,
           onByokModelChange: p.onByokModelChange,
+          nativeToolPolicy: p.nativeToolPolicy,
         } })}
       />
     ),
@@ -845,7 +838,8 @@ export function ChatPane(props: ChatPaneProps) {
       onClickCapture={openLinkInNewTab}
     >
       <style data-jini-chat-pane-styles="true">{CHAT_PANE_STYLES}</style>
-      {resolveChatPaneHeader(p.header, p.title, pane.reset, t)}
+      {/* The former forwarding helper only moved this nested `??` out of ChatPane's score. */}
+      {p.header ?? defaultHeader(p.title, pane.reset, t)}
       {p.agentPluginsMode !== 'off' && <AgentPluginUsage conversationId={pane.conversation.conversationId} messages={pane.conversation.messages} />}
       <div className="jini-chat-pane__body">
         <ChatPaneTranscript

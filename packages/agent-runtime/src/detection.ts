@@ -35,6 +35,7 @@ import type {
   RuntimeModelOption,
   RuntimeReasoningOption,
 } from './types.js';
+import { omitKeys } from './core/omit-keys.js';
 
 type FetchedRuntimeModels = {
   models: RuntimeModelOption[];
@@ -385,29 +386,27 @@ function stripFns(def: RuntimeAgentDef): Omit<DetectedAgent, 'models' | 'modelsS
   // matter extra because they carry closures — `JSON.stringify` would drop
   // the functions but keep their enclosing objects, publishing a misleading
   // `{"buffering":"until-close"}` / `{}` instead of omitting them.
-  const {
-    discoverModels: _discoverModels,
-    resolveDefaultModel: _resolveDefaultModel,
-    buildArgs: _buildArgs,
-    listModels: _listModels,
-    fetchModels: _fetchModels,
-    deriveReasoningOptions: _deriveReasoningOptions,
-    fallbackModels: _fallbackModels,
-    fallbackModelsAssertedAt: _fallbackModelsAssertedAt,
-    helpArgs: _helpArgs,
-    capabilityFlags: _capabilityFlags,
-    fallbackBins: _fallbackBins,
-    versionProbeTimeoutMs: _versionProbeTimeoutMs,
-    maxPromptArgBytes: _maxPromptArgBytes,
-    env: _env,
-    inactivityTimeoutMs: _inactivityTimeoutMs,
-    authProbe: _authProbe,
-    needsAgentLogFile: _needsAgentLogFile,
-    stdoutPolicy: _stdoutPolicy,
-    runtimeLock: _runtimeLock,
-    ...rest
-  } = def;
-  return rest;
+  return omitKeys(def, [
+    'discoverModels',
+    'resolveDefaultModel',
+    'buildArgs',
+    'listModels',
+    'fetchModels',
+    'deriveReasoningOptions',
+    'fallbackModels',
+    'fallbackModelsAssertedAt',
+    'helpArgs',
+    'capabilityFlags',
+    'fallbackBins',
+    'versionProbeTimeoutMs',
+    'maxPromptArgBytes',
+    'env',
+    'inactivityTimeoutMs',
+    'authProbe',
+    'needsAgentLogFile',
+    'stdoutPolicy',
+    'runtimeLock',
+  ]);
 }
 
 /** Cache executable/version/help/auth per host and effective launch; only expired catalogs refresh.

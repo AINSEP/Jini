@@ -90,7 +90,7 @@ function hideToolCalls<Row extends ToolDisplayRow>({ blocks, runFailed }: {
     }
     const rows = toolRowsForDisplay({ rows: block.rows, mode: 'hidden' }, { recovered, runFailed: failedReply });
     if (rows.length > 0) out.push({ ...block, rows });
-    if (block.rows.some((row) => row.status === 'complete')) recovered = true;
+    recovered = block.rows.some((row) => row.status === 'complete') || recovered;
   }
   return collapseToolCalls({ blocks: out.reverse() });
 }

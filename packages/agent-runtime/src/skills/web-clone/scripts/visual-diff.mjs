@@ -55,12 +55,18 @@ export function scoreFromDiff(diffRatio, meanAbsDiff) {
 
 export async function compareInBrowser(page, original, clone, threshold) {
   return page.evaluate(async ({ original, clone, threshold }) => {
-    const loadImage = (src) => new Promise((resolve, reject) => {
+    const loadImage = (src) => {
       const image = new Image();
-      image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error(`Failed to load image: ${src.slice(0, 80)}`));
+      const loaded = new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+      });
       image.src = src;
-    });
+      return loaded.then(
+        () => image,
+        () => { throw new Error(`Failed to load image: ${src.slice(0, 80)}`); },
+      );
+    };
 
     const [left, right] = await Promise.all([loadImage(original), loadImage(clone)]);
     const width = Math.max(left.naturalWidth, right.naturalWidth);

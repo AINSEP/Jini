@@ -31,7 +31,9 @@ export function projectAcceptedInputMessages({ messages }: { messages: readonly 
       return input ? [input.data] : [];
     });
     if (inputs.length === 0) return [message];
-    const { attachments: _attachments, secretRedaction: _redaction, ...turn } = message;
+    const turn = { ...message };
+    delete turn.attachments;
+    delete turn.secretRedaction;
     // MOVE: Older receipts have no per-input files; retain those legacy files on the final bubble.
     return inputs.map((input, index) => ({ ...turn, id: input.id, content: input.text,
       attachments: input.attachments ?? (index === inputs.length - 1 ? message.attachments ?? [] : []), ...(input.secretRedaction ? { secretRedaction: input.secretRedaction } : {}) }));
@@ -77,9 +79,13 @@ export function recordedSurfaceAnswers({ events }: { events: readonly AgentEvent
     if (typeof receipt?.surfaceUri !== 'string' || seen.has(receipt.id)) continue;
     seen.add(receipt.id);
     const document = latest.get(receipt.surfaceUri);
-    if (document !== undefined) answers.set(document, typeof receipt.answerText === 'string' ? receipt.answerText : receipt.text);
+    if (document !== undefined) answers.set(document, surfaceAnswerText({ receipt }));
   }
   return answers;
+}
+
+function surfaceAnswerText({ receipt }: { receipt: AcceptedChatInput }, _options = {}): string {
+  return typeof receipt.answerText === 'string' ? receipt.answerText : receipt.text;
 }
 
 /** Project a persisted answer through the same receipt owner as composer input. */
@@ -114,7 +120,8 @@ function expandQuestionAnswers({ events }: { events: readonly AgentEvent[] }, { 
   const questions = new Map(events.flatMap(event => event.kind === 'tool_use' ? [[event.id, event.input] as const] : []));
   const answers = new Map(events.flatMap(event => {
     const context = event.kind === 'tool_result' ? answerContexts?.get(event.toolUseId) : undefined;
-    const input = context ? context.input : event.kind === 'tool_result' ? questions.get(event.toolUseId) : undefined;
+    const originalInput = event.kind === 'tool_result' ? questions.get(event.toolUseId) : undefined;
+    const input = context ? context.input : originalInput;
     const answer = questionAnswerEvent({ event, input }, { includeTitle: context?.includeTitle === true });
     return answer ? [[answer.data.toolUseId!, answer] as const] : [];
   }));
@@ -150,7 +157,8 @@ function matchOptimisticInput(
   const next = candidates?.events[candidates.index];
   const follows = next?.data.afterInputId === undefined || seen.has(next.data.afterInputId);
   // Keep predecessor testing before the caller adds this receipt's ids to seen.
-  return input.data.toolUseId ? optimistic.byQuestion.get(input.data.toolUseId) : follows ? next : undefined;
+  if (input.data.toolUseId) return optimistic.byQuestion.get(input.data.toolUseId);
+  return follows ? next : undefined;
 }
 
 /** Apply authoritative receipt data while retaining local identity and queued constituents. */
@@ -159,7 +167,9 @@ function mergeAcceptedReceipt(
 ): UserMessageEvent {
   // Replayed queue acceptance cannot undo confirmed consumption.
   const deliveryState = pending.data.deliveryState === 'consumed' ? 'consumed' : input.data.deliveryState ?? pending.data.deliveryState;
-  const { optimistic: _optimistic, afterInputId: _afterInputId, ...pendingData } = pending.data;
+  const pendingData = { ...pending.data };
+  delete pendingData.optimistic;
+  delete pendingData.afterInputId;
   const aliases = [...new Set([...(input.data.aliases ?? []), input.data.id, ...(pending.data.aliases ?? [])])].filter(id => id !== pending.data.id);
   return { ...input, data: { ...pendingData, ...input.data, id: pending.data.id,
     // Legacy acceptance receipts omit state; HTTP acceptance still means queued until consumption.
@@ -211,10 +221,14 @@ function collapseDeliveryReceipts({ events }: { events: readonly AgentEvent[] },
       result[position] = mergeAcceptedReceipt({ input, pending: original });
       continue;
     }
-    if (input) for (const id of acceptedInputIds({ input })) positions.set(id, result.length);
+    if (input) recordInputPosition({ input, positions, position: result.length });
     result.push(event);
   }
   return result;
+}
+
+function recordInputPosition({ input, positions, position }: { input: UserMessageEvent; positions: Map<string, number>; position: number }, _options = {}): void {
+  for (const id of acceptedInputIds({ input })) positions.set(id, position);
 }
 
 /** Projects saved answers and reconciles optimistic bubbles with wire events, occurrence for
@@ -228,7 +242,10 @@ export function projectAcceptedInputEvents(
   if (options !== undefined) return projectEvents({ events }, options);
   // Event arrays are replaced, never mutated, so a transcript update re-projects only changed messages.
   let projected = defaultProjections.get(events);
-  if (!projected) defaultProjections.set(events, projected = projectEvents({ events }, {}));
+  if (!projected) {
+    projected = projectEvents({ events }, {});
+    defaultProjections.set(events, projected);
+  }
   return projected;
 }
 
@@ -248,9 +265,10 @@ function projectEvents(
     if (replaced.has(event)) continue;
     const next = replacements.get(event) ?? event;
     const input = acceptedInputEvent({ event: next });
-    if (input && emitted.has(input.data.id)) continue;
-    if (input) emitted.add(input.data.id);
-    projected.push(next);
+    if (!input || !emitted.has(input.data.id)) {
+      if (input) emitted.add(input.data.id);
+      projected.push(next);
+    }
   }
   return projected;
 }

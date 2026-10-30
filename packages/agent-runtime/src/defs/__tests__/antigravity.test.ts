@@ -22,7 +22,7 @@ describe('antigravityAgentDef shape', () => {
     // putting the prompt where the CLI actually reads it.
     expect('promptViaStdin' in antigravityAgentDef).toBe(false);
     expect(antigravityAgentDef.maxPromptArgBytes).toBe(30_000);
-    expect(antigravityAgentDef.streamFormat).toBe('plain');
+    expect(antigravityAgentDef.streamFormat).toBe('json-event-stream');
     expect(antigravityAgentDef.fallbackModels[0]?.id).toBe('default');
   });
 
@@ -232,7 +232,7 @@ describe('antigravityAgentDef.buildArgs', () => {
   // present in argv is what makes that failure visible from a unit test.
   it('passes the prompt as the value of -p', () => {
     const args = antigravityAgentDef.buildArgs({ prompt: 'Reply with PONG', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
-    expect(args).toEqual(['-p', 'Reply with PONG']);
+    expect(args).toEqual(['--output-format', 'stream-json', '-p', 'Reply with PONG']);
   });
 
   it('never emits a bare `-` stdin sentinel in place of the prompt', () => {
@@ -246,7 +246,7 @@ describe('antigravityAgentDef.buildArgs', () => {
   it('keeps a multi-line transcript prompt intact as a single argv entry', () => {
     const transcript = 'user: first\n\nassistant: second\n\nuser: third';
     const args = antigravityAgentDef.buildArgs({ prompt: transcript, imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
-    expect(args).toEqual(['-p', transcript]);
+    expect(args).toEqual(['--output-format', 'stream-json', '-p', transcript]);
   });
 
   // The regression this describe block gained when the settings.json/lock mechanism was retired:
@@ -255,17 +255,17 @@ describe('antigravityAgentDef.buildArgs', () => {
   // same shape as `-p` and `--log-file` above — so it must precede `-p` (always last).
   it('emits --model <id> before -p when a concrete model is chosen', () => {
     const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gemini-3.1-pro-high' }, runtimeContext: {} });
-    expect(args).toEqual(['--model', 'gemini-3.1-pro-high', '-p', 'hi']);
+    expect(args).toEqual(['--output-format', 'stream-json', '--model', 'gemini-3.1-pro-high', '-p', 'hi']);
   });
 
   it('omits --model when options.model is the "default" sentinel', () => {
     const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'default' }, runtimeContext: {} });
-    expect(args).toEqual(['-p', 'hi']);
+    expect(args).toEqual(['--output-format', 'stream-json', '-p', 'hi']);
   });
 
   it('omits --model when options.model is falsy/absent', () => {
     const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
-    expect(args).toEqual(['-p', 'hi']);
+    expect(args).toEqual(['--output-format', 'stream-json', '-p', 'hi']);
   });
 
   // Order matters for real: everything after `-p` is consumed as its value,
@@ -273,12 +273,12 @@ describe('antigravityAgentDef.buildArgs', () => {
   // prompt and the diagnostic log is never written.
   it('prepends --log-file <path> before -p when agentLogFilePath is set', () => {
     const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: { agentLogFilePath: '/tmp/agy.log' } });
-    expect(args).toEqual(['--log-file', '/tmp/agy.log', '-p', 'hi']);
+    expect(args).toEqual(['--output-format', 'stream-json', '--log-file', '/tmp/agy.log', '-p', 'hi']);
   });
 
   it('omits --log-file entirely when agentLogFilePath is absent', () => {
     const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: {}, runtimeContext: {} });
-    expect(args).toEqual(['-p', 'hi']);
+    expect(args).toEqual(['--output-format', 'stream-json', '-p', 'hi']);
   });
 
   // Both extra flags precede -p together, in the order buildArgs itself pushes them
@@ -288,7 +288,7 @@ describe('antigravityAgentDef.buildArgs', () => {
     const args = antigravityAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'claude-opus-4-6-thinking' }, runtimeContext: {
       agentLogFilePath: '/tmp/agy.log',
     } });
-    expect(args).toEqual(['--model', 'claude-opus-4-6-thinking', '--log-file', '/tmp/agy.log', '-p', 'hi']);
+    expect(args).toEqual(['--output-format', 'stream-json', '--model', 'claude-opus-4-6-thinking', '--log-file', '/tmp/agy.log', '-p', 'hi']);
   });
 
   // agy resumes a prior conversation only when explicitly asked
@@ -337,7 +337,7 @@ describe('antigravityAgentDef reasoning-effort declaration', () => {
       model: 'gemini-3.1-pro-high',
       reasoning: 'high',
     } });
-    expect(args).toEqual(['--model', 'gemini-3.1-pro-high', '-p', 'hi']);
+    expect(args).toEqual(['--output-format', 'stream-json', '--model', 'gemini-3.1-pro-high', '-p', 'hi']);
     expect(args.join(' ')).not.toContain('--effort');
     expect(args.join(' ')).not.toContain('reasoning');
   });

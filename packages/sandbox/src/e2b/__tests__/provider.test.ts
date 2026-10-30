@@ -147,6 +147,15 @@ describe('createE2bSandboxProvider', () => {
 });
 
 describe('provider boot characterization', () => {
+  it('retains the setup error when cleanup of the newly created VM also rejects', async () => {
+    const cause = new Error('watch failed');
+    const kill = vi.fn().mockRejectedValueOnce(new Error('VM cleanup failed'));
+    const sandbox = { ...FAKE_SANDBOX, kill } as unknown as Sandbox;
+    wrapE2bSandboxMock.mockRejectedValueOnce(cause);
+    const provider = createE2bSandboxProvider({}, { createSandbox: async () => sandbox });
+    await expect(provider.boot({})).rejects.toBe(cause);
+    expect(kill).toHaveBeenCalledExactlyOnceWith();
+  });
   it('preserves empty credentials, zero timeout, an empty template and falsy session settings', async () => {
     const fetchImpl = vi.fn<typeof fetch>();
     await createE2bSandboxProvider({}, {

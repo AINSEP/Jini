@@ -100,7 +100,8 @@ import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
-import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
 
 export interface GoogleTextPart {
   readonly text: string;
@@ -535,27 +536,30 @@ async function runSingleGoogleRequest(
     usage: null,
   };
 
-  frameLoop: for await (const frame of decodeSseStream({ source: body })) {
+  for await (const frame of decodeSseStream({ source: body })) {
     // No re-check of an "ended" flag at the top of this loop: the only way this loop calls
     // `emitEnd` is the `outcome.action === 'end'` branch below, immediately followed by
-    // `break frameLoop` — same reachability proof as
+    // `break` — same reachability proof as
     // `anthropic-messages.ts#runSingleAnthropicRequest`.
-    let data: unknown;
-    try {
-      data = JSON.parse(frame.data);
-    } catch {
-      continue; // tolerate a malformed/empty keep-alive frame
-    }
-    if (!isRecord(data)) continue;
-
-    const outcome = processGoogleFrame({ state: state, data: data, onEvent: onEvent });
-    if (outcome.action === 'end') {
+    const data = parseGoogleFrameData(frame.data);
+    // A malformed/empty keep-alive frame, or a non-object payload, carries nothing to process.
+    const outcome = isRecord(data) ? processGoogleFrame({ state: state, data: data, onEvent: onEvent }) : null;
+    if (outcome?.action === 'end') {
       emitEnd(outcome.reason);
-      break frameLoop;
+      break;
     }
   }
 
   return { finishReason: state.finishReason, toolCalls: state.toolCalls, text: state.fullText };
+}
+
+/** The parsed JSON of one SSE frame, or `undefined` when it is not valid JSON (a keep-alive). */
+function parseGoogleFrameData(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
 }
 
 const GOOGLE_ALLOWED_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
@@ -742,32 +746,25 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
   let toolTurns = 0;
   let lastFinishReason: string | null = null;
 
+  /** `'error'` (after reporting it) for a content-free first turn, else the regular loop exit reason. */
+  const turnExitReason = (outcome: Awaited<ReturnType<typeof runSingleGoogleRequest>>, turns: number) => {
+    if (!isEmptyInitialGoogleTurn({ toolTurns: turns, outcome })) {
+      return googleLoopExitReason({ outcome: outcome, toolTurns: turns, maxToolTurns: maxToolTurns });
+    }
+    // Thinking can consume the entire output budget without producing any answer. Preserve
+    // the reason for operator diagnostics rather than turning a content-free response into stop.
+    options.onEvent({ type: 'error', message: redactSecrets({
+      input: `Google returned no text or tool calls (${outcome.finishReason ?? 'missing finish reason'})`,
+    }, { exactSecrets: [options.apiKey] }) });
+    return 'error' as const;
+  };
   while (true) {
     const outcome = await runSingleGoogleRequest(options, contents, emitEnd, retry);
     lastFinishReason = outcome.finishReason;
 
-    if (endGuard.hasEnded()) break;
-
-    if (isEmptyInitialGoogleTurn({ toolTurns, outcome })) {
-      // Thinking can consume the entire output budget without producing any answer. Preserve
-      // the reason for operator diagnostics rather than turning a content-free response into stop.
-      options.onEvent({ type: 'error', message: redactSecrets({
-        input: `Google returned no text or tool calls (${outcome.finishReason ?? 'missing finish reason'})`,
-      }, { exactSecrets: [options.apiKey] }) });
-      emitEnd('error');
-      break;
-    }
-
-    const exitReason = googleLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      // Pending tool calls were already emitted as `tool_use` events above;
-      // with no executor to run them, the turn ends here rather than
-      // silently retrying forever.
-      emitEnd('stop');
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => turnExitReason(outcome, toolTurns) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;

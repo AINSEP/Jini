@@ -35,7 +35,6 @@ import {
   type RuntimeAgentDef,
 } from '@jini-ai/agent-runtime';
 import {
-  collectProcessTreePids,
   listProcessSnapshots,
   stopProcesses,
 } from '@jini-ai/platform/process';
@@ -126,6 +125,11 @@ function createStreamHandlerForDef(
       return createQoderStreamHandler({ onEvent: onEvent });
     case 'json-event-stream':
       return createJsonEventStreamHandler({ kind: def.eventParser ?? '', onEvent: onEvent });
+    default: {
+      // Unreachable: every stream format has a case above, and a new one fails typecheck here.
+      const unknownFormat: never = streamFormat;
+      throw new TypeError(`Unknown agent stream format: ${String(unknownFormat)}`);
+    }
   }
 }
 
@@ -614,10 +618,9 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    */
   function handleTurnEnd(stopReason: string | undefined): void {
     const toolUse = pendingToolUse;
+    const toolTurnPending = stopReason === 'tool_use' && toolUse !== undefined && continuation !== undefined;
     const shouldInject =
-      stopReason === 'tool_use' &&
-      toolUse !== undefined &&
-      continuation !== undefined &&
+      toolTurnPending &&
       resolveContinuationTransport({ def: def }) === 'stdin-injection' &&
       continuation.autonomousToolNames.has(toolUse.name);
     if (!shouldInject) {
@@ -694,9 +697,11 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
               const payload = projectEcho({ payload: translation.payload, rawEvent }, {});
               return lifecycle.emit({ runId, input: { event: 'agent', data: statusWithChildIdentity({ payload, childPid: ctx.child.pid }, {}) } });
             });
-          } else if (translation.kind === 'error') {
+          }
+          if (translation.kind === 'error') {
             enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
-          } else if (translation.kind === 'turn-end') {
+          }
+          if (translation.kind === 'turn-end') {
             handleTurnEnd(translation.stopReason);
           }
         });
@@ -753,7 +758,8 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
 
   /**
    * Emits the accumulated `'until-close'` stdout — sanitized — as exactly one raw `'stdout'` echo
-   * plus one `text_delta`, through the same `enqueueEmit` FIFO queue every other emit uses, so the
+   * plus one `text_delta` for plain output, or through the declared structured parser. Both use
+   * the same `enqueueEmit` FIFO queue every other emit uses, so the
    * flush is ordered after every already-queued event and before `finish()`'s `'end'`. A no-op for
    * every live-streaming def (nothing was ever accumulated) and for a buffered run that produced
    * no stdout at all — an empty `text_delta` is noise, not information.
@@ -767,11 +773,18 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
     const safe = sanitizeBufferedStdout ? sanitizeBufferedStdout({ fullText: bufferedStdout }) : bufferedStdout;
     bufferedStdout = '';
     bufferedStdoutBytes = 0;
-    const text =
-      droppedStdoutBytes > 0
-        ? `${safe}${bufferedStdoutTruncationNotice(droppedStdoutBytes, ctx.bufferedStdoutMaxBytes)}`
-        : safe;
+    const dropped = droppedStdoutBytes;
     droppedStdoutBytes = 0;
+    if (streamHandler !== null) {
+      // Redact the complete wire text before parsing: structured errors can contain sign-in URLs too.
+      stdoutDiagnostics.feed({ text: safe });
+      streamHandler.feed({ chunk: safe });
+      if (dropped > 0) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'error', data: {
+        message: bufferedStdoutTruncationNotice(dropped, ctx.bufferedStdoutMaxBytes),
+      } } }));
+      return;
+    }
+    const text = dropped > 0 ? `${safe}${bufferedStdoutTruncationNotice(dropped, ctx.bufferedStdoutMaxBytes)}` : safe;
     if (text.length === 0) return;
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
     enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'text_delta', delta: text } } }));
@@ -780,26 +793,26 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
     stdoutDiagnostics.record({ chunk, text });
-    if (streamFormat === 'plain') {
-      if (text.length > 0) userVisibleOutputSeen = true;
-      if (bufferStdoutUntilClose) {
-        // Nothing is emitted on *either* channel yet — see this function's doc on why holding the
-        // raw echo back matters as much as holding back the chat copy.
-        //
-        // Whole chunks only: a chunk that would cross the ceiling is dropped entirely rather than
-        // sliced to fit, which keeps the accumulator free of half-written multi-byte characters (a
-        // `data` event boundary already need not align with one) and makes the kept prefix exactly
-        // the bytes some prefix of chunks produced. Everything after the first refusal is dropped
-        // too — the point is a hard ceiling on resident bytes, not a best-effort tail.
-        const chunkBytes = Buffer.byteLength(text, 'utf8');
-        if (droppedStdoutBytes > 0 || bufferedStdoutBytes + chunkBytes > ctx.bufferedStdoutMaxBytes) {
-          droppedStdoutBytes += chunkBytes;
-          return;
-        }
-        bufferedStdout += text;
-        bufferedStdoutBytes += chunkBytes;
+    if (streamFormat === 'plain' && text.length > 0) userVisibleOutputSeen = true;
+    if (bufferStdoutUntilClose) {
+      // Nothing is emitted on *either* channel yet — see this function's doc on why holding the
+      // raw echo back matters as much as holding back the chat copy.
+      //
+      // Whole chunks only: a chunk that would cross the ceiling is dropped entirely rather than
+      // sliced to fit, which keeps the accumulator free of half-written multi-byte characters (a
+      // `data` event boundary already need not align with one) and makes the kept prefix exactly
+      // the bytes some prefix of chunks produced. Everything after the first refusal is dropped
+      // too — the point is a hard ceiling on resident bytes, not a best-effort tail.
+      const chunkBytes = Buffer.byteLength(text, 'utf8');
+      if (droppedStdoutBytes > 0 || bufferedStdoutBytes + chunkBytes > ctx.bufferedStdoutMaxBytes) {
+        droppedStdoutBytes += chunkBytes;
         return;
       }
+      bufferedStdout += text;
+      bufferedStdoutBytes += chunkBytes;
+      return;
+    }
+    if (streamFormat === 'plain') {
       enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'stdout', data: { chunk: text } } }));
       enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: { type: 'text_delta', delta: text } } }));
       return;
@@ -848,12 +861,12 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
         feedSessionLine(controlScanBuffer);
         controlScanBuffer = '';
       }
+      flushBufferedStdout();
       streamHandler?.flush();
       session.endSession();
       stdoutDiagnostics.flush();
-      // Queued before `await emitQueue` so the flushed text is durably appended ahead of
-      // `finish()`'s `'end'` event, exactly like every live-path emit already is.
-      flushBufferedStdout();
+      // The buffered flush is queued before `await emitQueue` so its sanitized events are durable
+      // ahead of `finish()`'s `'end'`, exactly like every live-path emit already is.
       await emitQueue;
       if (cancelRequested) await cancelUnresolvedToolCalls();
       const subscribedTools = await toolSubscription;
@@ -888,12 +901,16 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
    * text without base64. HTTP acceptance only
    * confirms the write; UUID-attributed CLI receipts separately confirm consumption. */
   async function sendUserMessage({ text, id = randomUUID(), attachmentIds }: { text: string; id?: string; attachmentIds?: readonly string[] }, { imageContents: images = [] }: { imageContents?: readonly MessageAttachmentImage[] } = {}): Promise<UserMessageDelivery> {
-    if (!acceptsMidRunUserMessages({ def })) return relay?.enqueue({ id, text, hasAttachments: images.length > 0 || (attachmentIds?.length ?? 0) > 0 }) ?? 'unsupported';
+    if (!acceptsMidRunUserMessages({ def })) return relayUserMessage({ id, text, images, attachmentIds });
     const stdin = child.stdin;
     if (stdinClosed || !stdin) return 'not-running';
     heldForBackgroundTasks = false;
     writeUserMessage(stdin, text, images, id);
     return 'delivered';
+  }
+
+  function relayUserMessage({ id, text, images, attachmentIds }: { id: string; text: string; images: readonly MessageAttachmentImage[]; attachmentIds: readonly string[] | undefined }): UserMessageDelivery {
+    return relay?.enqueue({ id, text, hasAttachments: images.length > 0 || (attachmentIds?.length ?? 0) > 0 }) ?? 'unsupported';
   }
 
   /** Writes a complete mid-run turn using the idle image encoder; journals text without base64.
@@ -1030,7 +1047,9 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       unsubscribeCancel();
       // Guarded for the same reasons as the child-driven handler above.
       await cleanupStagedFilesSafely(ctx);
-      const status = await output.settle({ status: cancelRequested ? 'cancelled' : controller?.completedSuccessfully() ? 'succeeded' : 'failed' });
+      let finalStatus: 'cancelled' | 'succeeded' | 'failed' = 'cancelled';
+      if (!cancelRequested) finalStatus = controller?.completedSuccessfully() ? 'succeeded' : 'failed';
+      const status = await output.settle({ status: finalStatus });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
           ? await classifyFailureSafely(ctx, classifyFailure, {
@@ -1057,7 +1076,8 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
             onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
           } });
           enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
-        } else if (translation.kind === 'error') {
+        }
+        if (translation.kind === 'error') {
           enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
         }
         return;
@@ -1153,7 +1173,9 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
       unsubscribeCancel();
       // Guarded for the same reasons as the child-driven handler above.
       await cleanupStagedFilesSafely(ctx);
-      const status = await output.settle({ status: cancelRequested ? 'cancelled' : session?.hasFatalError() ? 'failed' : 'succeeded' });
+      let finalStatus: 'cancelled' | 'succeeded' | 'failed' = 'cancelled';
+      if (!cancelRequested) finalStatus = session?.hasFatalError() ? 'failed' : 'succeeded';
+      const status = await output.settle({ status: finalStatus });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
           ? await classifyFailureSafely(ctx, classifyFailure, {
@@ -1173,17 +1195,14 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
       if (translation.kind === 'agent') {
             const receipt = modelReceipt(translation.payload);
             if (receipt) enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: receipt } }));
-        if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
-        if (translation.payload.type === 'tool_use') {
-          toolCallSeen = true;
-        } else if (
-          (translation.payload.type === 'text_delta' || translation.payload.type === 'thinking_delta') &&
-          translation.payload.delta.length > 0
-        ) {
-          userVisibleOutputSeen = true;
-        }
+        applyAgentTranslationSideEffects({ payload: translation.payload, sessionId: translation.sessionId, sink: {
+          onSessionId: ({ sessionId }) => { capturedSessionId = sessionId; },
+          onToolCall: () => { toolCallSeen = true; },
+          onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
+        } });
         enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'agent', data: translation.payload } }));
-      } else if (translation.kind === 'error') {
+      }
+      if (translation.kind === 'error') {
         enqueueEmit(() => lifecycle.emit({ runId: runId, input: { event: 'error', data: translation.payload } }));
       }
     } }, { cwd: ctx.cwd, ...(ctx.model !== undefined ? { model: ctx.model } : {}), ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}), ...(ctx.uploadRoot !== undefined ? { uploadRoot: ctx.uploadRoot } : {}) });
@@ -1292,8 +1311,8 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       deps.onCleanupFailure,
     );
     await deps.releaseStagedResources();
-    // `failBeforeSpawn` always rejects (`Promise<never>`); returning it propagates that rejection.
-    return deps.failBeforeSpawn(
+    // `failBeforeSpawn` always rejects (`Promise<never>`); awaiting it propagates that rejection.
+    await deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }
@@ -1356,7 +1375,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
       deps.onCleanupFailure,
     );
     await deps.releaseStagedResources();
-    return deps.failBeforeSpawn(
+    await deps.failBeforeSpawn(
       { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage(err)}` },
     );
   }

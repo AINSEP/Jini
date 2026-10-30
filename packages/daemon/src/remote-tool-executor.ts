@@ -205,7 +205,8 @@ function readToolStream(
   res.on('data', (chunk: string) => {
     buffer += chunk;
     const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+    // String.split always produces at least one member, including for an empty chunk.
+    buffer = lines.pop()!;
     lines.forEach(onLine);
   });
   // Once the terminal line is in hand the outcome is known, so a later reset cannot unsettle it.

@@ -74,9 +74,11 @@
  */
 import { defaultDnsLookup, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { runOpenAiCompatibleRequest, refreshOpenAiTools, createStrictToolRetry, type StrictToolRetryState, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
-import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './tool-turn-types.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
+import { toolLoopVerdict } from './tool-loop-verdict.js';
 
 export interface AzureFunctionToolDef {
   readonly type: 'function';
@@ -185,7 +187,7 @@ const DEFAULT_MAX_TOOL_TURNS = 8;
 const DEFAULT_AZURE_MAX_TOKENS = 8192;
 
 function azureRequestUrl(baseUrl: string, model: string, apiVersion: string | undefined): string {
-  const base = baseUrl.replace(/\/+$/, '');
+  const base = trimCharsEnd({ text: baseUrl, chars: '/' });
   const version = apiVersion && apiVersion.trim() ? apiVersion.trim() : DEFAULT_AZURE_API_VERSION;
   return `${base}/openai/deployments/${encodeURIComponent(model)}/chat/completions?api-version=${encodeURIComponent(version)}`;
 }
@@ -389,15 +391,9 @@ export async function runAzureToolTurn(requiredArgs: Pick<AzureTurnOptions, "api
     const outcome = await runSingleAzureRequest(options, messages, emitEnd, endGuard.hasEnded, retry);
     lastFinishReason = outcome.finishReason;
 
-    if (endGuard.hasEnded()) break;
-
-    const exitReason = azureLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns });
-    if (exitReason) {
-      emitEnd(exitReason);
-      break;
-    }
-    if (!executeTool) {
-      emitEnd('stop');
+    const verdict = toolLoopVerdict({ ended: endGuard.hasEnded(), hasExecutor: Boolean(executeTool), exitReason: () => azureLoopExitReason({ outcome: outcome, toolTurns: toolTurns, maxToolTurns: maxToolTurns }) });
+    if (verdict.stop || !executeTool) {
+      if (verdict.emit) emitEnd(verdict.emit);
       break;
     }
     toolTurns += 1;

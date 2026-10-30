@@ -97,7 +97,7 @@ function splitTableCells(line: string): string[] {
   return cells;
 }
 
-const TABLE_ALIGN_CELL = /^:?-{1,}:?$/;
+const TABLE_ALIGN_CELL = /^:?-+:?$/;
 // Every cell `TABLE_ALIGN_CELL` accepts starts and ends with `:` or `-`, so its
 // first + last character is always exactly one of these four keys.
 const COLUMN_ALIGN = { '::': 'center', '-:': 'right', ':-': 'left', '--': null } as const;
@@ -139,7 +139,7 @@ function collectTableRows(lines: string[], start: number): { rows: string[][]; n
 
 const ORDERED_ITEM = /^\s*\d+[.)]\s+/;
 const FENCE = /^```/;
-const HEADING = /^(#{1,3})\s+(.*)$/;
+const HEADING = /^(#{1,3})\s+/;
 const RULE = /^(-{3,}|\*{3,}|_{3,})\s*$/;
 const QUOTE_LINE = /^>\s?/;
 const BULLET_ITEM = /^\s*[-*]\s+/;
@@ -173,11 +173,11 @@ function parseFence(lines: string[], i: number): ParsedBlock | null {
 function parseHeading(lines: string[], i: number): ParsedBlock | null {
   const heading = HEADING.exec(lines[i]!);
   if (!heading) return null;
-  // Both capture groups are mandatory (non-optional) in this pattern, so
-  // whenever `heading` itself is truthy, `heading[1]`/`heading[2]` are
-  // always matched strings (never `undefined`) — same dead-fallback
-  // reasoning as the `lines[i]` accesses above.
-  return { block: { kind: 'h', level: heading[1]!.length as 1 | 2 | 3, text: heading[2]! }, next: i + 1 };
+  const content = /^(.*)$/.exec(lines[i]!.slice(heading[0].length));
+  if (!content) return null;
+  // Both captures are mandatory in their respective patterns, so each successful match has a
+  // defined group 1 — same dead-fallback reasoning as the `lines[i]` accesses above.
+  return { block: { kind: 'h', level: heading[1]!.length as 1 | 2 | 3, text: content[1]! }, next: i + 1 };
 }
 
 function parseRule(lines: string[], i: number): ParsedBlock | null {
@@ -309,15 +309,8 @@ function nextLooseListLine(lines: string[], i: number): number {
 
 function isBlockStart(lines: string[], i: number): boolean {
   const line = lines[i]!;
-  return (
-    FENCE.test(line)
-    || /^(#{1,3})\s+/.test(line)
-    || RULE.test(line)
-    || QUOTE_LINE.test(line)
-    || BULLET_ITEM.test(line)
-    || ORDERED_ITEM.test(line)
-    || isTableStartAt(lines, i)
-  );
+  const simpleBlock = [FENCE, /^(#{1,3})\s+/, RULE, QUOTE_LINE, BULLET_ITEM, ORDERED_ITEM].some(pattern => pattern.test(line));
+  return simpleBlock || isTableStartAt(lines, i);
 }
 
 function renderBlock(block: Block): ReactNode {
@@ -353,6 +346,7 @@ function renderBlock(block: Block): ReactNode {
     case 'hr':
       return <hr />;
   }
+  return undefined;
 }
 
 interface CodeBlockProps {
@@ -464,7 +458,7 @@ function useTableOverflow(): { wrapRef: RefObject<HTMLDivElement | null>; isOver
   useEffect(() => {
     // The wrap div renders unconditionally, so its ref is attached by the time this effect runs.
     const el = wrapRef.current!;
-    if (typeof ResizeObserver !== 'function') return;
+    if (typeof ResizeObserver !== 'function') return undefined;
     const check = () => setIsOverflowing(el.scrollWidth > el.clientWidth + TABLE_OVERFLOW_SLACK_PX);
     const observer = new ResizeObserver(check);
     observer.observe(el);
@@ -591,17 +585,9 @@ function renderInline(text: string): ReactNode {
   let match: RegExpExecArray | null = inlineRe.exec(text);
   while (match !== null) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    const [whole, code, mdLink, bold, italic, link] = match;
-    if (code) nodes.push(<code key={key++}>{code.slice(1, -1)}</code>);
-    else if (mdLink) nodes.push(renderMarkdownLink(mdLink, key++));
-    else if (bold) nodes.push(<strong key={key++}>{renderInline(bold.slice(2, -2))}</strong>);
-    else if (italic) nodes.push(<em key={key++}>{renderInline(italic.slice(1, -1))}</em>);
-    else if (link)
-      nodes.push(
-        <a key={key++} href={link} {...NEW_TAB}>
-          {link}
-        </a>,
-      );
+    const whole = match[0];
+    nodes.push(renderInlineToken({ match, key }));
+    key += 1;
     // `whole` is `match[0]` — a successful `RegExpExecArray` always has a
     // defined (if possibly empty) full-match string at index 0, so this
     // fallback is unreachable (same dead-fallback reasoning as above).
@@ -610,4 +596,14 @@ function renderInline(text: string): ReactNode {
   }
   if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
   return nodes;
+}
+
+function renderInlineToken({ match, key }: { match: RegExpExecArray; key: number }): ReactNode {
+  const [, code, mdLink, bold, italic, link] = match;
+  if (code) return <code key={key}>{code.slice(1, -1)}</code>;
+  if (mdLink) return renderMarkdownLink(mdLink, key);
+  if (bold) return <strong key={key}>{renderInline(bold.slice(2, -2))}</strong>;
+  if (italic) return <em key={key}>{renderInline(italic.slice(1, -1))}</em>;
+  if (link) return <a key={key} href={link} {...NEW_TAB}>{link}</a>;
+  return null;
 }

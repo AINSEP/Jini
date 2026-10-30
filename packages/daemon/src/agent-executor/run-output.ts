@@ -8,7 +8,12 @@ interface OutputSeen { text: boolean; tool: boolean; error: boolean; diagnostic:
 
 // Only a terminal-prefixed failure overrides real output; ordinary assistant explanations
 // can mention empty output or headless permissions without being failed runs themselves.
-const DIAGNOSTIC_LINE = /^(?:jetski|agy|error|fatal):\s*(?:no (?:output|response) produced(?:\s*[—–:-]|[.!]\s*$)|(?:error:\s*)?permission denied\b.*headless|headless\b.*auto-denied)/i;
+// One pattern per diagnostic; a line is a diagnostic when any of them matches.
+const DIAGNOSTIC_LINES: readonly RegExp[] = [
+  /^(?:jetski|agy|error|fatal):\s*no (?:output|response) produced(?:\s*[—–:-]|[.!]\s*$)/i,
+  /^(?:jetski|agy|error|fatal):\s*(?:error:\s*)?permission denied\b.*headless/i,
+  /^(?:jetski|agy|error|fatal):\s*headless\b.*auto-denied/i,
+];
 
 /** Records whether the event is assistant text, tool activity or a run error. */
 function noteActivity(seen: OutputSeen, event: RunProtocolEvent): void {
@@ -29,7 +34,7 @@ function noteDiagnostic(
   if (event.kind !== 'stderr' && !(plainStdout && event.kind === 'stdout')) return;
   const channel = event.kind === 'stderr' ? 'stderr' : 'stdout';
   tails[channel] = (tails[channel] + event.payload.chunk).slice(-8192);
-  const line = tails[channel].split(/\r?\n/).find(value => DIAGNOSTIC_LINE.test(value.trim()));
+  const line = tails[channel].split(/\r?\n/).find(value => DIAGNOSTIC_LINES.some(pattern => pattern.test(value.trim())));
   if (line) seen.diagnostic = line;
 }
 

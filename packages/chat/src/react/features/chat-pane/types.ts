@@ -1,4 +1,5 @@
 import type { UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
+import type { NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 
@@ -51,6 +52,8 @@ export interface ChatPaneAgent {
    * as `true` — no badge — since there is no signal either way.
    */
   supportsTools?: boolean;
+  /** Native OFF switches can be enforced and audited; absence fails closed when limits exist. */
+  supportsNativeToolAccess?: boolean;
 }
 
 export interface ChatPaneAgentSelection {
@@ -197,6 +200,8 @@ export type DeliverMidRunMessage = (input: { runId: string; text: string; attach
 
 export interface ChatPaneProps extends UserTextRedactionOptions {
   transport: ChatTransport;
+  /** Current effective host limits, used for a warning before the first message is sent. */
+  nativeToolPolicy?: NativeToolPolicyInput;
   agents?: readonly ChatPaneAgent[];
   /** Optional host effects for package-owned inventory, rescan, and health polling. */
   runtimeAccess?: ChatPaneRuntimeAccess;
@@ -407,6 +412,7 @@ export interface ByokRuntimeSummary {
 
 export interface AgentRuntimePickerProps {
   agents: readonly ChatPaneAgent[];
+  nativeToolPolicy?: NativeToolPolicyInput;
   value: ChatPaneAgentSelection;
   onChange: (selection: ChatPaneAgentSelection) => void;
   onRescan?: () => void;

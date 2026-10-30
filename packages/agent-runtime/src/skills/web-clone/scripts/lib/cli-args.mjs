@@ -18,22 +18,27 @@
  */
 export function parseCliArgs({ argv, defaults, options }, { strict = true } = {}) {
   const out = { ...defaults };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    // Own-property lookup only: "constructor"/"__proto__" are not flags.
-    const option = Object.hasOwn(options, arg) ? options[arg] : undefined;
-    if (!option) {
-      if (strict) throw new Error(`Unexpected argument: ${arg}`);
-      continue;
-    }
-    if (option.flag) {
-      out[option.key] = true;
-      continue;
-    }
-    i += 1;
-    out[option.key] = option.parse(argv[i]);
-  }
+  let i = 0;
+  while (i < argv.length) i += applyArg({ out, argv, i, options, strict });
   return out;
+}
+
+// Applies the argument at `i` to `out` and returns how many entries of `argv` it consumed:
+// one for a flag or an ignored extra, two for an option and its value.
+function applyArg({ out, argv, i, options, strict }) {
+  const arg = argv[i];
+  // Own-property lookup only: "constructor"/"__proto__" are not flags.
+  const option = Object.hasOwn(options, arg) ? options[arg] : undefined;
+  if (!option) {
+    if (strict) throw new Error(`Unexpected argument: ${arg}`);
+    return 1;
+  }
+  if (option.flag) {
+    out[option.key] = true;
+    return 1;
+  }
+  out[option.key] = option.parse(argv[i + 1]);
+  return 2;
 }
 
 /** Value parser: the raw string, or `fallback` when missing/empty. */

@@ -1,3 +1,4 @@
+import { trimChars } from '@jini-ai/core/primitives';
 /**
  * @module pointer
  *
@@ -12,9 +13,24 @@ interface HtmlPointerArtifactTargetInput {
 }
 
 const MAX_POINTER_TEXT_BYTES = 100;
-const POINTER_TARGET_RE = /^(?:见|see)(?:\s*[:：]\s*|\s+)[`"'“”‘’]?(.+?\.html?)[`"'“”‘’]?[.。]?$/iu;
+// Matching only runs after the 100-byte visible-text guard; bound each run to that same ceiling.
+const POINTER_TARGET_RE = /^(?:见|see)(?:\s{0,100}[:：]\s{0,100}|\s{1,100})[`"'“”‘’]?(.{1,100}?\.html?)[`"'“”‘’]?[.。]?$/iu;
 const SCRIPT_OR_STYLE_RE = /<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi;
-const HTML_TAG_RE = /<[^>]+>/g;
+function stripPointerTags(content: string): string {
+  const chunks: string[] = [];
+  let copied = 0;
+  let open = content.indexOf('<');
+  while (open !== -1) {
+    const close = content.indexOf('>', open + 1);
+    if (close === -1) break;
+    if (close > open + 1) {
+      chunks.push(content.slice(copied, open), ' ');
+      copied = close + 1;
+    }
+    open = content.indexOf('<', close + 1);
+  }
+  return chunks.join('') + content.slice(copied);
+}
 
 /**
  * Resolve a short "see foo.html"-style reply to the referenced file name, if
@@ -54,13 +70,12 @@ function resolveAgainstProjectFiles({ target, candidateFileName, projectFiles }:
 function visiblePointerText(content: string): string {
   const stripped = content
     .replace(/^﻿/, '')
-    .replace(SCRIPT_OR_STYLE_RE, ' ')
-    .replace(HTML_TAG_RE, ' ');
-  return decodeBasicHtmlEntities(stripped).replace(/\s+/g, ' ').trim();
+    .replace(SCRIPT_OR_STYLE_RE, ' ');
+  return decodeBasicHtmlEntities(stripPointerTags(stripped)).replace(/\s+/g, ' ').trim();
 }
 
 function normalizeTarget(value: string): string {
-  return value.trim().replace(/^[`"'“”‘’]+|[`"'“”‘’]+$/g, '');
+  return trimChars({ text: value.trim(), chars: "`\"'“”‘’" });
 }
 
 function isSafeHtmlTarget(value: string): boolean {

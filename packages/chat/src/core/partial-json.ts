@@ -40,10 +40,13 @@ function scanJsonPrefix({ buf }: { buf: string }, _optional: {} = {}): { stack: 
       ({ inStr, esc } = advanceJsonString({ c, esc }));
       continue;
     }
-    if (c === '"') inStr = true;
-    else if (c === '{') stack.push('}');
-    else if (c === '[') stack.push(']');
-    else if (c === '}' || c === ']') stack.pop();
+    switch (c) {
+      case '"': inStr = true; break;
+      case '{': stack.push('}'); break;
+      case '[': stack.push(']'); break;
+      case '}': case ']': stack.pop(); break;
+      default: break;
+    }
   }
   return { stack, inStr };
 }
@@ -75,7 +78,8 @@ function trimIncompleteTail({ out }: { out: string }, _optional: {} = {}): strin
   let prev: string;
   let passes = 0;
   do {
-    if (++passes > MAX_TAIL_CLEANUP_PASSES) return null;
+    passes += 1;
+    if (passes > MAX_TAIL_CLEANUP_PASSES) return null;
     prev = out;
     out = trimTrailingSeparators({ text: out });
     out = out.replace(/"(?:[^"\\]|\\.)*"\s*:\s*$/, ''); // key + colon, no value

@@ -1,4 +1,4 @@
-/** @file Pure object-shape predicates shared by tool input readers and render-time decoders. */
+/** @file Object-shape predicates and canonical JSON shared by tool readers and request digests. */
 /** Accept any non-null object, including arrays; never sanitizes or reads properties.
  * @complexity O(1) time and space.
  * @example isRecord({ value: [] }); // true
@@ -45,21 +45,112 @@ export function deleteMapRecord<Key, Row extends object>({ records, key, fields 
   if (record && matchesRecordFields({ record, fields })) records.delete(key);
 }
 
+/** Invalid canonical JSON input. Messages never include argument contents. */
+export class CanonicalJsonError extends TypeError {
+  constructor(required: { readonly message: string }) {
+    super(required.message);
+    this.name = 'CanonicalJsonError';
+  }
+}
+
+/** Compare Unicode code points, including astral characters; UTF-16 sort differs above U+FFFF.
+ * @complexity O(l) time and space for the combined key length l.
+ */
+function compareJsonKeys(left: string, right: string): number {
+  const a = Array.from(left);
+  const b = Array.from(right);
+  for (let index = 0; index < Math.min(a.length, b.length); index++) {
+    const difference = a[index]!.codePointAt(0)! - b[index]!.codePointAt(0)!;
+    if (difference !== 0) return difference;
+  }
+  return a.length - b.length;
+}
+
+/** Serialize JSON scalars without JSON.stringify's lossy non-JSON fallbacks.
+ * @throws CanonicalJsonError for unsupported types or non-finite numbers.
+ * @complexity O(s) time and space for s serialized characters.
+ */
+function canonicalScalar(value: unknown): string {
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return JSON.stringify(value);
+    case 'number':
+      if (Number.isFinite(value)) return JSON.stringify(value);
+      throw new CanonicalJsonError({ message: 'Canonical JSON requires finite numbers.' });
+    default:
+      throw new CanonicalJsonError({ message: 'Canonical JSON requires JSON values.' });
+  }
+}
+
+/** Serialize own enumerable JSON fields; class instances must not silently collapse to {}.
+ * @throws CanonicalJsonError for non-JSON objects or enumerable symbol keys.
+ * @complexity O(k log k * l + s) time and O(s + k * l) space, plus recursive children.
+ */
+function canonicalObject(value: object, ancestors: Set<object>): string {
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new CanonicalJsonError({ message: 'Canonical JSON requires plain objects or arrays.' });
+  }
+  if (Object.getOwnPropertySymbols(value).some(key => Object.prototype.propertyIsEnumerable.call(value, key))) {
+    throw new CanonicalJsonError({ message: 'Canonical JSON requires string object keys.' });
+  }
+  const record = value as Record<string, unknown>;
+  // Object keys are unique, so comparing their code points gives a total order here.
+  const members = Object.keys(record).sort(compareJsonKeys).flatMap(key => {
+    const child = record[key];
+    if (child === undefined) return [];
+    return [`${JSON.stringify(key)}:${canonicalValue(child, ancestors)}`];
+  });
+  return `{${members.join(',')}}`;
+}
+
+/** Track only active ancestors: repeated references are JSON, back-edges are cycles.
+ * @throws CanonicalJsonError for cycles or non-JSON children.
+ * @complexity O(s + sum(k log k * l)) time; O(s * d) worst-case space for depth d.
+ */
+function canonicalValue(value: unknown, ancestors: Set<object>): string {
+  if (value === null) return 'null';
+  if (typeof value !== 'object') return canonicalScalar(value);
+  if (ancestors.has(value)) throw new CanonicalJsonError({ message: 'Canonical JSON does not support cycles.' });
+  ancestors.add(value);
+  try {
+    if (!Array.isArray(value)) return canonicalObject(value, ancestors);
+    // Read every index: holes must fail, and a custom iterator must not change the argument order.
+    const children: string[] = [];
+    for (let index = 0; index < value.length; index++) children.push(canonicalValue(value[index], ancestors));
+    return `[${children.join(',')}]`;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
 /**
- * Canonical JSON: object keys sorted, `undefined` members dropped, array order kept, so equal
- * JSON-like values serialize identically regardless of key order (fingerprints, request digests).
- * Objects serialize by own enumerable keys only, so a Date or Map becomes `{}`: pass JSON-like values.
- * @complexity O(n log n) time over n object keys, O(n) space.
+ * Canonical JSON: recursively sort object keys by Unicode code point, omit undefined object
+ * properties, and preserve array order. Uses JSON scalar escaping without invoking toJSON hooks.
+ * @param required.value JSON input; shared references are allowed. Does not mutate input.
+ * @throws CanonicalJsonError for non-JSON values (including array holes) and cycles.
+ * @complexity O(s + sum(k log k * l)) time for s output bytes, k keys per object and key length l;
+ * O(s * d) worst-case space for nesting depth d, including intermediate strings and recursion.
  * @example canonicalJson({ value: { b: 1, a: 2 } }); // '{"a":2,"b":1}'
  */
-export function canonicalJson(required: { readonly value: unknown }, _optional = {}): string {
-  const { value } = required;
-  if (Array.isArray(value)) return `[${value.map(item => canonicalJson({ value: item })).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    const members = Object.keys(record).filter(key => record[key] !== undefined).sort()
-      .map(key => `${JSON.stringify(key)}:${canonicalJson({ value: record[key] })}`);
-    return `{${members.join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
+export function canonicalJson(required: { readonly value: unknown }, _optional: Record<string, never> = {}): string {
+  return canonicalValue(required.value, new Set());
+}
+
+/**
+ * SHA-256 lowercase hex over canonical UTF-8 tool arguments, shared by plugins and host gates.
+ * @param required.args JSON arguments; validation completes before hashing starts.
+ * @param optional.crypto Host WebCrypto port; defaults to the runtime's global WebCrypto.
+ * @returns An asynchronous digest, usable in browsers and Node without Node imports.
+ * @throws CanonicalJsonError for invalid arguments; WebCrypto failures propagate.
+ * @complexity Canonical serialization cost plus O(s) hashing time and space for s UTF-8 bytes.
+ */
+export async function canonicalArgumentDigest(
+  required: { readonly args: unknown },
+  { crypto = globalThis.crypto }: { readonly crypto?: { readonly subtle: Pick<typeof globalThis.crypto.subtle, 'digest'> } } = {},
+): Promise<string> {
+  const json = canonicalJson({ value: required.args });
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(json));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }

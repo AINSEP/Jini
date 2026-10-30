@@ -110,14 +110,14 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   // Map upserts preserve order in O(local + saved) time/space; cleanup fences late reads on switch/unmount/local runs.
   useEffect(() => {
     const source = options.refreshSignal;
-    if (!source || run.isStreaming) return;
+    if (!source || run.isStreaming) return undefined;
     let disposed = false, pending = false, timer: ReturnType<typeof setTimeout>;
     const refresh = async () => {
       if (pending) return;
       pending = true;
       try {
         const saved = await source.loadMessages();
-        if (!disposed) setMessagesState(prev => [...new Map([...prev, ...saved].map(message => [message.id, message])).values()]);
+        if (!disposed) setMessagesState(prev => mergeSavedMessages({ previous: prev, saved }));
       } catch (error) { if (!disposed) console.error('[chat] conversation refresh failed', error); }
       finally { pending = false; }
     };
@@ -189,18 +189,19 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         if (m.id !== assistantId) return m;
         // A plain if/else chain (not a nested ternary) — deliberately, so
         // each of the four mapped statuses is its own independently
-        // trackable branch under coverage instrumentation. The initial
+        // trackable branch under coverage instrumentation. The fallback
         // value is asserted non-null: this reconciliation effect only ever
         // runs after `sendMessage`/`retry` has called `run.start()`/
         // `reattach` (both set the message's `runStatus: 'queued'` via
         // `activeAssistantIdRef` first), so `m.runStatus` is always defined
         // and `run.status` is never `'idle'` by the time this callback
         // fires — one of the four branches below always reassigns it.
-        let runStatus: ChatRunStatus = m.runStatus!;
+        let runStatus: ChatRunStatus;
         if (run.status === 'streaming') runStatus = 'running';
         else if (run.status === 'done') runStatus = 'succeeded';
         else if (run.status === 'error') runStatus = 'failed';
         else if (run.status === 'canceled') runStatus = 'canceled';
+        else runStatus = m.runStatus!;
         const nextRunId = run.runId ?? m.runId;
         const events = projectAcceptedInputEvents({ events: mergeRunEvents({ saved: m.events, incoming: run.events }, {}) });
         return {
@@ -328,4 +329,8 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     }),
     [messages, conversationId, run.isStreaming, run.error, sendRefused, scrollIntent, sendMessage, cancel, retry, setMessages, acknowledgeScroll, suppressScroll],
   );
+}
+
+function mergeSavedMessages({ previous, saved }: { previous: ChatMessage[]; saved: ChatMessage[] }): ChatMessage[] {
+  return [...new Map([...previous, ...saved].map(message => [message.id, message])).values()];
 }

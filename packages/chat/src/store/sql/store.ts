@@ -1,3 +1,8 @@
+import type { OnConflictBuilder } from 'kysely';
+const MESSAGE_POSITION = 'm.position';
+
+const CONVERSATION_UPDATED_AT = 'c.updated_at';
+
 /** One SQL query body upstreamed from the existing host adapter; no resource/schema ownership. */
 // Legacy project/conversation CRUD trusts access to a local database file; this owner-bound store
 // serves shared databases instead. Choose by trust model: borrowing a handle must not grant access
@@ -143,7 +148,8 @@ interface HistoryRow {
 
 /** Reject an unbounded or malformed history read before any query runs. */
 function assertHistoryReadBounds({ limit, fromPosition }: { limit: number; fromPosition: number | undefined }): void {
-  if (!Number.isInteger(limit) || limit < 1 || limit > 100 || (fromPosition !== undefined && (!Number.isSafeInteger(fromPosition) || fromPosition < 0))) {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ChatStoreError({ code: 'invalid-input' });
+  if (fromPosition !== undefined && (!Number.isSafeInteger(fromPosition) || fromPosition < 0)) {
     throw new ChatStoreError({ code: 'invalid-input' });
   }
 }
@@ -195,7 +201,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
         "c.title",
         "c.title_source",
         "c.created_at",
-        "c.updated_at",
+        CONVERSATION_UPDATED_AT,
         "c.expires_at",
         eb
           .selectFrom("ai_chat_messages as m")
@@ -241,7 +247,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
 
   /** Read owned messages in persisted position order; foreign IDs produce no rows. */
   async function messages({ conversationId }: ChatMessagePageInput, _optional: Record<string, never> = {}): Promise<ChatMessage[]> {
-    const rows = await run(db => ownedMessages(db, conversationId).orderBy('m.position').execute());
+    const rows = await run(db => ownedMessages(db, conversationId).orderBy(MESSAGE_POSITION).execute());
     return rows.map(toMessage);
   }
 
@@ -292,20 +298,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
             started_at: m.startedAt ?? null,
             ended_at: m.endedAt ?? null,
           })
-          .onConflict((oc) =>
-            oc
-              .column("id")
-              .doUpdateSet((eb) => ({
-                content: eb.ref("excluded.content"),
-                events_json: eb.ref("excluded.events_json"),
-                attachments_json: eb.ref("excluded.attachments_json"),
-                run_id: eb.ref("excluded.run_id"),
-                run_status: eb.ref("excluded.run_status"),
-                started_at: eb.ref("excluded.started_at"),
-                ended_at: eb.ref("excluded.ended_at"),
-              }))
-              .where((eb) => eb("ai_chat_messages.conversation_id", "=", eb.ref("excluded.conversation_id")))
-          )
+          .onConflict(updateOwnedMessageConflict)
           .execute()
       );
 
@@ -334,7 +327,8 @@ export function createSqlChatStore<DB extends ChatDatabase>(
        * @complexity The database scans owned content for search; only limit rows cross the port.
        */
       async list(_required, { query, limit = 20 } = {}) {
-        if (!Number.isInteger(limit) || limit < 1 || limit > 50 || (query !== undefined && (typeof query !== 'string' || query.length > 200))) {
+        if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ChatStoreError({ code: 'invalid-input' });
+        if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
           throw new ChatStoreError({ code: 'invalid-input' });
         }
         const rows = await run(db => {
@@ -351,7 +345,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
                 .where(sql<boolean>`lower(found.content) like ${pattern} escape '!'`)),
             ]));
           }
-          return statement.orderBy('c.updated_at', 'desc').orderBy(ordinalId(kernel.dialect, 'c.id')).limit(limit).execute();
+          return statement.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(ordinalId(kernel.dialect, 'c.id')).limit(limit).execute();
         });
         return rows.map(row => ({ ...toConversation(row as ConversationRow), firstUserLine: row.first_user_line ?? '' }));
       },
@@ -360,11 +354,11 @@ export function createSqlChatStore<DB extends ChatDatabase>(
         assertHistoryReadBounds({ limit, fromPosition });
         const rows = await run(db => {
           let statement = ownedMessages(db, chatId).clearSelect().select([
-            'm.id', 'm.role', 'm.content', 'm.position', 'm.created_at',
+            'm.id', 'm.role', 'm.content', MESSAGE_POSITION, 'm.created_at',
           ]);
-          if (fromPosition !== undefined) statement = statement.where('m.position', '>=', fromPosition);
+          if (fromPosition !== undefined) statement = statement.where(MESSAGE_POSITION, '>=', fromPosition);
           return statement.select(includeToolEvents ? sql<string | null>`m.events_json`.as('events_json') : sql<null>`null`.as('events_json'))
-            .orderBy('m.position', fromPosition === undefined ? 'desc' : 'asc').limit(limit + 1).execute();
+            .orderBy(MESSAGE_POSITION, fromPosition === undefined ? 'desc' : 'asc').limit(limit + 1).execute();
         });
         const page = rows.slice(0, limit);
         if (fromPosition === undefined) page.reverse();
@@ -372,7 +366,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
       },
     },
     async list() {
-      const rows = await run((db) => ownedConversations(db).orderBy("c.updated_at", "desc").execute());
+      const rows = await run((db) => ownedConversations(db).orderBy(CONVERSATION_UPDATED_AT, "desc").execute());
       return rows.map((row) => toConversation(row as ConversationRow));
     },
 
@@ -470,10 +464,10 @@ export function createSqlChatStore<DB extends ChatDatabase>(
       const rows = await run(db => {
         let query = ownedConversations(db);
         if (anchor) query = query.where(eb => eb.or([
-          eb('c.updated_at', '<', anchor[0]),
-          eb.and([eb('c.updated_at', '=', anchor[0]), eb(id, '>', anchor[1])]),
+          eb(CONVERSATION_UPDATED_AT, '<', anchor[0]),
+          eb.and([eb(CONVERSATION_UPDATED_AT, '=', anchor[0]), eb(id, '>', anchor[1])]),
         ]));
-        return query.orderBy('c.updated_at', 'desc').orderBy(id, 'asc').limit(limit + 1).execute();
+        return query.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(id, 'asc').limit(limit + 1).execute();
       });
       const items = rows.slice(0, limit).map(row => toConversation(row as ConversationRow));
       const last = items.at(-1);
@@ -488,12 +482,12 @@ export function createSqlChatStore<DB extends ChatDatabase>(
       const id = ordinalId(kernel.dialect, 'm.id');
       // One join, at most limit+1 rows, including the ownership check; no parent pre-read.
       const rows = await run(db => {
-        let query = ownedMessages(db, input.conversationId).select('m.position');
+        let query = ownedMessages(db, input.conversationId).select(MESSAGE_POSITION);
         if (anchor) query = query.where(eb => eb.or([
-          eb('m.position', '>', anchor[0]),
-          eb.and([eb('m.position', '=', anchor[0]), eb(id, '>', anchor[1])]),
+          eb(MESSAGE_POSITION, '>', anchor[0]),
+          eb.and([eb(MESSAGE_POSITION, '=', anchor[0]), eb(id, '>', anchor[1])]),
         ]));
-        return query.orderBy('m.position', 'asc').orderBy(id, 'asc').limit(limit + 1).execute();
+        return query.orderBy(MESSAGE_POSITION, 'asc').orderBy(id, 'asc').limit(limit + 1).execute();
       });
       const page = rows.slice(0, limit), last = page.at(-1);
       return { items: page.map(toMessage), ...(rows.length > limit && last ? {
@@ -517,4 +511,18 @@ export function createSqlChatStore<DB extends ChatDatabase>(
     pageConversations: (required, optional = {}) => atStoreBoundary({ operation: () => store.pageConversations(required, optional) }),
     pageMessages: (required, optional = {}) => atStoreBoundary({ operation: () => store.pageMessages(required, optional) }),
   };
+}
+
+function updateOwnedMessageConflict(oc: OnConflictBuilder<ChatDatabase, "ai_chat_messages">) {
+  return oc.column("id")
+    .doUpdateSet((eb) => ({
+      content: eb.ref("excluded.content"),
+      events_json: eb.ref("excluded.events_json"),
+      attachments_json: eb.ref("excluded.attachments_json"),
+      run_id: eb.ref("excluded.run_id"),
+      run_status: eb.ref("excluded.run_status"),
+      started_at: eb.ref("excluded.started_at"),
+      ended_at: eb.ref("excluded.ended_at"),
+    }))
+    .where((eb) => eb("ai_chat_messages.conversation_id", "=", eb.ref("excluded.conversation_id")));
 }

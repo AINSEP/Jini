@@ -276,7 +276,7 @@ export function createDaemonAttachmentUploader({ baseUrl, fetch }: { baseUrl: st
       () => controller.abort(new DOMException('Attachment upload timed out', 'TimeoutError')),
       timeoutMs,
     );
-    const uploaded: Array<ChatAttachment | undefined> = new Array(files.length);
+    const uploaded: Array<ChatAttachment | undefined> = Array.from({ length: files.length }, () => undefined);
     const settled = (): ChatAttachment[] =>
       uploaded.filter((attachment): attachment is ChatAttachment => attachment !== undefined);
 

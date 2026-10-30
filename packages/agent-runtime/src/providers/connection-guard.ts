@@ -46,6 +46,7 @@ import { readProviderResponseText, MAX_PROVIDER_ERROR_BYTES } from './response-t
  */
 
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export interface BaseUrlValidationResult {
   parsed?: URL;
@@ -87,7 +88,7 @@ export function validateBaseUrl({ baseUrl }: { baseUrl: string }): BaseUrlValida
   try {
     // Trim BEFORE stripping trailing slashes: in `"https://x/ "` the trailing
     // character is the space, so the slash strip alone would never reach it.
-    parsed = new URL(String(baseUrl).trim().replace(/\/+$/, ''));
+    parsed = new URL(trimCharsEnd({ text: String(baseUrl).trim(), chars: '/' }));
   } catch {
     return { error: 'Invalid baseUrl' };
   }

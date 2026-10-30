@@ -152,7 +152,10 @@ async function replayInKernel({ db, runId, afterCursor }: {
   const oldest = first.oldest_cursor === null ? undefined : { cursor: first.oldest_cursor };
   const result = replayResult({ run: { run_id: runId, next_cursor: first.next_cursor }, oldest, afterCursor });
   if (result.kind !== 'ok') return result;
-  const entries = rows.flatMap(({ cursor, event, data, recorded_at }) =>
-    cursor === null || event === null || data === null || recorded_at === null ? [] : [rowToEntry({ cursor, event, data, recorded_at })]);
+  // A row missing any event column carries no entry.
+  const entries = rows.flatMap(({ cursor, event, data, recorded_at }) => {
+    const missing = cursor === null || event === null;
+    return missing || data === null || recorded_at === null ? [] : [rowToEntry({ cursor, event, data, recorded_at })];
+  });
   return { ...result, entries };
 }

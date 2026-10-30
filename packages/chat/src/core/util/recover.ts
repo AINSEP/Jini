@@ -6,6 +6,7 @@
  * a standalone document reply, or as a single fenced ```html block.
  */
 import { validateHtmlArtifact } from './validate.js';
+import { fencedCodeRanges } from './markdown-context.js';
 
 type RecoverHtmlArtifactInput = {
   artifactHtml: string;
@@ -16,7 +17,7 @@ type RecoverHtmlArtifactInput = {
 const HTML_OPEN_RE = /<html\b/gi;
 const HTML_CLOSE_RE = /<\/html\s*>/gi;
 const ADJACENT_DOCTYPE_RE = /<!doctype\s+html\b[^>]*>\s*$/i;
-const HTML_FENCE_RE = /```(?:html|HTML)\s*\n([\s\S]*?)\n```/g;
+const HTML_FENCE_RE = /```(?:html|HTML)/g;
 
 function findLastArtifactOpen(sourceText: string, identifier?: string): number {
   if (!identifier) return sourceText.lastIndexOf('<artifact');
@@ -112,14 +113,11 @@ export function recoverStandaloneHtmlDocument({ sourceText }: { sourceText: stri
  */
 export function recoverHtmlDocumentFromMarkdownFence({ sourceText }: { sourceText: string | null | undefined }): string | null {
   const text = String(sourceText || '');
-  HTML_FENCE_RE.lastIndex = 0;
   let recovered: string | null = null;
   let count = 0;
-  let match: RegExpExecArray | null;
-  while ((match = HTML_FENCE_RE.exec(text)) !== null) {
-    const candidate = (match[1] || '').replace(/^﻿/, '').trim();
-    if (!/<\/html\s*>$/i.test(candidate)) continue;
-    if (!validateHtmlArtifact({ content: candidate }).ok) continue;
+  for (const range of fencedCodeRanges({ content: text, opener: HTML_FENCE_RE })) {
+    const candidate = range.body.replace(/^﻿/, '').trim();
+    if (!/<\/html\s*>$/i.test(candidate) || !validateHtmlArtifact({ content: candidate }).ok) continue;
     recovered = candidate;
     count += 1;
   }

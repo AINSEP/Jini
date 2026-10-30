@@ -107,6 +107,8 @@ export function buildGenericErrorMessage({ code, message, target }: { code: stri
 }
 
 const MESSAGE_KEYS = ['action', 'functionResponse', 'error'] as const;
+/** The schema each message key's envelope is validated against. */
+const MESSAGE_SCHEMAS = { action: ActionMessageSchema, functionResponse: FunctionResponseMessageSchema, error: ErrorMessageSchema } as const;
 
 export interface RendererParseFailure {
   readonly ok: false;
@@ -131,7 +133,7 @@ export function parseRendererToAgentMessage({ raw }: { raw: unknown }, _optional
     return { ok: false, reason: `expected exactly one of ${MESSAGE_KEYS.join(', ')}, found ${presentKeys.length}` };
   }
   const key = presentKeys[0]!;
-  const schema = key === 'action' ? ActionMessageSchema : key === 'functionResponse' ? FunctionResponseMessageSchema : ErrorMessageSchema;
+  const schema = MESSAGE_SCHEMAS[key];
   const result = schema.safeParse(obj);
   if (!result.success) {
     // Same zod guarantee as `parseAgentToRendererMessage` relies on: `success: false` implies a

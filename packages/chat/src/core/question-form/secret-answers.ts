@@ -34,7 +34,8 @@ export function redactQuestionAnswers(
 export function withoutSecretQuestionDefaults({ form }: { readonly form: QuestionForm }): QuestionForm {
   return { ...form, questions: form.questions.map(question => {
     if (!isSecretQuestion({ question })) return question;
-    const { defaultValue: _defaultValue, ...safe } = question;
+    const safe = { ...question };
+    delete safe.defaultValue;
     return safe;
   }) };
 }

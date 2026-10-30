@@ -19,6 +19,7 @@
       "./providers/sse-decode": "universal",
       "./model-discovery": "node",
       "./model-selection": "universal",
+      "./native-tool-policy": "universal",
       "./ai-trace": "universal"
     },
     "isolation": {
@@ -40,6 +41,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./native-tool-policy": {
+      "types": "./dist/native-tool-policy.d.ts",
+      "import": "./dist/native-tool-policy.js",
+      "default": "./dist/native-tool-policy.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

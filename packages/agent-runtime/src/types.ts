@@ -11,39 +11,14 @@
  * Ported from OD's `apps/daemon/src/runtimes/types.ts`. Product-neutral
  * as found — see `archived provenance ledger` for the full provenance table.
  */
-import type { AgentModelDiscoveryPort, ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from './model-discovery-types.js';
+import type { AgentModelDiscoveryPort, ModelCatalogSnapshot, DefaultModelResolution } from './model-discovery-types.js';
 import type { ExecFileOptions } from 'node:child_process';
 import type { AgentDiagnostic } from '@jini-ai/protocol';
+import type { RuntimeEnv, RuntimeModelOption, RuntimeReasoningOption } from './model-contracts.js';
 
-export type RuntimeEnv = NodeJS.ProcessEnv | Record<string, string>;
-
-export type RuntimeModelOption = {
-  id: string;
-  label: string;
-  identityKind?: ModelIdentityKind;
-  resolvedId?: string;
-  /**
-   * The reasoning-effort levels THIS model supports, when the runtime's own catalog reports them
-   * per model rather than per agent.
-   *
-   * Present only where a live source actually carries the data — Codex's `debug models` catalog
-   * does (`supported_reasoning_levels`), and the levels genuinely differ between models on the same
-   * CLI: verified live against codex-cli 0.153.4, where `gpt-6-astra` offers
-   * low/medium/high/xhigh/max/ultra while `gpt-5.5` stops at `xhigh`. A single agent-level
-   * `RuntimeAgentDef.reasoningOptions` list cannot be correct for both, which is why this is a
-   * property of the model row rather than of the def.
-   *
-   * Consumed by `RuntimeAgentDef.deriveReasoningOptions` to compute the agent-level list a picker
-   * renders. Left `undefined` by every runtime whose effort vocabulary really is uniform, and by
-   * every static fallback list — an absent value means "nothing catalog-specific to say", never
-   * "this model supports no effort levels".
-   */
-  reasoning?: readonly RuntimeReasoningOption[];
-};
+export type { RuntimeEnv, RuntimeModelOption, RuntimeReasoningOption } from './model-contracts.js';
 
 export type RuntimeModelSource = 'live' | 'fallback';
-
-export type RuntimeReasoningOption = RuntimeModelOption;
 
 /**
  * Declares that a runtime carries its reasoning-effort choice INSIDE the model
@@ -240,7 +215,7 @@ export type RuntimePromptBudgetError = {
 };
 
 /**
- * How the caller should treat a `streamFormat: 'plain'` adapter's raw stdout.
+ * How the caller should treat an adapter's raw stdout before text forwarding or structured parsing.
  *
  * Declared as a discriminated union rather than two independent flags
  * (`stdoutBuffering` + `sanitizeStdout`) on purpose: a sanitizer is only
@@ -703,10 +678,9 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   // {@link RuntimeStdoutPolicy}. `undefined` means live per-chunk forwarding,
   // which is what every adapter did before this field existed.
   //
-  // Only consulted for adapters the caller drives off raw stdout with no
-  // structured parser (`streamFormat: 'plain'`): the JSON-stream/ACP/pi-rpc
-  // families derive client events from parsed protocol messages, where
-  // "buffer the bytes" is not a meaningful knob.
+  // Previously consulted only for plain output: parsed protocols were assumed to need no
+  // byte buffering. Antigravity's structured errors can also contain sign-in URLs, so child
+  // stdout now honors this before parsing. ACP/pi-rpc still own their transport framing.
   stdoutPolicy?: RuntimeStdoutPolicy;
   // A mutex the caller must hold across this adapter's `buildArgs` →
   // spawn → CLI-reads-the-side-effect window — see {@link RuntimeLock} for

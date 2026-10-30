@@ -109,7 +109,7 @@ function scanBareTomlKeyChar(scan: TomlKeyScan, ch: string): void {
 }
 
 // An inline or dotted root `mcp_servers` declaration, which the table scanner below cannot rewrite.
-const INLINE_MCP_SERVERS = /^\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*(?:\.|=)/;
+const INLINE_MCP_SERVERS = /^\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*[.=]/;
 // `[<key>]` optionally followed only by a `# comment`; `[[...]]` never matches (see below).
 const TOML_TABLE_HEADER = /^\s*\[([^[\]]+)\]\s*(#.*)?$/;
 
@@ -211,6 +211,7 @@ export function buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp = 
   readonly inheritUserMcp?: boolean; readonly inheritUserSettings?: boolean;
 }, _optional: Record<string, never> = {}): string {
   const base = stripExistingJiniMcpServerTable(existingRaw ?? '', { allServers: !inheritUserMcp, mcpOnly: !inheritUserSettings });
-  const separator = base.length === 0 ? '' : base.endsWith('\n') ? '\n' : '\n\n';
+  const blockBreak = base.endsWith('\n') ? '\n' : '\n\n';
+  const separator = base.length === 0 ? '' : blockBreak;
   return `${base}${separator}${buildCodexMcpServerToml({ entry: entry })}`;
 }

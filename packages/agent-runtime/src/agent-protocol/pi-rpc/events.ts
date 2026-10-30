@@ -7,6 +7,26 @@
 import type { JsonRecord, SendAgentEvent, TokenUsage } from './internal.js';
 import { getRecord } from './internal.js';
 
+/** `value` when it is a non-empty string, else `undefined`. */
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** Text blocks verbatim, any other block as its JSON, one per line. */
+function toolResultText(content: readonly unknown[]): string {
+  return content
+    .map((c: unknown) => {
+      const item = getRecord(c);
+      return item?.type === 'text' ? String(item.text ?? '') : JSON.stringify(c);
+    })
+    .join('\n');
+}
+
+/** A plain-string result as is; anything else carries no text. */
+function nonArrayToolResultText(content: unknown): string {
+  return typeof content === 'string' ? content : '';
+}
+
 /** Timing and first-token-tracking context threaded through every mapPiRpcEvent call. */
 export type PiRpcContext = {
   runStartedAt: number;
@@ -101,12 +121,7 @@ export function handleAssistantThinkingEnd(_ev: JsonRecord, send: SendAgentEvent
 // Surface it so sendAgentEvent's error-handling path sets
 // agentStreamError and the run flips to `failed` on close.
 export function handleAssistantError(ev: JsonRecord, send: SendAgentEvent, _ctx: PiRpcContext, raw: JsonRecord): void {
-  const message =
-    typeof ev.reason === 'string' && ev.reason.length > 0
-      ? ev.reason
-      : typeof ev.delta === 'string' && ev.delta.length > 0
-        ? ev.delta
-        : 'Agent error';
+  const message = nonEmptyString(ev.reason) ?? nonEmptyString(ev.delta) ?? 'Agent error';
   send({ event: 'agent', payload: { type: 'error', message, raw } });
 }
 
@@ -122,11 +137,9 @@ const ASSISTANT_MESSAGE_EVENT_HANDLERS: Record<string, PiAssistantEventHandler> 
 };
 
 export function handleMessageUpdate(raw: JsonRecord, send: SendAgentEvent, ctx: PiRpcContext): null {
-  const assistantMessageEvent = getRecord(raw.assistantMessageEvent);
-  if (!assistantMessageEvent) return null;
-  const ev = assistantMessageEvent;
-  const handler = typeof ev.type === 'string' ? ASSISTANT_MESSAGE_EVENT_HANDLERS[ev.type] : undefined;
-  handler?.(ev, send, ctx, raw);
+  const ev = getRecord(raw.assistantMessageEvent);
+  const handler = typeof ev?.type === 'string' ? ASSISTANT_MESSAGE_EVENT_HANDLERS[ev.type] : undefined;
+  if (ev && handler) handler(ev, send, ctx, raw);
   return null;
 }
 
@@ -150,17 +163,7 @@ export function handleToolExecutionStart(raw: JsonRecord, send: SendAgentEvent):
 export function handleToolExecutionEnd(raw: JsonRecord, send: SendAgentEvent): null {
   const result = getRecord(raw.result);
   const content = result?.content;
-  const text =
-    Array.isArray(content)
-      ? content
-          .map((c: unknown) => {
-            const item = getRecord(c);
-            return item?.type === 'text' ? String(item.text ?? '') : JSON.stringify(c);
-          })
-          .join('\n')
-      : typeof content === 'string'
-        ? content
-        : '';
+  const text = Array.isArray(content) ? toolResultText(content) : nonArrayToolResultText(content);
   send({ event: 'agent', payload: {
     type: 'tool_result',
     toolUseId: raw.toolCallId ?? null,
@@ -197,12 +200,10 @@ export function handleAutoRetryEnd(raw: JsonRecord, send: SendAgentEvent): null 
   // Auto-retry exhausted — the agent is about to give up. Surface
   // the final error so the daemon marks the run as failed rather
   // than silently succeeding with empty output.
-  if (raw.success !== false) return null;
-  const message =
-    typeof raw.finalError === 'string' && raw.finalError.length > 0
-      ? raw.finalError
-      : 'Auto-retry exhausted';
-  send({ event: 'agent', payload: { type: 'error', message, raw } });
+  if (raw.success === false) {
+    const message = nonEmptyString(raw.finalError) ?? 'Auto-retry exhausted';
+    send({ event: 'agent', payload: { type: 'error', message, raw } });
+  }
   return null;
 }
 

@@ -1,11 +1,8 @@
 /** One credential policy for chat text; secure card values must bypass this text-only boundary. */
 import { redactSecretShapes, type RedactionRule } from '@jini-ai/diagnostics/redaction/secrets-only';
-import type { ChatMessage } from './messages.js';
+import type { ChatMessage, SecretRedactionSignal } from './messages.js';
+export type { SecretRedactionSignal } from './messages.js';
 
-export interface SecretRedactionSignal {
-  readonly secretRedacted: true;
-  readonly count: number;
-}
 export interface UserTextRedaction {
   readonly text: string;
   readonly secretRedacted: boolean;
@@ -28,9 +25,9 @@ const CHAT_RULES: readonly RedactionRule[] = [
   // Kept on top of the shared Slack rule: that rule refuses a token preceded by `-` (e.g. a URL path
   // segment `/-xoxb-…`) and the entropy fallback below exempts URLs, so without this rule such a token
   // would reach storage and model history. Only drop it once the shared rule covers that case.
-  { kind: 'chat_key', pattern: /(?<![A-Za-z0-9_])xox[baprs]-[A-Za-z0-9-]{16,}/g, replacement: () => INTERNAL_REMOVED },
+  { kind: 'chat_key', pattern: /(?<!\w)xox[baprs]-[A-Za-z0-9-]{16,}/g, replacement: () => INTERNAL_REMOVED },
   // Explicit authorization syntax catches even short values. Exempt scheme descriptions in prose.
-  { kind: 'chat_bearer', pattern: /\bBearer[ \t]+(?!\[REDACTED)(?!(?:token|tokens|authentication|authorization|auth|scheme|credentials?)\b)[A-Za-z0-9._~+\/=-]+/gi, replacement: () => 'Bearer ' + INTERNAL_REMOVED },
+  { kind: 'chat_bearer', pattern: /\bBearer[ \t]+(?!\[REDACTED)(?!(?:token|tokens|authentication|authorization|auth|scheme|credentials?)\b)[\w.~+\/=-]+/gi, replacement: () => 'Bearer ' + INTERNAL_REMOVED },
 ];
 
 function entropy(text: string): number {
@@ -65,7 +62,7 @@ export function redactUserText({ text }: { readonly text: string }, { secretFiel
     if (/^[a-f0-9]+$/i.test(candidate) || !/[A-Za-z]/.test(candidate)) return candidate;
     const bits = entropy(candidate);
     const mixedAlphabet = /[A-Z]/.test(candidate) && /[a-z]/.test(candidate);
-    if (bits < 4 || (!/[0-9]/.test(candidate) && (!mixedAlphabet || bits < 4.5))) return candidate;
+    if (bits < 4 || (!/\d/.test(candidate) && (!mixedAlphabet || bits < 4.5))) return candidate;
     count += 1;
     return INTERNAL_REMOVED;
   });

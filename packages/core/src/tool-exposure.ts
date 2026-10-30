@@ -1,7 +1,7 @@
 /** Descriptor-only projections. Execution and current authorization remain with ToolExecutor. */
 import type { ToolDescriptor, ToolRegistry } from './tool-registry.js';
 
-const SAFE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const SAFE_NAME = /^[A-Za-z_]\w{0,63}$/;
 const MAX_NAME_LENGTH = 64;
 
 export interface ToolNameMap {
@@ -25,7 +25,7 @@ function nameHash(id: string): string {
 
 function nameBase(id: string): string {
   if (SAFE_NAME.test(id)) return id;
-  const readable = id.replace(/[^A-Za-z0-9_]/g, '_');
+  const readable = id.replace(/\W/g, '_');
   return `tool_${readable.slice(0, 49)}_${nameHash(id)}`;
 }
 
@@ -36,7 +36,8 @@ function assignName(index: NameIndex, id: string): void {
   let candidate = base;
   let counter = 1;
   while (index.occupied.has(candidate)) {
-    const suffix = `_${counter++}`;
+    const suffix = `_${counter}`;
+    counter += 1;
     candidate = `${base.slice(0, MAX_NAME_LENGTH - suffix.length)}${suffix}`;
   }
   index.forward.set(id, candidate);
@@ -138,6 +139,16 @@ function pinDescriptor(descriptor: ToolDescriptor): { descriptor: ToolDescriptor
 interface ExposureLimits { readonly maxTools: number; readonly maxSchemaBytes: number }
 
 /** Count and byte caps reject new entries without evicting any previously callable definition. */
+/** A tool that can join the snapshot (pinned), or why it is skipped. */
+function promotionCandidate(
+  descriptor: ToolDescriptor | undefined, snapshot: ToolExposureSnapshot, limits: ExposureLimits,
+): { reason: ToolExposureSkipped['reason'] } | { pinned: { descriptor: ToolDescriptor; bytes: number } } {
+  if (!descriptor) return { reason: 'not-found' };
+  const pinned = pinDescriptor(descriptor);
+  const reason = limitReason(snapshot, pinned.bytes, limits);
+  return reason ? { reason } : { pinned };
+}
+
 function limitReason(snapshot: ToolExposureSnapshot, bytes: number, limits: ExposureLimits): ToolExposureSkipped['reason'] | undefined {
   if (snapshot.tools.length >= limits.maxTools) return 'tool-limit';
   if (snapshot.schemaBytes + bytes > limits.maxSchemaBytes) return 'schema-byte-limit';
@@ -157,15 +168,15 @@ function promoteDescriptors(
   let schemaBytes = snapshot.schemaBytes;
   for (const toolId of new Set(toolIds)) {
     if (published.has(toolId)) continue;
-    const descriptor = available.get(toolId);
-    if (!descriptor) { skipped.push({ toolId, reason: 'not-found' }); continue; }
-    const pinned = pinDescriptor(descriptor);
-    const reason = limitReason({ tools, schemaBytes, revision: snapshot.revision }, pinned.bytes, limits);
-    if (reason) { skipped.push({ toolId, reason }); continue; }
-    assignName(names, toolId);
-    tools.push({ wireName: names.forward.get(toolId)!, descriptor: pinned.descriptor });
-    schemaBytes += pinned.bytes;
-    added.push(toolId);
+    const candidate = promotionCandidate(available.get(toolId), { tools, schemaBytes, revision: snapshot.revision }, limits);
+    if ('reason' in candidate) {
+      skipped.push({ toolId, reason: candidate.reason });
+    } else {
+      assignName(names, toolId);
+      tools.push({ wireName: names.forward.get(toolId)!, descriptor: candidate.pinned.descriptor });
+      schemaBytes += candidate.pinned.bytes;
+      added.push(toolId);
+    }
   }
   let next = snapshot;
   if (added.length > 0) next = { revision: snapshot.revision + 1, tools, schemaBytes };

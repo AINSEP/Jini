@@ -33,6 +33,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
+import { replaceCssUrls } from "./lib/css-url.mjs";
 
 export function usage(log) {
   log(`asset-harvest.mjs — 抓取页面真实用到的图片/字体/媒体(含第三方 CDN)并生成本地映射
@@ -172,7 +173,7 @@ function localFontRef(ref, cssUrl, urlToLocal) {
 // 把 webfont CSS / @font-face 源 CSS 里的 url(...) 改写为本地字体路径，
 // 汇总成一份可直接 <link> 的 fonts.css。
 export function rewriteFontCss(cssText, cssUrl, urlToLocal) {
-  return cssText.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (match, quote, ref) => {
+  return replaceCssUrls(cssText, (match, quote, ref) => {
     const local = localFontRef(ref, cssUrl, urlToLocal);
     return local ? `url(${quote}${local}${quote})` : match;
   });
@@ -303,7 +304,8 @@ function reportSummary({ io, args, outDir, results, okCount, hasFontsCss, manife
   io.log(`✅ 下载 ${okCount} 成功 / ${results.length - okCount} 失败 → ${outDir}`);
   if (hasFontsCss) io.log(`▸ 自托管字体样式: ${path.join(args.outDir, "fonts/fonts.css")} (页面 <link> 引入即可)`);
   const failedFonts = results.filter((r) => r.kind === "font" && r.status === "error");
-  if (failedFonts.length) io.log(`⚠️ ${failedFonts.length} 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   ${failedFonts.map((f) => `${f.error} ${f.url}`).slice(0, 10).join("\n   ")}`);
+  const failedList = failedFonts.map((f) => `${f.error} ${f.url}`).slice(0, 10).join("\n   ");
+  if (failedFonts.length) io.log(`⚠️ ${failedFonts.length} 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   ${failedList}`);
   io.log(manifestFile);
 }
 

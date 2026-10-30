@@ -58,7 +58,7 @@ function parseSearchInput(input: RouteInputContext): Result<{ query: string; lim
   }
   const rawLimit = input.query.limit;
   if (rawLimit === undefined) return ok({ value: { query: rawQuery, limit: DEFAULT_SEARCH_LIMIT } });
-  if (typeof rawLimit !== 'string' || !/^[0-9]+$/.test(rawLimit)) {
+  if (typeof rawLimit !== 'string' || !/^\d+$/.test(rawLimit)) {
     return err({ error: validationError({ message: 'limit must be a single positive-integer query-string value when provided' }) });
   }
   const parsed = Number(rawLimit);

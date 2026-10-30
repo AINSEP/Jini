@@ -50,6 +50,7 @@ import {
   ToolInputError,
   withNormalizationNotes,
   ToolInputNormalizationError,
+  isReadOnlyTool,
   type AuthorizationDecision,
   type Principal,
   type RunRef,
@@ -255,6 +256,8 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   // Finished executionIds, oldest first (Set insertion order): the only records `retireAudit` evicts.
   const finishedAudits = new Set<string>();
   const pendingConfirmations = new Map<string, (decision: ConfirmationDecision) => void>();
+  // Owned by the executor, not a bridge: concurrent HTTP/MCP calls create separate bridges.
+  const approvalWaits = new Map<string, Map<string, string>>();
   const activeControllers = new Map<string, AbortController>();
   /**
    * Marks a pending confirmation `cancel()` just resolved (as opposed to a genuine human `deny`),
@@ -265,6 +268,40 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
    * `requestConfirmation()` settles, so it can never leak onto a later execution.
    */
   const cancelledConfirmations = new Set<string>();
+
+  /** Records only actual human waits; terminal decisions and aborts release the run's write block.
+   * @complexity O(1) time/space per pending execution; empty run entries are removed. */
+  function approvalStateChange(
+    { run, executionId, toolId, pending }: { run: RunRef; executionId: string; toolId: string; pending: boolean },
+    _optional = {},
+  ): void {
+    if (pending) {
+      const waits = approvalWaits.get(run.id) ?? new Map<string, string>();
+      waits.set(executionId, toolId);
+      approvalWaits.set(run.id, waits);
+      return;
+    }
+    const waits = approvalWaits.get(run.id);
+    waits?.delete(executionId);
+    if (waits?.size === 0) approvalWaits.delete(run.id);
+  }
+
+  /** Refuses writes using the registered read-only contract, never a model's claim.
+   * The validation result reaches every delegated transport as an actionable error, without
+   * resolving or approving the original call. @complexity O(1) time/space. */
+  function approvalRefusal(
+    { executionId, run, descriptor }: { executionId: string; run: RunRef; descriptor: ToolDescriptor },
+    _optional = {},
+  ): ToolExecutionResult | undefined {
+    const pendingToolId = approvalWaits.get(run.id)?.values().next().value;
+    if (pendingToolId === undefined || isReadOnlyTool({ descriptor })) return undefined;
+    const error = JSON.stringify({
+      status: 'awaiting_approval', started: false, toolId: descriptor.id, pendingToolId,
+      message: 'Another action is waiting for human confirmation and has not started. This write was refused. Reads may continue. Never say an action has started until its tool result explicitly says it started.',
+    });
+    appendEvent(executionId, 'failed', error);
+    return { executionId, status: 'failed', errorKind: 'validation', error };
+  }
 
   function appendEvent(executionId: string, phase: ToolExecutionPhase, detail?: string): void {
     // Every call site passes an `executionId` this same `execute()` call
@@ -407,7 +444,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
    * (cancelled meanwhile, or denied), otherwise records `authorized` and returns `{ allowed }`.
    */
   function admitAuthorized(
-    { executionId, resolved, signal }: { executionId: string; resolved: ToolInvocationAuthorization; signal: AbortSignal | undefined },
+    { executionId, resolved, signal, run }: { executionId: string; resolved: ToolInvocationAuthorization; signal: AbortSignal | undefined; run: RunRef },
   ): { readonly refusal: ToolExecutionResult } | { readonly allowed: AllowedInvocation } {
     // `authorize()` isn't itself signal-aware — it's typically a fast policy check, not a
     // human-in-the-loop wait — so this is a post-await check rather than a mid-flight abort, the
@@ -417,6 +454,9 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     if (resolved.decision !== 'allow') return { refusal: terminal({ executionId, status: 'denied' }) };
     const { normalizationNotes } = resolved;
     appendEvent(executionId, 'authorized', normalizationNotes.length ? `normalized: ${normalizationNotes.join('; ')}` : undefined);
+    // Check after authorization awaits: an approval may have opened while this policy was pending.
+    const refusal = approvalRefusal({ executionId, run, descriptor: resolved.descriptor });
+    if (refusal) return { refusal };
     return { allowed: resolved };
   }
 
@@ -433,11 +473,15 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   async function confirmGate(request: ToolConfirmationRequest): Promise<ToolExecutionResult | undefined> {
     const { executionId } = request;
     let confirmation: ConfirmationDecision;
+    const state = { run: request.run, executionId, toolId: request.tool.id };
     try {
+      approvalStateChange({ ...state, pending: true });
       confirmation = await requestConfirmation(request);
     } catch {
       // Same reasoning as the authorization gate: terminal, recorded, and generic.
       return operationalFailure({ executionId, error: 'confirmation failed' });
+    } finally {
+      approvalStateChange({ ...state, pending: false });
     }
     if (confirmation === 'confirm') {
       appendEvent(executionId, 'confirmed');
@@ -546,6 +590,9 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     if (controller.signal.aborted) {
       return terminal({ executionId, status: 'cancelled' });
     }
+    // Guidance may await I/O after admission; another call can open a confirmation in that gap.
+    const refusal = approvalRefusal({ executionId, run, descriptor });
+    if (refusal) return refusal;
     const timeout = startTimeout(controller, descriptor.timeoutMs);
 
     // Cleanup (clear the timeout) is repeated at
@@ -572,6 +619,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
         signal: controller.signal,
       }, {
         ...surfaceOption(emitSurface),
+        onApprovalStateChange: ({ pending }) => approvalStateChange({ run, executionId, toolId: call.toolId, pending }),
         invokeTool: nestedInvoker({ principal, run, toolId: call.toolId, invocationRegistry: call.invocationRegistry, signal: controller.signal }, { emitSurface }),
       });
       cleanup();
@@ -638,7 +686,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // `invocationRegistry.has({ toolId })` above already confirmed the tool exists, and `ToolRegistry` is
     // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
     // resolving the same `toolId` against the same `registry` cannot come back `undefined` here.
-    const gate = admitAuthorized({ executionId, resolved: resolved!, signal: controller.signal });
+    const gate = admitAuthorized({ executionId, resolved: resolved!, signal: controller.signal, run });
     if ('refusal' in gate) {
       cleanupCancellation();
       return gate.refusal;

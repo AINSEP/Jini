@@ -89,7 +89,8 @@ export function applyTargetScope(
         if (!isPlainObject(ctx.input) || !Object.hasOwn(ctx.input, param)) return registration.handler(ctx, options);
         const target = ctx.input[param];
         if (typeof target !== 'string') throw new ToolInputError({ message: `${param} must be a string` });
-        const { [param]: _target, ...input } = ctx.input;
+        const input = { ...ctx.input };
+        delete input[param];
         if (!scoped) {
           if (!await required.isCurrentTarget({ target })) throw new ToolInputError({ message: refuseMessage });
           return registration.handler({ ...ctx, input }, options);
