@@ -15,6 +15,8 @@ import { AGENT_ELEMENT_ATTRIBUTE, AGENT_LABEL_ATTRIBUTE, AGENT_ROLE_ATTRIBUTE } 
 import { escapeHtml } from '../escape.js';
 import { SURFACE_BRIDGE_GLOBAL, renderBridgeScript, type BridgeScriptSpec } from './bridge.js';
 import { renderTokenBlock, type SurfaceTokenName } from './tokens.js';
+import { DETAIL_DISCLOSURE_SCRIPT, renderStructuredDetail, type SurfaceDetail } from './structured-details.js';
+export type { SurfaceDetail } from './structured-details.js';
 
 /**
  * The base stylesheet, applied after the token block.
@@ -204,6 +206,35 @@ body {
 .mcpui-status[data-state="partial"] { color: var(--jini-mcpui-accent); }
 .mcpui-code { font-family: var(--jini-mcpui-font-mono); font-size: 13px; color: var(--jini-mcpui-text-faint); }`;
 
+/** Structured details extend the same token system; legacy short-string documents keep their layout. */
+const STRUCTURED_DETAILS_CSS = `
+.mcpui-details { gap: 8px 16px; margin-top: 16px; }
+.mcpui-details dt { font-weight: 400; }
+.mcpui-details dd { min-width: 0; font-weight: 400; }
+.mcpui-detail-group { margin: 0; padding: 0; padding-inline-start: 8px; border-inline-start: 1px solid var(--jini-mcpui-border); }
+.mcpui-detail-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 8px; padding: 8px 0; }
+.mcpui-detail-row:first-child { padding-top: 0; }
+.mcpui-detail-row:last-child { padding-bottom: 0; }
+.mcpui-detail-row:has(> dd > .mcpui-detail-group) { grid-template-columns: minmax(0, 1fr); }
+.mcpui-detail-array { margin: 0; padding-inline-start: 16px; }
+.mcpui-detail-array li + li { margin-top: 8px; }
+.mcpui-detail-disclosure { min-width: 0; margin-top: 8px; }
+.mcpui-detail-disclosure:first-child { margin-top: 0; }
+.mcpui-detail-disclosure > summary { color: var(--jini-mcpui-text-muted); cursor: pointer; overflow-wrap: anywhere; }
+.mcpui-detail-disclosure > summary:focus-visible { outline: 2px solid var(--jini-mcpui-accent-ring); outline-offset: 2px; }
+.mcpui-detail-disclosure > .mcpui-code, .mcpui-detail-disclosure > .mcpui-detail-group,
+.mcpui-detail-full { margin-top: 8px; }
+.mcpui-detail-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--jini-mcpui-text); }
+.mcpui-detail-long > summary { list-style: none; }
+.mcpui-detail-long > summary::-webkit-details-marker { display: none; }
+.mcpui-detail-less, .mcpui-detail-long[open] .mcpui-detail-more,
+.mcpui-detail-long[open] .mcpui-detail-preview { display: none; }
+.mcpui-detail-long[open] .mcpui-detail-less { display: inline; }
+.mcpui-detail-change { display: flex; flex-direction: column; gap: 8px; }
+.mcpui-detail-change > div > .mcpui-hint { display: block; }
+.mcpui-detail-raw { font-size: 12px; }
+.mcpui-detail-disclosure .mcpui-code { color: var(--jini-mcpui-text); }`;
+
 /**
  * The Content-Security-Policy every generated surface declares in its own `<head>`.
  *
@@ -250,6 +281,9 @@ export interface SurfaceDocumentSpec {
  */
 export function renderSurfaceDocument(spec: SurfaceDocumentSpec): string {
   const extraCss = spec.extraCss === undefined ? '' : `\n${spec.extraCss}`;
+  const hasDisclosures = spec.bodyHtml.includes('<details class="mcpui-detail-disclosure');
+  const detailCss = hasDisclosures ? STRUCTURED_DETAILS_CSS : '';
+  const detailScript = hasDisclosures ? `\n${DETAIL_DISCLOSURE_SCRIPT}` : '';
   return `<!doctype html>
 <html lang="${escapeHtml(spec.lang ?? 'en')}">
 <head>
@@ -259,7 +293,7 @@ export function renderSurfaceDocument(spec: SurfaceDocumentSpec): string {
 <title>${escapeHtml(spec.title)}</title>
 <style>
 ${renderTokenBlock(spec.tokens)}
-${SURFACE_BASE_CSS}${extraCss}
+${SURFACE_BASE_CSS}${detailCss}${extraCss}
 </style>
 </head>
 <body>
@@ -270,7 +304,7 @@ ${spec.bodyHtml}
 ${renderBridgeScript(spec.app)}
 </script>
 <script>
-${spec.script}
+${spec.script}${detailScript}
 </script>
 </body>
 </html>`;
@@ -289,38 +323,22 @@ export function renderSurfaceHeader(spec: { title: string; description?: string 
   return `<h1 class="mcpui-title">${escapeHtml(spec.title)}</h1>${description}`;
 }
 
-/** One row of a surface's detail list. */
-export interface SurfaceDetail {
-  readonly label: string;
-  readonly value: string;
-  /** Optional secondary context beneath the label, using the shared muted hint style. */
-  readonly description?: string;
-  /**
-   * `code` renders the value in a monospace `<pre>` that keeps its line breaks and scrolls inside
-   * its own box past a fixed height, so a long SQL statement or JSON argument stays readable without
-   * stretching the dialog past its frame. `status` reserves one line for a short outcome value.
-   * Omitted (or `text`) keeps the plain inline value.
-   */
-  readonly format?: 'text' | 'code' | 'status';
-}
-
 /**
  * Renders a `label: value` description list.
  *
  * @param options.layout - Outcome rows size independently and stack in narrow cards.
  * @returns The `<dl>`, or `''` for an empty list — an empty `<dl>` is announced by screen readers
  * as a list with no items, which is worse than no list.
- * @complexity O(n) in the rendered length; no effects or input mutation.
+ * @complexity O(n * depth) with previous snapshots, otherwise O(n) rendered bytes; no effects or input mutation.
  */
 export function renderDetailList(details: readonly SurfaceDetail[], options: { layout?: 'outcome' } = {}): string {
   if (details.length === 0) return '';
   const outcome = options.layout === 'outcome';
   const rows = details
     .map((detail) => {
-      const value = escapeHtml(detail.value);
-      const body = detail.format === 'code' ? `<pre class="mcpui-code">${value}</pre>` : value;
+      const body = renderStructuredDetail({ detail });
       const description = detail.description === undefined ? '' : `<span class="mcpui-hint">${escapeHtml(detail.description)}</span>`;
-      const valueClass = detail.format === 'status' ? ` class="mcpui-detail-status" title="${value}"` : '';
+      const valueClass = detail.format === 'status' && typeof detail.value === 'string' ? ` class="mcpui-detail-status" title="${escapeHtml(detail.value)}"` : '';
       const pair = `<dt>${escapeHtml(detail.label)}${description}</dt><dd${valueClass}>${body}</dd>`;
       return outcome ? `  <div class="mcpui-outcome-row">${pair}</div>` : `  ${pair}`;
     })

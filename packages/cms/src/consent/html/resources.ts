@@ -22,7 +22,8 @@ function decodeCssEscapes({ css }: { css: string }): string {
   return css.replace(/\\(?:(\n)|([0-9a-fA-F]{1,6})[ \t\n\r\f]?|([\s\S]))/g, (_match, _newline: string | undefined, hex: string | undefined, char: string | undefined) => {
     if (hex === undefined) return char ?? '';
     const code = parseInt(hex, 16);
-    return code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : '�';
+    if (code <= 0 || code > 0x10ffff) return '�';
+    return code < 0xd800 || code > 0xdfff ? String.fromCodePoint(code) : '�';
   });
 }
 

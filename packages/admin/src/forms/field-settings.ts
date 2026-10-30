@@ -1,3 +1,4 @@
+import { trimChars } from "@jini-ai/core/text";
 import { FIELD_TYPE_REGISTRY, isBrowserSafeFieldPattern, MAX_FORM_FILE_BYTES, SAFE_FORM_FILE_TYPES, type FieldType } from "@jini-ai/cms/forms";
 import type { AdminFormField } from "./models.js";
 
@@ -122,8 +123,10 @@ export function fieldTypeGroups({ current }: { current?: string }, _optional: Re
 
 /** Lowercase letters, digits and `_`, starting with a letter: the CMS `FIELD_ID_PATTERN`. */
 export function fieldIdFromLabel({ label }: { label: string }, _optional: Record<string, never> = {}): string {
-  const slug = label.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-  return slug === "" ? "" : /^[a-z]/.test(slug) ? slug : `field_${slug}`;
+  const underscored = label.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const slug = trimChars({ text: underscored, chars: "_" }).slice(0, 60);
+  if (slug === "") return "";
+  return /^[a-z]/.test(slug) ? slug : `field_${slug}`;
 }
 
 /**
@@ -178,13 +181,19 @@ function retainedKeys({ field, before, after }: { field: AdminFormField; before:
 const keepsDefault = ({ before, after }: { before: FieldSettings; after: FieldSettings }): boolean =>
   after.defaultKind !== null && after.defaultKind === before.defaultKind && after.bounds === before.bounds;
 
+/** Arrays and objects come back as fresh one-level copies; anything else as is. */
+function shallowCopy(value: unknown): unknown {
+  if (Array.isArray(value)) return [...value];
+  return typeof value === "object" && value !== null ? { ...value } : value;
+}
+
 /** The listed keys the field has set, in order; attribute maps and accept lists are copied, not shared. */
 function setKeys({ field, keys }: { field: AdminFormField; keys: RetainedKey[] }): Partial<AdminFormField> {
   const kept: Partial<AdminFormField> = {};
   for (const key of keys) {
     const value = field[key];
     if (value === undefined) continue;
-    Object.assign(kept, { [key]: Array.isArray(value) ? [...value] : typeof value === "object" && value !== null ? { ...value } : value });
+    Object.assign(kept, { [key]: shallowCopy(value) });
   }
   return kept;
 }
@@ -296,7 +305,8 @@ const isBlank = (value: string): boolean => value.trim() === "";
 function optionalNumber(value: string, error: string, { integer = false } = {}): Parsed<number | undefined> {
   if (isBlank(value)) return { ok: true, value: undefined };
   const number = Number(value);
-  return Number.isFinite(number) && (!integer || (Number.isInteger(number) && number >= 0)) ? { ok: true, value: number } : { ok: false, error };
+  const wholeEnough = !integer || (Number.isInteger(number) && number >= 0);
+  return Number.isFinite(number) && wholeEnough ? { ok: true, value: number } : { ok: false, error };
 }
 
 /** Text length, pattern and placeholder settings. */

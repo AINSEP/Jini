@@ -16,7 +16,8 @@ export function compareTieBreak({ a, b }: { a: RedirectRecord; b: RedirectRecord
   const aRecency = a.updatedAt || a.createdAt;
   const bRecency = b.updatedAt || b.createdAt;
   if (aRecency !== bRecency) return aRecency > bRecency ? -1 : 1;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  if (a.id < b.id) return -1;
+  return a.id > b.id ? 1 : 0;
 }
 
 /** Longest pattern first, then the shared tie-break (`lookupLongestPrefix`, `listDynamic`). */
@@ -29,5 +30,6 @@ export function compareLongestFirst({ a, b }: { a: RedirectRecord; b: RedirectRe
  * any other match type, then `id` ascending.
  */
 export function compareSamePatternExactFirst({ a, b }: { a: RedirectRecord; b: RedirectRecord }, _optional: Record<string, never> = {}): number {
-  return (a.matchType === "exact" ? 0 : 1) - (b.matchType === "exact" ? 0 : 1) || (a.id < b.id ? -1 : 1);
+  const matchOrder = (a.matchType === "exact" ? 0 : 1) - (b.matchType === "exact" ? 0 : 1);
+  return matchOrder || (a.id < b.id ? -1 : 1);
 }

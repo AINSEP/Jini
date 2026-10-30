@@ -49,7 +49,9 @@ export function assistantContentFromEvents({ events }: { events: readonly AgentE
   for (const ev of dedupeToolUsesById({ events: events ? [...events] : undefined })) {
     if (isAssistantStepBoundary({ event: ev })) {
       stepBoundary = true;
-    } else if (ev.kind === 'text' && ev.text.length > 0) {
+      continue;
+    }
+    if (ev.kind === 'text' && ev.text.length > 0) {
       out += (stepBoundary ? separatorBefore({ out, text: ev.text }) : '') + ev.text;
       stepBoundary = false;
     }

@@ -156,7 +156,7 @@ export function ConversationList({
   // Close on outside click / Escape. Registered only while open so a closed switcher costs
   // nothing on every document event.
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     // The root div is committed before any effect runs, so it is never null here. Capturing it
     // (rather than reading the ref per event) keeps a late event during unmount, after React has
     // detached the ref but before this cleanup runs, measured against the real node.
@@ -184,10 +184,10 @@ export function ConversationList({
   }, [open]);
 
   useEffect(() => {
-    if (!onSearch) return;
+    if (!onSearch) return undefined;
     if (!deferredQuery) {
       setServerResults(null);
-      return;
+      return undefined;
     }
     // `cancelled` guards the classic out-of-order response: a slow query for "a" resolving after
     // a fast one for "abc" would otherwise overwrite the newer, correct results.
@@ -254,6 +254,7 @@ export function ConversationList({
 
   const active = conversations.find((c) => c.id === activeConversationId) ?? null;
 
+  const emptyLabel = () => conversations.length === 0 ? emptyState ?? t('No conversations yet') : t('No conversations match');
   return (
     <div className="jini-conv" ref={rootRef}>
       {/* Icon-only, and the label lives on the panel instead. An earlier version put the active
@@ -314,10 +315,8 @@ export function ConversationList({
           </label>
 
           <div className="jini-conv-list" data-testid="conversation-list">
-            {conversations.length === 0 ? (
-              <div className="jini-conv-empty">{emptyState ?? t('No conversations yet')}</div>
-            ) : visible.length === 0 ? (
-              <div className="jini-conv-empty">{t('No conversations match')}</div>
+            {conversations.length === 0 || visible.length === 0 ? (
+              <div className="jini-conv-empty">{emptyLabel()}</div>
             ) : (
               visible.map((item) => (
                 <div

@@ -7,6 +7,35 @@ import type {
   CommerceProductRecord,
   CommerceWebhookEventRecord,
 } from "./types.js";
+import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
+import type { PaymentMode } from "../payments/contract/scope.js";
+import type { Money } from "../money/money.js";
+
+/** Reserved before dispatch; the scope and amount are immutable even after binding. */
+export interface CommerceOrderPaymentRecord {
+  workspaceId: UUID; orderId: UUID; siteId: string; providerId: string; providerAccountId: string; mode: PaymentMode;
+  amount: Money; paymentId: string | null; createdAt: ISODateTime;
+}
+export type ReserveOrderPaymentResult = "reserved" | "same_scope" | "conflict";
+export type BindOrderPaymentResult = "bound" | "already_bound" | "conflict" | "not_found";
+export interface CommerceOrderPaymentRepoPort {
+  /** Insert-or-classify on (workspace, order); never read-then-insert. */
+  reserve(record: Omit<CommerceOrderPaymentRecord, "paymentId">, optional?: Record<string, never>): Promise<ReserveOrderPaymentResult>;
+  /** Set payment_id only while NULL; a different payment can never replace it. */
+  bind(required: { workspaceId: string; orderId: string; paymentId: string }, optional?: Record<string, never>): Promise<BindOrderPaymentResult>;
+  findByOrder(required: { workspaceId: string; orderId: string }, optional?: Record<string, never>): Promise<CommerceOrderPaymentRecord | null>;
+}
+
+/** A provider's price identifier belongs to one merchant account and mode, never globally. */
+export interface CommercePriceProviderRefRecord {
+  workspaceId: UUID; priceId: UUID; providerId: string; providerAccountId: string; mode: PaymentMode;
+  providerPriceRef: string; createdAt: ISODateTime;
+}
+export interface CommercePriceProviderRefRepoPort {
+  find(required: { workspaceId: string; priceId: string; providerId: string; providerAccountId: string; mode: PaymentMode }, optional?: Record<string, never>): Promise<string | null>;
+  /** Upsert on the full five-part scope key. */
+  save(record: CommercePriceProviderRefRecord, optional?: Record<string, never>): Promise<void>;
+}
 
 /**
  * @file Port contracts for the Commerce first vertical slice (dependency-inversion seams, ADR-006
@@ -39,7 +68,11 @@ export interface CommerceProductImageRepoPort {
   save(record: CommerceProductImageRecord, optional?: Record<string, never>): Promise<void>;
 }
 
+export type MarkOrderPaidResult = "paid" | "already_paid" | "not_pending" | "not_found";
+
 export interface CommerceOrderRepoPort {
+  /** Conditional pending -> paid update; repeated settlement never advances the version again. */
+  markPaid(required: { workspaceId: string; orderId: string; at: ISODateTime }, optional?: Record<string, never>): Promise<MarkOrderPaidResult>;
   findById(required: { workspaceId: string; id: string }, optional?: Record<string, never>): Promise<CommerceOrderRecord | null>;
   listItems(required: { workspaceId: string; orderId: string }, optional?: Record<string, never>): Promise<CommerceOrderItemRecord[]>;
   /**

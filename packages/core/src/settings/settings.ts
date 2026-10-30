@@ -81,7 +81,8 @@ export function validateDefinitionInput(
   }
 
   // a site-owned def (workspace_id NOT NULL) may never declare the global scope bit. See docs/decisions/DR-003-settings-ledger-invariants.md.
-  if (input.workspaceId !== null && (input.scopes & SCOPE_BIT.global) !== 0) {
+  const declaresGlobalScope = (input.scopes & SCOPE_BIT.global) !== 0;
+  if (input.workspaceId !== null && declaresGlobalScope) {
     return {
       valid: false,
       error: new DefinitionInvalidError(
@@ -122,6 +123,9 @@ export function validateValueAgainstSchema(schema: SettingValueSchema, value: Js
       // registering feature's own write-path job — see
       // docs/decisions/settings-json-schema-variant.md.
       return true;
+    default:
+      // Unreachable for a typed schema; a stored row with an unknown type validates nothing.
+      return false;
   }
 }
 

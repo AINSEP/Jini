@@ -77,8 +77,8 @@ export interface PaymentEvidence {
 
 /**
  * One verified webhook fact. `providerEventId` is the inbox's dedupe key (scoped by account +
- * mode). `evidence` is absent when the event carries ids only — the ingest worker then calls
- * `retrieve`.
+ * mode) and MUST remain stable across redeliveries. `evidence` is absent when the event carries
+ * ids only — the ingest worker then calls `retrieve`.
  */
 export interface WebhookFact {
   readonly providerEventId: string;

@@ -13,12 +13,14 @@ export type BrowserProviderAdmissionResult =
 /** Compare review-owned declarations with what the discovered manifest requests. Array order is
  * significant (capability preference); object key order is not. No self-declared trust field exists.
  */
+/** Scalar fields an approval pins exactly; `kinds` is compared by value. */
+const PINNED_PROVIDER_FIELDS = ['id', 'kind', 'contractVersion', 'javascript', 'stylesheet'] as const;
+
 function matchesDeclaration(manifest: PluginManifest, approval: BundledBrowserProviderApproval): boolean {
   const requested = manifest.browserProviders ?? [];
   return requested.length === approval.browserProviders.length && requested.every((provider, index) => {
     const pinned = approval.browserProviders[index]!;
-    return provider.id === pinned.id && provider.kind === pinned.kind && provider.contractVersion === pinned.contractVersion
-      && provider.javascript === pinned.javascript && provider.stylesheet === pinned.stylesheet
+    return PINNED_PROVIDER_FIELDS.every((field) => provider[field] === pinned[field])
       && JSON.stringify(provider.kinds) === JSON.stringify(pinned.kinds);
   });
 }

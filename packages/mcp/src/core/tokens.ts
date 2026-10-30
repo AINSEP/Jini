@@ -125,10 +125,9 @@ export function sanitizeTokensFile({ raw }: { raw: unknown }, { clock = createSy
   if (!isPlainObject(servers)) return { servers: {} };
   const out: Record<string, StoredMcpToken> = {};
   for (const [id, value] of Object.entries(servers)) {
-    if (id === '__proto__' || id === 'constructor') continue;
-    const tok = sanitizeToken(value, clock);
-    if (!tok) continue;
-    out[id] = tok;
+    // Prototype-polluting keys are never copied; neither is a token that fails sanitizing.
+    const tok = id === '__proto__' || id === 'constructor' ? undefined : sanitizeToken(value, clock);
+    if (tok) out[id] = tok;
   }
   return { servers: out };
 }

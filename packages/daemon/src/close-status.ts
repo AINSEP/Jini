@@ -56,6 +56,12 @@ export interface ResolveTimeoutMsInput {
   readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
+/** A set environment value parsed as a positive, finite millisecond count, else undefined. */
+function positiveTimeout(raw: string | undefined): number | undefined {
+  const value = raw !== undefined ? Number(raw) : undefined;
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
 /**
  * Resolves a timeout in milliseconds from an env-var override, an
  * agent-supplied default, and a kernel default, in that precedence order,
@@ -74,9 +80,7 @@ export function resolveTimeoutMs(requiredArgs: Pick<ResolveTimeoutMsInput, "defa
   const input: ResolveTimeoutMsInput = { ...requiredArgs, ...optionalArgs };
   const env = input.env ?? (typeof process !== 'undefined' ? process.env : {});
   const rawFromEnv = input.envVar ? env[input.envVar] : undefined;
-  const fromEnv = rawFromEnv !== undefined ? Number(rawFromEnv) : undefined;
-  const candidate =
-    fromEnv !== undefined && Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : (input.agentDefaultMs ?? input.defaultMs);
+  const candidate = positiveTimeout(rawFromEnv) ?? input.agentDefaultMs ?? input.defaultMs;
   return Math.min(candidate, input.maxMs);
 }
 

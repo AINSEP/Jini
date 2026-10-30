@@ -201,7 +201,10 @@ export function parseString(value: string, start: number): number | null {
   return null;
 }
 
-export function parseLiteral(value: string, start: number, literal: string): number | null | false {
+/** Index of a scanned value's last character, `null` when the input ends mid-value, `false` when it is not valid JSON. */
+type JsonScanEnd = number | null | false;
+
+export function parseLiteral(value: string, start: number, literal: string): JsonScanEnd {
   for (let offset = 0; offset < literal.length; offset += 1) {
     const char = value[start + offset];
     if (char === undefined) return null;
@@ -211,7 +214,7 @@ export function parseLiteral(value: string, start: number, literal: string): num
 }
 
 function isDigit(char: string | undefined): boolean {
-  return /[0-9]/.test(char ?? '');
+  return /\d/.test(char ?? '');
 }
 
 function consumeDigits(value: string, start: number): number {
@@ -275,16 +278,15 @@ function openContainer(state: JsonScanState, index: number, frame: JsonScanFrame
   return index;
 }
 
-export function parseLiteralValue(state: JsonScanState, index: number, literal: string): number | null | false {
+export function parseLiteralValue(state: JsonScanState, index: number, literal: string): JsonScanEnd {
   const end = parseLiteral(state.value, index, literal);
-  if (end === false || end === null) return end;
-  afterValue(state);
+  if (typeof end === 'number') afterValue(state);
   return end;
 }
 
 const LITERAL_STARTS: Record<string, string> = { t: 'true', f: 'false', n: 'null' };
 
-export function parseValue(state: JsonScanState, index: number): number | null | false {
+export function parseValue(state: JsonScanState, index: number): JsonScanEnd {
   const char = state.value[index];
   if (char === '"') return parseStringValue(state, index);
   if (char === '{') return openContainer(state, index, { kind: 'object', expect: 'keyOrEnd' });
@@ -297,7 +299,7 @@ export function parseValue(state: JsonScanState, index: number): number | null |
   // with an `index` already known to be within `value`'s bounds, so `char`
   // is always defined here; the non-null assertion documents that instead
   // of a `?? ''` fallback that could never actually be exercised.
-  if (char === '-' || /[0-9]/.test(char!)) return parseNumberValue(state, index);
+  if (char === '-' || /\d/.test(char!)) return parseNumberValue(state, index);
   return false;
 }
 
@@ -429,17 +431,17 @@ export function selectStep(state: JsonScanState, index: number, char: string): J
 export function classifyJsonCandidate(value: string): 'complete' | 'incomplete' | 'invalid' {
   const state: JsonScanState = { value, stack: [], rootComplete: false };
 
-  for (let index = 0; index < value.length; index += 1) {
+  let index = 0;
+  while (index < value.length) {
     // The loop bound (`index < value.length`) guarantees this index always
     // yields a defined character; the non-null assertion documents that
     // runtime invariant in place of a `noUncheckedIndexedAccess`-driven
     // guard that could never actually trigger.
     const char = value[index]!;
-    if (/\s/.test(char)) continue;
-
-    const step = selectStep(state, index, char);
+    // Whitespace between tokens is skipped; a step reports the last index it consumed.
+    const step = /\s/.test(char) ? null : selectStep(state, index, char);
     if (step === 'invalid' || step === 'incomplete') return step;
-    index = step.nextIndex;
+    index = (step === null ? index : step.nextIndex) + 1;
   }
 
   return state.rootComplete && state.stack.length === 0 ? 'complete' : 'incomplete';

@@ -10,7 +10,7 @@ import {
   UnsupportedCapabilityError,
 } from "./port.js";
 import { TurnLock } from "./turn-lock.js";
-import { ownedTransactions } from "./owned-transaction.js";
+import { registerOwnedTransaction } from "./owned-transaction.js";
 
 /** An owned transaction's hook that runs before its turn is released. */
 interface OwnedTurn { onSettled?: () => void }
@@ -162,9 +162,9 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     },
     close: () => driver.close(),
   };
-  ownedTransactions.set(kernel as StorageKernel<unknown>, {
+  registerOwnedTransaction({ kernel: kernel as StorageKernel<unknown>, control: {
     assertAvailable: assertOwnedAvailable,
     transaction: (work, optional = {}) => transaction(work, optional),
-  });
+  } });
   return kernel;
 }

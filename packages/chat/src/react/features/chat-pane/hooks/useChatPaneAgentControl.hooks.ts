@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { getAgentModelContext } from '@jini-ai/agentic/dom';
 
 import { CHAT_PANE_AGENT_TOOLS } from '../agent-tools.js';
 import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../types.js';
@@ -25,34 +26,6 @@ export interface UseChatPaneAgentControlOptions {
    * content, which is exactly why it has to be the host's call and not a default.
    */
   webmcp?: boolean;
-}
-
-/** The minimal WebMCP surface this hook needs — matches the draft `document.modelContext`/`navigator.modelContext` shape (see `agent-tools.ts`'s module doc); no `@mcp-b/*` dependency, feature-detected like this package's other host bridges. */
-interface ModelContextLike {
-  /** Draft IDL returns `Promise<undefined>` — async. Never let a rejection escape the effect. */
-  registerTool(
-    tool: {
-      name: string;
-      description: string;
-      inputSchema: unknown;
-      execute: (args: Record<string, unknown>) => Promise<unknown>;
-    },
-    options?: { signal?: AbortSignal; exposedTo?: readonly string[] },
-  ): Promise<void>;
-  /** NOT in the spec — aborting the `signal` is the real cleanup path. Optional, for polyfills only. */
-  unregisterTool?(name: string): void;
-}
-
-function getModelContext(): ModelContextLike | undefined {
-  const doc = (globalThis as { document?: { modelContext?: unknown } }).document;
-  if (isModelContext(doc?.modelContext)) return doc.modelContext;
-  const nav = (globalThis as { navigator?: { modelContext?: unknown } }).navigator;
-  if (isModelContext(nav?.modelContext)) return nav.modelContext;
-  return undefined;
-}
-
-function isModelContext(value: unknown): value is ModelContextLike {
-  return typeof value === 'object' && value !== null && typeof (value as ModelContextLike).registerTool === 'function';
 }
 
 function requireStringField(input: Record<string, unknown>, key: string): string {
@@ -132,7 +105,7 @@ async function selectAgentAction(pane: UseChatPaneResult, input: Record<string, 
   if (agent.available === false) {
     throw new Error(
       `agent "${agentId}" is not available on this machine`
-      + `${agent.diagnostic === undefined ? '' : ` (${agent.diagnostic})`}`,
+      + (agent.diagnostic === undefined ? '' : ` (${agent.diagnostic})`),
     );
   }
   const model = optionalStringField(input, 'model');
@@ -279,13 +252,19 @@ export function useChatPaneAgentControl({ pane }: { pane: UseChatPaneResult }, o
   const hasBridgeAccess = options.bridgeAccess !== undefined;
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) return undefined;
 
     const cleanups: Array<() => void> = [];
 
     // Not registered unless the host opted in: see `webmcp`'s own doc for why this path cannot be
     // gated and therefore must not be on by default.
-    const modelContext = options.webmcp === true ? getModelContext() : undefined;
+    // Feature-detect the draft surface through its shared owner; no `@mcp-b/*` dependency.
+    const modelContext = options.webmcp === true ? getAgentModelContext({
+      host: { candidates: () => [
+        (globalThis as { document?: { modelContext?: unknown } }).document?.modelContext,
+        (globalThis as { navigator?: { modelContext?: unknown } }).navigator?.modelContext,
+      ] },
+    }) : undefined;
     if (modelContext) {
       const controller = new AbortController();
       for (const tool of CHAT_PANE_AGENT_TOOLS) {
@@ -293,20 +272,21 @@ export function useChatPaneAgentControl({ pane }: { pane: UseChatPaneResult }, o
         // Normalize both, then swallow: registration is best-effort, and a rejected one must not
         // surface as an unhandled rejection from a React effect.
         const registered = modelContext.registerTool(
-          {
+          { tool: {
             name: tool.id,
             description: tool.description,
             inputSchema: tool.inputSchema,
             execute: (args) => runChatPaneAction(paneRef.current, tool.id, args ?? {}),
-          },
+          } },
           { signal: controller.signal },
         );
         void Promise.resolve(registered).catch(() => undefined);
       }
       cleanups.push(() => {
+        // Aborting the signal is the spec cleanup path; unregisterTool is optional for polyfills.
         controller.abort();
         if (modelContext.unregisterTool) {
-          for (const tool of CHAT_PANE_AGENT_TOOLS) modelContext.unregisterTool(tool.id);
+          for (const tool of CHAT_PANE_AGENT_TOOLS) modelContext.unregisterTool({ name: tool.id });
         }
       });
     }

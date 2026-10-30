@@ -46,8 +46,8 @@ function isRequestEnvelope(data: unknown): data is AdminSurfaceActionRequest {
 }
 
 function hasRequestFields(message: Readonly<Record<string, unknown>>): boolean {
-  return typeof message.mountId === 'string' && typeof message.requestId === 'string' && REQUEST_ID_PATTERN.test(message.requestId)
-    && typeof message.action === 'string' && Object.hasOwn(message, 'payload');
+  const hasRequestId = typeof message.requestId === 'string' && REQUEST_ID_PATTERN.test(message.requestId);
+  return typeof message.mountId === 'string' && hasRequestId && typeof message.action === 'string' && Object.hasOwn(message, 'payload');
 }
 
 /** Character length of the payload as JSON, or Infinity when it is not JSON-serializable. */

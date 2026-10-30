@@ -1,3 +1,4 @@
+import { captureLineTail } from '@jini-ai/core/text';
 import type { PluginProviderSettingField } from './manifest-types.js';
 
 /** Evaluate the declared alternative without returning any setting or credential value. O(b) alternative text. */
@@ -35,7 +36,16 @@ export function isProviderSettingRequired({ field, values }: {
 /** Match only declared nonblank Name=Value headers; malformed lists never waive a requirement.
  * @complexity O(h * n) in header text and the manifest's small name allowlist. */
 export function hasProviderAuthHeader({ text, names }: { text: string; names: readonly string[] }, _optional = {}): boolean {
-  const pairs = text.split(',').map(pair => /^([^=\s][^=]*?)\s*=\s*(.+)$/.exec(pair.trim()));
+  const pairs = text.split(',').map(pair => headerPair(pair.trim()));
   if (pairs.some(pair => !pair)) return false;
-  return pairs.some(pair => names.some(name => name.toLowerCase() === pair![1]!.toLowerCase()) && pair![2]!.trim() !== '');
+  return pairs.some(pair => names.some(name => name.toLowerCase() === pair![0].toLowerCase()) && pair![1].trim() !== '');
+}
+
+/** `[name, value]` exactly as /^([^=\s][^=]*?)\s*=\s*(.+)$/ captures them from a trimmed pair, but
+ * without that pattern's backtracking: the name runs to the first `=` (trailing spaces dropped). */
+function headerPair(pair: string): [string, string] | null {
+  const eq = pair.indexOf('=');
+  if (eq <= 0) return null;
+  const value = captureLineTail({ rest: pair.slice(eq + 1) });
+  return value === null ? null : [pair.slice(0, eq).trimEnd(), value];
 }

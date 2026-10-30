@@ -28,10 +28,10 @@ export function useEmbedChatDialog({ open, onClose, panelRef, launcherRef }: {
     wasOpen.current = open;
   }, [open, launcherRef]);
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const panel = panelRef.current;
     const view = panel?.ownerDocument.defaultView;
-    if (!panel || !view) return;
+    if (!panel || !view) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.defaultPrevented) {
         event.preventDefault();

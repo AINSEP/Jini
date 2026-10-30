@@ -1,4 +1,9 @@
-import type { AgentToolDefinition as KernelAgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
+import type { AgentToolDefinition as KernelAgentToolDefinition } from "@jini-ai/core";
+
+const USER_MANAGE = "user.manage";
+const ROLE_MANAGE = "role.manage";
+const MUTATES_DURABLE_STATE = "mutates-durable-state";
+
 /**
  * @file The identity (users/roles) agent-tool catalog — this domain's instance of the
  * per-domain `agent-tools.ts` convention already used by `features/content-types`,
@@ -135,7 +140,7 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     description:
       "Lists the workspace's human operator users with their principalId, username, status, and assigned role ids. Read-only. Call this to find a user's principalId before updating, disabling, enabling, or assigning a role to them. There is no password-reset tool. The owner resets a user's password from the Users screen in the admin (Reset password).",
     sideEffects: "none",
-    authorization: { permission: "user.manage", orPermission: "member.manage" },
+    authorization: { permission: USER_MANAGE, orPermission: "member.manage" },
     inputSchema: NO_INPUT_SCHEMA,
   },
   {
@@ -143,7 +148,7 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     description:
       "Lists the workspace's roles (the four built-ins plus any custom ones) with their id, name, and isBuiltin flag. Read-only. Call this to find a roleId before assigning, renaming, or deleting a role.",
     sideEffects: "none",
-    authorization: { permission: "role.manage" },
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: NO_INPUT_SCHEMA,
   },
   {
@@ -151,15 +156,15 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     description:
       "Lists the workspace's policies (built-ins plus any custom ones) with their id, name, description, isBuiltin, and isFrozen flags. Read-only. Call this to find a policyId before renaming, deleting, or attaching a policy.",
     sideEffects: "none",
-    authorization: { permission: "role.manage" },
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: NO_INPUT_SCHEMA,
   },
   {
     name: "identity_user_create",
     description:
       "Creates a new human operator user, minting a new principal and its credential row together. The new user starts with NO roles and therefore no permissions — grant access afterwards with identity_role_assign. Fails if the username is already taken.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "user.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: USER_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -183,8 +188,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     name: "identity_user_update_email",
     description:
       "Sets or clears an existing user's email address. Requires user.manage for other operator users; member.manage permits only editing your own email. Only an owner may edit an owner account. Omitting 'email' (or passing an empty string) CLEARS the stored value rather than leaving it unchanged. Username and password are not editable through this tool. There is no password-reset tool. The owner resets a user's password from the Users screen in the admin (Reset password).",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "user.manage", orPermission: "member.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: USER_MANAGE, orPermission: "member.manage" },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -198,36 +203,40 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
   {
     name: "identity_user_change_username",
     description: "Changes an operator user's login username. Call after finding their principalId with identity_user_list. Returns { user } with the normalized username; email, password and existing sessions stay unchanged. Requires user.manage even for your own profile; only owners may rename owner accounts. Fails for blank names, missing users, users in Trash, or names reserved by any user including Trash. Choose a different name or restore/purge the conflicting trashed user before retrying.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "user.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: USER_MANAGE },
     inputSchema: {
       type: "object", additionalProperties: false, required: ["principalId", "username"],
-      properties: { principalId: PRINCIPAL_ID_SCHEMA, username: { type: "string", minLength: 1,
-        description: "New login name. Trimmed, lowercased and Unicode NFC normalized; unique per workspace, including users in Trash." } },
+      properties: {
+        principalId: PRINCIPAL_ID_SCHEMA, username: {
+          type: "string", minLength: 1,
+          description: "New login name. Trimmed, lowercased and Unicode NFC normalized; unique per workspace, including users in Trash."
+        }
+      },
     },
   },
   {
     name: "identity_user_disable",
     description:
       "Disables a user, revoking their access. Principals are never hard-deleted because the audit trail references them, so this is how a user is removed. Refuses to disable the seeded owner, and refuses any disable that would leave the workspace with no active owner. Already-disabled is a no-op.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "user.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: USER_MANAGE },
     inputSchema: PRINCIPAL_ONLY_INPUT_SCHEMA,
   },
   {
     name: "identity_user_enable",
     description:
       "Re-enables a previously disabled human user. Already-active is a no-op. Only kind='user' principals can be enabled this way.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "user.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: USER_MANAGE },
     inputSchema: PRINCIPAL_ONLY_INPUT_SCHEMA,
   },
   {
     name: "identity_role_create",
     description:
       "Creates a new custom role. The role starts with no policies attached and therefore confers no permissions until one is attached, which is not an agent-callable operation.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -239,8 +248,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     name: "identity_role_assign",
     description:
       "Assigns an existing role to an existing user. This is the step that actually grants permissions. The caller can only confer permissions it already holds itself unconstrained, so assigning a role more powerful than the caller's own is refused. There is no tool to remove a role from a user, and no unassign operation exists anywhere in this system yet; tell the owner rather than trying another tool.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -252,8 +261,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     name: "identity_role_rename",
     description:
       "Renames a custom role. Built-in roles cannot be renamed — relabelling 'viewer' to read as trusted is a social-engineering variant of privilege escalation, so it is refused.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -265,8 +274,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     name: "identity_role_delete",
     description:
       "Deletes a custom role. Built-in roles cannot be deleted. A role still assigned to at least one user is refused — this system has no unassign operation, so a role in use cannot be removed at all.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -278,8 +287,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     name: "identity_policy_create",
     description:
       "Creates a new custom policy. The policy starts with no permissions and therefore confers none until permissions are added, which is not an agent-callable operation — identity_policy_write_permission is deliberately not wired (see this file's own header comment). Attaching a freshly created, still-empty policy to anyone is a no-op.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -294,8 +303,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     name: "identity_policy_update",
     description:
       "Renames and/or re-describes a custom policy. Built-in and frozen policies are refused. At least one of 'name'/'description' must be supplied.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -311,8 +320,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     name: "identity_policy_delete",
     description:
       "Deletes a custom policy. Built-in and frozen policies cannot be deleted. A policy still referenced by at least one role or attached to at least one user is refused — deletion fails safe (it only ever removes access, never orphans a reference) exactly like identity_role_delete.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -325,8 +334,8 @@ export const identityAgentToolCatalog: IdentityAgentToolDefinition[] = [
     description:
       // See docs/decisions/DR-002-grant-authority-and-admin-safety.md for the invariant behind this refusal; keep external identifiers out of caller-facing messages.
       "Attaches an existing policy directly to an existing user, granting every permission the policy carries. This is the direct-grant counterpart to identity_role_assign, targets exactly one named user per call, and carries the identical grant-authority clamp: the caller can only confer permissions it already holds itself unconstrained, so attaching a policy more powerful than the caller's own is refused. There is no detach operation.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "role.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ROLE_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,

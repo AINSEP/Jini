@@ -184,9 +184,9 @@ function isSvgLike(text: string): boolean {
 
 /** Untagged MPEG audio: sync bits plus non-reserved version, layer, bitrate and sample rate. */
 function isUntaggedMpegAudio(bytes: Uint8Array): boolean {
-  return bytes.length >= 4 && bytes[0] === 0xff && (bytes[1]! & 0xe0) === 0xe0 &&
-    (bytes[1]! & 0x18) !== 0x08 && (bytes[1]! & 0x06) !== 0 &&
-    (bytes[2]! & 0xf0) !== 0 && (bytes[2]! & 0xf0) !== 0xf0 && (bytes[2]! & 0x0c) !== 0x0c;
+  if (bytes.length < 4 || bytes[0] !== 0xff || (bytes[1]! & 0xe0) !== 0xe0) return false;
+  if ((bytes[1]! & 0x18) === 0x08 || (bytes[1]! & 0x06) === 0) return false;
+  return (bytes[2]! & 0xf0) !== 0 && (bytes[2]! & 0xf0) !== 0xf0 && (bytes[2]! & 0x0c) !== 0x0c;
 }
 
 /** Binary signatures in precedence order; the first match wins. */

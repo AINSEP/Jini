@@ -33,6 +33,10 @@ export interface PrincipalRepoPort {
   findById(required: { workspaceId: UUID; id: UUID }): Promise<PrincipalRecord | null>;
   list(required: { workspaceId: UUID }): Promise<PrincipalRecord[]>;
   save(record: PrincipalRecord): Promise<void>;
+  /** Atomically insert by (workspaceId, id), or return the unchanged existing row.
+   * Durable adapters must enforce uniqueness in storage across connections/processes.
+   * Optional for existing hosts; ensurePrincipal fails closed without this capability. */
+  insertIfAbsent?(required: { record: PrincipalRecord }, optional?: Record<string, never>): Promise<PrincipalRecord>;
 }
 
 export interface UserRepoPort {

@@ -318,9 +318,9 @@ export function createTerminalSessionManager(_requiredArgs: Record<string, never
     const result: TerminalSessionInfo[] = [];
     for (const session of terminalService.list()) {
       const meta = metadata.get(session.id);
-      if (!meta || meta.principalId !== principal.id) continue;
-      if (filter.resourceRef !== undefined && meta.resourceRef !== filter.resourceRef) continue;
-      result.push(toSessionInfo(session, meta.resourceRef));
+      const visible = meta !== undefined && meta.principalId === principal.id
+        && (filter.resourceRef === undefined || meta.resourceRef === filter.resourceRef);
+      if (visible) result.push(toSessionInfo(session, meta.resourceRef));
     }
     return result;
   }

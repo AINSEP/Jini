@@ -57,12 +57,9 @@ function isWithinRoot(root: string, candidate: string): boolean {
 
 function assertSafeStagingDirName(stagingDirName: string): void {
   if (
-    stagingDirName.length === 0 ||
+    ['', '.', '..'].includes(stagingDirName) ||
     path.isAbsolute(stagingDirName) ||
-    stagingDirName === '.' ||
-    stagingDirName === '..' ||
-    stagingDirName.includes('/') ||
-    stagingDirName.includes('\\')
+    /[/\\]/.test(stagingDirName)
   ) {
     throw new Error(`attachment staging: stagingDirName must be a single safe path component, got ${JSON.stringify(stagingDirName)}`);
   }

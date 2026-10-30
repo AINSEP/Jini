@@ -89,7 +89,7 @@ export function createMailFeedbackIngest(required: MailFeedbackIngestDeps, optio
 
   const apply = async (input: { providerId: string; event: KeyedEvent }): Promise<"inserted" | "duplicate"> => {
     const outcome = await required.inbox.record(input);
-    if (outcome === "duplicate") return outcome;
+    if (outcome === "duplicate") return "duplicate";
     const scope = suppressionScopeFor({ event: input.event });
     if (scope !== null) {
       const reason = input.event.kind === "complained" ? "complained" : "bounced";

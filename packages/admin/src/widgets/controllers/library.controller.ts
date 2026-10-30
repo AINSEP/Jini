@@ -14,7 +14,8 @@ export function createWidgetsLibraryController({ api }: { api: AdminWidgetsPort 
   let generation = 0;
   const isLiveRead = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     try {
       // No includeInactive: trashed widgets belong to the shared Trash screen.
       const result = await api.listWidgets({}, { signal: store.signal });

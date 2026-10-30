@@ -58,10 +58,45 @@ const RUNTIME_EFFECTS: ReadonlySet<string> = new Set([
 const TEXT_EFFECT_TAGS: ReadonlySet<string> = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li', 'dt', 'dd', 'blockquote', 'figcaption', 'label']);
 const PHRASING_TAGS: ReadonlySet<string> = new Set([...INLINE_TAGS, 'abbr', 'br', 'cite', 'code', 'data', 'dfn', 'img', 'kbd', 'q', 'samp', 'time', 'var', 'wbr']);
 const isPhrasingOnly = (el: SourceElement): boolean => el.children.every(child => PHRASING_TAGS.has(child.tagName) && isPhrasingOnly(child));
+/** Closing quotes for each suffix, honoring the same backslash escapes as effect string literals.
+ * A failed quoted token can contain another valid token; suffix lookup preserves that recovery
+ * without repeatedly scanning an unterminated string. O(n) time and temporary memory. */
+function effectQuoteEnds({ text, quote }: { text: string; quote: string }, _options = {}): Int32Array {
+  const ends = new Int32Array(text.length + 2).fill(-1);
+  for (let i = text.length - 1; i >= 0; i--) {
+    const char = text[i];
+    if (char === quote) ends[i] = i;
+    else if (char === '\\' && /[\r\n\u2028\u2029]/.test(text[i + 1] ?? '')) ends[i] = -1;
+    else ends[i] = ends[i + (char === '\\' ? 2 : 1)]!;
+  }
+  return ends;
+}
+
+/** Remove complete quoted strings and parenthesized arguments before splitting effect names.
+ * The first closing parenthesis wins, as in the existing effect grammar. O(n) time and memory. */
+function withoutEffectArguments({ text }: { text: string }, _options = {}): string {
+  const double = effectQuoteEnds({ text, quote: '"' });
+  const single = effectQuoteEnds({ text, quote: "'" });
+  const lastClose = text.lastIndexOf(')');
+  const parts: string[] = [];
+  let start = 0;
+  let i = 0;
+  while (i < text.length) {
+    let end = -1;
+    if (text[i] === '"') end = double[i + 1]!;
+    if (text[i] === "'") end = single[i + 1]!;
+    if (text[i] === '(' && i < lastClose) end = text.indexOf(')', i + 1);
+    if (end >= 0) { parts.push(text.slice(start, i)); i = end; start = end + 1; }
+    i++;
+  }
+  parts.push(text.slice(start));
+  return parts.join('');
+}
+
 const isEditableEffect = (el: SourceElement): boolean => {
   if (el.attributes['data-editor'] === 'block') return false;
   // Quoted selectors and timing/color functions may contain commas, which are not effect separators.
-  const effects = (el.attributes['data-kui'] ?? '').replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\([^)]*\)/g, '')
+  const effects = withoutEffectArguments({ text: el.attributes['data-kui'] ?? '' })
     .split(',').map(segment => segment.trim().split(/\s+/)[0]!).filter(Boolean);
   if (effects.some(effect => RUNTIME_EFFECTS.has(effect))) return false;
   if (effects.length > 0 && effects.every(effect => EDITABLE_EFFECTS.has(effect))) return true;
@@ -91,13 +126,19 @@ function describeBlock(
   return { reason, host };
 }
 
+/** `.first.second` from an element's class attribute (first two classes), or undefined when it has none. */
+function classIdentity(className: string | undefined): string | undefined {
+  if (!className) return undefined;
+  return `.${className.trim().split(/\s+/).slice(0, 2).join('.')}`;
+}
+
 function createEditorBlock(
   { el, reason, host }: { el: SourceElement; reason: EditorBlockReason; host: CanvasEmbedPlaceholderDescriptor | undefined },
   options: EditorBlockOptions = {},
 ): EditorBlock {
   const t = options.translate ?? ((key: string) => key);
   const id = el.attributes.id;
-  const identity = id ? `#${id}` : el.attributes.class ? `.${el.attributes.class.trim().split(/\s+/).slice(0, 2).join('.')}` : el.tagName;
+  const identity = id ? `#${id}` : classIdentity(el.attributes.class) ?? el.tagName;
   return {
     ...el.outerRange!, tagName: el.tagName, ...(id ? { id } : {}), reason, element: el,
     descriptor: reason === 'embed' && host ? host : {
@@ -192,7 +233,10 @@ export function prepareEditorSource({ html }: { html: string }, options: EditorB
   instances.sort((a, b) => a.outerStart - b.outerStart);
   let markerAttribute = 'data-jini-raw-source-0';
   let namespace = 0;
-  while (html.toLowerCase().includes(markerAttribute)) markerAttribute = `data-jini-raw-source-${++namespace}`;
+  while (html.toLowerCase().includes(markerAttribute)) {
+    namespace += 1;
+    markerAttribute = `data-jini-raw-source-${namespace}`;
+  }
   const prepared = renderSourceShells({ html, instances, blocks: detected.blocks, markerAttribute }, {});
   return { ok: true, html: prepared, markerAttribute, instances, canvasCss: css.join('\n') };
 }
@@ -215,7 +259,8 @@ function renderSourceShells(
       .map(name => ` ${name}="${escapeAttribute(attrs[name]!)}"`).join('');
     const tag = instance.nonvisual ? 'span' : instance.tagName;
     const voidTag = instance.openingEnd === instance.outerEnd;
-    const shell = `<${tag} ${markerAttribute}="${i}"${layout}>${voidTag && !instance.nonvisual ? '' : `</${tag}>`}`;
+    const closingTag = voidTag && !instance.nonvisual ? '' : `</${tag}>`;
+    const shell = `<${tag} ${markerAttribute}="${i}"${layout}>${closingTag}`;
     prepared = prepared.slice(0, instance.outerStart) + shell + prepared.slice(instance.outerEnd);
   }
   return prepared;
@@ -229,7 +274,9 @@ export function findEditorBlockOpening(
   let result: { start: number; end: number; openingTag: string } | undefined;
   const walk = (el: SourceElement) => {
     if (el.tagName === target.tagName.toLowerCase() && (target.id === undefined || el.attributes.id === target.id)) {
-      if (occurrence++ === target.occurrenceIndex && el.outerRange) {
+      const index = occurrence;
+      occurrence += 1;
+      if (index === target.occurrenceIndex && el.outerRange) {
         const { outerStart: start, openingEnd: end } = el.outerRange;
         result = { start, end, openingTag: html.slice(start, end) };
       }

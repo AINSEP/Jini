@@ -45,6 +45,27 @@ export const MAX_RENDER_NODES = 50_000;
 /** A node still to visit, or the marker that closes one and leaves its subtree. */
 type Frame = { readonly id: string; readonly depth: number } | { readonly leave: string };
 
+/** Emits one node: a cycle back to an ancestor, a missing component, or a rendered node whose
+ *  children are queued (after a `leave` frame that pops it off the ancestor path). */
+function visitNode<C extends ComponentLike>(
+  { id, depth }: { readonly id: string; readonly depth: number },
+  walk: { output: RenderNode[]; ancestors: Set<string>; stack: Frame[]; components: ReadonlyMap<string, C>; getChildIds: (required: { component: C }) => readonly string[] },
+): void {
+  if (walk.ancestors.has(id)) {
+    walk.output.push({ id, depth, status: 'cycle' });
+    return;
+  }
+  const component = walk.components.get(id);
+  if (!component) {
+    walk.output.push({ id, depth, status: 'missing' });
+    return;
+  }
+  walk.output.push({ id, depth, status: 'ok' });
+  walk.ancestors.add(id);
+  walk.stack.push({ leave: id });
+  pushChildren(walk.stack, walk.getChildIds({ component }), depth + 1);
+}
+
 /** Pushes `childIds` onto the walk's stack at `depth`. */
 function pushChildren(stack: Frame[], childIds: readonly string[], depth: number): void {
   // Pushed in reverse so the first child is popped first, preserving pre-order.
@@ -94,20 +115,7 @@ export function flattenRenderTree<C extends ComponentLike>({ components, rootId,
       output.push({ id: frame.id, depth: frame.depth, status: 'truncated' });
       return output;
     }
-    const { id, depth } = frame;
-    if (ancestors.has(id)) {
-      output.push({ id, depth, status: 'cycle' });
-      continue;
-    }
-    const component = components.get(id);
-    if (!component) {
-      output.push({ id, depth, status: 'missing' });
-      continue;
-    }
-    output.push({ id, depth, status: 'ok' });
-    ancestors.add(id);
-    stack.push({ leave: id });
-    pushChildren(stack, getChildIds({ component }), depth + 1);
+    visitNode(frame, { output, ancestors, stack, components, getChildIds });
   }
 
   return output;

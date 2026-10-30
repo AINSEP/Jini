@@ -263,7 +263,7 @@ export function applyAgentTranslationSideEffects({ payload, sessionId, sink }: {
   if (sessionId !== undefined) sink.onSessionId({ sessionId });
   if (payload.type === 'tool_use') {
     sink.onToolCall({ toolUse: payload });
-  } else if ((payload.type === 'text_delta' || payload.type === 'thinking_delta') && payload.delta.length > 0) {
-    sink.onUserVisibleOutput();
+    return;
   }
+  if ((payload.type === 'text_delta' || payload.type === 'thinking_delta') && payload.delta.length > 0) sink.onUserVisibleOutput();
 }

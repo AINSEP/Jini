@@ -1,4 +1,5 @@
 import { parse, type DefaultTreeAdapterMap } from 'parse5';
+import { cssUrlTokens } from './css-urls.js';
 
 type Node = DefaultTreeAdapterMap['node'];
 type Element = DefaultTreeAdapterMap['element'];
@@ -24,13 +25,17 @@ function isImageMetadata({ element }: { element: Element }, _optional = {}): boo
 /** Attribute kinds are shared by rewriting, crawling and diagnostic references. Script-read
  *  `data-*-href`/`-src` values (the see-more button's batch URL) are URLs too; references skip them. */
 function attributeKind({ element, name }: { element: Element; name: string }, _optional = {}): HtmlUrlLocation['kind'] | undefined {
-  const urlName = /^data-(?:[\w-]*-)?(href|src|srcset|poster)$/.exec(name)?.[1] ?? name;
+  const urlName = normalizedUrlAttribute(name);
   if (URL_ATTRIBUTES.has(urlName)) return 'url';
   if (urlName === 'srcset') return 'srcset';
   if (name === 'style') return 'css';
   if (name === 'action' && element.tagName === 'form') return 'action';
   if (name === 'content' && element.tagName === 'meta' && isImageMetadata({ element })) return 'url';
   return undefined;
+}
+
+function normalizedUrlAttribute(name: string): string {
+  return /^data-(?:[\w-]*-)?(href|src|srcset|poster)$/.exec(name)?.[1] ?? name;
 }
 
 /** Style text is CSS; every other element's text remains untouched. */
@@ -72,7 +77,7 @@ export function htmlUrlLocations({ html }: { html: string }, _optional = {}): Ht
 /** CSS, sitemap and manifest positions use their response format, never an HTML text scan. */
 export function exportUrlLocations({ body, contentType }: { body: string; contentType: string }, _optional = {}): HtmlUrlLocation[] {
   if (/^text\/html\b/i.test(contentType)) return htmlUrlLocations({ html: body });
-  if (/^text\/css\b/i.test(contentType)) return [...body.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)].map(match => ({ start: match.index!, end: match.index! + match[0].length, kind: 'css' }));
+  if (/^text\/css\b/i.test(contentType)) return cssUrlTokens(body).map(({ start, end }) => ({ start, end, kind: 'css' }));
   if (/\bxml\b/i.test(contentType)) return [...body.matchAll(/<((?:[\w-]+:)?loc)>([^<]*)<\/\1>/g)].map(match => ({ start: match.index! + match[1]!.length + 2, end: match.index! + match[0].length - match[1]!.length - 3, kind: 'url' }));
   if (!/\bjson\b/i.test(contentType)) return [];
   try { JSON.parse(body); } catch { return []; }

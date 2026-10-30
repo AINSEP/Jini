@@ -1,4 +1,5 @@
 import { boundHtml } from "./html-resource.js";
+import { firstDistinct } from "./first-distinct.js";
 import { ToolInputError } from "@jini-ai/core";
 import type { HttpClientPort, HttpResponse } from "@jini-ai/core/primitives";
 import { EgressRefusedError } from "../http/guarded/errors.js";
@@ -204,18 +205,24 @@ const EMPTY_FACTS: HtmlDocumentFacts = { links: [], linksTruncated: false, image
 /** A sitemap's `<loc>` entries become links so an importer can enumerate pages from one call. */
 function sitemapFacts(xml: string, pageUrl: string): HtmlDocumentFacts {
   const host = new URL(pageUrl).hostname.replace(/^www\./, "");
-  const seen = new Set<string>();
-  const links: PageLink[] = [];
-  let linksTruncated = false;
-  for (const match of xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)) {
-    let url: URL;
-    try { url = new URL(match[1]!.replace(/&amp;/g, "&"), pageUrl); } catch { continue; }
-    if ((url.protocol !== "http:" && url.protocol !== "https:") || seen.has(url.href)) continue;
-    seen.add(url.href);
-    if (links.length === MAX_LINKS) { linksTruncated = true; break; }
-    links.push({ href: url.href, text: "", internal: url.hostname.replace(/^www\./, "") === host });
-  }
+  const { picked, truncated: linksTruncated } = firstDistinct({
+    items: [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)],
+    max: MAX_LINKS,
+    keyOf: (match) => sitemapHref(match[1]!, pageUrl),
+  });
+  const links: PageLink[] = picked.map(([href]) => ({ href, text: "", internal: new URL(href).hostname.replace(/^www\./, "") === host }));
   return { ...EMPTY_FACTS, links, linksTruncated };
+}
+
+/** The absolute http(s) href of one `<loc>` value, or undefined when it is unparsable or another scheme. */
+function sitemapHref(loc: string, pageUrl: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(loc.replace(/&amp;/g, "&"), pageUrl);
+  } catch {
+    return undefined;
+  }
+  return url.protocol === "http:" || url.protocol === "https:" ? url.href : undefined;
 }
 
 function render(format: WebFetchFormat, body: string, isHtml: boolean, pageUrl: string, ports: WebFetchPorts): string {
@@ -418,9 +425,9 @@ function projectRendered({ input, ports, url, page }: { input: WebFetchInput; po
 
 /** Any clipped or dropped fact, image, data or text marks the whole rendered result truncated. */
 function renderedFlags({ page, result, images, factsTruncated, textTruncated }: { page: RenderedWebPage; result: WebFetchResult; images: { byUrl: Map<string, PageImage>; truncated: boolean }; factsTruncated: boolean; textTruncated: boolean }): { imagesTruncated: boolean; truncated: boolean } {
-  const imagesTruncated = images.truncated || page.imagesTruncated || result.imagesTruncated || images.byUrl.size > MAX_IMAGES;
-  const truncated = imagesTruncated || factsTruncated || page.title.length > MAX_RENDERED_TITLE || result.truncated
-    || result.linksTruncated || page.dataTruncated || textTruncated;
+  const imagesTruncated = [images.truncated, page.imagesTruncated, result.imagesTruncated, images.byUrl.size > MAX_IMAGES].some(Boolean);
+  const truncated = [imagesTruncated, factsTruncated, page.title.length > MAX_RENDERED_TITLE, result.truncated,
+    result.linksTruncated, page.dataTruncated, textTruncated].some(Boolean);
   return { imagesTruncated, truncated };
 }
 
@@ -442,8 +449,13 @@ function boundRenderedFacts({ result }: { result: WebFetchResult }, _optional: R
   const stylesheets = result.stylesheets.filter(href => href.length <= MAX_URL_LENGTH);
   const meta = Object.fromEntries(Object.entries(result.meta).filter(([key]) => key.length <= MAX_RENDERED_META_KEY));
   const linksDropped = links.length < result.links.length;
-  const truncated = linksDropped || stylesheets.length < result.stylesheets.length || Object.keys(meta).length < Object.keys(result.meta).length
-    || (result.description?.length ?? 0) > MAX_RENDERED_DESCRIPTION || (result.lang?.length ?? 0) > MAX_RENDERED_LANG;
+  const truncated = [
+    linksDropped,
+    stylesheets.length < result.stylesheets.length,
+    Object.keys(meta).length < Object.keys(result.meta).length,
+    (result.description?.length ?? 0) > MAX_RENDERED_DESCRIPTION,
+    (result.lang?.length ?? 0) > MAX_RENDERED_LANG,
+  ].some(Boolean);
   return { links, stylesheets, meta, linksDropped, truncated };
 }
 

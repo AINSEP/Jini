@@ -73,7 +73,7 @@ function modelDenial(policy: MediaExecutionPolicy, model: string | undefined): M
   if (normalizedModel && policy.allowedModels.includes(normalizedModel)) return null;
   return {
     code: 'MEDIA_MODEL_DENIED',
-    message: `media model ${normalizedModel ? `"${normalizedModel}"` : '(none specified)'} is not allowed for this run`,
+    message: `media model ${normalizedModel ? JSON.stringify(normalizedModel) : '(none specified)'} is not allowed for this run`,
   };
 }
 

@@ -137,7 +137,7 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
     const { wireModel, size, seconds } = request.meta;
     return {
       bytes,
-      providerNote: `imagerouter/${wireModel} · ${size} · ${seconds === 'auto' ? 'auto' : `${seconds}s`} · ${bytes.length} bytes`,
+      providerNote: `imagerouter/${wireModel} · ${size} · ${seconds === 'auto' ? 'auto' : seconds + 's'} · ${bytes.length} bytes`,
       suggestedExt: '.mp4',
     };
   },

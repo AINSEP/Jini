@@ -8,7 +8,7 @@ export function useMediaPickerBridge(required: SeoMediaPickerSlotProps, _optiona
   callbacks.current = required;
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!mediaPicker) { setError('Media picker unavailable'); return; }
+    if (!mediaPicker) { setError('Media picker unavailable'); return undefined; }
     const abort = new AbortController();
     void mediaPicker.pick({ accept: callbacks.current.accept ?? ['image/*'] }, { signal: abort.signal }).then(item => {
       if (abort.signal.aborted) return;

@@ -256,6 +256,7 @@
     "@jini-ai/core": "workspace:^"
   },
   "dependencies": {
+    "@jini-ai/ui-kit": "workspace:^",
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {

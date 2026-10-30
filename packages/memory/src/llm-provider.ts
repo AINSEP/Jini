@@ -1,3 +1,4 @@
+import { outermostBraces, trimTrailing } from './text-scan.js';
 /**
  * @module llm-provider
  *
@@ -101,7 +102,7 @@ interface ResolvedLlmCall {
 
 /** Normalize the host's endpoint; reject missing configuration before any I/O. */
 function resolveBaseUrl({ provider, baseUrl: configuredBaseUrl }: { provider: LlmProviderId; baseUrl: string | undefined }): string {
-  const baseUrl = (configuredBaseUrl ?? '').trim().replace(/\/+$/, '');
+  const baseUrl = trimTrailing((configuredBaseUrl ?? '').trim(), '/');
   if (!baseUrl) {
     throw new Error(`llm-provider: baseUrl is required for the "${provider}" provider (the host must supply an endpoint)`);
   }
@@ -146,7 +147,7 @@ function resolveConfig(config: Omit<LlmProviderConfig, 'baseUrl'> & LlmProviderO
  */
 export function appendVersionedApiPath({ baseUrl, suffix }: { baseUrl: string; suffix: string }): string {
   const url = new URL(baseUrl);
-  const pathname = url.pathname.replace(/\/+$/, '');
+  const pathname = trimTrailing(url.pathname, '/');
   url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
   return url.toString();
 }
@@ -396,7 +397,6 @@ export async function callLlmProvider(
 
 const CODE_FENCE_START_RE = /^```(?:json)?\s*/i;
 const CODE_FENCE_END_RE = /```\s*$/i;
-const JSON_OBJECT_RE = /\{[\s\S]*\}/;
 
 /**
  * Tolerantly parses a strict-JSON model response: strips a wrapping
@@ -427,10 +427,10 @@ export function parseStrictJson<T = unknown>({ rawText }: { rawText: string }, _
   try {
     return JSON.parse(text) as T;
   } catch {
-    const match = JSON_OBJECT_RE.exec(text);
-    if (match) {
+    const match = outermostBraces(text);
+    if (match !== null) {
       try {
-        return JSON.parse(match[0]) as T;
+        return JSON.parse(match) as T;
       } catch {
         // Fall through to the shared throw below.
       }

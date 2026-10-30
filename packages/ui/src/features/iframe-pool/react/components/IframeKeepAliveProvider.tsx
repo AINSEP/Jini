@@ -46,13 +46,14 @@ export function IframeKeepAliveProvider({
   const pool = useMemo<IframeKeepAlivePoolValue>(() => ({
     attach(key, host, create) {
       let entry = entriesRef.current.get(key);
-      if (!entry) {
-        entry = { key, element: create(), lastUsedAt: Date.now() };
-        entriesRef.current.set(key, entry);
-      } else if (!activeKeysRef.current.has(key)) {
+      if (entry && !activeKeysRef.current.has(key)) {
         // Reattaching a parked entry — undo the hidden/inert markers
         // `release()` set, or the reused iframe would stay invisible.
         unparkIframeElement(entry.element);
+      }
+      if (!entry) {
+        entry = { key, element: create(), lastUsedAt: Date.now() };
+        entriesRef.current.set(key, entry);
       }
       entry.lastUsedAt = Date.now();
       activeKeysRef.current.add(key);

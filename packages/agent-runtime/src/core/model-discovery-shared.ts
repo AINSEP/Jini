@@ -32,8 +32,11 @@ function addConcreteChoice({ choices, row }: { choices: Map<string, RuntimeModel
   // Older cached inventories can attach a default-policy label to a resolved concrete ID.
   const label = row.id === 'default' || /^default\b/i.test(row.label) ? id : row.label;
   const existing = choices.get(id);
-  if (!existing) choices.set(id, { ...row, id, label, identityKind: 'concrete' });
-  else if (existing.label === id && label !== id) choices.set(id, { ...existing, label });
+  if (!existing) {
+    choices.set(id, { ...row, id, label, identityKind: 'concrete' });
+    return;
+  }
+  if (existing.label === id && label !== id) choices.set(id, { ...existing, label });
 }
 
 /** The resolved concrete default id when it is missing from `choices`, else undefined. */

@@ -73,6 +73,10 @@ export type ClaudeStreamEvent =
   | RoleMarkerWarningEvent;
 
 export type EventSink = (event: ClaudeStreamEvent) => void;
+/** The first argument that is a string (possibly empty), or `undefined` when none is. */
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === 'string');
+}
 export type BlockState = {
   type?: unknown;
   name?: unknown;
@@ -182,11 +186,7 @@ export function applyTaskCreate(
   tasks: Map<string, RuntimeTask>,
   counter: RuntimeTaskIdCounter,
 ): boolean {
-  const content = typeof input.subject === 'string'
-    ? input.subject
-    : typeof input.description === 'string'
-      ? input.description
-      : '';
+  const content = firstString(input.subject, input.description) ?? '';
   if (!content) return false;
   const id = runtimeTaskIdFromCreate(input, counter);
   const activeForm = typeof input.activeForm === 'string' ? input.activeForm : undefined;
@@ -203,11 +203,7 @@ export function applyTaskUpdate(input: Record<string, unknown>, tasks: Map<strin
   if (typeof input.taskId !== 'string') return false;
   const existing = tasks.get(input.taskId);
   if (!existing) return false;
-  const content = typeof input.subject === 'string'
-    ? input.subject
-    : typeof input.description === 'string'
-      ? input.description
-      : existing.content;
+  const content = firstString(input.subject, input.description) ?? existing.content;
   const activeForm = typeof input.activeForm === 'string' ? input.activeForm : existing.activeForm;
   tasks.set(input.taskId, {
     ...existing,
@@ -229,9 +225,7 @@ export function emitCanonicalTaskSnapshot(
   if (registry.seenToolUseIds.has(toolUseId)) return true;
   const applied = name === 'TaskCreate'
     ? applyTaskCreate(input, registry.tasks, registry.counter)
-    : name === 'TaskUpdate'
-      ? applyTaskUpdate(input, registry.tasks)
-      : false;
+    : name === 'TaskUpdate' && applyTaskUpdate(input, registry.tasks);
   if (!applied) return false;
   // Coverage-driven refactor (2026-07-18, no behavior change): the
   // original OD source guarded this emission with
@@ -310,10 +304,32 @@ function isHtmlArtifact(candidate: string): boolean {
 }
 
 function normalizeArtifactEchoContent(value: string): string {
-  return value
+  const normalized = value
     .replace(/^\uFEFF/, '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/^(?:\s|\\r|\\n)+|(?:\s|\\r|\\n)+$/g, '');
+    .replace(/\r\n?/g, '\n');
+  return trimEchoPadding(normalized);
+}
+
+/** Length of the padding token (whitespace, or a literal `\r`/`\n` escape) starting at `index`; 0 if none. */
+function echoPaddingAt(text: string, index: number): number {
+  if (/\s/.test(text.charAt(index))) return 1;
+  return text.startsWith('\\r', index) || text.startsWith('\\n', index) ? 2 : 0;
+}
+
+/** Length of the padding token ending just before `end`; 0 if none. */
+function echoPaddingBefore(text: string, end: number): number {
+  if (end > 0 && /\s/.test(text.charAt(end - 1))) return 1;
+  return end > 1 && echoPaddingAt(text, end - 2) === 2 ? 2 : 0;
+}
+
+/** Strips leading and trailing runs of whitespace and literal `\r`/`\n` escapes. Same result as
+ *  `text.replace(/^(?:\s|\\r|\\n)+|(?:\s|\\r|\\n)+$/g, '')`, without its quadratic backtracking. */
+function trimEchoPadding(text: string): string {
+  let start = 0;
+  for (let step = echoPaddingAt(text, start); step > 0; step = echoPaddingAt(text, start)) start += step;
+  let end = text.length;
+  for (let step = echoPaddingBefore(text, end); step > 0 && end - step >= start; step = echoPaddingBefore(text, end)) end -= step;
+  return text.slice(start, end);
 }
 
 export function isRedundantWrittenArtifact(candidate: string, ctx: ArtifactEchoContext): boolean {
@@ -673,16 +689,20 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     while ((nl = buffer.indexOf('\n')) !== -1) {
       const line = buffer.slice(0, nl).trim();
       buffer = buffer.slice(nl + 1);
-      if (!line) continue;
-      let obj;
-      try {
-        obj = JSON.parse(line);
-      } catch {
-        onEvent({ type: 'raw', line });
-        continue;
-      }
-      handleObject(obj);
+      if (line) feedLine(line);
     }
+  }
+
+  /** One complete, non-blank line: a JSON object is handled, anything else passes through raw. */
+  function feedLine(line: string) {
+    let obj;
+    try {
+      obj = JSON.parse(line);
+    } catch {
+      onEvent({ type: 'raw', line });
+      return;
+    }
+    handleObject(obj);
   }
 
   function flush() {
@@ -796,14 +816,9 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
   }
 
   function handleResultMessage(obj: Record<string, unknown>): void {
-    // Explicit annotation: the `&&`/`||` chain's inferred type includes a phantom `false` (TS
-    // widens each unresolved `&&` branch to its check's boolean), even though no runtime path
-    // through this chain can ever produce the literal `false` — the last `|| null` guarantees a
-    // string or null. Pinning the declared type to what's actually true, not casting past it.
+    // The first non-empty string of `stop_reason`, then `terminal_reason`; otherwise null.
     const stopReason: string | null =
-      (typeof obj.stop_reason === 'string' && obj.stop_reason) ||
-      (typeof obj.terminal_reason === 'string' && obj.terminal_reason) ||
-      null;
+      [obj.stop_reason, obj.terminal_reason].find((reason): reason is string => typeof reason === 'string' && reason !== '') ?? null;
     // Claude Code 2.1.201 does not always emit a terminal
     // stream_event/message_delta. In that wire shape, the top-level result
     // is the only frame carrying `end_turn`. Surface it as a turn boundary
@@ -890,26 +905,27 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
     }
   }
 
-  function handleContentBlockStop(ev: Record<string, unknown>): void {
-    const key = blockKey(ev.index);
-    const state = blocks.get(key);
-    if (state && state.type === 'tool_use' && typeof state.id === 'string' && state.input.trim()) {
+  /** Emits a finished tool_use block from its streamed JSON text, else from its complete input value. */
+  function emitFinishedToolBlock(state: BlockState, id: string): void {
+    if (state.input.trim()) {
       try {
-        emitToolUse(state.id, state.name, JSON.parse(state.input));
-        streamedToolUseIds.add(state.id);
+        emitToolUse(id, state.name, JSON.parse(state.input));
+        streamedToolUseIds.add(id);
       } catch {
         // Fall through to the final assistant wrapper's input if the
         // streamed JSON is malformed or incomplete.
       }
-    } else if (
-      state &&
-      state.type === 'tool_use' &&
-      typeof state.id === 'string' &&
-      state.inputValue !== undefined
-    ) {
-      emitToolUse(state.id, state.name, state.inputValue);
-      streamedToolUseIds.add(state.id);
+      return;
     }
+    if (state.inputValue === undefined) return;
+    emitToolUse(id, state.name, state.inputValue);
+    streamedToolUseIds.add(id);
+  }
+
+  function handleContentBlockStop(ev: Record<string, unknown>): void {
+    const key = blockKey(ev.index);
+    const state = blocks.get(key);
+    if (state?.type === 'tool_use' && typeof state.id === 'string') emitFinishedToolBlock(state, state.id);
     blocks.delete(key);
   }
 

@@ -14,8 +14,12 @@ export function assertKitContract(required: { contract: string }, _optional: Rec
   const { contract } = required;
   const match = /^\^(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(contract);
   const [major, minor, patch] = KIT_CONTRACT.version.split('.').map(Number);
-  const compatible = match ? Number(match[1]) === major && (Number(match[2] ?? 0) < minor! ||
-    (Number(match[2] ?? 0) === minor && Number(match[3] ?? 0) <= patch!)) : contract === KIT_CONTRACT.version;
+  let compatible = contract === KIT_CONTRACT.version;
+  if (match) {
+    const requestedMinor = Number(match[2] ?? 0);
+    const withinMinor = requestedMinor < minor! || (requestedMinor === minor && Number(match[3] ?? 0) <= patch!);
+    compatible = Number(match[1]) === major && withinMinor;
+  }
   if (!compatible) throw new KitConfigError({ issues: [`contract ${contract} is incompatible with ${KIT_CONTRACT.version}`] });
 }
 export function needs<const N extends readonly KitComponentName[]>(

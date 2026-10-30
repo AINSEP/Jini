@@ -25,7 +25,7 @@ export function useScrollJump(
   const [visibility, setVisibility] = useState<ScrollJumpVisibility>(HIDDEN);
 
   useEffect(() => {
-    if (!container) return;
+    if (!container) return undefined;
     // Same-value updates keep the previous object so a scroll that changes nothing does not re-render.
     const update = () => setVisibility((previous) => {
       const next = scrollJumpVisibility(container);

@@ -17,7 +17,8 @@ export function createSiteGuideResource(input: { readonly runId: string }, optio
     description: 'Permission-filtered building blocks and live facts for the site hosting this run. Consult before planning or building; use site_guide explain through the delegated gateway for details.',
     read: async ({ ctx }) => {
       const result = await gateway.handler({ args: { toolId: 'site_guide', input: { operation: 'overview' } }, ctx });
-      if (typeof result !== 'object' || result === null || !('status' in result) || result.status !== 'completed' || !('output' in result)) {
+      const completed = typeof result === 'object' && result !== null && 'status' in result && result.status === 'completed';
+      if (!completed || !('output' in result)) {
         throw new Error('site_guide resource read did not complete. Use the delegated tool result to inspect authorization or availability.');
       }
       return { text: JSON.stringify(result.output, null, 2) };

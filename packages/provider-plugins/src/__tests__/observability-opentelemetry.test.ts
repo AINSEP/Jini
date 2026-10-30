@@ -39,6 +39,23 @@ function createPortUnderTest() {
 }
 const setup = createPortUnderTest;
 
+test('OTLP header parsing treats blank settings as absent and refuses mixed value types', () => {
+  assert.equal(otlpHeadersOf('  '), undefined);
+  assert.equal(otlpAuthHeaders({ auth: 'none' }), undefined);
+  for (const value of [null, [], 0, true, { Authorization: 7 }]) {
+    assert.throws(() => otlpHeadersOf(value), new TypeError('headers must be an object of strings'));
+  }
+  assert.throws(() => otlpHeadersOf('ok=value,broken'), new TypeError('headers must be Name=Value pairs separated by commas'));
+  assert.deepEqual(otlpAuthHeaders({ auth: 'bearer', username: 'ignored', token: ' token ',
+    headers: { authorization: 'old', 'X-Scope': 'scope' } }), { 'X-Scope': 'scope', Authorization: 'Bearer token' });
+});
+
+test('provider configuration rejects a non-string optional field before starting exporters', () => {
+  assert.throws(() => createOpenTelemetryProvider({ serviceName: 'fixture', endpoint: 'https://collector.test', tracerName: 7 }),
+    new TypeError('tracerName must be a string'));
+  assert.throws(() => createOpenTelemetryProvider({ serviceName: 'fixture' }), new TypeError('an OTLP endpoint is required'));
+});
+
 test('active IDs follow nested async spans, concurrent work and scope exit', async () => {
   const { port, exporter } = createPortUnderTest();
   assert.equal(port.activeTraceIds?.(), undefined);

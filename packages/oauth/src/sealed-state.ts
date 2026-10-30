@@ -21,10 +21,10 @@ type AuthorizationPayload = AuthorizationEntry & { createdAt: string; exp: numbe
 function assertStateBinding({ value, workspaceId, serverId, principalId, ownerKey, providerId, redirectUri }: {
     value: Record<string, unknown>; workspaceId: string; serverId: string; principalId: string | undefined;
 } & Omit<OpenStateInput, 'state'>, _optional: Record<string, never> = {}): void {
-    if (value.workspaceId !== workspaceId || value.serverId !== serverId
-        || value.principalId !== principalId
-        || typeof value.ownerKey !== 'string' || !secureEquals({ a: value.ownerKey, b: ownerKey })
-        || value.providerId !== providerId || value.redirectUri !== redirectUri) {
+    const sameScope = value.workspaceId === workspaceId && value.serverId === serverId && value.principalId === principalId;
+    const sameOwner = typeof value.ownerKey === 'string' && secureEquals({ a: value.ownerKey, b: ownerKey });
+    const sameTarget = value.providerId === providerId && value.redirectUri === redirectUri;
+    if (!sameScope || !sameOwner || !sameTarget) {
         throw invalidState({});
     }
 }
@@ -37,11 +37,11 @@ function isValidStateResource({ resource }: { resource: unknown }, _optional: Re
 function readStatePayload({ value, clock }: {
     value: Record<string, unknown>; clock: Clock;
 }, _optional: Record<string, never> = {}): AuthorizationPayload {
-    if (!Number.isSafeInteger(value.exp) || (value.exp as number) <= clock.nowMs()
-        || typeof value.codeVerifier !== 'string' || typeof value.createdAt !== 'string'
-        || !Number.isFinite(Date.parse(value.createdAt))
-        || !Array.isArray(value.scopes) || !value.scopes.every((scope: unknown) => typeof scope === 'string')
-        || !isValidStateResource({ resource: value.resource })) {
+    const live = Number.isSafeInteger(value.exp) && (value.exp as number) > clock.nowMs();
+    const created = typeof value.createdAt === 'string' && Number.isFinite(Date.parse(value.createdAt));
+    const scopesValid = Array.isArray(value.scopes) && value.scopes.every((scope: unknown) => typeof scope === 'string');
+    const shapeValid = typeof value.codeVerifier === 'string' && created && scopesValid;
+    if (!live || !shapeValid || !isValidStateResource({ resource: value.resource })) {
         throw invalidState({});
     }
     return value as AuthorizationPayload;

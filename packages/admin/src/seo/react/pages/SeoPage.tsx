@@ -1,6 +1,6 @@
-import { useAnalyzePanel, useSeoDefaults, useSeoTabs, seoTabPanel } from "../hooks/SeoPage.hooks.js";
+import { useAnalyzePanel, useSeoDefaults, useSeoTabs } from "../hooks/SeoPage.hooks.js";
 import type { ReactNode } from "react";
-import type { SeoTabController } from "../hooks/SeoPage.hooks.js";
+import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
 
 import { agentHandle } from "@jini-ai/agentic";
 
@@ -19,7 +19,7 @@ import {
 import { MediaRefField } from "../components/MediaRefField.js";
 import { SitemapModal } from "../components/SitemapModal.js";
 
-import type { SeoEntryAnalysis, SeoEntryPanelController, SeoSettings, SeoSettingsPatch } from "../../models.js";
+import type { SeoEntryAnalysis, SeoEntryPanelController } from "../../models.js";
 
 /**
  * `SeoSettingsScreen` (SPEC-008 ui.spec.md §2.4) — the site-wide `seo.*` settings form +
@@ -161,6 +161,12 @@ function EntryPicker({ locale, entryId, onChange, useEntryPickerHook = useWiredE
   );
 }
 
+/** Status-chip modifier for an issue: errors read as failures, warnings as warnings, anything else as success. */
+function issueStatusClass(severity: string): string {
+  if (severity === "error") return "failure";
+  return severity === "warning" ? "warning" : "success";
+}
+
 /** Read-only score + issues view (REQ-07) — exact field names read off `SeoAnalysis`/`SeoIssue`
  * (`src/seo/types.ts`), not guessed. No state of its own — only the severity sort, which lives in
  * `rules.ts` as `sortIssuesBySeverity`. */
@@ -186,7 +192,7 @@ function AnalyzePanel(props: { locale: string; analysis: SeoEntryAnalysis }) {
         <ul className="jini-seo-issues">
           {sortedIssues.map((issue, i) => (
             <li key={`${issue.code}-${i}`} className="jini-seo-issue">
-              <span className={`jini-status jini-status-${issue.severity === "error" ? "failure" : issue.severity === "warning" ? "warning" : "success"}`}>
+              <span className={`jini-status jini-status-${issueStatusClass(issue.severity)}`}>
                 {issue.severity}
               </span>
               <span className="jini-seo-issue-text">
@@ -801,7 +807,7 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
         onChange={changeTab}
         containerHandle="seo-tab-bar"
       />
-      {seoTabPanel({ activeTabId, controller, components: { SeoDefaultsTab, SeoSitemapTab, SeoEntrySection } })}
+      {seoTabPanel({ activeTabId, controller })}
 
       {/* The sitemap modal stays on the shell rather than inside `SeoSitemapTab`: it is a portal-
           shaped overlay over the whole page, and `sitemapModalOpen`/`closeSitemapModal` are shell
@@ -817,6 +823,16 @@ export function Seo({ tabId, onTabChange, useSeoHook = useWiredSeo }: SeoProps =
       ) : null}
     </div>
   );
+}
+
+/** Panel selection is presentation dispatch; this never changes the defaults form's field set. */
+function seoTabPanel(
+  { activeTabId, controller }: { activeTabId: SeoTabId; controller: SeoTabController },
+  _optional: Record<string, never> = {},
+) {
+  if (activeTabId === 'sitemap') return <SeoSitemapTab controller={controller} />;
+  if (activeTabId === 'entries') return <SeoEntrySection locale={controller.locale} />;
+  return <SeoDefaultsTab controller={controller} />;
 }
 
 export { Seo as SeoPage };

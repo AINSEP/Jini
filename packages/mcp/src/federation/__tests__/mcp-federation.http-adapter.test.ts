@@ -63,6 +63,23 @@ function connect(exchange: ScriptedMcpHttpExchange, requestTimeoutMs = 1_000) {
   return connectMcpHttpSession({ messages: defaultFederationMessages,clientInfo, bearerToken: () => undefined,  exchange, spec: SPEC, requestTimeoutMs });
 }
 
+test('HTTP exchange omits absent body/signal and represents absent response headers explicitly', async () => {
+  const fetchImpl = vi.fn<typeof fetch>(async () => new Response('reply'));
+  const exchange = createFetchMcpHttpExchange({ fetch: fetchImpl });
+  assert.deepEqual(await exchange.send({ url: SPEC.url, method: 'DELETE', headers: { accept: 'application/json' } }), {
+    status: 200, contentType: 'text/plain;charset=utf-8', sessionId: undefined, wwwAuthenticate: undefined, text: 'reply',
+  });
+  assert.deepEqual(fetchImpl.mock.calls, [[SPEC.url, {
+    method: 'DELETE', headers: { accept: 'application/json' }, redirect: 'error',
+  }]]);
+});
+
+test('strict UTF-8 exchange refuses malformed bytes instead of returning replacement characters', async () => {
+  const exchange = createFetchMcpHttpExchange({ fetch: async () => new Response(new Uint8Array([0xc3, 0x28])) },
+    { strictUtf8: true });
+  await assert.rejects(exchange.send({ url: SPEC.url, method: 'POST', headers: {} }), TypeError);
+});
+
 // ---------------------------------------------------------------------------
 // Handshake
 // ---------------------------------------------------------------------------

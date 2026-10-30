@@ -1,4 +1,5 @@
 import { defaultAdminTheme } from '../core/theme/default.js';
+import { kebabThemeKey } from '../core/theme/css-name.js';
 import { adminThemeColorKeys, validateAdminTheme } from '../core/theme/validation.js';
 import type { AdminTheme, AdminThemeDocument, AdminThemeTarget } from '../core/theme/types.js';
 
@@ -18,13 +19,18 @@ function acquireFont(document: AdminThemeDocument, href: string): () => void {
   }
   const held = lease;
   held.users++;
-  return () => { if (--held.users === 0) { if (held.owned) held.link.remove(); leases.delete(absolute); } };
+  return () => {
+    held.users -= 1;
+    if (held.users !== 0) return;
+    if (held.owned) held.link.remove();
+    leases.delete(absolute);
+  };
 }
 
 function themeValues({ theme }: { readonly theme: AdminTheme }, _options: object = {}): Record<string, string> {
   const values: Record<string, string> = {};
   for (const scheme of ['light', 'dark'] as const) for (const key of adminThemeColorKeys) {
-    values[`--jini-theme-${scheme}-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`] = theme[scheme][key];
+    values[`--jini-theme-${scheme}-${kebabThemeKey(key)}`] = theme[scheme][key];
   }
   values['--jini-font-body'] = theme.fonts.body;
   values['--jini-font-heading'] = theme.fonts.heading;

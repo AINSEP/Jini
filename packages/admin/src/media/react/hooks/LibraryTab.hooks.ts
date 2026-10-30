@@ -12,6 +12,7 @@ import { canRestoreMedia } from '../../rules.js';
 import type { MediaAsset, MediaContentTabId } from '../../models.js';
 import type { LibraryState } from '../../controllers/library.controller.js';
 import type { MediaApiPort } from '../../ports.js';
+import { omitKeys } from '../../../core/omit-keys.js';
 type LibraryController = ReturnType<typeof createLibraryController>;
 type Announce = (required: { message: string; focus: { id: string; index: number } }) => void;
 const EMPTY_LABELS: Readonly<Record<MediaContentTabId, string>> = {
@@ -59,7 +60,7 @@ function purgeDialogView({ snapshot }: { snapshot: LibraryState | null }, _optio
 function queryHandlers({ controller }: { controller: LibraryController | null }, _optional: Record<string, never> = {}) {
   return {
     onStatus: ({ value }: { value: string }) => {
-      const { status: _status, ...query } = controller?.getSnapshot().query ?? {};
+      const query = omitKeys(controller?.getSnapshot().query ?? {}, ['status']);
       void controller?.setQuery({ query: { ...query, ...(value === 'active' || value === 'trashed' ? { status: value } : {}) } });
     },
     onSearch: ({ value: search }: { value: string }) => {
@@ -193,7 +194,7 @@ export function useLibraryTab(
     confirmPurge: () => {
       const item = controller?.getSnapshot().pendingPurge;
       // The controller refuses to purge without a pending item, so there is nothing to announce.
-      if (!can.canPurge || !controller || !item) return;
+      if (!can.canPurge || !controller || !item) return undefined;
       const index = items.findIndex(row => row.id === item.id);
       return controller.confirmPurge({ confirmed: true }).then(saved => {
         if (saved) {

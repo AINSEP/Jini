@@ -69,13 +69,20 @@ export function credentialTokenHint({ token }: { token: string }, _optional = {}
 }
 
 const SECRET_NAME = /(?:^|[_-])(?:key|api[_-]?key|token|access[_-]?token|secret|password|auth|sig)$/i;
-const SECRET_ARG = /(?:^|\s)--[\w-]*(?:api[_-]?key|token|secret|password)(?:=|\s+)(?!\s*$)\S/i;
+// A `--flag` followed by a value; the flag name is captured whole and its suffix checked separately,
+// so the name run and the keyword can no longer backtrack against each other.
+const CLI_FLAG_WITH_VALUE = /(?:^|\s)--([\w-]*)(?=(?:=|\s+)\S)/gi;
+const SECRET_FLAG_SUFFIX = /(?:api[_-]?key|token|secret|password)$/i;
+/** True when some `--…api-key/token/secret/password` flag carries a value. @complexity O(value length). */
+function hasSecretCliArg(value: string): boolean {
+  return [...value.matchAll(CLI_FLAG_WITH_VALUE)].some(match => SECRET_FLAG_SUFFIX.test(match[1]!));
+}
 /** Protect plaintext metadata, using Jini's detector plus structural URL/CLI rules. */
 export function assertCredentialFreeField(
   { value, field, containsSecret }: { value: string; field: string; containsSecret: (required: { text: string }) => boolean },
   _optional = {},
 ): void {
-  let credential = containsSecret({ text: value }) || SECRET_ARG.test(value);
+  let credential = containsSecret({ text: value }) || hasSecretCliArg(value);
   try {
     const url = new URL(value);
     credential ||= url.username !== '' || url.password !== '' || [...url.searchParams.keys()].some(key => SECRET_NAME.test(key));

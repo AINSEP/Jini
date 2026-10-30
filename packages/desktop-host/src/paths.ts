@@ -1,3 +1,4 @@
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 /**
  * Generalized from OD `apps/packaged/src/paths.ts`. On inspection this file
  * was **far more OD-coupled than the task brief expected**: it hardcodes
@@ -55,7 +56,7 @@ function expandHomePrefix(raw: string): string {
 }
 
 function scopedNamespaceOf(raw: string): string | null {
-  const parts = raw.replace(/[\\/]+$/g, '').split(/[\\/]+/);
+  const parts = trimCharsEnd({ text: raw, chars: '\\/' }).split(/[\\/]+/);
   const last = parts.length - 1;
   if (last < 2) return null;
   if (parts[last - 2] !== 'namespaces' || parts[last] !== 'data') return null;

@@ -28,7 +28,7 @@ import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /** Anonymous submission path: active lookup, honeypot, validation, rate check, persistence + event enqueue in one host transaction, then background dispatch. */
 import { buildFormsRateLimitKey } from "./rate-limit-key.js";
 import type { RateLimiterPort, FormOutboxPort, OutboxDispatcherPort, SubmissionTransactionPort } from "./ports.js";
-import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
+import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import {
   FormDefinitionNotFoundError,
   FormRateLimitExceededError,

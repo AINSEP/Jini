@@ -21,6 +21,10 @@ import {
   type UserRecord,
 } from "../core/types.js";
 
+const USER_MANAGE = "user.manage";
+const ROLE_MANAGE = "role.manage";
+
+
 /**
  * @file An amendment that completes the users/roles/policies admin CRUD surface
  * (feature.spec.md..19).
@@ -76,7 +80,7 @@ export async function disablePrincipal(required: {
         deps,
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
-        permissions: ["user.manage"],
+        permissions: [USER_MANAGE],
       });
 
       const target = await deps.repos.principals.findById({ workspaceId: input.workspaceId, id: input.principalId });
@@ -144,7 +148,7 @@ export async function enablePrincipal(required: {
         deps,
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
-        permissions: ["user.manage"],
+        permissions: [USER_MANAGE],
       });
 
       const target = await deps.repos.principals.findById({ workspaceId: input.workspaceId, id: input.principalId });
@@ -200,8 +204,8 @@ export async function updateUser(required: {
         callerPrincipalId: input.callerPrincipalId,
         // Preserve existing self-profile access without letting member.manage edit other operators.
         permissions: input.username === undefined && input.callerPrincipalId === input.principalId
-          ? ["user.manage", "member.manage"]
-          : ["user.manage"],
+          ? [USER_MANAGE, "member.manage"]
+          : [USER_MANAGE],
       });
 
       const target = await deps.repos.users.findByPrincipalId({
@@ -225,9 +229,11 @@ export async function updateUser(required: {
       await deps.repos.users.save(updated);
       if (username !== target.username) {
         // Renaming never changes the principal id or credentials: existing sessions stay valid.
-        await deps.usernameChanges!.record({ workspaceId: input.workspaceId, principalId: input.principalId,
+        await deps.usernameChanges!.record({
+          workspaceId: input.workspaceId, principalId: input.principalId,
           callerPrincipalId: input.callerPrincipalId, previousUsername: target.username, username,
-          occurredAt: kernelNowIso({ clock: deps.clock }) });
+          occurredAt: kernelNowIso({ clock: deps.clock })
+        });
       }
       return { user: updated };
     },
@@ -333,7 +339,7 @@ export async function resetUserPassword(required: {
         deps,
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
-        permissions: ["user.manage"],
+        permissions: [USER_MANAGE],
       });
 
       const target = await deps.repos.users.findByPrincipalId({
@@ -407,7 +413,7 @@ export async function updateRole(required: {
     deps,
     workspaceId: input.workspaceId,
     callerPrincipalId: input.callerPrincipalId,
-    permissions: ["role.manage"],
+    permissions: [ROLE_MANAGE],
   });
 
   const target = await deps.repos.roles.findById({ workspaceId: input.workspaceId, id: input.roleId });
@@ -446,7 +452,7 @@ export async function updatePolicy(required: {
     deps,
     workspaceId: input.workspaceId,
     callerPrincipalId: input.callerPrincipalId,
-    permissions: ["role.manage"],
+    permissions: [ROLE_MANAGE],
   });
 
   const target = await deps.repos.policies.findById({ workspaceId: input.workspaceId, id: input.policyId });
@@ -500,7 +506,7 @@ export async function deleteRole(required: {
         deps,
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
+        permissions: [ROLE_MANAGE],
       });
 
       const target = await deps.repos.roles.findById({ workspaceId: input.workspaceId, id: input.roleId });
@@ -551,7 +557,7 @@ export async function deletePolicy(required: {
         deps,
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
+        permissions: [ROLE_MANAGE],
       });
 
       const target = await deps.repos.policies.findById({ workspaceId: input.workspaceId, id: input.policyId });
@@ -610,7 +616,7 @@ export async function writePolicyPermission(required: {
         deps,
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
+        permissions: [ROLE_MANAGE],
       });
 
       if (!isKnownPermission({ id: input.permission })) {
@@ -683,7 +689,7 @@ export async function removePolicyPermission(required: {
         deps,
         workspaceId: input.workspaceId,
         callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
+        permissions: [ROLE_MANAGE],
       });
 
       const policy = await deps.repos.policies.findById({ workspaceId: input.workspaceId, id: input.policyId });

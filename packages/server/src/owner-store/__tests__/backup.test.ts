@@ -19,6 +19,33 @@ const seal = (doc: Doc, passphrase = "recovery") => sealWithPassphrase({ payload
 const rejected = async (doc: Doc) => expect(readLegacyOwnerBackup({ envelope: await seal(doc), passphrase: "recovery" }))
   .rejects.toMatchObject({ code: "invalid-backup" });
 
+test.each([
+  { last4: 'abc', tokenLength: 12 }, { last4: 1234, tokenLength: 12 },
+  { last4: 'abcd', tokenLength: 11 }, { last4: 'abcd', tokenLength: null },
+  { last4: null, tokenLength: -1 }, { last4: null, tokenLength: 1.5 },
+  { last4: 'abcd', tokenLength: 12, payload: null },
+])('refuses invalid portable secret hints %j', async patch => {
+  const doc = v2();
+  doc.entries[0] = { ...doc.entries[0], ...patch };
+  await rejected(doc);
+});
+
+test('accepts a four-character hint exactly at the twelve-character token boundary', async () => {
+  const doc = v2();
+  doc.entries[0] = { ...doc.entries[0], last4: 'abcd', tokenLength: 12 };
+  const result = await readLegacyOwnerBackup({ envelope: await seal(doc), passphrase: 'recovery' });
+  expect(result.entries[0]).toEqual(entryView(first));
+  expect(result.entries[0]).not.toHaveProperty('last4');
+  expect(result.entries[0]).not.toHaveProperty('tokenLength');
+});
+
+test('authenticated non-JSON content remains a fixed invalid-backup error', async () => {
+  const envelope = await sealWithPassphrase({ payload: '{private malformed document', passphrase: 'recovery' });
+  await expect(readLegacyOwnerBackup({ envelope, passphrase: 'recovery' })).rejects.toMatchObject({
+    name: 'OwnerStoreBackupError', code: 'invalid-backup', message: 'Owner store backup: invalid-backup',
+  });
+});
+
 test("a published version-1 backup reads its entries with no recorded destinations", async () => {
   expect(await readLegacyOwnerBackup({ envelope: await seal(publishedV1()), passphrase: "recovery" }))
     .toEqual({ entries: [entryView(first), entryView(second)], grants: [], revocations: [] });

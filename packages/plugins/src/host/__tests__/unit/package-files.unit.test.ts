@@ -224,6 +224,28 @@ async function withFsPatch<K extends "open" | "readdir">(t: TestContext, key: K,
   try { await run(); } finally { spy.mock.restore(); syncBuiltinESMExports(); }
 }
 
+test('growth within the per-file limit still cannot exceed the total package budget', async t => {
+  const root = await tempRoot(t);
+  await writeTree(root, { 'growing.txt': 'x' });
+  const originalOpen = fsPromises.open;
+  await withFsPatch(t, 'open', async (...args: Parameters<typeof fsPromises.open>) => {
+    const handle = await originalOpen(...args);
+    return new Proxy(handle, { get(target, key) {
+      if (key === 'stat') return async () => {
+        const info = await target.stat();
+        await writeFile(path.join(root, 'growing.txt'), '12345');
+        return info;
+      };
+      const value = Reflect.get(target, key) as unknown;
+      return typeof value === 'function' ? value.bind(target) : value;
+    } });
+  }, async () => {
+    const result = await readPluginPackageFiles({ input: { rootDir: root, containerDir: root } },
+      { limits: limits({ maxFileBytes: 8, maxTotalBytes: 4 }) });
+    assert.deepEqual(result, { files: [], truncated: true });
+  });
+});
+
 test("C26: a file growing beyond maxFileBytes after stat is omitted instead of returning a prefix", async (t) => {
   const root = await tempRoot(t);
   const file = path.join(root, "growing.txt");

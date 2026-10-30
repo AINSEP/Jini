@@ -8,7 +8,8 @@ function errorMessage(error: unknown): string | undefined {
 
 /** The string `code` an Error or plain object carries, or `undefined` when there is none. */
 function errorCode(error: unknown): string | undefined {
-  return error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : undefined;
+  if (!error || typeof error !== "object" || !("code" in error)) return undefined;
+  return typeof error.code === "string" ? error.code : undefined;
 }
 
 /** Error codes are data, so any host transport can supply them without a shared error class. */

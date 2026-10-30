@@ -2,7 +2,7 @@ import type { KeyringPort, SecretSealerPort } from "../ports.js";
 import { credentialTokenHint } from "../credential-token.js";
 import { buildVaultAad } from "./vault.aad.js";
 import { isCopyableKind } from "./vault.meta.js";
-import { VAULT_KINDS, VaultError, type VaultContext, type VaultIdentity, type VaultKind, type VaultMeta, type VaultMetaParsers,
+import { VAULT_KINDS, VaultError, isInVaultQueryScope, type VaultContext, type VaultIdentity, type VaultKind, type VaultMeta, type VaultMetaParsers,
   type VaultCopyResult, type VaultDefaultQuery, type VaultOptions, type VaultQuery, type VaultRecord, type VaultPutRecord, type VaultRepoPort, type VaultSummary } from "./vault.types.js";
 
 export interface VaultServiceDeps {
@@ -53,12 +53,17 @@ const HINTLESS_KINDS: readonly VaultKind[] = ["database-destination", "mcp-env",
 function isNonEmptyString({ value }: { value: unknown }): boolean {
   return typeof value === "string" && value !== "";
 }
+/** The one error for malformed, missing or unsupported records and repo capabilities. */
+function invalidRecord(): VaultError {
+  return new VaultError({ code: "invalid-record" });
+}
 function isNullableString({ value }: { value: unknown }): boolean {
   return value === null || typeof value === "string";
 }
 function hasValidOwnership({ context }: { context: VaultContext | VaultQuery }): boolean {
+  const validBinding = !("binding" in context) || isNullableString({ value: context.binding });
   return isNonEmptyString({ value: context.workspaceId }) && isNonEmptyString({ value: context.ownerKey }) &&
-    isNullableString({ value: context.principalId }) && (!("binding" in context) || isNullableString({ value: context.binding }));
+    isNullableString({ value: context.principalId }) && validBinding;
 }
 function hasValidKind({ context }: { context: VaultContext | VaultQuery }): boolean {
   if (!VAULT_KINDS.some(kind => kind === context.kind) && context.kind !== "custom") return false;
@@ -69,19 +74,18 @@ function assertContext(context: VaultContext | VaultQuery): void {
 }
 /** Unified credential rows declare both subtype and compatibility; read defaults cover older rows. */
 function declaresCredential({ meta }: { meta: unknown }): boolean {
-  return meta !== null && typeof meta === "object" && Object.hasOwn(meta, "credentialType") && Object.hasOwn(meta, "worksFor");
-}
-function isInQueryScope({ record, query }: { record: VaultRecord; query: VaultQuery }): boolean {
-  return record.workspaceId === query.workspaceId && record.kind === query.kind && record.ownerKey === query.ownerKey &&
-    record.principalId === query.principalId && (query.provider === undefined || record.provider === query.provider);
+  if (meta === null || typeof meta !== "object") return false;
+  return Object.hasOwn(meta, "credentialType") && Object.hasOwn(meta, "worksFor");
 }
 /** Copy changes the site/key, never the credential's owning feature or endpoint. Principal
  * identities are local to each installation and cannot be carried to the target.
  */
 function isCopyTarget({ sourceContext, targetContext, sameRepo }: { sourceContext: VaultContext; targetContext: VaultContext; sameRepo: boolean }): boolean {
-  return sourceContext.kind === targetContext.kind && sourceContext.ownerKey === targetContext.ownerKey &&
-    sourceContext.binding === targetContext.binding && sourceContext.principalId === null && targetContext.principalId === null &&
-    !(sameRepo && sourceContext.workspaceId === targetContext.workspaceId);
+  const sameFeature = sourceContext.kind === targetContext.kind && sourceContext.ownerKey === targetContext.ownerKey &&
+    sourceContext.binding === targetContext.binding;
+  const noPrincipal = sourceContext.principalId === null && targetContext.principalId === null;
+  const sameSite = sameRepo && sourceContext.workspaceId === targetContext.workspaceId;
+  return sameFeature && noPrincipal && !sameSite;
 }
 function sourceNeedsUpgrade({ raw }: { raw: VaultRecord }): boolean {
   return Object.hasOwn(raw.meta, "legacyAad") || (raw.kind === "vendor" && !declaresCredential({ meta: raw.meta }));
@@ -135,7 +139,7 @@ export class SecretsVaultService {
     if (input.payload === null) return null;
     // JSON round-trip makes the payload contract explicit; encryption never receives an object
     // coerced to '[object Object]' or a connection URI masquerading as an entire payload.
-    if (typeof input.payload !== "object" || Array.isArray(input.payload)) throw new VaultError({ code: "invalid-record" });
+    if (typeof input.payload !== "object" || Array.isArray(input.payload)) throw invalidRecord();
     const plaintext = JSON.stringify(input.payload);
     return this.deps.sealer.seal({ plaintext, key: await this.deps.keyring.activeKey({}), aad: buildVaultAad(input.context) });
   }
@@ -143,8 +147,8 @@ export class SecretsVaultService {
     if (!record.sealed) return null;
     const plaintext = await this.deps.sealer.open({ sealed: record.sealed }, { aad: buildVaultAad(record) });
     let payload: unknown;
-    try { payload = JSON.parse(plaintext); } catch { throw new VaultError({ code: "invalid-record" }); }
-    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) throw new VaultError({ code: "invalid-record" });
+    try { payload = JSON.parse(plaintext); } catch { throw invalidRecord(); }
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) throw invalidRecord();
     return payload as VaultMeta;
   }
 
@@ -194,7 +198,7 @@ export class SecretsVaultService {
   /** Omitted payload keeps the existing envelope and hints without opening or sealing. */
   private async putEnvelope({ input, identity, existing }: { input: VaultPutInput; identity: VaultIdentity; existing: VaultRecord | null }): Promise<Envelope> {
     if (input.payload === undefined) {
-      if (!existing) throw new VaultError({ code: "invalid-record" });
+      if (!existing) throw invalidRecord();
       return { sealed: existing.sealed, last4: existing.last4, tokenLength: existing.tokenLength };
     }
     const sealed = await this.seal({ context: identity, payload: input.payload });
@@ -222,7 +226,7 @@ export class SecretsVaultService {
   async findOne(input: VaultContext, _options: VaultOptions = {}): Promise<{ summary: VaultSummary; payload: VaultMeta | null } | null> {
     assertContext(input);
     await this.authorize({ action: "get", context: input });
-    if (!this.deps.repo.findOne) throw new VaultError({ code: "invalid-record" });
+    if (!this.deps.repo.findOne) throw invalidRecord();
     const record = await this.deps.repo.findOne(input);
     if (!record) return null;
     if (buildVaultAad({ ...input, id: record.id }) !== buildVaultAad(record)) throw new VaultError({ code: "context" });
@@ -238,7 +242,7 @@ export class SecretsVaultService {
     assertContext(input);
     await this.authorize({ action: "get", context: input });
     // Old injected ports retain their existing operations; default reads require this capability.
-    if (!this.deps.repo.findDefault) throw new VaultError({ code: "invalid-record" });
+    if (!this.deps.repo.findDefault) throw invalidRecord();
     const record = await this.deps.repo.findDefault(input);
     if (!record) return null;
     if (!record.isDefault || record.provider !== input.provider || buildVaultAad({ ...input, id: record.id }) !== buildVaultAad(record)) {
@@ -319,7 +323,7 @@ export class SecretsVaultService {
     assertContext(input);
     await this.authorize({ action: "list", context: input });
     return (await this.deps.repo.list(input)).map(record => {
-      if (!isInQueryScope({ record, query: input })) throw new VaultError({ code: "context" });
+      if (!isInVaultQueryScope({ record, query: input })) throw new VaultError({ code: "context" });
       return summary(this.parse(record));
     });
   }

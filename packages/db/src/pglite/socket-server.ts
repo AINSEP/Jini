@@ -435,7 +435,9 @@ export class PgliteSocketServer {
       endSocket(socket, false);
       return;
     }
-    const connection = new Connection(this.nextId++, socket, this.options.db, this.queue, (closed) =>
+    const id = this.nextId;
+    this.nextId += 1;
+    const connection = new Connection(id, socket, this.options.db, this.queue, (closed) =>
       this.connections.delete(closed.id)
     );
     this.connections.set(connection.id, connection);

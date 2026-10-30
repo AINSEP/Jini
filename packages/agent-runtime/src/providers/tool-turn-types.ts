@@ -2,15 +2,9 @@ import type { runAnthropicToolTurn, AnthropicToolDef } from './anthropic-message
 import type { runOpenAiToolTurn, OpenAiFunctionToolDef } from './openai-chat.js';
 import type { runAzureToolTurn, AzureFunctionToolDef } from './azure-chat.js';
 import type { runGoogleToolTurn, GoogleToolDef } from './google-messages.js';
-import type { OperationSchemaFallbackReason } from './operation-schema.js';
+import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
 
-/** Request adapters choose strict support for their actual endpoint/model; policy is always prefer. */
-export interface ProviderToolSnapshotOptions { readonly strict?: boolean }
-export interface ProviderSchemaFallback {
-  readonly toolId: string;
-  readonly protocol: ProviderProtocol;
-  readonly reason: OperationSchemaFallbackReason;
-}
+export type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
 type RefreshableAdapter<Required, Optional, Result, Tool> = (required: Required, optional?: Optional & {
   /** Read immediately before each request, including a recognized schema downgrade. */
   readonly getTools?: (options?: ProviderToolSnapshotOptions) => readonly Tool[];
@@ -36,7 +30,6 @@ export interface ProviderToolDescriptor {
   /** Preserve a wire name already assigned by the run's core exposure snapshot. */
   readonly wireName?: string;
 }
-export type ProviderProtocol = "anthropic" | "openai" | "azure" | "google";
 export interface ProviderChatMessage {
   readonly role: "user" | "assistant";
   readonly content: string;

@@ -148,7 +148,8 @@ export function useRunStream({ transport }: { transport: ChatTransport }): UseRu
   const start = useCallback(
     async (input: StartRunOptions): Promise<{ runId: string } | null> => {
       teardownSubscription();
-      const generation = ++generationRef.current;
+      generationRef.current += 1;
+      const generation = generationRef.current;
       runIdRef.current = null;
       const subscriptionAbort = new AbortController();
       const cancelAbort = new AbortController();
@@ -185,7 +186,8 @@ export function useRunStream({ transport }: { transport: ChatTransport }): UseRu
   const reattach = useCallback(
     async (runId: string, initialEvents: AgentEvent[] = []): Promise<void> => {
       teardownSubscription();
-      const generation = ++generationRef.current;
+      generationRef.current += 1;
+      const generation = generationRef.current;
       runIdRef.current = runId;
       const subscriptionAbort = new AbortController();
       const cancelAbort = new AbortController();

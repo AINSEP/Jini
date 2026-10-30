@@ -1,7 +1,9 @@
 /** Pure field/submission validation and honeypot decisions. Error order and stored value normalization are stable. */
 import type { FieldDescriptor, FormDefinitionRecord, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
-import { FIELD_TYPE_REGISTRY, resolveFormField, type FieldResolution } from "./field-registry.js";
+import { ATTRIBUTE_NAME_PATTERN, FIELD_TYPE_REGISTRY, resolveFormField, type FieldResolution } from "./field-registry.js";
 import { commonDescriptorErrors } from "./descriptor-rules.js";
+
+export { ATTRIBUTE_NAME_PATTERN } from "./field-registry.js";
 
 // Domain validation stays independent of feature manifests, and returns decisions without I/O
 // or exceptions so write and submission services can choose their own error presentation.
@@ -19,15 +21,6 @@ export const FIELD_TYPES = new Set<string>(Object.keys(FIELD_TYPE_REGISTRY));
 export const MAX_CLASS_NAME_LENGTH = 300;
 export const MAX_ATTRIBUTES_PER_FIELD = 12;
 export const MAX_ATTRIBUTE_VALUE_LENGTH = 300;
-
-/**
- * Escaping makes an attribute value inert, but cannot make a name such as onclick safe. Names
- * are deny-by-default: only aria-* and data-* namespaces and a fixed closed list are accepted.
- * Event handlers, style/formaction/href/src/srcdoc can inject behavior; id/name/type overrides
- * can break label association, submission keys or the renderer's declared field vocabulary.
- */
-export const ATTRIBUTE_NAME_PATTERN =
-  /^(aria-[a-z0-9-]+|data-[a-z0-9-]+|placeholder|autocomplete|inputmode|pattern|title|min|max|step|minlength|spellcheck|readonly)$/;
 
 // Accepted as submission metadata, never as a declared field or stored answer.
 export const HONEYPOT_KEY = "_hp";
@@ -230,6 +223,9 @@ function recordResolvedField({ fieldId, resolved, fieldErrors, data, files }: {
   if (resolved.kind === "rejected") fieldErrors.push({ field: fieldId, reason: resolved.reason });
   else if (resolved.kind === "accepted") data[fieldId] = resolved.value;
   else if (resolved.kind === "upload") files[fieldId] = resolved.file;
+  else {
+    // Absent optional fields do not populate any result collection.
+  }
 }
 
 // Only a non-empty trimmed string trips the trap; absent, non-string or whitespace-only values

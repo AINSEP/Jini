@@ -134,7 +134,7 @@ async function sumFileSizes(paths: ReadonlyArray<string>): Promise<number> {
 function sanitizeTableName(name: string): string | null {
   // Allow ASCII alphanumerics + underscore; SQLite identifier sanity check. Prevents accidental
   // SQL injection if a malicious migration ever invents a hostile table name.
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return null;
+  if (!/^[A-Za-z_]\w*$/.test(name)) return null;
   return name;
 }
 
@@ -178,9 +178,7 @@ function readIntegrityIssues({ db, pragma }: { db: SqliteDb; pragma: string }, {
       // SQLite returns the string under either `integrity_check`, `quick_check`, or just the
       // first column. Normalise to the first string-valued field.
       const message = (row[pragma] ?? Object.values(row)[0]) as unknown;
-      if (typeof message !== 'string') continue;
-      if (message.toLowerCase() === 'ok') continue;
-      issues.push({ kind: 'integrity', message });
+      if (typeof message === 'string' && message.toLowerCase() !== 'ok') issues.push({ kind: 'integrity', message });
     }
   } catch (err) {
     issues.push({ kind: 'integrity', message: `pragma ${pragma} threw: ${(err as Error).message}` });

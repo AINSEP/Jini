@@ -8,4 +8,5 @@ const refuse = async (): Promise<never> => { throw new Error('Unavailable'); };
 export const unavailableRootKey: RootKeyPort = { status: refuse, generate: refuse, importToken: refuse, previewStartFresh: refuse, startFresh: refuse };
 export const noOtherCredentials: OtherCredentialsPort = { async list() { return []; }, replace: refuse, remove: refuse };
 export const SecurityPortsContext = createContext<SecurityPorts | null>(null);
-export function useSecurityPorts(_required: Record<string, never> = {}, _optional = {}) { const ports = useContext(SecurityPortsContext); if (!ports) throw new AdminConfigError({ issues: ['React scope unavailable: security'] }); return ports; }
+export function useSecurityPorts(_required: Record<string, never> = {}, _optional = {}) { const ports = useContext(SecurityPortsContext); if (!ports) throw new AdminConfigError({ issues: ['React scope unavailable: security'] });
+  return ports; }

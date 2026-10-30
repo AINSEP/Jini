@@ -13,6 +13,5 @@ export function initialFormSubmissionsState(_required: Record<string, never>, _o
 }
 /** A headless section store. React owns subscriptions/effects, never this state. */
 export function createFormSubmissionsController(_required: Record<string, never>, _optional = {}) {
-  const store = createFormsDraftStore({ initial: initialFormSubmissionsState({}) });
-  return store;
+  return createFormsDraftStore({ initial: initialFormSubmissionsState({}) });
 }

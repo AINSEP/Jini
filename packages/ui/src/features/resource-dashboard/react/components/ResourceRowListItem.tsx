@@ -46,6 +46,8 @@ export function ResourceRowListItem({
   onAction,
   onHistoryItemAction,
 }: ResourceRowListItemProps) {
+  const toneMapProps = toneMap ? { toneMap } : {};
+  const historyActionProps = onHistoryItemAction ? { onAction: onHistoryItemAction } : {};
   return (
     <li className={`resource-row-list-item${row.paused ? ' is-paused' : ''}`} data-testid="resource-row-list-item">
       <div className="resource-row-list-item-main">
@@ -69,8 +71,8 @@ export function ResourceRowListItem({
           loadingLabel={historyLoadingLabel}
           emptyLabel={historyEmptyLabel}
           statusLabel={statusLabel}
-          {...(toneMap ? { toneMap } : {})}
-          {...(onHistoryItemAction ? { onAction: onHistoryItemAction } : {})}
+          {...toneMapProps}
+          {...historyActionProps}
         />
       ) : null}
     </li>

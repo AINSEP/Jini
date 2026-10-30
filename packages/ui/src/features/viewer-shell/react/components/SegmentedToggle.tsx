@@ -1,5 +1,6 @@
 import { RemixIcon } from '../../../../react/components/RemixIcon.js';
 import type { SegmentedOption } from '../../types.js';
+import { withClassName } from '../../../../utils/class-names.js';
 
 export interface SegmentedToggleProps<TValue extends string> {
   options: Array<SegmentedOption<TValue>>;
@@ -30,7 +31,7 @@ export function SegmentedToggle<TValue extends string>({
   className,
 }: SegmentedToggleProps<TValue>) {
   return (
-    <div className={`viewer-segmented-toggle${className ? ` ${className}` : ''}`} role="group" aria-label={ariaLabel}>
+    <div className={withClassName('viewer-segmented-toggle', className)} role="group" aria-label={ariaLabel}>
       {options.map((option) => {
         const selected = option.value === value;
         const label = option.title ?? option.label;

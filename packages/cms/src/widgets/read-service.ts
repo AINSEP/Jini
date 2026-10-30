@@ -133,9 +133,8 @@ export async function listWidgetInstances(
       skippedIds.push(row.id);
       continue;
     }
-    if (input.widgetType && instance.widgetType !== input.widgetType) continue;
-    if (!input.includeInactive && instance.status !== "active") continue;
-    instances.push(instance);
+    const matchesType = !input.widgetType || instance.widgetType === input.widgetType;
+    if (matchesType && (input.includeInactive || instance.status === "active")) instances.push(instance);
   }
   return { instances, skippedCount, skippedIds };
 }

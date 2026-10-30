@@ -145,18 +145,22 @@ export function createAutomaticAgentPluginUse(
    */
   async function resolveGuidance({ matches }: { matches: readonly AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
     const guidance: string[] = [];
-    for (const match of matches) {
-      if (signal?.aborted) break;
+    // Unloaded plugins contribute nothing; oversized guidance becomes a pointer instead of the text.
+    const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
       const result = await resolveOneGuidance({ plugin: match }, { signal });
-      if (result.status !== 'loaded') continue;
+      if (result.status !== 'loaded') return undefined;
       if (new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
         const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
         const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
-        guidance.push(`Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`);
-        continue;
+        return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
       }
       recordDelivery({ plugin: match, result });
-      guidance.push(result.guidance);
+      return result.guidance;
+    };
+    for (const match of matches) {
+      if (signal?.aborted) break;
+      const text = await guidanceFor(match);
+      if (text !== undefined) guidance.push(text);
     }
     return guidance;
   }

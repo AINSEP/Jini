@@ -149,7 +149,9 @@ function scanStatus(
 ): void {
   if (event.code === 'api_retry') {
     scan.retry = { index, data: event.data };
-  } else if (event.code === 'tool_progress') {
+    return;
+  }
+  if (event.code === 'tool_progress') {
     const seconds = numberField(event.data, 'elapsedSeconds');
     if (seconds !== undefined) scan.progress = { index, seconds };
   }
@@ -169,12 +171,18 @@ function scanEvent(scan: Scan, event: AgentEvent, index: number): void {
     scan.pendingQuestionIndex = -1;
     scan.open = scan.open.filter((tool) => tool.id !== event.id);
     scan.open.push({ id: event.id, name: event.name, input: event.input, index });
-  } else if (event.kind === 'tool_result') {
+    return;
+  }
+  if (event.kind === 'tool_result') {
     // Completion may be unrelated background work or the ask tool returning before human input.
     scan.open = scan.open.filter((tool) => tool.id !== event.toolUseId);
-  } else if (event.kind === 'ext') {
+    return;
+  }
+  if (event.kind === 'ext') {
     scanCard({ scan, event, index });
-  } else if (event.kind === 'status') {
+    return;
+  }
+  if (event.kind === 'status') {
     scanStatus({ scan, event, index });
   }
 }

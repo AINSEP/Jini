@@ -64,11 +64,8 @@ export function ConfirmButton({ useConfirmButton: useConfirmButtonState = useCon
     { pending: props.pending, disabled: props.disabled },
   );
 
-  const label = props.pending
-    ? (props.pendingLabel ?? DEFAULT_PENDING_LABEL)
-    : confirming
-      ? props.confirmLabel
-      : props.label;
+  const idleLabel = confirming ? props.confirmLabel : props.label;
+  const label = props.pending ? (props.pendingLabel ?? DEFAULT_PENDING_LABEL) : idleLabel;
   const className = [props.className, props.destructive ? 'btn-danger' : null].filter(Boolean).join(' ') || undefined;
 
   return (

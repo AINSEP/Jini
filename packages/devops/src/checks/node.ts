@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, type ExecFileException } from 'node:child_process';
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { EnvLoaderPort } from '../local-dev/index.js';
@@ -36,13 +36,19 @@ export function createNodeEnvLoader(_args: Record<string, never>): EnvLoaderPort
 }
 
 /** Shell-free runner; captures compiler output and reports signals/spawn failures as null exits. */
+/** 0 on success, the child's numeric exit status on failure, or null when it never exited normally. */
+function processExitCode(error: ExecFileException | null): number | null {
+  if (!error) return 0;
+  return typeof error.code === 'number' ? error.code : null;
+}
+
 export function createNodeProcessRunner(_args: Record<string, never>, { maxBuffer = 32 * 1024 * 1024, timeoutMs = 300_000 }: {
   maxBuffer?: number; timeoutMs?: number;
 } = {}): ProcessRunnerPort {
   return {
     run: ({ command, args, cwd }) => new Promise((resolve) => {
       execFile(command, [...args], { cwd, encoding: 'utf8', maxBuffer, timeout: timeoutMs }, (error, stdout, stderr) => {
-        const exitCode = error ? (typeof error.code === 'number' ? error.code : null) : 0;
+        const exitCode = processExitCode(error);
         resolve({ exitCode, stdout, stderr: stderr || error?.message || '' });
       });
     }),

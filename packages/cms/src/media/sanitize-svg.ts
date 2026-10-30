@@ -49,7 +49,8 @@ export async function sanitizeSvg(
   { bytes }: { bytes: Uint8Array },
   _options: Record<string, never> = {}
 ): Promise<Uint8Array> {
-  const { window, purifier } = await (runtime ??= createRuntime());
+  runtime ??= createRuntime();
+  const { window, purifier } = await runtime;
   let source: string;
   try {
     source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);

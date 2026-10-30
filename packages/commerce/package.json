@@ -20,6 +20,7 @@
       "./react": "browser",
       "./tools": "universal",
       "./payments/kernel": "node",
+      "./payments/client": "universal",
       "./payments/ledger/sql": "node",
       "./payments/tools": "universal"
     }
@@ -46,6 +47,11 @@
       "types": "./dist/payments/kernel.d.ts",
       "import": "./dist/payments/kernel.js",
       "default": "./dist/payments/kernel.js"
+    },
+    "./payments/client": {
+      "types": "./dist/payments/client.d.ts",
+      "import": "./dist/payments/client.js",
+      "default": "./dist/payments/client.js"
     },
     "./http": {
       "types": "./dist/http/index.d.ts",
@@ -78,6 +84,7 @@
     "README.md",
     "source-map.md",
     "LICENSE",
+    "NOTICE",
     "!dist/**/__tests__/**"
   ],
   "publishConfig": {
@@ -87,8 +94,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/catalog/__tests__/unit/*.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
-    "test:react": "vitest run"
+    "test": "node --import tsx --test src/catalog/__tests__/unit/*.unit.test.ts && vitest run && vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1",
+    "test:react": "vitest run",
+    "test:coverage": "vitest run -c vitest.coverage.config.ts --maxWorkers=2 --minWorkers=1 --coverage"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"

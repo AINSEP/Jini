@@ -28,7 +28,8 @@ export function createWidgetInstanceEditorController(
   const isLiveLoad = ({ ticket }: { ticket: number }) => ticket === generation && !store.signal.aborted;
   const isLiveSave = ({ savingFor }: { savingFor: string }) => currentKey() === savingFor && !store.signal.aborted;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     const isNew = params.widgetId === null;
     store.set({ patch: { isNew, saving: false } });
     if (isNew) {
@@ -61,7 +62,7 @@ export function createWidgetInstanceEditorController(
     store.set({ patch: { saving: true, message: null, error: null, fieldErrors: [] } });
     try {
       if (isNew) await createAndOpen({ widgetType, title, config });
-      else if (widget) await updateExisting({ widget, title, config, savingFor });
+      if (!isNew && widget) await updateExisting({ widget, title, config, savingFor });
     } catch (error) {
       if (isLiveSave({ savingFor })) store.set({ patch: resolveWidgetSaveError({ error }, { t }) });
     } finally {

@@ -1,4 +1,4 @@
-import { parse } from 'smol-toml';
+import { createRequire } from 'node:module';
 import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
 import { isRecord } from '../values.js';
 
@@ -17,7 +17,9 @@ export function codexIsolationRefusalMessage(reason: string): string {
  * known, and Codex could not load it either.
  * @complexity O(n) in the file length.
  */
-function parseCodexLayer(raw: string, path: string): Record<string, unknown> {
+function parseCodexLayer({ raw, path }: { raw: string; path: string }, _optional = {}): Record<string, unknown> {
+  // The optional parser is needed only for Codex isolation, so memory-only hosts can still boot.
+  const { parse } = createRequire(import.meta.url)('smol-toml') as typeof import('smol-toml');
   try {
     return parse(raw);
   } catch {
@@ -42,7 +44,7 @@ function assertTrustsNoProject(config: Record<string, unknown>, path: string): v
  * @throws {@link CodexMcpIsolationError} when it isn't valid TOML.
  */
 export function assertCodexHomeConfigParses({ raw, path }: { readonly raw: string | undefined; readonly path: string }): void {
-  if (raw !== undefined) parseCodexLayer(raw, path);
+  if (raw !== undefined) parseCodexLayer({ raw, path });
 }
 
 /**
@@ -56,7 +58,7 @@ export function assertStagedHomeIsolated({ homeConfig, path }: { readonly homeCo
   const refusal = new CodexMcpIsolationError(`${path} declares MCP servers that can't be removed safely.`);
   let config: Record<string, unknown>;
   try {
-    config = parse(homeConfig);
+    config = parseCodexLayer({ raw: homeConfig, path });
   } catch {
     throw refusal;
   }

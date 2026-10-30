@@ -67,6 +67,7 @@ export function requireMediaHttpClient({ httpClient }: Pick<MediaOutboundOptions
   return httpClient;
 }
 
+const MEDIA_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE']);
 function isMediaMethod(method: string): method is HttpRequest['method'] {
-  return method === 'GET' || method === 'HEAD' || method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+  return MEDIA_METHODS.has(method);
 }

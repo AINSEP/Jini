@@ -7,7 +7,18 @@ export interface OwnedTransactionControl {
   transaction<T>(work: () => Promise<T>, optional?: { onSettled?: () => void }): Promise<T>;
 }
 
-export const ownedTransactions = new WeakMap<StorageKernel<unknown>, OwnedTransactionControl>();
+const ownedTransactions = new WeakMap<StorageKernel<unknown>, OwnedTransactionControl>();
+
+/** Records the control of a kernel built by buildKernel. */
+export function registerOwnedTransaction({ kernel, control }: { kernel: StorageKernel<unknown>; control: OwnedTransactionControl }): void {
+  ownedTransactions.set(kernel, control);
+}
+
+/** A kernel derived from another (schema-scoped, owned connection) shares its control, when it has one. */
+export function inheritOwnedTransaction({ from, to }: { from: StorageKernel<unknown>; to: StorageKernel<unknown> }): void {
+  const control = ownedTransactions.get(from);
+  if (control !== undefined) ownedTransactions.set(to, control);
+}
 
 /** Refuse unknown kernels rather than promising atomicity over an executor we do not own. */
 export function ownedTransactionOf({ kernel }: { kernel: StorageKernel<unknown> }, _optional: {} = {}): OwnedTransactionControl {

@@ -2,6 +2,13 @@ import { lstat, mkdir, mkdtemp, open, rename, rm, writeFile } from 'node:fs/prom
 import { constants } from 'node:fs';
 import type { FilesystemPort } from './ports.js';
 
+/** What an lstat result is, checked symlink-first (lstat never follows the link). */
+function statKind(stat: Awaited<ReturnType<typeof lstat>>): 'symlink' | 'file' | 'directory' | 'other' {
+  if (stat.isSymbolicLink()) return 'symlink';
+  if (stat.isFile()) return 'file';
+  return stat.isDirectory() ? 'directory' : 'other';
+}
+
 /** Node adapter kept separate from the injected installation policy. */
 export function createNodeSkillFilesystem(_required: Record<string, never>, _optional: Record<string, never> = {}): FilesystemPort {
   return {
@@ -9,7 +16,7 @@ export function createNodeSkillFilesystem(_required: Record<string, never>, _opt
     mkdtemp: ({ prefix }) => mkdtemp(prefix),
     lstat: async ({ path }) => {
       const stat = await lstat(path);
-      return { kind: stat.isSymbolicLink() ? 'symlink' : stat.isFile() ? 'file' : stat.isDirectory() ? 'directory' : 'other', size: stat.size };
+      return { kind: statKind(stat), size: stat.size };
     },
     readFile: async ({ path, maxBytes }) => {
       const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);

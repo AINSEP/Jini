@@ -53,7 +53,7 @@ for persisted ids, or keep the seam's legacy grammar behind a seam-local alias t
 4. **commerce `createPaymentProviderRegistry`** (commerce `payments/registry.ts`). Same throwing
    policy; `refund`/capabilities check becomes `validate`; `get` miss changes `null`→`undefined`
    (wrapper or caller update). Its local `ProviderContext` extends core's (`credentials`,
-   `httpClient`, `now`, `webhookUrl`, `returnUrl`); its `PaymentError` result maps onto
+   `httpClient`, `now`, `webhookUrl`, `returnUrl`, `cancelUrl`); its `PaymentError` result maps onto
    `ProviderResult`. **Blocker:** commerce ids are also URL segments and env-var fragments
    (ADR-026 grammar `^[a-z0-9]+(-[a-z0-9]+)*$`), so the hyphen→underscore change touches webhook
    routes and env names. Another cloud build edits commerce today — migrate after it lands.

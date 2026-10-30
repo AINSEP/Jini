@@ -61,6 +61,11 @@ export class ScheduledRunPersistenceError extends Error {
   }
 }
 
+/** What a failed scheduled run logs: the underlying error's message when there is one. */
+function scheduledRunFailureDetail(error: unknown): unknown {
+  const cause = error instanceof ScheduledRunPersistenceError ? error.originalError : error;
+  return cause instanceof Error ? cause.message : cause;
+}
 function isScheduledRunPersistenceError(error: unknown): error is ScheduledRunPersistenceError {
   return error instanceof ScheduledRunPersistenceError;
 }
@@ -175,13 +180,7 @@ export class RoutineService {
         .catch((error) => {
           console.error(
             `[@jini-ai/daemon] routine ${routine.id} scheduled run failed:`,
-            error instanceof ScheduledRunPersistenceError
-              ? error.originalError instanceof Error
-                ? error.originalError.message
-                : error.originalError
-              : error instanceof Error
-                ? error.message
-                : error,
+            scheduledRunFailureDetail(error),
           );
           if (isScheduledRunPersistenceError(error)) {
             this.retryScheduledSlot(routine.id, fireAt);

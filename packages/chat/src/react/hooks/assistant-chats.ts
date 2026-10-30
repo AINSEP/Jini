@@ -487,7 +487,8 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
      * conversation that no longer exists and every subsequent message is written at a dead row.
      */
     const refresh = useCallback(async () => {
-      const seq = ++listSeqRef.current;
+      listSeqRef.current += 1;
+      const seq = listSeqRef.current;
       // `null` marks a failed read, so the mount-time restore can tell "not listed" from "no list".
       const read = await portRef.current.listConversations({}, {}).catch(() => null);
       const listed = read ?? [];
@@ -591,11 +592,12 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
      */
     const select = useCallback(
       (id: string) => {
-        const seq = ++switchSeqRef.current;
+        switchSeqRef.current += 1;
+        const seq = switchSeqRef.current;
         const commit = (messages: ChatMessage[]) => {
           // A slower load for a conversation the user has since navigated away from must not land.
           if (switchSeqRef.current !== seq) return;
-          writtenRef.current.set(id, new Set(messages.map(message => messageWriteKey({ message }, {}))));
+          writtenRef.current.set(id, new Set(messages.map(savedMessageWriteKey)));
           setInitialMessages(messages);
           commitActiveId(id);
           // A user-initiated switch is exactly when remounting the pane IS the intent.
@@ -655,7 +657,8 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
        * The conversation row is still created either way. That is deliberate — it exists server-side,
        * and abandoning it silently would be worse than leaving an empty chat in the list.
        */
-      const seq = ++switchSeqRef.current;
+      switchSeqRef.current += 1;
+      const seq = switchSeqRef.current;
       const conversation = await portRef.current.createConversation({}, {});
       // Both branches insert locally, so both have to invalidate an in-flight `refresh` — otherwise a
       // list snapshot taken before this POST lands overwrites the row that was just added.
@@ -742,11 +745,10 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
         markListMutated();
         // Held until the PATCH settles, so any refresh landing in between re-applies this title
         // instead of trusting a server read that has not caught up yet.
-        const version = ++renameVersionRef.current;
+        renameVersionRef.current += 1;
+        const version = renameVersionRef.current;
         pendingRenamesRef.current.set(id, { version, title });
-        setConversations((current) =>
-          current.map((c) => (c.id === id ? { ...c, title, titleSource: "manual" as const } : c)),
-        );
+        setConversations((current) => renamedConversations({ current, id, title }));
         try {
           await portRef.current.renameConversation({ id, title }, {});
         } catch {
@@ -769,9 +771,10 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
       const key = messageWriteKey({ message }, {});
       const existing = pending.get(key);
       if (existing) return existing;
+      const isDisposed = () => disposedRef.current;
       const write = (async () => {
         await runStubPendingRef.current.get(conversationId)?.get(key);
-        return saveWithRetry(portRef.current, conversationId, message, () => disposedRef.current);
+        return saveWithRetry(portRef.current, conversationId, message, isDisposed);
       })();
       pending.set(key, write);
       void write.then(() => {
@@ -965,7 +968,7 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
         .createConversation({}, {})
         .then((conversation) => {
           markListMutated();
-          setConversations((current) => [conversation, ...current]);
+          setConversations(prependConversation(conversation));
           writtenRef.current.set(conversation.id, new Set());
           // Superseded: the row exists and shows up in the list, but the pane that asked for it is
           // gone, so pointing `activeId` at it would send the NEXT pane's writes here. The caller's
@@ -1052,4 +1055,16 @@ export function createAssistantChatsClient({ ports }: { ports: AssistantChatsCli
     resolveRememberedConversation: (required: Parameters<typeof resolveRememberedConversation>[0], _options: Record<string, never> = {}) => resolveRememberedConversation(required),
     useAssistantChats: ({ port }: { port: AssistantChatsPort }, options: { lastConversation?: LastConversationStore } = {}) => useAssistantChats(port, options),
   };
+}
+
+function savedMessageWriteKey(message: ChatMessage): string {
+  return messageWriteKey({ message }, {});
+}
+
+function renamedConversations({ current, id, title }: { current: AssistantConversation[]; id: string; title: string }): AssistantConversation[] {
+  return current.map(conversation => conversation.id === id ? { ...conversation, title, titleSource: "manual" as const } : conversation);
+}
+
+function prependConversation(conversation: AssistantConversation) {
+  return (current: AssistantConversation[]) => [conversation, ...current];
 }

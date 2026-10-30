@@ -1,5 +1,4 @@
 import { isNonArrayRecord } from './records.js';
-import type { ToolRegistration } from './tool-registry.js';
 import { ToolInputError, ToolInputNormalizationError } from './tool-input-errors.js';
 export { ToolInputNormalizationError } from './tool-input-errors.js';
 
@@ -9,6 +8,13 @@ export interface NormalizedToolInput {
   readonly notes: readonly string[];
 }
 export type ToolInputNormalizer = (required: { input: Readonly<Record<string, unknown>> }, optional?: Record<string, never>) => NormalizedToolInput | Promise<NormalizedToolInput>;
+
+/** Only the registration facts consumed by normalization; carries no execution authority. */
+interface NormalizationRegistration {
+  readonly descriptor: { readonly id: string; readonly inputSchema?: unknown };
+  readonly invocationSchema?: unknown;
+  readonly normalizeInput?: ToolInputNormalizer;
+}
 
 const object = (value: unknown): value is Record<string, unknown> => isNonArrayRecord({ value });
 const keyShape = (key: string) => key.replace(/[_-]/g, '').toLowerCase();
@@ -143,7 +149,8 @@ function unknownKeyError({ key, location, shape }: { key: string; location: stri
   const names = [...shape.names.filter(name => required.has(name)), ...shape.names.filter(name => !required.has(name))];
   const declared = names.map(name => `${name} (${required.has(name) ? 'required' : 'optional'})`).join(', ') || 'none';
   const hints = names.filter(name => nearMiss({ left: keyShape(key), right: keyShape(name) }));
-  const suggestion = hints.length ? ` Did you mean ${hints.map(name => `'${name}'`).join(', ')}?` : '';
+  const quotedHints = hints.map(name => `'${name}'`).join(', ');
+  const suggestion = hints.length ? ` Did you mean ${quotedHints}?` : '';
   return new ToolInputError({ message: `Unknown input '${location}'. Declared inputs: ${declared}.${suggestion} Resend with the declared name.` });
 }
 
@@ -163,7 +170,8 @@ function normalizeEntry(
   if (previous !== undefined) throw new ToolInputError({ message: `Conflicting inputs '${previous}' and '${key}' both name '${target}'. Send only '${target}'.` });
   sources.set(target, key);
   if (target !== key) walk.notes.push(`${location}→${target}`);
-  return [target, normalizeValue({ value: raw, schema: shape.properties[target], step: { path: `${path ? `${path}.` : ''}${target}`, depth: depth + 1, walk } })];
+  const parentPrefix = path ? `${path}.` : '';
+  return [target, normalizeValue({ value: raw, schema: shape.properties[target], step: { path: `${parentPrefix}${target}`, depth: depth + 1, walk } })];
 }
 
 function normalizeObject({ value, schema, step }: { value: Record<string, unknown>; schema: Record<string, unknown>; step: Step }): Record<string, unknown> {
@@ -216,7 +224,7 @@ export function canonicalizeToolInputKeys(
  * @complexity Two bounded schema walks plus the optional domain hook's cost.
  */
 export async function normalizeToolInput(
-  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput' | 'invocationSchema'> },
+  { input, registration }: { input: unknown; registration: NormalizationRegistration },
   _options: Record<string, never> = {},
 ): Promise<NormalizedToolInput> {
   try {
@@ -231,7 +239,7 @@ const isObjectTool = (schema: unknown): boolean => object(schema) && schema.type
 
 /** First pass (open), the optional domain hook, then the final closed-schema pass. */
 async function normalizeWithinGate(
-  { input, registration }: { input: unknown; registration: Pick<ToolRegistration, 'descriptor' | 'normalizeInput' | 'invocationSchema'> },
+  { input, registration }: { input: unknown; registration: NormalizationRegistration },
 ): Promise<NormalizedToolInput> {
   const schema = registration.invocationSchema ?? registration.descriptor.inputSchema;
   if (isObjectTool(schema) && !object(input)) throw new ToolInputError({ message: `${registration.descriptor.id}: send one input object containing the tool's fields.` });

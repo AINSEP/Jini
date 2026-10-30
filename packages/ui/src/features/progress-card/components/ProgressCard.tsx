@@ -13,7 +13,7 @@ import { Icon } from '../../../react/components/Icon.js';
 export interface ProgressCardProps {
   data: ProgressCardData;
   /** Caps how many `steps` render before the rest are truncated. Matches
-   *  the source `WorkspaceActivityCard`'s todo-list cap. */
+   *  the source `WorkspaceActivityCard`'s to-do list cap. */
   maxSteps?: number;
   /** Caps how many `secondaryItems` render. Matches the source's
    *  files-touched cap. */

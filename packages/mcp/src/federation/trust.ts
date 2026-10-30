@@ -371,7 +371,7 @@ const WRITE_SHAPED_MAX_DEPTH = 8;
 function isWriteShapedName(name: string): boolean {
   const words = name
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([A-Z])(?=[A-Z][a-z])/g, "$1 ")
     .toLowerCase()
     .split(/[^a-z0-9]+/);
   return words.some((word) => WRITE_SHAPED_WORDS.has(word));
@@ -428,7 +428,12 @@ export function writeShapedSchemaInputNames({ schema }: { schema: unknown }): st
 /** R3 action-name rules, applied to the snake_cased remote name (camelCase split, `-` read as `_`). Kept as named module constants
  * (none carries the `g` flag, so `.test` is stateless) so {@link federatedCallConfirmationForAction}
  * reads as the ordered policy it is. */
-const DELIVERY_ACTION = /(?:send|deliver|invite|reply|forward|broadcast).*(?:email|mail|newsletter|message|sms|invitation|broadcast)|(?:email|mail|newsletter|message|sms).*(?:send|deliver|reply|forward)|(?:post|publish).*(?:message|newsletter)/;
+// Delivery verbs and objects in either order; a name is delivery-shaped when any pattern matches.
+const DELIVERY_ACTIONS: readonly RegExp[] = [
+  /(?:send|deliver|invite|reply|forward|broadcast).*(?:email|mail|newsletter|message|sms|invitation|broadcast)/,
+  /(?:email|mail|newsletter|message|sms).*(?:send|deliver|reply|forward)/,
+  /(?:post|publish).*(?:message|newsletter)/,
+];
 const SYSTEM_PROMPT_ACTION = /(?:set|update|edit|change).*(?:system_prompt|system_instruction)/;
 const ASSISTANT_PREFIX = /^(?:assistant|agent)_/;
 const READ_ACTION = /^(?:get|list|read|search|describe)_/;
@@ -453,7 +458,7 @@ export function federatedCallConfirmationForAction({ remoteName, annotations, ar
 ): FederatedCallConfirmation {
   const name = actionName(remoteName);
   const declaredDestructive = annotations?.destructiveHint === true;
-  if (DELIVERY_ACTION.test(name) || SYSTEM_PROMPT_ACTION.test(name)) return "confirm";
+  if (DELIVERY_ACTIONS.some((pattern) => pattern.test(name)) || SYSTEM_PROMPT_ACTION.test(name)) return "confirm";
   if (READ_ACTION.test(name.replace(ASSISTANT_PREFIX, "")) && !declaredDestructive) return "none";
   if (ASSISTANT_ACCESS_ACTION.test(name)) return "confirm";
   if (SQL_ACTION.test(name)) return sqlCallDeletesData(args, declaredDestructive) ? "confirm-destructive" : "none";
@@ -507,14 +512,19 @@ function removalConfirmation(name: string, declaredDestructive: boolean): Federa
 /** Scan SQL values, including nested batches. Dynamic EXECUTE remains gated because its effect is opaque.
  * With no string value at all there is nothing to classify, so the remote's destructive hint decides.
  * @complexity O(n) in total input characters; O(n) for the collected text. */
+/** The values nested in an array or object (to keep scanning); none for any other value. */
+function nestedValues(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  return value !== null && typeof value === "object" ? Object.values(value) : [];
+}
+
 function sqlCallDeletesData(args: Readonly<Record<string, unknown>>, declaredDestructive: boolean): boolean {
   const pending: unknown[] = [args];
   const statements: string[] = [];
   while (pending.length > 0) {
     const value = pending.pop();
     if (typeof value === "string") statements.push(value);
-    else if (Array.isArray(value)) pending.push(...value);
-    else if (value !== null && typeof value === "object") pending.push(...Object.values(value));
+    else pending.push(...nestedValues(value));
   }
   if (statements.length === 0) return declaredDestructive;
   return statements.some(statement => {
@@ -857,6 +867,11 @@ export interface FederatedImageBlock {
   readonly data: string;
 }
 
+/** Bytes `image` adds to the serialized array: its JSON, plus a separating comma unless first. */
+function imageEntryBytes(image: FederatedImageBlock, isFirst: boolean): number {
+  return Buffer.byteLength(JSON.stringify(image), "utf8") + (isFirst ? 0 : 1);
+}
+
 /**
  * R7's media carve-out: splits a remote's raw `content` array into well-formed image blocks and
  * everything else, so {@link buildFederatedMcpRegistrations}'s handler can route each half through a
@@ -900,17 +915,15 @@ export function extractFederatedImageBlocks(params: { content: unknown; maxResul
 
   for (const entry of content) {
     const image = asFederatedImageBlock(entry);
+    const addedBytes = image ? imageEntryBytes(image, images.length === 0) : 0;
     if (!image) {
       kept.push(entry);
-      continue;
-    }
-    const addedBytes = Buffer.byteLength(JSON.stringify(image), "utf8") + (images.length > 0 ? 1 : 0);
-    if (imageBytes + addedBytes > maxResultBytes) {
+    } else if (imageBytes + addedBytes > maxResultBytes) {
       oversizedMimeTypes.push(image.mimeType);
-      continue;
+    } else {
+      images.push(image);
+      imageBytes += addedBytes;
     }
-    images.push(image);
-    imageBytes += addedBytes;
   }
 
   if (oversizedMimeTypes.length > 0) {

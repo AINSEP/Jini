@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   createElectronDesktopHost,
+  createElectronUrlCapturePool,
   type ElectronDesktopHostSurfaces,
 } from '@jini-ai/desktop-host/electron';
 import {
@@ -36,6 +37,7 @@ const sampleDirectories = new Set([
 ]);
 
 const surfaces: ElectronDesktopHostSurfaces = {
+  capturePool: createElectronUrlCapturePool({}),
   app: bindElectronApp({ app }),
   protocol: bindElectronProtocol({ protocol }),
   shell: bindElectronShell({ shell }),

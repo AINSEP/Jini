@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { withClassName } from '../../utils/class-names.js';
 
 export interface PillButtonProps {
   /** Rendered before the label. Any host-supplied icon element. */
@@ -43,7 +44,7 @@ export function PillButton({
   children,
 }: PillButtonProps) {
   return (
-    <div className={`jini-pill-wrap${className ? ` ${className}` : ''}`}>
+    <div className={withClassName('jini-pill-wrap', className)}>
       <button
         type="button"
         className={`jini-pill${active ? ' is-active' : ''}`}

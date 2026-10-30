@@ -24,6 +24,7 @@ import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js
 import { googleGenerateContentUrl } from './google.js';
 import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam } from './token-params.js';
 import type { ConnectionTestKind, ConnectionTestProtocol } from './types.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 /** The four wire protocols this smoke test knows how to speak. A narrower
  *  type than {@link ConnectionTestProtocol} on purpose — see this module's
@@ -86,7 +87,7 @@ function isSupportedProtocol(protocol: ConnectionTestProtocol): protocol is Supp
 
 function appendVersionedApiPath(baseUrl: string, suffix: string): string {
   const url = new URL(baseUrl);
-  const pathname = url.pathname.replace(/\/+$/, '');
+  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
   url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
   return url.toString();
 }
@@ -215,7 +216,7 @@ function buildAzureProviderCall(
 ): ProviderCallShape {
   const { baseUrl, apiKey, model } = input;
   const url = new URL(baseUrl);
-  const basePath = url.pathname.replace(/\/+$/, '');
+  const basePath = trimCharsEnd({ text: url.pathname, chars: '/' });
   const usesVersionedOpenAIPath = /\/openai\/v\d+(?:$|\/)/.test(basePath);
   const apiVersion = input.apiVersion?.trim() || (usesVersionedOpenAIPath ? '' : '2024-10-21');
   url.pathname = usesVersionedOpenAIPath
@@ -235,10 +236,15 @@ function buildAzureProviderCall(
   };
 }
 
+/** Why a 2xx reply with no assistant text failed the smoke test, naming the finish reason when known. */
+function emptyReplyDetail(finishReason: string | null | undefined): string {
+  return finishReason
+    ? `Provider returned a 2xx response without assistant text (finish reason: ${finishReason})`
+    : 'Provider returned a 2xx response without assistant text';
+}
+
 function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: SupportedConnectionTestProtocol }): ProviderCallShape {
-  const baseUrl = input.baseUrl;
-  const apiKey = input.apiKey;
-  const model = input.model;
+  const { baseUrl, apiKey, model } = input;
   switch (input.protocol) {
     case 'anthropic':
       return {
@@ -314,6 +320,11 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
         },
       };
     }
+    default: {
+      // Unreachable: every supported protocol has a case above, and a new one fails typecheck here.
+      const unsupported: never = input.protocol;
+      throw new TypeError(`Unsupported connection-test protocol: ${String(unsupported)}`);
+    }
   }
 }
 
@@ -369,11 +380,7 @@ function inspectProviderResponse(
     latencyMs,
     model,
     status: response.status,
-    detail: sample
-      ? `Expected smoke test reply "ok"; got "${sample}"`
-      : finishReason
-        ? `Provider returned a 2xx response without assistant text (finish reason: ${finishReason})`
-        : 'Provider returned a 2xx response without assistant text',
+    detail: sample ? `Expected smoke test reply "ok"; got "${sample}"` : emptyReplyDetail(finishReason),
   };
 }
 

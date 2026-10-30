@@ -6,8 +6,7 @@
 import { once, type EventEmitter } from 'node:events';
 import { Transform, Writable, type Readable } from 'node:stream';
 import { setImmediate } from 'node:timers/promises';
-import { serializeMessage } from '@modelcontextprotocol/sdk/shared/stdio.js';
-import { isJSONRPCErrorResponse, isJSONRPCResultResponse, type JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
+import { boundedMessage, type StdioMessage } from './adapters/stdio-codec.js';
 import type { McpTransportLike } from './ports.js';
 import { resolveSdkTransport } from './sdk-transport.js';
 
@@ -28,21 +27,6 @@ export function validateFrameLimit({ maxFrameBytes }: StdioHostingOptions): void
 /** True when any hosting guard is requested; omitted options keep the legacy lifecycle. */
 export function wantsStdioHosting({ maxFrameBytes, serial, eof }: StdioHostingOptions): boolean {
   return maxFrameBytes !== undefined || serial === true || eof === 'drain';
-}
-
-/** Measure the SDK's actual serialization; an oversized response becomes a bounded error.
- * @throws RangeError when a request/notification or the minimal replacement exceeds the cap.
- */
-function boundedMessage({ message, maxFrameBytes }: { message: JSONRPCMessage; maxFrameBytes: number }): JSONRPCMessage {
-  if (Buffer.byteLength(serializeMessage(message)) <= maxFrameBytes) return message;
-  if (!isJSONRPCResultResponse(message) && !isJSONRPCErrorResponse(message)) {
-    throw new RangeError('MCP outgoing frame exceeds maxFrameBytes');
-  }
-  const replacement: JSONRPCMessage = { jsonrpc: '2.0', id: message.id, error: { code: -32603, message: 'Response exceeds maxFrameBytes' } };
-  if (Buffer.byteLength(serializeMessage(replacement)) > maxFrameBytes) {
-    throw new RangeError('MCP error response exceeds maxFrameBytes');
-  }
-  return replacement;
 }
 
 /** Count bytes per LF-terminated frame before the SDK's unbounded read buffer sees them.
@@ -139,7 +123,7 @@ export function createStdioHosting({ stdin, stdout, options }: { stdin: Readable
       if (maxFrameBytes === undefined || typeof sdk.send !== 'function') return;
       const send = sdk.send.bind(sdk);
       sdk.send = (message, sendOptions) => {
-        let bounded: JSONRPCMessage;
+        let bounded: StdioMessage;
         try { bounded = boundedMessage({ message, maxFrameBytes }); } catch (error) { fail(error); throw error; }
         return send(bounded, sendOptions);
       };

@@ -24,6 +24,8 @@ function applySseLine({ fields, line }: { fields: SseFrameFields; line: string }
     fields.id = line.slice(4).trim();
   } else if (line.startsWith('data: ')) {
     fields.dataLines.push(line.slice(6));
+  } else {
+    // Any other field (e.g. `retry:`) or a malformed line is ignored.
   }
 }
 

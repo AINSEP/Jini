@@ -9,7 +9,8 @@ import type { KitContextValue, KitProviderProps, ReactKitProps, ToastProps } fro
 import { createToastService } from '../toast.js';
 let defaultValue: KitContextValue | undefined;
 function getDefault() {
-  return defaultValue ??= { kit: createKit({}), agent: undefined, overlayContainer: null, toast: undefined, cancelLabel: 'Cancel', guard: 'fallback' };
+  defaultValue ??= { kit: createKit({}), agent: undefined, overlayContainer: null, toast: undefined, cancelLabel: 'Cancel', guard: 'fallback' };
+  return defaultValue;
 }
 export function useKit(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitContextValue {
   return useKitContext({}) ?? getDefault();
@@ -41,7 +42,7 @@ export function useKitProvider(required: KitProviderProps, _optional: Record<str
 function useOverlayRoot(required: { supplied: HTMLElement | undefined }) {
   const [root, setRoot] = useState<HTMLElement | null>(required.supplied ?? null);
   useEffect(() => {
-    if (required.supplied) { setRoot(required.supplied); return; }
+    if (required.supplied) { setRoot(required.supplied); return undefined; }
     const element = document.createElement('div'); element.dataset.jiniPart = 'kit.overlay'; document.body.appendChild(element);
     setRoot(element);
     return () => { element.remove(); };

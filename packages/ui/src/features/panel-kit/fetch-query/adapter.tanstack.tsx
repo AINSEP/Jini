@@ -86,7 +86,8 @@ async function read<T>({ scope, key, fetch }: { scope: Scope; key: QueryKey; fet
   const query = scope.client.getQueryCache().find({ queryKey: key, exact: true })!;
   const history = historyFor({ scope, query });
   const generation = history.replacement;
-  const request = ++history.request;
+  history.request += 1;
+  const request = history.request;
   try {
     const value = await scope.gate.runOnline({ run: fetch });
     if (generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(key)!;
@@ -143,7 +144,7 @@ function useFetchQuery<T>({ key, fetch }: Pick<FetchQueryOptions<T>, 'key' | 'fe
     void scope.gate.runOnline({ run: () => refresh({ cancelRefetch: false }) });
   }, [scope, refresh, JSON.stringify(key)]);
   useEffect(() => {
-    if (!enabled || !refetchOnWindowFocus) return;
+    if (!enabled || !refetchOnWindowFocus) return undefined;
     return scope.environment.subscribeFocus({ listener: () => {
       const cached = scope.client.getQueryCache().find({ queryKey: key, exact: true });
       if (scope.environment.isOnline() && cached?.isStaleByTime(staleTime) && cached.state.fetchStatus !== 'fetching') refetch();

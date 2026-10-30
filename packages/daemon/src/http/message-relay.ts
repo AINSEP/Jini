@@ -20,7 +20,7 @@ export function createMessageRelayClaimHandler({ agentExecutor, runScopedCallers
   return (req, res, next) => {
     try {
       const token = bearerTokenFromHeader({ header: req.get('authorization') });
-      const caller = token ? runScopedCallers?.resolveCaller({ token }) : undefined;
+      const caller = resolveRelayCaller({ token, runScopedCallers });
       if (runScopedCallers && !caller) { res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'a live run credential is required' } }); return; }
       const runId = caller?.runId ?? req.params.runId;
       if (!runId || runId !== req.params.runId) { res.status(404).json({ error: { code: 'NOT_FOUND', message: 'run was not found' } }); return; }
@@ -29,6 +29,10 @@ export function createMessageRelayClaimHandler({ agentExecutor, runScopedCallers
       res.json({ messages: agentExecutor.claimUserMessages({ runId, via: body.via }) });
     } catch (error) { next(error); }
   };
+}
+
+function resolveRelayCaller({ token, runScopedCallers }: { token: string | null; runScopedCallers: RunScopedCallerResolver | undefined }) {
+  return token ? runScopedCallers?.resolveCaller({ token }) : undefined;
 }
 
 /** Strict receipt-channel validation; no caller-selected run or principal is accepted. */

@@ -12,7 +12,9 @@ import type { StorageDialect, StorageKernel } from "./port.js";
  * same `ON CONFLICT … DO UPDATE` on both; "the value being inserted" is `eb.ref("excluded.col")`.
  */
 
-const JSON_KEY = /^[A-Za-z0-9_]+$/;
+const JSON_KEY = /^\w+$/;
+/** json_type() names SQLite reports for a JSON scalar of each JS type; strings are "text". */
+const SQLITE_JSON_TYPES: Readonly<Record<string, readonly string[]>> = { number: ["integer", "real"], boolean: ["true", "false"] };
 
 function checkedPath(path: readonly string[]): readonly string[] {
   if (path.length === 0) throw new Error("JSON path must name at least one key");
@@ -56,8 +58,8 @@ export function jsonScalarEquals(
   value: string | number | boolean
 ): RawBuilder<boolean> {
   if (dialect === "postgres") return sql<boolean>`((${column}::jsonb #> ${pgPath(path)}) = ${JSON.stringify(value)}::jsonb)`;
-  const bound = typeof value === "boolean" ? (value ? 1 : 0) : value;
-  const types = typeof value === "number" ? ["integer", "real"] : typeof value === "boolean" ? ["true", "false"] : ["text"];
+  const bound = typeof value === "boolean" ? Number(value) : value;
+  const types = SQLITE_JSON_TYPES[typeof value] ?? ["text"];
   const at = sqlitePath(path);
   return sql<boolean>`(json_type(${column}, ${at}) IN (${sql.join(types)}) AND json_extract(${column}, ${at}) = ${bound})`;
 }

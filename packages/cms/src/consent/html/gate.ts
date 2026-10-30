@@ -5,6 +5,9 @@ import { renderConsentHead, renderConsentUi, type ConsentCategoryOrigins } from 
 import { CONSENT_CLIENT } from './client.js';
 import { cssRequestsRemote, external } from './resources.js';
 
+const DATA_CONSENT_CATEGORY = "data-consent-category";
+
+
 type Node = DefaultTreeAdapterMap['childNode'];
 type Element = DefaultTreeAdapterMap['element'];
 type Attribute = Element['attrs'][number];
@@ -124,7 +127,7 @@ function hasRemoteUrl({ attrs }: { attrs: Attrs }): boolean {
 
 /** Labelled or 1px images are tracking pixels even when local. @complexity O(1). */
 function isTrackingImage({ attrs }: { attrs: Attrs }): boolean {
-  return attrs.has('data-consent-category') || attrs.get('width') === '1' || attrs.get('height') === '1';
+  return attrs.has(DATA_CONSENT_CATEGORY) || attrs.get('width') === '1' || attrs.get('height') === '1';
 }
 
 /** @complexity O(text length). */
@@ -134,7 +137,7 @@ function isResource({ tagName, attrs, text, remote }: { tagName: string; attrs: 
   if (remote && !NAVIGATION_TAGS.includes(tagName)) return true;
   if (tagName === 'style' && cssRequestsRemote({ css: text })) return true;
   // noscript must stay visible without JavaScript; its children are gated by the same walk.
-  return attrs.has('data-consent-category') && !STRUCTURAL_TAGS.includes(tagName);
+  return attrs.has(DATA_CONSENT_CATEGORY) && !STRUCTURAL_TAGS.includes(tagName);
 }
 
 /** Page labels may select optional categories; they can never grant necessity. @complexity O(1). */
@@ -161,7 +164,7 @@ function scriptFetches({ element, attrs, type }: { element: Element; attrs: Attr
  * exceptions. External code (including legacy MIME types/import maps) stays gated. @complexity O(k). */
 function isOptionalScript({ element, attrs, text, runtime }: { element: Element; attrs: Attrs; text: string; runtime: boolean }, options: ConsentGateOptions): boolean {
   if (element.tagName !== 'script' || runtime) return false;
-  const declared = attrs.get('data-consent-category');
+  const declared = attrs.get(DATA_CONSENT_CATEGORY);
   if (declared !== undefined && declared !== 'necessary') return true;
   const type = (attrs.get('type') ?? '').trim().toLowerCase();
   if (DATA_SCRIPT_TYPES.includes(type)) return false;
@@ -177,9 +180,8 @@ function wrappedCategory({ element, category }: { element: Element; category: st
   const stack: Node[] = [...element.childNodes];
   while (stack.length) {
     const node = stack.pop()!;
-    if (!('tagName' in node)) continue;
-    if (node.tagName === 'template' && node.namespaceURI === HTML_NAMESPACE) continue;
-    const declared = node.attrs.find(attr => attr.name === 'data-consent-category')?.value;
+    if (!('tagName' in node) || (node.tagName === 'template' && node.namespaceURI === HTML_NAMESPACE)) continue;
+    const declared = node.attrs.find(attr => attr.name === DATA_CONSENT_CATEGORY)?.value;
     rank = Math.max(rank, ordered.indexOf(categoryFor({ declared, fetches: false })));
     stack.push(...node.childNodes);
   }
@@ -267,7 +269,7 @@ function gateElement({ element, inheritedCategory }: { element: Element; inherit
   const attrs: Attrs = new Map(element.attrs.map(attr => [attr.name, attr.value]));
   // Noscript cannot itself be templated (no-JS visitors would lose the fallback), so its
   // optional category is carried into its descendants instead.
-  if (inheritedCategory !== undefined && !attrs.has('data-consent-category')) attrs.set('data-consent-category', inheritedCategory);
+  if (inheritedCategory !== undefined && !attrs.has(DATA_CONSENT_CATEGORY)) attrs.set(DATA_CONSENT_CATEGORY, inheritedCategory);
   const text = directText({ element });
   const runtime = isRuntimeScript({ element, attrs, text }, options);
   const reserved = runtime ? [] : reservedAttributes({ element });
@@ -276,10 +278,10 @@ function gateElement({ element, inheritedCategory }: { element: Element; inherit
   if (exempt) return exempt;
   const remote = hasRemoteUrl({ attrs });
   const resource = isResource({ tagName: element.tagName, attrs, text, remote });
-  const category = categoryFor({ declared: attrs.get('data-consent-category'), fetches: remote || resource });
+  const category = categoryFor({ declared: attrs.get(DATA_CONSENT_CATEGORY), fetches: remote || resource });
   if (location && (resource || isOptionalScript({ element, attrs, text, runtime }, options))) return { edits: [wrapEdit({ element, location, category })], descend: false };
   // Authored HTML template contents are already inert; traversing them would release never-mounted code.
-  return { edits: attributeEdits({ element, location, reserved, category, declared: attrs.get('data-consent-category') }), descend: element.tagName !== 'template' || element.namespaceURI !== HTML_NAMESPACE };
+  return { edits: attributeEdits({ element, location, reserved, category, declared: attrs.get(DATA_CONSENT_CATEGORY) }), descend: element.tagName !== 'template' || element.namespaceURI !== HTML_NAMESPACE };
 }
 
 /** Noscript passes its label to descendants. Document-root labels defer only their own handlers:
@@ -287,7 +289,7 @@ function gateElement({ element, inheritedCategory }: { element: Element; inherit
  * inherited either. @complexity O(attributes). */
 function inheritedCategory({ element, category }: { element: Element; category: string | undefined }): string | undefined {
   if (element.tagName !== 'noscript') return category;
-  const declared = element.attrs.find(attr => attr.name === 'data-consent-category')?.value;
+  const declared = element.attrs.find(attr => attr.name === DATA_CONSENT_CATEGORY)?.value;
   return declared === undefined || declared === 'necessary' ? category : declared;
 }
 
@@ -326,7 +328,8 @@ function isReopenLink({ element }: { element: Element }): boolean {
 function parseForNormalization({ html }: { html: string }): { document: DefaultTreeAdapterMap['document']; normalize: boolean } {
   let normalize = false;
   const treeAdapter: TreeAdapter<DefaultTreeAdapterMap> = { ...defaultTreeAdapter, adoptAttributes(recipient, attrs) { normalize = true; defaultTreeAdapter.adoptAttributes(recipient, attrs); } };
-  const document = parse(html, { sourceCodeLocationInfo: true, scriptingEnabled: false, treeAdapter,
+  const document = parse(html, {
+    sourceCodeLocationInfo: true, scriptingEnabled: false, treeAdapter,
     onParseError(error) { if (error.code === 'duplicate-attribute') normalize = true; },
   });
   return { document, normalize };

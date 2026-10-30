@@ -22,19 +22,22 @@ export function parsePiModels({ stdout }: { stdout: unknown }): RuntimeModelOpti
     // defined; the non-null assertion documents that runtime invariant
     // instead of a `noUncheckedIndexedAccess`-driven guard that could never
     // actually trigger.
-    const line = lines[i]!;
-    const parts = line.split(/\s+/);
-    if (parts.length < 2) continue;
-    // `parts.length >= 2` (just checked) guarantees both indices are
-    // defined; same non-null-assertion rationale as above.
-    const provider = parts[0]!;
-    const modelId = parts[1]!;
-    // Skip duplicates (some providers list the same model under multiple names).
-    const fullId = `${provider}/${modelId}`;
-    if (seen.has(fullId)) continue;
+    const fullId = providerModelId(lines[i]!);
+    // Skip rows without both columns, and duplicates (some providers list the
+    // same model under multiple names).
+    if (fullId === null || seen.has(fullId)) continue;
     seen.add(fullId);
     entries.push({ id: fullId, label: fullId });
   }
 
   return entries.length > 1 ? entries : null;
+}
+
+/** `provider/model` from one table row's first two whitespace-separated columns, or `null` when
+ *  the row has fewer than two. */
+function providerModelId(line: string): string | null {
+  const parts = line.split(/\s+/);
+  if (parts.length < 2) return null;
+  // `parts.length >= 2` (just checked) guarantees both indices are defined.
+  return `${parts[0]!}/${parts[1]!}`;
 }

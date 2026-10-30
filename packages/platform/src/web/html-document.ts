@@ -1,4 +1,5 @@
 import { parse, serialize, type DefaultTreeAdapterMap } from "parse5";
+import { firstDistinct } from "./first-distinct.js";
 
 /**
  * @file One parse5 pass over an UNTRUSTED public HTML page: page facts (title, description, lang,
@@ -111,14 +112,23 @@ const COLLECTED: ReadonlyMap<string, "anchors" | "images" | "linkTags" | "metas"
 function collect(document: Node): RawFacts {
   const raw: RawFacts = { anchors: [], images: [], linkTags: [], metas: [] };
   for (const node of walk(document)) {
-    if (!isElement(node)) continue;
-    const list = COLLECTED.get(node.tagName);
-    if (list) raw[list].push(node);
-    else if (node.tagName === "title" || node.tagName === "html") raw[node.tagName] ??= node;
-    // The first base WITH an href wins, as in browsers.
-    else if (node.tagName === "base") raw.base ??= attr({ element: node, name: "href" });
+    if (isElement(node)) collectElement(raw, node);
   }
   return raw;
+}
+
+function collectElement(raw: RawFacts, node: Element): void {
+  const list = COLLECTED.get(node.tagName);
+  if (list) {
+    raw[list].push(node);
+    return;
+  }
+  if (node.tagName === "title" || node.tagName === "html") {
+    raw[node.tagName] ??= node;
+    return;
+  }
+  // The first base WITH an href wins, as in browsers.
+  if (node.tagName === "base") raw.base ??= attr({ element: node, name: "href" });
 }
 
 /** Meta keys whose values are URLs and are returned absolute. */
@@ -146,11 +156,16 @@ function putMeta({ meta, key, value }: { meta: Record<string, string>; key: stri
   meta[key] = collapse(value).slice(0, MAX_META_VALUE);
 }
 
+function metaKey({ property, name }: { property: string | undefined; name: string | undefined }): string | undefined {
+  if (property?.startsWith("og:")) return property;
+  return name && META_NAMES.has(name) ? name : undefined;
+}
+
 /** Every `og:*` property, or an allowlisted `name`; URL-valued keys are resolved. */
 function metaTagEntry({ element, base }: { element: Element; base: string }, _optional: Record<string, never> = {}): [key: string, value: string | undefined] | undefined {
   const property = attr({ element, name: "property" })?.toLowerCase();
   const name = attr({ element, name: "name" })?.toLowerCase();
-  const key = property?.startsWith("og:") ? property : name && META_NAMES.has(name) ? name : undefined;
+  const key = metaKey({ property, name });
   if (key === undefined) return undefined;
   const content = attr({ element, name: "content" });
   return [key, URL_META.has(key) ? absolute({ raw: content, base, protocols: ASSET_PROTOCOLS }) : content];
@@ -161,30 +176,22 @@ function relTokens({ element }: { element: Element }, _optional: Record<string, 
 }
 
 function readLinks(anchors: Element[], base: string, pageHost: string): { links: PageLink[]; truncated: boolean } {
-  const seen = new Set<string>();
-  const links: PageLink[] = [];
-  let truncated = false;
-  for (const anchor of anchors) {
-    const href = absolute({ raw: attr({ element: anchor, name: "href" }), base, protocols: LINK_PROTOCOLS });
-    if (!href || seen.has(href)) continue;
-    seen.add(href);
-    if (links.length === MAX_LINKS) { truncated = true; break; }
-    links.push({ href, text: linkText(anchor), internal: isInternal(href, pageHost) });
-  }
+  const { picked, truncated } = firstDistinct({
+    items: anchors,
+    max: MAX_LINKS,
+    keyOf: (anchor) => absolute({ raw: attr({ element: anchor, name: "href" }), base, protocols: LINK_PROTOCOLS }),
+  });
+  const links = picked.map(([href, anchor]) => ({ href, text: linkText(anchor), internal: isInternal(href, pageHost) }));
   return { links, truncated };
 }
 
 function readImages(images: Element[], base: string): { images: PageImage[]; truncated: boolean } {
-  const seen = new Set<string>();
-  const out: PageImage[] = [];
-  let truncated = false;
-  for (const img of images) {
-    const src = absolute({ raw: imageSource({ img }), base, protocols: ASSET_PROTOCOLS });
-    if (!src || seen.has(src)) continue;
-    seen.add(src);
-    if (out.length === MAX_IMAGES) { truncated = true; break; }
-    out.push({ src, alt: collapse(attr({ element: img, name: "alt" }) ?? "") });
-  }
+  const { picked, truncated } = firstDistinct({
+    items: images,
+    max: MAX_IMAGES,
+    keyOf: (img) => absolute({ raw: imageSource({ img }), base, protocols: ASSET_PROTOCOLS }),
+  });
+  const out: PageImage[] = picked.map(([src, img]) => ({ src, alt: collapse(attr({ element: img, name: "alt" }) ?? "") }));
   return { images: out, truncated };
 }
 

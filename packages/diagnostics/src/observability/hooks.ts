@@ -25,7 +25,8 @@ export function createHookObservabilityPort(
    const tracker = tracing?.trackRequest(input, { requestId });
    let ended = false;
    return { requestId, run: <T>(fn: () => T): T => (tracker?.run ? tracker.run(fn) : fn()), end(outcome) {
-    if (ended) return; ended = true;
+    if (ended) return;
+    ended = true;
     const event = { requestId, method: input.method, ...outcome, durationMs: Math.max(0, clock.nowMs() - startedAt) };
     tracker?.end(outcome);
     logger?.log(event);

@@ -46,13 +46,13 @@ type MediaMap = Readonly<Record<string, MediaSettings>>;
 function mediaEntry({ entry }: { entry: MediaSettings }, { apiKey }: { apiKey?: string } = {}): MediaSettings {
   return { ...(entry.baseUrl !== undefined ? { baseUrl: entry.baseUrl } : {}), ...(entry.model !== undefined ? { model: entry.model } : {}), ...(apiKey !== undefined ? { apiKey } : {}) };
 }
+const MEDIA_PROVIDERS_PATH = '/media/providers';
 /** Replacing the ENTIRE map requires sibling settings unchanged. Blank apiKey preserves their stored keys. */
 function rebuildMedia(current: MediaMap, id: string, token?: string) {
   const next: Record<string, MediaSettings> = {};
-  for (const [key, entry] of Object.entries(current)) {
-    if (key !== id) next[key] = mediaEntry({ entry });
-    else if (token !== undefined) next[key] = mediaEntry({ entry }, { apiKey: token });
-  }
+  // The replaced entry is dropped when no token is given; every sibling is echoed unchanged.
+  const kept = Object.entries(current).filter(([key]) => key !== id || token !== undefined);
+  for (const [key, entry] of kept) next[key] = mediaEntry({ entry }, key === id && token !== undefined ? { apiKey: token } : {});
   return next;
 }
 export function createHttpOtherCredentials({ transport, workspacePath }: { transport: SecurityTransportPort; workspacePath: string }, { mediaLabels = {} }: { mediaLabels?: Readonly<Record<string, string>> } = {}): OtherCredentialsPort {
@@ -62,17 +62,17 @@ export function createHttpOtherCredentials({ transport, workspacePath }: { trans
   return {
     async list({ store }, options = {}) {
       if (store === 'site-assistant' || store === 'admin-byok') { const r = await request<{ data: { isSet: boolean; updatedAt: string | null } }>(singles[store].path, 'GET', options); return r.data.isSet ? [{ store, id: store, label: singles[store].label, category: 'ai', configured: true, supportsReplace: true, updatedAt: r.data.updatedAt }] : []; }
-      if (store === 'media-provider') { const map = await request<MediaMap>('/media/providers', 'GET', options); return Object.entries(map).filter(([, entry]) => entry.apiKeyConfigured).map(([id]) => ({ store, id, label: mediaLabels[id] ?? id, category: 'media' as CredentialCategory, configured: true, supportsReplace: true })); }
+      if (store === 'media-provider') { const map = await request<MediaMap>(MEDIA_PROVIDERS_PATH, 'GET', options); return Object.entries(map).filter(([, entry]) => entry.apiKeyConfigured).map(([id]) => ({ store, id, label: mediaLabels[id] ?? id, category: 'media' as CredentialCategory, configured: true, supportsReplace: true })); }
       const { servers } = await request<{ servers: readonly { serverId: string; label: string; envNames: readonly string[] }[] }>('/mcp-servers', 'GET', options); return servers.map(s => ({ store, id: s.serverId, label: s.label, category: 'ai', configured: true, supportsReplace: false, envNames: Object.freeze([...s.envNames]) }));
     },
     async replace({ store, id, token }, options = {}) {
       if (!token.trim()) throw new Error('Enter a credential');
       if (store === 'external-mcp') throw new Error('Edit the full server configuration on its own screen');
-      if (store === 'media-provider') { const current = await request<MediaMap>('/media/providers', 'GET', options); await request('/media/providers', 'PUT', options, rebuildMedia(current, id, token)); }
+      if (store === 'media-provider') { const current = await request<MediaMap>(MEDIA_PROVIDERS_PATH, 'GET', options); await request(MEDIA_PROVIDERS_PATH, 'PUT', options, rebuildMedia(current, id, token)); }
       else await request(singles[store].path, 'PUT', options, { apiKey: token });
     },
     async remove({ store, id }, options = {}) {
-      if (store === 'media-provider') { const current = await request<MediaMap>('/media/providers', 'GET', options); await request('/media/providers', 'PUT', options, rebuildMedia(current, id)); }
+      if (store === 'media-provider') { const current = await request<MediaMap>(MEDIA_PROVIDERS_PATH, 'GET', options); await request(MEDIA_PROVIDERS_PATH, 'PUT', options, rebuildMedia(current, id)); }
       else if (store === 'external-mcp') await request(`/mcp-servers/${encodeURIComponent(id)}`, 'DELETE', options);
       else await request(singles[store].path, 'DELETE', options);
     },

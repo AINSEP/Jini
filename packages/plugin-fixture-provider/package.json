@@ -1,0 +1,41 @@
+{
+  "name": "@jini-ai/plugin-fixture-provider",
+  "version": "0.7.0",
+  "description": "Test-only provider artifact for plugin host conformance.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-fixture-provider"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "node"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugins/*": "./plugins/*"
+  },
+  "files": [
+    "plugins",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts fixture-provider .",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts fixture-provider .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@jini-ai/plugins": "workspace:^",
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "private": true
+}

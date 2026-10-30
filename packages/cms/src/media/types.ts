@@ -40,7 +40,16 @@ export type MediaKind = "media" | "document";
  */
 export interface MediaSource {
   sha256: string;
+  /** Sniffed media MIME (document policy MIME for private documents); absent for legacy rows. */
+  contentType?: string | undefined;
+  /** Origin of this editorial item, independent of the deduplicated blob's creator. */
+  provenance?: MediaProvenance | undefined;
 }
+
+export type MediaProvenance =
+  | { kind: 'url'; url: string }
+  | { kind: 'picked-folder'; path: string }
+  | { kind: 'upload' | 'generated'; path?: string | undefined };
 
 export interface MediaRecord {
   /** Absent only in legacy callers/serialized records; persistent adapters default to media. */

@@ -33,8 +33,12 @@ export function extendKit(required: { base: ResolvedKit; components: Partial<Rea
 }
 export function describeKit(required: { kit: ResolvedKit }, _optional: Record<string, never> = {}) {
   const { kit } = required;
-  const coverage = implementedComponents.map(name => ({ component: name, parts: kitSpec[name].parts,
-    source: kit.failed.has(name) ? 'native-guard' as const : kit.overrides.includes(name) ? 'override' as const : 'native' as const }));
+  const coverage = implementedComponents.map(name => {
+    let source: 'native-guard' | 'override' | 'native' = 'native';
+    if (kit.overrides.includes(name)) source = 'override';
+    if (kit.failed.has(name)) source = 'native-guard';
+    return { component: name, parts: kitSpec[name].parts, source };
+  });
   return { id: kit.id, contract: kit.contract, coverage,
     fallbacks: coverage.filter(entry => entry.source !== 'override').map(entry => entry.component),
     violations: kit.violations.map(violation => ({ ...violation, reasons: [...violation.reasons] })) };

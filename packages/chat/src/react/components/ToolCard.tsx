@@ -1,3 +1,5 @@
+const RUNNING_TITLE_CLASS = ' shimmer-text';
+
 /**
  * @module ToolCard
  *
@@ -188,7 +190,7 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Tool call')} · {humanizeToolId(toolId)}</span>
+          <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Tool call')} · {humanizeToolId(toolId)}</span>
           {target ? <span className="op-meta">{headSummary({ text: target })}</span> : null}
         </>
       }
@@ -212,7 +214,7 @@ function SearchToolsCard({ input, result, runStreaming, runSucceeded }: CardProp
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Search tools')}</span>
+          <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Search tools')}</span>
           {obj.query ? <span className="op-meta">{obj.query}</span> : null}
         </>
       }
@@ -234,7 +236,7 @@ function DescribeToolCard({ input, result, runStreaming, runSucceeded }: CardPro
       head={
         <>
           <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Describe tool')}</span>
+          <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Describe tool')}</span>
           {obj.id ? <span className="op-meta">{obj.id}</span> : null}
         </>
       }
@@ -289,7 +291,7 @@ function FileWriteCard({ input, result, runStreaming, runSucceeded, ctx }: CardP
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Write')}</span>
+            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Write')}</span>
             <span className="op-meta">
               {baseName}
               {lines !== null ? ` · ${t('{n} lines', { n: lines })}` : ''}
@@ -322,7 +324,7 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Edit')}</span>
+            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Edit')}</span>
             <span className="op-meta">
               {baseName} · {editCount} {editCount === 1 ? t('change') : t('changes')}
             </span>
@@ -353,7 +355,7 @@ function FileReadCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Read')}</span>
+            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Read')}</span>
             <span className="op-meta">{baseName}</span>
         </>
       }
@@ -381,7 +383,7 @@ function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
       head={
         <>
             <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Bash')}</span>
+            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Bash')}</span>
             {desc ? <span className="op-meta op-desc">{desc}</span> : null}
         </>
       }

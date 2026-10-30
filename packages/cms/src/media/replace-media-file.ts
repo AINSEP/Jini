@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import { nowIso, type Clock, type IdGenerator } from '@jini-ai/core/primitives';
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js';
-import type { AssetRenditionRecord, MediaRecord } from './types.js';
+import type { AssetRenditionRecord, MediaProvenance, MediaRecord } from './types.js';
 import { withSha256Lock } from './blob-gc-lock.js';
 import { sanitizeSvg } from './sanitize-svg.js';
 import { MediaValidationError } from './types.js';
 import { DEFAULT_MAX_UPLOAD_BYTES } from './media-service.js';
+import { safeMediaProvenance } from './provenance.js';
+import { sniffContentType } from './content-type-sniffer.js';
 
 /** Atomic source switch supplied by the host's versioned persistence adapter. */
 export interface MediaFileReplacementRepoPort extends MediaRepoPort {
@@ -15,7 +17,7 @@ export interface MediaFileReplacementRepoPort extends MediaRepoPort {
    * are retained; replacing a file is never a purge. */
   replaceFileIfVersion?(required: {
     workspaceId: string; id: string; ifVersion: number; sha256: string; storageKey: string;
-    originalRenditionId: string; updatedAt: string;
+    originalRenditionId: string; updatedAt: string; contentType: string; provenance: MediaProvenance;
   }, optional?: Record<string, never>): Promise<{ applied: boolean }>;
   /** A transform begun against an old source must not resurrect its invalidated preview. */
   saveRenditionIfSource?(required: { record: AssetRenditionRecord; sourceSha256: string },
@@ -39,8 +41,9 @@ export interface ReplaceMediaFileDeps {
  * @returns The updated asset, preserving its identity and metadata, or null on a version conflict.
  * @throws Storage failures propagate; callers must check replacement capabilities first.
  * @complexity O(bytes.length) hashing; constant indexed blob reads/writes under the shared GC lock. */
-export async function replaceMediaFile({ deps, media, bytes, contentType, principalId }: {
+export async function replaceMediaFile({ deps, media, bytes, contentType, principalId, provenance }: {
   deps: ReplaceMediaFileDeps; media: MediaRecord; bytes: Uint8Array; contentType: string; principalId: string;
+  provenance?: MediaProvenance | undefined;
 }, { maxUploadBytes = DEFAULT_MAX_UPLOAD_BYTES }: { maxUploadBytes?: number } = {}): Promise<MediaRecord | null> {
   // Library v1 supports metadata rename, never byte replacement under an immutable document name.
   if (media.kind === 'document') throw new MediaValidationError({ message: 'document file replacement is unavailable' });
@@ -51,22 +54,31 @@ export async function replaceMediaFile({ deps, media, bytes, contentType, princi
   const safeBytes = contentType === 'image/svg+xml' ? await sanitizeSvg({ bytes }) : bytes;
   if (safeBytes.byteLength > maxUploadBytes) throw new MediaValidationError({ message: 'sanitized file exceeds the upload size cap' });
   const sha256 = createHash('sha256').update(safeBytes).digest('hex');
+  const source = { sha256, contentType: sniffContentType({ bytes: safeBytes }), provenance: safeMediaProvenance({ source: provenance }) };
   const updatedAt = nowIso({ clock: deps.clock });
-  return withSha256Lock({ key: sha256, criticalSection: async () => {
-    let blob = await deps.assetBlobRepo.findByHash({ workspaceId: deps.workspaceId, sha256 });
-    if (!blob) {
-      const { storageKey } = await deps.blobStore.put({ workspaceId: deps.workspaceId, sha256, bytes: safeBytes });
-      blob = { id: deps.idGen.newId(), workspaceId: deps.workspaceId, sha256, storageKey,
-        status: 'active', createdAt: updatedAt, createdByPrincipal: principalId };
-      await deps.assetBlobRepo.save(blob);
-    } else if (blob.status === 'tombstoned') {
-      blob = { ...blob, status: 'active', tombstonedAt: undefined };
-      await deps.assetBlobRepo.save(blob);
+  return withSha256Lock({
+    key: sha256, criticalSection: async () => {
+      let blob = await deps.assetBlobRepo.findByHash({ workspaceId: deps.workspaceId, sha256 });
+      if (!blob) {
+        const { storageKey } = await deps.blobStore.put({ workspaceId: deps.workspaceId, sha256, bytes: safeBytes });
+        blob = {
+          id: deps.idGen.newId(), workspaceId: deps.workspaceId, sha256, storageKey,
+          status: 'active', createdAt: updatedAt, createdByPrincipal: principalId
+        };
+        await deps.assetBlobRepo.save(blob);
+      } else if (blob.status === 'tombstoned') {
+        blob = { ...blob, status: 'active', tombstonedAt: undefined };
+        await deps.assetBlobRepo.save(blob);
+      } else {
+        // An already-active content-addressed blob is reused without another write.
+      }
+      await deps.mediaContentTypeStore.set({ workspaceId: deps.workspaceId, sha256, contentType: source.contentType });
+      const { applied } = await deps.mediaRepo.replaceFileIfVersion!({
+        workspaceId: deps.workspaceId,
+        id: media.id, ifVersion: media.version, sha256, storageKey: blob.storageKey,
+        originalRenditionId: deps.idGen.newId(), updatedAt, contentType: source.contentType, provenance: source.provenance
+      });
+      return applied ? { ...media, source, updatedAt, version: media.version + 1 } : null;
     }
-    await deps.mediaContentTypeStore.set({ workspaceId: deps.workspaceId, sha256, contentType });
-    const { applied } = await deps.mediaRepo.replaceFileIfVersion!({ workspaceId: deps.workspaceId,
-      id: media.id, ifVersion: media.version, sha256, storageKey: blob.storageKey,
-      originalRenditionId: deps.idGen.newId(), updatedAt });
-    return applied ? { ...media, source: { sha256 }, updatedAt, version: media.version + 1 } : null;
-  } });
+  });
 }

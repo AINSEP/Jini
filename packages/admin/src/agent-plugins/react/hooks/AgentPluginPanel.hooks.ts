@@ -43,7 +43,8 @@ function agentPluginRowView({ plugin, busy, expanded, controller, mode, canWrite
   const handle = `agent-plugin-${encodeURIComponent(plugin.pluginId)}`;
   const turnOff = () => controller?.requestDisable({ pluginId: plugin.pluginId, variant: mode === 'installed' ? 'disable' : 'remove' });
   // The switch and the button do the same thing: turning off asks first, enabling writes directly.
-  const activate = () => { if (!canWrite) return; if (plugin.enabled) turnOff(); else void controller?.setEnabled({ pluginId: plugin.pluginId, enabled: true }); };
+  const activate = () => { if (!canWrite) return;
+    if (plugin.enabled) turnOff(); else void controller?.setEnabled({ pluginId: plugin.pluginId, enabled: true }); };
   const verb = plugin.enabled ? 'Turn off' : 'Enable';
   return {
     id: plugin.pluginId, name, version: plugin.version, description: plugin.description,

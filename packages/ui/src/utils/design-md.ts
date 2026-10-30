@@ -29,16 +29,16 @@ interface DesignMdHeadingMatch {
 }
 
 export function designMdHeadings(body: string, startOffset: number): DesignMdHeadingMatch[] {
-  return [...body.slice(startOffset).matchAll(/^##\s+(.+?)\s*$/gm)].map((match) => {
+  return [...body.slice(startOffset).matchAll(/^##\s+(\S.*|.)$/gm)].map((match) => {
     // `RegExpMatchArray.index` and a capture group are typed as possibly
     // `undefined` because the JS regex API can't express "always set for a
     // `matchAll` result" / "always set for a mandatory capture group" — for
     // this specific pattern (an unanchored global match, one non-optional
-    // `(.+?)` group) both are always defined whenever a match exists.
+    // title group) both are always defined whenever a match exists.
     const start = startOffset + match.index!;
     return {
       start,
-      title: match[1]!,
+      title: match[1]!.trimEnd() || match[1]!,
     };
   });
 }

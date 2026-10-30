@@ -144,8 +144,17 @@ export function registerSettingsRoutes(required: SettingsHttpRequired, optional:
     const close = await openSettingsChangeStream({ request: req, response: res, workspaceId, principalId,
       changeFeed: required.changeFeed, authorize: required.authorize, permission: permissions.read, scheduler: required.scheduler,
       onClose: ({ close }) => { streams.delete(close); }, isDisposed: () => disposed }, optional);
-    if (disposed) close();
-    else if (!res.destroyed && !res.writableEnded) streams.add(close);
+    if (disposed) {
+      close();
+      return;
+    }
+    if (!res.destroyed && !res.writableEnded) streams.add(close);
   }));
-  return { dispose: () => { disposed = true; for (const close of streams) close(); streams.clear(); } };
+  return {
+    dispose: () => {
+      disposed = true;
+      for (const close of streams) close();
+      streams.clear();
+    },
+  };
 }

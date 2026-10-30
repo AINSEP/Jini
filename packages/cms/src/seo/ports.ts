@@ -106,7 +106,7 @@ export interface SeoFeaturedImagePort {
   findMediaByIdOrSlug(required: { workspaceId: string; idOrSlug: string }, optional?: Record<string, never>): Promise<MediaRecord | null>;
   mediaUrlKey(required: { asset: MediaRecord }, optional?: Record<string, never>): string;
   mediaPublicPath(required: {
-    key: string; variant: { kind: "transform"; name: string; version: number; ext: string };
+    key: string; sha256: string; variant: { kind: "transform"; name: string; version: number; ext: string };
   }, optional?: Record<string, never>): string;
   resolveFeaturedImageRef(required: { workspaceId: string; ref: string }, optional?: Record<string, never>): Promise<
     { ok: true } | { ok: false; reason: string; contentType?: string }

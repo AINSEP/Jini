@@ -65,7 +65,8 @@ export interface CacheEntry {
 // Normalize unknown promise rejections once so consumers receive Error without repeating
 // the same narrowing boilerplate at every read and write call site.
 export function toQueryError(value: unknown): Error {
-  return value instanceof Error ? value : new Error(typeof value === 'string' && value.trim() ? value : 'request failed');
+  if (value instanceof Error) return value;
+  return new Error(typeof value === 'string' && value.trim() ? value : 'request failed');
 }
 
 /** One provider-owned cache. Requests are shared by structural primitive keys.
@@ -212,10 +213,17 @@ export class FetchQueryCache {
       const pendingRead = entry.pendingRead;
       entry.pending = undefined;
       entry.pendingRead = undefined;
-      if (entry.observers.size) this.refresh(entry);
-      // An awaiting loader still needs an answer even if no observer is mounted.
-      else if (pendingRead) void this.load({ entry, ...pendingRead });
+      this.reloadInvalidated(entry, pendingRead);
     }
+  }
+
+  private reloadInvalidated(entry: CacheEntry, pendingRead: CacheEntry['pendingRead']): void {
+    if (entry.observers.size) {
+      this.refresh(entry);
+      return;
+    }
+    // An awaiting loader still needs an answer even if no observer is mounted.
+    if (pendingRead) void this.load({ entry, ...pendingRead });
   }
 
   onFocus(): void {
@@ -292,7 +300,8 @@ export class FetchQueryCache {
 
   private scheduleEviction(entry: CacheEntry): void {
     this.cancelEviction(entry);
-    if (this.disposed || entry.listeners.size || entry.observers.size || entry.pending || !Number.isFinite(entry.retention)) return;
+    const inUse = entry.listeners.size > 0 || entry.observers.size > 0 || Boolean(entry.pending);
+    if (this.disposed || inUse || !Number.isFinite(entry.retention)) return;
     entry.eviction = this.scheduler.schedule({ callback: () => this.entries.delete(JSON.stringify(entry.key)), delayMs: entry.retention });
   }
 }

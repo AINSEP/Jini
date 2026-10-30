@@ -92,9 +92,12 @@ export async function runKitConformance(required: { kit: ResolvedKit }, optional
   const results: KitConformanceResult[] = [];
   for (const scenario of optional.scenarios ?? kitConformanceScenarios) {
     if (optional.only && !optional.only.includes(scenario.component)) continue;
-    if (scenario.browserOnly && !optional.includeBrowser) { results.push({ id: scenario.id, status: 'skipped', errors: ['requires real browser driver'] }); continue; }
-    const errors = await driver.run({ kit: required.kit, scenario, agent: optional.agent ?? testingAgent });
-    results.push({ id: scenario.id, status: errors.length ? 'failed' : 'passed', errors });
+    if (scenario.browserOnly && !optional.includeBrowser) {
+      results.push({ id: scenario.id, status: 'skipped', errors: ['requires real browser driver'] });
+    } else {
+      const errors = await driver.run({ kit: required.kit, scenario, agent: optional.agent ?? testingAgent });
+      results.push({ id: scenario.id, status: errors.length ? 'failed' : 'passed', errors });
+    }
   }
   return results;
 }

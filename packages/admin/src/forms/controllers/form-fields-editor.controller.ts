@@ -8,6 +8,5 @@ export function initialFormFieldsEditorState(_required: Record<string, never>, _
 }
 /** A headless section store. React owns subscriptions/effects, never this state. */
 export function createFormFieldsEditorController(_required: Record<string, never>, _optional = {}) {
-  const store = createFormsDraftStore({ initial: initialFormFieldsEditorState({}) });
-  return store;
+  return createFormsDraftStore({ initial: initialFormFieldsEditorState({}) });
 }

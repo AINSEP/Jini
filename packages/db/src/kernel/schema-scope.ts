@@ -1,5 +1,5 @@
 import type { StorageKernel } from "./port.js";
-import { ownedTransactions } from "./owned-transaction.js";
+import { inheritOwnedTransaction } from "./owned-transaction.js";
 
 /**
  * @file A kernel whose query-builder statements address one Postgres schema: every `run()` body gets
@@ -18,7 +18,6 @@ export function scopeToSchema<DB>(kernel: StorageKernel<DB>, schema: string): St
     ...kernel,
     run: (fn) => kernel.run((db) => fn(db.withSchema(schema))),
   };
-  const control = ownedTransactions.get(kernel as StorageKernel<unknown>);
-  if (control !== undefined) ownedTransactions.set(scoped as StorageKernel<unknown>, control);
+  inheritOwnedTransaction({ from: kernel as StorageKernel<unknown>, to: scoped as StorageKernel<unknown> });
   return scoped;
 }

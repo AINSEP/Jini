@@ -163,6 +163,57 @@ function stdioOptions(options: McpToolServerOptions): { stdin?: Readable; stdout
 }
 
 /** Opt-in stdio guards for this run, or undefined to keep the legacy lifecycle. */
+type IdleExitController = ReturnType<typeof createMcpIdleExitController>;
+
+/** Wraps request handlers so idle exit counts them as activity: from acceptance through the
+ *  response write under stdio hosting, else for the handler's own duration. */
+function createActivityTracker({ idleExit, hosting }: { idleExit: IdleExitController; hosting: StdioHosting | undefined }) {
+  return <Args extends unknown[], Result>(handler: (...args: Args) => Result | Promise<Result>) =>
+    (...args: Args) => {
+      if (!hosting) return idleExit.trackRequest({ fn: () => handler(...args) });
+      const result = hosting.track({ task: async () => handler(...args), signal: (args[1] as { extra?: { signal?: AbortSignal } } | undefined)?.extra?.signal });
+      // Active from acceptance through the response write, not just the handler: a serial
+      // request queued behind a slow write must not let idle exit close the transport.
+      void idleExit.trackRequest({ fn: () => hosting.responseWritten({ result }) });
+      return result;
+    };
+}
+
+/** Resolves once the connected transport closes (rejecting if hosting fails to dispose). Holds
+ *  the process open until the client disconnects (stdin EOF) — `connect()` only starts the
+ *  transport, it doesn't wait for the stream to close. */
+function waitForTransportClose({ transport, idleExit, hosting, stdin }: {
+  transport: ReturnType<typeof createHostedTransport>; idleExit: IdleExitController; hosting: StdioHosting | undefined; stdin: NonNullable<McpToolServerOptions['stdin']>;
+}): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const sdkOnClose = transport.onclose;
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      idleExit.dispose({});
+      if (!hosting) {
+        resolve();
+        return;
+      }
+      void hosting.dispose().then(failure => (failure ? reject(failure.error) : resolve()));
+    };
+    transport.onclose = () => {
+      sdkOnClose?.();
+      done();
+    };
+    const closeTransportForStdin = () => {
+      void transport.close({}).catch(() => done());
+    };
+    if (hosting) {
+      hosting.watch({ close: closeTransportForStdin });
+      return;
+    }
+    stdin.once('end', closeTransportForStdin);
+    stdin.once('close', closeTransportForStdin);
+  });
+}
+
 function hostingForOptions(options: McpToolServerOptions): StdioHosting | undefined {
   if (!wantsStdioHosting(options)) return undefined;
   return createStdioHosting({ stdin: options.stdin ?? process.stdin, stdout: options.stdout ?? process.stdout, options });
@@ -258,16 +309,7 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
         onIdle: () => closeTransportForIdle?.(),
       });
       const hosting = hostingForOptions(options);
-      const withActivity =
-        <Args extends unknown[], Result>(handler: (...args: Args) => Result | Promise<Result>) =>
-          (...args: Args) => {
-            if (!hosting) return idleExit.trackRequest({ fn: () => handler(...args) });
-            const result = hosting.track({ task: async () => handler(...args), signal: (args[1] as { extra?: { signal?: AbortSignal } } | undefined)?.extra?.signal });
-            // Active from acceptance through the response write, not just the handler: a serial
-            // request queued behind a slow write must not let idle exit close the transport.
-            void idleExit.trackRequest({ fn: () => hosting.responseWritten({ result }) });
-            return result;
-          };
+      const withActivity = createActivityTracker({ idleExit, hosting });
 
       server.setRequestHandler({
         schema: ListToolsRequestSchema,
@@ -312,36 +354,7 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
           sdkOnMessage?.({ message });
         };
 
-        const stdin = options.stdin ?? process.stdin;
-        await new Promise<void>((resolve, reject) => {
-          const sdkOnClose = transport.onclose;
-          let finished = false;
-          const done = () => {
-            if (finished) return;
-            finished = true;
-            idleExit.dispose({});
-            if (!hosting) {
-              resolve();
-              return;
-            }
-            void hosting.dispose().then(failure => (failure ? reject(failure.error) : resolve()));
-          };
-          transport.onclose = () => {
-            sdkOnClose?.();
-            done();
-          };
-          const closeTransportForStdin = () => {
-            void transport.close({}).catch(() => done());
-          };
-          // Hold the process open until the client disconnects (stdin EOF) — `connect()` only
-          // starts the transport, it doesn't wait for the stream to close.
-          if (hosting) {
-            hosting.watch({ close: closeTransportForStdin });
-            return;
-          }
-          stdin.once('end', closeTransportForStdin);
-          stdin.once('close', closeTransportForStdin);
-        });
+        await waitForTransportClose({ transport, idleExit, hosting, stdin: options.stdin ?? process.stdin });
       } finally {
         idleExit.dispose({});
         if (hosting) void hosting.dispose();

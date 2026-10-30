@@ -78,7 +78,10 @@ export function reseedIdentitySql(schema: string, table: TransferTable, sqlTag =
  */
 export function indexSql(schema: string, table: TransferTable): string {
   return table.indexes
-    .map((index) => `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quoteIdent(fitIdentifier(index.name))} ON ${qualified(schema, table.name)} (${(index.expressions ?? index.columns.map(quoteIdent)).join(", ")})${index.where === undefined ? "" : ` WHERE ${index.where}`};\n`)
+    .map((index) => {
+      const where = index.where === undefined ? "" : " WHERE " + index.where;
+      return `CREATE ${index.unique ? "UNIQUE " : ""}INDEX ${quoteIdent(fitIdentifier(index.name))} ON ${qualified(schema, table.name)} (${(index.expressions ?? index.columns.map(quoteIdent)).join(", ")})${where};\n`;
+    })
     .join("");
 }
 
@@ -136,7 +139,7 @@ export function constraintSql(schema: string, tables: readonly TransferTable[], 
   const validations = pending.map(
     ({ table, name }) =>
       `  BEGIN ALTER TABLE ${qualified(schema, table)} VALIDATE CONSTRAINT ${quoteIdent(name)};\n` +
-      `  EXCEPTION WHEN foreign_key_violation OR check_violation THEN INSERT INTO ${UNVALIDATED_TABLE} VALUES (${quoteLiteral(`${table}.${name}`)}); END;\n`
+      `  EXCEPTION WHEN foreign_key_violation OR check_violation THEN INSERT INTO ${UNVALIDATED_TABLE} VALUES (${quoteLiteral(table + "." + name)}); END;\n`
   );
   return (
     `CREATE TEMP TABLE ${quoteIdent(unvalidatedTable.split(".").at(-1)!)} (name text NOT NULL) ON COMMIT DROP;\n` +

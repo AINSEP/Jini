@@ -1,20 +1,33 @@
 /** Coupling audit findings 1–2: protect public source closures using the existing graph owner. */
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { auditSubpathIsolation, type SubpathIsolationAudit } from '../check-subpath-isolation.js';
 import { extractImports } from '../lib/walk-imports.js';
+import { checkPackageLayers } from '../check-package-layers.js';
+import { createHardwiringInspector } from '../../packages/devops/src/checks/hardwiring.js';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 let audit: SubpathIsolationAudit;
 beforeAll(() => { audit = auditSubpathIsolation({ repoRoot }); });
 
 describe('platform OS helper import isolation', () => {
+  // Local scanner/Windows hardening refactors reuse Core; pin their exact closures too.
+  const primitives = ['http', 'ids', 'index', 'json', 'logger', 'paths', 'result', 'sse', 'tasks', 'time', 'trim-chars']
+    .map(name => `packages/core/src/primitives/${name}.ts`);
+  const text = ['escape', 'index', 'line-tail', 'sanitize-untrusted-text']
+    .map(name => `packages/core/src/text/${name}.ts`)
+    .concat('packages/core/src/redact.ts', 'packages/core/src/primitives/trim-chars.ts');
   it.each(['command', 'process', 'toolchain', 'proxy-env', 'shell', 'child-environment'])('%s reaches only its existing OS owners', name => {
     const entry = audit.closures.find(closure => closure.package === '@jini-ai/platform' && closure.subpath === `./${name}`);
     // Exact closure checks catch indirect barrel loads, including services without external deps.
     const files = [`packages/platform/src/${name}.ts`];
-    if (name === 'process') files.push('packages/platform/src/command.ts', 'packages/platform/src/shell.ts');
-    expect(entry?.files).toEqual(files.sort());
+    if (name === 'command' || name === 'process') files.push(...primitives);
+    if (name === 'process' || name === 'proxy-env') files.push(...text);
+    if (name === 'process') files.push('packages/platform/src/command.ts', 'packages/platform/src/shell.ts',
+      'packages/platform/src/windows-system-tools.ts');
+    expect(entry?.files).toEqual([...new Set(files)].sort());
     expect(entry?.dependencies).toEqual([]); // In particular, no Undici, drivers or renderer SDKs.
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/platform'
       && finding.subpath === `./${name}` && (finding.kind === 'a' || finding.kind === 'resolution'))).toEqual([]);
@@ -27,6 +40,7 @@ describe('model-discovery policy import isolation', () => {
     expect(entry?.files).toEqual([
       'packages/agent-runtime/src/core/model-discovery-shared.ts',
       'packages/agent-runtime/src/model-discovery-config.ts',
+      'packages/agent-runtime/src/model-discovery-yaml.ts',
       'packages/agent-runtime/src/model-discovery.ts',
     ]);
     expect(entry?.dependencies).toEqual([]);
@@ -46,6 +60,7 @@ describe('model-discovery policy import isolation', () => {
 describe('verified shared leaves retain their existing owners', () => {
   it.each([
     ['@jini-ai/platform', './http/guarded'],
+    ['@jini-ai/platform', './mail'],
     ['@jini-ai/platform', './net'],
     ['@jini-ai/platform', './web'],
     ['@jini-ai/platform', './asset-cache'],
@@ -72,5 +87,22 @@ describe('verified shared leaves retain their existing owners', () => {
     const outbox = audit.closures.find(closure => closure.package === '@jini-ai/infra' && closure.subpath === './events/outbox');
     expect(outbox?.dependencies).toEqual(['@jini-ai/core']);
     expect(outbox?.files.some(file => file.startsWith('packages/db/'))).toBe(false);
+  });
+});
+
+describe('re-verify dependency and state regressions', () => {
+  it('declares the shared secret-input owner on the permitted UI layer edge', () => {
+    expect(checkPackageLayers({ repoRoot }).filter(finding => finding.file.startsWith('packages/ui/')
+      && finding.reason.startsWith('ui → @jini-ai/ui-kit'))).toEqual([]);
+  });
+
+  it.each([
+    'packages/devops/src/static-export/css-urls.ts',
+    'packages/provider-plugins/src/payments-stripe/webhook.ts',
+  ])('%s owns no mutable module state', file => {
+    const source = readFileSync(new URL(file, new URL('../../', import.meta.url)), 'utf8');
+    const inspector = createHardwiringInspector({ compiler: ts });
+    expect(inspector.inspect({ file, source, mode: 'jini', server: true })
+      .filter(finding => finding.rule === 'HW3-module-state')).toEqual([]);
   });
 });

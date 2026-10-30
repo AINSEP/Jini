@@ -42,7 +42,7 @@ function redirectTarget(container: HTMLElement, shiftKey: boolean): HTMLElement 
  */
 export function useFocusTrap({ containerRef }: { containerRef: RefObject<HTMLElement | null> }, { active = true }: { active?: boolean | undefined } = {}): void {
   useEffect(() => {
-    if (!active) return;
+    if (!active) return undefined;
     // Captured before anything inside the dialog takes focus, so keyboard users land back on the
     // control they opened it from instead of at the top of the page. An element already inside the
     // container (an autoFocus child committed first) is not the opener, so nothing is restored then.

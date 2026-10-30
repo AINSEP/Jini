@@ -21,11 +21,12 @@ export function useDebouncedHtmlPreview(
   useEffect(() => {
     let current = true;
     const controller = new AbortController();
+    const fail = () => { if (current) setState(previous => ({ ...previous, error: 'Preview unavailable.', settled: key })); };
     const timer = setTimeout(() => {
       // Promise.resolve also maps a synchronously throwing host adapter to the error state.
       void Promise.resolve().then(() => render({ source }, { signal: controller.signal })).then(
         document => { if (current) setState({ document, error: null, settled: key }); },
-        () => { if (current) setState(previous => ({ ...previous, error: 'Preview unavailable.', settled: key })); },
+        fail,
       );
     }, delayMs);
     return () => { current = false; clearTimeout(timer); controller.abort(); };

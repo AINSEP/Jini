@@ -178,12 +178,13 @@ async function pumpRun({ run, args, request }: { run: ActiveRun; args: FetchSseT
 }
 
 async function deliverResponse({ run, args, response }: { run: ActiveRun; args: FetchSseTransportArgs; response: Response }): Promise<void> {
-  if (run.isSettled()) { try { await response.body?.cancel(); } catch { /* closed body */ } return; }
+  if (run.isSettled()) { try { await response.body?.cancel(); } catch { /* closed body */ } return undefined; }
   if (!response.ok) return reportHttpFailure({ run, response, requestFailed: args.copy.requestFailed });
   if (!response.body) throw new Error(args.copy.missingBody);
   for await (const frame of args.decode({ source: responseChunks(response.body, run.controller.signal) })) {
     if (run.isSettled() || !dispatchFrame({ run, result: args.frameMapper({ frame }) })) break;
   }
+  return undefined;
 }
 
 async function reportHttpFailure({ run, response, requestFailed }: {

@@ -85,33 +85,7 @@ return {
     });
 
     try {
-      for await (const entry of zipfile.eachEntry()) {
-        /**
-         * The entry's content (the link target text) is deliberately never read — see this
-         * module's header. `install.ts` rejects every symlink entry unconditionally.
-         */
-        const unixMode = readUnixMode(entry);
-
-        if (unixMode !== null && (unixMode & S_IFMT) === S_IFLNK) {
-
-          yield { kind: "symlink", entryPath: entry.fileName };
-          continue;
-        }
-
-        // File mode defines links even when a hostile filename masquerades as a directory.
-        if (entry.fileName.endsWith("/")) {
-          yield { kind: "directory", entryPath: entry.fileName };
-          continue;
-        }
-
-        yield {
-          kind: "file",
-          entryPath: entry.fileName,
-          declaredSize: entry.uncompressedSize,
-          executable: unixMode !== null && (unixMode & EXECUTABLE_MODE_MASK) !== 0,
-          openReadStream: () => streamEntry(zipfile, entry),
-        };
-      }
+      for await (const entry of zipfile.eachEntry()) yield archiveEntryFor(zipfile, entry);
     } finally {
       zipfile.close();
     }
@@ -128,6 +102,24 @@ function readUnixMode(entry: YauzlEntry): number | null {
   const hostSystem = entry.versionMadeBy >>> 8;
   if (hostSystem !== UNIX_HOST_SYSTEM) return null;
   return (entry.externalFileAttributes >>> 16) & 0xffff;
+}
+
+function archiveEntryFor(zipfile: YauzlZipFile, entry: YauzlEntry): AgentPluginArchiveEntry {
+  /**
+   * The entry's content (the link target text) is deliberately never read — see this
+   * module's header. `install.ts` rejects every symlink entry unconditionally.
+   */
+  const unixMode = readUnixMode(entry);
+  if (unixMode !== null && (unixMode & S_IFMT) === S_IFLNK) return { kind: "symlink", entryPath: entry.fileName };
+  // File mode defines links even when a hostile filename masquerades as a directory.
+  if (entry.fileName.endsWith("/")) return { kind: "directory", entryPath: entry.fileName };
+  return {
+    kind: "file",
+    entryPath: entry.fileName,
+    declaredSize: entry.uncompressedSize,
+    executable: unixMode !== null && (unixMode & EXECUTABLE_MODE_MASK) !== 0,
+    openReadStream: () => streamEntry(zipfile, entry),
+  };
 }
 
 async function* streamEntry(zipfile: YauzlZipFile, entry: YauzlEntry): AsyncIterable<Uint8Array> {

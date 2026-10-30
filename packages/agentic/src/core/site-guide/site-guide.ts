@@ -117,8 +117,8 @@ function createPermissionGate({ ports, caller, timeoutMs }: { ports: SiteGuidePo
 async function buildViews({ topics, input, permitted }: { topics: readonly { topic: GuideTopic; source: string }[]; input: GuideInput; permitted: Permitted }): Promise<GuideTopicView[]> {
   const views: GuideTopicView[] = [];
   for (const entry of topics) {
-    if (input.operation === 'explain' && entry.topic.id !== input.topic) continue;
-    if (!await permitted(entry.topic.permissions)) continue;
+    const requested = input.operation !== 'explain' || entry.topic.id === input.topic;
+    if (!requested || !await permitted(entry.topic.permissions)) continue;
     const view: GuideTopicView = { id: entry.topic.id, title: entry.topic.title, summary: entry.topic.summary, source: entry.source };
     views.push(input.operation === 'explain' ? await explainView({ view, topic: entry.topic, permitted }) : view);
   }

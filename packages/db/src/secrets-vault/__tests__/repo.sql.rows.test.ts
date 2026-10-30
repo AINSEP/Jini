@@ -46,6 +46,27 @@ async function insertRaw(
 const scope = { workspaceId: "ws", kind: "vendor" as const, ownerKey: "deploy", principalId: null, provider: "host" };
 const unsealed: [null, null, null, null] = [null, null, null, null];
 
+test.each([0, 1, 2, 3])('refuses a sealed record missing part %i', async missing => {
+  const { kernel, repo } = await looseSqliteVault();
+  const sealed: [string | null, string | null, string | null, string | null] = ['key', 'ciphertext', 'nonce', 'aes-256-gcm'];
+  sealed[missing] = null;
+  await insertRaw(kernel, { id: 'partial', isDefault: 0, sealed, meta: '{}' });
+  await assert.rejects(repo.find({ workspaceId: 'ws', id: 'partial' }),
+    (error: unknown) => error instanceof VaultError && error.code === 'invalid-record');
+});
+
+test('singleton lookup distinguishes null and named principals without requiring a provider', async () => {
+  const { kernel, repo } = await looseSqliteVault();
+  await insertRaw(kernel, { id: 'null-principal', isDefault: 0, sealed: unsealed, meta: '{}' });
+  await insertRaw(kernel, { id: 'named-principal', isDefault: 0, sealed: unsealed, meta: '{}' });
+  await kernel.execute(sql`update secrets_vault set principal_id = 'person' where id = 'named-principal'`);
+  const base = { workspaceId: 'ws', kind: 'vendor' as const, ownerKey: 'deploy' };
+  assert.equal((await repo.findOne({ ...base, principalId: null }))?.id, 'null-principal');
+  assert.equal((await repo.findOne({ ...base, principalId: 'person' }))?.id, 'named-principal');
+  assert.equal(await repo.findOne({ ...base, principalId: 'other' }), null);
+  assert.deepEqual((await repo.list({ ...base, principalId: null })).map(row => row.id), ['null-principal']);
+});
+
 describe("rows the SQL vault refuses", () => {
   test("a row with only some sealed parts is an invalid record, never a half-decryptable secret", async () => {
     const { kernel, repo } = await looseSqliteVault();

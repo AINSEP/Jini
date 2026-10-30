@@ -32,7 +32,7 @@ export function useAssetTreeRowMenu(dom: AssetTreeDomBridgePort): UseAssetTreeRo
   const closeMenu = useCallback(() => setMenuPos(null), []);
 
   useEffect(() => {
-    if (!menuPos) return;
+    if (!menuPos) return undefined;
     return dom.subscribeOutsideDismiss(containerRef, closeMenu);
   }, [menuPos, dom, closeMenu]);
 

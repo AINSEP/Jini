@@ -69,8 +69,7 @@ export async function computeIndexableEntries(required: { deps: SeoSitemapDeps; 
   for (const post of posts) {
     if (!isPublicCandidate({ deps, post, nowIso })) continue;
     const meta = await getEntryMeta({ deps, input: { workspaceId, entryId: post.id } });
-    if (meta.robots.noindex) continue;
-    entries.push({ post, meta });
+    if (!meta.robots.noindex) entries.push({ post, meta });
   }
   return entries;
 }
@@ -150,8 +149,10 @@ export async function requestSitemapInvalidation(required: {
 }, _optional: Record<string, never> = {}): Promise<void> {
   const { deps, input } = required;
   await deps.invalidateSitemapCache(input);
-  await deps.outbox.enqueue({ id: deps.idGen.newId(), name: SITEMAP_INVALIDATED_EVENT,
-    occurredAt: deps.clock.nowIso(), aggregateId: input.workspaceId, workspaceId: input.workspaceId, payload: {} });
+  await deps.outbox.enqueue({
+    id: deps.idGen.newId(), name: SITEMAP_INVALIDATED_EVENT,
+    occurredAt: deps.clock.nowIso(), aggregateId: input.workspaceId, workspaceId: input.workspaceId, payload: {}
+  });
   await deps.dispatch({ outbox: deps.outbox, bus: deps.bus, clock: { nowMs: () => Date.parse(deps.clock.nowIso()) } });
 }
 

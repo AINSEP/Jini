@@ -133,7 +133,10 @@ function snapshotSources(deps: TransferExecutionPorts, snapshot: Buffer, chatSna
       catch (error) { source.close(); throw error; }
     }
     return [...planTransfer({ sources: opened }).sources];
-  } catch (error) { for (const entry of opened) entry.source.close(); throw error; }
+  } catch (error) {
+    for (const entry of opened) entry.source.close();
+    throw error;
+  }
 }
 /** Row counts and reasons use each physical source's own catalog; no raw-SQL tables disappear. */
 function countSnapshot(deps: TransferExecutionPorts, bytes: Buffer, chatSnapshot?: Buffer): { ok: true; tableCount: number; rowCount: number; leftOut: DatabaseTransferPlan["leftOut"] } | Refusal {

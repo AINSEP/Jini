@@ -10,7 +10,7 @@ export interface TableSort {
 
 function isNumericValue(value: unknown): boolean {
   if (typeof value === 'number') return Number.isFinite(value);
-  return typeof value === 'string' && /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
+  return typeof value === 'string' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
     && Number.isFinite(Number(value));
 }
 

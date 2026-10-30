@@ -61,7 +61,7 @@ function isStatusEvent(event: AgentEventLike): event is AgentStatusEventLike {
 }
 
 // ---------------------------------------------------------------------------
-// Todo/step derivation (ported from the source `runtime/todos.ts`)
+// To-do/step derivation (ported from the source `runtime/todos.ts`)
 // ---------------------------------------------------------------------------
 
 export type TodoStatusLike = 'pending' | 'in_progress' | 'completed' | 'stopped';
@@ -86,7 +86,7 @@ function normalizeTodoStatus(status: unknown): TodoStatusLike {
 export function parseTodoWriteInput(input: unknown): TodoItemLike[] {
   if (!input || typeof input !== 'object') return [];
   const record = input as { todos?: unknown; plan?: unknown };
-  const rawItems = Array.isArray(record.todos) ? record.todos : Array.isArray(record.plan) ? record.plan : [];
+  const rawItems = [record.todos, record.plan].find(Array.isArray) ?? [];
   return rawItems
     .map((todo): TodoItemLike | null => {
       if (!todo || typeof todo !== 'object') return null;
@@ -163,8 +163,8 @@ function classifyFileOp(name: string): FileOpKindLike | null {
 function extractFileOpPath(input: unknown): string | null {
   if (!input || typeof input !== 'object') return null;
   const record = input as Record<string, unknown>;
-  const filePath =
-    record.file_path ?? record.filePath ?? record.path ?? record.filename ?? record.target_path ?? record.targetPath;
+  let filePath = record.file_path ?? record.filePath ?? record.path;
+  filePath ??= record.filename ?? record.target_path ?? record.targetPath;
   return typeof filePath === 'string' && filePath.trim() ? filePath : null;
 }
 
@@ -212,7 +212,8 @@ function fileOpFromAgentEvent(
   const fullPath = extractFileOpPath(event.input);
   if (!fullPath) return null;
   const result = resultByToolUseId.get(event.id);
-  const status: FileOpStatusLike = result === undefined ? 'running' : result.isError ? 'error' : 'done';
+  let status: FileOpStatusLike = 'running';
+  if (result !== undefined) status = result.isError ? 'error' : 'done';
   return { fullPath, kind, status };
 }
 
@@ -230,14 +231,14 @@ export function deriveFileOpsFromAgentEvents(events: AgentEventLike[] | undefine
     if (existing) {
       if (!existing.ops.includes(entry.kind)) existing.ops.push(entry.kind);
       existing.status = mergeFileOpStatus(existing.status, entry.status);
-      continue;
+    } else {
+      byPath.set(entry.fullPath, {
+        path: basename(entry.fullPath),
+        fullPath: entry.fullPath,
+        ops: [entry.kind],
+        status: entry.status,
+      });
     }
-    byPath.set(entry.fullPath, {
-      path: basename(entry.fullPath),
-      fullPath: entry.fullPath,
-      ops: [entry.kind],
-      status: entry.status,
-    });
   }
   return Array.from(byPath.values());
 }
@@ -293,7 +294,7 @@ function fallbackChatActivitySteps(status: ProgressStatus, fileOps: FileOpEntryL
     {
       id: 'read-current-state',
       label: 'Read current state',
-      status: hasRead || hasMutation || status === 'succeeded' ? 'succeeded' : status === 'running' ? 'running' : 'pending',
+      status: fallbackReadStatus({ status, done: hasRead || hasMutation }),
     },
     {
       id: 'update-files',
@@ -303,9 +304,14 @@ function fallbackChatActivitySteps(status: ProgressStatus, fileOps: FileOpEntryL
     {
       id: 'finalize',
       label: 'Finalize',
-      status: status === 'succeeded' ? 'succeeded' : status === 'failed' ? 'failed' : 'pending',
+      status: status === 'succeeded' || status === 'failed' ? status : 'pending',
     },
   ];
+}
+
+function fallbackReadStatus({ status, done }: { status: ProgressStatus; done: boolean }): ProgressStatus {
+  if (done || status === 'succeeded') return 'succeeded';
+  return status === 'running' ? 'running' : 'pending';
 }
 
 function fallbackUpdateStatus(
@@ -347,8 +353,8 @@ export function chatActivityToProgressCard(
   const fileOps = deriveFileOpsFromAgentEvents(events);
   const status = chatActivityStatus(message, options.active);
   const statusDetail = latestStatusDetailFromAgentEvents(events);
-  const hasActivity =
-    options.active || todos.length > 0 || fileOps.length > 0 || statusDetail !== null || status === 'failed';
+  const hasSteps = todos.length > 0 || fileOps.length > 0;
+  const hasActivity = options.active || hasSteps || statusDetail !== null || status === 'failed';
   if (!hasActivity) return null;
 
   const steps = chatActivitySteps({ todos, status, fileOps });

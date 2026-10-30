@@ -8,21 +8,24 @@ import { canonicalMediaProviderId, findProvider, VENDOR_API_BASE_URLS } from './
  * models. Pass this explicitly as `catalog` to `MediaProvidersTab`; Zana or any
  * other host is expected to do so once it has its own provider roster.
  */
+/** Default model of every Nano Banana-compatible preset below. */
+const NANO_BANANA_MODEL = 'gemini-3.1-flash-image-preview';
+
 const starterCatalog: readonly MediaProviderOption[] = [
   {
     id: 'nano-banana',
     label: 'Nano Banana',
-    models: ['gemini-3.1-flash-image-preview'],
+    models: [NANO_BANANA_MODEL],
   },
   {
     id: 'aihubmix',
     label: 'AIHubMix',
-    models: ['gemini-3.1-flash-image-preview'],
+    models: [NANO_BANANA_MODEL],
   },
   {
     id: 'custom-image-api',
     label: 'Custom Media API',
-    models: ['gemini-3.1-flash-image-preview'],
+    models: [NANO_BANANA_MODEL],
   },
   {
     id: 'elevenlabs',
@@ -31,7 +34,7 @@ const starterCatalog: readonly MediaProviderOption[] = [
   {
     id: 'fal-ai',
     label: 'Fal.ai',
-    models: ['gemini-3.1-flash-image-preview'],
+    models: [NANO_BANANA_MODEL],
   },
   {
     id: 'fishaudio',
@@ -40,7 +43,7 @@ const starterCatalog: readonly MediaProviderOption[] = [
   {
     id: 'imagerouter',
     label: 'ImageRouter',
-    models: ['gemini-3.1-flash-image-preview'],
+    models: [NANO_BANANA_MODEL],
   },
   {
     id: 'leonardo-ai',

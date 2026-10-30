@@ -125,7 +125,7 @@ export type ComponentCommon = z.infer<typeof ComponentCommonSchema>;
 
 /** `common_types.json#/$defs/Child` — "A reference to a single child component ID." */
 export const ChildSchema = ComponentIdSchema;
-export type Child = ComponentId;
+export type Child = z.infer<typeof ChildSchema>;
 
 /**
  * `common_types.json#/$defs/ChildList` — either a static array of `ComponentId`s, or a template

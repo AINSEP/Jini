@@ -101,9 +101,13 @@ export function parseMxText(required: { readonly text: string }, _optional = {})
 
 /** `0 issue "letsencrypt.org"` → CAA value (quotes optional). */
 export function parseCaaText(required: { readonly text: string }, _optional = {}): CaaValue | undefined {
-  const match = /^(\d+)\s+(issue|issuewild|iodef)\s+"?([^"]*)"?$/i.exec(required.text.trim());
-  if (!match) return undefined;
-  return { flags: Number(match[1]), tag: (match[2] as string).toLowerCase() as CaaTag, value: match[3] as string };
+  // Same as /^(\d+)\s+(issue|issuewild|iodef)\s+"?([^"]*)"?$/i, split so the separator run and the
+  // value cannot backtrack against each other.
+  const text = required.text.trim();
+  const head = /^(\d+)\s+(issue|issuewild|iodef)(?=\s)/i.exec(text);
+  const value = head ? /^"?([^"]*)"?$/.exec(text.slice(head[0].length).trimStart()) : null;
+  if (!head || !value) return undefined;
+  return { flags: Number(head[1]), tag: (head[2] as string).toLowerCase() as CaaTag, value: value[1] as string };
 }
 
 /** Join quoted character-strings (`"a" "b"` → `ab`); an unquoted value is already logical. */

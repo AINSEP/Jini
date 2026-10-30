@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createElectronRenderService } from '../electron-render-service.js';
+import { createElectronUrlCapturePool } from '../electron-url-capture.js';
 import type { ElectronBrowserWindowFactory } from '../electron-surfaces.js';
 import { readUrlCaptureRequest, URL_CAPTURE_MAX_BYTES, URL_CAPTURE_TIMEOUT_MS } from '../../url-capture.js';
 
 const request = { url: 'http://127.0.0.1:4312/', viewport: { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true }, fullPage: true, maxPageHeightPx: 8000, settleMs: 0 };
 
-function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url, clearStorage = async () => {}, captureDelayMs = 0 } = {}, _options = {}) {
+function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.url, clearStorage = async () => {}, captureDelayMs = 0 } = {}, { capturePool = createElectronUrlCapturePool({}) } = {}) {
   let policy: any;
   let options: any;
   let destroyed = false;
@@ -47,7 +48,7 @@ function fixture({ hang = false, png = Buffer.from('png'), finalUrl = request.ur
     },
       isDestroyed: () => destroyed, destroy: () => { destroyed = true; } };
   }) as unknown as ElectronBrowserWindowFactory;
-  const service = createElectronRenderService({ createBrowserWindow: factory });
+  const service = createElectronRenderService({ createBrowserWindow: factory, capturePool });
   return { service, calls, commands, sessions, get options() { return options; }, get destroyed() { return destroyed; },
     refused(url: string, method = 'GET') { let result: unknown; policy({ details: { url, method }, callback: (value: unknown) => { result = value; } }); return result; } };
 }
@@ -163,10 +164,11 @@ describe('native URL capture without a downloaded browser', () => {
   });
 
   it('keeps concurrent services exclusive and hands clean partitions to queued captures in FIFO order', async () => {
-    const a = fixture({ hang: true });
-    const b = fixture({ hang: true });
-    const c = fixture({ hang: true });
-    const d = fixture({ hang: true });
+    const capturePool = createElectronUrlCapturePool({});
+    const a = fixture({ hang: true }, { capturePool });
+    const b = fixture({ hang: true }, { capturePool });
+    const c = fixture({ hang: true }, { capturePool });
+    const d = fixture({ hang: true }, { capturePool });
     const first = new AbortController();
     const second = new AbortController();
     const third = new AbortController();
@@ -199,12 +201,13 @@ describe('native URL capture without a downloaded browser', () => {
   });
 
   it('holds the partition until asynchronous cleanup finishes', async () => {
+    const capturePool = createElectronUrlCapturePool({});
     let release!: () => void;
     let resets = 0;
     const cleanup = new Promise<void>(resolve => { release = resolve; });
-    const a = fixture({ clearStorage: async () => { if (++resets === 2) await cleanup; } });
-    const b = fixture({ hang: true });
-    const c = fixture();
+    const a = fixture({ clearStorage: async () => { if (++resets === 2) await cleanup; } }, { capturePool });
+    const b = fixture({ hang: true }, { capturePool });
+    const c = fixture({}, { capturePool });
     const controller = new AbortController();
     const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
     const pending = a.service.captureUrl(request, options);
@@ -224,7 +227,8 @@ describe('native URL capture without a downloaded browser', () => {
   });
 
   it('removes an aborted queued capture without blocking the next waiter or creating its window', async () => {
-    const a = fixture({ hang: true }), b = fixture({ hang: true }), c = fixture(), d = fixture();
+    const capturePool = createElectronUrlCapturePool({});
+    const a = fixture({ hang: true }, { capturePool }), b = fixture({ hang: true }, { capturePool }), c = fixture({}, { capturePool }), d = fixture({}, { capturePool });
     const first = new AbortController(), second = new AbortController(), queued = new AbortController();
     const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
     const aResult = expect(a.service.captureUrl(request, { ...options, signal: first.signal })).rejects.toMatchObject({ code: 'aborted' });
@@ -247,12 +251,13 @@ describe('native URL capture without a downloaded browser', () => {
   });
 
   it('times out in the queue without a window while both partitions are still resetting', async () => {
+    const capturePool = createElectronUrlCapturePool({});
     vi.useFakeTimers();
     let release!: () => void;
     const held = new Promise<void>(resolve => { release = resolve; });
-    const a = fixture({ clearStorage: async () => { await held; } });
-    const b = fixture({ clearStorage: async () => { await held; } });
-    const c = fixture();
+    const a = fixture({ clearStorage: async () => { await held; } }, { capturePool });
+    const b = fixture({ clearStorage: async () => { await held; } }, { capturePool });
+    const c = fixture({}, { capturePool });
     const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
     const first = expect(a.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
     const second = expect(b.service.captureUrl(request, options)).rejects.toMatchObject({ code: 'timeout' });
@@ -271,8 +276,9 @@ describe('native URL capture without a downloaded browser', () => {
   });
 
   it('charges queued time to the same render deadline instead of starting a fresh one', async () => {
+    const capturePool = createElectronUrlCapturePool({});
     vi.useFakeTimers();
-    const a = fixture({ hang: true }), b = fixture({ hang: true }), c = fixture({ hang: true });
+    const a = fixture({ hang: true }, { capturePool }), b = fixture({ hang: true }, { capturePool }), c = fixture({ hang: true }, { capturePool });
     const controller = new AbortController();
     const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
     const first = expect(a.service.captureUrl(request, { ...options, signal: controller.signal })).rejects.toMatchObject({ code: 'aborted' });
@@ -291,12 +297,13 @@ describe('native URL capture without a downloaded browser', () => {
   });
 
   it('preserves the capture when cleanup sticks, keeping that lease until cleanup settles', async () => {
+    const capturePool = createElectronUrlCapturePool({});
     vi.useFakeTimers();
     let release!: () => void;
     const stuck = new Promise<void>(resolve => { release = resolve; });
     let resets = 0;
-    const a = fixture({ clearStorage: async () => { if (++resets === 2) await stuck; } });
-    const c = fixture();
+    const a = fixture({ clearStorage: async () => { if (++resets === 2) await stuck; } }, { capturePool });
+    const c = fixture({}, { capturePool });
     const options = { allowedOrigins: ['http://127.0.0.1:4312'] };
     try {
       const captured = expect(a.service.captureUrl(request, options)).resolves.toMatchObject({

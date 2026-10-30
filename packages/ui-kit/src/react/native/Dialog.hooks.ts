@@ -14,10 +14,10 @@ export function useNativeDialog(required: DialogProps, optional: {
   useImperativeHandle(required.ref, () => dialogRef.current!, []);
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
-    if (!dialog) return;
+    if (!dialog) return undefined;
     if (!required.open) {
       restoreDialogFocus({ opener: opener.current });
-      return;
+      return undefined;
     }
     opener.current = (optional.document ?? document).activeElement;
     if (typeof dialog.showModal === 'function') { if (!dialog.open) dialog.showModal(); }

@@ -10,7 +10,8 @@ export function createWidgetRegionsController({ api }: { api: AdminWidgetsPort }
   const store = createControllerStore<WidgetRegionsState>({ initial: { regions: null, error: null, newRegionKey: '', binding: false } });
   let generation = 0;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     try {
       const result = await api.listWidgetRegions({}, { signal: store.signal });
       if (ticket === generation && !store.signal.aborted) store.set({ patch: { regions: result.regions } });

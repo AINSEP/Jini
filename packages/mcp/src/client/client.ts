@@ -1,3 +1,4 @@
+import { cssUrlRefs } from './css-url-refs.js';
 /**
  * @module @jini-ai/mcp/client/client
  * Product-neutral runtime primitives for a stdio MCP server: an idle-exit
@@ -158,15 +159,18 @@ const HTML_REF_PATTERNS = [
   /<iframe\b[^>]*\bsrc=["']([^"']+)["']/gi,
 ];
 
-const CSS_REF_PATTERNS = [
-  /\burl\(\s*["']?([^"')]+)["']?\s*\)/gi,
-  /@import\s+(?:url\()?\s*["']([^"')]+)["']/gi,
+/** A reference finder: a pattern whose first group is the reference, or a scanner returning them. */
+type RefPattern = RegExp | ((text: string) => string[]);
+
+const CSS_REF_PATTERNS: RefPattern[] = [
+  cssUrlRefs,
+  /@import\s+(?:url\(\s*)?["']([^"')]+)["']/gi,
 ];
 
 // JS/TS only - running these on prose creates false positives on words
 // like "imported from 'X'".
 const JS_REF_PATTERNS = [
-  /\bimport\s+[^'"]*?['"]([^'"]+)['"]/g,
+  /\bimport\s[^'"]*['"]([^'"]+)['"]/g,
   /\bfrom\s+['"]([^'"]+)['"]/g,
   /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g,
   /\brequire\(\s*['"]([^'"]+)['"]\s*\)/g,
@@ -192,8 +196,8 @@ function isHtmlLike(mime: string | undefined, fromPath: string): boolean {
 
 // Order matters: candidates are collected HTML → CSS → JS, so the returned
 // list keeps that first-seen order after dedupe.
-function selectRefPatterns(fromMime: string, fromPath: string, htmlLike: boolean): RegExp[] {
-  const runPatterns: RegExp[] = [];
+function selectRefPatterns(fromMime: string, fromPath: string, htmlLike: boolean): RefPattern[] {
+  const runPatterns: RefPattern[] = [];
   if (htmlLike) runPatterns.push(...HTML_REF_PATTERNS, ...CSS_REF_PATTERNS);
   if (isCssLike(fromMime, fromPath)) runPatterns.push(...CSS_REF_PATTERNS);
   if (isJsLike(fromMime, fromPath)) runPatterns.push(...JS_REF_PATTERNS);
@@ -202,17 +206,22 @@ function selectRefPatterns(fromMime: string, fromPath: string, htmlLike: boolean
   return runPatterns.length === 0 ? [...CSS_REF_PATTERNS] : runPatterns;
 }
 
-function collectPatternCandidates(text: string, patterns: RegExp[]): string[] {
+function collectPatternCandidates(text: string, patterns: RefPattern[]): string[] {
   const candidates: string[] = [];
-  for (const re of patterns) {
-    for (const m of text.matchAll(re)) {
-      // The capture group is required in every pattern, so `m[1]` is always a
-      // matched string here (the `!` only satisfies noUncheckedIndexedAccess).
-      const ref = m[1]!.trim();
+  for (const pattern of patterns) {
+    for (const raw of patternRefs(text, pattern)) {
+      const ref = raw.trim();
       if (ref) candidates.push(ref);
     }
   }
   return candidates;
+}
+
+function patternRefs(text: string, pattern: RefPattern): string[] {
+  if (typeof pattern === 'function') return pattern(text);
+  // The capture group is required in every pattern, so `m[1]` is always a
+  // matched string here (the `!` only satisfies noUncheckedIndexedAccess).
+  return Array.from(text.matchAll(pattern), (m) => m[1]!);
 }
 
 // Pull every candidate URL out of any srcset attributes in HTML.
@@ -232,13 +241,10 @@ function collectSrcsetCandidates(text: string): string[] {
 function collapseSegments(segs: string[]): string[] | null {
   const out: string[] = [];
   for (const s of segs) {
-    if (s === '' || s === '.') continue;
-    if (s !== '..') {
-      out.push(s);
-      continue;
-    }
-    if (out.length === 0) return null;
-    out.pop();
+    if (s === '..' && out.length === 0) return null;
+    if (s === '..') out.pop();
+    // Empty and `.` segments name the current directory and add nothing.
+    if (s !== '..' && s !== '' && s !== '.') out.push(s);
   }
   return out;
 }
@@ -246,10 +252,28 @@ function collapseSegments(segs: string[]): string[] | null {
 // Resolve one raw ref against the referencing file's directory. Returns null
 // for external refs (`https?:`, `//`, `data:`, `mailto:`, `tel:`, `#`), for
 // refs that escape the root; a ref that collapses to nothing yields ''.
+const LINE_TERMINATORS = '\n\r\u2028\u2029';
+
+/** `resolved` cut at its first `?` or `#` — the same result as `.replace(/[?#].*$/, '')`, whose
+ *  `.` stops at line terminators: a `?`/`#` with a line break after it is left alone. */
+function withoutQueryOrFragment(resolved: string): string {
+  let tailStart = 0;
+  for (let i = resolved.length - 1; i >= 0; i -= 1) {
+    if (LINE_TERMINATORS.includes(resolved[i]!)) {
+      tailStart = i + 1;
+      break;
+    }
+  }
+  for (let i = tailStart; i < resolved.length; i += 1) {
+    if (resolved[i] === '?' || resolved[i] === '#') return resolved.slice(0, i);
+  }
+  return resolved;
+}
+
 function normalizeRef(raw: string, dir: string): string | null {
   if (/^(?:https?:|\/\/|data:|mailto:|tel:|#)/i.test(raw)) return null;
   const resolved = raw.startsWith('/') ? raw.slice(1) : dir + raw;
-  const stripped = resolved.replace(/[?#].*$/, '');
+  const stripped = withoutQueryOrFragment(resolved);
   return collapseSegments(stripped.split('/'))?.join('/') ?? null;
 }
 

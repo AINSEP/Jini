@@ -266,11 +266,10 @@ function listFilterPredicate(filter: NonNullable<RegistryListFilter>): (entry: R
   const publisher = filter.publisher?.toLowerCase();
   const tags = lowercased(filter.tags);
   const terms = queryTerms(filter.query ?? '');
-  return (entry) =>
-    (filter.includeYanked === true || !entry.yanked) &&
-    (!publisher || publishedBy(entry, publisher)) &&
-    hasEveryTag(entry, tags) &&
-    (terms.length === 0 || terms.some((term) => searchHaystack(entry).includes(term)));
+  const visible = (entry: RegistryEntry): boolean => filter.includeYanked === true || !entry.yanked;
+  const fromPublisher = (entry: RegistryEntry): boolean => !publisher || publishedBy(entry, publisher);
+  const matchesQuery = (entry: RegistryEntry): boolean => terms.length === 0 || terms.some((term) => searchHaystack(entry).includes(term));
+  return (entry) => visible(entry) && fromPublisher(entry) && hasEveryTag(entry, tags) && matchesQuery(entry);
 }
 
 /** @internal True when the (already lowercased) `publisher` is the entry's publisher id or GitHub handle. */

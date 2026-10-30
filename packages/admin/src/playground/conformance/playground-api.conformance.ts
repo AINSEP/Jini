@@ -1,8 +1,9 @@
 import type { PlaygroundRenderTargetPort } from '../../contracts/playground-render-target.js';
 /** Run with an isolated bus; this temporarily registers and releases test targets. */
 export function runPlaygroundApiConformance({ targets }: { targets: PlaygroundRenderTargetPort }, _optional = {}): readonly string[] {
-  const checks: string[] = []; const assert = (ok: boolean, name: string) => { if (!ok) throw new Error(`Playground conformance: ${name}`); checks.push(name); };
-  const a = {}, b = {}; let count = 0; const stop = targets.subscribe({ listener: () => count++ });
+  const checks: string[] = []; const assert = (ok: boolean, name: string) => { if (!ok) throw new Error(`Playground conformance: ${name}`);
+    checks.push(name); };
+  const a = {}, b = {}; let count = 0; const stop = targets.subscribe({ listener: () => { count += 1; } });
   const first = targets.register({ target: a }); let second: ReturnType<PlaygroundRenderTargetPort['register']> | undefined;
   try {
     assert(targets.getSnapshot().target === a, 'published target is readable'); const snapshot = targets.getSnapshot();

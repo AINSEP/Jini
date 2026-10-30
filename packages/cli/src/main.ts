@@ -158,12 +158,12 @@ function partitionGlobalArgv(argv: readonly string[]): PartitionedArgv {
     }
     if (match.inlineValue !== undefined) {
       globals[match.key] = match.inlineValue;
-      continue;
+    } else {
+      const value = argv[i + 1];
+      if (value === undefined) throw new Error(`flag --${match.key} requires a value`);
+      globals[match.key] = value;
+      i++;
     }
-    const value = argv[i + 1];
-    if (value === undefined) throw new Error(`flag --${match.key} requires a value`);
-    globals[match.key] = value;
-    i++;
   }
   return { globals, rest };
 }
@@ -182,12 +182,10 @@ function matchGlobalFlag(token: string): { key: GlobalFlagName; inlineValue: str
 /** Builds a `resolveDaemonUrl`-backed `resolveBaseUrl` closure from this binary's own parsed global flags. */
 function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.ProcessEnv, warn: (requiredArgs: { message: string }) => void): () => Promise<string> {
   const { 'daemon-url': daemonUrl, 'data-dir': dataDir, 'registry-path': registryPath } = globals;
-  const discover: ResolveDaemonUrlOptions['discover'] =
-    registryPath !== undefined
-      ? createLocalDaemonDiscovery({ registryPath })
-      : dataDir !== undefined
-        ? createLocalDaemonDiscovery({ dataDir })
-        : undefined;
+  let discover: ResolveDaemonUrlOptions['discover'];
+  if (registryPath !== undefined) discover = createLocalDaemonDiscovery({ registryPath });
+  else if (dataDir !== undefined) discover = createLocalDaemonDiscovery({ dataDir });
+  else discover = undefined;
   return () =>
     resolveDaemonUrl({}, {
       flagUrl: daemonUrl ?? null,

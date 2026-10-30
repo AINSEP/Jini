@@ -22,8 +22,10 @@ export function fanOutProductAnalytics({ ports }: { ports: readonly ProductAnaly
       captureAiGeneration: (event: Parameters<NonNullable<ProductAnalyticsPort["captureAiGeneration"]>>[0]) => each((port) => {
         // Each provider owns its opt-in, even when another provider requests content.
         // Recheck even a single provider: its policy can rotate during async consent.
-        const { input: _input, output: _output, ...metadata } = event;
-        return port.captureAiGeneration?.(port.includeAiContent === true ? event : metadata);
+        const metadata: { -readonly [K in keyof typeof event]?: (typeof event)[K] } = { ...event };
+        delete metadata.input;
+        delete metadata.output;
+        return port.captureAiGeneration?.(port.includeAiContent === true ? event : metadata as typeof event);
       }),
     } : {}),
   };

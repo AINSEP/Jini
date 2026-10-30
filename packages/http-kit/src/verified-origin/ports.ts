@@ -1,21 +1,20 @@
-type UUID = string;
 import type { VerifiedOrigin } from "./types.js";
 
 export interface VerifiedOriginRequestContext {
-  workspaceId: UUID;
-  siteId?: UUID;
+  workspaceId: string;
+  siteId?: string;
   locale?: string;
 }
 
 export interface RedirectTargetContext {
-  workspaceId: UUID;
-  siteId?: UUID;
+  workspaceId: string;
+  siteId?: string;
   originKey?: string;
 }
 
 export interface EgressTargetContext {
-  workspaceId: UUID;
-  siteId?: UUID;
+  workspaceId: string;
+  siteId?: string;
 }
 
 export interface OriginRegistryPort {
@@ -29,9 +28,9 @@ export interface OriginRegistryPort {
 
 export interface OriginSettingRepoPort {
 
-  findByWorkspaceId(required: { workspaceId: UUID }): Promise<VerifiedOrigin | null>;
+  findByWorkspaceId(required: { workspaceId: string }): Promise<VerifiedOrigin | null>;
 
-  findRedirectAllowlist(required: { workspaceId: UUID }): Promise<string[]>;
+  findRedirectAllowlist(required: { workspaceId: string }): Promise<string[]>;
 
-  findEgressAllowlist(required: { workspaceId: UUID }): Promise<string[]>;
+  findEgressAllowlist(required: { workspaceId: string }): Promise<string[]>;
 }

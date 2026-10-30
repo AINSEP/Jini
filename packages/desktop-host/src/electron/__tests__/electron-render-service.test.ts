@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RenderServiceError } from '../../render-service.js';
 import { createElectronRenderService } from '../electron-render-service.js';
+import { createElectronUrlCapturePool } from '../electron-url-capture.js';
 import type { ElectronBrowserWindowFactory, ElectronBrowserWindowOptions } from '../electron-surfaces.js';
 import { createFakeBrowserWindowFactory } from '../testing.js';
 
@@ -8,7 +9,7 @@ describe('createElectronRenderService', () => {
   it('renderToPdf loads the html and returns printToPDF bytes, then destroys the window', async () => {
     const pdfResult = Buffer.from('%PDF-1.4 fake');
     const { factory, windows } = createFakeBrowserWindowFactory({}, { pdfResult });
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     const bytes = await service.renderToPdf({ html: '<html></html>' });
     expect(Buffer.from(bytes).equals(pdfResult)).toBe(true);
     expect(windows[0]?.isDestroyed()).toBe(true);
@@ -17,35 +18,35 @@ describe('createElectronRenderService', () => {
   it('capture loads the html and returns a PNG from capturePage', async () => {
     const pngResult = Buffer.from('fake-png');
     const { factory } = createFakeBrowserWindowFactory({}, { pngResult });
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     const bytes = await service.capture({ html: '<html></html>' });
     expect(Buffer.from(bytes).equals(pngResult)).toBe(true);
   });
 
   it('capture falls back to the fake\'s default PNG bytes when no pngResult script is given', async () => {
     const { factory } = createFakeBrowserWindowFactory({});
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     const bytes = await service.capture({ html: '<html></html>' });
     expect(Buffer.from(bytes).equals(Buffer.from('png-bytes'))).toBe(true);
   });
 
   it('rejects with a load-failed RenderServiceError when did-fail-load fires', async () => {
     const { factory, windows } = createFakeBrowserWindowFactory({}, { failLoad: { errorCode: -6, errorDescription: 'ERR_FILE_NOT_FOUND' } });
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await expect(service.renderToPdf({ html: '<html></html>' })).rejects.toMatchObject({ code: 'load-failed' });
     expect(windows[0]?.isDestroyed()).toBe(true);
   });
 
   it('times out and destroys the window when the load hangs', async () => {
     const { factory, windows } = createFakeBrowserWindowFactory({}, { hang: true });
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await expect(service.renderToPdf({ html: '<html></html>' }, { timeoutMs: 30 })).rejects.toMatchObject({ code: 'timeout' });
     expect(windows[0]?.isDestroyed()).toBe(true);
   });
 
   it('aborts via signal even mid-render', async () => {
     const { factory } = createFakeBrowserWindowFactory({}, { hang: true });
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     const controller = new AbortController();
     const pending = service.renderToPdf({ html: '<html></html>' }, { signal: controller.signal });
     controller.abort();
@@ -54,7 +55,7 @@ describe('createElectronRenderService', () => {
 
   it('blocks navigation away from the render document by default', async () => {
     const { factory, windows } = createFakeBrowserWindowFactory({});
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await service.renderToPdf({ html: '<html></html>' });
     const win = windows[0] as unknown as { triggerWillNavigate(url: string): boolean };
     expect(win.triggerWillNavigate('https://evil.example')).toBe(true);
@@ -62,7 +63,7 @@ describe('createElectronRenderService', () => {
 
   it('cancels requests to origins outside the allowlist', async () => {
     const { factory, windows } = createFakeBrowserWindowFactory({});
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await service.renderToPdf({ html: '<html></html>' }, { resourcePolicy: { allowedOrigins: ['https://good.example'] } });
     const win = windows[0] as unknown as { triggerBeforeRequest(url: string): { cancel: boolean } };
     expect(win.triggerBeforeRequest('https://good.example/x.png')).toEqual({ cancel: false });
@@ -71,7 +72,7 @@ describe('createElectronRenderService', () => {
 
   it('blocks remote requests by default while allowing the inline render document', async () => {
     const { factory, windows } = createFakeBrowserWindowFactory({});
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await service.renderToPdf({ html: '<html></html>' });
     const win = windows[0] as unknown as { triggerBeforeRequest(url: string): { cancel: boolean } };
     expect(win.triggerBeforeRequest('https://remote.example/a.png')).toEqual({ cancel: true });
@@ -82,7 +83,7 @@ describe('createElectronRenderService', () => {
 
   it('permits remote requests only with an explicit unrestricted-network opt-out', async () => {
     const { factory, windows } = createFakeBrowserWindowFactory({});
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await service.capture({ html: '<html></html>' }, { resourcePolicy: { allowUnrestrictedNetwork: true } });
     const win = windows[0] as unknown as { triggerBeforeRequest(url: string): { cancel: boolean } };
     expect(win.triggerBeforeRequest('https://remote.example/a.png')).toEqual({ cancel: false });
@@ -90,7 +91,7 @@ describe('createElectronRenderService', () => {
 
   it('keeps an explicit allowlist restrictive even when the opt-out is also set', async () => {
     const { factory, windows } = createFakeBrowserWindowFactory({});
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await service.capture({ html: '<html></html>' }, {
       resourcePolicy: { allowUnrestrictedNetwork: true, allowedOrigins: [] },
     });
@@ -100,7 +101,7 @@ describe('createElectronRenderService', () => {
 
   it('exportArtifact is not implemented by the Electron adapter', async () => {
     const { factory } = createFakeBrowserWindowFactory({});
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     await expect(service.exportArtifact({ html: '<html></html>', format: 'zip' })).rejects.toBeInstanceOf(RenderServiceError);
   });
 
@@ -120,7 +121,7 @@ describe('createElectronRenderService', () => {
       };
       return win;
     };
-    const service = createElectronRenderService({ createBrowserWindow: factory });
+    const service = createElectronRenderService({ createBrowserWindow: factory, capturePool: createElectronUrlCapturePool({}) });
     const bytes = await service.renderToPdf({ html: '<html></html>' }, {
       viewport: { width: 640, height: 480 },
       landscape: true,

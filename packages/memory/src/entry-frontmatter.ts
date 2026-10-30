@@ -1,3 +1,7 @@
+import { splitLabeledLine } from './text-scan.js';
+
+/** The frontmatter keys an entry carries. */
+const FRONTMATTER_KEY = /^(?:name|description|type)$/;
 /**
  * @module entry-frontmatter
  *
@@ -41,10 +45,9 @@ export function parseEntryFrontmatter({ raw }: { raw: string }): { data: EntryFr
   const body = match[2]!;
   const data: EntryFrontmatter = { name: '', description: '', type: '' };
   for (const line of yaml.split(/\r?\n/)) {
-    const kv = /^(name|description|type):\s*(.*)$/.exec(line);
+    const kv = splitLabeledLine({ line, label: FRONTMATTER_KEY });
     if (!kv) continue;
-    const key = kv[1] as keyof EntryFrontmatter;
-    data[key] = kv[2]!.trim();
+    data[kv.label as keyof EntryFrontmatter] = kv.value.trim();
   }
   return { data, body };
 }

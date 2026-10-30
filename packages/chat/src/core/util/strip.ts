@@ -1,10 +1,11 @@
+import { trimChars } from '@jini-ai/core/primitives';
 /**
  * @module strip
  *
  * Post-stream `<artifact>` removal/summarization and the streaming-display
  * counterpart that surfaces an in-flight (not-yet-closed) artifact block.
  */
-import { computeSkipRanges, isRealArtifactOpenAt, rangeContains, type Range } from './markdown-context.js';
+import { fencedCodeRanges, computeSkipRanges, isRealArtifactOpenAt, rangeContains, type Range } from './markdown-context.js';
 import { parseQuotedAttrs } from './markup-attributes.js';
 import {
   recoverHtmlArtifactFromPrecedingDocument,
@@ -14,7 +15,7 @@ import {
 
 const OPEN = '<artifact';
 const CLOSE = '</artifact>';
-const HTML_FENCE_RE = /```(?:html|HTML)\s*\n([\s\S]*?)\n```/g;
+const HTML_FENCE_RE = /```(?:html|HTML)/g;
 
 type MarkdownFenceRange = { start: number; end: number; html: string };
 
@@ -104,17 +105,14 @@ export function stripArtifact({ content }: { content: string }): string {
 }
 
 function findSingleRecoverableHtmlFence(content: string): MarkdownFenceRange | null {
-  HTML_FENCE_RE.lastIndex = 0;
   let recovered: MarkdownFenceRange | null = null;
   let count = 0;
-  let match: RegExpExecArray | null = HTML_FENCE_RE.exec(content);
-  while (match !== null) {
-    const html = (match[1] || '').replace(/^﻿/, '').trim();
-    if (recoverHtmlDocumentFromMarkdownFence({ sourceText: match[0] }) === html) {
-      recovered = { start: match.index, end: match.index + match[0].length, html };
+  for (const range of fencedCodeRanges({ content, opener: HTML_FENCE_RE })) {
+    const html = range.body.replace(/^﻿/, '').trim();
+    if (recoverHtmlDocumentFromMarkdownFence({ sourceText: content.slice(range.start, range.end) }) === html) {
+      recovered = { start: range.start, end: range.end, html };
       count += 1;
     }
-    match = HTML_FENCE_RE.exec(content);
   }
   return count === 1 ? recovered : null;
 }
@@ -212,10 +210,9 @@ function artifactExtensionForAttrs(attrs: Record<string, string>): ArtifactFileE
 // The slug a persist path would derive the file name from.
 function artifactBaseNameForAttrs(attrs: Record<string, string>): string {
   return (
-    (attrs['identifier'] || attrs['title'] || 'artifact')
+    trimChars({ text: (attrs['identifier'] || attrs['title'] || 'artifact')
       .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, '-')
-      .replace(/^-+|-+$/g, '')
+      .replace(/[^a-z0-9_-]+/g, '-'), chars: '-' })
       .slice(0, 60) || 'artifact'
   );
 }
@@ -341,7 +338,7 @@ export function splitStreamingArtifact({ content }: { content: string }): { head
     // known yet, but an artifact is starting, so show the box (empty body)
     // and hide the partial `<artifact …` tail from Markdown.
     return {
-      head: content.slice(0, open).replace(/\s+$/, ''),
+      head: content.slice(0, open).trimEnd(),
       live: { artifactType: '', title: '', identifier: '', content: '' },
     };
   }
@@ -354,7 +351,7 @@ export function splitStreamingArtifact({ content }: { content: string }): { head
   // is text/html; media/binary types fall through and render as raw text.
   if (artifactType && !/html|text\//i.test(artifactType)) return { head: content, live: null };
   return {
-    head: content.slice(0, open).replace(/\s+$/, ''),
+    head: content.slice(0, open).trimEnd(),
     live: {
       artifactType,
       title: attrs['title'] ?? '',

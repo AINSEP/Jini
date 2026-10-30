@@ -163,9 +163,10 @@ function foreignKeyOwner(
   for (const candidate of presets) {
     const prefix = candidate.apiKeyPrefix;
     if (!prefix || candidate.custom || candidate.id === preset.id) continue;
-    if (prefix.length <= bestClaim || !key.startsWith(prefix)) continue;
-    owner = candidate;
-    bestClaim = prefix.length;
+    if (prefix.length > bestClaim && key.startsWith(prefix)) {
+      owner = candidate;
+      bestClaim = prefix.length;
+    }
   }
   return owner;
 }
@@ -410,9 +411,9 @@ export function agentMetaLabel(
   agent: DetectedAgent,
   labels: AgentMetaLabels,
 ): { text: string; title: string } {
-  const title = (agent.authStatus === 'missing' || agent.authStatus === 'unknown'
-    ? (agent.authMessage ?? agent.path ?? '')
-    : (agent.path ?? '')) as string;
+  const authUnresolved = agent.authStatus === 'missing' || agent.authStatus === 'unknown';
+  const pathTitle = agent.path ?? '';
+  const title = authUnresolved ? (agent.authMessage ?? pathTitle) : pathTitle;
   if (!agent.installed) return { text: labels.notInstalled, title };
   if (agent.authStatus === 'missing') return { text: labels.authRequired, title };
   if (agent.authStatus === 'unknown') return { text: labels.authUnknown, title };
@@ -624,9 +625,10 @@ export function pickerModelOptions(
     const existing = choices.get(id);
     if (!existing) {
       choices.set(id, option);
-    } else if (existing.label === id && label !== id) {
-      choices.set(id, { ...existing, label });
+      continue;
     }
+    // A later duplicate only upgrades an entry whose label was just its id.
+    if (existing.label === id && label !== id) choices.set(id, { ...existing, label });
   }
   return [...choices.values()];
 }
@@ -707,19 +709,20 @@ export function splitReasoningModelId(
  * has no level, so nothing is stripped, and a vendor label that happens to end in an unrelated
  * parenthetical keeps it.
  */
-/** `Head (Inner)` with optional surrounding whitespace; group 1 is the head, group 2 the qualifier. */
-const TRAILING_PARENTHETICAL = /^(.*?)\s*\(([^()]*)\)\s*$/;
-
 function baseLabelForLevel(label: string, level: AgentModelOption | undefined): string {
   if (!level) return label;
-  if (!TRAILING_PARENTHETICAL.test(label)) return label;
-  // Both capture groups always participate once the pattern matches, so reading them through
-  // `replace` (which yields a plain string) replaces the old `match[n] ?? ''` fallbacks, which no
-  // matching label could ever reach.
-  const inner = label.replace(TRAILING_PARENTHETICAL, '$2').trim().toLowerCase();
+  const trimmed = label.trimEnd();
+  if (!trimmed.endsWith(')')) return label;
+  const open = trimmed.lastIndexOf('(');
+  if (open < 0) return label;
+  const head = trimmed.slice(0, open).trimEnd();
+  const qualifier = trimmed.slice(open + 1, -1);
+  // A matched terminal group always supplies both parts; the old capture fallbacks were unreachable.
+  // The original head's dot did not span line breaks, and the qualifier excluded parentheses.
+  if (/[\r\n\u2028\u2029]/.test(head) || qualifier.includes(')')) return label;
+  const inner = qualifier.trim().toLowerCase();
   if (inner !== level.id.toLowerCase() && inner !== level.label.toLowerCase()) return label;
-  const stripped = label.replace(TRAILING_PARENTHETICAL, '$1').trim();
-  return stripped || label;
+  return head.trim() || label;
 }
 
 /**

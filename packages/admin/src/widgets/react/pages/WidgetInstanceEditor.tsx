@@ -4,7 +4,6 @@ import { useWidgetsOptions } from '../hooks/WidgetsPorts.hooks.js';
 import { agentHandle } from "@jini-ai/agentic";
 import { widgetTypeLabel } from "../../rules.js";
 import { useWiredWidgetInstanceEditor } from "../hooks/use-widget-instance-editor.hooks.js";
-import type { AdminWidget, AdminWidgetWhereUsed } from "../../models.js";
 import type { Translate } from "@jini-ai/ui/panel-kit";
 
 /**
@@ -44,12 +43,9 @@ export function WidgetInstanceEditor(props: WidgetInstanceEditorProps) {
     message,
     error,
     fieldErrors,
-    loading,
     saving,
     save,
-    confirmLeave,
     t,
-    locale,
     gate,
     onBackClick,
   } = useWidgetInstanceEditorView({ widgetId, widgetType: queryWidgetType, useWidgetInstanceEditorHook, widgetTypes });

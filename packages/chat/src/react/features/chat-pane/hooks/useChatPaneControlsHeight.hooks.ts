@@ -51,7 +51,7 @@ export function useChatPaneControlsHeight(): UseChatPaneControlsHeightResult {
   useEffect(() => {
     const root = rootRef.current;
     const controls = controlsRef.current;
-    if (!root || !controls || typeof ResizeObserver !== 'function') return;
+    if (!root || !controls || typeof ResizeObserver !== 'function') return undefined;
     const observer = new ResizeObserver((entries) => {
       // Only `controls` is observed, so a notification carries at most one entry: `slice(0, 1)`
       // reads it without a branch for the empty list the ResizeObserver spec never delivers.

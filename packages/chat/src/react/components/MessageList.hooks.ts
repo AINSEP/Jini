@@ -35,7 +35,8 @@ export function useConversationUsage({ messages }: { messages: readonly ChatMess
       const old = previous.current.get(id);
       if (old && JSON.stringify(old) === JSON.stringify(summary)) next.set(id, old);
     }
-    return previous.current = next;
+    previous.current = next;
+    return next;
   }, [messages]);
 }
 
@@ -103,7 +104,7 @@ export function useMessageListAutoScroll(
   // unrelated row resizing elsewhere in the transcript.
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || typeof ResizeObserver !== 'function') return;
+    if (!el || typeof ResizeObserver !== 'function') return undefined;
     const observer = new ResizeObserver(() => {
       if (!stickToBottomRef.current) return;
       el.scrollTop = el.scrollHeight;

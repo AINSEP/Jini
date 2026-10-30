@@ -39,6 +39,7 @@
  */
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
 import { promises as dnsPromises } from 'node:dns';
+import { trimCharsEnd } from '@jini-ai/core/primitives';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
 import { defaultMediaOutboundMessages, fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { MediaOutboundOptions } from './outbound.js';
@@ -67,7 +68,7 @@ type BaseUrlValidationResult = { readonly ok: true; readonly parsed: URL } | { r
 function validateBaseUrlSync(baseUrl: string): BaseUrlValidationResult {
   let parsed: URL;
   try {
-    parsed = new URL(String(baseUrl).replace(/\/+$/, ''));
+    parsed = new URL(trimCharsEnd({ text: String(baseUrl), chars: '/' }));
   } catch {
     return { ok: false, error: 'Invalid baseUrl', forbidden: false };
   }

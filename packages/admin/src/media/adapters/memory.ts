@@ -1,3 +1,4 @@
+import { trimCharsEnd } from '@jini-ai/core/text';
 import type { MediaApiPort, MediaProvidersPort } from '../ports.js';
 import type {
   MediaAsset,
@@ -14,7 +15,7 @@ function pickMetadata({ patch }: { patch: MediaMetadataPatch }): MediaMetadataPa
 }
 /** Decoded length of a base64 string: 3 bytes per 4 chars, minus trailing padding. */
 function base64ByteSize({ dataBase64 }: { dataBase64: string }) {
-  const padding = dataBase64.match(/=+$/)?.[0].length ?? 0;
+  const padding = dataBase64.length - trimCharsEnd({ text: dataBase64, chars: '=' }).length;
   return Math.max(0, Math.floor(dataBase64.length * 3 / 4) - padding);
 }
 export function createMemoryMediaApi(
@@ -23,6 +24,7 @@ export function createMemoryMediaApi(
 ): MediaApiPort {
   const items = new Map(assets.map((item) => [item.id, Object.freeze({ ...item })]));
   let sequence = 0;
+  const nextSequence = () => { sequence += 1; return sequence; };
   function check(options: MediaRequestOptions) {
     options.signal?.throwIfAborted();
   }
@@ -40,7 +42,7 @@ export function createMemoryMediaApi(
     // The REAL server ignores the declared string and stores sniffContentType(bytes) instead.
     // This fake has no bytes to sniff — its input is an opaque base64 string a test made up —
     // so it echoes what the caller declared. Tests needing disagreement must seed assets directly.
-    return { byteSize: base64ByteSize(input), contentType: input.contentType, sha256: `memory-content-${++sequence}` };
+    return { byteSize: base64ByteSize(input), contentType: input.contentType, sha256: `memory-content-${nextSequence()}` };
   }
   return {
     replaceSupported: true,
@@ -53,7 +55,7 @@ export function createMemoryMediaApi(
       check(options);
       let id: string;
       do {
-        id = `memory-${++sequence}`;
+        id = `memory-${nextSequence()}`;
       } while (items.has(id));
       const timestamp = now();
       return put({

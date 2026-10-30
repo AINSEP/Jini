@@ -36,31 +36,14 @@
  * `fishaudio.ts`/`openai.ts`'s speech renderer return, so it now shares
  * `response-parsers.ts`'s `createRawBytesParser`.
  */
-import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, parseOpenAICompatibleJson, sniffImageExt, withRequestInit } from '../openai-compatible.js';
+import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, parseOpenAICompatibleJson, sniffImageExt, standardImageAspectFor as grokAspectFor, withRequestInit } from '../openai-compatible.js';
 import { createRawBytesParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
 import type { VendorAdapterRegistry } from '../vendor-registry-core.js';
 
-/**
- * xAI's Imagine API accepts a wide list of aspect ratios (1:1, 16:9, 9:16,
- * 4:3, 3:4, 3:2, 2:3, 2:1, 1:2, 19.5:9, 9:19.5, 20:9, 9:20, auto) —
- * `providers.ts`'s `MEDIA_ASPECTS` is a strict subset, so a recognized
- * value passes through and anything else defaults to 16:9. Written as
- * independent `if` returns (rather than the origin's one `||`-chained
- * condition) to match this package's established aspect-mapping style
- * (see `imagerouter.ts`'s `imageRouterSizeFor`) — same input -> output
- * mapping for every case, not a behavior change.
- */
-export function grokAspectFor({ aspect }: { aspect: string | undefined }): string {
-  if (aspect === '1:1') return '1:1';
-  if (aspect === '16:9') return '16:9';
-  if (aspect === '9:16') return '9:16';
-  if (aspect === '4:3') return '4:3';
-  if (aspect === '3:4') return '3:4';
-  return '16:9';
-}
+export { grokAspectFor };
 
 const NO_CREDENTIAL_MESSAGE = 'no xAI credential — configure an API key or set XAI_API_KEY.';
 

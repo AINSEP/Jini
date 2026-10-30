@@ -46,7 +46,6 @@ export function WidgetsLibrary({ useWidgetsLibraryHook = useWiredWidgetsLibrary 
     confirmTrash,
     cancelTrash,
     t,
-    locale,
     rowHandleById,
   } = useWidgetsLibraryView({ useWidgetsLibraryHook });
 

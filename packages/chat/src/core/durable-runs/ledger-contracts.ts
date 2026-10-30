@@ -1,4 +1,4 @@
-import type { AgentEvent, ChatMessage, ChatRunStatus } from "../index.js";
+import type { ChatMessage } from "../index.js";
 import type { DurableRunStore } from "./ports.js";
 
 import type { RunRef, RunProgress, RunSettlement } from "./run-contracts.js";

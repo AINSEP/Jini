@@ -57,7 +57,9 @@ export function useAccessTokensTab({ permissions = [] }: TabViewProps, _optional
     onCategory({ value }: { value: string }) { access.controller?.filter({ category: value as CredentialCategory | 'all' }); },
     reload() { void access.controller?.load({}); void other.controller?.load({}); },
     cancelRemove() { if (!s?.saving && !o?.saving) setRemoval(null); },
-    async confirmRemove() { if (!removal) return; const ok = removal.type === 'access' ? await access.controller?.remove({ row: removal.row as CredentialSummary }) : await other.controller?.remove({ row: removal.row as OtherCredentialSummary }); if (!ok) throw new Error('Unable to remove credential'); setRemoval(null); },
+    async confirmRemove() { if (!removal) return;
+      const ok = removal.type === 'access' ? await access.controller?.remove({ row: removal.row as CredentialSummary }) : await other.controller?.remove({ row: removal.row as OtherCredentialSummary }); if (!ok) throw new Error('Unable to remove credential');
+      setRemoval(null); },
     controller: access.controller,
   };
 }

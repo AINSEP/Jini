@@ -1,0 +1,22 @@
+{
+  "name": "@jini-ai/plugin-catalog",
+  "version": "0.7.0",
+  "description": "Metadata for independently installed Jini plugins; contains no plugin payloads.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-catalog"
+  },
+  "jini": { "domain": "tooling", "kind": "plugin-packaging", "runtime": "universal" },
+  "exports": { "./catalog": "./catalog.json", "./package.json": "./package.json" },
+  "files": ["catalog.json", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "generate": "node --import tsx scripts/generate.ts",
+    "prepack": "node --import tsx scripts/generate.ts",
+    "test": "vitest run"
+  },
+  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org" }
+}

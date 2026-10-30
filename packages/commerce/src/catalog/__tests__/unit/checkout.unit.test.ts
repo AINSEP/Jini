@@ -29,7 +29,7 @@ function harness({ priceRow = price(), productRow = product() }: { priceRow?: Co
   const deps: CheckoutDeps = {
     products: { findById: async ({ id }) => (productRow && productRow.id === id ? productRow : null), findBySlug: async () => null, listActive: async () => [], save: async () => {} },
     prices: { findById: async ({ id }) => (priceRow && priceRow.id === id ? priceRow : null), listByProduct: async () => [], save: async () => {} },
-    orders: { findById: async () => null, listItems: async () => [], placeOrder: async (input) => { placed.push(input); } },
+    orders: { markPaid: async () => { throw new Error("checkout must not settle"); }, findById: async () => null, listItems: async () => [], placeOrder: async (input) => { placed.push(input); } },
     clock: { nowMs: () => Date.parse(NOW) },
     idGen: { newId: () => `id-${++next}` },
   };

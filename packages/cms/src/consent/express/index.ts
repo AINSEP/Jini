@@ -109,21 +109,25 @@ function redirectDestination({ request, origin }: { request: Request; origin: st
 /** Durable proof precedes cookie issuance. @complexity O(1), one durable write. */
 async function saveChoice({ request, response, ports }: { request: Request; response: Response; ports: ConsentHttpPorts }, { cookieName }: { cookieName: string }): Promise<void> {
   const origin = ports.origin({ request });
-  if (!sameOrigin(request, origin)) return respondError(response, 403, 'Cookie preferences must be saved from this site.');
-  if (!await ports.allowWrite({ request })) return respondError(response, 429, 'Too many cookie preference changes. Please try again later.');
+  if (!sameOrigin(request, origin)) { respondError(response, 403, 'Cookie preferences must be saved from this site.'); return; }
+  if (!await ports.allowWrite({ request })) { respondError(response, 429, 'Too many cookie preference changes. Please try again later.'); return; }
   const config = await ports.config.get({});
-  if (!config.enabled) return respondError(response, 409, 'Cookie consent is disabled on this site.');
+  if (!config.enabled) { respondError(response, 409, 'Cookie consent is disabled on this site.'); return; }
   const created = newRecord({ request, ports, config });
-  if ('error' in created) return respondError(response, 400, created.error);
+  if ('error' in created) { respondError(response, 400, created.error); return; }
   const { record } = created;
   const previous = receiptProof({ cookieHeader: request.get('cookie') ?? '', cookieName, ports }).id;
   await ports.records.save({ record });
-  // A replaced receipt must not authorize detached work. Retire before the new receipt is
-  // acknowledged; adapters retain the immutable original outside active lookup.
-  if (previous && /^[a-zA-Z0-9_-]{16,128}$/.test(previous)) await ports.records.retire?.({ id: previous });
+  await retirePreviousReceipt({ previous, ports });
   response.cookie(cookieName, record.id, { httpOnly: true, sameSite: 'lax', secure: new URL(origin).protocol === 'https:', path: '/', maxAge: CONSENT_MAX_AGE_MS });
   if (request.get('accept')?.includes('application/json')) { response.json({ record, signals: googleConsentSignals({ choices: record.choices }) }); return; }
   response.redirect(303, redirectDestination({ request, origin }));
+}
+
+async function retirePreviousReceipt({ previous, ports }: { previous: string | null; ports: ConsentHttpPorts }): Promise<void> {
+  // A replaced receipt must not authorize detached work. Retire before the new receipt is
+  // acknowledged; adapters retain the immutable original outside active lookup.
+  if (previous && /^[a-zA-Z0-9_-]{16,128}$/.test(previous)) await ports.records.retire?.({ id: previous });
 }
 
 /** On a read failure retain only an enabled last good policy; otherwise deny optional content.
@@ -204,11 +208,13 @@ export function registerConsentHttp({ app, ports }: { app: Express; ports: Conse
   app.use((request, response, next) => {
     if (!isPublicPage({ request })) { next(); return; }
     const prepare = () => prepareDelivery({ request, response, ports, state }, { delivery });
-    captureConsentHtml({ response, transform: async ({ body }) => {
-      const policy = await prepare();
-      if (policy === null) return body;
-      return gatedBody({ body, request, response, ports, ...policy, endpoint }, { ...options, cookieName });
-    } }, {
+    captureConsentHtml({
+      response, transform: async ({ body }) => {
+        const policy = await prepare();
+        if (policy === null) return body;
+        return gatedBody({ body, request, response, ports, ...policy, endpoint }, { ...options, cookieName });
+      }
+    }, {
       reportError: ({ error }) => ports.reportError({ operation: 'read', error }), maxBytes: maxHtmlBytes,
       overflow: async () => {
         const policy = await prepare();
@@ -279,6 +285,7 @@ export async function readRequestBrowserAnalyticsMode(
     const config = await ports.config.get({});
     const { record } = await currentRecord({ ports, request, config }, { cookieName });
     if (!record) return 'pending';
-    return record.choices.analytics && !record.gpc && request.get('sec-gpc') !== '1' && request.get('dnt') !== '1' ? 'full' : 'anonymous';
+    if (!record.choices.analytics || record.gpc) return 'anonymous';
+    return request.get('sec-gpc') !== '1' && request.get('dnt') !== '1' ? 'full' : 'anonymous';
   } catch { return 'pending'; }
 }

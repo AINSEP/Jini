@@ -2,6 +2,11 @@ import { sql } from "kysely";
 
 import type { StorageKernel } from "./port.js";
 
+/** A column default as it appears in the shape text; absent defaults add nothing. */
+function defaultClause(value: string | null): string {
+  return value === null ? "" : " DEFAULT " + value;
+}
+
 /**
  * @file The physical schema of a database as comparable text, per table: columns (type, NOT NULL,
  * default, key position), indexes (uniqueness, columns, partial predicate), foreign keys and — on
@@ -61,7 +66,7 @@ async function sqliteShape(kernel: StorageKernel<unknown>): Promise<SchemaShape>
     );
     constraints.push(`DEFINITION ${squash(object.sql)}`);
     tables[object.name] = {
-      columns: columns.map((c) => `${c.name} ${c.type.toLowerCase()}${c.notnull ? " NOT NULL" : ""}${c.dflt_value === null ? "" : ` DEFAULT ${c.dflt_value}`}${c.pk ? ` PK${c.pk}` : ""}`),
+      columns: columns.map((c) => `${c.name} ${c.type.toLowerCase()}${c.notnull ? " NOT NULL" : ""}${defaultClause(c.dflt_value)}${c.pk ? " PK" + c.pk : ""}`),
       indexes: indexTexts.sort(),
       constraints: constraints.sort(),
     };
@@ -115,7 +120,7 @@ async function postgresShape(kernel: StorageKernel<unknown>): Promise<SchemaShap
   const table = (name: string) => (tables[name] ??= { columns: [], indexes: [], constraints: [] });
   for (const c of columns) {
     table(c.table_name).columns.push(
-      `${c.column_name} ${c.data_type.toLowerCase()}${c.is_nullable === "NO" ? " NOT NULL" : ""}${c.column_default === null ? "" : ` DEFAULT ${c.column_default}`}`
+      `${c.column_name} ${c.data_type.toLowerCase()}${c.is_nullable === "NO" ? " NOT NULL" : ""}${defaultClause(c.column_default)}`
     );
   }
   for (const i of indexes) table(i.tablename).indexes.push(`${i.indexname} ${squash(i.indexdef).replace(/ ON \S+\./, " ON ")}`);

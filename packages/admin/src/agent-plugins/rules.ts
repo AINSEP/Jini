@@ -24,7 +24,8 @@ export function selectAgentPluginFile({ files, path }: { files: readonly AgentPl
 }
 const omissions = { binary: 'Binary file — not shown.', 'too-large': 'Too large to show here.', symlink: 'Symbolic link — not followed.', unreadable: 'This file could not be read.' };
 export function agentPluginFileNotice({ file }: { file: AgentPluginPackageFile }, _optional = {}) {
-  return file.omitted === null && file.content !== null ? null : omissions[file.omitted ?? 'unreadable'] ?? omissions.unreadable;
+  if (file.omitted === null && file.content !== null) return null;
+  return omissions[file.omitted ?? 'unreadable'] ?? omissions.unreadable;
 }
 /** Confirmation names the target and workspace effect; Turn off never implies file deletion. */
 export function agentPluginDisableCopy({ pluginId, variant }: AgentPluginDisableRequest, _optional = {}) {

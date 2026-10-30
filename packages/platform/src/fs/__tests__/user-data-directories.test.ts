@@ -7,6 +7,9 @@ const native = vi.hoisted(() => ({ execFileSync: vi.fn<(file: string, args: stri
 vi.mock("node:child_process", async importOriginal => ({ ...await importOriginal<typeof import("node:child_process")>(), execFileSync: native.execFileSync }));
 import { readOptionalText, readWindowsOneDriveRoots, resolveUserDataDirectories } from "../user-data-directories.js";
 
+// reg.exe is run by absolute path under System32, not through the cwd-first command search.
+const SYSTEM32_REG = /^[A-Za-z]:\\.*\\System32\\reg\.exe$/i;
+
 const roots: string[] = [];
 beforeEach(() => { native.execFileSync.mockReset(); });
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -42,7 +45,7 @@ test("win32 falls back to <home>\\AppData\\Roaming and <home>\\Documents", () =>
 test("win32 reads the Personal known folder from the registry by default", () => {
   native.execFileSync.mockReturnValue("\r\nHKEY_CURRENT_USER\\...\\User Shell Folders\r\n    Personal    REG_EXPAND_SZ    %USERPROFILE%\\Documents  \r\n");
   expect(resolveUserDataDirectories({ homeDir: "C:\\Users\\u", appName: "App" }, { platform: "win32", env: { USERPROFILE: "D:\\u" } }).documents).toBe("D:\\u\\Documents");
-  expect(native.execFileSync).toHaveBeenCalledWith("reg.exe", SHELL_FOLDERS, REG_OPTIONS);
+  expect(native.execFileSync).toHaveBeenCalledWith(expect.stringMatching(SYSTEM32_REG), SHELL_FOLDERS, REG_OPTIONS);
 });
 test("win32 registry output without a Personal value falls back to <home>\\Documents", () => {
   native.execFileSync.mockReturnValue("ERROR-free but empty\r\n");
@@ -99,7 +102,7 @@ test("readOptionalText propagates a non-ENOENT failure", () => {
 test("readWindowsOneDriveRoots lists every account UserFolder, trimmed", () => {
   native.execFileSync.mockReturnValue("HKEY\\Personal\r\n    UserFolder    REG_SZ    C:\\Users\\u\\OneDrive  \r\nHKEY\\Business1\r\n    UserFolder    REG_EXPAND_SZ    C:\\Users\\u\\OneDrive - Corp\r\n");
   expect(readWindowsOneDriveRoots({})).toEqual(["C:\\Users\\u\\OneDrive", "C:\\Users\\u\\OneDrive - Corp"]);
-  expect(native.execFileSync).toHaveBeenCalledWith("reg.exe", ["query", "HKCU\\Software\\Microsoft\\OneDrive\\Accounts", "/s", "/v", "UserFolder"], REG_OPTIONS);
+  expect(native.execFileSync).toHaveBeenCalledWith(expect.stringMatching(SYSTEM32_REG), ["query", "HKCU\\Software\\Microsoft\\OneDrive\\Accounts", "/s", "/v", "UserFolder"], REG_OPTIONS);
 });
 test("readWindowsOneDriveRoots treats reg.exe exit status 1 (key absent) as no accounts", () => {
   native.execFileSync.mockImplementation(() => { throw Object.assign(new Error("Command failed: reg.exe"), { status: 1 }); });

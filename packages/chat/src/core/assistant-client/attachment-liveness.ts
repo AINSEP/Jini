@@ -67,7 +67,7 @@ async function isAttachmentStillServed(ref: string, options: { fetchImpl: typeof
  * @complexity O(n) requests, at most `concurrency` concurrent; O(n) space for the verdicts.
  */
 async function probeAll(refs: readonly string[], concurrency: number, probe: (ref: string) => Promise<boolean>): Promise<boolean[]> {
-  const verdicts = new Array<boolean>(refs.length).fill(false);
+  const verdicts = Array.from({ length: refs.length }, () => false);
   const entries = refs.entries();
   async function worker(): Promise<void> {
     for (const [index, ref] of entries) {

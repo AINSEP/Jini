@@ -55,7 +55,9 @@ function collectCompleted(head: string, { registry }: { registry?: RendererRegis
   for (const ev of parseArtifacts({ content: head })) {
     if (ev.type === 'artifact:start') {
       meta = { identifier: ev.identifier, artifactType: ev.artifactType, title: ev.title };
-    } else if (ev.type === 'artifact:end') {
+      continue;
+    }
+    if (ev.type === 'artifact:end') {
       items.push(toItem({ ...meta!, content: ev.fullContent, status: 'complete' }, { registry }));
     }
   }

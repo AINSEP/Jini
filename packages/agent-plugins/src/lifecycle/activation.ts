@@ -118,11 +118,11 @@ export class AgentPluginActivationsBusyError extends Error {
   readonly holder: FileLockHolder | undefined;
   readonly lost: boolean;
   constructor({ lockPath, holder, lost }: { readonly lockPath: string; readonly holder: FileLockHolder | undefined; readonly lost: boolean }) {
+    const holderNote = holder !== undefined ? ` — held by pid ${holder.pid} on ${holder.hostname} since ${holder.acquiredAt}` : " — holder unknown";
     super(
       (lost
         ? `agent-plugin activation: lost the write lock (${lockPath}) before committing — another process judged it stale`
-        : `agent-plugin activation: could not take the write lock (${lockPath}) within 15s` +
-          (holder !== undefined ? ` — held by pid ${holder.pid} on ${holder.hostname} since ${holder.acquiredAt}` : " — holder unknown")) +
+        : `agent-plugin activation: could not take the write lock (${lockPath}) within 15s` + holderNote) +
         ". Nothing was written, so no recorded enable/disable decision was changed. This clears by itself when the other " +
         "host process (server, agent daemon, or the agent-plugin:activation CLI) finishes; a lock left by a crashed " +
         "process is removed automatically once that process is gone or the lock is older than 10s. If it persists, stop " +

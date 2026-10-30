@@ -211,7 +211,8 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
         setPreviewBody(null);
         return;
       }
-      const token = ++previewRequestTokenRef.current;
+      previewRequestTokenRef.current += 1;
+      const token = previewRequestTokenRef.current;
       setPreviewId(id);
       setPreviewBody(null);
       let entry;
@@ -237,7 +238,8 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
 
   const startEdit = useCallback(
     async (id: string) => {
-      const token = ++editRequestTokenRef.current;
+      editRequestTokenRef.current += 1;
+      const token = editRequestTokenRef.current;
       let entry;
       try {
         entry = await port.fetchMemoryEntry(id);

@@ -299,8 +299,11 @@ const SliderPropsSchema = checkableComponentProps({
  * mutually exclusive in practice, so exactly-one and at-least-one coincide.
  */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const ISO_TIME = /^\d{2}:\d{2}(:\d{2}(\.\d+)?)?([Zz]|[+-]\d{2}:\d{2})?$/;
-const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?([Zz]|[+-]\d{2}:\d{2})?$/;
+// `hh:mm[:ss[.fff]]` and an optional `Z`/`±hh:mm` offset, shared by the time and date-time forms.
+const CLOCK_TIME = /\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?/.source;
+const UTC_OFFSET = /(?:[Zz]|[+-]\d{2}:\d{2})?/.source;
+const ISO_TIME = new RegExp(`^${CLOCK_TIME}${UTC_OFFSET}$`);
+const ISO_DATE_TIME = new RegExp(`^\\d{4}-\\d{2}-\\d{2}[Tt ]${CLOCK_TIME}${UTC_OFFSET}$`);
 
 const IsoDateTimeBoundSchema = DynamicStringSchema.superRefine((value, ctx) => {
   if (typeof value !== 'string') return;

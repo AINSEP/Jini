@@ -16,7 +16,7 @@ export function useShellDrawer(args: { readonly routePath: string }): { readonly
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [args.routePath]);
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };

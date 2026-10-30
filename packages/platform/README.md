@@ -37,6 +37,8 @@ need a `PtySpawn` implementation supplied by the caller — this package defines
   so profile-only `PATH` entries are visible).
 - **Filesystem** — `pathContains`, `atomicCopyFile`, `removePathBestEffort`, `readLogTail`.
 - **HTTP readiness** — `waitForHttpOk`.
+- **Response byte limits** — `ResponseLimitExceededError` from `@jini-ai/platform/fetch-with-timeout` carries `limitBytes` and extends `RangeError` for guarded response-text overflow.
+- **Deadline signals** — `createDeadlineSignal({ waitMs }, { signal, startedAt, now, wait })` from `@jini-ai/platform/fetch-with-timeout` (also root) returns `{ signal, dispose }`. It subtracts elapsed milliseconds using the optional `now: () => number` clock (default `Date.now`) and combines the remaining budget with caller cancellation. The optional `wait({ ms, signal }): Promise<void>` timer port resolves after the delay and must release its timer and settle when its signal aborts; real timers are the default. Call idempotent `dispose()` in `finally` to cancel the pending wait and detach parent listeners without aborting the returned signal. Deadline expiry uses a `DOMException` named `TimeoutError`; parent abort preserves its reason.
 - **Toolchain discovery** — `wellKnownUserToolchainBins` (npm/pnpm/bun/cargo/deno/go/pyenv,
   asdf/volta/mise/nvm/fnm shims).
 - **Proxy-aware env** — `resolveSystemProxyEnv`, `mergeProxyAwareEnv` (macOS `scutil` / Windows
@@ -163,7 +165,8 @@ replacement races remain outside this guarantee. Omitting the policy retains exi
 `readFetchResponseText({ response }, { maxResponseBytes?, strictUtf8? })`, and
 `fetchTextWithTimeout({ url, timeoutMs, init? }, { fetch?, maxResponseBytes?, strictUtf8? })`.
 Text defaults to unlimited bytes and replacement UTF-8 decoding. Caps must be nonnegative safe
-integers; exactly the cap is accepted, overflow throws `RangeError`, and strict UTF-8 throws on
+integers; exactly the cap is accepted, overflow throws `ResponseLimitExceededError` (a `RangeError`
+with `limitBytes`), invalid caps throw plain `RangeError`, and strict UTF-8 throws on
 malformed/truncated input. Streamed bytes are counted before decoding, independent of Content-Length;
 failed guarded consumption cancels and releases the reader without masking the original error.
 Incoming chunk allocation is controlled by the upstream stream. The text-fetch helper maps timeout
@@ -221,6 +224,7 @@ vendor-shaped `NativeSmtpTransport` so the factory adapts the payload once. Poli
 
 | Subpath | API and required host ports/policy |
 | --- | --- |
+| `./mail` | `createMailAdapterContext({ credential, kit }, { now, settings })` supplies a live clock and fresh empty settings by default; modules validate opaque per-install settings. |
 | `@jini-ai/analytics` (separate package) | `ingestHit({ input, deps }, { hooks, hash })`, `normalizeIngestContext({ input, dailySalt }, { hash })`, `deriveDailySalt({ rootKeySeed, workspaceId, utcDate, saltContext })`. The host supplies sink/config, host resolution, HKDF context, and privacy bounds. `LocalBufferSink({}, { initialHits })` is process-local. |
 | `@jini-ai/cms/trash` (separate package) | `createTrashService({ repo, adapters, transaction, idGen, entityPolicy }, { retentionDays, ...optional })`, `createTrashSweep({ repo, adapters, transaction, entityPolicy })`, and `startTrashSweeper({ sweep, clock, scheduler, leaseOwner }, optional)`. The host owns authorization, transactions, retention, scheduling, and adapters; follow-up hooks are in argument two. |
 | `./fs` | `writeFileAtomic({ filePath, content, fs, tempName })`, `writeJsonFileAtomic({ filePath, data, fs, tempName })`, `upsertEnvLine({ source, key, value })`, `readEnvLine({ source, key })`, `resolvePathWithin({ root, segment })`. Atomic writes preserve existing modes and require filesystem/temp-name ports. |

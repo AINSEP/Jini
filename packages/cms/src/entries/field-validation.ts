@@ -246,6 +246,8 @@ function collectSubmittedKeyErrors(required: { schema: ContentTypeFieldDef[]; ow
       fieldErrors.push({ field: key, reason: "unrecognized field: not present in the current content-type schema" });
     } else if (!conformsToKind(value, def.kind)) {
       fieldErrors.push({ field: key, reason: `value does not conform to the declared kind '${def.kind}'` });
+    } else {
+      // A recognized value that conforms to its kind adds no validation error.
     }
   }
   return fieldErrors;

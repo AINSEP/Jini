@@ -1,5 +1,5 @@
 import { runAnthropicToolTurn, type AnthropicMessageParam, type AnthropicToolCall, type AnthropicToolResultContentBlock, type AnthropicToolDef } from './anthropic-messages.js';
-import { runAzureToolTurn, type AzureContentPart, type AzureMessageParam, type AzureToolCall } from './azure-chat.js';
+import { runAzureToolTurn } from './azure-chat.js';
 import { runGoogleToolTurn, type GoogleContent, type GoogleToolCall, type GoogleToolDef, type GoogleToolResultPart } from './google-messages.js';
 import { runOpenAiToolTurn, type OpenAiContentPart, type OpenAiFunctionToolDef, type OpenAiMessageParam, type OpenAiToolCall } from './openai-chat.js';
 import type { ProviderTurnAdapters, ProviderTurnEvent, ProviderToolCall, ProviderToolResult, ProviderToolDescriptor, ProviderToolTurnInput, ProviderToolTurnResult, ProviderToolTurnOptions, ProviderToolSnapshotOptions } from './tool-turn-types.js';
@@ -31,7 +31,7 @@ function toGoogleToolContent(content: ProviderToolResult["content"]): string | G
     return content;
   return content.map((block) => (block.type === "text" ? { text: block.text } : { inlineData: { mimeType: block.mimeType, data: block.data } }));
 }
-function foldToolError(content: string | OpenAiContentPart[], isError: boolean | undefined): string | OpenAiContentPart[] {
+function foldToolError(content: string | OpenAiContentPart[], isError = false): string | OpenAiContentPart[] {
   if (!isError)
     return content;
   return typeof content === "string" ? `${TOOL_ERROR_PREFIX}${content}` : [{ type: "text", text: TOOL_ERROR_PREFIX.trimEnd() }, ...content];
@@ -89,7 +89,7 @@ function pinWireName(descriptor: ProviderToolDescriptor, names: Map<string, stri
   if (descriptor.wireName === undefined) return;
   const existing = names.get(descriptor.id);
   const owner = occupied.get(descriptor.wireName);
-  if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(descriptor.wireName)) throw new ProviderToolProjectionError({});
+  if (!/^[A-Za-z_]\w{0,63}$/.test(descriptor.wireName)) throw new ProviderToolProjectionError({});
   if (existing !== undefined && existing !== descriptor.wireName) throw new ProviderToolProjectionError({});
   if (owner !== undefined && owner !== descriptor.id) throw new ProviderToolProjectionError({});
   names.set(descriptor.id, descriptor.wireName);
@@ -208,7 +208,8 @@ async function runAnthropicTurn(input: InternalTurnInput): Promise<ProviderToolT
   });
   return normalizeTurnResult(result, capturedEndReason);
 }
-async function runOpenAiTurn(input: InternalTurnInput): Promise<ProviderToolTurnResult> {
+/** OpenAI and Azure share message/tool projection; the selected adapter retains its native request semantics. */
+async function runOpenAiCompatibleTurn(input: InternalTurnInput, _options = {}): Promise<ProviderToolTurnResult> {
   const projection = createToolProjection(input);
   const getTools = (options: ProviderToolSnapshotOptions = {}) => openAiTools(projection.getTools(options));
   const tools = openAiTools(projection.getTools({}, { reportFallback: false }));
@@ -223,7 +224,14 @@ async function runOpenAiTurn(input: InternalTurnInput): Promise<ProviderToolTurn
     return { content: foldToolError(toOpenAiToolContent(result.content), result.isError) };
   };
   let capturedEndReason: string | null = null;
-  const result = await (({ apiKey, model, messages, onEvent, ...optionalArgs }: Parameters<typeof input.adapters.openai>[0] & NonNullable<Parameters<typeof input.adapters.openai>[1]>) => input.adapters.openai({ apiKey, model, messages, onEvent }, optionalArgs))({
+  const result = await (({ apiKey, model, messages, onEvent, ...optionalArgs }: Parameters<typeof input.adapters.openai>[0] & NonNullable<Parameters<typeof input.adapters.openai>[1]>) => {
+    if (input.protocol === 'azure') {
+      // runAzureTurn checks the required endpoint before any projection or adapter work.
+      const { baseUrl, ...azureOptions } = optionalArgs;
+      return input.adapters.azure({ apiKey, baseUrl: baseUrl!, model, messages, onEvent }, azureOptions);
+    }
+    return input.adapters.openai({ apiKey, model, messages, onEvent }, optionalArgs);
+  })({
     apiKey: input.apiKey,
     ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
     model: input.model,
@@ -256,46 +264,7 @@ async function runAzureTurn(input: InternalTurnInput): Promise<ProviderToolTurnR
     input.onEvent({ type: "end", reason: "error" });
     return { stopReason: "error", toolTurns: 0 };
   }
-  const projection = createToolProjection(input);
-  const getTools = (options: ProviderToolSnapshotOptions = {}) => openAiTools(projection.getTools(options));
-  const tools = openAiTools(projection.getTools({}, { reportFallback: false }));
-  const messages: AzureMessageParam[] = [
-    { role: "system", content: input.system },
-    ...input.messages.map((m) => ({ role: m.role, content: m.images?.length ? toOpenAiToolContent([
-      { type: 'text', text: m.content }, ...m.images.map(image => ({ type: 'image' as const, ...image })),
-    ]) : m.content }) as AzureMessageParam),
-  ];
-  const executeTool = async (call: AzureToolCall) => {
-    const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
-    return { content: foldToolError(toOpenAiToolContent(result.content), result.isError) as string | AzureContentPart[] };
-  };
-  let capturedEndReason: string | null = null;
-  const result = await (({ apiKey, baseUrl, model, messages, onEvent, ...optionalArgs }: Parameters<typeof input.adapters.azure>[0] & NonNullable<Parameters<typeof input.adapters.azure>[1]>) => input.adapters.azure({ apiKey, baseUrl, model, messages, onEvent }, optionalArgs))({
-    apiKey: input.apiKey,
-    baseUrl: input.baseUrl,
-    model: input.model,
-    messages,
-    tools,
-    getTools,
-    ...(input.onSchemaFallback ? { onSchemaFallback: input.onSchemaFallback } : {}),
-    ...(input.maxTokens !== undefined ? { maxTokens: input.maxTokens } : {}),
-    ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
-    executeTool,
-    ...(input.signal ? { signal: input.signal } : {}),
-    onEvent: (event) => {
-      if (event.type === "fabricated_role_marker")
-        return;
-      if (event.type === "end")
-        capturedEndReason = event.reason;
-      if (event.type === "tool_result") {
-        const content = describeToolResultContent(event.content);
-        input.onEvent({ type: "tool_result", toolUseId: event.toolUseId, content, isError: event.isError || content.startsWith(TOOL_ERROR_PREFIX.trimEnd()) });
-        return;
-      }
-      projection.onEvent(event as ProviderTurnEvent);
-    },
-  });
-  return normalizeTurnResult(result, capturedEndReason);
+  return runOpenAiCompatibleTurn(input);
 }
 async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurnResult> {
   const projection = createToolProjection(input);
@@ -351,10 +320,15 @@ export async function runProviderToolTurn(required: ProviderToolTurnInput, optio
     case "anthropic":
       return runAnthropicTurn(input);
     case "openai":
-      return runOpenAiTurn(input);
+      return runOpenAiCompatibleTurn(input);
     case "azure":
       return runAzureTurn(input);
     case "google":
       return runGoogleTurn(input);
+    default: {
+      // Unreachable: every supported protocol has a case above, and a new one fails typecheck here.
+      const unsupported: never = input.protocol;
+      throw new TypeError(`Unsupported provider tool-turn protocol: ${String(unsupported)}`);
+    }
   }
 }

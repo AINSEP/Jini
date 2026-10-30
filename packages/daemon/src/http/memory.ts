@@ -548,7 +548,9 @@ export function registerMemoryEventStream({ app, deps, adapter }: { readonly app
     let seq = 0;
     const channel = createSseChannel<MemoryStreamEvent>({ res });
     const emit = (kind: string, data: unknown): void => {
-      channel.enqueue({ event: { opaqueCursor: String(seq++), kind, data } });
+      const cursor = seq;
+      seq += 1;
+      channel.enqueue({ event: { opaqueCursor: String(cursor), kind, data } });
     };
 
     const onChange = (event: unknown): void => emit('change', event);

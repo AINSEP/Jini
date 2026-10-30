@@ -315,12 +315,12 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     const validate = validateAttachmentsRef.current;
     if (!validate || !conversationId) {
       attachmentsHydratedForRef.current = conversationId;
-      return;
+      return undefined;
     }
     const cached = readCachedAttachments({ conversationId: conversationId });
     if (cached === null || cached.length === 0) {
       attachmentsHydratedForRef.current = conversationId;
-      return;
+      return undefined;
     }
     let cancelled = false;
     void (async () => {

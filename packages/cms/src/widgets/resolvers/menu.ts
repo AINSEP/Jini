@@ -78,26 +78,25 @@ export function createMenuResolver(deps: MenuResolverDeps, _optional: Record<str
         const menu = await deps.navMenuReadModel.getMenu({ workspaceId: context.workspaceId, menuId: menuRef });
         if (!menu) {
           results.set(instance.id, { ok: false, reason: "target-disabled" });
-          continue;
-        }
-
-        let props: JsonObject;
-        if (menu.doc.mode === "html") {
-          props = { title: menu.title, mode: "html", html: menu.doc.html ?? "" };
         } else {
-          const items = await deps.menus.resolveMenuDoc({
-            doc: menu.doc,
-            context: { workspaceId: context.workspaceId },
-            resolveTargetHref,
-          });
-          props = { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) };
-        }
+          let props: JsonObject;
+          if (menu.doc.mode === "html") {
+            props = { title: menu.title, mode: "html", html: menu.doc.html ?? "" };
+          } else {
+            const items = await deps.menus.resolveMenuDoc({
+              doc: menu.doc,
+              context: { workspaceId: context.workspaceId },
+              resolveTargetHref,
+            });
+            props = { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) };
+          }
 
-        results.set(instance.id, {
-          ok: true,
-          ir: { componentId: "menu", props },
-          dependencyKeys: [menu.id],
-        });
+          results.set(instance.id, {
+            ok: true,
+            ir: { componentId: "menu", props },
+            dependencyKeys: [menu.id],
+          });
+        }
       }
       return results;
     },

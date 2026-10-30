@@ -12,7 +12,7 @@ import type { CommerceOrderRepoPort, CommercePriceRepoPort, CommerceProductRepoP
 import type { CommerceOrderItemRecord, CommerceOrderRecord } from "./types.js";
 
 /**
- * @file `checkout.ts` — the first (and only, this slice) Commerce checkout path (2026-08-12
+ * @file `checkout.ts` — the original Commerce order-placement path (2026-08-12
  * swarm-consensus debate, section 5).
  *
  * Purpose:
@@ -21,7 +21,10 @@ import type { CommerceOrderItemRecord, CommerceOrderRecord } from "./types.js";
  * refund/webhook methods by design (F1 in the debate's context packet: "A Commerce status
  * request therefore cannot move money... through this boundary"). This proves the SQLite dialect
  * really writes a commerce row end to end, which the debate's own repository audit found no code
- * path did before this slice; moving money is explicitly deferred to a later slice.
+ * path did before this slice; moving money was explicitly deferred to a later slice.
+ * Phase 1 now composes `checkout()` -> `payOrder()` -> `PaymentsPort.createIntent`: checkout
+ * still owns the pending snapshot, payOrder reserves/binds its payment, and the shared
+ * `settleOrderPayment` verifies evidence before marking the order paid.
  *
  * Bypasses `core/commands`' `executeCommand` gateway on purpose, mirroring
  * `src/forms/submit-service.ts`'s justified precedent: a member placing an order is not an admin

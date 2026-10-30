@@ -10,7 +10,8 @@ const DEFAULT_SETTINGS: CommentsSettings = {
 const MODERATION_STATUSES: Readonly<Record<string, CommentStatus>> = { approve: 'approved', spam: 'spam', trash: 'trash', restore: 'approved' };
 
 function isNumberIn({ value, min, max }: { value: unknown; min: number; max: number }, { integer = false }: { integer?: boolean } = {}): boolean {
-  return Number.isFinite(value) && (!integer || Number.isInteger(value)) && (value as number) >= min && (value as number) <= max;
+  if (!Number.isFinite(value) || (integer && !Number.isInteger(value))) return false;
+  return (value as number) >= min && (value as number) <= max;
 }
 /** Each settings field with its fixture-level shape check and the expectation a refusal names. */
 const SETTINGS_RULES: ReadonlyArray<readonly [keyof CommentsSettings, (value: unknown) => boolean, string]> = [

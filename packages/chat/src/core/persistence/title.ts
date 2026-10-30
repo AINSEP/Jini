@@ -13,7 +13,7 @@
  * Ported from Open Design's `summarizeProjectNameFromPrompt` (`apps/web/src/utils/projectName.ts`).
  * The Latin path has since diverged: it keeps the prompt's words, names and dotted domains (the
  * original's stop-word removal and title casing turned "port example.com to jini" into "Port
- * Example Com Jini"), and `LEADING_LATIN_FILLER` fixes the original's article bug, documented at
+ * Example Com Jini"), and `stripLeadingLatinFiller` fixes the original's article bug, documented at
  * its declaration. The CJK path keeps the original's filler and punctuation rules, which is not
  * decoration: they differ enough from the Latin ones that a shared path produced worse titles in both.
  */
@@ -41,8 +41,15 @@ const CJK_PATTERN = /[㐀-鿿]/;
  * with `a` after a verb silently lost its first character. Requiring the separator as part of the
  * article makes an article an article rather than a prefix.
  */
-const LEADING_LATIN_FILLER =
-  /^(please\s+)?(can\s+you\s+|could\s+you\s+|help\s+me\s+|i\s+want\s+to\s+|i\s+need\s+to\s+)?(create|build|make|design|implement|add|fix|update|improve|optimize|generate|write|search|find|show|list|turn)\s+((this|that)\s+into\s+)?((an|a|the|this|that|my|me)\s+)?/i;
+function stripLeadingLatinFiller(input: string): string {
+  const polite = input.replace(/^please\s+/i, '');
+  const request = polite.replace(/^(?:can\s+you|could\s+you|help\s+me|i\s+want\s+to|i\s+need\s+to)\s+/i, '');
+  const verb = /^(?:create|build|make|design|implement|add|fix|update|improve|optimize|generate|write|search|find|show|list|turn)\s+/i.exec(request);
+  if (!verb) return input;
+  return request.slice(verb[0].length)
+    .replace(/^(?:this|that)\s+into\s+/i, '')
+    .replace(/^(?:an|a|the|this|that|my|me)\s+/i, '');
+}
 
 const LEADING_CJK_FILLER = [
   /^先?(帮我|帮忙|麻烦|请|可以|能不能|能否|给我|我想要|我要)/,
@@ -79,11 +86,11 @@ export function stripConversationTitleMarkdown({ text }: { text: string }, _opti
     .replace(/^\s{0,3}\[[^\]\n]+\]:[^\n]*(?:\n|$)/gm, ' ')
     .replace(/!?\[([^\[\]\n]+)\]\((?:[^()[\]\n]|\([^()[\]\n]*\))*(?:\)|$)/g, '$1')
     .replace(/\[([^\[\]\n]+)\]\[[^\[\]\n]*(?:\]|$)/g, '$1')
-    .replace(/^\s{0,3}#{1,6}\s+|[ \t]+#+[ \t]*$/gm, '')
+    .replace(/^\s{0,3}#{1,6}\s+|(?<![ \t])[ \t]+#+[ \t]*$/gm, '')
     .replace(/(?<![\w\\*])(\*\*|\*)(?=[^\s*])([^*\n]*?[^\s*\\])\1(?![\w*])/g, '$2')
-    .replace(/(?<![\w\\_])(__|_)(?=[^\s_])([^\n]*?[^\s\\])\1(?![\w_])/g, '$2')
+    .replace(/(?<![\w\\])(__|_)(?=[^\s_])([^\n]*?[^\s\\])\1(?!\w)/g, '$2')
     .replace(/`|~~/g, '')
-    .replace(/!?\[([^\]\n]*)(?=\n|$)/g, '$1')
+    .split('\n').map(stripUnclosedTitleLink).join('\n')
     // Unescape after markup removal so an escaped literal marker cannot become emphasis.
     .replace(/\\([\\`*_[\]~])/g, '$1')
     .replace(/\s+/g, ' ')
@@ -104,7 +111,7 @@ function truncateTitle(title: string): string {
 }
 
 function trimLatinTitle(input: string): string {
-  const words = input.replace(LEADING_LATIN_FILLER, '').match(/[\p{L}\p{N}]+(?:[._-][\p{L}\p{N}]+)*/gu) ?? [];
+  const words = stripLeadingLatinFiller(input).match(/[\p{L}\p{N}]+(?:[._-][\p{L}\p{N}]+)*/gu) ?? [];
   const title = words.join(' ');
   // Domain and filename tokens retain their original case, even at the start of a sentence.
   return words[0]?.includes('.') ? title : title.charAt(0).toUpperCase() + title.slice(1);
@@ -114,7 +121,7 @@ function trimCjkTitle(input: string): string {
   let title = input.trim();
   for (const pattern of LEADING_CJK_FILLER) title = title.replace(pattern, '').trim();
   // Cut at the first sentence-ending punctuation, then drop spacing — CJK titles do not use it.
-  title = title.replace(/[，。！？；：,.!?;:].*$/, '').replace(/\s+/g, '');
+  title = title.split(/[，。！？；：,.!?;:]/, 1)[0]!.replace(/\s+/g, '');
   return title.slice(0, MAX_CJK_LENGTH);
 }
 
@@ -151,4 +158,13 @@ export function conversationTitleForDisplay({ title, titleSource, firstPrompt }:
     return title;
   }
   return truncateTitle(stripConversationTitleMarkdown({ text: title })) || null;
+}
+
+/** The first open label after the last closing bracket is the only possible trailing cut link.
+ * Retain any later '[' characters inside its label, as the original tolerant pattern does. */
+function stripUnclosedTitleLink(line: string): string {
+  const open = line.indexOf('[', line.lastIndexOf(']') + 1);
+  if (open === -1) return line;
+  const start = line[open - 1] === '!' ? open - 1 : open;
+  return line.slice(0, start) + line.slice(open + 1);
 }

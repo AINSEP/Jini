@@ -1,0 +1,45 @@
+[
+  {
+    "kind": "provider", "id": "ai-trace-langfuse", "publisherIdentity": "jini/ai-trace-langfuse",
+    "packageName": "@jini-ai/plugin-ai-trace-langfuse", "version": "0.7.0", "pluginVersion": "0.7.0",
+    "path": "plugins/ai-trace-langfuse/0.7.0", "contract": { "id": "ai_trace", "version": 1 },
+    "description": "Langfuse", "expectedDigests": null
+  },
+  {
+    "kind": "provider", "id": "analytics-posthog", "publisherIdentity": "jini/analytics-posthog",
+    "packageName": "@jini-ai/plugin-analytics-posthog", "version": "0.7.0", "pluginVersion": "0.7.0",
+    "path": "plugins/analytics-posthog/0.7.0", "contract": { "id": "product_analytics", "version": 1 },
+    "description": "PostHog", "expectedDigests": null
+  },
+  {
+    "kind": "provider", "id": "fixture-provider", "publisherIdentity": "jini/fixture-provider",
+    "packageName": "@jini-ai/plugin-fixture-provider", "version": "0.7.0", "pluginVersion": "0.7.0",
+    "path": "plugins/fixture-provider/0.7.0", "contract": { "id": "fixture", "version": 1 },
+    "description": "Provider artifact fixture", "expectedDigests": null
+  },
+  {
+    "kind": "provider", "id": "observability-opentelemetry", "publisherIdentity": "jini/observability-opentelemetry",
+    "packageName": "@jini-ai/plugin-observability-opentelemetry", "version": "0.7.0", "pluginVersion": "0.7.0",
+    "path": "plugins/observability-opentelemetry/0.7.0", "contract": { "id": "observability", "version": 1 },
+    "description": "OpenTelemetry", "expectedDigests": null
+  },
+  {
+    "kind": "provider", "id": "observability-sentry", "publisherIdentity": "jini/observability-sentry",
+    "packageName": "@jini-ai/plugin-observability-sentry", "version": "0.7.0", "pluginVersion": "0.7.0",
+    "path": "plugins/observability-sentry/0.7.0", "contract": { "id": "observability", "version": 1 },
+    "description": "Sentry", "expectedDigests": null
+  },
+  {
+    "kind": "provider", "id": "payments-stripe", "publisherIdentity": "jini/payments-stripe",
+    "packageName": "@jini-ai/plugin-payments-stripe", "version": "0.7.0", "pluginVersion": "0.7.0",
+    "path": "plugins/payments-stripe/0.7.0", "contract": { "id": "payments", "version": 1 },
+    "description": "Stripe payments provider", "expectedDigests": null
+  },
+  {
+    "kind": "agent", "id": "ui-ux-design", "publisherIdentity": "jini/ui-ux-design",
+    "packageName": "@jini-ai/plugin-ui-ux-design", "version": "0.7.0", "pluginVersion": "0.4.6",
+    "path": "ui-ux-design", "contract": { "id": "agent-plugins", "version": "1.0.0" },
+    "description": "UI/UX design, interface-design-system, accessibility, and shadcn/ui component skills bundled as one portable Agent Plugin.",
+    "expectedDigests": null
+  }
+]

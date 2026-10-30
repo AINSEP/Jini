@@ -47,7 +47,6 @@ import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
   renderActions,
   renderDetailList,
-  renderStatusRegion,
   renderSurfaceDocument,
   renderSurfaceHeader,
   SURFACE_SCRIPT_PRELUDE,

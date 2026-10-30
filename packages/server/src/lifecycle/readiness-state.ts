@@ -8,10 +8,9 @@ function copy(snapshot: BootResult): BootResult {
 
 /** Instance-owned snapshots. Host-specific health records are supplied by the caller. */
 export function createReadinessStore(
-  required: Record<string, never>,
+  _required: Record<string, never>,
   optional: { initial?: BootResult } = {},
 ): ReadinessStore {
-  void required;
   let snapshot = copy(optional.initial ?? { ok: true, modules: [] });
   return {
     set({ snapshot: next }) { snapshot = copy(next); },

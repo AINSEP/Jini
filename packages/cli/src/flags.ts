@@ -112,10 +112,10 @@ export function positionalArgs({ argv }: { argv: readonly string[] }, opts: Posi
     }
     if (!a.startsWith('--')) {
       out.push(a);
-      continue;
+    } else {
+      const { key, inlineValue } = splitFlagToken({ token: a });
+      if (inlineValue === undefined && stringFlags.has(key)) i++;
     }
-    const { key, inlineValue } = splitFlagToken({ token: a });
-    if (inlineValue === undefined && stringFlags.has(key)) i++;
   }
   return out;
 }

@@ -45,28 +45,38 @@ async function supplementFor(required: { packageRoot: string; item: BundledPacka
 /** Preserve each input package's license/notice texts, not only esbuild's legal-comment excerpts.
  * A package that ships no license file (some upstream monorepos omit it from sub-packages) takes the
  * text of a bundled sibling from the same repository with the same declared license; the copy is
- * recorded in `LICENSE-SOURCE`. Anything else still fails the build. */
-async function retainLicenses(required: { packageRoot: string; artifactRoot: string; inputs: readonly string[] }): Promise<void> {
+ * recorded in `LICENSE-SOURCE`. Anything else still fails the build.
+ * @complexity O(inputs × ancestor depth + packages² + license bytes) time; O(inputs + packages) metadata. */
+async function retainLicenses(required: { packageRoot: string; destinationPackageRoot: string; artifactRoot: string; inputs: readonly string[] }, _optional = {}): Promise<void> {
   const roots = new Set<string>();
-  for (const input of required.inputs) roots.add(await owningPackage({ input: path.resolve(required.packageRoot, input) }));
+  for (const input of required.inputs) {
+    const owner = await owningPackage({ input: path.resolve(required.packageRoot, input) });
+    // Sources stay in the build workspace; the selected distribution owns their attribution.
+    roots.add(owner === required.packageRoot ? required.destinationPackageRoot : owner);
+  }
   const bundled: BundledPackage[] = [];
   for (const root of [...roots].sort()) {
     const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')) as BundledPackage['manifest'];
     const files = (await readdir(root, { withFileTypes: true })).filter(entry => entry.isFile()).map(entry => entry.name);
     bundled.push({ root, manifest, names: files.filter(name => /^(?:licen[sc]e|copying|notice)(?:$|[.-])/i.test(name)).sort() });
   }
-  for (const item of bundled) {
-    const sibling = item.names.length ? item : bundled.find(other => other.names.length && other.manifest.license === item.manifest.license
-      && repositoryOf(other.manifest) !== undefined && repositoryOf(other.manifest) === repositoryOf(item.manifest))
-      ?? await supplementFor({ packageRoot: required.packageRoot, item });
-    if (!sibling) throw new Error(`Missing license text for bundled package ${item.manifest.name}`);
-    const target = path.join(required.artifactRoot, 'licenses', item.manifest.name.replace(/[^a-z0-9._-]/gi, '_'));
-    await mkdir(target, { recursive: true });
-    for (const name of sibling.names) await copyFile(path.join(sibling.root, name), path.join(target, name));
-    if (sibling !== item) await writeFile(path.join(target, 'LICENSE-SOURCE'), `License text copied from ${sibling.manifest.name}@${sibling.manifest.version} (same repository and declared license).\n`);
-    // Not `package.json`: these are license records inside an artifact, never workspace packages.
-    await writeFile(path.join(target, 'package-license.json'), JSON.stringify({ name: item.manifest.name, version: item.manifest.version, license: item.manifest.license }, null, 2) + '\n');
-  }
+  for (const item of bundled) await retainPackageLicense({ ...required, bundled, item });
+}
+
+/** Copy a dependency's own license, a same-repository sibling's, or a reviewed supplement.
+ * Fails closed when none exists. O(bundled packages + license bytes) time, O(license bytes) space. */
+async function retainPackageLicense(required: { packageRoot: string; artifactRoot: string; bundled: readonly BundledPackage[]; item: BundledPackage }, _optional = {}): Promise<void> {
+  const { item, bundled } = required;
+  const sibling = item.names.length ? item : bundled.find(other => other.names.length && other.manifest.license === item.manifest.license
+    && repositoryOf(other.manifest) !== undefined && repositoryOf(other.manifest) === repositoryOf(item.manifest))
+    ?? await supplementFor({ packageRoot: required.packageRoot, item });
+  if (!sibling) throw new Error(`Missing license text for bundled package ${item.manifest.name}`);
+  const target = path.join(required.artifactRoot, 'licenses', item.manifest.name.replace(/[^a-z0-9._-]/gi, '_'));
+  await mkdir(target, { recursive: true });
+  for (const name of sibling.names) await copyFile(path.join(sibling.root, name), path.join(target, name));
+  if (sibling !== item) await writeFile(path.join(target, 'LICENSE-SOURCE'), `License text copied from ${sibling.manifest.name}@${sibling.manifest.version} (same repository and declared license).\n`);
+  // Not `package.json`: these are license records inside an artifact, never workspace packages.
+  await writeFile(path.join(target, 'package-license.json'), JSON.stringify({ name: item.manifest.name, version: item.manifest.version, license: item.manifest.license }, null, 2) + '\n');
 }
 
 function assertSelfContained(required: { metafile: Metafile }): void {
@@ -80,7 +90,7 @@ function assertSelfContained(required: { metafile: Metafile }): void {
 /** The full no-external SDK (replay included) is copied byte for byte so its SHA-256 is the pinned one;
  * browsers request it same-origin only after a consent choice. The consent adapter is bundled for the browser.
  * @throws When the installed posthog-js file is not the pinned one. */
-export async function addPostHogBrowserFiles(required: { packageRoot: string; artifactRoot: string }): Promise<void> {
+export async function addPostHogBrowserFiles(required: { packageRoot: string; destinationPackageRoot: string; artifactRoot: string }, _optional = {}): Promise<void> {
   const sdk = createRequire(path.join(required.packageRoot, 'package.json')).resolve('posthog-js/dist/module.full.no-external.js');
   const bytes = await readFile(sdk);
   if (`sha256-${createHash('sha256').update(bytes).digest('base64')}` !== POSTHOG_SDK_INTEGRITY) {
@@ -91,10 +101,12 @@ export async function addPostHogBrowserFiles(required: { packageRoot: string; ar
     outfile: path.join(required.artifactRoot, 'server', ADAPTER_FILE), bundle: true, platform: 'browser', format: 'esm', target: 'es2020',
     minify: true, metafile: true, legalComments: 'inline', sourcemap: false });
   assertSelfContained({ metafile: adapter.metafile });
-  await retainLicenses({ packageRoot: required.packageRoot, artifactRoot: required.artifactRoot, inputs: [sdk, ...Object.keys(adapter.metafile.inputs)] });
+  await retainLicenses({ ...required, inputs: [sdk, ...Object.keys(adapter.metafile.inputs)] });
 }
 
-async function buildArtifact(required: { packageRoot: string; staging: string; id: string; version: string }): Promise<CatalogEntry> {
+/** Bundle the selected entry and browser assets, retain their licenses, then seal the staged manifest.
+ * Build/validation failures propagate before publication. Work scales with selected inputs and retained bytes. */
+async function buildArtifact(required: { packageRoot: string; destinationPackageRoot: string; staging: string; id: string; version: string }, _optional = {}): Promise<CatalogEntry> {
   const source = path.join(required.packageRoot, 'src', required.id);
   const manifest = JSON.parse(await readFile(path.join(source, 'jini.plugin.json'), 'utf8')) as { id: string; version: string; integrity: Record<string, string> };
   if (manifest.id !== required.id) throw new Error('Plugin directory and manifest id must agree');
@@ -111,35 +123,66 @@ async function buildArtifact(required: { packageRoot: string; staging: string; i
     banner: { js: 'import { createRequire as __jiniCreateRequire } from "node:module"; const require = __jiniCreateRequire(import.meta.url);' },
   });
   assertSelfContained({ metafile: result.metafile });
-  if (required.id === 'analytics-posthog') await addPostHogBrowserFiles({ packageRoot: required.packageRoot, artifactRoot });
-  await retainLicenses({ packageRoot: required.packageRoot, artifactRoot, inputs: Object.keys(result.metafile.inputs) });
+  if (required.id === 'analytics-posthog') await addPostHogBrowserFiles({ ...required, artifactRoot });
+  await retainLicenses({ ...required, artifactRoot, inputs: Object.keys(result.metafile.inputs) });
   // The existing installer owns exact-file hashing, including retained license files.
   manifest.integrity = await computePluginIntegrity({ sourceDir: artifactRoot });
   await writeFile(path.join(artifactRoot, 'jini.plugin.json'), JSON.stringify(manifest, null, 2) + '\n');
   return { id: manifest.id, version: manifest.version, path: relative };
 }
 
-/** Build all provider folders before replacing published artifacts. No executable adapter barrel.
- * @returns Catalog entries pointing to installer-compatible immutable-version folders.
- * @throws On unbundled npm dependencies, absent license text or invalid source layout.
+/** Marks a failed rollback so cleanup cannot delete the only remaining completed payload. */
+class PayloadRecoveryError extends AggregateError {}
+
+/** Swap only a completed payload, restoring its predecessor if publication fails.
+ * Filesystem errors propagate. O(1) renames; cleanup is owned by the caller. */
+async function replacePayload(required: { staging: string; outputRoot: string }, _optional = {}): Promise<void> {
+  const target = path.join(required.outputRoot, 'plugins');
+  const backup = path.join(required.staging, 'previous-plugins');
+  let replaced = false;
+  try { await rename(target, backup); replaced = true; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  try { await rename(path.join(required.staging, 'plugins'), target); }
+  catch (error) {
+    if (replaced) {
+      try { await rename(backup, target); }
+      catch (recoveryError) { throw new PayloadRecoveryError([error, recoveryError], `Restore the previous payload from ${backup} before retrying.`); }
+    }
+    throw error;
+  }
+}
+
+/** Build exactly one source into a destination package's generated `plugins` payload.
+ * No executable adapter barrel.
+ * @param required Source workspace, plugin id, and reviewed destination package directory.
+ * @param optional Scratch output override; version and first-party attribution still come from the destination.
+ * @returns The installer-compatible versioned artifact path, relative to the output directory.
+ * @throws On unsafe ids/versions, invalid manifests, unbundled imports, missing licenses or filesystem errors.
+ * @complexity One selected bundle plus license scans and exact-file hashing; no sibling builds.
+ * @example buildProviderPlugin({ packageRoot, id: 'fixture-provider', destinationPackageRoot });
  */
-export async function buildProviderPlugins(required: { packageRoot: string }, optional: { outputRoot?: string } = {}): Promise<readonly CatalogEntry[]> {
-  const outputRoot = optional.outputRoot ?? required.packageRoot;
+export async function buildProviderPlugin(required: { packageRoot: string; id: string; destinationPackageRoot: string }, optional: { outputRoot?: string } = {}): Promise<CatalogEntry> {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(required.id)) throw new Error('Invalid plugin id');
+  const packageRoot = path.resolve(required.packageRoot);
+  const destinationPackageRoot = path.resolve(required.destinationPackageRoot);
+  const { version } = JSON.parse(await readFile(path.join(destinationPackageRoot, 'package.json'), 'utf8')) as { version: string };
+  if (!/^\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?(?:\+[a-z0-9.-]+)?$/i.test(version)) throw new Error('Invalid destination package version');
+  const outputRoot = path.resolve(optional.outputRoot ?? destinationPackageRoot);
   await mkdir(outputRoot, { recursive: true });
   const staging = await mkdtemp(path.join(outputRoot, '.provider-build-'));
+  let preserveStaging = false;
   try {
-    const { version } = JSON.parse(await readFile(path.join(required.packageRoot, 'package.json'), 'utf8')) as { version: string };
-    const sources = (await readdir(path.join(required.packageRoot, 'src'), { withFileTypes: true })).filter(entry => entry.isDirectory() && !entry.name.startsWith('__'));
-    const catalog: CatalogEntry[] = [];
-    for (const entry of sources.sort((a, b) => a.name.localeCompare(b.name))) catalog.push(await buildArtifact({ ...required, staging, id: entry.name, version }));
-    await writeFile(path.join(staging, 'catalog.json'), JSON.stringify(catalog, null, 2) + '\n');
-    await rm(path.join(outputRoot, 'plugins'), { recursive: true, force: true });
-    await rename(path.join(staging, 'plugins'), path.join(outputRoot, 'plugins'));
-    await rename(path.join(staging, 'catalog.json'), path.join(outputRoot, 'catalog.json'));
-    return catalog;
-  } finally { await rm(staging, { recursive: true, force: true }); }
+    const entry = await buildArtifact({ packageRoot, destinationPackageRoot, staging, id: required.id, version });
+    await replacePayload({ staging, outputRoot });
+    return entry;
+  } catch (error) {
+    preserveStaging = error instanceof PayloadRecoveryError;
+    throw error;
+  } finally { if (!preserveStaging) await rm(staging, { recursive: true, force: true }); }
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  await buildProviderPlugins({ packageRoot: fileURLToPath(new URL('..', import.meta.url)) });
+  const [id, destinationPackageRoot] = process.argv.slice(2);
+  if (!id || !destinationPackageRoot) throw new Error('Usage: build.ts <plugin-id> <destination-package-dir>');
+  await buildProviderPlugin({ packageRoot: fileURLToPath(new URL('..', import.meta.url)), id, destinationPackageRoot });
 }

@@ -341,13 +341,13 @@ async function dispatchFenced<Event extends EventEnvelope>(input: {
   retry: OutboxRetryPolicy;
 }): Promise<Completion | undefined> {
   const { args, row, policy, retry } = input;
-  if (!isLiveClaim(input)) return;
+  if (!isLiveClaim(input)) return undefined;
   if (row.attempts > retry.maxAttempts) return { status: 'failed' };
   const authorized = await boundedGate({ ...input, start: () => args.authorize({ claim: row }, {}) });
-  if (authorized === TIMED_OUT) return;
+  if (authorized === TIMED_OUT) return undefined;
   if (authorized !== true) return { status: 'denied' };
-  if (await boundedGate({ ...input, start: () => args.outbox.beginDispatch(currentFence(input), {}) }) !== true) return;
-  if (!isLiveClaim(input)) return;
+  if (await boundedGate({ ...input, start: () => args.outbox.beginDispatch(currentFence(input), {}) }) !== true) return undefined;
+  if (!isLiveClaim(input)) return undefined;
   // Capture both synchronous and asynchronous failures; a late result is observed but never
   // writes over uncertainty or releases a row for an automatic retry.
   const publishing = (async () => dispatchKind({ result: await args.dispatch({ claim: row }, {}) }))()

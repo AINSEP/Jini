@@ -14,5 +14,8 @@ export interface AuthPageProps {
   readonly onLogin: (required: { user: AdminAccount }, optional?: Record<string, never>) => void;
 }
 export function useAuthScope(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-  const scope = useContext(ScopeContext); if (!scope) throw new Error('Auth admin scope is unavailable.'); return scope;
+  const scope = useContext(ScopeContext); if (!scope) {
+    throw new Error('Auth admin scope is unavailable.');
+  }
+  return scope;
 }

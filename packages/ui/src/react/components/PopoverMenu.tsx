@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { withClassName } from '../../utils/class-names.js';
 
 export interface PopoverMenuProps {
   children?: ReactNode;
@@ -14,5 +15,5 @@ export interface PopoverMenuProps {
  * (recon r6 §1.19) — generic, no product types.
  */
 export function PopoverMenu({ children, className }: PopoverMenuProps) {
-  return <div className={`jini-popover${className ? ` ${className}` : ''}`}>{children}</div>;
+  return <div className={withClassName('jini-popover', className)}>{children}</div>;
 }

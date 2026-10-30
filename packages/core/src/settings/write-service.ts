@@ -300,17 +300,22 @@ export interface SettingsValueWriteOptions {
  * The caller's enclosing transaction rolls the appended revision back on conflict.
  * @complexity At most one scoped value read; no reads when the option is omitted.
  */
+/** The one stored value the write addresses, at its own scope. */
+function readAddressedValue(
+  { repo, settingId, input }: { repo: SettingsRepoPort; settingId: UUID; input: Pick<SetValueRequired["input"], "scope" | "workspaceId" | "principalId" | "callerPrincipalId"> },
+): ReturnType<SettingsRepoPort["getGlobalValue"]> {
+  if (input.scope === "global") return repo.getGlobalValue(settingId);
+  if (input.scope === "workspace") return repo.getWorkspaceValue({ workspaceId: input.workspaceId!, settingId });
+  return repo.getUserValue({ workspaceId: input.workspaceId!, principalId: input.principalId ?? input.callerPrincipalId, settingId });
+}
+
 async function assertExpectedRevision(
   required: { repo: SettingsRepoPort; settingId: UUID; input: Pick<SetValueRequired["input"], "scope" | "workspaceId" | "principalId" | "callerPrincipalId"> },
   optional: SettingsValueWriteOptions = {},
 ): Promise<void> {
   if (optional.expectedRevisionSeq === undefined) return;
   const { repo, settingId, input } = required;
-  const current = input.scope === "global"
-    ? await repo.getGlobalValue(settingId)
-    : input.scope === "workspace"
-      ? await repo.getWorkspaceValue({ workspaceId: input.workspaceId!, settingId })
-      : await repo.getUserValue({ workspaceId: input.workspaceId!, principalId: input.principalId ?? input.callerPrincipalId, settingId });
+  const current = await readAddressedValue({ repo, settingId, input });
   const actualRevisionSeq = current?.seq ?? 0;
   if (actualRevisionSeq !== optional.expectedRevisionSeq) {
     throw new SettingsRevisionConflictError({ expectedRevisionSeq: optional.expectedRevisionSeq, actualRevisionSeq });
@@ -357,7 +362,7 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
 
   await assertTargetPrincipalInWorkspace(deps, input);
 
-  const result = await deps.repo.transaction(async () => {
+  return deps.repo.transaction(async () => {
     const now = kernelNowIso({ clock: deps.clock });
     const revisionSeq = await deps.repo.appendRevision({
       entityKind: "value",
@@ -407,8 +412,6 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
 
     return { value: input.value, revisionSeq };
   });
-
-  return result;
 }
 
 export interface ClearValueRequired {
@@ -519,9 +522,7 @@ export async function clear(required: ClearValueRequired, optional: SettingsValu
 
   // `skipTransaction` means an enclosing caller already owns the boundary, so
   // this write joins it and a later failure rolls this one back too.
-  const result = input.skipTransaction ? await runClear() : await deps.repo.transaction(runClear);
-
-  return result;
+  return input.skipTransaction ? runClear() : deps.repo.transaction(runClear);
 }
 
 export interface ResetNamespaceRequired {

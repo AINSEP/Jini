@@ -27,13 +27,15 @@
     "plugins",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "build": "node --import tsx scripts/build.ts",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run -c vitest.coverage.config.ts --coverage"
   },
   "publishConfig": {
     "access": "public",
@@ -43,6 +45,7 @@
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/analytics": "workspace:^",
     "@jini-ai/capability-providers": "workspace:^",
+    "@jini-ai/commerce": "workspace:^",
     "@jini-ai/cookie-consent": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
     "@jini-ai/plugins": "workspace:^",

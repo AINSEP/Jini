@@ -28,6 +28,57 @@ const literalRules = [
   { rule: 'N4-runtime-spec-id', pattern: /U-0\d\d|REQ-|SEC-|INV-|SPEC-/ },
 ];
 
+function isNeutralityException(entry: NeutralityException): boolean {
+  return !(typeof entry?.file !== 'string' || typeof entry?.rule !== 'string' || typeof entry?.reason !== 'string' || !entry.reason.trim()
+    || ![...rawRules, ...literalRules].some(rule => rule.rule === entry.rule));
+}
+
+function inspectLiterals({ filename, source, inspect }: { filename: string; source: string; inspect: (text: string, offset: number) => void }): void {
+  if (filename.endsWith('.css')) {
+    // CSS has only block comments; mask them without changing offsets or string contents.
+    const tokens = /\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g;
+    for (const match of source.matchAll(tokens)) if (!match[0].startsWith('/*')) inspect(match[0], match.index);
+  } else {
+    const ast = parseSource({ file: filename, source });
+    function visit(node: ts.Node): void {
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
+        || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)
+        || ts.isJsxText(node)) inspect(node.text, node.getStart(ast));
+      ts.forEachChild(node, visit);
+    }
+    visit(ast);
+  }
+}
+
+function inspectSourceFile({ root, filename, add }: { root: string; filename: string; add: (file: string, rule: string, reason: string) => void }): void {
+  const file = relative(root, filename).split('\\').join('/');
+  const source = readFileSync(filename, 'utf8');
+  for (const rule of rawRules) {
+    const match = rule.pattern.exec(source);
+    if (match) add(file, rule.rule, `forbidden source reference ${JSON.stringify(match[0])} (comments included)`);
+  }
+  function inspect(text: string, offset: number): void {
+    const productMatch = rawRules[0]!.pattern.exec(text);
+    if (productMatch && !rawRules[0]!.pattern.test(source)) add(file, rawRules[0]!.rule,
+      `line ${source.slice(0, offset).split('\n').length}: forbidden decoded consumer identity`);
+    for (const rule of literalRules) {
+      const match = rule.pattern.exec(text);
+      if (match) add(file, rule.rule, `line ${source.slice(0, offset).split('\n').length}: forbidden runtime literal ${JSON.stringify(match[0])}`);
+    }
+  }
+  inspectLiterals({ filename, source, inspect });
+}
+
+function readNeutralityExceptions({ value, root, allowlistPath, violations }: { value: unknown[]; root: string; allowlistPath: string; violations: NeutralityViolation[] }): NeutralityException[] {
+  const entries: NeutralityException[] = [];
+  for (const entry of value) {
+    if (!isNeutralityException(entry as NeutralityException)) {
+      violations.push({ rule: 'N0-allowlist', file: relative(root, allowlistPath), reason: 'every exception needs a file, known rule and nonempty reason' });
+    } else entries.push(entry as NeutralityException);
+  }
+  return entries;
+}
+
 export function checkSourceNeutrality(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
   optional: { allowlistPath?: string } = {},
@@ -39,13 +90,7 @@ export function checkSourceNeutrality(
   if (!existsSync(allowlistPath)) return [{ rule: 'N0-allowlist', file: relative(root, allowlistPath), reason: 'missing neutrality allowlist' }];
   const value: unknown = JSON.parse(readFileSync(allowlistPath, 'utf8'));
   if (!Array.isArray(value)) return [{ rule: 'N0-allowlist', file: relative(root, allowlistPath), reason: 'allowlist must be an array' }];
-  const entries: NeutralityException[] = [];
-  for (const entry of value) {
-    if (typeof entry?.file !== 'string' || typeof entry?.rule !== 'string' || typeof entry?.reason !== 'string' || !entry.reason.trim()
-      || ![...rawRules, ...literalRules].some(rule => rule.rule === entry.rule)) {
-      violations.push({ rule: 'N0-allowlist', file: relative(root, allowlistPath), reason: 'every exception needs a file, known rule and nonempty reason' });
-    } else entries.push(entry);
-  }
+  const entries = readNeutralityExceptions({ value, root, allowlistPath, violations });
   const used = new Set<NeutralityException>();
   function add(file: string, rule: string, reason: string): void {
     const exemption = entries.find(entry => entry.file === file && entry.rule === rule);
@@ -54,35 +99,7 @@ export function checkSourceNeutrality(
   }
   for (const pkg of sourcePackages({ packagesDir: join(root, 'packages') })) {
     for (const filename of packageSourceFiles({ directory: pkg.directory })) {
-      const file = relative(root, filename).split('\\').join('/');
-      const source = readFileSync(filename, 'utf8');
-      for (const rule of rawRules) {
-        const match = rule.pattern.exec(source);
-        if (match) add(file, rule.rule, `forbidden source reference ${JSON.stringify(match[0])} (comments included)`);
-      }
-      function inspect(text: string, offset: number): void {
-        const productMatch = rawRules[0]!.pattern.exec(text);
-        if (productMatch && !rawRules[0]!.pattern.test(source)) add(file, rawRules[0]!.rule,
-          `line ${source.slice(0, offset).split('\n').length}: forbidden decoded consumer identity`);
-        for (const rule of literalRules) {
-          const match = rule.pattern.exec(text);
-          if (match) add(file, rule.rule, `line ${source.slice(0, offset).split('\n').length}: forbidden runtime literal ${JSON.stringify(match[0])}`);
-        }
-      }
-      if (filename.endsWith('.css')) {
-        // CSS has only block comments; mask them without changing offsets or string contents.
-        const tokens = /\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g;
-        for (const match of source.matchAll(tokens)) if (!match[0].startsWith('/*')) inspect(match[0], match.index);
-      } else {
-        const ast = parseSource({ file: filename, source });
-        function visit(node: ts.Node): void {
-          if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
-            || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)
-            || ts.isJsxText(node)) inspect(node.text, node.getStart(ast));
-          ts.forEachChild(node, visit);
-        }
-        visit(ast);
-      }
+      inspectSourceFile({ root, filename, add });
     }
   }
   for (const entry of entries) if (!used.has(entry)) violations.push({ rule: 'N0-allowlist', file: entry.file, reason: `unused exception for ${entry.rule}; remove stale policy` });

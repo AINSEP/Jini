@@ -418,7 +418,7 @@ export function useCustomSelectOriginTheme({ buttonRef, open, portal }: {
 }, _optional: Record<string, never> = {}): CustomSelectOriginTheme {
   const [attributes, setAttributes] = useState<CustomSelectOriginTheme>({});
   useLayoutEffect(() => {
-    if (!open || !portal) return;
+    if (!open || !portal) return undefined;
     const update = () => {
       const next = resolveCustomSelectOriginTheme({ trigger: buttonRef.current });
       setAttributes((current) => current['data-admin-theme'] === next['data-admin-theme']

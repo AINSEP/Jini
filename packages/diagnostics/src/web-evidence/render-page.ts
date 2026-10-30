@@ -164,8 +164,14 @@ async function guardRequests(
     // (Public mode always has a router: renderPage refuses public rendering without one.)
     const blocked = offOrigin || (originPolicy !== "public" && !["GET", "HEAD"].includes(pending.method().toUpperCase()));
     const markBlocked = onRequest?.({ route, blocked });
-    if (blocked) return route.abort("blockedbyclient").catch(() => {});
-    if (router) return routeThroughRouter({ router, route }, { markBlocked });
+    if (blocked) {
+      await route.abort("blockedbyclient").catch(() => {});
+      return;
+    }
+    if (router) {
+      await routeThroughRouter({ router, route }, { markBlocked });
+      return;
+    }
     // Trusted own-origin evidence retains browser cookies, but never posts preferences or forms.
     if (!route.continue) throw new Error("Own-origin browser route cannot continue: the route port has no continue()");
     await route.continue();
@@ -218,6 +224,16 @@ function nextHopAfterFailedGoto(
   throw error;
 }
 
+/** A selector waits until visible; a number is a settle delay in seconds (zero or less waits for nothing). */
+async function waitForSelectorOrDelay({ page, budget, waitFor }: { page: RenderPage; budget: PageWorkBudget; waitFor: string | number }): Promise<void> {
+  if (typeof waitFor === "number") {
+    if (waitFor > 0) await budget.run({ work: () => page.waitForTimeout(waitFor * 1000) });
+    return;
+  }
+  if (!page.waitForSelector) throw new Error(`Rendering cannot wait for selector "${waitFor}": this browser port has no waitForSelector`);
+  await budget.run({ work: () => page.waitForSelector!(waitFor, { state: "visible", timeout: budget.remainingMs() }) });
+}
+
 /** Cookie dismissal, the selector/settle strategy and the best-effort load wait, all within the page budget. */
 async function settlePage(
   { page, budget, signal }: { page: RenderPage; budget: PageWorkBudget; signal: AbortSignal },
@@ -225,12 +241,7 @@ async function settlePage(
 ): Promise<void> {
   const { waitFor = 1.2, dismissCookieBanners: dismiss = false } = options;
   const dismissed = dismiss && await dismissCookieBanners({ page, budget });
-  if (typeof waitFor === "string") {
-    if (!page.waitForSelector) throw new Error(`Rendering cannot wait for selector "${waitFor}": this browser port has no waitForSelector`);
-    await budget.run({ work: () => page.waitForSelector!(waitFor, { state: "visible", timeout: budget.remainingMs() }) });
-  } else if (waitFor > 0) {
-    await budget.run({ work: () => page.waitForTimeout(waitFor * 1000) });
-  }
+  await waitForSelectorOrDelay({ page, budget, waitFor });
   await waitForLoad({ page, budget, signal }, options);
   // Hydrated consent widgets can arrive during the settle/selector wait.
   if (dismiss && !dismissed && await dismissCookieBanners({ page, budget })) {

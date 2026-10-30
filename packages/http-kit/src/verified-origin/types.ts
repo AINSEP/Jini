@@ -1,4 +1,3 @@
-type ISODateTime = string;
 
 /** Canonical links, redirect checks and egress decisions must use stored trust evidence,
  * never the raw request Host/:authority, which is attacker-controlled. */
@@ -13,7 +12,7 @@ export interface VerifiedOrigin {
   port?: number;
   basePath?: string;
 
-  verifiedAt: ISODateTime;
+  verifiedAt: string;
   source: OriginSource;
 }
 

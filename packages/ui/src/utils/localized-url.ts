@@ -1,3 +1,4 @@
+import { trimTrailingChars } from './trim-chars.js';
 // Build a locale-segmented URL against a host-supplied base and locale-map,
 // e.g. for linking out to a marketing/docs site in the reader's language.
 //
@@ -16,7 +17,7 @@ export interface LocalizedUrlOptions {
 }
 
 export function buildLocalizedUrl(locale: string, options: LocalizedUrlOptions): string {
-  const base = options.baseUrl.replace(/\/+$/, '');
+  const base = trimTrailingChars(options.baseUrl, '/');
   const segment = options.localeSegments?.[locale];
   return segment ? `${base}/${segment}/` : `${base}/`;
 }

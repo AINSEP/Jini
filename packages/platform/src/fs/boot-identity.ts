@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
+import { windowsPowerShell } from "../windows-system-tools.js";
 
 export interface BootIdentity { id: string; startedAtMs: number; }
 let cached: BootIdentity | null | undefined;
@@ -18,8 +19,7 @@ function darwinBootIdentity(): BootIdentity | null {
   return timestampIdentity(Number(/sec\s*=\s*(\d+)/.exec(text)?.[1]) * 1000);
 }
 function windowsBootIdentity(): BootIdentity | null {
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- Fixed OS utility with fixed argv, resolved through the desktop operator's trusted PATH; no request controls the executable.
-  const text = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, windowsHide: true });
+  const text = execFileSync(windowsPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')"], { encoding: "utf8", timeout: NATIVE_TIMEOUT_MS, windowsHide: true });
   return timestampIdentity(Date.parse(text.trim()));
 }
 const PLATFORM_READERS: Partial<Record<NodeJS.Platform, () => BootIdentity | null>> = { linux: linuxBootIdentity, darwin: darwinBootIdentity, win32: windowsBootIdentity };
@@ -46,8 +46,13 @@ export const BOOT_CLOCK_TOLERANCE_MS = 10 * 60_000;
  * compared exactly; numeric (time-derived) ids and legacy timestamps get the tolerance above. A record
  * from a "later" boot is clock skew, never proof of death. @complexity O(1).
  */
+/** Legacy records carry only a timestamp; time-derived boot ids are numeric; a UUID id has no time. */
+function recordedBootTimeMs({ bootId, atMs }: { bootId: string | undefined; atMs: number }): number | undefined {
+  if (bootId === undefined) return atMs;
+  return /^\d+$/.test(bootId) ? Number(bootId) : undefined;
+}
 export function fromEarlierBoot({ boot, bootId, atMs }: { boot: BootIdentity | undefined; bootId: string | undefined; atMs: number }, _options = {}): boolean {
   if (!boot) return false;
-  const recordedAtMs = bootId === undefined ? atMs : /^\d+$/.test(bootId) ? Number(bootId) : undefined;
+  const recordedAtMs = recordedBootTimeMs({ bootId, atMs });
   return recordedAtMs === undefined ? bootId !== boot.id : recordedAtMs < boot.startedAtMs - BOOT_CLOCK_TOLERANCE_MS;
 }

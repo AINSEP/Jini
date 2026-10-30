@@ -32,14 +32,13 @@ function resolveAgentPluginStrip(
 /** One per-chat usage strip; removing a name persists its exclusion for future turns. */
 export function AgentPluginUsage({ conversationId, messages }: { conversationId?: string | null; messages: readonly ChatMessage[] }) {
   const t = useT();
-  const [revision, setRevision] = useState(0);
+  const [, setRevision] = useState(0);
   useEffect(() => {
     const refresh = () => setRevision(value => value + 1);
     window.addEventListener(AGENT_PLUGIN_STATE_CHANGED, refresh);
     window.addEventListener('storage', refresh);
     return () => { window.removeEventListener(AGENT_PLUGIN_STATE_CHANGED, refresh); window.removeEventListener('storage', refresh); };
   }, []);
-  void revision;
   const strip = resolveAgentPluginStrip({ messages }, { conversationId });
   if (!strip) return null;
   const { id, state, plugins } = strip;

@@ -1,3 +1,5 @@
+const ARIA_LABEL = 'aria-label';
+
 import { CHAT_BUBBLE_STYLE } from '../../contracts/chat-bubble-style.js';
 import { createVanillaChatController } from './state.js';
 import type { VanillaChatControllerArgs, VanillaChatState } from './state.js';
@@ -69,7 +71,7 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   const shell = node('div', 'jini-chat-vanilla');
   const fab = button('');
   fab.className = 'jini-chat-bubble';
-  fab.setAttribute('aria-label', copy.fabLabel);
+  fab.setAttribute(ARIA_LABEL, copy.fabLabel);
   fab.setAttribute('aria-haspopup', 'dialog');
   fab.append(svgIcon({ document, path: 'M4 4h16v12H9l-5 4V4z' }));
   const panel = node('section', 'jini-chat-vanilla__panel');
@@ -77,12 +79,12 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   fab.setAttribute('aria-controls', panel.id);
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'false');
-  panel.setAttribute('aria-label', copy.title);
+  panel.setAttribute(ARIA_LABEL, copy.title);
   const header = node('header', 'jini-chat-vanilla__header');
   const title = node('strong', 'jini-chat-vanilla__title', copy.title);
   const reset = button(copy.reset);
   const close = button('');
-  close.setAttribute('aria-label', copy.close);
+  close.setAttribute(ARIA_LABEL, copy.close);
   close.append(svgIcon({ document, path: 'M6 6l12 12M18 6L6 18' }));
   header.append(title, reset, close);
   const confirmation = node('div', 'jini-chat-vanilla__confirmation');
@@ -95,7 +97,7 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   log.setAttribute('role', 'log');
   log.setAttribute('aria-live', 'off');
   log.setAttribute('aria-relevant', 'additions text');
-  log.setAttribute('aria-label', copy.title);
+  log.setAttribute(ARIA_LABEL, copy.title);
   log.tabIndex = 0;
   const status = node('div', 'jini-chat-vanilla__status');
   status.setAttribute('role', 'status');
@@ -113,19 +115,19 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   const form = node('form', 'jini-chat-vanilla__composer');
   const input = node('textarea', 'jini-chat-vanilla__input');
   input.placeholder = copy.placeholder;
-  input.setAttribute('aria-label', copy.placeholder);
+  input.setAttribute(ARIA_LABEL, copy.placeholder);
   input.maxLength = 8000;
   input.rows = 2;
   const send = button(copy.send);
   send.type = 'submit';
   send.classList.add('jini-chat-vanilla__send');
-  send.setAttribute('aria-label', copy.send);
+  send.setAttribute(ARIA_LABEL, copy.send);
   send.replaceChildren(svgIcon({ document, path: 'M5 4l15 8-15 8v-6l9-2-9-2V4z' }));
   const stop = button(copy.stop);
   form.append(input, send, stop);
   const greeting = node('p', 'jini-chat-vanilla__greeting', copy.greeting);
   const suggestions = node('div', 'jini-chat-vanilla__suggestions');
-  if (copy.suggestionsLabel) suggestions.setAttribute('aria-label', copy.suggestionsLabel);
+  if (copy.suggestionsLabel) suggestions.setAttribute(ARIA_LABEL, copy.suggestionsLabel);
   const suggestionEntries = (args.suggestions ?? []).map(text => ({ text, button: button(text) }));
   const suggestionButtons = suggestionEntries.map(entry => entry.button);
   suggestions.append(...suggestionButtons);
@@ -196,9 +198,9 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     state: VanillaChatState; composerHadFocus: boolean; stopHadFocus: boolean;
   }) => {
     if (!state.open) return;
-    if (!wasOpen && initialized) focusEntry({ busy: state.busy });
-    else if (state.busy && composerHadFocus) stop.focus();
-    else if (!state.busy && stopHadFocus) input.focus();
+    if (!wasOpen && initialized) { focusEntry({ busy: state.busy }); return; }
+    if (state.busy && composerHadFocus) { stop.focus(); return; }
+    if (!state.busy && stopHadFocus) input.focus();
   };
   const renderFocus = ({ state, composerHadFocus, stopHadFocus, panelHadFocus }: {
     state: VanillaChatState; composerHadFocus: boolean; stopHadFocus: boolean; panelHadFocus: boolean;
@@ -294,8 +296,8 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   listen(document, 'keydown', event => {
     if (!controller.getState({}).open || !panel.contains(document.activeElement)) return;
     const key = event as KeyboardEvent;
-    if (key.key === 'Escape') onEscape({ key });
-    else if (key.key === 'Tab') trapTab({ key });
+    if (key.key === 'Escape') { onEscape({ key }); return; }
+    if (key.key === 'Tab') trapTab({ key });
   });
   listen(element, 'jini-chat-open', () => {
     controller.setOpen({ open: true });

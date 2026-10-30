@@ -28,7 +28,7 @@ export function useHostSurfaceTokens(ref: RefObject<HTMLElement | null>): HostSu
     const view = element?.ownerDocument.defaultView;
     if (element === null || element === undefined || view === null || view === undefined) {
       setTokens({});
-      return;
+      return undefined;
     }
     let last: string | undefined;
     const read = () => {

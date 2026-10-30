@@ -7,6 +7,7 @@ import { accessSync, closeSync, constants, openSync, readdirSync, readSync, real
 import path, { delimiter } from 'node:path';
 import { inspectAgentExecutableResolution, userToolchainBinDirs } from './executables.js';
 import type { RuntimeAgentDef } from './types.js';
+import { trimCharsEnd } from '@jini-ai/core/text';
 
 export type AgentLaunchKind = 'selected' | 'codex-native';
 
@@ -77,7 +78,7 @@ function pathEnvKey(env: NodeJS.ProcessEnv): string {
 }
 
 function normalizePathEntry(p: string): string {
-  const trimmed = p.replace(/[/\\]+$/, '');
+  const trimmed = trimCharsEnd({ text: p, chars: '/\\' });
   return process.platform === 'win32' ? trimmed.toLowerCase() : trimmed;
 }
 

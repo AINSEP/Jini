@@ -115,15 +115,10 @@ export function parseAgyModels({ stdout }: { stdout: string }): RuntimeModelOpti
   const out = [DEFAULT_MODEL_OPTION];
   const seen = new Set<string>([DEFAULT_MODEL_OPTION.id]);
   for (const line of lines) {
-    if (/^fetching available models\.\.\.$/i.test(line)) continue;
-    const tabIndex = line.indexOf('\t');
-    if (tabIndex === -1) continue;
-    // `line` is already trimmed, so a tab inside it always has a non-blank character on each
-    // side: neither the id nor the label can come out empty here.
-    const id = line.slice(0, tabIndex).trim();
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push({ id, label: line.slice(tabIndex + 1).trim() });
+    const row = antigravityModelRow(line);
+    if (!row || seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
   }
 
   return out.length > 1 ? out : null;
@@ -340,3 +335,13 @@ export const antigravityAgentDef = {
   // default 5m).
   externalMcpInjection: 'env-passthrough',
 } satisfies RuntimeAgentDef;
+
+/** One `id<TAB>label` row of `agy models`, or `null` for the progress banner and tab-less lines. */
+function antigravityModelRow(line: string): { id: string; label: string } | null {
+  if (/^fetching available models\.\.\.$/i.test(line)) return null;
+  const tabIndex = line.indexOf('\t');
+  if (tabIndex === -1) return null;
+  // `line` is already trimmed, so a tab inside it always has a non-blank character on each
+  // side: neither the id nor the label can come out empty here.
+  return { id: line.slice(0, tabIndex).trim(), label: line.slice(tabIndex + 1).trim() };
+}

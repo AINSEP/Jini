@@ -3,6 +3,7 @@ import * as fsPromises from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { defaultPlatformMessages, type PlatformMessages } from "../messages.js";
+import { errorCodeOf } from "./errno.js";
 
 /** Synchronous seam preserves the original fail-before-rename and permission contract.
  * Descriptor ownership separates failed exclusive creates from failures after creating a temp. */
@@ -55,17 +56,28 @@ export function createNodeAtomicFilesystem(_required: Record<string, never>, { f
 }
 const DIRECTORY_SYNC_UNSUPPORTED = ["EPERM", "EISDIR", "EINVAL", "EACCES", "ENOTSUP"];
 function hasErrorCode(error: unknown, codes: readonly string[]): boolean {
-  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" && codes.includes(error.code);
+  const code = errorCodeOf(error);
+  return code !== undefined && codes.includes(code);
 }
 function isMissing(error: unknown): boolean {
   return hasErrorCode(error, ["ENOENT"]);
 }
 /** Runs a probe where only ENOENT means absent; every other failure propagates. */
 function ignoreMissing<T>(probe: () => T): T | undefined {
-  try { return probe(); } catch (error) { if (!isMissing(error)) throw error; return undefined; }
+  try {
+    return probe();
+  } catch (error) {
+    if (!isMissing(error)) throw error;
+    return undefined;
+  }
 }
 async function ignoreMissingAsync<T>(probe: () => Promise<T>): Promise<T | undefined> {
-  try { return await probe(); } catch (error) { if (!isMissing(error)) throw error; return undefined; }
+  try {
+    return await probe();
+  } catch (error) {
+    if (!isMissing(error)) throw error;
+    return undefined;
+  }
 }
 /** Cleanup must never mask the failure that triggered it. */
 function attempt(action: () => void): void {
@@ -92,8 +104,9 @@ function checkedTempPath({ filePath, temporary }: { filePath: string; temporary:
   if (path.resolve(path.dirname(temporary)) !== path.resolve(path.dirname(filePath)) || path.resolve(temporary) === path.resolve(filePath) || temporary.includes("\0")) throw new RangeError(messagesFor(options).atomicTempPathInvalid());
   return temporary;
 }
+const DOT_SEGMENTS: ReadonlySet<string> = new Set([".", ".."]);
 function tokenTempPath({ filePath, token }: { filePath: string; token: string }, options: AtomicWriteOptions): string {
-  if (!token || token === "." || token === ".." || /[/\\\x00]/.test(token)) throw new RangeError(messagesFor(options).atomicTempNameInvalid());
+  if (!token || DOT_SEGMENTS.has(token) || token.includes("\0") || /[/\\]/.test(token)) throw new RangeError(messagesFor(options).atomicTempNameInvalid());
   return path.join(path.dirname(filePath), `.${path.basename(filePath)}.${token}.tmp`);
 }
 function temporaryPath({ filePath }: { filePath: string }, options: AtomicWriteOptions): string {

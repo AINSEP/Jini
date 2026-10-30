@@ -20,8 +20,11 @@ export function mediaRepoWithCreator(required: { mediaRepo: MediaRepoPort; princ
  * Omitting an unknown field preserves compatibility with legacy serialized records. */
 export function preserveMediaCreator(required: { record: MediaRecord; original: MediaRecord },
   _optional: Record<string, never> = {}): MediaRecord {
-  const { createdBy: _ignored, kind: _kind, originalFilename: _filename, ...metadata } = required.record;
-  return { ...metadata, ...(required.original.kind !== undefined ? { kind: required.original.kind } : {}),
+  const metadata: Omit<MediaRecord, "createdBy" | "kind" | "originalFilename"> = { ...required.record };
+  for (const key of ["createdBy", "kind", "originalFilename"]) Reflect.deleteProperty(metadata, key);
+  return {
+    ...metadata, ...(required.original.kind !== undefined ? { kind: required.original.kind } : {}),
     ...(required.original.originalFilename !== undefined ? { originalFilename: required.original.originalFilename } : {}), ...(required.original.createdBy !== undefined
-    ? { createdBy: required.original.createdBy } : {}) };
+      ? { createdBy: required.original.createdBy } : {})
+  };
 }

@@ -13,7 +13,9 @@ export type PaymentsAlertKind =
   /** A webhook inbox row was dead-lettered. */
   | "inbox-dead-letter"
   /** Evidence was quarantined. */
-  | "quarantine";
+  | "quarantine"
+  /** Payment evidence could not fulfill its referenced order; an operator must investigate. */
+  | "fulfillment-blocked";
 
 export interface PaymentsAlert {
   readonly kind: PaymentsAlertKind;

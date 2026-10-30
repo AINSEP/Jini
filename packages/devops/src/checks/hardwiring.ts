@@ -36,22 +36,39 @@ export const HARDWIRING_RULES = [
   'HW5-jini-export', 'HW6-boot-default', 'HW7-public-react', 'HW8-provider-url', 'HW9-plugin-import',
 ] as const;
 
+/** Vendor SDK packages matched by exact name (or a subpath of it). Scoped vendors are in VENDOR_SCOPES. */
+const VENDOR_PACKAGES: ReadonlySet<string> = new Set([
+  'better-sqlite3', 'pg', 'postgres', 'mysql', 'mysql2', 'sqlite3', '@electric-sql/pglite', 'openai', '@anthropic-ai/sdk',
+  '@google/genai', '@google/generative-ai', '@supabase/supabase-js', '@libsql/client', 'composio-core', 'resend', 'stripe',
+  'replicate', '@fal-ai/client', 'sharp', 'undici', 'node-pty', 'playwright', 'playwright-core', 'puppeteer', 'puppeteer-core',
+]);
+const VENDOR_SCOPES = /^@(?:aws-sdk|azure|google-cloud|ai-sdk|tavily|composio|e2b)\//;
+
+/** The package a bare specifier names: its first segment, or first two for a scoped package. */
+function packageName(specifier: string): string {
+  return specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
+}
+
 /** Bind the installed compiler, keeping this optional parser out of the runtime dependency graph.
  * Inspection is O(n) AST nodes, plus lexical-scope scans for bare fetch calls; no external I/O.
  * Only the rule-identifying value is hashed for debt identity and never included in diagnostics (it may contain secrets).
  */
 export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts }, _options: Record<string, never> = {}) {
   function parse({ file, source }: { file: string; source: string }, _options: Record<string, never> = {}): ts.SourceFile {
-    const tree = c.createSourceFile(file, source, c.ScriptTarget.Latest, true,
-      /\.[jt]sx$/.test(file) ? c.ScriptKind.TSX : /\.[cm]?js$/.test(file) ? c.ScriptKind.JS : c.ScriptKind.TS);
+    const tree = c.createSourceFile(file, source, c.ScriptTarget.Latest, true, scriptKind(file));
     const failure = syntaxError({ tree, file });
     if (failure) throw failure;
     return tree;
   }
 
+  function scriptKind(file: string): ts.ScriptKind {
+    if (/\.[jt]sx$/.test(file)) return c.ScriptKind.TSX;
+    return /\.[cm]?js$/.test(file) ? c.ScriptKind.JS : c.ScriptKind.TS;
+  }
+
   function member(node: ts.Node, name: string): boolean {
-    return (c.isPropertyAccessExpression(node) && node.name.text === name) ||
-      (c.isElementAccessExpression(node) && c.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === name);
+    if (c.isPropertyAccessExpression(node)) return node.name.text === name;
+    return c.isElementAccessExpression(node) && c.isStringLiteralLike(node.argumentExpression) && node.argumentExpression.text === name;
   }
 
   function env(node: ts.Node): boolean {
@@ -145,17 +162,16 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
 
   // `provider-plugins/` holds provider plugin sources: each is a vendor adapter by definition.
   function adapter(file: string): boolean {
-    return /(?:^|\/)(?:adapters?|kernel|providers?|provider-plugins)(?:\/|\.)|\.adapter\.[^.]+$/.test(file);
+    return /(?:^|\/)(?:adapters?|kernel|providers?|provider-plugins)[/.]/.test(file) || /\.adapter\.[^.]+$/.test(file);
   }
 
   function urlOwner(file: string): boolean {
-    return adapter(file) || /(?:^|\/)catalogs?(?:\/|\.)/.test(file);
+    return adapter(file) || /(?:^|\/)catalogs?[/.]/.test(file);
   }
 
   function vendor(specifier: string): boolean {
-    return /^(?:better-sqlite3|pg|postgres|mysql2?|sqlite3|@electric-sql\/pglite|openai|@anthropic-ai\/sdk|@aws-sdk\/|@azure\/|@google-cloud\/|@google\/(?:genai|generative-ai)|@supabase\/supabase-js|@libsql\/client|@ai-sdk\/|@tavily\/|@composio\/|composio-core|resend|stripe|replicate|@fal-ai\/client|sharp|undici)(?:$|\/)/.test(specifier) ||
-      /^@(?:aws-sdk|azure|google-cloud|ai-sdk|tavily|composio|e2b)\//.test(specifier) ||
-      /^(?:node-pty|playwright(?:-core)?|puppeteer(?:-core)?)(?:$|\/)/.test(specifier) ||
+    // A vendor scope matches any of its packages; the named packages match themselves and their subpaths.
+    return VENDOR_PACKAGES.has(packageName(specifier)) || VENDOR_SCOPES.test(specifier) ||
       /^(?:@[^/]+\/(?:sdk|[^/]+-sdk)|[^@/]+-sdk)(?:$|\/)/.test(specifier);
   }
 
@@ -184,13 +200,16 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     return false;
   }
 
+  function isGlobalThisFetch(value: ts.Expression | undefined): boolean {
+    if (!value || !member(value, 'fetch') || !('expression' in value)) return false;
+    const target = value.expression as ts.Node;
+    return c.isIdentifier(target) && target.text === 'globalThis';
+  }
+
   function statementBindsFetch(statement: ts.Statement): boolean {
     if (c.isVariableStatement(statement)) return statement.declarationList.declarations.some((d) => {
       // Renaming the global to a local `fetch` is still a global call, not an injected port.
-      const value = d.initializer;
-      const nativeAlias = value && member(value, 'fetch') && 'expression' in value &&
-        c.isIdentifier(value.expression as ts.Node) && (value.expression as ts.Identifier).text === 'globalThis';
-      return bindsFetch(d.name) && !nativeAlias;
+      return bindsFetch(d.name) && !isGlobalThisFetch(d.initializer);
     });
     if (c.isFunctionDeclaration(statement)) return statement.name?.text === 'fetch';
     if (!c.isImportDeclaration(statement) || !statement.importClause) return false;
@@ -203,8 +222,8 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     let expression = node;
     while (c.isParenthesizedExpression(expression.parent)) expression = expression.parent;
     const parent = expression.parent;
-    return (c.isBinaryExpression(parent) && parent.operatorToken.kind === c.SyntaxKind.QuestionQuestionToken && parent.right === expression) ||
-      ((c.isParameter(parent) || c.isBindingElement(parent)) && parent.initializer === expression);
+    if (c.isBinaryExpression(parent)) return parent.operatorToken.kind === c.SyntaxKind.QuestionQuestionToken && parent.right === expression;
+    return (c.isParameter(parent) || c.isBindingElement(parent)) && parent.initializer === expression;
   }
 
   /** Binding defaults and initializers are implementation; debt identity is only the declared names.
@@ -216,7 +235,9 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
 
   function mutableModuleState(node: ts.Node, tree: ts.SourceFile): boolean {
     if (!c.isVariableDeclaration(node) || !moduleScope(node) || !c.isVariableDeclarationList(node.parent)) return false;
-    if (!(node.parent.flags & c.NodeFlags.Const)) return true;
+    // A flag test, not a boolean `&&`: the Const bit marks `const` (and `await using`) lists.
+    const constBinding = (node.parent.flags & c.NodeFlags.Const) !== 0;
+    if (!constBinding) return true;
     if (!node.initializer || !c.isNewExpression(node.initializer) || !c.isIdentifier(node.initializer.expression)) return false;
     if (!['Map', 'Set'].includes(node.initializer.expression.text)) return false;
     // Readonly<Map> only freezes properties; it still exposes .set/.delete.
@@ -271,7 +292,7 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
     const found = inspectImports(input, tree, refs);
     const report = (node: ts.Node, rule: string, reason: string, identity: string) => found.push(violation(tree, node, rule, reason, identity));
     const jini = input.mode === 'jini';
-    const envExempt = /(?:^|\/)(?:bin|cli|testing)(?:\/|\.)/.test(input.file);
+    const envExempt = /(?:^|\/)(?:bin|cli|testing)[/.]/.test(input.file);
     const ownsUrls = urlOwner(input.file);
     if (!jini && !refs.some((ref) => ref.specifier.startsWith('@jini-ai/'))) {
       for (const item of exportedFunctions({ tree })) if (input.jiniExports?.has(item.name)) report(item.node, 'HW5-jini-export', `Export ${item.name} duplicates a Jini function without using its owner.`, item.name);

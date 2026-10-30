@@ -1,0 +1,45 @@
+{
+  "name": "@jini-ai/plugin-observability-opentelemetry",
+  "version": "0.7.0",
+  "description": "Standalone OpenTelemetry server observability provider artifact.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-observability-opentelemetry"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "node",
+    "entries": {
+      "./package.json": "node",
+      "./plugins/*": "node"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugins/*": "./plugins/*"
+  },
+  "files": [
+    "plugins/observability-opentelemetry",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts observability-opentelemetry .",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts observability-opentelemetry .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@jini-ai/diagnostics": "workspace:^",
+    "@jini-ai/plugins": "workspace:^",
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

@@ -54,10 +54,14 @@ export function parseDiagnosticBlocks({ output }: { output: string }): string[] 
   const blocks: string[] = [];
   let current: string[] = [];
   for (const line of output.replace(/\r\n/g, '\n').split('\n')) {
-    if (/^\S.*\(\d+,\d+\): error TS\d+:/.test(line) || /^error TS\d+:/.test(line)) {
+    const startsDiagnostic = /^\S.*\(\d+,\d+\): error TS\d+:/.test(line) || /^error TS\d+:/.test(line);
+    if (startsDiagnostic) {
       if (current.length) blocks.push(current.join('\n').trimEnd());
       current = [line];
-    } else if (current.length) current.push(line);
+      continue;
+    }
+    // Continuation lines belong to the open diagnostic; lines before the first one are dropped.
+    if (current.length) current.push(line);
   }
   if (current.length) blocks.push(current.join('\n').trimEnd());
   return blocks;

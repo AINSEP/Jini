@@ -53,7 +53,9 @@ export function mergeRunEvents({ saved, incoming }: { saved?: readonly AgentEven
       const text = event.text.slice(skip);
       skip = Math.max(0, skip - event.text.length);
       if (text) result.push({ ...event, text });
-    } else if (claimNewKey({ key: identity(event, incomingUsage), keys })) {
+      continue;
+    }
+    if (claimNewKey({ key: identity(event, incomingUsage), keys })) {
       result.push(event);
     }
   }

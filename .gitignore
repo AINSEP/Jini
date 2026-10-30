@@ -1,6 +1,11 @@
 node_modules/
 dist/
 dist-tarballs/
+# Reviewed plugin manifests/docs stay tracked; payloads are generated from their existing sources.
+/packages/plugin-*/plugins/
+/packages/plugin-ui-ux-design/ui-ux-design/
+/packages/plugin-*/.provider-build-*/
+/packages/plugin-*/.agent-package-*/
 dist-mcpui-view/
 *.tsbuildinfo
 .tmp/

@@ -84,7 +84,10 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
     await contain({ entryPath: journalPath });
     let text: string;
     try { text = await ports.filesystem.readFile(journalPath, 'utf8'); }
-    catch (error) { if (!isMissing({ error })) throw error; return undefined; }
+    catch (error) {
+      if (!isMissing({ error })) throw error;
+      return undefined;
+    }
     let value: unknown;
     try { value = JSON.parse(text); }
     catch (cause) { throw invalidJournal({ cause }); }
@@ -117,7 +120,10 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
   async function realDirectoryExists({ root: target }: { root: string }, _optional = {}): Promise<boolean> {
     let stats;
     try { stats = await ports.filesystem.lstat(target); }
-    catch (error) { if (!isMissing({ error })) throw error; return false; }
+    catch (error) {
+      if (!isMissing({ error })) throw error;
+      return false;
+    }
     if (!stats.isDirectory()) throw new AgentPluginUpdateError({ code: 'PLUGIN_UPDATE_PATH_UNSAFE', message: 'An update recovery path is not a real directory; repair it by hand.' });
     await contain({ entryPath: target });
     return true;
@@ -127,7 +133,10 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
     await contain({ entryPath: rollbackDir });
     let entries;
     try { entries = await ports.filesystem.readdir(rollbackDir, { withFileTypes: true }); }
-    catch (error) { if (!isMissing({ error })) throw error; return []; }
+    catch (error) {
+      if (!isMissing({ error })) throw error;
+      return [];
+    }
     return entries.filter(entry => entry.isDirectory() && DIGEST_PATTERN.test(entry.name)).map(entry => path.join(rollbackDir, entry.name));
   }
   return { read, write, clear, finish, prepare, listRollbackRoots, realDirectoryExists, rollbackDir,

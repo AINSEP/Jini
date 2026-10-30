@@ -64,11 +64,13 @@ export const DEFAULT_ARTIFACT_STUB_GUARD_CONFIG: ArtifactStubGuardConfig = {
 
 /** Slugifies a free-form identifier into a filename-safe basename (lowercase, `[a-z0-9_-]`, max 60 chars). */
 export function slugifyArtifactIdentifier({ value }: { value: string }): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
+  const dashed = value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  // Edge dashes are trimmed by scanning; /^-+|-+$/ backtracks quadratically on long dash runs.
+  let start = 0;
+  while (dashed[start] === '-') start += 1;
+  let end = dashed.length;
+  while (end > start && dashed[end - 1] === '-') end -= 1;
+  return dashed.slice(start, end).slice(0, 60);
 }
 
 /** Fallback basename used when a slugified identifier is empty (e.g. an all-non-ASCII identifier strips to nothing). */

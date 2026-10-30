@@ -105,6 +105,7 @@ export function SkillRow({
   // user-owned override, so every edit affordance says so.
   const editActionLabel = builtIn ? l.overrideCreateLabel : l.editLabel;
 
+  const editFormHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'edit-form' }) } : {};
   return (
     <div className={skillRowClassName({ enabled, expanded })} data-testid={`skill-row-${skill.id}`}>
       <div className="jini-skills-row-head">
@@ -182,7 +183,7 @@ export function SkillRow({
           onCancel={onCancelEdit}
           onSubmit={onSubmitEdit}
           labels={labels}
-          {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'edit-form' }) } : {})}
+          {...editFormHandleProps}
         />
       ) : null}
     </div>

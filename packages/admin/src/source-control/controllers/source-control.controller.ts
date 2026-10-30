@@ -6,7 +6,8 @@ import { blankSourceControlDraft, sourceControlProviders, defaultSourceControlCr
 function readySaveTarget({ state, providerId }: { state: SourceControlState; providerId: string }): { info: SourceControlProviderInfo; draft: SourceControlDraft } | null {
   const draft = state.drafts[providerId] ?? blankSourceControlDraft({});
   const info = sourceControlProviders({ providers: state.providers, credentials: state.credentials }).find(p => p.id === providerId);
-  return state.loaded && !draft.saving && info && sourceControlReady({ info, draft }) ? { info, draft } : null;
+  if (!state.loaded || draft.saving || !info) return null;
+  return sourceControlReady({ info, draft }) ? { info, draft } : null;
 }
 /** Replaces the row with `summary`'s id in place, or appends `summary` when it is new. */
 function spliceCredential({ credentials, summary }: { credentials: readonly SourceControlCredential[]; summary: SourceControlCredential }): readonly SourceControlCredential[] {
@@ -20,7 +21,9 @@ export function createSourceControlController({ api, permissions = [] }: { api: 
   const canWrite = () => canRead() && grants.has('source-control.credentials.write');
   function patchDraft(id: string, patch: Partial<SourceControlDraft>) { const state = store.getSnapshot(); store.set({ patch: { drafts: { ...state.drafts, [id]: { ...(state.drafts[id] ?? blankSourceControlDraft({})), ...patch } } } }); }
   async function load(_required: Record<string, never>, _optional = {}) {
-    if (!canRead()) return; const ticket = ++generation, revision = credentialRevision; store.set({ patch: { loading: true } });
+    if (!canRead()) return;
+    generation += 1;
+    const ticket = generation, revision = credentialRevision; store.set({ patch: { loading: true } });
     // Catalog failure must not hide saved connections; retain each successful store independently.
     await Promise.all([
       (async () => { try { const credentials = await api.list({}, { signal: store.signal }); if (ticket === generation && revision === credentialRevision) store.set({ patch: { credentials: credentials.map(row => sourceControlSummary({ row })), loaded: true, error: null } }); } catch { if (ticket === generation) store.set({ patch: { error: 'Connections unavailable' } }); } })(),
@@ -37,7 +40,8 @@ export function createSourceControlController({ api, permissions = [] }: { api: 
     const current = defaultSourceControlCredential({ credentials: state.credentials, providerId }), connection = buildSourceControlConnection(target); patchDraft(providerId, { saving: true, error: null });
     try {
       const row = await writeCredential({ current, connection });
-      if (store.signal.aborted) return false; credentialRevision++;
+      if (store.signal.aborted) return false;
+      credentialRevision++;
       // One round trip per write: splice the summary, then erase accepted secret drafts immediately.
       store.set({ patch: { credentials: spliceCredential({ credentials: store.getSnapshot().credentials, summary: sourceControlSummary({ row }) }) } }); patchDraft(providerId, blankSourceControlDraft({})); return true;
     } catch (error) { patchDraft(providerId, { saving: false, error: sourceControlErrorMessage({ error }) }); return false; }

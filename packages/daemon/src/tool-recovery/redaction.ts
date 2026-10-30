@@ -214,8 +214,7 @@ function redactFailedResult(result: ToolExecutionResult, context: FailureContext
     return { ...result, error: deps.redactSecretShapes({ text: result.error }).text };
   }
 
-  const mintErrorId = deps.mintErrorId;
-  const onFailure = deps.onFailure;
+  const { mintErrorId, onFailure } = deps;
   const { text, redactions } = deps.redactSecretShapes({ text: result.error ?? `tool "${context.toolId}" failed` });
   const errorId = mintErrorId();
 

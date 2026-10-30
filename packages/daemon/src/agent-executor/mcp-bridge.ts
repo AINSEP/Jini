@@ -294,12 +294,9 @@ export function buildMcpBridgeDelivery(input: {
   readonly credential: string | undefined;
   readonly messageRelayNonce?: string;
 }): McpBridgeDelivery | null {
-  const { cwd, runId, strategy, options, credential } = input;
+  const { cwd, runId, strategy, options } = input;
   if (options === undefined || strategy === undefined) return null;
-  const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, {
-    ...(credential === undefined ? {} : { credential }),
-    ...(input.messageRelayNonce ? { messageRelayNonce: input.messageRelayNonce } : {}),
-  });
+  const serverEntry = buildMcpJsonServerEntry({ runId: runId, options: options }, bridgeCredentialOptions(input));
   switch (strategy) {
     case 'claude-mcp-json':
       return { kind: 'claude-mcp-json', mcpJsonPath: mcpJsonPathForRun(cwd, runId), serverEntry };
@@ -312,7 +309,19 @@ export function buildMcpBridgeDelivery(input: {
       return { kind: 'codex-toml', serverEntry };
     case 'env-passthrough':
       return { kind: 'env-passthrough', serverEntry };
+    default: {
+      // Unreachable: every bridge strategy has a case above, and a new one fails typecheck here.
+      const unknownStrategy: never = strategy;
+      throw new TypeError(`Unknown MCP bridge strategy: ${String(unknownStrategy)}`);
+    }
   }
+}
+
+function bridgeCredentialOptions(input: { credential: string | undefined; messageRelayNonce?: string }) {
+  return {
+    ...(input.credential === undefined ? {} : { credential: input.credential }),
+    ...(input.messageRelayNonce ? { messageRelayNonce: input.messageRelayNonce } : {}),
+  };
 }
 
 export function defaultReadMcpJsonFile({ path }: { readonly path: string }): Promise<string> {

@@ -61,8 +61,9 @@ export function createDurableJsonFile(
   { pollMs = 10, staleMs = 30000 }: { pollMs?: number; staleMs?: number } = {},
 ): DurableJsonFile {
   if (!filePath) throw new TypeError("filePath is required");
-  if (!Number.isSafeInteger(pollMs) || pollMs <= 0 ||
-    ((!Number.isSafeInteger(staleMs) && staleMs !== Infinity) || staleMs <= 0)) throw new TypeError("lock intervals must be positive safe integers");
+  const validPoll = Number.isSafeInteger(pollMs) && pollMs > 0;
+  const validStale = (Number.isSafeInteger(staleMs) || staleMs === Infinity) && staleMs > 0;
+  if (!validPoll || !validStale) throw new TypeError("lock intervals must be positive safe integers");
   // A synchronous read-modify-write normally takes milliseconds; five seconds allows contention
   // while refusing a wedged change. Short ten-millisecond polling fits those short critical sections.
   // Thirty-second staleness also handles pid reuse after a crash:
@@ -162,26 +163,33 @@ export function salvageJsonPrefix({ text }: { text: string }, { maxAttempts = 10
 
 // Cut only at completed strings/objects/arrays, sufficient for string-valued lists. Damage inside a
 // bare number/boolean falls back to the previous cut and loses that element rather than guessing it.
+const CLOSER_FOR: ReadonlyMap<string, string> = new Map([["{", "}"], ["[", "]"]]);
+const CLOSERS: ReadonlySet<string> = new Set(["}", "]"]);
+
 function elementEnds(text: string): PrefixCut[] {
   const open: string[] = [];
   const cuts: PrefixCut[] = [];
-  for (let index = 0; index < text.length; index += 1) {
+  let index = 0;
+  while (index < text.length) {
     const char = text[index]!;
+    const closer = CLOSER_FOR.get(char);
+    // An opener only records its closer; a completed string or container is a cut point.
+    if (closer !== undefined) open.push(closer);
+    if (CLOSERS.has(char)) open.pop();
     if (char === '"') index = endOfString(text, index);
-    else if (char === "{" || char === "[") {
-      open.push(char === "{" ? "}" : "]");
-      continue;
-    } else if (char === "}" || char === "]") open.pop();
-    else continue;
-    cuts.push({ end: index + 1, closers: [...open].reverse().join("") });
+    if (char === '"' || CLOSERS.has(char)) cuts.push({ end: index + 1, closers: [...open].reverse().join("") });
+    index += 1;
   }
   return cuts;
 }
 
 function endOfString(text: string, start: number): number {
-  for (let index = start + 1; index < text.length; index += 1) {
-    if (text[index] === "\\") index += 1;
-    else if (text[index] === '"') return index;
+  let index = start + 1;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '"') return index;
+    // A backslash escapes the next character, whatever it is.
+    index += char === "\\" ? 2 : 1;
   }
   return text.length;
 }

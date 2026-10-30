@@ -15,7 +15,8 @@ export function readCookie(doc: Document, name: string): string | null {
 
 export function writeCookie(doc: Document, { name, value, maxAgeS }: { name: string; value: string; maxAgeS: number }, { domain }: { domain?: string | undefined } = {}): void {
   const secure = doc.defaultView?.location.protocol === 'https:' ? '; Secure' : '';
-  doc.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${Math.floor(maxAgeS)}; SameSite=Lax${secure}${domain ? `; Domain=${domain}` : ''}`;
+  const domainAttribute = domain ? '; Domain=' + domain : '';
+  doc.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${Math.floor(maxAgeS)}; SameSite=Lax${secure}${domainAttribute}`;
 }
 
 /** Vendors set cookies on the registrable domain, so expire on the host and each parent domain. */
@@ -39,7 +40,7 @@ export function purge(doc: Document, storage?: StoragePrefixes): void {
 }
 
 // MOVED-FROM: @jini-ai/cms consent/html/client.ts template release (ordered, each template consumed once).
-// TODO(P4): delete the cms runtime once the consumer inserts this client.
+// Follow-up (P4): delete the cms runtime once the consumer inserts this client.
 /** Allowed inert tags become live, in authored order (async=false). Unknown labels stay inert.
  * @complexity O(inert tags). */
 export function activateInert(doc: Document, { allowed, ran }: { allowed: Choices; ran: Set<Optional> }): void {
@@ -90,7 +91,7 @@ function syncInputs(root: HTMLElement, s: ConsentState): void {
 }
 
 /** A durable grant that is still waiting for its receipt keeps the banner open with its alert. */
-const waiting = (s: ConsentState) => OPTIONAL.some(c => s.choices[c] && !s.allowed[c]);
+export const waiting = (s: ConsentState) => OPTIONAL.some(c => s.choices[c] && !s.allowed[c]);
 
 /** Wire #jini-consent (renderBanner's markup) to the public API. @complexity O(1) per click. */
 export function bindBanner({ api, doc }: { api: JiniConsentApi; doc: Document }): void {

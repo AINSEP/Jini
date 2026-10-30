@@ -46,9 +46,10 @@ export interface SelectProps {
  */
 export function renderSelect(props: SelectProps): string {
   const id = fieldElementId(props.name);
+  const placeholderSelected = props.value === undefined ? 'selected ' : '';
   const placeholderOption =
     props.required === true
-      ? `\n  <option value="" ${props.value === undefined ? 'selected ' : ''}disabled>${escapeHtml(props.placeholder ?? '—')}</option>`
+      ? `\n  <option value="" ${placeholderSelected}disabled>${escapeHtml(props.placeholder ?? '—')}</option>`
       : '';
   const options = props.options
     .map((option) => {

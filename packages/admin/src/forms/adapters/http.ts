@@ -1,5 +1,6 @@
 import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission } from '../../core/ports/forms.js';
 import type { FormsTrashPort } from '../ports.js';
+import { querySuffix } from '../../core/transport/query-suffix.js';
 /** The host owns auth, workspace addressing, retries, error decoding and telemetry. */
 export interface FormsTransportPort {
   request<T>(required: { path: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown }, optional?: { signal?: AbortSignal }): Promise<T>;
@@ -13,7 +14,7 @@ export function createHttpFormsApi(
 ): AdminFormsPort {
   const base = basePath.replace(/\/$/, '');
   const formPath = (id: string) => `${base}/${encodeURIComponent(id)}`;
-  const submissionPath = (formId: string, submissionId?: string) => `${formPath(formId)}/submissions${submissionId === undefined ? '' : `/${encodeURIComponent(submissionId)}`}`;
+  const submissionPath = (formId: string, submissionId?: string) => `${formPath(formId)}/submissions${submissionId === undefined ? '' : '/' + encodeURIComponent(submissionId)}`;
   const mediaBase = mediaBasePath?.replace(/\/$/, '');
   return {
     ...(mediaBase === undefined ? {} : {
@@ -37,7 +38,7 @@ export function createHttpFormsApi(
       if (options.cursor) params.set('cursor', options.cursor);
       if (options.limit) params.set('limit', String(options.limit));
       const qs = params.toString();
-      const response = await transport.request<{ data: AdminFormSubmission[]; nextCursor: string | null }>({ path: `${submissionPath(formId)}${qs ? `?${qs}` : ''}`, method: 'GET' });
+      const response = await transport.request<{ data: AdminFormSubmission[]; nextCursor: string | null }>({ path: `${submissionPath(formId)}${querySuffix(qs)}`, method: 'GET' });
       return { items: response.data, nextCursor: response.nextCursor };
     },
     async getFormSubmission({ formId, submissionId }, _optional = {}) {

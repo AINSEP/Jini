@@ -188,7 +188,8 @@ export function useAttachmentPreviewModal(
   const attemptImage =
     !imageFailed && cachedFile !== undefined && looksLikeImageAttachment({ attachment: attachment }) && canCreateObjectUrl();
   const attemptText = !attemptImage && cachedFile !== undefined && looksLikeTextAttachment(attachment.name);
-  const status: AttachmentPreviewStatus = attemptImage ? 'image' : attemptText ? 'text' : 'unsupported';
+  const fallbackStatus: AttachmentPreviewStatus = attemptText ? 'text' : 'unsupported';
+  const status: AttachmentPreviewStatus = attemptImage ? 'image' : fallbackStatus;
 
   // Object URL: created/revoked in an effect (not `useMemo`) so a React 18 Strict Mode double-render
   // can never create two URLs and revoke only one — the cleanup below always pairs with the create

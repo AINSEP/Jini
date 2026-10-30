@@ -50,7 +50,8 @@ function pascal(name: string): string {
 function columnType(column: ColumnRow): string {
   const nullable = column.is_nullable === "YES";
   const generated = column.column_default !== null || column.is_identity === "YES";
-  if (column.data_type === "boolean") return nullable ? "NullableBool" : generated ? "GeneratedBool" : "Bool";
+  if (column.data_type === "boolean" && nullable) return "NullableBool";
+  if (column.data_type === "boolean") return generated ? "GeneratedBool" : "Bool";
   const scalar = SCALAR[column.data_type];
   if (scalar === undefined) {
     throw new Error(`typegen: no TypeScript type for ${column.table_name}.${column.column_name} (${column.data_type})`);

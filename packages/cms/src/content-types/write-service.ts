@@ -1,3 +1,4 @@
+type FieldIndexAction = "provision" | "teardown" | "reprovision";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import { EntityNotLiveError } from "../core/entity-liveness.js";
 import type { Clock } from "@jini-ai/core/primitives";
@@ -97,7 +98,7 @@ export interface IndexProvisionerPort {
   applyFieldIndexTransitions(input: {
     workspaceId: string;
     contentTypeKey: string;
-    transitions: Array<{ fieldName: string; action: "provision" | "teardown" | "reprovision" }>;
+    transitions: Array<{ fieldName: string; action: FieldIndexAction }>;
   }): Promise<void>;
 }
 
@@ -280,7 +281,8 @@ export async function registerContentType(
   const authResult = await deps.authorize({
     principalId: input.actorId,
     permission: "admin.collections.manage",
-    workspaceId: input.workspaceId }, { entityType: "content-type" });
+    workspaceId: input.workspaceId
+  }, { entityType: "content-type" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot register a content type (${authResult.reason})` }) };
   }
@@ -311,15 +313,17 @@ export async function registerContentType(
   };
 
   try {
-    await deps.repo.transaction({ fn: async () => {
-      // The check that actually closes the race: two concurrent first-widget creates both see the
-      // pre-check above return null, but only one of them can win this in-tx re-check before save.
-      const existingInTx = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.key });
-      if (existingInTx) {
-        throw new ContentTypeAlreadyExistsError({ key: input.key, tombstoned: existingInTx.status === "tombstone" });
+    await deps.repo.transaction({
+      fn: async () => {
+        // The check that actually closes the race: two concurrent first-widget creates both see the
+        // pre-check above return null, but only one of them can win this in-tx re-check before save.
+        const existingInTx = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.key });
+        if (existingInTx) {
+          throw new ContentTypeAlreadyExistsError({ key: input.key, tombstoned: existingInTx.status === "tombstone" });
+        }
+        await persistWithRevision({ deps, input, op: "register", row: contentType, recordedAt: now });
       }
-      await persistWithRevision({ deps, input, op: "register", row: contentType, recordedAt: now });
-    } });
+    });
   } catch (err) {
     if (err instanceof ContentTypeAlreadyExistsError) return { ok: false, error: err };
     throw err;
@@ -372,7 +376,8 @@ export async function updateContentTypeFields(
   const authResult = await deps.authorize({
     principalId: input.actorId,
     permission: "admin.collections.manage",
-    workspaceId: input.workspaceId }, { entityType: "content-type" });
+    workspaceId: input.workspaceId
+  }, { entityType: "content-type" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot update content type '${input.key}' (${authResult.reason})` }) };
   }
@@ -405,9 +410,11 @@ export async function updateContentTypeFields(
   const now = kernelNowIso({ clock: deps.clock });
   const updated: ContentTypeRecord = { ...current, fields: after, label: input.label ?? current.label, version: current.version + 1 };
 
-  await deps.repo.transaction({ fn: async () => {
-    await persistWithRevision({ deps, input, op: "field-change", row: updated, recordedAt: now });
-  } });
+  await deps.repo.transaction({
+    fn: async () => {
+      await persistWithRevision({ deps, input, op: "field-change", row: updated, recordedAt: now });
+    }
+  });
 
   await deps.indexProvisioner.applyFieldIndexTransitions({
     workspaceId: input.workspaceId,
@@ -430,12 +437,12 @@ export async function updateContentTypeFields(
 function computeFullReplaceTransitions(
   before: ContentTypeFieldDef[],
   after: ContentTypeFieldDef[]
-): Array<{ fieldName: string; action: "provision" | "teardown" | "reprovision" }> {
+): Array<{ fieldName: string; action: FieldIndexAction }> {
   const beforeByName = new Map(before.map((f) => [f.name, f]));
   const afterByName = new Map(after.map((f) => [f.name, f]));
   const allNames = new Set([...beforeByName.keys(), ...afterByName.keys()]);
 
-  const transitions: Array<{ fieldName: string; action: "provision" | "teardown" | "reprovision" }> = [];
+  const transitions: Array<{ fieldName: string; action: FieldIndexAction }> = [];
   for (const name of allNames) {
     const b = beforeByName.get(name);
     const a = afterByName.get(name);

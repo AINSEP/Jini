@@ -23,13 +23,10 @@
  * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
 
-/**
- * Tracks the tail of the promise chain for each in-flight/queued key. An
- * entry is removed once its own critical section is the last one queued and
- * has settled, so the map stays bounded by the number of sha256 values with
- * work currently in flight — not by the number ever seen.
- */
-const lockTails = new Map<string, Promise<void>>();
+import { createKeyedLock } from "./transform-lock.js";
+
+// Uploads, replacements and GC share this hash namespace; transform/rendition locks stay separate.
+const withHashLock = createKeyedLock({});
 
 /**
  * Runs `criticalSection` exclusively with respect to any other call
@@ -44,18 +41,5 @@ const lockTails = new Map<string, Promise<void>>();
  * @overallScore 100
  */
 export function withSha256Lock<T>(requiredArgs: { key: string; criticalSection: () => Promise<T> }, optionalArgs: Record<string, never> = {}): Promise<T> {
-  const { key, criticalSection } = requiredArgs;
-  const priorTail = lockTails.get(key) ?? Promise.resolve();
-  const run = priorTail.then(criticalSection, criticalSection);
-  const settledTail: Promise<void> = run.then(
-    () => undefined,
-    () => undefined
-  );
-  lockTails.set(key, settledTail);
-  void settledTail.then(() => {
-    if (lockTails.get(key) === settledTail) {
-      lockTails.delete(key);
-    }
-  });
-  return run;
+  return withHashLock(requiredArgs, optionalArgs);
 }

@@ -56,8 +56,9 @@ const MEDIA_LAYOUTS: readonly string[] = ['single', ...LEGACY_LAYOUTS];
 
 /** `${path}.alt`/`${path}.caption` (or bare `${key}` with no path) type errors for optional text fields. */
 function stringFieldErrors({ record, keys }: { record: Record<string, unknown>; keys: readonly string[] }, { path }: { path?: string } = {}): string[] {
+  const prefix = path === undefined ? '' : `${path}.`;
   return keys.filter(key => record[key] !== undefined && typeof record[key] !== 'string')
-    .map(key => `${path === undefined ? '' : `${path}.`}${key} must be a string`);
+    .map(key => `${prefix}${key} must be a string`);
 }
 
 /** Columns are optional; when present they must be an integer in [min, 6]. */

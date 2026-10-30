@@ -1,3 +1,7 @@
+const CODE_SNIPPET = 'code-snippet';
+
+const REACT_COMPONENT = 'react-component';
+
 /**
  * @module manifest
  *
@@ -10,18 +14,18 @@ const MANIFEST_VERSION = 1;
 const ALLOWED_KINDS: ReadonlySet<ArtifactKind> = new Set([
   'html',
   'deck',
-  'react-component',
+  REACT_COMPONENT,
   'markdown-document',
   'svg',
   'diagram',
-  'code-snippet',
+  CODE_SNIPPET,
   'mini-app',
   'design-system',
 ]);
 const ALLOWED_RENDERERS: ReadonlySet<ArtifactRendererId> = new Set([
   'html',
   'deck-html',
-  'react-component',
+  REACT_COMPONENT,
   'markdown',
   'svg',
   'diagram',
@@ -42,19 +46,19 @@ function normalizeExt(name: string): string {
 // `diagram`, `mini-app`, `design-system`, none reachable from a bare file
 // extension) so callers get a statically provable exhaustiveness check
 // instead of having to defend against kinds this function never produces.
-type LegacyInferredKind = 'html' | 'svg' | 'markdown-document' | 'react-component' | 'code-snippet';
+type LegacyInferredKind = 'html' | 'svg' | 'markdown-document' | typeof REACT_COMPONENT | typeof CODE_SNIPPET;
 
 const LEGACY_KIND_BY_EXT: ReadonlyMap<string, LegacyInferredKind> = new Map([
   ['.html', 'html'],
   ['.htm', 'html'],
   ['.svg', 'svg'],
   ['.md', 'markdown-document'],
-  ['.jsx', 'react-component'],
-  ['.tsx', 'react-component'],
-  ['.js', 'code-snippet'],
-  ['.ts', 'code-snippet'],
-  ['.json', 'code-snippet'],
-  ['.css', 'code-snippet'],
+  ['.jsx', REACT_COMPONENT],
+  ['.tsx', REACT_COMPONENT],
+  ['.js', CODE_SNIPPET],
+  ['.ts', CODE_SNIPPET],
+  ['.json', CODE_SNIPPET],
+  ['.css', CODE_SNIPPET],
 ]);
 
 /** Renderer and export set for every kind `inferLegacyManifest` can resolve to (the inferred kinds plus the deck-name heuristic's `deck`). */
@@ -62,8 +66,8 @@ const LEGACY_KIND_INFO: Readonly<Record<LegacyInferredKind | 'deck', { renderer:
   html: { renderer: 'html', exports: ['html', 'pdf', 'zip'] },
   deck: { renderer: 'deck-html', exports: ['html', 'pdf', 'zip'] },
   'markdown-document': { renderer: 'markdown', exports: ['md', 'html', 'pdf', 'zip'] },
-  'react-component': { renderer: 'react-component', exports: ['jsx', 'html', 'zip'] },
-  'code-snippet': { renderer: 'code', exports: ['txt', 'zip'] },
+  [REACT_COMPONENT]: { renderer: REACT_COMPONENT, exports: ['jsx', 'html', 'zip'] },
+  [CODE_SNIPPET]: { renderer: 'code', exports: ['txt', 'zip'] },
   svg: { renderer: 'svg', exports: ['svg', 'zip'] }, // 'svg' is a valid ArtifactRendererId as-is
 };
 

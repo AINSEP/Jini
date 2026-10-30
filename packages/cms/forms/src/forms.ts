@@ -242,6 +242,8 @@ export function validateSubmissionPayload(input: ValidateSubmissionPayloadInput)
       fieldErrors.push({ field: field.id, reason: resolved.reason });
     } else if (resolved.kind === "accepted") {
       data[field.id] = resolved.value;
+    } else {
+      // An absent optional field does not create a stored answer.
     }
   }
 

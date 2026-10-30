@@ -115,7 +115,7 @@ function admitAll(loaded: readonly LoadedAgentPluginTool[], refusals: string[], 
   const claimants = new Map<string, Set<string>>();
   for (const tool of admitted) claimants.set(tool.toolId, (claimants.get(tool.toolId) ?? new Set()).add(tool.loaded.pluginId));
   for (const [toolId, owners] of claimants) {
-    if (owners.size > 1) refusals.push(`agent tool '${toolId}' was not loaded: more than one plugin declares it (${[...owners].map(id => `'${id}'`).sort().join(', ')})`);
+    if (owners.size > 1) refusals.push(`agent tool '${toolId}' was not loaded: more than one plugin declares it (${[...owners].map(id => "'" + id + "'").sort().join(', ')})`);
   }
   return admitted.filter(tool => claimants.get(tool.toolId)!.size === 1);
 }
@@ -203,9 +203,9 @@ function countProjectionClaims({ loaded, additionalTools, refusals, idFor }: {
     ...(additionalTools ?? []).map(entry => idFor({ pluginId: entry.pluginId, name: entry.tool.name }))];
   for (const id of claimedIds) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const [id, count] of counts) {
-    if (count <= 1) continue;
     // MOVE: Admission already reports executable collisions with their owners; preserve that diagnostic once.
-    if (refusals.some(reason => reason.startsWith(`agent tool '${id}' was not loaded:`))) continue;
+    const alreadyReported = refusals.some(reason => reason.startsWith(`agent tool '${id}' was not loaded:`));
+    if (count <= 1 || alreadyReported) continue;
     refusals.push(`agent tool '${id}' was not loaded: more than one contribution declares it`);
   }
   return counts;
@@ -304,13 +304,7 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
     async describeAffectedResources(input: { readonly toolId: string; readonly input: unknown }, _options: Record<string, never> = {}): Promise<AgentPluginToolDisclosure | null> {
       const extra = additionalById.get(input.toolId);
       if (extra && registry.list({}).includes(extra.snapshot)) {
-        const scan = openCredentialScan({ issued: required.issuedTokens.forPlugin({ pluginId: extra.entry.pluginId }) });
-        try {
-          const resources = await extra.entry.describeAffectedResources({ input: input.input });
-          // Host-contributed tools run on their own execution owner, never this session's tokens; that
-          // owner declares which connections it may use, so the host can pin their accounts too.
-          return { effect: extra.entry.tool.effect ?? 'write', resources: checkedResources(input.toolId, resources, scan), connections: extra.entry.connections ?? Object.freeze([]) };
-        } catch (error) { throw scan.sanitize({ error }); }
+        return describeAdditionalResources({ entry: extra.entry, input: input.input, toolId: input.toolId, issuedTokens: required.issuedTokens });
       }
       const entry = byToolId.get(input.toolId);
       if (!entry || !registry.list({}).includes(entry.snapshot)) return null;
@@ -326,4 +320,14 @@ export function createAgentPluginToolProjection(required: AgentPluginToolProject
       return { effect: tool.loaded.descriptor.effect, resources: checkedResources(tool.toolId, answer, scan), connections };
     },
   };
+}
+
+async function describeAdditionalResources({ entry, input, toolId, issuedTokens }: { entry: AgentPluginAdditionalTool; input: unknown; toolId: string; issuedTokens: IssuedTokenMemories }): Promise<AgentPluginToolDisclosure> {
+  const scan = openCredentialScan({ issued: issuedTokens.forPlugin({ pluginId: entry.pluginId }) });
+  try {
+    const resources = await entry.describeAffectedResources({ input });
+    // Host-contributed tools run on their own execution owner, never this session's tokens; that
+    // owner declares which connections it may use, so the host can pin their accounts too.
+    return { effect: entry.tool.effect ?? 'write', resources: checkedResources(toolId, resources, scan), connections: entry.connections ?? Object.freeze([]) };
+  } catch (error) { throw scan.sanitize({ error }); }
 }

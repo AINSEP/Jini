@@ -58,7 +58,7 @@ export function useSketchDomEnhancements({
 
   useEffect(() => {
     const root = containerRef.current;
-    if (!root) return;
+    if (!root) return undefined;
 
     let frame: number | null = null;
     const applyEnhancements = () => {

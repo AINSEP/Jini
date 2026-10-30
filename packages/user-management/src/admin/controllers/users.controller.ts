@@ -36,8 +36,10 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
   function requestDestructive({ principalId, kind }: { principalId: string; kind: 'disable' | 'delete' | 'reset' }, _optional: Record<string, never> = {}) {
     if (read({}).rowSavingId || !gate(principalId, kind)) return;
     const user = row(principalId)!;
-    set({ pending: Object.freeze({ kind, user: snapshotUser(user) }), rowError: null, passwordError: null,
-      newPassword: '', confirmPassword: '', showNewPassword: false, showConfirmPassword: false });
+    set({
+      pending: Object.freeze({ kind, user: snapshotUser(user) }), rowError: null, passwordError: null,
+      newPassword: '', confirmPassword: '', showNewPassword: false, showConfirmPassword: false
+    });
   }
   function maybeDeepLink() {
     const s = read({}); if (!openOwnPasswordReset || deepLinkAttempted || !s.users || !s.caller) return;
@@ -51,7 +53,8 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
   }
   async function load(_required: Record<string, never>, _optional: Record<string, never> = {}) {
     if (!store.active({})) return;
-    const generation = ++listGeneration; set({ error: null });
+    ++listGeneration;
+    const generation = listGeneration; set({ error: null });
     try {
       const [u, r, p] = await Promise.all([api.listUsers({}, call), api.listRoles({}, call), api.listPolicies({}, call)]);
       if (generation !== listGeneration || !store.active({})) return;
@@ -65,8 +68,10 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
       try {
         const caller = await api.me({}, call);
         if (!store.active({}) || !caller.user || typeof caller.user.id !== 'string' || !caller.user.id) return;
-        const safeCaller: CallerInfo = Object.freeze({ user: Object.freeze({ ...caller.user }), canManageUserTrash: caller.canManageUserTrash === true,
-          ...(caller.effectivePermissions ? { effectivePermissions: Object.freeze([...caller.effectivePermissions]) } : {}) });
+        const safeCaller: CallerInfo = Object.freeze({
+          user: Object.freeze({ ...caller.user }), canManageUserTrash: caller.canManageUserTrash === true,
+          ...(caller.effectivePermissions ? { effectivePermissions: Object.freeze([...caller.effectivePermissions]) } : {})
+        });
         set({ caller: safeCaller }); maybeDeepLink();
       } catch { /* Best-effort identity: unknown defaults to no affordance, including delete. */ }
     })();
@@ -96,12 +101,18 @@ export function createUsersController({ api, safety }: { api: UsersApiPort; safe
     action: UserAction; fallback: string; cleared: Partial<UsersState>;
     missing: (s: Readonly<UsersState>) => boolean; write: (principalId: string, s: Readonly<UsersState>) => Promise<unknown>;
   }>> = {
-    email: { action: 'email', fallback: 'failed to update email', cleared: {}, missing: () => false,
-      write: (principalId, s) => api.updateUser({ principalId }, { ...call, email: s.editEmail }) },
-    role: { action: 'grants', fallback: 'failed to assign role', cleared: { pendingRoleId: '' }, missing: s => !s.pendingRoleId,
-      write: (principalId, s) => api.assignRole({ principalId, roleId: s.pendingRoleId }, call) },
-    policy: { action: 'grants', fallback: 'failed to attach policy', cleared: { pendingPolicyId: '' }, missing: s => !s.pendingPolicyId,
-      write: (principalId, s) => api.attachPolicy({ principalId, policyId: s.pendingPolicyId }, call) },
+    email: {
+      action: 'email', fallback: 'failed to update email', cleared: {}, missing: () => false,
+      write: (principalId, s) => api.updateUser({ principalId }, { ...call, email: s.editEmail })
+    },
+    role: {
+      action: 'grants', fallback: 'failed to assign role', cleared: { pendingRoleId: '' }, missing: s => !s.pendingRoleId,
+      write: (principalId, s) => api.assignRole({ principalId, roleId: s.pendingRoleId }, call)
+    },
+    policy: {
+      action: 'grants', fallback: 'failed to attach policy', cleared: { pendingPolicyId: '' }, missing: s => !s.pendingPolicyId,
+      write: (principalId, s) => api.attachPolicy({ principalId, policyId: s.pendingPolicyId }, call)
+    },
   };
   type PanelWrite = (typeof panelWrites)[keyof typeof panelWrites];
   /** Busy, expanded-row and authority checks run before the selection check, so only a refusal of authority reports. */

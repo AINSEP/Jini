@@ -189,8 +189,8 @@ function placeEvent<Row>(
   if ((ev.kind === 'usage' || ev.kind === 'status') && isAssistantStepBoundary({ event: ev })) flushText({ state });
   // Emitted per boundary, before any slot dedupe below, so every reply gets its own end marker.
   if (isReplyBoundary({ event: ev })) placeReplyEnd({ state });
-  if (ev.kind === 'ext') placeExt({ state, ev }, { slotOf });
-  else if (ev.kind === 'tool_use') placeToolUse({ state, id: ev.id });
+  if (ev.kind === 'ext') { placeExt({ state, ev }, { slotOf }); return; }
+  if (ev.kind === 'tool_use') placeToolUse({ state, id: ev.id });
 }
 
 /**

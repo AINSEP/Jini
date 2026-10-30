@@ -232,7 +232,8 @@ export async function watchRunEvents({ baseUrl, runId, args }: { baseUrl: string
 
   const resp = await fetchImpl(`${baseUrl}/api/runs/${encodeURIComponent(runId)}/events`, { headers });
   if (!resp.ok || resp.body === null) {
-    return structuredHttpFailure({ resp }, { fallbackCode: 'daemon-not-running', ...errorOptions(deps) });
+    await structuredHttpFailure({ resp }, { fallbackCode: 'daemon-not-running', ...errorOptions(deps) });
+    return;
   }
   try {
     await writeEventsUntilEnd({ body: resp.body, write });
@@ -240,7 +241,8 @@ export async function watchRunEvents({ baseUrl, runId, args }: { baseUrl: string
     // A broken/hostile stream (e.g. the unbounded-buffer guard above) must exit through the same
     // structured contract as every other failure here, not surface as an unhandled rejection.
     const message = error instanceof Error ? error.message : String(error);
-    return exitWithStructuredError({ code: 'daemon-not-running', message: sanitizeUntrustedText({ text: message }) }, errorOptions(deps));
+    exitWithStructuredError({ code: 'daemon-not-running', message: sanitizeUntrustedText({ text: message }) }, errorOptions(deps));
+    return;
   }
 }
 
@@ -290,9 +292,9 @@ export function registerRunCommands({ registry, resolveBaseUrl: resolveBaseUrlPo
         case '--help':
         case '-h':
           (deps.write ?? defaultWrite)({ text: `${RUN_USAGE}\n` });
-          return;
+          return undefined;
         default:
-          invalidFlag(deps, `unknown "run" subcommand: ${sub}`);
+          return invalidFlag(deps, `unknown "run" subcommand: ${sub}`);
       }
     } }, { usage: RUN_USAGE });
 }

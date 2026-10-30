@@ -34,7 +34,9 @@ export async function probeCliSubcommand(context: ModelDiscoveryContext, config:
   const { stdout } = await withModelProbeTimeout(active => deps.process.run({ context, args: config.args || [], signal: active, timeoutMs }), timeoutMs, signal);
   const models = config.parse?.({ stdout });
   if (!models) throw new ModelProbeError('malformed-response');
-  const defaultSelectionId = stdout.match(/^\s*Default model:\s*(\S+)\s*$/mi)?.[1];
+  // The bracketed class is `\s` minus line terminators, so neither end of the line can slide into
+  // a neighbouring line (which is what made the plain `\s*` version backtrack quadratically).
+  const defaultSelectionId = stdout.match(/^[\t\v\f \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]*Default model:\s*(\S+)[\t\v\f \u00a0\u1680\u2000-\u200a\u202f\u205f\u3000\ufeff]*$/mi)?.[1];
   return { models, source: 'cli', coverage: 'account', ...(defaultSelectionId ? { defaultSelectionId } : {}) };
 }
 /** ACP can create CLI session state/start services. It never sends a user prompt. */
@@ -56,12 +58,23 @@ function claudeInitializeRows(line: string): ClaudeModelRow[] | null {
   return Array.isArray(rows) ? rows : null;
 }
 /** One selection row, plus its concrete resolved row when the selection is an alias. */
+/** A selection that resolves to another id is an alias; an unresolved one is classified by shape. */
+function selectionIdentityKind(id: string, resolvedId: string | undefined) {
+  return resolvedId ? 'alias' as const : modelIdentityKind(id);
+}
 function claudeSelectionModels(id: string, resolvedId: string | undefined, displayName: unknown): DiscoveredModel[] {
   const label = typeof displayName === 'string' && displayName.trim() ? displayName.trim() : resolvedId || id;
-  const identityKind = id === resolvedId ? 'concrete' : resolvedId ? 'alias' : modelIdentityKind(id);
+  const identityKind = id === resolvedId ? 'concrete' : selectionIdentityKind(id, resolvedId);
   const selection: DiscoveredModel = { id, label, identityKind, ...(resolvedId ? { resolvedId } : {}) };
   if (!resolvedId || id === resolvedId) return [selection];
   return [selection, { id: resolvedId, label, identityKind: modelIdentityKind(resolvedId) }];
+}
+/** The picker rows one initialize row contributes; the `default` row also names the default selection. */
+function claudeRowModels(id: string, resolvedId: string | undefined, displayName: unknown): { models: DiscoveredModel[]; defaultId?: string } {
+  if (id !== 'default') return { models: claudeSelectionModels(id, resolvedId, displayName) };
+  // This displayName describes the CLI's default policy, not the model it resolves to.
+  if (!resolvedId || modelIdentityKind(resolvedId) !== 'concrete') return { models: [] };
+  return { models: [{ id: resolvedId, label: resolvedId, identityKind: 'concrete' }], defaultId: resolvedId };
 }
 function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResult {
   const models: DiscoveredModel[] = [];
@@ -70,9 +83,9 @@ function claudeInitializeResult(rows: readonly ClaudeModelRow[]): ModelProbeResu
     if (!row || typeof row.value !== 'string') continue;
     const id = row.value.trim();
     const resolvedId = typeof row.resolvedModel === 'string' ? row.resolvedModel.trim() : undefined;
-    if (id !== 'default') { models.push(...claudeSelectionModels(id, resolvedId, row.displayName)); continue; }
-    // This displayName describes the CLI's default policy, not the model it resolves to.
-    if (resolvedId && modelIdentityKind(resolvedId) === 'concrete') { defaultSelectionId = resolvedId; models.push({ id: resolvedId, label: resolvedId, identityKind: 'concrete' }); }
+    const rowResult = claudeRowModels(id, resolvedId, row.displayName);
+    models.push(...rowResult.models);
+    if (rowResult.defaultId) defaultSelectionId = rowResult.defaultId;
   }
   return { models, source: 'rpc', coverage: 'account', ...withDefaultSelection(defaultSelectionId) };
 }
@@ -92,7 +105,9 @@ export async function probeClaudeInitialize(context: ModelDiscoveryContext, deps
   const args = [...CLAUDE_CODE_INITIALIZE_ARGS];
   if (context.settingSources) args.push('--setting-sources', context.settingSources.join(','));
   // The last settings argument must still disable hooks; the probe never executes hooks.
-  const raw = context.settings ? (context.settings.trim().startsWith('{') ? context.settings : await deps.fs.read(context.settings, { signal })) : null;
+  // Inline JSON is used as is; anything else names a settings file to read.
+  const inlineSettings = context.settings?.trim().startsWith('{') ? context.settings : null;
+  const raw = inlineSettings ?? (context.settings ? await deps.fs.read(context.settings, { signal }) : null);
   const settings = raw ? parseSettingsJson(raw) : undefined;
   if (settings) args.push('--settings', JSON.stringify({ ...settings, disableAllHooks: true }));
   const result = await deps.process.run({ context, args, stdin: CLAUDE_CODE_INITIALIZE_REQUEST, signal, timeoutMs: 15_000 });
@@ -143,9 +158,13 @@ function opencodeCacheModels(data: Record<string, unknown>): DiscoveredModel[] {
 function configurationCacheModels(entries: unknown): DiscoveredModel[] {
   if (!Array.isArray(entries)) return [];
   return entries.flatMap((row) => {
-    const id = typeof row?.slug === 'string' ? row.slug : typeof row?.value === 'string' ? row.value : typeof row?.id === 'string' ? row.id : undefined;
+    const id = firstString(row?.slug, row?.value, row?.id);
     return id ? [{ id, label: row.display_name || row.displayName || id, identityKind: modelIdentityKind(id) }] : [];
   });
+}
+/** The first argument that is a string, or `undefined` when none is. */
+function firstString(...values: unknown[]): string | undefined {
+  return values.find((value): value is string => typeof value === 'string');
 }
 function parseGenericCliModels(stdout: string): DiscoveredModel[] {
   let parsed: unknown;
@@ -154,12 +173,12 @@ function parseGenericCliModels(stdout: string): DiscoveredModel[] {
     const object = parsed as { models?: unknown; model?: unknown };
     const entries = Array.isArray(parsed) ? parsed : object.models;
     if (Array.isArray(entries)) return entries.flatMap((row) => {
-      const id = typeof row === 'string' ? row : typeof row?.id === 'string' ? row.id : typeof row?.model === 'string' ? row.model : undefined;
+      const id = firstString(row, row?.id, row?.model);
       return id ? [{ id, label: typeof row?.name === 'string' ? row.name : id, identityKind: modelIdentityKind(id) }] : [];
     });
   }
   return stdout.split('\n').flatMap((line) => {
-    const match = line.trim().match(/^(?:[-*•]\s*)?([\w][\w./:[\]-]*)(?:\s+-\s+(.+))?$/);
+    const match = line.trim().match(/^(?:[-*•]\s*)?(\w[\w./:[\]-]*)(?:\s+-\s+(\S.*))?$/);
     if (!match || /^(models|available|provider|model)$/i.test(match[1]!)) return [];
     return [{ id: match[1]!, label: match[2] || match[1]!, identityKind: modelIdentityKind(match[1]!) }];
   });
@@ -245,6 +264,11 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
     const invocation = createCommandInvocation({ command: input.context.executable, args: [...input.args], env: input.context.env });
     const tree = input.terminateProcessTree && process.platform !== 'win32';
     let treeTimer: ReturnType<typeof setTimeout> | undefined;
+    /** Settles the probe with the exec outcome; an error only rejects when nothing completed first. */
+    const settle = (error: Error | null, stdout: string | Buffer, stderr: string | Buffer) => {
+      if (error && !completed) reject(error);
+      else resolve({ stdout: String(stdout), stderr: String(stderr) });
+    };
     const killTree = () => { if (tree && child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} } };
     // execFile forwards `detached` to spawn at runtime, but its typings omit it; a typed
     // variable (not a literal) keeps the process-group option without a cast.
@@ -257,9 +281,10 @@ function runProcess(input: Parameters<ModelDiscoveryDeps['process']['run']>[0]):
       if (treeTimer) clearTimeout(treeTimer);
       input.signal.removeEventListener('abort', killTree);
       if (error) killTree();
-      const settle = () => { error && !completed ? reject(error) : resolve({ stdout: String(stdout), stderr: String(stderr) }); };
-      if (child.pid && child.exitCode === null && child.signalCode === null) child.once('close', settle);
-      else settle();
+      // Wait for a still-running child to close before settling; otherwise settle now.
+      const settleOutcome = settle.bind(undefined, error, stdout, stderr);
+      if (child.pid && child.exitCode === null && child.signalCode === null) child.once('close', settleOutcome);
+      else settleOutcome();
     });
     if (tree) {
       input.signal.addEventListener('abort', killTree, { once: true });
@@ -344,7 +369,8 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
       let directory = cwd;
       for (let depth = 0; depth < 64 && !signal.aborted; depth++) {
         if (await stat(join(directory, '.git')).then(() => true, () => false)) return directory;
-        const parent = dirname(directory); if (parent === directory) break; directory = parent;
+        const parent = dirname(directory); if (parent === directory) break;
+        directory = parent;
       }
       return null;
     },
@@ -398,9 +424,10 @@ export function parsePiRpcMetadata(stdout: string): ModelProbeResult {
 /** Stable dependency identity preserves the existing per-host single-probe budget as well as its cache. */
 export function getRuntimeModelDiscoveryDeps({ state }: { state: AgentRuntimeState }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
   if (state === defaultRuntimeState) return defaultModelDiscoveryDeps;
-  return state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog,
+  state.discoveryDeps ??= { ...defaultModelDiscoveryDeps, cache: state.modelCatalog,
     acp: createAcpDiscoveryAdapter({ probe: state.acpModelProbe ?? nativeAcpModelProbe }),
   };
+  return state.discoveryDeps;
 }
 
 /** Adapt the existing ACP port to catalog metadata; array-only transports cannot claim a default.

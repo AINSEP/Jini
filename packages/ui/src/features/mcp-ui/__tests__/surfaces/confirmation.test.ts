@@ -69,6 +69,21 @@ describe('renderConfirmationDocument', () => {
     expect(safe.button('confirm').className).toContain('mcpui-button-primary');
   });
 
+  it('updates disclosure aria-expanded without calling or enabling a confirmation action', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, details: [{ label: 'Configuration', value: { customCss: '.banner { color: red; }' } }] }));
+    const details = surface.doc.querySelector<HTMLDetailsElement>('details.mcpui-detail-code')!;
+    const summary = details.querySelector('summary')!;
+    expect(summary.getAttribute('aria-expanded')).toBe('false');
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
+    expect(summary.getAttribute('aria-expanded')).toBe('true');
+    details.open = false;
+    details.dispatchEvent(new Event('toggle'));
+    expect(summary.getAttribute('aria-expanded')).toBe('false');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.button('confirm').disabled).toBe(true);
+  });
+
   it('keeps the confirmation token out of everything except the inline script', () => {
     const html = renderConfirmationDocument(DELETE_POST);
     const { doc } = mountSurface(html);

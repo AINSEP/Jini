@@ -12,5 +12,8 @@ export interface UsersPageProps {
   readonly onOwnPasswordResetClosed?: (required: Record<string, never>, optional?: Record<string, never>) => void;
 }
 export function useUsersScope(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-  const scope = useContext(ScopeContext); if (!scope) throw new Error('Users admin scope is unavailable.'); return scope;
+  const scope = useContext(ScopeContext); if (!scope) {
+    throw new Error('Users admin scope is unavailable.');
+  }
+  return scope;
 }

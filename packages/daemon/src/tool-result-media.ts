@@ -135,6 +135,11 @@ export function resultContent({ result }: { readonly result: ToolExecutionResult
       return 'Tool execution cancelled.';
     case 'failed':
       return result.error ?? 'Tool execution failed.';
+    default: {
+      // Unreachable: every tool result status has a case above, and a new one fails typecheck here.
+      const unhandled: never = result.status;
+      throw new TypeError(`Unhandled tool result status: ${String(unhandled)}`);
+    }
   }
 }
 
@@ -143,9 +148,10 @@ export function resultContent({ result }: { readonly result: ToolExecutionResult
  * @complexity O(n) output bytes, with O(n) transient serialization space. */
 export function projectToolResultEvent({ result }: { result: ToolExecutionResult }, _options = {}): { content: string; isError?: true; media?: readonly ToolResultMediaBlock[] } {
   const { remainder, media } = extractResultMedia({ output: result.output });
+  const outputFlagsError = isRecord(result.output) && result.output.isError === true;
   const isError = result.status !== 'completed'
     || (batchOutcomeFor({ output: result.output }) ?? 'completed') !== 'completed'
-    || (isRecord(result.output) && result.output.isError === true);
+    || outputFlagsError;
   return {
     content: resultContent({ result: { ...result, output: remainder } }),
     ...(isError ? { isError: true } : {}),

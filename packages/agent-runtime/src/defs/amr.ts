@@ -70,25 +70,25 @@ function stripPrefix({ value, prefix }: { value: string; prefix: string }): stri
 // interpolation the way it restricts a method call on a possibly-undefined
 // value).
 function normalizeKnownVelaVersionId(rawId: string): string | null {
-  const claude = /^claude[_-](haiku|opus|sonnet)[_-](\d+)[_-](\d+)(.*)$/i.exec(rawId);
+  const claude = /^claude[_-](haiku|opus|sonnet)[_-](\d+)[_-](\d+)(?!\d)(.*)$/i.exec(rawId);
   if (claude) {
     const [, family, major, minor, suffix = ''] = claude;
     return `claude-${family!.toLowerCase()}-${major}.${minor}${suffix.replace(/_/g, '-')}`;
   }
 
-  const gpt = /^gpt_(\d+)_(\d+)(.*)$/i.exec(rawId);
+  const gpt = /^gpt_(\d+)_(\d+)(?!\d)(.*)$/i.exec(rawId);
   if (gpt) {
     const [, major, minor, suffix = ''] = gpt;
     return `gpt-${major}.${minor}${suffix.replace(/_/g, '-')}`;
   }
 
-  const gemini = /^gemini_(\d+)_(\d+)(.*)$/i.exec(rawId);
+  const gemini = /^gemini_(\d+)_(\d+)(?!\d)(.*)$/i.exec(rawId);
   if (gemini) {
     const [, major, minor, suffix = ''] = gemini;
     return `gemini-${major}.${minor}${suffix.replace(/_/g, '-')}`;
   }
 
-  const minimax = /^minimax_m(\d+)_(\d+)(.*)$/i.exec(rawId);
+  const minimax = /^minimax_m(\d+)_(\d+)(?!\d)(.*)$/i.exec(rawId);
   if (minimax) {
     const [, major, minor, suffix = ''] = minimax;
     return `minimax-m${major}.${minor}${suffix.replace(/_/g, '-')}`;
@@ -270,12 +270,7 @@ export async function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBi
   // Use `balanceUsd` — the same field the console wallet page renders as the
   // headline "余额" — so the two surfaces always agree. Fall back to the total
   // available only if `balanceUsd` is missing.
-  const balanceUsd =
-    typeof data.balanceUsd === 'string'
-      ? data.balanceUsd
-      : typeof data.totalAvailableCreditsUsd === 'string'
-        ? data.totalAvailableCreditsUsd
-        : null;
+  const balanceUsd = [data.balanceUsd, data.totalAvailableCreditsUsd].find((value): value is string => typeof value === 'string') ?? null;
   // `membershipTier` is omitted for free accounts. A SUCCESSFUL summary with no
   // tier therefore means "free" — normalize to the explicit sentinel so the UI
   // shows the plan and the Upgrade CTA for free users. "Unknown" (billing

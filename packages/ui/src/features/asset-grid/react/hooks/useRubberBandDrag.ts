@@ -65,7 +65,7 @@ export function useRubberBandDrag({
   );
 
   useEffect(() => {
-    if (!dragging) return;
+    if (!dragging) return undefined;
     let raf = 0;
     // `dragging` only ever flips true inside `onMouseDown` above, which sets
     // `dragRef.current` synchronously in that same callback before calling

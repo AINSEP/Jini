@@ -1,0 +1,26 @@
+{
+  "name": "@jini-ai/plugin-payments-stripe",
+  "version": "0.7.0",
+  "description": "Self-contained Stripe hosted Checkout provider artifact for the commerce kernel.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-payments-stripe"
+  },
+  "jini": {"domain": "tooling", "kind": "plugin-packaging", "runtime": "node"},
+  "exports": {"./package.json": "./package.json", "./plugins/*": "./plugins/*"},
+  "files": ["plugins", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts payments-stripe .",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts payments-stripe .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@jini-ai/commerce": "workspace:^",
+    "@jini-ai/plugins": "workspace:^",
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {"access": "public", "registry": "https://registry.npmjs.org"}
+}

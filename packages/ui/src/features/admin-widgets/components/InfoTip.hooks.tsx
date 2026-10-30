@@ -11,9 +11,9 @@ export const TIP_BOUNDS_ATTRIBUTE = "data-jini-tip-bounds";
 /** How long a tap-opened tip stays up on its own; touch has no pointer-leave to close it. */
 export const TAP_TIP_MS = 2500;
 
-/** The close of the one tip open app-wide. A pinned or focused tip used to stay up beside the one
- * the pointer had just reached (owner, 2026-10-25: two "Soon" tips open at once). */
-let closeOpenTip: (() => void) | null = null;
+/** A pinned or focused tip used to stay up beside the one the pointer had just reached
+ * (owner, 2026-10-25: two "Soon" tips open at once). Each claim owns its document listener. */
+const OPEN_TIP_EVENT = "jini:claim-open-tip";
 
 /**
  * Makes `close` the one open tip, closing whichever tip held that slot before. Hosts with their own
@@ -23,11 +23,19 @@ let closeOpenTip: (() => void) | null = null;
  * @complexity O(1).
  */
 export function claimOpenTip(close: () => void): () => void {
-  if (closeOpenTip && closeOpenTip !== close) closeOpenTip();
-  closeOpenTip = close;
-  return () => {
-    if (closeOpenTip === close) closeOpenTip = null;
+  const target = document;
+  const claim: { close: () => void; release?: () => void } = { close };
+  const release = () => target.removeEventListener(OPEN_TIP_EVENT, onClaim);
+  const onClaim = (event: Event) => {
+    const next = (event as CustomEvent<typeof claim>).detail;
+    if (next.close === close) { next.release = release; return; }
+    release();
+    close();
   };
+  target.dispatchEvent(new CustomEvent(OPEN_TIP_EVENT, { detail: claim }));
+  if (claim.release) return claim.release;
+  target.addEventListener(OPEN_TIP_EVENT, onClaim);
+  return release;
 }
 
 export interface InfoTipController {
@@ -120,7 +128,7 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     return claimOpenTip(hide);
   }, [open]);
 
@@ -128,7 +136,7 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   // itself is pointer-events:none, so "outside the icon" is every other target.
   useDismissOnOutsideOrEscape({ onDismiss: hide }, { enabled: pinned !== false, containerRef: iconRef });
   useEffect(() => {
-    if (pinned !== "tap") return;
+    if (pinned !== "tap") return undefined;
     const timer = setTimeout(hide, TAP_TIP_MS);
     return () => clearTimeout(timer);
   }, [pinned]);
@@ -138,7 +146,7 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
   // without a mouseleave firing yet: close it. A scroll in an unrelated pane (a streaming chat)
   // leaves it be. A resize re-measures instead, so it keeps following its icon.
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const closeIfMoved = (e: Event) => {
       const icon = iconRef.current;
       if (icon && e.target instanceof Node && !e.target.contains(icon)) return;

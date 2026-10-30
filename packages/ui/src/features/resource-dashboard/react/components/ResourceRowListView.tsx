@@ -66,7 +66,8 @@ export function ResourceRowListView(props: ResourceRowListViewProps) {
           {loading ? <span className="resource-row-list-section-meta">{loadingLabel}</span> : null}
         </div>
 
-        {isEmpty ? <ResourceRowListEmpty {...props} /> : rows.length > 0 ? <ResourceRowListRows {...props} /> : null}
+        {isEmpty ? <ResourceRowListEmpty {...props} /> : null}
+        {rows.length > 0 ? <ResourceRowListRows {...props} /> : null}
       </section>
     </section>
   );

@@ -1,6 +1,7 @@
 /** Bounded skill-bundle validation; scripts are stored as data and never executed. */
 import path from "node:path";
 import type { YamlReaderPort } from "./ports.js";
+import { hasUnsafePathCharacter } from "./unsafe-chars.js";
 
 export type SkillYamlPort = YamlReaderPort;
 export class SkillInputError extends Error {
@@ -32,7 +33,8 @@ export function decodeSkillBase64({ value }: { value: string }, { maxBytes = MAX
 }
 
 export function validateSkillPath({ filePath }: { filePath: string }, _optional: Record<string, never> = {}): void {
-  if (typeof filePath !== "string" || filePath.length === 0 || filePath.length > 240 || /[\\\x00-\x1f\x7f:]/.test(filePath) || path.posix.isAbsolute(filePath) || filePath.split("/").some(p => !p || p === "." || p === ".." || p.startsWith("."))) throw new SkillInputError({ message: `Unsafe skill file path: ${filePath}` });
+  const badShape = typeof filePath !== "string" || filePath.length === 0 || filePath.length > 240;
+  if (badShape || hasUnsafePathCharacter(filePath) || path.posix.isAbsolute(filePath) || filePath.split("/").some(p => !p || p === "." || p === ".." || p.startsWith("."))) throw new SkillInputError({ message: `Unsafe skill file path: ${filePath}` });
 }
 
 /** Strict frontmatter for new installs; the legacy disk loader remains backwards compatible. */
@@ -92,7 +94,7 @@ function validateBundleFile({ file, prefix, seen, budget }: { file: SkillUploadF
   budget.total += bytes.length;
   if (budget.total > MAX_SKILL_BYTES) throw new SkillInputError({ message: "Skill files exceed 8 MiB combined." });
   if (isText) assertTextContent({ relative, bytes });
-  else if (!matchesAssetSignature({ extension, bytes })) throw new SkillInputError({ message: `Skill asset content does not match its file type: ${relative}` });
+  if (!isText && !matchesAssetSignature({ extension, bytes })) throw new SkillInputError({ message: `Skill asset content does not match its file type: ${relative}` });
   return { relative, bytes };
 }
 

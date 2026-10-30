@@ -187,7 +187,9 @@ function redirectedRequest(
   { status, method, body, headers }: { status: number; method: string; body: string | undefined; headers: Record<string, string> },
 ): { method: string; body: string | undefined; headers: Record<string, string> } {
   if (status !== 303 && !([301, 302].includes(status) && method.toUpperCase() === "POST")) return { method, body, headers };
-  const { "content-type": _dropped, ...kept } = headers;
+  // The body is dropped, so its content type goes with it.
+  const kept = { ...headers };
+  delete kept["content-type"];
   return { method: "GET", body: undefined, headers: kept };
 }
 
@@ -323,6 +325,20 @@ export function createRequestRouter(
   };
 }
 
+/** Reads chunks until the stream ends or the next one would pass `maxBytes` (then `truncated`). */
+async function readCapped(reader: ReadableStreamDefaultReader<Uint8Array>, maxBytes: number): Promise<{ chunks: Buffer[]; truncated: boolean }> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  let next = await reader.read();
+  while (!next.done) {
+    size += next.value.byteLength;
+    if (size > maxBytes) return { chunks, truncated: true };
+    chunks.push(Buffer.from(next.value));
+    next = await reader.read();
+  }
+  return { chunks, truncated: false };
+}
+
 /**
  * The default {@link OwnSiteFetch}: the global `fetch`, redirects returned rather than followed (so
  * the router re-decides the next hop), body read up to `maxBytes`. Overflow cancels the stream;
@@ -335,24 +351,16 @@ export const fetchOwnSiteResource: OwnSiteFetch = async ({ url, method, headers 
   response.headers.forEach((value, name) => { responseHeaders[name] = value; });
   const cookies = response.headers.getSetCookie();
   if (cookies.length) responseHeaders["set-cookie"] = cookies.join("\n");
-  const chunks: Buffer[] = [];
-  let size = 0;
-  let truncated = false;
+  let read: { chunks: Buffer[]; truncated: boolean } = { chunks: [], truncated: false };
   if (response.body) {
     const reader = response.body.getReader();
     try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        if (size > maxBytes) { truncated = true; break; }
-        chunks.push(Buffer.from(value));
-      }
+      read = await readCapped(reader, maxBytes);
     } finally {
       // Cleanup must not replace the original read error when the stream is already errored.
       await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
   }
-  return { status: response.status, headers: responseHeaders, body: Buffer.concat(chunks), truncated };
+  return { status: response.status, headers: responseHeaders, body: Buffer.concat(read.chunks), truncated: read.truncated };
 };

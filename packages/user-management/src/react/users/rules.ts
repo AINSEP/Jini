@@ -97,8 +97,10 @@ export function userAccountCapabilities(required: {
   }));
   const mayAct = known && (callerIsOwner || !protectedAccount);
   const destructive = mayAct && callerPrincipalId !== user.principalId;
-  return { canDelete: destructive && canManageUserTrash, canDisable: destructive,
-    canEnable: mayAct, canResetPassword: mayAct };
+  return {
+    canDelete: destructive && canManageUserTrash, canDisable: destructive,
+    canEnable: mayAct, canResetPassword: mayAct
+  };
 }
 
 export function isOwnerAccount(required: { user: AdminIdentityUser; roles: ReadonlyMap<string, { name: string; isBuiltin: boolean }> },
@@ -179,9 +181,10 @@ export function userRowMenuItems({ user, toggleSaving, handlers, translate, canD
       onSelect: () => handlers.onRequestDelete(user),
     });
   }
-  return items.filter(item => item.key === "toggle"
-    ? (user.status === "active" ? permissions.canDisable : permissions.canEnable)
-    : item.key !== "reset-password" || permissions.canResetPassword);
+  return items.filter(item => {
+    if (item.key === "toggle") return user.status === "active" ? permissions.canDisable : permissions.canEnable;
+    return item.key !== "reset-password" || permissions.canResetPassword;
+  });
 }
 
 /**

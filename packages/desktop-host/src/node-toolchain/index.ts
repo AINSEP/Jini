@@ -124,7 +124,7 @@ export function writeNodeToolchain(input: WriteNodeToolchainInput): NodeToolchai
 
 /** Host-named environment contract; duplicate/invalid names fail loudly. @complexity O(n) in names. */
 export function buildNodeToolchainEnv({ toolchainDir, npmRoot, toolchainEnvName, npmRootEnvName }: BuildNodeToolchainEnvInput): Record<string, string> {
-  if (![toolchainEnvName, npmRootEnvName].every(name => /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) || toolchainEnvName === npmRootEnvName) {
+  if (![toolchainEnvName, npmRootEnvName].every(name => /^[A-Za-z_]\w*$/.test(name)) || toolchainEnvName === npmRootEnvName) {
     throw new Error('node-toolchain: environment names must be valid and distinct.');
   }
   return { [toolchainEnvName]: toolchainDir, [npmRootEnvName]: npmRoot };

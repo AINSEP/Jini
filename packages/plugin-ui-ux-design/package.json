@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-ui-ux-design",
+  "version": "0.6.13",
+  "description": "Independently installable UI/UX design skills in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-ui-ux-design"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./ui-ux-design/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./ui-ux-design/plugin.json",
+    "./ui-ux-design/*": "./ui-ux-design/*"
+  },
+  "files": ["ui-ux-design", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

@@ -19,9 +19,11 @@ export function stripConsentRuntime({ html }: { html: string }, _options = {}): 
     const location = node.sourceCodeLocation;
     if (location && isConsentRuntime({ attrs })) {
       edits.push({ start: location.startOffset, end: location.endOffset });
-      continue;
+    } else if (node.tagName !== 'template') {
+      stack.push(...node.childNodes);
+    } else {
+      // Authored template contents remain inert and outside this traversal.
     }
-    if (node.tagName !== 'template') stack.push(...node.childNodes);
   }
   for (const edit of edits.sort((a, b) => b.start - a.start)) html = html.slice(0, edit.start) + html.slice(edit.end);
   return html;

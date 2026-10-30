@@ -1,9 +1,8 @@
-type UUID = string;
 import type { OriginSettingRepoPort } from "./ports.js";
 import { createVerifiedOrigin, type VerifiedOrigin } from "./types.js";
 
 export interface OriginSettingSeed {
-  workspaceId: UUID;
+  workspaceId: string;
   origin: VerifiedOrigin;
 
   /** Exact-match hosts trusted for cross-origin redirects; independent of third-party egress. */
@@ -18,9 +17,9 @@ export interface OriginSettingSeed {
  * @example new InMemoryOriginSettingRepo({ seeds: [{ workspaceId, origin }] });
  */
 export class InMemoryOriginSettingRepo implements OriginSettingRepoPort {
-  private readonly origins: Map<UUID, VerifiedOrigin>;
-  private readonly redirectAllowlists: Map<UUID, string[]>;
-  private readonly egressAllowlists: Map<UUID, string[]>;
+  private readonly origins: Map<string, VerifiedOrigin>;
+  private readonly redirectAllowlists: Map<string, string[]>;
+  private readonly egressAllowlists: Map<string, string[]>;
 
   constructor({ seeds }: { seeds: readonly OriginSettingSeed[] }) {
     this.origins = new Map();
@@ -34,16 +33,16 @@ export class InMemoryOriginSettingRepo implements OriginSettingRepoPort {
     }
   }
 
-  async findByWorkspaceId({ workspaceId }: { workspaceId: UUID }): Promise<VerifiedOrigin | null> {
+  async findByWorkspaceId({ workspaceId }: { workspaceId: string }): Promise<VerifiedOrigin | null> {
     const origin = this.origins.get(workspaceId);
     return origin ? { ...origin } : null;
   }
 
-  async findRedirectAllowlist({ workspaceId }: { workspaceId: UUID }): Promise<string[]> {
+  async findRedirectAllowlist({ workspaceId }: { workspaceId: string }): Promise<string[]> {
     return [...(this.redirectAllowlists.get(workspaceId) ?? [])];
   }
 
-  async findEgressAllowlist({ workspaceId }: { workspaceId: UUID }): Promise<string[]> {
+  async findEgressAllowlist({ workspaceId }: { workspaceId: string }): Promise<string[]> {
     return [...(this.egressAllowlists.get(workspaceId) ?? [])];
   }
 }

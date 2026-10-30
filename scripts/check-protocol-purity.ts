@@ -21,6 +21,34 @@ export interface CheckProtocolPurityOptions {
   readonly protocolSrc?: string;
 }
 
+function checkProtocolImports({ root, absFile, file, violations }: { root: string; absFile: string; file: string; violations: Violation[] }): void {
+  for (const ref of extractImports(absFile)) {
+    const spec = ref.specifier;
+
+    if (spec.startsWith('@jini-ai/')) {
+      violations.push({
+        rule: 'R3-protocol-purity',
+        file,
+        reason: `imports "${spec}" — @jini-ai/protocol must have zero @jini-ai/* dependencies (it is the foundational leaf)`,
+      });
+      continue;
+    }
+
+    if (spec.startsWith('.')) {
+      const resolvedAbs = resolve(dirname(absFile), spec);
+      const resolvedRel = relative(root, resolvedAbs).split('\\').join('/');
+      const topSegment = resolvedRel.split('/')[0] ?? '';
+      if (FORBIDDEN_TOP_LEVEL_DIRS.includes(topSegment)) {
+        violations.push({
+          rule: 'R3-protocol-purity',
+          file,
+          reason: `relative import "${spec}" resolves into ${topSegment}/ — protocol must not depend on OD/product code`,
+        });
+      }
+    }
+  }
+}
+
 /** @param options Overrides for self-testing against fixtures — see `checkEngineBoundaries`'s doc. */
 export async function checkProtocolPurity(
   options: CheckProtocolPurityOptions = {},
@@ -33,31 +61,7 @@ export async function checkProtocolPurity(
   for (const absFile of files) {
     const file = relative(root, absFile).split('\\').join('/');
 
-    for (const ref of extractImports(absFile)) {
-      const spec = ref.specifier;
-
-      if (spec.startsWith('@jini-ai/')) {
-        violations.push({
-          rule: 'R3-protocol-purity',
-          file,
-          reason: `imports "${spec}" — @jini-ai/protocol must have zero @jini-ai/* dependencies (it is the foundational leaf)`,
-        });
-        continue;
-      }
-
-      if (spec.startsWith('.')) {
-        const resolvedAbs = resolve(dirname(absFile), spec);
-        const resolvedRel = relative(root, resolvedAbs).split('\\').join('/');
-        const topSegment = resolvedRel.split('/')[0] ?? '';
-        if (FORBIDDEN_TOP_LEVEL_DIRS.includes(topSegment)) {
-          violations.push({
-            rule: 'R3-protocol-purity',
-            file,
-            reason: `relative import "${spec}" resolves into ${topSegment}/ — protocol must not depend on OD/product code`,
-          });
-        }
-      }
-    }
+    checkProtocolImports({ root, absFile, file, violations });
   }
 
   return violations;

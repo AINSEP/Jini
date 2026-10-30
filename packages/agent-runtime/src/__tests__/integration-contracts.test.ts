@@ -98,6 +98,7 @@ describe('integrated runtime contracts', () => {
 
   it('declares each subpath runtime and both declaration resolution paths', () => {
     const manifest = JSON.parse(readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'));
+    expect(manifest.exports['.']).toEqual({ types: './dist/index.d.ts', import: './dist/index.js', default: './dist/index.js' });
     for (const [subpath, module, runtime] of [
       ['providers/tool-turn', 'providers/tool-turn', 'node'],
       ['model-catalog/cache', 'model-catalog-cache', 'universal'],

@@ -1,3 +1,4 @@
+import { trimCharsEnd } from './trim-chars.js';
 /** Root of an already `/`-separated Windows path: a drive root (`C:/`) or a UNC share root. */
 function windowsRoot(path: string): string | undefined {
   return /^[A-Za-z]:\//.exec(path)?.[0] ?? /^\/\/[^/]+\/[^/]+(?:\/|$)/.exec(path)?.[0];
@@ -20,7 +21,7 @@ function normalizeAbsolutePath(value: string, separator: '/' | '\\'): string {
   const path = windows ? value.replace(/\\/g, '/') : value;
   const prefix = (windows ? windowsRoot(path) : undefined) ?? (path.startsWith('/') ? '/' : undefined);
   if (!prefix) throw new RangeError('pathContains requires resolved absolute paths');
-  return prefix.replace(/\/+$/, '') + '/' + resolveSegments(path.slice(prefix.length)).join('/');
+  return trimCharsEnd({ text: prefix, chars: '/' }) + '/' + resolveSegments(path.slice(prefix.length)).join('/');
 }
 
 /**

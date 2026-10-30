@@ -84,13 +84,10 @@ export function collectPageStructure(limits: PageStructureLimits): PageStructure
     let depth = 0;
     while (current && current.nodeType === 1 && depth < 5) {
       const terminal = terminalSegment(current);
-      if (terminal !== null) {
-        parts.unshift(terminal);
-        break;
-      }
       const parent: Element | null = current.parentElement;
-      if (!parent) {
-        parts.unshift(current.tagName.toLowerCase());
+      // A uniquely addressable ancestor, or the root element, ends the selector.
+      if (terminal !== null || !parent) {
+        parts.unshift(terminal ?? current.tagName.toLowerCase());
         break;
       }
       parts.unshift(siblingSegment(current, parent));
@@ -198,7 +195,8 @@ export function collectPageStructure(limits: PageStructureLimits): PageStructure
     for (const element of Array.from(document.querySelectorAll("h1,h2,h3,h4,h5,h6,[role='heading']"))) {
       const tagLevel = /^H([1-6])$/.exec(element.tagName);
       const ariaLevel = element.getAttribute("aria-level");
-      const level = tagLevel ? Number(tagLevel[1]) : ariaLevel ? Number(ariaLevel) : 0;
+      // Number(null) and Number("") are both 0, the "no level" value.
+      const level = tagLevel ? Number(tagLevel[1]) : Number(ariaLevel);
       if (!Number.isFinite(level) || level === 0) continue;
       out.push({ level, selector: selectorFor(element), text: textOf(element, 160) });
     }
@@ -372,17 +370,17 @@ export function collectPageStructure(limits: PageStructureLimits): PageStructure
     const out: ContrastSample[] = [];
 
     const candidates = Array.from(document.querySelectorAll(CONTRAST_CANDIDATE_SELECTOR));
+    const sampleOf = (element: Element) => {
+      if (!hasOwnSampleableText(element)) return null;
+      const style = getComputedStyle(element);
+      return isRenderedVisible(element, style) ? contrastSampleFor(element, style) : null;
+    };
     for (const element of candidates) {
       if (out.length >= limits.maxContrastSamples) {
         truncated.push("contrastSamples");
         break;
       }
-      if (!hasOwnSampleableText(element)) continue;
-
-      const style = getComputedStyle(element);
-      if (!isRenderedVisible(element, style)) continue;
-
-      const sample = contrastSampleFor(element, style);
+      const sample = sampleOf(element);
       if (sample) out.push(sample);
     }
     return out;

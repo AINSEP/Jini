@@ -1,7 +1,11 @@
 import nodeFs from "node:fs";
 import type { Stats } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { trimCharsEnd } from "@jini-ai/core/primitives";
 import { FsFilePathError, type DenyRules, type GuardedFileReader, type GuardedReaderLimits } from '@jini-ai/core/filesystem';
+
+/** Path segments that never add a component: empty (doubled separator), ".", and "..". */
+const NON_DESCENDING_SEGMENTS: ReadonlySet<string> = new Set(["", ".", ".."]);
 export { FsFilePathError, type DenyRules, type GuardedFileReader, type GuardedReaderLimits } from '@jini-ai/core/filesystem';
 /** Optional capabilities needed only when descriptor reads are requested. */
 export type DescriptorCapabilities = Partial<Pick<typeof nodeFs, "fstatSync" | "constants">>;
@@ -53,8 +57,9 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
     // name::$DATA as name. Compare raw AND folded names: folding may add denials, never remove them,
     // and must not change the path actually opened.
     function foldFsNameForDenylist(name: string): string {
-        const withoutStream = name.replace(/:[^]*$/, "");
-        const withoutTrailing = withoutStream.replace(/[. ]+$/, "");
+        const streamAt = name.indexOf(":");
+        const withoutStream = streamAt === -1 ? name : name.slice(0, streamAt);
+        const withoutTrailing = trimCharsEnd({ text: withoutStream, chars: ". " });
         return withoutTrailing.toLowerCase().toUpperCase().toLowerCase();
     }
     // Split both separator spellings even on a host whose native separator is '/', so deny checks
@@ -62,13 +67,11 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
     function normalizeFsRelativePath(relativePath: string): string {
         const segments: string[] = [];
         for (const segment of relativePath.split(/[\\/]/)) {
-            if (segment === "" || segment === ".")
-                continue;
-            if (segment === "..") {
+            // Empty and "." segments are no-ops; ".." climbs one level; anything else descends.
+            if (segment === "..")
                 segments.pop();
-                continue;
-            }
-            segments.push(segment);
+            if (!NON_DESCENDING_SEGMENTS.has(segment))
+                segments.push(segment);
         }
         return segments.join("/");
     }
@@ -404,13 +407,17 @@ function descriptorOpenFlags({ filesystem, policy }: {
         throw new TypeError("exactMode must contain only permission bits (0o0000 through 0o7777)");
     return O_RDONLY | O_NOFOLLOW | O_NONBLOCK;
 }
+/** A safe, non-negative integer no larger than `max`; guards the size reported by an injected stat. */
+function isByteCountWithin(value: number, max: number): boolean {
+    return Number.isSafeInteger(value) && value >= 0 && value <= max;
+}
 /** Both read paths validate the opened object, independent of earlier pathname metadata. */
 function assertDescriptorStat({ stat, relativePath, maxBytes }: {
     stat: Stats; relativePath: string; maxBytes: number;
 }, { exactMode }: DescriptorReadPolicy = {}): void {
     if (!stat.isFile())
         throw new FsFilePathError({ message: `path '${relativePath}' is not a regular file` });
-    if (!Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > maxBytes)
+    if (!isByteCountWithin(stat.size, maxBytes))
         throw new FsFilePathError({ message: `file '${relativePath}' exceeds the ${maxBytes}-byte descriptor limit` });
     // Include setuid/setgid/sticky: "exact" 0o600 must refuse a 0o4600 file.
     if (exactMode !== undefined && (stat.mode & 0o7777) !== exactMode)

@@ -5,6 +5,18 @@ import { NOW } from './fixtures.js';
 
 const bounds = { batchSize: 2, deliveryTimeoutMs: 10, claimLeaseMs: 100 };
 
+test('a throwing dispatch-result getter remains uncertain and cannot release the intent for retry', async () => {
+  const f = await fencedFixture();
+  f.args.dispatch.mockResolvedValue({ get kind(): never { throw new Error('untrusted result'); } });
+  expect(await processFencedOutbox(f.args, bounds)).toBe(1);
+  expect(f.stored().status).toBe('uncertain');
+  expect(f.outbox.complete).toHaveBeenCalledTimes(1);
+  expect(f.args.random).not.toHaveBeenCalled();
+  f.advance(1000);
+  expect(await processFencedOutbox(f.args, bounds)).toBe(0);
+  expect(f.args.dispatch).toHaveBeenCalledTimes(1);
+});
+
 test('authorization sees the detached envelope and a durable marker precedes dispatch', async () => {
   const f = await fencedFixture();
   const order: string[] = [];

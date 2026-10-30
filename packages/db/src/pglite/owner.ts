@@ -83,7 +83,7 @@ export class PgliteOwnerLockedError extends Error {
     readonly pid: number | undefined
   ) {
     super(
-      `the PGlite data dir ${dataDir} is already open by ${pid === undefined ? "another process" : `process ${pid}`}; only one process may own it (connect to its socket instead)`
+      `the PGlite data dir ${dataDir} is already open by ${pid === undefined ? "another process" : "process " + pid}; only one process may own it (connect to its socket instead)`
     );
     this.name = "PgliteOwnerLockedError";
   }

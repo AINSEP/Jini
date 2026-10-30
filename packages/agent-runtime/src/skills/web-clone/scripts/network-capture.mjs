@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { trimDashes } from "./lib/trim-dashes.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge.
 const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
@@ -35,7 +36,7 @@ export function parseArgs(argv) {
 
 export function safeFixtureName(url, contentType) {
   const parsed = new URL(url);
-  const cleanPath = parsed.pathname.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "response";
+  const cleanPath = trimDashes(parsed.pathname.replace(/[^a-z0-9._-]+/gi, "-")).slice(0, 80) || "response";
   const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 10);
   const ext = contentType.includes("json") ? ".json" : ".txt";
   return `${cleanPath}-${hash}${ext}`;

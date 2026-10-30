@@ -204,6 +204,8 @@ function applyOverridesPatch(currentOverrides: SeoExtFields, patch: SeoExtFields
       delete merged[key];
     } else if (value !== undefined) {
       merged[key] = value;
+    } else {
+      // An omitted patch field leaves the stored value unchanged.
     }
   }
   return merged as SeoExtFields;
@@ -252,20 +254,22 @@ async function saveWithRevision(required: {
   // never land unaccompanied by its revision. A `saveIfVersion` miss (lost the race) returns
   // normally with `applied: false` rather than throwing, so the transaction still commits (a
   // harmless no-op) and the outer loop retries with a fresh read, exactly as before this change.
-  return postRepo.transaction({ fn: async () => {
-    const { applied: didApply } = await postRepo.saveIfVersion({ record: updatedRecord, ifVersion: existing.version });
-    if (!didApply) return false;
-    await postRepo.appendRevision({
-      postId: updatedRecord.id,
-      workspaceId: updatedRecord.workspaceId,
-      seq: updatedRecord.version,
-      op: "update",
-      stateJson: updatedRecord,
-      actorId,
-      recordedAt: clockNowIso({ clock: clock }),
-    });
-    return true;
-  } });
+  return postRepo.transaction({
+    fn: async () => {
+      const { applied: didApply } = await postRepo.saveIfVersion({ record: updatedRecord, ifVersion: existing.version });
+      if (!didApply) return false;
+      await postRepo.appendRevision({
+        postId: updatedRecord.id,
+        workspaceId: updatedRecord.workspaceId,
+        seq: updatedRecord.version,
+        op: "update",
+        stateJson: updatedRecord,
+        actorId,
+        recordedAt: clockNowIso({ clock: clock }),
+      });
+      return true;
+    }
+  });
 }
 
 /**

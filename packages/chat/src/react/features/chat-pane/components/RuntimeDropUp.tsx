@@ -116,7 +116,7 @@ export function RuntimeDropUp({
       <button
         ref={triggerRef}
         type="button"
-        className={`jini-runtime-dropup-trigger${className ? ` ${className}` : ''}`}
+        className={'jini-runtime-dropup-trigger' + (className ? ' ' + className : '')}
         aria-label={`${label}: ${valueLabel}`}
         aria-haspopup="menu"
         aria-expanded={open}

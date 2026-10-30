@@ -107,21 +107,25 @@ const webstormPath = 'M0 0v24h24V0H0zm17.889 2.889c1.444 0 2.667.444 3.667 1.278
 const ideaPath = 'M0 0v24h24V0zm3.723 3.111h5v1.834h-1.39v6.277h1.39v1.834h-5v-1.834h1.444V4.945H3.723zm11.055 0H17v6.5c0 .612-.055 1.111-.222 1.556-.167.444-.39.777-.723 1.11-.277.279-.666.557-1.11.668a3.933 3.933 0 0 1-1.445.278c-.778 0-1.444-.167-1.944-.445a4.81 4.81 0 0 1-1.279-1.056l1.39-1.555c.277.334.555.555.833.722.277.167.611.278.945.278.389 0 .721-.111 1-.389.221-.278.333-.667.333-1.278zM2.222 19.5h9V21h-9z';
 const warpPath = 'M12.035 2.723h9.253A2.712 2.712 0 0 1 24 5.435v10.529a2.712 2.712 0 0 1-2.712 2.713H8.047Zm-1.681 2.6L6.766 19.677h5.598l-.399 1.6H2.712A2.712 2.712 0 0 1 0 18.565V8.036a2.712 2.712 0 0 1 2.712-2.712Z';
 
+const PRIMARY = 'var(--jini-primary)';
+const BG = 'var(--jini-bg)';
+const TEXT = 'var(--jini-text)';
+
 const EDITORS: Record<string, EditorVisual> = {
-  vscode: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: vscodeLogo },
-  cursor: { bg: 'var(--jini-text)', fg: 'var(--jini-bg)', glyph: simplePath(cursorPath) },
-  windsurf: { bg: 'var(--jini-bg)', fg: 'var(--jini-text)', glyph: simplePath(windsurfPath) },
-  zed: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: simplePath(zedPath) },
-  qoder: { bg: 'var(--jini-warning)', fg: 'var(--jini-text)', glyph: qoderLogo },
-  antigravity: { bg: 'var(--jini-bg)', fg: 'var(--jini-text)', glyph: antigravityLogo },
-  webstorm: { bg: 'var(--jini-text)', fg: 'var(--jini-bg)', glyph: simplePath(webstormPath) },
-  idea: { bg: 'var(--jini-text)', fg: 'var(--jini-bg)', glyph: simplePath(ideaPath) },
-  xcode: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: simplePath(xcodePath) },
-  finder: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: finderLogo },
-  explorer: { bg: 'var(--jini-warning)', fg: 'var(--jini-text)', glyph: folderLogo },
-  'file-manager': { bg: 'var(--jini-muted)', fg: 'var(--jini-bg)', glyph: folderLogo },
-  terminal: { bg: 'var(--jini-text)', fg: 'var(--jini-success)', glyph: terminalLogo },
-  warp: { bg: 'var(--jini-primary)', fg: 'var(--jini-bg)', glyph: simplePath(warpPath) },
+  vscode: { bg: PRIMARY, fg: BG, glyph: vscodeLogo },
+  cursor: { bg: TEXT, fg: BG, glyph: simplePath(cursorPath) },
+  windsurf: { bg: BG, fg: TEXT, glyph: simplePath(windsurfPath) },
+  zed: { bg: PRIMARY, fg: BG, glyph: simplePath(zedPath) },
+  qoder: { bg: 'var(--jini-warning)', fg: TEXT, glyph: qoderLogo },
+  antigravity: { bg: BG, fg: TEXT, glyph: antigravityLogo },
+  webstorm: { bg: TEXT, fg: BG, glyph: simplePath(webstormPath) },
+  idea: { bg: TEXT, fg: BG, glyph: simplePath(ideaPath) },
+  xcode: { bg: PRIMARY, fg: BG, glyph: simplePath(xcodePath) },
+  finder: { bg: PRIMARY, fg: BG, glyph: finderLogo },
+  explorer: { bg: 'var(--jini-warning)', fg: TEXT, glyph: folderLogo },
+  'file-manager': { bg: 'var(--jini-muted)', fg: BG, glyph: folderLogo },
+  terminal: { bg: TEXT, fg: 'var(--jini-success)', glyph: terminalLogo },
+  warp: { bg: PRIMARY, fg: BG, glyph: simplePath(warpPath) },
 };
 
 /**
