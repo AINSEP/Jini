@@ -152,7 +152,7 @@ the word "plugin" and nothing else.
 
 ## Independently packaged plugins
 
-Starting with the breaking 0.7.0 release, this library ships manifest and lifecycle code only.
+Starting with the breaking 0.6.15 release, this library ships manifest and lifecycle code only.
 Install `@jini-ai/plugin-ui-ux-design` explicitly for the design payload. Resolve
 `@jini-ai/plugin-ui-ux-design/plugin.json`; its containing directory holds the portable assets.
 Stage that directory beneath the host's bundled-source root, then call the existing

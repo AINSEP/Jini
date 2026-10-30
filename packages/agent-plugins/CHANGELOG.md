@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.15
+
+### Minor Changes
+
+- Add opt-in plugin source suffix exclusions and test-file inclusion. Explicit allow-paths and their ancestors now override name exclusions, while excluded descendants and suffix exclusions still skip. Default packing stays unchanged when the new options and conflicting allow/name rules are absent.
+
+  Export ResponseLimitExceededError with limitBytes from platform/fetch-with-timeout and the platform root. Guarded response-text overflow throws this RangeError subclass; invalid caps keep plain RangeError and existing truncation behavior is preserved.
+
+  Accept jsdom 26 and 27 as optional CMS peers alongside 25; media uses DOM APIs shared across these versions.
+
+- Breaking package-surface change for the fixed 0.6.15 release: remove the bundled
+  ui-ux-design files and wildcard export from @jini-ai/agent-plugins. Hosts must
+  explicitly install @jini-ai/plugin-ui-ux-design and resolve its ./plugin.json
+  export, stage that payload and seed through the existing Agent Plugin lifecycle.
+  The lifecycle implementation remains in @jini-ai/agent-plugins. Inner plugin
+  version 0.4.6, deterministic packing, digest selection and operator activation
+  decisions are preserved. Tovu wording reconciliation and cutover follow later.
+
 ## 0.6.13
 
 ### Patch Changes

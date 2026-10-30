@@ -117,24 +117,24 @@ it.each([false, true])('builds only the requested source with destination versio
   await writeFile(path.join(sibling, 'index.ts'), 'this is not valid TypeScript');
   const destinationPackageRoot = path.join(root, 'plugin-alpha');
   await mkdir(destinationPackageRoot);
-  await writeFile(path.join(destinationPackageRoot, 'package.json'), JSON.stringify({ name: '@jini-ai/plugin-alpha', version: '0.7.0', license: 'MIT' }));
+  await writeFile(path.join(destinationPackageRoot, 'package.json'), JSON.stringify({ name: '@jini-ai/plugin-alpha', version: '0.6.15', license: 'MIT' }));
   await writeFile(path.join(destinationPackageRoot, 'LICENSE'), 'Alpha MIT text');
   await writeFile(path.join(destinationPackageRoot, 'NOTICE'), 'Alpha attribution');
   const outputRoot = scratch ? path.join(root, 'scratch') : destinationPackageRoot;
   const entry = await buildProviderPlugin({ packageRoot: root, id: 'alpha', destinationPackageRoot }, scratch ? { outputRoot } : {});
-  expect(entry).toEqual({ id: 'alpha', version: '0.7.0', path: 'plugins/alpha/0.7.0' });
+  expect(entry).toEqual({ id: 'alpha', version: '0.6.15', path: 'plugins/alpha/0.6.15' });
   expect(await readdir(path.join(outputRoot, 'plugins'))).toEqual(['alpha']);
-  expect(await readdir(path.join(outputRoot, 'plugins/alpha'))).toEqual(['0.7.0']);
+  expect(await readdir(path.join(outputRoot, 'plugins/alpha'))).toEqual(['0.6.15']);
   expect(await readdir(outputRoot)).not.toContain('catalog.json');
   const artifact = path.join(outputRoot, entry.path);
   const manifest = JSON.parse(await readFile(path.join(artifact, 'jini.plugin.json'), 'utf8')) as typeof MANIFEST & { id: string; integrity: Record<string, string> };
-  expect(manifest).toEqual({ ...MANIFEST, id: 'alpha', version: '0.7.0', integrity: manifest.integrity });
+  expect(manifest).toEqual({ ...MANIFEST, id: 'alpha', version: '0.6.15', integrity: manifest.integrity });
   expect(Object.keys(manifest.integrity).sort()).toEqual(['licenses/_jini-ai_plugin-alpha/LICENSE', 'licenses/_jini-ai_plugin-alpha/NOTICE',
     'licenses/_jini-ai_plugin-alpha/package-license.json', 'server/index.mjs']);
   expect(await readFile(path.join(artifact, 'licenses/_jini-ai_plugin-alpha/NOTICE'), 'utf8')).toBe('Alpha attribution');
   expect(await readFile(path.join(artifact, 'licenses/_jini-ai_plugin-alpha/LICENSE'), 'utf8')).toBe('Alpha MIT text');
   expect(JSON.parse(await readFile(path.join(artifact, 'licenses/_jini-ai_plugin-alpha/package-license.json'), 'utf8')))
-    .toEqual({ name: '@jini-ai/plugin-alpha', version: '0.7.0', license: 'MIT' });
+    .toEqual({ name: '@jini-ai/plugin-alpha', version: '0.6.15', license: 'MIT' });
   for (const [file, digest] of Object.entries(manifest.integrity)) {
     expect(`sha256-${createHash('sha256').update(await readFile(path.join(artifact, file))).digest('hex')}`).toBe(digest);
   }

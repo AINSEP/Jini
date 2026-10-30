@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-observability-sentry",
-  "version": "0.7.0",
+  "version": "0.6.15",
   "description": "Standalone Sentry server observability provider artifact.",
   "type": "module",
   "license": "Apache-2.0",

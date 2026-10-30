@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/user-management",
-  "version": "0.6.13",
+  "version": "0.6.15",
   "description": "Runtime-separated user management contracts and Node authentication, authorization, and administration services.",
   "license": "Apache-2.0",
   "repository": {

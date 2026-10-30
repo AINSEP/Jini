@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.6.13",
+  "version": "0.6.15",
   "description": "Support for Agent Plugins: vendor-neutral manifest types and validators, installation, activation, digests and trusted contribution loading. Portable plugin payloads are published separately; ui-ux-design is available as @jini-ai/plugin-ui-ux-design.",
   "license": "Apache-2.0",
   "repository": {

@@ -21,7 +21,7 @@ afterEach(async () => {
 it('declares only its artifact exports, build-time contracts, and publication hooks', async () => {
   const pkg = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
   expect(pkg.name).toBe(`@jini-ai/plugin-${id}`);
-  expect(pkg.version).toBe('0.7.0');
+  expect(pkg.version).toBe('0.6.15');
   expect(pkg.exports).toEqual({ './package.json': './package.json', './plugins/*': './plugins/*' });
   expect(pkg.files).toEqual(['plugins', 'README.md', 'LICENSE', 'NOTICE']);
   expect(pkg.scripts).toEqual({ build: `node --import tsx ../provider-plugins/scripts/build.ts ${id} .`,

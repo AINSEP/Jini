@@ -1,5 +1,31 @@
 # @jini-ai/platform
 
+## 0.6.15
+
+### Minor Changes
+
+- Add optional `now` and opaque per-install `settings` to `MailAdapterCreateContext`, inherited by
+  `MailProviderModule.create`. Export `createMailAdapterContext` from `@jini-ai/platform/mail` so hosts
+  can supply a live real clock and fresh empty settings at composition time while legacy direct
+  create calls remain compatible. Provider modules retain ownership of settings validation.
+
+- Add opt-in plugin source suffix exclusions and test-file inclusion. Explicit allow-paths and their ancestors now override name exclusions, while excluded descendants and suffix exclusions still skip. Default packing stays unchanged when the new options and conflicting allow/name rules are absent.
+
+  Export ResponseLimitExceededError with limitBytes from platform/fetch-with-timeout and the platform root. Guarded response-text overflow throws this RangeError subclass; invalid caps keep plain RangeError and existing truncation behavior is preserved.
+
+  Accept jsdom 26 and 27 as optional CMS peers alongside 25; media uses DOM APIs shared across these versions.
+
+- Add `createDeadlineSignal` and `DeadlineSignalOptions` to `@jini-ai/platform/fetch-with-timeout`
+  and the root entry. Compose a tool's remaining wait budget with optional caller cancellation,
+  subtract elapsed time through an optional start time and clock port, and clamp remaining time to zero.
+
+- `createDeadlineSignal` accepts an optional cancellable `wait({ ms, signal })`
+  timer port alongside its existing clock port. It now returns `{ signal, dispose }`;
+  rc.1/rc.2 consumers must destructure the signal and call `dispose()` in `finally`.
+  Disposal cancels the pending wait and detaches parent listeners without aborting the
+  returned signal. Deadline expiry and parent cancellation also release resources;
+  parent abort reasons and elapsed-budget accounting are preserved.
+
 ## 0.6.13
 
 ### Patch Changes

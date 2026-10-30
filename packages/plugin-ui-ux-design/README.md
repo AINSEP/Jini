@@ -11,8 +11,7 @@ verifies its digest, installs atomically, records activation and selects the bun
 Use the lifecycle's trusted installed-file readers for contributions. Host policy controls activation;
 installing this npm package grants no permission and preserves operator disablement on later boots.
 
-The next npm release is **0.7.0** in Jini's fixed Changesets release group. The checked-in package
-version starts at the group's current 0.6.13 so the minor changeset advances it to 0.7.0. The inner `plugin.json`
+The next npm release is **0.6.15**, matching Jini's fixed release group. The inner `plugin.json`
 version remains **0.4.6**; package extraction does not change the plugin's identity or authored bytes.
 The `./ui-ux-design/*` export exposes its raw assets for host staging.
 

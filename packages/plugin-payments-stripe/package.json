@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-payments-stripe",
-  "version": "0.7.0",
+  "version": "0.6.15",
   "description": "Self-contained Stripe hosted Checkout provider artifact for the commerce kernel.",
   "type": "module",
   "license": "Apache-2.0",

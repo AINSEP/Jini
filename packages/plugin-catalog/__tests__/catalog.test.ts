@@ -28,7 +28,7 @@ describe('standalone plugin catalog', () => {
     const pluginManifest = await readJson(path.join(packagesRoot, source));
     expect(entry).toEqual({ ...catalogEntry({ id: entry.id, packageManifest, pluginManifest }), expectedDigests: entry.expectedDigests });
     expect(entry.publisherIdentity).toBe(`jini/${entry.id}`);
-    if (entry.kind === 'provider') expect(packageManifest.version).toBe('0.7.0');
+    if (entry.kind === 'provider') expect(packageManifest.version).toBe('0.6.15');
     expect(entry.path.startsWith('/')).toBe(false);
     expect(entry.path.split('/')).not.toContain('..');
   });
@@ -67,8 +67,8 @@ function fixture() {
   const pluginManifest = { id: 'fixture-provider', name: 'Fixture', version: '0.6.12',
     extensions: { tovu: { id: 'jini/fixture-provider' } },
     contributes: { providers: [{ contract: 'fixture', contractVersion: 1 }] }, integrity: {} };
-  const packageManifest = { name: '@jini-ai/plugin-fixture-provider', version: '0.7.0', description: 'Fixture' };
-  const artifact = { ...pluginManifest, version: '0.7.0', integrity: { 'server/index.mjs': digest } };
+  const packageManifest = { name: '@jini-ai/plugin-fixture-provider', version: '0.6.15', description: 'Fixture' };
+  const artifact = { ...pluginManifest, version: '0.6.15', integrity: { 'server/index.mjs': digest } };
   const ports = {
     readJson: async (file: string) => {
       if (file.endsWith('package.json')) return packageManifest;

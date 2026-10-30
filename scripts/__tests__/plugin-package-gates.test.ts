@@ -20,7 +20,7 @@ function write({ file, content }: { file: string; content: string }): void {
 }
 
 function manifest({ name, fields = {} }: { name: string; fields?: Record<string, unknown> }): void {
-  write({ file: `packages/${name}/package.json`, content: JSON.stringify({ name: `@jini-ai/${name}`, version: '0.7.0', ...fields }) });
+  write({ file: `packages/${name}/package.json`, content: JSON.stringify({ name: `@jini-ai/${name}`, version: '0.6.15', ...fields }) });
 }
 
 beforeEach(() => {
@@ -33,7 +33,7 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 it('registers all seven distribution leaves and the catalog without allowing core imports of them', () => {
   expect(checkPluginPackages({ repoRoot: root })).toEqual([]);
   expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
-  manifest({ name: 'core', fields: { dependencies: { '@jini-ai/plugin-fixture-provider': '^0.7.0' } } });
+  manifest({ name: 'core', fields: { dependencies: { '@jini-ai/plugin-fixture-provider': '^0.6.15' } } });
   expect(checkPackageLayers({ repoRoot: root })).toEqual([{
     rule: 'L1-layer-edge', file: 'packages/core/package.json',
     reason: 'core → @jini-ai/plugin-fixture-provider: L0 cannot depend on L7',
@@ -50,7 +50,7 @@ it('checks workspace dependency aliases and resolves local targets by their mani
 });
 
 it('rejects a dependency hidden by a clean packed manifest before any inspector runs', () => {
-  manifest({ name: 'plugin-fixture-provider', fields: { optionalDependencies: { alias: 'npm:@jini-ai/plugin-payments-stripe@0.7.0' } } });
+  manifest({ name: 'plugin-fixture-provider', fields: { optionalDependencies: { alias: 'npm:@jini-ai/plugin-payments-stripe@0.6.15' } } });
   const inspectPackage = vi.fn(({ entry }: InspectionInput) => ({ manifest: { name: entry.pkg.name! }, packedPaths: documents }));
   const violations = checkPluginPackages({ repoRoot: root }, { inspectPackage });
   expect(violations).toHaveLength(1);
@@ -83,7 +83,7 @@ it('fails closed on archive inspection errors and continues inspecting the relea
 
 it('omits private development tooling from tarball inspection without exempting its dependencies', () => {
   manifest({ name: 'provider-plugins', fields: { private: true } });
-  manifest({ name: 'plugin-fixture-provider', fields: { private: true, dependencies: { '@jini-ai/plugin-payments-stripe': '^0.7.0' } } });
+  manifest({ name: 'plugin-fixture-provider', fields: { private: true, dependencies: { '@jini-ai/plugin-payments-stripe': '^0.6.15' } } });
   const inspectPackage = vi.fn(({ entry }: InspectionInput) => ({ manifest: { name: entry.pkg.name! }, packedPaths: documents }));
   const violations = checkPluginPackages({ repoRoot: root }, { inspectPackage });
   expect(violations).toHaveLength(1);
@@ -108,7 +108,7 @@ it('inspects actual tar bytes without executing package lifecycle hooks', () => 
   manifest({ name, fields: { files: ['plugins', ...documents.slice(1)], exports: { './plugins/*': './plugins/*' },
     scripts: { prepack: 'node -e "throw new Error(\'prepack must not run\')"' } } });
   for (const file of documents.slice(1)) write({ file: `packages/${name}/${file}`, content: file });
-  const payload = 'plugins/fixture-provider/0.7.0/server/index.mjs';
+  const payload = 'plugins/fixture-provider/0.6.15/server/index.mjs';
   write({ file: `packages/${name}/${payload}`, content: 'export const fixture = true;' });
   write({ file: `packages/${name}/src/private.ts`, content: 'unpublished source' });
   const entry = { dir: join(root, 'packages', name), pkg: JSON.parse(readFileSync(join(root, 'packages', name, 'package.json'), 'utf8')) };

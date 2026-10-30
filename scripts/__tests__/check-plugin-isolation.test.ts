@@ -4,24 +4,24 @@ import { assertPluginBundleIsolation, assertPluginPackageIsolation, type PluginI
 const name = '@jini-ai/plugin-analytics-posthog';
 const pluginIds = ['analytics-posthog', 'observability-sentry', 'payments-stripe', 'ui-ux-design'];
 const docs = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/NOTICE'];
-const ownPayload = 'package/plugins/analytics-posthog/0.7.0/server/index.mjs';
+const ownPayload = 'package/plugins/analytics-posthog/0.6.15/server/index.mjs';
 const check = (manifest: PluginIsolationManifest, packedPaths = [...docs, ownPayload]) =>
   assertPluginPackageIsolation({ manifest, packedPaths, pluginIds });
 
 describe('plugin package installation isolation', () => {
   it.each(['dependencies', 'optionalDependencies', 'peerDependencies', 'devDependencies'])(
     'rejects a sibling in %s, even when optional peer metadata marks it optional', field => {
-      const manifest = { name, [field]: { '@jini-ai/plugin-payments-stripe': '^0.7.0' },
+      const manifest = { name, [field]: { '@jini-ai/plugin-payments-stripe': '^0.6.15' },
         peerDependenciesMeta: { '@jini-ai/plugin-payments-stripe': { optional: true } } };
       expect(() => check(manifest)).toThrow(
-        `${name}: forbidden plugin dependency @jini-ai/plugin-payments-stripe: ^0.7.0`);
+        `${name}: forbidden plugin dependency @jini-ai/plugin-payments-stripe: ^0.6.15`);
     });
 
   it.each(['bundledDependencies', 'bundleDependencies'])('rejects undeclared bundled siblings in %s', field => {
     expect(() => check({ name, [field]: ['@jini-ai/plugin-observability-sentry'] })).toThrow('forbidden plugin dependency');
   });
 
-  it.each(['npm:@jini-ai/plugin-payments-stripe@^0.7.0', 'workspace:@jini-ai/plugin-payments-stripe@*'])(
+  it.each(['npm:@jini-ai/plugin-payments-stripe@^0.6.15', 'workspace:@jini-ai/plugin-payments-stripe@*'])(
     'rejects an alias hiding a sibling: %s', specifier => {
       expect(() => check({ name, dependencies: { innocent: specifier } })).toThrow(`forbidden plugin dependency innocent: ${specifier}`);
     });
@@ -43,8 +43,8 @@ describe('plugin package installation isolation', () => {
 
   it('accepts contract dependencies and retained own licenses/browser assets', () => {
     expect(() => check({ name, devDependencies: { '@jini-ai/analytics': 'workspace:^' }, bundledDependencies: true }, [
-      ...docs, ownPayload, 'package/plugins/analytics-posthog/0.7.0/server/posthog.js',
-      'package/plugins/analytics-posthog/0.7.0/licenses/posthog-node/LICENSE',
+      ...docs, ownPayload, 'package/plugins/analytics-posthog/0.6.15/server/posthog.js',
+      'package/plugins/analytics-posthog/0.6.15/licenses/posthog-node/LICENSE',
     ])).not.toThrow();
   });
 
@@ -55,12 +55,12 @@ describe('plugin package installation isolation', () => {
 
   it.each(['@jini-ai/plugin-catalog', '@jini-ai/provider-plugins'])(
     'rejects a plugin dependency on the distribution/catalog workspace %s', dependency => {
-      expect(() => check({ name, dependencies: { [dependency]: '^0.7.0' } })).toThrow('forbidden plugin dependency');
+      expect(() => check({ name, dependencies: { [dependency]: '^0.6.15' } })).toThrow('forbidden plugin dependency');
     });
 
-  it.each(['plugins/payments-stripe/0.7.0/server/index.mjs', 'ui-ux-design/skills/design/SKILL.md',
-    'plugins/analytics-posthog/0.7.0/server/plugins/payments-stripe/0.7.0/server/index.mjs',
-    'plugins/analytics-posthog/0.7.0/server/plugins/future-plugin/1.0.0/server/index.mjs'])(
+  it.each(['plugins/payments-stripe/0.6.15/server/index.mjs', 'ui-ux-design/skills/design/SKILL.md',
+    'plugins/analytics-posthog/0.6.15/server/plugins/payments-stripe/0.6.15/server/index.mjs',
+    'plugins/analytics-posthog/0.6.15/server/plugins/future-plugin/1.0.0/server/index.mjs'])(
     'rejects sibling payloads despite the manifest allowlist: %s', path => {
       const manifest = { name, files: ['plugins/analytics-posthog'] };
       expect(() => check(manifest, [...docs, ownPayload, `package/${path}`]))
@@ -73,7 +73,7 @@ describe('plugin package installation isolation', () => {
     }
   });
 
-  it.each(['ui-ux-design/skills/design/SKILL.md', 'plugins/payments-stripe/0.7.0/server/index.mjs',
+  it.each(['ui-ux-design/skills/design/SKILL.md', 'plugins/payments-stripe/0.6.15/server/index.mjs',
     'dist/vendor/future-plugin/jini.plugin.json', 'dist/content/future-agent/plugin.json',
     'plugins/future-plugin/1.0.0/server/index.mjs'])(
     'rejects plugin payloads published by a core package: %s', path => {
@@ -93,12 +93,12 @@ describe('plugin package installation isolation', () => {
     const catalog = { name: '@jini-ai/plugin-catalog' };
     expect(() => check(catalog, [...docs, 'package/catalog.json'])).not.toThrow();
     expect(() => check(catalog, [...docs, 'package/dist/index.js'])).toThrow('catalog must be metadata-only');
-    expect(() => check({ ...catalog, optionalDependencies: { hidden: 'npm:@jini-ai/plugin-payments-stripe@0.7.0' } }, docs))
+    expect(() => check({ ...catalog, optionalDependencies: { hidden: 'npm:@jini-ai/plugin-payments-stripe@0.6.15' } }, docs))
       .toThrow('forbidden plugin dependency hidden');
   });
 
   it('normalizes archive prefixes/separators and rejects traversal', () => {
-    expect(() => check({ name }, ['./package/plugins/analytics-posthog/0.7.0/server/index.mjs', 'package/'])).not.toThrow();
+    expect(() => check({ name }, ['./package/plugins/analytics-posthog/0.6.15/server/index.mjs', 'package/'])).not.toThrow();
     expect(() => check({ name }, ['package\\ui-ux-design\\plugin.json'])).toThrow("another plugin's payload");
     expect(() => check({ name }, ['package/plugins/analytics-posthog/../payments-stripe/index.mjs'])).toThrow('Invalid packed path');
   });
@@ -114,8 +114,8 @@ describe('plugin bundle input isolation', () => {
   });
   it.each(['src/payments-stripe/index.ts', '/repo/packages/provider-plugins/src/payments-stripe/webhook.ts',
     'src/analytics-posthog/../payments-stripe/index.ts', 'src\\payments-stripe\\index.ts', 'src/future-shared.ts',
-    'node_modules/@jini-ai/plugin-payments-stripe/plugins/payments-stripe/0.7.0/server/index.mjs',
-    '../plugin-payments-stripe/plugins/payments-stripe/0.7.0/server/index.mjs',
+    'node_modules/@jini-ai/plugin-payments-stripe/plugins/payments-stripe/0.6.15/server/index.mjs',
+    '../plugin-payments-stripe/plugins/payments-stripe/0.6.15/server/index.mjs',
     '../agent-plugins/ui-ux-design/plugin.json'])(
     'rejects a transitive sibling or unreviewed source: %s', input => {
       expect(() => bundle(['src/analytics-posthog/index.ts', input])).toThrow(`forbidden bundled source ${input}`);

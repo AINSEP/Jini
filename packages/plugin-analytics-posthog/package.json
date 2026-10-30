@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-analytics-posthog",
-  "version": "0.7.0",
+  "version": "0.6.15",
   "description": "Standalone PostHog product analytics provider and consent-gated browser assets.",
   "type": "module",
   "license": "Apache-2.0",

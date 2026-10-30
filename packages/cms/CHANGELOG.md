@@ -1,3 +1,15 @@
+## 0.6.15
+
+### Minor Changes
+
+- Classify the plugin export template URL restriction as a breaking pre-1.0 change. The original patch changeset was consumed in 0.6.13 by f8056e2cb; this release records the required compatibility boundary. Templates must use a whole quoted `{{host.<link>}}` or `{{host.assets.<asset>}}` slot in `href`, `src`, and `action`. Literal paths, fragments, external URLs, and URL concatenation are refused and retain the authored embed fallback. Host links are flattened into `host`, not nested under `host.hostLinks`.
+
+- Add opt-in plugin source suffix exclusions and test-file inclusion. Explicit allow-paths and their ancestors now override name exclusions, while excluded descendants and suffix exclusions still skip. Default packing stays unchanged when the new options and conflicting allow/name rules are absent.
+
+  Export ResponseLimitExceededError with limitBytes from platform/fetch-with-timeout and the platform root. Guarded response-text overflow throws this RangeError subclass; invalid caps keep plain RangeError and existing truncation behavior is preserved.
+
+  Accept jsdom 26 and 27 as optional CMS peers alongside 25; media uses DOM APIs shared across these versions.
+
 ## 0.6.13
 
 ### Patch Changes

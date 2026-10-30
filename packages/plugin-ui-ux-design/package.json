@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-ui-ux-design",
-  "version": "0.6.13",
+  "version": "0.6.15",
   "description": "Independently installable UI/UX design skills in the portable Agent Plugins format.",
   "type": "module",
   "license": "Apache-2.0",

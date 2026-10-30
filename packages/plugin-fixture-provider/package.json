@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-fixture-provider",
-  "version": "0.7.0",
+  "version": "0.6.15",
   "description": "Test-only provider artifact for plugin host conformance.",
   "type": "module",
   "license": "Apache-2.0",

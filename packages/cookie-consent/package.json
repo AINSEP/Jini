@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cookie-consent",
-  "version": "0.6.13",
+  "version": "0.6.15",
   "description": "Standalone, vendor-free cookie consent: a consent-state contract any banner can drive, a ~3 KB browser client, a pure-string banner renderer with owner CSS, web-standard receipts and open plugin slots.",
   "license": "Apache-2.0",
   "repository": {
